@@ -12,8 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -272,18 +270,9 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	if err != nil {
 		return err
 	}
-	// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、録画のたびに引く。
-	defaults := func(ctx context.Context, db sqlc.DBTX) (*domain.RecordingSettings, error) {
-		system, err := settings.Load(ctx, db)
-		if err != nil {
-			return nil, err
-		}
-
-		return system.Recording, nil
-	}
 	store := storeOf(deps.Config)
 	// 録画できない理由がこの mikan にあれば、ほかの mikan に回すため、ほかに動いている mikan を数える (#524)。
-	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, defaults, location,
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, settings.RecordingDefaults, location,
 		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
 			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID), DatabaseTimeout: 0,

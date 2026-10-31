@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<25524f10d18cb871a912edbddeaf1b05>>
+ * @generated SignedSource<<c589743e335709297772a99dd02cea09>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type ServiceIdTimeshiftQuery$variables = {
   id: string;
 };
@@ -20,6 +21,7 @@ export type ServiceIdTimeshiftQuery$data = {
       readonly endAt: string | null | undefined;
       readonly fromStart: boolean;
       readonly name: string;
+      readonly promoting: boolean;
       readonly startAt: string;
     }>;
   } | {
@@ -27,6 +29,9 @@ export type ServiceIdTimeshiftQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
+  readonly viewer: {
+    readonly role: Role;
+  };
 };
 export type ServiceIdTimeshiftQuery = {
   response: ServiceIdTimeshiftQuery$data;
@@ -41,31 +46,38 @@ var v0 = [
     "name": "id"
   }
 ],
-v1 = [
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "role",
+  "storageKey": null
+},
+v2 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "id"
   }
 ],
-v2 = {
+v3 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v3 = {
+v4 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v4 = {
+v5 = {
   "kind": "InlineFragment",
   "selections": [
-    (v3/*:: as any*/),
+    (v4/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -81,7 +93,7 @@ v4 = {
       "name": "timeshiftPrograms",
       "plural": true,
       "selections": [
-        (v3/*:: as any*/),
+        (v4/*:: as any*/),
         {
           "alias": null,
           "args": null,
@@ -102,6 +114,13 @@ v4 = {
           "kind": "ScalarField",
           "name": "fromStart",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "promoting",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -109,6 +128,13 @@ v4 = {
   ],
   "type": "Service",
   "abstractKey": null
+},
+v6 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
 };
 return {
   "fragment": {
@@ -119,14 +145,26 @@ return {
     "selections": [
       {
         "alias": null,
-        "args": (v1/*:: as any*/),
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v1/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": (v2/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v2/*:: as any*/),
-          (v4/*:: as any*/)
+          (v3/*:: as any*/),
+          (v5/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -142,37 +180,44 @@ return {
     "selections": [
       {
         "alias": null,
-        "args": (v1/*:: as any*/),
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v1/*:: as any*/),
+          (v6/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": (v2/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v2/*:: as any*/),
-          (v4/*:: as any*/),
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "id",
-            "storageKey": null
-          }
+          (v3/*:: as any*/),
+          (v5/*:: as any*/),
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "ad163a0ab2a4fb9194e0a755e473dd1e",
+    "cacheID": "75799cd0d03feeffa46f46903d07a498",
     "id": null,
     "metadata": {},
     "name": "ServiceIdTimeshiftQuery",
     "operationKind": "query",
-    "text": "query ServiceIdTimeshiftQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      timeshiftPrograms {\n        name\n        startAt\n        endAt\n        fromStart\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ServiceIdTimeshiftQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      timeshiftPrograms {\n        name\n        startAt\n        endAt\n        fromStart\n        promoting\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c04e12b72ed358f9cf4a3800bce2c692";
+(node as any).hash = "e7cad71f3dc790f996be00a9bb391974";
 
 export default node;

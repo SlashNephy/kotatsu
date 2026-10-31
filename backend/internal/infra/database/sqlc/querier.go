@@ -131,6 +131,7 @@ type Querier interface {
 	DeleteTimeshiftAssignmentByGeneration(ctx context.Context, arg DeleteTimeshiftAssignmentByGenerationParams) (int64, error)
 	DeleteTimeshiftChannel(ctx context.Context, serviceID int64) (int64, error)
 	DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteTimeshiftPromotion(ctx context.Context, recordingID uuid.UUID) (int64, error)
 	DeleteTuners(ctx context.Context) error
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
@@ -234,6 +235,11 @@ type Querier interface {
 	GetTimeshiftAssignmentStream(ctx context.Context, id uuid.UUID) (GetTimeshiftAssignmentStreamRow, error)
 	// チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確かめるのに使う。
 	GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time.Time, error)
+	// 昇格している録画と、ファイル名に使うサービスの名前とチャンネル。
+	GetTimeshiftPromotion(ctx context.Context, recordingID uuid.UUID) (GetTimeshiftPromotionRow, error)
+	// タイムシフトのバッファから録画に昇格する番組の、番組表の情報。終わった番組は program_archives に移っていることがあるので、両方から引く。
+	// 同じイベント ID が繰り返し使われることがあるので、mikan が番組の始まりに気づいた時刻 at に最も近い始まりのものを選ぶ。
+	GetTimeshiftPromotionProgram(ctx context.Context, arg GetTimeshiftPromotionProgramParams) (GetTimeshiftPromotionProgramRow, error)
 	GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
@@ -276,6 +282,9 @@ type Querier interface {
 	InsertOIDCLogin(ctx context.Context, arg InsertOIDCLoginParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
+	// タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
+	// nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+	InsertPromotedRecording(ctx context.Context, arg InsertPromotedRecordingParams) (Recording, error)
 	InsertRecordingAssignment(ctx context.Context, arg InsertRecordingAssignmentParams) error
 	// DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
@@ -296,6 +305,8 @@ type Querier interface {
 	InsertTimeshiftAssignment(ctx context.Context, arg InsertTimeshiftAssignmentParams) error
 	// DB に届かずに後から書き直すとき、同じチャンクを二重に作らない (#1073)。
 	InsertTimeshiftChunk(ctx context.Context, arg InsertTimeshiftChunkParams) error
+	// 同じ番組を昇格している途中なら、何もしない。そのときは 0 を返す。
+	InsertTimeshiftPromotion(ctx context.Context, arg InsertTimeshiftPromotionParams) (int64, error)
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
@@ -460,6 +471,8 @@ type Querier interface {
 	ListTimeshiftChunksSince(ctx context.Context, arg ListTimeshiftChunksSinceParams) ([]ListTimeshiftChunksSinceRow, error)
 	// バッファに残っている番組の記録を、始まりの順に返す。視聴の画面から、番組を頭から再生するのに使う。
 	ListTimeshiftPrograms(ctx context.Context, serviceID int64) ([]TimeshiftProgram, error)
+	// サービスの、録画に昇格している途中の番組と、そのイベント ID。番組の一覧に、書き出している途中であることを出すのに使う。
+	ListTimeshiftPromotions(ctx context.Context, serviceID int64) ([]ListTimeshiftPromotionsRow, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)

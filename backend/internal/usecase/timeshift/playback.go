@@ -28,6 +28,8 @@ type PlayableProgram struct {
 	Gaps []Gap
 	// FromStart は、番組の頭から録れていて、頭から再生できるかどうか。
 	FromStart bool
+	// Promoting は、番組を録画に昇格して、バッファから書き出している途中かどうか (#1057)。
+	Promoting bool
 }
 
 // PlayablePrograms は、サービスのバッファから再生できる番組を、始まりの順に返す。
@@ -58,7 +60,16 @@ func PlayablePrograms(ctx context.Context, db sqlc.DBTX, serviceID int64, now ti
 		spans = append(spans, span{from: chunks[i].StartedAt, to: end})
 	}
 
-	return playable(mergeRecorded(programs), spans, now), nil
+	promotions, err := q.ListTimeshiftPromotions(ctx, serviceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the timeshift promotions: %w", err)
+	}
+	result := playable(mergeRecorded(programs), spans, now)
+	for _, p := range result {
+		p.Promoting = promoting(promotions, p)
+	}
+
+	return result, nil
 }
 
 // mergeRecorded は、同じ番組 (イベント ID) が続けて記録された行を、1 つの番組にまとめる。
@@ -151,7 +162,7 @@ func playable(programs []sqlc.TimeshiftProgram, spans []span, now time.Time) []*
 		var covered time.Time
 		p := &PlayableProgram{
 			EventID: program.EventID, Name: program.Name, StartedAt: program.StartedAt, EndedAt: program.EndedAt,
-			PlayableFrom: time.Time{}, Gaps: []Gap{}, FromStart: false,
+			PlayableFrom: time.Time{}, Gaps: []Gap{}, FromStart: false, Promoting: false,
 		}
 		for _, s := range spans {
 			if !s.to.After(program.StartedAt) || !s.from.Before(end) {

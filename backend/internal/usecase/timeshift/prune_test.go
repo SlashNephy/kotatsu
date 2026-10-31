@@ -258,3 +258,53 @@ func TestPruneProgramsOfServicesWithoutChunks(t *testing.T) {
 		})
 	}
 }
+
+// TestPruneKeepsPromotedChunks は、録画に昇格している番組の範囲と重なるチャンクは、保持時間を過ぎても、
+// サービスをタイムシフトから外しても、書き出し終えるまで消さないことを確かめる (#1057)。
+func TestPruneKeepsPromotedChunks(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	ctx := t.Context()
+	now := e.clk.Now()
+	// 3 つのチャンクは、どれも保持時間を過ぎている。昇格している範囲は、2 つ目のチャンクの途中から 3 つ目のチャンクの途中まで。
+	starts := []time.Time{now.Add(-5 * time.Hour), now.Add(-4 * time.Hour), now.Add(-3 * time.Hour)}
+	ids := make([]uuid.UUID, 0, len(starts))
+	for _, started := range starts {
+		chunkID := id.New()
+		ids = append(ids, chunkID)
+		require.NoError(t, e.q.InsertTimeshiftChunk(ctx, sqlc.InsertTimeshiftChunkParams{
+			ID: chunkID, ServiceID: grService(0), Path: chunkPath(grService(0), started), Size: 4, StartedAt: started, Now: started,
+		}))
+		_, err := e.q.CloseTimeshiftChunk(ctx, sqlc.CloseTimeshiftChunkParams{ID: chunkID, Size: 4, EndedAt: new(started.Add(time.Hour))})
+		require.NoError(t, err)
+		writeUnder(t, e.dir, chunkPath(grService(0), started))
+	}
+	recordingID := id.New()
+	_, err := e.pool.Exec(ctx, `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+		VALUES ($1, $2, 'program', '', $3, $4, 'recording', $3, $5, $5)`, recordingID, grService(0), starts[1].Add(30*time.Minute), starts[2].Add(30*time.Minute), now)
+	require.NoError(t, err)
+	_, err = e.q.InsertTimeshiftPromotion(ctx, sqlc.InsertTimeshiftPromotionParams{
+		RecordingID: recordingID, ServiceID: grService(0), FromAt: starts[1].Add(30 * time.Minute), ToAt: starts[2].Add(30 * time.Minute), CreatedBy: nil, Now: now,
+	})
+	require.NoError(t, err)
+
+	worker := timeshift.NewPruneWorker(e.pool, e.clk, e.store, slog.New(slog.DiscardHandler))
+	pruned, err := worker.RunOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, pruned)
+	rows := chunks(t, e)
+	kept := make([]uuid.UUID, 0, len(rows))
+	for _, c := range rows {
+		kept = append(kept, c.id)
+	}
+	assert.Equal(t, ids[1:], kept)
+
+	// 書き出し終えて昇格の行を消したら、次の回で消す。
+	_, err = e.q.DeleteTimeshiftPromotion(ctx, recordingID)
+	require.NoError(t, err)
+	pruned, err = worker.RunOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, pruned)
+	assert.Empty(t, chunks(t, e))
+}

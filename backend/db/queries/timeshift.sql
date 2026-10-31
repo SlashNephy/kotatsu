@@ -171,6 +171,11 @@ FROM timeshift_chunks c
 LEFT JOIN timeshift_channels t ON t.service_id = c.service_id
 WHERE c.ended_at IS NOT NULL
   AND (t.service_id IS NULL OR c.ended_at + t.retention_seconds * interval '1 second' < @now::timestamptz)
+  -- 録画に昇格している番組の範囲と重なるチャンクは、書き出し終えるまで消さない (#1057)。
+  AND NOT EXISTS (
+    SELECT 1 FROM timeshift_promotions p
+    WHERE p.service_id = c.service_id AND c.started_at < p.to_at AND c.ended_at > p.from_at
+  )
 ORDER BY c.started_at, c.id;
 
 -- name: DeleteTimeshiftChunk :execrows
@@ -198,6 +203,45 @@ LIMIT 1;
 -- 終わっていない番組を閉じる。
 UPDATE timeshift_programs SET ended_at = @ended_at
 WHERE service_id = @service_id AND ended_at IS NULL;
+
+-- name: GetTimeshiftPromotionProgram :one
+-- タイムシフトのバッファから録画に昇格する番組の、番組表の情報。終わった番組は program_archives に移っていることがあるので、両方から引く。
+-- 同じイベント ID が繰り返し使われることがあるので、mikan が番組の始まりに気づいた時刻 at に最も近い始まりのものを選ぶ。
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.description, p.genres, p.audios, p.video_resolution
+FROM (
+  SELECT g.service_id, g.event_id, g.start_at, g.end_at, g.end_undecided, g.name, g.description, g.genres, g.audios, g.video_resolution
+  FROM programs g WHERE g.service_id = @service_id AND g.event_id = @event_id
+  UNION ALL
+  SELECT a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.name, a.description, a.genres, a.audios, a.video_resolution
+  FROM program_archives a WHERE a.service_id = @service_id AND a.event_id = @event_id
+) p
+ORDER BY abs(extract(epoch FROM p.start_at - @at::timestamptz))
+LIMIT 1;
+
+-- name: InsertTimeshiftPromotion :execrows
+-- 同じ番組を昇格している途中なら、何もしない。そのときは 0 を返す。
+INSERT INTO timeshift_promotions (recording_id, service_id, from_at, to_at, created_by, created_at)
+VALUES (@recording_id, @service_id, @from_at, @to_at, @created_by, @now)
+ON CONFLICT (service_id, from_at) DO NOTHING;
+
+-- name: GetTimeshiftPromotion :one
+-- 昇格している録画と、ファイル名に使うサービスの名前とチャンネル。
+SELECT sqlc.embed(p), sqlc.embed(r), s.name AS service_name, s.channel_type, s.channel
+FROM timeshift_promotions p
+JOIN recordings r ON r.id = p.recording_id
+JOIN services s ON s.id = p.service_id
+WHERE p.recording_id = @recording_id;
+
+-- name: DeleteTimeshiftPromotion :execrows
+DELETE FROM timeshift_promotions WHERE recording_id = @recording_id;
+
+-- name: ListTimeshiftPromotions :many
+-- サービスの、録画に昇格している途中の番組と、そのイベント ID。番組の一覧に、書き出している途中であることを出すのに使う。
+SELECT p.from_at, p.to_at, r.event_id
+FROM timeshift_promotions p
+JOIN recordings r ON r.id = p.recording_id
+WHERE p.service_id = @service_id
+ORDER BY p.from_at;
 
 -- name: DeleteStaleTimeshiftPrograms :execrows
 -- 再生できる範囲の外になった、終わった番組を、全サービスでまとめて消す。チャンクの破棄に合わせて呼ぶ。

@@ -35,6 +35,23 @@ extend type Mutation {
   管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
+  """
+  サービス serviceId のバッファの、startAt に始まった番組 (TimeshiftProgram.startAt) を、通常の録画に昇格する (設計書 5.7)。視聴者は使えない。
+  放送中の番組は、番組予約を作って続きを録り、録画が始まる前の部分をバッファから補う。作った予約を reservation で返す。
+  放送の終わった番組は、予約のない録画を録画中として作り、nekonote のジョブがバッファから書き出したら完了にする。作った録画を recording で返す。
+  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を、同じ番組を書き出している途中なら CONFLICT を返す。
+  """
+  promoteTimeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftPromotion!
+}
+
+"""
+タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
+"""
+type TimeshiftPromotion {
+  "放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。"
+  recording: Recording
+  "放送中の番組の、続きを録る番組予約。"
+  reservation: Reservation
 }
 
 """
@@ -57,6 +74,8 @@ type TimeshiftProgram {
   タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
   """
   fromStart: Boolean!
+  "番組を録画に昇格して、バッファから書き出している途中かどうか。"
+  promoting: Boolean!
   "playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。"
   gaps: [RecordingGap!]!
   "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"

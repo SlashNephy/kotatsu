@@ -1,9 +1,9 @@
 import { Alert, Anchor, Badge, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { History, Play } from 'lucide-react';
-import { Suspense } from 'react';
+import { CircleDot, History, Play } from 'lucide-react';
+import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql } from 'react-relay';
+import { graphql, useMutation } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import {
@@ -15,7 +15,8 @@ import {
   zonedFormat,
 } from '../../futon';
 import { ServiceLabel } from '../../guide/ServiceLabel';
-import { isUnauthenticated } from '../../relay/environment';
+import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
+import type { ServiceIdTimeshiftPromoteMutation } from './__generated__/ServiceIdTimeshiftPromoteMutation.graphql';
 import type { ServiceIdTimeshiftQuery } from './__generated__/ServiceIdTimeshiftQuery.graphql';
 
 export const Route = createFileRoute('/timeshift/$serviceId')({
@@ -33,6 +34,7 @@ const startFormat = zonedFormat({
 const endFormat = zonedFormat({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 // TimeshiftPage は、サービスのタイムシフトのバッファにある番組の一覧 (設計書 5.7)。押すと、その番組を頭から再生する。
+// 予約を作れるユーザーは、番組を録画に昇格できる。
 function TimeshiftPage() {
   const { t } = useTranslation();
   const { serviceId } = Route.useParams();
@@ -68,9 +70,12 @@ function TimeshiftPage() {
 
 function ProgramList({ serviceId }: { serviceId: string }) {
   const { t } = useTranslation();
-  const { node } = useLazyLoadQuery<ServiceIdTimeshiftQuery>(
+  const { viewer, node } = useLazyLoadQuery<ServiceIdTimeshiftQuery>(
     graphql`
       query ServiceIdTimeshiftQuery($id: ID!) {
+        viewer {
+          role
+        }
         node(id: $id) {
           __typename
           ... on Service {
@@ -81,6 +86,7 @@ function ProgramList({ serviceId }: { serviceId: string }) {
               startAt
               endAt
               fromStart
+              promoting
             }
           }
         }
@@ -96,6 +102,8 @@ function ProgramList({ serviceId }: { serviceId: string }) {
   }
   // 新しい番組を上に並べる。
   const programs = [...node.timeshiftPrograms].reverse();
+  // 録画への昇格は、予約を作れるユーザーだけができる。
+  const canPromote = viewer.role !== 'VIEWER';
 
   return (
     <Stack gap="sm">
@@ -139,24 +147,118 @@ function ProgramList({ serviceId }: { serviceId: string }) {
                   )}
                 </Group>
               </Stack>
-              <Button
-                size="compact-sm"
-                variant="light"
-                leftSection={<Play size={14} aria-hidden />}
-                renderRoot={(props) => (
-                  <Link
-                    {...props}
-                    to="/timeshift/$serviceId/play"
-                    params={{ serviceId }}
-                    search={{ program: program.startAt }}
+              <Group gap="xs" wrap="nowrap">
+                {canPromote && (
+                  <PromoteButton
+                    serviceId={serviceId}
+                    startAt={program.startAt}
+                    promoting={program.promoting}
                   />
                 )}
-              >
-                {t('timeshift.play')}
-              </Button>
+                <Button
+                  size="compact-sm"
+                  variant="light"
+                  leftSection={<Play size={14} aria-hidden />}
+                  renderRoot={(props) => (
+                    <Link
+                      {...props}
+                      to="/timeshift/$serviceId/play"
+                      params={{ serviceId }}
+                      search={{ program: program.startAt }}
+                    />
+                  )}
+                >
+                  {t('timeshift.play')}
+                </Button>
+              </Group>
             </Group>
           </Paper>
         ))
+      )}
+    </Stack>
+  );
+}
+
+// PromoteButton は、番組を録画に昇格するボタン (設計書 5.7)。放送中の番組は番組予約を作り、放送の終わった番組は
+// バッファから録画に書き出す。昇格したら、ボタンの代わりに、予約したか、書き出していることを出す。
+function PromoteButton({
+  serviceId,
+  startAt,
+  promoting,
+}: {
+  serviceId: string;
+  startAt: string;
+  promoting: boolean;
+}) {
+  const { t } = useTranslation();
+  const [commit, inFlight] = useMutation<ServiceIdTimeshiftPromoteMutation>(graphql`
+    mutation ServiceIdTimeshiftPromoteMutation($serviceId: ID!, $startAt: Time!) {
+      promoteTimeshiftProgram(serviceId: $serviceId, startAt: $startAt) {
+        recording {
+          id
+        }
+        reservation {
+          id
+        }
+      }
+    }
+  `);
+  const [result, setResult] = useState<'promoting' | 'reserved' | 'error' | null>(
+    promoting ? 'promoting' : null,
+  );
+  const shown = promoting && result === null ? 'promoting' : result;
+  if (shown === 'promoting') {
+    return (
+      <Badge
+        size="sm"
+        variant="light"
+        color="red"
+        leftSection={<CircleDot size={10} aria-hidden />}
+      >
+        {t('timeshift.promoting')}
+      </Badge>
+    );
+  }
+  if (shown === 'reserved') {
+    return (
+      <Anchor size="sm" renderRoot={(props) => <Link {...props} to="/reservations" />}>
+        {t('timeshift.reserved')}
+      </Anchor>
+    );
+  }
+  const promote = () => {
+    setResult(null);
+    commit({
+      variables: { serviceId, startAt },
+      onCompleted: (response, errors) => {
+        if (errors != null && errors.length > 0) {
+          setResult('error');
+
+          return;
+        }
+        setResult(response.promoteTimeshiftProgram.reservation != null ? 'reserved' : 'promoting');
+      },
+      // 同じ番組をほかで昇格していれば、書き出している途中として出す。
+      onError: (error) =>
+        setResult(graphQLErrorDetails(error).code === 'CONFLICT' ? 'promoting' : 'error'),
+    });
+  };
+
+  return (
+    <Stack gap={2} align="flex-end">
+      <Button
+        size="compact-sm"
+        variant="default"
+        leftSection={<CircleDot size={14} aria-hidden />}
+        loading={inFlight}
+        onClick={promote}
+      >
+        {t('timeshift.promote')}
+      </Button>
+      {shown === 'error' && (
+        <Text size="xs" c="red" role="alert">
+          {t('timeshift.promoteError')}
+        </Text>
       )}
     </Stack>
   );
