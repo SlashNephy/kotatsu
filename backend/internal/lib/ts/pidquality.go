@@ -17,15 +17,21 @@ type PIDQuality struct {
 	Drops     int64  `json:"drops"`
 	Errors    int64  `json:"errors"`
 	Scrambled int64  `json:"scrambled"`
+	// StreamType は、PMT の stream_type (#827)。PMT に載っていない PID と、記録する前に録ったセグメントでは nil。
+	StreamType *uint8 `json:"streamType,omitempty"`
+	// ComponentTag は、ストリーム識別記述子の component_tag (#827)。記述子がなければ nil。
+	ComponentTag *uint8 `json:"componentTag,omitempty"`
 }
 
 // PIDQualities は、PID ごとの統計 pids に、stats の PMT と決まった PID から分かる種類を添える。
 // pids は、stats.PIDs か、引き継ぎで重なった区間を除いた stats.PIDsBeforeCutoff を渡す。
 func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 	kinds := map[uint16]string{}
+	streams := map[uint16]*Stream{}
 	for _, program := range stats.Programs {
 		kinds[program.PMTPID] = PIDKindPSI
 		for _, stream := range program.Streams {
+			streams[stream.PID] = stream
 			switch stream.Kind {
 			case StreamVideo:
 				kinds[stream.PID] = PIDKindVideo
@@ -46,7 +52,16 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 		default:
 			kind = PIDKindUnknown
 		}
-		result = append(result, PIDQuality{PID: pid.PID, Kind: kind, Packets: pid.Packets, Drops: pid.Drops, Errors: pid.Errors, Scrambled: pid.Scrambled})
+		var streamType, componentTag *uint8
+		if stream, ok := streams[pid.PID]; ok {
+			streamType = new(stream.StreamType)
+			componentTag = stream.ComponentTag
+		}
+		quality := PIDQuality{
+			PID: pid.PID, Kind: kind, Packets: pid.Packets, Drops: pid.Drops, Errors: pid.Errors, Scrambled: pid.Scrambled,
+			StreamType: streamType, ComponentTag: componentTag,
+		}
+		result = append(result, quality)
 	}
 
 	return result

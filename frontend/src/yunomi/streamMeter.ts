@@ -1,5 +1,7 @@
 // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を集める (#828)。
 
+import { recordingPosition } from './position';
+
 // rateWindowMs は、今のビットレートを平均する長さ。
 export const rateWindowMs = 3_000;
 // historySeconds は、グラフに並べる秒数。
@@ -113,13 +115,9 @@ export function averageBitrate(recording: RecordingSpan, now: number): number | 
   }
   const bytes = segments.reduce((sum, file) => sum + file.size, 0);
   const until = recording.recordedUntil == null ? now : Date.parse(recording.recordedUntil);
-  const gaps = recording.gaps.reduce(
-    (sum, gap) => sum + (Date.parse(gap.to) - Date.parse(gap.from)),
-    0,
-  );
-  const milliseconds = until - Date.parse(recording.recordedFrom) - gaps;
+  const seconds = recordingPosition(recording.recordedFrom, recording.gaps, until);
 
-  return milliseconds > 0 ? (bytes * 8 * 1_000) / milliseconds : null;
+  return seconds > 0 ? (bytes * 8) / seconds : null;
 }
 
 // FrameCount は、ある時点で video が受け取ったフレームの数と、再生位置。

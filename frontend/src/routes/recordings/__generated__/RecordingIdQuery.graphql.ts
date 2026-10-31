@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c69b34acd75b587f0d5a1a64e1a1ae46>>
+ * @generated SignedSource<<22bdfbbf412e7fefd2778dded700a1e6>>
  * @lightSyntaxTransform
  */
 
@@ -59,12 +59,14 @@ export type RecordingIdQuery$data = {
     readonly startAt: string;
     readonly state: RecordingState;
     readonly streamQuality: ReadonlyArray<{
+      readonly componentTag: number | null | undefined;
       readonly drops: number;
       readonly errors: number;
       readonly kind: StreamKind;
       readonly packets: number;
       readonly pid: number;
       readonly scrambled: number;
+      readonly streamType: number | null | undefined;
     }>;
     readonly streamUrl: string;
     readonly tags: ReadonlyArray<{
@@ -227,7 +229,21 @@ v16 = {
     },
     (v12/*:: as any*/),
     (v13/*:: as any*/),
-    (v14/*:: as any*/)
+    (v14/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "streamType",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "componentTag",
+      "storageKey": null
+    }
   ],
   "storageKey": null
 },
@@ -596,16 +612,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "182dadcfe91f819ce70195230cdecd3e",
+    "cacheID": "8911982e33e8271c13b69bdfb3e2a377",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n      }\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      protected\n      drops\n      errors\n      scrambled\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "23e2f71b864c88a89d19ce358a30de03";
+(node as any).hash = "cc549a8a05d3b88d0bb9b2c99c7269b9";
 
 export default node;
