@@ -1686,7 +1686,8 @@
       "servicePlaceholder": "チャンネルを選ぶ",
       "recordingPlaceholder": "番組名で録画を探す",
       "searchError": "録画を探せませんでした",
-      "noRecordings": "一致する録画はありません"
+      "noRecordings": "一致する録画はありません",
+      "search": "探す"
     }
   },
   "captures": {

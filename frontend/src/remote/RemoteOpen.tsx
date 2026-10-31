@@ -1,4 +1,13 @@
-import { Button, Loader, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core';
+import {
+  ActionIcon,
+  Button,
+  Loader,
+  SegmentedControl,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -127,7 +136,11 @@ function RecordingPicker({ onOpen }: { onOpen: (target: RemoteOpenTarget) => voi
       .toPromise()
       .then(
         (data) => setResults(data?.recordings.edges ?? []),
-        () => setError(true),
+        () => {
+          // 前に探した結果を、今の言葉の結果と取り違えないよう消す。
+          setResults(null);
+          setError(true);
+        },
       )
       .finally(() => setLoading(false));
   };
@@ -145,7 +158,20 @@ function RecordingPicker({ onOpen }: { onOpen: (target: RemoteOpenTarget) => voi
           onChange={(event) => setKeyword(event.currentTarget.value)}
           placeholder={t('remote.open.recordingPlaceholder')}
           aria-label={t('remote.open.recordingPlaceholder')}
-          rightSection={loading ? <Loader size="xs" /> : <Search size={16} aria-hidden />}
+          rightSection={
+            loading ? (
+              <Loader size="xs" />
+            ) : (
+              <ActionIcon
+                type="submit"
+                variant="subtle"
+                color="gray"
+                aria-label={t('remote.open.search')}
+              >
+                <Search size={16} aria-hidden />
+              </ActionIcon>
+            )
+          }
         />
       </form>
       {error && (

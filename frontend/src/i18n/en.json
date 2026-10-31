@@ -1760,7 +1760,8 @@
       "servicePlaceholder": "Choose a channel",
       "recordingPlaceholder": "Search recordings by program name",
       "searchError": "Could not search recordings",
-      "noRecordings": "No matching recordings"
+      "noRecordings": "No matching recordings",
+      "search": "Search"
     }
   },
   "captures": {
