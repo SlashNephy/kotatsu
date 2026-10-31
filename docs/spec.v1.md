@@ -1719,7 +1719,7 @@ Content Security Policyは厳しく設定します。
 
 GitHub Pagesは、GitHub Actionsから配信します（`.github/workflows/pages.yml`）。
 GitHub Pagesには、HelmリポジトリのChartの一覧（`index.yaml`）だけを置きます。
-一覧は、リリースのworkflowがgh-pagesブランチに置き、そのリリースのタグから配信し直します。
+一覧は、リリースのworkflowがgh-pagesブランチに置き、そのリリースのタグから配信し直します。gh-pagesブランチには、GitHub App（kotatsu-artifacts）のトークンで、GitHubのAPIからコミットを作って書きます。コミットはAppの名前になり、GitHubが署名します（#1060）。
 
 版はCalVerで`YYYY.M.N`（年、月、その月の何回目のリリースか。0から数えます）とし、タグは`v2026.10.0`の形にします。
 HelmのChartの版とイメージのタグはSemVerの形を求めるので、月に0を付けず、数字を3つにします。
