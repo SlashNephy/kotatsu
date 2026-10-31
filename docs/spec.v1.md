@@ -1592,7 +1592,7 @@ tenbanは、`/mcp`で、MCPのクライアントに、番組、予約、ルー�
 | 再生 | mpeg2toh264、hls.js、aribb24.js、web-bml、niconicomments | |
 | 認証 | @simplewebauthn/browser、zxcvbn-ts | |
 | PWA | Service Workerでアプリの外枠だけをキャッシュし、Web Pushを受け取ります | 番組データと映像はキャッシュしません。Service Workerはvite-plugin-pwaの`injectManifest`で作ります。プリキャッシュの一覧はプラグインに注入させ、Web Pushの受信とナビゲーションの扱いは自前のService Workerに書きます。ページの`<meta name="theme-color">`は、表示中のテーマに合わせて書き換えます。ライトテーマはみかん色、ダークテーマは背景の焦げ茶です。アプリ内でテーマを切り替えたときも追従します（#425）。ページは`viewport-fit=cover`で画面の端（ステータスバー、ジェスチャーナビゲーションの帯、ノッチ）の下まで描き、中身が隠れないよう、上下左右の`env(safe-area-inset-*)`の分だけ余白を足します。ヘッダーは上の余白の分だけ高くします。左右から出るドロワーは見出しを上の端から離し、どのドロワーも中身の末尾を下の端から離します。AndroidにインストールしたPWAは、Chromeがedge-to-edgeで描くときだけ、ステータスバーとナビゲーションの帯の下までページが描かれます。帯は透明になり、ボタンの明暗はページの`theme-color`から決まります。edge-to-edgeでないときは、Chromeが帯をマニフェストの`theme_color`（みかん色）で塗り、ページの`theme-color`は帯に効きません。Chrome 156では、standalone のPWAをedge-to-edgeで描くのは既定で無効の機能で、ページの側からは有効にできません。iOSのホーム画面のアイコンには、透過のない180×180のPNGを、`apple-touch-icon`に`data:` URLで埋め込みます。iOS 27の「ホーム画面に追加」は、URLで指したアイコンを読み込めず、タイトルの頭文字のタイルを出すからです（#582）。埋め込みはビルド時に行い、元のPNGは`frontend/public/icons`に置きます。 |
-| 文言 | i18next | v1は日本語だけですが、後から仕組みを入れ直さずに済むよう最初から導入します。 |
+| 文言 | i18next | 日本語と英語の文言を持ちます。言語は、ブラウザの言語の設定（`navigator.languages`）の順に、対応する言語を選びます。対応する言語がなければ英語にします。日時の書式も、画面の言語に合わせます。訳すのは画面の文言だけで、サーバーが作る文（画面内の通知、Web Push、Webhook、エラーの文）は日本語のままです（#831）。英語の訳がない文言は、日本語で出します。 |
 | 品質 | OxlintとOxfmt（`vp check`）、Vitest、Storybook、Playwright | Storybookはfutonの部品の確認に使います。 |
 
 Vite+ はnpmのdevDependencyとして導入し、Node.jsのバージョンはmiseで固定します。
