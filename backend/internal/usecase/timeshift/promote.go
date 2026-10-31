@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,6 +151,14 @@ func (p *Promoter) enqueue(
 
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
+		// 同じ番組を書き出している途中なら、重ねない。書き出す範囲はマージンで変わるので、イベント ID と番組の始まりでも確かめる。
+		promotions, err := q.ListTimeshiftPromotions(ctx, serviceID)
+		if err != nil {
+			return fmt.Errorf("failed to list the timeshift promotions: %w", err)
+		}
+		if promoting(promotions, program) {
+			return ErrAlreadyPromoting
+		}
 		row, err := q.InsertPromotedRecording(ctx, insert)
 		if err != nil {
 			return fmt.Errorf("failed to save the recording: %w", err)
@@ -187,4 +196,14 @@ func (p *Promoter) enqueue(
 	}
 
 	return &Promotion{RecordingID: &insert.ID, Reservation: nil}, nil
+}
+
+// promoting は、番組 program を、promotions のどれかで書き出している途中かどうかを返す。
+// 書き出す範囲は、番組の始まりより前のマージンから始まり、番組の始まりを含む。終わりのマージンが次の番組の始まりに
+// かかるので、イベント ID でも確かめる。
+func promoting(promotions []sqlc.ListTimeshiftPromotionsRow, program *PlayableProgram) bool {
+	return slices.ContainsFunc(promotions, func(promotion sqlc.ListTimeshiftPromotionsRow) bool {
+		return promotion.EventID != nil && *promotion.EventID == program.EventID &&
+			!promotion.FromAt.After(program.StartedAt) && promotion.ToAt.After(program.StartedAt)
+	})
 }

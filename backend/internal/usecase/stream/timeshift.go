@@ -138,6 +138,9 @@ type TimeshiftRun struct {
 	limits map[uuid.UUID]int64
 	// until は、写し終える時刻。ゼロなら、並びの終わりまで写す。
 	until time.Time
+	// lastWrite は、最後のチャンクが書いている途中なら、開いた時点のファイルの更新時刻。mikan が落ちて閉じられずに残ったチャンクは、
+	// ここで書くのが止まっている。
+	lastWrite *time.Time
 }
 
 // OpenRuns は、サービスのバッファのうち、from より後まで録ったチャンクを、続いたチャンクの並びごとに、始まりの順に開く。
@@ -177,9 +180,15 @@ func (s *TimeshiftSource) OpenRange(ctx context.Context, serviceID int64, from, 
 		if !run.From.Before(to) {
 			break
 		}
-		if run.To == nil || run.To.After(to) {
-			run.To = &to
+		end := to
+		switch {
+		case run.To != nil:
+			end = minTime(*run.To, to)
+		case run.lastWrite != nil:
+			// 閉じられずに残ったチャンクは、最後に書いた時刻までしか録れていない。録っている途中なら、今まで書いているので to まで。
+			end = minTime(*run.lastWrite, to)
 		}
+		run.To = &end
 		run.until = to
 		result = append(result, run)
 	}
@@ -216,6 +225,7 @@ func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*Timeshi
 	// 書いている途中のチャンクは、測った大きさで切るので、末尾の PES が途中で切れることがある。
 	// 録画の再生とセグメントをつなぐ処理は、ライブのセグメントとの重なりで切り詰めるので、そのまま写す。
 	limits := map[uuid.UUID]int64{}
+	var lastWrite *time.Time
 	for _, seg := range segments {
 		if !seg.open {
 			continue
@@ -225,6 +235,9 @@ func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*Timeshi
 			return nil, fmt.Errorf("failed to inspect the timeshift chunk: %w", err)
 		}
 		limits[seg.id] = info.Size()
+		if seg == last {
+			lastWrite = new(info.ModTime())
+		}
 	}
 	first := segments[0]
 	start := first.startedAt
@@ -237,7 +250,7 @@ func (s *TimeshiftSource) openRun(segments []*segment, from time.Time) (*Timeshi
 			streamer: s.streamer, timeline: &snapshotTimeline{segments: segments}, InProgress: false,
 			segments: segments, skip: max(from.Sub(first.startedAt), 0),
 		},
-		limits: limits, until: time.Time{},
+		limits: limits, until: time.Time{}, lastWrite: lastWrite,
 	}
 
 	return run, nil
@@ -297,4 +310,12 @@ func (t *snapshotTimeline) inProgress(context.Context) (bool, error) {
 
 func (t *snapshotTimeline) segmentClosed(context.Context, uuid.UUID) (bool, error) {
 	return true, nil
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+
+	return b
 }

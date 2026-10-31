@@ -170,6 +170,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// タイムシフトのバッファにある、放送の終わった番組を、録画に書き出す (設計書 5.7)。
 	river.AddWorker(workers, recording.NewPromoteWorker(deps.DB, deps.Clock, storeOf(deps.Config), settings.RecordingDefaults, location,
 		logger.With(slog.String("component", "timeshift_promote"))))
+	river.AddWorker(workers, recording.NewReapPromotionsWorker(deps.DB, deps.Clock, logger.With(slog.String("component", "timeshift_promote"))))
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, storeOf(deps.Config), deps.Clock,
 		!deps.Config.Thumbnail.DisablePreview))
@@ -186,6 +187,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	return workers, []*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
+		recording.ReapPromotionsPeriodicJob(),
 	}, nil
 }
 

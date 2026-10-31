@@ -3,7 +3,6 @@ package timeshift
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -67,12 +66,7 @@ func PlayablePrograms(ctx context.Context, db sqlc.DBTX, serviceID int64, now ti
 	}
 	result := playable(mergeRecorded(programs), spans, now)
 	for _, p := range result {
-		// 書き出す範囲は、番組の始まりより前のマージンから始まり、番組の始まりを含む。終わりのマージンが次の番組の始まりに
-		// かかるので、イベント ID でも確かめる。
-		p.Promoting = slices.ContainsFunc(promotions, func(promotion sqlc.ListTimeshiftPromotionsRow) bool {
-			return promotion.EventID != nil && *promotion.EventID == p.EventID &&
-				!promotion.FromAt.After(p.StartedAt) && promotion.ToAt.After(p.StartedAt)
-		})
+		p.Promoting = promoting(promotions, p)
 	}
 
 	return result, nil

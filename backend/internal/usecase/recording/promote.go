@@ -92,12 +92,96 @@ func (w *PromoteWorker) Work(ctx context.Context, job *river.Job[PromoteArgs]) e
 		return err
 	}
 	// 試し尽くしたら、録画を失敗にして、昇格の行を消す。チャンクを消さずに残し続けないためである。
+	// 時間の上限を過ぎて ctx が切れていても記録できるよう、ctx の取り消しを引き継がない。
 	logger.ErrorContext(ctx, "gave up promoting the timeshift buffer to a recording", slog.Any("error", err))
-	if failErr := r.failPromotion(ctx, job.Args.RecordingID, reason); failErr != nil {
+	failCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.opts.DatabaseTimeout)
+	defer cancel()
+	if failErr := r.failPromotion(failCtx, job.Args.RecordingID, reason); failErr != nil {
 		return errors.Join(err, failErr)
 	}
 
 	return err
+}
+
+// ReapPromotionsInterval は、ジョブを失った昇格を片付ける間隔。
+const ReapPromotionsInterval = time.Minute
+
+// ReapPromotionsArgs は、ジョブを失った昇格を片付ける定期ジョブの引数。
+type ReapPromotionsArgs struct{}
+
+var _ river.JobArgs = new(ReapPromotionsArgs)
+
+func (ReapPromotionsArgs) Kind() string { return "timeshift_promote_reap" }
+
+// ReapPromotionsWorker は、終わっていない昇格のジョブがない昇格を、録画を storage_unavailable で失敗にして片付ける。
+// 最後に試している間に nekonote が落ちると、River はジョブを Work を呼ばずに捨てるので、昇格の行が残り続け、
+// 録画は録画中のまま、範囲のチャンクも破棄されなくなるためである。
+type ReapPromotionsWorker struct {
+	river.WorkerDefaults[ReapPromotionsArgs]
+
+	recorder *Recorder
+}
+
+var _ river.Worker[ReapPromotionsArgs] = new(ReapPromotionsWorker)
+
+// NewReapPromotionsWorker は ReapPromotionsWorker を返す。
+func NewReapPromotionsWorker(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *ReapPromotionsWorker {
+	return &ReapPromotionsWorker{
+		WorkerDefaults: river.WorkerDefaults[ReapPromotionsArgs]{},
+		recorder:       NewRecorder(pool, clk, nil, kago.New(map[string]string{}, nil), nil, time.UTC, logger, nil),
+	}
+}
+
+func (w *ReapPromotionsWorker) Work(ctx context.Context, _ *river.Job[ReapPromotionsArgs]) error {
+	reaped, err := w.RunOnce(ctx)
+	if recordErr := river.RecordOutput(ctx, map[string]int{"reaped": reaped}); recordErr != nil {
+		return errors.Join(err, fmt.Errorf("failed to record the job output: %w", recordErr))
+	}
+
+	return err
+}
+
+// RunOnce は、終わっていない昇格のジョブがない昇格を片付け、片付けた数を返す。
+func (w *ReapPromotionsWorker) RunOnce(ctx context.Context) (int, error) {
+	r := w.recorder
+	// River のテーブルは sqlc のスキーマにないので、直接引く。昇格の行とジョブは同じトランザクションで作るので、
+	// 行があってジョブがないのは、ジョブを失ったときだけである。
+	rows, err := r.pool.Query(ctx, `SELECT p.recording_id FROM timeshift_promotions p
+		WHERE NOT EXISTS (
+			SELECT 1 FROM river_job j
+			WHERE j.kind = $1 AND j.args->>'recordingId' = p.recording_id::text
+				AND j.state NOT IN ('completed', 'cancelled', 'discarded')
+		)
+		ORDER BY p.created_at`, new(PromoteArgs).Kind())
+	if err != nil {
+		return 0, fmt.Errorf("failed to list the timeshift promotions without a job: %w", err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return 0, fmt.Errorf("failed to read the timeshift promotions: %w", err)
+	}
+	errs := []error{}
+	for _, recordingID := range ids {
+		if err := r.failPromotion(ctx, recordingID, FailureStorageUnavailable); err != nil {
+			errs = append(errs, fmt.Errorf("recording %s: %w", recordingID, err))
+
+			continue
+		}
+		r.logger.WarnContext(ctx, "failed the timeshift promotion whose job was lost", slog.String("recording_id", recordingID.String()))
+	}
+
+	return len(ids) - len(errs), errors.Join(errs...)
+}
+
+// ReapPromotionsPeriodicJob は、ジョブを失った昇格を ReapPromotionsInterval ごとに片付ける定期ジョブを返す。
+func ReapPromotionsPeriodicJob() *river.PeriodicJob {
+	return river.NewPeriodicJob(
+		river.PeriodicInterval(ReapPromotionsInterval),
+		func() (river.JobArgs, *river.InsertOpts) {
+			return ReapPromotionsArgs{}, nil
+		},
+		&river.PeriodicJobOpts{ID: "timeshift_promote_reap", RunOnStart: true},
+	)
 }
 
 // promote は、昇格する録画をバッファから書き出して完了にする。失敗したら、書いたファイルを消し、録画の失敗の理由も返す。

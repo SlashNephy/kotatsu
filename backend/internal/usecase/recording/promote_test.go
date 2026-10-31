@@ -3,6 +3,8 @@ package recording_test
 import (
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
@@ -79,7 +82,9 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 	tests := []struct {
 		name   string
 		chunks []chunk
-		want   func(userID uuid.UUID) *promoted
+		// lastWrite は、最後のチャンクのファイルの更新時刻。ゼロなら、今 (書き出す範囲の終わりより後) のまま。
+		lastWrite time.Time
+		want      func(userID uuid.UUID) *promoted
 	}{
 		{
 			name: "書き出す範囲を通して録れていれば、1 つのセグメントに書き出して完了にし、録画履歴に記録する",
@@ -130,6 +135,18 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			},
 		},
 		{
+			name:      "mikan が落ちて閉じられずに残ったチャンクは、最後に書いた時刻までとし、終わりの欠けを途切れた区間にする",
+			chunks:    []chunk{{start: from.Add(-time.Minute), end: nil}},
+			lastWrite: from.Add(3 * time.Minute),
+			want: func(userID uuid.UUID) *promoted {
+				return &promoted{
+					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from}, ends: []time.Time{from.Add(3 * time.Minute)},
+					recordedFrom: from, history: 0, promotion: false,
+					notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
+				}
+			},
+		},
+		{
 			name:   "書き出す範囲のチャンクがなければ、録画を失敗にする",
 			chunks: []chunk{{start: to.Add(time.Minute), end: nil}},
 			want: func(userID uuid.UUID) *promoted {
@@ -151,6 +168,11 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			require.NoError(t, err)
 			for _, c := range tt.chunks {
 				f.addChunk(t, store, grService(0), c, data)
+			}
+			if !tt.lastWrite.IsZero() {
+				last := tt.chunks[len(tt.chunks)-1]
+				rel := filepath.Join(strconv.FormatInt(grService(0), 10), last.start.UTC().Format("20060102T150405Z")+".m2ts")
+				require.NoError(t, os.Chtimes(filepath.Join(store.dir, rel), tt.lastWrite, tt.lastWrite))
 			}
 			ctx := t.Context()
 			userID := id.New()
@@ -184,4 +206,44 @@ func TestPromoteWorkerSkipsGonePromotion(t *testing.T) {
 	worker := recording.NewPromoteWorker(f.pool, f.clock, store.store, nil, time.UTC, slog.New(slog.DiscardHandler))
 	job := &river.Job[recording.PromoteArgs]{JobRow: &rivertype.JobRow{Attempt: 1, MaxAttempts: 5}, Args: recording.PromoteArgs{RecordingID: id.New()}}
 	require.NoError(t, worker.Work(t.Context(), job))
+}
+
+// TestReapPromotionsWorker は、終わっていない昇格のジョブがない昇格を、録画を失敗にして片付け、
+// ジョブが待っているか動いている昇格は触らないことを確かめる。最後に試している間に nekonote が落ちると、River はジョブを捨てるため。
+func TestReapPromotionsWorker(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	ctx := t.Context()
+	require.NoError(t, jobs.Migrate(ctx, slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	promote := func(start time.Time) uuid.UUID {
+		t.Helper()
+		recordingID := id.New()
+		_, err := f.pool.Exec(ctx, `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+			VALUES ($1, $2, 'program', '', $3, $4, 'recording', $3, $5, $5)`, recordingID, grService(0), start, start.Add(30*time.Minute), f.clock.Now())
+		require.NoError(t, err)
+		_, err = f.pool.Exec(ctx, `INSERT INTO timeshift_promotions (recording_id, service_id, from_at, to_at, created_by, created_at)
+			VALUES ($1, $2, $3, $4, NULL, $5)`, recordingID, grService(0), start, start.Add(30*time.Minute), f.clock.Now())
+		require.NoError(t, err)
+
+		return recordingID
+	}
+	lost := promote(programStart())
+	queued := promote(programStart().Add(time.Hour))
+	_, err = client.Insert(ctx, recording.PromoteArgs{RecordingID: queued}, nil)
+	require.NoError(t, err)
+
+	reaped, err := recording.NewReapPromotionsWorker(f.pool, f.clock, slog.New(slog.DiscardHandler)).RunOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, reaped)
+	got := f.promotedOf(t, lost)
+	assert.Equal(t, string(recording.StateFailed), got.state)
+	assert.Equal(t, new(string(recording.FailureStorageUnavailable)), got.failureReason)
+	assert.False(t, got.promotion)
+	assert.Equal(t, []string{string(domain.NotificationKindRecordingFailed)}, got.notified)
+	got = f.promotedOf(t, queued)
+	assert.Equal(t, string(recording.StateRecording), got.state)
+	assert.True(t, got.promotion)
 }

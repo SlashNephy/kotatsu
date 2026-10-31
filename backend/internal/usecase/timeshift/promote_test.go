@@ -155,8 +155,13 @@ func TestPromoteEndedProgram(t *testing.T) {
 	}
 	assert.Equal(t, map[int64]bool{1: false, 2: true, 3: false}, promoting)
 
-	// 同じ番組を書き出している途中なら、重ねて昇格しない。
+	// 同じ番組を書き出している途中なら、重ねて昇格しない。マージンを変えて書き出す範囲が変わっても同じ。
 	_, err = e.promoter.Promote(ctx, e.pool, audit.User(e.userID), grService(0), programStart.Add(noticeDelay))
+	require.ErrorIs(t, err, timeshift.ErrAlreadyPromoting)
+	settings := domain.DefaultRecordingSettings()
+	settings.StartMarginSeconds = 60
+	changed := timeshift.NewPromoter(e.clk, audit.NewRecorder(e.clk), e.reservations, assign.FixedDefaults(settings), e.inserter)
+	_, err = changed.Promote(ctx, e.pool, audit.User(e.userID), grService(0), programStart.Add(noticeDelay))
 	require.ErrorIs(t, err, timeshift.ErrAlreadyPromoting)
 	assert.Len(t, e.inserter.params, 1)
 }
