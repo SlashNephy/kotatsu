@@ -39,6 +39,7 @@ import {
 } from '../../yunomi/audioDelay';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
+import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
 import {
   appendLiveCaption,
   normalizeCaption,
@@ -536,6 +537,8 @@ function Live({
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
   const currentCaption = useRef<string | null>(null);
+  // 字幕の外字を置き換える表を読む (#825)。
+  const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
@@ -1287,6 +1290,7 @@ function Live({
                     <CaptionHistory
                       entries={captionEntries}
                       label={(entry) => formatClock(entry.at)}
+                      canRegisterDRCS={drcs.canRegister}
                       height={watchCommentsHeight}
                     />
                   ),

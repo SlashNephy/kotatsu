@@ -3,6 +3,9 @@ package graph
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
+	"strings"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -45,9 +48,35 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 			DuplicateWindowDays: system.Rule.DuplicateWindowDays,
 			FollowEventRelay:    system.Rule.FollowEventRelay,
 		},
-		McpEnabled: system.MCPEnabled,
-		UpdatedAt:  system.UpdatedAt,
+		McpEnabled:       system.MCPEnabled,
+		DrcsReplacements: drcsReplacementsOf(system.DRCSReplacements),
+		UpdatedAt:        system.UpdatedAt,
 	}
+}
+
+// drcsReplacementsOf は、外字の置き換えの表を、MD5 の順に並べた GraphQL の形にする (#825)。
+func drcsReplacementsOf(replacements map[string]string) []*model.DrcsReplacement {
+	result := make([]*model.DrcsReplacement, 0, len(replacements))
+	for _, md5 := range slices.Sorted(maps.Keys(replacements)) {
+		result = append(result, &model.DrcsReplacement{Md5: md5, Text: replacements[md5]})
+	}
+
+	return result
+}
+
+// toDRCSReplacements は、外字の置き換えの表の変更の入力を、MD5 から文字 (nil なら消す) への表にする。
+// 同じ MD5 が 2 度出てきたら、どちらを採るか決められないので拒む。
+func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string, error) {
+	replacements := make(map[string]*string, len(input))
+	for _, row := range input {
+		key := strings.ToLower(row.Md5)
+		if _, ok := replacements[key]; ok {
+			return nil, NewError(CodeBadUserInput, "drcsReplacements has a duplicated MD5: "+key)
+		}
+		replacements[key] = row.Text
+	}
+
+	return replacements, nil
 }
 
 // toRuleChanges は、ルールの既定値の入力を、変える項目にする。

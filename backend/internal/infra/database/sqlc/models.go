@@ -454,6 +454,7 @@ type SystemSetting struct {
 	NotificationRetentionDays int32
 	MCPEnabled                bool
 	RuleDefaults              []byte
+	DrcsReplacements          []byte
 	UpdatedAt                 time.Time
 }
 

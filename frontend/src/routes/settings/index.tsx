@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CircleDot,
   HardDrive,
+  Captions,
   Hourglass,
   MonitorPlay,
   MonitorSmartphone,
@@ -125,6 +126,12 @@ function AdminLinks() {
           title: t('admin.storage.title'),
           body: t('admin.storage.summary'),
           icon: HardDrive,
+        },
+        {
+          to: '/admin/captions',
+          title: t('admin.captions.title'),
+          body: t('admin.captions.summary'),
+          icon: Captions,
         },
         {
           to: '/admin/retention',

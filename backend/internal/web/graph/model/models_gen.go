@@ -250,6 +250,20 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
+// 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
+type DrcsReplacement struct {
+	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。
+	Md5 string `json:"md5"`
+	// 置き換える文字。1〜4 文字。外字の 1 文字の枠に縮めて描く。
+	Text string `json:"text"`
+}
+
+type DrcsReplacementInput struct {
+	Md5 string `json:"md5"`
+	// 置き換える文字。null なら、この外字を表から消す。
+	Text *string `json:"text,omitempty"`
+}
+
 // 番組の詳細の、見出しと本文の組。
 type ExtendedItem struct {
 	Heading string `json:"heading"`
@@ -1069,6 +1083,8 @@ type SystemSettings struct {
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	McpEnabled bool `json:"mcpEnabled"`
+	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
+	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -1082,6 +1098,9 @@ type SystemSettingsInput struct {
 	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
 	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
+	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
+	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`
 }
 
 // システムの状態。
