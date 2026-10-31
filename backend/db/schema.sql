@@ -330,6 +330,8 @@ CREATE TABLE system_settings (
   mcp_enabled boolean NOT NULL DEFAULT false,
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
+  -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。
+  drcs_replacements jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 

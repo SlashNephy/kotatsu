@@ -18,6 +18,7 @@ import { Route as ReservationsRouteImport } from './routes/reservations'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AdminAuditRouteImport } from './routes/admin/audit'
+import { Route as AdminCaptionsRouteImport } from './routes/admin/captions'
 import { Route as AdminIntegrationsRouteImport } from './routes/admin/integrations'
 import { Route as AdminRecordingRouteImport } from './routes/admin/recording'
 import { Route as AdminRetentionRouteImport } from './routes/admin/retention'
@@ -91,6 +92,11 @@ const SetupRoute = SetupRouteImport.update({
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/admin/audit',
   path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminCaptionsRoute = AdminCaptionsRouteImport.update({
+  id: '/admin/captions',
+  path: '/admin/captions',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIntegrationsRoute = AdminIntegrationsRouteImport.update({
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/captions': typeof AdminCaptionsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/recording': typeof AdminRecordingRoute
   '/admin/retention': typeof AdminRetentionRoute
@@ -290,6 +297,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/captions': typeof AdminCaptionsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/recording': typeof AdminRecordingRoute
   '/admin/retention': typeof AdminRetentionRoute
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/setup': typeof SetupRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/captions': typeof AdminCaptionsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/recording': typeof AdminRecordingRoute
   '/admin/retention': typeof AdminRetentionRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
+    | '/admin/captions'
     | '/admin/integrations'
     | '/admin/recording'
     | '/admin/retention'
@@ -413,6 +423,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
+    | '/admin/captions'
     | '/admin/integrations'
     | '/admin/recording'
     | '/admin/retention'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/admin/audit'
+    | '/admin/captions'
     | '/admin/integrations'
     | '/admin/recording'
     | '/admin/retention'
@@ -494,6 +506,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SetupRoute: typeof SetupRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminCaptionsRoute: typeof AdminCaptionsRoute
   AdminIntegrationsRoute: typeof AdminIntegrationsRoute
   AdminRecordingRoute: typeof AdminRecordingRoute
   AdminRetentionRoute: typeof AdminRetentionRoute
@@ -588,6 +601,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/audit'
       fullPath: '/admin/audit'
       preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/captions': {
+      id: '/admin/captions'
+      path: '/admin/captions'
+      fullPath: '/admin/captions'
+      preLoaderRoute: typeof AdminCaptionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/integrations': {
@@ -806,6 +826,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SetupRoute: SetupRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminCaptionsRoute: AdminCaptionsRoute,
   AdminIntegrationsRoute: AdminIntegrationsRoute,
   AdminRecordingRoute: AdminRecordingRoute,
   AdminRetentionRoute: AdminRetentionRoute,

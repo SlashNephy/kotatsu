@@ -157,6 +157,11 @@ type ComplexityRoot struct {
 		Reservation func(childComplexity int) int
 	}
 
+	DrcsReplacement struct {
+		Md5  func(childComplexity int) int
+		Text func(childComplexity int) int
+	}
+
 	ExtendedItem struct {
 		Heading func(childComplexity int) int
 		Text    func(childComplexity int) int
@@ -540,6 +545,7 @@ type ComplexityRoot struct {
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
 		ChannelTypes            func(childComplexity int) int
 		ContinueWatching        func(childComplexity int, first int) int
+		DrcsReplacements        func(childComplexity int) int
 		FileNameTemplateHelp    func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
@@ -854,6 +860,7 @@ type ComplexityRoot struct {
 
 	SystemSettings struct {
 		ArchiveRetentionDays      func(childComplexity int) int
+		DrcsReplacements          func(childComplexity int) int
 		McpEnabled                func(childComplexity int) int
 		NotificationRetentionDays func(childComplexity int) int
 		RecordingDefaults         func(childComplexity int) int
@@ -1117,6 +1124,7 @@ type QueryResolver interface {
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 	SecondFactors(ctx context.Context) (*model.SecondFactorStatus, error)
+	DrcsReplacements(ctx context.Context) ([]*model.DrcsReplacement, error)
 	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
 	SkippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error)
 	Transcoding(ctx context.Context) (*model.Transcoding, error)
@@ -1562,6 +1570,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeleteReservationPayload.Reservation(childComplexity), true
+
+	case "DrcsReplacement.md5":
+		if e.ComplexityRoot.DrcsReplacement.Md5 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DrcsReplacement.Md5(childComplexity), true
+	case "DrcsReplacement.text":
+		if e.ComplexityRoot.DrcsReplacement.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DrcsReplacement.Text(childComplexity), true
 
 	case "ExtendedItem.heading":
 		if e.ComplexityRoot.ExtendedItem.Heading == nil {
@@ -3500,6 +3521,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
+	case "Query.drcsReplacements":
+		if e.ComplexityRoot.Query.DrcsReplacements == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DrcsReplacements(childComplexity), true
 	case "Query.fileNameTemplateHelp":
 		if e.ComplexityRoot.Query.FileNameTemplateHelp == nil {
 			break
@@ -4940,6 +4967,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.drcsReplacements":
+		if e.ComplexityRoot.SystemSettings.DrcsReplacements == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.DrcsReplacements(childComplexity), true
 	case "SystemSettings.mcpEnabled":
 		if e.ComplexityRoot.SystemSettings.McpEnabled == nil {
 			break
@@ -5477,6 +5510,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputCommentSettingsInput,
 		ec.unmarshalInputCreateUserInput,
 		ec.unmarshalInputCreateWebhookInput,
+		ec.unmarshalInputDrcsReplacementInput,
 		ec.unmarshalInputGenreInput,
 		ec.unmarshalInputGuideViewInput,
 		ec.unmarshalInputKeywordInput,
@@ -7710,6 +7744,8 @@ type SystemSettings {
   ruleDefaults: RuleDefaults!
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
   mcpEnabled: Boolean!
+  "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
+  drcsReplacements: [DrcsReplacement!]!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -7725,6 +7761,28 @@ input SystemSettingsInput {
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
   mcpEnabled: Boolean
+  "字幕の外字の置き換えの表。渡すと、表をこれで置き換える。2000 件まで。"
+  drcsReplacements: [DrcsReplacementInput!]
+}
+
+"""
+字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
+"""
+type DrcsReplacement {
+  "外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。"
+  md5: String!
+  "置き換える文字。1〜4 文字。外字の 1 文字の枠に縮めて描く。"
+  text: String!
+}
+
+input DrcsReplacementInput {
+  md5: String!
+  text: String!
+}
+
+extend type Query {
+  "字幕の外字の置き換えの表 (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
+  drcsReplacements: [DrcsReplacement!]!
 }
 
 """
@@ -8514,6 +8572,16 @@ func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Con
 		return ec.fieldContext_DeleteReservationPayload_reservation(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DeleteReservationPayload", field.Name)
+}
+
+func (ec *executionContext) childFields_DrcsReplacement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "md5":
+		return ec.fieldContext_DrcsReplacement_md5(ctx, field)
+	case "text":
+		return ec.fieldContext_DrcsReplacement_text(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DrcsReplacement", field.Name)
 }
 
 func (ec *executionContext) childFields_ExtendedItem(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -9652,6 +9720,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
 	case "mcpEnabled":
 		return ec.fieldContext_SystemSettings_mcpEnabled(ctx, field)
+	case "drcsReplacements":
+		return ec.fieldContext_SystemSettings_drcsReplacements(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
 	}
@@ -13024,6 +13094,52 @@ func (ec *executionContext) fieldContext_DeleteReservationPayload_reservation(_ 
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _DrcsReplacement_md5(ctx context.Context, field graphql.CollectedField, obj *model.DrcsReplacement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DrcsReplacement_md5(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Md5, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DrcsReplacement_md5(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DrcsReplacement", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _DrcsReplacement_text(ctx context.Context, field graphql.CollectedField, obj *model.DrcsReplacement) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DrcsReplacement_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DrcsReplacement_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DrcsReplacement", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _ExtendedItem_heading(ctx context.Context, field graphql.CollectedField, obj *model.ExtendedItem) (ret graphql.Marshaler) {
@@ -21844,6 +21960,38 @@ func (ec *executionContext) fieldContext_Query_secondFactors(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_drcsReplacements(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_drcsReplacements(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DrcsReplacements(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
+			return ec.marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_drcsReplacements(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DrcsReplacement(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_systemSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26955,6 +27103,38 @@ func (ec *executionContext) fieldContext_SystemSettings_mcpEnabled(_ context.Con
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _SystemSettings_drcsReplacements(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_drcsReplacements(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DrcsReplacements, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
+			return ec.marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_drcsReplacements(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemSettings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DrcsReplacement(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -30330,6 +30510,43 @@ func (ec *executionContext) unmarshalInputCreateWebhookInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputDrcsReplacementInput(ctx context.Context, obj any) (model.DrcsReplacementInput, error) {
+	var it model.DrcsReplacementInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"md5", "text"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "md5":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("md5"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Md5 = data
+		case "text":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Text = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputGenreInput(ctx context.Context, obj any) (model.GenreInput, error) {
 	var it model.GenreInput
 	if obj == nil {
@@ -31535,7 +31752,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled", "drcsReplacements"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -31577,6 +31794,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.McpEnabled = data
+		case "drcsReplacements":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("drcsReplacements"))
+			data, err := ec.unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DrcsReplacements = data
 		}
 	}
 	return it, nil
@@ -32725,6 +32949,49 @@ func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel a
 		case "reservation":
 			out.Values[i] = ec._DeleteReservationPayload_reservation(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var drcsReplacementImplementors = []string{"DrcsReplacement"}
+
+func (ec *executionContext) _DrcsReplacement(ctx context.Context, sel ast.SelectionSet, obj *model.DrcsReplacement) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, drcsReplacementImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DrcsReplacement")
+		case "md5":
+			out.Values[i] = ec._DrcsReplacement_md5(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._DrcsReplacement_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -36523,6 +36790,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "drcsReplacements":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_drcsReplacements(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "systemSettings":
 			field := field
 
@@ -39156,6 +39445,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "drcsReplacements":
+			out.Values[i] = ec._SystemSettings_drcsReplacements(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updatedAt":
 			out.Values[i] = ec._SystemSettings_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -40896,6 +41190,37 @@ func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋS
 		return graphql.Null
 	}
 	return ec._DeleteReservationPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDrcsReplacement2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacement(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDrcsReplacement2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacement(ctx context.Context, sel ast.SelectionSet, v *model.DrcsReplacement) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._DrcsReplacement(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDrcsReplacementInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInput(ctx context.Context, v any) (*model.DrcsReplacementInput, error) {
+	res, err := ec.unmarshalInputDrcsReplacementInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNExtendedItem2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐExtendedItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ExtendedItem) graphql.Marshaler {
@@ -43261,6 +43586,23 @@ func (ec *executionContext) marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋko
 		return graphql.Null
 	}
 	return ec._DataChange(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx context.Context, v any) ([]*model.DrcsReplacementInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*model.DrcsReplacementInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNDrcsReplacementInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {

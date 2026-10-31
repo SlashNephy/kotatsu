@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, rule_defaults, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, rule_defaults, drcs_replacements, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -24,6 +24,7 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.NotificationRetentionDays,
 		&i.MCPEnabled,
 		&i.RuleDefaults,
+		&i.DrcsReplacements,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -63,7 +64,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, rule_defaults, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, rule_defaults, drcs_replacements, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -82,6 +83,7 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.NotificationRetentionDays,
 		&i.MCPEnabled,
 		&i.RuleDefaults,
+		&i.DrcsReplacements,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -130,9 +132,9 @@ func (q *Queries) UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDis
 const updateSystemSettings = `-- name: UpdateSystemSettings :one
 UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   notification_retention_days = $3, rule_defaults = $4, mcp_enabled = $5,
-  updated_at = $6
+  drcs_replacements = $6, updated_at = $7
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, rule_defaults, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, rule_defaults, drcs_replacements, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
@@ -141,6 +143,7 @@ type UpdateSystemSettingsParams struct {
 	NotificationRetentionDays int32
 	RuleDefaults              []byte
 	MCPEnabled                bool
+	DrcsReplacements          []byte
 	Now                       time.Time
 }
 
@@ -151,6 +154,7 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.NotificationRetentionDays,
 		arg.RuleDefaults,
 		arg.MCPEnabled,
+		arg.DrcsReplacements,
 		arg.Now,
 	)
 	var i SystemSetting
@@ -161,6 +165,7 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.NotificationRetentionDays,
 		&i.MCPEnabled,
 		&i.RuleDefaults,
+		&i.DrcsReplacements,
 		&i.UpdatedAt,
 	)
 	return i, err

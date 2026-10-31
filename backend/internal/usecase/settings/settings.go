@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
@@ -51,6 +53,8 @@ type System struct {
 	Rule *RuleDefaults
 	// MCPEnabled は、MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	MCPEnabled bool
+	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換える表 (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
+	DRCSReplacements map[string]string
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -112,6 +116,8 @@ type Changes struct {
 	NotificationRetentionDays *int
 	Rule                      *RuleChanges
 	MCPEnabled                *bool
+	// DRCSReplacements は、外字の置き換えの表 (#825)。渡すと、表をこれで置き換える。
+	DRCSReplacements map[string]string
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -197,9 +203,14 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		if err != nil {
 			return fmt.Errorf("failed to encode the rule defaults: %w", err)
 		}
+		replacementsEncoded, err := encodeDRCSReplacements(current.DRCSReplacements, changes.DRCSReplacements)
+		if err != nil {
+			return err
+		}
 		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
 			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays,
-			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled), Now: now,
+			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled),
+			DrcsReplacements: replacementsEncoded, Now: now,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the system settings: %w", err)
@@ -219,6 +230,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"notificationRetentionDays": change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
 				"rule":                      change(current.Rule, updated.Rule),
 				"mcpEnabled":                change(current.MCPEnabled, updated.MCPEnabled),
+				// 表は大きくなりうるので、監査ログには数だけを残す。
+				"drcsReplacements": change(len(current.DRCSReplacements), len(updated.DRCSReplacements)),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -352,6 +365,7 @@ func defaults() *System {
 		NotificationRetentionDays: DefaultNotificationRetentionDays,
 		Rule:                      defaultRuleDefaults(),
 		MCPEnabled:                false,
+		DRCSReplacements:          map[string]string{},
 		UpdatedAt:                 nil,
 	}
 }
@@ -366,7 +380,13 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		return nil, err
 	}
 
+	replacements := map[string]string{}
+	if err := json.Unmarshal(row.DrcsReplacements, &replacements); err != nil {
+		return nil, fmt.Errorf("failed to decode the DRCS replacements: %w", err)
+	}
+
 	return &System{
+		DRCSReplacements:          replacements,
 		Recording:                 domain.DefaultRecordingSettings().Resolve(overrides),
 		RecordingOverrides:        overrides,
 		ArchiveRetentionDays:      int(row.ArchiveRetentionDays),
@@ -375,4 +395,51 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		MCPEnabled:                row.MCPEnabled,
 		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
+}
+
+const (
+	// maxDRCSReplacements は、外字の置き換えの表に書ける数の上限 (#825)。
+	maxDRCSReplacements = 2000
+	// maxDRCSReplacementLength は、外字を置き換える文字の長さ (文字数) の上限。aribb24.js は、置き換えた文字を外字の 1 文字の枠に縮めて描くので、長いと読めない。
+	maxDRCSReplacementLength = 4
+)
+
+// encodeDRCSReplacements は、外字の置き換えの表を変えたあとの、保存する JSON を返す。
+// changes が nil なら、current をそのまま保存する。
+func encodeDRCSReplacements(current, changes map[string]string) ([]byte, error) {
+	replacements := current
+	if changes != nil {
+		normalized, err := normalizeDRCSReplacements(changes)
+		if err != nil {
+			return nil, err
+		}
+		replacements = normalized
+	}
+	encoded, err := json.Marshal(replacements)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the DRCS replacements: %w", err)
+	}
+
+	return encoded, nil
+}
+
+// normalizeDRCSReplacements は、外字の置き換えの表を確かめ、MD5 を小文字にそろえて返す。
+// MD5 は 32 桁の 16 進、置き換える文字は 1〜maxDRCSReplacementLength 文字に限る。
+func normalizeDRCSReplacements(replacements map[string]string) (map[string]string, error) {
+	if len(replacements) > maxDRCSReplacements {
+		return nil, fmt.Errorf("%w: drcsReplacements must have at most %d entries", ErrInvalidSettings, maxDRCSReplacements)
+	}
+	normalized := make(map[string]string, len(replacements))
+	for md5, text := range replacements {
+		key := strings.ToLower(md5)
+		if len(key) != 32 || strings.Trim(key, "0123456789abcdef") != "" {
+			return nil, fmt.Errorf("%w: %q is not an MD5 hash", ErrInvalidSettings, md5)
+		}
+		if n := utf8.RuneCountInString(text); n == 0 || n > maxDRCSReplacementLength {
+			return nil, fmt.Errorf("%w: the replacement of %s must be 1 to %d characters", ErrInvalidSettings, key, maxDRCSReplacementLength)
+		}
+		normalized[key] = text
+	}
+
+	return normalized, nil
 }
