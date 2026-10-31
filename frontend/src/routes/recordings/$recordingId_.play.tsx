@@ -448,7 +448,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(recording?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
-  // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {

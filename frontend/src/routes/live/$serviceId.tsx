@@ -528,7 +528,7 @@ function Live({
   useVolumeNormalizer(video);
   useAudioDelayer(video);
   useResetAudioDelayOnChannel(serviceId);
-  // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
