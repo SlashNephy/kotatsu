@@ -208,6 +208,9 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		recording: &recording, start: pendingStart, closeStale: false, startedAt: startedAt, handedOver: assignment.HandedOver,
 		writes: []pendingWrite{}, cache: cached,
 	}
+	if !pendingStart {
+		tracker.savedRecordingID.Store(new(recording.ID))
+	}
 	result := &sessionResult{lastFailure: ""}
 	// unreachableSince は、チューナーサーバーにつながらなくなった時刻。つながればゼロ値に戻す。
 	var unreachableSince time.Time
@@ -234,7 +237,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		logger.InfoContext(ctx, "started recording", slog.String("pool_id", segment.poolID), slog.String("path", segment.path))
 		openedAt := r.clock.Now()
 
-		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment, recording.ID)
+		stats, end, copyErr := r.copyUntilEnd(ctx, tracker, stream, segment)
 		_ = stream.Close()
 		// stoppedAt は、セグメントに書くのをやめた時刻。DB に届かずに記録が遅れても、この時刻で記録する (#1073)。
 		// 予定の終わりで止めたなら、そう判断した時刻にする。DB を待った分だけ遅れないようにする。
@@ -974,9 +977,7 @@ func skipUntil(clk clock.Clock, stream io.Reader, until time.Time) error {
 	return nil
 }
 
-func (r *Recorder) copyUntilEnd(
-	ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment, recordingID uuid.UUID,
-) (*ts.Stats, endReason, error) {
+func (r *Recorder) copyUntilEnd(ctx context.Context, tracker *endTracker, stream io.ReadCloser, seg *segment) (*ts.Stats, endReason, error) {
 	tracker.watch(seg.analyzer)
 	ended := make(chan endReason, 1)
 	watchCtx, stopWatch := context.WithCancel(ctx)
@@ -996,7 +997,7 @@ func (r *Recorder) copyUntilEnd(
 		defer close(sampleDone)
 		ticker := time.NewTicker(r.opts.Tick)
 		defer ticker.Stop()
-		live := newLiveStatsWriter(r, recordingID)
+		live := newLiveStatsWriter(r, &tracker.savedRecordingID)
 		for {
 			stats := seg.analyzer.Stats()
 			seg.samples.add(r.clock.Now(), countsOf(stats))
@@ -1076,6 +1077,9 @@ type endTracker struct {
 	lastProgram *sqlc.GetProgramEndRow
 	// stoppedAt は、予定の終わりだと判断した時刻。録画を止めた時刻は、これにそろえる。まだ判断していなければゼロ値。
 	stoppedAt time.Time
+	// savedRecordingID は、DB に記録した録画の ID。DB に届かずに仮の録画で始めた間は nil (#1073)。
+	// 書いているセグメントの様子 (#829) を書くゴルーチンが読むので、atomic で持つ。
+	savedRecordingID atomic.Pointer[uuid.UUID]
 }
 
 func newEndTracker(
@@ -1091,6 +1095,7 @@ func newEndTracker(
 		pending: &pendingSave{
 			recording: recording, start: false, closeStale: false, startedAt: time.Time{}, handedOver: false, writes: []pendingWrite{}, cache: nil,
 		},
+		savedRecordingID: atomic.Pointer[uuid.UUID]{},
 	}
 	// 時刻予約や、ID が EIT の範囲に収まらない予約では、EIT[p/f] で追わない。
 	sid, ok := ts.BroadcastServiceID(reservation.ServiceID)
@@ -1851,15 +1856,16 @@ const liveStatsInterval = 10 * time.Second
 // liveStatsWriter は、書いているセグメントの様子 (バイト数、ドロップなど、直近のビットレート) を、liveStatsInterval ごとに
 // DB に書く (#829)。システムの状態の画面と /metrics が読む。見るためだけなので、書けなくても録画を止めない。
 type liveStatsWriter struct {
-	recorder    *Recorder
-	recordingID uuid.UUID
+	recorder *Recorder
+	// recordingID は、DB に記録した録画の ID。仮の録画の間は nil なので、書かない (#1073)。
+	recordingID *atomic.Pointer[uuid.UUID]
 	stopwatch   clock.Stopwatch
 	// lastAt と lastBytes は、前に書いたときの経過時間とバイト数。まだ書いていなければ、lastAt は負。
 	lastAt    time.Duration
 	lastBytes int64
 }
 
-func newLiveStatsWriter(r *Recorder, recordingID uuid.UUID) *liveStatsWriter {
+func newLiveStatsWriter(r *Recorder, recordingID *atomic.Pointer[uuid.UUID]) *liveStatsWriter {
 	return &liveStatsWriter{recorder: r, recordingID: recordingID, stopwatch: r.clock.StartStopwatch(), lastAt: -1, lastBytes: 0}
 }
 
@@ -1877,11 +1883,15 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 	}
 	bitrate := (stats.Bytes - w.lastBytes) * 8 * int64(time.Second) / int64(elapsed)
 	w.lastAt, w.lastBytes = now, stats.Bytes
+	recordingID := w.recordingID.Load()
+	if recordingID == nil {
+		return
+	}
 	counts := countsOf(stats)
 	dbCtx, cancel := context.WithTimeout(ctx, w.recorder.opts.DatabaseTimeout)
 	defer cancel()
 	err := sqlc.New(w.recorder.pool).UpsertRecordingLiveStats(dbCtx, sqlc.UpsertRecordingLiveStatsParams{
-		RecordingID: w.recordingID, Bytes: stats.Bytes, Drops: counts.Drops, Errors: counts.Errors, Scrambled: counts.Scrambled,
+		RecordingID: *recordingID, Bytes: stats.Bytes, Drops: counts.Drops, Errors: counts.Errors, Scrambled: counts.Scrambled,
 		Bitrate: max(bitrate, 0), Now: w.recorder.clock.Now(),
 	})
 	if err != nil && ctx.Err() == nil {

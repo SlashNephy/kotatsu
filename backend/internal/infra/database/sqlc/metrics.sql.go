@@ -241,21 +241,19 @@ func (q *Queries) ListStoragePoolMeasurements(ctx context.Context) ([]ListStorag
 	return items, nil
 }
 
-const sumActiveRecordingBytes = `-- name: SumActiveRecordingBytes :one
-SELECT (
-  COALESCE((SELECT sum(f.size) FROM recording_files f JOIN recordings r ON r.id = f.recording_id
-    WHERE r.state = 'recording' AND f.kind = 'segment' AND f.ended_at IS NOT NULL), 0)
-  + COALESCE((SELECT sum(l.bytes) FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
-    WHERE r.state = 'recording'), 0)
-)::bigint AS bytes
+const sumActiveRecordingBitrate = `-- name: SumActiveRecordingBitrate :one
+SELECT COALESCE(sum(l.bitrate), 0)::bigint AS bitrate
+FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE r.state = 'recording' AND l.updated_at > $1
 `
 
-// /metrics に出す、録画中の録画が書いたバイト数の合計 (#829)。閉じたセグメントの大きさに、書いているセグメントのバイト数を足す。
-func (q *Queries) SumActiveRecordingBytes(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, sumActiveRecordingBytes)
-	var bytes int64
-	err := row.Scan(&bytes)
-	return bytes, err
+// /metrics に出す、録画中の録画の直近のビットレートの合計 (#829)。mikan が since より後に書いたものだけを足す。
+// 書かなくなったもの (落ちた mikan の録画) は、古いビットレートを今の値として出さないよう、足さない。
+func (q *Queries) SumActiveRecordingBitrate(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, sumActiveRecordingBitrate, since)
+	var bitrate int64
+	err := row.Scan(&bitrate)
+	return bitrate, err
 }
 
 const sumActiveRecordingPackets = `-- name: SumActiveRecordingPackets :one

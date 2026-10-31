@@ -283,5 +283,6 @@ WHERE recording_id = @recording_id;
 
 -- name: GetRecordingLiveStats :one
 -- 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
+-- since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
 SELECT l.* FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
-WHERE l.recording_id = @recording_id AND r.state = 'recording';
+WHERE l.recording_id = @recording_id AND r.state = 'recording' AND l.updated_at > @since;

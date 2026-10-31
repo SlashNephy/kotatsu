@@ -19,14 +19,12 @@ SELECT
 FROM recordings r LEFT JOIN recording_live_stats l ON l.recording_id = r.id
 WHERE r.state = 'recording';
 
--- name: SumActiveRecordingBytes :one
--- /metrics に出す、録画中の録画が書いたバイト数の合計 (#829)。閉じたセグメントの大きさに、書いているセグメントのバイト数を足す。
-SELECT (
-  COALESCE((SELECT sum(f.size) FROM recording_files f JOIN recordings r ON r.id = f.recording_id
-    WHERE r.state = 'recording' AND f.kind = 'segment' AND f.ended_at IS NOT NULL), 0)
-  + COALESCE((SELECT sum(l.bytes) FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
-    WHERE r.state = 'recording'), 0)
-)::bigint AS bytes;
+-- name: SumActiveRecordingBitrate :one
+-- /metrics に出す、録画中の録画の直近のビットレートの合計 (#829)。mikan が since より後に書いたものだけを足す。
+-- 書かなくなったもの (落ちた mikan の録画) は、古いビットレートを今の値として出さないよう、足さない。
+SELECT COALESCE(sum(l.bitrate), 0)::bigint AS bitrate
+FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE r.state = 'recording' AND l.updated_at > @since;
 
 -- name: CountReservationsByState :one
 -- /metrics に出す、録画の予定の終わりが来ていない予約の、割り当ての状態ごとの数。無効な予約は、割り当ての状態によらず無効として数える。

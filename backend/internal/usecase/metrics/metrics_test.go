@@ -56,13 +56,16 @@ func TestDBCollector(t *testing.T) {
 		exec(`INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 			VALUES ($1, $2, 'segment', 'main', $3, $4, $5, $6, $5)`, id.New(), recordingID, id.New().String()+".m2ts", size, now, ended)
 	}
-	// 録画中の録画は、閉じたセグメントの大きさと、書いているセグメントの様子 (#829) を足す。録画を終えた録画は数えない。
+	// 録画中の録画は、書いているセグメントのドロップなどと、直近のビットレート (#829) を足す。録画を終えた録画は数えない。
 	active := recording("recording", nil, 3)
 	segment(active, 5000, new(now))
 	segment(active, 0, nil)
 	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
 		VALUES ($1, 1000, 2, 0, 0, 16000000, $2)`, active, now)
-	recording("recording", nil, 4)
+	// 30 秒より前に書いた様子 (落ちた mikan の録画) は、ビットレートに足さない。
+	stale := recording("recording", nil, 4)
+	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+		VALUES ($1, 300, 0, 0, 0, 8000000, $2)`, stale, now.Add(-time.Minute))
 	completed := recording("completed", nil, 0)
 	segment(completed, 9000, new(now))
 	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
@@ -156,9 +159,9 @@ kotatsu_recording_last_failure_timestamp_seconds{reason="cancelled"} 1.79163e+09
 kotatsu_recording_active_packets{kind="drop"} 9
 kotatsu_recording_active_packets{kind="error"} 2
 kotatsu_recording_active_packets{kind="scrambled"} 0
-# HELP kotatsu_recording_active_bytes Bytes written by the recordings in progress. Take rate() of it for the bitrate.
-# TYPE kotatsu_recording_active_bytes gauge
-kotatsu_recording_active_bytes 6000
+# HELP kotatsu_recording_active_bitrate_bps Sum of the latest bitrates of the recordings in progress, in bits per second.
+# TYPE kotatsu_recording_active_bitrate_bps gauge
+kotatsu_recording_active_bitrate_bps 1.6e+07
 # HELP kotatsu_reservations Number of reservations that have not ended, by assignment state, or disabled.
 # TYPE kotatsu_reservations gauge
 kotatsu_reservations{state="conflict"} 2

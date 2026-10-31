@@ -411,12 +411,18 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (G
 
 const getRecordingLiveStats = `-- name: GetRecordingLiveStats :one
 SELECT l.recording_id, l.bytes, l.drops, l.errors, l.scrambled, l.bitrate, l.updated_at FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
-WHERE l.recording_id = $1 AND r.state = 'recording'
+WHERE l.recording_id = $1 AND r.state = 'recording' AND l.updated_at > $2
 `
 
+type GetRecordingLiveStatsParams struct {
+	RecordingID uuid.UUID
+	Since       time.Time
+}
+
 // 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
-func (q *Queries) GetRecordingLiveStats(ctx context.Context, recordingID uuid.UUID) (RecordingLiveStat, error) {
-	row := q.db.QueryRow(ctx, getRecordingLiveStats, recordingID)
+// since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
+func (q *Queries) GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiveStatsParams) (RecordingLiveStat, error) {
+	row := q.db.QueryRow(ctx, getRecordingLiveStats, arg.RecordingID, arg.Since)
 	var i RecordingLiveStat
 	err := row.Scan(
 		&i.RecordingID,

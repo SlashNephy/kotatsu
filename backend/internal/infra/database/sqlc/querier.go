@@ -210,7 +210,8 @@ type Querier interface {
 	// 実況の過去ログを引くための、録画した時間帯とサービス (設計書 7.4)。
 	GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (GetRecordingJikkyoSourceRow, error)
 	// 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
-	GetRecordingLiveStats(ctx context.Context, recordingID uuid.UUID) (RecordingLiveStat, error)
+	// since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
+	GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiveStatsParams) (RecordingLiveStat, error)
 	// 通知に載せる、録画とサービス名。
 	GetRecordingWithService(ctx context.Context, id uuid.UUID) (GetRecordingWithServiceRow, error)
 	GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error)
@@ -647,8 +648,9 @@ type Querier interface {
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。
 	StartTimeshiftProgram(ctx context.Context, arg StartTimeshiftProgramParams) error
-	// /metrics に出す、録画中の録画が書いたバイト数の合計 (#829)。閉じたセグメントの大きさに、書いているセグメントのバイト数を足す。
-	SumActiveRecordingBytes(ctx context.Context) (int64, error)
+	// /metrics に出す、録画中の録画の直近のビットレートの合計 (#829)。mikan が since より後に書いたものだけを足す。
+	// 書かなくなったもの (落ちた mikan の録画) は、古いビットレートを今の値として出さないよう、足さない。
+	SumActiveRecordingBitrate(ctx context.Context, since time.Time) (int64, error)
 	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
 	// 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
