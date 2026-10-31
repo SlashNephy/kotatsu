@@ -112,7 +112,7 @@ func fillRecordingsNormalized(ctx context.Context, logger *slog.Logger, pool *pg
 				DescriptionNormalized: new(domain.Normalize(row.Description)),
 			})
 		}
-		var errs []error
+		errs := []error{}
 		q.SetRecordingNormalized(ctx, params).Exec(func(i int, err error) {
 			if err != nil {
 				errs = append(errs, fmt.Errorf("failed to normalize recording %s: %w", params[i].ID, err))
