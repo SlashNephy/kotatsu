@@ -60,6 +60,7 @@ import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
 import type { PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
@@ -644,6 +645,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
   const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
+  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
+  const contextMenu = usePlayerContextMenu(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
@@ -865,6 +868,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const playerBox = (
     <div
       ref={playerBoxRef}
+      // 映像を右クリックすると、操作のメニューを出す (#1140)。
+      onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
@@ -886,6 +891,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       // タッチで映像の左右の 3 分の 1 をダブルタップすると、10 秒戻るか進む (#452)。
       onPointerUp={doubleTap}
     >
+      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
           url={url}

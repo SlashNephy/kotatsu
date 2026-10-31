@@ -51,6 +51,7 @@ import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
 import type { PlayerCommands } from '../../yunomi/commands';
 import {
@@ -418,6 +419,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
   const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
+  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
+  const contextMenu = usePlayerContextMenu(commands);
   // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
   usePlayerGamepad(commands);
   // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
@@ -565,6 +568,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   const playerBox = (
     <div
       ref={playerBoxRef}
+      // 映像を右クリックすると、操作のメニューを出す (#1140)。
+      onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
@@ -583,6 +588,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       }}
       onPointerUp={doubleTap}
     >
+      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
           url={stream.url}
