@@ -818,6 +818,7 @@ mikanがいなくなったか、予約を消して割り振りが消えると、
 すでに失敗の録画をもう一度失敗で終えても、足しません。
 録画を消しても累計は減らないので、「新しく失敗した」を監視に使えます（[11.3](#113-監視)）。
 累計は、この仕組みを入れた版からの回数で、それより前の失敗は含みません。
+検証で失敗させた分や、直した障害の分を消せるよう、管理者は、システムの状態の画面で、理由ごとに累計を0に戻し、最後に失敗した日時を消せます。戻したことは、戻す前の値とともに監査ログに残します。第三者に影響しない管理の操作なので、再認証は求めません。戻した日時は、その理由の累計の作成の時刻にし、PrometheusやOTLPの受け手がカウンターのリセットとして扱えるようにします（#1035）。
 
 mikanは、録画を始めるのを待つ間に予約を読めなくても、諦めずに読み直します。
 諦めると割り振りが終わったことになり、録画されないためです。
@@ -1780,7 +1781,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
   |---|---|
   | `kotatsu_recordings{state}` | 状態ごとの録画の数 |
   | `kotatsu_recording_failures{reason}` | 失敗の理由ごとの録画の数。失敗した録画を消すと減ります。 |
-  | `kotatsu_recording_failures_total{reason}` | 失敗の理由ごとの、録画の失敗の累計（counter、[5.5](#55-録画の状態)）。録画を消しても減らないので、`increase()`で新しい失敗を数えられます。一度も失敗していない理由も0として出します。 |
+  | `kotatsu_recording_failures_total{reason}` | 失敗の理由ごとの、録画の失敗の累計（counter、[5.5](#55-録画の状態)）。録画を消しても減らないので、`increase()`で新しい失敗を数えられます。一度も失敗していない理由も0として出します。管理者が累計を0に戻した理由は、戻した日時を作成の時刻にします（[5.5](#55-録画の状態)）。 |
   | `kotatsu_recording_last_failure_timestamp_seconds{reason}` | 失敗の理由ごとの、最後に録画が失敗した時刻。一度も失敗していない理由は出しません。 |
   | `kotatsu_recording_active_packets{kind}` | 録画中の録画の、ドロップ、エラー、スクランブルの数の合計。書いているセグメントの数（#829）も含みます |
   | `kotatsu_recording_active_bitrate_bps` | 録画中の録画の、直近のビットレートの合計（bps。#829）。mikanが10秒ごとに測った値を足します。30秒より前に書いた値（落ちたmikanの録画）は足しません。書いたバイト数の合計は、録画を終えると減り、`rate()`が偽の増加を出すので、出しません |
@@ -1809,7 +1810,7 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
     | クラスター | DBから読む値（上の表のうち、`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_tenban_database_fallbacks_total`、`kotatsu_mikan_database_unreachable_seconds`を除くもの）と、nekoのリーダーだけが持つ`kotatsu_epg_last_full_sync_timestamp_seconds` | nekoのリースを持つインスタンスだけ | `service.name`だけ |
     | インスタンス | それ以外（`kotatsu_neko_leader`、`kotatsu_kyusu_sessions`、`kotatsu_tenban_streams`、`kotatsu_tenban_database_fallbacks_total`、`kotatsu_mikan_database_unreachable_seconds`、Goのランタイムとプロセス） | すべてのインスタンス | `service.name`、`service.version`、`service.instance.id`（インスタンスのID）、`kotatsu.roles`（動かしているロール） |
 
-    クラスターの範囲には、インスタンスのIDも版も付けません。nekoのリーダーが替わっても、リリースしても、受け手から見て同じ系列のまま続くようにするためです。リーダーか分からないとき（DBに問い合わせられないとき）は、重複して送らないよう、その回は送りません。失敗の累計（`kotatsu_recording_failures_total`）には、どのインスタンスでも同じ作成の時刻を付け、送るインスタンスが替わってもカウンターのリセットとみなされないようにします。
+    クラスターの範囲には、インスタンスのIDも版も付けません。nekoのリーダーが替わっても、リリースしても、受け手から見て同じ系列のまま続くようにするためです。リーダーか分からないとき（DBに問い合わせられないとき）は、重複して送らないよう、その回は送りません。失敗の累計（`kotatsu_recording_failures_total`）には、どのインスタンスでも同じ作成の時刻を付け、送るインスタンスが替わってもカウンターのリセットとみなされないようにします。管理者が累計を0に戻した理由だけは、戻した日時を作成の時刻にします（#1035）。
   - 送り方は、gRPCとHTTP（protobuf）から選べ（`telemetry.otlp_metrics_protocol`、既定はgRPC）、常にgzipで圧縮します。送信先が`http://`なら、暗号化せずに送ります。ヘッダー（`telemetry.otlp_metrics_headers`、`名前=値`をカンマでつなぐ）は秘密情報として扱います（[11.2](#112-設定の置き場所)）。
   - 送らないメトリクスを、名前のパターンで指定できます（`telemetry.otlp_metrics_exclude`、例：`go_*`）。`/metrics`には影響しません。何を送るかは監視先の課金や見たいものによるので、既定では全部送ります。
   - 送れなくても、ロールは止めずに、警告のログに出します。停止するときは、溜まっている値を送り切ってから止めます。

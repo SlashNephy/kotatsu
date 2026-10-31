@@ -7,6 +7,7 @@ import (
 	"maps"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -192,6 +193,7 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 	now := r.clock.Now()
 	status := &model.SystemStatus{
 		Instances: []*model.Instance{}, Leases: []*model.Lease{}, TunerServer: nil, Tuners: []*model.Tuner{}, Pools: []*model.StoragePool{},
+		RecordingFailures: []*model.RecordingFailureCount{},
 	}
 
 	instances, err := q.ListInstances(ctx)
@@ -242,6 +244,9 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 		return nil, err
 	}
 	status.Pools = pools
+	if status.RecordingFailures, err = r.recordingFailureCounts(ctx); err != nil {
+		return nil, err
+	}
 
 	return status, nil
 }
@@ -303,4 +308,37 @@ func (r *Resolver) storagePoolOf(id string, setting *domain.StoragePool) *model.
 	}
 
 	return pool
+}
+
+// recordingFailureCounts は、理由ごとの、録画の失敗の累計を返す (設計書 5.5)。
+func (r *Resolver) recordingFailureCounts(ctx context.Context) ([]*model.RecordingFailureCount, error) {
+	rows, err := r.queries.ListRecordingFailureCounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the recording failure counts: %w", err)
+	}
+	counts := make([]*model.RecordingFailureCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, &model.RecordingFailureCount{
+			Reason: model.RecordingFailureReason(strings.ToUpper(row.Reason)), Count: row.Count, LastFailedAt: row.LastFailedAt, ResetAt: row.ResetAt,
+		})
+	}
+
+	return counts, nil
+}
+
+// resetRecordingFailureCounts は、理由 reasons の、録画の失敗の累計を 0 に戻し、戻した後の累計を返す (#1035)。
+func (r *Resolver) resetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error) {
+	_, actor, err := r.administratorActor(ctx, "only administrators can reset the recording failure counts")
+	if err != nil {
+		return nil, err
+	}
+	stored := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		stored = append(stored, strings.ToLower(string(reason)))
+	}
+	if err := r.settings.ResetRecordingFailureCounts(ctx, r.db, actor, stored); err != nil {
+		return nil, settingsError(err)
+	}
+
+	return r.recordingFailureCounts(ctx)
 }

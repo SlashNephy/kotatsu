@@ -324,6 +324,7 @@ type ComplexityRoot struct {
 		RemoveTimeshiftChannel       func(childComplexity int, serviceID string) int
 		RenamePasskey                func(childComplexity int, id string, name string) int
 		RenameRecordingFiles         func(childComplexity int, ids []string) int
+		ResetRecordingFailureCounts  func(childComplexity int, reasons []model.RecordingFailureReason) int
 		ResetUserPassword            func(childComplexity int, id string, password string) int
 		RevokeOtherSessions          func(childComplexity int) int
 		RevokeSession                func(childComplexity int, id string) int
@@ -642,6 +643,13 @@ type ComplexityRoot struct {
 		Node   func(childComplexity int) int
 	}
 
+	RecordingFailureCount struct {
+		Count        func(childComplexity int) int
+		LastFailedAt func(childComplexity int) int
+		Reason       func(childComplexity int) int
+		ResetAt      func(childComplexity int) int
+	}
+
 	RecordingFile struct {
 		EndedAt   func(childComplexity int) int
 		Kind      func(childComplexity int) int
@@ -871,11 +879,12 @@ type ComplexityRoot struct {
 	}
 
 	SystemStatus struct {
-		Instances   func(childComplexity int) int
-		Leases      func(childComplexity int) int
-		Pools       func(childComplexity int) int
-		TunerServer func(childComplexity int) int
-		Tuners      func(childComplexity int) int
+		Instances         func(childComplexity int) int
+		Leases            func(childComplexity int) int
+		Pools             func(childComplexity int) int
+		RecordingFailures func(childComplexity int) int
+		TunerServer       func(childComplexity int) int
+		Tuners            func(childComplexity int) int
 	}
 
 	TOTPEnrollment struct {
@@ -1018,6 +1027,7 @@ type MutationResolver interface {
 	CreateGuideView(ctx context.Context, input model.GuideViewInput) (*model.GuideView, error)
 	UpdateGuideView(ctx context.Context, id string, input model.GuideViewInput) (*model.GuideView, error)
 	DeleteGuideView(ctx context.Context, id string) (string, error)
+	ResetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
@@ -2456,6 +2466,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RenameRecordingFiles(childComplexity, args["ids"].([]string)), true
+	case "Mutation.resetRecordingFailureCounts":
+		if e.ComplexityRoot.Mutation.ResetRecordingFailureCounts == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_resetRecordingFailureCounts_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ResetRecordingFailureCounts(childComplexity, args["reasons"].([]model.RecordingFailureReason)), true
 	case "Mutation.resetUserPassword":
 		if e.ComplexityRoot.Mutation.ResetUserPassword == nil {
 			break
@@ -4117,6 +4138,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingEdge.Node(childComplexity), true
 
+	case "RecordingFailureCount.count":
+		if e.ComplexityRoot.RecordingFailureCount.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFailureCount.Count(childComplexity), true
+	case "RecordingFailureCount.lastFailedAt":
+		if e.ComplexityRoot.RecordingFailureCount.LastFailedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFailureCount.LastFailedAt(childComplexity), true
+	case "RecordingFailureCount.reason":
+		if e.ComplexityRoot.RecordingFailureCount.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFailureCount.Reason(childComplexity), true
+	case "RecordingFailureCount.resetAt":
+		if e.ComplexityRoot.RecordingFailureCount.ResetAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFailureCount.ResetAt(childComplexity), true
+
 	case "RecordingFile.endedAt":
 		if e.ComplexityRoot.RecordingFile.EndedAt == nil {
 			break
@@ -5054,6 +5100,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemStatus.Pools(childComplexity), true
+	case "SystemStatus.recordingFailures":
+		if e.ComplexityRoot.SystemStatus.RecordingFailures == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemStatus.RecordingFailures(childComplexity), true
 	case "SystemStatus.tunerServer":
 		if e.ComplexityRoot.SystemStatus.TunerServer == nil {
 			break
@@ -5816,6 +5868,18 @@ type StoragePool {
 }
 
 """
+理由ごとの、録画の失敗の累計 (設計書 5.5)。録画を消しても減らない。
+"""
+type RecordingFailureCount {
+  reason: RecordingFailureReason!
+  count: Int64!
+  "最後に失敗した日時。一度も失敗していないか、累計を 0 に戻してから失敗していなければ null。"
+  lastFailedAt: Time
+  "管理者が累計を 0 に戻した日時 (#1035)。戻していなければ null。"
+  resetAt: Time
+}
+
+"""
 システムの状態。
 """
 type SystemStatus {
@@ -5825,6 +5889,16 @@ type SystemStatus {
   tunerServer: TunerServerStatus
   tuners: [Tuner!]!
   pools: [StoragePool!]!
+  "理由ごとの、録画の失敗の累計。"
+  recordingFailures: [RecordingFailureCount!]!
+}
+
+extend type Mutation {
+  """
+  理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を空に戻し、戻した後の累計を返す (#1035)。
+  検証で失敗させた分や、直した障害の分を消すのに使う。理由ごとに監査ログに残す。管理者だけが使える (設計書 9.7)。
+  """
+  resetRecordingFailureCounts(reasons: [RecordingFailureReason!]!): [RecordingFailureCount!]!
 }
 
 extend type Query {
@@ -9370,6 +9444,20 @@ func (ec *executionContext) childFields_RecordingEdge(ctx context.Context, field
 	return nil, fmt.Errorf("no field named %q was found under type RecordingEdge", field.Name)
 }
 
+func (ec *executionContext) childFields_RecordingFailureCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "reason":
+		return ec.fieldContext_RecordingFailureCount_reason(ctx, field)
+	case "count":
+		return ec.fieldContext_RecordingFailureCount_count(ctx, field)
+	case "lastFailedAt":
+		return ec.fieldContext_RecordingFailureCount_lastFailedAt(ctx, field)
+	case "resetAt":
+		return ec.fieldContext_RecordingFailureCount_resetAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingFailureCount", field.Name)
+}
+
 func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "kind":
@@ -9816,6 +9904,8 @@ func (ec *executionContext) childFields_SystemStatus(ctx context.Context, field 
 		return ec.fieldContext_SystemStatus_tuners(ctx, field)
 	case "pools":
 		return ec.fieldContext_SystemStatus_pools(ctx, field)
+	case "recordingFailures":
+		return ec.fieldContext_SystemStatus_recordingFailures(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SystemStatus", field.Name)
 }
@@ -10739,6 +10829,20 @@ func (ec *executionContext) field_Mutation_renameRecordingFiles_args(ctx context
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_resetRecordingFailureCounts_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "reasons",
+		func(ctx context.Context, v any) ([]model.RecordingFailureReason, error) {
+			return ec.unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReasonᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["reasons"] = arg0
 	return args, nil
 }
 
@@ -15060,6 +15164,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteGuideView(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteGuideView_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_resetRecordingFailureCounts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_resetRecordingFailureCounts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ResetRecordingFailureCounts(ctx, fc.Args["reasons"].([]model.RecordingFailureReason))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingFailureCount) graphql.Marshaler {
+			return ec.marshalNRecordingFailureCount2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_resetRecordingFailureCounts(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingFailureCount(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_resetRecordingFailureCounts_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -23704,6 +23852,98 @@ func (ec *executionContext) fieldContext_RecordingEdge_node(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _RecordingFailureCount_reason(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFailureCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFailureCount_reason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.RecordingFailureReason) graphql.Marshaler {
+			return ec.marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFailureCount_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFailureCount", field, false, false, errors.New("field of type RecordingFailureReason does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingFailureCount_count(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFailureCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFailureCount_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFailureCount_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFailureCount", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingFailureCount_lastFailedAt(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFailureCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFailureCount_lastFailedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastFailedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFailureCount_lastFailedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFailureCount", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingFailureCount_resetAt(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFailureCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFailureCount_resetAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ResetAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFailureCount_resetAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFailureCount", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _RecordingFile_kind(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFile) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27525,6 +27765,38 @@ func (ec *executionContext) fieldContext_SystemStatus_pools(_ context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_StoragePool(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SystemStatus_recordingFailures(ctx context.Context, field graphql.CollectedField, obj *model.SystemStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemStatus_recordingFailures(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingFailures, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingFailureCount) graphql.Marshaler {
+			return ec.marshalNRecordingFailureCount2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemStatus_recordingFailures(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingFailureCount(ctx, field)
 		},
 	}
 	return fc, nil
@@ -34294,6 +34566,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "resetRecordingFailureCounts":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_resetRecordingFailureCounts(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createApiToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createApiToken(ctx, field)
@@ -37938,6 +38217,59 @@ func (ec *executionContext) _RecordingEdge(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var recordingFailureCountImplementors = []string{"RecordingFailureCount"}
+
+func (ec *executionContext) _RecordingFailureCount(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingFailureCount) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingFailureCountImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingFailureCount")
+		case "reason":
+			out.Values[i] = ec._RecordingFailureCount_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._RecordingFailureCount_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastFailedAt":
+			out.Values[i] = ec._RecordingFailureCount_lastFailedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "resetAt":
+			out.Values[i] = ec._RecordingFailureCount_resetAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var recordingFileImplementors = []string{"RecordingFile"}
 
 func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingFile) graphql.Marshaler {
@@ -39823,6 +40155,11 @@ func (ec *executionContext) _SystemStatus(ctx context.Context, sel ast.Selection
 			}
 		case "pools":
 			out.Values[i] = ec._SystemStatus_pools(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordingFailures":
+			out.Values[i] = ec._SystemStatus_recordingFailures(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -42737,6 +43074,72 @@ func (ec *executionContext) marshalNRecordingEdge2ᚖgithubᚗcomᚋSlashNephy�
 		return graphql.Null
 	}
 	return ec._RecordingEdge(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRecordingFailureCount2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingFailureCount) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingFailureCount2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureCount(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecordingFailureCount2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureCount(ctx context.Context, sel ast.SelectionSet, v *model.RecordingFailureCount) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecordingFailureCount(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, v any) (model.RecordingFailureReason, error) {
+	var res model.RecordingFailureReason
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, sel ast.SelectionSet, v model.RecordingFailureReason) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReasonᚄ(ctx context.Context, v any) ([]model.RecordingFailureReason, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.RecordingFailureReason, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReasonᚄ(ctx context.Context, sel ast.SelectionSet, v []model.RecordingFailureReason) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNRecordingFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingFile) graphql.Marshaler {

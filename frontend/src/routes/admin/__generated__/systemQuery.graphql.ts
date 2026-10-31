@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ed33bd99d9f20705067e4f184c7b903c>>
+ * @generated SignedSource<<18f77cf3a90ddd1635b8e370e370304a>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
 export type systemQuery$variables = Record<PropertyKey, never>;
 export type systemQuery$data = {
   readonly systemStatus: {
@@ -25,6 +26,12 @@ export type systemQuery$data = {
       readonly holderInstanceId: string;
       readonly name: string;
       readonly valid: boolean;
+    }>;
+    readonly recordingFailures: ReadonlyArray<{
+      readonly count: number;
+      readonly lastFailedAt: string | null | undefined;
+      readonly reason: RecordingFailureReason;
+      readonly resetAt: string | null | undefined;
     }>;
     readonly tunerServer: {
       readonly checkedAt: string;
@@ -319,6 +326,45 @@ v2 = [
           }
         ],
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "RecordingFailureCount",
+        "kind": "LinkedField",
+        "name": "recordingFailures",
+        "plural": true,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "reason",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "count",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "lastFailedAt",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "resetAt",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -342,16 +388,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "802c148f5255d362de3190411942654e",
+    "cacheID": "2593439c08c778adb7b95e4849304de2",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n  }\n}\n"
+    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    recordingFailures {\n      reason\n      count\n      lastFailedAt\n      resetAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f18fcc1c5f7f9b10ec359f62bb8f6f48";
+(node as any).hash = "cdcc0d597e4935aa38082ac5b72faeb2";
 
 export default node;

@@ -840,7 +840,9 @@ CREATE TABLE recording_failure_counts (
   )),
   count bigint NOT NULL DEFAULT 0,
   -- 一度も失敗していなければ NULL。
-  last_failed_at timestamptz
+  last_failed_at timestamptz,
+  -- 管理者が累計を 0 に戻した日時 (#1035)。戻していなければ NULL。カウンターの作成の時刻にして、受け手にリセットを伝える。
+  reset_at timestamptz
 );
 
 -- 録画のファイル (設計書 5.2、5.6、8.2)。セグメントは、ストリームを開き直すたびに作る。
