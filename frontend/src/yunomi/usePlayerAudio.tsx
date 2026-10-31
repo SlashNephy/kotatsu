@@ -63,9 +63,10 @@ export function usePlayerAudio(
   const kyusuAudio = kyusuChoices.some((candidate) => candidate.slot === slot) ? slot : 1;
   const choices = audioChoices(convertTracks);
   // 選んだものが今の番組の音声になければ (番組が変わって音声の構成が変わったときなど)、選んだ音声の番号から選び直す。
-  // 第 1 音声なら、プレイヤーの既定 (主音声) のままにする。
+  // 第 1 音声も明示して選ぶ。優先する言語 (#819) で第 2 音声にしていた後に、言語を変えたり番組が変わったりして
+  // 第 1 音声に戻るとき、プレイヤーの既定に任せると、第 2 音声のまま残る。選べる音声が 1 つなら、null になる。
   const current = choices.some((candidate) => candidate.value === choice) ? choice : null;
-  const convertAudio = current ?? (slot === 1 ? null : choiceForSlot(choices, slot));
+  const convertAudio = current ?? choiceForSlot(choices, slot);
 
   const selectConvert = (value: string) => {
     setChoice(value);
@@ -105,7 +106,18 @@ export function usePlayerAudio(
     menu = (
       <>
         {menu}
-        <AudioLanguageSelect />
+        <AudioLanguageSelect
+          onChange={(next) => {
+            // kyusu の経路では、聞く音声が変わると HLS の URL が変わって読み直すので、その前に onReload を呼ぶ。
+            const nextSlot = pickedSlot ?? preferredSlot(kyusuChoices, next) ?? 1;
+            const nextAudio = kyusuChoices.some((candidate) => candidate.slot === nextSlot)
+              ? nextSlot
+              : 1;
+            if (route.kind === 'kyusu' && nextAudio !== kyusuAudio) {
+              onReload?.();
+            }
+          }}
+        />
       </>
     );
   }

@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
 import type { AudioChoice, KyusuAudioChoice } from './audio';
 import { cropOrigins, cropScales, type Crop } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
-import { audioLanguages, useAudioLanguage } from './audioLanguage';
+import { audioLanguages, useAudioLanguage, type AudioLanguage } from './audioLanguage';
 import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
 import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
@@ -171,7 +171,12 @@ export function kyusuAudioChoiceLabel(t: TFunction, choice: KyusuAudioChoice): s
 
 // AudioLanguageSelect は、音声のメニューに置く、優先する言語 (#819) の選択。端末ごとの設定を変える。
 // 選んだ言語の音声が番組にあれば、利用者が音声を選ぶまで、その音声を聞く。
-export function AudioLanguageSelect() {
+// onChange は、言語を変える直前に、新しい言語を受け取る。
+export function AudioLanguageSelect({
+  onChange,
+}: {
+  onChange?: (language: AudioLanguage | null) => void;
+}) {
   const { t } = useTranslation();
   const [language, setLanguage] = useAudioLanguage();
 
@@ -189,7 +194,9 @@ export function AudioLanguageSelect() {
       ]}
       onChange={(next) => {
         if (next !== null) {
-          setLanguage(audioLanguages.find((code) => code === next) ?? null);
+          const language = audioLanguages.find((code) => code === next) ?? null;
+          onChange?.(language);
+          setLanguage(language);
         }
       }}
     />
