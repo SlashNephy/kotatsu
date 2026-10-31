@@ -205,6 +205,18 @@ export function useGamepadButtons(
       frame = null;
       const pads = connectedGamepads();
       const now = performance.now();
+      // 外れたゲームパッドの状態は捨てる。同じ番号でつなぎ直したときに、前に押していたボタンを、押したと数えられるようにする。
+      const indices = new Set(pads.map((pad) => pad.index));
+      for (const index of previous.keys()) {
+        if (!indices.has(index)) {
+          previous.delete(index);
+          for (const key of heldSince.keys()) {
+            if (key.startsWith(`${index}:`)) {
+              heldSince.delete(key);
+            }
+          }
+        }
+      }
       for (const pad of pads) {
         const current = pad.buttons.map((button) => button.pressed);
         for (const button of newlyPressed(previous.get(pad.index) ?? [], current)) {
