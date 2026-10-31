@@ -117,6 +117,9 @@ export const captureFileNameMacros = [
   '%second%',
   '%service%',
   '%title%',
+  // TVTest と同じ名前も受け付け、TVTest から移ってくる人が、同じ書き方を使えるようにする (#814)。
+  '%service-name%',
+  '%event-name%',
 ] as const;
 
 // captureFileName は、キャプチャのファイル名を返す (設計書 7.5)。
@@ -142,10 +145,12 @@ export function captureFileName(
       '%second%': pad2(date.getSeconds()),
       '%service%': serviceName,
       '%title%': program,
+      '%service-name%': serviceName,
+      '%event-name%': program,
     };
     const name = template
       .trim()
-      .replace(/%[a-z]+%/g, (macro) =>
+      .replace(/%[a-z-]+%/g, (macro) =>
         macro in values ? values[macro as keyof typeof values] : macro,
       )
       .replace(unsafeFileNameChars, '_')
