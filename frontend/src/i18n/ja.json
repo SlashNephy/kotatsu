@@ -48,6 +48,7 @@
   "notifications": {
     "title": "通知",
     "settings": "設定",
+    "viewAll": "すべての通知を見る",
     "settingsTitle": "通知の設定",
     "back": "通知の一覧に戻る",
     "bellLabel": "通知（未読 {{count}}件）",

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0b09ee7e7e01791dbeb25f45555b895a>>
+ * @generated SignedSource<<519bb6c4ec5883f87ae2d66df024f052>>
  * @lightSyntaxTransform
  */
 
@@ -8,13 +8,13 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type notificationsMarkAllMutation$variables = Record<PropertyKey, never>;
-export type notificationsMarkAllMutation$data = {
+export type NotificationListMarkAllMutation$variables = Record<PropertyKey, never>;
+export type NotificationListMarkAllMutation$data = {
   readonly markAllNotificationsRead: number;
 };
-export type notificationsMarkAllMutation = {
-  response: notificationsMarkAllMutation$data;
-  variables: notificationsMarkAllMutation$variables;
+export type NotificationListMarkAllMutation = {
+  response: NotificationListMarkAllMutation$data;
+  variables: NotificationListMarkAllMutation$variables;
 };
 
 const node: ConcreteRequest = (function(){
@@ -32,7 +32,7 @@ return {
     "argumentDefinitions": [],
     "kind": "Fragment",
     "metadata": null,
-    "name": "notificationsMarkAllMutation",
+    "name": "NotificationListMarkAllMutation",
     "selections": (v0/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
@@ -41,20 +41,20 @@ return {
   "operation": {
     "argumentDefinitions": [],
     "kind": "Operation",
-    "name": "notificationsMarkAllMutation",
+    "name": "NotificationListMarkAllMutation",
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "729a9ff913ce2059524d3e53cdd2b9c4",
+    "cacheID": "889978789ae4a30378230382583d1089",
     "id": null,
     "metadata": {},
-    "name": "notificationsMarkAllMutation",
+    "name": "NotificationListMarkAllMutation",
     "operationKind": "mutation",
-    "text": "mutation notificationsMarkAllMutation {\n  markAllNotificationsRead\n}\n"
+    "text": "mutation NotificationListMarkAllMutation {\n  markAllNotificationsRead\n}\n"
   }
 };
 })();
 
-(node as any).hash = "214d7cb63319f8ebe53eed2ef5c35a4c";
+(node as any).hash = "0e2bdba46c3b0f67f9d1204faa71f312";
 
 export default node;
