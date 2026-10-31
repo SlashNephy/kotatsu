@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { packetBitrate, streamTypeName, totalQuality } from './streamQuality';
+import { kindBitrates, packetBitrate, streamTypeName, totalQuality } from './streamQuality';
 
 describe('packetBitrate', () => {
   test.each([
@@ -38,5 +38,27 @@ describe('totalQuality', () => {
         { packets: 50, drops: 4, errors: 0, scrambled: 1 },
       ]),
     ).toEqual({ packets: 150, drops: 5, errors: 2, scrambled: 4 });
+  });
+});
+
+describe('kindBitrates', () => {
+  test('PID の種類ごとに、パケットの数を足して長さで割る', () => {
+    expect(
+      kindBitrates(
+        [
+          { kind: 'VIDEO', packets: 10_000 },
+          { kind: 'AUDIO', packets: 500 },
+          { kind: 'AUDIO', packets: 500 },
+          { kind: 'OTHER', packets: 100 },
+          { kind: 'PSI', packets: 10 },
+          { kind: 'UNKNOWN', packets: 1 },
+        ],
+        1,
+      ),
+    ).toEqual({ video: 15_040_000, audio: 1_504_000, other: 150_400, psi: 15_040, unknown: 1_504 });
+  });
+
+  test('長さが分からなければ null', () => {
+    expect(kindBitrates([{ kind: 'VIDEO', packets: 10 }], 0)).toBeNull();
   });
 });

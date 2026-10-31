@@ -60,6 +60,8 @@ type Resolver struct {
 	webhooks     *webhook.Store
 	webPush      *webpush.Service
 	streamSigner *stream.Signer
+	// liveRates は、ライブのサービスの内訳を数える (#812)。
+	liveRates    *stream.LiveRatesWatcher
 	jikkyoTable  *jikkyo.Table
 	jikkyoClient *jikkyoclient.Client
 	logger       *slog.Logger

@@ -234,6 +234,18 @@ type ComplexityRoot struct {
 		Valid            func(childComplexity int) int
 	}
 
+	LiveStreamRates struct {
+		AudioBps   func(childComplexity int) int
+		Drops      func(childComplexity int) int
+		Errors     func(childComplexity int) int
+		OtherBps   func(childComplexity int) int
+		PsiBps     func(childComplexity int) int
+		Scrambled  func(childComplexity int) int
+		TotalBps   func(childComplexity int) int
+		UnknownBps func(childComplexity int) int
+		VideoBps   func(childComplexity int) int
+	}
+
 	MissingRecording struct {
 		MissingSegments func(childComplexity int) int
 		Recording       func(childComplexity int) int
@@ -796,6 +808,7 @@ type ComplexityRoot struct {
 	Subscription struct {
 		DataChanged             func(childComplexity int) int
 		Heartbeat               func(childComplexity int) int
+		LiveStreamRates         func(childComplexity int, service string) int
 		PlayerCommands          func(childComplexity int, id string, after *string) int
 		PlayersChanged          func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
@@ -1116,6 +1129,7 @@ type SubscriptionResolver interface {
 	ViewerSettingsChanged(ctx context.Context) (<-chan int, error)
 	PlayersChanged(ctx context.Context) (<-chan int, error)
 	PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error)
+	LiveStreamRates(ctx context.Context, service string) (<-chan *model.LiveStreamRates, error)
 }
 type TimeshiftChannelResolver interface {
 	Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error)
@@ -1767,6 +1781,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Lease.Valid(childComplexity), true
+
+	case "LiveStreamRates.audioBps":
+		if e.ComplexityRoot.LiveStreamRates.AudioBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.AudioBps(childComplexity), true
+	case "LiveStreamRates.drops":
+		if e.ComplexityRoot.LiveStreamRates.Drops == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.Drops(childComplexity), true
+	case "LiveStreamRates.errors":
+		if e.ComplexityRoot.LiveStreamRates.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.Errors(childComplexity), true
+	case "LiveStreamRates.otherBps":
+		if e.ComplexityRoot.LiveStreamRates.OtherBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.OtherBps(childComplexity), true
+	case "LiveStreamRates.psiBps":
+		if e.ComplexityRoot.LiveStreamRates.PsiBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.PsiBps(childComplexity), true
+	case "LiveStreamRates.scrambled":
+		if e.ComplexityRoot.LiveStreamRates.Scrambled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.Scrambled(childComplexity), true
+	case "LiveStreamRates.totalBps":
+		if e.ComplexityRoot.LiveStreamRates.TotalBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.TotalBps(childComplexity), true
+	case "LiveStreamRates.unknownBps":
+		if e.ComplexityRoot.LiveStreamRates.UnknownBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.UnknownBps(childComplexity), true
+	case "LiveStreamRates.videoBps":
+		if e.ComplexityRoot.LiveStreamRates.VideoBps == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.VideoBps(childComplexity), true
 
 	case "MissingRecording.missingSegments":
 		if e.ComplexityRoot.MissingRecording.MissingSegments == nil {
@@ -4626,6 +4695,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.Heartbeat(childComplexity), true
+	case "Subscription.liveStreamRates":
+		if e.ComplexityRoot.Subscription.LiveStreamRates == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_liveStreamRates_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.LiveStreamRates(childComplexity, args["service"].(string)), true
 	case "Subscription.playerCommands":
 		if e.ComplexityRoot.Subscription.PlayerCommands == nil {
 			break
@@ -7553,6 +7633,37 @@ extend type Query {
   "サーバー側でのトランスコードを使えるかと、選べる画質。"
   transcoding: Transcoding!
 }
+
+"""
+ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
+"""
+type LiveStreamRates {
+  "映像のビットレート (bps)。"
+  videoBps: Int!
+  "音声のビットレート (bps)。"
+  audioBps: Int!
+  "字幕、文字スーパー、データ放送など、映像と音声のほかの ES のビットレート (bps)。"
+  otherBps: Int!
+  "PAT、PMT と、決まった PID で送る SI のビットレート (bps)。"
+  psiBps: Int!
+  "PMT に載っていない PID (ECM、EMM など) のビットレート (bps)。"
+  unknownBps: Int!
+  "全体のビットレート (bps)。"
+  totalBps: Int!
+  "数え始めてからの、ドロップ、エラー、スクランブルの数。"
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+}
+
+extend type Subscription {
+  """
+  ライブのサービス service の、PID の種類ごとのビットレートを、1 秒ごとに送る (#812、設計書 7.5)。
+  tenban が、チューナーを奪わない優先度でサービスのストリームを別に開いて数える。見ている人がいれば、同じチューナーに相乗りする。
+  ブラウザに届く TS ではなく、放送の内訳を送るので、kyusu の経路で見ていても使える。購読をやめると、ストリームを閉じる。
+  """
+  liveStreamRates(service: ID!): LiveStreamRates!
+}
 `, BuiltIn: false},
 	{Name: "../schema/timeshift.graphqls", Input: `"""
 タイムシフトで録るチャンネル。管理者が選び、選んだチャンネルを常に録って、保持時間だけ残す。
@@ -8296,6 +8407,30 @@ func (ec *executionContext) childFields_Lease(ctx context.Context, field graphql
 		return ec.fieldContext_Lease_valid(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Lease", field.Name)
+}
+
+func (ec *executionContext) childFields_LiveStreamRates(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "videoBps":
+		return ec.fieldContext_LiveStreamRates_videoBps(ctx, field)
+	case "audioBps":
+		return ec.fieldContext_LiveStreamRates_audioBps(ctx, field)
+	case "otherBps":
+		return ec.fieldContext_LiveStreamRates_otherBps(ctx, field)
+	case "psiBps":
+		return ec.fieldContext_LiveStreamRates_psiBps(ctx, field)
+	case "unknownBps":
+		return ec.fieldContext_LiveStreamRates_unknownBps(ctx, field)
+	case "totalBps":
+		return ec.fieldContext_LiveStreamRates_totalBps(ctx, field)
+	case "drops":
+		return ec.fieldContext_LiveStreamRates_drops(ctx, field)
+	case "errors":
+		return ec.fieldContext_LiveStreamRates_errors(ctx, field)
+	case "scrambled":
+		return ec.fieldContext_LiveStreamRates_scrambled(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LiveStreamRates", field.Name)
 }
 
 func (ec *executionContext) childFields_MissingRecording(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -11000,6 +11135,20 @@ func (ec *executionContext) field_Query_timeshiftProgram_args(ctx context.Contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Subscription_liveStreamRates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "service",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["service"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Subscription_playerCommands_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13510,6 +13659,213 @@ func (ec *executionContext) _Lease_valid(ctx context.Context, field graphql.Coll
 }
 func (ec *executionContext) fieldContext_Lease_valid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Lease", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_videoBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_videoBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VideoBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_videoBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_audioBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_audioBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AudioBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_audioBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_otherBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_otherBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OtherBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_otherBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_psiBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_psiBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PsiBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_psiBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_unknownBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_unknownBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UnknownBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_unknownBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_totalBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_totalBps(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalBps, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_totalBps(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_drops(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_drops(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Drops, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_drops(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_errors(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _LiveStreamRates_scrambled(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_scrambled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scrambled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, errors.New("field of type Int64 does not have child fields"))
 }
 
 func (ec *executionContext) _MissingRecording_recording(ctx context.Context, field graphql.CollectedField, obj *model.MissingRecording) (ret graphql.Marshaler) {
@@ -25460,6 +25816,50 @@ func (ec *executionContext) fieldContext_Subscription_playerCommands(ctx context
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_liveStreamRates(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_liveStreamRates(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().LiveStreamRates(ctx, fc.Args["service"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LiveStreamRates) graphql.Marshaler {
+			return ec.marshalNLiveStreamRates2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLiveStreamRates(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_liveStreamRates(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LiveStreamRates(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_liveStreamRates_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SystemSettings_recordingDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32020,6 +32420,84 @@ func (ec *executionContext) _Lease(ctx context.Context, sel ast.SelectionSet, ob
 	return out
 }
 
+var liveStreamRatesImplementors = []string{"LiveStreamRates"}
+
+func (ec *executionContext) _LiveStreamRates(ctx context.Context, sel ast.SelectionSet, obj *model.LiveStreamRates) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, liveStreamRatesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LiveStreamRates")
+		case "videoBps":
+			out.Values[i] = ec._LiveStreamRates_videoBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "audioBps":
+			out.Values[i] = ec._LiveStreamRates_audioBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "otherBps":
+			out.Values[i] = ec._LiveStreamRates_otherBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "psiBps":
+			out.Values[i] = ec._LiveStreamRates_psiBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unknownBps":
+			out.Values[i] = ec._LiveStreamRates_unknownBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalBps":
+			out.Values[i] = ec._LiveStreamRates_totalBps(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "drops":
+			out.Values[i] = ec._LiveStreamRates_drops(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._LiveStreamRates_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scrambled":
+			out.Values[i] = ec._LiveStreamRates_scrambled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var missingRecordingImplementors = []string{"MissingRecording"}
 
 func (ec *executionContext) _MissingRecording(ctx context.Context, sel ast.SelectionSet, obj *model.MissingRecording) graphql.Marshaler {
@@ -37385,6 +37863,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_playersChanged(ctx, fields[0])
 	case "playerCommands":
 		return ec._Subscription_playerCommands(ctx, fields[0])
+	case "liveStreamRates":
+		return ec._Subscription_liveStreamRates(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -39634,6 +40114,16 @@ func (ec *executionContext) marshalNLease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 		return graphql.Null
 	}
 	return ec._Lease(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLiveStreamRates2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLiveStreamRates(ctx context.Context, sel ast.SelectionSet, v *model.LiveStreamRates) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._LiveStreamRates(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNMissingRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐMissingRecordingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MissingRecording) graphql.Marshaler {

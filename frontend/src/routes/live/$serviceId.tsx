@@ -1240,6 +1240,7 @@ function Live({
                       quality={quality}
                       kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                       audios={program?.audios ?? null}
+                      serviceId={serviceId}
                       // タイムシフトのバッファは、プレイヤーが先まで読むので測れない。平均も分からないので出さない。
                       {...(timeshift.behind ? { average: null } : {})}
                       height={watchCommentsHeight}

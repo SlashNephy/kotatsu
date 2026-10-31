@@ -1049,6 +1049,8 @@
       "bitrateSegment": "セグメントのビットレート",
       "bitrateAverage": "録画の TS の平均ビットレート",
       "bitrateHistory": "直近 {{seconds}} 秒のビットレート",
+      "breakdownLive": "放送の内訳（tenban が 1 秒ごとに数えたもの）",
+      "breakdownRecorded": "放送の内訳（録画の平均）",
       "now": "今",
       "secondsAgo": "{{seconds}} 秒前",
       "source": "放送の映像",

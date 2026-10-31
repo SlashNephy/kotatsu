@@ -357,6 +357,26 @@ type Lease struct {
 	Valid bool `json:"valid"`
 }
 
+// ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
+type LiveStreamRates struct {
+	// 映像のビットレート (bps)。
+	VideoBps int `json:"videoBps"`
+	// 音声のビットレート (bps)。
+	AudioBps int `json:"audioBps"`
+	// 字幕、文字スーパー、データ放送など、映像と音声のほかの ES のビットレート (bps)。
+	OtherBps int `json:"otherBps"`
+	// PAT、PMT と、決まった PID で送る SI のビットレート (bps)。
+	PsiBps int `json:"psiBps"`
+	// PMT に載っていない PID (ECM、EMM など) のビットレート (bps)。
+	UnknownBps int `json:"unknownBps"`
+	// 全体のビットレート (bps)。
+	TotalBps int `json:"totalBps"`
+	// 数え始めてからの、ドロップ、エラー、スクランブルの数。
+	Drops     int64 `json:"drops"`
+	Errors    int64 `json:"errors"`
+	Scrambled int64 `json:"scrambled"`
+}
+
 // セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 type MissingRecording struct {
 	Recording *Recording `json:"recording"`
