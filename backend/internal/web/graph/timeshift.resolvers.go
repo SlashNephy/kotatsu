@@ -18,6 +18,11 @@ func (r *mutationResolver) RemoveTimeshiftChannel(ctx context.Context, serviceID
 	return r.removeTimeshiftChannel(ctx, serviceID)
 }
 
+// PromoteTimeshiftProgram is the resolver for the promoteTimeshiftProgram field.
+func (r *mutationResolver) PromoteTimeshiftProgram(ctx context.Context, serviceID string, startAt time.Time) (*model.TimeshiftPromotion, error) {
+	return r.promoteTimeshiftProgram(ctx, serviceID, startAt)
+}
+
 // TimeshiftAvailable is the resolver for the timeshiftAvailable field.
 func (r *queryResolver) TimeshiftAvailable(ctx context.Context) (bool, error) {
 	if err := administer(ctx); err != nil {

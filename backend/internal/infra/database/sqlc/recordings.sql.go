@@ -155,6 +155,8 @@ WITH failed AS (
     AND NOT EXISTS (
       SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
     )
+    -- タイムシフトのバッファから昇格している録画は、nekonote のジョブが終える (#1057)。
+    AND NOT EXISTS (SELECT 1 FROM timeshift_promotions p WHERE p.recording_id = r.id)
   RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name, r.failure_reason
 ), counted AS (
   UPDATE recording_failure_counts c SET count = c.count + f.n, last_failed_at = $1
@@ -548,6 +550,83 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const insertPromotedRecording = `-- name: InsertPromotedRecording :one
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
+  protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, 'recording', NULL,
+  false, 0, 0, 0, $8, $9, $10, NULL, NULL, $11, NULL, $12, $12)
+RETURNING id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at
+`
+
+type InsertPromotedRecordingParams struct {
+	ID              uuid.UUID
+	ServiceID       int64
+	EventID         *int64
+	Name            string
+	Description     string
+	StartAt         time.Time
+	EndAt           time.Time
+	Audios          []byte
+	VideoResolution *string
+	Genres          []byte
+	RecordedFrom    time.Time
+	Now             time.Time
+}
+
+// タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
+// nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromotedRecordingParams) (Recording, error) {
+	row := q.db.QueryRow(ctx, insertPromotedRecording,
+		arg.ID,
+		arg.ServiceID,
+		arg.EventID,
+		arg.Name,
+		arg.Description,
+		arg.StartAt,
+		arg.EndAt,
+		arg.Audios,
+		arg.VideoResolution,
+		arg.Genres,
+		arg.RecordedFrom,
+		arg.Now,
+	)
+	var i Recording
+	err := row.Scan(
+		&i.ID,
+		&i.APIID,
+		&i.ReservationID,
+		&i.ServiceID,
+		&i.EventID,
+		&i.Name,
+		&i.Description,
+		&i.StartAt,
+		&i.EndAt,
+		&i.State,
+		&i.FailureReason,
+		&i.Protected,
+		&i.Drops,
+		&i.Errors,
+		&i.Scrambled,
+		&i.Gaps,
+		&i.Audios,
+		&i.VideoResolution,
+		&i.Genres,
+		&i.RuleID,
+		&i.RuleName,
+		&i.ProgramLost,
+		&i.BroadcastStartedAt,
+		&i.BroadcastEndedAt,
+		&i.WaitedForBroadcast,
+		&i.NotBroadcast,
+		&i.AiredEventID,
+		&i.RecordedFrom,
+		&i.RecordedUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const insertRecordingFile = `-- name: InsertRecordingFile :exec

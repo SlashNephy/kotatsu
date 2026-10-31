@@ -167,6 +167,18 @@ func (q *Queries) DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64
 	return result.RowsAffected(), nil
 }
 
+const deleteTimeshiftPromotion = `-- name: DeleteTimeshiftPromotion :execrows
+DELETE FROM timeshift_promotions WHERE recording_id = $1
+`
+
+func (q *Queries) DeleteTimeshiftPromotion(ctx context.Context, recordingID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTimeshiftPromotion, recordingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const endTimeshiftProgram = `-- name: EndTimeshiftProgram :execrows
 UPDATE timeshift_programs SET ended_at = $1
 WHERE service_id = $2 AND ended_at IS NULL
@@ -276,6 +288,123 @@ func (q *Queries) GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time
 	return ended_at, err
 }
 
+const getTimeshiftPromotion = `-- name: GetTimeshiftPromotion :one
+SELECT p.recording_id, p.service_id, p.from_at, p.to_at, p.created_by, p.created_at, r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.state, r.failure_reason, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.video_resolution, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.waited_for_broadcast, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at, s.name AS service_name, s.channel_type, s.channel
+FROM timeshift_promotions p
+JOIN recordings r ON r.id = p.recording_id
+JOIN services s ON s.id = p.service_id
+WHERE p.recording_id = $1
+`
+
+type GetTimeshiftPromotionRow struct {
+	TimeshiftPromotion TimeshiftPromotion
+	Recording          Recording
+	ServiceName        string
+	ChannelType        string
+	Channel            string
+}
+
+// 昇格している録画と、ファイル名に使うサービスの名前とチャンネル。
+func (q *Queries) GetTimeshiftPromotion(ctx context.Context, recordingID uuid.UUID) (GetTimeshiftPromotionRow, error) {
+	row := q.db.QueryRow(ctx, getTimeshiftPromotion, recordingID)
+	var i GetTimeshiftPromotionRow
+	err := row.Scan(
+		&i.TimeshiftPromotion.RecordingID,
+		&i.TimeshiftPromotion.ServiceID,
+		&i.TimeshiftPromotion.FromAt,
+		&i.TimeshiftPromotion.ToAt,
+		&i.TimeshiftPromotion.CreatedBy,
+		&i.TimeshiftPromotion.CreatedAt,
+		&i.Recording.ID,
+		&i.Recording.APIID,
+		&i.Recording.ReservationID,
+		&i.Recording.ServiceID,
+		&i.Recording.EventID,
+		&i.Recording.Name,
+		&i.Recording.Description,
+		&i.Recording.StartAt,
+		&i.Recording.EndAt,
+		&i.Recording.State,
+		&i.Recording.FailureReason,
+		&i.Recording.Protected,
+		&i.Recording.Drops,
+		&i.Recording.Errors,
+		&i.Recording.Scrambled,
+		&i.Recording.Gaps,
+		&i.Recording.Audios,
+		&i.Recording.VideoResolution,
+		&i.Recording.Genres,
+		&i.Recording.RuleID,
+		&i.Recording.RuleName,
+		&i.Recording.ProgramLost,
+		&i.Recording.BroadcastStartedAt,
+		&i.Recording.BroadcastEndedAt,
+		&i.Recording.WaitedForBroadcast,
+		&i.Recording.NotBroadcast,
+		&i.Recording.AiredEventID,
+		&i.Recording.RecordedFrom,
+		&i.Recording.RecordedUntil,
+		&i.Recording.CreatedAt,
+		&i.Recording.UpdatedAt,
+		&i.ServiceName,
+		&i.ChannelType,
+		&i.Channel,
+	)
+	return i, err
+}
+
+const getTimeshiftPromotionProgram = `-- name: GetTimeshiftPromotionProgram :one
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.description, p.genres, p.audios, p.video_resolution
+FROM (
+  SELECT g.service_id, g.event_id, g.start_at, g.end_at, g.end_undecided, g.name, g.description, g.genres, g.audios, g.video_resolution
+  FROM programs g WHERE g.service_id = $1 AND g.event_id = $2
+  UNION ALL
+  SELECT a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.name, a.description, a.genres, a.audios, a.video_resolution
+  FROM program_archives a WHERE a.service_id = $1 AND a.event_id = $2
+) p
+ORDER BY abs(extract(epoch FROM p.start_at - $3::timestamptz))
+LIMIT 1
+`
+
+type GetTimeshiftPromotionProgramParams struct {
+	ServiceID int64
+	EventID   int64
+	At        time.Time
+}
+
+type GetTimeshiftPromotionProgramRow struct {
+	ServiceID       int64
+	EventID         int64
+	StartAt         time.Time
+	EndAt           time.Time
+	EndUndecided    bool
+	Name            string
+	Description     string
+	Genres          []byte
+	Audios          []byte
+	VideoResolution *string
+}
+
+// タイムシフトのバッファから録画に昇格する番組の、番組表の情報。終わった番組は program_archives に移っていることがあるので、両方から引く。
+// 同じイベント ID が繰り返し使われることがあるので、mikan が番組の始まりに気づいた時刻 at に最も近い始まりのものを選ぶ。
+func (q *Queries) GetTimeshiftPromotionProgram(ctx context.Context, arg GetTimeshiftPromotionProgramParams) (GetTimeshiftPromotionProgramRow, error) {
+	row := q.db.QueryRow(ctx, getTimeshiftPromotionProgram, arg.ServiceID, arg.EventID, arg.At)
+	var i GetTimeshiftPromotionProgramRow
+	err := row.Scan(
+		&i.ServiceID,
+		&i.EventID,
+		&i.StartAt,
+		&i.EndAt,
+		&i.EndUndecided,
+		&i.Name,
+		&i.Description,
+		&i.Genres,
+		&i.Audios,
+		&i.VideoResolution,
+	)
+	return i, err
+}
+
 const insertTimeshiftAssignment = `-- name: InsertTimeshiftAssignment :exec
 INSERT INTO timeshift_assignments (id, service_id, priority, state, generation, holder, lease_expires_at, created_at, updated_at)
 VALUES ($1, $2, $3, 'waiting', 0, NULL, NULL, $4, $4)
@@ -326,6 +455,37 @@ func (q *Queries) InsertTimeshiftChunk(ctx context.Context, arg InsertTimeshiftC
 	return err
 }
 
+const insertTimeshiftPromotion = `-- name: InsertTimeshiftPromotion :execrows
+INSERT INTO timeshift_promotions (recording_id, service_id, from_at, to_at, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (service_id, from_at) DO NOTHING
+`
+
+type InsertTimeshiftPromotionParams struct {
+	RecordingID uuid.UUID
+	ServiceID   int64
+	FromAt      time.Time
+	ToAt        time.Time
+	CreatedBy   *uuid.UUID
+	Now         time.Time
+}
+
+// 同じ番組を昇格している途中なら、何もしない。そのときは 0 を返す。
+func (q *Queries) InsertTimeshiftPromotion(ctx context.Context, arg InsertTimeshiftPromotionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertTimeshiftPromotion,
+		arg.RecordingID,
+		arg.ServiceID,
+		arg.FromAt,
+		arg.ToAt,
+		arg.CreatedBy,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listAbandonedTimeshiftServices = `-- name: ListAbandonedTimeshiftServices :many
 SELECT s.service_id FROM (
   SELECT c.service_id FROM timeshift_chunks c WHERE c.ended_at IS NULL
@@ -366,6 +526,11 @@ FROM timeshift_chunks c
 LEFT JOIN timeshift_channels t ON t.service_id = c.service_id
 WHERE c.ended_at IS NOT NULL
   AND (t.service_id IS NULL OR c.ended_at + t.retention_seconds * interval '1 second' < $1::timestamptz)
+  -- 録画に昇格している番組の範囲と重なるチャンクは、書き出し終えるまで消さない (#1057)。
+  AND NOT EXISTS (
+    SELECT 1 FROM timeshift_promotions p
+    WHERE p.service_id = c.service_id AND c.started_at < p.to_at AND c.ended_at > p.from_at
+  )
 ORDER BY c.started_at, c.id
 `
 
@@ -772,6 +937,41 @@ func (q *Queries) ListTimeshiftPrograms(ctx context.Context, serviceID int64) ([
 			&i.Name,
 			&i.EndedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTimeshiftPromotions = `-- name: ListTimeshiftPromotions :many
+SELECT p.from_at, p.to_at, r.event_id
+FROM timeshift_promotions p
+JOIN recordings r ON r.id = p.recording_id
+WHERE p.service_id = $1
+ORDER BY p.from_at
+`
+
+type ListTimeshiftPromotionsRow struct {
+	FromAt  time.Time
+	ToAt    time.Time
+	EventID *int64
+}
+
+// サービスの、録画に昇格している途中の番組と、そのイベント ID。番組の一覧に、書き出している途中であることを出すのに使う。
+func (q *Queries) ListTimeshiftPromotions(ctx context.Context, serviceID int64) ([]ListTimeshiftPromotionsRow, error) {
+	rows, err := q.db.Query(ctx, listTimeshiftPromotions, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTimeshiftPromotionsRow{}
+	for rows.Next() {
+		var i ListTimeshiftPromotionsRow
+		if err := rows.Scan(&i.FromAt, &i.ToAt, &i.EventID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

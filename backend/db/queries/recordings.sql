@@ -244,6 +244,8 @@ WITH failed AS (
     AND NOT EXISTS (
       SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
     )
+    -- タイムシフトのバッファから昇格している録画は、nekonote のジョブが終える (#1057)。
+    AND NOT EXISTS (SELECT 1 FROM timeshift_promotions p WHERE p.recording_id = r.id)
   RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name, r.failure_reason
 ), counted AS (
   UPDATE recording_failure_counts c SET count = c.count + f.n, last_failed_at = @now
@@ -290,3 +292,12 @@ WHERE recording_id = @recording_id;
 -- since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
 SELECT l.* FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
 WHERE l.recording_id = @recording_id AND r.state = 'recording' AND l.updated_at > @since;
+
+-- name: InsertPromotedRecording :one
+-- タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
+-- nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
+  protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+VALUES (@id, NULL, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
+  false, 0, 0, 0, @audios, sqlc.narg(video_resolution), @genres, NULL, NULL, @recorded_from, NULL, @now, @now)
+RETURNING *;

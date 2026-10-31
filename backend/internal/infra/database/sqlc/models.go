@@ -503,6 +503,15 @@ type TimeshiftProgram struct {
 	EndedAt   *time.Time
 }
 
+type TimeshiftPromotion struct {
+	RecordingID uuid.UUID
+	ServiceID   int64
+	FromAt      time.Time
+	ToAt        time.Time
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte

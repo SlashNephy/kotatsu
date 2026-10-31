@@ -1029,3 +1029,18 @@ CREATE TABLE timeshift_programs (
   ended_at timestamptz,
   PRIMARY KEY (service_id, started_at)
 );
+
+-- タイムシフトのバッファから録画に昇格している、放送の終わった番組 (#1057、設計書 5.7)。nekonote のジョブが書き出し終えたら消す。
+-- 行のある間は、破棄のジョブが、from_at から to_at までと重なるチャンクを消さない。neko も、録画中のまま残った録画として失敗にしない。
+CREATE TABLE timeshift_promotions (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  -- 書き出す範囲。番組の始まりから終わりに、前後のマージンを足したもの。
+  from_at timestamptz NOT NULL,
+  to_at timestamptz NOT NULL,
+  -- 昇格したユーザー。完了の通知を届ける。ユーザーを消したら NULL にし、全員に届ける。
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL,
+  -- 同じ番組を二重に昇格しない。
+  UNIQUE (service_id, from_at)
+);

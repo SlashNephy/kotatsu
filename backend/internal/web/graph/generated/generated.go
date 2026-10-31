@@ -315,6 +315,7 @@ type ComplexityRoot struct {
 		InspectChannel               func(childComplexity int, channelType string, channel string) int
 		MarkAllNotificationsRead     func(childComplexity int) int
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
+		PromoteTimeshiftProgram      func(childComplexity int, serviceID string, startAt time.Time) int
 		ReanalyzeRecording           func(childComplexity int, id string) int
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
@@ -917,9 +918,15 @@ type ComplexityRoot struct {
 		HlsURL       func(childComplexity int) int
 		Name         func(childComplexity int) int
 		PlayableFrom func(childComplexity int) int
+		Promoting    func(childComplexity int) int
 		Service      func(childComplexity int) int
 		StartAt      func(childComplexity int) int
 		StreamURL    func(childComplexity int) int
+	}
+
+	TimeshiftPromotion struct {
+		Recording   func(childComplexity int) int
+		Reservation func(childComplexity int) int
 	}
 
 	Transcoding struct {
@@ -1060,6 +1067,7 @@ type MutationResolver interface {
 	CreateStreamURL(ctx context.Context, target string) (*model.StreamURL, error)
 	SetTimeshiftChannel(ctx context.Context, serviceID string, retentionSeconds *int) (*model.TimeshiftChannel, error)
 	RemoveTimeshiftChannel(ctx context.Context, serviceID string) (string, error)
+	PromoteTimeshiftProgram(ctx context.Context, serviceID string, startAt time.Time) (*model.TimeshiftPromotion, error)
 	CreateUser(ctx context.Context, input model.CreateUserInput) (*model.User, error)
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
@@ -2352,6 +2360,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.MarkNotificationsRead(childComplexity, args["ids"].([]string)), true
+	case "Mutation.promoteTimeshiftProgram":
+		if e.ComplexityRoot.Mutation.PromoteTimeshiftProgram == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_promoteTimeshiftProgram_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.PromoteTimeshiftProgram(childComplexity, args["serviceId"].(string), args["startAt"].(time.Time)), true
 	case "Mutation.reanalyzeRecording":
 		if e.ComplexityRoot.Mutation.ReanalyzeRecording == nil {
 			break
@@ -5190,6 +5209,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeshiftProgram.PlayableFrom(childComplexity), true
+	case "TimeshiftProgram.promoting":
+		if e.ComplexityRoot.TimeshiftProgram.Promoting == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftProgram.Promoting(childComplexity), true
 	case "TimeshiftProgram.service":
 		if e.ComplexityRoot.TimeshiftProgram.Service == nil {
 			break
@@ -5208,6 +5233,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TimeshiftProgram.StreamURL(childComplexity), true
+
+	case "TimeshiftPromotion.recording":
+		if e.ComplexityRoot.TimeshiftPromotion.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftPromotion.Recording(childComplexity), true
+	case "TimeshiftPromotion.reservation":
+		if e.ComplexityRoot.TimeshiftPromotion.Reservation == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TimeshiftPromotion.Reservation(childComplexity), true
 
 	case "Transcoding.available":
 		if e.ComplexityRoot.Transcoding.Available == nil {
@@ -8025,6 +8063,23 @@ extend type Mutation {
   管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
+  """
+  サービス serviceId のバッファの、startAt に始まった番組 (TimeshiftProgram.startAt) を、通常の録画に昇格する (設計書 5.7)。視聴者は使えない。
+  放送中の番組は、番組予約を作って続きを録り、録画が始まる前の部分をバッファから補う。作った予約を reservation で返す。
+  放送の終わった番組は、予約のない録画を録画中として作り、nekonote のジョブがバッファから書き出したら完了にする。作った録画を recording で返す。
+  番組を破棄したか、サービスをタイムシフトで録っていなければ NOT_FOUND を、同じ番組を書き出している途中なら CONFLICT を返す。
+  """
+  promoteTimeshiftProgram(serviceId: ID!, startAt: Time!): TimeshiftPromotion!
+}
+
+"""
+タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
+"""
+type TimeshiftPromotion {
+  "放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。"
+  recording: Recording
+  "放送中の番組の、続きを録る番組予約。"
+  reservation: Reservation
 }
 
 """
@@ -8047,6 +8102,8 @@ type TimeshiftProgram {
   タイムシフトに足したときや、落ちた mikan の後を録り直したときに放送中だった番組は、途中から録っている。
   """
   fromStart: Boolean!
+  "番組を録画に昇格して、バッファから書き出している途中かどうか。"
+  promoting: Boolean!
   "playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。"
   gaps: [RecordingGap!]!
   "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
@@ -9830,6 +9887,8 @@ func (ec *executionContext) childFields_TimeshiftProgram(ctx context.Context, fi
 		return ec.fieldContext_TimeshiftProgram_playableFrom(ctx, field)
 	case "fromStart":
 		return ec.fieldContext_TimeshiftProgram_fromStart(ctx, field)
+	case "promoting":
+		return ec.fieldContext_TimeshiftProgram_promoting(ctx, field)
 	case "gaps":
 		return ec.fieldContext_TimeshiftProgram_gaps(ctx, field)
 	case "streamUrl":
@@ -9838,6 +9897,16 @@ func (ec *executionContext) childFields_TimeshiftProgram(ctx context.Context, fi
 		return ec.fieldContext_TimeshiftProgram_hlsUrl(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TimeshiftProgram", field.Name)
+}
+
+func (ec *executionContext) childFields_TimeshiftPromotion(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "recording":
+		return ec.fieldContext_TimeshiftPromotion_recording(ctx, field)
+	case "reservation":
+		return ec.fieldContext_TimeshiftPromotion_reservation(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type TimeshiftPromotion", field.Name)
 }
 
 func (ec *executionContext) childFields_Transcoding(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10527,6 +10596,28 @@ func (ec *executionContext) field_Mutation_markNotificationsRead_args(ctx contex
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_promoteTimeshiftProgram_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serviceId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["serviceId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "startAt",
+		func(ctx context.Context, v any) (time.Time, error) {
+			return ec.unmarshalNTime2timeᚐTime(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["startAt"] = arg1
 	return args, nil
 }
 
@@ -17083,6 +17174,50 @@ func (ec *executionContext) fieldContext_Mutation_removeTimeshiftChannel(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_removeTimeshiftChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_promoteTimeshiftProgram(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_promoteTimeshiftProgram(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().PromoteTimeshiftProgram(ctx, fc.Args["serviceId"].(string), fc.Args["startAt"].(time.Time))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.TimeshiftPromotion) graphql.Marshaler {
+			return ec.marshalNTimeshiftPromotion2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftPromotion(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_promoteTimeshiftProgram(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_TimeshiftPromotion(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_promoteTimeshiftProgram_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -27924,6 +28059,29 @@ func (ec *executionContext) fieldContext_TimeshiftProgram_fromStart(_ context.Co
 	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _TimeshiftProgram_promoting(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftProgram_promoting(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Promoting, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftProgram_promoting(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TimeshiftProgram", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _TimeshiftProgram_gaps(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftProgram) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -28000,6 +28158,70 @@ func (ec *executionContext) _TimeshiftProgram_hlsUrl(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_TimeshiftProgram_hlsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TimeshiftProgram", field, true, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _TimeshiftPromotion_recording(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftPromotion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftPromotion_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalORecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftPromotion_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TimeshiftPromotion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TimeshiftPromotion_reservation(ctx context.Context, field graphql.CollectedField, obj *model.TimeshiftPromotion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TimeshiftPromotion_reservation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reservation, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Reservation) graphql.Marshaler {
+			return ec.marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservation(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TimeshiftPromotion_reservation(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TimeshiftPromotion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Transcoding_available(ctx context.Context, field graphql.CollectedField, obj *model.Transcoding) (ret graphql.Marshaler) {
@@ -34349,6 +34571,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "promoteTimeshiftProgram":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_promoteTimeshiftProgram(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createUser":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createUser(ctx, field)
@@ -39906,6 +40135,11 @@ func (ec *executionContext) _TimeshiftProgram(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "promoting":
+			out.Values[i] = ec._TimeshiftProgram_promoting(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "gaps":
 			out.Values[i] = ec._TimeshiftProgram_gaps(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -39920,6 +40154,49 @@ func (ec *executionContext) _TimeshiftProgram(ctx context.Context, sel ast.Selec
 			out.Values[i] = ec._TimeshiftProgram_hlsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var timeshiftPromotionImplementors = []string{"TimeshiftPromotion"}
+
+func (ec *executionContext) _TimeshiftPromotion(ctx context.Context, sel ast.SelectionSet, obj *model.TimeshiftPromotion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, timeshiftPromotionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TimeshiftPromotion")
+		case "recording":
+			out.Values[i] = ec._TimeshiftPromotion_recording(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "reservation":
+			out.Values[i] = ec._TimeshiftPromotion_reservation(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -43132,6 +43409,16 @@ func (ec *executionContext) marshalNTimeshiftProgram2ᚖgithubᚗcomᚋSlashNeph
 	return ec._TimeshiftProgram(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNTimeshiftPromotion2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTimeshiftPromotion(ctx context.Context, sel ast.SelectionSet, v *model.TimeshiftPromotion) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TimeshiftPromotion(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNTranscoding2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTranscoding(ctx context.Context, sel ast.SelectionSet, v *model.Transcoding) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -43846,6 +44133,13 @@ func (ec *executionContext) marshalOPreviewFrame2ᚖgithubᚗcomᚋSlashNephyᚋ
 		return graphql.Null
 	}
 	return ec._PreviewFrame(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalORecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx context.Context, sel ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Recording(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, v any) (*model.RecordingFailureReason, error) {

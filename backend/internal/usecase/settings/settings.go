@@ -134,6 +134,16 @@ func Load(ctx context.Context, db sqlc.DBTX) (*System, error) {
 	return systemOf(&row)
 }
 
+// RecordingDefaults は、録画設定の全体の既定値を返す (assign.DefaultsFunc)。画面から変えられる (設計書 11.2) ので、使うたびに引く。
+func RecordingDefaults(ctx context.Context, db sqlc.DBTX) (*domain.RecordingSettings, error) {
+	system, err := Load(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+
+	return system.Recording, nil
+}
+
 // Store は、全体の設定を変える。変えたことは監査ログに残す。
 type Store struct {
 	clock    clock.Clock

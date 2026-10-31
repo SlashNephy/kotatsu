@@ -1161,6 +1161,14 @@ type TimeReservationInput struct {
 	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
 }
 
+// タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
+type TimeshiftPromotion struct {
+	// 放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。
+	Recording *Recording `json:"recording,omitempty"`
+	// 放送中の番組の、続きを録る番組予約。
+	Reservation *Reservation `json:"reservation,omitempty"`
+}
+
 // サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。
 type Transcoding struct {
 	// トランスコードできる kyusu が動いているかどうか。動いていなければ、ブラウザ内での変換だけを使える。
