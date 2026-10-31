@@ -1019,6 +1019,11 @@
   },
   "player": {
     "normalizeVolume": "音量を補正する",
+    "audioDelay": {
+      "label": "音ずれ補正",
+      "description": "音だけを遅らせて、映像に合わせます。音が映像より遅いときは補正できません",
+      "resetOnChannelChange": "選局したら音ずれ補正を元に戻す"
+    },
     "sleepTimer": {
       "label": "スリープタイマー",
       "off": "切る",
@@ -1104,6 +1109,9 @@
       "pressKey": "データ放送のリモコンのボタンを押す",
       "restart": "プレイヤーを読み直す",
       "toggleStats": "統計情報を出し入れする",
+      "audioDelayIncrease": "音を遅らせる（音ずれ補正）",
+      "audioDelayDecrease": "音の遅れを戻す（音ずれ補正）",
+      "audioDelayReset": "音ずれ補正を元に戻す",
       "showShortcuts": "この一覧を出す",
       "stop": "再生をやめる"
     },
@@ -1129,7 +1137,8 @@
       "dataBroadcastOn": "データ放送を表示",
       "dataBroadcastOff": "データ放送を隠す",
       "captured": "画像を保存しました",
-      "restarted": "プレイヤーを読み直しました"
+      "restarted": "プレイヤーを読み直しました",
+      "audioDelay": "音ずれ補正 {{ms}} ms"
     },
     "backToRecording": "録画の詳細に戻る",
     "ruleRecordings": "「{{rule}}」の録画",

@@ -29,6 +29,11 @@ import { LiveServiceList } from '../../guide/LiveServiceList';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
+import {
+  useAudioDelayCommands,
+  useAudioDelayer,
+  useResetAudioDelayOnChannel,
+} from '../../yunomi/audioDelay';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import {
@@ -66,6 +71,7 @@ import {
   PlaybackUnavailable,
   QualitySelect,
   CropSelect,
+  AudioDelaySetting,
   NormalizeVolumeToggle,
   SleepTimerSelect,
   VirtualSurroundToggle,
@@ -516,6 +522,8 @@ function Live({
   const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
+  useAudioDelayer(video);
+  useResetAudioDelayOnChannel(serviceId);
   // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
@@ -649,7 +657,12 @@ function Live({
     },
   );
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
+  const audioDelayCommands = useAudioDelayCommands((ms) =>
+    showFlash(t('player.flash.audioDelay', { ms })),
+  );
   const commands: PlayerCommands = {
+    ...audioDelayCommands,
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay: () => {
@@ -924,6 +937,7 @@ function Live({
             {audio.menu}
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <AudioDelaySetting resettable />
             <SleepTimerSelect timer={sleep} programEnd />
             {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />

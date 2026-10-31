@@ -50,11 +50,25 @@ function createNormalize(ctx: BaseAudioContext): AudioStage {
   return { input: compressor, output: makeup, nodes: [compressor, makeup] };
 }
 
+// maxDelaySeconds は、音ずれ補正 (#818) で遅らせられる上限 (秒)。DelayNode は、作るときに上限を決める。
+const maxDelaySeconds = 1;
+
+// createDelay は、音ずれ補正の段を作る。遅らせる長さは、setStage が setAudioDelay の値にする。
+function createDelay(ctx: BaseAudioContext): AudioStage {
+  const delay = ctx.createDelay(maxDelaySeconds);
+
+  return { input: delay, output: delay, nodes: [delay] };
+}
+
 // stageFactories は、段ごとの作り方。段を足すときは、audioStageOrder とここに足す。
 const stageFactories: Record<AudioStageName, (ctx: BaseAudioContext) => AudioStage> = {
+  delay: createDelay,
   surround: createVirtualSurround,
   normalize: createNormalize,
 };
+
+// delays は、video ごとの、遅らせる長さ (秒)。段をまだ作れていなくても、作ったらこの長さにする。
+const delays = new WeakMap<HTMLMediaElement, number>();
 
 // wantedOf は、video に入れた段を返す。
 function wantedOf(video: HTMLMediaElement): Set<AudioStageName> {
@@ -132,6 +146,7 @@ function boosterOf(video: HTMLMediaElement): Booster | null {
       enabled: new Set(wanted.get(video)),
     };
     wire(sharedContext, booster);
+    applyDelay(video, booster);
     boosters.set(video, booster);
 
     return booster;
@@ -180,8 +195,18 @@ function setStage(video: HTMLMediaElement, name: AudioStageName, enabled: boolea
     }
     wire(sharedContext, booster);
   }
+  applyDelay(video, booster);
   // 作ったばかりの AudioContext は止まっていることがあるので、動かす。動かさないと、WebAudio を通した音が出ない。
   resumeContext();
+}
+
+// applyDelay は、音ずれ補正の段に、覚えた長さを当てる。段を作ったとき (setStage でも、音量を上げて booster を
+// 作ったときでも) と、長さだけを変えたときに呼ぶ。
+function applyDelay(video: HTMLMediaElement, booster: Booster): void {
+  const delay = booster.stages.get('delay')?.input as DelayNode | undefined;
+  if (delay !== undefined) {
+    delay.delayTime.value = delays.get(video) ?? 0;
+  }
 }
 
 // hasStage は、video の音に、今、段 name を入れているかを返す。
@@ -197,6 +222,13 @@ export function setSurround(video: HTMLMediaElement, enabled: boolean): void {
 // isSurrounded は、video の音を、今、仮想サラウンドにしているかを返す。
 export function isSurrounded(video: HTMLMediaElement): boolean {
   return hasStage(video, 'surround');
+}
+
+// setAudioDelay は、video の音を seconds 秒遅らせる (#818)。0 なら、音ずれ補正の段を外す。
+export function setAudioDelay(video: HTMLMediaElement, seconds: number): void {
+  const clamped = Math.min(Math.max(seconds, 0), maxDelaySeconds);
+  delays.set(video, clamped);
+  setStage(video, 'delay', clamped > 0);
 }
 
 // setNormalize は、video の音量の補正 (#499) を入れるか切る。

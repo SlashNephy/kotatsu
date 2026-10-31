@@ -13,6 +13,7 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import { WatchPanel } from '../../yunomi/WatchPanel';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
+import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
 import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
@@ -32,6 +33,7 @@ import { useSeekableStream } from '../../yunomi/useSeekableStream';
 import {
   RateSelect,
   CropSelect,
+  AudioDelaySetting,
   NormalizeVolumeToggle,
   SleepTimerSelect,
   PlaybackUnavailable,
@@ -244,6 +246,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
 
   const [statsShown, setStatsShown] = useState(false);
   useVolumeNormalizer(video);
+  useAudioDelayer(video);
   const [crop, setCrop] = useState<Crop>(noCrop);
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
@@ -355,7 +358,12 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   };
   const [autoPictureInPicture] = useAutoPictureInPicture();
   // commands は、この画面で今使える操作 (#809)。キーと OS のメディア操作は、どちらもここから呼ぶ。
+  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
+  const audioDelayCommands = useAudioDelayCommands((ms) =>
+    showFlash(t('player.flash.audioDelay', { ms })),
+  );
   const commands: PlayerCommands = {
+    ...audioDelayCommands,
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay,
@@ -526,6 +534,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <AudioDelaySetting />
             <SleepTimerSelect timer={sleep} />
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
