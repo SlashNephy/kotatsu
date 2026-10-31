@@ -22,7 +22,7 @@ type Props = {
   superimpose?: boolean;
   // captionStyle は、字幕の見た目 (#491)。
   captionStyle?: CaptionStyle;
-  // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。映像と字幕をまとめて拡大する。
   crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
