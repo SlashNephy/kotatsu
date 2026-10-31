@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9cf583976fab769880a3699700b30fee>>
+ * @generated SignedSource<<66d83726ba72c5013b0c841b3299ebd4>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type SystemSettingsInput = {
   archiveRetentionDays?: number | null | undefined;
+  drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
@@ -28,6 +29,10 @@ export type RuleDefaultsInput = {
   clearDuplicateWindowDays?: boolean;
   duplicateWindowDays?: number | null | undefined;
   followEventRelay?: boolean | null | undefined;
+};
+export type DrcsReplacementInput = {
+  md5: string;
+  text?: string | null | undefined;
 };
 export type integrationsMcpMutation$variables = {
   input: SystemSettingsInput;

@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -138,6 +139,91 @@ func TestSystemSettings(t *testing.T) {
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: false}}, nil))
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
+}
+
+type drcsReplacement struct {
+	MD5  string `json:"md5"`
+	Text string `json:"text"`
+}
+
+// TestDRCSReplacements は、管理者だけが字幕の外字の置き換えの表を変えられ、ログインしていれば誰でも読めることを確かめる (#825)。
+// 表は、書いた外字だけを変えるので、別々に送った登録を互いに消さない。
+func TestDRCSReplacements(t *testing.T) {
+	t.Parallel()
+
+	const (
+		query    = `{ drcsReplacements { md5 text } }`
+		md5Upper = "0123456789ABCDEF0123456789ABCDEF"
+		md5Lower = "0123456789abcdef0123456789abcdef"
+		md5Other = "ffffffffffffffffffffffffffffffff"
+		md5Third = "00000000000000000000000000000000"
+		// textJi は、字幕の「字」の印を置き換える文字。
+		textJi = "[字]"
+		update = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { drcsReplacements { md5 text } } }`
+	)
+	type payload struct {
+		DRCSReplacements []drcsReplacement `json:"drcsReplacements"`
+	}
+	// input は、外字の表の変更。text が空なら、その外字を消す。
+	input := func(rows ...drcsReplacement) map[string]any {
+		values := make([]map[string]any, 0, len(rows))
+		for _, row := range rows {
+			var text any
+			if row.Text != "" {
+				text = row.Text
+			}
+			values = append(values, map[string]any{"md5": row.MD5, "text": text})
+		}
+
+		return map[string]any{varInput: map[string]any{"drcsReplacements": values}}
+	}
+
+	f := newFixture(t, nil)
+	viewerFixture := f.as(t, "viewer", auth.RoleViewer)
+	var got payload
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Empty(t, got.DRCSReplacements, "empty by default")
+
+	change := input(drcsReplacement{MD5: md5Other, Text: "♪"}, drcsReplacement{MD5: md5Upper, Text: textJi})
+	assert.Equal(t, []string{codeForbidden}, viewerFixture.query(t, update, change, nil), "only administrators can change the table")
+
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	require.Empty(t, admin.query(t, update, change, nil))
+	want := []drcsReplacement{{MD5: md5Lower, Text: textJi}, {MD5: md5Other, Text: "♪"}}
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements, "MD5 is lowercased and sorted")
+
+	// 別に送った登録は、前の登録を消さない。書いた外字だけを変える。
+	require.Empty(t, admin.query(t, update, input(drcsReplacement{MD5: md5Third, Text: "三"}, drcsReplacement{MD5: md5Other, Text: "♫"}), nil))
+	want = []drcsReplacement{{MD5: md5Third, Text: "三"}, {MD5: md5Lower, Text: textJi}, {MD5: md5Other, Text: "♫"}}
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements)
+
+	// 正しくない変更は、BAD_USER_INPUT を返し、保存しない。
+	tooMany := make([]drcsReplacement, 0, 1998)
+	for i := range 1998 {
+		tooMany = append(tooMany, drcsReplacement{MD5: fmt.Sprintf("%032x", i+1), Text: "a"})
+	}
+	for name, rows := range map[string][]drcsReplacement{
+		"not hex":    {{MD5: strings.Repeat("g", 32), Text: "a"}},
+		"short":      {{MD5: "0123", Text: "a"}},
+		"long text":  {{MD5: md5Lower, Text: "12345"}},
+		"duplicated": {{MD5: md5Lower, Text: "a"}, {MD5: md5Upper, Text: "b"}},
+		// 今の 3 件と合わせて、2000 件を超える。
+		"too many rows": tooMany,
+	} {
+		assert.Equal(t, []string{codeBadUserInput}, admin.query(t, update, input(rows...), nil), name)
+	}
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements)
+
+	// 表を省けば変えず、text を null にした外字は消す。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDays: 30}}, nil))
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements)
+	require.Empty(t, admin.query(t, update, input(drcsReplacement{MD5: md5Upper, Text: ""}, drcsReplacement{MD5: md5Third, Text: ""}), nil))
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, []drcsReplacement{{MD5: md5Other, Text: "♫"}}, got.DRCSReplacements)
 }
 
 const fieldSortOrder = "sortOrder"

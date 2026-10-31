@@ -18,6 +18,7 @@ import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay'
 import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
+import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
 import {
   insertRecordedCaption,
   normalizeCaption,
@@ -283,6 +284,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   const currentCaption = useRef<string | null>(null);
+  // 字幕の外字を置き換える表を読む (#825)。
+  const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
@@ -706,6 +709,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
                     formatClock(broadcastTime(program.playableFrom, program.gaps, entry.at))
                   }
                   onSelect={(entry) => seek(entry.at)}
+                  canRegisterDRCS={drcs.canRegister}
                   height={watchCommentsHeight}
                 />
               ),
