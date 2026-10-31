@@ -135,6 +135,7 @@ func (p *pendingSave) save(ctx context.Context, r *Recorder, tracker *endTracker
 		}
 		*p.recording = recording
 		tracker.recordingID = recording.ID
+		tracker.savedRecordingID.Store(new(recording.ID))
 		p.start = false
 		p.closeStale = !p.handedOver
 	}

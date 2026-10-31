@@ -861,6 +861,21 @@ CREATE TABLE recording_files (
 
 CREATE INDEX recording_files_recording_id_idx ON recording_files (recording_id, started_at);
 
+-- 録画中の録画の、書いているセグメントの様子 (#829、設計書 5.3)。mikan が 10 秒ごとに書き、システムの状態の画面と
+-- /metrics が読む。セグメントを閉じたら 0 に戻す (閉じたセグメントの数は、recordings と recording_files に足すため)。
+-- 引き継ぎで 2 つの mikan が同じ録画を書く間は、後から書いた方が残る。
+CREATE TABLE recording_live_stats (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  -- 書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。
+  bytes bigint NOT NULL,
+  drops bigint NOT NULL,
+  errors bigint NOT NULL,
+  scrambled bigint NOT NULL,
+  -- 直前の間隔で書いたビットレート (bps)。
+  bitrate bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
 

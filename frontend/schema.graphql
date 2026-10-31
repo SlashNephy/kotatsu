@@ -1896,6 +1896,10 @@ type Recording implements Node {
   """
   notBroadcast: Boolean!
   """
+  録画中の録画の、書いているセグメントの様子 (#829)。mikan が 10 秒ごとに書く。録画中でないか、まだ書いていなければ null。
+  """
+  liveStats: RecordingLiveStats
+  """
   実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。
   """
   recordedFrom: Time!
@@ -2067,6 +2071,23 @@ input RecordingFilter {
 type RecordingGap {
   from: Time!
   to: Time!
+}
+"""
+録画中の録画の、書いているセグメントの様子 (#829)。
+"""
+type RecordingLiveStats {
+  """
+  直前の 10 秒ほどに書いたビットレート (bps)。
+  """
+  bitrate: Int64!
+  """
+  書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。閉じたセグメントの数は、Recording の drops などにある。
+  """
+  bytes: Int64!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+  updatedAt: Time!
 }
 """
 録画の並び順。どちらも、録画を始めた日時で並べる。

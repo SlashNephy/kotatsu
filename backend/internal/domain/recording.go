@@ -42,6 +42,18 @@ type Recording struct {
 	UpdatedAt          time.Time
 }
 
+// RecordingLiveStats は、録画中の録画の、書いているセグメントの様子 (#829)。mikan が 10 秒ごとに書く。
+type RecordingLiveStats struct {
+	RecordingID uuid.UUID
+	Bytes       int64
+	Drops       int64
+	Errors      int64
+	Scrambled   int64
+	// Bitrate は、直前の間隔で書いたビットレート (bps)。
+	Bitrate   int64
+	UpdatedAt time.Time
+}
+
 // RecordingFile は、録画のファイル (録画ファイル、生成物)。
 type RecordingFile struct {
 	ID          uuid.UUID

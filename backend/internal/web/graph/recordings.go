@@ -615,3 +615,31 @@ func (r *Resolver) writingFileSize(poolID, path string, recorded int64) int64 {
 
 	return info.Size()
 }
+
+// liveStatsFreshness は、録画中の録画の様子を、今の値とみなす長さ。mikan は 10 秒ごとに書くので、その 3 回分にする。
+const liveStatsFreshness = 30 * time.Second
+
+// recordingLiveStats は、録画中の録画の、書いているセグメントの様子を返す (#829)。録画中でないか、まだ書いていなければ nil。
+func (r *Resolver) recordingLiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error) {
+	var found *model.RecordingLiveStats
+	if obj.State != model.RecordingStateRecording {
+		return found, nil
+	}
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	stats, err := r.queries.GetRecordingLiveStats(ctx, recordingID, r.clock.Now().Add(-liveStatsFreshness))
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// まだ書いていない。
+		return found, nil
+	case err != nil:
+		return nil, fmt.Errorf("failed to get the live recording stats: %w", err)
+	}
+
+	return &model.RecordingLiveStats{
+		Bitrate: stats.Bitrate, Bytes: stats.Bytes, Drops: stats.Drops, Errors: stats.Errors, Scrambled: stats.Scrambled,
+		UpdatedAt: stats.UpdatedAt,
+	}, nil
+}

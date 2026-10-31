@@ -11,9 +11,20 @@ SELECT failure_reason::text AS reason, count(*) AS count FROM recordings WHERE f
 SELECT reason, count, last_failed_at FROM recording_failure_counts ORDER BY reason;
 
 -- name: SumActiveRecordingPackets :one
--- /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
-SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled
-FROM recordings WHERE state = 'recording';
+-- /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。
+SELECT
+  (COALESCE(sum(r.drops), 0) + COALESCE(sum(l.drops), 0))::bigint AS drops,
+  (COALESCE(sum(r.errors), 0) + COALESCE(sum(l.errors), 0))::bigint AS errors,
+  (COALESCE(sum(r.scrambled), 0) + COALESCE(sum(l.scrambled), 0))::bigint AS scrambled
+FROM recordings r LEFT JOIN recording_live_stats l ON l.recording_id = r.id
+WHERE r.state = 'recording';
+
+-- name: SumActiveRecordingBitrate :one
+-- /metrics に出す、録画中の録画の直近のビットレートの合計 (#829)。mikan が since より後に書いたものだけを足す。
+-- 書かなくなったもの (落ちた mikan の録画) は、古いビットレートを今の値として出さないよう、足さない。
+SELECT COALESCE(sum(l.bitrate), 0)::bigint AS bitrate
+FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE r.state = 'recording' AND l.updated_at > @since;
 
 -- name: CountReservationsByState :one
 -- /metrics に出す、録画の予定の終わりが来ていない予約の、割り当ての状態ごとの数。無効な予約は、割り当ての状態によらず無効として数える。
