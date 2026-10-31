@@ -128,6 +128,20 @@ type CaptionSettingsInput struct {
 	BackgroundOpacity *float64 `json:"backgroundOpacity,omitempty"`
 }
 
+// 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+type ChannelInspection struct {
+	// PAT の transport_stream_id。PAT を受け取れなければ null。
+	TransportStreamID *int `json:"transportStreamId,omitempty"`
+	// 実際に受け取った長さ (秒)。
+	Seconds float64 `json:"seconds"`
+	// 全体のビットレート (bps)。
+	TotalBps int `json:"totalBps"`
+	// PAT に書かれた番組 (サービス)。program_number の昇順に並べる。
+	Programs []*InspectedProgram `json:"programs"`
+	// どの番組の PMT にも載っていない PID (PAT、EIT などの SI、ECM、EMM など)。PID の昇順に並べる。
+	Others []*InspectedStream `json:"others"`
+}
+
 // チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 type ChannelType struct {
 	Type        string `json:"type"`
@@ -301,6 +315,30 @@ type GuideViewInput struct {
 	Services           []string      `json:"services,omitempty"`
 	HideEmptyServices  bool          `json:"hideEmptyServices"`
 	FreeOnly           bool          `json:"freeOnly"`
+}
+
+// 調べた TS の、番組 (サービス) 1 つの様子。
+type InspectedProgram struct {
+	// program_number。ARIB ではサービス ID と同じ値になる。
+	ServiceID int `json:"serviceId"`
+	// Kotatsu が知っているサービスなら、その名前。知らなければ null。
+	Name *string `json:"name,omitempty"`
+	// PMT と ES のビットレートの合計 (bps)。
+	Bps int `json:"bps"`
+	// PMT と ES。PMT、PMT に書かれた順の ES の順に並べる。
+	Streams []*InspectedStream `json:"streams"`
+}
+
+// 調べた TS の、PID 1 つの様子。
+type InspectedStream struct {
+	Pid  int        `json:"pid"`
+	Kind StreamKind `json:"kind"`
+	// PMT の stream_type。PMT に載っていなければ null。
+	StreamType *int  `json:"streamType,omitempty"`
+	Bps        int   `json:"bps"`
+	Drops      int64 `json:"drops"`
+	Errors     int64 `json:"errors"`
+	Scrambled  int64 `json:"scrambled"`
 }
 
 // 各ロールのインスタンス (設計書 1.4)。

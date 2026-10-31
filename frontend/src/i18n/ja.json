@@ -1444,7 +1444,18 @@
       "noActiveRecordings": "録画中の録画はありません",
       "activeRecordingName": "番組名",
       "activeRecordingService": "サービス",
-      "activeRecordingBitrate": "直近のビットレート"
+      "activeRecordingBitrate": "直近のビットレート",
+      "inspect": {
+        "title": "チャンネルの TS を調べる",
+        "description": "物理チャンネルの TS をまるごと 5 秒ほど受け取り、TSID、サービスの一覧、サービスごとの ES とビットレートを出します。マルチ編成で帯域が分かれる様子が見えます。調べる間、空いたチューナーを 1 本使います（ほかの利用者からは奪いません）。マルチ編成で ES を共有するサービスは、どちらのサービスにも数えます",
+        "channel": "チャンネル",
+        "run": "調べる",
+        "failed": "調べられませんでした。空いたチューナーがないか、チューナーサーバーがチャンネル単位のストリームに対応していないかもしれません",
+        "summary": "TSID {{tsid}}、全体 {{bitrate}}（{{seconds}} 秒）",
+        "service": "サービス {{id}}（{{name}}）",
+        "unknownService": "Kotatsu が知らないサービス",
+        "others": "PMT にない PID（SI、ECM、EMM など）"
+      }
     },
     "users": {
       "title": "ユーザー",

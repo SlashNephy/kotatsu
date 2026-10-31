@@ -105,6 +105,7 @@ func New(opts *Options) *Server {
 	s.mux.HandleFunc("GET /api/tuners", s.handleTuners)
 	s.mux.HandleFunc("GET /api/events/stream", s.handleEventsStream)
 	s.mux.HandleFunc("GET /api/services/{id}/stream", s.handleServiceStream)
+	s.mux.HandleFunc("GET /api/channels/{type}/{channel}/stream", s.handleChannelStream)
 	s.mux.HandleFunc("GET /api/services/{id}/logo", s.handleServiceLogo)
 
 	return s
@@ -441,6 +442,33 @@ func (s *Server) handleServiceStream(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+	s.stream(w, r, id)
+}
+
+// handleChannelStream は、チャンネルのストリームを流す。チャンネルの最初のサービスと同じチューナーを使い、同じ TS を流す。
+func (s *Server) handleChannelStream(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	var id int64
+	found := false
+	for _, channel := range s.channels {
+		if channel.Type == r.PathValue("type") && channel.Channel == r.PathValue("channel") && len(channel.Services) > 0 {
+			id, found = channel.Services[0].ID, true
+
+			break
+		}
+	}
+	s.mu.Unlock()
+	if !found {
+		writeError(w, http.StatusNotFound, "channel not found")
+
+		return
+	}
+	s.stream(w, r, id)
+}
+
+// stream は、サービス id のチューナーを確保して、TS を流し続ける。
+func (s *Server) stream(w http.ResponseWriter, r *http.Request, id int64) {
+	var err error
 	priority := 0
 	if raw := r.Header.Get(priorityHeader); raw != "" {
 		priority, err = strconv.Atoi(raw)

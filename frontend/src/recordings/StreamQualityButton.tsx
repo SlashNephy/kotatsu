@@ -26,7 +26,7 @@ const kindKeys = {
   UNKNOWN: 'recordings.streamQuality.kind.UNKNOWN',
 } as const;
 
-const kindKey = (kind: string) =>
+export const kindKey = (kind: string) =>
   Object.hasOwn(kindKeys, kind) ? kindKeys[kind as keyof typeof kindKeys] : kindKeys.UNKNOWN;
 
 const count = (n: number) => n.toLocaleString('ja-JP');

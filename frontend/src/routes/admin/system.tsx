@@ -7,6 +7,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
 import { ActiveRecordings } from '../../admin/ActiveRecordings';
+import { ChannelInspector } from '../../admin/ChannelInspector';
 import { Section } from '../../admin/Section';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
@@ -222,6 +223,12 @@ function SystemStatus() {
       <Section title={t('admin.system.activeRecordings')}>
         <Suspense fallback={<Loader size="sm" />}>
           <ActiveRecordings />
+        </Suspense>
+      </Section>
+
+      <Section title={t('admin.system.inspect.title')}>
+        <Suspense fallback={<Loader size="sm" />}>
+          <ChannelInspector />
         </Suspense>
       </Section>
 
