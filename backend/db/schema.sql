@@ -951,6 +951,22 @@ CREATE TABLE guide_views (
 
 CREATE UNIQUE INDEX guide_views_user_id_name_idx ON guide_views (user_id, name);
 
+-- 視聴ルール (設計書 4.8)。条件に一致する番組に、ルールの持ち主の視聴予約を自動で付ける。
+-- 録画のルール (rules) は家族で共有するが、視聴ルールはユーザーごとの個人のものなので、分けて持つ。
+-- 条件は、録画のルールと同じ形 (型付きの JSONB) で持ち、同じ照合関数で照合する。
+CREATE TABLE watch_rules (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  name text NOT NULL,
+  enabled boolean NOT NULL,
+  conditions jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- ユーザーごとに、作った順に引くのに使う。
+CREATE INDEX watch_rules_user_id_created_at_idx ON watch_rules (user_id, created_at, id);
+
 -- 視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
 -- 録画の予約と違ってチューナーを使わない個人のものなので、reservations とは分ける。
 -- 番組は (サービス, eventId) で持ち、放送時間が変わっても通知の時刻が付いていく。番組が EPG から消えたら消す。
@@ -959,11 +975,57 @@ CREATE TABLE watch_reservations (
   service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
   event_id bigint NOT NULL,
   created_at timestamptz NOT NULL,
+  -- 視聴予約を作った視聴ルール。手で付けた視聴予約では NULL。
+  -- 視聴ルールを消しても視聴予約は残すので、NULL にして、手で付けたものと同じく扱う。
+  watch_rule_id uuid REFERENCES watch_rules (id) ON DELETE SET NULL,
   PRIMARY KEY (user_id, service_id, event_id)
 );
 
 -- 番組ごとに引く (通知のジョブと、番組が消えたときの片付け) のに使う。
 CREATE INDEX watch_reservations_service_id_event_id_idx ON watch_reservations (service_id, event_id);
+
+-- 視聴ルールを消したときに、作った視聴予約を引くのに使う。
+CREATE INDEX watch_reservations_watch_rule_id_idx ON watch_reservations (watch_rule_id);
+
+-- ユーザーが手で外したか、通知を送った視聴予約の番組 (設計書 4.8)。視聴ルールに一致しても、付け直さない。
+-- 番組が programs からなくなったら (アーカイブに移ったか、EPG から消えたら)、照合のときに消す。
+CREATE TABLE watch_rule_dismissals (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  event_id bigint NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id, event_id)
+);
+
+-- キャプチャ (設計書 7.5、#908)。視聴画面で撮った画像を、撮ったユーザーだけのものとして残す。画像は、データディレクトリの
+-- 「captures/ユーザーの ID/キャプチャの ID.png」に置き、行には撮った場面の情報を持つ。枚数の上限は設けない。
+CREATE TABLE captures (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- 録画で撮ったときの録画。録画を消してもキャプチャは残すので、NULL にする。ライブとタイムシフトで撮ったものも NULL。
+  recording_id uuid REFERENCES recordings (id) ON DELETE SET NULL,
+  -- 録画で撮ったときの、録画の始まりからの再生位置 (ミリ秒)。撮った場面から再生するのに使う。
+  position_ms bigint CHECK (position_ms >= 0),
+  service_name text NOT NULL,
+  -- 番組名。番組が分からなければ NULL。
+  program_name text,
+  -- NFKC で正規化したサービス名と番組名 (設計書 3.5)。キャプチャを探すのに使う。番組名が分からなければ空にする。
+  service_name_normalized text NOT NULL,
+  program_name_normalized text NOT NULL,
+  -- 撮ったときに出ていた字幕の文 (#458)。出ていなければ NULL。
+  caption text,
+  -- 撮った場面の放送時刻と、撮った時刻 (端末の時計)。
+  broadcast_at timestamptz NOT NULL,
+  taken_at timestamptz NOT NULL,
+  -- 画像の大きさ (バイト)。
+  size bigint NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+-- ユーザーのキャプチャを、新しい順に引くのに使う。
+CREATE INDEX captures_user_id_created_at_idx ON captures (user_id, created_at DESC, id DESC);
+-- 録画を消したときに、録画の参照を NULL にするのに使う。
+CREATE INDEX captures_recording_id_idx ON captures (recording_id);
 
 -- ほかの録画ソフトから取り込んだデータの、取り込み元の ID と、取り込んで作った行の対応 (設計書 6.3)。
 -- 取り込みを何度実行しても、同じデータを二重に取り込まないために使う。

@@ -48,7 +48,7 @@ func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, lo
 			return fmt.Errorf("failed to start a read-only snapshot: %w", err)
 		}
 		skipped := map[programKey]*skippedProgram{}
-		if _, err := e.desired(ctx, tx, clk.Now(), &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, skipped); err != nil {
+		if _, err := e.desired(ctx, tx, clk.Now(), newResult(), skipped); err != nil {
 			return err
 		}
 		reserved, err := reservedPrograms(ctx, tx, skipped)

@@ -191,6 +191,53 @@ input CaptionSettingsInput {
   backgroundOpacity: Float
 }
 """
+ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+"""
+type Capture {
+  id: ID!
+  """
+  画像の URL。撮ったユーザーのセッションでだけ開ける。
+  """
+  imageUrl: String!
+  serviceName: String!
+  """
+  番組名。番組が分からなければ null。
+  """
+  programName: String
+  """
+  撮ったときに出ていた字幕の文 (#458)。出ていなければ null。
+  """
+  caption: String
+  """
+  録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。
+  """
+  recordingId: ID
+  """
+  録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。
+  """
+  position: Float
+  """
+  撮った場面の放送時刻。
+  """
+  broadcastAt: Time!
+  """
+  撮った時刻 (撮った端末の時計)。
+  """
+  takenAt: Time!
+  """
+  画像の大きさ (バイト)。
+  """
+  size: Int64!
+}
+type CaptureConnection {
+  edges: [CaptureEdge!]!
+  pageInfo: PageInfo!
+}
+type CaptureEdge {
+  cursor: String!
+  node: Capture!
+}
+"""
 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
 """
 type ChannelInspection {
@@ -808,6 +855,10 @@ type Mutation {
   """
   deleteApiToken(id: ID!): ID!
   """
+  ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
+  """
+  deleteCapture(id: ID!): ID!
+  """
   物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調べる (#830、設計書 10.3)。管理者だけが使える。
   チューナーを奪わない優先度でチャンネルのストリームを開くので、空いたチューナーがなければ失敗する。
   調べる間、チューナーを 1 本使う。
@@ -1088,6 +1139,23 @@ type Mutation {
   視聴予約の通知を、放送の何分前に送るかを変え、同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
   """
   updateWatchReminderSettings(minutesBefore: Int!): WatchReminderSettings!
+  """
+  ログイン中のユーザーの視聴ルールを作る。閲覧だけのユーザーも使える。
+  すでに 50 個あれば CONFLICT を返す。同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  createWatchRule(input: WatchRuleInput!): WatchRule!
+  """
+  ログイン中のユーザーの視聴ルールの内容を input で置き換える。視聴ルールが付けた視聴予約のうち、一致しなくなったものは、次の照合で外す。
+  """
+  updateWatchRule(id: ID!, input: WatchRuleInput!): WatchRule!
+  """
+  ログイン中のユーザーの視聴ルールを有効または無効にする。無効にすると、視聴ルールが付けた視聴予約は、次の照合で外す。
+  """
+  setWatchRuleEnabled(id: ID!, enabled: Boolean!): WatchRule!
+  """
+  ログイン中のユーザーの視聴ルールを消し、消したルールの ID を返す。視聴ルールが付けた視聴予約は、手で付けたものとして残す。
+  """
+  deleteWatchRule(id: ID!): ID!
   """
   ログイン中のユーザーの端末で、Web Push を購読する。送り先は https の URL に限る。
   同じ端末をほかのユーザーが購読していたら、このユーザーの購読に移す。
@@ -1747,6 +1815,15 @@ type Query {
   """
   apiTokens: [ApiToken!]!
   """
+  ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
+  keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
+  """
+  captures(first: Int! = 50, after: String, keyword: String): CaptureConnection!
+  """
+  このサーバーでキャプチャを残せるか。データディレクトリ (storage.data_dir) を設定していなければ false。
+  """
+  capturesAvailable: Boolean!
+  """
   ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。
   """
   node(id: ID!): Node
@@ -1945,6 +2022,10 @@ type Query {
   """
   watchReservations: [WatchReservation!]!
   watchReminderSettings: WatchReminderSettings!
+  """
+  ログイン中のユーザーの視聴ルールを、作った順に返す。1 ユーザーあたり 50 個まで持てる。
+  """
+  watchRules: [WatchRule!]!
   """
   ブラウザが購読するときに applicationServerKey に渡す、VAPID の公開鍵を base64url にしたもの。
   """
@@ -3292,6 +3373,32 @@ type WatchReservation {
   """
   notifyAt: Time!
   createdAt: Time!
+}
+"""
+視聴ルール (設計書 4.8)。条件に一致する放送前の番組に、持ち主の視聴予約を自動で付ける。
+録画のルールと違ってユーザーごとの個人のもので、閲覧だけのユーザーも作れる。ほかのユーザーの視聴ルールは見えない。
+"""
+type WatchRule implements Node {
+  id: ID!
+  name: String!
+  enabled: Boolean!
+  """
+  番組の条件。録画のルールと同じ形で、同じく照合する。
+  """
+  conditions: ProgramConditions!
+  createdAt: Time!
+  updatedAt: Time!
+}
+"""
+視聴ルールの内容。
+"""
+input WatchRuleInput {
+  """
+  1〜200 文字
+  """
+  name: String!
+  enabled: Boolean! = true
+  conditions: ProgramConditionsInput!
 }
 """
 Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。

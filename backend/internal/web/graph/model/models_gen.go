@@ -128,6 +128,38 @@ type CaptionSettingsInput struct {
 	BackgroundOpacity *float64 `json:"backgroundOpacity,omitempty"`
 }
 
+// ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+type Capture struct {
+	ID string `json:"id"`
+	// 画像の URL。撮ったユーザーのセッションでだけ開ける。
+	ImageURL    string `json:"imageUrl"`
+	ServiceName string `json:"serviceName"`
+	// 番組名。番組が分からなければ null。
+	ProgramName *string `json:"programName,omitempty"`
+	// 撮ったときに出ていた字幕の文 (#458)。出ていなければ null。
+	Caption *string `json:"caption,omitempty"`
+	// 録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。
+	RecordingID *string `json:"recordingId,omitempty"`
+	// 録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。
+	Position *float64 `json:"position,omitempty"`
+	// 撮った場面の放送時刻。
+	BroadcastAt time.Time `json:"broadcastAt"`
+	// 撮った時刻 (撮った端末の時計)。
+	TakenAt time.Time `json:"takenAt"`
+	// 画像の大きさ (バイト)。
+	Size int64 `json:"size"`
+}
+
+type CaptureConnection struct {
+	Edges    []*CaptureEdge `json:"edges"`
+	PageInfo *PageInfo      `json:"pageInfo"`
+}
+
+type CaptureEdge struct {
+	Cursor string   `json:"cursor"`
+	Node   *Capture `json:"node"`
+}
+
 // 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
 type ChannelInspection struct {
 	// PAT の transport_stream_id。PAT を受け取れなければ null。
@@ -1296,6 +1328,28 @@ type WatchReservation struct {
 	// 通知を送る日時。番組の放送時間が変わると、付いていく。
 	NotifyAt  time.Time `json:"notifyAt"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// 視聴ルール (設計書 4.8)。条件に一致する放送前の番組に、持ち主の視聴予約を自動で付ける。
+// 録画のルールと違ってユーザーごとの個人のもので、閲覧だけのユーザーも作れる。ほかのユーザーの視聴ルールは見えない。
+type WatchRule struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+	// 番組の条件。録画のルールと同じ形で、同じく照合する。
+	Conditions *ProgramConditions `json:"conditions"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	UpdatedAt  time.Time          `json:"updatedAt"`
+}
+
+func (WatchRule) IsNode() {}
+
+// 視聴ルールの内容。
+type WatchRuleInput struct {
+	// 1〜200 文字
+	Name       string                  `json:"name"`
+	Enabled    bool                    `json:"enabled"`
+	Conditions *ProgramConditionsInput `json:"conditions"`
 }
 
 // Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。

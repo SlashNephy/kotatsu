@@ -14,6 +14,7 @@ import { createRoot } from 'react-dom/client';
 import { RelayEnvironmentProvider } from 'react-relay';
 import { registerSW } from 'virtual:pwa-register';
 
+import { removeLegacyHistory } from './captures/upload';
 import { cspNonce, cssVariablesResolver, ErrorRecoveryContext, theme } from './futon';
 import { loadTimeZone } from './futon/timeZone';
 import { createEnvironment } from './relay/environment';
@@ -36,6 +37,9 @@ const environment =
 if (import.meta.env.MODE !== 'demo') {
   void registerSW({ immediate: true });
 }
+
+// 端末に残していたキャプチャの履歴 (#457) は、サーバーの一覧に置き換えたので、移さずに消す (#908)。
+removeLegacyHistory();
 
 declare module '@tanstack/react-router' {
   interface Register {

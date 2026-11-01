@@ -35,6 +35,22 @@ type AuditEvent struct {
 	ActorClient *string
 }
 
+type Capture struct {
+	ID                    uuid.UUID
+	UserID                uuid.UUID
+	RecordingID           *uuid.UUID
+	PositionMs            *int64
+	ServiceName           string
+	ProgramName           *string
+	ServiceNameNormalized string
+	ProgramNameNormalized string
+	Caption               *string
+	BroadcastAt           time.Time
+	TakenAt               time.Time
+	Size                  int64
+	CreatedAt             time.Time
+}
+
 type ChangeVersion struct {
 	Channel   string
 	Version   int64
@@ -618,6 +634,24 @@ type WatchProgress struct {
 }
 
 type WatchReservation struct {
+	UserID      uuid.UUID
+	ServiceID   int64
+	EventID     int64
+	CreatedAt   time.Time
+	WatchRuleID *uuid.UUID
+}
+
+type WatchRule struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	Enabled    bool
+	Conditions []byte
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type WatchRuleDismissal struct {
 	UserID    uuid.UUID
 	ServiceID int64
 	EventID   int64

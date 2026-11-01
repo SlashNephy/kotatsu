@@ -10,6 +10,7 @@ import {
 } from 'relay-runtime';
 
 import { authResponse } from './auth';
+import { createDemoCaptures, type DemoCaptures } from './captures';
 import { createRootValue } from './data';
 import { createEventHub } from './events';
 import { createExecutor, type Executor, type Variables } from './executor';
@@ -28,9 +29,10 @@ function json(body: unknown): Response {
 }
 
 // interceptFetch は、Relay を通らずに /graphql と /auth/* を呼ぶ箇所 (タイムゾーンの読み込み、
-// 視聴位置の keepalive の保存、ログインやログアウト) と、実況の過去ログ (src/demo/jikkyo.ts) に、デモの応答を返す。
+// 視聴位置の keepalive の保存、ログインやログアウト)、キャプチャを残す POST /media/captures と、実況の過去ログ (src/demo/jikkyo.ts) に、
+// デモの応答を返す。
 // 呼ぶ側はサブパスを付けずに / からのパスで呼ぶので、同じオリジンのそのパスだけを横取りする。
-function interceptFetch(executor: Executor): void {
+function interceptFetch(executor: Executor, captures: DemoCaptures): void {
   const original = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     // 横取りしない要求の body を読んでしまわないよう、URL だけを先に見る。
@@ -50,6 +52,11 @@ function interceptFetch(executor: Executor): void {
     // 録画の再生で読む実況の過去ログ。どの録画も同じ映像を流すので、同じコメントを返す。
     if (url.pathname === demoCommentsPath) {
       return json({ channel: { id: 'demo' }, origin: null, comments: demoRecordedComments() });
+    }
+    if (url.pathname === '/media/captures') {
+      const id = await captures.add(await new Request(input, init).formData());
+
+      return json({ id });
     }
 
     return original(input, init);
@@ -111,8 +118,9 @@ function registerStreamWorker(): void {
 
 // installDemo は、fetch と実況の WebSocket を横取りし、デモの応答を返す Relay の Environment を作る。
 export function installDemo(): Environment {
-  const executor = createExecutor(createRootValue(createEventHub()));
-  interceptFetch(executor);
+  const captures = createDemoCaptures();
+  const executor = createExecutor(createRootValue(createEventHub(), Date.now(), captures));
+  interceptFetch(executor, captures);
   installFakeJikkyo();
   registerStreamWorker();
 
