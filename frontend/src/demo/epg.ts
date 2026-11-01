@@ -16,7 +16,8 @@ export type DemoService = {
   sortOrder: number | null;
   streamUrl: string;
   logoUrl: string | null;
-  jikkyo: null;
+  // jikkyo は、実況のチャンネル。NX-Jikkyo にはつながず、架空のコメントを流す (src/demo/jikkyo.ts)。
+  jikkyo: { id: string; name: string; force: number; viewers: number };
   // videoFormat は、放送中の番組の映像の種類。デモの局は、どれも 2K にする。
   videoFormat: 'HD';
   // timeshiftPrograms は、タイムシフトのバッファから再生できる番組。デモはバッファを持たないので、空にする。
@@ -183,8 +184,13 @@ export const services: DemoService[] = serviceSeeds.map((seed, index) => {
     sortOrder: index,
     streamUrl: demoStreamURL,
     logoUrl: logo(seed.short, seed.color),
-    // 実況は、外部の NX-Jikkyo につながるので、デモでは持たせない。
-    jikkyo: null,
+    // 勢いと見ている人の数は、局ごとに決まった架空の値にする。
+    jikkyo: {
+      id: `demo${seed.serviceId}`,
+      name: seed.name,
+      force: 20 + ((index * 37) % 90),
+      viewers: 120 + ((index * 173) % 900),
+    },
     videoFormat: 'HD',
     timeshiftPrograms: [],
   };
