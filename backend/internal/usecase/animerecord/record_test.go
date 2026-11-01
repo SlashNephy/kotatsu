@@ -68,17 +68,22 @@ func serviceID() int64 {
 type fakeInserter struct {
 	mu   sync.Mutex
 	jobs []animerecord.RecordArgs
+	// wishlists は、入れた、見たいリストを取り込むジョブ (#928)。
+	wishlists []animerecord.WishlistArgs
 }
 
 func (f *fakeInserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, param := range params {
-		args, ok := param.Args.(animerecord.RecordArgs)
-		if !ok {
+		switch args := param.Args.(type) {
+		case animerecord.RecordArgs:
+			f.jobs = append(f.jobs, args)
+		case animerecord.WishlistArgs:
+			f.wishlists = append(f.wishlists, args)
+		default:
 			return nil, errors.New("unexpected job")
 		}
-		f.jobs = append(f.jobs, args)
 	}
 
 	return []*rivertype.JobInsertResult{}, nil
@@ -129,7 +134,7 @@ func newRecordFixture(t *testing.T) *recordFixture {
 		Destinations: []animerecord.Destination{
 			animerecord.NewAnnict(httpClient, f.annict.server.URL), animerecord.NewAniList(httpClient, f.anilist.server.URL),
 		},
-		Logger: slog.New(slog.DiscardHandler),
+		Logger: slog.New(slog.DiscardHandler), Inserter: f.inserter, WishlistInterval: 0,
 	})
 	require.NoError(t, err)
 	f.alice = f.login(t, "alice", auth.RoleViewer)

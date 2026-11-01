@@ -203,23 +203,27 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), syobocalClient, inserter, animeLogger)))
 	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
 	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
-	animeRecords, err := newAnimeRecords(deps, logger)
+	animeRecords, err := newAnimeRecords(deps, logger, inserter)
 	if err != nil {
 		return nil, nil, err
 	}
 	river.AddWorker(workers, animerecord.NewRecordWorker(animeRecords, deps.DB))
 	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
+	// ユーザーが Annict と AniList で「見たい」「見てる」にした作品を、記録の連携のトークンで取り込む (#928)。
+	river.AddWorker(workers, animerecord.NewWishlistWorker(animeRecords, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
+		animerecord.WishlistPeriodicJob(),
 	}, anime.MatchPeriodicJobs()...), nil
 }
 
 // newAnimeRecords は、見たアニメを Annict と AniList に記録する部品を作る (#927)。
 // 問い合わせ先は決まったホストだけにし、設定で向け直したときだけ、そのオリジンへ向ける (検証用)。
-func newAnimeRecords(deps *Deps, logger *slog.Logger) (*animerecord.Service, error) {
+// inserter は、連携したときに見たいリストを取り込むジョブ (#928) を入れる River のクライアント。nil なら入れない。
+func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (*animerecord.Service, error) {
 	client := animerecord.NewHTTPClient()
 
 	return animerecord.NewService(&animerecord.Options{
@@ -228,7 +232,9 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger) (*animerecord.Service, err
 			animerecord.NewAnnict(client, deps.Config.AnimeRecords.AnnictURL),
 			animerecord.NewAniList(client, deps.Config.AnimeRecords.AniListURL),
 		},
-		Logger: logger.With(slog.String("component", "anime_record")),
+		Logger:           logger.With(slog.String("component", "anime_record")),
+		Inserter:         inserter,
+		WishlistInterval: animerecord.DefaultWishlistRequestInterval,
 	})
 }
 
@@ -250,7 +256,12 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 	if err != nil {
 		return nil, err
 	}
-	animeRecords, err := newAnimeRecords(deps, logger)
+	// 連携した後の見たいリストの取り込み (#928) は、ジョブを入れられるときだけ始める。
+	var inserter anime.Inserter
+	if deps.Jobs != nil {
+		inserter = deps.Jobs
+	}
+	animeRecords, err := newAnimeRecords(deps, logger, inserter)
 	if err != nil {
 		return nil, err
 	}

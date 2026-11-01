@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -17,6 +18,8 @@ const (
 	aniListWebURL = "https://anilist.co"
 	// aniListGraphQLURL は、AniList の GraphQL の API。
 	aniListGraphQLURL = "https://graphql.anilist.co"
+	// aniListCurrent は、AniList のリストの状態の「見てる」。
+	aniListCurrent = "CURRENT"
 )
 
 // AniList は、AniList への記録先。エピソードごとではなく、何話まで見たか (progress) を持つ。
@@ -133,7 +136,7 @@ func (a *AniList) RecordEpisode(ctx context.Context, token string, workIDs []int
 		variables["progress"] = watched
 	}
 	if next, ok := NextStatus(rules, episode.First, episode.Last, status); ok {
-		variables["status"] = "CURRENT"
+		variables["status"] = aniListCurrent
 		if next == WorkStatusWatched {
 			variables["status"] = "COMPLETED"
 		}
@@ -152,6 +155,118 @@ func (a *AniList) RecordEpisode(ctx context.Context, token string, workIDs []int
 	}
 
 	return recorded, nil
+}
+
+// aniListWishlistChunk は、見たいリストを 1 回に引く数。AniList の MediaListCollection の perChunk の上限。
+const aniListWishlistChunk = 500
+
+// Wishlist は、AniList で PLANNING か CURRENT にした作品の 1 ページを返す (#928)。
+// MediaListCollection はユーザーを指して引くので、最初のページでは、先にトークンの持ち主の ID を引く。
+// cursor は「ユーザー ID:チャンクの番号」の形にする。
+func (a *AniList) Wishlist(ctx context.Context, token, cursor string) (*WishlistPage, error) {
+	userID, chunk, err := a.wishlistCursor(ctx, token, cursor)
+	if err != nil {
+		return nil, err
+	}
+	const query = `query ($userId: Int, $chunk: Int, $perChunk: Int) {
+  MediaListCollection(userId: $userId, type: ANIME, status_in: [PLANNING, CURRENT], chunk: $chunk, perChunk: $perChunk) {
+    hasNextChunk lists { entries { status media { id title { native romaji } } } }
+  } }`
+	var data struct {
+		MediaListCollection *struct {
+			HasNextChunk bool `json:"hasNextChunk"`
+			Lists        []*struct {
+				Entries []*struct {
+					Status string `json:"status"`
+					Media  *struct {
+						ID    int32              `json:"id"`
+						Title *aniListMediaTitle `json:"title"`
+					} `json:"media"`
+				} `json:"entries"`
+			} `json:"lists"`
+		} `json:"MediaListCollection"`
+	}
+	variables := map[string]any{"userId": userID, "chunk": chunk, "perChunk": aniListWishlistChunk}
+	if err := postGraphQL(ctx, a.client, a.endpoints.GraphQLURL, token, query, variables, &data); err != nil {
+		return nil, err
+	}
+	page := &WishlistPage{Entries: []*WishlistEntry{}, Next: ""}
+	if data.MediaListCollection == nil {
+		return page, nil
+	}
+	for _, list := range data.MediaListCollection.Lists {
+		if list == nil {
+			continue
+		}
+		for _, entry := range list.Entries {
+			if entry == nil || entry.Media == nil {
+				continue
+			}
+			var status string
+			switch entry.Status {
+			case "PLANNING":
+				status = WishlistWannaWatch
+			case aniListCurrent:
+				status = WishlistWatching
+			default:
+				continue
+			}
+			page.Entries = append(page.Entries, &WishlistEntry{WorkID: entry.Media.ID, Status: status, Title: aniListTitle(entry.Media.Title)})
+		}
+	}
+	if data.MediaListCollection.HasNextChunk {
+		page.Next = strconv.FormatInt(userID, 10) + ":" + strconv.Itoa(chunk+1)
+	}
+
+	return page, nil
+}
+
+// aniListMediaTitle は、AniList の作品名。
+type aniListMediaTitle struct {
+	Native *string `json:"native"`
+	Romaji *string `json:"romaji"`
+}
+
+// aniListTitle は、作品名を、日本語の名前 (native) を先に選んで返す。
+func aniListTitle(title *aniListMediaTitle) string {
+	if title == nil {
+		return ""
+	}
+	if title.Native != nil && strings.TrimSpace(*title.Native) != "" {
+		return strings.TrimSpace(*title.Native)
+	}
+	if title.Romaji != nil {
+		return strings.TrimSpace(*title.Romaji)
+	}
+
+	return ""
+}
+
+// wishlistCursor は、見たいリストの cursor から、ユーザー ID とチャンクの番号を返す。最初のページなら、トークンの持ち主の ID を引く。
+func (a *AniList) wishlistCursor(ctx context.Context, token, cursor string) (int64, int, error) {
+	if cursor == "" {
+		var viewer struct {
+			Viewer *struct {
+				ID int64 `json:"id"`
+			} `json:"Viewer"`
+		}
+		if err := postGraphQL(ctx, a.client, a.endpoints.GraphQLURL, token, `query { Viewer { id } }`, map[string]any{}, &viewer); err != nil {
+			return 0, 0, err
+		}
+		if viewer.Viewer == nil {
+			return 0, 0, fmt.Errorf("%w: AniList returned no viewer", ErrPermanent)
+		}
+
+		return viewer.Viewer.ID, 1, nil
+	}
+	user, next, ok := strings.Cut(cursor, ":")
+	userID, userErr := strconv.ParseInt(user, 10, 64)
+	chunk, chunkErr := strconv.Atoi(next)
+	if !ok || userErr != nil || chunkErr != nil {
+		return 0, 0, fmt.Errorf("invalid AniList wishlist cursor %q", cursor)
+	}
+
+	return userID, chunk, nil
 }
 
 // save は、リストの項目を書く。variables に入れた項目だけを送り、ほかの項目は変えない。
@@ -203,7 +318,7 @@ func aniListStatus(status *string) WorkStatus {
 		return WorkStatusNone
 	}
 	switch *status {
-	case "CURRENT", "REPEATING":
+	case aniListCurrent, "REPEATING":
 		return WorkStatusWatching
 	case "COMPLETED":
 		return WorkStatusWatched

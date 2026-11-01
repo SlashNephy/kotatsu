@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
@@ -77,6 +79,12 @@ type Service struct {
 	// order は、画面に並べる記録先の順。
 	order  []string
 	logger *slog.Logger
+	// inserter は、連携したときに、見たいリストを取り込むジョブを入れる River のクライアント。nil なら入れない。
+	inserter anime.Inserter
+	// wishlistMu は、見たいリストを引く問い合わせを、このプロセスの中で 1 つずつにする。wishlistLast は、記録先ごとの前の問い合わせの時刻。
+	wishlistMu       sync.Mutex
+	wishlistLast     map[string]time.Time
+	wishlistInterval time.Duration
 }
 
 // Options は NewService の設定。
@@ -87,6 +95,10 @@ type Options struct {
 	AppSecret    string
 	Destinations []Destination
 	Logger       *slog.Logger
+	// Inserter は、連携したときに、見たいリストを取り込むジョブを入れる River のクライアント (#928)。nil なら入れない。
+	Inserter anime.Inserter
+	// WishlistInterval は、見たいリストを引く問い合わせの間を空ける長さ (#928)。0 なら空けない。
+	WishlistInterval time.Duration
 }
 
 // NewService は Service を返す。
@@ -108,7 +120,8 @@ func NewService(opts *Options) (*Service, error) {
 
 	return &Service{
 		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, tokenBox: tokenBox,
-		destinations: destinations, order: order, logger: opts.Logger,
+		destinations: destinations, order: order, logger: opts.Logger, inserter: opts.Inserter,
+		wishlistMu: sync.Mutex{}, wishlistLast: map[string]time.Time{}, wishlistInterval: opts.WishlistInterval,
 	}, nil
 }
 
@@ -383,6 +396,10 @@ func (s *Service) Complete(ctx context.Context, db Database, principal *auth.Pri
 			return fmt.Errorf("failed to save the anime record connection: %w", err)
 		}
 		if err := usersettings.Touch(ctx, tx, s.clock, principal.UserID); err != nil {
+			return err
+		}
+		// 連携したら、定期ジョブを待たずに、見たいリストを取り込む (#928)。
+		if err := EnqueueWishlistImport(ctx, tx, s.inserter, principal.UserID); err != nil {
 			return err
 		}
 

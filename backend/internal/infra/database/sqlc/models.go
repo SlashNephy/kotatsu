@@ -86,6 +86,10 @@ type AnimeRecordConnection struct {
 	AccessTokenEncrypted []byte
 	AccountName          string
 	ConnectedAt          time.Time
+	WishlistCheckedAt    *time.Time
+	WishlistImportedAt   *time.Time
+	WishlistError        *string
+	WishlistRetryAt      *time.Time
 }
 
 type AnimeRecordSetting struct {
@@ -104,6 +108,15 @@ type AnimeWatchProgress struct {
 	Played    []byte
 	PlayedMs  int64
 	UpdatedAt time.Time
+}
+
+type AnimeWishlistEntry struct {
+	UserID      uuid.UUID
+	Destination string
+	WorkID      int32
+	Status      string
+	Title       string
+	FetchedAt   time.Time
 }
 
 type AnimeWork struct {

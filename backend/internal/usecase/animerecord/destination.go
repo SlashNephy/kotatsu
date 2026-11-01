@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +41,8 @@ var (
 	ErrPermanent = errors.New("the record cannot be sent")
 	// ErrUnknownDestination は、知らない記録先であることを表す。
 	ErrUnknownDestination = errors.New("unknown destination")
+	// ErrRateLimited は、記録先が問い合わせの多すぎること (429) を返したことを表す。送り直すエラーとして扱う。
+	ErrRateLimited = errors.New("the destination is rate limiting the requests")
 )
 
 // App は、管理者が記録先に登録したアプリ。
@@ -128,6 +131,34 @@ type Destination interface {
 	// RecordEpisode は、作品 workIDs のどれかの、1 話を見たことを記録する。rules に従って作品の状態を変えるのに、
 	// 記録とは別に送るものがあれば、Recorded.FollowUp に入れて返す。送り直しで二重にならないよう、記録を付けた後には失敗を返さない。
 	RecordEpisode(ctx context.Context, token string, workIDs []int32, episode *Episode, rules *StatusRules) (*Recorded, error)
+	// Wishlist は、トークンの持ち主が「見たい」「見てる」にした作品の 1 ページを返す (#928)。cursor が空なら、最初のページを返す。
+	// 続きがなければ、WishlistPage.Next は空。問い合わせの間隔は、呼ぶ側で空ける。
+	Wishlist(ctx context.Context, token, cursor string) (*WishlistPage, error)
+}
+
+// 見たいリストの作品の状態 (anime_wishlist_entries の status)。
+const (
+	// WishlistWannaWatch は「見たい」。AniList の PLANNING。
+	WishlistWannaWatch = "wanna_watch"
+	// WishlistWatching は「見てる」。AniList の CURRENT。
+	WishlistWatching = "watching"
+)
+
+// WishlistEntry は、見たいリストの 1 作品。
+type WishlistEntry struct {
+	// WorkID は、記録先の作品 ID。
+	WorkID int32
+	// Status は、WishlistWannaWatch か WishlistWatching。
+	Status string
+	// Title は、記録先の作品名。
+	Title string
+}
+
+// WishlistPage は、見たいリストの 1 ページ。
+type WishlistPage struct {
+	Entries []*WishlistEntry
+	// Next は、続きを引くときに渡す cursor。続きがなければ空。
+	Next string
 }
 
 // Endpoints は、記録先の URL。本物の記録先のほかには、管理者が設定で向け直したときだけ使う (検証用)。
@@ -181,6 +212,38 @@ func exchange(ctx context.Context, client *http.Client, config *oauth2.Config, c
 	return token.AccessToken, nil
 }
 
+// RateLimitError は、記録先が 429 を返したことを表す。ErrRateLimited を包む。
+type RateLimitError struct {
+	// RetryAfter は、記録先が Retry-After で示した、問い合わせ直すまでの長さ。示さなかったか、読めなければ 0。
+	RetryAfter time.Duration
+}
+
+func (e *RateLimitError) Error() string {
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("the GraphQL endpoint returned 429 (retry after %s)", e.RetryAfter)
+	}
+
+	return "the GraphQL endpoint returned 429"
+}
+
+func (e *RateLimitError) Unwrap() error { return ErrRateLimited }
+
+// retryAfter は、Retry-After の値 (秒か HTTP の日時) を、now からの長さにする。なければ、読めなければ、過去なら 0 を返す。
+func retryAfter(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		return max(time.Duration(seconds)*time.Second, 0)
+	}
+	if at, err := http.ParseTime(value); err == nil {
+		return max(at.Sub(now), 0)
+	}
+
+	return 0
+}
+
 // graphQLResponse は、GraphQL の応答。
 type graphQLResponse struct {
 	Data   json.RawMessage `json:"data"`
@@ -191,7 +254,7 @@ type graphQLResponse struct {
 
 // postGraphQL は、トークン token で、GraphQL の query を送り、data を out に読み込む。
 // 401 と 403、ほかの 4xx、GraphQL のエラーは送り直しても変わらないので、ErrPermanent を包んで返す。
-// 429 と 5xx、届かないときは、送り直すエラーを返す。エラーには、トークンも応答の本文も入れない。
+// 429 (ErrRateLimited を包む) と 5xx、届かないときは、送り直すエラーを返す。エラーには、トークンも応答の本文も入れない。
 func postGraphQL(ctx context.Context, client *http.Client, endpoint, token, query string, variables map[string]any, out any) error {
 	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
 	if err != nil {
@@ -218,7 +281,9 @@ func postGraphQL(ctx context.Context, client *http.Client, endpoint, token, quer
 		return fmt.Errorf("failed to read the GraphQL response: %w", err)
 	}
 	switch {
-	case res.StatusCode == http.StatusTooManyRequests || res.StatusCode >= http.StatusInternalServerError:
+	case res.StatusCode == http.StatusTooManyRequests:
+		return &RateLimitError{RetryAfter: retryAfter(res.Header.Get("Retry-After"), time.Now())}
+	case res.StatusCode >= http.StatusInternalServerError:
 		return fmt.Errorf("the GraphQL endpoint returned %d", res.StatusCode)
 	case res.StatusCode >= http.StatusBadRequest:
 		var decoded graphQLResponse

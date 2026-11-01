@@ -24,7 +24,20 @@ const (
 	// opAniListViewer は、AniList のトークンの持ち主を引く操作。Annict の viewer と大文字で分ける。
 	opAniListViewer = "Viewer"
 	opAnnictViewer  = "viewer"
+	// opLibrary と opMediaLists は、Annict と AniList の見たいリストを引く操作 (#928)。
+	opLibrary    = "libraryEntries"
+	opMediaLists = "MediaListCollection"
+	// fakeAniListUserID は、偽の AniList のトークンの持ち主の ID。
+	fakeAniListUserID = 77
+	keyNodes          = "nodes"
 )
+
+// fakeListEntry は、偽の見たいリストの作品。Status は、Annict なら WANNA_WATCH などの状態、AniList なら PLANNING などのリストの状態。
+type fakeListEntry struct {
+	ID     int32
+	Title  string
+	Status string
+}
 
 // fakeEpisode は、偽の Annict のエピソード。
 type fakeEpisode struct {
@@ -78,6 +91,15 @@ type fakeService struct {
 	tokens map[string]bool
 	// hooks は、GraphQL の操作の名前ごとに、答える前に呼ぶ関数。ジョブの途中で何かを起こすのに使う。
 	hooks map[string]func()
+	// list は、見たいリストの作品。pageSize ずつ返す (0 なら 1 ページで返す)。
+	list     []fakeListEntry
+	pageSize int
+	// rateLimits は、GraphQL の操作の名前ごとに、あと何回 429 を返すか。retryAfter は、そのときの Retry-After。
+	rateLimits map[string]int
+	retryAfter string
+	// listRequests は、見たいリストを引いた回数。listVariables は、そのときの変数。
+	listRequests  int
+	listVariables []map[string]any
 }
 
 func newFakeService(t *testing.T) *fakeService {
@@ -85,6 +107,7 @@ func newFakeService(t *testing.T) *fakeService {
 	f := &fakeService{
 		t: t, codes: map[string]string{}, works: map[int32]*fakeWork{}, media: map[int32]*int{}, entries: map[int32]*fakeEntry{},
 		failures: map[string]int{}, tokens: map[string]bool{}, hooks: map[string]func(){},
+		list: []fakeListEntry{}, pageSize: 0, rateLimits: map[string]int{}, listVariables: []map[string]any{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /oauth/token", f.token)
@@ -138,6 +161,15 @@ func (f *fakeService) graphql(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	operation := operationOf(req.Query)
+	if f.rateLimits[operation] > 0 {
+		f.rateLimits[operation]--
+		if f.retryAfter != "" {
+			w.Header().Set("Retry-After", f.retryAfter)
+		}
+		w.WriteHeader(http.StatusTooManyRequests)
+
+		return
+	}
 	if f.failures[operation] > 0 {
 		f.failures[operation]--
 		w.WriteHeader(http.StatusInternalServerError)
@@ -175,7 +207,9 @@ func text(value any) string {
 
 // operationOf は、query から、偽の API が答える操作を決める。
 func operationOf(query string) string {
-	for _, operation := range []string{opCreateRecord, opUpdateStatus, opSaveEntry, opEpisodes + "(", opSearchWorks, opMedia + "(", opAniListViewer, opAnnictViewer} {
+	for _, operation := range []string{
+		opLibrary, opMediaLists, opCreateRecord, opUpdateStatus, opSaveEntry, opEpisodes + "(", opSearchWorks, opMedia + "(", opAniListViewer, opAnnictViewer,
+	} {
 		if strings.Contains(query, operation) {
 			return strings.TrimSuffix(operation, "(")
 		}
@@ -189,7 +223,9 @@ func (f *fakeService) resolve(operation string, variables map[string]any) any {
 	case opAnnictViewer:
 		return map[string]any{opAnnictViewer: map[string]any{"username": "annict-user"}}
 	case opAniListViewer:
-		return map[string]any{opAniListViewer: map[string]any{"name": "anilist-user"}}
+		return map[string]any{opAniListViewer: map[string]any{"id": fakeAniListUserID, "name": "anilist-user"}}
+	case opLibrary, opMediaLists:
+		return f.listPage(operation, variables)
 	case opSearchWorks, opEpisodes:
 		nodes := []any{}
 		ids, _ := variables["ids"].([]any)
@@ -259,4 +295,81 @@ func (f *fakeService) snapshot() ([]string, []string, []map[string]any) {
 	defer f.mu.Unlock()
 
 	return append([]string{}, f.records...), append([]string{}, f.statuses...), append([]map[string]any{}, f.saves...)
+}
+
+// listPage は、見たいリストの 1 ページを返す。Annict は after の cursor (返した数) で、AniList は chunk の番号で続きを引く。
+func (f *fakeService) listPage(operation string, variables map[string]any) any {
+	f.listRequests++
+	f.listVariables = append(f.listVariables, variables)
+	size := f.pageSize
+	if size <= 0 {
+		size = len(f.list)
+	}
+	start := 0
+	if operation == opLibrary {
+		if after, ok := variables["after"].(string); ok {
+			start, _ = strconv.Atoi(after)
+		}
+	} else {
+		if n := int(number(variables["chunk"])); n > 1 {
+			start = (n - 1) * size
+		}
+		if number(variables["userId"]) != fakeAniListUserID {
+			f.t.Errorf("unexpected AniList user %v", variables["userId"])
+		}
+	}
+	end := min(start+size, len(f.list))
+	start = min(start, end)
+	hasNext := end < len(f.list)
+	if operation == opLibrary {
+		nodes := make([]any, 0, end-start)
+		for _, entry := range f.list[start:end] {
+			nodes = append(nodes, map[string]any{"status": map[string]any{"state": entry.Status}, "work": map[string]any{"annictId": entry.ID, "title": entry.Title}})
+		}
+
+		return map[string]any{opAnnictViewer: map[string]any{opLibrary: map[string]any{
+			keyNodes: nodes, "pageInfo": map[string]any{"hasNextPage": hasNext, "endCursor": strconv.Itoa(end)},
+		}}}
+	}
+	entries := []any{}
+	for _, entry := range f.list[start:end] {
+		entries = append(entries, map[string]any{"status": entry.Status, "media": map[string]any{"id": entry.ID, "title": map[string]any{"native": entry.Title, "romaji": "romaji"}}})
+	}
+
+	return map[string]any{opMediaLists: map[string]any{"hasNextChunk": hasNext, "lists": []any{map[string]any{"entries": entries}}}}
+}
+
+// setList は、見たいリストの作品と、1 ページの数を、ロックを取ってから変える。
+func (f *fakeService) setList(list []fakeListEntry, pageSize int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.list, f.pageSize = list, pageSize
+}
+
+// failNext は、操作 operation に、次の n 回、状態コード status を返させる。
+func (f *fakeService) failNext(operation string, status, n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if status == http.StatusTooManyRequests {
+		f.rateLimits[operation] = n
+
+		return
+	}
+	f.failures[operation] = n
+}
+
+// requests は、見たいリストを引いた回数を返す。
+func (f *fakeService) requests() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.listRequests
+}
+
+// rateLimitWith は、操作 operation に、次の 1 回、Retry-After に value を付けて 429 を返させる。
+func (f *fakeService) rateLimitWith(operation, value string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rateLimits[operation] = 1
+	f.retryAfter = value
 }

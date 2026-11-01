@@ -1,6 +1,10 @@
 package animerecord
 
-import "time"
+import (
+	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+)
 
 // MergeSpans は、mergeSpans をテストから使う。区間は [始まり, 終わり) の UNIX ミリ秒。
 // limit は、まとめた区間の数の上限。
@@ -40,3 +44,21 @@ func NormalizeSpans(spans [][2]int64) [][2]int64 {
 
 // MaxStoredSpans は、maxStoredSpans をテストから使う。
 const MaxStoredSpans = maxStoredSpans
+
+// PickWishlistWorks は、pickWishlistWorks をテストから使う。reserved は、予約のある番組の (サービス, eventId)。
+// rules は、今あるルールの (キーワード, サービス)。
+func PickWishlistWorks(
+	sources map[int32][]*WishlistSource, programs []sqlc.ListAnimeWishlistProgramsRow, reserved [][2]int64, rules map[string][]int64,
+) []*WishlistWork {
+	keys := map[programKey]bool{}
+	for _, r := range reserved {
+		keys[programKey{serviceID: r[0], eventID: r[1]}] = true
+	}
+
+	identities := map[string]bool{}
+	for keyword, services := range rules {
+		identities[ruleIdentity(keyword, services)] = true
+	}
+
+	return pickWishlistWorks(sources, programs, keys, identities)
+}
