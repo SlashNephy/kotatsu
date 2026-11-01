@@ -475,7 +475,9 @@
       "cancelRuleDescription": "This reservation was made by a rule, so only this program will not be recorded. The rule stays.",
       "cancelConfirm": "Cancel reservation",
       "cancelError": "Couldn't cancel. Please try again later",
-      "reserveError": "Couldn't reserve. Please try again later"
+      "reserveError": "Couldn't reserve. Please try again later",
+      "openRecording": "Open recording",
+      "playTimeshift": "Play from time shift"
     },
     "view": {
       "label": "Guide view",
@@ -501,7 +503,8 @@
       "subGenre": "{{genre}} (subgenre {{lv2}})",
       "notFound": "The guide view you tried to open was not found.",
       "showAll": "Show all programs"
-    }
+    },
+    "pastDate": "Past date"
   },
   "genre": {
     "0": "News/Reports",

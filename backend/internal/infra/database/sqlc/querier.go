@@ -189,6 +189,8 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
+	// 最も古い、放送が終わった番組の開始時刻。過去の番組表で、どこまで遡れるかを示す (#1121)。なければ行を返さない。
+	GetOldestArchivedProgramStartAt(ctx context.Context) (time.Time, error)
 	// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
 	// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
 	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error)
@@ -335,6 +337,8 @@ type Querier interface {
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
 	// 生成物のない録画を探して、解析し直すのに使う (#897)。
 	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
+	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
@@ -407,6 +411,8 @@ type Querier interface {
 	ListPlayerCommands(ctx context.Context, arg ListPlayerCommandsParams) ([]ListPlayerCommandsRow, error)
 	// ユーザーの、閉じていないプレイヤーを、開いた順に返す。
 	ListPlayers(ctx context.Context, arg ListPlayersParams) ([]ListPlayersRow, error)
+	// 番組 (サービス, eventId) の録画のうち、番組の放送時間に重なるもの (#1121)。eventId は使い回されるので、時間でも絞る。
+	ListProgramRecordings(ctx context.Context, arg ListProgramRecordingsParams) ([]Recording, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)

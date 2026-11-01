@@ -150,6 +150,41 @@ func (q *Queries) ListProgramsInRange(ctx context.Context, arg ListProgramsInRan
 	return out, nil
 }
 
+// ListArchivedProgramsInRange は、サービスの、期間に重なる、放送が終わった番組を返す (過去の番組表、#1121)。
+func (q *Queries) ListArchivedProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]domain.Program, error) {
+	result, err := sqlc.New(q.pool).ListArchivedProgramsInRange(ctx, sqlc.ListArchivedProgramsInRangeParams{ServiceIds: arg.ServiceIDs, FromAt: arg.FromAt, ToAt: arg.ToAt})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Program, len(result))
+	for i := range result {
+		out[i] = domain.Program(result[i])
+	}
+
+	return out, nil
+}
+
+// GetOldestArchivedProgramStartAt は、最も古い、放送が終わった番組の開始時刻を返す。なければ pgx.ErrNoRows を返す。
+func (q *Queries) GetOldestArchivedProgramStartAt(ctx context.Context) (time.Time, error) {
+	return sqlc.New(q.pool).GetOldestArchivedProgramStartAt(ctx)
+}
+
+// ListProgramRecordings は、番組 (サービス, eventId) の、放送時間に重なる録画を返す (#1121)。
+func (q *Queries) ListProgramRecordings(ctx context.Context, serviceID, eventID int64, startAt, endAt time.Time) ([]domain.Recording, error) {
+	result, err := sqlc.New(q.pool).ListProgramRecordings(ctx, sqlc.ListProgramRecordingsParams{
+		ServiceID: serviceID, EventID: &eventID, StartAt: startAt, EndAt: endAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Recording, len(result))
+	for i := range result {
+		out[i] = domain.Recording(result[i])
+	}
+
+	return out, nil
+}
+
 // GetArchivedProgram は、アーカイブの番組を 1 つ返す。なければ pgx.ErrNoRows を返す。
 func (q *Queries) GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (domain.Program, error) {
 	result, err := sqlc.New(q.pool).GetArchivedProgram(ctx, sqlc.GetArchivedProgramParams(arg))

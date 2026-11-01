@@ -465,7 +465,9 @@
       "cancelRuleDescription": "ルールで入った録画予約なので、この番組の録画だけをやめます。ルールは残ります。",
       "cancelConfirm": "取り消す",
       "cancelError": "取り消せませんでした。時間をおいてやり直してください",
-      "reserveError": "予約できませんでした。時間をおいてやり直してください"
+      "reserveError": "予約できませんでした。時間をおいてやり直してください",
+      "openRecording": "録画を見る",
+      "playTimeshift": "追っかけ再生"
     },
     "view": {
       "label": "番組表ビュー",
@@ -491,7 +493,8 @@
       "subGenre": "{{genre}}（中分類{{lv2}}）",
       "notFound": "開こうとした番組表ビューは見つかりませんでした。",
       "showAll": "すべての番組を表示する"
-    }
+    },
+    "pastDate": "過去の日"
   },
   "genre": {
     "0": "ニュース・報道",

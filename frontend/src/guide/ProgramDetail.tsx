@@ -18,6 +18,8 @@ import {
   CalendarPlus,
   CalendarX2,
   ChevronDown,
+  Film,
+  History,
   ListPlus,
   Play,
   SlidersHorizontal,
@@ -111,10 +113,20 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             endUndecided
             isFree
             archived
+            eventId
             service {
               id
               name
               logoUrl
+              # 放送が終わった番組を、タイムシフトのバッファから再生できるか (#1121)。
+              timeshiftPrograms {
+                eventId
+                startAt
+              }
+            }
+            # 放送が終わった番組の録画 (#1121)。
+            recordings {
+              id
             }
             genres {
               lv1
@@ -210,6 +222,17 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
   // canRecord は、録画予約のボタンを出すかどうか。検索から開いた、放送の終わった番組は予約できない。
   const canRecord = data.viewer.role !== 'VIEWER' && !ended;
   const canCreateRule = data.viewer.role !== 'VIEWER';
+  // 放送が終わった番組は、録画か、タイムシフトのバッファから見られる (#1121)。バッファの番組は、mikan が番組の始まりに
+  // 気づいた時刻で区切るので、同じイベント ID で、番組の放送時間の中に始まったものを探す。
+  const recording = ended ? program.recordings[0] : undefined;
+  const timeshift = ended
+    ? program.service.timeshiftPrograms.find(
+        (candidate) =>
+          candidate.eventId === program.eventId &&
+          Date.parse(candidate.startAt) >= start - 60_000 &&
+          Date.parse(candidate.startAt) < Date.parse(program.endAt),
+      )
+    : undefined;
   // createRule は、番組名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と同じ画面。
   const createRule = () =>
     void navigate({
@@ -249,6 +272,43 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
         )}
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
+      {(recording !== undefined || timeshift !== undefined) && (
+        <Group gap="xs" wrap="nowrap">
+          {recording !== undefined && (
+            <Button
+              variant="light"
+              flex={1}
+              leftSection={<Film size={16} aria-hidden />}
+              renderRoot={(props) => (
+                <Link
+                  {...props}
+                  to="/recordings/$recordingId"
+                  params={{ recordingId: recording.id }}
+                />
+              )}
+            >
+              {t('guide.detail.openRecording')}
+            </Button>
+          )}
+          {timeshift !== undefined && (
+            <Button
+              variant="light"
+              flex={1}
+              leftSection={<History size={16} aria-hidden />}
+              renderRoot={(props) => (
+                <Link
+                  {...props}
+                  to="/timeshift/$serviceId/play"
+                  params={{ serviceId: program.service.id }}
+                  search={{ program: timeshift.startAt }}
+                />
+              )}
+            >
+              {t('guide.detail.playTimeshift')}
+            </Button>
+          )}
+        </Group>
+      )}
       {(onAir || canRecord || canCreateRule || canWatchReserve) && (
         <Group gap="xs" wrap="nowrap">
           {onAir && (

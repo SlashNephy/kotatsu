@@ -502,6 +502,7 @@ type ComplexityRoot struct {
 		ID            func(childComplexity int) int
 		IsFree        func(childComplexity int) int
 		Name          func(childComplexity int) int
+		Recordings    func(childComplexity int) int
 		Reservation   func(childComplexity int) int
 		Service       func(childComplexity int) int
 		SharedFrom    func(childComplexity int) int
@@ -558,6 +559,7 @@ type ComplexityRoot struct {
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
 		OauthAuthorization      func(childComplexity int, query string) int
 		OauthGrants             func(childComplexity int) int
+		OldestArchivedProgramAt func(childComplexity int) int
 		OrphanFiles             func(childComplexity int) int
 		Passkeys                func(childComplexity int) int
 		PinnedServices          func(childComplexity int) int
@@ -1107,6 +1109,7 @@ type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
 
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
+	Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
 
 	WatchReserved(ctx context.Context, obj *model.Program) (bool, error)
@@ -1128,6 +1131,7 @@ type QueryResolver interface {
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
 	Guide(ctx context.Context, from time.Time, to time.Time, services []string, view *string) ([]*model.GuideRow, error)
+	OldestArchivedProgramAt(ctx context.Context) (*time.Time, error)
 	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
 	PreviewFileName(ctx context.Context, template string, program *string) (*model.FileNamePreview, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
@@ -3381,6 +3385,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Name(childComplexity), true
+	case "Program.recordings":
+		if e.ComplexityRoot.Program.Recordings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Recordings(childComplexity), true
 	case "Program.reservation":
 		if e.ComplexityRoot.Program.Reservation == nil {
 			break
@@ -3663,6 +3673,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.OauthGrants(childComplexity), true
+	case "Query.oldestArchivedProgramAt":
+		if e.ComplexityRoot.Query.OldestArchivedProgramAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.OldestArchivedProgramAt(childComplexity), true
 	case "Query.orphanFiles":
 		if e.ComplexityRoot.Query.OrphanFiles == nil {
 			break
@@ -6351,6 +6367,16 @@ extend type Query {
   view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
+  """
+  最も古い、放送が終わった番組 (過去の番組) の開始時刻 (#1121、設計書 3.4)。番組表で、どこまで遡れるかを示す。
+  過去の番組がなければ null。
+  """
+  oldestArchivedProgramAt: Time
+}
+
+extend type Program {
+  "番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。"
+  recordings: [Recording!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/file_names.graphqls", Input: `"""
@@ -9324,6 +9350,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_audios(ctx, field)
 	case "sharedFrom":
 		return ec.fieldContext_Program_sharedFrom(ctx, field)
+	case "recordings":
+		return ec.fieldContext_Program_recordings(ctx, field)
 	case "reservation":
 		return ec.fieldContext_Program_reservation(ctx, field)
 	case "archived":
@@ -20489,6 +20517,38 @@ func (ec *executionContext) fieldContext_Program_sharedFrom(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_recordings(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_recordings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().Recordings(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_recordings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Program_reservation(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21575,6 +21635,29 @@ func (ec *executionContext) fieldContext_Query_guide(ctx context.Context, field 
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_oldestArchivedProgramAt(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_oldestArchivedProgramAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().OldestArchivedProgramAt(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_oldestArchivedProgramAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _Query_fileNameTemplateHelp(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -36375,6 +36458,44 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "recordings":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Program_recordings(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "reservation":
 			field := field
 
@@ -37058,6 +37179,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_guide(ctx, field)
 				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "oldestArchivedProgramAt":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_oldestArchivedProgramAt(ctx, field)
+				if res == graphql.RequiredNull {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res

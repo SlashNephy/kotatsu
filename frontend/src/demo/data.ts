@@ -119,6 +119,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     watchReserved: watchReserved.has(item.id),
     // 予約は、選ばれたときだけ引く。番組表の番組ごとに割り当てを計算しないため。
     reservation: () => scheduler.reservationOfProgram(item.id),
+    // デモの録画は番組表の番組と結び付けないので、番組の録画はない (#1121)。
+    recordings: [],
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({
@@ -255,6 +257,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
     rules: () => scheduler.rules(),
+    // デモは過去の番組を持たないので、番組表で過去の日へは遡れない (#1121)。
+    oldestArchivedProgramAt: null,
     // デモでは、照合の重さを警告しない。
     ruleWarnings: () => [],
     previewRule: (args: { input: RuleInput; first: number; after?: string | null }) =>

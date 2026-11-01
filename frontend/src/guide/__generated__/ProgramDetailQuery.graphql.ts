@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6c079f72d75413d318295c625af6c9d1>>
+ * @generated SignedSource<<46cb0d1c863eeaf91a18cb7589614fea>>
  * @lightSyntaxTransform
  */
 
@@ -21,6 +21,7 @@ export type ProgramDetailQuery$data = {
     readonly description: string;
     readonly endAt: string;
     readonly endUndecided: boolean;
+    readonly eventId: number;
     readonly extended: ReadonlyArray<{
       readonly heading: string;
       readonly text: string;
@@ -32,6 +33,9 @@ export type ProgramDetailQuery$data = {
     readonly id: string;
     readonly isFree: boolean;
     readonly name: string;
+    readonly recordings: ReadonlyArray<{
+      readonly id: string;
+    }>;
     readonly reservation: {
       readonly assignment: {
         readonly plannedEndAt: string | null | undefined;
@@ -50,6 +54,10 @@ export type ProgramDetailQuery$data = {
       readonly id: string;
       readonly logoUrl: string | null | undefined;
       readonly name: string;
+      readonly timeshiftPrograms: ReadonlyArray<{
+        readonly eventId: number;
+        readonly startAt: string;
+      }>;
     };
     readonly startAt: string;
     readonly watchReserved: boolean;
@@ -155,6 +163,13 @@ v11 = {
 v12 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "eventId",
+  "storageKey": null
+},
+v13 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Service",
   "kind": "LinkedField",
   "name": "service",
@@ -168,11 +183,36 @@ v12 = {
       "kind": "ScalarField",
       "name": "logoUrl",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "TimeshiftProgram",
+      "kind": "LinkedField",
+      "name": "timeshiftPrograms",
+      "plural": true,
+      "selections": [
+        (v12/*:: as any*/),
+        (v7/*:: as any*/)
+      ],
+      "storageKey": null
     }
   ],
   "storageKey": null
 },
-v13 = {
+v14 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Recording",
+  "kind": "LinkedField",
+  "name": "recordings",
+  "plural": true,
+  "selections": [
+    (v4/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v15 = {
   "alias": null,
   "args": null,
   "concreteType": "Genre",
@@ -197,7 +237,7 @@ v13 = {
   ],
   "storageKey": null
 },
-v14 = {
+v16 = {
   "alias": null,
   "args": null,
   "concreteType": "ExtendedItem",
@@ -222,14 +262,14 @@ v14 = {
   ],
   "storageKey": null
 },
-v15 = {
+v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchReserved",
   "storageKey": null
 },
-v16 = {
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "Reservation",
@@ -343,7 +383,9 @@ return {
               (v13/*:: as any*/),
               (v14/*:: as any*/),
               (v15/*:: as any*/),
-              (v16/*:: as any*/)
+              (v16/*:: as any*/),
+              (v17/*:: as any*/),
+              (v18/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -398,7 +440,9 @@ return {
               (v13/*:: as any*/),
               (v14/*:: as any*/),
               (v15/*:: as any*/),
-              (v16/*:: as any*/)
+              (v16/*:: as any*/),
+              (v17/*:: as any*/),
+              (v18/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -409,16 +453,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "3a3138f0bff483e527848aeea33c4457",
+    "cacheID": "40cbc782c5457d193543293094233200",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      service {\n        id\n        name\n        logoUrl\n      }\n      genres {\n        lv1\n        lv2\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e2f6716a68c53b6b3e8b941305fc014e";
+(node as any).hash = "92669d8fde4a058422f6320f26b86418";
 
 export default node;

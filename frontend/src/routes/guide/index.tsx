@@ -10,6 +10,7 @@ import {
   SegmentedControl,
   Select,
   Stack,
+  TextInput,
   Title,
 } from '@mantine/core';
 import { CalendarDays, CalendarX2, ChevronLeft, ChevronRight, Clock, Sunrise } from 'lucide-react';
@@ -164,6 +165,8 @@ function Guide() {
   const data = useLazyLoadQuery<guideQuery>(
     graphql`
       query guideQuery($from: Time!, $to: Time!, $view: ID) {
+        # 過去の番組表で、どこまで遡れるか (#1121)。
+        oldestArchivedProgramAt
         channelTypes {
           type
           displayName
@@ -316,6 +319,16 @@ function Guide() {
 
   // offset は、選んだ日の、今日からの日数。日付の移動のボタンに使う。
   const offset = Math.round((selectedFrom - today.from) / day);
+  // minOffset は、遡れる日の、今日からの日数 (0 か負)。過去の番組の保持期間の中で、最も古い過去の番組の日まで遡れる (#1121)。
+  const minOffset =
+    data.oldestArchivedProgramAt == null
+      ? 0
+      : Math.min(
+          0,
+          Math.round(
+            (broadcastDay(Date.parse(data.oldestArchivedProgramAt)).from - today.from) / day,
+          ),
+        );
   // keepTime は、日付を移っても、見ていた時間帯のままにするか。前後の日へ移るときは保ち、今日へ戻るときはいまの時刻を出す。
   const [keepTime, setKeepTime] = useState(false);
   // scrollKey は、日付を変えずに、いまの時刻へスクロールし直すための合図。
@@ -363,7 +376,7 @@ function Guide() {
           <Button
             variant="default"
             size="xs"
-            disabled={offset <= 0}
+            disabled={offset <= minOffset}
             onClick={() => moveTo(offset - 1, true)}
             leftSection={<ChevronLeft size={14} aria-hidden />}
           >
@@ -393,6 +406,28 @@ function Guide() {
                   {dayFormat.format(today.from + days * day)}
                 </Menu.Item>
               ))}
+              {/* 過去の日は、カレンダーで選ぶ (#1121)。過去の番組の保持期間の中の日を選べる。 */}
+              {minOffset < 0 && (
+                <>
+                  <Menu.Divider />
+                  <Menu.Label>{t('guide.pastDate')}</Menu.Label>
+                  <TextInput
+                    type="date"
+                    px="xs"
+                    pb="xs"
+                    size="xs"
+                    aria-label={t('guide.pastDate')}
+                    min={dateOf(today.from + minOffset * day)}
+                    max={dateOf(today.from - day)}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      if (value !== '') {
+                        moveTo(Math.round((dayFrom(value, today.from) - today.from) / day), true);
+                      }
+                    }}
+                  />
+                </>
+              )}
             </Menu.Dropdown>
           </Menu>
           <Button

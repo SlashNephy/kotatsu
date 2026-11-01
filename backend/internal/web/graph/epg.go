@@ -9,10 +9,13 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
+	pgx "github.com/jackc/pgx/v5"
 	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -193,4 +196,69 @@ func (r *Resolver) loadServices(ctx context.Context, keys []int64) ([]*model.Ser
 	}
 
 	return services, nil
+}
+
+// addArchivedPrograms は、時間帯 [from, to) に重なる過去の番組を、サービスごとの番組に足す (#1121、設計書 3.4)。
+// 放送が終わってから猶予の間は、同じ番組が programs にも残っているので、programs にある番組 (サービス, eventId, 開始時刻) は足さない。
+// 足した後は、開始時刻の順に並べ直す。
+func (r *Resolver) addArchivedPrograms(ctx context.Context, byService map[int64]*model.GuideRow, serviceIDs []int64, from, to time.Time) error {
+	archives, err := r.queries.ListArchivedProgramsInRange(ctx, query.ListProgramsInRangeParams{ServiceIDs: serviceIDs, FromAt: from, ToAt: to})
+	if err != nil {
+		return fmt.Errorf("failed to list archived programs: %w", err)
+	}
+	if len(archives) == 0 {
+		return nil
+	}
+	type key struct {
+		eventID int64
+		startAt int64
+	}
+	current := map[int64]map[key]bool{}
+	for serviceID, row := range byService {
+		current[serviceID] = map[key]bool{}
+		for _, program := range row.Programs {
+			current[serviceID][key{eventID: int64(program.EventID), startAt: program.StartAt.Unix()}] = true
+		}
+	}
+	for i := range archives {
+		archive := &archives[i]
+		if current[archive.ServiceID][key{eventID: archive.EventID, startAt: archive.StartAt.Unix()}] {
+			continue
+		}
+		program, err := toProgram(archive)
+		if err != nil {
+			return err
+		}
+		program.ID = archiveGlobalID(archive.ServiceID, archive.EventID, archive.StartAt)
+		program.Archived = true
+		byService[archive.ServiceID].Programs = append(byService[archive.ServiceID].Programs, program)
+	}
+	for _, row := range byService {
+		slices.SortStableFunc(row.Programs, func(a, b *model.Program) int { return a.StartAt.Compare(b.StartAt) })
+	}
+
+	return nil
+}
+
+// oldestArchivedProgramAt は、最も古い過去の番組の開始時刻を返す。過去の番組がなければ ok が false になる。
+func (r *Resolver) oldestArchivedProgramAt(ctx context.Context) (time.Time, bool, error) {
+	startAt, err := r.queries.GetOldestArchivedProgramStartAt(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("failed to get the oldest archived program: %w", err)
+	}
+
+	return startAt, true, nil
+}
+
+// programRecordings は、番組の放送時間に重なる、番組の録画を返す (#1121)。
+func (r *Resolver) programRecordings(ctx context.Context, program *model.Program) ([]*model.Recording, error) {
+	rows, err := r.queries.ListProgramRecordings(ctx, program.ServiceKey, int64(program.EventID), program.StartAt, program.EndAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the recordings of the program: %w", err)
+	}
+
+	return r.recordingModels(ctx, rows)
 }
