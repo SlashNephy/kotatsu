@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6079484124f58706377abf9dec923b44>>
+ * @generated SignedSource<<636d7911a61332a70c0509b56d882849>>
  * @lightSyntaxTransform
  */
 
@@ -31,6 +31,7 @@ export type ReservationSettingsDialogMutation$data = {
     readonly followEventRelay: boolean;
     readonly id: string;
     readonly settings: {
+      readonly detectCm: boolean | null | undefined;
       readonly endMarginSeconds: number | null | undefined;
       readonly fileNameTemplate: string | null | undefined;
       readonly joinSegments: boolean | null | undefined;
@@ -155,6 +156,13 @@ v3 = [
             "kind": "ScalarField",
             "name": "joinSegments",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "detectCm",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -207,16 +215,16 @@ return {
     "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "5eeaadd1f5518fd4fcbd7b069e975b3c",
+    "cacheID": "11852ce87590c9223fe174298cdf0cf2",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogMutation",
     "operationKind": "mutation",
-    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
+    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "948f5b7b656ad9d3b486959a6996f85c";
+(node as any).hash = "e0dabee608d95c85fdcf29ad9f41a52c";
 
 export default node;

@@ -361,6 +361,7 @@ export function createRootValue(
         endMarginSeconds: 0,
         priority: 0,
         joinSegments: true,
+        detectCm: false,
       },
       archiveRetentionDays: 30,
       notificationRetentionDays: 30,
@@ -440,8 +441,9 @@ export function createRootValue(
       recordings.setProtected(id, value),
     deleteRecording: ({ id }: { id: string }) => recordings.delete(id),
     deleteRecordings: ({ ids }: { ids: string[] }) => recordings.deleteMany(ids),
-    // 索引や画像を作り直すジョブは、デモでは何もせずに受け付ける。
+    // 索引や画像を作り直すジョブと、CM を解析するジョブは、デモでは何もせずに受け付ける。
     reanalyzeRecording: () => true,
+    detectRecordingCm: () => true,
     regenerateRecordingImages: () => true,
     saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
       recordings.saveWatchPosition(id, positionMs),
