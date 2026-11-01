@@ -219,7 +219,7 @@ class E {
   #I = () => {
     if (this.#r === "append") {
       const e = this.#o.shift();
-      e && (this.#g -= e.data.byteLength, e.init || this.#W());
+      e && (this.#g -= e.data.byteLength, e.init || this.#F());
     } else this.#r === "remove" ? (this.#u = !1, this.#y()) : this.#r === "clear" && (this.#h = !1);
     this.#r = null, this.#T(), this.#U(), this.#m(), this.#p();
   };
@@ -256,7 +256,7 @@ class E {
    * playhead into the first buffered range by itself; Firefox waits at zero for
    * data that is not coming.
    */
-  #W() {
+  #F() {
     const e = this.#e?.buffered;
     this.#n || !e || e.length === 0 || (this.#n = !0, this.#i.onMark?.("appended"), this.#i.seek(e.start(0)));
   }
@@ -585,7 +585,7 @@ class _ extends EventTarget {
     if (!this.#s) {
       const e = new Worker(new URL(
         /* @vite-ignore */
-        "" + new URL("assets/worker-DWAnC5me.js", import.meta.url).href,
+        "" + new URL("assets/worker-cVEuwozd.js", import.meta.url).href,
         import.meta.url
       ), {
         type: "module"
@@ -667,7 +667,7 @@ class _ extends EventTarget {
           this.#U();
           break;
         case "completed":
-          this.#M("completed"), this.#i === "worker" && this.#F();
+          this.#M("completed"), this.#i === "worker" && this.#W();
           break;
         case "error":
           this.#L(new Error(t.message));
@@ -712,7 +712,7 @@ class _ extends EventTarget {
         e === this.#e && this.#L(i);
       }
     });
-    return this.#a = t, this.#o = URL.createObjectURL(t.mediaSource), t.managed ? this.#W(this.#o) : this.video.src = this.#o, this.#v("attached", a()), this.#E !== null && t.setDuration(this.#E), t;
+    return this.#a = t, this.#o = URL.createObjectURL(t.mediaSource), t.managed ? this.#F(this.#o) : this.video.src = this.#o, this.#v("attached", a()), this.#E !== null && t.setDuration(this.#E), t;
   }
   /**
    * Put a Managed Media Source on the element, which takes more than a `src`.
@@ -723,7 +723,7 @@ class _ extends EventTarget {
    * than the attribute. Neither is optional: miss one and `sourceopen` never
    * arrives and the load waits for a stream that has not begun.
    */
-  #W(e) {
+  #F(e) {
     this.video.removeAttribute("src"), this.#T();
     const t = document.createElement("source");
     t.type = "video/mp4", t.src = e, this.video.append(t), this.#g = t, this.video.load();
@@ -741,7 +741,7 @@ class _ extends EventTarget {
     const e = this.#e, t = this.#a;
     t && t.finish().then(
       () => {
-        e === this.#e && this.#F();
+        e === this.#e && this.#W();
       },
       (i) => {
         e === this.#e && this.#L(o(i));
@@ -840,11 +840,11 @@ class _ extends EventTarget {
       200
     ));
   }
-  #F() {
+  #W() {
     this.#u !== null && (clearInterval(this.#u), this.#u = null);
   }
   #j() {
-    this.#F(), this.#p(), this.#a?.close(), this.#a = null, this.#o && URL.revokeObjectURL(this.#o), this.#o = null, this.#g?.remove(), this.#g = null, this.#r && (this.video.disableRemotePlayback = !1, this.#r = !1), this.video.removeAttribute("src"), this.video.srcObject = null, this.video.load();
+    this.#W(), this.#p(), this.#a?.close(), this.#a = null, this.#o && URL.revokeObjectURL(this.#o), this.#o = null, this.#g?.remove(), this.#g = null, this.#r && (this.video.disableRemotePlayback = !1, this.#r = !1), this.video.removeAttribute("src"), this.video.srcObject = null, this.video.load();
   }
   #L(e) {
     this.#j(), this.#M("error"), this.#x(e), this.#l("error", { error: e });
