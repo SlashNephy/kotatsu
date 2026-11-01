@@ -1082,6 +1082,7 @@
     },
     "virtualSurround": "5.1chをヘッドホン向けのサラウンドで聞く",
     "gapMark": "ここで {{duration}} 途切れています",
+    "cmSection": "CM ({{duration}})",
     "crop": {
       "mode": "表示の比率",
       "modes": {

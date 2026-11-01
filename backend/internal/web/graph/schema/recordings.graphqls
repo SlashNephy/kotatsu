@@ -76,6 +76,15 @@ type RecordingGap {
 }
 
 """
+CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
+"""
+type RecordingCMSection {
+  "区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。"
+  from: Time!
+  to: Time!
+}
+
+"""
 録画のタグ。
 """
 type Tag {
@@ -113,6 +122,8 @@ type Recording implements Node {
   """
   streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
+  "CM とみなした区間を、始まりの順に並べる (#479)。見分けていないか、見つからなければ空になる。"
+  cmSections: [RecordingCMSection!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"

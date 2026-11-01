@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -659,4 +660,22 @@ func (r *Resolver) recordingLiveStats(ctx context.Context, obj *model.Recording)
 		Bitrate: stats.Bitrate, Bytes: stats.Bytes, Drops: stats.Drops, Errors: stats.Errors, Scrambled: stats.Scrambled,
 		UpdatedAt: stats.UpdatedAt,
 	}, nil
+}
+
+// recordingCMSections は、録画の CM とみなした区間を、録画の時間軸の日時にして返す (#479)。
+func (r *Resolver) recordingCMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	sections, err := cmdetect.RecordingSections(ctx, r.db, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.RecordingCMSection, 0, len(sections))
+	for _, s := range sections {
+		out = append(out, &model.RecordingCMSection{From: obj.RecordedFrom.Add(s.Start), To: obj.RecordedFrom.Add(s.End)})
+	}
+
+	return out, nil
 }

@@ -207,6 +207,17 @@ func (t *programTable) firstVideo() (*Stream, bool) {
 	return nil, false
 }
 
+// firstVideoProgram は、映像のある番組のうち、program_number が最も小さいものを返す。なければ nil を返す。
+func (t *programTable) firstVideoProgram() *Program {
+	for _, number := range slices.Sorted(maps.Keys(t.programs)) {
+		if slices.ContainsFunc(t.programs[number].Streams, func(s *Stream) bool { return s.Kind == StreamVideo }) {
+			return t.programs[number]
+		}
+	}
+
+	return nil
+}
+
 // snapshot は、番組の構成を program_number の昇順に並べて複製する。
 func (t *programTable) snapshot() []*Program {
 	programs := make([]*Program, 0, len(t.programs))

@@ -77,6 +77,11 @@ func (r *recordingResolver) StreamQuality(ctx context.Context, obj *model.Record
 	return r.streamQuality(ctx, obj)
 }
 
+// CMSections is the resolver for the cmSections field.
+func (r *recordingResolver) CMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error) {
+	return r.recordingCMSections(ctx, obj)
+}
+
 // VideoFormat is the resolver for the videoFormat field.
 func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
 	return r.recordingVideoFormat(ctx, obj)

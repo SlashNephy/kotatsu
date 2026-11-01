@@ -889,6 +889,28 @@ CREATE TABLE recording_live_stats (
   updated_at timestamptz NOT NULL
 );
 
+-- 録画の CM の区間を見分けた記録 (設計書 6.1、#479)。nekonote のジョブが、録画を終えた後に、見分け方 (detector) ごとに書く。
+-- 行があれば、見分けたことを表す (CM が見つからなくても書く)。見分け方を直したら版を上げ、古い版の録画を見分け直せるようにする。
+CREATE TABLE recording_cm_detections (
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  detector text NOT NULL,
+  detector_version integer NOT NULL,
+  detected_at timestamptz NOT NULL,
+  PRIMARY KEY (recording_id, detector)
+);
+
+-- 見分けた CM の区間。見分け直したら、同じ見分け方の区間をすべて置き換える。
+-- 始まりと終わりは、録画を始めた日時 (recordings.recorded_from) からのミリ秒。途切れた区間も、時間に含めて数える。
+CREATE TABLE recording_cm_sections (
+  recording_id uuid NOT NULL,
+  detector text NOT NULL,
+  start_offset_ms bigint NOT NULL CHECK (start_offset_ms >= 0),
+  end_offset_ms bigint NOT NULL,
+  PRIMARY KEY (recording_id, detector, start_offset_ms),
+  FOREIGN KEY (recording_id, detector) REFERENCES recording_cm_detections (recording_id, detector) ON DELETE CASCADE,
+  CHECK (end_offset_ms > start_offset_ms)
+);
+
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
 

@@ -1140,6 +1140,7 @@
     },
     "virtualSurround": "Play 5.1ch as headphone surround",
     "gapMark": "{{duration}} gap here",
+    "cmSection": "Commercials ({{duration}})",
     "crop": {
       "mode": "Aspect ratio",
       "modes": {

@@ -868,6 +868,13 @@ type ProgramReservationInput struct {
 type Query struct {
 }
 
+// CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
+type RecordingCMSection struct {
+	// 区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
 type RecordingConnection struct {
 	Edges    []*RecordingEdge `json:"edges"`
 	PageInfo *PageInfo        `json:"pageInfo"`

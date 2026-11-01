@@ -401,6 +401,20 @@ type RecordingAssignment struct {
 	UpdatedAt        time.Time
 }
 
+type RecordingCmDetection struct {
+	RecordingID     uuid.UUID
+	Detector        string
+	DetectorVersion int32
+	DetectedAt      time.Time
+}
+
+type RecordingCmSection struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	StartOffsetMs int64
+	EndOffsetMs   int64
+}
+
 type RecordingFailureCount struct {
 	Reason       string
 	Count        int64
