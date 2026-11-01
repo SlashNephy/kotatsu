@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
@@ -192,6 +193,7 @@ func NewHandler(opts *Options) http.Handler {
 		recorder:         o.Recorder,
 		settings:         o.Settings,
 		timeshift:        timeshift.NewChannels(o.Clock, o.Recorder),
+		animeChannels:    anime.NewChannels(o.Clock, o.Recorder),
 		inbox:            notification.NewInbox(o.Clock),
 		webhooks:         o.Webhooks,
 		webPush:          o.WebPush,

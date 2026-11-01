@@ -125,6 +125,22 @@ export function createRootValue(
     },
   };
   let nextPlayer = 1;
+  // animeOverrides は、サービスごとの、しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8)。
+  const animeOverrides = new Map<string, { syobocal: number | null; annict: number | null }>();
+  const animeChannel = (serviceId: string) => {
+    const override = animeOverrides.get(serviceId) ?? { syobocal: null, annict: null };
+
+    return {
+      serviceId,
+      definitionName: null,
+      importedSyobocalChannelId: null,
+      importedAnnictChannelId: null,
+      syobocalChannelIdOverride: override.syobocal,
+      annictChannelIdOverride: override.annict,
+      syobocalChannelId: override.syobocal,
+      annictChannelId: override.annict,
+    };
+  };
   // idle は、何も流さない購読に使う。ほかの端末からのプレイヤーの操作は、デモでは届かない。
   const idle = createEventHub();
 
@@ -349,8 +365,13 @@ export function createRootValue(
       ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
       // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
       dataBroadcastIpEnabled: false,
+      // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
+      animeLinkingEnabled: false,
       updatedAt: null,
     }),
+    // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
+    animeChannels: () => services.map((service) => animeChannel(service.id)),
+    animeImports: () => [],
     storagePoolNames: () => ['default'],
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({
@@ -382,6 +403,29 @@ export function createRootValue(
     },
 
     // Mutation
+    updateAnimeChannel: ({
+      serviceId,
+      input,
+    }: {
+      serviceId: string;
+      input: {
+        syobocalChannelId?: number | null;
+        resetSyobocalChannelId: boolean;
+        annictChannelId?: number | null;
+        resetAnnictChannelId: boolean;
+      };
+    }) => {
+      const current = animeOverrides.get(serviceId) ?? { syobocal: null, annict: null };
+      const next = {
+        syobocal: input.resetSyobocalChannelId
+          ? null
+          : (input.syobocalChannelId ?? current.syobocal),
+        annict: input.resetAnnictChannelId ? null : (input.annictChannelId ?? current.annict),
+      };
+      animeOverrides.set(serviceId, next);
+
+      return animeChannel(serviceId);
+    },
     deleteCapture: ({ id }: { id: string }) => captures.remove(id),
     setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
       recordings.setTags(id, tags),

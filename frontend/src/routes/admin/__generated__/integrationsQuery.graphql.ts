@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6a7751a6a47111628e0fdf19604b21a1>>
+ * @generated SignedSource<<55b70c6781703e476a4636247d22e0b5>>
  * @lightSyntaxTransform
  */
 
@@ -8,10 +8,18 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type AnimeImportSource = "ARM" | "ARM_SUPPLEMENTARY" | "SAYA_DEFINITIONS" | "%future added value";
 export type NotificationKind = "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
 export type integrationsQuery$data = {
+  readonly animeImports: ReadonlyArray<{
+    readonly checkedAt: string;
+    readonly error: string | null | undefined;
+    readonly importedAt: string | null | undefined;
+    readonly itemCount: number;
+    readonly source: AnimeImportSource;
+  }>;
   readonly passkeys: ReadonlyArray<{
     readonly id: string;
   }>;
@@ -20,6 +28,7 @@ export type integrationsQuery$data = {
     readonly totp: boolean;
   };
   readonly systemSettings: {
+    readonly animeLinkingEnabled: boolean;
     readonly dataBroadcastIpEnabled: boolean;
     readonly mcpEnabled: boolean;
   };
@@ -66,6 +75,59 @@ v1 = [
         "args": null,
         "kind": "ScalarField",
         "name": "dataBroadcastIpEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "animeLinkingEnabled",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "AnimeImport",
+    "kind": "LinkedField",
+    "name": "animeImports",
+    "plural": true,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "source",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "checkedAt",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "importedAt",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "itemCount",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "error",
         "storageKey": null
       }
     ],
@@ -174,16 +236,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "1a42368dc000335682c4b1d7b8b7dc6c",
+    "cacheID": "25a73c6ed9ee8c1549908bb473aa18dc",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "8a43a0c1035c08ddf1501c2272f29ba2";
+(node as any).hash = "175be0dee2fe7ab849c45271f42f2eae";
 
 export default node;

@@ -1,0 +1,78 @@
+"""
+サービスと、しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応 (設計書 3.8)。
+saya-definitions から取り込んだ対応に、管理者の上書きを重ねる。
+"""
+type AnimeChannel {
+  serviceId: ID!
+  "対応を取り込んだ saya-definitions のチャンネルの名前。取り込んだ対応がなければ null。"
+  definitionName: String
+  "saya-definitions から取り込んだ、しょぼいカレンダーの ChID。"
+  importedSyobocalChannelId: Int
+  "saya-definitions から取り込んだ、Annict のチャンネルの ID。"
+  importedAnnictChannelId: Int
+  "管理者が上書きした、しょぼいカレンダーの ChID。上書きしていなければ null。"
+  syobocalChannelIdOverride: Int
+  "管理者が上書きした、Annict のチャンネルの ID。上書きしていなければ null。"
+  annictChannelIdOverride: Int
+  "使う、しょぼいカレンダーの ChID。上書きがあれば上書きを、なければ取り込んだ対応を使う。null なら、このサービスの番組は照合しない。"
+  syobocalChannelId: Int
+  "使う、Annict のチャンネルの ID。"
+  annictChannelId: Int
+}
+
+"""
+連携先の情報の取り込み元 (設計書 3.8)。
+"""
+enum AnimeImportSource {
+  "サービスとしょぼいカレンダー、Annict のチャンネルの対応"
+  SAYA_DEFINITIONS
+  "しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応"
+  ARM
+  "arm を補う、作品 ID の対応"
+  ARM_SUPPLEMENTARY
+}
+
+"""
+連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
+"""
+type AnimeImport {
+  source: AnimeImportSource!
+  "最後に問い合わせた日時。"
+  checkedAt: Time!
+  "最後に取り込めた日時。1 度も取り込めていなければ null。"
+  importedAt: Time
+  "最後に取り込めたときの件数。"
+  itemCount: Int!
+  "最後の問い合わせが失敗した理由。成功していれば null。"
+  error: String
+}
+
+"""
+チャンネルの対応の上書きの変える項目。省いた項目は変えない。
+"""
+input AnimeChannelInput {
+  "しょぼいカレンダーの ChID の上書き (1 以上)。"
+  syobocalChannelId: Int
+  "しょぼいカレンダーの ChID の上書きを消し、取り込んだ対応に戻す。syobocalChannelId と一緒には使えない。"
+  resetSyobocalChannelId: Boolean! = false
+  "Annict のチャンネルの ID の上書き (1 以上)。"
+  annictChannelId: Int
+  "Annict のチャンネルの ID の上書きを消し、取り込んだ対応に戻す。annictChannelId と一緒には使えない。"
+  resetAnnictChannelId: Boolean! = false
+}
+
+extend type Query {
+  "すべてのサービスの、チャンネルの対応 (設計書 3.8)。サービス ID の順に並べる。管理者だけが使える。"
+  animeChannels: [AnimeChannel!]!
+  "連携先の情報を取り込んだ様子 (設計書 3.8)。管理者だけが使える。"
+  animeImports: [AnimeImport!]!
+}
+
+extend type Mutation {
+  """
+  サービス serviceId の、チャンネルの対応の上書きを変える (設計書 3.8)。管理者だけが使える。
+  家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。
+  サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
+  """
+  updateAnimeChannel(serviceId: ID!, input: AnimeChannelInput!): AnimeChannel!
+}

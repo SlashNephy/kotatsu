@@ -75,6 +75,9 @@ type Querier interface {
 	CreatePlayerCommand(ctx context.Context, arg CreatePlayerCommandParams) (int64, error)
 	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
+	DeleteAnimeChannelDefinitions(ctx context.Context) error
+	DeleteAnimeChannelOverride(ctx context.Context, serviceID int64) error
+	DeleteAnimeWorks(ctx context.Context, source string) error
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
 	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
@@ -178,6 +181,7 @@ type Querier interface {
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
+	GetAnimeImport(ctx context.Context, source string) (AnimeImport, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
@@ -278,6 +282,10 @@ type Querier interface {
 	// リース name を、holder が今持っているかどうか。
 	HoldsLease(ctx context.Context, arg HoldsLeaseParams) (bool, error)
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
+	// 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
+	InsertAnimeChannelDefinitions(ctx context.Context, arg InsertAnimeChannelDefinitionsParams) error
+	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
+	InsertAnimeWorks(ctx context.Context, arg InsertAnimeWorksParams) error
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	// キャプチャを記録する (設計書 7.5)。録画が見つからなければ (撮った後に消されたなど)、録画の参照と再生位置を NULL にする。
 	InsertCapture(ctx context.Context, arg InsertCaptureParams) (Capture, error)
@@ -360,6 +368,12 @@ type Querier interface {
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
 	// 生成物のない録画を探して、解析し直すのに使う (#897)。
 	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
+	// サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
+	// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
+	ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error)
+	ListAnimeImports(ctx context.Context) ([]AnimeImport, error)
+	// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を返す (設計書 3.8)。
+	ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]ListAnimeWorksRow, error)
 	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
 	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
@@ -537,6 +551,11 @@ type Querier interface {
 	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
 	// 有効な管理者の行をロックする。最後の管理者を外したり無効にしたりする操作を、同時に行わせない。
 	LockActiveAdmins(ctx context.Context) ([]uuid.UUID, error)
+	// 変える前の値を監査ログに残すため、上書きの行をロックして読む。サービスがなければ行を返さない。
+	LockAnimeChannelOverride(ctx context.Context, serviceID int64) (LockAnimeChannelOverrideRow, error)
+	// 取り込み元 source の入れ替えを、1 つずつ行わせる。トランザクションが終わるまでロックする。
+	// 取り込みのジョブが重なると、後の入れ替えが、先に入れた行と主キーでぶつかり、取り込めなかったと記録してしまうため。
+	LockAnimeImport(ctx context.Context, source string) error
 	// 変える前の値を監査ログに残すため、種別の行をロックして読む。
 	LockChannelType(ctx context.Context, type_ string) (ChannelType, error)
 	// 消す直前に、録画をロックして、まだ消せることを確かめる。
@@ -612,6 +631,10 @@ type Querier interface {
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
 	// 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
 	ReauthenticateSession(ctx context.Context, arg ReauthenticateSessionParams) (int64, error)
+	// 取り込めたことを記録する。内容が変わっていなければ (304)、呼ぶ側が前の ETag と件数を渡す。
+	RecordAnimeImport(ctx context.Context, arg RecordAnimeImportParams) error
+	// 取り込めなかった理由を記録する。前に取り込めた内容と ETag は残し、1 時間後にまた問い合わせる。
+	RecordAnimeImportFailure(ctx context.Context, arg RecordAnimeImportFailureParams) error
 	// 失敗を数える。最後の失敗が reset_before より前なら、数え直す。
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (int32, error)
 	RecordOIDCIdentityUse(ctx context.Context, arg RecordOIDCIdentityUseParams) error
@@ -765,6 +788,7 @@ type Querier interface {
 	UpdateWaitingRecordingPriorities(ctx context.Context, arg UpdateWaitingRecordingPrioritiesParams) (int64, error)
 	UpdateWatchRule(ctx context.Context, arg UpdateWatchRuleParams) (int64, error)
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
+	UpsertAnimeChannelOverride(ctx context.Context, arg UpsertAnimeChannelOverrideParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	// プレイヤーの設定を変える。null の項目は変えない。

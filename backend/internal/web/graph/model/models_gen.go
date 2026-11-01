@@ -15,6 +15,51 @@ type Node interface {
 	IsNode()
 }
 
+// サービスと、しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応 (設計書 3.8)。
+// saya-definitions から取り込んだ対応に、管理者の上書きを重ねる。
+type AnimeChannel struct {
+	ServiceID string `json:"serviceId"`
+	// 対応を取り込んだ saya-definitions のチャンネルの名前。取り込んだ対応がなければ null。
+	DefinitionName *string `json:"definitionName,omitempty"`
+	// saya-definitions から取り込んだ、しょぼいカレンダーの ChID。
+	ImportedSyobocalChannelID *int `json:"importedSyobocalChannelId,omitempty"`
+	// saya-definitions から取り込んだ、Annict のチャンネルの ID。
+	ImportedAnnictChannelID *int `json:"importedAnnictChannelId,omitempty"`
+	// 管理者が上書きした、しょぼいカレンダーの ChID。上書きしていなければ null。
+	SyobocalChannelIDOverride *int `json:"syobocalChannelIdOverride,omitempty"`
+	// 管理者が上書きした、Annict のチャンネルの ID。上書きしていなければ null。
+	AnnictChannelIDOverride *int `json:"annictChannelIdOverride,omitempty"`
+	// 使う、しょぼいカレンダーの ChID。上書きがあれば上書きを、なければ取り込んだ対応を使う。null なら、このサービスの番組は照合しない。
+	SyobocalChannelID *int `json:"syobocalChannelId,omitempty"`
+	// 使う、Annict のチャンネルの ID。
+	AnnictChannelID *int `json:"annictChannelId,omitempty"`
+}
+
+// チャンネルの対応の上書きの変える項目。省いた項目は変えない。
+type AnimeChannelInput struct {
+	// しょぼいカレンダーの ChID の上書き (1 以上)。
+	SyobocalChannelID *int `json:"syobocalChannelId,omitempty"`
+	// しょぼいカレンダーの ChID の上書きを消し、取り込んだ対応に戻す。syobocalChannelId と一緒には使えない。
+	ResetSyobocalChannelID bool `json:"resetSyobocalChannelId"`
+	// Annict のチャンネルの ID の上書き (1 以上)。
+	AnnictChannelID *int `json:"annictChannelId,omitempty"`
+	// Annict のチャンネルの ID の上書きを消し、取り込んだ対応に戻す。annictChannelId と一緒には使えない。
+	ResetAnnictChannelID bool `json:"resetAnnictChannelId"`
+}
+
+// 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
+type AnimeImport struct {
+	Source AnimeImportSource `json:"source"`
+	// 最後に問い合わせた日時。
+	CheckedAt time.Time `json:"checkedAt"`
+	// 最後に取り込めた日時。1 度も取り込めていなければ null。
+	ImportedAt *time.Time `json:"importedAt,omitempty"`
+	// 最後に取り込めたときの件数。
+	ItemCount int `json:"itemCount"`
+	// 最後の問い合わせが失敗した理由。成功していれば null。
+	Error *string `json:"error,omitempty"`
+}
+
 // 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
 // トークンそのものは、発行したときにだけ返す。
 type APIToken struct {
@@ -1143,6 +1188,8 @@ type SystemSettings struct {
 	// データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
 	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
+	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
+	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
 	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
 	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// 最後に変えた日時。一度も変えていなければ null。
@@ -1160,6 +1207,8 @@ type SystemSettingsInput struct {
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。
 	DataBroadcastIPEnabled *bool `json:"dataBroadcastIpEnabled,omitempty"`
+	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
 	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
 	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`
@@ -1388,6 +1437,67 @@ type Webhook struct {
 	Enabled   bool               `json:"enabled"`
 	CreatedAt time.Time          `json:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt"`
+}
+
+// 連携先の情報の取り込み元 (設計書 3.8)。
+type AnimeImportSource string
+
+const (
+	// サービスとしょぼいカレンダー、Annict のチャンネルの対応
+	AnimeImportSourceSayaDefinitions AnimeImportSource = "SAYA_DEFINITIONS"
+	// しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応
+	AnimeImportSourceArm AnimeImportSource = "ARM"
+	// arm を補う、作品 ID の対応
+	AnimeImportSourceArmSupplementary AnimeImportSource = "ARM_SUPPLEMENTARY"
+)
+
+var AllAnimeImportSource = []AnimeImportSource{
+	AnimeImportSourceSayaDefinitions,
+	AnimeImportSourceArm,
+	AnimeImportSourceArmSupplementary,
+}
+
+func (e AnimeImportSource) IsValid() bool {
+	switch e {
+	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceArmSupplementary:
+		return true
+	}
+	return false
+}
+
+func (e AnimeImportSource) String() string {
+	return string(e)
+}
+
+func (e *AnimeImportSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeImportSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeImportSource", str)
+	}
+	return nil
+}
+
+func (e AnimeImportSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeImportSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeImportSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 // 予約のチューナーの割り当ての状態 (設計書 4.5)。

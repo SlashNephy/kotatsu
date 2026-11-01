@@ -11,6 +11,40 @@ import (
 	"github.com/google/uuid"
 )
 
+type AnimeChannelDefinition struct {
+	ChannelType       string
+	NetworkID         int64
+	Sid               int64
+	Name              string
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
+}
+
+type AnimeChannelOverride struct {
+	ServiceID         int64
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
+	UpdatedAt         time.Time
+}
+
+type AnimeImport struct {
+	Source     string
+	Etag       *string
+	CheckedAt  time.Time
+	ImportedAt *time.Time
+	ItemCount  int32
+	Error      *string
+}
+
+type AnimeWork struct {
+	Source       string
+	SyobocalTid  int32
+	Position     int16
+	AnnictWorkID *int32
+	AnilistID    *int32
+	MalID        *int32
+}
+
 type ApiToken struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -473,6 +507,7 @@ type SystemSetting struct {
 	NotificationRetentionDays int32
 	MCPEnabled                bool
 	DataBroadcastIPEnabled    bool
+	AnimeLinkingEnabled       bool
 	RuleDefaults              []byte
 	DrcsReplacements          []byte
 	UpdatedAt                 time.Time

@@ -1584,7 +1584,13 @@
         "service": "Service {{id}} ({{name}})",
         "unknownService": "Service unknown to Kotatsu",
         "others": "PIDs not in the PMT (SI, ECM, EMM, etc.)"
-      }
+      },
+      "animeChannels": "Syobocal and Annict channels",
+      "animeChannelsDescription": "The mapping from services to Syobocal channel IDs and Annict channels, used to match anime programs. Leave a field empty to use the mapping imported from saya-definitions (shown dimmed)",
+      "animeChannelsDisabled": "Linking is disabled. Enable it on the Integrations page to match programs with this mapping",
+      "animeChannelNone": "None",
+      "syobocalChannel": "Syobocal channel ID",
+      "annictChannel": "Annict channel"
     },
     "users": {
       "title": "Users",
@@ -1689,7 +1695,17 @@
       "dataBroadcastIpEnabled": "Relay interactive data broadcast communication",
       "dataBroadcastIpHelp": "Kotatsu's server relays the requests that data broadcast documents send to the internet, such as polls and prize entries. They may include receiver information such as the postal code. Requests to addresses inside your LAN are refused.",
       "updatedAt": "Last updated {{at}}",
-      "neverUpdated": "Not changed yet"
+      "neverUpdated": "Not changed yet",
+      "anime": "Syobocal, Annict, and AniList",
+      "animeEnabled": "Link with Syobocal, Annict, and AniList",
+      "animeHelp": "Matches anime and tokusatsu programs to works and episodes on Syobocal, and shows the episode number, subtitle, and links to Annict and AniList on program and recording details. When enabled, Kotatsu sends requests to Syobocal and GitHub",
+      "animeNotImported": "No linking data has been imported yet. Once enabled, it is imported and refreshed every day",
+      "animeNeverImported": "Not imported yet",
+      "animeImported": "Imported {{items}} items at {{at}}",
+      "animeImportFailed": "Failed to import at {{at}}: {{error}}",
+      "animeSourceSaya": "Channel mapping (saya-definitions)",
+      "animeSourceArm": "Work ID mapping (arm)",
+      "animeSourceArmSupplementary": "Work ID mapping (arm-supplementary)"
     },
     "recording": {
       "title": "Recording defaults",

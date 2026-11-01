@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
@@ -54,13 +55,15 @@ type Resolver struct {
 	sessions          *auth.Sessions
 	urlUsers          *auth.URLUsers
 	// recorder は、ほかの部品を通さずにリゾルバが直接残す監査ログ (セッションの失効など)。
-	recorder     audit.Recorder
-	settings     *settings.Store
-	timeshift    *timeshift.Channels
-	inbox        *notification.Inbox
-	webhooks     *webhook.Store
-	webPush      *webpush.Service
-	streamSigner *stream.Signer
+	recorder  audit.Recorder
+	settings  *settings.Store
+	timeshift *timeshift.Channels
+	// animeChannels は、サービスとしょぼいカレンダー、Annict のチャンネルの対応の上書きを変える (設計書 3.8)。
+	animeChannels *anime.Channels
+	inbox         *notification.Inbox
+	webhooks      *webhook.Store
+	webPush       *webpush.Service
+	streamSigner  *stream.Signer
 	// liveRates は、ライブのサービスの内訳を数える (#812)。
 	liveRates *stream.LiveRatesWatcher
 	// channelInspector は、物理チャンネルの TS を調べる (#830)。

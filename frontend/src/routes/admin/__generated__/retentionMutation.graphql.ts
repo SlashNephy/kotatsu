@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9a19267e4150aa86ec108f13ce94eecc>>
+ * @generated SignedSource<<72aff3fecd0f54bc40253155b113af0d>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type SystemSettingsInput = {
+  animeLinkingEnabled?: boolean | null | undefined;
   archiveRetentionDays?: number | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;

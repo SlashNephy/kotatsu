@@ -1510,7 +1510,13 @@
         "service": "サービス {{id}}（{{name}}）",
         "unknownService": "Kotatsu が知らないサービス",
         "others": "PMT にない PID（SI、ECM、EMM など）"
-      }
+      },
+      "animeChannels": "しょぼいカレンダーとAnnictのチャンネル",
+      "animeChannelsDescription": "アニメの番組を照合するときに使う、サービスとしょぼいカレンダーのChID、Annictのチャンネルの対応です。空欄なら、saya-definitionsから取り込んだ対応（薄い文字）を使います",
+      "animeChannelsDisabled": "連携は無効です。「連携」の画面で有効にすると、この対応で照合します",
+      "animeChannelNone": "対応なし",
+      "syobocalChannel": "しょぼいカレンダーのChID",
+      "annictChannel": "Annictのチャンネル"
     },
     "users": {
       "title": "ユーザー",
@@ -1615,7 +1621,17 @@
       "dataBroadcastIpEnabled": "データ放送の双方向の通信を中継する",
       "dataBroadcastIpHelp": "投票やプレゼントの応募など、データ放送の文書がインターネットへ送るリクエストを、Kotatsuのサーバーが中継します。送る内容には、受信機の郵便番号などが入ることがあります。LANの中のアドレスへは中継しません",
       "updatedAt": "最終更新 {{at}}",
-      "neverUpdated": "まだ変えていません"
+      "neverUpdated": "まだ変えていません",
+      "anime": "しょぼいカレンダー、Annict、AniList",
+      "animeEnabled": "しょぼいカレンダー、Annict、AniListとの連携を有効にする",
+      "animeHelp": "アニメと特撮の番組を、しょぼいカレンダーで作品と話数に結びつけ、番組と録画の詳細に話数、サブタイトル、AnnictとAniListへのリンクを出します。有効にすると、しょぼいカレンダーとGitHubへ問い合わせます",
+      "animeNotImported": "連携先の情報はまだ取り込んでいません。有効にすると取り込み始め、1日ごとに取り込み直します",
+      "animeNeverImported": "まだ取り込めていません",
+      "animeImported": "{{at}}に{{items}}件を取り込みました",
+      "animeImportFailed": "{{at}}に取り込めませんでした：{{error}}",
+      "animeSourceSaya": "チャンネルの対応（saya-definitions）",
+      "animeSourceArm": "作品IDの対応（arm）",
+      "animeSourceArmSupplementary": "作品IDの対応（arm-supplementary）"
     },
     "recording": {
       "title": "録画の既定値",

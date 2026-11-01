@@ -330,6 +330,9 @@ CREATE TABLE system_settings (
   mcp_enabled boolean NOT NULL DEFAULT false,
   -- データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定では中継しない。
   data_broadcast_ip_enabled boolean NOT NULL DEFAULT false,
+  -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
+  -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
+  anime_linking_enabled boolean NOT NULL DEFAULT false,
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
   -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。
@@ -1113,4 +1116,58 @@ CREATE TABLE timeshift_promotions (
   created_at timestamptz NOT NULL,
   -- 同じ番組を二重に昇格しない。
   UNIQUE (service_id, from_at)
+);
+
+-- アニメの番組と作品の結びつき (設計書 3.8)。saya-definitions から取り込んだ、放送のサービスと、
+-- しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応。nekonote のジョブが 1 日ごとに取り込み直す。
+-- saya-definitions は地上波のネットワーク ID を持たない (地域で違う) ので、地上波の行は network_id を 0 にし、
+-- 種別とサービス ID で照らし合わせる。BS と CS は、ネットワーク ID とサービス ID で照らし合わせる。
+CREATE TABLE anime_channel_definitions (
+  channel_type text NOT NULL,
+  network_id bigint NOT NULL,
+  sid bigint NOT NULL,
+  -- saya-definitions のチャンネルの名前。画面で、対応の出どころを示すのに使う。
+  name text NOT NULL,
+  syobocal_channel_id integer,
+  annict_channel_id integer,
+  PRIMARY KEY (channel_type, network_id, sid)
+);
+
+-- 管理者が画面で上書きした、サービスとしょぼいカレンダーの ChID、Annict のチャンネルの対応 (設計書 3.8)。
+-- 項目ごとに上書きし、NULL の項目は取り込んだ対応を使う。取り込み直しても消さない。
+CREATE TABLE anime_channel_overrides (
+  service_id bigint PRIMARY KEY REFERENCES services (id) ON DELETE CASCADE,
+  syobocal_channel_id integer CHECK (syobocal_channel_id > 0),
+  annict_channel_id integer CHECK (annict_channel_id > 0),
+  updated_at timestamptz NOT NULL,
+  CHECK (syobocal_channel_id IS NOT NULL OR annict_channel_id IS NOT NULL)
+);
+
+-- arm と arm-supplementary から取り込んだ、しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応 (設計書 3.8)。
+-- 1 つの TID に複数の作品が対応することがある (分割された作品など) ので、TID ごとに並びの番号 (position) を振る。
+-- 取り込み元ごとに行を持ち、取り込み直すときは、その取り込み元の行だけを入れ替える。
+-- 読むときは、TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を使う。
+CREATE TABLE anime_works (
+  source text NOT NULL CHECK (source IN ('arm', 'arm_supplementary')),
+  syobocal_tid integer NOT NULL,
+  position smallint NOT NULL,
+  annict_work_id integer,
+  anilist_id integer,
+  mal_id integer,
+  PRIMARY KEY (source, syobocal_tid, position)
+);
+CREATE INDEX anime_works_syobocal_tid_idx ON anime_works (syobocal_tid);
+
+-- 連携先の情報を取り込んだ様子 (設計書 3.8)。取り込み元ごとに 1 行。管理者の画面に出す。
+CREATE TABLE anime_imports (
+  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'arm_supplementary')),
+  -- 最後に取り込んだ内容の ETag。変わっていなければ、取り込み元は 304 を返し、読み直さない。
+  etag text,
+  -- 最後に問い合わせた日時。1 日ごとの取り込みは、これから決める。
+  checked_at timestamptz NOT NULL,
+  -- 最後に取り込めた日時と、そのときの件数。一度も取り込めていなければ NULL と 0。
+  imported_at timestamptz,
+  item_count integer NOT NULL,
+  -- 最後の問い合わせが失敗した理由。成功したら NULL に戻す。
+  error text
 );
