@@ -1611,6 +1611,9 @@
       "mcp": "MCPのクライアント",
       "mcpEnabled": "MCPのクライアントとの連携を有効にする",
       "mcpHelp": "ClaudeやChatGPTのようなMCPのクライアントに、番組、予約、ルール、録画を扱わせます。無効にすると、新しい連携も、連携中のアプリも使えなくなります",
+      "dataBroadcastIp": "データ放送の通信",
+      "dataBroadcastIpEnabled": "データ放送の双方向の通信を中継する",
+      "dataBroadcastIpHelp": "投票やプレゼントの応募など、データ放送の文書がインターネットへ送るリクエストを、Kotatsuのサーバーが中継します。送る内容には、受信機の郵便番号などが入ることがあります。LANの中のアドレスへは中継しません",
       "updatedAt": "最終更新 {{at}}",
       "neverUpdated": "まだ変えていません"
     },

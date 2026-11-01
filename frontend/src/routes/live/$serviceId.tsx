@@ -322,6 +322,10 @@ function Live({
             passthrough
           }
         }
+        # データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。
+        systemSettings {
+          dataBroadcastIpEnabled
+        }
         # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
         services {
           id
@@ -649,6 +653,7 @@ function Live({
       : null,
     videoRef,
     dataBroadcastEnabled,
+    data.systemSettings.dataBroadcastIpEnabled,
     {
       // 文書が勝手に局を変えないよう、移る先を出して確かめてから移る (#440)。
       onTune: (networkId, sid) => {

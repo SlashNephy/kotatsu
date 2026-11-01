@@ -328,6 +328,8 @@ CREATE TABLE system_settings (
   notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
   -- MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定では使わせない。
   mcp_enabled boolean NOT NULL DEFAULT false,
+  -- データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定では中継しない。
+  data_broadcast_ip_enabled boolean NOT NULL DEFAULT false,
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
   -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。

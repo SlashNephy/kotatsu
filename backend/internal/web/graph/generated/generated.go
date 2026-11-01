@@ -912,6 +912,7 @@ type ComplexityRoot struct {
 
 	SystemSettings struct {
 		ArchiveRetentionDays      func(childComplexity int) int
+		DataBroadcastIPEnabled    func(childComplexity int) int
 		DrcsReplacements          func(childComplexity int) int
 		McpEnabled                func(childComplexity int) int
 		NotificationRetentionDays func(childComplexity int) int
@@ -5326,6 +5327,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.dataBroadcastIpEnabled":
+		if e.ComplexityRoot.SystemSettings.DataBroadcastIPEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.DataBroadcastIPEnabled(childComplexity), true
 	case "SystemSettings.drcsReplacements":
 		if e.ComplexityRoot.SystemSettings.DrcsReplacements == nil {
 			break
@@ -8273,6 +8280,11 @@ type SystemSettings {
   ruleDefaults: RuleDefaults!
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
   mcpEnabled: Boolean!
+  """
+  データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
+  ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
+  """
+  dataBroadcastIpEnabled: Boolean!
   "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   "最後に変えた日時。一度も変えていなければ null。"
@@ -8290,6 +8302,8 @@ input SystemSettingsInput {
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
   mcpEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。"
+  dataBroadcastIpEnabled: Boolean
   """
   字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
@@ -10393,6 +10407,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
 	case "mcpEnabled":
 		return ec.fieldContext_SystemSettings_mcpEnabled(ctx, field)
+	case "dataBroadcastIpEnabled":
+		return ec.fieldContext_SystemSettings_dataBroadcastIpEnabled(ctx, field)
 	case "drcsReplacements":
 		return ec.fieldContext_SystemSettings_drcsReplacements(ctx, field)
 	case "updatedAt":
@@ -29094,6 +29110,29 @@ func (ec *executionContext) fieldContext_SystemSettings_mcpEnabled(_ context.Con
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _SystemSettings_dataBroadcastIpEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_dataBroadcastIpEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DataBroadcastIPEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_dataBroadcastIpEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _SystemSettings_drcsReplacements(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34023,7 +34062,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled", "drcsReplacements"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "drcsReplacements"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -34065,6 +34104,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.McpEnabled = data
+		case "dataBroadcastIpEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataBroadcastIpEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DataBroadcastIPEnabled = data
 		case "drcsReplacements":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("drcsReplacements"))
 			data, err := ec.unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx, v)
@@ -42252,6 +42298,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "mcpEnabled":
 			out.Values[i] = ec._SystemSettings_mcpEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dataBroadcastIpEnabled":
+			out.Values[i] = ec._SystemSettings_dataBroadcastIpEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

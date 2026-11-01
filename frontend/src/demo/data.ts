@@ -347,6 +347,8 @@ export function createRootValue(
       archiveRetentionDays: 30,
       notificationRetentionDays: 30,
       ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
+      // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
+      dataBroadcastIpEnabled: false,
       updatedAt: null,
     }),
     storagePoolNames: () => ['default'],

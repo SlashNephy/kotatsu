@@ -22,9 +22,13 @@ const (
 	fieldNotificationDays = "notificationRetentionDays"
 	// fieldMCPEnabled は、MCP のクライアントに使わせるかどうかの項目 (#963)。
 	fieldMCPEnabled = "mcpEnabled"
-	settingsQuery   = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
-	updateSettings  = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
-		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
+	// fieldDataBroadcastIPEnabled は、データ放送の通信を中継するかどうかの項目 (#501)。
+	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
+	settingsQuery               = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
+		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled } }`
+	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
+		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled
+		dataBroadcastIpEnabled } }`
 )
 
 type recordingSettings struct {
@@ -40,6 +44,7 @@ type systemSettings struct {
 	ArchiveRetentionDays      int               `json:"archiveRetentionDays"`
 	NotificationRetentionDays int               `json:"notificationRetentionDays"`
 	MCPEnabled                bool              `json:"mcpEnabled"`
+	DataBroadcastIPEnabled    bool              `json:"dataBroadcastIpEnabled"`
 }
 
 func defaultSystemSettings() systemSettings {
@@ -51,6 +56,7 @@ func defaultSystemSettings() systemSettings {
 		ArchiveRetentionDays:      90,
 		NotificationRetentionDays: 90,
 		MCPEnabled:                false,
+		DataBroadcastIPEnabled:    false,
 	}
 }
 
@@ -122,6 +128,12 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: true}}, &partial))
 	want.MCPEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
+	// データ放送の通信も、既定では中継せず、管理者が有効にする (#501)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDataBroadcastIPEnabled: true}}, &partial))
+	want.DataBroadcastIPEnabled = true
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
+	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "viewers read whether data broadcast communication is relayed")
 
 	var stamped struct {
 		SystemSettings struct {
@@ -134,11 +146,15 @@ func TestSystemSettings(t *testing.T) {
 
 	// 録画の既定値や保持期間は、第三者に影響しないので、再認証を求めない。
 	// MCP のクライアントとの連携は、外部のサービスに読ませるかどうかを決めるので、直前の再認証を求め、変えない (設計書 9.5)。
+	// データ放送の通信の中継も、受信機の情報を外部のサーバーへ送らせるかどうかを決めるので、同じく求める (#501)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	require.Empty(t, admin.query(t, updateSettings, change, nil))
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: false}}, nil))
+	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled} {
+		assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{field: false}}, nil), field)
+	}
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
+	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "rejected changes are not saved")
 }
 
 type drcsReplacement struct {

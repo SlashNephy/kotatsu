@@ -1685,6 +1685,9 @@
       "mcp": "MCP clients",
       "mcpEnabled": "Enable integration with MCP clients",
       "mcpHelp": "Lets MCP clients such as Claude and ChatGPT work with programs, reservations, rules, and recordings. When disabled, neither new integrations nor already connected apps can be used.",
+      "dataBroadcastIp": "Data broadcast communication",
+      "dataBroadcastIpEnabled": "Relay interactive data broadcast communication",
+      "dataBroadcastIpHelp": "Kotatsu's server relays the requests that data broadcast documents send to the internet, such as polls and prize entries. They may include receiver information such as the postal code. Requests to addresses inside your LAN are refused.",
       "updatedAt": "Last updated {{at}}",
       "neverUpdated": "Not changed yet"
     },
