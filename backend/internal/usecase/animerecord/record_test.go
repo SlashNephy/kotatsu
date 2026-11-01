@@ -3,6 +3,7 @@ package animerecord_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http/httptest"
 	"net/netip"
@@ -677,4 +678,65 @@ func TestRecordPicksUpRowsAddedWhileRunning(t *testing.T) {
 
 	require.NoError(t, f.service.Record(t.Context(), f.pool, job, false))
 	assert.Equal(t, []string{annictThirdRecorded, annictFourthRecorded, "annict:5:recorded"}, pendingRecords(t, f, f.alice.UserID))
+}
+
+// TestRecordAdvancesWishlist は、話を記録できたら、次に取り込むまで待たずに、見たいリストの進み具合をその話数まで進めることを確かめる (#1230)。
+// 進み具合は戻さず、記録した話より前の「次に見る話」は消す。ほかの作品は変えない。
+func TestRecordAdvancesWishlist(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// progress と next は、記録する前の、作品の進み具合と次に見る話の話数。nil なら NULL。
+		progress *int32
+		next     *int32
+		// want は、記録した作品 (10) と、ほかの作品 (99) の、記録した後の様子。
+		want []string
+	}{
+		{name: "the next episode is recorded", progress: new(int32(2)), next: new(int32(3)), want: []string{"10|-|-|-|-|4", "99|E3|3|第3話|-|2"}},
+		{name: "a later next episode is kept", progress: nil, next: new(int32(6)), want: []string{"10|E6|6|第6話|-|4", "99|E6|6|第6話|-|-"}},
+		{name: "the progress never goes back", progress: new(int32(7)), next: new(int32(8)), want: []string{"10|E8|8|第8話|-|7", "99|E8|8|第8話|-|7"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newRecordFixture(t)
+			f.connect(t, f.alice, animerecord.DestinationAnnict)
+			for _, workID := range []int32{annictWorkID, 99} {
+				var nextID, nextText *string
+				if tt.next != nil {
+					nextID, nextText = new(fmt.Sprintf("E%d", *tt.next)), new(fmt.Sprintf("第%d話", *tt.next))
+				}
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_wishlist_entries
+  (user_id, destination, work_id, status, title, next_episode_id, next_episode_number, next_episode_number_text, progress, fetched_at)
+VALUES ($1, 'annict', $2, 'watching', 'title', $3, $4, $5, $6, now())`, f.alice.UserID, workID, nextID, tt.next, nextText, tt.progress)
+				require.NoError(t, err)
+			}
+			live := &animerecord.Target{ServiceID: new(serviceID()), RecordingID: nil}
+			_, err := f.service.Report(t.Context(), f.pool, f.inserter, f.alice.UserID, live, []*animerecord.Interval{interval(12, 0, 12, 10)})
+			require.NoError(t, err)
+			jobs := f.inserter.taken()
+			require.Len(t, jobs, 1)
+			f.annict.mu.Lock()
+			f.annict.works[annictWorkID].Episodes = []fakeEpisode{{ID: "E4", AnnictID: 104, Number: new(4)}, {ID: "E3", AnnictID: 103, Number: new(3)}}
+			f.annict.mu.Unlock()
+
+			require.NoError(t, f.service.Record(t.Context(), f.pool, &jobs[0], false))
+
+			assert.Equal(t, tt.want, wishlistProgress(t, f))
+		})
+	}
+}
+
+// wishlistProgress は、見たいリストの作品の、次に見る話と進み具合を、作品 ID の順に返す。NULL は「-」にする。
+func wishlistProgress(t *testing.T, f *recordFixture) []string {
+	t.Helper()
+	rows, err := f.pool.Query(t.Context(), `SELECT concat_ws('|', work_id, coalesce(next_episode_id, '-'), coalesce(next_episode_number::text, '-'),
+  coalesce(next_episode_number_text, '-'), coalesce(next_episode_title, '-'), coalesce(progress::text, '-'))
+FROM anime_wishlist_entries ORDER BY work_id`)
+	require.NoError(t, err)
+	result, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+
+	return result
 }

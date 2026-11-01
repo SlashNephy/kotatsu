@@ -152,6 +152,57 @@ type WishlistEntry struct {
 	Status string
 	// Title は、記録先の作品名。
 	Title string
+	// NextEpisode は、次に見る話 (#1230)。記録先が示さなければ (AniList、見終えた作品など) nil。
+	NextEpisode *WishlistEpisode
+	// Progress は、見終えた話数。分からなければ nil。
+	Progress *int32
+	// EpisodesCount は、作品の全話数。分からなければ nil。
+	EpisodesCount *int32
+	// SeasonYear と SeasonName は、作品の放送の時期。SeasonName は SeasonWinter などで、分からなければ空。
+	SeasonYear *int32
+	SeasonName string
+	// ImageURL は、作品の画像の URL。なければ空。
+	ImageURL string
+}
+
+// WishlistEpisode は、見たいリストの作品の、次に見る話。
+type WishlistEpisode struct {
+	// ID は、記録先のエピソードの ID。Annict ではグローバル ID。
+	ID string
+	// Number は話数。なければ nil。
+	Number *int32
+	// NumberText は、話数の文字列 (第1話、#1 など)。
+	NumberText string
+	// Title は、サブタイトル。
+	Title string
+}
+
+// 作品の放送の時期 (anime_wishlist_entries の season_name)。
+const (
+	SeasonWinter = "winter"
+	SeasonSpring = "spring"
+	SeasonSummer = "summer"
+	SeasonAutumn = "autumn"
+)
+
+// seasonName は、記録先の時期の名前 (WINTER など) を、SeasonWinter などにする。Annict の AUTUMN と AniList の FALL は、どちらも秋。
+// 知らない名前なら空を返す。
+func seasonName(name *string) string {
+	if name == nil {
+		return ""
+	}
+	switch *name {
+	case "WINTER":
+		return SeasonWinter
+	case "SPRING":
+		return SeasonSpring
+	case "SUMMER":
+		return SeasonSummer
+	case "AUTUMN", "FALL":
+		return SeasonAutumn
+	default:
+		return ""
+	}
 }
 
 // WishlistPage は、見たいリストの 1 ページ。

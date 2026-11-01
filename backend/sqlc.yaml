@@ -15,6 +15,8 @@ sql:
           api_id: APIID
           source_ip: SourceIP
           url: URL
+          image_url: ImageURL
+          image_urls: ImageURLs
           vapid_key: VAPIDKey
           p256dh: P256DH
           pid_stats: PIDStats

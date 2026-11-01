@@ -37,6 +37,24 @@ type fakeListEntry struct {
 	ID     int32
 	Title  string
 	Status string
+	// Next は、Annict の次に見る話。Progress は、AniList の見終えた話数。
+	Next     *fakeEpisode
+	Progress *int
+	// Episodes は全話数、Season と SeasonYear は放送の時期 (記録先の名前のまま)、Image は画像の URL。空なら返さない。
+	Episodes   *int
+	Season     string
+	SeasonYear int
+	Image      string
+}
+
+// orNull は、空の値を、GraphQL の null として返す。
+func orNull[T comparable](value T) any {
+	var zero T
+	if value == zero {
+		return nil
+	}
+
+	return value
 }
 
 // fakeEpisode は、偽の Annict のエピソード。
@@ -324,7 +342,17 @@ func (f *fakeService) listPage(operation string, variables map[string]any) any {
 	if operation == opLibrary {
 		nodes := make([]any, 0, end-start)
 		for _, entry := range f.list[start:end] {
-			nodes = append(nodes, map[string]any{"status": map[string]any{"state": entry.Status}, "work": map[string]any{"annictId": entry.ID, "title": entry.Title}})
+			var image any
+			if entry.Image != "" {
+				image = map[string]any{"recommendedImageUrl": entry.Image}
+			}
+			nodes = append(nodes, map[string]any{
+				"status": map[string]any{"state": entry.Status}, "nextEpisode": entry.Next,
+				"work": map[string]any{
+					"annictId": entry.ID, "title": entry.Title, "seasonYear": orNull(entry.SeasonYear), "seasonName": orNull(entry.Season),
+					"episodesCount": entry.Episodes, "image": image,
+				},
+			})
 		}
 
 		return map[string]any{opAnnictViewer: map[string]any{opLibrary: map[string]any{
@@ -333,7 +361,14 @@ func (f *fakeService) listPage(operation string, variables map[string]any) any {
 	}
 	entries := []any{}
 	for _, entry := range f.list[start:end] {
-		entries = append(entries, map[string]any{"status": entry.Status, "media": map[string]any{"id": entry.ID, "title": map[string]any{"native": entry.Title, "romaji": "romaji"}}})
+		var cover any
+		if entry.Image != "" {
+			cover = map[string]any{"large": entry.Image}
+		}
+		entries = append(entries, map[string]any{"status": entry.Status, "progress": entry.Progress, "media": map[string]any{
+			"id": entry.ID, "title": map[string]any{"native": entry.Title, "romaji": "romaji"},
+			"episodes": entry.Episodes, "season": orNull(entry.Season), "seasonYear": orNull(entry.SeasonYear), "coverImage": cover,
+		}})
 	}
 
 	return map[string]any{opMediaLists: map[string]any{"hasNextChunk": hasNext, "lists": []any{map[string]any{"entries": entries}}}}

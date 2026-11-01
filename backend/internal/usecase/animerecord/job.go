@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -181,12 +182,14 @@ func (s *Service) send(
 	for i := range rows {
 		row := &rows[i]
 		episode := &Episode{Number: row.EpisodeNumber, Subtitle: row.Subtitle, First: row.IsFirst, Last: row.IsLast}
-		recorded, err := destination.RecordEpisode(ctx, token, destination.WorkIDs(works[row.SyobocalTid]), episode, userSettings.Rules)
+		workIDs := destination.WorkIDs(works[row.SyobocalTid])
+		recorded, err := destination.RecordEpisode(ctx, token, workIDs, episode, userSettings.Rules)
 		switch {
 		case err == nil:
 			// 記録を付けたら、ジョブの期限が来ていても、付けたことを残す。残せないと、送り直しで記録が二重になる。
 			if err = s.finish(context.WithoutCancel(ctx), db, row, stateRecorded, &recorded.URL, nil, outcome); err == nil {
 				s.followUp(ctx, args, recorded)
+				s.advanceWishlist(context.WithoutCancel(ctx), db, args.UserID, args.Destination, workIDs, row.EpisodeNumber)
 			}
 		case errors.Is(err, ErrPermanent) || last:
 			err = s.finish(ctx, db, row, stateFailed, nil, err, outcome)
@@ -213,6 +216,21 @@ func (s *Service) followUp(ctx context.Context, args *RecordArgs, recorded *Reco
 	if err := recorded.FollowUp(ctx); err != nil {
 		s.logger.WarnContext(ctx, "failed to update the work status after recording",
 			slog.String("destination", args.Destination), slog.Any("error", err))
+	}
+}
+
+// advanceWishlist は、記録先 name に話数 number を記録できたら、見たいリストの作品 workIDs の進み具合を、その話数まで進める (#1230)。
+// 次に取り込むまでの間も、見たいリストが古くならないようにする。話数のない話 (劇場版など) と、整数でない話数 (総集編の 12.5 話など) では
+// 進めない。できたらよい操作なので、失敗してもログに残すだけにし、記録は付け直さない。
+func (s *Service) advanceWishlist(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, name string, workIDs []int32, number *float64) {
+	if number == nil || *number < 0 || *number != math.Trunc(*number) || *number > math.MaxInt32 || len(workIDs) == 0 {
+		return
+	}
+	if err := sqlc.New(db).AdvanceAnimeWishlistProgress(ctx, sqlc.AdvanceAnimeWishlistProgressParams{
+		EpisodeNumber: int32(*number), UserID: userID, Destination: name, WorkIds: workIDs,
+	}); err != nil {
+		s.logger.WarnContext(ctx, "failed to advance the wishlist progress after recording",
+			slog.String("destination", name), slog.Any("error", err))
 	}
 }
 

@@ -12,6 +12,35 @@ import (
 	"github.com/google/uuid"
 )
 
+const advanceAnimeWishlistProgress = `-- name: AdvanceAnimeWishlistProgress :exec
+UPDATE anime_wishlist_entries SET
+  progress = GREATEST(COALESCE(progress, 0), $1::integer),
+  next_episode_id = CASE WHEN next_episode_number <= $1::integer THEN NULL ELSE next_episode_id END,
+  next_episode_number_text = CASE WHEN next_episode_number <= $1::integer THEN NULL ELSE next_episode_number_text END,
+  next_episode_title = CASE WHEN next_episode_number <= $1::integer THEN NULL ELSE next_episode_title END,
+  next_episode_number = CASE WHEN next_episode_number <= $1::integer THEN NULL ELSE next_episode_number END
+WHERE user_id = $2 AND destination = $3 AND work_id = ANY($4::integer[])
+`
+
+type AdvanceAnimeWishlistProgressParams struct {
+	EpisodeNumber int32
+	UserID        uuid.UUID
+	Destination   string
+	WorkIds       []int32
+}
+
+// kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
+// 進み具合は戻さない。記録した話より前の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
+func (q *Queries) AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceAnimeWishlistProgressParams) error {
+	_, err := q.db.Exec(ctx, advanceAnimeWishlistProgress,
+		arg.EpisodeNumber,
+		arg.UserID,
+		arg.Destination,
+		arg.WorkIds,
+	)
+	return err
+}
+
 const deleteAnimeWishlistEntries = `-- name: DeleteAnimeWishlistEntries :exec
 DELETE FROM anime_wishlist_entries WHERE user_id = $1 AND destination = $2
 `
@@ -61,24 +90,43 @@ func (q *Queries) FinishAnimeWishlistImport(ctx context.Context, arg FinishAnime
 }
 
 const insertAnimeWishlistEntries = `-- name: InsertAnimeWishlistEntries :exec
-INSERT INTO anime_wishlist_entries (user_id, destination, work_id, status, title, fetched_at)
-SELECT $1, $2, t.work_id, t.status, t.title, $3
+INSERT INTO anime_wishlist_entries (
+  user_id, destination, work_id, status, title, next_episode_id, next_episode_number, next_episode_number_text, next_episode_title,
+  progress, episodes_count, season_year, season_name, image_url, fetched_at
+)
+SELECT $1, $2, t.work_id, t.status, t.title, NULLIF(t.next_episode_id, ''), NULLIF(t.next_episode_number, -1),
+  NULLIF(t.next_episode_number_text, ''), NULLIF(t.next_episode_title, ''), NULLIF(t.progress, -1), NULLIF(t.episodes_count, -1),
+  NULLIF(t.season_year, -1), NULLIF(t.season_name, ''), NULLIF(t.image_url, ''), $3
 FROM (
-  SELECT unnest($4::integer[]) AS work_id, unnest($5::text[]) AS status, unnest($6::text[]) AS title
+  SELECT unnest($4::integer[]) AS work_id, unnest($5::text[]) AS status, unnest($6::text[]) AS title,
+    unnest($7::text[]) AS next_episode_id, unnest($8::integer[]) AS next_episode_number,
+    unnest($9::text[]) AS next_episode_number_text, unnest($10::text[]) AS next_episode_title,
+    unnest($11::integer[]) AS progress, unnest($12::integer[]) AS episodes_count,
+    unnest($13::integer[]) AS season_year, unnest($14::text[]) AS season_name, unnest($15::text[]) AS image_url
 ) AS t
 ON CONFLICT (user_id, destination, work_id) DO NOTHING
 `
 
 type InsertAnimeWishlistEntriesParams struct {
-	UserID      uuid.UUID
-	Destination string
-	Now         time.Time
-	WorkIds     []int32
-	Statuses    []string
-	Titles      []string
+	UserID                 uuid.UUID
+	Destination            string
+	Now                    time.Time
+	WorkIds                []int32
+	Statuses               []string
+	Titles                 []string
+	NextEpisodeIds         []string
+	NextEpisodeNumbers     []int32
+	NextEpisodeNumberTexts []string
+	NextEpisodeTitles      []string
+	Progresses             []int32
+	EpisodesCounts         []int32
+	SeasonYears            []int32
+	SeasonNames            []string
+	ImageURLs              []string
 }
 
 // 同じ作品が 2 度返ってきたら (見たいと見てるの両方など)、先に返ってきたものを使う。
+// 配列は NULL を持てないので、分からない数は -1 で、分からない文字列は空で渡す。
 func (q *Queries) InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnimeWishlistEntriesParams) error {
 	_, err := q.db.Exec(ctx, insertAnimeWishlistEntries,
 		arg.UserID,
@@ -87,12 +135,21 @@ func (q *Queries) InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnim
 		arg.WorkIds,
 		arg.Statuses,
 		arg.Titles,
+		arg.NextEpisodeIds,
+		arg.NextEpisodeNumbers,
+		arg.NextEpisodeNumberTexts,
+		arg.NextEpisodeTitles,
+		arg.Progresses,
+		arg.EpisodesCounts,
+		arg.SeasonYears,
+		arg.SeasonNames,
+		arg.ImageURLs,
 	)
 	return err
 }
 
 const listAnimeWishlistEntries = `-- name: ListAnimeWishlistEntries :many
-SELECT user_id, destination, work_id, status, title, fetched_at FROM anime_wishlist_entries WHERE user_id = $1 ORDER BY destination, work_id
+SELECT user_id, destination, work_id, status, title, next_episode_id, next_episode_number, next_episode_number_text, next_episode_title, progress, episodes_count, season_year, season_name, image_url, fetched_at FROM anime_wishlist_entries WHERE user_id = $1 ORDER BY destination, work_id
 `
 
 func (q *Queries) ListAnimeWishlistEntries(ctx context.Context, userID uuid.UUID) ([]AnimeWishlistEntry, error) {
@@ -110,6 +167,15 @@ func (q *Queries) ListAnimeWishlistEntries(ctx context.Context, userID uuid.UUID
 			&i.WorkID,
 			&i.Status,
 			&i.Title,
+			&i.NextEpisodeID,
+			&i.NextEpisodeNumber,
+			&i.NextEpisodeNumberText,
+			&i.NextEpisodeTitle,
+			&i.Progress,
+			&i.EpisodesCount,
+			&i.SeasonYear,
+			&i.SeasonName,
+			&i.ImageURL,
 			&i.FetchedAt,
 		); err != nil {
 			return nil, err

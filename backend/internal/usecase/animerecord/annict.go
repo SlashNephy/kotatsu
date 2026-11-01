@@ -195,7 +195,12 @@ const annictWishlistPage = 100
 func (a *Annict) Wishlist(ctx context.Context, token, cursor string) (*WishlistPage, error) {
 	const query = `query ($first: Int, $after: String) { viewer {
   libraryEntries(states: [WANNA_WATCH, WATCHING], first: $first, after: $after) {
-    nodes { status { state } work { annictId title } } pageInfo { hasNextPage endCursor }
+    nodes {
+      status { state }
+      nextEpisode { id number numberText title }
+      work { annictId title seasonYear seasonName episodesCount image { recommendedImageUrl } }
+    }
+    pageInfo { hasNextPage endCursor }
   } } }`
 	var data struct {
 		Viewer *struct {
@@ -204,10 +209,8 @@ func (a *Annict) Wishlist(ctx context.Context, token, cursor string) (*WishlistP
 					Status *struct {
 						State string `json:"state"`
 					} `json:"status"`
-					Work *struct {
-						AnnictID int32  `json:"annictId"`
-						Title    string `json:"title"`
-					} `json:"work"`
+					NextEpisode *annictNextEpisode  `json:"nextEpisode"`
+					Work        *annictWishlistWork `json:"work"`
 				} `json:"nodes"`
 				PageInfo struct {
 					HasNextPage bool    `json:"hasNextPage"`
@@ -242,13 +245,72 @@ func (a *Annict) Wishlist(ctx context.Context, token, cursor string) (*WishlistP
 			// 絞って引いているので来ないが、ほかの状態の作品は候補にしない。
 			continue
 		}
-		page.Entries = append(page.Entries, &WishlistEntry{WorkID: node.Work.AnnictID, Status: status, Title: node.Work.Title})
+		page.Entries = append(page.Entries, annictWishlistEntry(node.Work, status, node.NextEpisode))
 	}
 	if entries.PageInfo.HasNextPage && entries.PageInfo.EndCursor != nil {
 		page.Next = *entries.PageInfo.EndCursor
 	}
 
 	return page, nil
+}
+
+// annictWishlistWork は、見たいリストの作品。
+type annictWishlistWork struct {
+	AnnictID      int32   `json:"annictId"`
+	Title         string  `json:"title"`
+	SeasonYear    *int32  `json:"seasonYear"`
+	SeasonName    *string `json:"seasonName"`
+	EpisodesCount *int32  `json:"episodesCount"`
+	Image         *struct {
+		RecommendedImageURL *string `json:"recommendedImageUrl"`
+	} `json:"image"`
+}
+
+// annictNextEpisode は、ライブラリーの作品の、次に見る話。
+type annictNextEpisode struct {
+	ID         string  `json:"id"`
+	Number     *int32  `json:"number"`
+	NumberText *string `json:"numberText"`
+	Title      *string `json:"title"`
+}
+
+// annictWishlistEntry は、Annict のライブラリーの作品を、見たいリストの作品にする。
+// Annict は見終えた話数を持たないので、次に見る話の話数の 1 つ前を見終えた話数とする。
+func annictWishlistEntry(work *annictWishlistWork, status string, next *annictNextEpisode) *WishlistEntry {
+	entry := &WishlistEntry{
+		WorkID: work.AnnictID, Status: status, Title: work.Title, NextEpisode: nil, Progress: nil,
+		EpisodesCount: positive(work.EpisodesCount), SeasonYear: positive(work.SeasonYear), SeasonName: seasonName(work.SeasonName), ImageURL: "",
+	}
+	if work.Image != nil && work.Image.RecommendedImageURL != nil {
+		entry.ImageURL = strings.TrimSpace(*work.Image.RecommendedImageURL)
+	}
+	if next == nil || next.ID == "" {
+		return entry
+	}
+	entry.NextEpisode = &WishlistEpisode{ID: next.ID, Number: next.Number, NumberText: trimmed(next.NumberText), Title: trimmed(next.Title)}
+	if next.Number != nil && *next.Number >= 1 {
+		entry.Progress = new(*next.Number - 1)
+	}
+
+	return entry
+}
+
+// trimmed は、文字列の前後の空白を除く。nil なら空を返す。
+func trimmed(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(*value)
+}
+
+// positive は、0 より大きい数だけを返す。記録先が分からない数を 0 で返すことがあるため。
+func positive(value *int32) *int32 {
+	if value == nil || *value <= 0 {
+		return nil
+	}
+
+	return value
 }
 
 // works は、Annict の作品を、ids の順に引く。Annict にない作品は返さない。
