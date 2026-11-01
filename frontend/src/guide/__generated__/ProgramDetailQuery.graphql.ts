@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1d9a0ce7a1b135f25d093a9af0e6fc28>>
+ * @generated SignedSource<<4a65474c8c91cec1e3e54c7e7d025286>>
  * @lightSyntaxTransform
  */
 
@@ -63,6 +63,7 @@ export type ProgramDetailQuery$data = {
         readonly name: string;
       }>;
     } | null | undefined;
+    readonly ruleKeyword: string;
     readonly service: {
       readonly id: string;
       readonly logoUrl: string | null | undefined;
@@ -135,52 +136,59 @@ v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "description",
+  "name": "ruleKeyword",
   "storageKey": null
 },
 v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "startAt",
+  "name": "description",
   "storageKey": null
 },
 v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endAt",
+  "name": "startAt",
   "storageKey": null
 },
 v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endUndecided",
+  "name": "endAt",
   "storageKey": null
 },
 v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "isFree",
+  "name": "endUndecided",
   "storageKey": null
 },
 v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "archived",
+  "name": "isFree",
   "storageKey": null
 },
 v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "eventId",
+  "name": "archived",
   "storageKey": null
 },
 v13 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "eventId",
+  "storageKey": null
+},
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -205,15 +213,15 @@ v13 = {
       "name": "timeshiftPrograms",
       "plural": true,
       "selections": [
-        (v12/*:: as any*/),
-        (v7/*:: as any*/)
+        (v13/*:: as any*/),
+        (v8/*:: as any*/)
       ],
       "storageKey": null
     }
   ],
   "storageKey": null
 },
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "concreteType": "Recording",
@@ -225,7 +233,7 @@ v14 = {
   ],
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "concreteType": "Genre",
@@ -250,7 +258,7 @@ v15 = {
   ],
   "storageKey": null
 },
-v16 = {
+v17 = {
   "alias": null,
   "args": null,
   "concreteType": "AnimeEpisode",
@@ -335,7 +343,7 @@ v16 = {
   ],
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "ExtendedItem",
@@ -360,14 +368,14 @@ v17 = {
   ],
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchReserved",
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "Reservation",
@@ -484,7 +492,8 @@ return {
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
-              (v19/*:: as any*/)
+              (v19/*:: as any*/),
+              (v20/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -542,7 +551,8 @@ return {
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
-              (v19/*:: as any*/)
+              (v19/*:: as any*/),
+              (v20/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -553,16 +563,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "2ffcd36c004129fe85abb29344fef7c3",
+    "cacheID": "0c6e7f720e6b4b57acb538a980256fa7",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c256983ddb657bf27b86f0010bb79471";
+(node as any).hash = "2bb9bbe9311097d935ca02cb8a0fe404";
 
 export default node;

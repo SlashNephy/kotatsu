@@ -120,9 +120,14 @@ const copyGenre = (genre: { lv1: number; lv2?: number | null }): Genre => ({
 });
 
 // conditionsFromProgram は、番組から、ルールを作るときの条件の初期値を作る (設計書 10.3)。
+// tenban が番組名から読んだ作品名 (ruleKeyword。話数やサブタイトルを除いたもの。#1240) があればそれを、なければ
 // 番組名 (囲み文字を外したもの) をキーワードに、番組のサービスをチャンネルにする。
-export function conditionsFromProgram(name: string, serviceId: string): ConditionsForm {
-  const title = splitProgramMarks(name).name;
+export function conditionsFromProgram(
+  name: string,
+  serviceId: string,
+  ruleKeyword?: string,
+): ConditionsForm {
+  const title = ruleKeyword?.trim() || splitProgramMarks(name).name;
 
   return {
     ...emptyConditions(),

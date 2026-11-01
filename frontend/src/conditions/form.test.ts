@@ -103,6 +103,22 @@ describe('conditionsFromProgram', () => {
     });
   });
 
+  test('番組名から読んだ作品名があれば、それをキーワードにする', () => {
+    expect(
+      conditionsFromProgram(
+        'ガラスの仮面　＃５「ふたりの美登利」🈞',
+        'U2VydmljZToxMjM',
+        'ガラスの仮面',
+      ).keywords,
+    ).toEqual([{ text: 'ガラスの仮面', regexp: false, caseSensitive: false, fields: ['NAME'] }]);
+  });
+
+  test('作品名が空なら、番組名をキーワードにする', () => {
+    expect(conditionsFromProgram('🈑ニュース7🈞', 'U2VydmljZToxMjM', '').keywords).toEqual([
+      { text: 'ニュース7', regexp: false, caseSensitive: false, fields: ['NAME'] },
+    ]);
+  });
+
   test('囲み文字だけの番組名では、キーワードを入れない', () => {
     expect(conditionsFromProgram('🈑', 'U2VydmljZToxMjM').keywords).toEqual([]);
   });

@@ -648,6 +648,7 @@ type ComplexityRoot struct {
 		Name          func(childComplexity int) int
 		Recordings    func(childComplexity int) int
 		Reservation   func(childComplexity int) int
+		RuleKeyword   func(childComplexity int) int
 		Service       func(childComplexity int) int
 		SharedFrom    func(childComplexity int) int
 		StartAt       func(childComplexity int) int
@@ -1293,6 +1294,8 @@ type MutationResolver interface {
 }
 type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
+
+	RuleKeyword(ctx context.Context, obj *model.Program) (string, error)
 
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error)
@@ -4253,6 +4256,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Reservation(childComplexity), true
+	case "Program.ruleKeyword":
+		if e.ComplexityRoot.Program.RuleKeyword == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.RuleKeyword(childComplexity), true
 	case "Program.service":
 		if e.ComplexityRoot.Program.Service == nil {
 			break
@@ -7730,6 +7739,11 @@ type Program implements Node {
   endUndecided: Boolean!
   isFree: Boolean!
   name: String!
+  """
+  番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。番組名から、話数、サブタイトル、印、頭の飾りを除いたもの。
+  話数まで入れると、その話にしか一致しないため。正規化した番組名のひと続きの部分なので、この番組自身にも一致する。
+  """
+  ruleKeyword: String!
   description: String!
   extended: [ExtendedItem!]!
   genres: [Genre!]!
@@ -11092,6 +11106,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_isFree(ctx, field)
 	case "name":
 		return ec.fieldContext_Program_name(ctx, field)
+	case "ruleKeyword":
+		return ec.fieldContext_Program_ruleKeyword(ctx, field)
 	case "description":
 		return ec.fieldContext_Program_description(ctx, field)
 	case "extended":
@@ -24989,6 +25005,29 @@ func (ec *executionContext) _Program_name(ctx context.Context, field graphql.Col
 }
 func (ec *executionContext) fieldContext_Program_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Program", field, false, false, "String")
+}
+
+func (ec *executionContext) _Program_ruleKeyword(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_ruleKeyword(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().RuleKeyword(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_ruleKeyword(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, true, true, "String")
 }
 
 func (ec *executionContext) _Program_description(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
@@ -43029,6 +43068,12 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "ruleKeyword":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Program_ruleKeyword(ctx, field, obj)
+				})
 		case "description":
 			out.Values[i] = ec._Program_description(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

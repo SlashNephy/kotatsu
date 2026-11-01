@@ -2081,6 +2081,11 @@ type Program implements Node {
   endUndecided: Boolean!
   isFree: Boolean!
   name: String!
+  """
+  番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。番組名から、話数、サブタイトル、印、頭の飾りを除いたもの。
+  話数まで入れると、その話にしか一致しないため。正規化した番組名のひと続きの部分なので、この番組自身にも一致する。
+  """
+  ruleKeyword: String!
   description: String!
   extended: [ExtendedItem!]!
   genres: [Genre!]!

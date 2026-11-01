@@ -34,6 +34,7 @@ export type DemoProgram = {
   endUndecided: boolean;
   isFree: boolean;
   name: string;
+  ruleKeyword: string;
   description: string;
   extended: { heading: string; text: string }[];
   genres: Genre[];
@@ -201,6 +202,8 @@ export const services: DemoService[] = serviceSeeds.map((seed, index) => {
 // repeats が true の番組は、1 日に何度でも流す。そうでない番組は、局ごとに 1 日 1 回までにする。
 type Template = {
   name: (episode: number) => string;
+  // title は、tenban が番組名から読む作品名 (Program.ruleKeyword。#1240)。なければ番組名をそのまま使う。
+  title?: string;
   hours: [number, number];
   channels?: number[];
   repeats?: boolean;
@@ -301,6 +304,7 @@ const templates: Record<number, Template[]> = {
   3: [
     {
       name: (n) => `ドラマ再放送「湯けむり家族」 第${n}話`,
+      title: 'ドラマ再放送「湯けむり家族」',
       hours: [13, 17],
       minutes: [60],
       description: '温泉宿を営む家族の、にぎやかな毎日を描いたドラマの再放送。',
@@ -308,6 +312,7 @@ const templates: Record<number, Template[]> = {
     },
     {
       name: (n) => `連続ドラマ「縁側の午後」 第${n}話`,
+      title: '連続ドラマ「縁側の午後」',
       channels: [1024],
       hours: [19, 24],
       minutes: [60],
@@ -316,6 +321,7 @@ const templates: Record<number, Template[]> = {
     },
     {
       name: (n) => `ドラマ「みかん箱の手紙」 第${n}話`,
+      title: 'ドラマ「みかん箱の手紙」',
       channels: [1064, 141],
       hours: [20, 24],
       minutes: [60],
@@ -356,6 +362,7 @@ const templates: Record<number, Template[]> = {
     },
     {
       name: (n) => `どてら散歩 #${n}`,
+      title: 'どてら散歩',
       hours: [12, 17],
       minutes: [60],
       description: 'どてら姿で、下町の商店街をぶらりと歩きます。',
@@ -371,6 +378,7 @@ const templates: Record<number, Template[]> = {
     },
     {
       name: (n) => `はんてん旅 #${n}`,
+      title: 'はんてん旅',
       hours: [13, 23],
       minutes: [30, 60],
       description: 'はんてんを着た二人が、あてもなく町を歩きます。',
@@ -396,6 +404,7 @@ const templates: Record<number, Template[]> = {
   7: [
     {
       name: (n) => `アニメ「みかんの国」 #${n}`,
+      title: 'みかんの国',
       hours: [17, 19],
       minutes: [30],
       description: 'みかんの国の王子が、冬の祭りを取り戻す冒険に出ます。',
@@ -403,6 +412,7 @@ const templates: Record<number, Template[]> = {
     },
     {
       name: (n) => `アニメ「ねこと湯たんぽ」 #${n}`,
+      title: 'ねこと湯たんぽ',
       channels: [1040, 181],
       hours: [16, 19],
       minutes: [30],
@@ -411,6 +421,7 @@ const templates: Record<number, Template[]> = {
     },
     {
       name: (n) => `アニメ「こたつ探偵」 第${n}話`,
+      title: 'こたつ探偵',
       channels: [1056, 181],
       hours: [23, 28],
       minutes: [30],
@@ -568,6 +579,7 @@ export function generatePrograms(now: number): DemoProgram[] {
         endUndecided: false,
         isFree: true,
         name: template.name(episode),
+        ruleKeyword: template.title ?? template.name(episode),
         description: template.description,
         extended: [
           {
