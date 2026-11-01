@@ -1623,13 +1623,19 @@ Vite+ はnpmのdevDependencyとして導入し、Node.jsのバージョンはmis
 Vite+ にもNode.jsのバージョンを管理する機能（`vp env`）がありますが、miseと役割が重なるので使いません。
 
 tenbanを動かさずに画面を触れる、静的なデモも同じソースからビルドします（`mise run //frontend:demo`、#832）。
-`vp build --mode demo`のときだけ、GraphQLと`/auth/*`の応答をブラウザの中で返します。
+`vp build --mode demo`のときだけ、GraphQLと`/auth/*`、実況の応答をブラウザの中で返します。
 GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対して実行します。
 `/auth/*`は、いつもログインしているものとして答えます。
 デモはCloudflare Pagesのサイトの直下に置きます。ルーターと静的なファイルのURLは、Viteの`base`に従います。
 アプリの外枠のService Worker（PWA）は作らず、登録もしません。
 代わりに、ライブ視聴の映像を実時間の速さで流すだけのService Workerを、`base`に範囲を絞って登録します。静的なファイルは一気に届き終わり、ライブ視聴の画面が再生を始める前に切れたものとして扱うためです。
-映像は、ffmpegのテストパターンから作った20秒の合成の映像（`frontend/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
+映像は、自前で作った20秒の映像（`frontend/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
+放送の映像や、権利のはっきりしない素材は使わず、架空の局の朝の中継を描きます（#1050）。山のふもとの景色、局のロゴ、テロップを図形と文字で描き、和音の音声と、ARIB字幕のストリームを入れます。
+放送と同じく、1440x1080のMPEG-2の映像とAACの音声をMPEG-TSに入れます。
+作り方は`frontend/scripts/build-demo-stream.sh`に残し、作り直すときは`MISE_ENV=demo-stream mise run //frontend:demo-stream`で動かします。FFmpegは、`frontend/mise.demo-stream.toml`で版を固定したconda-forgeのものを使い、同じ版からは同じファイルができます。
+場面は、ASSの図形と文字で描き（`frontend/scripts/demo-stream-scene.mjs`）、文字には字幕と同じフォント（`frontend/vendor/caption-font`）を使います。
+FFmpegはARIB字幕を書けないので、字幕のPESをaribb24.jsの符号化器で作り、TSに差し込みます（`frontend/scripts/demo-stream-captions.mjs`）。PMTには、component_tagが0x30のストリームとして足します。
+実況は、外部のNX-Jikkyoにはつながず、架空のコメントを流します（`frontend/src/demo/jikkyo.ts`）。ライブ視聴では、NX-JikkyoのWebSocketを、同じ手順で応える偽物に差し替えます。録画の再生では、実況の過去ログの応答を、fetchの横取りで返します。実況は初めは切ってあり、プレイヤーの実況のボタンで流せます。
 通常のビルドは`import.meta.env.MODE`の比較でデモのコードを除き、tenbanに埋め込むSPAには含めません。
 
 ### 10.2 見た目の方針
@@ -1924,7 +1930,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 - DBを使うテストは、本物のPostgreSQLで実行します。
 - Goのテストは、配布するOS（Linux、Windows、macOS）のそれぞれのランナーでも実行します（[11.7](#117-対応するos)、#1099）。DBのサービスコンテナーはLinuxのランナーでしか動かないので、WindowsとmacOSでは、DBを使うテストを飛ばします（`KOTATSU_TEST_SKIP_DATABASE`）。CIでは、ふつうはDBの接続先がないと失敗にし、飛ばしたまま通らないようにします。
 - CIはGitHub Actionsで回します。golangci-lintと`vp check`、Goのテスト、Vitest、Helmのlintと生成物の差分の検査、PlaywrightによるE2Eテストを実行します。E2Eテストは2種類あります。ビルドしたSPAだけで確かめるもの（`frontend/e2e/mock`）と、PostgreSQL、偽のチューナーサーバー、Kotatsu（`all`）を立てて主な流れを確かめるもの（`frontend/e2e/stack`、`mise run e2e:stack`）です。後者は、初回セットアップ（起動時のログからセットアップトークンを読み、認証アプリのコードはテストの中で作ります）、ルールの作成と一致する番組のプレビュー、ライブ視聴の開始を、1つのページで順に確かめます（#508）。PRでは、変わったファイルから関係するジョブだけを走らせます（文書だけならどれも走らせず、画面だけならGoのテストとlintを飛ばす、など）。同時に走るジョブを減らし、ランナーの空きを待つ時間を短くするためです。迷うファイルは走らせる側に倒し、ツールの版やCI自体を変えたときと、mainへのpushでは、すべて走らせます（#700）。
-- READMEのスクリーンショット（`docs/screenshots`）は、静的なデモ（[10.1](#101-技術の構成)）をPlaywrightで開いて撮ります（`frontend/e2e/screenshots`、`mise run //frontend:screenshots`、#621）。番組表、録画の一覧、録画の詳細、ルールの編集を、ライトとダークの両方で撮ります。ライブ視聴は、デモの映像がテストパターンなので撮りません（#1050）。デモのデータは開いた時刻を基準に作られるので、時刻を固定して撮ります。それでも、ブラウザを起動するたびに、カードの角のアンチエイリアスが数ピクセルだけ変わります。そのため、画像はPlaywrightの`toHaveScreenshot`の比べる先として置き、許容差を超えて変わったものだけを書き換えます（`updateSnapshots: 'changed'`）。画面が変わらない限り、PNGは変わりません。正とするのはCIで撮ったものです。手元ではフォントなどが違うので、撮るとすべて書き換わります。mainへのpushのたびにCI（`screenshots.yml`）が撮り直し、差があれば、GitHub Appのトークンで画像を差し替えるPRを作り、auto-mergeを有効にします。`GITHUB_TOKEN`で作ったPRでは、ほかのworkflowが動かず、必須のチェックが付かないためです。PRでは、撮れることを確かめ、撮った画像をartifactに置くだけにします。
+- READMEのスクリーンショット（`docs/screenshots`）は、静的なデモ（[10.1](#101-技術の構成)）をPlaywrightで開いて撮ります（`frontend/e2e/screenshots`、`mise run //frontend:screenshots`、#621）。番組表、録画の一覧、録画の詳細、ルールの編集、ライブ視聴を、ライトとダークの両方で撮ります。ライブ視聴は、再生が進んでから止め、映像の2秒の位置に戻して撮ります。デモのService Workerは毎回映像の頭から流すので、位置とフレームの対応は揃います。`seeked`の時点では、止める前のフレームがまだ表示されていることがあるので、`requestVideoFrameCallback`で戻した位置のフレームが表示されたのを確かめ、500ミリ秒置いてから撮ります（#1050）。映像に重ねた字幕は、戻すとaribb24.jsが消すので写りません。デモのデータは開いた時刻を基準に作られるので、時刻を固定して撮ります。それでも、ブラウザを起動するたびに、カードの角のアンチエイリアスが数ピクセルだけ変わります。そのため、画像はPlaywrightの`toHaveScreenshot`の比べる先として置き、許容差を超えて変わったものだけを書き換えます（`updateSnapshots: 'changed'`）。画面が変わらない限り、PNGは変わりません。正とするのはCIで撮ったものです。手元ではフォントなどが違うので、撮るとすべて書き換わります。mainへのpushのたびにCI（`screenshots.yml`）が撮り直し、差があれば、GitHub Appのトークンで画像を差し替えるPRを作り、auto-mergeを有効にします。`GITHUB_TOKEN`で作ったPRでは、ほかのworkflowが動かず、必須のチェックが付かないためです。PRでは、撮れることを確かめ、撮った画像をartifactに置くだけにします。
 
 ### 11.7 対応するOS
 
