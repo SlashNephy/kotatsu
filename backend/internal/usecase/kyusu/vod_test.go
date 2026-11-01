@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -325,6 +326,8 @@ type fakeVODEncoder struct {
 	startup  time.Duration
 	interval time.Duration
 	paced    bool
+	// startsMu は、starts に足すのを 1 つずつ行わせる。2 つのエンコーダーが同時に起動すると、片方の記録が消えるため (#1203)。
+	startsMu sync.Mutex
 	starts   atomic.Value
 	runs     atomic.Int32
 	running  atomic.Int32
@@ -334,8 +337,10 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 	e.runs.Add(1)
 	e.running.Add(1)
 	defer e.running.Add(-1)
+	e.startsMu.Lock()
 	starts, _ := e.starts.Load().([]int)
 	e.starts.Store(append(append([]int{}, starts...), opts.StartNumber))
+	e.startsMu.Unlock()
 	if e.paced {
 		buf := make([]byte, 4*keyframeBytes)
 		for k := opts.StartNumber; ; k++ {
