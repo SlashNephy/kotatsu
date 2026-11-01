@@ -259,7 +259,10 @@ async function writeRecording(source: SaveSource, controller: AbortController): 
     }
     // 字幕を描くフォントは大きいので、アプリの外枠と一緒にはキャッシュしない。Service Worker は、読んだフォントを
     // キャッシュに残すので (src/sw.ts)、オフラインでも字幕を描けるよう、ここで一度読んでおく。
-    void fetch(broadcastFontUrl).catch(() => {});
+    // 保存し終えたと知らせてすぐにタブを閉じても残るよう、読み終えるまで待つ。読めなくても、映像の保存は続ける。
+    await fetch(broadcastFontUrl)
+      .then((response) => response.blob())
+      .catch(() => {});
 
     const meta: OfflineMeta = {
       version: 1,

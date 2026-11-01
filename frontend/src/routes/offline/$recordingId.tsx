@@ -51,6 +51,8 @@ function OfflinePlayPage() {
   const [files, setFiles] = useState<OfflineFiles | null | undefined>(undefined);
   useEffect(() => {
     let active = true;
+    // 別の録画に移ったときに、前の録画のファイルを新しい録画のプレイヤーに渡さないよう、先に消す。
+    setFiles(undefined);
     openOfflineRecording(recordingId).then(
       (opened) => {
         if (active) {
