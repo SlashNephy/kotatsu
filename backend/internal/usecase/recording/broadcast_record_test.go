@@ -310,7 +310,7 @@ func TestRecorderExtendsWhileOnAir(t *testing.T) {
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, "recording", got.state)
 	stop(errStopForTest)
-	<-done
+	assert.ErrorIs(t, wait(t, done), errStopForTest)
 }
 
 // errStreamOffline は、steppedStream がつながらない間に、開こうとしたときのエラー。
@@ -520,7 +520,7 @@ func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
 			got, _ := f.recording(t, reservationID)
 			assert.Equal(t, string(recording.StateRecording), got.state)
 			stop(errStopForTest)
-			<-done
+			assert.ErrorIs(t, wait(t, done), errStopForTest)
 		})
 	}
 }
@@ -621,7 +621,7 @@ func TestRecorderKeepsWaitingAcrossReconnect(t *testing.T) {
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, string(recording.StateRecording), got.state)
 	stop(errStopForTest)
-	<-done
+	assert.ErrorIs(t, wait(t, done), errStopForTest)
 }
 
 // TestRecorderWaitsWhenStartedLate は、番組が始まるはずの時刻から猶予が過ぎてから録画を始めたときも (チューナーの空きを待ったなど)、
@@ -644,5 +644,5 @@ func TestRecorderWaitsWhenStartedLate(t *testing.T) {
 	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
 	require.Eventually(t, func() bool { return f.segments(t, reservationID) == 1 }, waitTimeout, 10*time.Millisecond)
 	stop(errStopForTest)
-	<-done
+	assert.ErrorIs(t, wait(t, done), errStopForTest)
 }

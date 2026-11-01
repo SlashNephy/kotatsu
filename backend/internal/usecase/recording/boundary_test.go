@@ -144,7 +144,7 @@ func TestRecorderConsecutiveReservations(t *testing.T) {
 			got, _ = f.recording(t, second)
 			assert.Equal(t, string(recording.StateRecording), got.state)
 			stopSecond(errStopForTest)
-			<-secondDone
+			assert.ErrorIs(t, wait(t, secondDone), errStopForTest)
 		})
 	}
 }

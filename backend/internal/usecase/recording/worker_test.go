@@ -812,7 +812,10 @@ func TestWorkerUsesDatabaseClockForLeases(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			done := make(chan error, 1)
 			go func() { done <- worker.Run(ctx) }()
-			t.Cleanup(func() { cancel(); <-done })
+			t.Cleanup(func() {
+				cancel()
+				assert.NoError(t, <-done)
+			})
 
 			select {
 			case <-taken:
