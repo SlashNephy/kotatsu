@@ -9,6 +9,7 @@ import {
   Modal,
   Stack,
   Switch,
+  Tabs,
   Text,
   Title,
 } from '@mantine/core';
@@ -24,22 +25,43 @@ import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { outOfValidity } from '../../rules/validity';
+import { WatchRuleList } from '../../watch/WatchRuleList';
 import type { rulesDeleteManyMutation } from './__generated__/rulesDeleteManyMutation.graphql';
 import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.graphql';
 import type { rulesListQuery } from './__generated__/rulesListQuery.graphql';
 import type { rulesSetManyEnabledMutation } from './__generated__/rulesSetManyEnabledMutation.graphql';
 
+type RulesSearch = {
+  // watch は、録画のルールの代わりに、自分の視聴ルールの一覧を出すかどうか (設計書 4.8)。
+  watch?: boolean;
+};
+
 export const Route = createFileRoute('/rules/')({
+  validateSearch: (search: Record<string, unknown>): RulesSearch =>
+    search['watch'] === true ? { watch: true } : {},
   component: RulesPage,
 });
 
 // RulesPage は、ルールの一覧の画面 (設計書 10.3)。ルールは家族で共有する。
 function RulesPage() {
   const { t } = useTranslation();
+  const { watch } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const tab = watch === true ? 'watch' : 'recording';
 
   return (
     <Stack gap="sm">
       <Title order={2}>{t('rules.title')}</Title>
+      {/* 録画のルールは家族で共有し、視聴ルールはユーザーごとのものなので、タブで分ける (設計書 4.8)。 */}
+      <Tabs
+        value={tab}
+        onChange={(value) => void navigate({ search: value === 'watch' ? { watch: true } : {} })}
+      >
+        <Tabs.List>
+          <Tabs.Tab value="recording">{t('watchRules.recordingTab')}</Tabs.Tab>
+          <Tabs.Tab value="watch">{t('watchRules.tab')}</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
       <ErrorBoundary
         fallback={(error) =>
           isUnauthenticated(error) ? (
@@ -54,7 +76,7 @@ function RulesPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Rules />
+          {tab === 'watch' ? <WatchRuleList /> : <Rules />}
         </Suspense>
       </ErrorBoundary>
     </Stack>

@@ -15,6 +15,200 @@ type Node interface {
 	IsNode()
 }
 
+// サービスと、しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応 (設計書 3.8)。
+// saya-definitions から取り込んだ対応に、管理者の上書きを重ねる。
+type AnimeChannel struct {
+	ServiceID string `json:"serviceId"`
+	// 対応を取り込んだ saya-definitions のチャンネルの名前。取り込んだ対応がなければ null。
+	DefinitionName *string `json:"definitionName,omitempty"`
+	// saya-definitions から取り込んだ、しょぼいカレンダーの ChID。
+	ImportedSyobocalChannelID *int `json:"importedSyobocalChannelId,omitempty"`
+	// saya-definitions から取り込んだ、Annict のチャンネルの ID。
+	ImportedAnnictChannelID *int `json:"importedAnnictChannelId,omitempty"`
+	// 管理者が上書きした、しょぼいカレンダーの ChID。上書きしていなければ null。
+	SyobocalChannelIDOverride *int `json:"syobocalChannelIdOverride,omitempty"`
+	// 管理者が上書きした、Annict のチャンネルの ID。上書きしていなければ null。
+	AnnictChannelIDOverride *int `json:"annictChannelIdOverride,omitempty"`
+	// 使う、しょぼいカレンダーの ChID。上書きがあれば上書きを、なければ取り込んだ対応を使う。null なら、このサービスの番組は照合しない。
+	SyobocalChannelID *int `json:"syobocalChannelId,omitempty"`
+	// 使う、Annict のチャンネルの ID。
+	AnnictChannelID *int `json:"annictChannelId,omitempty"`
+}
+
+// チャンネルの対応の上書きの変える項目。省いた項目は変えない。
+type AnimeChannelInput struct {
+	// しょぼいカレンダーの ChID の上書き (1 以上)。
+	SyobocalChannelID *int `json:"syobocalChannelId,omitempty"`
+	// しょぼいカレンダーの ChID の上書きを消し、取り込んだ対応に戻す。syobocalChannelId と一緒には使えない。
+	ResetSyobocalChannelID bool `json:"resetSyobocalChannelId"`
+	// Annict のチャンネルの ID の上書き (1 以上)。
+	AnnictChannelID *int `json:"annictChannelId,omitempty"`
+	// Annict のチャンネルの ID の上書きを消し、取り込んだ対応に戻す。annictChannelId と一緒には使えない。
+	ResetAnnictChannelID bool `json:"resetAnnictChannelId"`
+}
+
+// 番組や録画に結びついた話 (設計書 3.8)。2 話連続の放送のように、1 つの番組が複数の話に結びつくことがある。
+type AnimeEpisode struct {
+	Source AnimeEpisodeSource `json:"source"`
+	// しょぼいカレンダーの作品の ID (TID)。番組名を解析して、作品を決められなかったときは null。
+	SyobocalTid *int `json:"syobocalTid,omitempty"`
+	// しょぼいカレンダーの作品のページ。
+	SyobocalURL *string `json:"syobocalUrl,omitempty"`
+	// 話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。
+	CountStart *float64 `json:"countStart,omitempty"`
+	CountEnd   *float64 `json:"countEnd,omitempty"`
+	Subtitle   *string  `json:"subtitle,omitempty"`
+	// しょぼいカレンダーの [新] の印。
+	First bool `json:"first"`
+	// しょぼいカレンダーの [終] の印。
+	Last bool `json:"last"`
+	// TID に対応する作品。対応がなければ空。
+	Works []*AnimeWork `json:"works"`
+}
+
+// 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
+type AnimeImport struct {
+	Source AnimeImportSource `json:"source"`
+	// 最後に問い合わせた日時。
+	CheckedAt time.Time `json:"checkedAt"`
+	// 最後に取り込めた日時。1 度も取り込めていなければ null。
+	ImportedAt *time.Time `json:"importedAt,omitempty"`
+	// 最後に取り込めたときの件数。
+	ItemCount int `json:"itemCount"`
+	// 最後の問い合わせが失敗した理由。成功していれば null。
+	Error *string `json:"error,omitempty"`
+}
+
+// 管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。
+type AnimeRecordApp struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 登録したアプリのクライアント ID。登録していなければ null。
+	ClientID *string `json:"clientId,omitempty"`
+	// クライアント ID とシークレットを登録したかどうか。
+	Configured bool `json:"configured"`
+	// 管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。
+	RedirectURI string `json:"redirectUri"`
+	// 最後に変えた日時。登録していなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// 記録先に登録したアプリの変更。
+type AnimeRecordAppInput struct {
+	// クライアント ID。空にすると、登録を消す。
+	ClientID string `json:"clientId"`
+	// クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+	ClientSecret *string `json:"clientSecret,omitempty"`
+}
+
+// ログイン中のユーザーと記録先の連携 (#927)。トークンは返さない。
+type AnimeRecordConnection struct {
+	// 記録先のアカウントの名前。
+	AccountName string    `json:"accountName"`
+	ConnectedAt time.Time `json:"connectedAt"`
+}
+
+// ログイン中のユーザーから見た、記録先の様子。
+type AnimeRecordDestinationStatus struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 管理者がアプリを登録していて、連携を始められるかどうか。
+	Available bool `json:"available"`
+	// 連携していなければ null。
+	Connection *AnimeRecordConnection `json:"connection,omitempty"`
+}
+
+// ログイン中のユーザーの、見たアニメの記録の設定 (#927)。
+type AnimeRecordSettings struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、画面に設定を出さない。
+	Enabled bool `json:"enabled"`
+	// 番組の長さのうち、何 % を実際に再生したら記録するか (1〜100)。
+	ThresholdPercent int `json:"thresholdPercent"`
+	// 第 1 話 ([新]) を見たら、作品を「見てる」にするかどうか。
+	WatchingOnFirst bool `json:"watchingOnFirst"`
+	// 最終話 ([終]) 以外を見たら、作品を「見てる」にするかどうか。
+	WatchingOnEpisode bool `json:"watchingOnEpisode"`
+	// 最終話 ([終]) を見たら、作品を「見た」にするかどうか。
+	WatchedOnLast bool                            `json:"watchedOnLast"`
+	Destinations  []*AnimeRecordDestinationStatus `json:"destinations"`
+}
+
+type AnimeRecordSettingsInput struct {
+	ThresholdPercent  int  `json:"thresholdPercent"`
+	WatchingOnFirst   bool `json:"watchingOnFirst"`
+	WatchingOnEpisode bool `json:"watchingOnEpisode"`
+	WatchedOnLast     bool `json:"watchedOnLast"`
+}
+
+// ログイン中のユーザーの、見たいリストの作品の放送の候補 (#928)。
+type AnimeWishlist struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。
+	Enabled bool `json:"enabled"`
+	// 連携した記録先ごとの、取り込んだ様子。連携していなければ空。
+	Imports []*AnimeWishlistImport `json:"imports"`
+	// これから 1 週間に放送がある作品。最初の放送の早い順に並べる。
+	Works []*AnimeWishlistWork `json:"works"`
+}
+
+// 候補の作品の放送。
+type AnimeWishlistBroadcast struct {
+	Program *Program `json:"program"`
+	// 録るのに選ぶサービスの放送かどうか。作品の最初の放送のサービスを選ぶ。重複の回避 (設計書 4.4) を付けたルールは、
+	// 最初に録った放送のほかを、同じ番組名を録画済みとして見送るため。予約済みの作品 (covered) では、どの放送も選ばない。
+	Preferred bool `json:"preferred"`
+}
+
+// 連携した記録先ごとの、見たいリストを取り込んだ様子 (#928)。
+type AnimeWishlistImport struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 最後に問い合わせた日時。まだなら null。
+	CheckedAt *time.Time `json:"checkedAt,omitempty"`
+	// 最後に取り込めた日時。まだなら null。
+	ImportedAt *time.Time `json:"importedAt,omitempty"`
+	// 最後の問い合わせが失敗した理由。取り込めていれば null。
+	Error *string `json:"error,omitempty"`
+	// 取り込んだ作品の数。
+	EntryCount int `json:"entryCount"`
+}
+
+// 候補の作品を、見たいリストに入れた記録先と、その作品。
+type AnimeWishlistSource struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 記録先の作品 ID。
+	WorkID int                 `json:"workId"`
+	Status AnimeWishlistStatus `json:"status"`
+	// 記録先の作品のページ。
+	URL string `json:"url"`
+}
+
+// 見たいリストの作品のうち、これから放送されるもの (#928)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+type AnimeWishlistWork struct {
+	// しょぼいカレンダーの TID。
+	Tid int `json:"tid"`
+	// 作品名。Annict の作品名を先に選ぶ。
+	Title   string                 `json:"title"`
+	Sources []*AnimeWishlistSource `json:"sources"`
+	// 予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。
+	Broadcasts []*AnimeWishlistBroadcast `json:"broadcasts"`
+	// 予約のある放送の数。候補からは外している。
+	ReservedBroadcasts int `json:"reservedBroadcasts"`
+	// 予約済みかどうか。これからの放送のどれかに予約 (ルール予約か手動の予約) があるか、放送のどれかから作るルールと同じ
+	// キーワードとサービスのルール (無効なものも含む) がもうあれば予約済みとする。予約済みの作品は、録る放送が決まっているので、
+	// 録るサービス (preferred) を選ばず、ルールも作れない。
+	Covered bool `json:"covered"`
+}
+
+// しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
+type AnimeWork struct {
+	AnnictWorkID *int `json:"annictWorkId,omitempty"`
+	AnilistID    *int `json:"anilistId,omitempty"`
+	MalID        *int `json:"malId,omitempty"`
+	// Annict の作品のページ。
+	AnnictURL *string `json:"annictUrl,omitempty"`
+	// AniList の作品のページ。
+	AnilistURL *string `json:"anilistUrl,omitempty"`
+	// MyAnimeList の作品のページ。
+	MalURL *string `json:"malUrl,omitempty"`
+}
+
 // 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
 // トークンそのものは、発行したときにだけ返す。
 type APIToken struct {
@@ -128,6 +322,52 @@ type CaptionSettingsInput struct {
 	BackgroundOpacity *float64 `json:"backgroundOpacity,omitempty"`
 }
 
+// ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+type Capture struct {
+	ID string `json:"id"`
+	// 画像の URL。撮ったユーザーのセッションでだけ開ける。
+	ImageURL    string `json:"imageUrl"`
+	ServiceName string `json:"serviceName"`
+	// 番組名。番組が分からなければ null。
+	ProgramName *string `json:"programName,omitempty"`
+	// 撮ったときに出ていた字幕の文 (#458)。出ていなければ null。
+	Caption *string `json:"caption,omitempty"`
+	// 録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。
+	RecordingID *string `json:"recordingId,omitempty"`
+	// 録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。
+	Position *float64 `json:"position,omitempty"`
+	// 撮った場面の放送時刻。
+	BroadcastAt time.Time `json:"broadcastAt"`
+	// 撮った時刻 (撮った端末の時計)。
+	TakenAt time.Time `json:"takenAt"`
+	// 画像の大きさ (バイト)。
+	Size int64 `json:"size"`
+}
+
+type CaptureConnection struct {
+	Edges    []*CaptureEdge `json:"edges"`
+	PageInfo *PageInfo      `json:"pageInfo"`
+}
+
+type CaptureEdge struct {
+	Cursor string   `json:"cursor"`
+	Node   *Capture `json:"node"`
+}
+
+// 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+type ChannelInspection struct {
+	// PAT の transport_stream_id。PAT を受け取れなければ null。
+	TransportStreamID *int `json:"transportStreamId,omitempty"`
+	// 実際に受け取った長さ (秒)。
+	Seconds float64 `json:"seconds"`
+	// 全体のビットレート (bps)。
+	TotalBps int `json:"totalBps"`
+	// PAT に書かれた番組 (サービス)。program_number の昇順に並べる。
+	Programs []*InspectedProgram `json:"programs"`
+	// どの番組の PMT にも載っていない PID (PAT、EIT などの SI、ECM、EMM など)。PID の昇順に並べる。
+	Others []*InspectedStream `json:"others"`
+}
+
 // チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 type ChannelType struct {
 	Type        string `json:"type"`
@@ -236,6 +476,20 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
+// 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
+type DrcsReplacement struct {
+	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。
+	Md5 string `json:"md5"`
+	// 置き換える文字。1〜4 文字。外字の 1 文字の枠に縮めて描く。
+	Text string `json:"text"`
+}
+
+type DrcsReplacementInput struct {
+	Md5 string `json:"md5"`
+	// 置き換える文字。null なら、この外字を表から消す。
+	Text *string `json:"text,omitempty"`
+}
+
 // 番組の詳細の、見出しと本文の組。
 type ExtendedItem struct {
 	Heading string `json:"heading"`
@@ -303,6 +557,30 @@ type GuideViewInput struct {
 	FreeOnly           bool          `json:"freeOnly"`
 }
 
+// 調べた TS の、番組 (サービス) 1 つの様子。
+type InspectedProgram struct {
+	// program_number。ARIB ではサービス ID と同じ値になる。
+	ServiceID int `json:"serviceId"`
+	// Kotatsu が知っているサービスなら、その名前。知らなければ null。
+	Name *string `json:"name,omitempty"`
+	// PMT と ES のビットレートの合計 (bps)。
+	Bps int `json:"bps"`
+	// PMT と ES。PMT、PMT に書かれた順の ES の順に並べる。
+	Streams []*InspectedStream `json:"streams"`
+}
+
+// 調べた TS の、PID 1 つの様子。
+type InspectedStream struct {
+	Pid  int        `json:"pid"`
+	Kind StreamKind `json:"kind"`
+	// PMT の stream_type。PMT に載っていなければ null。
+	StreamType *int  `json:"streamType,omitempty"`
+	Bps        int   `json:"bps"`
+	Drops      int64 `json:"drops"`
+	Errors     int64 `json:"errors"`
+	Scrambled  int64 `json:"scrambled"`
+}
+
 // 各ロールのインスタンス (設計書 1.4)。
 type Instance struct {
 	// インスタンスの ID。all では、1 つのプロセスがロールごとに同じ ID で登録する。
@@ -357,6 +635,26 @@ type Lease struct {
 	Valid bool `json:"valid"`
 }
 
+// ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
+type LiveStreamRates struct {
+	// 映像のビットレート (bps)。
+	VideoBps int `json:"videoBps"`
+	// 音声のビットレート (bps)。
+	AudioBps int `json:"audioBps"`
+	// 字幕、文字スーパー、データ放送など、映像と音声のほかの ES のビットレート (bps)。
+	OtherBps int `json:"otherBps"`
+	// PAT、PMT と、決まった PID で送る SI のビットレート (bps)。
+	PsiBps int `json:"psiBps"`
+	// PMT に載っていない PID (ECM、EMM など) のビットレート (bps)。
+	UnknownBps int `json:"unknownBps"`
+	// 全体のビットレート (bps)。
+	TotalBps int `json:"totalBps"`
+	// 数え始めてからの、ドロップ、エラー、スクランブルの数。
+	Drops     int64 `json:"drops"`
+	Errors    int64 `json:"errors"`
+	Scrambled int64 `json:"scrambled"`
+}
+
 // セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 type MissingRecording struct {
 	Recording *Recording `json:"recording"`
@@ -393,6 +691,8 @@ type Notification struct {
 	Message string `json:"message"`
 	// 通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。
 	URL *string `json:"url,omitempty"`
+	// 通知が示す外部のページ (記録した Annict や AniList のページ、#927) の URL。https の URL だけを返す。なければ null。
+	ExternalURL *string `json:"externalUrl,omitempty"`
 	// 既読にした日時。未読なら null。
 	ReadAt *time.Time `json:"readAt,omitempty"`
 }
@@ -506,6 +806,12 @@ type Passkey struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// プレイヤーが実際に再生した、放送の時刻の区間 [from, to)。一時停止とシークの分は含めない。
+type PlaybackIntervalInput struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
 // 再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、10 秒ごとに状態を送る。
 // 30 秒送られてこなければ、閉じたとみなし、一覧に出さない。
 type Player struct {
@@ -542,15 +848,21 @@ type PlayerCommand struct {
 	Muted    *bool             `json:"muted,omitempty"`
 	Audio    *string           `json:"audio,omitempty"`
 	Key      *string           `json:"key,omitempty"`
+	// 開くサービス (OPEN)。
+	ServiceID *string `json:"serviceId,omitempty"`
+	// 開く録画 (OPEN)。
+	RecordingID *string `json:"recordingId,omitempty"`
 }
 
 type PlayerCommandInput struct {
-	Type     PlayerCommandType `json:"type"`
-	Position *float64          `json:"position,omitempty"`
-	Volume   *float64          `json:"volume,omitempty"`
-	Muted    *bool             `json:"muted,omitempty"`
-	Audio    *string           `json:"audio,omitempty"`
-	Key      *string           `json:"key,omitempty"`
+	Type        PlayerCommandType `json:"type"`
+	Position    *float64          `json:"position,omitempty"`
+	Volume      *float64          `json:"volume,omitempty"`
+	Muted       *bool             `json:"muted,omitempty"`
+	Audio       *string           `json:"audio,omitempty"`
+	Key         *string           `json:"key,omitempty"`
+	ServiceID   *string           `json:"serviceId,omitempty"`
+	RecordingID *string           `json:"recordingId,omitempty"`
 }
 
 // ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
@@ -681,6 +993,13 @@ type ProgramReservationInput struct {
 type Query struct {
 }
 
+// CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
+type RecordingCMSection struct {
+	// 区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
 type RecordingConnection struct {
 	Edges    []*RecordingEdge `json:"edges"`
 	PageInfo *PageInfo        `json:"pageInfo"`
@@ -689,6 +1008,16 @@ type RecordingConnection struct {
 type RecordingEdge struct {
 	Cursor string     `json:"cursor"`
 	Node   *Recording `json:"node"`
+}
+
+// 理由ごとの、録画の失敗の累計 (設計書 5.5)。録画を消しても減らない。
+type RecordingFailureCount struct {
+	Reason RecordingFailureReason `json:"reason"`
+	Count  int64                  `json:"count"`
+	// 最後に失敗した日時。一度も失敗していないか、累計を 0 に戻してから失敗していなければ null。
+	LastFailedAt *time.Time `json:"lastFailedAt,omitempty"`
+	// 管理者が累計を 0 に戻した日時 (#1035)。戻していなければ null。
+	ResetAt *time.Time `json:"resetAt,omitempty"`
 }
 
 // 録画のファイル。
@@ -739,6 +1068,18 @@ type RecordingGap struct {
 	To   time.Time `json:"to"`
 }
 
+// 録画中の録画の、書いているセグメントの様子 (#829)。
+type RecordingLiveStats struct {
+	// 直前の 10 秒ほどに書いたビットレート (bps)。
+	Bitrate int64 `json:"bitrate"`
+	// 書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。閉じたセグメントの数は、Recording の drops などにある。
+	Bytes     int64     `json:"bytes"`
+	Drops     int64     `json:"drops"`
+	Errors    int64     `json:"errors"`
+	Scrambled int64     `json:"scrambled"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
 // 録画のファイルの付け直し (設計書 4.7)。ファイル名のテンプレートを変えた後に、既存の録画のファイルを今のテンプレートの名前にする。
 type RecordingRename struct {
 	Recording *Recording `json:"recording"`
@@ -758,6 +1099,8 @@ type RecordingSettings struct {
 	Priority int `json:"priority"`
 	// 引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)
 	JoinSegments bool `json:"joinSegments"`
+	// 録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
+	DetectCM bool `json:"detectCm"`
 }
 
 // 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -772,6 +1115,8 @@ type RecordingSettingsOverrides struct {
 	Priority *int `json:"priority,omitempty"`
 	// 分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか
 	JoinSegments *bool `json:"joinSegments,omitempty"`
+	// 録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
+	DetectCM *bool `json:"detectCm,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -782,6 +1127,7 @@ type RecordingSettingsOverridesInput struct {
 	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
+	DetectCM           *bool   `json:"detectCm,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
@@ -877,6 +1223,15 @@ type RuleInput struct {
 	FollowEventRelay    bool `json:"followEventRelay"`
 }
 
+// ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
+type RuleWarning struct {
+	Kind RuleWarningKind `json:"kind"`
+	// 除外するキーワード (excludeKeywords) かどうか
+	Exclude bool `json:"exclude"`
+	// keywords か excludeKeywords の中の位置 (0 から)
+	Index int `json:"index"`
+}
+
 // ログイン中のユーザーの第二要素の状態 (設計書 9.3)。
 type SecondFactorStatus struct {
 	// TOTP を登録しているかどうか。
@@ -968,6 +1323,10 @@ type StreamQuality struct {
 	Drops     int64      `json:"drops"`
 	Errors    int64      `json:"errors"`
 	Scrambled int64      `json:"scrambled"`
+	// PMT の stream_type (#827)。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC など。PMT に載っていない PID と、記録する前に録った録画では null。
+	StreamType *int `json:"streamType,omitempty"`
+	// ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。記述子がなければ null。
+	ComponentTag *int `json:"componentTag,omitempty"`
 }
 
 // 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
@@ -995,6 +1354,13 @@ type SystemSettings struct {
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	McpEnabled bool `json:"mcpEnabled"`
+	// データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
+	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
+	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
+	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
+	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
+	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
+	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -1008,6 +1374,13 @@ type SystemSettingsInput struct {
 	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
 	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
+	// 変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。
+	DataBroadcastIPEnabled *bool `json:"dataBroadcastIpEnabled,omitempty"`
+	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
+	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
+	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
+	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`
 }
 
 // システムの状態。
@@ -1018,6 +1391,8 @@ type SystemStatus struct {
 	TunerServer *TunerServerStatus `json:"tunerServer,omitempty"`
 	Tuners      []*Tuner           `json:"tuners"`
 	Pools       []*StoragePool     `json:"pools"`
+	// 理由ごとの、録画の失敗の累計。
+	RecordingFailures []*RecordingFailureCount `json:"recordingFailures"`
 }
 
 // 登録中の TOTP。秘密キーは、この応答でしか見せない。
@@ -1066,6 +1441,14 @@ type TimeReservationInput struct {
 	// 画面に出す名前。200 文字まで。
 	Name     string                           `json:"name"`
 	Settings *RecordingSettingsOverridesInput `json:"settings,omitempty"`
+}
+
+// タイムシフトのバッファの番組を、録画に昇格した結果。recording と reservation のどちらか一方を持つ。
+type TimeshiftPromotion struct {
+	// 放送の終わった番組の、バッファから書き出す録画。書き出し終えるまでは録画中。
+	Recording *Recording `json:"recording,omitempty"`
+	// 放送中の番組の、続きを録る番組予約。
+	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
 // サーバー側でのトランスコード (kyusu) の状態 (設計書 7.1)。
@@ -1151,6 +1534,9 @@ type ViewerEvent struct {
 	DataChange              *DataChange `json:"dataChange,omitempty"`
 	ViewerSettingsVersion   *int        `json:"viewerSettingsVersion,omitempty"`
 	UnreadNotificationCount *int        `json:"unreadNotificationCount,omitempty"`
+	// この tenban が止まる前に、流しているストリームを、新しい接続を張ってから切り替えてほしいという知らせ (設計書 7.2、#1085)。
+	// 届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
+	StreamsDraining *bool `json:"streamsDraining,omitempty"`
 }
 
 // 視聴予約の通知の設定。端末をまたいで同期する。
@@ -1165,6 +1551,28 @@ type WatchReservation struct {
 	// 通知を送る日時。番組の放送時間が変わると、付いていく。
 	NotifyAt  time.Time `json:"notifyAt"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// 視聴ルール (設計書 4.8)。条件に一致する放送前の番組に、持ち主の視聴予約を自動で付ける。
+// 録画のルールと違ってユーザーごとの個人のもので、閲覧だけのユーザーも作れる。ほかのユーザーの視聴ルールは見えない。
+type WatchRule struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+	// 番組の条件。録画のルールと同じ形で、同じく照合する。
+	Conditions *ProgramConditions `json:"conditions"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	UpdatedAt  time.Time          `json:"updatedAt"`
+}
+
+func (WatchRule) IsNode() {}
+
+// 視聴ルールの内容。
+type WatchRuleInput struct {
+	// 1〜200 文字
+	Name       string                  `json:"name"`
+	Enabled    bool                    `json:"enabled"`
+	Conditions *ProgramConditionsInput `json:"conditions"`
 }
 
 // Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
@@ -1198,6 +1606,242 @@ type Webhook struct {
 	Enabled   bool               `json:"enabled"`
 	CreatedAt time.Time          `json:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt"`
+}
+
+// 番組や録画に結びついた話を、どこから結びつけたか (設計書 3.8)。
+type AnimeEpisodeSource string
+
+const (
+	// しょぼいカレンダーの放送時間データ
+	AnimeEpisodeSourceSyobocal AnimeEpisodeSource = "SYOBOCAL"
+	// 番組名の解析
+	AnimeEpisodeSourceTitle AnimeEpisodeSource = "TITLE"
+)
+
+var AllAnimeEpisodeSource = []AnimeEpisodeSource{
+	AnimeEpisodeSourceSyobocal,
+	AnimeEpisodeSourceTitle,
+}
+
+func (e AnimeEpisodeSource) IsValid() bool {
+	switch e {
+	case AnimeEpisodeSourceSyobocal, AnimeEpisodeSourceTitle:
+		return true
+	}
+	return false
+}
+
+func (e AnimeEpisodeSource) String() string {
+	return string(e)
+}
+
+func (e *AnimeEpisodeSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeEpisodeSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeEpisodeSource", str)
+	}
+	return nil
+}
+
+func (e AnimeEpisodeSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeEpisodeSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeEpisodeSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 連携先の情報の取り込み元 (設計書 3.8)。
+type AnimeImportSource string
+
+const (
+	// サービスとしょぼいカレンダー、Annict のチャンネルの対応
+	AnimeImportSourceSayaDefinitions AnimeImportSource = "SAYA_DEFINITIONS"
+	// しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応
+	AnimeImportSourceArm AnimeImportSource = "ARM"
+	// arm を補う、作品 ID の対応
+	AnimeImportSourceArmSupplementary AnimeImportSource = "ARM_SUPPLEMENTARY"
+	// しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
+	AnimeImportSourceSyobocalTitles AnimeImportSource = "SYOBOCAL_TITLES"
+)
+
+var AllAnimeImportSource = []AnimeImportSource{
+	AnimeImportSourceSayaDefinitions,
+	AnimeImportSourceArm,
+	AnimeImportSourceArmSupplementary,
+	AnimeImportSourceSyobocalTitles,
+}
+
+func (e AnimeImportSource) IsValid() bool {
+	switch e {
+	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceArmSupplementary, AnimeImportSourceSyobocalTitles:
+		return true
+	}
+	return false
+}
+
+func (e AnimeImportSource) String() string {
+	return string(e)
+}
+
+func (e *AnimeImportSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeImportSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeImportSource", str)
+	}
+	return nil
+}
+
+func (e AnimeImportSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeImportSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeImportSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 見たアニメを記録する先 (#927)。
+type AnimeRecordDestination string
+
+const (
+	AnimeRecordDestinationAnnict  AnimeRecordDestination = "ANNICT"
+	AnimeRecordDestinationAnilist AnimeRecordDestination = "ANILIST"
+)
+
+var AllAnimeRecordDestination = []AnimeRecordDestination{
+	AnimeRecordDestinationAnnict,
+	AnimeRecordDestinationAnilist,
+}
+
+func (e AnimeRecordDestination) IsValid() bool {
+	switch e {
+	case AnimeRecordDestinationAnnict, AnimeRecordDestinationAnilist:
+		return true
+	}
+	return false
+}
+
+func (e AnimeRecordDestination) String() string {
+	return string(e)
+}
+
+func (e *AnimeRecordDestination) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeRecordDestination(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeRecordDestination", str)
+	}
+	return nil
+}
+
+func (e AnimeRecordDestination) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeRecordDestination) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeRecordDestination) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 見たいリストの作品の状態 (#928)。
+type AnimeWishlistStatus string
+
+const (
+	// 見たい (AniList の PLANNING)
+	AnimeWishlistStatusWannaWatch AnimeWishlistStatus = "WANNA_WATCH"
+	// 見てる (AniList の CURRENT)
+	AnimeWishlistStatusWatching AnimeWishlistStatus = "WATCHING"
+)
+
+var AllAnimeWishlistStatus = []AnimeWishlistStatus{
+	AnimeWishlistStatusWannaWatch,
+	AnimeWishlistStatusWatching,
+}
+
+func (e AnimeWishlistStatus) IsValid() bool {
+	switch e {
+	case AnimeWishlistStatusWannaWatch, AnimeWishlistStatusWatching:
+		return true
+	}
+	return false
+}
+
+func (e AnimeWishlistStatus) String() string {
+	return string(e)
+}
+
+func (e *AnimeWishlistStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeWishlistStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeWishlistStatus", str)
+	}
+	return nil
+}
+
+func (e AnimeWishlistStatus) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeWishlistStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeWishlistStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 // 予約のチューナーの割り当ての状態 (設計書 4.5)。
@@ -1544,6 +2188,10 @@ const (
 	NotificationKindTunerServerUnreachable NotificationKind = "TUNER_SERVER_UNREACHABLE"
 	// 視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。
 	NotificationKindWatchReminder NotificationKind = "WATCH_REMINDER"
+	// 見たアニメを Annict や AniList に記録した (#927)。見たユーザーだけに届き、Webhook では送らない。
+	NotificationKindAnimeRecorded NotificationKind = "ANIME_RECORDED"
+	// 見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
+	NotificationKindAnimeRecordFailed NotificationKind = "ANIME_RECORD_FAILED"
 )
 
 var AllNotificationKind = []NotificationKind{
@@ -1554,11 +2202,13 @@ var AllNotificationKind = []NotificationKind{
 	NotificationKindStorageLow,
 	NotificationKindTunerServerUnreachable,
 	NotificationKindWatchReminder,
+	NotificationKindAnimeRecorded,
+	NotificationKindAnimeRecordFailed,
 }
 
 func (e NotificationKind) IsValid() bool {
 	switch e {
-	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder:
+	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed:
 		return true
 	}
 	return false
@@ -1617,6 +2267,8 @@ const (
 	PlayerCommandTypePressKey PlayerCommandType = "PRESS_KEY"
 	// プレイヤーを閉じる。
 	PlayerCommandTypeStop PlayerCommandType = "STOP"
+	// serviceId のサービスのライブ視聴か、recordingId の録画の再生を開く (キャスト、#802)。どちらか 1 つを渡す。
+	PlayerCommandTypeOpen PlayerCommandType = "OPEN"
 )
 
 var AllPlayerCommandType = []PlayerCommandType{
@@ -1628,11 +2280,12 @@ var AllPlayerCommandType = []PlayerCommandType{
 	PlayerCommandTypeSelectAudio,
 	PlayerCommandTypePressKey,
 	PlayerCommandTypeStop,
+	PlayerCommandTypeOpen,
 }
 
 func (e PlayerCommandType) IsValid() bool {
 	switch e {
-	case PlayerCommandTypePlay, PlayerCommandTypePause, PlayerCommandTypeSeek, PlayerCommandTypeSetVolume, PlayerCommandTypeSetMuted, PlayerCommandTypeSelectAudio, PlayerCommandTypePressKey, PlayerCommandTypeStop:
+	case PlayerCommandTypePlay, PlayerCommandTypePause, PlayerCommandTypeSeek, PlayerCommandTypeSetVolume, PlayerCommandTypeSetMuted, PlayerCommandTypeSelectAudio, PlayerCommandTypePressKey, PlayerCommandTypeStop, PlayerCommandTypeOpen:
 		return true
 	}
 	return false
@@ -2103,6 +2756,60 @@ func (e *Role) UnmarshalJSON(b []byte) error {
 }
 
 func (e Role) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type RuleWarningKind string
+
+const (
+	// 必ず含む文字列を決められない正規表現で、詳細まで探す。前段で絞り込めないので、すべての番組の詳細を正規表現にかける。
+	RuleWarningKindUnfilterableRegexp RuleWarningKind = "UNFILTERABLE_REGEXP"
+)
+
+var AllRuleWarningKind = []RuleWarningKind{
+	RuleWarningKindUnfilterableRegexp,
+}
+
+func (e RuleWarningKind) IsValid() bool {
+	switch e {
+	case RuleWarningKindUnfilterableRegexp:
+		return true
+	}
+	return false
+}
+
+func (e RuleWarningKind) String() string {
+	return string(e)
+}
+
+func (e *RuleWarningKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RuleWarningKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RuleWarningKind", str)
+	}
+	return nil
+}
+
+func (e RuleWarningKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RuleWarningKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RuleWarningKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

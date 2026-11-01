@@ -95,6 +95,20 @@ func (q *Queries) ListStoragePools(ctx context.Context) ([]domain.StoragePool, e
 	return out, nil
 }
 
+// ListRecordingFailureCounts は、理由ごとの、録画の失敗の累計を返す。
+func (q *Queries) ListRecordingFailureCounts(ctx context.Context) ([]domain.RecordingFailureCount, error) {
+	result, err := sqlc.New(q.pool).ListRecordingFailureCounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.RecordingFailureCount, len(result))
+	for i := range result {
+		out[i] = domain.RecordingFailureCount(result[i])
+	}
+
+	return out, nil
+}
+
 // ListInstances は、動いているロールのインスタンスを返す。
 func (q *Queries) ListInstances(ctx context.Context) ([]domain.Instance, error) {
 	result, err := sqlc.New(q.pool).ListInstances(ctx)

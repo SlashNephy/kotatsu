@@ -239,6 +239,7 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 		}
 		inserted, err := q.InsertMissedRecording(ctx, sqlc.InsertMissedRecordingParams{
 			ID: recordingID, ReservationID: &row.ID, ServiceID: row.ServiceID, EventID: row.EventID, Name: row.Name, Description: row.Description,
+			NameNormalized: new(domain.Normalize(row.Name)), DescriptionNormalized: new(domain.Normalize(row.Description)),
 			StartAt: row.StartAt, EndAt: row.EndAt, RecordedFrom: recordedFrom, Now: now,
 		})
 		if err != nil {

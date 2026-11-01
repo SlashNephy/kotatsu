@@ -159,6 +159,78 @@ func TestMigrateDoesNotLowerMinBinaryVersion(t *testing.T) {
 	assert.Equal(t, raised, got)
 }
 
+// TestMigrateFillsRecordingsNormalized は、kotatsu migrate が、正規化した番組名と概要の列がない録画の列を埋め、
+// 埋まっている録画は書き換えないことを確かめる (#1044)。
+func TestMigrateFillsRecordingsNormalized(t *testing.T) {
+	t.Parallel()
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	now := time.Now()
+	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+	require.NoError(t, err)
+	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1)`, now)
+	require.NoError(t, err)
+	// 1 回に埋める数より多い録画も、すべて埋める。
+	_, err = pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+		SELECT gen_random_uuid(), 3273601024, 'ＡＢＣ' || i, '', $1, $1, 'completed', $1, $1, $1 FROM generate_series(1, 501) AS i`, now)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                      string
+		description               string
+		nameNormalized            *string
+		descriptionNormalized     *string
+		wantNameNormalized        string
+		wantDescriptionNormalized string
+	}{
+		{
+			name: "ＴＯＫＹＯ　ＭＸ🈟", description: "第１話", nameNormalized: nil, descriptionNormalized: nil,
+			wantNameNormalized: "TOKYO MX[新]", wantDescriptionNormalized: "第1話",
+		},
+		{
+			name: "概要だけない", description: "ｺﾀﾂ", nameNormalized: new("概要だけない"), descriptionNormalized: nil,
+			wantNameNormalized: "概要だけない", wantDescriptionNormalized: "コタツ",
+		},
+		{
+			name: "埋まっている", description: "", nameNormalized: new("書き換えない"), descriptionNormalized: new("書き換えない"),
+			wantNameNormalized: "書き換えない", wantDescriptionNormalized: "書き換えない",
+		},
+	}
+	ids := make([]uuid.UUID, len(tests))
+	for i, tt := range tests {
+		ids[i] = id.New()
+		_, err := pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, name, description, name_normalized, description_normalized,
+			start_at, end_at, state, recorded_from, created_at, updated_at)
+			VALUES ($1, 3273601024, $2, $3, $4, $5, $6, $6, 'completed', $6, $6, $6)`,
+			ids[i], tt.name, tt.description, tt.nameNormalized, tt.descriptionNormalized, now)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var remaining int
+	require.NoError(t, pool.QueryRow(t.Context(),
+		"SELECT count(*) FROM recordings WHERE name_normalized IS NULL OR description_normalized IS NULL").Scan(&remaining))
+	assert.Zero(t, remaining)
+	var bulk string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT name_normalized FROM recordings WHERE name = 'ＡＢＣ501'").Scan(&bulk))
+	assert.Equal(t, "ABC501", bulk)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotName, gotDescription string
+			require.NoError(t, pool.QueryRow(t.Context(),
+				"SELECT name_normalized, description_normalized FROM recordings WHERE id = $1", ids[i]).Scan(&gotName, &gotDescription))
+			assert.Equal(t, tt.wantNameNormalized, gotName)
+			assert.Equal(t, tt.wantDescriptionNormalized, gotDescription)
+		})
+	}
+}
+
 func TestOpenScansTimeInUTCAndRoundTripsID(t *testing.T) {
 	t.Parallel()
 

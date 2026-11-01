@@ -25,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -491,7 +492,7 @@ func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs])
 		return fmt.Errorf("failed to remove the index of the joined file: %w", err)
 	}
 	// やり直したときは、一時ファイルはもう置き換えてある。
-	if err := os.Rename(path+tempSuffix, path); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := sharedfile.Rename(path+tempSuffix, path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to replace the first segment with the joined file: %w", err)
 	}
 	for _, file := range job.Args.Removed {

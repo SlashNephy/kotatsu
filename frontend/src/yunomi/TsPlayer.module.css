@@ -4,7 +4,8 @@
   position: relative;
   aspect-ratio: 16 / 9;
   width: 100%;
-  max-width: min(100%, calc((100dvh - 280px) * 16 / 9));
+  /* 視聴の画面の並び (WatchLayout) は、--player-max-width で上限を変える。 */
+  max-width: var(--player-max-width, min(100%, calc((100dvh - 280px) * 16 / 9)));
   min-width: min(100%, 320px);
   background: black;
   /* 操作バーは、画面の幅ではなく、プレイヤーの幅で詰め方を変える。 */
@@ -32,8 +33,15 @@
   height: 100%;
 }
 
+/* 映像を 1 本読み込むための組 (video と字幕)。切り替えのときは、裏で読み込む組を重ねる (#1083)。 */
+.slot {
+  position: absolute;
+  inset: 0;
+}
+
 /* yadif は、video を inline-block の要素で包み、その上に描画用の canvas を重ねる。包む要素も枠いっぱいに広げる。 */
-.media > div {
+.media > div,
+.slot > div {
   display: block !important;
   width: 100%;
   height: 100%;

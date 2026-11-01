@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -39,6 +40,8 @@ type Config struct {
 	Thumbnail Thumbnail `yaml:"thumbnail"`
 	Kyusu     Kyusu     `yaml:"kyusu"`
 	Jikkyo    Jikkyo    `yaml:"jikkyo"`
+	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
+	AnimeRecords AnimeRecords `yaml:"anime_records"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
 }
@@ -156,6 +159,9 @@ type Storage struct {
 	// DataDir は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置くディレクトリ (設計書 5.6)。
 	// プールを設定するロールでは必ず設定する。プールをマウントするロール (mikan、nekonote、tenban、kyusu) で、同じディレクトリをマウントする。
 	DataDir string `yaml:"data_dir"`
+	// TimeshiftDir は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置くディレクトリ。
+	// 絶対パスで書く。設定するなら DataDir も要る。空なら、タイムシフトのどの処理も動かない。
+	TimeshiftDir string `yaml:"timeshift_dir"`
 }
 
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
@@ -183,6 +189,29 @@ const (
 	// EncoderNVENC は、NVIDIA NVENC。
 	EncoderNVENC = "nvenc"
 )
+
+// AnimeRecords は、見たアニメを記録する先の設定 (#927)。どの記録先と連携するかは、管理者が画面で決める。
+type AnimeRecords struct {
+	// AnnictURL は、Annict の画面と API を向ける先のオリジン。空なら https://annict.com と https://api.annict.com にする。
+	// 本物の記録先の代わりに、検証用のサーバーへ向けるときだけ使う。
+	AnnictURL string `yaml:"annict_url"`
+	// AniListURL は、AniList の画面と API を向ける先のオリジン。空なら https://anilist.co と https://graphql.anilist.co にする。
+	// 本物の記録先の代わりに、検証用のサーバーへ向けるときだけ使う。
+	AniListURL string `yaml:"anilist_url"`
+}
+
+// validate は、anime_records の値の形式を検査する。
+func (a *AnimeRecords) validate() []error {
+	errs := []error{}
+	if err := validateHTTPURL(a.AnnictURL); err != nil {
+		errs = append(errs, fieldError("anime_records.annict_url", err))
+	}
+	if err := validateHTTPURL(a.AniListURL); err != nil {
+		errs = append(errs, fieldError("anime_records.anilist_url", err))
+	}
+
+	return errs
+}
 
 // Jikkyo は、ニコニコ実況の設定 (設計書 7.4)。
 type Jikkyo struct {
@@ -310,9 +339,10 @@ func Default() *Config {
 			RetentionDays: 365,
 		},
 		Storage: Storage{
-			Pools:     map[string]string{},
-			PoolOrder: []string{},
-			DataDir:   "",
+			Pools:        map[string]string{},
+			PoolOrder:    []string{},
+			DataDir:      "",
+			TimeshiftDir: "",
 		},
 		Tuner: Tuner{
 			URL: "",
@@ -328,10 +358,11 @@ func Default() *Config {
 				},
 			},
 		},
-		WebPush:   WebPush{Subject: ""},
-		Thumbnail: Thumbnail{DisablePreview: false},
-		Kyusu:     Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
-		Jikkyo:    Jikkyo{Channels: map[string]string{}},
+		WebPush:      WebPush{Subject: ""},
+		Thumbnail:    Thumbnail{DisablePreview: false},
+		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
+		Jikkyo:       Jikkyo{Channels: map[string]string{}},
+		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: ""},
 	}
 }
 
@@ -386,6 +417,7 @@ func (c *Config) validate() error {
 		errs = append(errs, fieldError("auth.hibp.url", err))
 	}
 	errs = append(errs, c.Auth.OIDC.validate()...)
+	errs = append(errs, c.AnimeRecords.validate()...)
 	if subject := c.WebPush.Subject; subject != "" && !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
 		errs = append(errs, fieldError("web_push.subject", errors.New("must be a mailto: or https:// URI")))
 	}
@@ -403,6 +435,9 @@ func (c *Config) validate() error {
 	if err := c.Storage.validateDataDir(); err != nil {
 		errs = append(errs, fieldError("storage.data_dir", err))
 	}
+	if err := c.Storage.validateTimeshiftDir(); err != nil {
+		errs = append(errs, fieldError("storage.timeshift_dir", err))
+	}
 
 	return errors.Join(errs...)
 }
@@ -417,6 +452,65 @@ func (s *Storage) validateDataDir() error {
 	default:
 		return nil
 	}
+}
+
+// validateTimeshiftDir は、タイムシフトのディレクトリを検査する。空なら、タイムシフトを使わないので何も求めない。
+// データディレクトリやプールと重なると、容量の管理や DB にないファイルを探す機能がチャンクを触るので、重なりを拒む (設計書 5.7)。
+func (s *Storage) validateTimeshiftDir() error {
+	switch {
+	case s.TimeshiftDir == "":
+		return nil
+	case !filepath.IsAbs(s.TimeshiftDir):
+		return errors.New("must be an absolute path")
+	case s.DataDir == "":
+		return errors.New("requires storage.data_dir")
+	case overlaps(s.TimeshiftDir, s.DataDir):
+		return errors.New("must not be the same as, inside, or a parent of storage.data_dir")
+	}
+	for _, id := range slices.Sorted(maps.Keys(s.Pools)) {
+		if overlaps(s.TimeshiftDir, s.Pools[id]) {
+			return fmt.Errorf("must not be the same as, inside, or a parent of the mount point of pool %q", id)
+		}
+	}
+
+	return nil
+}
+
+// overlaps は、絶対パスの a と b が、同じディレクトリか、一方が他方の中にあるかを返す。相対パスなら、重ならないとみなす。
+// 名前の先頭が同じだけの別のディレクトリ (/mnt/main と /mnt/main2) は重ならない。
+func overlaps(a, b string) bool {
+	if !filepath.IsAbs(a) || !filepath.IsAbs(b) {
+		return false
+	}
+	a, b = filepath.Clean(a), filepath.Clean(b)
+
+	return a == b || within(a, b) || within(b, a) || sameOrWithin(a, b) || sameOrWithin(b, a)
+}
+
+// sameOrWithin は、child かその親のどれかが、ファイルシステムの上で parent と同じディレクトリかを返す。
+// 大文字と小文字を区別しないファイルシステム (NTFS、APFS の既定) や、シンボリックリンク、ジャンクションでは、
+// 名前の違うパスが同じディレクトリを指すので、名前だけでは重なりを見逃す (#1097)。まだないディレクトリは、あるところまで遡って比べる。
+// parent がなければ、名前で比べるほかないので、false を返す。
+func sameOrWithin(child, parent string) bool {
+	target, err := os.Stat(parent)
+	if err != nil {
+		return false
+	}
+	for dir := child; ; dir = filepath.Dir(dir) {
+		if info, err := os.Stat(dir); err == nil && os.SameFile(info, target) {
+			return true
+		}
+		if filepath.Dir(dir) == dir {
+			return false
+		}
+	}
+}
+
+// within は、Clean した絶対パスの child が、parent の中にあるかを返す。
+func within(child, parent string) bool {
+	rel, err := filepath.Rel(parent, child)
+
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func validateListen(addr string) error {

@@ -139,7 +139,9 @@ export function SeekBar({
           <div
             // 同じ位置に印が重なることもあるので (冒頭の欠けと、始まってすぐの途切れなど)、並びの番号で見分ける。
             key={index}
-            className={item.to > item.from ? classes.band : classes.mark}
+            className={
+              item.to > item.from ? (item.kind === 'cm' ? classes.cm : classes.band) : classes.mark
+            }
             style={{
               left: `${(Math.min(item.from, max) / max) * 100}%`,
               width:

@@ -82,6 +82,16 @@ func TestMessage(t *testing.T) {
 			want:    "「ドラマ24」は、予定の時間に放送されませんでした。放送されていたのは「ニュース WBS」です",
 		},
 		{name: "材料のない視聴予約", kind: domain.NotificationKindWatchReminder, payload: map[string]any{}, location: tokyo, want: "視聴予約した番組が始まります"},
+		{
+			name: "見たアニメの記録は、番組名と話数と記録先を書く", kind: domain.NotificationKindAnimeRecorded, location: tokyo,
+			payload: map[string]any{keyName: "アニメ　＃３", "destination": "annict", "episodes": "#3、#4"},
+			want:    "「アニメ #3」の#3、#4をAnnictに記録しました",
+		},
+		{
+			name: "記録できなかったときは、理由を添える", kind: domain.NotificationKindAnimeRecordFailed, location: tokyo,
+			payload: map[string]any{keyName: programName, "destination": "anilist", "episodes": "#3", "reason": "連携していません"},
+			want:    "「こたつ特集」の#3をAniListに記録できませんでした（連携していません）",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

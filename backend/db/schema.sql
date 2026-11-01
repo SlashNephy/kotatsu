@@ -328,8 +328,15 @@ CREATE TABLE system_settings (
   notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
   -- MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定では使わせない。
   mcp_enabled boolean NOT NULL DEFAULT false,
+  -- データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定では中継しない。
+  data_broadcast_ip_enabled boolean NOT NULL DEFAULT false,
+  -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
+  -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
+  anime_linking_enabled boolean NOT NULL DEFAULT false,
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
+  -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。
+  drcs_replacements jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 
@@ -340,7 +347,7 @@ CREATE TABLE notification_events (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed'
   )),
   occurred_at timestamptz NOT NULL,
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
@@ -380,7 +387,7 @@ CREATE TABLE notification_preferences (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed'
   )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,
@@ -777,6 +784,10 @@ CREATE TABLE recordings (
   -- 番組情報。録画を始めたときの予約からコピーし、放送後に確定したものに置き換える。
   name text NOT NULL,
   description text NOT NULL,
+  -- NFKC で正規化した番組名と概要 (設計書 3.5)。録画の検索に使う。列を足す前の録画は、kotatsu migrate が埋める。
+  -- 列を知らない古いバイナリが書いた録画では NULL になり、検索では正規化していない番組名と概要に当てる。
+  name_normalized text,
+  description_normalized text,
   start_at timestamptz NOT NULL,
   end_at timestamptz NOT NULL,
   -- 状態は、録画中 (recording)、完了 (completed)、エラーあり完了 (completed_with_errors)、一部のみ (partial)、失敗 (failed) のどれか。
@@ -834,7 +845,9 @@ CREATE TABLE recording_failure_counts (
   )),
   count bigint NOT NULL DEFAULT 0,
   -- 一度も失敗していなければ NULL。
-  last_failed_at timestamptz
+  last_failed_at timestamptz,
+  -- 管理者が累計を 0 に戻した日時 (#1035)。戻していなければ NULL。カウンターの作成の時刻にして、受け手にリセットを伝える。
+  reset_at timestamptz
 );
 
 -- 録画のファイル (設計書 5.2、5.6、8.2)。セグメントは、ストリームを開き直すたびに作る。
@@ -860,6 +873,43 @@ CREATE TABLE recording_files (
 );
 
 CREATE INDEX recording_files_recording_id_idx ON recording_files (recording_id, started_at);
+
+-- 録画中の録画の、書いているセグメントの様子 (#829、設計書 5.3)。mikan が 10 秒ごとに書き、システムの状態の画面と
+-- /metrics が読む。セグメントを閉じたら 0 に戻す (閉じたセグメントの数は、recordings と recording_files に足すため)。
+-- 引き継ぎで 2 つの mikan が同じ録画を書く間は、後から書いた方が残る。
+CREATE TABLE recording_live_stats (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  -- 書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。
+  bytes bigint NOT NULL,
+  drops bigint NOT NULL,
+  errors bigint NOT NULL,
+  scrambled bigint NOT NULL,
+  -- 直前の間隔で書いたビットレート (bps)。
+  bitrate bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 録画の CM の区間を見分けた記録 (設計書 6.1、#479)。nekonote のジョブが、録画を終えた後に、見分け方 (detector) ごとに書く。
+-- 行があれば、見分けたことを表す (CM が見つからなくても書く)。見分け方を直したら版を上げ、古い版の録画を見分け直せるようにする。
+CREATE TABLE recording_cm_detections (
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  detector text NOT NULL,
+  detector_version integer NOT NULL,
+  detected_at timestamptz NOT NULL,
+  PRIMARY KEY (recording_id, detector)
+);
+
+-- 見分けた CM の区間。見分け直したら、同じ見分け方の区間をすべて置き換える。
+-- 始まりと終わりは、録画を始めた日時 (recordings.recorded_from) からのミリ秒。途切れた区間も、時間に含めて数える。
+CREATE TABLE recording_cm_sections (
+  recording_id uuid NOT NULL,
+  detector text NOT NULL,
+  start_offset_ms bigint NOT NULL CHECK (start_offset_ms >= 0),
+  end_offset_ms bigint NOT NULL,
+  PRIMARY KEY (recording_id, detector, start_offset_ms),
+  FOREIGN KEY (recording_id, detector) REFERENCES recording_cm_detections (recording_id, detector) ON DELETE CASCADE,
+  CHECK (end_offset_ms > start_offset_ms)
+);
 
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
@@ -928,6 +978,22 @@ CREATE TABLE guide_views (
 
 CREATE UNIQUE INDEX guide_views_user_id_name_idx ON guide_views (user_id, name);
 
+-- 視聴ルール (設計書 4.8)。条件に一致する番組に、ルールの持ち主の視聴予約を自動で付ける。
+-- 録画のルール (rules) は家族で共有するが、視聴ルールはユーザーごとの個人のものなので、分けて持つ。
+-- 条件は、録画のルールと同じ形 (型付きの JSONB) で持ち、同じ照合関数で照合する。
+CREATE TABLE watch_rules (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  name text NOT NULL,
+  enabled boolean NOT NULL,
+  conditions jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- ユーザーごとに、作った順に引くのに使う。
+CREATE INDEX watch_rules_user_id_created_at_idx ON watch_rules (user_id, created_at, id);
+
 -- 視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
 -- 録画の予約と違ってチューナーを使わない個人のものなので、reservations とは分ける。
 -- 番組は (サービス, eventId) で持ち、放送時間が変わっても通知の時刻が付いていく。番組が EPG から消えたら消す。
@@ -936,11 +1002,57 @@ CREATE TABLE watch_reservations (
   service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
   event_id bigint NOT NULL,
   created_at timestamptz NOT NULL,
+  -- 視聴予約を作った視聴ルール。手で付けた視聴予約では NULL。
+  -- 視聴ルールを消しても視聴予約は残すので、NULL にして、手で付けたものと同じく扱う。
+  watch_rule_id uuid REFERENCES watch_rules (id) ON DELETE SET NULL,
   PRIMARY KEY (user_id, service_id, event_id)
 );
 
 -- 番組ごとに引く (通知のジョブと、番組が消えたときの片付け) のに使う。
 CREATE INDEX watch_reservations_service_id_event_id_idx ON watch_reservations (service_id, event_id);
+
+-- 視聴ルールを消したときに、作った視聴予約を引くのに使う。
+CREATE INDEX watch_reservations_watch_rule_id_idx ON watch_reservations (watch_rule_id);
+
+-- ユーザーが手で外したか、通知を送った視聴予約の番組 (設計書 4.8)。視聴ルールに一致しても、付け直さない。
+-- 番組が programs からなくなったら (アーカイブに移ったか、EPG から消えたら)、照合のときに消す。
+CREATE TABLE watch_rule_dismissals (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  event_id bigint NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id, event_id)
+);
+
+-- キャプチャ (設計書 7.5、#908)。視聴画面で撮った画像を、撮ったユーザーだけのものとして残す。画像は、データディレクトリの
+-- 「captures/ユーザーの ID/キャプチャの ID.png」に置き、行には撮った場面の情報を持つ。枚数の上限は設けない。
+CREATE TABLE captures (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- 録画で撮ったときの録画。録画を消してもキャプチャは残すので、NULL にする。ライブとタイムシフトで撮ったものも NULL。
+  recording_id uuid REFERENCES recordings (id) ON DELETE SET NULL,
+  -- 録画で撮ったときの、録画の始まりからの再生位置 (ミリ秒)。撮った場面から再生するのに使う。
+  position_ms bigint CHECK (position_ms >= 0),
+  service_name text NOT NULL,
+  -- 番組名。番組が分からなければ NULL。
+  program_name text,
+  -- NFKC で正規化したサービス名と番組名 (設計書 3.5)。キャプチャを探すのに使う。番組名が分からなければ空にする。
+  service_name_normalized text NOT NULL,
+  program_name_normalized text NOT NULL,
+  -- 撮ったときに出ていた字幕の文 (#458)。出ていなければ NULL。
+  caption text,
+  -- 撮った場面の放送時刻と、撮った時刻 (端末の時計)。
+  broadcast_at timestamptz NOT NULL,
+  taken_at timestamptz NOT NULL,
+  -- 画像の大きさ (バイト)。
+  size bigint NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+-- ユーザーのキャプチャを、新しい順に引くのに使う。
+CREATE INDEX captures_user_id_created_at_idx ON captures (user_id, created_at DESC, id DESC);
+-- 録画を消したときに、録画の参照を NULL にするのに使う。
+CREATE INDEX captures_recording_id_idx ON captures (recording_id);
 
 -- ほかの録画ソフトから取り込んだデータの、取り込み元の ID と、取り込んで作った行の対応 (設計書 6.3)。
 -- 取り込みを何度実行しても、同じデータを二重に取り込まないために使う。
@@ -956,4 +1068,352 @@ CREATE TABLE import_sources (
   target_id uuid NOT NULL,
   created_at timestamptz NOT NULL,
   PRIMARY KEY (source, kind, source_id)
+);
+
+-- タイムシフトで常時録るチャンネルと、その保持時間 (設計書 5.7)。管理者が画面から設定する。行がなくなったチャンネルは、録るのをやめ、録ったチャンクも破棄する。
+CREATE TABLE timeshift_channels (
+  service_id bigint PRIMARY KEY REFERENCES services (id) ON DELETE CASCADE,
+  -- どれだけ過去まで遡れるようにするか。範囲は 10 分から 24 時間。
+  retention_seconds integer NOT NULL CHECK (retention_seconds BETWEEN 600 AND 86400),
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL
+);
+
+-- タイムシフトの mikan への割り振り (設計書 5.7)。recording_assignments と同じ仕組みで、neko がチューナーの空きを見て書き、mikan が行をロックして取り、リースを延長しながら録る。
+-- 録画と違って終わりがないので、行は予約ではなくサービスに紐づく。録るのをやめるときは、neko が行を消す。
+CREATE TABLE timeshift_assignments (
+  id uuid PRIMARY KEY,
+  service_id bigint NOT NULL UNIQUE REFERENCES services (id) ON DELETE CASCADE,
+  -- チューナーサーバーに渡す優先度 (設計書 1.6)。録画にも視聴にも譲るので低くする。
+  priority integer NOT NULL,
+  -- 状態は、mikan を待つ (waiting)、録っている (recording)、引き継ぎ待ち (handover)、終わった (finished) のどれか。
+  state text NOT NULL CHECK (state IN ('waiting', 'recording', 'handover', 'finished')),
+  -- mikan が取るたびに上げる世代番号。古い mikan は、リースの延長に失敗した時点で書き込みをやめる。
+  generation bigint NOT NULL,
+  -- 担当の mikan のインスタンスと、リースの期限。誰も取っていなければ NULL。
+  holder uuid,
+  lease_expires_at timestamptz,
+  -- ストリームを開いた mikan の世代番号。引き継ぎ待ちの古い mikan は、これが自分の世代より進んだら、ストリームを閉じる (設計書 5.4)。
+  stream_generation bigint NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- タイムシフトで録ったチャンク (設計書 5.7)。mikan が一定の長さで区切って書いたファイルを、1 行ずつ記録する。
+-- ended_at が NULL のチャンクは、書いている途中。破棄のジョブは、保持時間を過ぎたものか、チャンネルの設定がなくなったものを消す。
+CREATE TABLE timeshift_chunks (
+  id uuid PRIMARY KEY,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  -- タイムシフト用のディレクトリからの相対パス。
+  path text NOT NULL UNIQUE,
+  size bigint NOT NULL,
+  started_at timestamptz NOT NULL,
+  ended_at timestamptz,
+  created_at timestamptz NOT NULL
+);
+CREATE INDEX timeshift_chunks_service_started_at_idx ON timeshift_chunks (service_id, started_at);
+
+-- タイムシフトで録っている間の、放送中の番組の履歴 (設計書 5.7)。チャンクの時間軸に番組名を重ねて見せるのに使う。
+-- 番組の変わり目を mikan が記録するので、ended_at が NULL の行が、今放送中の番組。
+CREATE TABLE timeshift_programs (
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  started_at timestamptz NOT NULL,
+  event_id bigint NOT NULL,
+  name text NOT NULL,
+  ended_at timestamptz,
+  PRIMARY KEY (service_id, started_at)
+);
+
+-- タイムシフトのバッファから録画に昇格している、放送の終わった番組 (#1057、設計書 5.7)。nekonote のジョブが書き出し終えたら消す。
+-- 行のある間は、破棄のジョブが、from_at から to_at までと重なるチャンクを消さない。neko も、録画中のまま残った録画として失敗にしない。
+CREATE TABLE timeshift_promotions (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  -- 書き出す範囲。番組の始まりから終わりに、前後のマージンを足したもの。
+  from_at timestamptz NOT NULL,
+  to_at timestamptz NOT NULL,
+  -- 昇格したユーザー。完了の通知を届ける。ユーザーを消したら NULL にし、全員に届ける。
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL,
+  -- 同じ番組を二重に昇格しない。
+  UNIQUE (service_id, from_at)
+);
+
+-- しょぼいカレンダーのタイトルの一覧 (設計書 3.8)。しょぼいカレンダーで引けない番組の番組名を解析し、作品名から TID を引くのに使う。
+-- nekonote のジョブが 1 日ごとに、前に取り込んでから更新されたタイトルを取り込む。
+CREATE TABLE syobocal_titles (
+  tid integer PRIMARY KEY,
+  title text NOT NULL,
+  -- 作品名を引く鍵。NFKC で正規化し、空白を除き、小文字にしたもの。
+  title_key text NOT NULL,
+  last_update timestamptz
+);
+CREATE INDEX syobocal_titles_title_key_idx ON syobocal_titles (title_key);
+
+-- アニメの番組と作品の結びつき (設計書 3.8)。saya-definitions から取り込んだ、放送のサービスと、
+-- しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応。nekonote のジョブが 1 日ごとに取り込み直す。
+-- saya-definitions は地上波のネットワーク ID を持たない (地域で違う) ので、地上波の行は network_id を 0 にし、
+-- 種別とサービス ID で照らし合わせる。BS と CS は、ネットワーク ID とサービス ID で照らし合わせる。
+CREATE TABLE anime_channel_definitions (
+  channel_type text NOT NULL,
+  network_id bigint NOT NULL,
+  sid bigint NOT NULL,
+  -- saya-definitions のチャンネルの名前。画面で、対応の出どころを示すのに使う。
+  name text NOT NULL,
+  syobocal_channel_id integer,
+  annict_channel_id integer,
+  PRIMARY KEY (channel_type, network_id, sid)
+);
+
+-- 管理者が画面で上書きした、サービスとしょぼいカレンダーの ChID、Annict のチャンネルの対応 (設計書 3.8)。
+-- 項目ごとに上書きし、NULL の項目は取り込んだ対応を使う。取り込み直しても消さない。
+CREATE TABLE anime_channel_overrides (
+  service_id bigint PRIMARY KEY REFERENCES services (id) ON DELETE CASCADE,
+  syobocal_channel_id integer CHECK (syobocal_channel_id > 0),
+  annict_channel_id integer CHECK (annict_channel_id > 0),
+  updated_at timestamptz NOT NULL,
+  CHECK (syobocal_channel_id IS NOT NULL OR annict_channel_id IS NOT NULL)
+);
+
+-- arm と arm-supplementary から取り込んだ、しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応 (設計書 3.8)。
+-- 1 つの TID に複数の作品が対応することがある (分割された作品など) ので、TID ごとに並びの番号 (position) を振る。
+-- 取り込み元ごとに行を持ち、取り込み直すときは、その取り込み元の行だけを入れ替える。
+-- 読むときは、TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を使う。
+CREATE TABLE anime_works (
+  source text NOT NULL CHECK (source IN ('arm', 'arm_supplementary')),
+  syobocal_tid integer NOT NULL,
+  position smallint NOT NULL,
+  annict_work_id integer,
+  anilist_id integer,
+  mal_id integer,
+  PRIMARY KEY (source, syobocal_tid, position)
+);
+CREATE INDEX anime_works_syobocal_tid_idx ON anime_works (syobocal_tid);
+-- 見たいリストの作品 (#928) から、TID を引くのに使う。
+CREATE INDEX anime_works_annict_work_id_idx ON anime_works (annict_work_id) WHERE annict_work_id IS NOT NULL;
+CREATE INDEX anime_works_anilist_id_idx ON anime_works (anilist_id) WHERE anilist_id IS NOT NULL;
+
+-- 連携先の情報を取り込んだ様子 (設計書 3.8)。取り込み元ごとに 1 行。管理者の画面に出す。
+CREATE TABLE anime_imports (
+  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'arm_supplementary', 'syobocal_titles')),
+  -- 最後に取り込んだ内容の ETag。変わっていなければ、取り込み元は 304 を返し、読み直さない。
+  etag text,
+  -- 最後に問い合わせた日時。1 日ごとの取り込みは、これから決める。
+  checked_at timestamptz NOT NULL,
+  -- 最後に取り込めた日時と、そのときの件数。一度も取り込めていなければ NULL と 0。
+  imported_at timestamptz,
+  item_count integer NOT NULL,
+  -- 最後の問い合わせが失敗した理由。成功したら NULL に戻す。
+  error text
+);
+
+-- しょぼいカレンダーの放送時間データ (ProgLookup の ProgItem) のキャッシュ (設計書 3.8)。
+-- 番組ごとではなく、ChID と期間ごとにまとめて引いたものを、PID ごとに持つ。放送時間は、db.php が返した StTime と EdTime のまま持つ。
+CREATE TABLE syobocal_programs (
+  pid integer PRIMARY KEY,
+  tid integer NOT NULL,
+  channel_id integer NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  -- StOffset (秒)。実際の放送は、start_at と end_at をこれだけずらしたもの。
+  offset_seconds integer NOT NULL,
+  -- 話数。話数のない放送 (特番など) では空。
+  count text NOT NULL,
+  -- 放送時間データのサブタイトル (複数話の放送では "#1～#2" の形) と、タイトルのサブタイトルの表から引いたサブタイトル。
+  sub_title text NOT NULL,
+  st_sub_title text NOT NULL,
+  flag integer NOT NULL,
+  deleted boolean NOT NULL,
+  fetched_at timestamptz NOT NULL
+);
+CREATE INDEX syobocal_programs_channel_id_start_at_idx ON syobocal_programs (channel_id, start_at);
+CREATE INDEX syobocal_programs_end_at_idx ON syobocal_programs (end_at);
+
+-- ChID と日 (日本時間) ごとに、最後にしょぼいカレンダーの放送時間データを引いた日時 (設計書 3.8)。キャッシュが古いかを決めるのに使う。
+CREATE TABLE syobocal_lookups (
+  channel_id integer NOT NULL,
+  -- 日本時間の日の始まり。
+  day_start timestamptz NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (channel_id, day_start)
+);
+
+-- 番組を照合した記録 (設計書 3.8)。どの話にも結びつかなかった番組も、照合したことを残す。
+-- programs の主キーの EID は使い回され、番組はアーカイブへも移るので、programs とは別に、サービスと開始時刻で持つ。
+-- アーカイブへ移す処理には手を入れずに、過去の番組の結びつきも残る。
+CREATE TABLE program_anime_matches (
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  start_at timestamptz NOT NULL,
+  -- 照合したときの番組のイベント ID。放送時間が変わった番組の、前の結びつきを消すのに使う。
+  event_id bigint NOT NULL,
+  matched_at timestamptz NOT NULL,
+  -- 放送が終わった後に照合し直し、結びつきを確定させた日時。確定させた番組は、それからは照合し直さない。
+  finalized_at timestamptz,
+  PRIMARY KEY (service_id, start_at)
+);
+CREATE INDEX program_anime_matches_service_id_event_id_idx ON program_anime_matches (service_id, event_id);
+
+-- 番組に結びついた話 (設計書 3.8)。2 話連続の放送のように、1 つの番組が複数の話に結びつくので、番組と話は 1 対多にする。
+-- Annict や AniList の作品 ID は持たず、TID から作品 ID の対応 (anime_works) を引く。arm が後から直っても、過去の番組まで直る。
+CREATE TABLE program_anime_episodes (
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  -- 番組の中での並びの番号。放送の順に 0 から振る。
+  position smallint NOT NULL,
+  -- 結びつけた出どころ。syobocal はしょぼいカレンダーの放送時間データ、title は番組名の解析。
+  source text NOT NULL CHECK (source IN ('syobocal', 'title')),
+  syobocal_tid integer,
+  syobocal_pid integer,
+  -- 話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では NULL。
+  count_start double precision,
+  count_end double precision,
+  subtitle text,
+  -- しょぼいカレンダーの [新] と [終] の印。
+  is_first boolean NOT NULL,
+  is_last boolean NOT NULL,
+  PRIMARY KEY (service_id, start_at, position),
+  FOREIGN KEY (service_id, start_at) REFERENCES program_anime_matches (service_id, start_at) ON DELETE CASCADE
+);
+
+-- 番組の照合が読み終えた、EPG の変更の記録 (epg_changes) の版数 (設計書 3.8)。1 行だけ持つ。
+CREATE TABLE anime_match_cursor (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  epg_version bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 録画に写した、番組の結びつき (設計書 3.8)。解像度と同じく (設計書 3.3)、録画を始めたときの番組の結びつきを写す。
+-- EPGStation から取り込んだ録画は、nekonote のジョブが、サービスと開始時刻から照合して書く。行があれば、照合したか写したことを表す。
+CREATE TABLE recording_anime_matches (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  matched_at timestamptz NOT NULL
+);
+
+-- 録画に結びついた話 (設計書 3.8)。列は program_anime_episodes と同じ。
+CREATE TABLE recording_anime_episodes (
+  recording_id uuid NOT NULL REFERENCES recording_anime_matches (recording_id) ON DELETE CASCADE,
+  position smallint NOT NULL,
+  source text NOT NULL CHECK (source IN ('syobocal', 'title')),
+  syobocal_tid integer,
+  syobocal_pid integer,
+  count_start double precision,
+  count_end double precision,
+  subtitle text,
+  is_first boolean NOT NULL,
+  is_last boolean NOT NULL,
+  PRIMARY KEY (recording_id, position)
+);
+
+-- 管理者が Annict と AniList に登録したアプリ (#927)。利用者は、このアプリで認可して、見たアニメを記録させる。
+-- クライアントシークレットは、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、その記録先には繋げない。
+CREATE TABLE anime_record_apps (
+  destination text PRIMARY KEY CHECK (destination IN ('annict', 'anilist')),
+  client_id text NOT NULL,
+  client_secret_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 記録先への認可の途中の状態 (#927)。認可を始めたセッションのまま戻ってきたことを確かめるため、セッションを持つ。
+-- state は、SHA-256 だけを持つ。戻ってきたら、引くと同時に消す。
+CREATE TABLE anime_record_authorizations (
+  id uuid PRIMARY KEY,
+  state_hash bytea NOT NULL UNIQUE,
+  session_id uuid NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),
+  code_verifier text NOT NULL,
+  -- 記録先に渡したリダイレクト URI。トークンと引き換えるときに、同じ値を渡す。
+  redirect_uri text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+CREATE INDEX anime_record_authorizations_expires_at_idx ON anime_record_authorizations (expires_at);
+
+-- ユーザーごとの、記録先との連携 (#927)。アクセストークンは、アプリの秘密キーで暗号化する (設計書 8.4)。
+CREATE TABLE anime_record_connections (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),
+  access_token_encrypted bytea NOT NULL,
+  -- 記録先のアカウントの名前。設定の画面に、どのアカウントと連携したかを出す。
+  account_name text NOT NULL,
+  connected_at timestamptz NOT NULL,
+  -- 見たいリストを取り込んだ様子 (#928)。最後に問い合わせた日時、最後に取り込めた日時、最後の問い合わせが失敗した理由。
+  -- 一度も問い合わせていなければ NULL。取り込めたら、理由を NULL に戻す。
+  wishlist_checked_at timestamptz,
+  wishlist_imported_at timestamptz,
+  wishlist_error text,
+  -- 取り込めなかった見たいリストを、問い合わせ直す日時。記録先が 429 で Retry-After を返したら、その長さ (1 時間まで) だけ待つ。
+  wishlist_retry_at timestamptz,
+  PRIMARY KEY (user_id, destination)
+);
+
+-- ユーザーごとの、記録の設定 (#927)。行がなければ既定値を使う。
+CREATE TABLE anime_record_settings (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  -- 番組の長さのうち、何 % を見たら記録するか。
+  threshold_percent smallint NOT NULL DEFAULT 20 CHECK (threshold_percent BETWEEN 1 AND 100),
+  -- 作品の状態を変えるかどうか。第 1 話 ([新]) を見たら「見てる」、最終話 ([終]) 以外を見たら「見てる」、最終話を見たら「見た」にする。
+  watching_on_first boolean NOT NULL DEFAULT false,
+  watching_on_episode boolean NOT NULL DEFAULT false,
+  watched_on_last boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL
+);
+
+-- ユーザーが番組を見た区間 (#927)。プレイヤーが送った、実際に再生した放送の時刻の区間を、番組ごとに重ねずにまとめる。
+-- 番組は、program_anime_episodes と同じく、サービスと開始時刻で指す。ライブ視聴と録画の再生で見た区間は、同じ行にまとめる。
+CREATE TABLE anime_watch_progress (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  -- 見た区間。[[始まりの UNIX ミリ秒, 終わりの UNIX ミリ秒], ...] の形で、重ならないよう始まりの順に並べる。
+  played jsonb NOT NULL,
+  -- 見た区間の長さの合計 (ミリ秒)。
+  played_ms bigint NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id, start_at)
+);
+CREATE INDEX anime_watch_progress_updated_at_idx ON anime_watch_progress (updated_at);
+
+-- 記録先に送る、1 話ごとの記録 (#927)。同じユーザー、番組、話、記録先の組は 1 回だけ記録する。
+-- 送れたら recorded にし、見直しても送り直さない。送れなければ、River の再試行で送り直し、諦めたら failed にする。
+CREATE TABLE anime_records (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),
+  syobocal_tid integer NOT NULL,
+  -- 話数。話数のない放送 (劇場版など) では NULL。
+  episode_number double precision,
+  subtitle text,
+  is_first boolean NOT NULL,
+  is_last boolean NOT NULL,
+  -- 通知に出す番組名。
+  program_name text NOT NULL,
+  state text NOT NULL CHECK (state IN ('pending', 'recorded', 'failed')),
+  -- 記録した作品かエピソードの、記録先のページ。
+  url text,
+  -- 記録できなかった理由。
+  error text,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  UNIQUE NULLS NOT DISTINCT (user_id, service_id, start_at, destination, syobocal_tid, episode_number)
+);
+
+-- ユーザーが Annict と AniList で「見たい」「見てる」にした作品 (#928)。記録先との連携 (#927) のトークンで、nekonote のジョブが取り込む。
+-- 作品は、記録先の作品 ID だけを持ち、TID は使うときに作品 ID の対応 (anime_works) から引く。arm が後から直っても、候補まで直る。
+-- 取り込み直すときは、ユーザーと記録先の行をすべて入れ替える。連携を外すと、行も消える。
+CREATE TABLE anime_wishlist_entries (
+  user_id uuid NOT NULL,
+  destination text NOT NULL,
+  -- 記録先の作品 ID。Annict の作品 ID か、AniList の ID。
+  work_id integer NOT NULL,
+  -- 見たい (wanna_watch。AniList の PLANNING) か、見てる (watching。AniList の CURRENT)。
+  status text NOT NULL CHECK (status IN ('wanna_watch', 'watching')),
+  -- 記録先の作品名。候補の見出しと、作るルールの名前に使う。
+  title text NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, destination, work_id),
+  FOREIGN KEY (user_id, destination) REFERENCES anime_record_connections (user_id, destination) ON DELETE CASCADE
 );

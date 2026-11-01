@@ -1,7 +1,10 @@
 // 画面で日時を表すタイムゾーン (設計書 8.1、#504)。サーバーの設定 (time_zone) に合わせる。
 // 起動するときに読み込み (loadTimeZone)、それまでと、読めなかったときは、既定の Asia/Tokyo を使う。
 
+import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
+
+import { dateLocale } from '../i18n/language';
 
 export const defaultTimeZone = 'Asia/Tokyo';
 
@@ -29,14 +32,20 @@ export type ZonedFormat = { format: (date?: Date | number) => string };
 
 // zonedFormat は、options の書式で、今のタイムゾーンの日時を書く ZonedFormat を返す。
 // 書式は、モジュールを読み込んだとき (タイムゾーンを読み込む前) に作られるので、書くときにタイムゾーンを選ぶ。
+// locale を渡さなければ、画面の言語の書式で書く (#831)。
 export function zonedFormat(
   options: Omit<Intl.DateTimeFormatOptions, 'timeZone'>,
-  locale = 'ja-JP',
+  locale?: string,
 ): ZonedFormat {
-  let cached: { zone: string; format: Intl.DateTimeFormat } | null = null;
+  let cached: { zone: string; locale: string; format: Intl.DateTimeFormat } | null = null;
   const current = () => {
-    if (cached?.zone !== zone) {
-      cached = { zone, format: new Intl.DateTimeFormat(locale, { ...options, timeZone: zone }) };
+    const resolved = locale ?? dateLocale(i18next.language);
+    if (cached?.zone !== zone || cached.locale !== resolved) {
+      cached = {
+        zone,
+        locale: resolved,
+        format: new Intl.DateTimeFormat(resolved, { ...options, timeZone: zone }),
+      };
     }
 
     return cached.format;

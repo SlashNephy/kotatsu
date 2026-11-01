@@ -1,4 +1,6 @@
+import { demoAnimeEpisodes } from './anime';
 import { demoStreamURL, type DemoProgram } from './epg';
+import { demoCommentsPath } from './jikkyo';
 
 // デモの録画 (#857)。放送が終わった番組から、ルールに当てはまるものなどを録画済みとして置く。
 // 録画のファイルはなく、映像は、どの録画もデモの映像 (demoStreamURL) を流す。
@@ -148,9 +150,12 @@ export function createRecordings(options: {
         },
       ],
       gaps: [],
+      // デモの録画の映像は CM を含まないので、CM の区間はない。
+      cmSections: [],
       audios: program.audios,
       videoFormat: program.service.videoFormat,
       genres: program.genres,
+      animeEpisodes: demoAnimeEpisodes(program),
       rule: () => (recording.rule === undefined ? null : ruleView(recording.rule.id)),
       // ruleName は、ルールを消しても残る、録画したときのルールの名前。
       ruleName: recording.rule?.name ?? null,
@@ -176,8 +181,8 @@ export function createRecordings(options: {
       thumbnailUrl: thumbnail(program),
       previewUrl: null,
       watchFrame: null,
-      // デモの局は実況を持たないので、画面は実況の過去ログを読まない。
-      jikkyoCommentsUrl: '',
+      // 実況の過去ログは、src/demo/index.ts が架空のコメントを返す (src/demo/jikkyo.ts)。
+      jikkyoCommentsUrl: demoCommentsPath,
       streamUrl: demoStreamURL,
     };
   };

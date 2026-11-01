@@ -20,8 +20,8 @@ export function bubbleLeft(offset: number, width: number, bubble: number): numbe
 }
 
 // SeekBand は、シークバーに示す区間 (#479)。from と to は、録画の始まりからの秒。同じなら、その位置の印にする。
-// label は、カーソルを乗せたときに、吹き出しに添える文。
-export type SeekBand = { from: number; to: number; label: string };
+// label は、カーソルを乗せたときに、吹き出しに添える文。kind が cm なら、CM とみなした区間として、ほかの区間と違う色で示す。
+export type SeekBand = { from: number; to: number; label: string; kind?: 'cm' };
 
 // bandAt は、seconds の位置にある区間を返す。印 (長さのない区間) は、前後 tolerance 秒の内なら当たったとみなす。なければ null。
 export function bandAt(

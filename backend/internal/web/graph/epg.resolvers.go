@@ -43,6 +43,11 @@ func (r *programResolver) SharedFrom(ctx context.Context, obj *model.Program) (*
 	return toService(row), nil
 }
 
+// Recordings is the resolver for the recordings field.
+func (r *programResolver) Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error) {
+	return r.programRecordings(ctx, obj)
+}
+
 // Node is the resolver for the node field.
 func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error) {
 	typeName, raw, err := ParseGlobalID(id)
@@ -100,13 +105,8 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		return r.reservation(ctx, id)
 	case ruleType:
 		return r.rule(ctx, id)
-	case guideViewType:
-		view, err := r.guideView(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-
-		return toGuideView(view)
+	case guideViewType, watchRuleType:
+		return r.ownNode(ctx, typeName, id)
 	default:
 		return nil, NewError(CodeBadUserInput, "unknown type "+typeName)
 	}
@@ -209,11 +209,27 @@ func (r *queryResolver) Guide(ctx context.Context, from time.Time, to time.Time,
 		}
 		byService[programs[i].ServiceID].Programs = append(byService[programs[i].ServiceID].Programs, program)
 	}
+	// 過去の時間帯なら、放送が終わった番組 (過去の番組) も足す (#1121、設計書 3.4)。
+	if from.Before(r.clock.Now()) {
+		if err := r.addArchivedPrograms(ctx, byService, keys, from, to); err != nil {
+			return nil, err
+		}
+	}
 	if guideView != nil {
 		return r.applyGuideView(rows, guideView)
 	}
 
 	return rows, nil
+}
+
+// OldestArchivedProgramAt is the resolver for the oldestArchivedProgramAt field.
+func (r *queryResolver) OldestArchivedProgramAt(ctx context.Context) (*time.Time, error) {
+	startAt, ok, err := r.oldestArchivedProgramAt(ctx)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	return &startAt, nil
 }
 
 // ChannelType is the resolver for the channelType field.

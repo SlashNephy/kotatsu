@@ -21,3 +21,6 @@ class ResizeObserverStub {
   disconnect() {}
 }
 window.ResizeObserver = ResizeObserverStub;
+
+// 画面の言語はブラウザの言語の設定で選ぶ (#831)。jsdom は英語なので、日本語の文言を確かめるテストのために日本語にする。
+Object.defineProperty(navigator, 'languages', { configurable: true, value: ['ja-JP'] });

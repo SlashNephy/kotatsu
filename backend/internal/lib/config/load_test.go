@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,10 +26,16 @@ const (
 
 	envKeyURL   = "KOTATSU_DATABASE_URL"
 	envKeyPools = "KOTATSU_STORAGE_POOLS"
+	// envKeyDataDir と envKeyTimeshiftDir は、データディレクトリとタイムシフト用のディレクトリを渡す環境変数。
+	envKeyDataDir      = "KOTATSU_STORAGE_DATA_DIR"
+	envKeyTimeshiftDir = "KOTATSU_STORAGE_TIMESHIFT_DIR"
 	// poolMain は、プールの設定を確かめるテストで使うプール ID。
 	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
 	envKeyTunerURL = "KOTATSU_TUNER_URL"
+	// errTimeshiftOverlapsDataDir と errTimeshiftOverlapsMain は、タイムシフトのディレクトリが、データディレクトリかプール main と重なるときのエラー。
+	errTimeshiftOverlapsDataDir = "storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must not be the same as, inside, or a parent of storage.data_dir"
+	errTimeshiftOverlapsMain    = `storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must not be the same as, inside, or a parent of the mount point of pool "main"`
 	// leakedWord は、エラーに漏れてはいけない、URL に含めた資格情報の一部。
 	leakedWord = "hunter2"
 
@@ -356,13 +364,33 @@ func TestLoadStorage(t *testing.T) {
 			name: "env replaces storage pools in yaml",
 			yaml: "storage:\n  pools:\n    main: /mnt/main\n",
 			env: map[string]string{
-				envKeyURL:                  envURL,
-				envKeyPools:                "main=/data/main, archive=/data/archive",
-				"KOTATSU_STORAGE_DATA_DIR": "/data/kotatsu",
+				envKeyURL:     envURL,
+				envKeyPools:   "main=/data/main, archive=/data/archive",
+				envKeyDataDir: "/data/kotatsu",
 			},
 			// 環境変数は設定ファイルの対応を丸ごと置き換えるので、順も環境変数に書いた順になる。
 			want: config.Storage{
 				Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}, DataDir: "/data/kotatsu",
+			},
+		},
+		{
+			name: "env sets the timeshift directory",
+			env: map[string]string{
+				envKeyURL:          envURL,
+				envKeyDataDir:      "/srv/kotatsu",
+				envKeyTimeshiftDir: "/data/timeshift",
+			},
+			want: config.Storage{
+				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: "/srv/kotatsu", TimeshiftDir: "/data/timeshift",
+			},
+		},
+		{
+			// 名前の先頭が同じでも、別のディレクトリなら重ならない。
+			name: "timeshift directory next to the pool and the data directory",
+			yaml: "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /mnt/main-data\n  timeshift_dir: /mnt/main2\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Storage{
+				Pools: map[string]string{poolMain: "/mnt/main"}, PoolOrder: []string{poolMain}, DataDir: "/mnt/main-data", TimeshiftDir: "/mnt/main2",
 			},
 		},
 	}
@@ -370,9 +398,12 @@ func TestLoadStorage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := config.Load(writeFile(t, t.TempDir(), "config.yaml", tt.yaml), lookup(tt.env))
+			cfg, err := config.Load(writeFile(t, t.TempDir(), "config.yaml", nativePaths(tt.yaml)), lookup(nativeEnv(tt.env)))
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, cfg.Storage)
+			want := tt.want
+			want.Pools = nativeEnv(want.Pools)
+			want.DataDir, want.TimeshiftDir = nativePaths(want.DataDir), nativePaths(want.TimeshiftDir)
+			assert.Equal(t, want, cfg.Storage)
 		})
 	}
 }
@@ -813,6 +844,60 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErrs: []string{"storage.data_dir (KOTATSU_STORAGE_DATA_DIR): must be an absolute path"},
 		},
 		{
+			name:     "relative timeshift directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: var/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must be an absolute path"},
+		},
+		{
+			name:     "timeshift directory without the data directory",
+			yaml:     "storage:\n  timeshift_dir: /var/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{"storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): requires storage.data_dir"},
+		},
+		{
+			name:     "timeshift directory same as the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /var/lib/kotatsu/\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory inside the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /var/lib/kotatsu/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory containing the data directory",
+			yaml:     "storage:\n  data_dir: /var/lib/kotatsu/data\n  timeshift_dir: /var/lib/kotatsu/../kotatsu\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory same as a pool",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt/main\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsMain},
+		},
+		{
+			name:     "timeshift directory inside a pool",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt/main/timeshift\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsMain},
+		},
+		{
+			name:     "root timeshift directory containing everything",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n    sub: /srv/sub\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsDataDir},
+		},
+		{
+			name:     "timeshift directory containing a pool but not the data directory",
+			yaml:     "storage:\n  pools:\n    main: /mnt/main\n    sub: /mnt/sub\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{errTimeshiftOverlapsMain},
+		},
+		{
 			name: "malformed pools in env",
 			env: map[string]string{
 				envKeyURL:   envURL,
@@ -845,10 +930,10 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 
 			path := ""
 			if tt.yaml != "" {
-				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+				path = writeFile(t, t.TempDir(), "config.yaml", nativePaths(tt.yaml))
 			}
 
-			_, err := config.Load(path, lookup(tt.env))
+			_, err := config.Load(path, lookup(nativeEnv(tt.env)))
 			require.Error(t, err)
 			for _, want := range tt.wantErrs {
 				assert.ErrorContains(t, err, want)
@@ -928,4 +1013,70 @@ func writeFile(t *testing.T, dir, name, content string) string {
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 
 	return path
+}
+
+// TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath は、タイムシフト用のディレクトリが、名前の上では重ならなくても、
+// ファイルシステムが同じディレクトリとみなすものの中にあれば、拒否することを確かめる (#1097)。
+// 大文字と小文字を区別しない NTFS や APFS では、大文字と小文字だけが違うパスが同じディレクトリになる。その代わりに、シンボリックリンクを置く。
+func TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	pool := filepath.Join(root, "main")
+	require.NoError(t, os.Mkdir(pool, 0o755))
+	require.NoError(t, os.Symlink(pool, filepath.Join(root, "alias")))
+
+	tests := []struct {
+		name         string
+		timeshiftDir string
+		wantErr      bool
+	}{
+		{name: "プールの中を別のパスで指す", timeshiftDir: filepath.Join(root, "alias", "timeshift"), wantErr: true},
+		{name: "プールそのものを別のパスで指す", timeshiftDir: filepath.Join(root, "alias"), wantErr: true},
+		{name: "重ならない", timeshiftDir: filepath.Join(root, "timeshift"), wantErr: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := config.Load("", lookup(map[string]string{
+				envKeyURL:          envURL,
+				envKeyPools:        "main=" + pool,
+				envKeyDataDir:      filepath.Join(root, "data"),
+				envKeyTimeshiftDir: tt.timeshiftDir,
+			}))
+			if tt.wantErr {
+				require.ErrorContains(t, err, errTimeshiftOverlapsMain)
+
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+// rootedPath は、テストの値の中の、/ から始まる絶対パス。
+var rootedPath = regexp.MustCompile(`(^|[\s=,])/`)
+
+// nativePaths は、テストの値の中の、/ から始まる絶対パスを、この OS の絶対パスにする。
+// Windows では、/mnt/main はドライブ文字がないので絶対パスにならない。C: を前に付ける。ほかの OS では、そのまま返す。
+func nativePaths(s string) string {
+	if runtime.GOOS != "windows" {
+		return s
+	}
+
+	return rootedPath.ReplaceAllString(s, "${1}C:/")
+}
+
+// nativeEnv は、値の中の絶対パスを nativePaths で直した写しを返す。
+func nativeEnv(env map[string]string) map[string]string {
+	if env == nil {
+		return nil
+	}
+	native := make(map[string]string, len(env))
+	for k, v := range env {
+		native[k] = nativePaths(v)
+	}
+
+	return native
 }

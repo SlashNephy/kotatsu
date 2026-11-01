@@ -38,12 +38,19 @@ func (r *Resolver) streamQuality(ctx context.Context, obj *model.Recording) ([]*
 			}
 			sum, ok := byPID[int(stat.PID)]
 			if !ok {
-				sum = &model.StreamQuality{Pid: int(stat.PID), Kind: kind, Packets: 0, Drops: 0, Errors: 0, Scrambled: 0}
+				sum = &model.StreamQuality{Pid: int(stat.PID), Kind: kind, Packets: 0, Drops: 0, Errors: 0, Scrambled: 0, StreamType: nil, ComponentTag: nil}
 				byPID[int(stat.PID)] = sum
 			}
 			// セグメントによって PMT を読めていないことがあるので、種類の分かったものを使う。
 			if sum.Kind == model.StreamKindUnknown {
 				sum.Kind = kind
+			}
+			// stream_type と component_tag も、分かったものを使う。
+			if sum.StreamType == nil && stat.StreamType != nil {
+				sum.StreamType = new(int(*stat.StreamType))
+			}
+			if sum.ComponentTag == nil && stat.ComponentTag != nil {
+				sum.ComponentTag = new(int(*stat.ComponentTag))
 			}
 			sum.Packets += stat.Packets
 			sum.Drops += stat.Drops

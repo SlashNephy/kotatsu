@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<16646719afac0a8c47d3b0ab2c31d935>>
+ * @generated SignedSource<<eec94db3405c1359ce9111ce8ac20d38>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type NotificationKind = "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type notificationsSettingsQuery$variables = Record<PropertyKey, never>;
 export type notificationsSettingsQuery$data = {
   readonly notificationPreferences: ReadonlyArray<{

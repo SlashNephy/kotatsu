@@ -74,3 +74,34 @@ extend type Query {
   "サーバー側でのトランスコードを使えるかと、選べる画質。"
   transcoding: Transcoding!
 }
+
+"""
+ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。
+"""
+type LiveStreamRates {
+  "映像のビットレート (bps)。"
+  videoBps: Int!
+  "音声のビットレート (bps)。"
+  audioBps: Int!
+  "字幕、文字スーパー、データ放送など、映像と音声のほかの ES のビットレート (bps)。"
+  otherBps: Int!
+  "PAT、PMT と、決まった PID で送る SI のビットレート (bps)。"
+  psiBps: Int!
+  "PMT に載っていない PID (ECM、EMM など) のビットレート (bps)。"
+  unknownBps: Int!
+  "全体のビットレート (bps)。"
+  totalBps: Int!
+  "数え始めてからの、ドロップ、エラー、スクランブルの数。"
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+}
+
+extend type Subscription {
+  """
+  ライブのサービス service の、PID の種類ごとのビットレートを、1 秒ごとに送る (#812、設計書 7.5)。
+  tenban が、チューナーを奪わない優先度でサービスのストリームを別に開いて数える。見ている人がいれば、同じチューナーに相乗りする。
+  ブラウザに届く TS ではなく、放送の内訳を送るので、kyusu の経路で見ていても使える。購読をやめると、ストリームを閉じる。
+  """
+  liveStreamRates(service: ID!): LiveStreamRates!
+}

@@ -16,7 +16,6 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 
 import { formatBytes, zonedFormat } from '../futon';
 import { mutate } from '../settings/mutate';
-import type { ReauthRun } from '../settings/useReauthGate';
 import type {
   OrphanFilesQuery,
   OrphanFilesQuery$data,
@@ -63,8 +62,7 @@ const keyOf = (orphan: Orphan) => JSON.stringify([orphan.poolId, orphan.path, or
 
 // OrphanFiles は、プールとデータディレクトリにあるのに DB に記録のないファイルを探し、確かめてから消す (設計書 5.6)。
 // 録画を消すのに失敗したときや、取り込みをやり直したときに残るので、管理者が片付ける。
-// ファイルを消すのは重要な操作なので、ページの再認証 (run) を通して送る (設計書 9.5)。
-export function OrphanFiles({ run: reauthRun }: { run: ReauthRun }) {
+export function OrphanFiles() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [found, setFound] = useState<readonly Orphan[] | null>(null);
@@ -114,41 +112,30 @@ export function OrphanFiles({ run: reauthRun }: { run: ReauthRun }) {
   const toggleAll = (checked: boolean) => setSelected(new Set(checked ? all.map(keyOf) : []));
 
   // run は、選んだファイルを、サーバーの上限 (1 回に 500 件) ごとに分けて消す。
-  // 途中で再認証を求められたら、再認証した後、まだ送っていない分から続ける。
-  const run = () => {
+  const run = async () => {
     const files = all
       .filter((orphan) => selected.has(keyOf(orphan)))
       .map(({ poolId, path, segmentDir }) => ({ poolId, path, segmentDir }));
     const total = { deleted: 0, skipped: 0 };
-    let next = 0;
-    // 再認証の画面と重ならないよう、確かめる画面は先に閉じる。
     setConfirming(false);
-    const finish = (text: { ok: boolean; text: string } | null) => {
-      setDeleting(false);
-      if (text !== null) {
-        setMessage(text);
-        void search(true);
+    setDeleting(true);
+    try {
+      for (let next = 0; next < files.length; next += deleteBatch) {
+        const { deleteOrphanFiles: r } = await mutate<OrphanFilesDeleteMutation>(
+          environment,
+          deleteMutation,
+          { files: files.slice(next, next + deleteBatch) },
+        );
+        total.deleted += r.deleted;
+        total.skipped += r.skipped;
       }
-    };
-    reauthRun(
-      async () => {
-        setDeleting(true);
-        for (; next < files.length; next += deleteBatch) {
-          const { deleteOrphanFiles: r } = await mutate<OrphanFilesDeleteMutation>(
-            environment,
-            deleteMutation,
-            { files: files.slice(next, next + deleteBatch) },
-          );
-          total.deleted += r.deleted;
-          total.skipped += r.skipped;
-        }
-        finish({ ok: true, text: t('admin.orphan.deleted', total) });
-      },
-      () => finish({ ok: false, text: t('admin.orphan.deleteError') }),
-      () => finish(null),
-      // 再認証を待っている間は、消している途中の表示を出さない (#915)。
-      () => finish(null),
-    );
+      setMessage({ ok: true, text: t('admin.orphan.deleted', total) });
+    } catch {
+      setMessage({ ok: false, text: t('admin.orphan.deleteError') });
+    } finally {
+      setDeleting(false);
+      void search(true);
+    }
   };
 
   return (
@@ -256,7 +243,7 @@ export function OrphanFiles({ run: reauthRun }: { run: ReauthRun }) {
             <Button variant="default" onClick={() => setConfirming(false)}>
               {t('admin.orphan.cancel')}
             </Button>
-            <Button color="red" onClick={run}>
+            <Button color="red" onClick={() => void run()}>
               {t('admin.orphan.confirmButton')}
             </Button>
           </Group>

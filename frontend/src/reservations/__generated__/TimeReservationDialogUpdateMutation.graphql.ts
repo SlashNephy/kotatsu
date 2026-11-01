@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<18bf5337cf92a95fd667f9f6c9308d31>>
+ * @generated SignedSource<<ced24ee561b929fda482e41a85a7455e>>
  * @lightSyntaxTransform
  */
 
@@ -17,6 +17,7 @@ export type ReservationUpdateInput = {
   startAt?: string | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
+  detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
   joinSegments?: boolean | null | undefined;

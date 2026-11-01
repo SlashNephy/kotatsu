@@ -1,6 +1,6 @@
 // Package metrics は、/metrics で公開する Kotatsu のメトリクスを集める (設計書 11.3)。
 //
-// 録画、予約、チューナー、保存先プール、ジョブのキューは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
+// 録画、予約、チューナー、保存先プール、ジョブのキュー、タイムシフトのバッファは、どのインスタンスからも同じ DB を読むので、どのインスタンスの /metrics も、クラスター全体の同じ値を返す。
 // 集計するときは、インスタンスをまたいで足さず、max などで 1 つにまとめる。
 // OTLP では、これらをクラスターの範囲として、neko のリースを持つインスタンスだけが送る (#962)。
 // ラベルには、番組名のように視聴の傾向が分かる値を入れない。
@@ -9,6 +9,7 @@ package metrics
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,12 +29,13 @@ const (
 )
 
 // FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
+// 管理者が累計を 0 に戻した理由は、戻した日時を作成の時刻にする (#1035)。
 // 値は DB に持つので、送るインスタンスが替わっても続く。作成の時刻も同じにして、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
 func FailureCountsCreated() time.Time {
 	return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
 }
 
-// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、River のキューの状態を、収集のたびに読む。
+// DBCollector は、DB から、録画、予約、割り振り、チューナー、保存先プール、River のキュー、タイムシフトのバッファの状態を、収集のたびに読む。
 // どのインスタンスでも同じ値になるものだけを集める。neko のリースを持っているかは、LeaderCollector で集める。
 type DBCollector struct {
 	pool   *pgxpool.Pool
@@ -45,6 +47,7 @@ type DBCollector struct {
 	failuresTotal    *prometheus.Desc
 	lastFailure      *prometheus.Desc
 	activePackets    *prometheus.Desc
+	activeBitrate    *prometheus.Desc
 	reservations     *prometheus.Desc
 	assignments      *prometheus.Desc
 	tuners           *prometheus.Desc
@@ -52,10 +55,14 @@ type DBCollector struct {
 	poolThreshold    *prometheus.Desc
 	poolMeasured     *prometheus.Desc
 	jobs             *prometheus.Desc
+	timeshiftBuffer  *prometheus.Desc
 	collectionErrors *prometheus.Desc
 }
 
 var _ prometheus.Collector = new(DBCollector)
+
+// liveStatsFreshness は、録画中の録画の様子を、今の値とみなす長さ (#829)。mikan は 10 秒ごとに書くので、その 3 回分にする。
+const liveStatsFreshness = 30 * time.Second
 
 // NewDBCollector は DBCollector を返す。
 func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *DBCollector {
@@ -70,6 +77,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		failuresTotal:    desc("recording_failures_total", "Number of recordings that have failed, by failure reason. Deleting recordings does not decrease it.", "reason"),
 		lastFailure:      desc("recording_last_failure_timestamp_seconds", "Time when a recording last failed, by failure reason.", "reason"),
 		activePackets:    desc("recording_active_packets", "Dropped, errored, and scrambled packets of the recordings in progress.", "kind"),
+		activeBitrate:    desc("recording_active_bitrate_bps", "Sum of the latest bitrates of the recordings in progress, in bits per second."),
 		reservations:     desc("reservations", "Number of reservations that have not ended, by assignment state, or disabled.", "state"),
 		assignments:      desc("recording_assignments", "Number of recording assignments by state.", "state"),
 		tuners:           desc("tuners", "Number of tuners of the tuner server by state.", "state"),
@@ -77,6 +85,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		poolThreshold:    desc("storage_pool_threshold_bytes", "Free space that the capacity check keeps in the storage pools by deleting old recordings. 0 means it deletes nothing.", "pool"),
 		poolMeasured:     desc("storage_pool_last_measured_timestamp_seconds", "Time when the capacity check last measured the storage pools.", "pool"),
 		jobs:             desc("river_jobs", "Number of River jobs waiting or running, by queue and state.", "queue", "state"),
+		timeshiftBuffer:  desc("timeshift_buffer_seconds", "Length of the timeshift buffer, from the start of the oldest chunk to the end of the newest, by configured service. 0 if no chunk is buffered.", "service_id"),
 		collectionErrors: desc("metrics_collection_errors", "Number of metric groups that could not be read from the database in this scrape."),
 	}
 }
@@ -84,7 +93,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBitrate, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -97,7 +106,7 @@ func (c *DBCollector) Collect(ch chan<- prometheus.Metric) {
 
 	failed := 0
 	for _, collect := range []func(context.Context, chan<- prometheus.Metric) error{
-		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectJobs,
+		c.collectRecordings, c.collectReservations, c.collectAssignments, c.collectTuners, c.collectStoragePools, c.collectJobs, c.collectTimeshift,
 	} {
 		if err := collect(ctx, ch); err != nil {
 			c.logger.WarnContext(ctx, "failed to collect metrics", slog.Any("error", err))
@@ -129,7 +138,12 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		return err
 	}
 	for _, row := range counts {
-		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), FailureCountsCreated(), row.Reason)
+		// 管理者が累計を 0 に戻したら、戻した日時を作成の時刻にし、受け手にカウンターのリセットを伝える (#1035)。
+		created := FailureCountsCreated()
+		if row.ResetAt != nil {
+			created = *row.ResetAt
+		}
+		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), created, row.Reason)
 		if row.LastFailedAt != nil {
 			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
 		}
@@ -141,6 +155,13 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 	for kind, value := range map[string]int64{"drop": packets.Drops, "error": packets.Errors, "scrambled": packets.Scrambled} {
 		ch <- prometheus.MustNewConstMetric(c.activePackets, prometheus.GaugeValue, float64(value), kind)
 	}
+	// 録画中の録画の直近のビットレートの合計 (#829)。書いたバイト数の合計は、録画を終えると減り、rate() が偽の増加を出すので、
+	// mikan が測ったビットレートを足して出す。
+	bitrate, err := q.SumActiveRecordingBitrate(ctx, c.clock.Now().Add(-liveStatsFreshness))
+	if err != nil {
+		return err
+	}
+	ch <- prometheus.MustNewConstMetric(c.activeBitrate, prometheus.GaugeValue, float64(bitrate))
 
 	return nil
 }
@@ -219,4 +240,28 @@ func (c *DBCollector) collectJobs(ctx context.Context, ch chan<- prometheus.Metr
 	}
 
 	return rows.Err()
+}
+
+// collectTimeshift は、タイムシフトで録るチャンネルごとに、バッファの長さを送る。ラベルの数は、録るチャンネルの数に抑える。
+// チャンクがまだないチャンネルも 0 として送り、系列が途切れないようにする。外したチャンネルのチャンクは、残っていても送らない。
+func (c *DBCollector) collectTimeshift(ctx context.Context, ch chan<- prometheus.Metric) error {
+	q := sqlc.New(c.pool)
+	now := c.clock.Now()
+	channels, err := q.ListTimeshiftChannelStatuses(ctx, now)
+	if err != nil {
+		return err
+	}
+	ranges, err := q.ListTimeshiftBufferRanges(ctx, now)
+	if err != nil {
+		return err
+	}
+	seconds := make(map[int64]float64, len(ranges))
+	for _, row := range ranges {
+		seconds[row.ServiceID] = row.BufferedUntil.Sub(row.BufferedFrom).Seconds()
+	}
+	for _, row := range channels {
+		ch <- prometheus.MustNewConstMetric(c.timeshiftBuffer, prometheus.GaugeValue, seconds[row.ServiceID], strconv.FormatInt(row.ServiceID, 10))
+	}
+
+	return nil
 }

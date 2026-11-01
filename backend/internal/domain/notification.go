@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,6 +22,10 @@ const (
 	NotificationKindTunerServerUnreachable NotificationKind = "tuner_server_unreachable"
 	// NotificationKindWatchReminder は、視聴予約した番組の放送が近いことを知らせる (設計書 4.8)。予約したユーザーだけに届け、Webhook では送らない。
 	NotificationKindWatchReminder NotificationKind = "watch_reminder"
+	// NotificationKindAnimeRecorded は、見たアニメを Annict や AniList に記録したことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
+	NotificationKindAnimeRecorded NotificationKind = "anime_recorded"
+	// NotificationKindAnimeRecordFailed は、見たアニメを記録できなかったことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
+	NotificationKindAnimeRecordFailed NotificationKind = "anime_record_failed"
 )
 
 // ErrUnknownNotificationKind は、知らない種類のイベントであることを表す。
@@ -31,13 +36,27 @@ func NotificationKinds() []NotificationKind {
 	return []NotificationKind{
 		NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed,
 		NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder,
+		NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed,
 	}
 }
 
 // WebhookNotificationKinds は、Webhook で送れるイベントの種類を、画面に並べる順に返す。
-// 視聴予約の通知は個人に届けるものなので、管理者が設定する全体向けの Webhook では送らない。
+// 視聴予約とアニメの記録の通知は個人に届けるものなので、管理者が設定する全体向けの Webhook では送らない。
 func WebhookNotificationKinds() []NotificationKind {
-	return slices.DeleteFunc(NotificationKinds(), func(kind NotificationKind) bool { return kind == NotificationKindWatchReminder })
+	return slices.DeleteFunc(NotificationKinds(), func(kind NotificationKind) bool {
+		return kind == NotificationKindWatchReminder || kind == NotificationKindAnimeRecorded || kind == NotificationKindAnimeRecordFailed
+	})
+}
+
+// NotificationExternalURL は、イベントが示す外部のページ (記録した Annict のページなど) の URL を返す。
+// payload に externalUrl がないか、https の URL でなければ空文字列を返す。
+func NotificationExternalURL(payload map[string]any) string {
+	url, _ := payload["externalUrl"].(string)
+	if !strings.HasPrefix(url, "https://") {
+		return ""
+	}
+
+	return url
 }
 
 // NotificationURL は、イベントを押したときに開く画面のパスを返す。payload に url がなければ空文字列を返す。

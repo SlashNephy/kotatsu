@@ -557,7 +557,7 @@ spec:
         runAsUser: 65532
         seccompProfile:
           type: RuntimeDefault
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 60
       containers:
         - name: kotatsu
           image: ghcr.io/slashnephy/kotatsu:edge
@@ -609,6 +609,10 @@ spec:
               path: /readyz
               port: http
             initialDelaySeconds: 2
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

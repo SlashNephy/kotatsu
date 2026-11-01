@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -381,4 +382,46 @@ func TestTranscoderSelectsAudio(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTranscoderRunVODDiscardsThePartialSegment は、映像を変換しないプリセットの VOD を ctx で止めたとき、
+// 書きかけのセグメントの一時ファイルを残さないことを確かめる (#1094)。
+// 入力をそのまま流すスクリプトを、FFmpeg と tsreadex として PATH に置く。PATH はプロセスで共有するので、並行して動かさない。
+func TestTranscoderRunVODDiscardsThePartialSegment(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tools are shell scripts")
+	}
+	bin := t.TempDir()
+	for _, tool := range []string{"ffmpeg", "tsreadex"} {
+		require.NoError(t, os.WriteFile(filepath.Join(bin, tool), []byte("#!/bin/sh\nexec cat\n"), 0o755)) //nolint:gosec // G306: PATH から実行するスクリプトなので、実行権限が要る。
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: "", WorkDir: ""})
+	require.NoError(t, err)
+	preset, ok := kyusu.PresetByName(kyusu.PassthroughPreset)
+	require.True(t, ok)
+	dir := t.TempDir()
+	ctx, cancel := context.WithCancel(t.Context())
+	src := &loopReader{data: loadTestTS(t), pos: 0}
+	done := make(chan error, 1)
+	go func() {
+		done <- transcoder.RunVOD(ctx, src, preset, kyusu.AudioFirst, dir, &kyusu.RunOptions{StartNumber: 0, Trim: 0, Cuts: []int64{0}})
+	}()
+	require.Eventually(t, func() bool {
+		partial, err := filepath.Glob(filepath.Join(dir, "*.tmp"))
+
+		return err == nil && len(partial) > 0
+	}, 30*time.Second, 10*time.Millisecond, "the first segment is being written")
+
+	cancel()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the transcoder did not stop")
+	}
+	// 書き終えたセグメントは置いたまま残る。書きかけのものだけを捨てる。
+	partial, err := filepath.Glob(filepath.Join(dir, "*.tmp"))
+	require.NoError(t, err)
+	assert.Empty(t, partial, "the temporary file of the partial segment is removed")
 }

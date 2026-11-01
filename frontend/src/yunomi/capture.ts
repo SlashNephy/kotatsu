@@ -1,7 +1,7 @@
 // 再生中の場面を画像にする (設計書 7.5)。
 
 import { splitProgramMarks } from '../futon/programMarks';
-import { cropSource, noCrop, type Crop } from './crop';
+import { cropSource, isCropped, noCrop, type Crop } from './crop';
 import { withPNGText, type PNGText } from './pngText';
 
 // captureSize は、画像の大きさ。放送の映像の表示の比率 (16:9) にそろえる。
@@ -48,7 +48,7 @@ export async function captureFrame(
   const shown = fitContain(video.videoWidth, video.videoHeight, canvas.width, canvas.height);
   const captions = overlays.filter((overlay) => overlay.dataset['overlay'] === 'captions');
   const others = overlays.filter((overlay) => overlay.dataset['overlay'] !== 'captions');
-  if (crop.scale === 1) {
+  if (!isCropped(crop)) {
     context.drawImage(video, shown.x, shown.y, shown.width, shown.height);
     for (const overlay of captions) {
       context.drawImage(overlay, 0, 0, canvas.width, canvas.height);
@@ -117,6 +117,9 @@ export const captureFileNameMacros = [
   '%second%',
   '%service%',
   '%title%',
+  // TVTest と同じ名前も受け付け、TVTest から移ってくる人が、同じ書き方を使えるようにする (#814)。
+  '%service-name%',
+  '%event-name%',
 ] as const;
 
 // captureFileName は、キャプチャのファイル名を返す (設計書 7.5)。
@@ -142,10 +145,12 @@ export function captureFileName(
       '%second%': pad2(date.getSeconds()),
       '%service%': serviceName,
       '%title%': program,
+      '%service-name%': serviceName,
+      '%event-name%': program,
     };
     const name = template
       .trim()
-      .replace(/%[a-z]+%/g, (macro) =>
+      .replace(/%[a-z-]+%/g, (macro) =>
         macro in values ? values[macro as keyof typeof values] : macro,
       )
       .replace(unsafeFileNameChars, '_')

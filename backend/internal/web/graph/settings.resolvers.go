@@ -11,9 +11,16 @@ import (
 
 // UpdateSystemSettings is the resolver for the updateSystemSettings field.
 func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model.SystemSettingsInput) (*model.SystemSettings, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change the system settings")
+	_, actor, err := r.systemSettingsAdministrator(ctx, input)
 	if err != nil {
 		return nil, err
+	}
+	// nil のままなら、外字の置き換えの表は変えない。
+	var replacements map[string]*string
+	if input.DrcsReplacements != nil {
+		if replacements, err = toDRCSReplacements(input.DrcsReplacements); err != nil {
+			return nil, err
+		}
 	}
 	updated, err := r.settings.Update(ctx, r.db, actor, &settings.Changes{
 		Recording:                 toOverrides(input.RecordingDefaults),
@@ -21,9 +28,16 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		NotificationRetentionDays: input.NotificationRetentionDays,
 		Rule:                      toRuleChanges(input.RuleDefaults),
 		MCPEnabled:                input.McpEnabled,
+		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
+		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
+		DRCSReplacements:          replacements,
 	})
 	if err != nil {
 		return nil, settingsError(err)
+	}
+	// 連携を有効にしたら、1 時間ごとの確かめを待たずに、連携先の情報を取り込み始める (設計書 3.8)。
+	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {
+		r.startAnimeLinking(ctx)
 	}
 
 	return systemSettingsOf(updated), nil
@@ -31,7 +45,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 
 // UpdateChannelType is the resolver for the updateChannelType field.
 func (r *mutationResolver) UpdateChannelType(ctx context.Context, typeArg string, input model.ChannelTypeInput) (*model.ChannelType, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change channel types")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change channel types")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +62,7 @@ func (r *mutationResolver) UpdateChannelType(ctx context.Context, typeArg string
 
 // UpdateService is the resolver for the updateService field.
 func (r *mutationResolver) UpdateService(ctx context.Context, id string, input model.ServiceInput) (*model.Service, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change services")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change services")
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +89,7 @@ func (r *mutationResolver) UpdateService(ctx context.Context, id string, input m
 
 // UpdateStoragePool is the resolver for the updateStoragePool field.
 func (r *mutationResolver) UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can change storage pools")
+	_, actor, err := r.administratorActor(ctx, "only administrators can change storage pools")
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +102,19 @@ func (r *mutationResolver) UpdateStoragePool(ctx context.Context, id string, inp
 	}
 
 	return r.storagePoolOf(id, updated), nil
+}
+
+// DrcsReplacements is the resolver for the drcsReplacements field.
+func (r *queryResolver) DrcsReplacements(ctx context.Context) ([]*model.DrcsReplacement, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	system, err := settings.Load(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+
+	return drcsReplacementsOf(system.DRCSReplacements), nil
 }
 
 // SystemSettings is the resolver for the systemSettings field.

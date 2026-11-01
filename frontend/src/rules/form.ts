@@ -16,6 +16,8 @@ type Settings = {
   priority: number | null;
   // joinSegments は、分かれた録画のファイルを1つにつなぐかどうか。null なら全体の既定値に従う。
   joinSegments: boolean | null;
+  // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。null なら全体の設定に従う。
+  detectCm: boolean | null;
 };
 
 // RuleForm は、ルールの編集の画面の入力。番組の条件と、ルールだけの項目を並べる。
@@ -44,6 +46,7 @@ export type RuleData = {
     readonly endMarginSeconds?: number | null;
     readonly priority?: number | null;
     readonly joinSegments?: boolean | null;
+    readonly detectCm?: boolean | null;
   };
   readonly validFrom?: string | null;
   readonly validUntil?: string | null;
@@ -69,6 +72,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
       endMarginSeconds: null,
       priority: null,
       joinSegments: null,
+      detectCm: null,
     },
     validFrom: null,
     validUntil: null,
@@ -92,6 +96,7 @@ export function fromRule(rule: RuleData): RuleForm {
       endMarginSeconds: rule.settings.endMarginSeconds ?? null,
       priority: rule.settings.priority ?? null,
       joinSegments: rule.settings.joinSegments ?? null,
+      detectCm: rule.settings.detectCm ?? null,
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,

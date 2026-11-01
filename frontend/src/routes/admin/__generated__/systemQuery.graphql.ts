@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8f3787bbd958f6a454c75803de89547b>>
+ * @generated SignedSource<<18f77cf3a90ddd1635b8e370e370304a>>
  * @lightSyntaxTransform
  */
 
@@ -8,15 +8,9 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
 export type systemQuery$variables = Record<PropertyKey, never>;
 export type systemQuery$data = {
-  readonly passkeys: ReadonlyArray<{
-    readonly id: string;
-  }>;
-  readonly secondFactors: {
-    readonly remainingRecoveryCodes: number;
-    readonly totp: boolean;
-  };
   readonly systemStatus: {
     readonly instances: ReadonlyArray<{
       readonly address: string;
@@ -33,13 +27,11 @@ export type systemQuery$data = {
       readonly name: string;
       readonly valid: boolean;
     }>;
-    readonly pools: ReadonlyArray<{
-      readonly freeBytes: number | null | undefined;
-      readonly id: string;
-      readonly minFreeBytes: number;
-      readonly path: string;
-      readonly priority: number;
-      readonly totalBytes: number | null | undefined;
+    readonly recordingFailures: ReadonlyArray<{
+      readonly count: number;
+      readonly lastFailedAt: string | null | undefined;
+      readonly reason: RecordingFailureReason;
+      readonly resetAt: string | null | undefined;
     }>;
     readonly tunerServer: {
       readonly checkedAt: string;
@@ -88,14 +80,7 @@ v1 = {
   "name": "name",
   "storageKey": null
 },
-v2 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "id",
-  "storageKey": null
-},
-v3 = [
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -345,87 +330,42 @@ v3 = [
       {
         "alias": null,
         "args": null,
-        "concreteType": "StoragePool",
+        "concreteType": "RecordingFailureCount",
         "kind": "LinkedField",
-        "name": "pools",
+        "name": "recordingFailures",
         "plural": true,
         "selections": [
-          (v2/*:: as any*/),
           {
             "alias": null,
             "args": null,
             "kind": "ScalarField",
-            "name": "path",
+            "name": "reason",
             "storageKey": null
           },
           {
             "alias": null,
             "args": null,
             "kind": "ScalarField",
-            "name": "priority",
+            "name": "count",
             "storageKey": null
           },
           {
             "alias": null,
             "args": null,
             "kind": "ScalarField",
-            "name": "minFreeBytes",
+            "name": "lastFailedAt",
             "storageKey": null
           },
           {
             "alias": null,
             "args": null,
             "kind": "ScalarField",
-            "name": "freeBytes",
-            "storageKey": null
-          },
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "totalBytes",
+            "name": "resetAt",
             "storageKey": null
           }
         ],
         "storageKey": null
       }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "SecondFactorStatus",
-    "kind": "LinkedField",
-    "name": "secondFactors",
-    "plural": false,
-    "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "totp",
-        "storageKey": null
-      },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "remainingRecoveryCodes",
-        "storageKey": null
-      }
-    ],
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "concreteType": "Passkey",
-    "kind": "LinkedField",
-    "name": "passkeys",
-    "plural": true,
-    "selections": [
-      (v2/*:: as any*/)
     ],
     "storageKey": null
   }
@@ -436,7 +376,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "systemQuery",
-    "selections": (v3/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -445,19 +385,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "systemQuery",
-    "selections": (v3/*:: as any*/)
+    "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "adc855c3c52e4dc0db52dfda21b61cf0",
+    "cacheID": "2593439c08c778adb7b95e4849304de2",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    pools {\n      id\n      path\n      priority\n      minFreeBytes\n      freeBytes\n      totalBytes\n    }\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    recordingFailures {\n      reason\n      count\n      lastFailedAt\n      resetAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a8ff6e8d7d10c95dbec31b2a438f48b7";
+(node as any).hash = "cdcc0d597e4935aa38082ac5b72faeb2";
 
 export default node;

@@ -206,6 +206,17 @@ func (l *Library) SaveProgress(ctx context.Context, db sqlc.DBTX, userID, record
 	return nil
 }
 
+// ClearProgress は、ユーザーの録画の再生位置を消す。続きから見るの一覧から外れ、次は始まりから再生する (#1074)。
+// 再生位置がなくても失敗しない。再生位置は個人のものなので、監査ログには残さない。
+func (l *Library) ClearProgress(ctx context.Context, db sqlc.DBTX, userID, recordingID uuid.UUID) error {
+	err := sqlc.New(db).DeleteWatchProgress(ctx, sqlc.DeleteWatchProgressParams{UserID: userID, RecordingID: recordingID})
+	if err != nil {
+		return fmt.Errorf("failed to clear the watch progress: %w", err)
+	}
+
+	return nil
+}
+
 // foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。録画がないときに返る。
 const foreignKeyViolation = "23503"
 

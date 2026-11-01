@@ -42,11 +42,17 @@ type Store struct {
 	totalSpace TotalSpaceFunc
 	// dataDir は、データディレクトリ。
 	dataDir string
+	// timeshiftDir は、タイムシフトのバッファを置くディレクトリ。
+	timeshiftDir string
 }
 
 // DataPoolID は、データディレクトリ (WithDataDir) を、Store の中でプールと同じく扱うときの ID。
 // DB にも API にも出さない。設定のプールの ID とは重ならないよう、_ で始める。
 const DataPoolID = "_data"
+
+// TimeshiftPoolID は、タイムシフトのディレクトリ (WithTimeshiftDir) を、Store の中でプールと同じく扱うときの ID。
+// DataPoolID と同じく、DB にも API にも出さず、PoolIDs と ScanPoolIDs にも含めない。
+const TimeshiftPoolID = "_timeshift"
 
 // Location は、プールの中のファイルの場所。
 type Location struct {
@@ -90,8 +96,11 @@ func NewOrdered(mounts map[string]string, order []string, freeSpace FreeSpaceFun
 		}
 	}
 
-	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。
-	return &Store{mounts: maps.Clone(mounts), order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: ""}
+	// 呼び出し側が後から書き換えても影響しないよう、複製して持つ。プールがなくても、データやタイムシフトのディレクトリを足せるよう、空の対応にする。
+	cloned := make(map[string]string, len(mounts))
+	maps.Copy(cloned, mounts)
+
+	return &Store{mounts: cloned, order: ordered, freeSpace: freeSpace, totalSpace: TotalSpace, dataDir: "", timeshiftDir: ""}
 }
 
 // WithTotalSpace は、プールの容量を totalSpace で調べる Store を返す。totalSpace が nil なら、s をそのまま返す。
@@ -100,7 +109,7 @@ func (s *Store) WithTotalSpace(totalSpace TotalSpaceFunc) *Store {
 		return s
 	}
 
-	return &Store{mounts: s.mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: totalSpace, dataDir: s.dataDir}
+	return &Store{mounts: s.mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: totalSpace, dataDir: s.dataDir, timeshiftDir: s.timeshiftDir}
 }
 
 // WithDataDir は、セグメントの生成物を、dir の中の「セグメントのファイルの ID/」に置く Store を返す (設計書 5.6)。
@@ -112,7 +121,25 @@ func (s *Store) WithDataDir(dir string) *Store {
 	mounts := maps.Clone(s.mounts)
 	mounts[DataPoolID] = dir
 
-	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: dir}
+	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: dir, timeshiftDir: s.timeshiftDir}
+}
+
+// WithTimeshiftDir は、タイムシフトのバッファを、dir の中に置く Store を返す。
+// dir が空なら、s をそのまま返す。そのときは、タイムシフトのどの処理も動かない。
+// dir は TimeshiftPoolID のプールとして引けるが、PoolIDs と ScanPoolIDs には出ない。
+func (s *Store) WithTimeshiftDir(dir string) *Store {
+	if dir == "" {
+		return s
+	}
+	mounts := maps.Clone(s.mounts)
+	mounts[TimeshiftPoolID] = dir
+
+	return &Store{mounts: mounts, order: s.order, freeSpace: s.freeSpace, totalSpace: s.totalSpace, dataDir: s.dataDir, timeshiftDir: dir}
+}
+
+// HasTimeshiftDir は、タイムシフトのディレクトリを設定してあるかを返す。
+func (s *Store) HasTimeshiftDir() bool {
+	return s.timeshiftDir != ""
 }
 
 // SegmentDir は、セグメントのファイル fileID (recording_files.id) の生成物のディレクトリの場所を返す。
@@ -128,6 +155,83 @@ func DataLocation(fileID uuid.UUID, name string) *Location {
 // IndexLocation は、セグメントのファイル fileID の索引の場所を返す。
 func IndexLocation(fileID uuid.UUID) *Location {
 	return DataLocation(fileID, IndexFileName)
+}
+
+// CapturesDir は、データディレクトリの、キャプチャの画像を置くディレクトリ (設計書 5.6、7.5)。
+// 中に「ユーザーの ID/キャプチャの ID.png」の形で置く。セグメントのファイルの ID の名前ではないので、生成物のディレクトリとはみなさない。
+const CapturesDir = "captures"
+
+// CaptureLocation は、ユーザー userID のキャプチャ captureID の画像の場所を返す。
+func CaptureLocation(userID, captureID uuid.UUID) *Location {
+	return &Location{PoolID: DataPoolID, Path: CapturesDir + "/" + userID.String() + "/" + captureID.String() + ".png"}
+}
+
+// HasDataDir は、データディレクトリを設定してあるかを返す。
+func (s *Store) HasDataDir() bool {
+	return s.dataDir != ""
+}
+
+// WriteFile は、プール poolID の rel (プール内の相対パス) に data を書く。ディレクトリがなければ作る。
+// 同じディレクトリの一時ファイル (rel に .tmp を付けたもの) に書いてから名前を変え、読む側に書きかけのファイルを見せない。
+// プールの中に限って書くので、シンボリックリンクでもプールの外には書かない。
+func (s *Store) WriteFile(poolID, rel string, data []byte) error {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	if !filepath.IsLocal(rel) {
+		return fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	defer root.Close()
+	tmp := rel + ".tmp"
+	// ディレクトリを作ってから書くまでの間に、同じディレクトリの最後のファイルを消すと、Remove が空のディレクトリを消すことがある。
+	// そのときは、ディレクトリを作り直して、もう一度だけ書く。
+	for attempt := 0; ; attempt++ {
+		if err := s.mkdirAll(poolID, filepath.Dir(rel)); err != nil {
+			return err
+		}
+		err := writeRootFile(root, tmp, data)
+		if err == nil {
+			break
+		}
+		_ = root.Remove(tmp)
+		if attempt == 0 && errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+
+		return fmt.Errorf("failed to write a file in pool %s: %w", poolID, err)
+	}
+	if err := root.Rename(tmp, rel); err != nil {
+		_ = root.Remove(tmp)
+
+		return fmt.Errorf("failed to rename a file in pool %s: %w", poolID, err)
+	}
+
+	return nil
+}
+
+// writeRootFile は、root の中の name に data を書き、ディスクに書き終えるまで待つ。
+func writeRootFile(root *os.Root, name string, data []byte) error {
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+
+		return err
+	}
+
+	return f.Close()
 }
 
 // PoolIDs は、このロールにマウントされているプールの ID を、プールの順に返す。
@@ -335,22 +439,11 @@ func (s *Store) NewChecker() *Checker {
 
 // Exists は、Store.Exists と同じく、プールにファイル rel があるかを返す。
 func (c *Checker) Exists(poolID, rel string) (bool, error) {
-	if !filepath.IsLocal(rel) {
-		return false, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	root, err := c.root(poolID, rel)
+	if err != nil {
+		return false, err
 	}
-	root, ok := c.roots[poolID]
-	if !ok {
-		mount, mounted := c.store.mounts[poolID]
-		if !mounted {
-			return false, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
-		}
-		var err error
-		if root, err = os.OpenRoot(mount); err != nil {
-			return false, fmt.Errorf("failed to open pool %s: %w", poolID, err)
-		}
-		c.roots[poolID] = root
-	}
-	_, err := root.Stat(rel)
+	_, err = root.Stat(rel)
 	switch {
 	case err == nil:
 		return true, nil
@@ -361,12 +454,56 @@ func (c *Checker) Exists(poolID, rel string) (bool, error) {
 	}
 }
 
+// SameFile は、プールの a と b が、同じファイルを指すかを返す。どちらかがなければ false を返す。
+// 大文字と小文字を区別しないファイルシステム (NTFS、APFS の既定) や、名前を NFD で保存する HFS+ では、
+// 大文字と小文字や Unicode の正規化だけが違う a と b が、同じファイルになる。
+func (c *Checker) SameFile(poolID, a, b string) (bool, error) {
+	infos := make([]os.FileInfo, 0, 2)
+	for _, rel := range []string{a, b} {
+		root, err := c.root(poolID, rel)
+		if err != nil {
+			return false, err
+		}
+		info, err := root.Stat(rel)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("failed to inspect a file in pool %s: %w", poolID, err)
+		}
+		infos = append(infos, info)
+	}
+
+	return os.SameFile(infos[0], infos[1]), nil
+}
+
 // Close は、開いたプールを閉じる。
 func (c *Checker) Close() {
 	for _, root := range c.roots {
 		_ = root.Close()
 	}
 	c.roots = map[string]*os.Root{}
+}
+
+// root は、プール poolID を開いて返す。開いたプールは、Close まで使い回す。rel がプールの外を指すときは ErrInvalidPath を返す。
+func (c *Checker) root(poolID, rel string) (*os.Root, error) {
+	if !filepath.IsLocal(rel) {
+		return nil, fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	if root, ok := c.roots[poolID]; ok {
+		return root, nil
+	}
+	mount, mounted := c.store.mounts[poolID]
+	if !mounted {
+		return nil, fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	c.roots[poolID] = root
+
+	return root, nil
 }
 
 // rank は、プールの順での位置を返す。マウントされていないプールは、どれよりも後にする。

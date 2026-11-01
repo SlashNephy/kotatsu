@@ -1,46 +1,20 @@
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Box,
-  Button,
-  Card,
-  Group,
-  NumberInput,
-  Progress,
-  Stack,
-  Table,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Table, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type ReactNode } from 'react';
+import { startTransition, Suspense, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql, useRelayEnvironment } from 'react-relay';
+import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { ActiveRecordings } from '../../admin/ActiveRecordings';
+import { ChannelInspector } from '../../admin/ChannelInspector';
+import { FailureCounts } from '../../admin/FailureCounts';
+import { Section } from '../../admin/Section';
 import { useDataChanges } from '../../changes/DataChanges';
-import { authApi, type OIDCStatus } from '../../auth/api';
-import { settingsErrorMessage } from '../../settings/errors';
-import { formatBytes } from '../../futon';
-import classes from './system.module.css';
-import { mutate } from '../../settings/mutate';
-import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
-import { SudoGate } from '../../settings/SudoGate';
-import { MissingRecordings } from '../../admin/MissingRecordings';
-import { OrphanFiles } from '../../admin/OrphanFiles';
-import { RecordingRenames } from '../../admin/RecordingRenames';
-import type { systemPoolMutation } from './__generated__/systemPoolMutation.graphql';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
 import { zonedFormat } from '../../futon';
 
-const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
-const path = '/admin/system';
-
 export const Route = createFileRoute('/admin/system')({
-  // IdP での再認証を出すかを確かめる。確かめられなくても、ほかの方法で再認証できる。
-  loader: () => authApi.oidcStatus().catch(() => oidcDisabled),
   component: SystemPage,
 });
 
@@ -55,8 +29,8 @@ const dateTimeFormat = zonedFormat({
 
 const formatTime = (time: string) => dateTimeFormat.format(Date.parse(time));
 
-// SystemPage は、システムの状態を見て、保存先プールを変え、録画とファイルを片付ける、管理者向けの画面 (設計書 10.3)。
-// チャンネル種別とチャンネルの表示は、チャンネルの表示の画面 (/admin/channels) で変える。
+// SystemPage は、チューナーサーバー、チューナー、インスタンス、リースの状態を見る、管理者向けの画面 (設計書 10.3)。
+// 本人確認はしない。録画の失敗の累計を 0 に戻す操作は、第三者に影響しない管理の操作なので、再認証も求めない (設計書 9.5)。保存先プールは、保存先の画面 (/admin/storage) で変える。
 function SystemPage() {
   const { t } = useTranslation();
 
@@ -110,29 +84,18 @@ const query = graphql`
         remote
         fault
       }
-      pools {
-        id
-        path
-        priority
-        minFreeBytes
-        freeBytes
-        totalBytes
+      recordingFailures {
+        reason
+        count
+        lastFailedAt
+        resetAt
       }
-    }
-    secondFactors {
-      totp
-      remainingRecoveryCodes
-    }
-    passkeys {
-      id
     }
   }
 `;
 
 function SystemStatus() {
   const { t } = useTranslation();
-  const environment = useRelayEnvironment();
-  const oidc = Route.useLoaderData();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
   // チューナーとチューナーサーバーの状態が変わったら、読み直す (#867)。
@@ -143,34 +106,11 @@ function SystemStatus() {
     { fetchKey: `${fetchKey}:${tunerChanges}`, fetchPolicy: 'store-and-network' },
   );
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
-  const methods = reauthMethods(data.secondFactors, data.passkeys, oidc);
-  const gate = useReauthGate(methods, path);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const fail = (caught: unknown) =>
-    setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
-  const done = () => {
-    setMessage({ ok: true, text: t('admin.saved') });
-    refresh();
-  };
   const { systemStatus: status } = data;
 
   return (
     <Stack gap="md">
-      {gate.modal}
-      <Group justify="space-between">
-        {message !== null ? (
-          <Alert
-            color={message.ok ? 'teal' : 'red'}
-            role={message.ok ? 'status' : 'alert'}
-            withCloseButton
-            onClose={() => setMessage(null)}
-            flex={1}
-          >
-            {message.text}
-          </Alert>
-        ) : (
-          <span />
-        )}
+      <Group justify="flex-end">
         <Button size="compact-sm" variant="default" onClick={refresh}>
           {t('admin.system.refresh')}
         </Button>
@@ -287,6 +227,26 @@ function SystemStatus() {
         )}
       </Section>
 
+      <Section title={t('admin.system.failures.title')}>
+        <FailureCounts
+          counts={status.recordingFailures}
+          formatTime={formatTime}
+          onReset={refresh}
+        />
+      </Section>
+
+      <Section title={t('admin.system.activeRecordings')}>
+        <Suspense fallback={<Loader size="sm" />}>
+          <ActiveRecordings />
+        </Suspense>
+      </Section>
+
+      <Section title={t('admin.system.inspect.title')}>
+        <Suspense fallback={<Loader size="sm" />}>
+          <ChannelInspector />
+        </Suspense>
+      </Section>
+
       <Section title={t('admin.system.instances')}>
         <DataTable
           head={[
@@ -340,61 +300,7 @@ function SystemStatus() {
           }))}
         />
       </Section>
-
-      {/* 状態の表示は、本人確認なしで見られるようにする。重要な操作のある部分だけ、開いたときに本人確認する (#981)。 */}
-      <SudoGate methods={methods} returnTo={path}>
-        <Section title={t('admin.system.pools')}>
-          {status.pools.length === 0 ? (
-            <Text size="sm" c="dimmed">
-              {t('admin.system.noPools')}
-            </Text>
-          ) : (
-            status.pools.map((pool) => (
-              <PoolEditor
-                key={`${pool.id}/${pool.priority}/${pool.minFreeBytes}`}
-                pool={pool}
-                onSave={(input) =>
-                  gate.run(async () => {
-                    await mutate<systemPoolMutation>(
-                      environment,
-                      graphql`
-                        mutation systemPoolMutation($id: String!, $input: StoragePoolInput!) {
-                          updateStoragePool(id: $id, input: $input) {
-                            id
-                            priority
-                            minFreeBytes
-                          }
-                        }
-                      `,
-                      { id: pool.id, input },
-                    );
-                    done();
-                  }, fail)
-                }
-              />
-            ))
-          )}
-        </Section>
-
-        {/* 録画やファイルを消す、動かす操作も重要な操作なので、同じ再認証を通す (設計書 9.5)。 */}
-        <MissingRecordings run={gate.run} />
-        <OrphanFiles run={gate.run} />
-        <RecordingRenames run={gate.run} />
-      </SudoGate>
     </Stack>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <Card withBorder>
-      <Stack gap="xs">
-        <Title order={3} size="h5">
-          {title}
-        </Title>
-        {children}
-      </Stack>
-    </Card>
   );
 }
 
@@ -431,122 +337,5 @@ function DataTable({
         </Table.Tbody>
       </Table>
     </Table.ScrollContainer>
-  );
-}
-
-const bytesPerGB = 1e9;
-
-// PoolUsage は、保存先プールの使用率のバーと、容量の閾値の位置 (#477)。
-// 使用量は、ファイルシステムの容量から、使える空き容量を引いたもの。root のために取っておく分も、使用量に含む。
-function PoolUsage({ free, total, minFree }: { free: number; total: number; minFree: number }) {
-  const { t } = useTranslation();
-  const used = Math.max(0, total - free);
-  const percent = (used / total) * 100;
-  // 空き容量がこれを下回ると、古い録画から消す。バーの上では、使用量がこの位置を超えたところ。
-  const threshold =
-    minFree > 0 ? Math.max(0, Math.min(100, ((total - minFree) / total) * 100)) : null;
-  const color = free < minFree ? 'red' : percent >= 90 ? 'orange' : 'blue';
-
-  return (
-    <Stack gap={2} maw={560}>
-      <Box pos="relative">
-        <Progress
-          value={percent}
-          color={color}
-          size="lg"
-          aria-label={t('admin.system.poolUsageLabel')}
-        />
-        {threshold !== null && (
-          <Box
-            className={classes.threshold}
-            style={{ left: `${threshold}%` }}
-            title={t('admin.system.poolThreshold', { free: formatBytes(minFree) })}
-          />
-        )}
-      </Box>
-      <Text size="xs" c="dimmed">
-        {t('admin.system.poolUsage', {
-          used: formatBytes(used),
-          total: formatBytes(total),
-          percent: percent.toFixed(1),
-        })}
-        {threshold !== null &&
-          ` ${t('admin.system.poolThreshold', { free: formatBytes(minFree) })}`}
-      </Text>
-    </Stack>
-  );
-}
-
-// PoolEditor は、保存先プールの優先順位と容量の閾値を変える。閾値は GB で入力する。
-function PoolEditor({
-  pool,
-  onSave,
-}: {
-  pool: {
-    id: string;
-    path: string;
-    priority: number;
-    minFreeBytes: number;
-    freeBytes: number | null | undefined;
-    totalBytes: number | null | undefined;
-  };
-  onSave: (input: { priority: number; minFreeBytes: number }) => void;
-}) {
-  const { t } = useTranslation();
-  const [priority, setPriority] = useState<number | string>(pool.priority);
-  const [minFreeGB, setMinFreeGB] = useState<number | string>(pool.minFreeBytes / bytesPerGB);
-
-  return (
-    <Stack gap={4} data-pool={pool.id}>
-      <Group gap="xs">
-        <Text fw={600}>{pool.id}</Text>
-        <Text size="xs" c="dimmed">
-          {t('admin.system.poolPath', { path: pool.path })}
-        </Text>
-        <Text size="xs" c="dimmed">
-          {pool.freeBytes == null
-            ? t('admin.system.poolFreeUnknown')
-            : t('admin.system.poolFree', { free: formatBytes(pool.freeBytes) })}
-        </Text>
-      </Group>
-      {pool.freeBytes != null && pool.totalBytes != null && pool.totalBytes > 0 && (
-        <PoolUsage free={pool.freeBytes} total={pool.totalBytes} minFree={pool.minFreeBytes} />
-      )}
-      <Group gap="xs" align="flex-end">
-        <NumberInput
-          size="xs"
-          w={240}
-          label={t('admin.system.poolPriority')}
-          description={t('admin.system.poolPriorityDescription')}
-          min={-1000}
-          max={1000}
-          allowDecimal={false}
-          value={priority}
-          onChange={setPriority}
-        />
-        <NumberInput
-          size="xs"
-          w={320}
-          label={t('admin.system.poolMinFree')}
-          description={t('admin.system.poolMinFreeDescription')}
-          min={0}
-          decimalScale={1}
-          value={minFreeGB}
-          onChange={setMinFreeGB}
-        />
-        <Button
-          size="compact-sm"
-          disabled={typeof priority !== 'number' || typeof minFreeGB !== 'number'}
-          onClick={() =>
-            onSave({
-              priority: Number(priority),
-              minFreeBytes: Math.round(Number(minFreeGB) * bytesPerGB),
-            })
-          }
-        >
-          {t('admin.save')}
-        </Button>
-      </Group>
-    </Stack>
   );
 }

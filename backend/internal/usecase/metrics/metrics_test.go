@@ -41,20 +41,43 @@ func TestDBCollector(t *testing.T) {
 	exec("INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
 	exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
 		VALUES (3273601024, 32736, 1024, 'テスト', 'テスト', 1, 'GR', '27', $1, $1)`, now)
-	recording := func(state string, reason *string, drops int) {
+	recording := func(state string, reason *string, drops int) uuid.UUID {
 		t.Helper()
+		recordingID := id.New()
 		exec(`INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
 			state, failure_reason, protected, drops, errors, scrambled, recorded_from, created_at, updated_at)
-			VALUES ($1, NULL, 3273601024, NULL, '', '', $2, $2, $3, $4, false, $5, 1, 0, $2, $2, $2)`, id.New(), now, state, reason, drops)
+			VALUES ($1, NULL, 3273601024, NULL, '', '', $2, $2, $3, $4, false, $5, 1, 0, $2, $2, $2)`, recordingID, now, state, reason, drops)
+
+		return recordingID
 	}
-	recording("recording", nil, 3)
-	recording("recording", nil, 4)
-	recording("completed", nil, 0)
+	// segment は、録画のセグメントを足す。書いている途中なら、ended を nil にする。
+	segment := func(recordingID uuid.UUID, size int64, ended *time.Time) {
+		t.Helper()
+		exec(`INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+			VALUES ($1, $2, 'segment', 'main', $3, $4, $5, $6, $5)`, id.New(), recordingID, id.New().String()+".m2ts", size, now, ended)
+	}
+	// 録画中の録画は、書いているセグメントのドロップなどと、直近のビットレート (#829) を足す。録画を終えた録画は数えない。
+	active := recording("recording", nil, 3)
+	segment(active, 5000, new(now))
+	segment(active, 0, nil)
+	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+		VALUES ($1, 1000, 2, 0, 0, 16000000, $2)`, active, now)
+	// 30 秒より前に書いた様子 (落ちた mikan の録画) は、ビットレートに足さない。
+	stale := recording("recording", nil, 4)
+	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+		VALUES ($1, 300, 0, 0, 0, 8000000, $2)`, stale, now.Add(-time.Minute))
+	completed := recording("completed", nil, 0)
+	segment(completed, 9000, new(now))
+	exec(`INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+		VALUES ($1, 700, 5, 0, 0, 16000000, $2)`, completed, now)
 	recording("failed", new("tuner_unavailable"), 0)
 	recording("failed", new("cancelled"), 0)
 	recording("failed", new("cancelled"), 0)
 	// 失敗の累計 (#960)。マイグレーションが、理由ごとに 0 件の行を作っておく。録画を消しても減らないので、録画の数とは合わない。
 	exec(`UPDATE recording_failure_counts SET count = 5, last_failed_at = $1 WHERE reason = 'cancelled'`, now.Add(-time.Hour))
+	// 管理者が累計を 0 に戻した理由 (#1035)。
+	resetAt := now.Add(-30 * time.Minute).Truncate(time.Microsecond)
+	exec(`UPDATE recording_failure_counts SET reset_at = $1 WHERE reason = 'storage_full'`, resetAt)
 	tuner := func(index int, available, fault bool) {
 		t.Helper()
 		exec(`INSERT INTO tuners (tuner_index, name, types, is_available, is_remote, is_fault, updated_at)
@@ -93,6 +116,22 @@ func TestDBCollector(t *testing.T) {
 		VALUES ('main', 0, 300, $1, 1000, 400, $2)`, now, now.Add(-time.Minute))
 	exec(`INSERT INTO storage_pools (id, priority, min_free_bytes, updated_at) VALUES ('unmeasured', 0, 100, $1)`, now)
 	exec(`INSERT INTO river_job (args, kind, max_attempts, queue, state) VALUES ('{}', 'test', 1, 'default', 'available'), ('{}', 'test', 1, 'default', 'available')`)
+	// タイムシフトのバッファ。録るチャンネルだけを出し、チャンクがまだなければ 0 にする。書いている途中のチャンクは、今まで録れている。
+	// 外したチャンネルのチャンクは、破棄のジョブが消すまで残っていても出さない。
+	for _, sid := range []int{1025, 1026} {
+		exec(`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+			VALUES ($1, 32736, $2, 'テスト', 'テスト', 1, 'GR', '27', $3, $3)`, 3273600000+sid, sid, now)
+	}
+	exec(`INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at) VALUES (3273601024, 7200, $1, $1), (3273601025, 7200, $1, $1)`, now)
+	chunk := func(serviceID int64, start time.Time, end *time.Time) {
+		t.Helper()
+		chunkID := id.New()
+		exec(`INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at) VALUES ($1, $2, $3, 1, $4, $5, $4)`,
+			chunkID, serviceID, chunkID.String()+".m2ts", start, end)
+	}
+	chunk(3273601024, now.Add(-time.Hour), new(now.Add(-55*time.Minute)))
+	chunk(3273601024, now.Add(-55*time.Minute), nil)
+	chunk(3273601026, now.Add(-time.Hour), new(now.Add(-55*time.Minute)))
 
 	collector := metrics.NewDBCollector(pool, clk, logger)
 	const common = `
@@ -120,9 +159,12 @@ kotatsu_recording_failures_total{reason="tuner_unavailable"} 0
 kotatsu_recording_last_failure_timestamp_seconds{reason="cancelled"} 1.79163e+09
 # HELP kotatsu_recording_active_packets Dropped, errored, and scrambled packets of the recordings in progress.
 # TYPE kotatsu_recording_active_packets gauge
-kotatsu_recording_active_packets{kind="drop"} 7
+kotatsu_recording_active_packets{kind="drop"} 9
 kotatsu_recording_active_packets{kind="error"} 2
 kotatsu_recording_active_packets{kind="scrambled"} 0
+# HELP kotatsu_recording_active_bitrate_bps Sum of the latest bitrates of the recordings in progress, in bits per second.
+# TYPE kotatsu_recording_active_bitrate_bps gauge
+kotatsu_recording_active_bitrate_bps 1.6e+07
 # HELP kotatsu_reservations Number of reservations that have not ended, by assignment state, or disabled.
 # TYPE kotatsu_reservations gauge
 kotatsu_reservations{state="conflict"} 2
@@ -151,6 +193,10 @@ kotatsu_storage_pool_last_measured_timestamp_seconds{pool="main"} 1.79163354e+09
 # HELP kotatsu_river_jobs Number of River jobs waiting or running, by queue and state.
 # TYPE kotatsu_river_jobs gauge
 kotatsu_river_jobs{queue="default",state="available"} 2
+# HELP kotatsu_timeshift_buffer_seconds Length of the timeshift buffer, from the start of the oldest chunk to the end of the newest, by configured service. 0 if no chunk is buffered.
+# TYPE kotatsu_timeshift_buffer_seconds gauge
+kotatsu_timeshift_buffer_seconds{service_id="3273601024"} 3600
+kotatsu_timeshift_buffer_seconds{service_id="3273601025"} 0
 # HELP kotatsu_metrics_collection_errors Number of metric groups that could not be read from the database in this scrape.
 # TYPE kotatsu_metrics_collection_errors gauge
 kotatsu_metrics_collection_errors 0
@@ -158,29 +204,35 @@ kotatsu_metrics_collection_errors 0
 	names := []string{
 		"kotatsu_recordings", "kotatsu_recording_failures", "kotatsu_recording_failures_total", "kotatsu_recording_last_failure_timestamp_seconds",
 		"kotatsu_recording_active_packets", "kotatsu_reservations", "kotatsu_recording_assignments", "kotatsu_tuners",
-		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs", "kotatsu_metrics_collection_errors",
+		"kotatsu_storage_pool_bytes", "kotatsu_storage_pool_threshold_bytes", "kotatsu_storage_pool_last_measured_timestamp_seconds", "kotatsu_river_jobs",
+		"kotatsu_timeshift_buffer_seconds", "kotatsu_metrics_collection_errors",
 	}
 	require.NoError(t, testutil.CollectAndCompare(collector, strings.NewReader(common), names...))
 	// neko のリースを持っているかは、インスタンスの値なので、クラスターの値を出す DBCollector では出さない (#962)。
 	assert.Zero(t, testutil.CollectAndCount(collector, "kotatsu_neko_leader"))
 
 	// 失敗の累計の作成の時刻は、どのインスタンスでも同じ値にする。リーダーが替わっても、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
+	// 管理者が累計を 0 に戻した理由だけは、戻した日時にし、受け手にリセットを伝える (#1035)。
 	registry := prometheus.NewPedanticRegistry()
 	require.NoError(t, registry.Register(collector))
 	families, err := registry.Gather()
 	require.NoError(t, err)
-	var created []time.Time
+	created := map[string]time.Time{}
 	for _, family := range families {
 		if family.GetName() != "kotatsu_recording_failures_total" {
 			continue
 		}
 		for _, m := range family.GetMetric() {
-			created = append(created, m.GetCounter().GetCreatedTimestamp().AsTime())
+			created[m.GetLabel()[0].GetValue()] = m.GetCounter().GetCreatedTimestamp().AsTime()
 		}
 	}
-	require.NotEmpty(t, created)
-	for _, at := range created {
-		assert.True(t, at.Equal(metrics.FailureCountsCreated()), at)
+	require.Len(t, created, 8)
+	for reason, at := range created {
+		want := metrics.FailureCountsCreated()
+		if reason == "storage_full" {
+			want = resetAt
+		}
+		assert.True(t, at.Equal(want), "%s: %s", reason, at)
 	}
 }
 

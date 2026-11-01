@@ -89,7 +89,7 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 // toOverrides は、録画設定の上書きの入力を、予約の録画設定の上書きにする。省いたら何も上書きしない。
 func toOverrides(in *model.RecordingSettingsOverridesInput) *domain.RecordingOverrides {
 	if in == nil {
-		return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
+		return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil}
 	}
 
 	return &domain.RecordingOverrides{
@@ -99,12 +99,13 @@ func toOverrides(in *model.RecordingSettingsOverridesInput) *domain.RecordingOve
 		EndMarginSeconds:   in.EndMarginSeconds,
 		Priority:           in.Priority,
 		JoinSegments:       in.JoinSegments,
+		DetectCM:           in.DetectCM,
 	}
 }
 
 func toOverridesModel(o *domain.RecordingOverrides) *model.RecordingSettingsOverrides {
 	if o == nil {
-		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
+		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil}
 	}
 
 	return &model.RecordingSettingsOverrides{
@@ -114,6 +115,7 @@ func toOverridesModel(o *domain.RecordingOverrides) *model.RecordingSettingsOver
 		EndMarginSeconds:   o.EndMarginSeconds,
 		Priority:           o.Priority,
 		JoinSegments:       o.JoinSegments,
+		DetectCM:           o.DetectCM,
 	}
 }
 
@@ -285,6 +287,24 @@ func (r *Resolver) recordingRule(ctx context.Context, recording *model.Recording
 	}
 
 	return toRuleModel(ctx, found)
+}
+
+// ruleWarnings は、保存する前のルールの、照合を重くする書き方を返す (#904)。ログインしたユーザーにだけ返す。
+func (r *Resolver) ruleWarnings(ctx context.Context, in *model.RuleInput) ([]*model.RuleWarning, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	input, err := toRuleInput(in)
+	if err != nil {
+		return nil, err
+	}
+	refs := match.UnfilterableKeywords(input.Conditions)
+	warnings := make([]*model.RuleWarning, 0, len(refs))
+	for _, ref := range refs {
+		warnings = append(warnings, &model.RuleWarning{Kind: model.RuleWarningKindUnfilterableRegexp, Exclude: ref.Exclude, Index: ref.Index})
+	}
+
+	return warnings, nil
 }
 
 // previewRule は、保存する前のルールに一致する番組を、開始時刻の順に返す。

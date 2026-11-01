@@ -3,9 +3,10 @@
 -- 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 -- ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
 -- recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
-SELECT @id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'recording', NULL,
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+SELECT @id, @reservation_id, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
+  @start_at, @end_at, 'recording', NULL,
   false, 0, 0, 0,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = @service_id AND p.event_id = sqlc.narg(event_id)), '[]'::jsonb),
   (SELECT p.video_resolution FROM programs p WHERE p.service_id = @service_id AND p.event_id = sqlc.narg(event_id)),
@@ -23,8 +24,10 @@ ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason =
 RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 
 -- name: InsertRecordingFile :exec
+-- DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now);
+VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now)
+ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseRecordingFile :exec
 -- 書き終えたファイルの大きさと、表す時間の終わりを記録する。
@@ -72,6 +75,10 @@ VALUES (@id, @service_id, @title_key, @name, @start_at, @end_at, @now);
 SELECT pool_id, path FROM recording_files
 WHERE recording_id = @recording_id AND kind = 'segment' AND size > 0
 ORDER BY started_at, id;
+
+-- name: GetRecordingInProgressByReservation :one
+-- 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
+SELECT * FROM recordings WHERE reservation_id = @reservation_id AND state = 'recording';
 
 -- name: GetRecordingWithService :one
 -- 通知に載せる、録画とサービス名。
@@ -185,6 +192,10 @@ DELETE FROM recording_files WHERE recording_id = @recording_id AND kind = 'segme
 UPDATE recordings r SET recorded_from = @at, updated_at = @now
 WHERE r.id = @id AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment');
 
+-- name: MoveRecordingRecordedFromBack :exec
+-- 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+UPDATE recordings SET recorded_from = LEAST(recorded_from, @at::timestamptz), updated_at = @now WHERE id = @id;
+
 -- name: MarkRecordingNotBroadcast :exec
 -- 予約した番組が放送されなかったことと、その時間に放送されていた番組を記録する。
 UPDATE recordings SET not_broadcast = true, aired_event_id = sqlc.narg(aired_event_id), updated_at = @now WHERE id = @id;
@@ -234,6 +245,8 @@ WITH failed AS (
     AND NOT EXISTS (
       SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
     )
+    -- タイムシフトのバッファから昇格している録画は、nekonote のジョブが終える (#1057)。
+    AND NOT EXISTS (SELECT 1 FROM timeshift_promotions p WHERE p.recording_id = r.id)
   RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name, r.failure_reason
 ), counted AS (
   UPDATE recording_failure_counts c SET count = c.count + f.n, last_failed_at = @now
@@ -247,9 +260,10 @@ SELECT id, reservation_id, name, start_at, end_at, service_name FROM failed;
 -- 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
 -- 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 WITH inserted AS (
-  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-    recorded_from, recorded_until, created_at, updated_at)
-  VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @start_at, @end_at, 'failed', 'recorder_unavailable',
+  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+    start_at, end_at, state, failure_reason, recorded_from, recorded_until, created_at, updated_at)
+  VALUES (@id, @reservation_id, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
+    @start_at, @end_at, 'failed', 'recorder_unavailable',
     @recorded_from, @recorded_from, @now, @now)
   ON CONFLICT (reservation_id) DO NOTHING
   RETURNING failure_reason
@@ -261,3 +275,67 @@ WHERE c.reason = inserted.failure_reason;
 -- name: SetRecordingFailureHint :exec
 -- 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
 UPDATE recordings SET failure_reason = @failure_reason, updated_at = @now WHERE id = @id AND state = 'recording';
+
+-- name: UpsertRecordingLiveStats :exec
+-- 録画中の録画の、書いているセグメントの様子を書く (#829)。
+INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+VALUES (@recording_id, @bytes, @drops, @errors, @scrambled, @bitrate, @now)
+ON CONFLICT (recording_id) DO UPDATE SET
+  bytes = excluded.bytes, drops = excluded.drops, errors = excluded.errors, scrambled = excluded.scrambled,
+  bitrate = excluded.bitrate, updated_at = excluded.updated_at;
+
+-- name: ResetRecordingLiveStats :exec
+-- セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
+UPDATE recording_live_stats SET bytes = 0, drops = 0, errors = 0, scrambled = 0, bitrate = 0, updated_at = @now
+WHERE recording_id = @recording_id;
+
+-- name: GetRecordingLiveStats :one
+-- 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
+-- since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
+SELECT l.* FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE l.recording_id = @recording_id AND r.state = 'recording' AND l.updated_at > @since;
+
+-- name: InsertPromotedRecording :one
+-- タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
+-- nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+VALUES (@id, NULL, @service_id, @event_id, @name, @description, @name_normalized, @description_normalized,
+  @start_at, @end_at, 'recording', NULL,
+  false, 0, 0, 0, @audios, sqlc.narg(video_resolution), @genres, NULL, NULL, @recorded_from, NULL, @now, @now)
+RETURNING *;
+
+-- name: ListRecordingsWithoutNormalized :many
+-- 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
+SELECT id, name, description FROM recordings
+WHERE name_normalized IS NULL OR description_normalized IS NULL
+ORDER BY id
+LIMIT @max_count;
+
+-- name: SetRecordingNormalized :batchexec
+-- 録画の正規化した番組名と概要を書く (#1044)。
+UPDATE recordings SET name_normalized = @name_normalized, description_normalized = @description_normalized WHERE id = @id;
+
+-- name: GetRecordingSID :one
+-- 録画したサービスの、放送のサービス ID。TS の中から、録画したサービスのストリームを選ぶのに使う (#479)。
+SELECT s.sid FROM recordings r JOIN services s ON s.id = r.service_id WHERE r.id = @id;
+
+-- name: UpsertRecordingCMDetection :exec
+-- 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
+INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+VALUES (@recording_id, @detector, @detector_version, @now)
+ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at;
+
+-- name: DeleteRecordingCMSections :exec
+-- 見分け直す前に、同じ見分け方の CM の区間を消す。
+DELETE FROM recording_cm_sections WHERE recording_id = @recording_id AND detector = @detector;
+
+-- name: InsertRecordingCMSection :exec
+INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms)
+VALUES (@recording_id, @detector, @start_offset_ms, @end_offset_ms);
+
+-- name: ListRecordingCMSections :many
+-- 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
+SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
+WHERE recording_id = @recording_id AND detector = @detector
+ORDER BY start_offset_ms;

@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vite
 
 import '../i18n';
 import { SeekBar } from './SeekBar';
+import type { SeekBand } from './seekHover';
 
 // jsdom は PointerEvent を持たないので、位置と種類を運べるよう、MouseEvent から作る。
 class TestPointerEvent extends MouseEvent {
@@ -28,7 +29,7 @@ afterEach(() => {
 });
 
 // renderSeekBar は、幅 600px で左端が 0 の、長さ 600 秒のシークバーを描く。jsdom は大きさを持たないので、測った値を差し替える。
-function renderSeekBar(bands: { from: number; to: number; label: string }[] = []) {
+function renderSeekBar(bands: SeekBand[] = []) {
   const { container } = render(
     <MantineProvider>
       <SeekBar
@@ -86,5 +87,22 @@ describe('SeekBar', () => {
 
     fireEvent.pointerMove(root, { clientX: 100, pointerType: 'mouse' });
     expect(screen.queryByText('ここで 2:07 途切れています')).toBeNull();
+  });
+
+  test('CM の区間は、途切れた区間と違う色で示し、カーソルを乗せると文を出す (#479)', () => {
+    const root = renderSeekBar([
+      { from: 120, to: 240, label: 'CM (2:00)', kind: 'cm' },
+      { from: 420, to: 480, label: '別の区間' },
+    ]);
+    const cm = root.querySelector<HTMLElement>('div[style*="left: 20%"]')!;
+    const other = root.querySelector<HTMLElement>('div[style*="left: 70%"]')!;
+    expect(cm.style.width).toBe('20%');
+    expect(cm.className).not.toBe(other.className);
+
+    fireEvent.pointerMove(root, { clientX: 180, pointerType: 'mouse' });
+    expect(screen.getByText('CM (2:00)')).toBeDefined();
+
+    fireEvent.pointerMove(root, { clientX: 300, pointerType: 'mouse' });
+    expect(screen.queryByText('CM (2:00)')).toBeNull();
   });
 });
