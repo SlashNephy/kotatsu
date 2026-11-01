@@ -81,3 +81,12 @@ func (i *Info) String() string {
 }
 
 var _ fmt.Stringer = new(Info)
+
+// projectURL は、外部のサービスへの問い合わせで、問い合わせ元を示す URL。
+const projectURL = "https://github.com/SlashNephy/kotatsu"
+
+// UserAgent は、外部のサービスに問い合わせるときに名乗る User-Agent を、Kotatsu/1.2.3 (+https://github.com/SlashNephy/kotatsu) のように返す。
+// しょぼいカレンダーなど、問い合わせ元を確かめたい運営者が、Kotatsu からの問い合わせだと分かるようにする (設計書 3.8)。
+func UserAgent() string {
+	return "Kotatsu/" + Get().Version + " (+" + projectURL + ")"
+}

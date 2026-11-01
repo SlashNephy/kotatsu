@@ -40,6 +40,7 @@ import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailC
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
+import { AnimeEpisodes } from '../anime/AnimeEpisodes';
 import { ServiceLabel } from './ServiceLabel';
 import { WatchReserveButton } from '../watch/WatchReserveButton';
 import { zonedFormat } from '../futon';
@@ -132,6 +133,20 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             genres {
               lv1
               lv2
+            }
+            # しょぼいカレンダーで結びつけた話 (設計書 3.8)。詳細でだけ引く。
+            animeEpisodes {
+              syobocalUrl
+              countStart
+              countEnd
+              subtitle
+              first
+              last
+              works {
+                annictUrl
+                anilistUrl
+                malUrl
+              }
             }
             extended {
               heading
@@ -282,6 +297,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             {!program.isFree && <Badge color="gray">{t('guide.detail.paid')}</Badge>}
           </Group>
         )}
+        <AnimeEpisodes episodes={program.animeEpisodes} />
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (

@@ -11,6 +11,46 @@ import (
 	"github.com/google/uuid"
 )
 
+type AnimeChannelDefinition struct {
+	ChannelType       string
+	NetworkID         int64
+	Sid               int64
+	Name              string
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
+}
+
+type AnimeChannelOverride struct {
+	ServiceID         int64
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
+	UpdatedAt         time.Time
+}
+
+type AnimeImport struct {
+	Source     string
+	Etag       *string
+	CheckedAt  time.Time
+	ImportedAt *time.Time
+	ItemCount  int32
+	Error      *string
+}
+
+type AnimeMatchCursor struct {
+	ID         int16
+	EpgVersion int64
+	UpdatedAt  time.Time
+}
+
+type AnimeWork struct {
+	Source       string
+	SyobocalTid  int32
+	Position     int16
+	AnnictWorkID *int32
+	AnilistID    *int32
+	MalID        *int32
+}
+
 type ApiToken struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -249,6 +289,28 @@ type Program struct {
 	UpdatedAt             time.Time
 }
 
+type ProgramAnimeEpisode struct {
+	ServiceID   int64
+	StartAt     time.Time
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+type ProgramAnimeMatch struct {
+	ServiceID   int64
+	StartAt     time.Time
+	EventID     int64
+	MatchedAt   time.Time
+	FinalizedAt *time.Time
+}
+
 type ProgramArchive struct {
 	ServiceID             int64
 	EventID               int64
@@ -306,6 +368,24 @@ type Recording struct {
 	RecordedUntil         *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+type RecordingAnimeEpisode struct {
+	RecordingID uuid.UUID
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+type RecordingAnimeMatch struct {
+	RecordingID uuid.UUID
+	MatchedAt   time.Time
 }
 
 type RecordingAssignment struct {
@@ -466,6 +546,34 @@ type StoragePool struct {
 	MeasuredAt   *time.Time
 }
 
+type SyobocalLookup struct {
+	ChannelID int32
+	DayStart  time.Time
+	FetchedAt time.Time
+}
+
+type SyobocalProgram struct {
+	Pid           int32
+	Tid           int32
+	ChannelID     int32
+	StartAt       time.Time
+	EndAt         time.Time
+	OffsetSeconds int32
+	Count         string
+	SubTitle      string
+	StSubTitle    string
+	Flag          int32
+	Deleted       bool
+	FetchedAt     time.Time
+}
+
+type SyobocalTitle struct {
+	Tid        int32
+	Title      string
+	TitleKey   string
+	LastUpdate *time.Time
+}
+
 type SystemSetting struct {
 	ID                        int16
 	RecordingDefaults         []byte
@@ -473,6 +581,7 @@ type SystemSetting struct {
 	NotificationRetentionDays int32
 	MCPEnabled                bool
 	DataBroadcastIPEnabled    bool
+	AnimeLinkingEnabled       bool
 	RuleDefaults              []byte
 	DrcsReplacements          []byte
 	UpdatedAt                 time.Time

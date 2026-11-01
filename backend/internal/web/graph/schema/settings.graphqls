@@ -57,6 +57,8 @@ type SystemSettings {
   ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
   """
   dataBroadcastIpEnabled: Boolean!
+  "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
+  animeLinkingEnabled: Boolean!
   "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   "最後に変えた日時。一度も変えていなければ null。"
@@ -76,6 +78,8 @@ input SystemSettingsInput {
   mcpEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。"
   dataBroadcastIpEnabled: Boolean
+  "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  animeLinkingEnabled: Boolean
   """
   字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。

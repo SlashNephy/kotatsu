@@ -30,6 +30,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
@@ -1618,6 +1619,10 @@ func (r *Recorder) start(ctx context.Context, reservation *sqlc.GetReservationFo
 		recording = started.Recording
 		if !started.Inserted {
 			return nil
+		}
+		// 解像度と同じく、録画を始めたときの番組とアニメの作品の結びつきを写す (設計書 3.8)。
+		if err := anime.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
+			return err
 		}
 		if _, err := notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel); err != nil {
 			return err

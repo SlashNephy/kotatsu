@@ -17,7 +17,7 @@ import { Webhook } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState, type FormEvent } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
-import { EmptyState } from '../../futon';
+import { EmptyState, zonedFormat } from '../../futon';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -39,6 +39,7 @@ import type {
   SystemSettingsInput,
   integrationsSystemSettingsMutation,
 } from './__generated__/integrationsSystemSettingsMutation.graphql';
+import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
 
@@ -57,8 +58,8 @@ const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
   (kind) => kind !== 'WATCH_REMINDER',
 );
 
-// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアントと、データ放送の通信の中継と、通知を送る Webhook) を変える、
-// 管理者向けの画面 (設計書 6.2、7.4、10.3)。
+// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、しょぼいカレンダー、Annict、AniList、
+// 通知を送る Webhook) を変える、管理者向けの画面 (設計書 3.8、6.2、7.4、10.3)。
 function IntegrationsPage() {
   const { t } = useTranslation();
 
@@ -74,6 +75,14 @@ const query = graphql`
     systemSettings {
       mcpEnabled
       dataBroadcastIpEnabled
+      animeLinkingEnabled
+    }
+    animeImports {
+      source
+      checkedAt
+      importedAt
+      itemCount
+      error
     }
     webhooks {
       id
@@ -192,6 +201,14 @@ function Integrations() {
           enabled={data.systemSettings.dataBroadcastIpEnabled}
           busy={gate.busy}
           onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
+        />
+
+        <AnimeLinkingSettings
+          key={`anime/${String(data.systemSettings.animeLinkingEnabled)}`}
+          enabled={data.systemSettings.animeLinkingEnabled}
+          imports={data.animeImports}
+          busy={gate.busy}
+          onSave={(animeLinkingEnabled) => saveSettings({ animeLinkingEnabled })}
         />
 
         {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
@@ -334,6 +351,107 @@ function SwitchSetting({
           {t('admin.save')}
         </Button>
       </Group>
+    </Section>
+  );
+}
+
+const importedAtFormat = zonedFormat({
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+// importSourceKeys は、取り込み元の名前の翻訳のキー。
+const importSourceKeys = {
+  SAYA_DEFINITIONS: 'admin.settings.animeSourceSaya',
+  ARM: 'admin.settings.animeSourceArm',
+  ARM_SUPPLEMENTARY: 'admin.settings.animeSourceArmSupplementary',
+  SYOBOCAL_TITLES: 'admin.settings.animeSourceSyobocalTitles',
+} as const satisfies Partial<Record<AnimeImportSource, string>>;
+
+type AnimeImportItem = {
+  source: AnimeImportSource;
+  checkedAt: string;
+  importedAt: string | null | undefined;
+  itemCount: number;
+  error: string | null | undefined;
+};
+
+// AnimeLinkingSettings は、しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうかを変え (設計書 3.8)、
+// 連携先の情報を取り込んだ様子を出す。
+function AnimeLinkingSettings({
+  enabled,
+  imports,
+  busy,
+  onSave,
+}: {
+  enabled: boolean;
+  imports: readonly AnimeImportItem[];
+  busy: boolean;
+  onSave: (enabled: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const [checked, setChecked] = useState(enabled);
+
+  return (
+    <Section title={t('admin.settings.anime')}>
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-end">
+          <Switch
+            size="sm"
+            label={t('admin.settings.animeEnabled')}
+            description={t('admin.settings.animeHelp')}
+            checked={checked}
+            onChange={(event) => setChecked(event.currentTarget.checked)}
+            maw={560}
+          />
+          <Button
+            size="compact-sm"
+            disabled={checked === enabled || busy}
+            onClick={() => onSave(checked)}
+          >
+            {t('admin.save')}
+          </Button>
+        </Group>
+        {imports.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('admin.settings.animeNotImported')}
+          </Text>
+        ) : (
+          <Stack gap={4} data-testid="anime-imports">
+            {imports.map((item) => (
+              <Group key={item.source} gap="xs" wrap="nowrap" align="flex-start">
+                <Text size="sm" fw={600} w={200}>
+                  {item.source in importSourceKeys
+                    ? t(importSourceKeys[item.source as keyof typeof importSourceKeys])
+                    : item.source}
+                </Text>
+                <Stack gap={0}>
+                  <Text size="sm">
+                    {item.importedAt == null
+                      ? t('admin.settings.animeNeverImported')
+                      : t('admin.settings.animeImported', {
+                          at: importedAtFormat.format(Date.parse(item.importedAt)),
+                          items: item.itemCount,
+                        })}
+                  </Text>
+                  {item.error != null && (
+                    <Text size="xs" c="red">
+                      {t('admin.settings.animeImportFailed', {
+                        at: importedAtFormat.format(Date.parse(item.checkedAt)),
+                        error: item.error,
+                      })}
+                    </Text>
+                  )}
+                </Stack>
+              </Group>
+            ))}
+          </Stack>
+        )}
+      </Stack>
     </Section>
   );
 }

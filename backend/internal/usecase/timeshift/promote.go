@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
@@ -163,6 +164,10 @@ func (p *Promoter) enqueue(
 		row, err := q.InsertPromotedRecording(ctx, insert)
 		if err != nil {
 			return fmt.Errorf("failed to save the recording: %w", err)
+		}
+		// 予約の録画と同じく、番組とアニメの作品の結びつきを写す (設計書 3.8)。
+		if err := anime.CopyToRecording(ctx, tx, row.ID, row.ServiceID, row.StartAt, now); err != nil {
+			return err
 		}
 		inserted, err := q.InsertTimeshiftPromotion(ctx, sqlc.InsertTimeshiftPromotionParams{
 			RecordingID: row.ID, ServiceID: serviceID, FromAt: from, ToAt: to, CreatedBy: userOf(actor), Now: now,

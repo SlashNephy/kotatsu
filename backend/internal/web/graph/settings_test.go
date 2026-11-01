@@ -24,11 +24,13 @@ const (
 	fieldMCPEnabled = "mcpEnabled"
 	// fieldDataBroadcastIPEnabled は、データ放送の通信を中継するかどうかの項目 (#501)。
 	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
-	settingsQuery               = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
-		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled } }`
+	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
+	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
+	settingsQuery            = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
+		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled } }`
 	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
 		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled
-		dataBroadcastIpEnabled } }`
+		dataBroadcastIpEnabled animeLinkingEnabled } }`
 )
 
 type recordingSettings struct {
@@ -45,6 +47,7 @@ type systemSettings struct {
 	NotificationRetentionDays int               `json:"notificationRetentionDays"`
 	MCPEnabled                bool              `json:"mcpEnabled"`
 	DataBroadcastIPEnabled    bool              `json:"dataBroadcastIpEnabled"`
+	AnimeLinkingEnabled       bool              `json:"animeLinkingEnabled"`
 }
 
 func defaultSystemSettings() systemSettings {
@@ -57,6 +60,7 @@ func defaultSystemSettings() systemSettings {
 		NotificationRetentionDays: 90,
 		MCPEnabled:                false,
 		DataBroadcastIPEnabled:    false,
+		AnimeLinkingEnabled:       false,
 	}
 }
 
@@ -134,6 +138,10 @@ func TestSystemSettings(t *testing.T) {
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "viewers read whether data broadcast communication is relayed")
+	// しょぼいカレンダー、Annict、AniList との連携も、既定では使わず、管理者が有効にする (設計書 3.8)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldAnimeLinkingEnabled: true}}, &partial))
+	want.AnimeLinkingEnabled = true
+	assert.Equal(t, want, partial.UpdateSystemSettings)
 
 	var stamped struct {
 		SystemSettings struct {
@@ -149,12 +157,14 @@ func TestSystemSettings(t *testing.T) {
 	// データ放送の通信の中継も、受信機の情報を外部のサーバーへ送らせるかどうかを決めるので、同じく求める (#501)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	require.Empty(t, admin.query(t, updateSettings, change, nil))
-	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled} {
+	// しょぼいカレンダー、Annict、AniList との連携も、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。
+	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled} {
 		assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{field: false}}, nil), field)
 	}
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "rejected changes are not saved")
+	assert.True(t, got.SystemSettings.AnimeLinkingEnabled, "rejected changes are not saved")
 }
 
 type drcsReplacement struct {

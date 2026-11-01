@@ -29,10 +29,15 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		Rule:                      toRuleChanges(input.RuleDefaults),
 		MCPEnabled:                input.McpEnabled,
 		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
+		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
 		DRCSReplacements:          replacements,
 	})
 	if err != nil {
 		return nil, settingsError(err)
+	}
+	// 連携を有効にしたら、1 時間ごとの確かめを待たずに、連携先の情報を取り込み始める (設計書 3.8)。
+	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {
+		r.startAnimeLinking(ctx)
 	}
 
 	return systemSettingsOf(updated), nil
