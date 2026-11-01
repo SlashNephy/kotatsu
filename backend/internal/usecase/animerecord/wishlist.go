@@ -158,18 +158,52 @@ func (s *Service) ImportWishlist(ctx context.Context, db Database, userID uuid.U
 		if err := q.DeleteAnimeWishlistEntries(ctx, sqlc.DeleteAnimeWishlistEntriesParams{UserID: userID, Destination: name}); err != nil {
 			return fmt.Errorf("failed to delete the wishlist entries: %w", err)
 		}
-		workIDs, statuses, titles := make([]int32, 0, len(entries)), make([]string, 0, len(entries)), make([]string, 0, len(entries))
-		for _, entry := range entries {
-			workIDs, statuses, titles = append(workIDs, entry.WorkID), append(statuses, entry.Status), append(titles, entry.Title)
-		}
-		if err := q.InsertAnimeWishlistEntries(ctx, sqlc.InsertAnimeWishlistEntriesParams{
-			UserID: userID, Destination: name, Now: now, WorkIds: workIDs, Statuses: statuses, Titles: titles,
-		}); err != nil {
+		if err := q.InsertAnimeWishlistEntries(ctx, wishlistEntriesParams(userID, name, now, entries)); err != nil {
 			return fmt.Errorf("failed to save the wishlist entries: %w", err)
 		}
 
 		return nil
 	})
+}
+
+// wishlistEntriesParams は、見たいリストの作品を、まとめて書く引数にする。配列は NULL を持てないので、分からない数は -1 に、
+// 分からない文字列は空にする (クエリが NULL に戻す)。
+func wishlistEntriesParams(userID uuid.UUID, name string, now time.Time, entries []*WishlistEntry) sqlc.InsertAnimeWishlistEntriesParams {
+	params := sqlc.InsertAnimeWishlistEntriesParams{
+		UserID: userID, Destination: name, Now: now,
+		WorkIds: make([]int32, 0, len(entries)), Statuses: make([]string, 0, len(entries)), Titles: make([]string, 0, len(entries)),
+		NextEpisodeIds: make([]string, 0, len(entries)), NextEpisodeNumbers: make([]int32, 0, len(entries)),
+		NextEpisodeNumberTexts: make([]string, 0, len(entries)), NextEpisodeTitles: make([]string, 0, len(entries)),
+		Progresses: make([]int32, 0, len(entries)), EpisodesCounts: make([]int32, 0, len(entries)),
+		SeasonYears: make([]int32, 0, len(entries)), SeasonNames: make([]string, 0, len(entries)), ImageURLs: make([]string, 0, len(entries)),
+	}
+	orNone := func(value *int32) int32 {
+		if value == nil {
+			return -1
+		}
+
+		return *value
+	}
+	for _, entry := range entries {
+		params.WorkIds = append(params.WorkIds, entry.WorkID)
+		params.Statuses = append(params.Statuses, entry.Status)
+		params.Titles = append(params.Titles, entry.Title)
+		next := entry.NextEpisode
+		if next == nil {
+			next = &WishlistEpisode{ID: "", Number: nil, NumberText: "", Title: ""}
+		}
+		params.NextEpisodeIds = append(params.NextEpisodeIds, next.ID)
+		params.NextEpisodeNumbers = append(params.NextEpisodeNumbers, orNone(next.Number))
+		params.NextEpisodeNumberTexts = append(params.NextEpisodeNumberTexts, next.NumberText)
+		params.NextEpisodeTitles = append(params.NextEpisodeTitles, next.Title)
+		params.Progresses = append(params.Progresses, orNone(entry.Progress))
+		params.EpisodesCounts = append(params.EpisodesCounts, orNone(entry.EpisodesCount))
+		params.SeasonYears = append(params.SeasonYears, orNone(entry.SeasonYear))
+		params.SeasonNames = append(params.SeasonNames, entry.SeasonName)
+		params.ImageURLs = append(params.ImageURLs, entry.ImageURL)
+	}
+
+	return params
 }
 
 // retryDelay は、取り込めなかった見たいリストを問い合わせ直すまでの長さを返す。

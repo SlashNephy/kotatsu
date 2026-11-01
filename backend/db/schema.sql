@@ -1412,6 +1412,22 @@ CREATE TABLE anime_wishlist_entries (
   status text NOT NULL CHECK (status IN ('wanna_watch', 'watching')),
   -- 記録先の作品名。候補の見出しと、作るルールの名前に使う。
   title text NOT NULL,
+  -- 次に見る話 (#1230)。Annict の nextEpisode から取り込む。AniList は話を持たないので、どれも NULL。
+  -- next_episode_id は、Annict のエピソードのグローバル ID (createRecord に渡すもの)。
+  next_episode_id text,
+  next_episode_number integer,
+  next_episode_number_text text,
+  next_episode_title text,
+  -- 見終えた話数 (#1230)。AniList は progress を、Annict は次に見る話の話数の 1 つ前を持つ。分からなければ NULL。
+  -- 取り込みの間に kotatsu が記録を送れたら、その話数まで進める。
+  progress integer CHECK (progress >= 0),
+  -- 作品の全話数。分からなければ NULL。
+  episodes_count integer,
+  -- 作品の放送の時期。Annict の AUTUMN と AniList の FALL は、どちらも autumn にする。
+  season_year integer,
+  season_name text CHECK (season_name IN ('winter', 'spring', 'summer', 'autumn')),
+  -- 作品の画像の URL。Annict の recommendedImageUrl か、AniList の coverImage.large。
+  image_url text,
   fetched_at timestamptz NOT NULL,
   PRIMARY KEY (user_id, destination, work_id),
   FOREIGN KEY (user_id, destination) REFERENCES anime_record_connections (user_id, destination) ON DELETE CASCADE

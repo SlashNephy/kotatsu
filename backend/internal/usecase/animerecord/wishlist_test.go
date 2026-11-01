@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,6 +29,7 @@ const (
 	titleC          = "作品C"
 	stateWannaWatch = "WANNA_WATCH"
 	listCurrent     = "CURRENT"
+	listPlanning    = "PLANNING"
 	stateWatching   = "WATCHING"
 )
 
@@ -333,7 +335,7 @@ func TestImportWishlist(t *testing.T) {
 			destination: animerecord.DestinationAniList,
 			prepare: func(t *testing.T, _ *recordFixture, fake *fakeService) {
 				t.Helper()
-				fake.setList([]fakeListEntry{{ID: 600, Title: titleA, Status: "PLANNING"}, {ID: 601, Title: titleB, Status: listCurrent}, {ID: 602, Title: titleC, Status: "PLANNING"}}, 2)
+				fake.setList([]fakeListEntry{{ID: 600, Title: titleA, Status: listPlanning}, {ID: 601, Title: titleB, Status: listCurrent}, {ID: 602, Title: titleC, Status: listPlanning}}, 2)
 			},
 			wantRows:     []string{"anilist:600:wanna_watch:作品A", "anilist:601:watching:作品B", "anilist:602:wanna_watch:作品C"},
 			wantRequests: 2,
@@ -407,6 +409,77 @@ func TestImportWishlist(t *testing.T) {
 			assert.Equal(t, tt.wantError, reason != nil)
 		})
 	}
+}
+
+// TestImportWishlistDetails は、見たいリストの取り込みで、次に見る話、見終えた話数、全話数、放送の時期、画像も取り込むことを確かめる (#1230)。
+func TestImportWishlistDetails(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		destination string
+		list        []fakeListEntry
+		want        []string
+	}{
+		{
+			name:        "Annict reads the next episode and derives the progress from it",
+			destination: animerecord.DestinationAnnict,
+			list: []fakeListEntry{
+				{
+					ID: 10, Title: titleA, Status: stateWatching,
+					Next:     &fakeEpisode{ID: "RXBpc29kZS0x", AnnictID: 104, Number: new(4), NumberText: new("第4話"), Title: new("サブタイトル")},
+					Episodes: new(12), Season: "AUTUMN", SeasonYear: 2026, Image: "https://example.com/a.jpg",
+				},
+				// 見たいだけの作品は、次に見る話を持たず、全話数が 0 なら分からないとする。
+				{ID: 11, Title: titleB, Status: stateWannaWatch, Episodes: new(0)},
+			},
+			want: []string{
+				"10|RXBpc29kZS0x|4|第4話|サブタイトル|3|12|2026|autumn|https://example.com/a.jpg",
+				"11|-|-|-|-|-|-|-|-|-",
+			},
+		},
+		{
+			name:        "AniList reads the progress and treats FALL as autumn",
+			destination: animerecord.DestinationAniList,
+			list: []fakeListEntry{
+				{ID: 600, Title: titleA, Status: listCurrent, Progress: new(5), Episodes: new(13), Season: "FALL", SeasonYear: 2026, Image: "https://example.com/b.jpg"},
+				{ID: 601, Title: titleB, Status: listPlanning, Progress: new(0), Season: "WINTER", SeasonYear: 2027},
+			},
+			want: []string{
+				"600|-|-|-|-|5|13|2026|autumn|https://example.com/b.jpg",
+				"601|-|-|-|-|0|-|2027|winter|-",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newRecordFixture(t)
+			f.connect(t, f.alice, tt.destination)
+			fake := f.annict
+			if tt.destination == animerecord.DestinationAniList {
+				fake = f.anilist
+			}
+			fake.setList(tt.list, 0)
+
+			require.NoError(t, f.service.ImportWishlist(t.Context(), f.pool, f.alice.UserID, tt.destination))
+			assert.Equal(t, tt.want, f.wishlistDetails(t, f.alice.UserID))
+		})
+	}
+}
+
+// wishlistDetails は、見たいリストの作品の、作品名と状態のほかに取り込んだものを、作品 ID の順に返す。NULL は「-」にする。
+func (f *recordFixture) wishlistDetails(t *testing.T, userID uuid.UUID) []string {
+	t.Helper()
+	rows, err := f.pool.Query(t.Context(), `SELECT concat_ws('|', work_id, coalesce(next_episode_id, '-'), coalesce(next_episode_number::text, '-'),
+  coalesce(next_episode_number_text, '-'), coalesce(next_episode_title, '-'), coalesce(progress::text, '-'), coalesce(episodes_count::text, '-'),
+  coalesce(season_year::text, '-'), coalesce(season_name, '-'), coalesce(image_url, '-'))
+FROM anime_wishlist_entries WHERE user_id = $1 ORDER BY destination, work_id`, userID)
+	require.NoError(t, err)
+	result, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+
+	return result
 }
 
 // setLinking は、管理者がアニメの結びつきを有効か無効にする。

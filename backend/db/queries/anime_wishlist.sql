@@ -12,12 +12,33 @@ DELETE FROM anime_wishlist_entries WHERE user_id = @user_id AND destination = @d
 
 -- name: InsertAnimeWishlistEntries :exec
 -- 同じ作品が 2 度返ってきたら (見たいと見てるの両方など)、先に返ってきたものを使う。
-INSERT INTO anime_wishlist_entries (user_id, destination, work_id, status, title, fetched_at)
-SELECT @user_id, @destination, t.work_id, t.status, t.title, @now
+-- 配列は NULL を持てないので、分からない数は -1 で、分からない文字列は空で渡す。
+INSERT INTO anime_wishlist_entries (
+  user_id, destination, work_id, status, title, next_episode_id, next_episode_number, next_episode_number_text, next_episode_title,
+  progress, episodes_count, season_year, season_name, image_url, fetched_at
+)
+SELECT @user_id, @destination, t.work_id, t.status, t.title, NULLIF(t.next_episode_id, ''), NULLIF(t.next_episode_number, -1),
+  NULLIF(t.next_episode_number_text, ''), NULLIF(t.next_episode_title, ''), NULLIF(t.progress, -1), NULLIF(t.episodes_count, -1),
+  NULLIF(t.season_year, -1), NULLIF(t.season_name, ''), NULLIF(t.image_url, ''), @now
 FROM (
-  SELECT unnest(@work_ids::integer[]) AS work_id, unnest(@statuses::text[]) AS status, unnest(@titles::text[]) AS title
+  SELECT unnest(@work_ids::integer[]) AS work_id, unnest(@statuses::text[]) AS status, unnest(@titles::text[]) AS title,
+    unnest(@next_episode_ids::text[]) AS next_episode_id, unnest(@next_episode_numbers::integer[]) AS next_episode_number,
+    unnest(@next_episode_number_texts::text[]) AS next_episode_number_text, unnest(@next_episode_titles::text[]) AS next_episode_title,
+    unnest(@progresses::integer[]) AS progress, unnest(@episodes_counts::integer[]) AS episodes_count,
+    unnest(@season_years::integer[]) AS season_year, unnest(@season_names::text[]) AS season_name, unnest(@image_urls::text[]) AS image_url
 ) AS t
 ON CONFLICT (user_id, destination, work_id) DO NOTHING;
+
+-- name: AdvanceAnimeWishlistProgress :exec
+-- kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
+-- 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
+UPDATE anime_wishlist_entries SET
+  progress = GREATEST(COALESCE(progress, 0), @episode_number::integer),
+  next_episode_id = CASE WHEN next_episode_number <= @episode_number::integer THEN NULL ELSE next_episode_id END,
+  next_episode_number_text = CASE WHEN next_episode_number <= @episode_number::integer THEN NULL ELSE next_episode_number_text END,
+  next_episode_title = CASE WHEN next_episode_number <= @episode_number::integer THEN NULL ELSE next_episode_title END,
+  next_episode_number = CASE WHEN next_episode_number <= @episode_number::integer THEN NULL ELSE next_episode_number END
+WHERE user_id = @user_id AND destination = @destination AND work_id = ANY(@work_ids::integer[]);
 
 -- name: FinishAnimeWishlistImport :execrows
 -- 見たいリストを問い合わせた結果を残す。取り込めたら (error が NULL)、取り込めた日時を進め、理由を消す。

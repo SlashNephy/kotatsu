@@ -27,6 +27,9 @@ type Querier interface {
 	AcquireTimeshiftAssignment(ctx context.Context, arg AcquireTimeshiftAssignmentParams) (AcquireTimeshiftAssignmentRow, error)
 	// 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
 	AddRecordingStats(ctx context.Context, arg AddRecordingStatsParams) error
+	// kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
+	// 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
+	AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceAnimeWishlistProgressParams) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
 	// 終了時刻が未定の番組は、開始時刻が before より前なら移す。猶予 (既定 24 時間) より長い番組は無いからである。
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
@@ -319,6 +322,7 @@ type Querier interface {
 	InsertAnimeRecord(ctx context.Context, arg InsertAnimeRecordParams) (int64, error)
 	InsertAnimeRecordAuthorization(ctx context.Context, arg InsertAnimeRecordAuthorizationParams) error
 	// 同じ作品が 2 度返ってきたら (見たいと見てるの両方など)、先に返ってきたものを使う。
+	// 配列は NULL を持てないので、分からない数は -1 で、分からない文字列は空で渡す。
 	InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnimeWishlistEntriesParams) error
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeWorks(ctx context.Context, arg InsertAnimeWorksParams) error

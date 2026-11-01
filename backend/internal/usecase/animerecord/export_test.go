@@ -1,7 +1,10 @@
 package animerecord
 
 import (
+	"context"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
@@ -61,4 +64,9 @@ func PickWishlistWorks(
 	}
 
 	return pickWishlistWorks(sources, programs, keys, identities)
+}
+
+// AdvanceWishlist は、advanceWishlist をテストから使う。
+func (s *Service) AdvanceWishlist(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, name string, workIDs []int32, number *float64) {
+	s.advanceWishlist(ctx, db, userID, name, workIDs, number)
 }

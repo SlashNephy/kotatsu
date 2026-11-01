@@ -170,18 +170,19 @@ func (a *AniList) Wishlist(ctx context.Context, token, cursor string) (*Wishlist
 	}
 	const query = `query ($userId: Int, $chunk: Int, $perChunk: Int) {
   MediaListCollection(userId: $userId, type: ANIME, status_in: [PLANNING, CURRENT], chunk: $chunk, perChunk: $perChunk) {
-    hasNextChunk lists { entries { status media { id title { native romaji } } } }
+    hasNextChunk lists { entries {
+      status progress
+      media { id title { native romaji } episodes season seasonYear coverImage { large } }
+    } }
   } }`
 	var data struct {
 		MediaListCollection *struct {
 			HasNextChunk bool `json:"hasNextChunk"`
 			Lists        []*struct {
 				Entries []*struct {
-					Status string `json:"status"`
-					Media  *struct {
-						ID    int32              `json:"id"`
-						Title *aniListMediaTitle `json:"title"`
-					} `json:"media"`
+					Status   string                `json:"status"`
+					Progress *int32                `json:"progress"`
+					Media    *aniListWishlistMedia `json:"media"`
 				} `json:"entries"`
 			} `json:"lists"`
 		} `json:"MediaListCollection"`
@@ -211,7 +212,7 @@ func (a *AniList) Wishlist(ctx context.Context, token, cursor string) (*Wishlist
 			default:
 				continue
 			}
-			page.Entries = append(page.Entries, &WishlistEntry{WorkID: entry.Media.ID, Status: status, Title: aniListTitle(entry.Media.Title)})
+			page.Entries = append(page.Entries, aniListWishlistEntry(entry.Media, status, entry.Progress))
 		}
 	}
 	if data.MediaListCollection.HasNextChunk {
@@ -219,6 +220,34 @@ func (a *AniList) Wishlist(ctx context.Context, token, cursor string) (*Wishlist
 	}
 
 	return page, nil
+}
+
+// aniListWishlistMedia は、見たいリストの作品。
+type aniListWishlistMedia struct {
+	ID         int32              `json:"id"`
+	Title      *aniListMediaTitle `json:"title"`
+	Episodes   *int32             `json:"episodes"`
+	Season     *string            `json:"season"`
+	SeasonYear *int32             `json:"seasonYear"`
+	CoverImage *struct {
+		Large *string `json:"large"`
+	} `json:"coverImage"`
+}
+
+// aniListWishlistEntry は、AniList のリストの作品を、見たいリストの作品にする。AniList は次に見る話を持たない。
+func aniListWishlistEntry(media *aniListWishlistMedia, status string, progress *int32) *WishlistEntry {
+	entry := &WishlistEntry{
+		WorkID: media.ID, Status: status, Title: aniListTitle(media.Title), NextEpisode: nil, Progress: nil,
+		EpisodesCount: positive(media.Episodes), SeasonYear: positive(media.SeasonYear), SeasonName: seasonName(media.Season), ImageURL: "",
+	}
+	if progress != nil && *progress >= 0 {
+		entry.Progress = progress
+	}
+	if media.CoverImage != nil && media.CoverImage.Large != nil {
+		entry.ImageURL = strings.TrimSpace(*media.CoverImage.Large)
+	}
+
+	return entry
 }
 
 // aniListMediaTitle は、AniList の作品名。

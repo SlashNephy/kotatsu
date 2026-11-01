@@ -111,12 +111,21 @@ type AnimeWatchProgress struct {
 }
 
 type AnimeWishlistEntry struct {
-	UserID      uuid.UUID
-	Destination string
-	WorkID      int32
-	Status      string
-	Title       string
-	FetchedAt   time.Time
+	UserID                uuid.UUID
+	Destination           string
+	WorkID                int32
+	Status                string
+	Title                 string
+	NextEpisodeID         *string
+	NextEpisodeNumber     *int32
+	NextEpisodeNumberText *string
+	NextEpisodeTitle      *string
+	Progress              *int32
+	EpisodesCount         *int32
+	SeasonYear            *int32
+	SeasonName            *string
+	ImageURL              *string
+	FetchedAt             time.Time
 }
 
 type AnimeWork struct {
