@@ -183,6 +183,10 @@ const playQuery = graphql`
           from
           to
         }
+        cmSections {
+          from
+          to
+        }
         jikkyoCommentsUrl
         rule {
           id
@@ -808,13 +812,30 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return { from: at, to: at, label: t('player.gapMark', { duration: formatDuration(length) }) };
   });
+  // cmBands は、CM とみなした区間 (#479)。途切れた区間と同じく、録画の時間軸の日時を、途切れた分を詰めた再生の位置にする。
+  // 途切れた位置の印を上に重ねるよう、先に並べる。
+  const cmBands = (recording?.cmSections ?? []).map((section) => {
+    const from = recordingPosition(
+      recording!.recordedFrom,
+      recording!.gaps,
+      Date.parse(section.from),
+    );
+    const to = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(section.to));
+
+    return {
+      from,
+      to,
+      label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
+      kind: 'cm' as const,
+    };
+  });
 
   const controlBar = (
     <PlayerControls
       visible={controls.visible}
       seek={
         <SeekBar
-          bands={gapMarks}
+          bands={[...cmBands, ...gapMarks]}
           duration={duration}
           value={shown}
           previewUrl={recording.previewUrl}
