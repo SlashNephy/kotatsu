@@ -156,13 +156,15 @@ func (i *Importer) importSource(ctx context.Context, source, etag string) (int, 
 		}
 
 		return i.replaceChannels(ctx, channelDefinitionsOf(channels), newETag)
-	default:
+	case SourceArm:
 		works, newETag, err := i.fetcher.Arm(ctx, etag)
 		if err != nil {
 			return 0, err
 		}
 
 		return i.replaceWorks(ctx, source, worksOf(source, works), newETag)
+	default:
+		return 0, fmt.Errorf("unknown anime import source: %s", source)
 	}
 }
 
