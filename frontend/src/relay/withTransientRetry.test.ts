@@ -152,4 +152,20 @@ describe('withTransientRetry', () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
     expect(tracker.isReconnecting()).toBe(false);
   });
+  test('送り直している間にオフラインになったら、それ以上は送り直さずにエラーを出す (#1200)', async () => {
+    const tracker = createConnectionTracker();
+    const fetchFn = fetcher([unavailable(), unavailable(), ok]);
+    let online = true;
+    const { got } = run(
+      withTransientRetry(fetchFn, { tracker, random: () => 0, online: () => online }),
+    );
+    expect(tracker.isReconnecting()).toBe(true);
+
+    online = false;
+    await vi.runAllTimersAsync();
+
+    expect(got.error).toBeInstanceOf(GraphQLRequestError);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(tracker.isReconnecting()).toBe(false);
+  });
 });
