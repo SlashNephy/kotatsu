@@ -1176,12 +1176,11 @@ CREATE TABLE anime_channel_overrides (
   CHECK (syobocal_channel_id IS NOT NULL OR annict_channel_id IS NOT NULL)
 );
 
--- arm と arm-supplementary から取り込んだ、しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応 (設計書 3.8)。
+-- arm から取り込んだ、しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応 (設計書 3.8)。
 -- 1 つの TID に複数の作品が対応することがある (分割された作品など) ので、TID ごとに並びの番号 (position) を振る。
 -- 取り込み元ごとに行を持ち、取り込み直すときは、その取り込み元の行だけを入れ替える。
--- 読むときは、TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を使う。
 CREATE TABLE anime_works (
-  source text NOT NULL CHECK (source IN ('arm', 'arm_supplementary')),
+  source text NOT NULL CHECK (source IN ('arm')),
   syobocal_tid integer NOT NULL,
   position smallint NOT NULL,
   annict_work_id integer,
@@ -1196,7 +1195,7 @@ CREATE INDEX anime_works_anilist_id_idx ON anime_works (anilist_id) WHERE anilis
 
 -- 連携先の情報を取り込んだ様子 (設計書 3.8)。取り込み元ごとに 1 行。管理者の画面に出す。
 CREATE TABLE anime_imports (
-  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'arm_supplementary', 'syobocal_titles')),
+  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'syobocal_titles')),
   -- 最後に取り込んだ内容の ETag。変わっていなければ、取り込み元は 304 を返し、読み直さない。
   etag text,
   -- 最後に問い合わせた日時。1 日ごとの取り込みは、これから決める。

@@ -135,10 +135,6 @@ enum AnimeImportSource {
   """
   ARM
   """
-  arm を補う、作品 ID の対応
-  """
-  ARM_SUPPLEMENTARY
-  """
   しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
   """
   SYOBOCAL_TITLES
@@ -348,7 +344,7 @@ type AnimeWishlistWork {
   covered: Boolean!
 }
 """
-しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
+しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm から取り込んだ対応から引く。
 """
 type AnimeWork {
   annictWorkId: Int

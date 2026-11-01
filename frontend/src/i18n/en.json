@@ -1754,7 +1754,6 @@
       "animeImportFailed": "Failed to import at {{at}}: {{error}}",
       "animeSourceSaya": "Channel mapping (saya-definitions)",
       "animeSourceArm": "Work ID mapping (arm)",
-      "animeSourceArmSupplementary": "Work ID mapping (arm-supplementary)",
       "animeSourceSyobocalTitles": "Syobocal titles"
     },
     "recording": {

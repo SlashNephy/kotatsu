@@ -183,9 +183,6 @@ const listAnimeWorksByExternalIDs = `-- name: ListAnimeWorksByExternalIDs :many
 SELECT w.syobocal_tid, w.annict_work_id, w.anilist_id
 FROM anime_works w
 WHERE (w.annict_work_id = ANY($1::integer[]) OR w.anilist_id = ANY($2::integer[]))
-  AND (w.source = 'arm_supplementary' OR NOT EXISTS (
-    SELECT 1 FROM anime_works s WHERE s.source = 'arm_supplementary' AND s.syobocal_tid = w.syobocal_tid
-  ))
 ORDER BY w.syobocal_tid, w.position
 `
 
@@ -201,7 +198,6 @@ type ListAnimeWorksByExternalIDsRow struct {
 }
 
 // Annict の作品 ID か AniList の ID が、どれかに当たる作品の対応を返す (#928)。
-// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を使う (設計書 3.8)。
 func (q *Queries) ListAnimeWorksByExternalIDs(ctx context.Context, arg ListAnimeWorksByExternalIDsParams) ([]ListAnimeWorksByExternalIDsRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeWorksByExternalIDs, arg.AnnictWorkIds, arg.AnilistIds)
 	if err != nil {

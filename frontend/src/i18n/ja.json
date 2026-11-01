@@ -1680,7 +1680,6 @@
       "animeImportFailed": "{{at}}に取り込めませんでした：{{error}}",
       "animeSourceSaya": "チャンネルの対応（saya-definitions）",
       "animeSourceArm": "作品IDの対応（arm）",
-      "animeSourceArmSupplementary": "作品IDの対応（arm-supplementary）",
       "animeSourceSyobocalTitles": "しょぼいカレンダーのタイトル"
     },
     "recording": {

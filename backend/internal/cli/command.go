@@ -200,7 +200,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
 	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの取り込みと照合のジョブすべてで共有する。
 	syobocalClient := syobocal.NewClient(nil)
-	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), syobocalClient, inserter, animeLogger)))
+	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config), syobocalClient, inserter, animeLogger)))
 	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
 	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
 	animeRecords, err := newAnimeRecords(deps, logger, inserter)
@@ -1148,6 +1148,11 @@ func closePool(pool *pgxpool.Pool) {
 	if pool != nil {
 		pool.Close()
 	}
+}
+
+// animeDataClient は、連携先の情報を取得するクライアントを返す。作品 ID の対応は、設定した arm と同じ形の JSON から取り込む (設計書 3.8)。
+func animeDataClient(cfg *config.Config) *animedata.Client {
+	return animedata.NewClient(&animedata.Options{HTTPClient: nil, SayaDefinitionsURL: "", ArmURL: cfg.AnimeLinking.ArmURL.Value()})
 }
 
 // storeOf は、設定のプールと、データディレクトリを使う kago.Store を返す。

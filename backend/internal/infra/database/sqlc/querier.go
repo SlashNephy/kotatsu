@@ -421,10 +421,8 @@ type Querier interface {
 	// TID に結びついた番組のうち、since から until までに始まる、終了時刻の決まった番組を返す (#928)。
 	// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついても、1 行にする。
 	ListAnimeWishlistPrograms(ctx context.Context, arg ListAnimeWishlistProgramsParams) ([]ListAnimeWishlistProgramsRow, error)
-	// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を返す (設計書 3.8)。
 	ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]ListAnimeWorksRow, error)
 	// Annict の作品 ID か AniList の ID が、どれかに当たる作品の対応を返す (#928)。
-	// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を使う (設計書 3.8)。
 	ListAnimeWorksByExternalIDs(ctx context.Context, arg ListAnimeWorksByExternalIDsParams) ([]ListAnimeWorksByExternalIDsRow, error)
 	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
 	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)

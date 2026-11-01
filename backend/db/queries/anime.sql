@@ -50,13 +50,9 @@ FROM (
 ) AS t;
 
 -- name: ListAnimeWorks :many
--- TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を返す (設計書 3.8)。
 SELECT w.syobocal_tid, w.position, w.annict_work_id, w.anilist_id, w.mal_id
 FROM anime_works w
 WHERE w.syobocal_tid = ANY(@syobocal_tids::integer[])
-  AND (w.source = 'arm_supplementary' OR NOT EXISTS (
-    SELECT 1 FROM anime_works s WHERE s.source = 'arm_supplementary' AND s.syobocal_tid = w.syobocal_tid
-  ))
 ORDER BY w.syobocal_tid, w.position;
 
 -- name: ListAnimeChannels :many

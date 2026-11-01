@@ -78,7 +78,6 @@ type fakeFetcher struct {
 	mu       sync.Mutex
 	channels []*animedata.Channel
 	arm      []*animedata.Work
-	supp     []*animedata.Work
 	// failArm なら、arm の取得に失敗する。
 	failArm bool
 	// calls は、取り込み元ごとの問い合わせの回数。
@@ -102,16 +101,13 @@ func newFakeFetcher() *fakeFetcher {
 		},
 		arm: []*animedata.Work{
 			{SyobocalTID: new(int32(1575)), AnnictID: new(int32(1745)), AniListID: new(int32(5114)), MALID: new(int32(5114))},
-			{SyobocalTID: new(int32(274)), AnnictID: new(int32(1586)), AniListID: nil, MALID: nil},
-			// TID のない作品は使わない。
-			{SyobocalTID: nil, AnnictID: new(int32(2)), AniListID: nil, MALID: nil},
-		},
-		supp: []*animedata.Work{
-			// arm-supplementary の行は、同じ TID の arm の行より優先する。1 つの TID に複数の作品が対応することがある。
+			// 1 つの TID に複数の作品が対応することがある。
 			{SyobocalTID: new(int32(274)), AnnictID: new(int32(1586)), AniListID: new(int32(318)), MALID: new(int32(318))},
 			{SyobocalTID: new(int32(274)), AnnictID: new(int32(2922)), AniListID: new(int32(1234)), MALID: nil},
 			// 同じ対応の重複は 1 つにする。
 			{SyobocalTID: new(int32(274)), AnnictID: new(int32(2922)), AniListID: new(int32(1234)), MALID: nil},
+			// TID のない作品は使わない。
+			{SyobocalTID: nil, AnnictID: new(int32(2)), AniListID: nil, MALID: nil},
 		},
 		failArm:  false,
 		calls:    map[string]int{},
@@ -131,19 +127,10 @@ func (f *fakeFetcher) SayaDefinitions(_ context.Context, etag string) ([]*animed
 	return f.channels, "saya-1", nil
 }
 
-func (f *fakeFetcher) Arm(_ context.Context, supplementary bool, etag string) ([]*animedata.Work, string, error) {
-	if supplementary {
-		f.wait(anime.SourceArmSupplementary)
-	} else {
-		f.wait(anime.SourceArm)
-	}
+func (f *fakeFetcher) Arm(_ context.Context, etag string) ([]*animedata.Work, string, error) {
+	f.wait(anime.SourceArm)
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if supplementary {
-		f.calls[anime.SourceArmSupplementary]++
-
-		return f.supp, "supp-1", nil
-	}
 	f.calls[anime.SourceArm]++
 	if f.failArm {
 		return nil, "", errors.New("connection refused")
@@ -227,7 +214,7 @@ func TestImportDisabled(t *testing.T) {
 	result, err := anime.NewImporter(db, clocktest.NewFake(testNow()), fetcher, newFakeTitles(), nil, slog.New(slog.DiscardHandler)).Import(t.Context(), true)
 	require.NoError(t, err)
 	assert.True(t, result.Disabled)
-	for _, source := range []string{anime.SourceSayaDefinitions, anime.SourceArm, anime.SourceArmSupplementary} {
+	for _, source := range []string{anime.SourceSayaDefinitions, anime.SourceArm} {
 		assert.Zero(t, fetcher.callsOf(source), source)
 	}
 }
@@ -246,7 +233,7 @@ func TestImport(t *testing.T) {
 	result, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]int{
-		anime.SourceSayaDefinitions: 3, anime.SourceArm: 2, anime.SourceArmSupplementary: 2, anime.SourceSyobocalTitles: 4,
+		anime.SourceSayaDefinitions: 3, anime.SourceArm: 3, anime.SourceSyobocalTitles: 4,
 	}, result.Imported)
 
 	channels, err := anime.ListChannels(t.Context(), db)
@@ -278,7 +265,7 @@ func TestImport(t *testing.T) {
 
 	imports, err := anime.ListImports(t.Context(), db)
 	require.NoError(t, err)
-	require.Len(t, imports, 4)
+	require.Len(t, imports, 3)
 	for _, status := range imports {
 		assert.Nil(t, status.Error)
 		require.NotNil(t, status.ImportedAt)
@@ -295,7 +282,7 @@ func TestImportConcurrently(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeFetcher()
-	for _, source := range []string{anime.SourceSayaDefinitions, anime.SourceArm, anime.SourceArmSupplementary} {
+	for _, source := range []string{anime.SourceSayaDefinitions, anime.SourceArm} {
 		barrier := &sync.WaitGroup{}
 		barrier.Add(2)
 		fetcher.barriers[source] = barrier
@@ -349,7 +336,7 @@ func TestImportSchedule(t *testing.T) {
 	result, err = importer.Import(t.Context(), false)
 	require.NoError(t, err)
 	assert.Equal(t, []string{anime.SourceSayaDefinitions}, result.Unchanged)
-	assert.Equal(t, map[string]int{anime.SourceArmSupplementary: 2, anime.SourceSyobocalTitles: 4}, result.Imported)
+	assert.Equal(t, map[string]int{anime.SourceSyobocalTitles: 4}, result.Imported)
 	assert.Equal(t, map[string]string{anime.SourceArm: "connection refused"}, result.Failed)
 	works, err := anime.ListWorks(t.Context(), db, []int32{1575})
 	require.NoError(t, err)
@@ -368,7 +355,7 @@ func TestImportSchedule(t *testing.T) {
 		counts[status.Source] = status.ItemCount
 	}
 	assert.Equal(t, map[string]int{
-		anime.SourceSayaDefinitions: 3, anime.SourceArm: 2, anime.SourceArmSupplementary: 2, anime.SourceSyobocalTitles: 4,
+		anime.SourceSayaDefinitions: 3, anime.SourceArm: 3, anime.SourceSyobocalTitles: 4,
 	}, counts,
 		"unchanged sources keep the counts imported before")
 }

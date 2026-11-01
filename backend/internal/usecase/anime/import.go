@@ -23,9 +23,8 @@ import (
 
 // 取り込み元の名前 (anime_imports.source)。
 const (
-	SourceSayaDefinitions  = "saya_definitions"
-	SourceArm              = "arm"
-	SourceArmSupplementary = "arm_supplementary"
+	SourceSayaDefinitions = "saya_definitions"
+	SourceArm             = "arm"
 )
 
 const (
@@ -42,7 +41,7 @@ const (
 // Fetcher は、連携先の情報を取得する。*animedata.Client が満たす。
 type Fetcher interface {
 	SayaDefinitions(ctx context.Context, etag string) ([]*animedata.Channel, string, error)
-	Arm(ctx context.Context, supplementary bool, etag string) ([]*animedata.Work, string, error)
+	Arm(ctx context.Context, etag string) ([]*animedata.Work, string, error)
 }
 
 var _ Fetcher = new(animedata.Client)
@@ -53,7 +52,7 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// Importer は、saya-definitions と arm、arm-supplementary を取り込む。
+// Importer は、saya-definitions と arm、しょぼいカレンダーのタイトルの一覧を取り込む。
 type Importer struct {
 	db      Database
 	clock   clock.Clock
@@ -96,7 +95,7 @@ func (i *Importer) Import(ctx context.Context, force bool) (*ImportResult, error
 		return result, nil
 	}
 
-	for _, source := range []string{SourceSayaDefinitions, SourceArm, SourceArmSupplementary, SourceSyobocalTitles} {
+	for _, source := range []string{SourceSayaDefinitions, SourceArm, SourceSyobocalTitles} {
 		previous, err := sqlc.New(i.db).GetAnimeImport(ctx, source)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("failed to read the import status of %s: %w", source, err)
@@ -157,13 +156,15 @@ func (i *Importer) importSource(ctx context.Context, source, etag string) (int, 
 		}
 
 		return i.replaceChannels(ctx, channelDefinitionsOf(channels), newETag)
-	default:
-		works, newETag, err := i.fetcher.Arm(ctx, source == SourceArmSupplementary, etag)
+	case SourceArm:
+		works, newETag, err := i.fetcher.Arm(ctx, etag)
 		if err != nil {
 			return 0, err
 		}
 
 		return i.replaceWorks(ctx, source, worksOf(source, works), newETag)
+	default:
+		return 0, fmt.Errorf("unknown anime import source: %s", source)
 	}
 }
 
