@@ -129,4 +129,14 @@ extend type Query {
   view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
+  """
+  最も古い、放送が終わった番組 (過去の番組) の開始時刻 (#1121、設計書 3.4)。番組表で、どこまで遡れるかを示す。
+  過去の番組がなければ null。
+  """
+  oldestArchivedProgramAt: Time
+}
+
+extend type Program {
+  "番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。"
+  recordings: [Recording!]!
 }
