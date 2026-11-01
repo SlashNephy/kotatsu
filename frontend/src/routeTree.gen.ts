@@ -40,6 +40,7 @@ import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
 import { Route as RulesRuleIdRouteImport } from './routes/rules/$ruleId'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
+import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as SettingsGuideRouteImport } from './routes/settings/guide'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
@@ -207,6 +208,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
   path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsAccountRoute = SettingsAccountRouteImport.update({
+  id: '/settings/account',
+  path: '/settings/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsGuideRoute = SettingsGuideRouteImport.update({
   id: '/settings/guide',
   path: '/settings/guide',
@@ -289,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/offline/$recordingId': typeof OfflineRecordingIdRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/guide': typeof SettingsGuideRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
@@ -333,6 +340,7 @@ export interface FileRoutesByTo {
   '/offline/$recordingId': typeof OfflineRecordingIdRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/guide': typeof SettingsGuideRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
@@ -378,6 +386,7 @@ export interface FileRoutesById {
   '/offline/$recordingId': typeof OfflineRecordingIdRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
+  '/settings/account': typeof SettingsAccountRoute
   '/settings/guide': typeof SettingsGuideRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
@@ -424,6 +433,7 @@ export interface FileRouteTypes {
     | '/offline/$recordingId'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
+    | '/settings/account'
     | '/settings/guide'
     | '/settings/notifications'
     | '/settings/password'
@@ -468,6 +478,7 @@ export interface FileRouteTypes {
     | '/offline/$recordingId'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
+    | '/settings/account'
     | '/settings/guide'
     | '/settings/notifications'
     | '/settings/password'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/offline/$recordingId'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
+    | '/settings/account'
     | '/settings/guide'
     | '/settings/notifications'
     | '/settings/password'
@@ -557,6 +569,7 @@ export interface RootRouteChildren {
   OfflineRecordingIdRoute: typeof OfflineRecordingIdRoute
   RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
+  SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsGuideRoute: typeof SettingsGuideRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
@@ -796,6 +809,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/account': {
+      id: '/settings/account'
+      path: '/settings/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof SettingsAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/guide': {
       id: '/settings/guide'
       path: '/settings/guide'
@@ -901,6 +921,7 @@ const rootRouteChildren: RootRouteChildren = {
   OfflineRecordingIdRoute: OfflineRecordingIdRoute,
   RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
+  SettingsAccountRoute: SettingsAccountRoute,
   SettingsGuideRoute: SettingsGuideRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,

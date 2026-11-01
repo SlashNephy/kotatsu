@@ -144,6 +144,104 @@ enum AnimeImportSource {
   SYOBOCAL_TITLES
 }
 """
+管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。
+"""
+type AnimeRecordApp {
+  destination: AnimeRecordDestination!
+  """
+  登録したアプリのクライアント ID。登録していなければ null。
+  """
+  clientId: String
+  """
+  クライアント ID とシークレットを登録したかどうか。
+  """
+  configured: Boolean!
+  """
+  管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。
+  """
+  redirectUri: String!
+  """
+  最後に変えた日時。登録していなければ null。
+  """
+  updatedAt: Time
+}
+"""
+記録先に登録したアプリの変更。
+"""
+input AnimeRecordAppInput {
+  """
+  クライアント ID。空にすると、登録を消す。
+  """
+  clientId: String!
+  """
+  クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+  """
+  clientSecret: String
+}
+"""
+ログイン中のユーザーと記録先の連携 (#927)。トークンは返さない。
+"""
+type AnimeRecordConnection {
+  """
+  記録先のアカウントの名前。
+  """
+  accountName: String!
+  connectedAt: Time!
+}
+"""
+見たアニメを記録する先 (#927)。
+"""
+enum AnimeRecordDestination {
+  ANNICT
+  ANILIST
+}
+"""
+ログイン中のユーザーから見た、記録先の様子。
+"""
+type AnimeRecordDestinationStatus {
+  destination: AnimeRecordDestination!
+  """
+  管理者がアプリを登録していて、連携を始められるかどうか。
+  """
+  available: Boolean!
+  """
+  連携していなければ null。
+  """
+  connection: AnimeRecordConnection
+}
+"""
+ログイン中のユーザーの、見たアニメの記録の設定 (#927)。
+"""
+type AnimeRecordSettings {
+  """
+  管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、画面に設定を出さない。
+  """
+  enabled: Boolean!
+  """
+  番組の長さのうち、何 % を実際に再生したら記録するか (1〜100)。
+  """
+  thresholdPercent: Int!
+  """
+  第 1 話 ([新]) を見たら、作品を「見てる」にするかどうか。
+  """
+  watchingOnFirst: Boolean!
+  """
+  最終話 ([終]) 以外を見たら、作品を「見てる」にするかどうか。
+  """
+  watchingOnEpisode: Boolean!
+  """
+  最終話 ([終]) を見たら、作品を「見た」にするかどうか。
+  """
+  watchedOnLast: Boolean!
+  destinations: [AnimeRecordDestinationStatus!]!
+}
+input AnimeRecordSettingsInput {
+  thresholdPercent: Int!
+  watchingOnFirst: Boolean!
+  watchingOnEpisode: Boolean!
+  watchedOnLast: Boolean!
+}
+"""
 しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
 """
 type AnimeWork {
@@ -1016,6 +1114,31 @@ type Mutation {
   """
   updateAnimeChannel(serviceId: ID!, input: AnimeChannelInput!): AnimeChannel!
   """
+  記録先 destination に登録したアプリを変える (#927)。管理者だけが使える。
+  利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
+  """
+  updateAnimeRecordApp(destination: AnimeRecordDestination!, input: AnimeRecordAppInput!): AnimeRecordApp!
+  """
+  ログイン中のユーザーと記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#927)。
+  記録先から GET /auth/anime-records/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
+  管理者が連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
+  """
+  beginAnimeRecordConnection(destination: AnimeRecordDestination!): String!
+  """
+  ログイン中のユーザーと記録先 destination の連携を外す (#927)。記録先がトークンを取り消す API を持てば、取り消す。
+  """
+  disconnectAnimeRecord(destination: AnimeRecordDestination!): AnimeRecordSettings!
+  """
+  ログイン中のユーザーの、見たアニメの記録の設定を変える (#927)。
+  """
+  updateAnimeRecordSettings(input: AnimeRecordSettingsInput!): AnimeRecordSettings!
+  """
+  プレイヤーが実際に再生した区間を送る (#927)。ライブ視聴では serviceId を、録画の再生では recordingId を渡す。
+  区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
+  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
+  """
+  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+  """
   API トークンを発行する。名前は 1 文字以上 64 文字以下。直近 10 分以内の認証が要る。
   トークンは、発行したユーザーのロールのまま、読み取り専用の API にだけ使える。
   """
@@ -1394,6 +1517,10 @@ type Notification {
   """
   url: String
   """
+  通知が示す外部のページ (記録した Annict や AniList のページ、#927) の URL。https の URL だけを返す。なければ null。
+  """
+  externalUrl: String
+  """
   既読にした日時。未読なら null。
   """
   readAt: Time
@@ -1438,6 +1565,14 @@ enum NotificationKind {
   視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。
   """
   WATCH_REMINDER
+  """
+  見たアニメを Annict や AniList に記録した (#927)。見たユーザーだけに届き、Webhook では送らない。
+  """
+  ANIME_RECORDED
+  """
+  見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
+  """
+  ANIME_RECORD_FAILED
 }
 """
 イベントの種類ごとの通知設定。
@@ -1590,6 +1725,13 @@ type Passkey {
   最後にログインに使った日時。使っていなければ null。
   """
   lastUsedAt: Time
+}
+"""
+プレイヤーが実際に再生した、放送の時刻の区間 [from, to)。一時停止とシークの分は含めない。
+"""
+input PlaybackIntervalInput {
+  from: Time!
+  to: Time!
 }
 """
 再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、10 秒ごとに状態を送る。
@@ -1992,6 +2134,14 @@ type Query {
   連携先の情報を取り込んだ様子 (設計書 3.8)。管理者だけが使える。
   """
   animeImports: [AnimeImport!]!
+  """
+  記録先ごとに、管理者が登録したアプリを返す (#927)。管理者だけが使える。
+  """
+  animeRecordApps: [AnimeRecordApp!]!
+  """
+  ログイン中のユーザーの、見たアニメの記録の設定と連携を返す (#927)。視聴者も使える。
+  """
+  animeRecordSettings: AnimeRecordSettings!
   """
   ログイン中のユーザーの API トークン。新しい順に並べる。
   """

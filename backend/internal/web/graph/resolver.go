@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
@@ -60,10 +61,12 @@ type Resolver struct {
 	timeshift *timeshift.Channels
 	// animeChannels は、サービスとしょぼいカレンダー、Annict のチャンネルの対応の上書きを変える (設計書 3.8)。
 	animeChannels *anime.Channels
-	inbox         *notification.Inbox
-	webhooks      *webhook.Store
-	webPush       *webpush.Service
-	streamSigner  *stream.Signer
+	// animeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録を扱わない。
+	animeRecords *animerecord.Service
+	inbox        *notification.Inbox
+	webhooks     *webhook.Store
+	webPush      *webpush.Service
+	streamSigner *stream.Signer
 	// liveRates は、ライブのサービスの内訳を数える (#812)。
 	liveRates *stream.LiveRatesWatcher
 	// channelInspector は、物理チャンネルの TS を調べる (#830)。

@@ -42,6 +42,70 @@ type AnimeMatchCursor struct {
 	UpdatedAt  time.Time
 }
 
+type AnimeRecord struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	ServiceID     int64
+	StartAt       time.Time
+	Destination   string
+	SyobocalTid   int32
+	EpisodeNumber *float64
+	Subtitle      *string
+	IsFirst       bool
+	IsLast        bool
+	ProgramName   string
+	State         string
+	URL           *string
+	Error         *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type AnimeRecordApp struct {
+	Destination           string
+	ClientID              string
+	ClientSecretEncrypted []byte
+	UpdatedAt             time.Time
+}
+
+type AnimeRecordAuthorization struct {
+	ID           uuid.UUID
+	StateHash    []byte
+	SessionID    uuid.UUID
+	UserID       uuid.UUID
+	Destination  string
+	CodeVerifier string
+	RedirectUri  string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type AnimeRecordConnection struct {
+	UserID               uuid.UUID
+	Destination          string
+	AccessTokenEncrypted []byte
+	AccountName          string
+	ConnectedAt          time.Time
+}
+
+type AnimeRecordSetting struct {
+	UserID            uuid.UUID
+	ThresholdPercent  int16
+	WatchingOnFirst   bool
+	WatchingOnEpisode bool
+	WatchedOnLast     bool
+	UpdatedAt         time.Time
+}
+
+type AnimeWatchProgress struct {
+	UserID    uuid.UUID
+	ServiceID int64
+	StartAt   time.Time
+	Played    []byte
+	PlayedMs  int64
+	UpdatedAt time.Time
+}
+
 type AnimeWork struct {
 	Source       string
 	SyobocalTid  int32

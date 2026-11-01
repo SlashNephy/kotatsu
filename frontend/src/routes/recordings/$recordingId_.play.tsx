@@ -60,6 +60,7 @@ import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
+import { usePlaybackReporter } from '../../animeRecords/usePlaybackReporter';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
@@ -395,6 +396,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
   const channel = recording?.service.jikkyo ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
+  // 実際に再生した区間を送り、見たアニメを記録させる (#927)。
+  usePlaybackReporter(recording === null ? null : { recordingId }, video, () =>
+    recording === null
+      ? null
+      : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
+  );
   const jikkyo = useRecordedJikkyo(
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,

@@ -53,6 +53,7 @@ export function NotificationList({ first, onNavigate }: Props) {
               message
               payload
               url
+              externalUrl
               readAt
             }
           }
@@ -138,6 +139,7 @@ export function NotificationList({ first, onNavigate }: Props) {
                       {dateTimeFormat.format(Date.parse(node.occurredAt))}
                     </Text>
                     <NotificationLink url={node.url} kind={node.kind} onNavigate={onNavigate} />
+                    {node.externalUrl != null && <ExternalLink url={node.externalUrl} />}
                   </Group>
                 </Stack>
               </Group>
@@ -187,6 +189,20 @@ function NotificationLink({
       }}
     >
       {kind === 'WATCH_REMINDER' ? t('notifications.watchLive') : t('notifications.open')}
+    </Anchor>
+  );
+}
+
+// ExternalLink は、通知が示す外部のページ (記録した Annict や AniList のページ、#927) への入り口。新しいタブで開く。
+function ExternalLink({ url }: { url: string }) {
+  const { t } = useTranslation();
+  if (!url.startsWith('https://')) {
+    return null;
+  }
+
+  return (
+    <Anchor href={url} size="xs" target="_blank" rel="noopener noreferrer">
+      {t('notifications.openExternal')}
     </Anchor>
   );
 }

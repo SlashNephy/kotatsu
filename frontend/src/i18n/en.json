@@ -83,8 +83,11 @@
       "RESERVATION_CONFLICT": "Reservation conflict",
       "STORAGE_LOW": "Low storage space",
       "TUNER_SERVER_UNREACHABLE": "Tuner server unreachable",
-      "WATCH_REMINDER": "Watch reminder program starting"
-    }
+      "WATCH_REMINDER": "Watch reminder program starting",
+      "ANIME_RECORDED": "An anime you watched was recorded",
+      "ANIME_RECORD_FAILED": "An anime you watched could not be recorded"
+    },
+    "openExternal": "Open on the service"
   },
   "watch": {
     "reserve": "Watch reminder (notifies you shortly before the broadcast)",
@@ -322,6 +325,10 @@
       "sessions": {
         "title": "Logged-in devices and connected apps",
         "summary": "Review logged-in devices and connected apps, log them out, or revoke their access"
+      },
+      "account": {
+        "title": "Connected accounts",
+        "summary": "Connect Annict and AniList accounts to record the anime you watch"
       }
     },
     "reauth": {
@@ -1758,6 +1765,16 @@
     "integrations": {
       "title": "Integrations",
       "summary": "Set up integration with MCP clients and webhooks that send notifications to services such as Discord or Slack"
+    },
+    "animeRecords": {
+      "title": "Recording to Annict and AniList",
+      "help": "Register Kotatsu apps so that users can record the anime they watch to Annict and AniList. Create an app on each service with the redirect URI below, then save its client ID and secret. They are used only while the Syobocal, Annict, and AniList integration is enabled.",
+      "configured": "Registered",
+      "notConfigured": "Not registered",
+      "redirectUri": "Redirect URI",
+      "clientId": "Client ID",
+      "clientSecret": "Client secret",
+      "secretKept": "Registered (enter only to change)"
     }
   },
   "authorship": {
@@ -1879,5 +1896,31 @@
     "anilist": "AniList",
     "myAnimeList": "MyAnimeList",
     "syobocal": "Syobocal"
+  },
+  "animeRecords": {
+    "description": "Anime you actually play for a set share of the program length, live or from a recording, is recorded to your connected Annict and AniList accounts. Pausing or seeking alone does not count. Each episode of a program is recorded only once.",
+    "disabled": "The administrator has not enabled the Syobocal, Annict, and AniList integration, so watched anime cannot be recorded",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "connected": "Connected to {{name}}",
+    "connectedAs": "Connected as {{account}} ({{date}})",
+    "notConnected": "Not connected",
+    "notRegistered": "The administrator has not registered an app, so you cannot connect",
+    "aniListRevokeHint": "Kotatsu cannot revoke AniList tokens. After disconnecting, also remove the app in your AniList settings",
+    "settingsTitle": "Recording settings",
+    "threshold": "Share to count as watched",
+    "thresholdHelp": "Record once the time you actually played reaches this share of the program length",
+    "statusTitle": "Change the work status",
+    "watchingOnFirst": "Set to \"Watching\" after the first episode ([新])",
+    "watchingOnEpisode": "Set to \"Watching\" after any episode except the last ([終])",
+    "watchedOnLast": "Set to \"Watched\" after the last episode ([終])",
+    "statusHelp": "A work already marked \"Watched\" is not set back to \"Watching\", except after a first episode (such as a split-cour sequel)",
+    "callbackErrors": {
+      "expired": "The connection request expired. Connect again",
+      "mismatch": "This connection was not started on this device, so it was rejected. Connect again",
+      "denied": "You declined on the service, so nothing was connected",
+      "unavailable": "The administrator disabled the integration, so you cannot connect",
+      "failed": "Could not connect. Try again later"
+    }
   }
 }

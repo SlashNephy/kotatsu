@@ -347,7 +347,7 @@ CREATE TABLE notification_events (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed'
   )),
   occurred_at timestamptz NOT NULL,
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
@@ -387,7 +387,7 @@ CREATE TABLE notification_preferences (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed'
   )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,
@@ -1300,4 +1300,93 @@ CREATE TABLE recording_anime_episodes (
   is_first boolean NOT NULL,
   is_last boolean NOT NULL,
   PRIMARY KEY (recording_id, position)
+);
+
+-- 管理者が Annict と AniList に登録したアプリ (#927)。利用者は、このアプリで認可して、見たアニメを記録させる。
+-- クライアントシークレットは、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、その記録先には繋げない。
+CREATE TABLE anime_record_apps (
+  destination text PRIMARY KEY CHECK (destination IN ('annict', 'anilist')),
+  client_id text NOT NULL,
+  client_secret_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 記録先への認可の途中の状態 (#927)。認可を始めたセッションのまま戻ってきたことを確かめるため、セッションを持つ。
+-- state は、SHA-256 だけを持つ。戻ってきたら、引くと同時に消す。
+CREATE TABLE anime_record_authorizations (
+  id uuid PRIMARY KEY,
+  state_hash bytea NOT NULL UNIQUE,
+  session_id uuid NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),
+  code_verifier text NOT NULL,
+  -- 記録先に渡したリダイレクト URI。トークンと引き換えるときに、同じ値を渡す。
+  redirect_uri text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+CREATE INDEX anime_record_authorizations_expires_at_idx ON anime_record_authorizations (expires_at);
+
+-- ユーザーごとの、記録先との連携 (#927)。アクセストークンは、アプリの秘密キーで暗号化する (設計書 8.4)。
+CREATE TABLE anime_record_connections (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),
+  access_token_encrypted bytea NOT NULL,
+  -- 記録先のアカウントの名前。設定の画面に、どのアカウントと連携したかを出す。
+  account_name text NOT NULL,
+  connected_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, destination)
+);
+
+-- ユーザーごとの、記録の設定 (#927)。行がなければ既定値を使う。
+CREATE TABLE anime_record_settings (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  -- 番組の長さのうち、何 % を見たら記録するか。
+  threshold_percent smallint NOT NULL DEFAULT 20 CHECK (threshold_percent BETWEEN 1 AND 100),
+  -- 作品の状態を変えるかどうか。第 1 話 ([新]) を見たら「見てる」、最終話 ([終]) 以外を見たら「見てる」、最終話を見たら「見た」にする。
+  watching_on_first boolean NOT NULL DEFAULT false,
+  watching_on_episode boolean NOT NULL DEFAULT false,
+  watched_on_last boolean NOT NULL DEFAULT false,
+  updated_at timestamptz NOT NULL
+);
+
+-- ユーザーが番組を見た区間 (#927)。プレイヤーが送った、実際に再生した放送の時刻の区間を、番組ごとに重ねずにまとめる。
+-- 番組は、program_anime_episodes と同じく、サービスと開始時刻で指す。ライブ視聴と録画の再生で見た区間は、同じ行にまとめる。
+CREATE TABLE anime_watch_progress (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  -- 見た区間。[[始まりの UNIX ミリ秒, 終わりの UNIX ミリ秒], ...] の形で、重ならないよう始まりの順に並べる。
+  played jsonb NOT NULL,
+  -- 見た区間の長さの合計 (ミリ秒)。
+  played_ms bigint NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id, start_at)
+);
+CREATE INDEX anime_watch_progress_updated_at_idx ON anime_watch_progress (updated_at);
+
+-- 記録先に送る、1 話ごとの記録 (#927)。同じユーザー、番組、話、記録先の組は 1 回だけ記録する。
+-- 送れたら recorded にし、見直しても送り直さない。送れなければ、River の再試行で送り直し、諦めたら failed にする。
+CREATE TABLE anime_records (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),
+  syobocal_tid integer NOT NULL,
+  -- 話数。話数のない放送 (劇場版など) では NULL。
+  episode_number double precision,
+  subtitle text,
+  is_first boolean NOT NULL,
+  is_last boolean NOT NULL,
+  -- 通知に出す番組名。
+  program_name text NOT NULL,
+  state text NOT NULL CHECK (state IN ('pending', 'recorded', 'failed')),
+  -- 記録した作品かエピソードの、記録先のページ。
+  url text,
+  -- 記録できなかった理由。
+  error text,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  UNIQUE NULLS NOT DISTINCT (user_id, service_id, start_at, destination, syobocal_tid, episode_number)
 );

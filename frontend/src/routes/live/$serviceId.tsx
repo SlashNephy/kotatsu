@@ -129,6 +129,7 @@ import { useVideoState } from '../../yunomi/useVideoState';
 import { browserStorage, stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
+import { usePlaybackReporter } from '../../animeRecords/usePlaybackReporter';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useLiveLag } from '../../yunomi/useLiveLag';
 import { useVisible } from '../../yunomi/useVisible';
@@ -410,6 +411,10 @@ function Live({
     data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
     video,
     route.kind === 'convert' ? 'convert' : route.kind === 'kyusu' ? 'hls' : null,
+  );
+  // 実際に再生した区間を送り、見たアニメを記録させる (#927)。バッファを再生している間は、その位置の放送時刻を使う。
+  usePlaybackReporter(data.node?.__typename === 'Service' ? { serviceId } : null, video, () =>
+    timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now(),
   );
   // seeking は、シークバーを動かしている間の位置。
   const [seeking, setSeeking] = useState<number | null>(null);
