@@ -44,6 +44,8 @@ func TestRuleKeyword(t *testing.T) {
 		{name: "a scheduling mark", in: "🅊まだ結婚できない男【連日】#10🈡", want: "まだ結婚できない男"},
 		{name: "a cast guide", in: "🅊🈑ヤメ検の女２　出演：賀来千香子", want: "ヤメ検の女2"},
 		{name: "a title enclosed in wave dashes", in: "🅊ＳＡＫＵＲＡ〜事件を聞く女〜【一挙】#1-2", want: "SAKURA〜事件を聞く女〜"},
+		{name: "a slot label before a TV anime prefix", in: "【新】華◆アニメ「漢化日記」＃１🈑　▼声の出演：チャオ・フェイフェイ", want: "漢化日記"},
+		{name: "a diamond after the episode", in: "FBI: 特別捜査班 シーズン5 #10🈔◆一挙放送", want: "FBI: 特別捜査班 シーズン5"},
 		{name: "falls back to the whole name", in: "「名探偵コナン」", want: "「名探偵コナン」"},
 	}
 	for _, tt := range tests {
