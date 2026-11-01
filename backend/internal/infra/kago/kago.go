@@ -157,6 +157,74 @@ func IndexLocation(fileID uuid.UUID) *Location {
 	return DataLocation(fileID, IndexFileName)
 }
 
+// CapturesDir は、データディレクトリの、キャプチャの画像を置くディレクトリ (設計書 5.6、7.5)。
+// 中に「ユーザーの ID/キャプチャの ID.png」の形で置く。セグメントのファイルの ID の名前ではないので、生成物のディレクトリとはみなさない。
+const CapturesDir = "captures"
+
+// CaptureLocation は、ユーザー userID のキャプチャ captureID の画像の場所を返す。
+func CaptureLocation(userID, captureID uuid.UUID) *Location {
+	return &Location{PoolID: DataPoolID, Path: CapturesDir + "/" + userID.String() + "/" + captureID.String() + ".png"}
+}
+
+// HasDataDir は、データディレクトリを設定してあるかを返す。
+func (s *Store) HasDataDir() bool {
+	return s.dataDir != ""
+}
+
+// WriteFile は、プール poolID の rel (プール内の相対パス) に data を書く。ディレクトリがなければ作る。
+// 同じディレクトリの一時ファイル (rel に .tmp を付けたもの) に書いてから名前を変え、読む側に書きかけのファイルを見せない。
+// プールの中に限って書くので、シンボリックリンクでもプールの外には書かない。
+func (s *Store) WriteFile(poolID, rel string, data []byte) error {
+	mount, ok := s.mounts[poolID]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrPoolNotMounted, poolID)
+	}
+	if !filepath.IsLocal(rel) {
+		return fmt.Errorf("%w: %q", ErrInvalidPath, rel)
+	}
+	if err := s.mkdirAll(poolID, filepath.Dir(rel)); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(mount)
+	if err != nil {
+		return fmt.Errorf("failed to open pool %s: %w", poolID, err)
+	}
+	defer root.Close()
+	tmp := rel + ".tmp"
+	if err := writeRootFile(root, tmp, data); err != nil {
+		_ = root.Remove(tmp)
+
+		return fmt.Errorf("failed to write a file in pool %s: %w", poolID, err)
+	}
+	if err := root.Rename(tmp, rel); err != nil {
+		_ = root.Remove(tmp)
+
+		return fmt.Errorf("failed to rename a file in pool %s: %w", poolID, err)
+	}
+
+	return nil
+}
+
+// writeRootFile は、root の中の name に data を書き、ディスクに書き終えるまで待つ。
+func writeRootFile(root *os.Root, name string, data []byte) error {
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+
+		return err
+	}
+
+	return f.Close()
+}
+
 // PoolIDs は、このロールにマウントされているプールの ID を、プールの順に返す。
 func (s *Store) PoolIDs() []string {
 	return slices.Clone(s.order)

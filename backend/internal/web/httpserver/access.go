@@ -268,7 +268,7 @@ func contains(prefixes []netip.Prefix, addr netip.Addr) bool {
 }
 
 // RequireSameOrigin は、状態を変えるリクエスト (GET、HEAD、OPTIONS 以外) で、Origin が送信元の接続したオリジンと
-// 同じでなければ拒否するミドルウェアを返す (設計書 9.5)。/auth/* の CSRF を防ぐ。
+// 同じでなければ拒否するミドルウェアを返す (設計書 9.5)。/auth/* と POST /media/captures の CSRF を防ぐ。
 // AccessPolicy.Middleware の後ろに置く。
 func RequireSameOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

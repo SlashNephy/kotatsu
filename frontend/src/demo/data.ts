@@ -1,3 +1,4 @@
+import { createDemoCaptures, type DemoCaptures } from './captures';
 import {
   channelTypes,
   generatePrograms,
@@ -66,7 +67,11 @@ const servicesOf = (ids: readonly string[]) =>
 
 // createRootValue は、デモの GraphQL の rootValue を作る。Query、Mutation、Subscription のフィールドを 1 つにまとめて持つ。
 // 状態はメモリ上だけに持ち、画面を読み直すと元に戻る。
-export function createRootValue(events: EventHub, now: number = Date.now()): object {
+export function createRootValue(
+  events: EventHub,
+  now: number = Date.now(),
+  captures: DemoCaptures = createDemoCaptures(),
+): object {
   const programs = generatePrograms(now);
   const programsById = new Map(programs.map((item) => [item.id, item]));
   const watchReserved = new Set<string>();
@@ -165,6 +170,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   return {
     // Query
     viewer: () => demoUser,
+    captures: (args: { keyword?: string | null }) => captures.list(args),
+    capturesAvailable: () => true,
     version: () => ({ version: 'demo', revision: null, modified: false, latestRelease: null }),
     timeZone: () => 'Asia/Tokyo',
     tunerServerHealth: () => ({
@@ -316,6 +323,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     },
 
     // Mutation
+    deleteCapture: ({ id }: { id: string }) => captures.remove(id),
     setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
       recordings.setTags(id, tags),
     setRecordingProtected: ({ id, protected: value }: { id: string; protected: boolean }) =>
