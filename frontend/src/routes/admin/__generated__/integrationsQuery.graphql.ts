@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d3928de84b777a21a13245059b1aaf4f>>
+ * @generated SignedSource<<a04f5ae109ab15a6d6b2550c13afd4cc>>
  * @lightSyntaxTransform
  */
 
@@ -9,7 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type AnimeImportSource = "ARM" | "ARM_SUPPLEMENTARY" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
-export type NotificationKind = "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
 export type integrationsQuery$data = {

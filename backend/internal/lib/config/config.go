@@ -40,6 +40,8 @@ type Config struct {
 	Thumbnail Thumbnail `yaml:"thumbnail"`
 	Kyusu     Kyusu     `yaml:"kyusu"`
 	Jikkyo    Jikkyo    `yaml:"jikkyo"`
+	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
+	AnimeRecords AnimeRecords `yaml:"anime_records"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
 }
@@ -188,6 +190,29 @@ const (
 	EncoderNVENC = "nvenc"
 )
 
+// AnimeRecords は、見たアニメを記録する先の設定 (#927)。どの記録先と連携するかは、管理者が画面で決める。
+type AnimeRecords struct {
+	// AnnictURL は、Annict の画面と API を向ける先のオリジン。空なら https://annict.com と https://api.annict.com にする。
+	// 本物の記録先の代わりに、検証用のサーバーへ向けるときだけ使う。
+	AnnictURL string `yaml:"annict_url"`
+	// AniListURL は、AniList の画面と API を向ける先のオリジン。空なら https://anilist.co と https://graphql.anilist.co にする。
+	// 本物の記録先の代わりに、検証用のサーバーへ向けるときだけ使う。
+	AniListURL string `yaml:"anilist_url"`
+}
+
+// validate は、anime_records の値の形式を検査する。
+func (a *AnimeRecords) validate() []error {
+	errs := []error{}
+	if err := validateHTTPURL(a.AnnictURL); err != nil {
+		errs = append(errs, fieldError("anime_records.annict_url", err))
+	}
+	if err := validateHTTPURL(a.AniListURL); err != nil {
+		errs = append(errs, fieldError("anime_records.anilist_url", err))
+	}
+
+	return errs
+}
+
 // Jikkyo は、ニコニコ実況の設定 (設計書 7.4)。
 type Jikkyo struct {
 	// Channels は、同梱した対応表に重ねる、サービスと実況のチャンネルの対応。
@@ -333,10 +358,11 @@ func Default() *Config {
 				},
 			},
 		},
-		WebPush:   WebPush{Subject: ""},
-		Thumbnail: Thumbnail{DisablePreview: false},
-		Kyusu:     Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
-		Jikkyo:    Jikkyo{Channels: map[string]string{}},
+		WebPush:      WebPush{Subject: ""},
+		Thumbnail:    Thumbnail{DisablePreview: false},
+		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
+		Jikkyo:       Jikkyo{Channels: map[string]string{}},
+		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: ""},
 	}
 }
 
@@ -391,6 +417,7 @@ func (c *Config) validate() error {
 		errs = append(errs, fieldError("auth.hibp.url", err))
 	}
 	errs = append(errs, c.Auth.OIDC.validate()...)
+	errs = append(errs, c.AnimeRecords.validate()...)
 	if subject := c.WebPush.Subject; subject != "" && !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
 		errs = append(errs, fieldError("web_push.subject", errors.New("must be a mailto: or https:// URI")))
 	}

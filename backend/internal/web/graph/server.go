@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
@@ -103,6 +104,8 @@ type Options struct {
 	TimeshiftDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
+	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は捨てる。
+	AnimeRecords *animerecord.Service
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
 	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
@@ -194,6 +197,7 @@ func NewHandler(opts *Options) http.Handler {
 		settings:         o.Settings,
 		timeshift:        timeshift.NewChannels(o.Clock, o.Recorder),
 		animeChannels:    anime.NewChannels(o.Clock, o.Recorder, o.Jobs),
+		animeRecords:     o.AnimeRecords,
 		inbox:            notification.NewInbox(o.Clock),
 		webhooks:         o.Webhooks,
 		webPush:          o.WebPush,

@@ -1,0 +1,115 @@
+"""
+見たアニメを記録する先 (#927)。
+"""
+enum AnimeRecordDestination {
+  ANNICT
+  ANILIST
+}
+
+"""
+管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。
+"""
+type AnimeRecordApp {
+  destination: AnimeRecordDestination!
+  "登録したアプリのクライアント ID。登録していなければ null。"
+  clientId: String
+  "クライアント ID とシークレットを登録したかどうか。"
+  configured: Boolean!
+  "管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。"
+  redirectUri: String!
+  "最後に変えた日時。登録していなければ null。"
+  updatedAt: Time
+}
+
+"""
+記録先に登録したアプリの変更。
+"""
+input AnimeRecordAppInput {
+  "クライアント ID。空にすると、登録を消す。"
+  clientId: String!
+  "クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。"
+  clientSecret: String
+}
+
+"""
+ログイン中のユーザーと記録先の連携 (#927)。トークンは返さない。
+"""
+type AnimeRecordConnection {
+  "記録先のアカウントの名前。"
+  accountName: String!
+  connectedAt: Time!
+}
+
+"""
+ログイン中のユーザーから見た、記録先の様子。
+"""
+type AnimeRecordDestinationStatus {
+  destination: AnimeRecordDestination!
+  "管理者がアプリを登録していて、連携を始められるかどうか。"
+  available: Boolean!
+  "連携していなければ null。"
+  connection: AnimeRecordConnection
+}
+
+"""
+ログイン中のユーザーの、見たアニメの記録の設定 (#927)。
+"""
+type AnimeRecordSettings {
+  "管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、画面に設定を出さない。"
+  enabled: Boolean!
+  "番組の長さのうち、何 % を実際に再生したら記録するか (1〜100)。"
+  thresholdPercent: Int!
+  "第 1 話 ([新]) を見たら、作品を「見てる」にするかどうか。"
+  watchingOnFirst: Boolean!
+  "最終話 ([終]) 以外を見たら、作品を「見てる」にするかどうか。"
+  watchingOnEpisode: Boolean!
+  "最終話 ([終]) を見たら、作品を「見た」にするかどうか。"
+  watchedOnLast: Boolean!
+  destinations: [AnimeRecordDestinationStatus!]!
+}
+
+input AnimeRecordSettingsInput {
+  thresholdPercent: Int!
+  watchingOnFirst: Boolean!
+  watchingOnEpisode: Boolean!
+  watchedOnLast: Boolean!
+}
+
+"""
+プレイヤーが実際に再生した、放送の時刻の区間 [from, to)。一時停止とシークの分は含めない。
+"""
+input PlaybackIntervalInput {
+  from: Time!
+  to: Time!
+}
+
+extend type Query {
+  "記録先ごとに、管理者が登録したアプリを返す (#927)。管理者だけが使える。"
+  animeRecordApps: [AnimeRecordApp!]!
+  "ログイン中のユーザーの、見たアニメの記録の設定と連携を返す (#927)。視聴者も使える。"
+  animeRecordSettings: AnimeRecordSettings!
+}
+
+extend type Mutation {
+  """
+  記録先 destination に登録したアプリを変える (#927)。管理者だけが使える。
+  利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
+  """
+  updateAnimeRecordApp(destination: AnimeRecordDestination!, input: AnimeRecordAppInput!): AnimeRecordApp!
+  """
+  ログイン中のユーザーと記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#927)。
+  記録先から GET /auth/anime-records/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
+  管理者が連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
+  """
+  beginAnimeRecordConnection(destination: AnimeRecordDestination!): String!
+  "ログイン中のユーザーと記録先 destination の連携を外す (#927)。記録先がトークンを取り消す API を持てば、取り消す。"
+  disconnectAnimeRecord(destination: AnimeRecordDestination!): AnimeRecordSettings!
+  "ログイン中のユーザーの、見たアニメの記録の設定を変える (#927)。"
+  updateAnimeRecordSettings(input: AnimeRecordSettingsInput!): AnimeRecordSettings!
+  """
+  プレイヤーが実際に再生した区間を送る (#927)。ライブ視聴では serviceId を、録画の再生では recordingId を渡す。
+  区間は、番組ごとに重ねずにまとめるので、同じ区間を送り直しても、複数のタブから送っても、多く数えない。
+  番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
+  """
+  reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+}

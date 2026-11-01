@@ -39,6 +39,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
@@ -59,6 +60,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
+	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
 	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
@@ -200,12 +202,68 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	syobocalClient := syobocal.NewClient(nil)
 	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), syobocalClient, inserter, animeLogger)))
 	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
+	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
+	animeRecords, err := newAnimeRecords(deps, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	river.AddWorker(workers, animerecord.NewRecordWorker(animeRecords, deps.DB))
+	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
-		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(),
+		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
 	}, anime.MatchPeriodicJobs()...), nil
+}
+
+// newAnimeRecords は、見たアニメを Annict と AniList に記録する部品を作る (#927)。
+// 問い合わせ先は決まったホストだけにし、設定で向け直したときだけ、そのオリジンへ向ける (検証用)。
+func newAnimeRecords(deps *Deps, logger *slog.Logger) (*animerecord.Service, error) {
+	client := animerecord.NewHTTPClient()
+
+	return animerecord.NewService(&animerecord.Options{
+		Clock: deps.Clock, Recorder: audit.NewRecorder(deps.Clock), AppSecret: deps.Config.Auth.SecretKey.Value(),
+		Destinations: []animerecord.Destination{
+			animerecord.NewAnnict(client, deps.Config.AnimeRecords.AnnictURL),
+			animerecord.NewAniList(client, deps.Config.AnimeRecords.AniListURL),
+		},
+		Logger: logger.With(slog.String("component", "anime_record")),
+	})
+}
+
+// sealedStores は、アプリの秘密キーで暗号化した秘密情報 (設計書 8.4) を扱う部品。
+type sealedStores struct {
+	webhooks     *webhook.Store
+	webPush      *webpush.Service
+	animeRecords *animerecord.Service
+}
+
+// newSealedStores は、アプリの秘密キーで暗号化した秘密情報を扱う部品を作る。
+func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
+	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
+	// VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
+	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
+	animeRecords, err := newAnimeRecords(deps, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sealedStores{webhooks: webhooks, webPush: webPush, animeRecords: animeRecords}, nil
+}
+
+// handleAnimeRecordCallbacks は、Annict と AniList から戻ってくる認可のハンドラーを、記録先ごとに mux に登録する (#927)。
+func handleAnimeRecordCallbacks(mux *http.ServeMux, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
+	logger = logger.With(slog.String("component", "anime_record"))
+	for _, name := range service.Destinations() {
+		mux.Handle("GET "+animerecord.CallbackPathPrefix+name+"/callback", animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
+	}
 }
 
 // defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。
@@ -702,15 +760,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	sealed, err := newSealedStores(deps, logger)
 	if err != nil {
 		return nil, err
 	}
-	// VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
-	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, err
-	}
+	webhooks, webPush, animeRecords := sealed.webhooks, sealed.webPush, sealed.animeRecords
 	// subscription は、どの tenban で起きた変更も届けるため、変更の通知のチャンネルを見張る (設計書 1.4、9.1)。
 	changes, err := watch(ctx, logger, deps)
 	if err != nil {
@@ -774,6 +828,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
+		AnimeRecords:      animeRecords,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,
@@ -804,6 +859,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions)
 	mux.Handle("GET /auth/oidc", oidc.StatusHandler(deps.DB))
 	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
+	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	handleAnimeRecordCallbacks(mux, deps, animeRecords, logger)
 	for pattern, handler := range map[string]http.Handler{
 		"POST /auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
 		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),

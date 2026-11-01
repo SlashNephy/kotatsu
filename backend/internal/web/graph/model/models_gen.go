@@ -79,6 +79,65 @@ type AnimeImport struct {
 	Error *string `json:"error,omitempty"`
 }
 
+// 管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。
+type AnimeRecordApp struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 登録したアプリのクライアント ID。登録していなければ null。
+	ClientID *string `json:"clientId,omitempty"`
+	// クライアント ID とシークレットを登録したかどうか。
+	Configured bool `json:"configured"`
+	// 管理者が記録先のアプリに登録するリダイレクト URI。いま接続しているオリジンから決める。
+	RedirectURI string `json:"redirectUri"`
+	// 最後に変えた日時。登録していなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
+// 記録先に登録したアプリの変更。
+type AnimeRecordAppInput struct {
+	// クライアント ID。空にすると、登録を消す。
+	ClientID string `json:"clientId"`
+	// クライアントシークレット。省けば、登録したものを変えない。初めて登録するときは要る。
+	ClientSecret *string `json:"clientSecret,omitempty"`
+}
+
+// ログイン中のユーザーと記録先の連携 (#927)。トークンは返さない。
+type AnimeRecordConnection struct {
+	// 記録先のアカウントの名前。
+	AccountName string    `json:"accountName"`
+	ConnectedAt time.Time `json:"connectedAt"`
+}
+
+// ログイン中のユーザーから見た、記録先の様子。
+type AnimeRecordDestinationStatus struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 管理者がアプリを登録していて、連携を始められるかどうか。
+	Available bool `json:"available"`
+	// 連携していなければ null。
+	Connection *AnimeRecordConnection `json:"connection,omitempty"`
+}
+
+// ログイン中のユーザーの、見たアニメの記録の設定 (#927)。
+type AnimeRecordSettings struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、画面に設定を出さない。
+	Enabled bool `json:"enabled"`
+	// 番組の長さのうち、何 % を実際に再生したら記録するか (1〜100)。
+	ThresholdPercent int `json:"thresholdPercent"`
+	// 第 1 話 ([新]) を見たら、作品を「見てる」にするかどうか。
+	WatchingOnFirst bool `json:"watchingOnFirst"`
+	// 最終話 ([終]) 以外を見たら、作品を「見てる」にするかどうか。
+	WatchingOnEpisode bool `json:"watchingOnEpisode"`
+	// 最終話 ([終]) を見たら、作品を「見た」にするかどうか。
+	WatchedOnLast bool                            `json:"watchedOnLast"`
+	Destinations  []*AnimeRecordDestinationStatus `json:"destinations"`
+}
+
+type AnimeRecordSettingsInput struct {
+	ThresholdPercent  int  `json:"thresholdPercent"`
+	WatchingOnFirst   bool `json:"watchingOnFirst"`
+	WatchingOnEpisode bool `json:"watchingOnEpisode"`
+	WatchedOnLast     bool `json:"watchedOnLast"`
+}
+
 // しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
 type AnimeWork struct {
 	AnnictWorkID *int `json:"annictWorkId,omitempty"`
@@ -574,6 +633,8 @@ type Notification struct {
 	Message string `json:"message"`
 	// 通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。
 	URL *string `json:"url,omitempty"`
+	// 通知が示す外部のページ (記録した Annict や AniList のページ、#927) の URL。https の URL だけを返す。なければ null。
+	ExternalURL *string `json:"externalUrl,omitempty"`
 	// 既読にした日時。未読なら null。
 	ReadAt *time.Time `json:"readAt,omitempty"`
 }
@@ -685,6 +746,12 @@ type Passkey struct {
 	CreatedAt time.Time `json:"createdAt"`
 	// 最後にログインに使った日時。使っていなければ null。
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
+// プレイヤーが実際に再生した、放送の時刻の区間 [from, to)。一時停止とシークの分は含めない。
+type PlaybackIntervalInput struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
 }
 
 // 再生中のプレイヤー (#459、設計書 7.7)。プレイヤーを開いた端末が登録し、10 秒ごとに状態を送る。
@@ -1600,6 +1667,62 @@ func (e AnimeImportSource) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// 見たアニメを記録する先 (#927)。
+type AnimeRecordDestination string
+
+const (
+	AnimeRecordDestinationAnnict  AnimeRecordDestination = "ANNICT"
+	AnimeRecordDestinationAnilist AnimeRecordDestination = "ANILIST"
+)
+
+var AllAnimeRecordDestination = []AnimeRecordDestination{
+	AnimeRecordDestinationAnnict,
+	AnimeRecordDestinationAnilist,
+}
+
+func (e AnimeRecordDestination) IsValid() bool {
+	switch e {
+	case AnimeRecordDestinationAnnict, AnimeRecordDestinationAnilist:
+		return true
+	}
+	return false
+}
+
+func (e AnimeRecordDestination) String() string {
+	return string(e)
+}
+
+func (e *AnimeRecordDestination) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeRecordDestination(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeRecordDestination", str)
+	}
+	return nil
+}
+
+func (e AnimeRecordDestination) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeRecordDestination) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeRecordDestination) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // 予約のチューナーの割り当ての状態 (設計書 4.5)。
 type AssignmentState string
 
@@ -1944,6 +2067,10 @@ const (
 	NotificationKindTunerServerUnreachable NotificationKind = "TUNER_SERVER_UNREACHABLE"
 	// 視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。
 	NotificationKindWatchReminder NotificationKind = "WATCH_REMINDER"
+	// 見たアニメを Annict や AniList に記録した (#927)。見たユーザーだけに届き、Webhook では送らない。
+	NotificationKindAnimeRecorded NotificationKind = "ANIME_RECORDED"
+	// 見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
+	NotificationKindAnimeRecordFailed NotificationKind = "ANIME_RECORD_FAILED"
 )
 
 var AllNotificationKind = []NotificationKind{
@@ -1954,11 +2081,13 @@ var AllNotificationKind = []NotificationKind{
 	NotificationKindStorageLow,
 	NotificationKindTunerServerUnreachable,
 	NotificationKindWatchReminder,
+	NotificationKindAnimeRecorded,
+	NotificationKindAnimeRecordFailed,
 }
 
 func (e NotificationKind) IsValid() bool {
 	switch e {
-	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder:
+	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed:
 		return true
 	}
 	return false

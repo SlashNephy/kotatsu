@@ -171,13 +171,14 @@ func notificationOf(n *domain.Notification, location *time.Location) (*model.Not
 	}
 
 	return &model.Notification{
-		ID:         GlobalID(notificationType, n.ID.String()),
-		Kind:       kindOf(n.Kind),
-		OccurredAt: n.OccurredAt,
-		Payload:    string(payload),
-		Message:    notification.Message(n.Kind, n.Payload, location),
-		URL:        nonEmpty(domain.NotificationURL(n.Payload)),
-		ReadAt:     n.ReadAt,
+		ID:          GlobalID(notificationType, n.ID.String()),
+		Kind:        kindOf(n.Kind),
+		OccurredAt:  n.OccurredAt,
+		Payload:     string(payload),
+		Message:     notification.Message(n.Kind, n.Payload, location),
+		URL:         nonEmpty(domain.NotificationURL(n.Payload)),
+		ExternalURL: nonEmpty(domain.NotificationExternalURL(n.Payload)),
+		ReadAt:      n.ReadAt,
 	}, nil
 }
 

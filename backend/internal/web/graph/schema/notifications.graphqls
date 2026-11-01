@@ -16,6 +16,10 @@ enum NotificationKind {
   TUNER_SERVER_UNREACHABLE
   "視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。"
   WATCH_REMINDER
+  "見たアニメを Annict や AniList に記録した (#927)。見たユーザーだけに届き、Webhook では送らない。"
+  ANIME_RECORDED
+  "見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。"
+  ANIME_RECORD_FAILED
 }
 
 """
@@ -32,6 +36,8 @@ type Notification {
   message: String!
   "通知を押したときに開く画面のパス (視聴予約の通知では、そのサービスのライブ視聴)。なければ null。"
   url: String
+  "通知が示す外部のページ (記録した Annict や AniList のページ、#927) の URL。https の URL だけを返す。なければ null。"
+  externalUrl: String
   "既読にした日時。未読なら null。"
   readAt: Time
 }
