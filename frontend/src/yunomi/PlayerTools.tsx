@@ -99,6 +99,8 @@ export function useCapture({
         blob,
         captureTexts(time, serviceName, programName, text),
       );
+      // uploadFailed は、サーバーに残せなかったか。先に失敗を知らせていたら、コピーできた知らせで上書きしない。
+      let uploadFailed = false;
       uploadCapture(named, {
         time,
         takenAt,
@@ -107,7 +109,10 @@ export function useCapture({
         recordingId,
         position: at,
         caption: text,
-      }).catch(() => notify(t('player.captureUploadError')));
+      }).catch(() => {
+        uploadFailed = true;
+        notify(t('player.captureUploadError'));
+      });
       if (action === 'save') {
         saveBlob(named, captureFileName(time, serviceName, programName, template));
 
@@ -115,7 +120,9 @@ export function useCapture({
       }
       // クリップボードでは、ブラウザが文字の情報を落とすことがあるので、書き込む前の画像を写す。
       await copyBlob(blob);
-      notify(t('player.copied'));
+      if (!uploadFailed) {
+        notify(t('player.copied'));
+      }
 
       return 'copied';
     } catch {

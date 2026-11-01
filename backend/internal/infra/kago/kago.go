@@ -182,17 +182,26 @@ func (s *Store) WriteFile(poolID, rel string, data []byte) error {
 	if !filepath.IsLocal(rel) {
 		return fmt.Errorf("%w: %q", ErrInvalidPath, rel)
 	}
-	if err := s.mkdirAll(poolID, filepath.Dir(rel)); err != nil {
-		return err
-	}
 	root, err := os.OpenRoot(mount)
 	if err != nil {
 		return fmt.Errorf("failed to open pool %s: %w", poolID, err)
 	}
 	defer root.Close()
 	tmp := rel + ".tmp"
-	if err := writeRootFile(root, tmp, data); err != nil {
+	// ディレクトリを作ってから書くまでの間に、同じディレクトリの最後のファイルを消すと、Remove が空のディレクトリを消すことがある。
+	// そのときは、ディレクトリを作り直して、もう一度だけ書く。
+	for attempt := 0; ; attempt++ {
+		if err := s.mkdirAll(poolID, filepath.Dir(rel)); err != nil {
+			return err
+		}
+		err := writeRootFile(root, tmp, data)
+		if err == nil {
+			break
+		}
 		_ = root.Remove(tmp)
+		if attempt == 0 && errors.Is(err, os.ErrNotExist) {
+			continue
+		}
 
 		return fmt.Errorf("failed to write a file in pool %s: %w", poolID, err)
 	}
