@@ -56,3 +56,8 @@ export function demoAnimeRecordApps(origin: string) {
     updatedAt: null,
   }));
 }
+
+// demoAnimeWishlist は、デモの、見たいリストの作品の放送の候補 (#928)。デモは外部へ問い合わせないので、連携は使わない。
+export function demoAnimeWishlist() {
+  return { enabled: false, imports: [], works: [] };
+}

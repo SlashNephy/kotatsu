@@ -1,4 +1,9 @@
-import { demoAnimeEpisodes, demoAnimeRecordApps, demoAnimeRecordSettings } from './anime';
+import {
+  demoAnimeEpisodes,
+  demoAnimeRecordApps,
+  demoAnimeWishlist,
+  demoAnimeRecordSettings,
+} from './anime';
 import { createDemoCaptures, type DemoCaptures } from './captures';
 import {
   channelTypes,
@@ -377,6 +382,7 @@ export function createRootValue(
     animeImports: () => [],
     animeRecordSettings: () => demoAnimeRecordSettings(),
     animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
+    animeWishlist: () => demoAnimeWishlist(),
     storagePoolNames: () => ['default'],
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({
@@ -408,6 +414,13 @@ export function createRootValue(
     },
 
     // Mutation
+    // デモは Annict と AniList に問い合わせないので、見たいリストを取り込めず、候補もない (#928)。
+    refreshAnimeWishlist: () => {
+      throw new Error('anime linking is disabled');
+    },
+    createAnimeWishlistRule: () => {
+      throw new Error('the work is not in your wishlist candidates');
+    },
     updateAnimeChannel: ({
       serviceId,
       input,

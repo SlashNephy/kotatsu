@@ -203,6 +203,16 @@ function AnimeRecords() {
       <Text size="sm" c="dimmed">
         {t('animeRecords.description')}
       </Text>
+      {/* 連携すると、見たいリストの作品の放送を、予約の画面の候補に出す (#928)。 */}
+      <Text size="sm" c="dimmed">
+        {t('animeRecords.wishlistHint')}{' '}
+        <Anchor
+          size="sm"
+          renderRoot={(props) => <Link {...props} to="/reservations" search={{ wishlist: true }} />}
+        >
+          {t('animeRecords.wishlistLink')}
+        </Anchor>
+      </Text>
       {error !== null && (
         <Alert color="red" role="alert" withCloseButton onClose={() => setError(null)}>
           {error}

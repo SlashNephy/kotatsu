@@ -56,6 +56,8 @@ import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDi
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { WatchReservationList } from '../watch/WatchReservationList';
 import { SkippedDuplicateList } from '../reservations/SkippedDuplicateList';
+import { AnimeWishlistList } from '../reservations/AnimeWishlistList';
+import type { reservationsWishlistTabQuery } from './__generated__/reservationsWishlistTabQuery.graphql';
 import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
 import classes from './reservations.module.css';
 import { zonedFormat } from '../futon';
@@ -119,6 +121,8 @@ type ReservationsSearch = {
   watch?: boolean;
   // skipped は、録画の予約の代わりに、重複の回避で予約しなかった番組の一覧を出すかどうか (設計書 4.4、#469)。
   skipped?: boolean;
+  // wishlist は、録画の予約の代わりに、見たいリストの作品の放送の候補を出すかどうか (設計書 3.8、#928)。
+  wishlist?: boolean;
   // problems は、録画が欠ける見込みの予約だけを出すかどうか。
   problems?: boolean;
   // rule は、このルールに一致した予約だけを出すときの、ルールの ID (#468)。
@@ -129,6 +133,7 @@ export const Route = createFileRoute('/reservations')({
   validateSearch: (search: Record<string, unknown>): ReservationsSearch => ({
     ...(search['watch'] === true ? { watch: true } : {}),
     ...(search['skipped'] === true ? { skipped: true } : {}),
+    ...(search['wishlist'] === true ? { wishlist: true } : {}),
     ...(search['problems'] === true ? { problems: true } : {}),
     ...(typeof search['rule'] === 'string' && search['rule'] !== ''
       ? { rule: search['rule'] }
@@ -194,8 +199,15 @@ function ReservationsPage() {
     };
   });
 
-  const { watch, skipped } = Route.useSearch();
-  const tab = watch === true ? 'watch' : skipped === true ? 'skipped' : 'recording';
+  const { watch, skipped, wishlist } = Route.useSearch();
+  const tab =
+    watch === true
+      ? 'watch'
+      : skipped === true
+        ? 'skipped'
+        : wishlist === true
+          ? 'wishlist'
+          : 'recording';
   const navigate = Route.useNavigate();
 
   return (
@@ -207,7 +219,13 @@ function ReservationsPage() {
         onChange={(value) =>
           void navigate({
             search:
-              value === 'watch' ? { watch: true } : value === 'skipped' ? { skipped: true } : {},
+              value === 'watch'
+                ? { watch: true }
+                : value === 'skipped'
+                  ? { skipped: true }
+                  : value === 'wishlist'
+                    ? { wishlist: true }
+                    : {},
           })
         }
       >
@@ -215,6 +233,12 @@ function ReservationsPage() {
           <Tabs.Tab value="recording">{t('reservations.tab')}</Tabs.Tab>
           <Tabs.Tab value="watch">{t('watch.tab')}</Tabs.Tab>
           <Tabs.Tab value="skipped">{t('reservations.skipped.tab')}</Tabs.Tab>
+          {/* 見たいリストのタブは、管理者がアニメの結びつきを有効にしているときだけ出す (設計書 3.8)。 */}
+          <ErrorBoundary fallback={() => null}>
+            <Suspense fallback={null}>
+              <WishlistTab />
+            </Suspense>
+          </ErrorBoundary>
         </Tabs.List>
       </Tabs>
       <ErrorBoundary
@@ -235,6 +259,8 @@ function ReservationsPage() {
             <WatchReservationList />
           ) : tab === 'skipped' ? (
             <SkippedDuplicateList />
+          ) : tab === 'wishlist' ? (
+            <AnimeWishlistList />
           ) : (
             <Reservations range={range} />
           )}
@@ -242,6 +268,27 @@ function ReservationsPage() {
       </ErrorBoundary>
     </Stack>
   );
+}
+
+// WishlistTab は、見たいリストの作品の放送の候補のタブ (#928)。管理者がアニメの結びつきを無効にしていれば出さない。
+function WishlistTab() {
+  const { t } = useTranslation();
+  const data = useLazyLoadQuery<reservationsWishlistTabQuery>(
+    graphql`
+      query reservationsWishlistTabQuery {
+        animeRecordSettings {
+          enabled
+        }
+      }
+    `,
+    {},
+    { fetchPolicy: 'store-or-network' },
+  );
+  if (!data.animeRecordSettings.enabled) {
+    return null;
+  }
+
+  return <Tabs.Tab value="wishlist">{t('reservations.wishlist.tab')}</Tabs.Tab>;
 }
 
 function Reservations({ range }: { range: { now: number; from: string; to: string } }) {
