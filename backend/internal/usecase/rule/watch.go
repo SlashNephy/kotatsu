@@ -86,7 +86,9 @@ func (e *Engine) applyWatch(
 		programs := byUser[userID]
 		keys := slices.SortedFunc(maps.Keys(programs), compareKeys)
 		params := sqlc.InsertRuleWatchReservationsParams{
-			UserID: userID, Now: now,
+			// 照合に時間がかかる間に、通知のジョブが通知の時刻を過ぎた視聴予約を通知していることがある。照合を始めた時刻ではなく、
+			// 付ける直前の時刻で、通知の時刻を過ぎたかを確かめる。
+			UserID: userID, Now: e.clock.Now(),
 			ServiceIds: make([]int64, 0, len(keys)), EventIds: make([]int64, 0, len(keys)), RuleIds: make([]uuid.UUID, 0, len(keys)),
 		}
 		for _, key := range keys {

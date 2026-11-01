@@ -987,7 +987,7 @@ CREATE INDEX watch_reservations_service_id_event_id_idx ON watch_reservations (s
 -- 視聴ルールを消したときに、作った視聴予約を引くのに使う。
 CREATE INDEX watch_reservations_watch_rule_id_idx ON watch_reservations (watch_rule_id);
 
--- ユーザーが手で外した視聴予約の番組 (設計書 4.8)。視聴ルールに一致しても、付け直さない。
+-- ユーザーが手で外したか、通知を送った視聴予約の番組 (設計書 4.8)。視聴ルールに一致しても、付け直さない。
 -- 番組が programs からなくなったら (アーカイブに移ったか、EPG から消えたら)、照合のときに消す。
 CREATE TABLE watch_rule_dismissals (
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,

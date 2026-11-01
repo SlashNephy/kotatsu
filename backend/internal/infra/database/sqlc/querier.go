@@ -320,6 +320,7 @@ type Querier interface {
 	// 視聴ルールに一致した番組 (service_ids[i], event_ids[i]) に、rule_ids[i] の視聴ルールが作ったものとして、ユーザーの視聴予約を付ける。
 	// 付けてある番組と、ユーザーが手で外した番組には付けない。
 	// 通知を送る時刻を過ぎた番組にも付けない。通知のジョブは、通知した視聴予約を消すので、付け直すと二度通知してしまう。
+	// 照合の間に消した視聴ルールの分は付けない。外部キーの違反で、照合の全体 (録画のルールの予約も) を巻き戻さないため。
 	InsertRuleWatchReservations(ctx context.Context, arg InsertRuleWatchReservationsParams) (int64, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertSetupToken(ctx context.Context, arg InsertSetupTokenParams) error
@@ -724,6 +725,8 @@ type Querier interface {
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
 	// 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
 	// 消した行を返すので、nekonote が何台あっても、同じ視聴予約を二度は通知しない。
+	// 通知した番組は、手で外した番組と同じく覚え、視聴ルールが付け直さないようにする。放送が遅れたり、通知を何分前に送るかを
+	// 縮めたりして、通知の時刻がまた先になっても、二度は通知しない (#1093)。
 	TakeDueWatchReservations(ctx context.Context, now time.Time) ([]TakeDueWatchReservationsRow, error)
 	// ログインの途中の状態は 1 回しか使わせないので、引くと同時に消す。
 	TakeOIDCLogin(ctx context.Context, arg TakeOIDCLoginParams) (OidcLogin, error)

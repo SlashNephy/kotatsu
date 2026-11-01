@@ -109,6 +109,7 @@ FROM (
   SELECT unnest($3::bigint[]) AS service_id, unnest($4::bigint[]) AS event_id, unnest($5::uuid[]) AS rule_id
 ) AS m
 JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id
+JOIN watch_rules r ON r.id = m.rule_id
 LEFT JOIN user_settings us ON us.user_id = $1
 WHERE p.start_at - make_interval(mins => coalesce(us.watch_reminder_minutes, 5)) > $2
   AND NOT EXISTS (
@@ -129,6 +130,7 @@ type InsertRuleWatchReservationsParams struct {
 // 視聴ルールに一致した番組 (service_ids[i], event_ids[i]) に、rule_ids[i] の視聴ルールが作ったものとして、ユーザーの視聴予約を付ける。
 // 付けてある番組と、ユーザーが手で外した番組には付けない。
 // 通知を送る時刻を過ぎた番組にも付けない。通知のジョブは、通知した視聴予約を消すので、付け直すと二度通知してしまう。
+// 照合の間に消した視聴ルールの分は付けない。外部キーの違反で、照合の全体 (録画のルールの予約も) を巻き戻さないため。
 func (q *Queries) InsertRuleWatchReservations(ctx context.Context, arg InsertRuleWatchReservationsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertRuleWatchReservations,
 		arg.UserID,

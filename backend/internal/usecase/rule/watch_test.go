@@ -348,6 +348,13 @@ func TestEngineWatchRulesNotifyOnce(t *testing.T) {
 	notified, _, err = notifier.Notify(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 0, notified)
+
+	// 通知した後に放送が遅れ、通知の時刻がまた先になっても、付け直さない。
+	_, err = f.pool.Exec(t.Context(), `UPDATE programs SET start_at = start_at + interval '1 hour', end_at = end_at + interval '1 hour'
+		WHERE name LIKE '%テスト番組 4'`)
+	require.NoError(t, err)
+	assert.Equal(t, 0, f.run(t).WatchCreated)
+	assert.Empty(t, f.watchReserved(t, f.alice))
 }
 
 // TestEngineWatchRulesTouchSettings は、照合で視聴予約を付け外ししたユーザーにだけ、ユーザーの設定の変更として知らせることを確かめる。

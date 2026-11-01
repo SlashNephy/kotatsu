@@ -49,6 +49,8 @@ FROM (
   SELECT unnest(@service_ids::bigint[]) AS service_id, unnest(@event_ids::bigint[]) AS event_id, unnest(@rule_ids::uuid[]) AS rule_id
 ) AS m
 JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id
+-- 照合の間に消した視聴ルールの分は付けない。外部キーの違反で、照合の全体 (録画のルールの予約も) を巻き戻さないため。
+JOIN watch_rules r ON r.id = m.rule_id
 LEFT JOIN user_settings us ON us.user_id = @user_id
 WHERE p.start_at - make_interval(mins => coalesce(us.watch_reminder_minutes, 5)) > @now
   AND NOT EXISTS (
