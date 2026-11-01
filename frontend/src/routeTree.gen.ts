@@ -33,6 +33,8 @@ import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
 import { Route as LoginEnrollRouteImport } from './routes/login/enroll'
 import { Route as LoginSecondFactorRouteImport } from './routes/login/second-factor'
+import { Route as OfflineIndexRouteImport } from './routes/offline/index'
+import { Route as OfflineRecordingIdRouteImport } from './routes/offline/$recordingId'
 import { Route as RecordingsIndexRouteImport } from './routes/recordings/index'
 import { Route as RecordingsRecordingIdRouteImport } from './routes/recordings/$recordingId'
 import { Route as RulesIndexRouteImport } from './routes/rules/index'
@@ -170,6 +172,16 @@ const LoginSecondFactorRoute = LoginSecondFactorRouteImport.update({
   path: '/login/second-factor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OfflineIndexRoute = OfflineIndexRouteImport.update({
+  id: '/offline/',
+  path: '/offline/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfflineRecordingIdRoute = OfflineRecordingIdRouteImport.update({
+  id: '/offline/$recordingId',
+  path: '/offline/$recordingId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RecordingsIndexRoute = RecordingsIndexRouteImport.update({
   id: '/recordings/',
   path: '/recordings/',
@@ -274,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/offline/$recordingId': typeof OfflineRecordingIdRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/guide': typeof SettingsGuideRoute
@@ -286,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/offline/': typeof OfflineIndexRoute
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -316,6 +330,7 @@ export interface FileRoutesByTo {
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/offline/$recordingId': typeof OfflineRecordingIdRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/guide': typeof SettingsGuideRoute
@@ -328,6 +343,7 @@ export interface FileRoutesByTo {
   '/guide': typeof GuideIndexRoute
   '/live': typeof LiveIndexRoute
   '/login': typeof LoginIndexRoute
+  '/offline': typeof OfflineIndexRoute
   '/recordings': typeof RecordingsIndexRoute
   '/rules': typeof RulesIndexRoute
   '/settings': typeof SettingsIndexRoute
@@ -359,6 +375,7 @@ export interface FileRoutesById {
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
+  '/offline/$recordingId': typeof OfflineRecordingIdRoute
   '/recordings/$recordingId': typeof RecordingsRecordingIdRoute
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/guide': typeof SettingsGuideRoute
@@ -371,6 +388,7 @@ export interface FileRoutesById {
   '/guide/': typeof GuideIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
+  '/offline/': typeof OfflineIndexRoute
   '/recordings/': typeof RecordingsIndexRoute
   '/rules/': typeof RulesIndexRoute
   '/settings/': typeof SettingsIndexRoute
@@ -403,6 +421,7 @@ export interface FileRouteTypes {
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/offline/$recordingId'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/guide'
@@ -415,6 +434,7 @@ export interface FileRouteTypes {
     | '/guide/'
     | '/live/'
     | '/login/'
+    | '/offline/'
     | '/recordings/'
     | '/rules/'
     | '/settings/'
@@ -445,6 +465,7 @@ export interface FileRouteTypes {
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/offline/$recordingId'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/guide'
@@ -457,6 +478,7 @@ export interface FileRouteTypes {
     | '/guide'
     | '/live'
     | '/login'
+    | '/offline'
     | '/recordings'
     | '/rules'
     | '/settings'
@@ -487,6 +509,7 @@ export interface FileRouteTypes {
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
+    | '/offline/$recordingId'
     | '/recordings/$recordingId'
     | '/rules/$ruleId'
     | '/settings/guide'
@@ -499,6 +522,7 @@ export interface FileRouteTypes {
     | '/guide/'
     | '/live/'
     | '/login/'
+    | '/offline/'
     | '/recordings/'
     | '/rules/'
     | '/settings/'
@@ -530,6 +554,7 @@ export interface RootRouteChildren {
   LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
+  OfflineRecordingIdRoute: typeof OfflineRecordingIdRoute
   RecordingsRecordingIdRoute: typeof RecordingsRecordingIdRoute
   RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsGuideRoute: typeof SettingsGuideRoute
@@ -542,6 +567,7 @@ export interface RootRouteChildren {
   GuideIndexRoute: typeof GuideIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
+  OfflineIndexRoute: typeof OfflineIndexRoute
   RecordingsIndexRoute: typeof RecordingsIndexRoute
   RulesIndexRoute: typeof RulesIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -721,6 +747,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginSecondFactorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/offline/': {
+      id: '/offline/'
+      path: '/offline'
+      fullPath: '/offline/'
+      preLoaderRoute: typeof OfflineIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offline/$recordingId': {
+      id: '/offline/$recordingId'
+      path: '/offline/$recordingId'
+      fullPath: '/offline/$recordingId'
+      preLoaderRoute: typeof OfflineRecordingIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/recordings/': {
       id: '/recordings/'
       path: '/recordings'
@@ -858,6 +898,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
+  OfflineRecordingIdRoute: OfflineRecordingIdRoute,
   RecordingsRecordingIdRoute: RecordingsRecordingIdRoute,
   RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsGuideRoute: SettingsGuideRoute,
@@ -870,6 +911,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuideIndexRoute: GuideIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
+  OfflineIndexRoute: OfflineIndexRoute,
   RecordingsIndexRoute: RecordingsIndexRoute,
   RulesIndexRoute: RulesIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,

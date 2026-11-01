@@ -447,7 +447,8 @@
     "live": "Live",
     "menu": "Menu",
     "captures": "Captures",
-    "remote": "Remote"
+    "remote": "Remote",
+    "offline": "Saved recordings"
   },
   "guide": {
     "watchLive": "Watch {{name}} live",
@@ -1822,5 +1823,30 @@
     "invalidRequest": "The app's request is invalid, so it can't be authorized. Check the app's settings",
     "errorRedirect": "Returning to the app tells it that authorization failed. Returns to: {{host}}. If you don't recognize the site, close this screen without returning",
     "back": "Back to app"
+  },
+  "offline": {
+    "title": "Saved on this device",
+    "description": "Recordings saved on this device play without a connection to the server. They stay here until you remove them, even if the recording is deleted on the server.",
+    "usage": "Storage used on this device: {{usage}} of {{quota}}",
+    "notPersisted": "The browser did not allow persistent storage. It may remove saved recordings when the device runs low on space.",
+    "empty": "No recordings are saved on this device",
+    "emptyHint": "Use “Save to device” on a recording's page to save it.",
+    "save": "Save to device",
+    "saving": "Saving to this device ({{received}})",
+    "savingOf": "Saving to this device ({{received}} of {{total}})",
+    "progress": "Progress of saving to this device",
+    "keepOpen": "Keep this tab open until saving finishes.",
+    "cancel": "Cancel",
+    "dismiss": "Dismiss",
+    "errorQuota": "Not enough space on this device to save the recording.",
+    "errorBusy": "Another tab is already saving this recording.",
+    "errorFailed": "Could not save the recording. Please try again later.",
+    "playSaved": "Play from device",
+    "remove": "Remove from device",
+    "removeNamed": "Remove {{name}} from this device",
+    "savedSize": "Saved on this device ({{size}})",
+    "back": "Back to saved recordings",
+    "notFound": "This recording is not saved on this device.",
+    "offlineLink": "Open recordings saved on this device"
   }
 }
