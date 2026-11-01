@@ -33,6 +33,8 @@ const (
 	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
 	envKeyTunerURL = "KOTATSU_TUNER_URL"
+	// envKeyArmURL は、作品 ID の対応を取り込む URL を渡す環境変数。
+	envKeyArmURL = "KOTATSU_ANIME_LINKING_ARM_URL"
 	// errTimeshiftOverlapsDataDir と errTimeshiftOverlapsMain は、タイムシフトのディレクトリが、データディレクトリかプール main と重なるときのエラー。
 	errTimeshiftOverlapsDataDir = "storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must not be the same as, inside, or a parent of storage.data_dir"
 	errTimeshiftOverlapsMain    = `storage.timeshift_dir (KOTATSU_STORAGE_TIMESHIFT_DIR): must not be the same as, inside, or a parent of the mount point of pool "main"`
@@ -584,6 +586,53 @@ func TestLoadJikkyo(t *testing.T) {
 	}
 }
 
+// TestLoadAnimeLinking は、作品 ID の対応を取り込む URL を、YAML、環境変数、ファイルから読み、誤りを起動時に知らせることを確かめる (設計書 3.8)。
+func TestLoadAnimeLinking(t *testing.T) {
+	t.Parallel()
+
+	const armURL = "https://example.com/private/arm.json?token=abc"
+	dir := t.TempDir()
+	tests := []struct {
+		name    string
+		yaml    string
+		env     map[string]string
+		want    string
+		wantErr string
+	}{
+		{name: "既定では、空にして kawaiioverflow/arm を使う", env: map[string]string{envKeyURL: envURL}, want: ""},
+		{name: "YAML から読む", yaml: "anime_linking:\n  arm_url: " + armURL + "\n", env: map[string]string{envKeyURL: envURL}, want: armURL},
+		{name: "環境変数から読む", env: map[string]string{envKeyURL: envURL, envKeyArmURL: armURL}, want: armURL},
+		{
+			name: "ファイルから読む",
+			env:  map[string]string{envKeyURL: envURL, envKeyArmURL + "_FILE": writeFile(t, dir, "arm_url", armURL+"\n")},
+			want: armURL,
+		},
+		{
+			name:    "http でも https でもない URL は拒む",
+			env:     map[string]string{envKeyURL: envURL, envKeyArmURL: "example.com/arm.json"},
+			wantErr: "anime_linking.arm_url (KOTATSU_ANIME_LINKING_ARM_URL): must be an http:// or https:// URL",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.AnimeLinking.ArmURL.Value())
+		})
+	}
+}
+
 // TestLoadTelemetry は、OTLP でメトリクスを送る設定を、YAML、環境変数、ファイルから読み、誤りを起動時に知らせることを確かめる (#962)。
 func TestLoadTelemetry(t *testing.T) {
 	t.Parallel()
@@ -952,15 +1001,29 @@ func TestLoadErrorDoesNotLeakSecret(t *testing.T) {
 	assert.NotContains(t, err.Error(), "hunter2")
 }
 
-func TestTunerURLErrorDoesNotLeakSecret(t *testing.T) {
+// TestSecretURLErrorDoesNotLeakSecret は、秘密情報として扱う URL が不正なときに、エラーに URL を含めないことを確かめる。
+func TestSecretURLErrorDoesNotLeakSecret(t *testing.T) {
 	t.Parallel()
 
-	// パスワードに "%zz" のような不正なエスケープがあると、url.Parse は URL の全文を含むエラーを返す。
-	tunerURL := "http://user:" + leakedWord + "%zz@mirakurun:40772/"
+	tests := []struct {
+		envKey string
+		want   string
+	}{
+		{envKey: envKeyTunerURL, want: "tuner.url (KOTATSU_TUNER_URL): must be a valid URL"},
+		{envKey: envKeyArmURL, want: "anime_linking.arm_url (KOTATSU_ANIME_LINKING_ARM_URL): must be a valid URL"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.envKey, func(t *testing.T) {
+			t.Parallel()
 
-	_, err := config.Load("", lookup(map[string]string{envKeyURL: envURL, envKeyTunerURL: tunerURL}))
-	require.ErrorContains(t, err, "tuner.url (KOTATSU_TUNER_URL): must be a valid URL")
-	assert.NotContains(t, err.Error(), leakedWord)
+			// パスワードに "%zz" のような不正なエスケープがあると、url.Parse は URL の全文を含むエラーを返す。
+			secretURL := "http://user:" + leakedWord + "%zz@example.com:40772/"
+
+			_, err := config.Load("", lookup(map[string]string{envKeyURL: envURL, tt.envKey: secretURL}))
+			require.ErrorContains(t, err, tt.want)
+			assert.NotContains(t, err.Error(), leakedWord)
+		})
+	}
 }
 
 func TestSecretIsRedactedInOutput(t *testing.T) {

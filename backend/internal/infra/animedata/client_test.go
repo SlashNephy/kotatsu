@@ -127,3 +127,36 @@ func TestClientErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestClientErrorsHideURL は、取得できなかったときのエラーに、資格情報を含みうる URL を書かないことを確かめる。
+// エラーは、取り込めなかった理由として DB に残り、管理者の画面に出る。
+func TestClientErrorsHideURL(t *testing.T) {
+	t.Parallel()
+
+	const token = "secret-token"
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "unexpected status", baseURL: server.URL, want: "failed to get arm: unexpected status 404 Not Found"},
+		{name: "connection refused", baseURL: closed.URL, want: "failed to get arm: "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := animedata.NewClient(&animedata.Options{
+				HTTPClient: server.Client(), SayaDefinitionsURL: "", ArmURL: tt.baseURL + "/arm.json?token=" + token,
+			})
+			_, _, err := client.Arm(t.Context(), "")
+			require.ErrorContains(t, err, tt.want)
+			assert.NotContains(t, err.Error(), token)
+		})
+	}
+}

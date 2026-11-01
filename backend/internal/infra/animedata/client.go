@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
@@ -88,7 +89,7 @@ func (c *Client) SayaDefinitions(ctx context.Context, etag string) ([]*Channel, 
 	var body struct {
 		Channels []*Channel `json:"channels"`
 	}
-	newETag, err := c.fetch(ctx, c.sayaDefinitionsURL, etag, &body)
+	newETag, err := c.fetch(ctx, "saya-definitions", c.sayaDefinitionsURL, etag, &body)
 	if err != nil {
 		return nil, "", err
 	}
@@ -103,7 +104,7 @@ func (c *Client) SayaDefinitions(ctx context.Context, etag string) ([]*Channel, 
 // etag が前に取得したときの ETag で、内容が変わっていなければ ErrNotModified を返す。
 func (c *Client) Arm(ctx context.Context, etag string) ([]*Work, string, error) {
 	works := []*Work{}
-	newETag, err := c.fetch(ctx, c.armURL, etag, &works)
+	newETag, err := c.fetch(ctx, "arm", c.armURL, etag, &works)
 	if err != nil {
 		return nil, "", err
 	}
@@ -112,12 +113,13 @@ func (c *Client) Arm(ctx context.Context, etag string) ([]*Work, string, error) 
 }
 
 // fetch は、url の JSON を v に読み、ETag を返す。
-func (c *Client) fetch(ctx context.Context, url, etag string, v any) (string, error) {
+// url は設定で資格情報を含みうるので、エラーには url ではなく、取り込み元の名前 name を書く。
+func (c *Client) fetch(ctx context.Context, name, url, etag string, v any) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to build the request: %w", err)
+		return "", fmt.Errorf("failed to build the request for %s", name)
 	}
 	req.Header.Set("User-Agent", buildinfo.UserAgent())
 	if etag != "" {
@@ -125,24 +127,29 @@ func (c *Client) fetch(ctx context.Context, url, etag string, v any) (string, er
 	}
 	res, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to get %s: %w", url, err)
+		// *url.Error は URL の全文を含むので、その中の理由だけを返す。
+		if urlErr, ok := errors.AsType[*neturl.Error](err); ok {
+			err = urlErr.Err
+		}
+
+		return "", fmt.Errorf("failed to get %s: %w", name, err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode == http.StatusNotModified {
 		return "", ErrNotModified
 	}
 	if res.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to get %s: unexpected status %s", url, res.Status)
+		return "", fmt.Errorf("failed to get %s: unexpected status %s", name, res.Status)
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
 	if err != nil {
-		return "", fmt.Errorf("failed to read %s: %w", url, err)
+		return "", fmt.Errorf("failed to read %s: %w", name, err)
 	}
 	if len(body) > maxResponseBytes {
-		return "", fmt.Errorf("%s is larger than %d bytes", url, maxResponseBytes)
+		return "", fmt.Errorf("%s is larger than %d bytes", name, maxResponseBytes)
 	}
 	if err := json.Unmarshal(body, v); err != nil {
-		return "", fmt.Errorf("failed to decode %s: %w", url, err)
+		return "", fmt.Errorf("failed to decode %s: %w", name, err)
 	}
 
 	return res.Header.Get("ETag"), nil

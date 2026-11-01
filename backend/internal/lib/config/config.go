@@ -40,6 +40,8 @@ type Config struct {
 	Thumbnail Thumbnail `yaml:"thumbnail"`
 	Kyusu     Kyusu     `yaml:"kyusu"`
 	Jikkyo    Jikkyo    `yaml:"jikkyo"`
+	// AnimeLinking は、アニメの番組と作品を結びつける連携の設定 (設計書 3.8)。
+	AnimeLinking AnimeLinking `yaml:"anime_linking"`
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
 	AnimeRecords AnimeRecords `yaml:"anime_records"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
@@ -189,6 +191,13 @@ const (
 	// EncoderNVENC は、NVIDIA NVENC。
 	EncoderNVENC = "nvenc"
 )
+
+// AnimeLinking は、アニメの番組と作品を結びつける連携の設定 (設計書 3.8)。連携するかどうかは、管理者が画面で決める。
+type AnimeLinking struct {
+	// ArmURL は、作品 ID の対応を取り込む、arm の arm.json と同じ形の JSON の URL。空なら kawaiioverflow/arm の arm.json にする。
+	// 自分で作った対応を、公開しない場所に置いて取り込むときに使う。資格情報を含みうるので秘密情報として扱う。
+	ArmURL Secret `yaml:"arm_url"`
+}
 
 // AnimeRecords は、見たアニメを記録する先の設定 (#927)。どの記録先と連携するかは、管理者が画面で決める。
 type AnimeRecords struct {
@@ -362,6 +371,7 @@ func Default() *Config {
 		Thumbnail:    Thumbnail{DisablePreview: false},
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
+		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: ""},
 	}
 }
@@ -403,8 +413,11 @@ func (c *Config) validate() error {
 	if err := validateDatabaseURL(c.Database.URL); err != nil {
 		errs = append(errs, fieldError("database.url", err))
 	}
-	if err := validateTunerURL(c.Tuner.URL); err != nil {
+	if err := validateSecretHTTPURL(c.Tuner.URL); err != nil {
 		errs = append(errs, fieldError("tuner.url", err))
+	}
+	if err := validateSecretHTTPURL(c.AnimeLinking.ArmURL); err != nil {
+		errs = append(errs, fieldError("anime_linking.arm_url", err))
 	}
 	if err := validateHTTPURL(c.Telemetry.OTLPEndpoint); err != nil {
 		errs = append(errs, fieldError("telemetry.otlp_endpoint", err))
@@ -579,8 +592,8 @@ func validateNetworks(networks []string) error {
 	return err
 }
 
-// validateTunerURL は、チューナーサーバーの URL を検査する。空なら、EPG を同期しないものとして通す。
-func validateTunerURL(secret Secret) error {
+// validateSecretHTTPURL は、秘密情報として扱う URL が、空でなければ http:// か https:// の URL であることを確かめる。
+func validateSecretHTTPURL(secret Secret) error {
 	if secret.Value() == "" {
 		return nil
 	}

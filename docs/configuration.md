@@ -345,3 +345,17 @@ jikkyo:
 ```sh
 KOTATSU_JIKKYO_CHANNELS=4:101=jk101,32736:1024=jk1
 ```
+
+### anime_linking
+
+アニメの番組と作品を結びつける連携の設定です。
+連携するかどうかは、管理者が連携の画面で決めます。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `anime_linking.arm_url` | `KOTATSU_ANIME_LINKING_ARM_URL` | なし（秘密） | 作品IDの対応を取り込む、[arm](https://github.com/kawaiioverflow/arm)の`arm.json`と同じ形のJSONのURL |
+
+空のときは、armの`arm.json`を取り込みます。
+自分で作った対応を、公開しない場所に置いて取り込むときに設定します。
+認証が要るときは、URLに資格情報を含めてください。
+取り込めなかった理由にはURLを書かず、取り込み元の名前（`arm`）だけを書きます。
