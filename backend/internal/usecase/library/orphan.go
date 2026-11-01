@@ -185,7 +185,8 @@ func (u *usedFiles) uses(checker *kago.Checker, location kago.Location) bool {
 	return false
 }
 
-// usedFiles は、DB にある録画ファイル (録画中のものも含む) と、終わっていないつなぐ処理が置き換えるファイルと消すファイルを返す。
+// usedFiles は、DB にある録画ファイル (録画中のものも含む) と、終わっていないつなぐ処理が置き換えるファイルと消すファイル、
+// DB にあるキャプチャの画像を返す。
 func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, error) {
 	rows, err := sqlc.New(db).ListRecordingFileLocations(ctx)
 	if err != nil {
@@ -203,6 +204,16 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	}
 	for _, chunk := range chunks {
 		used.add(chunk.ID, "", "")
+	}
+	// キャプチャの画像は、データディレクトリの「captures/ユーザーの ID/キャプチャの ID.png」に置く (設計書 7.5)。行があるうちは使っているとみなす。
+	// 行のない画像 (記録する前に止まったものや、行を消した後に消せなかったもの) は、DB にないファイルとして出す。
+	captures, err := sqlc.New(db).ListCaptureLocations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the captures: %w", err)
+	}
+	for _, c := range captures {
+		location := kago.CaptureLocation(c.UserID, c.ID)
+		used.add(uuid.Nil, location.PoolID, location.Path)
 	}
 	// つないだ後は、DB の記録はつないだファイルに置き換わるが、つなぐ元のファイルは、置き換えるジョブが消すまで残る。
 	// ジョブは、マウントが戻るまで何日もやり直すことがあるので、終わっていないジョブのファイルは使っているとみなす。

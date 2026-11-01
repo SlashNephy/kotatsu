@@ -103,6 +103,29 @@ type ComplexityRoot struct {
 		SuperimposeRecorded func(childComplexity int) int
 	}
 
+	Capture struct {
+		BroadcastAt func(childComplexity int) int
+		Caption     func(childComplexity int) int
+		ID          func(childComplexity int) int
+		ImageURL    func(childComplexity int) int
+		Position    func(childComplexity int) int
+		ProgramName func(childComplexity int) int
+		RecordingID func(childComplexity int) int
+		ServiceName func(childComplexity int) int
+		Size        func(childComplexity int) int
+		TakenAt     func(childComplexity int) int
+	}
+
+	CaptureConnection struct {
+		Edges    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
+	CaptureEdge struct {
+		Cursor func(childComplexity int) int
+		Node   func(childComplexity int) int
+	}
+
 	ChannelInspection struct {
 		Others            func(childComplexity int) int
 		Programs          func(childComplexity int) int
@@ -298,6 +321,7 @@ type ComplexityRoot struct {
 		CreateUser                   func(childComplexity int, input model.CreateUserInput) int
 		CreateWebhook                func(childComplexity int, input model.CreateWebhookInput) int
 		DeleteAPIToken               func(childComplexity int, id string) int
+		DeleteCapture                func(childComplexity int, id string) int
 		DeleteGuideView              func(childComplexity int, id string) int
 		DeleteOAuthGrant             func(childComplexity int, id string) int
 		DeleteOrphanFiles            func(childComplexity int, files []*model.OrphanFileInput) int
@@ -549,6 +573,8 @@ type ComplexityRoot struct {
 	Query struct {
 		APITokens               func(childComplexity int) int
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
+		Captures                func(childComplexity int, first int, after *string, keyword *string) int
+		CapturesAvailable       func(childComplexity int) int
 		ChannelTypes            func(childComplexity int) int
 		ContinueWatching        func(childComplexity int, first int) int
 		DrcsReplacements        func(childComplexity int) int
@@ -1041,6 +1067,7 @@ type MutationResolver interface {
 	ResetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
+	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
@@ -1129,6 +1156,8 @@ type QueryResolver interface {
 	TunerServerHealth(ctx context.Context) (*model.TunerServerHealth, error)
 	StoragePoolNames(ctx context.Context) ([]string, error)
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
+	Captures(ctx context.Context, first int, after *string, keyword *string) (*model.CaptureConnection, error)
+	CapturesAvailable(ctx context.Context) (bool, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -1433,6 +1462,93 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CaptionSettings.SuperimposeRecorded(childComplexity), true
+
+	case "Capture.broadcastAt":
+		if e.ComplexityRoot.Capture.BroadcastAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.BroadcastAt(childComplexity), true
+	case "Capture.caption":
+		if e.ComplexityRoot.Capture.Caption == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.Caption(childComplexity), true
+	case "Capture.id":
+		if e.ComplexityRoot.Capture.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.ID(childComplexity), true
+	case "Capture.imageUrl":
+		if e.ComplexityRoot.Capture.ImageURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.ImageURL(childComplexity), true
+	case "Capture.position":
+		if e.ComplexityRoot.Capture.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.Position(childComplexity), true
+	case "Capture.programName":
+		if e.ComplexityRoot.Capture.ProgramName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.ProgramName(childComplexity), true
+	case "Capture.recordingId":
+		if e.ComplexityRoot.Capture.RecordingID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.RecordingID(childComplexity), true
+	case "Capture.serviceName":
+		if e.ComplexityRoot.Capture.ServiceName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.ServiceName(childComplexity), true
+	case "Capture.size":
+		if e.ComplexityRoot.Capture.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.Size(childComplexity), true
+	case "Capture.takenAt":
+		if e.ComplexityRoot.Capture.TakenAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Capture.TakenAt(childComplexity), true
+
+	case "CaptureConnection.edges":
+		if e.ComplexityRoot.CaptureConnection.Edges == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptureConnection.Edges(childComplexity), true
+	case "CaptureConnection.pageInfo":
+		if e.ComplexityRoot.CaptureConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptureConnection.PageInfo(childComplexity), true
+
+	case "CaptureEdge.cursor":
+		if e.ComplexityRoot.CaptureEdge.Cursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptureEdge.Cursor(childComplexity), true
+	case "CaptureEdge.node":
+		if e.ComplexityRoot.CaptureEdge.Node == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptureEdge.Node(childComplexity), true
 
 	case "ChannelInspection.others":
 		if e.ComplexityRoot.ChannelInspection.Others == nil {
@@ -2209,6 +2325,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteAPIToken(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteCapture":
+		if e.ComplexityRoot.Mutation.DeleteCapture == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteCapture_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteCapture(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteGuideView":
 		if e.ComplexityRoot.Mutation.DeleteGuideView == nil {
 			break
@@ -3589,6 +3716,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AuditEvents(childComplexity, args["first"].(int), args["after"].(*string), args["filter"].(*model.AuditEventFilter)), true
+	case "Query.captures":
+		if e.ComplexityRoot.Query.Captures == nil {
+			break
+		}
+
+		args, err := ec.field_Query_captures_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Captures(childComplexity, args["first"].(int), args["after"].(*string), args["keyword"].(*string)), true
+	case "Query.capturesAvailable":
+		if e.ComplexityRoot.Query.CapturesAvailable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.CapturesAvailable(childComplexity), true
 	case "Query.channelTypes":
 		if e.ComplexityRoot.Query.ChannelTypes == nil {
 			break
@@ -6037,6 +6181,55 @@ extend type Mutation {
   createApiToken(name: String!): CreatedApiToken!
   "API トークンを取り消し、取り消したトークンの ID を返す。"
   deleteApiToken(id: ID!): ID!
+}
+`, BuiltIn: false},
+	{Name: "../schema/captures.graphqls", Input: `"""
+ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+"""
+type Capture {
+  id: ID!
+  "画像の URL。撮ったユーザーのセッションでだけ開ける。"
+  imageUrl: String!
+  serviceName: String!
+  "番組名。番組が分からなければ null。"
+  programName: String
+  "撮ったときに出ていた字幕の文 (#458)。出ていなければ null。"
+  caption: String
+  "録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。"
+  recordingId: ID
+  "録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。"
+  position: Float
+  "撮った場面の放送時刻。"
+  broadcastAt: Time!
+  "撮った時刻 (撮った端末の時計)。"
+  takenAt: Time!
+  "画像の大きさ (バイト)。"
+  size: Int64!
+}
+
+type CaptureEdge {
+  cursor: String!
+  node: Capture!
+}
+
+type CaptureConnection {
+  edges: [CaptureEdge!]!
+  pageInfo: PageInfo!
+}
+
+extend type Query {
+  """
+  ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
+  keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
+  """
+  captures(first: Int! = 50, after: String, keyword: String): CaptureConnection!
+  "このサーバーでキャプチャを残せるか。データディレクトリ (storage.data_dir) を設定していなければ false。"
+  capturesAvailable: Boolean!
+}
+
+extend type Mutation {
+  "ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。"
+  deleteCapture(id: ID!): ID!
 }
 `, BuiltIn: false},
 	{Name: "../schema/changes.graphqls", Input: `"""
@@ -8718,6 +8911,52 @@ func (ec *executionContext) childFields_CaptionSettings(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type CaptionSettings", field.Name)
 }
 
+func (ec *executionContext) childFields_Capture(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Capture_id(ctx, field)
+	case "imageUrl":
+		return ec.fieldContext_Capture_imageUrl(ctx, field)
+	case "serviceName":
+		return ec.fieldContext_Capture_serviceName(ctx, field)
+	case "programName":
+		return ec.fieldContext_Capture_programName(ctx, field)
+	case "caption":
+		return ec.fieldContext_Capture_caption(ctx, field)
+	case "recordingId":
+		return ec.fieldContext_Capture_recordingId(ctx, field)
+	case "position":
+		return ec.fieldContext_Capture_position(ctx, field)
+	case "broadcastAt":
+		return ec.fieldContext_Capture_broadcastAt(ctx, field)
+	case "takenAt":
+		return ec.fieldContext_Capture_takenAt(ctx, field)
+	case "size":
+		return ec.fieldContext_Capture_size(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Capture", field.Name)
+}
+
+func (ec *executionContext) childFields_CaptureConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "edges":
+		return ec.fieldContext_CaptureConnection_edges(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_CaptureConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CaptureConnection", field.Name)
+}
+
+func (ec *executionContext) childFields_CaptureEdge(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "cursor":
+		return ec.fieldContext_CaptureEdge_cursor(ctx, field)
+	case "node":
+		return ec.fieldContext_CaptureEdge_node(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CaptureEdge", field.Name)
+}
+
 func (ec *executionContext) childFields_ChannelInspection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "transportStreamId":
@@ -10606,6 +10845,20 @@ func (ec *executionContext) field_Mutation_deleteApiToken_args(ctx context.Conte
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteCapture_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteGuideView_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11567,6 +11820,36 @@ func (ec *executionContext) field_Query_auditEvents_args(ctx context.Context, ra
 		return nil, err
 	}
 	args["filter"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_captures_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "keyword",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["keyword"] = arg2
 	return args, nil
 }
 
@@ -12781,6 +13064,355 @@ func (ec *executionContext) _CaptionSettings_backgroundOpacity(ctx context.Conte
 }
 func (ec *executionContext) fieldContext_CaptionSettings_backgroundOpacity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CaptionSettings", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_id(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_imageUrl(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_imageUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImageURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_serviceName(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_serviceName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ServiceName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_serviceName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_programName(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_programName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProgramName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_programName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_caption(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_caption(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Caption, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_caption(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_recordingId(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_recordingId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_recordingId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_position(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_broadcastAt(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_broadcastAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_broadcastAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_takenAt(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_takenAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TakenAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_takenAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _Capture_size(ctx context.Context, field graphql.CollectedField, obj *model.Capture) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Capture_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Capture_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Capture", field, false, false, errors.New("field of type Int64 does not have child fields"))
+}
+
+func (ec *executionContext) _CaptureConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.CaptureConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptureConnection_edges(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Edges, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CaptureEdge) graphql.Marshaler {
+			return ec.marshalNCaptureEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptureEdgeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptureConnection_edges(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptureConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptureEdge(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CaptureConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.CaptureConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptureConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptureConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptureConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CaptureEdge_cursor(ctx context.Context, field graphql.CollectedField, obj *model.CaptureEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptureEdge_cursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptureEdge_cursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptureEdge", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _CaptureEdge_node(ctx context.Context, field graphql.CollectedField, obj *model.CaptureEdge) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptureEdge_node(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Node, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Capture) graphql.Marshaler {
+			return ec.marshalNCapture2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCapture(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptureEdge_node(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptureEdge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Capture(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _ChannelInspection_transportStreamId(ctx context.Context, field graphql.CollectedField, obj *model.ChannelInspection) (ret graphql.Marshaler) {
@@ -15430,6 +16062,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteApiToken(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteApiToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCapture(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteCapture(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteCapture(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteCapture(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteCapture_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -21543,6 +22219,73 @@ func (ec *executionContext) fieldContext_Query_apiTokens(_ context.Context, fiel
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Query_captures(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_captures(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Captures(ctx, fc.Args["first"].(int), fc.Args["after"].(*string), fc.Args["keyword"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptureConnection) graphql.Marshaler {
+			return ec.marshalNCaptureConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptureConnection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_captures(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptureConnection(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_captures_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_capturesAvailable(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_capturesAvailable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().CapturesAvailable(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_capturesAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _Query_node(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -33473,6 +34216,175 @@ func (ec *executionContext) _CaptionSettings(ctx context.Context, sel ast.Select
 	return out
 }
 
+var captureImplementors = []string{"Capture"}
+
+func (ec *executionContext) _Capture(ctx context.Context, sel ast.SelectionSet, obj *model.Capture) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captureImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Capture")
+		case "id":
+			out.Values[i] = ec._Capture_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "imageUrl":
+			out.Values[i] = ec._Capture_imageUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "serviceName":
+			out.Values[i] = ec._Capture_serviceName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "programName":
+			out.Values[i] = ec._Capture_programName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "caption":
+			out.Values[i] = ec._Capture_caption(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recordingId":
+			out.Values[i] = ec._Capture_recordingId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._Capture_position(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "broadcastAt":
+			out.Values[i] = ec._Capture_broadcastAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "takenAt":
+			out.Values[i] = ec._Capture_takenAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._Capture_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var captureConnectionImplementors = []string{"CaptureConnection"}
+
+func (ec *executionContext) _CaptureConnection(ctx context.Context, sel ast.SelectionSet, obj *model.CaptureConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captureConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CaptureConnection")
+		case "edges":
+			out.Values[i] = ec._CaptureConnection_edges(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._CaptureConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var captureEdgeImplementors = []string{"CaptureEdge"}
+
+func (ec *executionContext) _CaptureEdge(ctx context.Context, sel ast.SelectionSet, obj *model.CaptureEdge) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captureEdgeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CaptureEdge")
+		case "cursor":
+			out.Values[i] = ec._CaptureEdge_cursor(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "node":
+			out.Values[i] = ec._CaptureEdge_node(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var channelInspectionImplementors = []string{"ChannelInspection"}
 
 func (ec *executionContext) _ChannelInspection(ctx context.Context, sel ast.SelectionSet, obj *model.ChannelInspection) graphql.Marshaler {
@@ -34945,6 +35857,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteApiToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteApiToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCapture":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCapture(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -37186,6 +38105,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_apiTokens(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "captures":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_captures(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "capturesAvailable":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_capturesAvailable(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -42259,6 +43222,52 @@ func (ec *executionContext) marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephy
 		return graphql.Null
 	}
 	return ec._CaptionSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCapture2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCapture(ctx context.Context, sel ast.SelectionSet, v *model.Capture) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Capture(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCaptureConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptureConnection(ctx context.Context, sel ast.SelectionSet, v *model.CaptureConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CaptureConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCaptureEdge2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptureEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CaptureEdge) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCaptureEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptureEdge(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCaptureEdge2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptureEdge(ctx context.Context, sel ast.SelectionSet, v *model.CaptureEdge) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._CaptureEdge(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNChannelInspection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐChannelInspection(ctx context.Context, sel ast.SelectionSet, v *model.ChannelInspection) graphql.Marshaler {
