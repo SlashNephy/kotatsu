@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CircleDot,
   HardDrive,
+  Link2,
   Captions,
   Hourglass,
   MonitorPlay,
@@ -53,6 +54,12 @@ function SettingsPage() {
       icon: Bell,
       title: t('notifications.settingsTitle'),
       body: t('settings.notificationsSummary'),
+    },
+    {
+      to: '/settings/account',
+      icon: Link2,
+      title: t('settings.pages.account.title'),
+      body: t('settings.pages.account.summary'),
     },
     {
       to: '/settings/security',

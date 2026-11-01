@@ -1,4 +1,4 @@
-import { demoAnimeEpisodes } from './anime';
+import { demoAnimeEpisodes, demoAnimeRecordApps, demoAnimeRecordSettings } from './anime';
 import { createDemoCaptures, type DemoCaptures } from './captures';
 import {
   channelTypes,
@@ -374,6 +374,8 @@ export function createRootValue(
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
+    animeRecordSettings: () => demoAnimeRecordSettings(),
+    animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
     storagePoolNames: () => ['default'],
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({
@@ -429,6 +431,9 @@ export function createRootValue(
       return animeChannel(serviceId);
     },
     deleteCapture: ({ id }: { id: string }) => captures.remove(id),
+    // デモでは、見たアニメを記録しない (#927)。プレイヤーの報告は受け取って捨て、記録の対象でないと答える。
+    reportAnimePlayback: () => false,
+    updateAnimeRecordSettings: () => demoAnimeRecordSettings(),
     setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
       recordings.setTags(id, tags),
     setRecordingProtected: ({ id, protected: value }: { id: string; protected: boolean }) =>

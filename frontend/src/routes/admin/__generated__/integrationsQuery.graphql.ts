@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a04f5ae109ab15a6d6b2550c13afd4cc>>
+ * @generated SignedSource<<2e6a68c35da338ff1acad54900dcb7e7>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type AnimeImportSource = "ARM" | "ARM_SUPPLEMENTARY" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
+export type AnimeRecordDestination = "ANILIST" | "ANNICT" | "%future added value";
 export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
@@ -19,6 +20,12 @@ export type integrationsQuery$data = {
     readonly importedAt: string | null | undefined;
     readonly itemCount: number;
     readonly source: AnimeImportSource;
+  }>;
+  readonly animeRecordApps: ReadonlyArray<{
+    readonly clientId: string | null | undefined;
+    readonly configured: boolean;
+    readonly destination: AnimeRecordDestination;
+    readonly redirectUri: string;
   }>;
   readonly passkeys: ReadonlyArray<{
     readonly id: string;
@@ -82,6 +89,45 @@ v1 = [
         "args": null,
         "kind": "ScalarField",
         "name": "animeLinkingEnabled",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "AnimeRecordApp",
+    "kind": "LinkedField",
+    "name": "animeRecordApps",
+    "plural": true,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "destination",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "clientId",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "configured",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "redirectUri",
         "storageKey": null
       }
     ],
@@ -236,16 +282,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "25a73c6ed9ee8c1549908bb473aa18dc",
+    "cacheID": "1b6ea3edc1fb2980ed08020e6b30dc5b",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "175be0dee2fe7ab849c45271f42f2eae";
+(node as any).hash = "d52f435f99c82db3d3a6307f309cb367";
 
 export default node;

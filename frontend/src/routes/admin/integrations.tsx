@@ -5,7 +5,9 @@ import {
   Card,
   Checkbox,
   Code,
+  CopyButton,
   Group,
+  PasswordInput,
   Select,
   Stack,
   Switch,
@@ -25,7 +27,11 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { AdminPage } from '../../admin/AdminPage';
 import { Section } from '../../admin/Section';
 import { authApi, type OIDCStatus } from '../../auth/api';
-import { notificationKinds, type NotificationKindName } from '../../notifications/kinds';
+import {
+  notificationKinds,
+  personalKinds,
+  type NotificationKindName,
+} from '../../notifications/kinds';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
@@ -39,6 +45,11 @@ import type {
   SystemSettingsInput,
   integrationsSystemSettingsMutation,
 } from './__generated__/integrationsSystemSettingsMutation.graphql';
+import type {
+  AnimeRecordAppInput,
+  AnimeRecordDestination,
+  integrationsAnimeRecordAppMutation,
+} from './__generated__/integrationsAnimeRecordAppMutation.graphql';
 import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
@@ -53,9 +64,9 @@ export const Route = createFileRoute('/admin/integrations')({
 });
 
 const formats = ['JSON', 'DISCORD', 'SLACK'] as const satisfies readonly WebhookFormat[];
-// 視聴予約の通知は個人に届けるものなので、全体向けの Webhook では送らない (設計書 4.8)。
+// 視聴予約と見たアニメの記録の通知は個人に届けるものなので、全体向けの Webhook では送らない (設計書 4.8、6.2)。
 const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
-  (kind) => kind !== 'WATCH_REMINDER',
+  (kind) => !personalKinds.includes(kind),
 );
 
 // IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、しょぼいカレンダー、Annict、AniList、
@@ -76,6 +87,12 @@ const query = graphql`
       mcpEnabled
       dataBroadcastIpEnabled
       animeLinkingEnabled
+    }
+    animeRecordApps {
+      destination
+      clientId
+      configured
+      redirectUri
     }
     animeImports {
       source
@@ -210,6 +227,44 @@ function Integrations() {
           busy={gate.busy}
           onSave={(animeLinkingEnabled) => saveSettings({ animeLinkingEnabled })}
         />
+
+        {/* 見たアニメを記録させるアプリ (#927)。利用者を記録先へ送り出すアプリを決めるので、ここで再認証を求める。 */}
+        <Section title={t('admin.animeRecords.title')}>
+          <Stack gap="md">
+            <Text size="sm" c="dimmed">
+              {t('admin.animeRecords.help')}
+            </Text>
+            {data.animeRecordApps.map((app) => (
+              <AnimeRecordAppForm
+                key={`${app.destination}/${app.clientId ?? ''}/${String(app.configured)}`}
+                app={app}
+                busy={gate.busy}
+                onSave={(input, onDone) =>
+                  gate.run(async () => {
+                    await mutate<integrationsAnimeRecordAppMutation>(
+                      environment,
+                      graphql`
+                        mutation integrationsAnimeRecordAppMutation(
+                          $destination: AnimeRecordDestination!
+                          $input: AnimeRecordAppInput!
+                        ) {
+                          updateAnimeRecordApp(destination: $destination, input: $input) {
+                            destination
+                            clientId
+                            configured
+                          }
+                        }
+                      `,
+                      { destination: app.destination, input },
+                    );
+                    onDone();
+                    succeed(t('admin.saved'));
+                  }, fail)
+                }
+              />
+            ))}
+          </Stack>
+        </Section>
 
         {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
         {data.webhooks.length === 0 ? (
@@ -453,6 +508,94 @@ function AnimeLinkingSettings({
         )}
       </Stack>
     </Section>
+  );
+}
+
+type AnimeRecordAppItem = {
+  destination: AnimeRecordDestination;
+  clientId: string | null | undefined;
+  configured: boolean;
+  redirectUri: string;
+};
+
+// AnimeRecordAppForm は、見たアニメを記録させるアプリ (Annict か AniList) のクライアント ID とシークレットを変える (#927)。
+// シークレットはサーバーから返らないので、変えるときだけ入れる。クライアント ID を空にして保存すると、登録を消す。
+function AnimeRecordAppForm({
+  app,
+  busy,
+  onSave,
+}: {
+  app: AnimeRecordAppItem;
+  busy: boolean;
+  onSave: (input: AnimeRecordAppInput, onDone: () => void) => void;
+}) {
+  const { t } = useTranslation();
+  const [clientId, setClientId] = useState(app.clientId ?? '');
+  const [clientSecret, setClientSecret] = useState('');
+  const name = app.destination === 'ANNICT' ? 'Annict' : 'AniList';
+  const changed = clientId.trim() !== (app.clientId ?? '') || clientSecret !== '';
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSave(
+      clientSecret === ''
+        ? { clientId: clientId.trim() }
+        : { clientId: clientId.trim(), clientSecret },
+      () => setClientSecret(''),
+    );
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <Stack gap="xs">
+        <Group gap="xs">
+          <Text size="sm" fw={600}>
+            {name}
+          </Text>
+          <Badge size="sm" variant="light" color={app.configured ? 'teal' : 'gray'}>
+            {app.configured
+              ? t('admin.animeRecords.configured')
+              : t('admin.animeRecords.notConfigured')}
+          </Badge>
+        </Group>
+        <Stack gap={2}>
+          <Text size="xs" c="dimmed">
+            {t('admin.animeRecords.redirectUri')}
+          </Text>
+          <Group gap="xs" wrap="nowrap">
+            <Code style={{ overflowWrap: 'anywhere' }}>{app.redirectUri}</Code>
+            <CopyButton value={app.redirectUri}>
+              {({ copied, copy }) => (
+                <Button size="compact-xs" variant="default" onClick={copy}>
+                  {copied ? t('settings.account.copied') : t('settings.account.copy')}
+                </Button>
+              )}
+            </CopyButton>
+          </Group>
+        </Stack>
+        <Group align="flex-end" wrap="wrap">
+          <TextInput
+            size="sm"
+            label={t('admin.animeRecords.clientId')}
+            value={clientId}
+            onChange={(event) => setClientId(event.currentTarget.value)}
+            autoComplete="off"
+            w={260}
+          />
+          <PasswordInput
+            size="sm"
+            label={t('admin.animeRecords.clientSecret')}
+            placeholder={app.configured ? t('admin.animeRecords.secretKept') : undefined}
+            value={clientSecret}
+            onChange={(event) => setClientSecret(event.currentTarget.value)}
+            autoComplete="new-password"
+            w={260}
+          />
+          <Button type="submit" size="compact-sm" disabled={!changed || busy}>
+            {t('admin.save')}
+          </Button>
+        </Group>
+      </Stack>
+    </form>
   );
 }
 

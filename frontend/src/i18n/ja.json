@@ -81,8 +81,11 @@
       "RESERVATION_CONFLICT": "予約が競合した",
       "STORAGE_LOW": "保存先の空き容量が足りない",
       "TUNER_SERVER_UNREACHABLE": "チューナーサーバーにつながらない",
-      "WATCH_REMINDER": "視聴予約した番組が始まる"
-    }
+      "WATCH_REMINDER": "視聴予約した番組が始まる",
+      "ANIME_RECORDED": "見たアニメを記録した",
+      "ANIME_RECORD_FAILED": "見たアニメを記録できなかった"
+    },
+    "openExternal": "記録先で開く"
   },
   "watch": {
     "reserve": "視聴予約（放送の少し前に知らせます）",
@@ -320,6 +323,10 @@
       "sessions": {
         "title": "ログイン中の端末と連携",
         "summary": "ログイン中の端末と、連携中のアプリを確かめ、ログアウトさせたり、連携を取り消したりします"
+      },
+      "account": {
+        "title": "アカウントの連携",
+        "summary": "見たアニメを記録するAnnictとAniListのアカウントと連携します"
       }
     },
     "reauth": {
@@ -1684,6 +1691,16 @@
     "integrations": {
       "title": "連携",
       "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します"
+    },
+    "animeRecords": {
+      "title": "Annict、AniListへの記録",
+      "help": "利用者が、見たアニメをAnnictとAniListに記録できるよう、Kotatsuのアプリを登録します。それぞれのサービスでアプリを作り、リダイレクトURIに下のURIを入れてから、クライアントIDとシークレットを保存してください。しょぼいカレンダー、Annict、AniListとの連携を有効にしている間だけ使えます。",
+      "configured": "登録済み",
+      "notConfigured": "未登録",
+      "redirectUri": "リダイレクトURI",
+      "clientId": "クライアントID",
+      "clientSecret": "クライアントシークレット",
+      "secretKept": "登録済み（変えるときだけ入れる）"
     }
   },
   "authorship": {
@@ -1805,5 +1822,31 @@
     "anilist": "AniList",
     "myAnimeList": "MyAnimeList",
     "syobocal": "しょぼいカレンダー"
+  },
+  "animeRecords": {
+    "description": "ライブ視聴と録画の再生で、番組の長さの一定の割合を実際に再生したアニメを、連携したAnnictとAniListに記録します。一時停止やシークだけでは記録しません。同じ番組の同じ話は、1回だけ記録します。",
+    "disabled": "管理者が、しょぼいカレンダー、Annict、AniListとの連携を有効にしていないので、見たアニメを記録できません",
+    "connect": "連携する",
+    "disconnect": "連携を外す",
+    "connected": "{{name}}と連携しました",
+    "connectedAs": "{{account}} として連携しています（{{date}}）",
+    "notConnected": "連携していません",
+    "notRegistered": "管理者がアプリを登録していないので、連携できません",
+    "aniListRevokeHint": "AniListは、Kotatsuからトークンを取り消せません。連携を外したら、AniListの設定の画面からもアプリを外してください",
+    "settingsTitle": "記録の設定",
+    "threshold": "見たとみなす割合",
+    "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",
+    "statusTitle": "作品の状態を変える",
+    "watchingOnFirst": "第1話（[新]）を見たら「見てる」にする",
+    "watchingOnEpisode": "最終話（[終]）以外を見たら「見てる」にする",
+    "watchedOnLast": "最終話（[終]）を見たら「見た」にする",
+    "statusHelp": "すでに「見た」の作品は「見てる」に戻しません。ただし、第1話なら戻します（分割2クールなど）",
+    "callbackErrors": {
+      "expired": "連携の期限が切れました。もう一度連携してください",
+      "mismatch": "この端末で始めた連携ではないので、受け付けませんでした。もう一度連携してください",
+      "denied": "記録先で連携を断ったので、連携しませんでした",
+      "unavailable": "管理者が連携を無効にしたので、連携できませんでした",
+      "failed": "連携できませんでした。時間をおいてやり直してください"
+    }
   }
 }

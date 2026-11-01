@@ -29,3 +29,30 @@ export function demoAnimeEpisodes(program: Pick<DemoProgram, 'name' | 'genres'>)
     },
   ];
 }
+
+// demoAnimeRecordSettings は、デモの、見たアニメの記録の設定 (#927)。デモは外部へ問い合わせないので、連携は使わない。
+export function demoAnimeRecordSettings() {
+  return {
+    enabled: false,
+    thresholdPercent: 20,
+    watchingOnFirst: false,
+    watchingOnEpisode: false,
+    watchedOnLast: false,
+    destinations: (['ANNICT', 'ANILIST'] as const).map((destination) => ({
+      destination,
+      available: false,
+      connection: null,
+    })),
+  };
+}
+
+// demoAnimeRecordApps は、デモの、記録先に登録したアプリ (#927)。デモでは登録しない。
+export function demoAnimeRecordApps(origin: string) {
+  return (['ANNICT', 'ANILIST'] as const).map((destination) => ({
+    destination,
+    clientId: null,
+    configured: false,
+    redirectUri: `${origin}/auth/anime-records/${destination.toLowerCase()}/callback`,
+    updatedAt: null,
+  }));
+}
