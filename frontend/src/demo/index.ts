@@ -13,6 +13,7 @@ import { authResponse } from './auth';
 import { createRootValue } from './data';
 import { createEventHub } from './events';
 import { createExecutor, type Executor, type Variables } from './executor';
+import { demoCommentsPath, demoRecordedComments, installFakeJikkyo } from './jikkyo';
 
 // 静的なデモ (#832) の入口。`vp build --mode demo` のときだけ main.tsx が読み込む。
 // tenban の代わりに、GraphQL と /auth/* の応答をブラウザの中で返す。
@@ -27,7 +28,7 @@ function json(body: unknown): Response {
 }
 
 // interceptFetch は、Relay を通らずに /graphql と /auth/* を呼ぶ箇所 (タイムゾーンの読み込み、
-// 視聴位置の keepalive の保存、ログインやログアウト) に、デモの応答を返す。
+// 視聴位置の keepalive の保存、ログインやログアウト) と、実況の過去ログ (src/demo/jikkyo.ts) に、デモの応答を返す。
 // 呼ぶ側はサブパスを付けずに / からのパスで呼ぶので、同じオリジンのそのパスだけを横取りする。
 function interceptFetch(executor: Executor): void {
   const original = window.fetch.bind(window);
@@ -45,6 +46,10 @@ function interceptFetch(executor: Executor): void {
     }
     if (url.pathname.startsWith('/auth/')) {
       return json(authResponse(url.pathname));
+    }
+    // 録画の再生で読む実況の過去ログ。どの録画も同じ映像を流すので、同じコメントを返す。
+    if (url.pathname === demoCommentsPath) {
+      return json({ channel: { id: 'demo' }, origin: null, comments: demoRecordedComments() });
     }
 
     return original(input, init);
@@ -104,10 +109,11 @@ function registerStreamWorker(): void {
     });
 }
 
-// installDemo は、fetch を横取りし、デモの応答を返す Relay の Environment を作る。
+// installDemo は、fetch と実況の WebSocket を横取りし、デモの応答を返す Relay の Environment を作る。
 export function installDemo(): Environment {
   const executor = createExecutor(createRootValue(createEventHub()));
   interceptFetch(executor);
+  installFakeJikkyo();
   registerStreamWorker();
 
   return new Environment({

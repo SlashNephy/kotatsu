@@ -38,6 +38,15 @@ Kotatsu はテレビ番組を予約、録画、視聴できる Web アプリケ�
       </picture>
     </td>
   </tr>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/live-dark.png">
+        <img src="docs/screenshots/live-light.png" alt="ライブ視聴">
+      </picture>
+    </td>
+    <td width="50%"></td>
+  </tr>
 </table>
 
 ## コンセプト
