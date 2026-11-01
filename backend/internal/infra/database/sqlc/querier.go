@@ -28,7 +28,7 @@ type Querier interface {
 	// 書き終えたセグメントのドロップ、エラー、スクランブルを、録画の集計に足す。
 	AddRecordingStats(ctx context.Context, arg AddRecordingStatsParams) error
 	// kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
-	// 進み具合は戻さない。記録した話より前の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
+	// 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
 	AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceAnimeWishlistProgressParams) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
 	// 終了時刻が未定の番組は、開始時刻が before より前なら移す。猶予 (既定 24 時間) より長い番組は無いからである。

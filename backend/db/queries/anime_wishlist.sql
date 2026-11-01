@@ -31,7 +31,7 @@ ON CONFLICT (user_id, destination, work_id) DO NOTHING;
 
 -- name: AdvanceAnimeWishlistProgress :exec
 -- kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
--- 進み具合は戻さない。記録した話より前の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
+-- 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
 UPDATE anime_wishlist_entries SET
   progress = GREATEST(COALESCE(progress, 0), @episode_number::integer),
   next_episode_id = CASE WHEN next_episode_number <= @episode_number::integer THEN NULL ELSE next_episode_id END,

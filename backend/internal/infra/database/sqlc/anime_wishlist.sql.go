@@ -30,7 +30,7 @@ type AdvanceAnimeWishlistProgressParams struct {
 }
 
 // kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
-// 進み具合は戻さない。記録した話より前の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
+// 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
 func (q *Queries) AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceAnimeWishlistProgressParams) error {
 	_, err := q.db.Exec(ctx, advanceAnimeWishlistProgress,
 		arg.EpisodeNumber,

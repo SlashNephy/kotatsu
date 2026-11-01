@@ -728,6 +728,45 @@ VALUES ($1, 'annict', $2, 'watching', 'title', $3, $4, $5, $6, now())`, f.alice.
 	}
 }
 
+// TestAdvanceWishlist は、記録先ごとに進み具合を進め、話数のない話と整数でない話数では進めないことを確かめる (#1230)。
+func TestAdvanceWishlist(t *testing.T) {
+	t.Parallel()
+	// annictUnchanged と aniListUnchanged は、進めなかった作品の様子。
+	const annictUnchanged, aniListUnchanged = "annict:2", "anilist:2"
+
+	tests := []struct {
+		name        string
+		destination string
+		number      *float64
+		want        []string
+	}{
+		{name: "AniList advances the progress", destination: animerecord.DestinationAniList, number: new(5.0), want: []string{annictUnchanged, "anilist:5"}},
+		{name: "Annict advances only its own entry", destination: animerecord.DestinationAnnict, number: new(5.0), want: []string{"annict:5", aniListUnchanged}},
+		{name: "an episode without a number does not advance", destination: animerecord.DestinationAniList, number: nil, want: []string{annictUnchanged, aniListUnchanged}},
+		{name: "a fractional episode does not advance", destination: animerecord.DestinationAniList, number: new(12.5), want: []string{annictUnchanged, aniListUnchanged}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newRecordFixture(t)
+			for _, destination := range []string{animerecord.DestinationAnnict, animerecord.DestinationAniList} {
+				f.connect(t, f.alice, destination)
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_wishlist_entries (user_id, destination, work_id, status, title, progress, fetched_at)
+VALUES ($1, $2, 10, 'watching', 'title', 2, now())`, f.alice.UserID, destination)
+				require.NoError(t, err)
+			}
+
+			f.service.AdvanceWishlist(t.Context(), f.pool, f.alice.UserID, tt.destination, []int32{10}, tt.number)
+
+			rows, err := f.pool.Query(t.Context(), `SELECT destination || ':' || progress FROM anime_wishlist_entries ORDER BY destination DESC`)
+			require.NoError(t, err)
+			got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // wishlistProgress は、見たいリストの作品の、次に見る話と進み具合を、作品 ID の順に返す。NULL は「-」にする。
 func wishlistProgress(t *testing.T, f *recordFixture) []string {
 	t.Helper()
