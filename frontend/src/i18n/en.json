@@ -446,7 +446,7 @@
     "settings": "Settings",
     "live": "Live",
     "menu": "Menu",
-    "captures": "Capture history",
+    "captures": "Captures",
     "remote": "Remote"
   },
   "guide": {
@@ -494,7 +494,10 @@
       "cancelRuleDescription": "This reservation was made by a rule, so only this program will not be recorded. The rule stays.",
       "cancelConfirm": "Cancel reservation",
       "cancelError": "Couldn't cancel. Please try again later",
-      "reserveError": "Couldn't reserve. Please try again later"
+      "reserveError": "Couldn't reserve. Please try again later",
+      "openRecording": "Open recording",
+      "playTimeshift": "Play from time shift",
+      "searchSameName": "Search by the same title"
     },
     "view": {
       "label": "Guide view",
@@ -520,7 +523,8 @@
       "subGenre": "{{genre}} (subgenre {{lv2}})",
       "notFound": "The guide view you tried to open was not found.",
       "showAll": "Show all programs"
-    }
+    },
+    "pastDate": "Past date"
   },
   "genre": {
     "0": "News/Reports",
@@ -1303,6 +1307,7 @@
     "captureCopy": "Copy image",
     "captureOverlays": "Include captions and comments",
     "captureError": "Could not capture",
+    "captureUploadError": "Could not save the capture to the server",
     "copied": "Image copied",
     "pip": "PiP",
     "pipBack": "Exit PiP",
@@ -1784,13 +1789,17 @@
     }
   },
   "captures": {
-    "title": "Capture history",
-    "description": "Keeps up to 100 captures taken on this device, newest first. Not synced with other devices.",
+    "title": "Captures",
+    "description": "Captures you take are saved on the server, newest first. Only you can see them, from any device.",
     "search": "Search by program or service name",
     "empty": "No captures yet",
     "emptyHint": "Take a capture with the camera button on the player or the s key, and it will appear here.",
     "noMatch": "No matching captures",
-    "loadError": "Couldn't read the capture history. Check that your browser settings allow this site to store data.",
+    "loadError": "Couldn't load the captures",
+    "unavailable": "This server can't keep captures because no data directory is configured",
+    "more": "Load more",
+    "actionError": "Couldn't load the image",
+    "deleteError": "Couldn't delete the capture",
     "save": "Save",
     "copy": "Copy",
     "delete": "Delete",

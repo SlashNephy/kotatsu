@@ -997,6 +997,36 @@ CREATE TABLE watch_rule_dismissals (
   PRIMARY KEY (user_id, service_id, event_id)
 );
 
+-- キャプチャ (設計書 7.5、#908)。視聴画面で撮った画像を、撮ったユーザーだけのものとして残す。画像は、データディレクトリの
+-- 「captures/ユーザーの ID/キャプチャの ID.png」に置き、行には撮った場面の情報を持つ。枚数の上限は設けない。
+CREATE TABLE captures (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- 録画で撮ったときの録画。録画を消してもキャプチャは残すので、NULL にする。ライブとタイムシフトで撮ったものも NULL。
+  recording_id uuid REFERENCES recordings (id) ON DELETE SET NULL,
+  -- 録画で撮ったときの、録画の始まりからの再生位置 (ミリ秒)。撮った場面から再生するのに使う。
+  position_ms bigint CHECK (position_ms >= 0),
+  service_name text NOT NULL,
+  -- 番組名。番組が分からなければ NULL。
+  program_name text,
+  -- NFKC で正規化したサービス名と番組名 (設計書 3.5)。キャプチャを探すのに使う。番組名が分からなければ空にする。
+  service_name_normalized text NOT NULL,
+  program_name_normalized text NOT NULL,
+  -- 撮ったときに出ていた字幕の文 (#458)。出ていなければ NULL。
+  caption text,
+  -- 撮った場面の放送時刻と、撮った時刻 (端末の時計)。
+  broadcast_at timestamptz NOT NULL,
+  taken_at timestamptz NOT NULL,
+  -- 画像の大きさ (バイト)。
+  size bigint NOT NULL,
+  created_at timestamptz NOT NULL
+);
+
+-- ユーザーのキャプチャを、新しい順に引くのに使う。
+CREATE INDEX captures_user_id_created_at_idx ON captures (user_id, created_at DESC, id DESC);
+-- 録画を消したときに、録画の参照を NULL にするのに使う。
+CREATE INDEX captures_recording_id_idx ON captures (recording_id);
+
 -- ほかの録画ソフトから取り込んだデータの、取り込み元の ID と、取り込んで作った行の対応 (設計書 6.3)。
 -- 取り込みを何度実行しても、同じデータを二重に取り込まないために使う。
 -- 取り込んだ後に Kotatsu で消した行も、取り込み直さないよう、対応は残す。そのため target_id には外部キーを付けない。

@@ -39,6 +39,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
@@ -55,6 +56,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
+	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
@@ -888,7 +890,8 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 	}
 }
 
-// handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
+// handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。キャプチャのほかは、セッションか署名付き URL で認可する。
+// キャプチャは撮ったユーザーだけのものなので、セッションでだけ受け付ける (設計書 7.5)。
 func handleMedia(
 	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
 	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client,
@@ -905,6 +908,12 @@ func handleMedia(
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(
 		jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	// キャプチャは、データディレクトリに置く (設計書 5.6、7.5)。受け取るのは状態を変えるので、ほかのオリジンからは受け付けない。
+	captureLogger := logger.With(slog.String("component", "capture"))
+	dataStore := storeOf(deps.Config)
+	captures := capture.New(dataStore, deps.Clock, captureLogger, 0)
+	mux.Handle("POST /media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
+	mux.Handle("GET /media/captures/{id}", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
 }
 
 // handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、

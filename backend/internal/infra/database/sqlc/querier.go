@@ -77,6 +77,8 @@ type Querier interface {
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
+	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
+	DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (Capture, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
 	DeleteExpiredOAuthTokens(ctx context.Context, arg DeleteExpiredOAuthTokensParams) (int64, error)
@@ -177,6 +179,8 @@ type Querier interface {
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
+	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
+	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
 	// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
 	GetDatabaseNow(ctx context.Context) (time.Time, error)
 	GetGuideProgram(ctx context.Context, arg GetGuideProgramParams) (GetGuideProgramRow, error)
@@ -195,6 +199,8 @@ type Querier interface {
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
+	// 最も古い、放送が終わった番組の開始時刻。過去の番組表で、どこまで遡れるかを示す (#1121)。なければ行を返さない。
+	GetOldestArchivedProgramStartAt(ctx context.Context) (time.Time, error)
 	// 放送中として記録している番組。引き継いだ mikan が、同じ番組を 2 つの行に分けないよう、続きから追うのに使う。
 	// 落ちた mikan が残した番組を閉じるとき、チャンクがなければ、始まりで閉じるのにも使う。
 	GetOpenTimeshiftProgram(ctx context.Context, serviceID int64) (GetOpenTimeshiftProgramRow, error)
@@ -273,6 +279,8 @@ type Querier interface {
 	HoldsLease(ctx context.Context, arg HoldsLeaseParams) (bool, error)
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	// キャプチャを記録する (設計書 7.5)。録画が見つからなければ (撮った後に消されたなど)、録画の参照と再生位置を NULL にする。
+	InsertCapture(ctx context.Context, arg InsertCaptureParams) (Capture, error)
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	InsertImportSource(ctx context.Context, arg InsertImportSourceParams) error
@@ -351,9 +359,17 @@ type Querier interface {
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
 	// 生成物のない録画を探して、解析し直すのに使う (#897)。
 	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
+	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
+	// すべてのキャプチャの持ち主と ID。データディレクトリの、DB にないファイルを探すときに、画像を使っているものとみなすのに使う。
+	ListCaptureLocations(ctx context.Context) ([]ListCaptureLocationsRow, error)
+	// user_id のユーザーのキャプチャを、記録した新しい順に返す。
+	// words は、NFKC で正規化して LIKE のために逃がした語。すべての語が、正規化した番組名かサービス名に含まれるものだけを返す。
+	// before_at と before_id より前 (古い) のキャプチャだけを返し、ページを送る。2 つは、両方を渡すか、両方を NULL にする。
+	ListCaptures(ctx context.Context, arg ListCapturesParams) ([]Capture, error)
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
 	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
 	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
@@ -425,6 +441,8 @@ type Querier interface {
 	ListPlayerCommands(ctx context.Context, arg ListPlayerCommandsParams) ([]ListPlayerCommandsRow, error)
 	// ユーザーの、閉じていないプレイヤーを、開いた順に返す。
 	ListPlayers(ctx context.Context, arg ListPlayersParams) ([]ListPlayersRow, error)
+	// 番組 (サービス, eventId) の録画のうち、番組の放送時間に重なるもの (#1121)。eventId は使い回されるので、時間でも絞る。
+	ListProgramRecordings(ctx context.Context, arg ListProgramRecordingsParams) ([]Recording, error)
 	ListPrograms(ctx context.Context) ([]ListProgramsRow, error)
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)

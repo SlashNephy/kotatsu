@@ -128,6 +128,38 @@ type CaptionSettingsInput struct {
 	BackgroundOpacity *float64 `json:"backgroundOpacity,omitempty"`
 }
 
+// ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+type Capture struct {
+	ID string `json:"id"`
+	// 画像の URL。撮ったユーザーのセッションでだけ開ける。
+	ImageURL    string `json:"imageUrl"`
+	ServiceName string `json:"serviceName"`
+	// 番組名。番組が分からなければ null。
+	ProgramName *string `json:"programName,omitempty"`
+	// 撮ったときに出ていた字幕の文 (#458)。出ていなければ null。
+	Caption *string `json:"caption,omitempty"`
+	// 録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。
+	RecordingID *string `json:"recordingId,omitempty"`
+	// 録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。
+	Position *float64 `json:"position,omitempty"`
+	// 撮った場面の放送時刻。
+	BroadcastAt time.Time `json:"broadcastAt"`
+	// 撮った時刻 (撮った端末の時計)。
+	TakenAt time.Time `json:"takenAt"`
+	// 画像の大きさ (バイト)。
+	Size int64 `json:"size"`
+}
+
+type CaptureConnection struct {
+	Edges    []*CaptureEdge `json:"edges"`
+	PageInfo *PageInfo      `json:"pageInfo"`
+}
+
+type CaptureEdge struct {
+	Cursor string   `json:"cursor"`
+	Node   *Capture `json:"node"`
+}
+
 // 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
 type ChannelInspection struct {
 	// PAT の transport_stream_id。PAT を受け取れなければ null。

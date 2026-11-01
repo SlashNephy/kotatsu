@@ -10,6 +10,7 @@ import {
 } from 'relay-runtime';
 
 import { authResponse } from './auth';
+import { createDemoCaptures, type DemoCaptures } from './captures';
 import { createRootValue } from './data';
 import { createEventHub } from './events';
 import { createExecutor, type Executor, type Variables } from './executor';
@@ -27,9 +28,9 @@ function json(body: unknown): Response {
 }
 
 // interceptFetch は、Relay を通らずに /graphql と /auth/* を呼ぶ箇所 (タイムゾーンの読み込み、
-// 視聴位置の keepalive の保存、ログインやログアウト) に、デモの応答を返す。
+// 視聴位置の keepalive の保存、ログインやログアウト) と、キャプチャを残す POST /media/captures に、デモの応答を返す。
 // 呼ぶ側はサブパスを付けずに / からのパスで呼ぶので、同じオリジンのそのパスだけを横取りする。
-function interceptFetch(executor: Executor): void {
+function interceptFetch(executor: Executor, captures: DemoCaptures): void {
   const original = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     // 横取りしない要求の body を読んでしまわないよう、URL だけを先に見る。
@@ -45,6 +46,11 @@ function interceptFetch(executor: Executor): void {
     }
     if (url.pathname.startsWith('/auth/')) {
       return json(authResponse(url.pathname));
+    }
+    if (url.pathname === '/media/captures') {
+      const id = await captures.add(await new Request(input, init).formData());
+
+      return json({ id });
     }
 
     return original(input, init);
@@ -106,8 +112,9 @@ function registerStreamWorker(): void {
 
 // installDemo は、fetch を横取りし、デモの応答を返す Relay の Environment を作る。
 export function installDemo(): Environment {
-  const executor = createExecutor(createRootValue(createEventHub()));
-  interceptFetch(executor);
+  const captures = createDemoCaptures();
+  const executor = createExecutor(createRootValue(createEventHub(), Date.now(), captures));
+  interceptFetch(executor, captures);
   registerStreamWorker();
 
   return new Environment({

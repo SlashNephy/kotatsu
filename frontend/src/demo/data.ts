@@ -1,3 +1,4 @@
+import { createDemoCaptures, type DemoCaptures } from './captures';
 import {
   channelTypes,
   generatePrograms,
@@ -74,7 +75,11 @@ const servicesOf = (ids: readonly string[]) =>
 
 // createRootValue は、デモの GraphQL の rootValue を作る。Query、Mutation、Subscription のフィールドを 1 つにまとめて持つ。
 // 状態はメモリ上だけに持ち、画面を読み直すと元に戻る。
-export function createRootValue(events: EventHub, now: number = Date.now()): object {
+export function createRootValue(
+  events: EventHub,
+  now: number = Date.now(),
+  captures: DemoCaptures = createDemoCaptures(),
+): object {
   const programs = generatePrograms(now);
   const programsById = new Map(programs.map((item) => [item.id, item]));
   const watchReserved = new Set<string>();
@@ -131,6 +136,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     watchReserved: watchReserved.has(item.id),
     // 予約は、選ばれたときだけ引く。番組表の番組ごとに割り当てを計算しないため。
     reservation: () => scheduler.reservationOfProgram(item.id),
+    // デモの録画は番組表の番組と結び付けないので、番組の録画はない (#1121)。
+    recordings: [],
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({
@@ -217,6 +224,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   return {
     // Query
     viewer: () => demoUser,
+    captures: (args: { keyword?: string | null }) => captures.list(args),
+    capturesAvailable: () => true,
     version: () => ({ version: 'demo', revision: null, modified: false, latestRelease: null }),
     timeZone: () => 'Asia/Tokyo',
     tunerServerHealth: () => ({
@@ -308,6 +317,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
     rules: () => scheduler.rules(),
+    // デモは過去の番組を持たないので、番組表で過去の日へは遡れない (#1121)。
+    oldestArchivedProgramAt: null,
     // デモでは、照合の重さを警告しない。
     ruleWarnings: () => [],
     previewRule: (args: { input: RuleInput; first: number; after?: string | null }) =>
@@ -369,6 +380,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     },
 
     // Mutation
+    deleteCapture: ({ id }: { id: string }) => captures.remove(id),
     setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
       recordings.setTags(id, tags),
     setRecordingProtected: ({ id, protected: value }: { id: string; protected: boolean }) =>

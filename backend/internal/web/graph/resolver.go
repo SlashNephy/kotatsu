@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -68,8 +69,10 @@ type Resolver struct {
 	jikkyoClient     *jikkyoclient.Client
 	logger           *slog.Logger
 	// store は、録画のファイルと生成物を読むための、このインスタンスにマウントしたプール。
-	store     *kago.Store
-	library   *library.Library
+	store   *kago.Store
+	library *library.Library
+	// captures は、ユーザーのキャプチャを消す (設計書 7.5)。
+	captures  *capture.Captures
 	changes   Changes
 	pools     map[string]string
 	freeSpace kago.FreeSpaceFunc

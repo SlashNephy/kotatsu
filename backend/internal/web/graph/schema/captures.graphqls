@@ -1,0 +1,48 @@
+"""
+ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+"""
+type Capture {
+  id: ID!
+  "画像の URL。撮ったユーザーのセッションでだけ開ける。"
+  imageUrl: String!
+  serviceName: String!
+  "番組名。番組が分からなければ null。"
+  programName: String
+  "撮ったときに出ていた字幕の文 (#458)。出ていなければ null。"
+  caption: String
+  "録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。"
+  recordingId: ID
+  "録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。"
+  position: Float
+  "撮った場面の放送時刻。"
+  broadcastAt: Time!
+  "撮った時刻 (撮った端末の時計)。"
+  takenAt: Time!
+  "画像の大きさ (バイト)。"
+  size: Int64!
+}
+
+type CaptureEdge {
+  cursor: String!
+  node: Capture!
+}
+
+type CaptureConnection {
+  edges: [CaptureEdge!]!
+  pageInfo: PageInfo!
+}
+
+extend type Query {
+  """
+  ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
+  keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
+  """
+  captures(first: Int! = 50, after: String, keyword: String): CaptureConnection!
+  "このサーバーでキャプチャを残せるか。データディレクトリ (storage.data_dir) を設定していなければ false。"
+  capturesAvailable: Boolean!
+}
+
+extend type Mutation {
+  "ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。"
+  deleteCapture(id: ID!): ID!
+}

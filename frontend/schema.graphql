@@ -191,6 +191,53 @@ input CaptionSettingsInput {
   backgroundOpacity: Float
 }
 """
+ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
+"""
+type Capture {
+  id: ID!
+  """
+  画像の URL。撮ったユーザーのセッションでだけ開ける。
+  """
+  imageUrl: String!
+  serviceName: String!
+  """
+  番組名。番組が分からなければ null。
+  """
+  programName: String
+  """
+  撮ったときに出ていた字幕の文 (#458)。出ていなければ null。
+  """
+  caption: String
+  """
+  録画で撮ったときの録画の ID。ライブとタイムシフトで撮ったもの、撮った後に録画を消したものは null。
+  """
+  recordingId: ID
+  """
+  録画で撮ったときの、録画の始まりからの再生位置 (秒)。録画でなければ null。
+  """
+  position: Float
+  """
+  撮った場面の放送時刻。
+  """
+  broadcastAt: Time!
+  """
+  撮った時刻 (撮った端末の時計)。
+  """
+  takenAt: Time!
+  """
+  画像の大きさ (バイト)。
+  """
+  size: Int64!
+}
+type CaptureConnection {
+  edges: [CaptureEdge!]!
+  pageInfo: PageInfo!
+}
+type CaptureEdge {
+  cursor: String!
+  node: Capture!
+}
+"""
 物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
 """
 type ChannelInspection {
@@ -807,6 +854,10 @@ type Mutation {
   API トークンを取り消し、取り消したトークンの ID を返す。
   """
   deleteApiToken(id: ID!): ID!
+  """
+  ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
+  """
+  deleteCapture(id: ID!): ID!
   """
   物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調べる (#830、設計書 10.3)。管理者だけが使える。
   チューナーを奪わない優先度でチャンネルのストリームを開くので、空いたチューナーがなければ失敗する。
@@ -1611,6 +1662,10 @@ type Program implements Node {
   """
   sharedFrom: Service
   """
+  番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。
+  """
+  recordings: [Recording!]!
+  """
   この番組の予約。予約がなければ null。
   """
   reservation: Reservation
@@ -1760,6 +1815,15 @@ type Query {
   """
   apiTokens: [ApiToken!]!
   """
+  ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
+  keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
+  """
+  captures(first: Int! = 50, after: String, keyword: String): CaptureConnection!
+  """
+  このサーバーでキャプチャを残せるか。データディレクトリ (storage.data_dir) を設定していなければ false。
+  """
+  capturesAvailable: Boolean!
+  """
   ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。
   """
   node(id: ID!): Node
@@ -1784,6 +1848,11 @@ type Query {
   view を指定すると、その番組表ビューの条件で、番組を絞り込み、サービスを並べ替える。
   """
   guide(from: Time!, to: Time!, services: [ID!], view: ID): [GuideRow!]!
+  """
+  最も古い、放送が終わった番組 (過去の番組) の開始時刻 (#1121、設計書 3.4)。番組表で、どこまで遡れるかを示す。
+  過去の番組がなければ null。
+  """
+  oldestArchivedProgramAt: Time
   """
   ファイル名のテンプレートの書き方と、よく使うテンプレート。
   """

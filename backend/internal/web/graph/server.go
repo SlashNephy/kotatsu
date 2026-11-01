@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -207,6 +208,7 @@ func NewHandler(opts *Options) http.Handler {
 		totalSpace:       o.TotalSpace,
 		store:            kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
 		library:          library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),
+		captures:         capture.New(kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Clock, o.Logger, 0),
 		updates:          o.Updates,
 		drain:            o.Drain,
 	}
