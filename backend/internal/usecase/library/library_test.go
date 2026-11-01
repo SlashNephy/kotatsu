@@ -39,8 +39,10 @@ type fixture struct {
 	dir   string
 	// dataRoot は、データディレクトリ。
 	dataRoot string
-	library  *library.Library
-	userID   uuid.UUID
+	// timeshiftRoot は、タイムシフトのディレクトリ。
+	timeshiftRoot string
+	library       *library.Library
+	userID        uuid.UUID
 	// segmentID は、最後に recording で作ったセグメントのファイルの ID。
 	segmentID uuid.UUID
 }
@@ -62,11 +64,11 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, sqlc.New(pool).InsertUser(t.Context(), sqlc.InsertUserParams{
 		ID: userID, Username: "mikan", DisplayName: "みかん", Role: "member", PasswordHash: nil, CreatedAt: clk.Now(),
 	}))
-	dir, dataRoot := t.TempDir(), t.TempDir()
-	store := kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot)
+	dir, dataRoot, timeshiftRoot := t.TempDir(), t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot).WithTimeshiftDir(timeshiftRoot)
 
 	return &fixture{
-		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot,
+		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, timeshiftRoot: timeshiftRoot,
 		library: library.New(clk, audit.NewRecorder(clk), store, slog.New(slog.DiscardHandler)), userID: userID, segmentID: uuid.Nil,
 	}
 }
@@ -250,6 +252,35 @@ func TestSetTags(t *testing.T) {
 			_, err = f.library.SetTags(t.Context(), f.pool, audit.User(f.userID), recordingID, tt.tags)
 			require.NoError(t, err)
 			assert.Len(t, f.actions(t, recordingID), 2)
+		})
+	}
+}
+
+// TestClearProgress は、ユーザーの再生位置を消し、再生位置がなくても失敗しないことを確かめる (#1074)。
+func TestClearProgress(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		saved bool
+	}{
+		{name: "再生位置がある", saved: true},
+		{name: "再生位置がない", saved: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, completed, false)
+			if tt.saved {
+				require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, recordingID, time.Minute))
+			}
+			require.NoError(t, f.library.ClearProgress(t.Context(), f.pool, f.userID, recordingID))
+			rows, err := sqlc.New(f.pool).ListWatchProgress(t.Context(), sqlc.ListWatchProgressParams{UserID: f.userID, RecordingIds: []uuid.UUID{recordingID}})
+			require.NoError(t, err)
+			assert.Empty(t, rows)
+			assert.Empty(t, f.actions(t, recordingID))
 		})
 	}
 }

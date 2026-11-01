@@ -1,0 +1,52 @@
+"""
+物理チャンネルの TS をまるごと数秒受け取って調べた結果 (#830)。
+"""
+type ChannelInspection {
+  "PAT の transport_stream_id。PAT を受け取れなければ null。"
+  transportStreamId: Int
+  "実際に受け取った長さ (秒)。"
+  seconds: Float!
+  "全体のビットレート (bps)。"
+  totalBps: Int!
+  "PAT に書かれた番組 (サービス)。program_number の昇順に並べる。"
+  programs: [InspectedProgram!]!
+  "どの番組の PMT にも載っていない PID (PAT、EIT などの SI、ECM、EMM など)。PID の昇順に並べる。"
+  others: [InspectedStream!]!
+}
+
+"""
+調べた TS の、番組 (サービス) 1 つの様子。
+"""
+type InspectedProgram {
+  "program_number。ARIB ではサービス ID と同じ値になる。"
+  serviceId: Int!
+  "Kotatsu が知っているサービスなら、その名前。知らなければ null。"
+  name: String
+  "PMT と ES のビットレートの合計 (bps)。"
+  bps: Int!
+  "PMT と ES。PMT、PMT に書かれた順の ES の順に並べる。"
+  streams: [InspectedStream!]!
+}
+
+"""
+調べた TS の、PID 1 つの様子。
+"""
+type InspectedStream {
+  pid: Int!
+  kind: StreamKind!
+  "PMT の stream_type。PMT に載っていなければ null。"
+  streamType: Int
+  bps: Int!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+}
+
+extend type Mutation {
+  """
+  物理チャンネル channelType/channel の TS を、まるごと数秒受け取って調べる (#830、設計書 10.3)。管理者だけが使える。
+  チューナーを奪わない優先度でチャンネルのストリームを開くので、空いたチューナーがなければ失敗する。
+  調べる間、チューナーを 1 本使う。
+  """
+  inspectChannel(channelType: String!, channel: String!): ChannelInspection!
+}

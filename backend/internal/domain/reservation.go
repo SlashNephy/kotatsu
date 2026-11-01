@@ -114,6 +114,8 @@ type RecordingSettings struct {
 	Priority int
 	// JoinSegments は、引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)。
 	JoinSegments bool
+	// DetectCM は、録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1)。既定では見分けない。
+	DetectCM bool
 }
 
 // DefaultRecordingSettings は、Go の既定値を返す。
@@ -126,6 +128,7 @@ func DefaultRecordingSettings() *RecordingSettings {
 		EndMarginSeconds:   DefaultMarginSeconds,
 		Priority:           DefaultPriority,
 		JoinSegments:       true,
+		DetectCM:           false,
 	}
 }
 
@@ -137,6 +140,7 @@ type RecordingOverrides struct {
 	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
+	DetectCM           *bool   `json:"detectCm,omitempty"`
 }
 
 // Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
@@ -162,6 +166,9 @@ func (s *RecordingSettings) Resolve(o *RecordingOverrides) *RecordingSettings {
 	}
 	if o.JoinSegments != nil {
 		resolved.JoinSegments = *o.JoinSegments
+	}
+	if o.DetectCM != nil {
+		resolved.DetectCM = *o.DetectCM
 	}
 
 	return &resolved

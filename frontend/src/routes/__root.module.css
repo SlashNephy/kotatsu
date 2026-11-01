@@ -41,10 +41,12 @@
   border-radius: 6px;
 }
 
-/* ページは、viewport-fit=cover で、画面の端 (ジェスチャーナビゲーションの帯や、ノッチ) の下まで描く (#425)。 */
-/* 中身が隠れないよう、下と左右の端に掛かる分だけ余白を足す。端に何もない画面では、env() は 0 になる。 */
-/* 上の端 (ステータスバー) は、Android の Chrome も iOS の既定のステータスバーも、ページを下に描かないので扱わない。 */
+/* ページは、viewport-fit=cover で、画面の端 (ステータスバー、ジェスチャーナビゲーションの帯、ノッチ) の下まで描く (#425)。 */
+/* 中身が隠れないよう、端に掛かる分だけ余白を足す。端に何もない画面では、env() は 0 になる。 */
+/* 上の端は、Android にインストールした PWA を Chrome が edge-to-edge で描くと、ステータスバーの分だけ掛かる。 */
+/* ヘッダーの高さは、この余白を含めて __root.tsx で決める。 */
 .shellHeader {
+  padding-top: env(safe-area-inset-top);
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 

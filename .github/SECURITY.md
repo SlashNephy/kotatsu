@@ -2,19 +2,11 @@
 
 ## 対象のバージョン
 
-Kotatsuは開発中で、v1はまだリリースしていません。
-脆弱性の修正は、`main`ブランチの最新の版にだけ行います。
+脆弱性の修正は、`main` ブランチに対してのみ行い、最新版のパッチバージョンとしてリリースします。
 
 ## 脆弱性の報告
 
-脆弱性は、公開のIssueやDiscussionsには書かないでください。
-GitHubの[非公開の脆弱性の報告](https://github.com/SlashNephy/kotatsu/security/advisories/new)から知らせてください。
+脆弱性の情報は、公開の Issue や Discussions には書かないでください。
+GitHub の [security advisory](https://github.com/SlashNephy/kotatsu/security/advisories/new) からお知らせください。
 
-報告には、次のことを書いてください。
-
-- 脆弱性の内容と、影響を受ける機能
-- 再現の手順 (使った版、設定、リクエストなど)
-- 想定される影響
-
-受け取ったら、内容を確かめて返信します。
-修正を公開するまで、報告の内容は公開しないでください。
+報告に対する返信を受け取るまでの間は、報告の内容を公開しないでください。

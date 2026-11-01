@@ -28,7 +28,7 @@ const (
 		service { id name }
 		genres { lv1 lv2 }
 		assignment { state plannedStartAt plannedEndAt }
-		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments }
+		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm }
 		rules { id name }
 		createdAt updatedAt`
 	ruleFields = `id name memo enabled validFrom validUntil avoidDuplicates duplicateWindowDays followEventRelay upcomingReservationCount
@@ -44,7 +44,7 @@ const (
 			timeRanges { weekdays startMinute durationMinutes }
 			minDurationSeconds maxDurationSeconds freeOnly marks excludeMarks
 		}
-		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments }
+		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm }
 		createdAt updatedAt`
 	recordingFields = `id name description startAt endAt state failureReason protected drops errors scrambled ruleName
 		service { id name }

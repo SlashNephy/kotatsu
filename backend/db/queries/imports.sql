@@ -12,9 +12,10 @@ SELECT id FROM services ORDER BY id;
 
 -- name: InsertImportedRecording :exec
 -- 取り込んだ、録画を終えた録画を記録する。予約とは結び付けない。
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
-VALUES (@id, NULL, @service_id, sqlc.narg(event_id), @name, @description, @start_at, @end_at, @state, NULL,
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+VALUES (@id, NULL, @service_id, sqlc.narg(event_id), @name, @description, @name_normalized, @description_normalized,
+  @start_at, @end_at, @state, NULL,
   @protected, @drops, @errors, @scrambled, @start_at, @end_at, @now, @now);
 
 -- name: InsertImportedRecordingFile :exec

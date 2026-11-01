@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -47,7 +48,7 @@ func TestHealthEndpoints(t *testing.T) {
 			t.Parallel()
 
 			mux := http.NewServeMux()
-			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), &fakePinger{err: tt.pingErr})
+			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), &fakePinger{err: tt.pingErr}, time.Minute)
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, nil))
@@ -65,7 +66,7 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pool)
+	httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pool, 0)
 
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
@@ -75,6 +76,39 @@ func TestReadyzWithRealDatabase(t *testing.T) {
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
+
+// TestReadyzStaysReadyWithinGrace は、DB に一度接続できた後は、接続できなくなっても、grace の間は成功を返すことを確かめる (#1084)。
+func TestReadyzStaysReadyWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		grace      time.Duration
+		wantStatus int
+	}{
+		{name: "within the grace period", grace: time.Hour, wantStatus: http.StatusOK},
+		{name: "without a grace period", grace: 0, wantStatus: http.StatusServiceUnavailable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pinger := &fakePinger{err: nil}
+			mux := http.NewServeMux()
+			httpserver.RegisterHealth(mux, slog.New(slog.DiscardHandler), pinger, tt.grace)
+			readyz := func() int {
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
+
+				return rec.Code
+			}
+			require.Equal(t, http.StatusOK, readyz())
+
+			pinger.err = errors.New("down")
+			assert.Equal(t, tt.wantStatus, readyz())
+		})
+	}
 }
 
 func TestServeWaitsForInFlightRequests(t *testing.T) {
@@ -173,17 +207,23 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 		served <- httpserver.Serve(ctx, slog.New(slog.DiscardHandler), ln, handler)
 	}()
 
+	read := make(chan error, 1)
 	go func() {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/", nil)
 		if err != nil {
+			read <- err
+
 			return
 		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
+			read <- err
+
 			return
 		}
 		defer res.Body.Close()
-		_, _ = io.Copy(io.Discard, res.Body)
+		_, err = io.Copy(io.Discard, res.Body)
+		read <- err
 	}()
 
 	<-streaming
@@ -193,6 +233,53 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("the server kept waiting for the stream")
+	}
+	// ハンドラーが返ったので、応答はきれいに終わる。クライアントには、切れたのではなく、流し終えたように見える (#1083)。
+	require.NoError(t, <-read)
+}
+
+// TestServeCutsStuckStreamsOnShutdown は、停止を始めても、クライアントが読まずに書き込みが止まっているストリームは、
+// 少し待ってから書き込みを打ち切り、ShutdownTimeout まで待たずに止まることを確かめる。
+func TestServeCutsStuckStreamsOnShutdown(t *testing.T) {
+	t.Parallel()
+
+	writing := make(chan struct{})
+	handler := httpserver.StopOnShutdown(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// 取りやめを見ずに書き続ける。クライアントが読まないので、いずれ書き込みが止まる。
+		chunk := make([]byte, 64*1024)
+		once := false
+		for {
+			if _, err := w.Write(chunk); err != nil {
+				return
+			}
+			if !once {
+				once = true
+				close(writing)
+			}
+		}
+	}))
+
+	ln, err := httpserver.Listen(t.Context(), "127.0.0.1:0")
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	served := make(chan error, 1)
+	go func() {
+		served <- httpserver.Serve(ctx, slog.New(slog.DiscardHandler), ln, handler)
+	}()
+
+	conn, err := new(net.Dialer).DialContext(t.Context(), "tcp", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	_, err = io.WriteString(conn, "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+	require.NoError(t, err)
+
+	<-writing
+	cancel()
+	select {
+	case err := <-served:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the server kept waiting for the stuck stream")
 	}
 }
 

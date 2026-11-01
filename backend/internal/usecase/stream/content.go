@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 )
 
 // errNegativePosition は、読む位置を、ファイルの始まりより前に動かそうとしたことを表す。
@@ -39,8 +41,8 @@ func (r *Recording) Content() (*Content, error) {
 	}
 	pieces, _ := plan(r.segments, 0)
 	c := &Content{parts: make([]*contentPart, 0, len(pieces)*2), size: 0, offset: 0}
-	for _, p := range pieces {
-		if err := c.add(r.source, p); err != nil {
+	for i, p := range pieces {
+		if err := c.add(r.streamer.store, p, i > 0); err != nil {
 			_ = c.Close()
 
 			return nil, err
@@ -118,20 +120,16 @@ func (c *Content) Close() error {
 }
 
 // add は、範囲 p を、Content の終わりに足す。
-func (c *Content) add(source *RecordingSource, p *piece) error {
-	file, err := source.store.Open(p.segment.poolID, p.segment.path)
+func (c *Content) add(store *kago.Store, p *piece, joined bool) error {
+	file, err := store.Open(p.segment.poolID, p.segment.path)
 	if err != nil {
 		return fmt.Errorf("failed to open the segment: %w", err)
 	}
-	info, err := file.Stat()
+	to, err := servedEnd(file, p)
 	if err != nil {
 		_ = file.Close()
 
-		return fmt.Errorf("failed to inspect the segment: %w", err)
-	}
-	to := info.Size()
-	if p.to >= 0 {
-		to = min(p.to, to)
+		return err
 	}
 	if p.from > 0 {
 		var prelude bytes.Buffer
@@ -143,8 +141,21 @@ func (c *Content) add(source *RecordingSource, p *piece) error {
 		c.parts = append(c.parts, &contentPart{file: nil, from: 0, data: prelude.Bytes(), size: int64(prelude.Len())})
 		c.size += int64(prelude.Len())
 	}
-	c.parts = append(c.parts, &contentPart{file: file, from: p.from, data: nil, size: max(to-p.from, 0)})
-	c.size += max(to-p.from, 0)
+	from := p.from
+	// 前のセグメントにつなぐなら、頭の前から続く PES の残りを落とす (writeHead と同じ)。
+	if joined && !p.segment.continues {
+		head, consumed, err := completeHead(file, p.from, to)
+		if err != nil {
+			_ = file.Close()
+
+			return err
+		}
+		c.parts = append(c.parts, &contentPart{file: nil, from: 0, data: head, size: int64(len(head))})
+		c.size += int64(len(head))
+		from += consumed
+	}
+	c.parts = append(c.parts, &contentPart{file: file, from: from, data: nil, size: max(to-from, 0)})
+	c.size += max(to-from, 0)
 
 	return nil
 }

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7231b8df1148e5455ace653fd7c94463>>
+ * @generated SignedSource<<25f10c538efd053fffcbae2a08017e92>>
  * @lightSyntaxTransform
  */
 
@@ -64,6 +64,7 @@ export type RuleEditor_rule$data = {
   readonly memo: string;
   readonly name: string;
   readonly settings: {
+    readonly detectCm: boolean | null | undefined;
     readonly endMarginSeconds: number | null | undefined;
     readonly fileNameTemplate: string | null | undefined;
     readonly joinSegments: boolean | null | undefined;
@@ -413,6 +414,13 @@ return {
           "kind": "ScalarField",
           "name": "joinSegments",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "detectCm",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -458,6 +466,6 @@ return {
 };
 })();
 
-(node as any).hash = "076efb35ac79e7b50c3bba858969ae7d";
+(node as any).hash = "58f7574741a98b0e49985cc231c7dbd0";
 
 export default node;

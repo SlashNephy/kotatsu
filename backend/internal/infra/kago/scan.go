@@ -30,9 +30,9 @@ type Entry struct {
 	ChangedAt time.Time
 }
 
-// newEntry は、ファイル rel の Entry を返す。
-func newEntry(rel string, info fs.FileInfo) *Entry {
-	return &Entry{Path: rel, SegmentDir: false, Size: info.Size(), ModifiedAt: info.ModTime(), ChangedAt: latest(info.ModTime(), changeTime(info))}
+// newEntry は、root の中のファイル rel の Entry を返す。
+func newEntry(root *os.Root, rel string, info fs.FileInfo) *Entry {
+	return &Entry{Path: rel, SegmentDir: false, Size: info.Size(), ModifiedAt: info.ModTime(), ChangedAt: latest(info.ModTime(), changeTime(root, rel, info))}
 }
 
 func latest(a, b time.Time) time.Time {
@@ -100,7 +100,7 @@ func (s *Store) Scan(poolID string) ([]*Entry, error) {
 			if err != nil {
 				return err
 			}
-			entries = append(entries, newEntry(rel, info))
+			entries = append(entries, newEntry(root, rel, info))
 		}
 
 		return nil
@@ -131,7 +131,7 @@ func segmentDirEntry(root *os.Root, dir string) (*Entry, error) {
 			entry.Size += info.Size()
 		}
 		entry.ModifiedAt = latest(entry.ModifiedAt, info.ModTime())
-		entry.ChangedAt = latest(entry.ChangedAt, latest(info.ModTime(), changeTime(info)))
+		entry.ChangedAt = latest(entry.ChangedAt, latest(info.ModTime(), changeTime(root, rel, info)))
 
 		return nil
 	})
@@ -216,7 +216,7 @@ func (s *Store) Inspect(poolID, rel string, segmentDir bool) (*Entry, error) {
 	case segmentDir && info.IsDir() && IsSegmentDir(poolID, rel):
 		return segmentDirEntry(root, rel)
 	case !segmentDir && info.Mode().IsRegular():
-		return newEntry(rel, info), nil
+		return newEntry(root, rel, info), nil
 	default:
 		return nil, fmt.Errorf("%w: %q is not a file of the expected kind", ErrInvalidPath, rel)
 	}

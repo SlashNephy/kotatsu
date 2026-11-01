@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/passwordtest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -153,6 +154,19 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
 	opts.OAuth = oauth.NewServer(pool, clk, oauth.NewFetcher(clk), audit.NewRecorder(clk))
 	opts.Players = player.NewService(pool, clk)
+	// 記録先には問い合わせない。届かないアドレスに向けておく。
+	if opts.AnimeRecords == nil {
+		applicationKey := "kotatsu-graph-test-application-key-0123456789"
+		opts.AnimeRecords, err = animerecord.NewService(&animerecord.Options{
+			Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: applicationKey,
+			Destinations: []animerecord.Destination{
+				animerecord.NewAnnict(animerecord.NewHTTPClient(), "http://127.0.0.1:9"),
+				animerecord.NewAniList(animerecord.NewHTTPClient(), "http://127.0.0.1:9"),
+			},
+			Logger: slog.New(slog.DiscardHandler),
+		})
+		require.NoError(tb, err)
+	}
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})

@@ -90,6 +90,8 @@ type Stats struct {
 	PIDs []*PIDStats
 	// Programs は、最後に読んだ PAT と PMT が表す番組の構成。program_number の昇順に並べる。
 	Programs []*Program
+	// TransportStreamID は、最後に読んだ PAT の transport_stream_id (#830)。まだ読んでいなければ nil。
+	TransportStreamID *uint16
 	// IFrames は、見つけた I フレームの数。
 	IFrames int64
 	// IndexError は、索引の書き込みで起きたエラー。起きていなければ nil。
@@ -198,9 +200,11 @@ func (a *Analyzer) Stats() *Stats {
 		SyncLosses: a.syncLosses,
 		PIDs:       a.pidStats(),
 		Programs:   a.programs.snapshot(),
-		IFrames:    a.iframes,
-		IndexError: a.indexErr,
-		Events:     a.eit.snapshot(),
+
+		TransportStreamID: a.programs.transportStreamID,
+		IFrames:           a.iframes,
+		IndexError:        a.indexErr,
+		Events:            a.eit.snapshot(),
 
 		FirstPTS:         a.firstPTS,
 		PIDsBeforeCutoff: a.beforeCutoff,

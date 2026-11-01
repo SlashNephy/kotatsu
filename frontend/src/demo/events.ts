@@ -3,6 +3,8 @@ export type ViewerEvent = {
   dataChange: { channel: string; version: number } | null;
   viewerSettingsVersion: number | null;
   unreadNotificationCount: number | null;
+  // streamsDraining は、tenban を止める前の知らせ。デモは止まらないので、いつも null。
+  streamsDraining: null;
 };
 
 // EventHub は、デモの中で起きた変更を、viewerEvents を購読している画面に届ける。

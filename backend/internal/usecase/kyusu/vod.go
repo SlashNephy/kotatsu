@@ -22,6 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
@@ -29,7 +30,10 @@ import (
 const (
 	// RecordingPathPrefix は、kyusu の録画の仮想 HLS のパスの前置き。/internal/kyusu/recordings/{録画 ID}/{画質}/{音声}/{ファイル} で受け付ける。
 	RecordingPathPrefix = "/internal/kyusu/recordings/"
-	// recordingDir は、作業ディレクトリのうち、録画の仮想 HLS を置くディレクトリ。
+	// TimeshiftPathPrefix は、kyusu のタイムシフトのバッファの仮想 HLS のパスの前置き。
+	// /internal/kyusu/timeshift/{サービス ID}-{起点の Unix マイクロ秒}/{画質}/{音声}/{ファイル} で受け付ける (設計書 5.7)。
+	TimeshiftPathPrefix = "/internal/kyusu/timeshift/"
+	// recordingDir は、作業ディレクトリのうち、録画とタイムシフトのバッファの仮想 HLS を置くディレクトリ。
 	recordingDir = "recordings"
 	// segmentTimeout は、要求されたセグメントを書き終えるのを待つ時間の上限。エンコーダーを起動し直したときも、ここまで待つ。
 	segmentTimeout = 30 * time.Second
@@ -70,6 +74,11 @@ type RecordingOpener interface {
 	Open(ctx context.Context, recordingID uuid.UUID) (*stream.Recording, error)
 }
 
+// TimeshiftOpener は、タイムシフトのバッファを、起点の時刻から開く。*stream.TimeshiftSource が満たす。
+type TimeshiftOpener interface {
+	Open(ctx context.Context, serviceID int64, from time.Time) (*stream.Recording, error)
+}
+
 // VODEncoder は、録画の仮想 HLS のセグメントを書く。*Transcoder が満たす。
 type VODEncoder interface {
 	RunVOD(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string, opts *RunOptions) error
@@ -77,15 +86,32 @@ type VODEncoder interface {
 
 var (
 	_ RecordingOpener = new(stream.RecordingSource)
+	_ TimeshiftOpener = new(stream.TimeshiftSource)
 	_ VODEncoder      = new(Transcoder)
 	_ io.Writer       = new(lookaheadWriter)
 )
 
-// vodKey は、録画の仮想 HLS のセッションを見分けるもの。同じ録画を同じ画質と音声で見る視聴者は、1 つのセッションを共有する。
+// vodSource は、仮想 HLS で流すもの。録画か、タイムシフトのバッファ。
+type vodSource struct {
+	// kind は、録画 (recordingDir) か、タイムシフトのバッファ (timeshiftKind)。
+	kind string
+	// id は、録画 ID か、タイムシフトのバッファの {サービス ID}-{起点の Unix マイクロ秒}。同じものは同じ文字列にそろえる。
+	id string
+}
+
+// timeshiftKind は、タイムシフトのバッファの vodSource の種類。
+const timeshiftKind = "timeshift"
+
+// String は、ログとディレクトリの名前に使う文字列を返す。
+func (s vodSource) String() string {
+	return s.kind + "-" + s.id
+}
+
+// vodKey は、仮想 HLS のセッションを見分けるもの。同じ録画を同じ画質と音声で見る視聴者は、1 つのセッションを共有する。
 type vodKey struct {
-	recordingID uuid.UUID
-	preset      string
-	audio       Audio
+	source vodSource
+	preset string
+	audio  Audio
 }
 
 // vodRun は、k 番目のセグメントから書くエンコーダーの 1 回の起動。
@@ -133,6 +159,7 @@ type vodSession struct {
 // セッションへの要求が 10 秒途絶えたら、セッションを止めて消す。
 type VOD struct {
 	opener      RecordingOpener
+	timeshift   TimeshiftOpener
 	encoder     VODEncoder
 	dir         string
 	clock       clock.Clock
@@ -149,6 +176,8 @@ type VOD struct {
 type VODOptions struct {
 	// Opener は、録画を開く。録画のある保存先プールを、このインスタンスにマウントしておく。
 	Opener RecordingOpener
+	// Timeshift は、タイムシフトのバッファを開く。タイムシフト用のディレクトリを、このインスタンスにマウントしておく。
+	Timeshift TimeshiftOpener
 	// Encoder は、セグメントを書く。FFmpeg と tsreadex がなければ nil にし、503 を返す。
 	Encoder VODEncoder
 	// WorkDir は、HLS を置く作業ディレクトリ。空なら、OS の一時ディレクトリの下にする。
@@ -184,7 +213,7 @@ func NewVOD(opts *VODOptions) (*VOD, error) {
 	}
 
 	return &VOD{
-		opener: opts.Opener, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle, maxSessions: maxSessions,
+		opener: opts.Opener, timeshift: opts.Timeshift, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle, maxSessions: maxSessions,
 		mu: sync.Mutex{}, sessions: map[vodKey]*vodSession{}, stopped: false,
 	}, nil
 }
@@ -216,7 +245,12 @@ func (v *VOD) Run(ctx context.Context) error {
 // Handler は、録画の仮想 HLS を配信するハンドラーを返す。token を付けたリクエストだけを受け付ける。
 func (v *VOD) Handler(token *Token) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET "+RecordingPathPrefix+"{id}/{preset}/{audio}/{file}", v.serveHTTP)
+	mux.HandleFunc("GET "+RecordingPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
+		v.serveHTTP(w, r, recordingDir)
+	})
+	mux.HandleFunc("GET "+TimeshiftPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
+		v.serveHTTP(w, r, timeshiftKind)
+	})
 
 	return token.Middleware(mux)
 }
@@ -248,7 +282,7 @@ func (v *VOD) reap(now time.Time) {
 		s.runMu.Unlock()
 	}
 	for _, s := range idle {
-		v.logger.Info("stopping an idle recording session", slog.String("recording_id", s.key.recordingID.String()),
+		v.logger.Info("stopping an idle recording session", slog.String("source", s.key.source.String()),
 			slog.String("preset", s.key.preset), slog.String("audio", s.key.audio.String()))
 		v.close(s)
 	}
@@ -297,7 +331,7 @@ func (v *VOD) session(key vodKey) (*vodSession, error) {
 	if len(v.sessions) >= v.maxSessions {
 		return nil, errTooManySessions
 	}
-	dir, err := os.MkdirTemp(v.dir, key.recordingID.String()+"-"+key.preset+"-a"+key.audio.String()+"-")
+	dir, err := os.MkdirTemp(v.dir, key.source.String()+"-"+key.preset+"-a"+key.audio.String()+"-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the session directory: %w", err)
 	}
@@ -307,10 +341,10 @@ func (v *VOD) session(key vodKey) (*vodSession, error) {
 	return s, nil
 }
 
-func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	recordingID, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		http.Error(w, "invalid recording ID", http.StatusBadRequest)
+func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request, kind string) {
+	source, ok := parseVODSource(kind, r.PathValue("id"))
+	if !ok {
+		http.Error(w, "invalid ID", http.StatusBadRequest)
 
 		return
 	}
@@ -329,7 +363,7 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	file := r.PathValue("file")
 	switch {
 	case file == PlaylistName:
-		v.servePlaylist(w, r, recordingID, preset)
+		v.servePlaylist(w, r, source, preset)
 	case segmentName.MatchString(file):
 		number, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(file, "segment"), ".ts"))
 		if err != nil {
@@ -337,15 +371,15 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
-		v.serveSegment(w, r, vodKey{recordingID: recordingID, preset: preset.Name, audio: audio}, preset, number)
+		v.serveSegment(w, r, vodKey{source: source, preset: preset.Name, audio: audio}, preset, number)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
 // servePlaylist は、索引から作ったセグメントの一覧を返す。録画中なら、書き終えた区間のセグメントだけを載せ、終わりの印を付けない。
-func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, recordingID uuid.UUID, preset *Preset) {
-	recording, err := v.open(r.Context(), recordingID)
+func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, source vodSource, preset *Preset) {
+	recording, err := v.open(r.Context(), source)
 	if err != nil {
 		v.writeError(w, r, err)
 
@@ -362,9 +396,9 @@ func (v *VOD) servePlaylist(w http.ResponseWriter, r *http.Request, recordingID 
 	_, _ = io.WriteString(w, vodPlaylist(recording.Keyframes(), recording.InProgress, preset.Passthrough))
 }
 
-// open は、録画を開く。索引がまだなければ errNotIndexed を返す。
-func (v *VOD) open(ctx context.Context, recordingID uuid.UUID) (*stream.Recording, error) {
-	recording, err := v.opener.Open(ctx, recordingID)
+// open は、録画かタイムシフトのバッファを開く。索引がまだなければ errNotIndexed を返す。
+func (v *VOD) open(ctx context.Context, source vodSource) (*stream.Recording, error) {
+	recording, err := v.openSource(ctx, source)
 	if err != nil {
 		return nil, err
 	}
@@ -373,6 +407,61 @@ func (v *VOD) open(ctx context.Context, recordingID uuid.UUID) (*stream.Recordin
 	}
 
 	return recording, nil
+}
+
+// openSource は、source の種類に応じて、録画かタイムシフトのバッファを開く。タイムシフトのバッファを開けないインスタンスでは、
+// stream.ErrNotMounted を返す。
+func (v *VOD) openSource(ctx context.Context, source vodSource) (*stream.Recording, error) {
+	if source.kind == timeshiftKind {
+		if v.timeshift == nil {
+			return nil, stream.ErrNotMounted
+		}
+		serviceID, from, _ := ParseTimeshiftID(source.id)
+
+		return v.timeshift.Open(ctx, serviceID, from)
+	}
+	recordingID, err := uuid.Parse(source.id)
+	if err != nil {
+		return nil, fmt.Errorf("invalid recording ID: %w", err)
+	}
+
+	return v.opener.Open(ctx, recordingID)
+}
+
+// parseVODSource は、パスの {id} を、種類に応じて確かめ、同じものが同じ文字列になるようにそろえる。
+func parseVODSource(kind, id string) (vodSource, bool) {
+	if kind == timeshiftKind {
+		serviceID, from, ok := ParseTimeshiftID(id)
+
+		return vodSource{kind: kind, id: FormatTimeshiftID(serviceID, from)}, ok
+	}
+	recordingID, err := uuid.Parse(id)
+
+	return vodSource{kind: kind, id: recordingID.String()}, err == nil
+}
+
+// FormatTimeshiftID は、タイムシフトのバッファの仮想 HLS のパスの {id} を、サービス ID と起点の時刻から作る。
+// HLS のセグメントは、プレイリストからの相対の URL で引くので、起点もクエリでなくパスに入れる。
+func FormatTimeshiftID(serviceID int64, from time.Time) string {
+	return strconv.FormatInt(serviceID, 10) + "-" + strconv.FormatInt(from.UnixMicro(), 10)
+}
+
+// ParseTimeshiftID は、FormatTimeshiftID で作った {id} から、サービス ID と起点の時刻を返す。読めなければ false を返す。
+func ParseTimeshiftID(id string) (int64, time.Time, bool) {
+	service, micros, ok := strings.Cut(id, "-")
+	if !ok {
+		return 0, time.Time{}, false
+	}
+	serviceID, err := strconv.ParseInt(service, 10, 64)
+	if err != nil {
+		return 0, time.Time{}, false
+	}
+	at, err := strconv.ParseInt(micros, 10, 64)
+	if err != nil {
+		return 0, time.Time{}, false
+	}
+
+	return serviceID, time.UnixMicro(at).UTC(), true
 }
 
 // vodTimeline は、I フレームの時間の並びから、録画の長さと、プレイリストに載せるセグメントの数を返す。
@@ -483,7 +572,7 @@ func (v *VOD) serveSegment(w http.ResponseWriter, r *http.Request, key vodKey, p
 
 		return
 	}
-	file, err := os.Open(path)
+	file, err := sharedfile.Open(path)
 	if err != nil {
 		http.NotFound(w, r)
 
@@ -515,7 +604,7 @@ func (v *VOD) awaitSegment(ctx context.Context, s *vodSession, preset *Preset, n
 		return path, nil
 	}
 	// 録画の外のセグメントのために、エンコーダーを起動し直さない。
-	recording, err := v.open(ctx, s.key.recordingID)
+	recording, err := v.open(ctx, s.key.source)
 	if err != nil {
 		return "", err
 	}
@@ -751,7 +840,7 @@ func fileClock(dir string) time.Time {
 // start は、number 番目のセグメントの時刻の手前の I フレームから、録画を流してエンコーダーを起動する。
 // エンコーダーはリクエストより長く動くので、ctx の値だけを引き継ぎ、ctx が終わっても止めない。
 func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number int) (*vodRun, error) {
-	recording, err := v.opener.Open(ctx, s.key.recordingID)
+	recording, err := v.openSource(ctx, s.key.source)
 	if err != nil {
 		return nil, err
 	}
@@ -777,7 +866,8 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 	go func() {
 		opts := passthrough
 		if opts == nil {
-			opts = &RunOptions{StartNumber: number, Trim: max(at-pos.At, 0), Cuts: nil, Offset: 0}
+			// タイムシフトのバッファの起点より前から流すときは、起点より前の映像も切り落とす。
+			opts = &RunOptions{StartNumber: number, Trim: max(at-pos.At+pos.Before, 0), Cuts: nil, Offset: 0}
 		}
 		err := v.encoder.RunVOD(runCtx, reader, preset, s.key.audio, s.dir, opts)
 		reader.CloseWithError(err)
@@ -785,7 +875,7 @@ func (v *VOD) start(ctx context.Context, s *vodSession, preset *Preset, number i
 			err = errEnded
 		}
 		if err != nil && !errors.Is(err, errEnded) {
-			v.logger.WarnContext(runCtx, "the recording session failed", slog.String("recording_id", s.key.recordingID.String()), slog.Any("error", err))
+			v.logger.WarnContext(runCtx, "the recording session failed", slog.String("source", s.key.source.String()), slog.Any("error", err))
 		}
 		run.err = err
 		cancel()
@@ -837,7 +927,8 @@ func passthroughOptions(points []stream.Keyframe, number int) (*RunOptions, time
 func (v *VOD) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case r.Context().Err() != nil:
-	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrNoSegment), errors.Is(err, errOutOfRange):
+	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrTimeshiftNotFound), errors.Is(err, stream.ErrNoSegment),
+		errors.Is(err, errOutOfRange):
 		http.Error(w, err.Error(), http.StatusNotFound)
 	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoPTS), errors.Is(err, errNoEncoder),
 		errors.Is(err, errEnded), errors.Is(err, errSegmentTimeout), errors.Is(err, errTooManySessions):

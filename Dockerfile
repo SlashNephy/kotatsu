@@ -10,11 +10,11 @@
 ARG TSREADEX_VERSION=master-260428
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
-FROM --platform=$BUILDPLATFORM docker.io/library/node:24.22.1-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS web
+FROM --platform=$BUILDPLATFORM docker.io/library/node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS web
 WORKDIR /src/frontend
-# pnpm の版は package.json の packageManager に従う。
-RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
+# pnpm の版は package.json の packageManager に従う。Node.js 25 から corepack が同梱されないので、npm で入れる。
+RUN npm install -g "$(node -p 'require("./package.json").packageManager')"
 # ワークスペースのパッケージ (ビルドした mpeg2toh264) も、依存を入れる前に置く。
 COPY frontend/vendor/ ./vendor/
 # 依存に当てるパッチ (pnpm-workspace.yaml の patchedDependencies) も、依存を入れる前に置く。
@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/lib/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
-FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS tools
+FROM docker.io/library/debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS tools
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates g++ git make \
     && rm -rf /var/lib/apt/lists/*
@@ -61,13 +61,13 @@ RUN mkdir -p /out/doc \
         && echo "$name https://github.com/xtne6f/$name $(git -C "$name" rev-parse HEAD)" >> /out/doc/SOURCES; \
     done
 
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 AS static
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:25ac8f0c3b2334a9eb05452266bd4697864a8c8ef0ef71e5e6480d7f92868329 AS static
 COPY --from=build /out/kotatsu /usr/local/bin/kotatsu
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/kotatsu"]
 
 # FFmpeg と tsreadex を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
-FROM docker.io/library/debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS runtime
+FROM docker.io/library/debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS runtime
 ARG TARGETARCH
 # FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使う (#77)。
 # VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
@@ -93,7 +93,7 @@ FROM runtime AS dev
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=docker.io/jdxcode/mise:2026.10.15@sha256:0593528c637b0dae8a0acca66b5d49266cf262a811f06530d7273d3cc002f3a0 /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=docker.io/jdxcode/mise:2026.10.19@sha256:6bd2515bf27389f537921fc8c3e5a6579f15cf889a63a8432dc542670174e50a /usr/local/bin/mise /usr/local/bin/mise
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。

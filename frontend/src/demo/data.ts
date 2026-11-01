@@ -1,4 +1,11 @@
 import {
+  demoAnimeEpisodes,
+  demoAnimeRecordApps,
+  demoAnimeWishlist,
+  demoAnimeRecordSettings,
+} from './anime';
+import { createDemoCaptures, type DemoCaptures } from './captures';
+import {
   channelTypes,
   generatePrograms,
   matchProgram,
@@ -59,6 +66,14 @@ type GuideViewInput = {
   freeOnly: boolean;
 };
 
+type WatchRuleInput = {
+  name: string;
+  enabled?: boolean | null;
+  conditions: ProgramConditionsInput;
+};
+
+type WatchRule = { input: WatchRuleInput; createdAt: number; updatedAt: number };
+
 const genreCondition = (genre: GenreInput) => ({ lv1: genre.lv1, lv2: genre.lv2 ?? null });
 
 const servicesOf = (ids: readonly string[]) =>
@@ -66,13 +81,21 @@ const servicesOf = (ids: readonly string[]) =>
 
 // createRootValue は、デモの GraphQL の rootValue を作る。Query、Mutation、Subscription のフィールドを 1 つにまとめて持つ。
 // 状態はメモリ上だけに持ち、画面を読み直すと元に戻る。
-export function createRootValue(events: EventHub, now: number = Date.now()): object {
+export function createRootValue(
+  events: EventHub,
+  now: number = Date.now(),
+  captures: DemoCaptures = createDemoCaptures(),
+): object {
   const programs = generatePrograms(now);
   const programsById = new Map(programs.map((item) => [item.id, item]));
   const watchReserved = new Set<string>();
   let pinned = [services[0]!.id, services[1]!.id];
   const guideViews = new Map<string, GuideViewInput>();
   let nextGuideView = 1;
+  // watchRules は、デモのユーザーの視聴ルール (設計書 4.8)。watchRuleReserved は、視聴ルールが付けた視聴予約の番組。
+  const watchRules = new Map<string, WatchRule>();
+  const watchRuleReserved = new Set<string>();
+  let nextWatchRule = 1;
   let viewerSettingsVersion = 0;
   let minutesBefore = 5;
   const dataVersions = new Map<string, number>();
@@ -85,6 +108,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
         dataChange: { channel, version },
         viewerSettingsVersion: null,
         unreadNotificationCount: null,
+        streamsDraining: null,
       });
     }
   };
@@ -107,6 +131,22 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     },
   };
   let nextPlayer = 1;
+  // animeOverrides は、サービスごとの、しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8)。
+  const animeOverrides = new Map<string, { syobocal: number | null; annict: number | null }>();
+  const animeChannel = (serviceId: string) => {
+    const override = animeOverrides.get(serviceId) ?? { syobocal: null, annict: null };
+
+    return {
+      serviceId,
+      definitionName: null,
+      importedSyobocalChannelId: null,
+      importedAnnictChannelId: null,
+      syobocalChannelIdOverride: override.syobocal,
+      annictChannelIdOverride: override.annict,
+      syobocalChannelId: override.syobocal,
+      annictChannelId: override.annict,
+    };
+  };
   // idle は、何も流さない購読に使う。ほかの端末からのプレイヤーの操作は、デモでは届かない。
   const idle = createEventHub();
 
@@ -118,6 +158,9 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     watchReserved: watchReserved.has(item.id),
     // 予約は、選ばれたときだけ引く。番組表の番組ごとに割り当てを計算しないため。
     reservation: () => scheduler.reservationOfProgram(item.id),
+    // デモの録画は番組表の番組と結び付けないので、番組の録画はない (#1121)。
+    recordings: [],
+    animeEpisodes: demoAnimeEpisodes(item),
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({
@@ -132,6 +175,42 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     freeOnly: input.freeOnly,
   });
 
+  const watchRuleView = (id: string, rule: WatchRule) => ({
+    __typename: 'WatchRule',
+    id,
+    name: rule.input.name,
+    enabled: rule.input.enabled !== false,
+    conditions: scheduler.conditionsView(rule.input.conditions),
+    createdAt: new Date(rule.createdAt).toISOString(),
+    updatedAt: new Date(rule.updatedAt).toISOString(),
+  });
+
+  // applyWatchRules は、ルールの照合 (設計書 4.8) を簡単にしたもの。有効な視聴ルールに一致したこれからの番組に視聴予約を付け、
+  // 視聴ルールが付けた視聴予約のうち、一致しなくなったものを外す。手で外した番組を覚えることは、デモでは省く。
+  const applyWatchRules = () => {
+    const enabled = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
+    const matched = new Set(
+      programs
+        .filter(
+          (item) =>
+            item.start > now && enabled.some((rule) => matchProgram(item, rule.input.conditions)),
+        )
+        .map((item) => item.id),
+    );
+    for (const id of watchRuleReserved) {
+      if (!matched.has(id)) {
+        watchReserved.delete(id);
+        watchRuleReserved.delete(id);
+      }
+    }
+    for (const id of matched) {
+      if (!watchReserved.has(id)) {
+        watchReserved.add(id);
+        watchRuleReserved.add(id);
+      }
+    }
+  };
+
   // node は、node(id) で引く。ID の頭に型の名前を付けて、型をまたいで重ならないようにしている。
   const node = (id: string) => {
     const found = programsById.get(id);
@@ -141,6 +220,10 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     const view = guideViews.get(id);
     if (view !== undefined) {
       return guideView(id, view);
+    }
+    const watchRule = watchRules.get(id);
+    if (watchRule !== undefined) {
+      return watchRuleView(id, watchRule);
     }
     const scheduled = scheduler.node(id) ?? recordings.node(id);
     if (scheduled !== undefined) {
@@ -153,12 +236,19 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
   // viewerSettingsChanged は、ピン留め、番組表ビュー、視聴予約を変えたことを、画面に知らせる。
   const viewerSettingsChanged = () => {
     viewerSettingsVersion += 1;
-    events.publish({ dataChange: null, viewerSettingsVersion, unreadNotificationCount: null });
+    events.publish({
+      dataChange: null,
+      viewerSettingsVersion,
+      unreadNotificationCount: null,
+      streamsDraining: null,
+    });
   };
 
   return {
     // Query
     viewer: () => demoUser,
+    captures: (args: { keyword?: string | null }) => captures.list(args),
+    capturesAvailable: () => true,
     version: () => ({ version: 'demo', revision: null, modified: false, latestRelease: null }),
     timeZone: () => 'Asia/Tokyo',
     tunerServerHealth: () => ({
@@ -172,6 +262,7 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     services: () => services,
     pinnedServices: () => servicesOf(pinned),
     guideViews: () => [...guideViews].map(([id, input]) => guideView(id, input)),
+    watchRules: () => [...watchRules].map(([id, rule]) => watchRuleView(id, rule)),
     guide: (args: {
       from: string;
       to: string;
@@ -249,6 +340,10 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
     rules: () => scheduler.rules(),
+    // デモは過去の番組を持たないので、番組表で過去の日へは遡れない (#1121)。
+    oldestArchivedProgramAt: null,
+    // デモでは、照合の重さを警告しない。
+    ruleWarnings: () => [],
     previewRule: (args: { input: RuleInput; first: number; after?: string | null }) =>
       paginate(scheduler.previewRule(args).map(program), args.first, args.after),
     // 重複の回避で見送った番組は、録画の履歴から求める。デモには録画の履歴がないので、ない。
@@ -271,12 +366,23 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
         endMarginSeconds: 0,
         priority: 0,
         joinSegments: true,
+        detectCm: false,
       },
       archiveRetentionDays: 30,
       notificationRetentionDays: 30,
       ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
+      // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
+      dataBroadcastIpEnabled: false,
+      // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
+      animeLinkingEnabled: false,
       updatedAt: null,
     }),
+    // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
+    animeChannels: () => services.map((service) => animeChannel(service.id)),
+    animeImports: () => [],
+    animeRecordSettings: () => demoAnimeRecordSettings(),
+    animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
+    animeWishlist: () => demoAnimeWishlist(),
     storagePoolNames: () => ['default'],
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({
@@ -308,14 +414,49 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
     },
 
     // Mutation
+    // デモは Annict と AniList に問い合わせないので、見たいリストを取り込めず、候補もない (#928)。
+    refreshAnimeWishlist: () => {
+      throw new Error('anime linking is disabled');
+    },
+    createAnimeWishlistRule: () => {
+      throw new Error('the work is not in your wishlist candidates');
+    },
+    updateAnimeChannel: ({
+      serviceId,
+      input,
+    }: {
+      serviceId: string;
+      input: {
+        syobocalChannelId?: number | null;
+        resetSyobocalChannelId: boolean;
+        annictChannelId?: number | null;
+        resetAnnictChannelId: boolean;
+      };
+    }) => {
+      const current = animeOverrides.get(serviceId) ?? { syobocal: null, annict: null };
+      const next = {
+        syobocal: input.resetSyobocalChannelId
+          ? null
+          : (input.syobocalChannelId ?? current.syobocal),
+        annict: input.resetAnnictChannelId ? null : (input.annictChannelId ?? current.annict),
+      };
+      animeOverrides.set(serviceId, next);
+
+      return animeChannel(serviceId);
+    },
+    deleteCapture: ({ id }: { id: string }) => captures.remove(id),
+    // デモでは、見たアニメを記録しない (#927)。プレイヤーの報告は受け取って捨て、記録の対象でないと答える。
+    reportAnimePlayback: () => false,
+    updateAnimeRecordSettings: () => demoAnimeRecordSettings(),
     setRecordingTags: ({ id, tags }: { id: string; tags: string[] }) =>
       recordings.setTags(id, tags),
     setRecordingProtected: ({ id, protected: value }: { id: string; protected: boolean }) =>
       recordings.setProtected(id, value),
     deleteRecording: ({ id }: { id: string }) => recordings.delete(id),
     deleteRecordings: ({ ids }: { ids: string[] }) => recordings.deleteMany(ids),
-    // 索引や画像を作り直すジョブは、デモでは何もせずに受け付ける。
+    // 索引や画像を作り直すジョブと、CM を解析するジョブは、デモでは何もせずに受け付ける。
     reanalyzeRecording: () => true,
+    detectRecordingCm: () => true,
     regenerateRecordingImages: () => true,
     saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
       recordings.saveWatchPosition(id, positionMs),
@@ -450,6 +591,58 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
 
       return id;
     },
+    createWatchRule: ({ input }: { input: WatchRuleInput }) => {
+      const id = `WatchRule:${nextWatchRule}`;
+      nextWatchRule += 1;
+      const rule = { input, createdAt: Date.now(), updatedAt: Date.now() };
+      watchRules.set(id, rule);
+      applyWatchRules();
+      viewerSettingsChanged();
+
+      return watchRuleView(id, rule);
+    },
+    updateWatchRule: ({ id, input }: { id: string; input: WatchRuleInput }) => {
+      const found = watchRules.get(id);
+      if (found === undefined) {
+        throw new Error('the watch rule is not found');
+      }
+      const rule = { ...found, input, updatedAt: Date.now() };
+      watchRules.set(id, rule);
+      applyWatchRules();
+      viewerSettingsChanged();
+
+      return watchRuleView(id, rule);
+    },
+    setWatchRuleEnabled: ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const found = watchRules.get(id);
+      if (found === undefined) {
+        throw new Error('the watch rule is not found');
+      }
+      const rule = { ...found, input: { ...found.input, enabled }, updatedAt: Date.now() };
+      watchRules.set(id, rule);
+      applyWatchRules();
+      viewerSettingsChanged();
+
+      return watchRuleView(id, rule);
+    },
+    deleteWatchRule: ({ id }: { id: string }) => {
+      // 視聴ルールを消しても、付けた視聴予約は、手で付けたものとして残す。
+      // ほかの有効な視聴ルールにも一致する番組は、そのルールが付けたものとして扱い続ける。
+      watchRules.delete(id);
+      const remaining = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
+      for (const programId of watchRuleReserved) {
+        const item = programsById.get(programId);
+        if (
+          item === undefined ||
+          !remaining.some((rule) => matchProgram(item, rule.input.conditions))
+        ) {
+          watchRuleReserved.delete(programId);
+        }
+      }
+      viewerSettingsChanged();
+
+      return id;
+    },
     setWatchReservation: ({ program: id, reserved }: { program: string; reserved: boolean }) => {
       const found = programsById.get(id);
       if (found === undefined) {
@@ -464,6 +657,8 @@ export function createRootValue(events: EventHub, now: number = Date.now()): obj
       } else {
         watchReserved.delete(id);
       }
+      // 手で付け外しした視聴予約は、視聴ルールが付けたものとして扱わない。
+      watchRuleReserved.delete(id);
       viewerSettingsChanged();
 
       return program(found);

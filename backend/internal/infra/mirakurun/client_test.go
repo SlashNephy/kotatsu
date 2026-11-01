@@ -355,3 +355,23 @@ func TestClientAPIErrorHidesCredentials(t *testing.T) {
 	assert.Contains(t, err.Error(), "boom")
 	assert.NotContains(t, err.Error(), "secret")
 }
+
+// TestClientOpenChannelStream は、チャンネルのストリームを、チャンネルの URL と優先度で開くことを確かめる (#830)。
+func TestClientOpenChannelStream(t *testing.T) {
+	t.Parallel()
+
+	_, rec, client := newFakeTuner(t)
+	stream, err := client.OpenChannelStream(t.Context(), "GR", "27", &mirakurun.StreamOptions{Decode: true, Priority: -1})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Close() })
+
+	packet := make([]byte, 188)
+	_, err = io.ReadFull(stream, packet)
+	require.NoError(t, err)
+	assert.Equal(t, byte(0x47), packet[0], "TS packets start with the sync byte")
+
+	req := rec.last("/api/channels/GR/27/stream")
+	require.NotNil(t, req)
+	assert.Equal(t, "1", req.URL.Query().Get("decode"))
+	assert.Equal(t, "-1", req.Header.Get(mirakurun.PriorityHeader))
+}

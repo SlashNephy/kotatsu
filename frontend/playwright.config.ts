@@ -11,6 +11,8 @@ export default defineConfig({
   use: {
     baseURL: baseURL ?? 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
+    // 画面の言語はブラウザの言語の設定で選ぶ (#831)。テストは日本語の文言で要素を探すので、日本語にする。
+    locale: 'ja-JP',
   },
   projects: [
     {

@@ -50,6 +50,9 @@ mise run dev
 DBと録画は、Composeのボリュームに残ります。
 消して初めからやり直すときは、`docker compose down --volumes`を実行してください。
 
+タイムシフトのバッファの置き場所（`/timeshift`）も設定してあります。
+管理の画面のタイムシフトで録るサービスを選ぶと、録り始めます。選ぶまでは何も録りません。
+
 ### ポートを変える
 
 ほかのアプリが8080番を使っていれば、`KOTATSU_DEV_PORT`で変えられます。
@@ -67,7 +70,7 @@ KOTATSU_DEV_PORT=18080 mise run dev
 KOTATSU_DEV_TUNER_URL=http://192.0.2.10:40772/ KOTATSU_DEV_DB=real mise run dev
 ```
 
-`KOTATSU_DEV_DB=real`なら、DBは`kotatsu-dev_postgres-real`、録画は`kotatsu-dev_recordings-real`のボリュームに置きます。
+`KOTATSU_DEV_DB=real`なら、DBは`kotatsu-dev_postgres-real`、録画は`kotatsu-dev_recordings-real`のボリュームに置きます。生成物とタイムシフトのバッファも、同じく名前を分けます。
 渡さなければ、`kotatsu-dev_postgres`と`kotatsu-dev_recordings`を使います。
 偽のチューナーサーバーの番組表と、実際の番組表が混ざらないようにするためです。
 偽のチューナーサーバーのサービスには、実際のサービスと同じIDのものもあります。

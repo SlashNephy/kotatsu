@@ -9,6 +9,15 @@
   rebaseWhen: 'conflicted',
   packageRules: [
     {
+      // actions は、uses: にタグで書き、commit は .github/workflows/actions.lock で固定する (#790)。
+      // 共有の設定 (helpers:pinGitHubActionDigestsToSemver) は uses: を digest に固定し直すので、ここでは固定しない。
+      // actions を上げる PR では、Renovate がロックファイルも作り直す。
+      matchManagers: [
+        'github-actions',
+      ],
+      pinDigests: false,
+    },
+    {
       // wasm-bindgen の CLI は、mpeg2toh264 の Cargo.lock の wasm-bindgen と同じ版でないと使えない。
       // mpeg2toh264 の commit を上げるときに、合わせて手で上げる。
       matchFileNames: [

@@ -25,9 +25,20 @@ import (
 const (
 	// EnvURL は、テストに使う PostgreSQL の接続先を与える環境変数。
 	EnvURL = "KOTATSU_TEST_DATABASE_URL"
+	// EnvSkip は、CI でも、DB の接続先がなければ、DB を使うテストを飛ばすようにする環境変数。
+	// DB のサービスコンテナーを動かせない、Linux 以外のランナーで使う (#1099)。CI では、ふつうは接続先がないと失敗にする。
+	EnvSkip = "KOTATSU_TEST_SKIP_DATABASE"
 	// maxConnsPerTest は、1 つのテストの接続プールの上限。
 	maxConnsPerTest = 4
 )
+
+// MustRunInCI は、DB の接続先がないときに、DB を使うテストを飛ばさずに失敗にするかを返す。
+// CI では、接続先の渡し忘れで、テストを飛ばしたまま通らないよう、失敗にする。EnvSkip を設定したランナーでは飛ばす。
+func MustRunInCI() bool {
+	_, inCI := os.LookupEnv("CI")
+
+	return inCI && os.Getenv(EnvSkip) == ""
+}
 
 // New は空のデータベースを作り、その接続先を返す。データベースはテストの終了時に消す。
 func New(tb testing.TB) *config.Database {
@@ -35,7 +46,7 @@ func New(tb testing.TB) *config.Database {
 
 	adminURL, ok := os.LookupEnv(EnvURL)
 	if !ok || adminURL == "" {
-		if _, inCI := os.LookupEnv("CI"); inCI {
+		if MustRunInCI() {
 			tb.Fatalf("%s must be set in CI", EnvURL)
 		}
 		tb.Skipf("%s is not set; skipping a test that needs PostgreSQL", EnvURL)

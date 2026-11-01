@@ -44,6 +44,7 @@ func wantIFramePTS() []int64 {
 
 type recordingFixture struct {
 	pool      *pgxpool.Pool
+	pools     map[string]string
 	clock     *clocktest.Fake
 	dir       string
 	server    *httptest.Server
@@ -67,12 +68,22 @@ func newRecordingFixture(t *testing.T, pools map[string]string) *recordingFixtur
 	if pools == nil {
 		pools = map[string]string{poolID: dir}
 	}
+	f := &recordingFixture{pool: pool, pools: pools, clock: clk, dir: dir, server: nil, startedAt: clk.Now().Add(-time.Hour)}
+	f.server = f.serve(t, pool)
+
+	return f
+}
+
+// serve は、db で録画を引くハンドラーのサーバーを立てる。
+func (f *recordingFixture) serve(t *testing.T, db *pgxpool.Pool) *httptest.Server {
+	t.Helper()
+
 	mux := http.NewServeMux()
-	mux.Handle(recordingPattern, streamapi.NewRecordingHandler(pool, kago.New(pools, nil).WithDataDir(dir), slog.New(slog.DiscardHandler), pollInterval))
+	mux.Handle(recordingPattern, streamapi.NewRecordingHandler(db, kago.New(f.pools, nil).WithDataDir(f.dir), slog.New(slog.DiscardHandler), pollInterval))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	return &recordingFixture{pool: pool, clock: clk, dir: dir, server: server, startedAt: clk.Now().Add(-time.Hour)}
+	return server
 }
 
 // recording は、録画の行を作る。
@@ -426,6 +437,65 @@ func TestRecordingHandlerFollowsGrowingFile(t *testing.T) {
 	rest, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, data[half:], rest)
+}
+
+// TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable は、追っかけ再生の途中で DB に届かなくなっても、
+// ファイルが伸びた分を流し続け、DB に届くようになってから、録画が終わったと分かって流し終えることを確かめる (#1084)。
+func TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		stop func(conn *databasetest.Switch)
+	}{
+		{name: "refused", stop: (*databasetest.Switch).Down},
+		{name: "hangs", stop: (*databasetest.Switch).Hang},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			data := loadTestTS(t)
+			half := packetAligned(len(data) / 2)
+			f := newRecordingFixture(t, nil)
+			recordingID := f.recording(t, "recording")
+			segmentID := f.segment(t, recordingID, "a.m2ts", data[:half], 0, true)
+			conn := databasetest.NewSwitch(t, f.pool)
+			server := f.serve(t, conn.Pool)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/recordings/"+recordingID.String(), nil)
+			require.NoError(t, err)
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			head := make([]byte, half)
+			_, err = io.ReadFull(resp.Body, head)
+			require.NoError(t, err)
+
+			// DB が止まっている間に、録画が続いてファイルが伸びても、伸びた分を流す。
+			tt.stop(conn)
+			file, err := os.OpenFile(filepath.Join(f.dir, "a.m2ts"), os.O_APPEND|os.O_WRONLY, 0o600)
+			require.NoError(t, err)
+			_, err = file.Write(data[half:])
+			require.NoError(t, err)
+			require.NoError(t, file.Close())
+			rest := make([]byte, len(data)-half)
+			_, err = io.ReadFull(resp.Body, rest)
+			require.NoError(t, err)
+			assert.Equal(t, data[half:], rest)
+
+			// DB が戻ってから録画が終わったと分かれば、流し終える。
+			_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET ended_at = $1 WHERE id = $2", f.clock.Now(), segmentID)
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), "UPDATE recordings SET state = 'completed' WHERE id = $1", recordingID)
+			require.NoError(t, err)
+			conn.Up()
+			trailing, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Empty(t, trailing)
+		})
+	}
 }
 
 // TestRecordingHandlerEndsWhenSegmentClosesShort は、索引が指す位置までファイルが伸びないまま、

@@ -207,6 +207,42 @@ func expectedSnapshot() *epgstation.Snapshot {
 	}
 }
 
+// TestReadUsesSlashInFilePath は、Windows の EPGStation が \ で区切って記録した録画のファイルのパスを、
+// Kotatsu のプール内の相対パスと同じ / 区切りにして読むことを確かめる (#1098)。
+// EPGStation は、ファイル名の \ を ￥ に置き換えるので、\ は区切りだけに使われる。
+func TestReadUsesSlashInFilePath(t *testing.T) {
+	t.Parallel()
+
+	for _, dialect := range epgstationtest.Dialects() {
+		t.Run(string(dialect), func(t *testing.T) {
+			t.Parallel()
+
+			db := epgstationtest.New(t, dialect)
+			epgstationtest.Exec(t, db.Writer, seed()...)
+			// MySQL は文字列のリテラルの \ をエスケープとみなすので、値はパラメーターで渡す。
+			_, err := db.Writer.ExecContext(t.Context(), `INSERT INTO video_file (id, parentDirectoryName, filePath, type, name, size, recordedId)
+				VALUES (?, ?, ?, ?, ?, ?, ?)`, 102, encodedDirectory, `anime\sub\ゆるキャン△.mp4`, "encoded", "H.265", 789, 10)
+			require.NoError(t, err)
+			source, err := epgstation.Open(t.Context(), db.URL)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = source.Close()
+			})
+
+			got, err := source.Read(t.Context())
+			require.NoError(t, err)
+			paths := map[int64]string{}
+			for _, recording := range got.Recordings {
+				for _, file := range recording.Files {
+					paths[file.ID] = file.FilePath
+				}
+			}
+			assert.Equal(t, "anime/sub/ゆるキャン△.mp4", paths[102])
+			assert.Equal(t, "anime/ゆるキャン△.m2ts", paths[100])
+		})
+	}
+}
+
 func TestRead(t *testing.T) {
 	t.Parallel()
 

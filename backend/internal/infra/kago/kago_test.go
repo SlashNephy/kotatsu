@@ -139,7 +139,7 @@ func TestPath(t *testing.T) {
 		want    string
 		wantErr error
 	}{
-		{name: "file", poolID: poolMain, rel: "anime/番組.m2ts", want: "/mnt/main/anime/番組.m2ts"},
+		{name: "file", poolID: poolMain, rel: "anime/番組.m2ts", want: filepath.FromSlash("/mnt/main/anime/番組.m2ts")},
 		{name: "parent directory", poolID: poolMain, rel: "../etc/passwd", wantErr: kago.ErrInvalidPath},
 		{name: "parent directory in the middle", poolID: poolMain, rel: "a/../../b", wantErr: kago.ErrInvalidPath},
 		{name: "absolute path", poolID: poolMain, rel: "/etc/passwd", wantErr: kago.ErrInvalidPath},
@@ -399,4 +399,63 @@ func TestSelectWithoutMeasurablePools(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWithTimeshiftDir は、タイムシフトのディレクトリが、プールの一覧にも走査にも出ず、Path では引けることを確かめる。
+func TestWithTimeshiftDir(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		timeshiftDir bool
+		// noPools は、プールを設定していないかどうか。tenban は、プールがなくてもタイムシフトのディレクトリを持てる。
+		noPools     bool
+		wantHas     bool
+		wantPathErr error
+	}{
+		{name: "mounted", timeshiftDir: true, noPools: false, wantHas: true, wantPathErr: nil},
+		{name: "mounted without pools", timeshiftDir: true, noPools: true, wantHas: true, wantPathErr: nil},
+		{name: "not mounted", timeshiftDir: false, noPools: false, wantHas: false, wantPathErr: kago.ErrPoolNotMounted},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			var pools map[string]string
+			if !tt.noPools {
+				pools = map[string]string{poolMain: t.TempDir()}
+			}
+			store := kago.New(pools, nil)
+			if !tt.noPools {
+				store = store.WithDataDir(t.TempDir())
+			}
+			if tt.timeshiftDir {
+				store = store.WithTimeshiftDir(root)
+			}
+
+			assert.Equal(t, tt.wantHas, store.HasTimeshiftDir())
+			assert.NotContains(t, store.PoolIDs(), kago.TimeshiftPoolID)
+			assert.NotContains(t, store.ScanPoolIDs(), kago.TimeshiftPoolID)
+			path, err := store.Path(kago.TimeshiftPoolID, "1/a.m2ts")
+			if tt.wantPathErr != nil {
+				require.ErrorIs(t, err, tt.wantPathErr)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(root, "1", "a.m2ts"), path)
+		})
+	}
+}
+
+// TestWithTimeshiftDirKeepsOtherDirs は、タイムシフトのディレクトリを足しても、データディレクトリが残ることを確かめる。
+func TestWithTimeshiftDirKeepsOtherDirs(t *testing.T) {
+	t.Parallel()
+
+	dataRoot := t.TempDir()
+	store := kago.New(map[string]string{poolMain: t.TempDir()}, nil).WithTimeshiftDir(t.TempDir()).WithDataDir(dataRoot).WithTotalSpace(kago.TotalSpace)
+
+	assert.True(t, store.HasTimeshiftDir())
+	assert.Contains(t, store.ScanPoolIDs(), kago.DataPoolID)
 }

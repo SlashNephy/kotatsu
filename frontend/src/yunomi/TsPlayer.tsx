@@ -1,4 +1,10 @@
-import type { AudioTracks, Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
+import type {
+  AudioTracks,
+  Mpeg2TsPlayer,
+  PlayerState,
+  PrivateStream,
+  Stats,
+} from '@mpeg2toh264/player';
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { audioChoices, currentAudioChoice } from './audio';
@@ -6,15 +12,23 @@ import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { deinterlacerCanvas } from './deinterlacer';
+import { fitMedia } from './mediaFit';
+import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import classes from './TsPlayer.module.css';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
 // ストリーミングコンパイルを効かせる (設計書 7.2)。
 const wasmURL = `${import.meta.env.BASE_URL}mpeg2toh264/mpeg2toh264_wasm_bg.wasm`;
 
+// stallTimeoutMs は、再生しているのに、映像がこれより長く進まなければ、配信が切れたとみなす時間 (#1083)。
+// 変換のプレイヤーは、読むのを止めている間に接続が切れると、エラーも終わりも知らせずに待ち続けるので、映像の進みで見張る。
+const stallTimeoutMs = 5_000;
+
 type Props = {
   // url は、流す TS の URL。null なら、何も読まない。
   url: string | null;
+  // handover は、URL が変わったときに、今の映像を流したまま裏で読み込み、映像が出てから切り替えるかどうか (#1083)。
+  handover?: boolean;
   videoRef: RefObject<HTMLVideoElement | null>;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
@@ -22,7 +36,7 @@ type Props = {
   superimpose?: boolean;
   // captionStyle は、字幕の見た目 (#491)。
   captionStyle?: CaptionStyle;
-  // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。映像と字幕をまとめて拡大する。
   crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
@@ -40,12 +54,70 @@ type Props = {
   onAudio?: (tracks: AudioTracks) => void;
   // audio は、聞く音声 (audioChoices の値)。null なら、プレイヤーに任せる。
   audio?: string | null;
+  // onReading は、映っている組の読み込みが進んだときに、読んだバイト数と放送の形式を受け取る (#828)。
+  onReading?: (reading: TsPlayerReading) => void;
 };
 
+// Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
+type Slot = {
+  // container は、video と字幕の canvas を入れる要素。yadif が video を包む要素も、この中に入る。
+  container: HTMLDivElement;
+  video: HTMLVideoElement;
+  captions: Captions;
+  // player は、変換のプレイヤー。モジュールを読み終えるまでは null。
+  player: Mpeg2TsPlayer | null;
+  // load は、読み込みを見分ける番号。読み直すたびに変わる。
+  load: number;
+  // stats は、この読み込みでプレイヤーが最後に知らせた統計。
+  stats: Stats | null;
+  // bytesRead は、この読み込みで読んだバイト数。
+  bytesRead: number;
+  destroyed: boolean;
+};
+
+// loads は、読み込みに振った番号の最後。
+let loads = 0;
+
+// bufferedEnd は、今の位置を含む、読み込んである範囲の終わり。なければ、最後の範囲の終わり。
+function bufferedEnd(video: HTMLVideoElement): number {
+  const { buffered, currentTime } = video;
+  for (let i = 0; i < buffered.length; i++) {
+    if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) {
+      return buffered.end(i);
+    }
+  }
+
+  return buffered.length > 0 ? buffered.end(buffered.length - 1) : 0;
+}
+
+// sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
+function sourcePicture(player: Mpeg2TsPlayer): SourcePicture | null {
+  const timeline = player.deinterlacer?.videoTimeline ?? [];
+  const now = player.video.currentTime;
+  const state = timeline.findLast((entry) => entry.start <= now) ?? timeline[0];
+  if (state?.codedSize === undefined) {
+    return null;
+  }
+
+  return {
+    width: state.codedSize.width,
+    height: state.codedSize.height,
+    interlaced: state.scan?.interlaced ?? null,
+  };
+}
+
+// loadModules は、変換のプレイヤーと yadif を読む。yadif は LGPL なので、別のチャンクとして読む。
+const loadModules = () =>
+  Promise.all([import('@mpeg2toh264/player'), import('@mpeg2toh264/yadif')] as const);
+
 // TsPlayer は、MPEG-2 の TS をブラウザの中で H.264 に変換して再生する (設計書 7.2)。
-// 1080i のインターレースは、yadif で解除する。yadif は LGPL なので、別のチャンクとして読む。
+// 1080i のインターレースは、yadif で解除する。
+//
+// handover なら、URL が変わったときに、今の映像を流したまま、裏で新しい URL を読み込み、映像が出てから切り替える (#1083)。
+// つなぎ直しで、映像が途切れたり黒くなったりしないようにする。今の映像が出ていなければ (切れて空になったときなど)、すぐ読み直す。
 export function TsPlayer({
   url,
+  handover = false,
   videoRef,
   captions,
   superimpose = true,
@@ -60,9 +132,11 @@ export function TsPlayer({
   onVideo,
   onAudio,
   audio = null,
+  onReading,
 }: Props) {
-  const playerRef = useRef<Mpeg2TsPlayer | null>(null);
-  const captionsRef = useRef<Captions | null>(null);
+  // active は、映っている組。pending は、切り替えるために裏で読み込んでいる組。
+  const activeRef = useRef<Slot | null>(null);
+  const pendingRef = useRef<Slot | null>(null);
   const showCaptions = useRef(captions);
   // captionText は、字幕の文を渡す先。字幕は作り直さずに、渡す先だけを差し替える。
   const captionText = useRef(onCaptionText);
@@ -74,114 +148,241 @@ export function TsPlayer({
   const styleRef = useRef(captionStyle);
   styleRef.current = captionStyle;
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo });
-  handlers.current = { onState, onError, onLoaded, onAudio, onVideo };
+  const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo, onReading });
+  handlers.current = { onState, onError, onLoaded, onAudio, onVideo, onReading };
   const audioRef = useRef(audio);
   audioRef.current = audio;
+  // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
+  const handoverRef = useRef(handover);
+  handoverRef.current = handover;
 
-  const frameRef = useRef<HTMLDivElement | null>(null);
+  const mediaRef = useRef<HTMLDivElement | null>(null);
 
+  // createSlot は、組を作って media に入れる。hidden なら、切り替えるまで見せず、音も出さない。
   // video の要素は、React に持たせずに作る。yadif は、video を別の要素で包んで動かすので、
   // React が持っていると、外すときに元の親から取り除こうとして失敗する。
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (frame === null) {
-      return;
-    }
+  // 変換のプレイヤーのイベントは、映っている組のものだけを渡す。裏で読み込んでいる組の失敗は、load の失敗で受け取る。
+  const createSlot = (media: HTMLElement, hidden: boolean): Slot => {
+    const container = document.createElement('div');
+    container.className = classes.slot ?? '';
+    // データ放送は、映像の要素を外の CSS が届かない所へ移すので、隠すのはインラインで指定する。
+    container.style.visibility = hidden ? 'hidden' : '';
     const video = document.createElement('video');
     video.className = classes.video ?? '';
     video.playsInline = true;
     video.autoplay = true;
-    frame.append(video);
-    videoRef.current = video;
-    handlers.current.onVideo?.(video);
+    video.muted = hidden;
+    container.append(video);
+    media.append(container);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、プレイヤーより先に作る。
-    const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
+    const renderer = createCaptions(video, container, (text) => {
+      if (activeRef.current === slot) {
+        captionText.current?.(text);
+      }
+    });
     renderer.setVisible(showCaptions.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
-    captionsRef.current = renderer;
-    let destroyed = false;
-    void (async () => {
-      const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }] = await Promise.all([
-        import('@mpeg2toh264/player'),
-        import('@mpeg2toh264/yadif'),
-      ]);
-      if (destroyed) {
-        return;
+    const slot: Slot = {
+      container,
+      video,
+      captions: renderer,
+      player: null,
+      load: 0,
+      stats: null,
+      bytesRead: 0,
+      destroyed: false,
+    };
+    // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
+    // 見張れないので、知らせて読み直させる。
+    video.addEventListener('error', () => {
+      if (!slot.destroyed && activeRef.current === slot && video.error !== null) {
+        handlers.current.onError?.(new Error(video.error.message || 'the media element failed'));
       }
-      const player = new Player(video, {
-        wasmUrl: wasmURL,
-        deinterlace: true,
-        deinterlacer: (element) => {
-          const deinterlacer = new Deinterlacer(element);
-          // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
-          // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
-          deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
+    });
 
-          return deinterlacer;
-        },
-      });
-      player.addEventListener('statechange', (event) =>
-        handlers.current.onState?.(event.detail.state),
-      );
-      player.addEventListener('error', (event) => handlers.current.onError?.(event.detail.error));
-      // 字幕は private_stream_1、文字スーパーは private_stream_2 で届く。時刻は、video の時刻にそろっている。
-      const feed = (event: CustomEvent<PrivateStream>) => {
-        if (event.detail.pts !== null) {
-          renderer.feedB24(event.detail.data, event.detail.pts);
-        }
-      };
-      player.addEventListener('audio', (event) => {
-        // 読み直すと、プレイヤーは、新しいストリームの音声が分かったところで既定の音声に戻る。
-        // 選んでいた音声がそのストリームにあれば、選び直す。選び直すと、もう一度このイベントが届く。
-        const wanted = audioRef.current;
-        if (
-          wanted !== null &&
-          wanted !== currentAudioChoice(event.detail) &&
-          audioChoices(event.detail).some((choice) => choice.value === wanted)
-        ) {
-          selectAudio(player, wanted);
-        }
+    return slot;
+  };
+
+  // attachPlayer は、組の変換のプレイヤーを作る。モジュールを読み終えるまで待つ。
+  const attachPlayer = async (slot: Slot): Promise<Mpeg2TsPlayer | null> => {
+    const [{ Mpeg2TsPlayer: Player }, { Deinterlacer }] = await loadModules();
+    if (slot.destroyed) {
+      return null;
+    }
+    const isActive = () => activeRef.current === slot;
+    const player = new Player(slot.video, {
+      wasmUrl: wasmURL,
+      deinterlace: true,
+      deinterlacer: (element) => {
+        const deinterlacer = new Deinterlacer(element);
+        // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
+        // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
+        deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
+
+        return deinterlacer;
+      },
+    });
+    player.addEventListener('statechange', (event) => {
+      if (isActive()) {
+        handlers.current.onState?.(event.detail.state);
+      }
+    });
+    player.addEventListener('error', (event) => {
+      if (isActive()) {
+        handlers.current.onError?.(event.detail.error);
+      }
+    });
+    // 読んだバイト数と、変換を終えたメディアの長さから、ビットレートを出す (#828)。
+    // 最初の progress までは、読んだバイト数が分からないので知らせない。
+    const report = () => {
+      if (isActive() && slot.bytesRead > 0) {
+        handlers.current.onReading?.({
+          load: slot.load,
+          bytesRead: slot.bytesRead,
+          mediaEnd: bufferedEnd(slot.video),
+          seeking: player.state === 'seeking',
+          transport:
+            slot.stats === null
+              ? null
+              : {
+                  dropped: slot.stats.dropped,
+                  errors: slot.stats.errors,
+                  scrambled: slot.stats.scrambled,
+                },
+          source: sourcePicture(player),
+        });
+      }
+    };
+    player.addEventListener('progress', (event) => {
+      slot.bytesRead = event.detail.bytesRead;
+      report();
+    });
+    player.addEventListener('stats', (event) => {
+      slot.stats = event.detail;
+      report();
+    });
+    // 字幕は private_stream_1、文字スーパーは private_stream_2 で届く。時刻は、video の時刻にそろっている。
+    const feed = (event: CustomEvent<PrivateStream>) => {
+      if (event.detail.pts !== null) {
+        slot.captions.feedB24(event.detail.data, event.detail.pts);
+      }
+    };
+    player.addEventListener('audio', (event) => {
+      // 読み直すと、プレイヤーは、新しいストリームの音声が分かったところで既定の音声に戻る。
+      // 選んでいた音声がそのストリームにあれば、選び直す。選び直すと、もう一度このイベントが届く。
+      const wanted = audioRef.current;
+      if (
+        wanted !== null &&
+        wanted !== currentAudioChoice(event.detail) &&
+        audioChoices(event.detail).some((choice) => choice.value === wanted)
+      ) {
+        selectAudio(player, wanted);
+      }
+      if (isActive()) {
         handlers.current.onAudio?.(event.detail);
-      });
-      player.addEventListener('private_stream_1', feed);
-      player.addEventListener('private_stream_2', feed);
-      playerRef.current = player;
-      setReady(true);
-    })();
+      }
+    });
+    player.addEventListener('private_stream_1', feed);
+    player.addEventListener('private_stream_2', feed);
+    slot.player = player;
+
+    return player;
+  };
+
+  // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
+  const destroySlot = (slot: Slot) => {
+    slot.destroyed = true;
+    slot.player?.destroy();
+    slot.player = null;
+    slot.captions.destroy();
+    slot.container.remove();
+  };
+
+  // promote は、裏で読み込んだ組を映し、それまで映っていた組を捨てる。音量と再生の速さは、前の映像から引き継ぐ。
+  const promote = (slot: Slot) => {
+    const previous = activeRef.current;
+    if (previous !== null) {
+      slot.video.volume = previous.video.volume;
+      slot.video.muted = previous.video.muted;
+      slot.video.playbackRate = previous.video.playbackRate;
+    } else {
+      slot.video.muted = false;
+    }
+    slot.container.style.visibility = '';
+    // データ放送が、映っていた組を自分の中へ移しているなら、新しい組を同じ所に置く。外の CSS が届かないので、大きさをインラインで整える。
+    if (previous !== null && previous.container.parentNode !== mediaRef.current) {
+      fitMedia([slot.container]);
+      previous.container.replaceWith(slot.container);
+    }
+    pendingRef.current = null;
+    activeRef.current = slot;
+    videoRef.current = slot.video;
+    handlers.current.onVideo?.(slot.video);
+    if (previous !== null) {
+      destroySlot(previous);
+    }
+    const player = slot.player;
+    if (player !== null) {
+      handlers.current.onState?.(player.state);
+      if (player.audio !== null) {
+        handlers.current.onAudio?.(player.audio);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (media === null) {
+      return;
+    }
+    const slot = createSlot(media, false);
+    activeRef.current = slot;
+    videoRef.current = slot.video;
+    handlers.current.onVideo?.(slot.video);
+    void attachPlayer(slot).then((player) => {
+      if (player !== null) {
+        setReady(true);
+      }
+    });
 
     return () => {
-      destroyed = true;
-      playerRef.current?.destroy();
-      playerRef.current = null;
-      captionsRef.current?.destroy();
-      captionsRef.current = null;
+      for (const current of [pendingRef.current, activeRef.current]) {
+        if (current !== null) {
+          destroySlot(current);
+        }
+      }
+      pendingRef.current = null;
+      activeRef.current = null;
       videoRef.current = null;
       handlers.current.onVideo?.(null);
-      // yadif が包んだ要素ごと取り除く。
-      frame.replaceChildren();
       setReady(false);
     };
   }, [videoRef]);
 
   useEffect(() => {
-    captionsRef.current?.setVisible(captions);
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      slot?.captions.setVisible(captions);
+    }
   }, [captions]);
 
   useEffect(() => {
-    captionsRef.current?.setSuperimposeVisible(superimpose);
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      slot?.captions.setSuperimposeVisible(superimpose);
+    }
   }, [superimpose]);
 
   const { stroke, backgroundOpacity } = captionStyle;
   useEffect(() => {
-    captionsRef.current?.setStyle({ stroke, backgroundOpacity });
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      slot?.captions.setStyle({ stroke, backgroundOpacity });
+    }
   }, [stroke, backgroundOpacity]);
 
   // 聞く音声を選ぶ。切り替えは、これから変換する部分から効く (設計書 12 章のデュアルモノ)。
   // 読み直すとプレイヤーが既定の音声に戻ることがあるので、読み直すたびにも選び直す。
   useEffect(() => {
-    const player = playerRef.current;
+    const player = activeRef.current?.player ?? null;
     if (ready && player !== null) {
       selectAudio(player, audio);
     }
@@ -189,8 +390,10 @@ export function TsPlayer({
 
   // URL が変わったら読み直す。URL がなければ、読み込みを止めて、帯域とチューナーを使わない。
   useEffect(() => {
-    const player = playerRef.current;
-    if (!ready || player === null) {
+    const active = activeRef.current;
+    const player = active?.player ?? null;
+    const media = mediaRef.current;
+    if (!ready || active === null || player === null || media === null) {
       return;
     }
     if (url === null) {
@@ -199,8 +402,50 @@ export function TsPlayer({
       return;
     }
     let cancelled = false;
-    captionsRef.current?.reset();
+    // 今の映像が出ていれば、流したまま裏で読み込む。出ていなければ、待たせる映像がないので、すぐ読み直す。
+    if (handoverRef.current && hasPicture(active.video)) {
+      const slot = createSlot(media, true);
+      pendingRef.current = slot;
+      void attachPlayer(slot)
+        .then(async (next) => {
+          if (next === null || cancelled) {
+            return;
+          }
+          selectAudio(next, audioRef.current);
+          slot.load = ++loads;
+          slot.stats = null;
+          slot.bytesRead = 0;
+          await next.load(url);
+          // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
+          await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
+          if (!cancelled) {
+            promote(slot);
+            handlers.current.onLoaded?.();
+          }
+        })
+        .catch((error: unknown) => {
+          if (cancelled || pendingRef.current !== slot) {
+            return;
+          }
+          pendingRef.current = null;
+          destroySlot(slot);
+          handlers.current.onError?.(error instanceof Error ? error : new Error(String(error)));
+        });
+
+      return () => {
+        cancelled = true;
+        // 切り替える前に URL が変わったら、裏で読み込んでいた組を捨てる。
+        if (pendingRef.current === slot) {
+          pendingRef.current = null;
+          destroySlot(slot);
+        }
+      };
+    }
+    active.captions.reset();
     selectAudio(player, audioRef.current);
+    active.load = ++loads;
+    active.stats = null;
+    active.bytesRead = 0;
     player.load(url).then(
       () => {
         if (!cancelled) {
@@ -213,21 +458,103 @@ export function TsPlayer({
 
     return () => {
       cancelled = true;
-      // URL が変わるか、外すときは、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
-      player.stop();
+      // 裏で読み込んで切り替えるなら、前の読み込みは、次の URL を裏で読み込んで切り替えるまで流し続ける。
+      // 次の実行が裏で読み込まないとき (映像が出ていない、URL がない) は、そこで止めるか読み直すので、ここでは止めない。
+      // そうでなければ、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
+      if (!handoverRef.current) {
+        player.stop();
+      }
     };
+  }, [ready, url]);
+
+  // 再生しているのに映像が進まなければ、配信が切れたとみなして、エラーとして知らせる。利用者が止めたとき、シークしているとき、
+  // 終わりまで再生したときは見張らない。読み込んで映像が出るまでも見張らない。
+  useEffect(() => {
+    if (!ready || url === null) {
+      return;
+    }
+    let last: { slot: Slot; time: number; since: number } | null = null;
+    let reported = false;
+    const timer = setInterval(() => {
+      const slot = activeRef.current;
+      const video = slot?.video;
+      const player = slot?.player;
+      if (slot === null || video === undefined || player === undefined || player === null) {
+        return;
+      }
+      const now = Date.now();
+      const watching =
+        !video.paused &&
+        !video.seeking &&
+        !video.ended &&
+        player.state !== 'loading' &&
+        player.state !== 'seeking' &&
+        hasPicture(video);
+      if (!watching || last?.slot !== slot || last.time !== video.currentTime) {
+        last = { slot, time: video.currentTime, since: now };
+        reported = false;
+
+        return;
+      }
+      if (!reported && now - last.since >= stallTimeoutMs) {
+        reported = true;
+        handlers.current.onError?.(new Error('the stream stalled'));
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, [ready, url]);
 
   return (
     <div className={classes.frame}>
       {/* 切り抜き (#496) で拡大した映像と字幕を、枠の外に出さない。 */}
       <div className={classes.clip}>
-        <div ref={frameRef} className={classes.media} style={cropStyle(crop)} />
+        <div ref={mediaRef} className={classes.media} style={cropStyle(crop)} />
       </div>
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
       {controls}
     </div>
   );
+}
+
+// hasPicture は、video に、今映せる映像があるかどうかを返す。
+function hasPicture(video: HTMLVideoElement): boolean {
+  return video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+}
+
+// handoverTimeoutMs は、裏で読み込んだ映像が出るのを待つ時間の上限。
+const handoverTimeoutMs = 15_000;
+
+// failureBeforePicture は、裏で読み込んでいるプレイヤーが、失敗するか、流し終えるか、handoverTimeoutMs が過ぎたら、失敗で終わる。
+// 映像が出る前に終わったら、待ち続けずに、知らせを出して間隔を延ばすほうに回す。
+function failureBeforePicture(player: Mpeg2TsPlayer): Promise<never> {
+  return new Promise((_, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('the new stream did not show a picture in time')),
+      handoverTimeoutMs,
+    );
+    player.addEventListener('error', (event) => {
+      clearTimeout(timer);
+      reject(event.detail.error);
+    });
+    player.addEventListener('statechange', (event) => {
+      if (event.detail.state === 'completed' || event.detail.state === 'error') {
+        clearTimeout(timer);
+        reject(new Error(`the new stream ended before a picture (${event.detail.state})`));
+      }
+    });
+  });
+}
+
+// firstPicture は、video に最初の映像が入るのを待つ。
+function firstPicture(video: HTMLVideoElement): Promise<void> {
+  if (hasPicture(video)) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    video.addEventListener('loadeddata', () => resolve(), { once: true });
+  });
 }
 
 // selectAudio は、audioChoices の値 choice の音声を、プレイヤーに選ばせる。null なら、何もしない。

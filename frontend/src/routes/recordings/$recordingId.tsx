@@ -25,6 +25,7 @@ import {
   RefreshCw,
   ScanSearch,
   Save,
+  Scissors,
   Tag,
   Trash2,
   type LucideIcon,
@@ -43,10 +44,13 @@ import {
   toHalfWidth,
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
+import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
+import { recordingPosition } from '../../yunomi/position';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
+import type { RecordingIdDetectCmMutation } from './__generated__/RecordingIdDetectCmMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
 import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdReanalyzeMutation.graphql';
@@ -58,6 +62,8 @@ import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
+import { failureKey } from '../../recordings/failureReason';
+import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -91,17 +97,6 @@ const timeFormat = zonedFormat({
   second: '2-digit',
   hourCycle: 'h23',
 });
-
-const failureKeys = {
-  TUNER_UNAVAILABLE: 'recordings.failure.TUNER_UNAVAILABLE',
-  TUNER_SERVER_UNREACHABLE: 'recordings.failure.TUNER_SERVER_UNREACHABLE',
-  STREAM_INTERRUPTED: 'recordings.failure.STREAM_INTERRUPTED',
-  STORAGE_UNAVAILABLE: 'recordings.failure.STORAGE_UNAVAILABLE',
-  STORAGE_FULL: 'recordings.failure.STORAGE_FULL',
-  PROGRAM_NOT_FOUND: 'recordings.failure.PROGRAM_NOT_FOUND',
-  CANCELLED: 'recordings.failure.CANCELLED',
-  RECORDER_UNAVAILABLE: 'recordings.failure.RECORDER_UNAVAILABLE',
-} as const;
 
 // RecordingPage は、録画の詳細の画面 (設計書 10.3)。保護、タグ付け、削除と、外部プレイヤーでの再生ができる。
 function RecordingPage() {
@@ -177,6 +172,8 @@ function Recording({ recordingId }: { recordingId: string }) {
               drops
               errors
               scrambled
+              streamType
+              componentTag
             }
             gaps {
               from
@@ -190,17 +187,36 @@ function Recording({ recordingId }: { recordingId: string }) {
               lv1
               lv2
             }
+            # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
+            animeEpisodes {
+              syobocalUrl
+              countStart
+              countEnd
+              subtitle
+              first
+              last
+              works {
+                annictUrl
+                anilistUrl
+                malUrl
+              }
+            }
             rule {
               id
             }
             ruleName
             thumbnailUrl
             streamUrl
+            videoFormat
+            jikkyoCommentsUrl
             recordedFrom
             recordedUntil
             service {
               name
               logoUrl
+              jikkyo {
+                id
+              }
             }
             tags {
               id
@@ -253,9 +269,14 @@ function Recording({ recordingId }: { recordingId: string }) {
       reanalyzeRecording(id: $id)
     }
   `);
-  // regenerated は、画像の作り直しか解析のやり直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
+  const [detectCm, detectingCm] = useMutation<RecordingIdDetectCmMutation>(graphql`
+    mutation RecordingIdDetectCmMutation($id: ID!) {
+      detectRecordingCm(id: $id)
+    }
+  `);
+  // regenerated は、画像の作り直しか解析のやり直しか CM の解析を頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
   const [regenerated, setRegenerated] = useState<{
-    kind: 'images' | 'analysis';
+    kind: 'images' | 'analysis' | 'cm';
     result: 'queued' | 'waiting';
   } | null>(null);
   const node = data.node;
@@ -341,6 +362,32 @@ function Recording({ recordingId }: { recordingId: string }) {
               >
                 {t('recordings.reanalyze')}
               </Button>
+              {/* 全体や予約の設定にかかわらず、CM の区間を見分ける。前の区間は置き換える (#1209)。 */}
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<Scissors size={14} aria-hidden />}
+                loading={detectingCm}
+                onClick={() =>
+                  detectCm({
+                    variables: { id: recording.id },
+                    onCompleted: (response, errors) => {
+                      if (failed(errors)) {
+                        setError(t('recordings.actionError'));
+
+                        return;
+                      }
+                      setRegenerated({
+                        kind: 'cm',
+                        result: response.detectRecordingCm ? 'queued' : 'waiting',
+                      });
+                    },
+                    onError: () => setError(t('recordings.actionError')),
+                  })
+                }
+              >
+                {t('recordings.detectCm')}
+              </Button>
               {regenerated !== null && (
                 <Text size="xs" c="dimmed" role="status">
                   {t(
@@ -348,9 +395,13 @@ function Recording({ recordingId }: { recordingId: string }) {
                       ? regenerated.result === 'queued'
                         ? 'recordings.regenerateQueued'
                         : 'recordings.regenerateWaiting'
-                      : regenerated.result === 'queued'
-                        ? 'recordings.reanalyzeQueued'
-                        : 'recordings.reanalyzeWaiting',
+                      : regenerated.kind === 'analysis'
+                        ? regenerated.result === 'queued'
+                          ? 'recordings.reanalyzeQueued'
+                          : 'recordings.reanalyzeWaiting'
+                        : regenerated.result === 'queued'
+                          ? 'recordings.detectCmQueued'
+                          : 'recordings.detectCmWaiting',
                   )}
                 </Text>
               )}
@@ -380,6 +431,29 @@ function Recording({ recordingId }: { recordingId: string }) {
               {t('recordings.download')}
             </Button>
           )}
+          {/* 録画を終えた録画を端末に保存し、サーバーにつながらなくても見られるようにする (#480)。 */}
+          {segments.length > 0 &&
+            recording.state !== 'RECORDING' &&
+            recording.recordedUntil != null && (
+              <SaveOfflineButton
+                videoFormat={recording.videoFormat}
+                source={{
+                  id: recording.id,
+                  name: recording.name,
+                  serviceName: recording.service.name,
+                  startAt: recording.startAt,
+                  endAt: recording.endAt,
+                  recordedFrom: recording.recordedFrom,
+                  recordedUntil: recording.recordedUntil,
+                  gaps: recording.gaps,
+                  streamUrl: recording.streamUrl,
+                  // 実況のチャンネルのない局では、過去ログを読まない (設計書 7.4)。
+                  jikkyoCommentsUrl:
+                    recording.service.jikkyo == null ? null : recording.jikkyoCommentsUrl,
+                  files: recording.files,
+                }}
+              />
+            )}
         </Stack>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 7 }}>
@@ -411,6 +485,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Badge>
             ))}
           </Group>
+          <AnimeEpisodes episodes={recording.animeEpisodes} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (
@@ -432,12 +507,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Text>
             ))}
           {recording.failureReason != null && (
-            <Alert color="red">
-              {t(
-                failureKeys[recording.failureReason as keyof typeof failureKeys] ??
-                  'recordings.failure.unknown',
-              )}
-            </Alert>
+            <Alert color="red">{t(failureKey(recording.failureReason))}</Alert>
           )}
           {recording.description !== '' && (
             <Text size="sm">
@@ -454,7 +524,21 @@ function Recording({ recordingId }: { recordingId: string }) {
                   scrambled: recording.scrambled,
                 })}
               </Text>
-              <StreamQualityButton streams={recording.streamQuality} />
+              <StreamQualityButton
+                streams={recording.streamQuality}
+                // 終えた日時がなく、録画中でもない録画は、長さが分からないので、ビットレートを出さない。
+                seconds={
+                  recording.recordedUntil != null
+                    ? recordingPosition(
+                        recording.recordedFrom,
+                        recording.gaps,
+                        Date.parse(recording.recordedUntil),
+                      )
+                    : recording.state === 'RECORDING'
+                      ? recordingPosition(recording.recordedFrom, recording.gaps, Date.now())
+                      : 0
+                }
+              />
               <Text size="sm" c="dimmed">
                 {t('recordings.recordedRange', {
                   from: timeFormat.format(Date.parse(recording.recordedFrom)),

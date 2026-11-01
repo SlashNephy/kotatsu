@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,9 +50,9 @@ func TestParseSourceURL(t *testing.T) {
 		},
 		{
 			name:       "sqlite opens the file read-only",
-			rawURL:     (&url.URL{Scheme: sqliteName, Path: sqlitePath}).String(),
+			rawURL:     epgstationtest.SQLiteURL(sqlitePath),
 			wantDriver: sqliteName,
-			wantDSN:    "file:" + (&url.URL{Path: sqlitePath}).EscapedPath() + "?_pragma=query_only%281%29&mode=ro",
+			wantDSN:    "file:" + (&url.URL{Path: "/" + strings.TrimPrefix(filepath.ToSlash(sqlitePath), "/")}).EscapedPath() + "?_pragma=query_only%281%29&mode=ro",
 			wantErr:    nil,
 		},
 		{
@@ -177,9 +178,8 @@ func TestReadLeavesSQLiteFileUntouched(t *testing.T) {
 	db := epgstationtest.New(t, epgstationtest.SQLite)
 	epgstationtest.Exec(t, db.Writer, seed()...)
 	require.NoError(t, db.Writer.Close())
-	u, err := url.Parse(db.URL)
-	require.NoError(t, err)
-	before := hashFiles(t, filepath.Dir(u.Path))
+	dir := filepath.Dir(db.Path)
+	before := hashFiles(t, dir)
 
 	source, err := epgstation.Open(t.Context(), db.URL)
 	require.NoError(t, err)
@@ -187,7 +187,7 @@ func TestReadLeavesSQLiteFileUntouched(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, source.Close())
 
-	assert.Equal(t, before, hashFiles(t, filepath.Dir(u.Path)))
+	assert.Equal(t, before, hashFiles(t, dir))
 }
 
 // hashFiles は、dir にあるファイルの名前と内容のハッシュを返す。ジャーナルのファイルが増えても気付けるようにする。

@@ -66,6 +66,11 @@ describe('captureFileName', () => {
       want: 'NHK総合1・東京_ニュース７.png',
     },
     {
+      name: 'TVTest と同じ名前 (%event-name% と %service-name%) も使える (#814)',
+      template: '%service-name% %event-name%',
+      want: 'NHK総合1・東京 ニュース７.png',
+    },
+    {
       name: '知らない書き方は、そのまま残す',
       template: '%unknown%-%title%',
       want: '%unknown%-ニュース７.png',

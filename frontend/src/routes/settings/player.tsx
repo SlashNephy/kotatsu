@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ErrorBoundary, PageLoader } from '../../futon';
 import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
+import { ShortcutKeysCard } from '../../settings/ShortcutKeysCard';
 import { isUnauthenticated } from '../../relay/environment';
 import {
   autoPictureInPictureSupported,
@@ -225,6 +226,8 @@ function PlayerSettings() {
           )}
         </Stack>
       </Card>
+
+      <ShortcutKeysCard />
 
       <CommentSettingsCard />
     </Stack>

@@ -19,6 +19,7 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { RecordingCard } from '../recordings/RecordingCard';
+import { ContinueWatchingCard } from './ContinueWatchingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
 import { nowPlaying, pinnedNowPlaying } from './nowPlaying';
@@ -227,7 +228,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
     },
     { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
-  // 放送中の番組を、チャンネルの種類ごとに分ける。番組のない種類は、選べないようにする。
+  // 放送中の番組を、チャンネルの種類ごとに分ける。サービスのない種類は、選べないようにする。
   // これからの予約は、まだ始まっていないものだけにする。始まった予約は、録画中として最近の録画に出る。
   const upcoming = data.upcoming.edges
     .filter(({ node }) => Date.parse(node.startAt) > range.now)
@@ -242,7 +243,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
     }))
     .filter((channelType) => channelType.playing.length > 0);
   // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
-  // ピン留めしたサービスに放送中の番組があれば、種類の前に「ピン留め」のタブを置き、そこから出す。
+  // 番組表にあるサービスをピン留めしていれば、種類の前に「ピン留め」のタブを置き、そこから出す。
   const pinned = data.pinnedServices.map((service) => service.id);
   const pinnedSet = new Set(pinned);
   const pinnedPlaying = pinnedNowPlaying(data.guide, pinned, range.now);
@@ -398,7 +399,11 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
           </Title>
           <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs" className={classes.recentGrid}>
             {data.continueWatching.map((recording) => (
-              <RecordingCard key={recording.id} recording={recording} />
+              <ContinueWatchingCard
+                key={recording.id}
+                recording={recording}
+                first={recentRecordings}
+              />
             ))}
           </SimpleGrid>
         </Stack>
@@ -461,7 +466,7 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
                   serviceId={item.serviceId}
                   serviceName={item.serviceName}
                   serviceLogoUrl={item.serviceLogoUrl}
-                  program={{ name: item.programName, startAt: item.startAt, endAt: item.endAt }}
+                  program={item.program}
                 />
               </PinnableCard>
             ))}

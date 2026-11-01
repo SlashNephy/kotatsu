@@ -76,6 +76,15 @@ type RecordingGap {
 }
 
 """
+CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
+"""
+type RecordingCMSection {
+  "区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。"
+  from: Time!
+  to: Time!
+}
+
+"""
 録画のタグ。
 """
 type Tag {
@@ -113,6 +122,8 @@ type Recording implements Node {
   """
   streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
+  "CM とみなした区間を、始まりの順に並べる (#479)。見分けていないか、見つからなければ空になる。"
+  cmSections: [RecordingCMSection!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -130,6 +141,8 @@ type Recording implements Node {
   broadcastEndedAt: Time
   "予約した番組が、予定の時間に放送されなかったかどうか。録った TS は残す。遅れて始まるのを待った番組が延長の上限まで放送中にならなかったときは、前の番組の TS を残さず、録画は失敗になる (#1046)。"
   notBroadcast: Boolean!
+  "録画中の録画の、書いているセグメントの様子 (#829)。mikan が 10 秒ごとに書く。録画中でないか、まだ書いていなければ null。"
+  liveStats: RecordingLiveStats
   "実際に録画を始めた日時と、終えた日時。録画中なら終えた日時は null。"
   recordedFrom: Time!
   recordedUntil: Time
@@ -239,6 +252,8 @@ extend type Mutation {
   setRecordingTags(id: ID!, tags: [String!]!): Recording!
   "ログイン中のユーザーの再生位置 (ミリ秒) を保存する。誰でも使える。"
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
+  "ログイン中のユーザーの再生位置を消し、続きから見るの一覧から外す (#1074)。誰でも使える。"
+  clearWatchPosition(id: ID!): Recording!
   """
   録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
@@ -250,6 +265,12 @@ extend type Mutation {
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   reanalyzeRecording(id: ID!): Boolean!
+  """
+  録画の CM とみなす区間を見分けるジョブを入れる (設計書 6.1、#1209)。視聴者は使えない。全体や予約の設定にかかわらず見分け、
+  前に見分けた区間は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  detectRecordingCm(id: ID!): Boolean!
 }
 
 """
@@ -288,4 +309,22 @@ type StreamQuality {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  "PMT の stream_type (#827)。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC など。PMT に載っていない PID と、記録する前に録った録画では null。"
+  streamType: Int
+  "ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。記述子がなければ null。"
+  componentTag: Int
+}
+
+"""
+録画中の録画の、書いているセグメントの様子 (#829)。
+"""
+type RecordingLiveStats {
+  "直前の 10 秒ほどに書いたビットレート (bps)。"
+  bitrate: Int64!
+  "書いているセグメントのバイト数と、ドロップ、エラー、スクランブルの数。閉じたセグメントの数は、Recording の drops などにある。"
+  bytes: Int64!
+  drops: Int64!
+  errors: Int64!
+  scrambled: Int64!
+  updatedAt: Time!
 }

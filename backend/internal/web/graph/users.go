@@ -30,17 +30,28 @@ func (r *Resolver) administrator(ctx context.Context) (*auth.Principal, *audit.A
 }
 
 // recentAdministrator は、ログイン中のユーザーが管理者で、直近 10 分以内に認証したことを確かめ、操作者を返す。
-// 管理者でなければ、message を付けて FORBIDDEN を返す。
+// 管理者でなければ、message を付けて FORBIDDEN を返す。第三者に影響しうる操作 (ユーザーの管理、外部のサービスとの連携) に使う (設計書 9.5)。
 func (r *Resolver) recentAdministrator(ctx context.Context, message string) (*auth.Principal, *audit.Actor, error) {
+	principal, actor, err := r.administratorActor(ctx, message)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
+		return nil, nil, err
+	}
+
+	return principal, actor, nil
+}
+
+// administratorActor は、ログイン中のユーザーが管理者であることを確かめ、操作者を返す。再認証は求めない。
+// 管理者でなければ、message を付けて FORBIDDEN を返す。第三者に影響しない管理の操作 (録画やサービスの設定、ファイルの片付けなど) に使う (設計書 9.5)。
+func (r *Resolver) administratorActor(ctx context.Context, message string) (*auth.Principal, *audit.Actor, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !principal.Role.Can(auth.PermissionAdminister) {
 		return nil, nil, NewError(CodeForbidden, message)
-	}
-	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
-		return nil, nil, err
 	}
 
 	return principal, actorOf(ctx, principal), nil
@@ -107,4 +118,15 @@ func (r *Resolver) userByID(ctx context.Context, userID uuid.UUID) (*model.User,
 	}
 
 	return toUser(&row), nil
+}
+
+// forgetAuthorizations は、ユーザーについて、DB に届かない間に使うために覚えた認可の結果を忘れる (#1084)。keep のセッションは残す。
+// ユーザーを無効にした、ロールやパスワードを変えた直後に DB が止まっても、覚えた結果で前の権限のまま認可しないようにする。
+func (r *Resolver) forgetAuthorizations(userID uuid.UUID, keep *uuid.UUID) {
+	if r.sessions != nil {
+		r.sessions.ForgetUser(userID, keep)
+	}
+	if r.urlUsers != nil {
+		r.urlUsers.Forget(userID)
+	}
 }

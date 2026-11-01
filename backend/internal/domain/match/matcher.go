@@ -180,10 +180,7 @@ func compileKeyword(k *Keyword) (*compiledKeyword, error) {
 
 		return &compiledKeyword{pattern: nil, prefilter: nil, literal: literal, fold: fold, fields: k.Fields}, nil
 	}
-	pattern := k.Text
-	if !k.CaseSensitive {
-		pattern = "(?i)" + pattern
-	}
+	pattern := keywordPattern(k)
 	compiled, err := regexp.Compile(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid regular expression: %w", ErrInvalidConditions, err)
@@ -195,6 +192,49 @@ func compileKeyword(k *Keyword) (*compiledKeyword, error) {
 	}
 
 	return &compiledKeyword{pattern: compiled, prefilter: newPrefilter(parsed), literal: "", fold: false, fields: k.Fields}, nil
+}
+
+// keywordPattern は、正規表現のキーワードを、照合に使うパターンにする。大文字と小文字を区別しないなら (?i) を付ける。
+func keywordPattern(k *Keyword) string {
+	if k.CaseSensitive {
+		return k.Text
+	}
+
+	return "(?i)" + k.Text
+}
+
+// KeywordRef は、条件の中のキーワードの位置。
+type KeywordRef struct {
+	// Exclude は、除外するキーワード (ExcludeKeywords) かどうか。
+	Exclude bool
+	// Index は、Keywords か ExcludeKeywords の中の位置 (0 から)。
+	Index int
+}
+
+// UnfilterableKeywords は、詳細まで探す正規表現のキーワードのうち、必ず含む文字列を決められず、前段で絞り込めないものを返す (#904)。
+// こうしたキーワードは、すべての番組の長い詳細を正規表現にかけるので、ルールの照合が重くなる (設計書 3.5)。
+// 正規表現として読めないキーワードは返さない。条件の検証が拒む。
+func UnfilterableKeywords(c *Conditions) []KeywordRef {
+	refs := []KeywordRef{}
+	for _, list := range []struct {
+		exclude  bool
+		keywords []*Keyword
+	}{{exclude: false, keywords: c.Keywords}, {exclude: true, keywords: c.ExcludeKeywords}} {
+		for i, k := range list.keywords {
+			if !k.Regexp || !slices.Contains(k.Fields, FieldExtended) {
+				continue
+			}
+			parsed, err := syntax.Parse(keywordPattern(k), syntax.Perl)
+			if err != nil {
+				continue
+			}
+			if newPrefilter(parsed) == nil {
+				refs = append(refs, KeywordRef{Exclude: list.exclude, Index: i})
+			}
+		}
+	}
+
+	return refs
 }
 
 // hasCase は、s に、大文字と小文字で別の形を持つ文字があるかどうか。

@@ -84,15 +84,24 @@ config: {}
 #     volume:
 #       persistentVolumeClaim:
 #         claimName: kotatsu-recordings
+# hostPath で渡すときは、ディスクのマウントポイントそのものでなく、その中のディレクトリを path にし、type: Directory にする (設計書 5.6)。
+# マウントされていないときに、空のマウントポイントを測ったり、そこに録画を書いたりしないためである。
 # storage.data は、録画の生成物 (索引、代表画像、プレビュー画像) を、セグメントのファイルの ID ごとに置く volume (設計書 5.6)。
 # プールを設定するなら必ず要る。プールと同じロールにマウントする。
 # 例:
 #   volume:
 #     persistentVolumeClaim:
 #       claimName: kotatsu-data
+# storage.timeshift は、タイムシフトのバッファ (放送を一定時間だけ残すチャンクのファイル) を置く volume (設計書 5.7)。
+# 設定しなければ、タイムシフトは動かない。設定するなら storage.data も要る。プールと同じロールにマウントする。
+# 例:
+#   volume:
+#     persistentVolumeClaim:
+#       claimName: kotatsu-timeshift
 storage:
   pools: []
   data: {}
+  timeshift: {}
 
 # podSecurityContext と securityContext は、すべての Pod とコンテナに付ける。既定値は堅くしてあり、そのまま使える。
 podSecurityContext:
@@ -175,6 +184,9 @@ all:
   # その RuntimeClass の名前 (例: nvidia) を入れる。空なら既定のランタイムを使う。
   runtimeClassName: ""
   probes: {}
+  # preStopSleepSeconds は、止める前に、Service から外れるのを待つ秒 (preStop の sleep)。0 なら待たない。
+  # 外れる前に止まり始めると、止まりかけの tenban に新しい接続が来る (設計書 11.4、#1085)。
+  preStopSleepSeconds: 5
   # terminationGracePeriodSeconds は、mikan が録画を引き継ぐまで待つ時間を含める。
   terminationGracePeriodSeconds: 300
   # workSizeLimit は、kyusu が HLS のセグメントを置く作業ディレクトリ (emptyDir) の容量の上限。空なら上限を付けない。
@@ -194,7 +206,12 @@ roles:
     affinity: {}
     runtimeClassName: ""
     probes: {}
-    terminationGracePeriodSeconds: 30
+    # preStopSleepSeconds は、止める前に、Service から外れるのを待つ秒 (preStop の sleep)。0 なら待たない。
+    # 外れる前に止まり始めると、止まりかけの tenban に新しい接続が来る (設計書 11.4、#1085)。
+    preStopSleepSeconds: 5
+    # terminationGracePeriodSeconds は、preStop の待ち (5 秒)、視聴者がつなぎ直すのを待つ時間 (20 秒)、
+    # 処理中のリクエストを待つ時間 (20 秒) を足した長さに、余裕を持たせる。
+    terminationGracePeriodSeconds: 60
   neko:
     # neko は、リースを持つ 1 つだけが動くので、増やしても待機になる。
     replicas: 1

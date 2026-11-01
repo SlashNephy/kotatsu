@@ -51,9 +51,9 @@ func (r *Resolver) missingRecordings(ctx context.Context) ([]*model.MissingRecor
 }
 
 // cleanUpMissingRecordings は、録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。
-// 録画を消す取り返しのつかない操作なので、直近 10 分以内の再認証を求める (設計書 9.5)。
+// 第三者に影響しない管理の操作なので、再認証は求めない (設計書 9.5)。
 func (r *Resolver) cleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error) {
-	_, actor, err := r.recentAdministrator(ctx, "only administrators can clean up missing recordings")
+	_, actor, err := r.administratorActor(ctx, "only administrators can clean up missing recordings")
 	if err != nil {
 		return nil, err
 	}

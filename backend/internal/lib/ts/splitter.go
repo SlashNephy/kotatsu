@@ -22,13 +22,14 @@ type Splitter struct {
 	// interval は、cuts を使い切った後に切る間隔 (90 kHz)。
 	interval int64
 	// create は、i 番目の区切り (Cuts の添え字) から始まるセグメントの書き込み先を開く。
-	create func(i int) (io.WriteCloser, error)
+	create func(i int) (Segment, error)
 
 	// next は、次のセグメントを始める区切りの添え字。
 	next int
 	// started は、今のセグメントを始めた I フレームの PTS。
 	started int64
-	current io.WriteCloser
+	// current は、書いているセグメント。置くのに失敗したセグメントも、Abort で捨てるまで持つ。
+	current Segment
 	// pending は、映像の PES の始まりから、I フレームかどうかが分かるまでのパケット。ほかの PID のパケットも、順を保って溜める。
 	pending []byte
 	// holding は、pending に PES を溜めているかどうか。
@@ -48,12 +49,26 @@ type Splitter struct {
 
 var _ io.WriteCloser = new(Splitter)
 
-// errNoCut は、区切りがないことを表す。
-var errNoCut = errors.New("no cut is given")
+// Segment は、Splitter が書くセグメントの書き込み先。
+type Segment interface {
+	io.Writer
+	// Close は、書き終えたセグメントを置く。
+	Close() error
+	// Abort は、書きかけのセグメントを置かずに捨てる。Close に失敗した後にも呼ぶ。
+	Abort() error
+}
+
+var (
+	// errNoCut は、区切りがないことを表す。
+	errNoCut = errors.New("no cut is given")
+	// ErrAborted は、Abort した後に書こうとしたことを表す。
+	ErrAborted = errors.New("the splitter is aborted")
+)
 
 // NewSplitter は Splitter を返す。cuts は PTS (90 kHz) の昇順の並びで、空でない。interval は、cuts を使い切った後に切る間隔。
 // create は、i 番目の区切りから始まるセグメントの書き込み先を開く。セグメントを書き終えたら、その Close を呼ぶ。
-func NewSplitter(cuts []int64, interval time.Duration, create func(i int) (io.WriteCloser, error)) (*Splitter, error) {
+// 書きかけで止めるときは、Abort で、そのセグメントの Abort を呼ぶ。
+func NewSplitter(cuts []int64, interval time.Duration, create func(i int) (Segment, error)) (*Splitter, error) {
 	if len(cuts) == 0 {
 		return nil, errNoCut
 	}
@@ -117,7 +132,27 @@ func (s *Splitter) Close() error {
 	if s.current == nil {
 		return nil
 	}
-	err := s.current.Close()
+	if err := s.current.Close(); err != nil {
+		s.err = err
+
+		return err
+	}
+	s.current = nil
+
+	return nil
+}
+
+// Abort は、書きかけのセグメントを置かずに捨てる。置くのに失敗したセグメントも捨てる。書き終えたセグメントには触らない。
+// 入力を最後まで書かずに止めるときと、Write か Close が失敗したときに呼ぶ。以後の Write と Close は ErrAborted を返す。
+// 先に失敗していたときは、そのエラーを返し続ける。
+func (s *Splitter) Abort() error {
+	if s.err == nil {
+		s.err = ErrAborted
+	}
+	if s.current == nil {
+		return nil
+	}
+	err := s.current.Abort()
 	s.current = nil
 
 	return err

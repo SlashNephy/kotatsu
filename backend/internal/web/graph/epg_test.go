@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -600,4 +601,91 @@ func TestPinnedServices(t *testing.T) {
 	assert.Equal(t, []string{serviceName1}, names(got.PinnedServices))
 
 	assert.Equal(t, []string{codeNotFound}, f.query(t, setPinned, map[string]any{varID: graph.GlobalID("Service", "999"), varPinned: true}, nil))
+}
+
+// TestGuideArchivedPrograms は、過去の時間帯の番組表に、放送が終わった番組 (過去の番組) も出し、
+// programs に残っている番組を二重に出さないことを確かめる (#1121、設計書 3.4)。
+func TestGuideArchivedPrograms(t *testing.T) {
+	t.Parallel()
+
+	const archiveTypeName = "ProgramArchive"
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	archive := func(eventID int, name string, start time.Time) {
+		t.Helper()
+
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO program_archives (
+			service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+			name_normalized, description_normalized, extended, genres, related_items, created_at, updated_at, archived_at
+		) SELECT id, $1, 0, $2, $3, false, true, $4, '', $4, '', '{}', '[]', '[]', $2, $2, $3
+		FROM services WHERE name = 'こたつテスト1'`, eventID, start, start.Add(30*time.Minute), name)
+		require.NoError(t, err)
+	}
+	pastStart := testNow().Add(-5 * 24 * time.Hour).Truncate(time.Hour)
+	archive(9000, "過去の番組", pastStart)
+	// 放送が終わってから猶予の間は、同じ番組が programs にも残っている。
+	var current time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT start_at FROM programs WHERE event_id = 3
+		AND service_id = (SELECT id FROM services WHERE name = 'こたつテスト1')`).Scan(&current))
+	archive(3, programName(3), current)
+	serviceID := f.serviceIDs(t)["こたつテスト1"]
+
+	type program struct {
+		ID         string `json:"id"`
+		Name       string `json:"name"`
+		Archived   bool   `json:"archived"`
+		Recordings []struct {
+			ID string `json:"id"`
+		} `json:"recordings"`
+	}
+	guide := func(from, to time.Time) []program {
+		t.Helper()
+
+		var got struct {
+			Guide []struct {
+				Programs []program `json:"programs"`
+			} `json:"guide"`
+		}
+		require.Empty(t, f.query(t, `query($from: Time!, $to: Time!, $services: [ID!]) {
+			guide(from: $from, to: $to, services: $services) { programs { id name archived recordings { id } } } }`,
+			guideVariables(from.Format(time.RFC3339), to.Format(time.RFC3339), []string{serviceID}), &got))
+		require.Len(t, got.Guide, 1)
+
+		return got.Guide[0].Programs
+	}
+
+	past := guide(pastStart.Add(-time.Hour), pastStart.Add(time.Hour))
+	require.Len(t, past, 1)
+	assert.Equal(t, "過去の番組", past[0].Name)
+	assert.True(t, past[0].Archived)
+	// 過去の番組は、番組表にない番組と同じく、開始時刻を含む過去の番組の ID で返す。
+	typeName, _, err := graph.ParseGlobalID(past[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, archiveTypeName, typeName)
+
+	// programs に残っている番組は、アーカイブにもあっても 1 つだけ出す。
+	programs := guide(current, current.Add(time.Minute))
+	names := make([]string, 0, len(programs))
+	for _, p := range programs {
+		names = append(names, p.Name)
+	}
+	assert.Equal(t, []string{programName(3)}, names)
+
+	// 番組の録画を返す。eventId は使い回されるので、放送時間の重ならない録画は返さない。
+	for _, start := range []time.Time{pastStart, pastStart.Add(-48 * time.Hour)} {
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, event_id, name, description, start_at, end_at,
+			state, recorded_from, created_at, updated_at)
+			SELECT $1, id, 9000, '過去の番組', '', $2, $3, 'completed', $2, $2, $2 FROM services WHERE name = 'こたつテスト1'`,
+			id.New(), start, start.Add(30*time.Minute))
+		require.NoError(t, err)
+	}
+	past = guide(pastStart.Add(-time.Hour), pastStart.Add(time.Hour))
+	require.Len(t, past, 1)
+	assert.Len(t, past[0].Recordings, 1)
+
+	var oldest struct {
+		OldestArchivedProgramAt time.Time `json:"oldestArchivedProgramAt"`
+	}
+	require.Empty(t, f.query(t, `{ oldestArchivedProgramAt }`, nil, &oldest))
+	assert.True(t, oldest.OldestArchivedProgramAt.Equal(pastStart), oldest.OldestArchivedProgramAt)
 }

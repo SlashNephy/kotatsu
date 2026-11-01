@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e1255350d18a3674592ef9e8bfd17650>>
+ * @generated SignedSource<<140b879280c43b0c8973b8b6dbae448f>>
  * @lightSyntaxTransform
  */
 
@@ -21,9 +21,11 @@ export type ServiceIdLiveQuery$data = {
       readonly audios: ReadonlyArray<{
         readonly componentType: number;
         readonly languages: ReadonlyArray<string>;
+        readonly samplingRate: number;
       }>;
       readonly endAt: string;
       readonly endUndecided: boolean;
+      readonly id: string;
       readonly name: string;
       readonly startAt: string;
     }>;
@@ -37,6 +39,18 @@ export type ServiceIdLiveQuery$data = {
     readonly logoUrl: string | null | undefined;
     readonly name: string;
     readonly streamUrl: string;
+    readonly timeshiftBuffer: {
+      readonly from: string;
+      readonly gaps: ReadonlyArray<{
+        readonly from: string;
+        readonly to: string;
+      }>;
+      readonly hlsUrl: string;
+      readonly streamUrl: string;
+    } | null | undefined;
+    readonly timeshiftPrograms: ReadonlyArray<{
+      readonly startAt: string;
+    }>;
     readonly videoFormat: VideoFormat;
   } | {
     // This will never be '%other', but we need some
@@ -45,15 +59,16 @@ export type ServiceIdLiveQuery$data = {
   } | null | undefined;
   readonly services: ReadonlyArray<{
     readonly channelType: {
-      readonly displayName: string;
       readonly type: string;
     };
     readonly id: string;
-    readonly logoUrl: string | null | undefined;
     readonly name: string;
     readonly networkId: number;
     readonly serviceId: number;
   }>;
+  readonly systemSettings: {
+    readonly dataBroadcastIpEnabled: boolean;
+  };
   readonly transcoding: {
     readonly available: boolean;
     readonly presets: ReadonlyArray<{
@@ -109,7 +124,7 @@ v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "streamUrl",
   "storageKey": null
 },
 v7 = {
@@ -120,17 +135,31 @@ v7 = {
   "storageKey": null
 },
 v8 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "startAt",
+  "storageKey": null
+},
+v9 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "from",
+  "storageKey": null
+},
+v10 = {
   "kind": "InlineFragment",
   "selections": [
     (v5/*:: as any*/),
-    (v6/*:: as any*/),
     {
       "alias": null,
       "args": null,
       "kind": "ScalarField",
-      "name": "streamUrl",
+      "name": "logoUrl",
       "storageKey": null
     },
+    (v6/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -150,81 +179,156 @@ v8 = {
         (v5/*:: as any*/)
       ],
       "storageKey": null
-    }
-  ],
-  "type": "Service",
-  "abstractKey": null
-},
-v9 = [
-  {
-    "kind": "Variable",
-    "name": "from",
-    "variableName": "from"
-  },
-  {
-    "items": [
-      {
-        "kind": "Variable",
-        "name": "services.0",
-        "variableName": "id"
-      }
-    ],
-    "kind": "ListValue",
-    "name": "services"
-  },
-  {
-    "kind": "Variable",
-    "name": "to",
-    "variableName": "to"
-  }
-],
-v10 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "startAt",
-  "storageKey": null
-},
-v11 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "endAt",
-  "storageKey": null
-},
-v12 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "endUndecided",
-  "storageKey": null
-},
-v13 = {
-  "alias": null,
-  "args": null,
-  "concreteType": "ProgramAudio",
-  "kind": "LinkedField",
-  "name": "audios",
-  "plural": true,
-  "selections": [
+    },
     {
       "alias": null,
       "args": null,
-      "kind": "ScalarField",
-      "name": "componentType",
+      "concreteType": "TimeshiftProgram",
+      "kind": "LinkedField",
+      "name": "timeshiftPrograms",
+      "plural": true,
+      "selections": [
+        (v8/*:: as any*/)
+      ],
       "storageKey": null
     },
     {
       "alias": null,
       "args": null,
-      "kind": "ScalarField",
-      "name": "languages",
+      "concreteType": "TimeshiftBuffer",
+      "kind": "LinkedField",
+      "name": "timeshiftBuffer",
+      "plural": false,
+      "selections": [
+        (v9/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "concreteType": "RecordingGap",
+          "kind": "LinkedField",
+          "name": "gaps",
+          "plural": true,
+          "selections": [
+            (v9/*:: as any*/),
+            {
+              "alias": null,
+              "args": null,
+              "kind": "ScalarField",
+              "name": "to",
+              "storageKey": null
+            }
+          ],
+          "storageKey": null
+        },
+        (v6/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "hlsUrl",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "type": "Service",
+  "abstractKey": null
+},
+v11 = {
+  "alias": null,
+  "args": [
+    {
+      "kind": "Variable",
+      "name": "from",
+      "variableName": "from"
+    },
+    {
+      "items": [
+        {
+          "kind": "Variable",
+          "name": "services.0",
+          "variableName": "id"
+        }
+      ],
+      "kind": "ListValue",
+      "name": "services"
+    },
+    {
+      "kind": "Variable",
+      "name": "to",
+      "variableName": "to"
+    }
+  ],
+  "concreteType": "GuideRow",
+  "kind": "LinkedField",
+  "name": "guide",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "Program",
+      "kind": "LinkedField",
+      "name": "programs",
+      "plural": true,
+      "selections": [
+        (v7/*:: as any*/),
+        (v5/*:: as any*/),
+        (v8/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "endAt",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "endUndecided",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "concreteType": "ProgramAudio",
+          "kind": "LinkedField",
+          "name": "audios",
+          "plural": true,
+          "selections": [
+            {
+              "alias": null,
+              "args": null,
+              "kind": "ScalarField",
+              "name": "componentType",
+              "storageKey": null
+            },
+            {
+              "alias": null,
+              "args": null,
+              "kind": "ScalarField",
+              "name": "languages",
+              "storageKey": null
+            },
+            {
+              "alias": null,
+              "args": null,
+              "kind": "ScalarField",
+              "name": "samplingRate",
+              "storageKey": null
+            }
+          ],
+          "storageKey": null
+        }
+      ],
       "storageKey": null
     }
   ],
   "storageKey": null
 },
-v14 = {
+v12 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -268,7 +372,25 @@ v14 = {
   ],
   "storageKey": null
 },
-v15 = {
+v13 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "SystemSettings",
+  "kind": "LinkedField",
+  "name": "systemSettings",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "dataBroadcastIpEnabled",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v14 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -278,7 +400,6 @@ v15 = {
   "selections": [
     (v7/*:: as any*/),
     (v5/*:: as any*/),
-    (v6/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -307,13 +428,6 @@ v15 = {
           "kind": "ScalarField",
           "name": "type",
           "storageKey": null
-        },
-        {
-          "alias": null,
-          "args": null,
-          "kind": "ScalarField",
-          "name": "displayName",
-          "storageKey": null
         }
       ],
       "storageKey": null
@@ -341,39 +455,14 @@ return {
         "plural": false,
         "selections": [
           (v4/*:: as any*/),
-          (v8/*:: as any*/)
+          (v10/*:: as any*/)
         ],
         "storageKey": null
       },
-      {
-        "alias": null,
-        "args": (v9/*:: as any*/),
-        "concreteType": "GuideRow",
-        "kind": "LinkedField",
-        "name": "guide",
-        "plural": true,
-        "selections": [
-          {
-            "alias": null,
-            "args": null,
-            "concreteType": "Program",
-            "kind": "LinkedField",
-            "name": "programs",
-            "plural": true,
-            "selections": [
-              (v5/*:: as any*/),
-              (v10/*:: as any*/),
-              (v11/*:: as any*/),
-              (v12/*:: as any*/),
-              (v13/*:: as any*/)
-            ],
-            "storageKey": null
-          }
-        ],
-        "storageKey": null
-      },
-      (v14/*:: as any*/),
-      (v15/*:: as any*/)
+      (v11/*:: as any*/),
+      (v12/*:: as any*/),
+      (v13/*:: as any*/),
+      (v14/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -397,54 +486,28 @@ return {
         "plural": false,
         "selections": [
           (v4/*:: as any*/),
-          (v8/*:: as any*/),
+          (v10/*:: as any*/),
           (v7/*:: as any*/)
         ],
         "storageKey": null
       },
-      {
-        "alias": null,
-        "args": (v9/*:: as any*/),
-        "concreteType": "GuideRow",
-        "kind": "LinkedField",
-        "name": "guide",
-        "plural": true,
-        "selections": [
-          {
-            "alias": null,
-            "args": null,
-            "concreteType": "Program",
-            "kind": "LinkedField",
-            "name": "programs",
-            "plural": true,
-            "selections": [
-              (v5/*:: as any*/),
-              (v10/*:: as any*/),
-              (v11/*:: as any*/),
-              (v12/*:: as any*/),
-              (v13/*:: as any*/),
-              (v7/*:: as any*/)
-            ],
-            "storageKey": null
-          }
-        ],
-        "storageKey": null
-      },
-      (v14/*:: as any*/),
-      (v15/*:: as any*/)
+      (v11/*:: as any*/),
+      (v12/*:: as any*/),
+      (v13/*:: as any*/),
+      (v14/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "efe61303f84554f5789ec5e7fdeda82c",
+    "cacheID": "8861d7b3f46f70842b8a84050947f05b",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyo {\n        id\n        name\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n      }\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  services {\n    id\n    name\n    logoUrl\n    networkId\n    serviceId\n    channelType {\n      type\n      displayName\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyo {\n        id\n        name\n      }\n      timeshiftPrograms {\n        startAt\n      }\n      timeshiftBuffer {\n        from\n        gaps {\n          from\n          to\n        }\n        streamUrl\n        hlsUrl\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      id\n      name\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  systemSettings {\n    dataBroadcastIpEnabled\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "16d102e9fc8ed97d1b70c3709c51c2c0";
+(node as any).hash = "1ce26cc45da9193dc539d14e949c883e";
 
 export default node;

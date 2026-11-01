@@ -253,6 +253,11 @@ func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.Vie
 
 		return nil, err
 	}
+	// draining は、この tenban を止める前の知らせ (#1085)。一度送ったら、もう待たない。
+	var draining <-chan struct{}
+	if r.drain != nil {
+		draining = r.drain.Draining()
+	}
 	out := make(chan *model.ViewerEvent, cap(data)+2)
 	go func() {
 		defer close(out)
@@ -262,21 +267,24 @@ func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.Vie
 			select {
 			case <-ctx.Done():
 				return
+			case <-draining:
+				draining = nil
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: new(true)}
 			case change, ok := <-data:
 				if !ok {
 					return
 				}
-				event = &model.ViewerEvent{DataChange: change, ViewerSettingsVersion: nil, UnreadNotificationCount: nil}
+				event = &model.ViewerEvent{DataChange: change, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: nil}
 			case version, ok := <-settings:
 				if !ok {
 					return
 				}
-				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: &version, UnreadNotificationCount: nil}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: &version, UnreadNotificationCount: nil, StreamsDraining: nil}
 			case count, ok := <-unread:
 				if !ok {
 					return
 				}
-				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: &count}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: &count, StreamsDraining: nil}
 			}
 			select {
 			case <-ctx.Done():

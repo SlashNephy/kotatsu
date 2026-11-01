@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,8 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -25,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -176,6 +176,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
 		},
+		Timeshift: &timeshift.SchedulerOptions{
+			Interval:     0,
+			Lead:         0,
+			PollOnly:     deps.Config.Database.Pooler,
+			PollInterval: 0,
+		},
 	})
 }
 
@@ -264,27 +270,75 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	if err != nil {
 		return err
 	}
-	// 録画設定の全体の既定値は、画面から変えられる (設計書 11.2) ので、録画のたびに引く。
-	defaults := func(ctx context.Context, db sqlc.DBTX) (*domain.RecordingSettings, error) {
-		system, err := settings.Load(ctx, db)
-		if err != nil {
-			return nil, err
-		}
-
-		return system.Recording, nil
-	}
+	store := storeOf(deps.Config)
 	// 録画できない理由がこの mikan にあれば、ほかの mikan に回すため、ほかに動いている mikan を数える (#524)。
-	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, storeOf(deps.Config), defaults, location,
+	recorder := recording.NewRecorder(deps.DB, deps.Clock, tuner, store, settings.RecordingDefaults, location,
 		logger.With(slog.String("component", "recorder")), &recording.RecorderOptions{
 			TuningTime: 0, Tick: 0, RetryInterval: 0, ReleaseAfter: 0,
-			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
+			Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID), DatabaseTimeout: 0,
 		})
-	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), &recording.WorkerOptions{
+	worker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, logger, recorder.Session(), recording.NewRecordingLeases(deps.DB), mikanWorkerOptions(deps))
+	registerUnreachable(deps, "recording", worker)
+	if !store.HasTimeshiftDir() {
+		return worker.Run(ctx)
+	}
+
+	// タイムシフトのディレクトリを設定していれば、タイムシフトの割り振りも、同じインスタンスの ID で取って録る (設計書 5.7)。
+	timeshiftLogger := logger.With(slog.String("component", "timeshift"))
+	timeshiftRecorder := timeshift.NewRecorder(deps.DB, deps.Clock, tuner, store, timeshiftLogger, &timeshift.RecorderOptions{
+		ChunkDuration: 0, Backoff: nil, Tick: 0, Peers: recording.AlivePeers(deps.DB, deps.Clock, deps.InstanceID),
+	})
+	timeshiftWorker := recording.NewWorker(deps.DB, deps.Clock, deps.InstanceID, timeshiftLogger, timeshiftRecorder.Session(), timeshift.NewLeases(deps.DB),
+		mikanWorkerOptions(deps))
+	registerUnreachable(deps, "timeshift", timeshiftWorker)
+	// タイムシフトの Worker がエラーで止まるか panic しても、予約の録画は止めない。
+	return runAlongside(ctx, timeshiftLogger, worker.Run, timeshiftWorker.Run)
+}
+
+// kindLabel は、種類ごとに分けて出すメトリクスの、種類のラベルの名前。
+const kindLabel = "kind"
+
+// registerUnreachable は、mikan の Worker が録っている割り振りのリースを、DB に届かずに延長できていない時間を、/metrics に出す (設計書 11.3)。
+// DB が止まっていても録り続けるので (#1073)、止まっている長さは、ここで見る。
+func registerUnreachable(deps *Deps, kind string, worker *recording.Worker) {
+	deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metrics.Namespace, Name: "mikan_database_unreachable_seconds",
+		Help:        "Seconds since mikan could not reach the database to renew the lease of an assignment it is recording; 0 while reachable.",
+		ConstLabels: prometheus.Labels{kindLabel: kind},
+	}, func() float64 { return worker.DatabaseUnreachableFor().Seconds() }))
+}
+
+// runAlongside は、main を ctx で動かし、その横で side を動かす。side がエラーで返るか panic しても、ログに残すだけで、main を止めない。
+// main が返ったら、side を止め、side が返るのを待ってから、main の結果を返す。ctx が終われば、両方とも止まる。
+func runAlongside(ctx context.Context, logger *slog.Logger, main, side func(context.Context) error) error {
+	sideCtx, stopSide := context.WithCancel(ctx)
+	defer stopSide()
+	sideDone := make(chan struct{})
+	go func() {
+		defer close(sideDone)
+		// side の panic で、main ごとプロセスを落とさない。拾ったら、スタックをログに残して、side だけ止める。
+		defer func() {
+			if v := recover(); v != nil {
+				logger.ErrorContext(ctx, "the worker panicked; the others keep running", slog.Any("panic", v), slog.String("stack", string(debug.Stack())))
+			}
+		}()
+		if err := side(sideCtx); err != nil && sideCtx.Err() == nil {
+			logger.ErrorContext(ctx, "the worker stopped with an error; the others keep running", slog.Any("error", err))
+		}
+	}()
+	err := main(ctx)
+	stopSide()
+	<-sideDone
+
+	return err
+}
+
+// mikanWorkerOptions は、mikan が割り振りを取る Worker の設定を返す。録画とタイムシフトで同じものを使う。
+func mikanWorkerOptions(deps *Deps) *recording.WorkerOptions {
+	return &recording.WorkerOptions{
 		LeaseTTL: 0, RenewInterval: 0, AcquireInterval: 0, HandoverTimeout: 0, ReleaseCooldown: 0,
 		// mikan を複数のマシンで動かしても、時計のずれでリースを取り違えないよう、DB の時刻で決める (#526)。
 		DatabaseClock: true,
 		PollOnly:      deps.Config.Database.Pooler, PollInterval: 0,
-	})
-
-	return worker.Run(ctx)
+	}
 }

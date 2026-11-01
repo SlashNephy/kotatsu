@@ -64,14 +64,15 @@ services:
         # issuer の dex.localhost を、Kotatsu のコンテナからも引けるようにする。
         aliases: [dex.localhost]
 
-  # 録画と生成物を置くボリュームは root の持ち物になるので、Kotatsu が書けるよう、持ち主を開発用のイメージのユーザーにする。
+  # 録画と生成物、タイムシフトのバッファを置くボリュームは root の持ち物になるので、Kotatsu が書けるよう、持ち主を開発用のイメージのユーザーにする。
   recordings-owner:
     image: docker.io/library/postgres:18@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32
-    command: ["chown", "${DEV_UID:-1000}:${DEV_GID:-1000}", "/recordings", "/data"]
+    command: ["chown", "${DEV_UID:-1000}:${DEV_GID:-1000}", "/recordings", "/data", "/timeshift"]
     user: root
     volumes:
       - recordings:/recordings
       - data:/data
+      - timeshift:/timeshift
 
   # Go のソースを保存するたびに、ビルドし直し、マイグレーションを当ててから、全ロールを起動し直す (mise.dev.toml の dev:server)。
   # 前のプロセスを止めてからビルドするので、ビルドの間の数秒は応答しない (web は 502 を返す)。
@@ -86,6 +87,8 @@ services:
       KOTATSU_TUNER_URL: ${KOTATSU_DEV_TUNER_URL:-http://faketuner:40772/}
       KOTATSU_STORAGE_POOLS: main=/recordings
       KOTATSU_STORAGE_DATA_DIR: /data
+      # タイムシフトを画面から試せるよう、バッファの置き場所を設定しておく。録るサービスを選ぶまでは何も録らない。
+      KOTATSU_STORAGE_TIMESHIFT_DIR: /timeshift
       KOTATSU_SERVER_LISTEN: ":8080"
       # Dex でログインし、グループからロールを決めてユーザーを作る。パスワードと第二要素の登録を省ける。
       KOTATSU_AUTH_OIDC_ISSUER: http://dex.localhost:5556/dex
@@ -104,6 +107,7 @@ services:
       - go-build:/go/cache
       - recordings:/recordings
       - data:/data
+      - timeshift:/timeshift
     depends_on:
       postgres:
         condition: service_healthy
@@ -179,6 +183,9 @@ volumes:
   # 索引や代表画像などの生成物は、録画と組なので、同じく KOTATSU_DEV_DB で分ける。
   data:
     name: kotatsu-dev_data${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
+  # タイムシフトのバッファも、録画と同じく KOTATSU_DEV_DB で分ける。
+  timeshift:
+    name: kotatsu-dev_timeshift${KOTATSU_DEV_DB:+-${KOTATSU_DEV_DB}}
   # 開発用のイメージのユーザーの持ち物にするので、root で使っていた以前のボリュームとは名前を変える。
   go-mod:
     name: kotatsu-dev_dev-go-mod

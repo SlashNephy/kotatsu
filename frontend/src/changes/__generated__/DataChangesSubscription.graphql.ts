@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0ea869cc3ccfd6ea500c80f19d2f3187>>
+ * @generated SignedSource<<1b91deadcc4ccf19643ee74cc3a04af3>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type DataChangesSubscription$data = {
       readonly channel: DataChannel;
       readonly version: number;
     } | null | undefined;
+    readonly streamsDraining: boolean | null | undefined;
     readonly unreadNotificationCount: number | null | undefined;
     readonly viewerSettingsVersion: number | null | undefined;
   };
@@ -73,6 +74,13 @@ var v0 = [
         "kind": "ScalarField",
         "name": "unreadNotificationCount",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "streamsDraining",
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -96,16 +104,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "5423a02a184b9e80357dad2b6455f115",
+    "cacheID": "2740803792ebfc48b6d29e442e5ab728",
     "id": null,
     "metadata": {},
     "name": "DataChangesSubscription",
     "operationKind": "subscription",
-    "text": "subscription DataChangesSubscription {\n  viewerEvents {\n    dataChange {\n      channel\n      version\n    }\n    viewerSettingsVersion\n    unreadNotificationCount\n  }\n}\n"
+    "text": "subscription DataChangesSubscription {\n  viewerEvents {\n    dataChange {\n      channel\n      version\n    }\n    viewerSettingsVersion\n    unreadNotificationCount\n    streamsDraining\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4ee0c551cc27d1a289980cc39a37c402";
+(node as any).hash = "84fb8348c394cd96f949cefb7ef0412d";
 
 export default node;

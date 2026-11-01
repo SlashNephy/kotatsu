@@ -1,27 +1,18 @@
-import {
-  ActionIcon,
-  Alert,
-  Anchor,
-  Button,
-  Group,
-  Menu,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Button, Group, Menu, Modal, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Captions,
+  CircleDot,
   EllipsisVertical,
   ExternalLink,
+  History,
   Keyboard,
   MessageSquareText,
   Tv,
 } from 'lucide-react';
-import { startTransition, Suspense, useEffect, useRef, useState } from 'react';
+import { startTransition, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -34,17 +25,29 @@ import {
   toHalfWidth,
   useDocumentTitle,
 } from '../../futon';
-import { CommentListToggle } from '../../jikkyo/CommentList';
+import { CommentList } from '../../jikkyo/CommentList';
+import { WatchPanel } from '../../yunomi/WatchPanel';
+import { ProgramDetail } from '../../guide/ProgramDetail';
+import { LiveServiceList } from '../../guide/LiveServiceList';
+import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
+import {
+  useAudioDelayCommands,
+  useAudioDelayer,
+  useResetAudioDelayOnChannel,
+} from '../../yunomi/audioDelay';
 import { noCrop, type Crop } from '../../yunomi/crop';
-import { CaptionHistoryToggle } from '../../yunomi/CaptionHistory';
+import { CaptionHistory } from '../../yunomi/CaptionHistory';
+import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
 import {
   appendLiveCaption,
   normalizeCaption,
   type CaptionEntry,
 } from '../../yunomi/captionHistory';
 import { formatClock } from '../../yunomi/position';
+import { SeekBar } from '../../yunomi/SeekBar';
+import { liveThresholdSeconds, useLiveTimeshift } from '../../yunomi/useLiveTimeshift';
 import { JikkyoPanel } from '../../jikkyo/JikkyoPanel';
 import { useLiveJikkyo } from '../../jikkyo/useLiveJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -55,9 +58,10 @@ import { useDataBroadcastKeys } from '../../yunomi/dataBroadcastKeys';
 import {
   BigPlayButton,
   PlayerLoading,
-  ControlButton,
+  CommandButton,
   FullscreenButton,
   LiveStatus,
+  PlayButton,
   PlayerAlert,
   PlayerControls,
   playerControlsClasses,
@@ -71,13 +75,29 @@ import {
   PlaybackUnavailable,
   QualitySelect,
   CropSelect,
+  AudioDelaySetting,
   NormalizeVolumeToggle,
+  SleepTimerSelect,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
-import { reconnectDelay, recordingsThatTookTuner } from '../../yunomi/reconnect';
+import { useStreamsDrains } from '../../changes/DataChanges';
+import {
+  canRetryImmediately,
+  reconnectDelay,
+  recordingsThatTookTuner,
+  skipBrokenMedia,
+} from '../../yunomi/reconnect';
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { useRemoteOpen } from '../../yunomi/useRemoteOpen';
+import {
+  documentTitle,
+  usePlayerEvent,
+  usePlayerEvents,
+  type PlayerSnapshot,
+} from '../../yunomi/playerState';
+import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
@@ -85,10 +105,13 @@ import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
-import type { ShortcutAction } from '../../yunomi/shortcuts';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
+import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
+import { runCommand, type PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
   CaptureButton,
@@ -97,28 +120,37 @@ import {
   useCapture,
 } from '../../yunomi/PlayerTools';
 import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
+import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
-import { stepVolume } from '../../yunomi/volume';
+import { browserStorage, stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
+import { usePlaybackReporter } from '../../animeRecords/usePlaybackReporter';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useLiveLag } from '../../yunomi/useLiveLag';
 import { useVisible } from '../../yunomi/useVisible';
 import type { ServiceIdLiveQuery } from './__generated__/ServiceIdLiveQuery.graphql';
 import type { ServiceIdRecordingsQuery } from './__generated__/ServiceIdRecordingsQuery.graphql';
 import { ProgramOverlay } from '../../yunomi/ProgramOverlay';
+import { useProgramOsd } from '../../yunomi/programOsd';
 import { neighborServices } from '../../yunomi/channels';
-import { ServiceLabel } from '../../guide/ServiceLabel';
-import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
+import {
+  loadRecentChannels,
+  otherRecentChannels,
+  recordChannel,
+  saveRecentChannels,
+} from '../../yunomi/recentChannels';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
 
 export const Route = createFileRoute('/live/$serviceId')({
+  // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
+  staticData: { fluid: true },
   component: LiveServicePage,
 });
 
@@ -253,10 +285,25 @@ function Live({
               id
               name
             }
+            # タイムシフトのバッファにある番組の一覧を、メニューから開けるかを知る (設計書 5.7)。
+            timeshiftPrograms {
+              startAt
+            }
+            # タイムシフトのバッファの範囲。ライブ視聴から、過去へシークするのに使う (設計書 5.7)。
+            timeshiftBuffer {
+              from
+              gaps {
+                from
+                to
+              }
+              streamUrl
+              hlsUrl
+            }
           }
         }
         guide(from: $from, to: $to, services: [$id]) {
           programs {
+            id
             name
             startAt
             endAt
@@ -264,6 +311,7 @@ function Live({
             audios {
               componentType
               languages
+              samplingRate
             }
           }
         }
@@ -275,16 +323,18 @@ function Live({
             passthrough
           }
         }
-        # 視聴画面の中で選局するための、番組表と同じ並びのサービス (#493)。
+        # データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。
+        systemSettings {
+          dataBroadcastIpEnabled
+        }
+        # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
         services {
           id
           name
-          logoUrl
           networkId
           serviceId
           channelType {
             type
-            displayName
           }
         }
       }
@@ -294,6 +344,19 @@ function Live({
   const navigate = useNavigate();
   const neighbors = neighborServices(data.services, serviceId);
   const tune = (id: string) => void navigate({ to: '/live/$serviceId', params: { serviceId: id } });
+  // lastService は、この局の前に見ていた局 (#816)。局を変えると画面ごと作り直すので、開いたときの履歴から決める。
+  const [recent] = useState(() => loadRecentChannels(browserStorage()));
+  const lastService =
+    otherRecentChannels(
+      recent,
+      serviceId,
+      new Set(data.services.map((service) => service.id)),
+    )[0] ?? null;
+  // 開いた局を、履歴の先頭に置く。
+  useEffect(() => {
+    const storage = browserStorage();
+    saveRecentChannels(storage, recordChannel(loadRecentChannels(storage), serviceId));
+  }, [serviceId]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -343,10 +406,22 @@ function Live({
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
+  // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。ブラウザ内で変換する経路では TS を、kyusu の経路では仮想 HLS を流す。
+  const timeshift = useLiveTimeshift(
+    data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
+    video,
+    route.kind === 'convert' ? 'convert' : route.kind === 'kyusu' ? 'hls' : null,
+  );
+  // 実際に再生した区間を送り、見たアニメを記録させる (#927)。バッファを再生している間は、その位置の放送時刻を使う。
+  usePlaybackReporter(data.node?.__typename === 'Service' ? { serviceId } : null, video, () =>
+    timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now(),
+  );
+  // seeking は、シークバーを動かしている間の位置。
+  const [seeking, setSeeking] = useState<number | null>(null);
   // 低遅延モードなら、放送からの遅れが広がったときに、少し速く再生して追いつく (#495)。
   const [lowLatency] = useLowLatency();
-  // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。
-  useLiveCatchUp(video, lowLatency && route.kind === 'convert');
+  // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。バッファを再生している間は追いつかない。
+  useLiveCatchUp(video, lowLatency && route.kind === 'convert' && !timeshift.behind);
   // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
   const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
   if (dataBroadcastEnabled && !dataBroadcastUsed) {
@@ -358,13 +433,32 @@ function Live({
   // preempted は、録画のためにチューナーを使われて切れたかどうか。つなぎ直せない間の理由に使う。
   const preempted = useRef(false);
   const [disconnection, setDisconnection] = useState<Disconnection | null>(null);
+  // retryingImmediately は、知らせを出さずにすぐつなぎ直している最中かどうか。lastImmediateRetry は、その時刻 (#1083)。
+  const retryingImmediately = useRef(false);
+  const lastImmediateRetry = useRef<number | null>(null);
+  // lastBrokenSkip は、バッファの再生で、壊れた所を最後に飛び越えた先の位置。
+  const lastBrokenSkip = useRef<number | null>(null);
 
-  // 視聴が切れたら、理由を調べ、間隔を延ばしながらつなぎ直す。
+  // 視聴が切れたら、まず知らせを出さずにすぐつなぎ直す。tenban の入れ替えや回線の瞬断なら、これで戻る (#1083)。
+  // ブラウザ内での変換では、切れる前に受け取った映像を流したまま、裏でつなぎ直して切り替える。
+  // すぐのつなぎ直しでも戻れなければ、理由を調べ、知らせを出して、間隔を延ばしながらつなぎ直す。
   const disconnected = () => {
     if (disconnection !== null) {
       return;
     }
     const at = Date.now();
+    if (
+      !retryingImmediately.current &&
+      attempt.current === 0 &&
+      canRetryImmediately(lastImmediateRetry.current, at)
+    ) {
+      retryingImmediately.current = true;
+      lastImmediateRetry.current = at;
+      setSession((n) => n + 1);
+
+      return;
+    }
+    retryingImmediately.current = false;
     // 録画にチューナーを使われて切れた後は、録画が続いている間はつなぎ直せない。
     const retried = attempt.current > 0 && preempted.current;
     const delay = reconnectDelay(attempt.current);
@@ -425,26 +519,65 @@ function Live({
   // 一時停止したら、放送から遅れる。ブラウザ内での変換では、長く止めていたら再開するときに読み直す。
   // kyusu の経路は、プレイヤーが読み直す (設計書 7.3)。どちらの経路でも、遅れている間は「ライブに戻る」で読み直せる (#449)。
   const reload = () => setSession((n) => n + 1);
+  // tenban が止まる前に知らせてきたら、ブラウザ内での変換では、新しい接続を張ってから切り替える (#1085)。
+  // kyusu の経路は、セグメントごとに読むので、止まる tenban を避けて次のセグメントを読む。つなぎ直さなくてよい。
+  const drains = useStreamsDrains();
+  const seenDrains = useRef(drains);
+  useEffect(() => {
+    if (drains === seenDrains.current) {
+      return;
+    }
+    seenDrains.current = drains;
+    if (route.kind === 'convert' && disconnection === null) {
+      setSession((n) => n + 1);
+    }
+  }, [drains, route.kind, disconnection]);
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
+  const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
-  // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
+  useAudioDelayer(video);
+  useResetAudioDelayOnChannel(serviceId);
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
   const currentCaption = useRef<string | null>(null);
+  // 字幕の外字を置き換える表を読む (#825)。
+  const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
-    setCaptionEntries((list) => appendLiveCaption(list, Date.now(), text));
+    // バッファを再生している間は、映像の放送時刻で並べる。
+    const at = timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now();
+    setCaptionEntries((list) => appendLiveCaption(list, at, text));
   };
   // externalOpen は、外部プレイヤー用の URL を発行するダイアログを出しているかどうか (#487)。
   const [externalOpen, setExternalOpen] = useState(false);
+  // detailOpen は、放送中の番組の詳細 (録画予約のボタンがある) を出しているかどうか (#826)。
+  const [detailOpen, setDetailOpen] = useState(false);
   // tuneRequest は、データ放送の文書が選局しようとしたサービス。確かめてから移る (#440)。
   const [tuneRequest, setTuneRequest] = useState<{ id: string; name: string } | null>(null);
-  const behind = useLiveLag(video, { reloadOnResume: route.kind === 'convert', onReload: reload });
+  // バッファへシークできるなら、長く止めた後も、止めた位置からバッファで続けるので、読み直さない。
+  const behind = useLiveLag(video, {
+    reloadOnResume: route.kind === 'convert' && !timeshift.available,
+    onReload: reload,
+  });
+  // バッファの範囲は、伸びたり、古いチャンクを破棄して縮んだりするので、1 分ごとに読み直す。
+  // バッファを再生している間も、シークや読み直しのときに、起点を最新のバッファに移すので読み直す。
+  const timeshiftAvailable = timeshift.available;
+  useEffect(() => {
+    if (!timeshiftAvailable) {
+      return;
+    }
+    const timer = setInterval(onProgramEnd, 60_000);
+
+    return () => clearInterval(timer);
+  }, [timeshiftAvailable, onProgramEnd]);
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
   const program =
@@ -467,14 +600,17 @@ function Live({
     return () => clearTimeout(timer);
   }, [programEnd, range, onProgramEnd]);
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の経路では、番組の音声の構成から選ぶ。
-  const audio = usePlayerAudio(route, program?.audios ?? null);
+  // バッファを再生している間に画質か音声を替えたら、それまでの位置から読み直す。
+  const restartBehind = () => {
+    if (timeshift.behind) {
+      timeshift.restart(timeshift.currentPosition());
+    }
+  };
+  const audio = usePlayerAudio(route, program?.audios ?? null, restartBehind);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(program?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
   const programName = program?.name ?? null;
-  // programTitle は、タブの題名や OS のメディアの表示に出す番組名。印を描けないので囲み文字を外し、全角の英数字は半角にする。
-  const programTitle =
-    programName === null ? null : toHalfWidth(splitProgramMarks(programName).name);
   const serviceName = data.node?.__typename === 'Service' ? data.node.name : '';
   const serviceLogoUrl = data.node?.__typename === 'Service' ? (data.node.logoUrl ?? null) : null;
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
@@ -485,7 +621,8 @@ function Live({
     videoRef,
     serviceName,
     programName,
-    captureTime: Date.now,
+    captureTime: () =>
+      timeshift.behind ? timeshift.clockAt(timeshift.currentPosition()) : Date.now(),
     caption: () => currentCaption.current,
   });
   const saveCapture = async () => {
@@ -503,75 +640,10 @@ function Live({
     videoState.setVolume(next);
     showFlash(t('player.flash.volume', { percent: Math.round(next * 100) }));
   };
-  const shortcuts = {
-    togglePlay: () => {
-      const video = videoRef.current;
-      if (video?.paused === true) {
-        void video.play().catch(() => {});
-      } else {
-        video?.pause();
-      }
-    },
-    toggleCaptions: () => setCaptions(!captions),
-    toggleMute: () => {
-      const video = videoRef.current;
-      if (video === null) {
-        return;
-      }
-      videoState.toggleMute();
-      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
-    },
-    toggleFullscreen: fullscreen.toggle,
-    volumeUp: () => changeVolume(volumeStep),
-    volumeDown: () => changeVolume(-volumeStep),
-    capture: () => void saveCapture(),
-    toggleDataBroadcast: () => {
-      if (!dataBroadcastAvailable) {
-        return;
-      }
-      setDataBroadcastEnabled(!dataBroadcastEnabled);
-      showFlash(
-        t(dataBroadcastEnabled ? 'player.flash.dataBroadcastOff' : 'player.flash.dataBroadcastOn'),
-      );
-    },
-    // r で読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
-    restart: () => {
-      reload();
-      showFlash(t('player.flash.restarted'));
-    },
-    toggleStats: () => setStatsShown(!statsShown),
-    showShortcuts: () => setShortcutsOpen(true),
-  } satisfies Partial<Record<ShortcutAction, () => void>>;
-  usePlayerShortcuts(shortcuts);
-  useDocumentTitle([programTitle, toHalfWidth(serviceName)]);
+  // skip は、今の位置から seconds 秒だけ進むか戻る。ライブなら、ライブの端から数える。
+  const skip = (seconds: number) =>
+    timeshift.seekTo((timeshift.behind ? timeshift.currentPosition() : timeshift.edge) + seconds);
   const [autoPictureInPicture] = useAutoPictureInPicture();
-  useMediaSession(
-    {
-      title: programTitle ?? toHalfWidth(serviceName),
-      artist: toHalfWidth(serviceName),
-      artwork: serviceLogoUrl,
-    },
-    {
-      play: () => void videoRef.current?.play().catch(() => {}),
-      pause: () => videoRef.current?.pause(),
-      // OS の前と次のボタンで、同じ種別の前後の局へ移る (#493)。移る先がなければ、OS にボタンを出さない。
-      ...(neighbors.previous === null ? {} : { previousTrack: () => tune(neighbors.previous!.id) }),
-      ...(neighbors.next === null ? {} : { nextTrack: () => tune(neighbors.next!.id) }),
-      // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
-      ...(autoPictureInPicture && pip.supported
-        ? {
-            enterPictureInPicture: () => {
-              if (pip.container === null) {
-                openPictureInPicture(pip).catch(() => {});
-              }
-            },
-          }
-        : {}),
-    },
-    // ライブはシークできないので、再生位置は知らせない。
-    { playing: !videoState.paused, position: null },
-  );
-
   const service = data.node?.__typename === 'Service' ? data.node : null;
   // データ放送は、プリロードする設定か、一度出したあとは、出していない間も裏で受け取り、出したらすぐに d ボタンで入れるようにする
   // (設計書 7.4)。
@@ -586,6 +658,7 @@ function Live({
       : null,
     videoRef,
     dataBroadcastEnabled,
+    data.systemSettings.dataBroadcastIpEnabled,
     {
       // 文書が勝手に局を変えないよう、移る先を出して確かめてから移る (#440)。
       onTune: (networkId, sid) => {
@@ -605,127 +678,319 @@ function Live({
       onSelectAudio: audio.selectComponent,
     },
   );
+  // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
+  const audioDelayCommands = useAudioDelayCommands((ms) =>
+    showFlash(t('player.flash.audioDelay', { ms })),
+  );
+  const commands: PlayerCommands = {
+    ...audioDelayCommands,
+    play: () => void videoRef.current?.play().catch(() => {}),
+    pause: () => videoRef.current?.pause(),
+    togglePlay: () => {
+      const video = videoRef.current;
+      if (video?.paused === true) {
+        void video.play().catch(() => {});
+      } else {
+        video?.pause();
+      }
+    },
+    // バッファへシークできるなら、録画と同じく、← と → で戻ったり進んだりする。データ放送を出している間は、データ放送の操作に譲る。
+    ...(timeshift.available && !dataBroadcastEnabled
+      ? {
+          seekBackward: () => {
+            skip(-10);
+            showFlash(t('player.flash.seekBackward'));
+          },
+          seekForward: () => {
+            skip(10);
+            showFlash(t('player.flash.seekForward'));
+          },
+          seekBackwardLong: () => {
+            skip(-30);
+            showFlash(t('player.flash.seekBackwardLong'));
+          },
+          seekForwardLong: () => {
+            skip(30);
+            showFlash(t('player.flash.seekForwardLong'));
+          },
+        }
+      : {}),
+    toggleCaptions: () => setCaptions(!captions),
+    ...(channel === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
+    toggleMute: () => {
+      const video = videoRef.current;
+      if (video === null) {
+        return;
+      }
+      videoState.toggleMute();
+      showFlash(t(video.muted ? 'player.flash.muted' : 'player.flash.unmuted'));
+    },
+    toggleFullscreen: fullscreen.toggle,
+    volumeUp: () => changeVolume(volumeStep),
+    volumeDown: () => changeVolume(-volumeStep),
+    capture: () => void saveCapture(),
+    // データ放送のない映像 (HD でないもの) では、出し入れできない。
+    ...(dataBroadcastAvailable
+      ? {
+          toggleDataBroadcast: () => {
+            setDataBroadcastEnabled(!dataBroadcastEnabled);
+            showFlash(
+              t(
+                dataBroadcastEnabled
+                  ? 'player.flash.dataBroadcastOff'
+                  : 'player.flash.dataBroadcastOn',
+              ),
+            );
+          },
+        }
+      : {}),
+    // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
+    pressKey: (key) => {
+      if (!dataBroadcastEnabled) {
+        if (key === RemoteKey.d) {
+          setDataBroadcastEnabled(true);
+        }
+
+        return;
+      }
+      dataBroadcast.press(key);
+    },
+    // r で読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
+    restart: () => {
+      reload();
+      showFlash(t('player.flash.restarted'));
+    },
+    toggleStats: () => setStatsShown(!statsShown),
+    showShortcuts: () => setShortcutsOpen(true),
+    setVolume: videoState.setVolume,
+    setMuted: (muted) => {
+      if (muted !== videoState.muted) {
+        videoState.toggleMute();
+      }
+    },
+    selectAudio: audio.remote.select,
+    stop: () => void navigate({ to: '/live' }),
+    // 同じ種別の前後の局へ移る (#493)。移る先がなければ、使えない。
+    ...(neighbors.previous === null ? {} : { previousChannel: () => tune(neighbors.previous!.id) }),
+    ...(neighbors.next === null ? {} : { nextChannel: () => tune(neighbors.next!.id) }),
+    // 直前に見ていた局へ戻る (#816)。履歴がなければ、使えない。
+    ...(lastService === null ? {} : { lastChannel: () => tune(lastService) }),
+    ...(pip.supported
+      ? {
+          pictureInPicture: () => {
+            if (pip.container === null) {
+              openPictureInPicture(pip).catch(() => {});
+            }
+          },
+        }
+      : {}),
+  };
+  usePlayerShortcuts(commands);
+  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
+  const contextMenu = usePlayerContextMenu(commands);
+  // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
+  usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  const mouseRef = usePlayerMouse(commands);
+  // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
+  const boxRef = useMergedRef(playerBoxRef, mouseRef);
+  // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
+  const player = {
+    kind: 'LIVE',
+    target: serviceId,
+    serviceName,
+    program: program === null ? null : { id: program.id, name: program.name },
+    artwork: serviceLogoUrl,
+    paused: videoState.paused,
+    // ライブはシークできないので、再生位置は知らせない。
+    position: null,
+    duration: null,
+    playbackRate: 1,
+    volume: videoState.volume,
+    muted: videoState.muted,
+    audios: audio.remote.choices,
+    audio: audio.remote.selected,
+    dataBroadcast: dataBroadcastEnabled,
+    keyGroups: [...dataBroadcast.keyGroups],
+  } satisfies PlayerSnapshot;
+  const playerEvents = usePlayerEvents(player);
+  // sleep は、スリープタイマー (#821)。時間になるか、番組が終わったら、プレイヤーを閉じてチューナーを手放す。
+  const sleep = useSleepTimer(() => runCommand(commands, 'stop'));
+  usePlayerEvent(playerEvents, 'programChanged', ({ previous }) => {
+    if (sleep.choice === 'programEnd' && previous !== null) {
+      sleep.fire();
+    }
+  });
+  // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
+  // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
+  const osd = useProgramOsd(playerEvents, video !== null && !videoLoading, !timeshift.behind);
+  useDocumentTitle(documentTitle(player));
+  useMediaSession(
+    player,
+    commands,
+    // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
+    autoPictureInPicture,
+  );
+
   // データ放送を出している間は、⌥+矢印、Enter、Backspace、数字、⌥+b/r/g/y でリモコンを押せる (#441)。
   useDataBroadcastKeys(
     dataBroadcastEnabled && dataBroadcast.state === 'shown' && !dataBroadcast.receiving,
     dataBroadcast.keyGroups,
-    dataBroadcast.press,
+    (key) => runCommand(commands, 'pressKey', key),
   );
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
-  useRemotePlayer(
-    video === null
-      ? null
-      : {
-          kind: 'LIVE',
-          target: serviceId,
-          title: program?.name ?? null,
-          paused: videoState.paused,
-          position: null,
-          duration: null,
-          volume: videoState.volume,
-          muted: videoState.muted,
-          audios: audio.remote.choices,
-          audio: audio.remote.selected,
-          dataBroadcast: dataBroadcastEnabled,
-          keyGroups: [...dataBroadcast.keyGroups],
-        },
-    {
-      play: () => {
-        if (videoState.paused) {
-          videoState.togglePlay();
-        }
-      },
-      pause: () => {
-        if (!videoState.paused) {
-          videoState.togglePlay();
-        }
-      },
-      setVolume: videoState.setVolume,
-      setMuted: (muted) => {
-        if (muted !== videoState.muted) {
-          videoState.toggleMute();
-        }
-      },
-      selectAudio: audio.remote.select,
-      // データ放送を出していなければ、d ボタンで出す。リモコンのほかのボタンは、出している間だけ渡す。
-      pressKey: (key) => {
-        if (!dataBroadcastEnabled) {
-          if (key === RemoteKey.d) {
-            setDataBroadcastEnabled(true);
-          }
-
-          return;
-        }
-        dataBroadcast.press(key);
-      },
-      stop: () => void navigate({ to: '/live' }),
-    },
+  // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
+  const openRemote = useRemoteOpen();
+  useRemotePlayer(video === null ? null : player, playerEvents, commands, undefined, openRemote);
+  // commentRows は、右の列のコメントの一覧の行。操作バーの出し入れなどで描き直すたびに作らず、コメントが届いたときだけ作り直す。
+  const commentRows = useMemo(
+    () =>
+      jikkyo.comments.map((comment) => ({
+        key: comment.key,
+        label: formatClock(comment.at),
+        content: comment.content,
+        ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+      })),
+    [jikkyo.comments],
   );
+
   if (service === null) {
     return <Alert color="amber">{t('live.notFound')}</Alert>;
   }
+  // resumeBehind は、バッファの配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、ライブに戻る。
+  // 映像の要素が復号に失敗して止まったなら、壊れた所を飛び越えて読み直す。
+  const resumeBehind = () => {
+    const position = timeshift.positionRef.current;
+    if (videoRef.current?.error != null) {
+      const next = skipBrokenMedia(position, lastBrokenSkip.current);
+      if (next !== null) {
+        lastBrokenSkip.current = next;
+        timeshift.restart(next);
+
+        return;
+      }
+    }
+    const at = Date.now();
+    if (!canRetryImmediately(lastImmediateRetry.current, at)) {
+      timeshift.goLive();
+
+      return;
+    }
+    lastImmediateRetry.current = at;
+    timeshift.restart(position);
+  };
   // session を付けて、つなぎ直すたびに URL を変える。
   const withSession = (base: string) =>
     `${base}${base.includes('?') ? '&' : '?'}session=${session}`;
   const onLoaded = () => {
     attempt.current = 0;
     preempted.current = false;
+    retryingImmediately.current = false;
   };
 
   const controlBar = (
     <PlayerControls
       visible={controls.visible}
-      start={<VolumeControl video={videoState} />}
-      status={<LiveStatus onCatchUp={behind ? reload : undefined} />}
+      // バッファへシークできるなら、バッファの始まりからライブの端までのシークバーを出す (設計書 5.7)。
+      seek={
+        timeshift.available ? (
+          <SeekBar
+            bands={[]}
+            duration={timeshift.edge}
+            value={seeking ?? timeshift.position}
+            previewUrl={null}
+            label={(value) =>
+              value >= timeshift.edge - liveThresholdSeconds
+                ? t('player.live')
+                : formatClock(timeshift.clockAt(value))
+            }
+            onChange={setSeeking}
+            onChangeEnd={(value) => {
+              setSeeking(null);
+              timeshift.seekTo(value);
+            }}
+          />
+        ) : undefined
+      }
+      start={
+        timeshift.available ? (
+          <>
+            <PlayButton video={videoState} commands={commands} />
+            <VolumeControl video={videoState} commands={commands} />
+          </>
+        ) : (
+          <VolumeControl video={videoState} commands={commands} />
+        )
+      }
+      status={
+        timeshift.behind ? (
+          <>
+            <LiveStatus onCatchUp={timeshift.goLive} />
+            {` · ${formatClock(timeshift.clockAt(timeshift.position))}`}
+          </>
+        ) : (
+          <LiveStatus onCatchUp={behind ? reload : undefined} />
+        )
+      }
       end={
         <>
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="toggleCaptions"
             label={t('player.captions')}
             icon={Captions}
             active={captions}
-            onClick={() => setCaptions(!captions)}
           />
-          {channel !== null && (
-            <ControlButton
-              label={t('jikkyo.toggle')}
-              icon={MessageSquareText}
-              active={jikkyoEnabled}
-              onClick={() => setJikkyoEnabled(!jikkyoEnabled)}
-            />
-          )}
-          {dataBroadcastAvailable && (
-            <ControlButton
-              label={t('player.dataBroadcast')}
-              icon={Tv}
-              active={dataBroadcastEnabled}
-              optional
-              onClick={() => setDataBroadcastEnabled(!dataBroadcastEnabled)}
-            />
-          )}
+          <CommandButton
+            commands={commands}
+            command="toggleJikkyo"
+            label={t('jikkyo.toggle')}
+            icon={MessageSquareText}
+            active={jikkyoEnabled}
+          />
+          <CommandButton
+            commands={commands}
+            command="toggleDataBroadcast"
+            label={t('player.dataBroadcast')}
+            icon={Tv}
+            active={dataBroadcastEnabled}
+            optional
+          />
           <SettingsButton>
-            <QualitySelect choices={choices} quality={quality} onChange={setQuality} />
+            <QualitySelect
+              choices={choices}
+              quality={quality}
+              onChange={(next) => {
+                restartBehind();
+                setQuality(next);
+              }}
+            />
             {audio.menu}
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <AudioDelaySetting resettable />
+            <SleepTimerSelect timer={sleep} programEnd />
             {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
-          <ControlButton
+          <CommandButton
+            commands={commands}
+            command="showShortcuts"
             label={t('player.shortcuts.title')}
             icon={Keyboard}
             optional
-            onClick={() => setShortcutsOpen(true)}
           />
           <ShortcutsHelp
             opened={shortcutsOpen}
             onClose={() => setShortcutsOpen(false)}
-            actions={Object.keys(shortcuts) as ShortcutAction[]}
+            commands={commands}
             target={playerBoxRef}
             dataBroadcast
           />
           <PipButton pip={pip} />
-          <FullscreenButton active={fullscreen.active} onToggle={fullscreen.toggle} />
+          <FullscreenButton active={fullscreen.active} commands={commands} />
         </>
       }
     />
@@ -747,7 +1012,7 @@ function Live({
           state={dataBroadcast.state}
           receiving={dataBroadcast.receiving}
           keyGroups={dataBroadcast.keyGroups}
-          onPress={dataBroadcast.press}
+          onPress={(key) => runCommand(commands, 'pressKey', key)}
         />
       )}
     </>
@@ -755,7 +1020,9 @@ function Live({
 
   const playerBox = (
     <div
-      ref={playerBoxRef}
+      ref={boxRef}
+      // 映像を右クリックすると、操作のメニューを出す (#1140)。
+      onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
@@ -766,9 +1033,18 @@ function Live({
         }
       }}
     >
+      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
-          url={disconnection === null ? withSession(service.streamUrl) : null}
+          url={
+            timeshift.behind
+              ? timeshift.stream.url
+              : disconnection === null
+                ? withSession(service.streamUrl)
+                : null
+          }
+          // シークしたときは、すぐに読み直す。ライブのつなぎ直しは、裏で読み込んでから切り替える。
+          handover={!timeshift.behind}
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
@@ -777,13 +1053,21 @@ function Live({
           captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
-          onLoaded={onLoaded}
+          onLoaded={() => {
+            if (timeshift.behind) {
+              timeshift.stream.onLoaded();
+            }
+            onLoaded();
+          }}
           overlay={
             <>
-              {dataBroadcast.layer}
-              {jikkyo.overlay}
+              {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
+              {!timeshift.behind && dataBroadcast.layer}
+              {!timeshift.behind && jikkyo.overlay}
+              {/* 番組名は映像の下に出すので、操作バーと一緒に重ねるのは、映像の下が見えない別のウィンドウでだけにする。
+                  選局したときと番組が変わったときは、どこでも数秒だけ重ねる。 */}
               <ProgramOverlay
-                visible={controls.visible}
+                visible={osd || (pip.container !== null && controls.visible)}
                 serviceName={serviceName}
                 current={program}
                 next={nextProgram}
@@ -799,40 +1083,53 @@ function Live({
             </>
           }
           onState={(state) => {
-            // ライブのストリームは終わらないので、読み終えたのは、切れたということ。
+            // ライブのストリームもバッファも終わらないので、読み終えたのは、切れたということ。
             if (state === 'completed' || state === 'error') {
-              disconnected();
+              if (timeshift.behind) {
+                resumeBehind();
+              } else {
+                disconnected();
+              }
             }
           }}
-          onError={disconnected}
+          onError={timeshift.behind ? resumeBehind : disconnected}
           onAudio={audio.onAudio}
+          onReading={streamMeter.onReading}
           audio={audio.convertAudio}
         />
       )}
       {route.kind === 'kyusu' && (
         <HlsPlayer
-          lowLatency={lowLatency}
+          lowLatency={lowLatency && !timeshift.behind}
           url={
-            disconnection === null
-              ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))
-              : null
+            // バッファを再生している間は、起点にしているバッファの仮想 HLS を、読み直すたびに URL を変えて読む。
+            timeshift.behind && timeshift.frame !== null
+              ? `${hlsURL(timeshift.frame.hlsUrl, route.preset, audio.kyusuAudio)}#${timeshift.hlsLoads}`
+              : disconnection === null
+                ? withSession(hlsURL(service.streamUrl, route.preset, audio.kyusuAudio))
+                : null
           }
           videoRef={videoRef}
           onVideo={setVideo}
+          onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeLive}
           captionStyle={captionSettings}
           crop={crop}
           onCaptionText={onCaptionText}
-          live
+          live={!timeshift.behind}
+          startPosition={timeshift.hlsStart}
           onLoaded={onLoaded}
           overlay={
             <>
-              {dataBroadcast.layer}
-              {jikkyo.overlay}
+              {/* データ放送と実況のコメントは、ライブのものなので、バッファを再生している間は重ねない。 */}
+              {!timeshift.behind && dataBroadcast.layer}
+              {!timeshift.behind && jikkyo.overlay}
+              {/* 番組名は映像の下に出すので、操作バーと一緒に重ねるのは、映像の下が見えない別のウィンドウでだけにする。
+                  選局したときと番組が変わったときは、どこでも数秒だけ重ねる。 */}
               <ProgramOverlay
-                visible={controls.visible}
+                visible={osd || (pip.container !== null && controls.visible)}
                 serviceName={serviceName}
                 current={program}
                 next={nextProgram}
@@ -848,54 +1145,14 @@ function Live({
             </>
           }
           // チューナーを使われて切れると、hls.js が読み直しを諦めたところで、致命的なエラーになる。
-          onError={disconnected}
+          onError={timeshift.behind ? resumeBehind : disconnected}
         />
       )}
     </div>
   );
 
   return (
-    <Stack gap="xs">
-      <Group justify="space-between" wrap="wrap" gap="xs">
-        <Title order={2} size="h4">
-          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
-        </Title>
-        {/* 一覧に戻らずに、ほかの局へ移る (#493)。種別ごとにまとめ、番組表と同じ順に並べる。 */}
-        <Group gap="xs" wrap="nowrap">
-          <Select
-            size="xs"
-            w={240}
-            aria-label={t('live.switchChannel')}
-            placeholder={t('live.switchChannel')}
-            data={serviceGroups(data.services)}
-            renderOption={renderServiceOption(data.services)}
-            value={serviceId}
-            onChange={(id) => {
-              if (id !== null && id !== serviceId) {
-                tune(id);
-              }
-            }}
-            searchable
-            allowDeselect={false}
-          />
-          {/* 使うことの少ない操作は、メニューにまとめる (#487)。 */}
-          <Menu position="bottom-end">
-            <Menu.Target>
-              <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
-                <EllipsisVertical size={16} aria-hidden />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                leftSection={<ExternalLink size={14} aria-hidden />}
-                onClick={() => setExternalOpen(true)}
-              >
-                {t('streamURL.open')}
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Group>
-      </Group>
+    <>
       <Modal
         opened={tuneRequest !== null}
         onClose={() => setTuneRequest(null)}
@@ -920,6 +1177,11 @@ function Live({
           </Group>
         </Stack>
       </Modal>
+      {/* 放送中の番組の詳細。番組表と同じく、録画予約やルールの作成をここからできる (#826)。 */}
+      <ProgramDetail
+        programId={detailOpen && program !== null ? program.id : undefined}
+        onClose={() => setDetailOpen(false)}
+      />
       {/* VLC や mpv で開く URL。開いている間は、ブラウザの視聴とは別にチューナーを使う (#487)。 */}
       <Modal
         opened={externalOpen}
@@ -928,55 +1190,147 @@ function Live({
       >
         <ExternalStreamURL target={serviceId} live />
       </Modal>
-      <Text size="sm" c="dimmed">
-        {programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />}
-      </Text>
-      <PlaybackUnavailable route={route} />
-      {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
-      <div ref={frameRef}>
-        {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
-      </div>
-      {pip.container !== null && createPortal(playerBox, pip.container)}
-      {disconnection !== null && (
-        <Alert color="amber" role="alert" title={t('live.disconnected')}>
-          <Stack gap="xs" align="flex-start">
-            <DisconnectionReason disconnection={disconnection} />
-            <Button size="compact-sm" variant="light" color="amber" onClick={reconnectNow}>
-              {t('live.reconnectNow')}
-            </Button>
+      <WatchLayout
+        player={
+          <Stack gap="xs">
+            <PlaybackUnavailable route={route} />
+            {/* 画面の外に出たときと、タブが隠れたときも再生は続け、データ放送の受信と、実況のコメントの描画だけを止める (設計書 7.2)。 */}
+            <div ref={frameRef}>
+              {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+            </div>
+            {pip.container !== null && createPortal(playerBox, pip.container)}
           </Stack>
-        </Alert>
-      )}
-      {dataBroadcastEnabled && (
-        <DataBroadcastRemote
-          state={dataBroadcast.state}
-          receiving={dataBroadcast.receiving}
-          keyGroups={dataBroadcast.keyGroups}
-          onPress={dataBroadcast.press}
-        />
-      )}
-      <CaptionHistoryToggle entries={captionEntries} label={(entry) => formatClock(entry.at)} />
-      {channel !== null && jikkyoEnabled && (
-        <>
-          <JikkyoPanel
-            channelName={channel.name}
-            status={jikkyo.status}
-            onPost={jikkyo.post}
-            force={jikkyo.force}
-          />
-          <CommentListToggle
-            rows={() =>
-              jikkyo.comments.map((comment) => ({
-                key: comment.key,
-                label: formatClock(comment.at),
-                content: comment.content,
-                ...(comment.userId === undefined ? {} : { userId: comment.userId }),
-              }))
-            }
-            onMuteUser={muteUser}
-          />
-        </>
-      )}
-    </Stack>
+        }
+        info={
+          <>
+            <WatchHeading
+              title={
+                programName === null ? t('live.noProgram') : <ProgramTitle name={programName} />
+              }
+              serviceName={service.name}
+              serviceLogoUrl={service.logoUrl}
+              time={program}
+              // 使うことの少ない操作は、メニューにまとめる (#487)。
+              actions={
+                <Menu position="bottom-end">
+                  <Menu.Target>
+                    <ActionIcon variant="default" size="md" aria-label={t('live.moreActions')}>
+                      <EllipsisVertical size={16} aria-hidden />
+                    </ActionIcon>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    {program !== null && (
+                      <Menu.Item
+                        leftSection={<CircleDot size={14} aria-hidden />}
+                        onClick={() => setDetailOpen(true)}
+                      >
+                        {t('live.programDetail')}
+                      </Menu.Item>
+                    )}
+                    <Menu.Item
+                      leftSection={<ExternalLink size={14} aria-hidden />}
+                      onClick={() => setExternalOpen(true)}
+                    >
+                      {t('streamURL.open')}
+                    </Menu.Item>
+                    {service.timeshiftPrograms.length > 0 && (
+                      <Menu.Item
+                        leftSection={<History size={14} aria-hidden />}
+                        renderRoot={(props) => (
+                          <Link {...props} to="/timeshift/$serviceId" params={{ serviceId }} />
+                        )}
+                      >
+                        {t('timeshift.list')}
+                      </Menu.Item>
+                    )}
+                  </Menu.Dropdown>
+                </Menu>
+              }
+            />
+            {disconnection !== null && (
+              <Alert color="amber" role="alert" title={t('live.disconnected')}>
+                <Stack gap="xs" align="flex-start">
+                  <DisconnectionReason disconnection={disconnection} />
+                  <Button size="compact-sm" variant="light" color="amber" onClick={reconnectNow}>
+                    {t('live.reconnectNow')}
+                  </Button>
+                </Stack>
+              </Alert>
+            )}
+            {dataBroadcastEnabled && (
+              <DataBroadcastRemote
+                state={dataBroadcast.state}
+                receiving={dataBroadcast.receiving}
+                keyGroups={dataBroadcast.keyGroups}
+                onPress={(key) => runCommand(commands, 'pressKey', key)}
+              />
+            )}
+          </>
+        }
+        side={
+          <>
+            {/* 実況のコメントの一覧と字幕の履歴と再生の情報 (#828) を、見出しで切り替える。実況を切っていれば、実況のコメントの一覧を出さない。 */}
+            <WatchPanel
+              label={t('player.sidePanel')}
+              tabs={[
+                ...(channel !== null && jikkyoEnabled
+                  ? [
+                      {
+                        value: 'jikkyo',
+                        label: t('jikkyo.toggle'),
+                        content: (
+                          <CommentList
+                            rows={commentRows}
+                            onMuteUser={muteUser}
+                            height={watchCommentsHeight}
+                          />
+                        ),
+                        footer: (
+                          <JikkyoPanel
+                            channelName={channel.name}
+                            status={jikkyo.status}
+                            onPost={jikkyo.post}
+                            force={jikkyo.force}
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
+                {
+                  value: 'captions',
+                  label: t('captionHistory.tab'),
+                  content: (
+                    <CaptionHistory
+                      entries={captionEntries}
+                      label={(entry) => formatClock(entry.at)}
+                      canRegisterDRCS={drcs.canRegister}
+                      height={watchCommentsHeight}
+                    />
+                  ),
+                },
+                {
+                  value: 'info',
+                  label: t('player.streamInfo.tab'),
+                  content: (
+                    <StreamInfo
+                      meter={streamMeter.meter}
+                      video={video}
+                      quality={quality}
+                      kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
+                      audios={program?.audios ?? null}
+                      serviceId={serviceId}
+                      // タイムシフトのバッファは、プレイヤーが先まで読むので測れない。平均も分からないので出さない。
+                      {...(timeshift.behind ? { average: null } : {})}
+                      height={watchCommentsHeight}
+                    />
+                  ),
+                },
+              ]}
+            />
+            <LiveServiceList serviceId={serviceId} />
+          </>
+        }
+      />
+    </>
   );
 }

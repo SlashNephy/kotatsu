@@ -23,6 +23,24 @@ FROM programs
 WHERE service_id = ANY(@service_ids::bigint[]) AND end_at > @from_at AND start_at < @to_at
 ORDER BY service_id, start_at, event_id;
 
+-- name: ListArchivedProgramsInRange :many
+-- 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
+FROM program_archives
+WHERE service_id = ANY(@service_ids::bigint[]) AND end_at > @from_at AND start_at < @to_at
+ORDER BY service_id, start_at, event_id;
+
+-- name: GetOldestArchivedProgramStartAt :one
+-- 最も古い、放送が終わった番組の開始時刻。過去の番組表で、どこまで遡れるかを示す (#1121)。なければ行を返さない。
+SELECT start_at FROM program_archives ORDER BY start_at LIMIT 1;
+
+-- name: ListProgramRecordings :many
+-- 番組 (サービス, eventId) の録画のうち、番組の放送時間に重なるもの (#1121)。eventId は使い回されるので、時間でも絞る。
+SELECT * FROM recordings
+WHERE service_id = @service_id AND event_id = @event_id AND start_at < @end_at AND end_at > @start_at
+ORDER BY start_at, id;
+
 -- name: GetGuideProgram :one
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
   related_items

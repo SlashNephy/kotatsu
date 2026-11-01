@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -37,33 +38,56 @@ var (
 	ErrNoSegment = errors.New("the recording has no segment to play")
 )
 
+// timeline は、連結して流すセグメントの並び。録画のセグメントか、タイムシフトのチャンクを、DB から引く。
+type timeline interface {
+	// load は、セグメントを、始まりの順に、索引と一緒に読む。
+	load(ctx context.Context) ([]*segment, error)
+	// inProgress は、セグメントがまだ増えるかどうかを返す。録画なら録画中かどうか。
+	inProgress(ctx context.Context) (bool, error)
+	// segmentClosed は、セグメントを書き終えたかどうかを返す。行が消えたら、書き終えたものとみなす。
+	segmentClosed(ctx context.Context, segmentID uuid.UUID) (bool, error)
+}
+
+// streamer は、セグメントの並びを、指定した範囲から連結して流す。書いている途中のセグメントは、伸びるのを待ちながら流す。
+type streamer struct {
+	store *kago.Store
+	// pollInterval は、追っかけ再生で、書いている途中のファイルが伸びるのを確かめる間隔。
+	pollInterval time.Duration
+}
+
+// newStreamer は streamer を返す。pollInterval が 0 なら 500 ミリ秒にする。
+func newStreamer(store *kago.Store, pollInterval time.Duration) *streamer {
+	if pollInterval == 0 {
+		pollInterval = defaultPollInterval
+	}
+
+	return &streamer{store: store, pollInterval: pollInterval}
+}
+
 // RecordingSource は、録画のセグメントを、索引を使って、指定した位置から連結して流す。
 // 引き継ぎで重なった区間は切り詰める。録画中の録画は、ファイルの末尾まで読んだら、ファイルが伸びるのを待ちながら流し続ける。
 // tenban の録画の配信と、kyusu の録画のトランスコードが使う。
 type RecordingSource struct {
-	db    sqlc.DBTX
-	store *kago.Store
-	// pollInterval は、追っかけ再生で、録画中のファイルが伸びるのを確かめる間隔。
-	pollInterval time.Duration
+	db       sqlc.DBTX
+	streamer *streamer
 }
 
 // NewRecordingSource は RecordingSource を返す。store は、このインスタンスにマウントされたプール。
 // pollInterval が 0 なら 500 ミリ秒にする。
 func NewRecordingSource(db sqlc.DBTX, store *kago.Store, pollInterval time.Duration) *RecordingSource {
-	if pollInterval == 0 {
-		pollInterval = defaultPollInterval
-	}
-
-	return &RecordingSource{db: db, store: store, pollInterval: pollInterval}
+	return &RecordingSource{db: db, streamer: newStreamer(store, pollInterval)}
 }
 
-// Recording は、開いた録画。開いた時点のセグメントと索引を持つ。
+// Recording は、開いた録画か、タイムシフトのバッファ。開いた時点のセグメントと索引を持つ。
 type Recording struct {
-	source *RecordingSource
-	id     uuid.UUID
-	// InProgress は、開いた時点で録画中だったかどうか。
+	streamer *streamer
+	timeline timeline
+	// InProgress は、開いた時点で録画中だったかどうか。タイムシフトのバッファは、常に録画中として扱う。
 	InProgress bool
 	segments   []*segment
+	// skip は、最初のセグメントの始まりから、再生の時間の起点までの時間。タイムシフトのバッファを、番組の頭から流すのに使う。
+	// Seek と Position.At の時間は、ここからの時間で表す。起点が最初のセグメントの始まりより前なら負になる。録画では 0。
+	skip time.Duration
 }
 
 // FileName は、保存させるときのファイル名。最初のセグメントのファイルの名前にする。
@@ -74,7 +98,10 @@ func (r *Recording) FileName() string {
 // Position は、録画を流し始める位置。
 type Position struct {
 	// At は、録画の始まりから、流し始める I フレームまでの時間。
-	At     time.Duration
+	At time.Duration
+	// Before は、流し始める I フレームが、起点よりどれだけ前にあるか。タイムシフトのバッファの起点が I フレームの間にあると、
+	// その手前の I フレームから流すので、起点より前の映像が入る。At は 0 にし、ここに前にはみ出た分を持つ。録画では 0。
+	Before time.Duration
 	pieces []*piece
 }
 
@@ -88,7 +115,8 @@ func (s *RecordingSource) Open(ctx context.Context, recordingID uuid.UUID) (*Rec
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the recording: %w", err)
 	}
-	segments, err := s.load(ctx, recordingID)
+	tl := &recordingTimeline{source: s, id: recordingID}
+	segments, err := tl.load(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,26 +124,44 @@ func (s *RecordingSource) Open(ctx context.Context, recordingID uuid.UUID) (*Rec
 		return nil, ErrNoSegment
 	}
 
-	return &Recording{source: s, id: recordingID, InProgress: recording.State == stateRecording, segments: segments}, nil
+	return &Recording{streamer: s.streamer, timeline: tl, InProgress: recording.State == stateRecording, segments: segments, skip: 0}, nil
 }
 
 // Seek は、録画の始まりから start の位置の手前の I フレームを、流し始める位置として返す。
+// 起点より手前の I フレームから流すときは、At を 0 にする。
 func (r *Recording) Seek(start time.Duration) *Position {
-	pieces, at := plan(r.segments, start)
+	pieces, at := plan(r.segments, start+r.skip)
 
-	return &Position{At: at, pieces: pieces}
+	return &Position{At: max(at-r.skip, 0), Before: max(r.skip-at, 0), pieces: pieces}
 }
 
-// Keyframes は、流す I フレームの、録画の始まりからの時間を、順に返す。引き継ぎで切り詰める区間の I フレームは含めない。
-// 索引のないセグメントは、その始まりだけを含める。
+// Keyframes は、流す I フレームの、録画の始まり (タイムシフトのバッファでは起点) からの時間を、順に返す。
+// 引き継ぎで切り詰める区間の I フレームと、起点より前の I フレームは含めない。索引のないセグメントは、その始まりだけを含める。
 func (r *Recording) Keyframes() []time.Duration {
-	return keyframes(r.segments)
+	points := r.KeyframePoints()
+	times := make([]time.Duration, 0, len(points))
+	for _, point := range points {
+		times = append(times, point.At)
+	}
+
+	return times
 }
 
-// KeyframePoints は、Keyframes と同じ I フレームの、録画の始まりからの時間と PTS を、順に返す。
+// KeyframePoints は、Keyframes と同じ I フレームの、起点からの時間と PTS を、順に返す。
 // kyusu が、録画の映像を変換せずに配信するとき、I フレームの位置でセグメントを切るのに使う (#806)。
 func (r *Recording) KeyframePoints() []Keyframe {
-	return keyframePoints(r.segments)
+	points := keyframePoints(r.segments)
+	if r.skip == 0 {
+		return points
+	}
+	shifted := make([]Keyframe, 0, len(points))
+	for _, point := range points {
+		if at := point.At - r.skip; at >= 0 {
+			shifted = append(shifted, Keyframe{At: at, PTS: point.PTS})
+		}
+	}
+
+	return shifted
 }
 
 // Indexed は、索引のあるセグメントがあるかどうかを返す。取り込んだ直後の録画は、解析するまで索引がない。
@@ -125,31 +171,39 @@ func (r *Recording) Indexed() bool {
 
 // Write は、pos から録画を w に流す。録画中なら、録画が終わるまで流し続ける。
 func (r *Recording) Write(ctx context.Context, w io.Writer, pos *Position) error {
-	return r.source.write(ctx, w, r.id, pos.pieces)
+	return r.streamer.write(ctx, w, r.timeline, pos.pieces)
 }
 
-// load は、録画のセグメントを、始まりの順に、索引と一緒に読む。
-func (s *RecordingSource) load(ctx context.Context, recordingID uuid.UUID) ([]*segment, error) {
-	files, err := sqlc.New(s.db).ListRecordingFiles(ctx, recordingID)
+// recordingTimeline は、録画のセグメントの並び。
+type recordingTimeline struct {
+	source *RecordingSource
+	id     uuid.UUID
+}
+
+var _ timeline = new(recordingTimeline)
+
+func (t *recordingTimeline) load(ctx context.Context) ([]*segment, error) {
+	files, err := sqlc.New(t.source.db).ListRecordingFiles(ctx, t.id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
+	store := t.source.streamer.store
 	segments := []*segment{}
 	for i := range files {
 		file := &files[i]
 		if file.Kind != kindSegment {
 			continue
 		}
-		if _, err := s.store.Path(file.PoolID, file.Path); errors.Is(err, kago.ErrPoolNotMounted) {
+		if _, err := store.Path(file.PoolID, file.Path); errors.Is(err, kago.ErrPoolNotMounted) {
 			return nil, ErrNotMounted
 		} else if err != nil {
 			return nil, err
 		}
 		seg := &segment{
 			id: file.ID, poolID: file.PoolID, path: file.Path, startedAt: file.StartedAt, endedAt: file.EndedAt, open: file.EndedAt == nil,
-			index: []ts.IndexEntry{},
+			continues: false, continued: false, index: []ts.IndexEntry{},
 		}
-		if seg.index, err = s.readIndex(kago.IndexLocation(file.ID)); err != nil {
+		if seg.index, err = t.source.streamer.readIndex(kago.IndexLocation(file.ID)); err != nil {
 			return nil, err
 		}
 		segments = append(segments, seg)
@@ -158,8 +212,43 @@ func (s *RecordingSource) load(ctx context.Context, recordingID uuid.UUID) ([]*s
 	return segments, nil
 }
 
+// inProgress は、録画がまだ録画中かどうかを返す。
+// 流している間に DB を引くときは、DB への接続が詰まっても流すのを止めないよう、database.FallbackQueryTimeout で打ち切る。
+func (t *recordingTimeline) inProgress(ctx context.Context) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	recording, err := sqlc.New(t.source.db).GetRecording(ctx, t.id)
+	if err != nil {
+		return false, fmt.Errorf("failed to get the recording: %w", err)
+	}
+
+	return recording.State == stateRecording, nil
+}
+
+// segmentClosed は、セグメントを書き終えたかどうかを返す。録画が終わっていれば、書き終えたものとみなす。
+func (t *recordingTimeline) segmentClosed(ctx context.Context, segmentID uuid.UUID) (bool, error) {
+	recording, err := t.inProgress(ctx)
+	if err != nil || !recording {
+		return true, err
+	}
+	listCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	files, err := sqlc.New(t.source.db).ListRecordingFiles(listCtx, t.id)
+	if err != nil {
+		return false, fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	for _, file := range files {
+		if file.ID == segmentID {
+			return file.EndedAt != nil, nil
+		}
+	}
+
+	// セグメントの行が消えたら、録画を消したので、流すのをやめる。
+	return true, nil
+}
+
 // readIndex は、索引を読む。書いている途中の索引の、書きかけの最後の記録は読まない。索引がなければ、空を返す。
-func (s *RecordingSource) readIndex(index *kago.Location) ([]ts.IndexEntry, error) {
+func (s *streamer) readIndex(index *kago.Location) ([]ts.IndexEntry, error) {
 	file, err := s.store.Open(index.PoolID, index.Path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []ts.IndexEntry{}, nil
@@ -179,22 +268,30 @@ func (s *RecordingSource) readIndex(index *kago.Location) ([]ts.IndexEntry, erro
 // write は、pieces を順に流す。流し終えたら、後に並ぶセグメントを探して流し続ける。
 // 録画中の録画は、引き継ぎや再接続で新しいセグメントができるので、録画が終わるまで、それを待って流す。
 // 追っかけ再生が録画に遅れていても、録画が終わる前にできたセグメントは、すべて流す。
-func (s *RecordingSource) write(ctx context.Context, w io.Writer, recordingID uuid.UUID, pieces []*piece) error {
+func (s *streamer) write(ctx context.Context, w io.Writer, tl timeline, pieces []*piece) error {
 	var last *segment
 	for {
 		for _, p := range pieces {
-			if err := s.servePiece(ctx, w, recordingID, p); err != nil {
+			// joined は、前のセグメントに続けて流すかどうか。最初の範囲は、プレイヤーが読み始めるところなので、つなぎ目にならない。
+			if err := s.servePiece(ctx, w, tl, p, last != nil); err != nil {
 				return err
 			}
 			last = p.segment
 		}
-		inProgress, err := s.recordingInProgress(ctx, recordingID)
-		if err != nil {
-			return err
+		pieces = []*piece{}
+		inProgress, err := tl.inProgress(ctx)
+		var next []*piece
+		var wait bool
+		if err == nil {
+			next, wait, err = s.following(ctx, tl, last, inProgress)
 		}
-		next, wait, err := s.following(ctx, recordingID, last, inProgress)
 		if err != nil {
-			return err
+			// DB に届かない間は、流し終えたところで、届くようになるのを待つ (#1084)。録画が終わったかも、次のセグメントも分からないためである。
+			if err := s.waitForDatabase(ctx, err); err != nil {
+				return err
+			}
+
+			continue
 		}
 		if len(next) == 0 {
 			if !inProgress && !wait {
@@ -210,9 +307,12 @@ func (s *RecordingSource) write(ctx context.Context, w io.Writer, recordingID uu
 
 // following は、流し終えた last より後に並ぶセグメントを、互いの重なりを切り詰めて返す。セグメントは始まりの順に並ぶ。
 // last は最後まで流したので、last と次のセグメントの重なりは、次のセグメントの側で、last の最後の I フレームより後から流して切り詰める。
+// 次のセグメントが last の続き (continues) なら、バイトをそのままつなぐので、始まりから流す。
 // 次のセグメントの索引がまだ追いついていなければ、wait を true にして、何も返さない。
-func (s *RecordingSource) following(ctx context.Context, recordingID uuid.UUID, last *segment, inProgress bool) ([]*piece, bool, error) {
-	segments, err := s.load(ctx, recordingID)
+func (s *streamer) following(ctx context.Context, tl timeline, last *segment, inProgress bool) ([]*piece, bool, error) {
+	loadCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	segments, err := tl.load(loadCtx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -228,7 +328,7 @@ func (s *RecordingSource) following(ctx context.Context, recordingID uuid.UUID, 
 	}
 	pieces := trim(segments[position+1:])
 	lastIndex := segments[position].index
-	if len(pieces) == 0 || len(lastIndex) == 0 {
+	if len(pieces) == 0 || len(lastIndex) == 0 || pieces[0].segment.continues {
 		return pieces, false, nil
 	}
 	next := pieces[0]
@@ -256,94 +356,85 @@ func (s *RecordingSource) following(ctx context.Context, recordingID uuid.UUID, 
 	return pieces[1:], false, nil
 }
 
-// recordingInProgress は、録画がまだ録画中かどうかを返す。
-func (s *RecordingSource) recordingInProgress(ctx context.Context, recordingID uuid.UUID) (bool, error) {
-	recording, err := sqlc.New(s.db).GetRecording(ctx, recordingID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get the recording: %w", err)
+// waitForDatabase は、err が DB に届かないことによるものなら、pollInterval だけ待って nil を返す。そうでなければ err を返す。
+func (s *streamer) waitForDatabase(ctx context.Context, err error) error {
+	if ctx.Err() != nil || !database.IsUnavailable(err) {
+		return err
 	}
 
-	return recording.State == stateRecording, nil
+	return sleep(ctx, s.pollInterval)
 }
 
-// segmentClosed は、セグメントを書き終えたかどうかを返す。録画が終わっていれば、書き終えたものとみなす。
-func (s *RecordingSource) segmentClosed(ctx context.Context, recordingID, segmentID uuid.UUID) (bool, error) {
-	recording, err := s.recordingInProgress(ctx, recordingID)
-	if err != nil || !recording {
-		return true, err
-	}
-	files, err := sqlc.New(s.db).ListRecordingFiles(ctx, recordingID)
-	if err != nil {
-		return false, fmt.Errorf("failed to list the recording files: %w", err)
-	}
-	for _, file := range files {
-		if file.ID == segmentID {
-			return file.EndedAt != nil, nil
-		}
+// segmentClosedOrUnknown は、segmentClosed と同じく、セグメントを書き終えたかどうかを返す。
+// DB に届かなければ、書き終えたか分からないので、まだ書いているものとして扱い、ファイルが伸びるのを待ちながら流し続ける (#1084)。
+func segmentClosedOrUnknown(ctx context.Context, tl timeline, segmentID uuid.UUID) (bool, error) {
+	closed, err := tl.segmentClosed(ctx, segmentID)
+	if err != nil && ctx.Err() == nil && database.IsUnavailable(err) {
+		return false, nil
 	}
 
-	// セグメントの行が消えたら、録画を消したので、流すのをやめる。
-	return true, nil
+	return closed, err
 }
 
 // servePiece は、セグメントの範囲を流す。書いている途中のセグメントは、書き終えるまで、伸びるのを待ちながら流す。
-func (s *RecordingSource) servePiece(ctx context.Context, w io.Writer, recordingID uuid.UUID, p *piece) error {
+func (s *streamer) servePiece(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool) error {
 	file, err := s.store.Open(p.segment.poolID, p.segment.path)
 	if err != nil {
 		return fmt.Errorf("failed to open the segment: %w", err)
 	}
 	defer file.Close()
 	if !p.segment.open {
+		to, err := servedEnd(file, p)
+		if err != nil {
+			return err
+		}
 		if err := writePrelude(w, file, p.from); err != nil {
 			return err
 		}
-		if _, err := file.Seek(p.from, io.SeekStart); err != nil {
+		from, err := writeHead(w, file, p, joined, p.from, to)
+		if err != nil {
+			return err
+		}
+		if _, err := file.Seek(from, io.SeekStart); err != nil {
 			return fmt.Errorf("failed to seek the segment: %w", err)
 		}
-		var src io.Reader = file
-		if p.to >= 0 {
-			src = io.LimitReader(file, p.to-p.from)
-		}
 
-		return CopyFlushing(w, src)
+		return CopyFlushing(w, io.LimitReader(file, max(to-from, 0)))
 	}
 
-	return s.serveGrowing(ctx, w, recordingID, p, file)
+	return s.serveGrowing(ctx, w, tl, p, joined, file)
 }
 
 // serveGrowing は、書いている途中のセグメントを、書き終えるまで、伸びるのを待ちながら流す。
-func (s *RecordingSource) serveGrowing(ctx context.Context, w io.Writer, recordingID uuid.UUID, p *piece, file *os.File) error {
+func (s *streamer) serveGrowing(ctx context.Context, w io.Writer, tl timeline, p *piece, joined bool, file *os.File) error {
 	// 録画は TS をまとめて書くので、索引が指す位置を、まだファイルに書いていないことがある。書くまで待つ。
 	// 書き込みのエラーなどで、その位置まで書かないままセグメントを閉じたら、流すものがないので終える。
 	offset := p.from
-	for {
-		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
-		closed, err := s.segmentClosed(ctx, recordingID, p.segment.id)
-		if err != nil {
-			return err
-		}
-		info, err := file.Stat()
-		if err != nil {
-			return fmt.Errorf("failed to inspect the segment: %w", err)
-		}
-		if info.Size() >= offset {
-			break
-		}
-		if closed {
-			return nil
-		}
-		if err := sleep(ctx, s.pollInterval); err != nil {
-			return err
-		}
+	if size, err := s.waitSize(ctx, tl, p, file, offset); err != nil || size < offset {
+		return err
 	}
 	if err := writePrelude(w, file, offset); err != nil {
 		return err
+	}
+	if joined && !p.segment.continues {
+		// 頭の前から続く PES の残りを落とすには、頭の範囲が書かれるのを待つ。書き終えたら、そこまでで落とす。
+		want := offset + headWindow
+		if p.to >= 0 {
+			want = min(want, p.to)
+		}
+		size, err := s.waitSize(ctx, tl, p, file, want)
+		if err != nil {
+			return err
+		}
+		if offset, err = writeHead(w, file, p, joined, offset, min(size, want)); err != nil {
+			return err
+		}
 	}
 	if _, err := file.Seek(offset, io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek the segment: %w", err)
 	}
 	for {
-		closed, err := s.segmentClosed(ctx, recordingID, p.segment.id)
+		closed, err := segmentClosedOrUnknown(ctx, tl, p.segment.id)
 		if err != nil {
 			return err
 		}
@@ -366,6 +457,63 @@ func (s *RecordingSource) serveGrowing(ctx context.Context, w io.Writer, recordi
 			return err
 		}
 	}
+}
+
+// servedEnd は、書き終えたセグメントの範囲 p を、どこまで流すかを返す。続きのないセグメントは、終わりで途中で切れた PES を流さない
+// (completeTail)。mikan が区切っただけで、次のセグメントが続き (continues) のものは、次のセグメントが PES の残りを運ぶので切らない。
+func servedEnd(file *os.File, p *piece) (int64, error) {
+	info, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("failed to inspect the segment: %w", err)
+	}
+	to := info.Size()
+	if p.to >= 0 {
+		to = min(p.to, to)
+	}
+	if p.segment.continued {
+		return to, nil
+	}
+
+	return completeTail(file, p.from, to)
+}
+
+// waitSize は、書いている途中のセグメントが want まで書かれるか、書き終えるまで待ち、そのときのファイルの大きさを返す。
+func (s *streamer) waitSize(ctx context.Context, tl timeline, p *piece, file *os.File, want int64) (int64, error) {
+	for {
+		// 閉じたかを確かめてからファイルの大きさを見るので、確かめた後に書かれた分も見落とさない。
+		closed, err := segmentClosedOrUnknown(ctx, tl, p.segment.id)
+		if err != nil {
+			return 0, err
+		}
+		info, err := file.Stat()
+		if err != nil {
+			return 0, fmt.Errorf("failed to inspect the segment: %w", err)
+		}
+		if info.Size() >= want || closed {
+			return info.Size(), nil
+		}
+		if err := sleep(ctx, s.pollInterval); err != nil {
+			return 0, err
+		}
+	}
+}
+
+// writeHead は、セグメントの範囲 p を from から流すとき、前のセグメントにつなぐ (joined) なら、頭の前から続く PES の残りを落として書き
+// (completeHead)、続きを流す位置を返す。前のセグメントの続き (continues) は、残りが前の PES の続きなので、落とさずに from を返す。
+// 最初の範囲は、プレイヤーが前から続く残りを捨てるので、そのまま流す。
+func writeHead(w io.Writer, file io.ReaderAt, p *piece, joined bool, from, end int64) (int64, error) {
+	if !joined || p.segment.continues {
+		return from, nil
+	}
+	head, consumed, err := completeHead(file, from, end)
+	if err != nil {
+		return 0, err
+	}
+	if _, err := w.Write(head); err != nil {
+		return 0, err
+	}
+
+	return from + consumed, nil
 }
 
 // writePrelude は、セグメントを途中の offset から流すとき、その手前の PAT と PMT を先に書く。

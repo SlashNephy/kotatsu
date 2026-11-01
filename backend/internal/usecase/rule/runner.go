@@ -9,6 +9,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
 const (
@@ -29,7 +30,7 @@ type RunnerOptions struct {
 	PollInterval time.Duration
 }
 
-// Runner は、EPG やルールが変わるたびに、ルールの照合を走らせる (設計書 4.3)。
+// Runner は、EPG、ルール、視聴ルールが変わるたびに、ルールの照合を走らせる (設計書 4.3、4.8)。
 type Runner struct {
 	engine *Engine
 	pool   *pgxpool.Pool
@@ -56,11 +57,11 @@ func NewRunner(engine *Engine, pool *pgxpool.Pool, logger *slog.Logger, opts *Ru
 	return &Runner{engine: engine, pool: pool, logger: logger, opts: o}
 }
 
-// Run は、ctx が終わるまで、起動したとき、EPG かルールが変わったとき、Interval ごとに照合する。
+// Run は、ctx が終わるまで、起動したとき、EPG、ルール、視聴ルールのどれかが変わったとき、Interval ごとに照合する。
 // 照合に失敗したら、ログに出して次のきっかけを待つ。
 func (r *Runner) Run(ctx context.Context) error {
 	return notify.Loop(ctx, r.pool, r.logger, &notify.LoopOptions{
-		Channels: []string{epg.NotifyChannel, NotifyChannel},
+		Channels: []string{epg.NotifyChannel, NotifyChannel, watch.RulesNotifyChannel},
 		Debounce: r.opts.Debounce,
 		Interval: r.opts.Interval,
 		Watcher:  notify.WatcherOptions{UseListen: !r.opts.PollOnly, PollInterval: r.opts.PollInterval},
@@ -80,9 +81,17 @@ func (r *Runner) runOnce(ctx context.Context) {
 		r.logger.WarnContext(ctx, "skipped a rule whose conditions could not be read; its reservations are kept",
 			slog.String("rule_id", ruleID.String()), slog.Any("error", err))
 	}
+	for ruleID, err := range result.WatchSkipped {
+		r.logger.WarnContext(ctx, "skipped a watch rule whose conditions could not be read; the watch reservations of its owner are kept",
+			slog.String("watch_rule_id", ruleID.String()), slog.Any("error", err))
+	}
 	if result.Created > 0 || result.Deleted > 0 || result.Linked > 0 || result.Unlinked > 0 {
 		r.logger.InfoContext(ctx, "matched rules",
 			slog.Int("created", result.Created), slog.Int("deleted", result.Deleted),
 			slog.Int("linked", result.Linked), slog.Int("unlinked", result.Unlinked))
+	}
+	if result.WatchCreated > 0 || result.WatchDeleted > 0 {
+		r.logger.InfoContext(ctx, "matched watch rules",
+			slog.Int("created", result.WatchCreated), slog.Int("deleted", result.WatchDeleted))
 	}
 }

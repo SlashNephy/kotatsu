@@ -41,6 +41,13 @@ func TestSanitizeName(t *testing.T) {
 		{name: "parent directory", input: "..", want: untitled},
 		{name: "empty", input: "", want: untitled},
 		{name: "only separators", input: "///", want: untitled},
+		{name: "Windows reserved name", input: "con", want: "con_"},
+		{name: "Windows reserved name with an extension", input: "NUL.m2ts", want: "NUL_.m2ts"},
+		{name: "Windows reserved name with trailing spaces", input: "COM1 .m2ts", want: "COM1 _.m2ts"},
+		{name: "Windows reserved name with a superscript digit", input: "LPT¹", want: "LPT¹_"},
+		{name: "Windows console", input: "CONOUT$", want: "CONOUT$_"},
+		{name: "not a Windows reserved name", input: "CONSOLE.m2ts", want: "CONSOLE.m2ts"},
+		{name: "COM without a digit", input: "COM", want: "COM"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,6 +82,17 @@ func TestRenderName(t *testing.T) {
 			name: "slashes create directories",
 			data: data{Date: date, Channel: channel, Title: "前編/後編"},
 			want: "20261009-2100 こたつテスト1 前編/後編.m2ts",
+		},
+		{
+			name: "Windows reserved names in directories",
+			data: data{Date: date, Channel: channel, Title: "/AUX/PRN"},
+			want: "20261009-2100 こたつテスト1/AUX_/PRN_.m2ts",
+		},
+		{
+			// 切り詰めて末尾の空白を取り除くと予約名だけが残るときも、_ を付ける。
+			name: "Windows reserved names left by cutting",
+			data: data{Date: date, Channel: channel, Title: "/CON" + strings.Repeat(" ", 252) + "a/NUL" + strings.Repeat("　", 82) + "あ"},
+			want: "20261009-2100 こたつテスト1/CON_/NUL_.m2ts",
 		},
 		{
 			name: "empty, dot and dot-dot elements are dropped",
@@ -409,8 +427,9 @@ func TestRestore(t *testing.T) {
 	t.Parallel()
 
 	const (
-		// unsanitized は、整え方を変える前に付いた名前。今の SanitizeName は半角の : を取り除く。
-		unsanitized = "old/古い:名前.m2ts"
+		// unsanitized は、整え方を変える前に付いた名前。今の SanitizeName は先頭の空白を取り除く。
+		// 半角の : のような Windows で使えない文字は、Windows ではファイルを置けないので使わない。
+		unsanitized = "old/ 古い名前.m2ts"
 		moved       = "GR/新しい名前.m2ts"
 	)
 	tests := []struct {
@@ -464,4 +483,31 @@ func TestRestore(t *testing.T) {
 	require.NoError(t, store.Restore(poolMain, "same.m2ts", "./same.m2ts"))
 	_, err := os.Stat(filepath.Join(mount, "same.m2ts"))
 	require.NoError(t, err)
+}
+
+// TestRestoreToTheSameFileWithAnotherName は、大文字と小文字や正規化だけを変えた付け直しを戻すとき、元のパスが自分自身として見つかっても、
+// ふさがっているとみなさずに戻すことを確かめる (#1095)。大文字と小文字を区別するファイルシステムでは、その代わりに、ハードリンクを置く。
+func TestRestoreToTheSameFileWithAnotherName(t *testing.T) {
+	t.Parallel()
+
+	mount := t.TempDir()
+	store := kago.New(map[string]string{poolMain: mount}, nil)
+	require.NoError(t, os.WriteFile(filepath.Join(mount, "NEW.m2ts"), []byte("recording"), 0o600))
+	linkIfDistinct(t, filepath.Join(mount, "NEW.m2ts"), filepath.Join(mount, "new.m2ts"))
+
+	require.NoError(t, store.Restore(poolMain, "NEW.m2ts", "new.m2ts"))
+	got, err := os.ReadFile(filepath.Join(mount, "new.m2ts"))
+	require.NoError(t, err)
+	assert.Equal(t, "recording", string(got))
+}
+
+// linkIfDistinct は、name を target と同じファイルにする。大文字と小文字や正規化を区別しないファイルシステムで、name が
+// すでに target と同じファイルを指すなら、何もしない。区別するファイルシステムでは、ハードリンクを置いて、同じことを起こす。
+func linkIfDistinct(t *testing.T, target, name string) {
+	t.Helper()
+
+	if _, err := os.Stat(name); err == nil {
+		return
+	}
+	require.NoError(t, os.Link(target, name))
 }

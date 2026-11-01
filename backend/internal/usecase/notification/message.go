@@ -72,6 +72,8 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 		return "チューナーサーバーに接続できません"
 	case domain.NotificationKindWatchReminder:
 		return watchReminderMessage(name, field("serviceName"), payload, location)
+	case domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed:
+		return animeRecordMessage(kind, name, payload)
 	default:
 		return string(kind)
 	}
@@ -125,6 +127,40 @@ func watchReminderMessage(name, service string, payload map[string]any, location
 		if startAt, err := time.Parse(time.RFC3339Nano, raw); err == nil {
 			text = fmt.Sprintf("%s から %s", startAt.In(location).Format("15:04"), text)
 		}
+	}
+
+	return text
+}
+
+// destinationName は、アニメの記録先の、通知の文に書く名前を返す (#927)。知らない記録先なら「記録先」にする。
+func destinationName(destination string) string {
+	switch destination {
+	case "annict":
+		return "Annict"
+	case "anilist":
+		return "AniList"
+	default:
+		return "記録先"
+	}
+}
+
+// animeRecordMessage は、見たアニメの記録を「「番組名」の #3 を Annict に記録しました」の形にする (#927)。
+// 記録できなかったときは、理由を添える。
+func animeRecordMessage(kind domain.NotificationKind, name string, payload map[string]any) string {
+	destination := destinationName(payloadText(payload, "destination"))
+	subject := "見たアニメ"
+	if name != "" {
+		subject = fmt.Sprintf("「%s」", name)
+	}
+	if episodes := payloadText(payload, "episodes"); episodes != "" {
+		subject += "の" + episodes
+	}
+	if kind == domain.NotificationKindAnimeRecorded {
+		return fmt.Sprintf("%sを%sに記録しました", subject, destination)
+	}
+	text := fmt.Sprintf("%sを%sに記録できませんでした", subject, destination)
+	if reason := payloadText(payload, "reason"); reason != "" {
+		text += "（" + reason + "）"
 	}
 
 	return text

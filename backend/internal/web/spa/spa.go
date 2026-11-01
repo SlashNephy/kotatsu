@@ -35,7 +35,8 @@ func ContentSecurityPolicy(nonce string) string {
 		"img-src 'self' data: blob:",
 		"media-src 'self' blob:",
 		"font-src 'self'",
-		"connect-src 'self' " + NXJikkyoOrigin,
+		// blob: は、端末に保存した録画 (#480) の映像と実況の過去ログを、OPFS のファイルから読むのに使う。
+		"connect-src 'self' blob: " + NXJikkyoOrigin,
 		"worker-src 'self' blob:",
 		"manifest-src 'self'",
 		"object-src 'none'",
