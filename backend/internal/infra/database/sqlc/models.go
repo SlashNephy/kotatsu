@@ -618,6 +618,24 @@ type WatchProgress struct {
 }
 
 type WatchReservation struct {
+	UserID      uuid.UUID
+	ServiceID   int64
+	EventID     int64
+	CreatedAt   time.Time
+	WatchRuleID *uuid.UUID
+}
+
+type WatchRule struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	Enabled    bool
+	Conditions []byte
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type WatchRuleDismissal struct {
 	UserID    uuid.UUID
 	ServiceID int64
 	EventID   int64

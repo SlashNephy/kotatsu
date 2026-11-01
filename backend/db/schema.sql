@@ -951,6 +951,22 @@ CREATE TABLE guide_views (
 
 CREATE UNIQUE INDEX guide_views_user_id_name_idx ON guide_views (user_id, name);
 
+-- 視聴ルール (設計書 4.8)。条件に一致する番組に、ルールの持ち主の視聴予約を自動で付ける。
+-- 録画のルール (rules) は家族で共有するが、視聴ルールはユーザーごとの個人のものなので、分けて持つ。
+-- 条件は、録画のルールと同じ形 (型付きの JSONB) で持ち、同じ照合関数で照合する。
+CREATE TABLE watch_rules (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  name text NOT NULL,
+  enabled boolean NOT NULL,
+  conditions jsonb NOT NULL,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- ユーザーごとに、作った順に引くのに使う。
+CREATE INDEX watch_rules_user_id_created_at_idx ON watch_rules (user_id, created_at, id);
+
 -- 視聴予約 (設計書 4.8)。録画はせず、放送の少し前に、予約したユーザーだけに通知する。
 -- 録画の予約と違ってチューナーを使わない個人のものなので、reservations とは分ける。
 -- 番組は (サービス, eventId) で持ち、放送時間が変わっても通知の時刻が付いていく。番組が EPG から消えたら消す。
@@ -959,11 +975,27 @@ CREATE TABLE watch_reservations (
   service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
   event_id bigint NOT NULL,
   created_at timestamptz NOT NULL,
+  -- 視聴予約を作った視聴ルール。手で付けた視聴予約では NULL。
+  -- 視聴ルールを消しても視聴予約は残すので、NULL にして、手で付けたものと同じく扱う。
+  watch_rule_id uuid REFERENCES watch_rules (id) ON DELETE SET NULL,
   PRIMARY KEY (user_id, service_id, event_id)
 );
 
 -- 番組ごとに引く (通知のジョブと、番組が消えたときの片付け) のに使う。
 CREATE INDEX watch_reservations_service_id_event_id_idx ON watch_reservations (service_id, event_id);
+
+-- 視聴ルールを消したときに、作った視聴予約を引くのに使う。
+CREATE INDEX watch_reservations_watch_rule_id_idx ON watch_reservations (watch_rule_id);
+
+-- ユーザーが手で外した視聴予約の番組 (設計書 4.8)。視聴ルールに一致しても、付け直さない。
+-- 番組が programs からなくなったら (アーカイブに移ったか、EPG から消えたら)、照合のときに消す。
+CREATE TABLE watch_rule_dismissals (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  event_id bigint NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, service_id, event_id)
+);
 
 -- ほかの録画ソフトから取り込んだデータの、取り込み元の ID と、取り込んで作った行の対応 (設計書 6.3)。
 -- 取り込みを何度実行しても、同じデータを二重に取り込まないために使う。

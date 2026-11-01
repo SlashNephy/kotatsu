@@ -296,6 +296,7 @@ type ComplexityRoot struct {
 		CreateStreamURL              func(childComplexity int, target string) int
 		CreateTimeReservation        func(childComplexity int, input model.TimeReservationInput) int
 		CreateUser                   func(childComplexity int, input model.CreateUserInput) int
+		CreateWatchRule              func(childComplexity int, input model.WatchRuleInput) int
 		CreateWebhook                func(childComplexity int, input model.CreateWebhookInput) int
 		DeleteAPIToken               func(childComplexity int, id string) int
 		DeleteGuideView              func(childComplexity int, id string) int
@@ -309,6 +310,7 @@ type ComplexityRoot struct {
 		DeleteRule                   func(childComplexity int, id string) int
 		DeleteRules                  func(childComplexity int, ids []string) int
 		DeleteTotp                   func(childComplexity int) int
+		DeleteWatchRule              func(childComplexity int, id string) int
 		DeleteWebhook                func(childComplexity int, id string) int
 		DenyOAuthAuthorization       func(childComplexity int, query string) int
 		DisableUser                  func(childComplexity int, id string) int
@@ -338,6 +340,7 @@ type ComplexityRoot struct {
 		SetServicePinned             func(childComplexity int, id string, pinned bool) int
 		SetTimeshiftChannel          func(childComplexity int, serviceID string, retentionSeconds *int) int
 		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
+		SetWatchRuleEnabled          func(childComplexity int, id string, enabled bool) int
 		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
 		UnregisterPlayer             func(childComplexity int, id string) int
 		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
@@ -353,6 +356,7 @@ type ComplexityRoot struct {
 		UpdateSystemSettings         func(childComplexity int, input model.SystemSettingsInput) int
 		UpdateUser                   func(childComplexity int, id string, input model.UpdateUserInput) int
 		UpdateWatchReminderSettings  func(childComplexity int, minutesBefore int) int
+		UpdateWatchRule              func(childComplexity int, id string, input model.WatchRuleInput) int
 		UpdateWebhook                func(childComplexity int, id string, input model.UpdateWebhookInput) int
 	}
 
@@ -593,6 +597,7 @@ type ComplexityRoot struct {
 		Viewer                  func(childComplexity int) int
 		WatchReminderSettings   func(childComplexity int) int
 		WatchReservations       func(childComplexity int) int
+		WatchRules              func(childComplexity int) int
 		WebPushPublicKey        func(childComplexity int) int
 		WebPushSubscriptions    func(childComplexity int) int
 		Webhooks                func(childComplexity int) int
@@ -1006,6 +1011,15 @@ type ComplexityRoot struct {
 		Program   func(childComplexity int) int
 	}
 
+	WatchRule struct {
+		Conditions func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		Enabled    func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Name       func(childComplexity int) int
+		UpdatedAt  func(childComplexity int) int
+	}
+
 	WebPushSubscription struct {
 		CreatedAt func(childComplexity int) int
 		Endpoint  func(childComplexity int) int
@@ -1099,6 +1113,10 @@ type MutationResolver interface {
 	RevokeOtherSessions(ctx context.Context) (int, error)
 	SetWatchReservation(ctx context.Context, program string, reserved bool) (*model.Program, error)
 	UpdateWatchReminderSettings(ctx context.Context, minutesBefore int) (*model.WatchReminderSettings, error)
+	CreateWatchRule(ctx context.Context, input model.WatchRuleInput) (*model.WatchRule, error)
+	UpdateWatchRule(ctx context.Context, id string, input model.WatchRuleInput) (*model.WatchRule, error)
+	SetWatchRuleEnabled(ctx context.Context, id string, enabled bool) (*model.WatchRule, error)
+	DeleteWatchRule(ctx context.Context, id string) (string, error)
 	SubscribeWebPush(ctx context.Context, input model.WebPushSubscriptionInput) (*model.WebPushSubscription, error)
 	UnsubscribeWebPush(ctx context.Context, endpoint string) (bool, error)
 	CreateWebhook(ctx context.Context, input model.CreateWebhookInput) (*model.CreateWebhookPayload, error)
@@ -1165,6 +1183,7 @@ type QueryResolver interface {
 	Sessions(ctx context.Context) ([]*model.Session, error)
 	WatchReservations(ctx context.Context) ([]*model.WatchReservation, error)
 	WatchReminderSettings(ctx context.Context) (*model.WatchReminderSettings, error)
+	WatchRules(ctx context.Context) ([]*model.WatchRule, error)
 	WebPushPublicKey(ctx context.Context) (string, error)
 	WebPushSubscriptions(ctx context.Context) ([]*model.WebPushSubscription, error)
 	Webhooks(ctx context.Context) ([]*model.Webhook, error)
@@ -2183,6 +2202,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateUser(childComplexity, args["input"].(model.CreateUserInput)), true
+	case "Mutation.createWatchRule":
+		if e.ComplexityRoot.Mutation.CreateWatchRule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createWatchRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateWatchRule(childComplexity, args["input"].(model.WatchRuleInput)), true
 	case "Mutation.createWebhook":
 		if e.ComplexityRoot.Mutation.CreateWebhook == nil {
 			break
@@ -2321,6 +2351,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteTotp(childComplexity), true
+	case "Mutation.deleteWatchRule":
+		if e.ComplexityRoot.Mutation.DeleteWatchRule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteWatchRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteWatchRule(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteWebhook":
 		if e.ComplexityRoot.Mutation.DeleteWebhook == nil {
 			break
@@ -2625,6 +2666,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetWatchReservation(childComplexity, args["program"].(string), args["reserved"].(bool)), true
+	case "Mutation.setWatchRuleEnabled":
+		if e.ComplexityRoot.Mutation.SetWatchRuleEnabled == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setWatchRuleEnabled_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetWatchRuleEnabled(childComplexity, args["id"].(string), args["enabled"].(bool)), true
 	case "Mutation.subscribeWebPush":
 		if e.ComplexityRoot.Mutation.SubscribeWebPush == nil {
 			break
@@ -2790,6 +2842,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateWatchReminderSettings(childComplexity, args["minutesBefore"].(int)), true
+	case "Mutation.updateWatchRule":
+		if e.ComplexityRoot.Mutation.UpdateWatchRule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateWatchRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateWatchRule(childComplexity, args["id"].(string), args["input"].(model.WatchRuleInput)), true
 	case "Mutation.updateWebhook":
 		if e.ComplexityRoot.Mutation.UpdateWebhook == nil {
 			break
@@ -3915,6 +3978,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.WatchReservations(childComplexity), true
+	case "Query.watchRules":
+		if e.ComplexityRoot.Query.WatchRules == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.WatchRules(childComplexity), true
 	case "Query.webPushPublicKey":
 		if e.ComplexityRoot.Query.WebPushPublicKey == nil {
 			break
@@ -5576,6 +5645,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.WatchReservation.Program(childComplexity), true
 
+	case "WatchRule.conditions":
+		if e.ComplexityRoot.WatchRule.Conditions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchRule.Conditions(childComplexity), true
+	case "WatchRule.createdAt":
+		if e.ComplexityRoot.WatchRule.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchRule.CreatedAt(childComplexity), true
+	case "WatchRule.enabled":
+		if e.ComplexityRoot.WatchRule.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchRule.Enabled(childComplexity), true
+	case "WatchRule.id":
+		if e.ComplexityRoot.WatchRule.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchRule.ID(childComplexity), true
+	case "WatchRule.name":
+		if e.ComplexityRoot.WatchRule.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchRule.Name(childComplexity), true
+	case "WatchRule.updatedAt":
+		if e.ComplexityRoot.WatchRule.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.WatchRule.UpdatedAt(childComplexity), true
+
 	case "WebPushSubscription.createdAt":
 		if e.ComplexityRoot.WebPushSubscription.CreatedAt == nil {
 			break
@@ -5690,6 +5796,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputTimeReservationInput,
 		ec.unmarshalInputUpdateUserInput,
 		ec.unmarshalInputUpdateWebhookInput,
+		ec.unmarshalInputWatchRuleInput,
 		ec.unmarshalInputWebPushSubscriptionInput,
 	)
 	first := true
@@ -8456,6 +8563,49 @@ extend type Mutation {
   updateWatchReminderSettings(minutesBefore: Int!): WatchReminderSettings!
 }
 `, BuiltIn: false},
+	{Name: "../schema/watch_rules.graphqls", Input: `"""
+視聴ルール (設計書 4.8)。条件に一致する放送前の番組に、持ち主の視聴予約を自動で付ける。
+録画のルールと違ってユーザーごとの個人のもので、閲覧だけのユーザーも作れる。ほかのユーザーの視聴ルールは見えない。
+"""
+type WatchRule implements Node {
+  id: ID!
+  name: String!
+  enabled: Boolean!
+  "番組の条件。録画のルールと同じ形で、同じく照合する。"
+  conditions: ProgramConditions!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+"""
+視聴ルールの内容。
+"""
+input WatchRuleInput {
+  "1〜200 文字"
+  name: String!
+  enabled: Boolean! = true
+  conditions: ProgramConditionsInput!
+}
+
+extend type Query {
+  "ログイン中のユーザーの視聴ルールを、作った順に返す。1 ユーザーあたり 50 個まで持てる。"
+  watchRules: [WatchRule!]!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの視聴ルールを作る。閲覧だけのユーザーも使える。
+  すでに 50 個あれば CONFLICT を返す。同じユーザーのほかの端末に viewerSettingsChanged で知らせる。
+  """
+  createWatchRule(input: WatchRuleInput!): WatchRule!
+  "ログイン中のユーザーの視聴ルールの内容を input で置き換える。視聴ルールが付けた視聴予約のうち、一致しなくなったものは、次の照合で外す。"
+  updateWatchRule(id: ID!, input: WatchRuleInput!): WatchRule!
+  "ログイン中のユーザーの視聴ルールを有効または無効にする。無効にすると、視聴ルールが付けた視聴予約は、次の照合で外す。"
+  setWatchRuleEnabled(id: ID!, enabled: Boolean!): WatchRule!
+  "ログイン中のユーザーの視聴ルールを消し、消したルールの ID を返す。視聴ルールが付けた視聴予約は、手で付けたものとして残す。"
+  deleteWatchRule(id: ID!): ID!
+}
+`, BuiltIn: false},
 	{Name: "../schema/web_push.graphqls", Input: `"""
 Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
 """
@@ -10222,6 +10372,24 @@ func (ec *executionContext) childFields_WatchReservation(ctx context.Context, fi
 	return nil, fmt.Errorf("no field named %q was found under type WatchReservation", field.Name)
 }
 
+func (ec *executionContext) childFields_WatchRule(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_WatchRule_id(ctx, field)
+	case "name":
+		return ec.fieldContext_WatchRule_name(ctx, field)
+	case "enabled":
+		return ec.fieldContext_WatchRule_enabled(ctx, field)
+	case "conditions":
+		return ec.fieldContext_WatchRule_conditions(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_WatchRule_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_WatchRule_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type WatchRule", field.Name)
+}
+
 func (ec *executionContext) childFields_WebPushSubscription(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -10550,6 +10718,20 @@ func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, 
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createWatchRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.WatchRuleInput, error) {
+			return ec.unmarshalNWatchRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createWebhook_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -10715,6 +10897,20 @@ func (ec *executionContext) field_Mutation_deleteRules_args(ctx context.Context,
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteWatchRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -11194,6 +11390,28 @@ func (ec *executionContext) field_Mutation_setWatchReservation_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setWatchRuleEnabled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "enabled",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["enabled"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_subscribeWebPush_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -11473,6 +11691,28 @@ func (ec *executionContext) field_Mutation_updateWatchReminderSettings_args(ctx 
 		return nil, err
 	}
 	args["minutesBefore"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateWatchRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.WatchRuleInput, error) {
+			return ec.unmarshalNWatchRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRuleInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -17970,6 +18210,182 @@ func (ec *executionContext) fieldContext_Mutation_updateWatchReminderSettings(ct
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_createWatchRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createWatchRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateWatchRule(ctx, fc.Args["input"].(model.WatchRuleInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WatchRule) graphql.Marshaler {
+			return ec.marshalNWatchRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createWatchRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchRule(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createWatchRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateWatchRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateWatchRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateWatchRule(ctx, fc.Args["id"].(string), fc.Args["input"].(model.WatchRuleInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WatchRule) graphql.Marshaler {
+			return ec.marshalNWatchRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateWatchRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchRule(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateWatchRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setWatchRuleEnabled(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setWatchRuleEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetWatchRuleEnabled(ctx, fc.Args["id"].(string), fc.Args["enabled"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.WatchRule) graphql.Marshaler {
+			return ec.marshalNWatchRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setWatchRuleEnabled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchRule(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setWatchRuleEnabled_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteWatchRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteWatchRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteWatchRule(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteWatchRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteWatchRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_subscribeWebPush(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22866,6 +23282,38 @@ func (ec *executionContext) fieldContext_Query_watchReminderSettings(_ context.C
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_WatchReminderSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_watchRules(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_watchRules(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().WatchRules(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.WatchRule) graphql.Marshaler {
+			return ec.marshalNWatchRule2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRuleᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_watchRules(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_WatchRule(ctx, field)
 		},
 	}
 	return fc, nil
@@ -29643,6 +30091,153 @@ func (ec *executionContext) fieldContext_WatchReservation_createdAt(_ context.Co
 	return graphql.NewScalarFieldContext("WatchReservation", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
+func (ec *executionContext) _WatchRule_id(ctx context.Context, field graphql.CollectedField, obj *model.WatchRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchRule_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchRule_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchRule", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _WatchRule_name(ctx context.Context, field graphql.CollectedField, obj *model.WatchRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchRule_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchRule_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchRule", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _WatchRule_enabled(ctx context.Context, field graphql.CollectedField, obj *model.WatchRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchRule_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchRule_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchRule", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _WatchRule_conditions(ctx context.Context, field graphql.CollectedField, obj *model.WatchRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchRule_conditions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Conditions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ProgramConditions) graphql.Marshaler {
+			return ec.marshalNProgramConditions2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgramConditions(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchRule_conditions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WatchRule",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ProgramConditions(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WatchRule_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.WatchRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchRule_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchRule_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchRule", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _WatchRule_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.WatchRule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_WatchRule_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_WatchRule_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("WatchRule", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
 func (ec *executionContext) _WebPushSubscription_id(ctx context.Context, field graphql.CollectedField, obj *model.WebPushSubscription) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32857,6 +33452,54 @@ func (ec *executionContext) unmarshalInputUpdateWebhookInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputWatchRuleInput(ctx context.Context, obj any) (model.WatchRuleInput, error) {
+	var it model.WatchRuleInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["enabled"]; !present {
+		asMap["enabled"] = true
+	}
+
+	fieldsInOrder := [...]string{"name", "enabled", "conditions"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "enabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("enabled"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Enabled = data
+		case "conditions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("conditions"))
+			data, err := ec.unmarshalNProgramConditionsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgramConditionsInput(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Conditions = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputWebPushSubscriptionInput(ctx context.Context, obj any) (model.WebPushSubscriptionInput, error) {
 	var it model.WebPushSubscriptionInput
 	if obj == nil {
@@ -32909,6 +33552,13 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 	switch obj := (obj).(type) {
 	case nil:
 		return graphql.Null
+	case model.WatchRule:
+		return ec._WatchRule(ctx, sel, &obj)
+	case *model.WatchRule:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._WatchRule(ctx, sel, obj)
 	case model.User:
 		return ec._User(ctx, sel, &obj)
 	case *model.User:
@@ -35282,6 +35932,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "updateWatchReminderSettings":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateWatchReminderSettings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createWatchRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createWatchRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateWatchRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateWatchRule(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setWatchRuleEnabled":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setWatchRuleEnabled(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteWatchRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteWatchRule(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -37923,6 +38601,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_watchReminderSettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "watchRules":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_watchRules(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -41462,6 +42162,69 @@ func (ec *executionContext) _WatchReservation(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var watchRuleImplementors = []string{"WatchRule", "Node"}
+
+func (ec *executionContext) _WatchRule(ctx context.Context, sel ast.SelectionSet, obj *model.WatchRule) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, watchRuleImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WatchRule")
+		case "id":
+			out.Values[i] = ec._WatchRule_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._WatchRule_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabled":
+			out.Values[i] = ec._WatchRule_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "conditions":
+			out.Values[i] = ec._WatchRule_conditions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._WatchRule_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._WatchRule_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var webPushSubscriptionImplementors = []string{"WebPushSubscription"}
 
 func (ec *executionContext) _WebPushSubscription(ctx context.Context, sel ast.SelectionSet, obj *model.WebPushSubscription) graphql.Marshaler {
@@ -44443,6 +45206,37 @@ func (ec *executionContext) marshalNWatchReservation2ᚖgithubᚗcomᚋSlashNeph
 		return graphql.Null
 	}
 	return ec._WatchReservation(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWatchRule2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WatchRule) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNWatchRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRule(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNWatchRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRule(ctx context.Context, sel ast.SelectionSet, v *model.WatchRule) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WatchRule(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNWatchRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWatchRuleInput(ctx context.Context, v any) (model.WatchRuleInput, error) {
+	res, err := ec.unmarshalInputWatchRuleInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNWebPushSubscription2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebPushSubscriptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.WebPushSubscription) graphql.Marshaler {

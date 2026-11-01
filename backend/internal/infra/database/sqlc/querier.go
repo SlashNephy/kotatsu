@@ -66,6 +66,7 @@ type Querier interface {
 	// ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
 	CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountWatchRules(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error
 	CreateOAuthAuthorizationCode(ctx context.Context, arg CreateOAuthAuthorizationCodeParams) error
 	CreateOAuthGrant(ctx context.Context, arg CreateOAuthGrantParams) error
@@ -107,6 +108,8 @@ type Querier interface {
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
 	DeleteRule(ctx context.Context, id uuid.UUID) (int64, error)
+	// ユーザーの視聴予約のうち、(service_ids[i], event_ids[i]) の組にあり、視聴ルールが作ったものを消す。手で付けたものは消さない。
+	DeleteRuleWatchReservations(ctx context.Context, arg DeleteRuleWatchReservationsParams) (int64, error)
 	DeleteSetupTokens(ctx context.Context) error
 	DeleteStaleInstances(ctx context.Context, before time.Time) (int64, error)
 	// 数え直す時間を過ぎ、待たせてもいない行を消す。存在しないユーザー名や IP の行が溜まり続けないようにする。
@@ -145,6 +148,9 @@ type Querier interface {
 	// ユーザーの録画の再生位置を消す。続きから見るの一覧から外すのに使う (#1074)。
 	DeleteWatchProgress(ctx context.Context, arg DeleteWatchProgressParams) error
 	DeleteWatchReservation(ctx context.Context, arg DeleteWatchReservationParams) (int64, error)
+	// 作った視聴予約は、watch_rule_id を NULL にして残す (設計書 4.8)。
+	DeleteWatchRule(ctx context.Context, arg DeleteWatchRuleParams) (int64, error)
+	DeleteWatchRuleDismissal(ctx context.Context, arg DeleteWatchRuleDismissalParams) error
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
@@ -253,6 +259,8 @@ type Querier interface {
 	GetVAPIDKeys(ctx context.Context) (VAPIDKey, error)
 	// 視聴予約の通知を、放送の何分前に送るか。一度も変えていなければ、既定値を返す。
 	GetWatchReminderMinutes(ctx context.Context, userID uuid.UUID) (int32, error)
+	// ほかのユーザーの視聴ルールは返さない。
+	GetWatchRule(ctx context.Context, arg GetWatchRuleParams) (WatchRule, error)
 	GetWebPushSubscription(ctx context.Context, id uuid.UUID) (WebPushSubscription, error)
 	GetWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	// 無効にした管理者も数える。管理者を作った後は、初回セットアップを開き直さない (設計書 9.2)。
@@ -301,6 +309,10 @@ type Querier interface {
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
 	// ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
 	InsertRuleReservation(ctx context.Context, arg InsertRuleReservationParams) (uuid.UUID, error)
+	// 視聴ルールに一致した番組 (service_ids[i], event_ids[i]) に、rule_ids[i] の視聴ルールが作ったものとして、ユーザーの視聴予約を付ける。
+	// 付けてある番組と、ユーザーが手で外した番組には付けない。
+	// 通知を送る時刻を過ぎた番組にも付けない。通知のジョブは、通知した視聴予約を消すので、付け直すと二度通知してしまう。
+	InsertRuleWatchReservations(ctx context.Context, arg InsertRuleWatchReservationsParams) (int64, error)
 	InsertSession(ctx context.Context, arg InsertSessionParams) error
 	InsertSetupToken(ctx context.Context, arg InsertSetupTokenParams) error
 	InsertTimeReservation(ctx context.Context, arg InsertTimeReservationParams) error
@@ -314,8 +326,12 @@ type Querier interface {
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
 	// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
 	InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams) error
-	// 視聴予約を付ける。付けてあれば何もしない。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+	// 視聴予約を付ける。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+	// 視聴ルールが作った視聴予約に手で付け直したら、手で付けたものにする。視聴ルールに一致しなくなっても消さない。
 	InsertWatchReservation(ctx context.Context, arg InsertWatchReservationParams) (int64, error)
+	InsertWatchRule(ctx context.Context, arg InsertWatchRuleParams) error
+	// ユーザーが手で外した視聴予約の番組を覚える。視聴ルールに一致しても、付け直さない。
+	InsertWatchRuleDismissal(ctx context.Context, arg InsertWatchRuleDismissalParams) error
 	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
 	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
@@ -351,6 +367,8 @@ type Querier interface {
 	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	// 照合に使う、すべてのユーザーの有効な視聴ルール。
+	ListEnabledWatchRules(ctx context.Context) ([]WatchRule, error)
 	// 破棄するチャンク。書いている途中のものは除く。チャンネルの設定がなくなったサービスのものは全部、設定があるものは保持時間を過ぎたもの。
 	// 設定がなくなったサービスの、録る mikan のいない書きかけのチャンクは、先に閉じてから破棄する (ListAbandonedTimeshiftServices)。
 	ListExpiredTimeshiftChunks(ctx context.Context, now time.Time) ([]ListExpiredTimeshiftChunksRow, error)
@@ -446,6 +464,8 @@ type Querier interface {
 	ListReservationsToRelay(ctx context.Context, since time.Time) ([]ListReservationsToRelayRow, error)
 	// from から to までの間にチューナーを使う予約。有効で、チューナーを割り当て済みで、予定が期間と重なるもの。録画中の予約も含む。
 	ListReservationsUsingTunersBetween(ctx context.Context, arg ListReservationsUsingTunersBetweenParams) ([]ListReservationsUsingTunersBetweenRow, error)
+	// 視聴ルールが作った視聴予約のうち、番組の放送が始まっていないもの。照合で、一致しなくなったものを消すのに使う。
+	ListRuleWatchReservations(ctx context.Context, now time.Time) ([]ListRuleWatchReservationsRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
 	// サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
@@ -488,6 +508,7 @@ type Querier interface {
 	ListWatchReservations(ctx context.Context, userID uuid.UUID) ([]ListWatchReservationsRow, error)
 	// user_id のユーザーが視聴予約した番組のうち、(service_ids[i], event_ids[i]) の組にあるもの。
 	ListWatchReservedPrograms(ctx context.Context, arg ListWatchReservedProgramsParams) ([]ListWatchReservedProgramsRow, error)
+	ListWatchRules(ctx context.Context, userID uuid.UUID) ([]WatchRule, error)
 	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
 	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
 	// audience と by_rule の扱いは、ListNotificationRecipients と同じ。
@@ -529,6 +550,8 @@ type Querier interface {
 	LockTimeshiftChannel(ctx context.Context, serviceID int64) (int32, error)
 	// ユーザーの行を、トランザクションが終わるまで書き込みからロックする。同じユーザーの登録を同時に行わせない。
 	LockUser(ctx context.Context, id uuid.UUID) (LockUserRow, error)
+	// ユーザーの視聴ルールの数を数えてから作るまでの間に、同じユーザーがほかの端末で作らないよう、トランザクションの間だけロックを取る。
+	LockWatchRules(ctx context.Context, userID uuid.UUID) error
 	// 変える前の値を監査ログに残すため、行をロックして読む。
 	LockWebhook(ctx context.Context, id uuid.UUID) (Webhook, error)
 	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
@@ -564,6 +587,8 @@ type Querier interface {
 	PruneProgramArchives(ctx context.Context, arg PruneProgramArchivesParams) (int64, error)
 	// 放送が終わった番組と、EPG から消えた番組の視聴予約を消す。
 	PruneWatchReservations(ctx context.Context, now time.Time) (int64, error)
+	// 番組が programs からなくなった (アーカイブに移ったか、EPG から消えた) 番組の、手で外した記録を消す。
+	PruneWatchRuleDismissals(ctx context.Context) (int64, error)
 	// 下限は上げるだけで、下げない。古いバイナリで migrate を実行しても、新しいバイナリが記録した下限は残る。
 	RaiseMinBinaryVersion(ctx context.Context, arg RaiseMinBinaryVersionParams) error
 	// 再認証した日時を記録する (設計書 9.5)。失効したセッションは更新しない。
@@ -665,6 +690,7 @@ type Querier interface {
 	SetSessionAuthenticatedAt(ctx context.Context, arg SetSessionAuthenticatedAtParams) error
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error
 	SetUserPassword(ctx context.Context, arg SetUserPasswordParams) (int64, error)
+	SetWatchRuleEnabled(ctx context.Context, arg SetWatchRuleEnabledParams) (int64, error)
 	SetupTokenExists(ctx context.Context, tokenHash []byte) (bool, error)
 	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 	// 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
@@ -716,6 +742,7 @@ type Querier interface {
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)
 	// まだ mikan が取っていない割り振りの優先度を、予約の今の割り当ての状態に合わせる。
 	UpdateWaitingRecordingPriorities(ctx context.Context, arg UpdateWaitingRecordingPrioritiesParams) (int64, error)
+	UpdateWatchRule(ctx context.Context, arg UpdateWatchRuleParams) (int64, error)
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error

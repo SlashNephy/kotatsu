@@ -1,10 +1,11 @@
 -- name: InsertWatchReservation :execrows
--- 視聴予約を付ける。付けてあれば何もしない。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+-- 視聴予約を付ける。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+-- 視聴ルールが作った視聴予約に手で付け直したら、手で付けたものにする。視聴ルールに一致しなくなっても消さない。
 INSERT INTO watch_reservations (user_id, service_id, event_id, created_at)
 SELECT @user_id, p.service_id, p.event_id, @now
 FROM programs p
 WHERE p.service_id = @service_id AND p.event_id = @event_id AND p.start_at > @now
-ON CONFLICT (user_id, service_id, event_id) DO NOTHING;
+ON CONFLICT (user_id, service_id, event_id) DO UPDATE SET watch_rule_id = NULL;
 
 -- name: DeleteWatchReservation :execrows
 DELETE FROM watch_reservations WHERE user_id = @user_id AND service_id = @service_id AND event_id = @event_id;

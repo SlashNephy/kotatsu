@@ -1298,6 +1298,28 @@ type WatchReservation struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+// 視聴ルール (設計書 4.8)。条件に一致する放送前の番組に、持ち主の視聴予約を自動で付ける。
+// 録画のルールと違ってユーザーごとの個人のもので、閲覧だけのユーザーも作れる。ほかのユーザーの視聴ルールは見えない。
+type WatchRule struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+	// 番組の条件。録画のルールと同じ形で、同じく照合する。
+	Conditions *ProgramConditions `json:"conditions"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	UpdatedAt  time.Time          `json:"updatedAt"`
+}
+
+func (WatchRule) IsNode() {}
+
+// 視聴ルールの内容。
+type WatchRuleInput struct {
+	// 1〜200 文字
+	Name       string                  `json:"name"`
+	Enabled    bool                    `json:"enabled"`
+	Conditions *ProgramConditionsInput `json:"conditions"`
+}
+
 // Web Push の購読 (設計書 6.2)。端末とブラウザごとに 1 つある。
 type WebPushSubscription struct {
 	ID string `json:"id"`

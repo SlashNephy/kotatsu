@@ -49,7 +49,7 @@ INSERT INTO watch_reservations (user_id, service_id, event_id, created_at)
 SELECT $1, p.service_id, p.event_id, $2
 FROM programs p
 WHERE p.service_id = $3 AND p.event_id = $4 AND p.start_at > $2
-ON CONFLICT (user_id, service_id, event_id) DO NOTHING
+ON CONFLICT (user_id, service_id, event_id) DO UPDATE SET watch_rule_id = NULL
 `
 
 type InsertWatchReservationParams struct {
@@ -59,7 +59,8 @@ type InsertWatchReservationParams struct {
 	EventID   int64
 }
 
-// 視聴予約を付ける。付けてあれば何もしない。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+// 視聴予約を付ける。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+// 視聴ルールが作った視聴予約に手で付け直したら、手で付けたものにする。視聴ルールに一致しなくなっても消さない。
 func (q *Queries) InsertWatchReservation(ctx context.Context, arg InsertWatchReservationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertWatchReservation,
 		arg.UserID,

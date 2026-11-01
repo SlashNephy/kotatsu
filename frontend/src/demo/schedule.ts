@@ -374,6 +374,9 @@ export function createScheduler(options: {
       return rule === undefined ? undefined : ruleView(rule);
     },
 
+    // conditionsView は、条件の入力を、tenban が返す ProgramConditions の形にする。視聴ルールでも使う。
+    conditionsView,
+
     // Query
     rules: () => [...rules.values()].map(ruleView),
     reservations: (args: {
