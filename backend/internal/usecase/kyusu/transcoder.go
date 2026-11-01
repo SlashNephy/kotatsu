@@ -203,9 +203,10 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdo
 	select {
 	case err := <-normalizerDone:
 		if err != nil {
-			// tsreadex が失敗したら、FFmpeg も止める。
+			// tsreadex が失敗したら、FFmpeg も止める。止めた FFmpeg のエラーは、tsreadex のエラーで知らせるので使わない。
 			cancel()
-			<-encoderDone
+			stopped := <-encoderDone
+			_ = stopped
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -223,9 +224,10 @@ func (t *Transcoder) run(ctx context.Context, src io.Reader, args []string, stdo
 
 		return nil
 	case err := <-encoderDone:
-		// FFmpeg が先に止まったら、入力を待っている tsreadex も止める。
+		// FFmpeg が先に止まったら、入力を待っている tsreadex も止める。止めた tsreadex のエラーは使わない。
 		cancel()
-		<-normalizerDone
+		stopped := <-normalizerDone
+		_ = stopped
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}

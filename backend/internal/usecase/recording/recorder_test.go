@@ -543,7 +543,9 @@ func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
 	// 延長を続けていれば、DB が戻った後も録画中のまま。止めていたら、DB が戻ったところで録画を終える。
 	require.Never(t, func() bool {
 		select {
-		case <-done:
+		case err := <-done:
+			t.Logf("the recording stopped: %v", err)
+
 			return true
 		default:
 		}
