@@ -98,7 +98,8 @@ export default defineConfig(({ mode }) => ({
       injectManifest: {
         // 外枠だけを対象にする。見出しのフォントは、unicode-range ごとに 100 以上のファイルに分かれて
         // 3 MB ほどになるので含めない。オフラインでは、見出しもシステムフォントで出る。
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        // ブラウザの中での変換の WebAssembly (500 KB ほど) は、端末に保存した録画 (#480) をオフラインで再生するのに要るので含める。
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,wasm}'],
         // パスワードの強度の判定の辞書 (2 MB ほど) は、セットアップとパスワードの変更でしか使わないので含めない。
         globIgnores: ['**/zxcvbn-*.js'],
       },

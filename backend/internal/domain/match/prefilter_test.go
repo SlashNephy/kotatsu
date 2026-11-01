@@ -46,3 +46,54 @@ func TestNewPrefilter(t *testing.T) {
 		})
 	}
 }
+
+// TestUnfilterableKeywords は、詳細まで探す正規表現のうち、前段で絞り込めないキーワードだけを返すことを確かめる (#904)。
+func TestUnfilterableKeywords(t *testing.T) {
+	t.Parallel()
+
+	const hiragana = "[あ-ん]+"
+	extended := []match.Field{match.FieldName, match.FieldExtended}
+	nameOnly := []match.Field{match.FieldName}
+	tests := []struct {
+		name       string
+		conditions *match.Conditions
+		want       []match.KeywordRef
+	}{
+		{
+			name: "regexp without a required literal over the extended",
+			conditions: &match.Conditions{
+				Keywords:        []*match.Keyword{{Text: "こたつ", Regexp: true, Fields: extended}, {Text: hiragana, Regexp: true, Fields: extended}},
+				ExcludeKeywords: []*match.Keyword{{Text: "[a-z]{20}[0-9]", Regexp: true, Fields: extended}},
+			},
+			want: []match.KeywordRef{{Exclude: false, Index: 1}, {Exclude: true, Index: 0}},
+		},
+		{
+			name: "not searching the extended",
+			conditions: &match.Conditions{
+				Keywords: []*match.Keyword{{Text: hiragana, Regexp: true, Fields: nameOnly}},
+			},
+			want: []match.KeywordRef{},
+		},
+		{
+			name: "plain keyword",
+			conditions: &match.Conditions{
+				Keywords: []*match.Keyword{{Text: hiragana, Regexp: false, Fields: extended}},
+			},
+			want: []match.KeywordRef{},
+		},
+		{
+			name: "invalid regexp is left to the validation",
+			conditions: &match.Conditions{
+				Keywords: []*match.Keyword{{Text: "(", Regexp: true, Fields: extended}},
+			},
+			want: []match.KeywordRef{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, match.UnfilterableKeywords(tt.conditions))
+		})
+	}
+}

@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 
 // README に載せるスクリーンショット (#621)。画面ごとに、ライトとダークの両方を撮る。
 // デモのデータは、開いた時刻を基準に作られる (src/demo/data.ts、src/demo/epg.ts) ので、時刻を固定して撮る。
-// ライブ視聴は、デモの映像がテストパターンなので撮らない (#1050)。
+// ライブ視聴は、デモの映像 (frontend/demo/stream.m2ts) の決まったフレームを撮る (#1050)。
 
 // 番組表に、夜の番組が並ぶ時刻にする。
 const fixedTime = new Date('2026-04-01T20:30:00+09:00');
@@ -29,6 +29,42 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByText('こたつテレビ').first()).toBeVisible();
       await expect(page.getByText(/映画「雪の日の湯たんぽ」/).first()).toBeVisible();
       await capture(page, 'guide', scheme);
+    });
+
+    test('ライブ視聴', async ({ page }) => {
+      await page.goto('/live/Service%3A1024');
+      const video = page.locator('video');
+      // 再生が進んでから止め、決まった位置に戻して、毎回同じフレームを写す。
+      // デモの Service Worker は毎回映像の頭から流すので、位置とフレームの対応は揃う。
+      await expect
+        .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime), {
+          timeout: 30_000,
+        })
+        .toBeGreaterThan(2.5);
+      // seeked の時点では、まだ止める前のフレームが表示されていることがある。
+      // 戻した位置のフレームが表示されたことを requestVideoFrameCallback で確かめる。
+      // 止める前に用意されていたフレームを先に知らせることがあるので、戻した位置のフレームが来るまで待ち続ける。
+      await video.evaluate(async (element: HTMLVideoElement) => {
+        element.pause();
+        const shown = new Promise<number>((resolve) => {
+          const check: VideoFrameRequestCallback = (_now, metadata) => {
+            if (metadata.mediaTime > 1.9 && metadata.mediaTime <= 2) {
+              resolve(metadata.mediaTime);
+            } else {
+              element.requestVideoFrameCallback(check);
+            }
+          };
+          element.requestVideoFrameCallback(check);
+        });
+        element.currentTime = 2;
+
+        return shown;
+      });
+      // 字幕の一覧には、戻す前に出た最初の字幕 (1 秒から) が並ぶ。映像に重ねた字幕は、戻すと aribb24.js が消すので写らない。
+      await expect(page.getByText('けさの様子をお伝えします').first()).toBeVisible();
+      // 表示を知らせた直後の撮影には、前のフレームが写ることがあるので、少し置く。
+      await page.waitForTimeout(500);
+      await capture(page, 'live', scheme);
     });
 
     test('録画の一覧', async ({ page }) => {

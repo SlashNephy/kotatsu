@@ -45,3 +45,15 @@ const endedEarlyMarginSec = 10;
 export function endedEarly(bufferedEnd: number, duration: number): boolean {
   return bufferedEnd < duration - endedEarlyMarginSec;
 }
+
+// brokenMediaSkipSeconds は、映像の要素が復号に失敗して止まったとき、読み直す位置を進める秒。
+// 位置の手前の I フレームから流すので、同じ位置から読み直すと、同じ壊れたフレームでまた止まる。I フレームの間隔 (約 0.5 秒) より長く進めて、
+// 壊れた所の後の I フレームから流させる。
+export const brokenMediaSkipSeconds = 1;
+
+// skipBrokenMedia は、映像の要素が復号に失敗して止まったときに、壊れた所を飛び越えて読み直す位置を返す。
+// lastSkipped は、前に飛び越えた先の位置。そこより先へ進んでいなければ、飛び越えても止まり続けているので、null を返す。
+// 飛び越えるたびに位置は進むので、30 秒に 1 回の制限 (canRetryImmediately) は掛けない。録り直しの切れ目が続いても止めないためである。
+export function skipBrokenMedia(position: number, lastSkipped: number | null): number | null {
+  return lastSkipped !== null && position <= lastSkipped ? null : position + brokenMediaSkipSeconds;
+}

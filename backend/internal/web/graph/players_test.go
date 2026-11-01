@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -25,6 +26,9 @@ const (
 	keyCommandType   = "type"
 	keyVolume        = "volume"
 	commandSeek      = "SEEK"
+	commandOpen      = "OPEN"
+	keyServiceID     = "serviceId"
+	keyRecordingID   = "recordingId"
 	commandSetVolume = "SET_VOLUME"
 )
 
@@ -148,6 +152,11 @@ func TestPlayerRejectsInvalidInput(t *testing.T) {
 		{name: "音声のない切り替え", command: map[string]any{keyCommandType: "SELECT_AUDIO"}},
 		{name: "値のないミュート", command: map[string]any{keyCommandType: "SET_MUTED"}},
 		{name: "キーのない押下", command: map[string]any{keyCommandType: "PRESS_KEY"}},
+		{name: "開くもののない OPEN", command: map[string]any{keyCommandType: commandOpen}},
+		{name: "サービスと録画の両方を開く", command: map[string]any{
+			keyCommandType: commandOpen, keyServiceID: graph.GlobalID("Service", "3273601024"), keyRecordingID: graph.GlobalID("Recording", id.New().String()),
+		}},
+		{name: "サービスの ID でない", command: map[string]any{keyCommandType: commandOpen, keyServiceID: graph.GlobalID("Recording", id.New().String())}},
 	}
 	for _, tt := range tests {
 		assert.Equal(t, []string{codeBadUserInput}, f.query(t, sendCommand, map[string]any{varID: playerID, varCommand: tt.command}, nil), tt.name)
@@ -222,4 +231,37 @@ func TestPlayerCommandsReplay(t *testing.T) {
 	// つないだ後に届いた操作も、続けて受け取る。
 	send(map[string]any{keyCommandType: "SET_MUTED", "muted": true})
 	assert.JSONEq(t, `{"playerCommands":{"id":"5","type":"SET_MUTED","audio":null,"key":null}}`, string(next(t, commands)))
+}
+
+// TestPlayerCommandOpen は、ほかの端末のプレイヤーに、サービスか録画を開かせる操作が届くことを確かめる (#802)。
+func TestPlayerCommandOpen(t *testing.T) {
+	t.Parallel()
+
+	f := newFixtureWithChanges(t)
+	playerID := f.registerPlayer(t)
+	remote := f.withNewSession(t)
+	commands := f.subscribe(t, `subscription { playerCommands(id: "`+playerID+`", after: "0") { type serviceId recordingId } }`)
+	serviceID := graph.GlobalID("Service", "3273601024")
+	recordingID := graph.GlobalID("Recording", id.New().String())
+	tests := []struct {
+		name    string
+		command map[string]any
+		want    string
+	}{
+		{
+			name:    "サービス",
+			command: map[string]any{keyCommandType: commandOpen, keyServiceID: serviceID},
+			want:    `{"playerCommands":{"type":"OPEN","serviceId":"` + serviceID + `","recordingId":null}}`,
+		},
+		{
+			name:    "録画",
+			command: map[string]any{keyCommandType: commandOpen, keyRecordingID: recordingID},
+			want:    `{"playerCommands":{"type":"OPEN","serviceId":null,"recordingId":"` + recordingID + `"}}`,
+		},
+	}
+	// 操作は届いた順に読むので、サブテストは並べずに順に送る。
+	for _, tt := range tests {
+		require.Empty(t, remote.query(t, sendCommand, map[string]any{varID: playerID, varCommand: tt.command}, nil), tt.name)
+		assert.JSONEq(t, tt.want, string(next(t, commands)), tt.name)
+	}
 }

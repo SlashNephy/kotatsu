@@ -1,0 +1,7 @@
+# 静的なデモの映像 (demo/stream.m2ts) を作り直すときだけ使うツールチェーン (設計書 10.1、#1050)。
+# ほかの作業で FFmpeg を入れずに済むよう、MISE_ENV=demo-stream のときだけ読む。
+#
+#   MISE_ENV=demo-stream mise run //frontend:demo-stream
+[tools]
+# 字幕のフォントで文字を描くため、libass と libfreetype を有効にしてビルドされた conda-forge の FFmpeg を使う。
+"conda:ffmpeg" = "9.0.2"

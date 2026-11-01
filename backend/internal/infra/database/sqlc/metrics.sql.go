@@ -177,7 +177,7 @@ func (q *Queries) HoldsLease(ctx context.Context, arg HoldsLeaseParams) (bool, e
 }
 
 const listRecordingFailureCounts = `-- name: ListRecordingFailureCounts :many
-SELECT reason, count, last_failed_at FROM recording_failure_counts ORDER BY reason
+SELECT reason, count, last_failed_at, reset_at FROM recording_failure_counts ORDER BY reason
 `
 
 // /metrics に出す、失敗の理由ごとの、録画の失敗の累計と最後に失敗した日時 (#960)。録画を消しても減らない。
@@ -190,7 +190,12 @@ func (q *Queries) ListRecordingFailureCounts(ctx context.Context) ([]RecordingFa
 	items := []RecordingFailureCount{}
 	for rows.Next() {
 		var i RecordingFailureCount
-		if err := rows.Scan(&i.Reason, &i.Count, &i.LastFailedAt); err != nil {
+		if err := rows.Scan(
+			&i.Reason,
+			&i.Count,
+			&i.LastFailedAt,
+			&i.ResetAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -241,9 +246,73 @@ func (q *Queries) ListStoragePoolMeasurements(ctx context.Context) ([]ListStorag
 	return items, nil
 }
 
+const resetRecordingFailureCounts = `-- name: ResetRecordingFailureCounts :many
+WITH old AS (
+  SELECT reason, count, last_failed_at FROM recording_failure_counts
+  WHERE reason = ANY($2::text[])
+  FOR UPDATE
+)
+UPDATE recording_failure_counts c SET count = 0, last_failed_at = NULL, reset_at = $1::timestamptz
+FROM old
+WHERE c.reason = old.reason
+RETURNING old.reason, old.count, old.last_failed_at
+`
+
+type ResetRecordingFailureCountsParams struct {
+	Now     time.Time
+	Reasons []string
+}
+
+type ResetRecordingFailureCountsRow struct {
+	Reason       string
+	Count        int64
+	LastFailedAt *time.Time
+}
+
+// 理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を NULL に戻し、戻した日時を残す (#1035)。
+// 監査ログに残すため、戻す前の累計と最後に失敗した日時を返す。
+func (q *Queries) ResetRecordingFailureCounts(ctx context.Context, arg ResetRecordingFailureCountsParams) ([]ResetRecordingFailureCountsRow, error) {
+	rows, err := q.db.Query(ctx, resetRecordingFailureCounts, arg.Now, arg.Reasons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ResetRecordingFailureCountsRow{}
+	for rows.Next() {
+		var i ResetRecordingFailureCountsRow
+		if err := rows.Scan(&i.Reason, &i.Count, &i.LastFailedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sumActiveRecordingBitrate = `-- name: SumActiveRecordingBitrate :one
+SELECT COALESCE(sum(l.bitrate), 0)::bigint AS bitrate
+FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE r.state = 'recording' AND l.updated_at > $1
+`
+
+// /metrics に出す、録画中の録画の直近のビットレートの合計 (#829)。mikan が since より後に書いたものだけを足す。
+// 書かなくなったもの (落ちた mikan の録画) は、古いビットレートを今の値として出さないよう、足さない。
+func (q *Queries) SumActiveRecordingBitrate(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, sumActiveRecordingBitrate, since)
+	var bitrate int64
+	err := row.Scan(&bitrate)
+	return bitrate, err
+}
+
 const sumActiveRecordingPackets = `-- name: SumActiveRecordingPackets :one
-SELECT COALESCE(sum(drops), 0)::bigint AS drops, COALESCE(sum(errors), 0)::bigint AS errors, COALESCE(sum(scrambled), 0)::bigint AS scrambled
-FROM recordings WHERE state = 'recording'
+SELECT
+  (COALESCE(sum(r.drops), 0) + COALESCE(sum(l.drops), 0))::bigint AS drops,
+  (COALESCE(sum(r.errors), 0) + COALESCE(sum(l.errors), 0))::bigint AS errors,
+  (COALESCE(sum(r.scrambled), 0) + COALESCE(sum(l.scrambled), 0))::bigint AS scrambled
+FROM recordings r LEFT JOIN recording_live_stats l ON l.recording_id = r.id
+WHERE r.state = 'recording'
 `
 
 type SumActiveRecordingPacketsRow struct {
@@ -252,7 +321,7 @@ type SumActiveRecordingPacketsRow struct {
 	Scrambled int64
 }
 
-// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。
+// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。
 func (q *Queries) SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error) {
 	row := q.db.QueryRow(ctx, sumActiveRecordingPackets)
 	var i SumActiveRecordingPacketsRow

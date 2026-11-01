@@ -44,6 +44,7 @@ const query = graphql`
         endMarginSeconds
         priority
         joinSegments
+        detectCm
       }
       ruleDefaults {
         avoidDuplicates
@@ -67,6 +68,8 @@ type Form = {
   endMarginSeconds: number | string;
   priority: number | string;
   joinSegments: boolean;
+  // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。既定は切る。
+  detectCm: boolean;
   // ルールを作るときの既定値 (#470)。重複を避ける日数は、空なら期間を区切らない。
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
@@ -96,6 +99,7 @@ function RecordingSettings() {
     endMarginSeconds: defaults.endMarginSeconds,
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
+    detectCm: defaults.detectCm,
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
@@ -128,6 +132,7 @@ function RecordingSettings() {
                 endMarginSeconds: Number(form.endMarginSeconds),
                 priority: Number(form.priority),
                 joinSegments: form.joinSegments,
+                detectCm: form.detectCm,
               },
               ruleDefaults: {
                 avoidDuplicates: form.ruleAvoidDuplicates,
@@ -226,6 +231,13 @@ function RecordingSettings() {
               description={t('admin.settings.joinSegmentsHelp')}
               checked={form.joinSegments}
               onChange={(event) => set({ joinSegments: event.currentTarget.checked })}
+            />
+            <Switch
+              size="sm"
+              label={t('admin.settings.detectCm')}
+              description={t('admin.settings.detectCmHelp')}
+              checked={form.detectCm}
+              onChange={(event) => set({ detectCm: event.currentTarget.checked })}
             />
           </Stack>
         </Card>

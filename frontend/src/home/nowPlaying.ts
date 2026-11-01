@@ -17,20 +17,19 @@ export type NowPlaying = {
   serviceId: string;
   serviceName: string;
   serviceLogoUrl: string | null;
-  programName: string;
-  startAt: string;
-  endAt: string;
+  // program は、放送中の番組。番組の情報がなければ null (ライブ視聴の一覧と同じく、サービスは出す。#1116)。
+  program: { name: string; startAt: string; endAt: string } | null;
 };
 
 // nowPlaying は、サービスごとに、now に放送している番組を返す。番組表の並びのままにする。
-// 放送中の番組がないサービスは出さない。サブチャンネルがメインチャンネルと同じ番組を放送している (イベント共有) ときは、
+// 放送中の番組の情報がないサービスも、番組を null にして出す。サブチャンネルがメインチャンネルと同じ番組を放送している (イベント共有) ときは、
 // 元のサービスの番組だけを出す。元のサービスが一覧にない (番組表に出さない設定など) ときは、そのまま出す。
 export function nowPlaying(rows: readonly GuideRowLike[], now: number): NowPlaying[] {
   const serviceIds = new Set(rows.map((row) => row.service.id));
   const playing: NowPlaying[] = [];
   for (const row of rows) {
     const program = currentProgram(row, now);
-    if (program !== undefined && !sharesWithListed(program, serviceIds)) {
+    if (!sharesWithListed(program, serviceIds)) {
       playing.push(toNowPlaying(row, program));
     }
   }
@@ -38,7 +37,7 @@ export function nowPlaying(rows: readonly GuideRowLike[], now: number): NowPlayi
   return playing;
 }
 
-// pinnedNowPlaying は、ピン留めしたサービスのうち、now に放送しているものを、ピン留めした順に返す (#485)。
+// pinnedNowPlaying は、ピン留めしたサービスと、now に放送している番組を、ピン留めした順に返す (#485)。番組表にないサービスは出さない。
 // ピン留めしたサービスは、イベント共有のサブチャンネルでも省かない (ライブの一覧のピン留めのタブと同じ)。
 export function pinnedNowPlaying(
   rows: readonly GuideRowLike[],
@@ -48,11 +47,7 @@ export function pinnedNowPlaying(
   return pinned.flatMap((id) =>
     rows
       .filter((row) => row.service.id === id)
-      .flatMap((row) => {
-        const program = currentProgram(row, now);
-
-        return program === undefined ? [] : [toNowPlaying(row, program)];
-      }),
+      .map((row) => toNowPlaying(row, currentProgram(row, now))),
   );
 }
 
@@ -62,13 +57,17 @@ function currentProgram(row: GuideRowLike, now: number) {
   );
 }
 
-function toNowPlaying(row: GuideRowLike, program: GuideRowLike['programs'][number]): NowPlaying {
+function toNowPlaying(
+  row: GuideRowLike,
+  program: GuideRowLike['programs'][number] | undefined,
+): NowPlaying {
   return {
     serviceId: row.service.id,
     serviceName: row.service.name,
     serviceLogoUrl: row.service.logoUrl ?? null,
-    programName: program.name,
-    startAt: program.startAt,
-    endAt: program.endAt,
+    program:
+      program === undefined
+        ? null
+        : { name: program.name, startAt: program.startAt, endAt: program.endAt },
   };
 }

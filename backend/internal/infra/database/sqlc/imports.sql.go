@@ -55,26 +55,29 @@ func (q *Queries) InsertImportSource(ctx context.Context, arg InsertImportSource
 }
 
 const insertImportedRecording = `-- name: InsertImportedRecording :exec
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
-VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, NULL,
-  $9, $10, $11, $12, $6, $7, $13, $13)
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+VALUES ($1, NULL, $2, $3, $4, $5, $6, $7,
+  $8, $9, $10, NULL,
+  $11, $12, $13, $14, $8, $9, $15, $15)
 `
 
 type InsertImportedRecordingParams struct {
-	ID          uuid.UUID
-	ServiceID   int64
-	EventID     *int64
-	Name        string
-	Description string
-	StartAt     time.Time
-	EndAt       time.Time
-	State       string
-	Protected   bool
-	Drops       int64
-	Errors      int64
-	Scrambled   int64
-	Now         time.Time
+	ID                    uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	State                 string
+	Protected             bool
+	Drops                 int64
+	Errors                int64
+	Scrambled             int64
+	Now                   time.Time
 }
 
 // 取り込んだ、録画を終えた録画を記録する。予約とは結び付けない。
@@ -85,6 +88,8 @@ func (q *Queries) InsertImportedRecording(ctx context.Context, arg InsertImporte
 		arg.EventID,
 		arg.Name,
 		arg.Description,
+		arg.NameNormalized,
+		arg.DescriptionNormalized,
 		arg.StartAt,
 		arg.EndAt,
 		arg.State,

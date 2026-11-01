@@ -20,8 +20,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -84,6 +87,10 @@ type Options struct {
 	WebPush *webpush.Service
 	// StreamSigner は、外部プレイヤー用の映像の URL に署名する。nil なら、URL の発行は内部のエラーにする。
 	StreamSigner *stream.Signer
+	// LiveRates は、ライブのサービスの内訳を数える (#812)。nil なら、liveStreamRates は失敗する。
+	LiveRates *stream.LiveRatesWatcher
+	// ChannelInspector は、物理チャンネルの TS を調べる (#830)。nil なら、inspectChannel は失敗する。
+	ChannelInspector *stream.ChannelInspector
 	// JikkyoTable と JikkyoClient は、サービスの実況のチャンネルを引くのに使う。どちらかが nil なら、実況のチャンネルは null にする。
 	JikkyoTable  *jikkyo.Table
 	JikkyoClient *jikkyoclient.Client
@@ -97,6 +104,8 @@ type Options struct {
 	TimeshiftDir string
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
+	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は捨てる。
+	AnimeRecords *animerecord.Service
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
 	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
@@ -173,36 +182,41 @@ func NewHandler(opts *Options) http.Handler {
 		searchSlots: make(chan struct{}, maxConcurrentSearches),
 		queries:     query.New(o.DB),
 		db:          o.DB, clock: o.Clock, location: o.Location, heartbeatInterval: o.HeartbeatInterval,
-		rules:        rule.NewRules(o.Clock, o.Recorder),
-		reservations: reserve.NewReservations(o.Clock, o.Recorder),
-		factors:      o.SecondFactors,
-		passkeys:     o.Passkeys,
-		apiTokens:    o.APITokens,
-		oauth:        o.OAuth,
-		players:      o.Players,
-		userAdmin:    o.UserAdmin,
-		passwords:    o.Passwords,
-		sessions:     o.Sessions,
-		urlUsers:     o.URLUsers,
-		recorder:     o.Recorder,
-		settings:     o.Settings,
-		timeshift:    timeshift.NewChannels(o.Clock, o.Recorder),
-		inbox:        notification.NewInbox(o.Clock),
-		webhooks:     o.Webhooks,
-		webPush:      o.WebPush,
-		streamSigner: o.StreamSigner,
-		jikkyoTable:  o.JikkyoTable,
-		jikkyoClient: o.JikkyoClient,
-		logger:       o.Logger,
-		changes:      o.Changes,
-		pools:        o.Pools,
-		freeSpace:    o.FreeSpace,
-		jobs:         o.Jobs,
-		totalSpace:   o.TotalSpace,
-		store:        kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
-		library:      library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),
-		updates:      o.Updates,
-		drain:        o.Drain,
+		rules:            rule.NewRules(o.Clock, o.Recorder),
+		reservations:     reserve.NewReservations(o.Clock, o.Recorder),
+		factors:          o.SecondFactors,
+		passkeys:         o.Passkeys,
+		apiTokens:        o.APITokens,
+		oauth:            o.OAuth,
+		players:          o.Players,
+		userAdmin:        o.UserAdmin,
+		passwords:        o.Passwords,
+		sessions:         o.Sessions,
+		urlUsers:         o.URLUsers,
+		recorder:         o.Recorder,
+		settings:         o.Settings,
+		timeshift:        timeshift.NewChannels(o.Clock, o.Recorder),
+		animeChannels:    anime.NewChannels(o.Clock, o.Recorder, o.Jobs),
+		animeRecords:     o.AnimeRecords,
+		inbox:            notification.NewInbox(o.Clock),
+		webhooks:         o.Webhooks,
+		webPush:          o.WebPush,
+		streamSigner:     o.StreamSigner,
+		liveRates:        o.LiveRates,
+		channelInspector: o.ChannelInspector,
+		jikkyoTable:      o.JikkyoTable,
+		jikkyoClient:     o.JikkyoClient,
+		logger:           o.Logger,
+		changes:          o.Changes,
+		pools:            o.Pools,
+		freeSpace:        o.FreeSpace,
+		jobs:             o.Jobs,
+		totalSpace:       o.TotalSpace,
+		store:            kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
+		library:          library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),
+		captures:         capture.New(kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Clock, o.Logger, 0),
+		updates:          o.Updates,
+		drain:            o.Drain,
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace

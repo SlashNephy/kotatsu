@@ -1,0 +1,57 @@
+/* 右の列の「情報」(#828)。 */
+.value {
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.list dt {
+  color: var(--mantine-color-dimmed);
+}
+
+.list dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.sparkline svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 48px;
+  overflow: visible;
+  touch-action: none;
+}
+
+/* 線は、枠の幅に合わせて伸ばしても、太さを変えない。 */
+.line {
+  fill: none;
+  stroke: var(--mantine-primary-color-filled);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.baseline {
+  stroke: var(--mantine-color-default-border);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.crosshair {
+  stroke: var(--mantine-color-dimmed);
+  stroke-width: 1px;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.caption {
+  font-variant-numeric: tabular-nums;
+}

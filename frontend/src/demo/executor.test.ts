@@ -45,6 +45,12 @@ import WatchReservationListQuery from '../watch/__generated__/WatchReservationLi
 import ProgramDetailCancelMutation from '../guide/__generated__/ProgramDetailCancelMutation.graphql';
 import ProgramDetailReserveMutation from '../guide/__generated__/ProgramDetailReserveMutation.graphql';
 import WatchReserveButtonMutation from '../watch/__generated__/WatchReserveButtonMutation.graphql';
+import WatchRuleIdQuery from '../routes/rules/watch/__generated__/WatchRuleIdQuery.graphql';
+import WatchRuleEditorCreateMutation from '../watch/__generated__/WatchRuleEditorCreateMutation.graphql';
+import WatchRuleEditorDeleteMutation from '../watch/__generated__/WatchRuleEditorDeleteMutation.graphql';
+import WatchRuleEditorUpdateMutation from '../watch/__generated__/WatchRuleEditorUpdateMutation.graphql';
+import WatchRuleListEnableMutation from '../watch/__generated__/WatchRuleListEnableMutation.graphql';
+import WatchRuleListQuery from '../watch/__generated__/WatchRuleListQuery.graphql';
 import { createRootValue } from './data';
 import { generatePrograms } from './epg';
 import { createEventHub } from './events';
@@ -236,6 +242,13 @@ describe('demo executor answers the queries of the screens', () => {
       name: 'create guide view',
       request: GuideViewEditorCreateMutation,
       variables: { input: { name: 'アニメ', genres: [{ lv1: 7 }] } },
+    },
+    { name: 'watch rules', request: WatchRuleListQuery, variables: {} },
+    { name: 'new watch rule', request: WatchRuleIdQuery, variables: { id: '', skip: true } },
+    {
+      name: 'create watch rule',
+      request: WatchRuleEditorCreateMutation,
+      variables: { input: rule },
     },
   ];
 
@@ -451,5 +464,48 @@ describe('demo watch reservation', () => {
     });
 
     expect(result.errors?.[0]?.message).toBe('the program has already started');
+  });
+});
+
+describe('demo watch rules', () => {
+  // create は、アニメの番組に一致する視聴ルールを作り、その ID を返す。
+  const create = async (executor: ReturnType<typeof newExecutor>['executor']) => {
+    const created = await executor.execute(text(WatchRuleEditorCreateMutation), { input: rule });
+    expect(created.errors).toBeUndefined();
+
+    return (created.data as { createWatchRule: { id: string } }).createWatchRule.id;
+  };
+  const reservedCount = async (executor: ReturnType<typeof newExecutor>['executor']) => {
+    const result = await executor.execute(text(WatchReservationListQuery), {});
+
+    return (result.data as { watchReservations: unknown[] }).watchReservations.length;
+  };
+
+  it('sets watch reservations on matching programs and removes them when the rule is disabled', async () => {
+    const { executor } = newExecutor();
+    const id = await create(executor);
+    expect(await reservedCount(executor)).toBeGreaterThan(0);
+
+    const read = await executor.execute(text(WatchRuleIdQuery), { id, skip: false });
+    expect(read.errors).toBeUndefined();
+    expect(read.data).toMatchObject({ node: { __typename: 'WatchRule', id } });
+
+    await executor.execute(text(WatchRuleListEnableMutation), { id, enabled: false });
+    expect(await reservedCount(executor)).toBe(0);
+  });
+
+  it('keeps the watch reservations after the rule is deleted', async () => {
+    const { executor } = newExecutor();
+    const id = await create(executor);
+    const before = await reservedCount(executor);
+
+    const updated = await executor.execute(text(WatchRuleEditorUpdateMutation), {
+      id,
+      input: { ...rule, name: '名前を変えた' },
+    });
+    expect(updated.errors).toBeUndefined();
+    await executor.execute(text(WatchRuleEditorDeleteMutation), { id });
+
+    expect(await reservedCount(executor)).toBe(before);
   });
 });

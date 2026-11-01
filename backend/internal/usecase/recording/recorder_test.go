@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
@@ -64,6 +65,15 @@ func (f *fixture) newRecorderOn(t *testing.T, pool *pgxpool.Pool, tuner recordin
 ) (*recording.Recorder, string) {
 	t.Helper()
 
+	return f.newRecorderWithDefaults(t, pool, tuner, freeSpace, peers, logger, nil)
+}
+
+// newRecorderWithDefaults は、録画設定の全体の既定値を defaults で読む Recorder を作る。nil なら、Go の既定値に固定する。
+func (f *fixture) newRecorderWithDefaults(t *testing.T, pool *pgxpool.Pool, tuner recording.StreamOpener, freeSpace kago.FreeSpaceFunc, peers recording.PeersFunc,
+	logger *slog.Logger, defaults assign.DefaultsFunc,
+) (*recording.Recorder, string) {
+	t.Helper()
+
 	dir := t.TempDir()
 	// 同じテストの Recorder は、データディレクトリを共有する (dataRootOf)。
 	require.NoError(t, os.MkdirAll(dataRootOf(dir), 0o755))
@@ -72,7 +82,7 @@ func (f *fixture) newRecorderOn(t *testing.T, pool *pgxpool.Pool, tuner recordin
 	if freeSpace == nil {
 		freeSpace = func(string) (uint64, error) { return 1 << 40, nil }
 	}
-	recorder := recording.NewRecorder(pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), nil, tokyo,
+	recorder := recording.NewRecorder(pool, f.clock, tuner, kago.New(map[string]string{poolID: dir}, freeSpace).WithDataDir(dataRootOf(dir)), defaults, tokyo,
 		logger, &recording.RecorderOptions{
 			TuningTime: 0, Tick: 10 * time.Millisecond, RetryInterval: 20 * time.Millisecond, ReleaseAfter: 0, Peers: peers,
 			DatabaseTimeout: databaseTimeoutFor(f, pool),
@@ -326,17 +336,12 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 			tt.outage(db)
 			plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
 			f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
-			// DB に届かない間も、予定の終わりで止め、新しいセグメントを作らない。止めたら、ファイルは伸びない。
-			segment := filepath.Join(dir, segmentFiles(t, dir)[0])
+			// DB に届かない間も、予定の終わりで止め、新しいセグメントを作らない。止めたら、チューナーのストリームを閉じる。
+			// ファイルが伸びなくなったことでは待たない。DB への問い合わせが詰まっている間は、録画を止める前でも書き込みが止まるので、
+			// 止める前に時計を進めてしまい、進めた後の時刻で止めたことになる (#1129)。
 			require.Eventually(t, func() bool {
-				before, err := os.Stat(segment)
-				require.NoError(t, err)
-				time.Sleep(100 * time.Millisecond)
-				after, err := os.Stat(segment)
-				require.NoError(t, err)
-
-				return before.Size() == after.Size()
-			}, waitTimeout, 10*time.Millisecond, "the recorder stops writing at the planned end")
+				return !f.streaming(t)
+			}, waitTimeout, 10*time.Millisecond, "the recorder stops at the planned end and closes the stream")
 			assert.Len(t, segmentFiles(t, dir), 1)
 			select {
 			case err := <-done:

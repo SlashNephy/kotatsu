@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -45,13 +46,15 @@ const (
 )
 
 type vodFixture struct {
-	pool    *pgxpool.Pool
-	clock   *clocktest.Fake
-	dir     string
-	vod     *kyusu.VOD
-	server  *httptest.Server
-	token   *kyusu.Token
-	workDir string
+	pool  *pgxpool.Pool
+	clock *clocktest.Fake
+	dir   string
+	// bufferDir は、タイムシフトのバッファを置くディレクトリ。索引は dir に置く。
+	bufferDir string
+	vod       *kyusu.VOD
+	server    *httptest.Server
+	token     *kyusu.Token
+	workDir   string
 }
 
 // newVODFixture は、VOD を動かす。modify で、VOD の設定を変えられる。
@@ -68,10 +71,11 @@ func newVODFixture(t *testing.T, encoder kyusu.VODEncoder, modify ...func(opts *
 	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
 		VALUES ($1, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $2, $2)`, serviceID, clk.Now())
 	require.NoError(t, err)
-	dir, workDir := t.TempDir(), t.TempDir()
-	source := stream.NewRecordingSource(pool, kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dir), 10*time.Millisecond)
+	dir, workDir, bufferDir := t.TempDir(), t.TempDir(), t.TempDir()
+	store := kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dir).WithTimeshiftDir(bufferDir)
+	source := stream.NewRecordingSource(pool, store, 10*time.Millisecond)
 	opts := &kyusu.VODOptions{
-		Opener: source, Encoder: encoder, WorkDir: workDir, Clock: clk, Logger: slog.New(slog.DiscardHandler), IdleTimeout: 0, MaxSessions: 0,
+		Opener: source, Timeshift: stream.NewTimeshiftSource(pool, store, 10*time.Millisecond), Encoder: encoder, WorkDir: workDir, Clock: clk, Logger: slog.New(slog.DiscardHandler), IdleTimeout: 0, MaxSessions: 0,
 	}
 	for _, m := range modify {
 		m(opts)
@@ -92,7 +96,7 @@ func newVODFixture(t *testing.T, encoder kyusu.VODEncoder, modify ...func(opts *
 		assert.NoError(t, <-done)
 	})
 
-	return &vodFixture{pool: pool, clock: clk, dir: dir, vod: vod, server: server, token: token, workDir: workDir}
+	return &vodFixture{pool: pool, clock: clk, dir: dir, bufferDir: bufferDir, vod: vod, server: server, token: token, workDir: workDir}
 }
 
 // recording は、data を 1 つのセグメントに持ち、ts.Analyzer で作った索引のある録画を作る。
@@ -322,6 +326,8 @@ type fakeVODEncoder struct {
 	startup  time.Duration
 	interval time.Duration
 	paced    bool
+	// startsMu は、starts に足すのを 1 つずつ行わせる。2 つのエンコーダーが同時に起動すると、片方の記録が消えるため (#1203)。
+	startsMu sync.Mutex
 	starts   atomic.Value
 	runs     atomic.Int32
 	running  atomic.Int32
@@ -331,8 +337,10 @@ func (e *fakeVODEncoder) RunVOD(ctx context.Context, src io.Reader, _ *kyusu.Pre
 	e.runs.Add(1)
 	e.running.Add(1)
 	defer e.running.Add(-1)
+	e.startsMu.Lock()
 	starts, _ := e.starts.Load().([]int)
 	e.starts.Store(append(append([]int{}, starts...), opts.StartNumber))
+	e.startsMu.Unlock()
 	if e.paced {
 		buf := make([]byte, 4*keyframeBytes)
 		for k := opts.StartNumber; ; k++ {

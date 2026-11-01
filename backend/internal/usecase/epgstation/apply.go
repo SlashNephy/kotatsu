@@ -452,7 +452,7 @@ func (a *applier) reserve(ctx context.Context, tx pgx.Tx, r *Reserve) (uuid.UUID
 	if !ok {
 		return uuid.Nil, skip("directory %q is not mapped to a pool", r.ParentDirectoryName)
 	}
-	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
+	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil}
 
 	created, err := a.createReservation(ctx, tx, r, overrides)
 	if err != nil {
@@ -548,6 +548,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 	recordingID := id.New()
 	err := q.InsertImportedRecording(ctx, sqlc.InsertImportedRecordingParams{
 		ID: recordingID, ServiceID: r.ChannelID, EventID: eventID, Name: r.Name, Description: r.Description,
+		NameNormalized: new(domain.Normalize(r.Name)), DescriptionNormalized: new(domain.Normalize(r.Description)),
 		StartAt: startAt, EndAt: endAt, State: state, Protected: r.IsProtected,
 		Drops: drop.DropCount, Errors: drop.ErrorCount, Scrambled: drop.ScramblingCount, Now: now,
 	})

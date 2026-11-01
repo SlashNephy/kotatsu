@@ -29,6 +29,7 @@ const (
 )
 
 // FailureCountsCreated は、kotatsu_recording_failures_total の作成の時刻を返す。失敗の累計を数え始めた版の日付で、どのインスタンスでも変わらない。
+// 管理者が累計を 0 に戻した理由は、戻した日時を作成の時刻にする (#1035)。
 // 値は DB に持つので、送るインスタンスが替わっても続く。作成の時刻も同じにして、OTLP の受け手がカウンターのリセットとみなさないようにする (#962)。
 func FailureCountsCreated() time.Time {
 	return time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC)
@@ -46,6 +47,7 @@ type DBCollector struct {
 	failuresTotal    *prometheus.Desc
 	lastFailure      *prometheus.Desc
 	activePackets    *prometheus.Desc
+	activeBitrate    *prometheus.Desc
 	reservations     *prometheus.Desc
 	assignments      *prometheus.Desc
 	tuners           *prometheus.Desc
@@ -58,6 +60,9 @@ type DBCollector struct {
 }
 
 var _ prometheus.Collector = new(DBCollector)
+
+// liveStatsFreshness は、録画中の録画の様子を、今の値とみなす長さ (#829)。mikan は 10 秒ごとに書くので、その 3 回分にする。
+const liveStatsFreshness = 30 * time.Second
 
 // NewDBCollector は DBCollector を返す。
 func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *DBCollector {
@@ -72,6 +77,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 		failuresTotal:    desc("recording_failures_total", "Number of recordings that have failed, by failure reason. Deleting recordings does not decrease it.", "reason"),
 		lastFailure:      desc("recording_last_failure_timestamp_seconds", "Time when a recording last failed, by failure reason.", "reason"),
 		activePackets:    desc("recording_active_packets", "Dropped, errored, and scrambled packets of the recordings in progress.", "kind"),
+		activeBitrate:    desc("recording_active_bitrate_bps", "Sum of the latest bitrates of the recordings in progress, in bits per second."),
 		reservations:     desc("reservations", "Number of reservations that have not ended, by assignment state, or disabled.", "state"),
 		assignments:      desc("recording_assignments", "Number of recording assignments by state.", "state"),
 		tuners:           desc("tuners", "Number of tuners of the tuner server by state.", "state"),
@@ -87,7 +93,7 @@ func NewDBCollector(pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *D
 // Describe は、集めるメトリクスの説明を送る。
 func (c *DBCollector) Describe(ch chan<- *prometheus.Desc) {
 	for _, d := range []*prometheus.Desc{
-		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
+		c.recordings, c.failures, c.failuresTotal, c.lastFailure, c.activePackets, c.activeBitrate, c.reservations, c.assignments, c.tuners, c.poolBytes, c.poolThreshold, c.poolMeasured, c.jobs, c.timeshiftBuffer, c.collectionErrors,
 	} {
 		ch <- d
 	}
@@ -132,7 +138,12 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		return err
 	}
 	for _, row := range counts {
-		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), FailureCountsCreated(), row.Reason)
+		// 管理者が累計を 0 に戻したら、戻した日時を作成の時刻にし、受け手にカウンターのリセットを伝える (#1035)。
+		created := FailureCountsCreated()
+		if row.ResetAt != nil {
+			created = *row.ResetAt
+		}
+		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), created, row.Reason)
 		if row.LastFailedAt != nil {
 			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
 		}
@@ -144,6 +155,13 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 	for kind, value := range map[string]int64{"drop": packets.Drops, "error": packets.Errors, "scrambled": packets.Scrambled} {
 		ch <- prometheus.MustNewConstMetric(c.activePackets, prometheus.GaugeValue, float64(value), kind)
 	}
+	// 録画中の録画の直近のビットレートの合計 (#829)。書いたバイト数の合計は、録画を終えると減り、rate() が偽の増加を出すので、
+	// mikan が測ったビットレートを足して出す。
+	bitrate, err := q.SumActiveRecordingBitrate(ctx, c.clock.Now().Add(-liveStatsFreshness))
+	if err != nil {
+		return err
+	}
+	ch <- prometheus.MustNewConstMetric(c.activeBitrate, prometheus.GaugeValue, float64(bitrate))
 
 	return nil
 }

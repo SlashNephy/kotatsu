@@ -346,6 +346,35 @@ func TestPreviewRule(t *testing.T) {
 	assert.Empty(t, listed.Rules)
 }
 
+// TestRuleWarnings は、詳細まで探す正規表現のうち、前段で絞り込めないキーワードを、警告として返すことを確かめる (#904)。
+func TestRuleWarnings(t *testing.T) {
+	t.Parallel()
+
+	const fieldExtended = "EXTENDED"
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	input := testProgramRule(f.serviceIDs(t))
+	extended := []string{fieldName, fieldExtended}
+	input.Conditions.Keywords = []keywordInput{
+		{Text: "みかん紀行", Regexp: true, Fields: extended},
+		{Text: "[0-9]+", Regexp: true, Fields: extended},
+	}
+	input.Conditions.ExcludeKeywords = []keywordInput{{Text: "[0-9]+", Regexp: true, Fields: []string{fieldName}}}
+	var got struct {
+		RuleWarnings []struct {
+			Kind    string `json:"kind"`
+			Exclude bool   `json:"exclude"`
+			Index   int    `json:"index"`
+		} `json:"ruleWarnings"`
+	}
+	require.Empty(t, f.query(t, `query($input: RuleInput!) { ruleWarnings(input: $input) { kind exclude index } }`,
+		map[string]any{varInput: input}, &got))
+	require.Len(t, got.RuleWarnings, 1)
+	assert.Equal(t, "UNFILTERABLE_REGEXP", got.RuleWarnings[0].Kind)
+	assert.False(t, got.RuleWarnings[0].Exclude)
+	assert.Equal(t, 1, got.RuleWarnings[0].Index)
+}
+
 // TestPreviewRulePages は、プレビューを続きから読むと、同じ番組を 2 回返さずに読み進められることを確かめる。
 func TestPreviewRulePages(t *testing.T) {
 	t.Parallel()

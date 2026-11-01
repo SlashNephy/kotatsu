@@ -11,7 +11,7 @@ const program = (id: string, start: string, end: string) => ({
 });
 
 describe('nowPlaying', () => {
-  test('サービスごとに放送中の番組を選び、放送中の番組がないサービスは出さない', () => {
+  test('サービスごとに放送中の番組を選び、放送中の番組がないサービスは番組を null にして出す', () => {
     const rows = [
       {
         service: { id: 's1', name: 'NHK' },
@@ -21,8 +21,11 @@ describe('nowPlaying', () => {
       { service: { id: 's3', name: 'NTV' }, programs: [program('d', '09:55', '10:55')] },
     ];
 
-    expect(nowPlaying(rows, now).map((item) => [item.serviceName, item.programName])).toEqual([
+    expect(
+      nowPlaying(rows, now).map((item) => [item.serviceName, item.program?.name ?? null]),
+    ).toEqual([
       ['NHK', '番組 b'],
+      ['ETV', null],
       ['NTV', '番組 d'],
     ]);
   });
@@ -68,9 +71,9 @@ describe('pinnedNowPlaying', () => {
 
   test.each([
     {
-      name: 'ピン留めした順に並べ、放送中の番組がないサービスは出さない',
+      name: 'ピン留めした順に並べ、放送中の番組がないサービスも出す',
       pinned: ['s4', 's3', 's1'],
-      want: ['s4', 's1'],
+      want: ['s4', 's3', 's1'],
     },
     {
       name: 'メインチャンネルと一緒にピン留めしたサブチャンネルも省かない',

@@ -105,6 +105,18 @@ func (q *Queries) GetGuideProgram(ctx context.Context, arg GetGuideProgramParams
 	return i, err
 }
 
+const getOldestArchivedProgramStartAt = `-- name: GetOldestArchivedProgramStartAt :one
+SELECT start_at FROM program_archives ORDER BY start_at LIMIT 1
+`
+
+// 最も古い、放送が終わった番組の開始時刻。過去の番組表で、どこまで遡れるかを示す (#1121)。なければ行を返さない。
+func (q *Queries) GetOldestArchivedProgramStartAt(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRow(ctx, getOldestArchivedProgramStartAt)
+	var start_at time.Time
+	err := row.Scan(&start_at)
+	return start_at, err
+}
+
 const getPresentVideoResolution = `-- name: GetPresentVideoResolution :one
 SELECT video_resolution FROM programs
 WHERE service_id = $1 AND start_at <= $2 AND (end_undecided OR end_at > $2)
@@ -123,6 +135,69 @@ func (q *Queries) GetPresentVideoResolution(ctx context.Context, arg GetPresentV
 	var video_resolution *string
 	err := row.Scan(&video_resolution)
 	return video_resolution, err
+}
+
+const listArchivedProgramsInRange = `-- name: ListArchivedProgramsInRange :many
+SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
+  related_items
+FROM program_archives
+WHERE service_id = ANY($1::bigint[]) AND end_at > $2 AND start_at < $3
+ORDER BY service_id, start_at, event_id
+`
+
+type ListArchivedProgramsInRangeParams struct {
+	ServiceIds []int64
+	FromAt     time.Time
+	ToAt       time.Time
+}
+
+type ListArchivedProgramsInRangeRow struct {
+	ServiceID    int64
+	EventID      int64
+	StartAt      time.Time
+	EndAt        time.Time
+	EndUndecided bool
+	IsFree       bool
+	Name         string
+	Description  string
+	Extended     []byte
+	Genres       []byte
+	Audios       []byte
+	RelatedItems []byte
+}
+
+// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
+func (q *Queries) ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error) {
+	rows, err := q.db.Query(ctx, listArchivedProgramsInRange, arg.ServiceIds, arg.FromAt, arg.ToAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArchivedProgramsInRangeRow{}
+	for rows.Next() {
+		var i ListArchivedProgramsInRangeRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.EndUndecided,
+			&i.IsFree,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.Genres,
+			&i.Audios,
+			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listChannelTypes = `-- name: ListChannelTypes :many
@@ -287,6 +362,79 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 			&i.LogoID,
 			&i.Hidden,
 			&i.SortOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramRecordings = `-- name: ListProgramRecordings :many
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings
+WHERE service_id = $1 AND event_id = $2 AND start_at < $3 AND end_at > $4
+ORDER BY start_at, id
+`
+
+type ListProgramRecordingsParams struct {
+	ServiceID int64
+	EventID   *int64
+	EndAt     time.Time
+	StartAt   time.Time
+}
+
+// 番組 (サービス, eventId) の録画のうち、番組の放送時間に重なるもの (#1121)。eventId は使い回されるので、時間でも絞る。
+func (q *Queries) ListProgramRecordings(ctx context.Context, arg ListProgramRecordingsParams) ([]Recording, error) {
+	rows, err := q.db.Query(ctx, listProgramRecordings,
+		arg.ServiceID,
+		arg.EventID,
+		arg.EndAt,
+		arg.StartAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Recording{}
+	for rows.Next() {
+		var i Recording
+		if err := rows.Scan(
+			&i.ID,
+			&i.APIID,
+			&i.ReservationID,
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.Description,
+			&i.NameNormalized,
+			&i.DescriptionNormalized,
+			&i.StartAt,
+			&i.EndAt,
+			&i.State,
+			&i.FailureReason,
+			&i.Protected,
+			&i.Drops,
+			&i.Errors,
+			&i.Scrambled,
+			&i.Gaps,
+			&i.Audios,
+			&i.VideoResolution,
+			&i.Genres,
+			&i.RuleID,
+			&i.RuleName,
+			&i.ProgramLost,
+			&i.BroadcastStartedAt,
+			&i.BroadcastEndedAt,
+			&i.WaitedForBroadcast,
+			&i.NotBroadcast,
+			&i.AiredEventID,
+			&i.RecordedFrom,
+			&i.RecordedUntil,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

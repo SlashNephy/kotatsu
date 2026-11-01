@@ -48,6 +48,8 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 //   - 予約はあるのに、どのルールにも一致しなくなった番組は、放送が始まっていなければルール予約を消す。
 //     無効にしたルール予約も、一致しなくなれば消す。一致している間は、無効のまま残すので作り直されない。
 //   - 手動の番組予約がある番組は、手動の設定を優先する。一致したルールの関係だけを残す。
+//
+// あわせて、ユーザーごとの視聴ルールも同じ番組に照合し、一致した番組に視聴予約を付ける (設計書 4.8)。
 type Engine struct {
 	pool         *pgxpool.Pool
 	clock        clock.Clock
@@ -70,6 +72,21 @@ type Result struct {
 	Unlinked int
 	// Skipped は、条件を読めずに照合から外したルールと、読めなかった理由。そのルールの予約は、消さずに残す (#529)。
 	Skipped map[uuid.UUID]error
+	// WatchCreated と WatchDeleted は、視聴ルールで付けた視聴予約と、一致しなくなって外した視聴予約の数 (設計書 4.8)。
+	WatchCreated int
+	WatchDeleted int
+	// WatchSkipped は、条件を読めずに照合から外した視聴ルールと、読めなかった理由。そのユーザーの視聴予約は、消さずに残す。
+	WatchSkipped map[uuid.UUID]error
+	// DismissalsPruned は、番組が programs からなくなったので消した、手で外した視聴予約の記録の数。
+	DismissalsPruned int
+}
+
+// newResult は、空の照合の結果を返す。
+func newResult() *Result {
+	return &Result{
+		Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{},
+		WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0,
+	}
 }
 
 // programKey は番組の識別子 (サービスと eventId の組)。
@@ -84,18 +101,38 @@ func compareKeys(a, b programKey) int {
 
 // Run は、ルールの照合を 1 回行う。すべて 1 つのトランザクションで読み書きする。
 func (e *Engine) Run(ctx context.Context) (*Result, error) {
-	result := &Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}
+	result := newResult()
 	err := pgx.BeginFunc(ctx, e.pool, func(tx pgx.Tx) error {
 		if err := e.guard(ctx, tx); err != nil {
 			return err
 		}
 		now := e.clock.Now()
-		desired, err := e.desired(ctx, tx, now, result, nil)
+		rows, err := listMatchablePrograms(ctx, tx, now)
 		if err != nil {
 			return err
 		}
+		rules, err := e.enabledRules(ctx, tx, result)
+		if err != nil {
+			return err
+		}
+		watchRules, skippedUsers, err := e.enabledWatchRules(ctx, tx, result)
+		if err != nil {
+			return err
+		}
+		// 番組を照合する形にするのは重いので、録画のルールと視聴ルールを、1 回の走査でまとめて照合する。
+		matched, watchMatched, err := matchPrograms(rows, rules, watchRules)
+		if err != nil {
+			return err
+		}
+		desired, err := e.narrow(ctx, tx, now, matched, nil)
+		if err != nil {
+			return err
+		}
+		if err := e.apply(ctx, tx, now, desired, result); err != nil {
+			return err
+		}
 
-		return e.apply(ctx, tx, now, desired, result)
+		return e.applyWatch(ctx, tx, now, rows, watchMatched, skippedUsers, result)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to match rules: %w", err)
@@ -113,70 +150,122 @@ func (e *Engine) desired(
 	if err != nil {
 		return nil, err
 	}
+	rows, err := listMatchablePrograms(ctx, tx, now)
+	if err != nil {
+		return nil, err
+	}
+
+	matched, _, err := matchPrograms(rows, rules, []*compiledWatchRule{})
+	if err != nil {
+		return nil, err
+	}
+
+	return e.narrow(ctx, tx, now, matched, skipped)
+}
+
+// narrow は、ルールに一致した番組を、重複の回避とイベント共有で絞り込み、予約すべき番組にする。
+// skipped を渡せば、重複の回避で予約すべき集合から外した番組を、そこに入れる。
+func (e *Engine) narrow(
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
+) (map[programKey]*desiredProgram, error) {
+	if err := e.avoidDuplicates(ctx, tx, now, matched, skipped); err != nil {
+		return nil, err
+	}
+	pickSharedEvents(matched, func(d *desiredProgram) []byte { return d.row.RelatedItems })
+
+	return matched, nil
+}
+
+// listMatchablePrograms は、ルールの対象になる番組を返す。
+func listMatchablePrograms(ctx context.Context, tx pgx.Tx, now time.Time) ([]sqlc.ListMatchableProgramsRow, error) {
 	rows, err := sqlc.New(tx).ListMatchablePrograms(ctx, sqlc.ListMatchableProgramsParams{Now: now, MediaServiceTypes: domain.MediaServiceTypes()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list programs: %w", err)
 	}
 
-	matched, err := matchPrograms(rows, rules)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := e.avoidDuplicates(ctx, tx, now, matched, skipped); err != nil {
-		return nil, err
-	}
-	pickSharedEvents(matched)
-
-	return matched, nil
+	return rows, nil
 }
 
-// matchPrograms は、番組ごとに、一致したルールを rules の順に集める。
+// matchPrograms は、番組ごとに、一致したルールを rules の順に、一致した視聴ルールを watchRules の順に集める。
 // 必ず含む文字列を決められない正規表現は、前段で絞り込めず、番組ごとに照合するので重い (#878)。
 // そこで、番組を GOMAXPROCS の数のまとまりに分け、並べて照合する。GOMAXPROCS は、コンテナの CPU の制限にも従う。
-func matchPrograms(rows []sqlc.ListMatchableProgramsRow, rules []*compiledRule) (map[programKey]*desiredProgram, error) {
+func matchPrograms(
+	rows []sqlc.ListMatchableProgramsRow, rules []*compiledRule, watchRules []*compiledWatchRule,
+) (map[programKey]*desiredProgram, map[programKey]*watchProgram, error) {
 	workers := max(1, min(runtime.GOMAXPROCS(0), len(rows)))
 	parts := make([]map[programKey]*desiredProgram, workers)
+	watchParts := make([]map[programKey]*watchProgram, workers)
 	errs := make([]error, workers)
 	var wg sync.WaitGroup
 	for w := range workers {
 		wg.Go(func() {
 			part := map[programKey]*desiredProgram{}
+			watchPart := map[programKey]*watchProgram{}
 			for i := w; i < len(rows); i += workers {
-				row := rows[i]
-				program, err := toMatchProgram(row)
-				if err != nil {
+				if err := matchProgram(rows[i], rules, watchRules, part, watchPart); err != nil {
 					errs[w] = err
 
 					return
 				}
-				for _, r := range rules {
-					if !r.covers(row.StartAt) || !r.matcher.Match(program) {
-						continue
-					}
-					key := programKey{serviceID: row.ServiceID, eventID: row.EventID}
-					d, ok := part[key]
-					if !ok {
-						d = &desiredProgram{row: row, rules: []*compiledRule{}}
-						part[key] = d
-					}
-					d.rules = append(d.rules, r)
-				}
 			}
 			parts[w] = part
+			watchParts[w] = watchPart
 		})
 	}
 	wg.Wait()
 	if err := errors.Join(errs...); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	matched := map[programKey]*desiredProgram{}
 	for _, part := range parts {
 		maps.Copy(matched, part)
 	}
+	watchMatched := map[programKey]*watchProgram{}
+	for _, part := range watchParts {
+		maps.Copy(watchMatched, part)
+	}
 
-	return matched, nil
+	return matched, watchMatched, nil
+}
+
+// matchProgram は、番組 row に一致したルールを part に、一致した視聴ルールを watchPart に足す。
+func matchProgram(
+	row sqlc.ListMatchableProgramsRow,
+	rules []*compiledRule,
+	watchRules []*compiledWatchRule,
+	part map[programKey]*desiredProgram,
+	watchPart map[programKey]*watchProgram,
+) error {
+	program, err := toMatchProgram(row)
+	if err != nil {
+		return err
+	}
+	key := programKey{serviceID: row.ServiceID, eventID: row.EventID}
+	for _, r := range rules {
+		if !r.covers(row.StartAt) || !r.matcher.Match(program) {
+			continue
+		}
+		d, ok := part[key]
+		if !ok {
+			d = &desiredProgram{row: row, rules: []*compiledRule{}}
+			part[key] = d
+		}
+		d.rules = append(d.rules, r)
+	}
+	for _, r := range watchRules {
+		if !r.matcher.Match(program) {
+			continue
+		}
+		d, ok := watchPart[key]
+		if !ok {
+			d = &watchProgram{row: row, rules: []*compiledWatchRule{}}
+			watchPart[key] = d
+		}
+		d.rules = append(d.rules, r)
+	}
+
+	return nil
 }
 
 // desiredProgram は、予約すべき番組と、一致したルール。
@@ -342,15 +431,15 @@ func (e *Engine) avoidDuplicates(
 }
 
 // pickSharedEvents は、同じイベントを複数のサービスで放送している番組 (イベント共有) が複数一致したとき、
-// サービス ID の最も小さい 1 つだけを残す (設計書 4.4)。
-func pickSharedEvents(matched map[programKey]*desiredProgram) {
+// サービス ID の最も小さい 1 つだけを残す (設計書 4.4)。relatedItems は、番組の relatedItems を返す。
+func pickSharedEvents[V any](matched map[programKey]V, relatedItems func(V) []byte) {
 	for _, key := range slices.SortedFunc(maps.Keys(matched), compareKeys) {
 		d, ok := matched[key]
 		if !ok {
 			continue
 		}
 		var related []*domain.RelatedItem
-		if err := json.Unmarshal(d.row.RelatedItems, &related); err != nil {
+		if err := json.Unmarshal(relatedItems(d), &related); err != nil {
 			continue
 		}
 		networkID := key.serviceID / serviceIDBase

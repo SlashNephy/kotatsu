@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -21,9 +22,15 @@ const (
 	fieldNotificationDays = "notificationRetentionDays"
 	// fieldMCPEnabled は、MCP のクライアントに使わせるかどうかの項目 (#963)。
 	fieldMCPEnabled = "mcpEnabled"
-	settingsQuery   = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
-	updateSettings  = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
-		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled } }`
+	// fieldDataBroadcastIPEnabled は、データ放送の通信を中継するかどうかの項目 (#501)。
+	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
+	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
+	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
+	settingsQuery            = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
+		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled } }`
+	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
+		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled
+		dataBroadcastIpEnabled animeLinkingEnabled } }`
 )
 
 type recordingSettings struct {
@@ -39,6 +46,8 @@ type systemSettings struct {
 	ArchiveRetentionDays      int               `json:"archiveRetentionDays"`
 	NotificationRetentionDays int               `json:"notificationRetentionDays"`
 	MCPEnabled                bool              `json:"mcpEnabled"`
+	DataBroadcastIPEnabled    bool              `json:"dataBroadcastIpEnabled"`
+	AnimeLinkingEnabled       bool              `json:"animeLinkingEnabled"`
 }
 
 func defaultSystemSettings() systemSettings {
@@ -50,6 +59,8 @@ func defaultSystemSettings() systemSettings {
 		ArchiveRetentionDays:      90,
 		NotificationRetentionDays: 90,
 		MCPEnabled:                false,
+		DataBroadcastIPEnabled:    false,
+		AnimeLinkingEnabled:       false,
 	}
 }
 
@@ -121,6 +132,16 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: true}}, &partial))
 	want.MCPEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
+	// データ放送の通信も、既定では中継せず、管理者が有効にする (#501)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDataBroadcastIPEnabled: true}}, &partial))
+	want.DataBroadcastIPEnabled = true
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
+	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "viewers read whether data broadcast communication is relayed")
+	// しょぼいカレンダー、Annict、AniList との連携も、既定では使わず、管理者が有効にする (設計書 3.8)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldAnimeLinkingEnabled: true}}, &partial))
+	want.AnimeLinkingEnabled = true
+	assert.Equal(t, want, partial.UpdateSystemSettings)
 
 	var stamped struct {
 		SystemSettings struct {
@@ -133,11 +154,102 @@ func TestSystemSettings(t *testing.T) {
 
 	// 録画の既定値や保持期間は、第三者に影響しないので、再認証を求めない。
 	// MCP のクライアントとの連携は、外部のサービスに読ませるかどうかを決めるので、直前の再認証を求め、変えない (設計書 9.5)。
+	// データ放送の通信の中継も、受信機の情報を外部のサーバーへ送らせるかどうかを決めるので、同じく求める (#501)。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	require.Empty(t, admin.query(t, updateSettings, change, nil))
-	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: false}}, nil))
+	// しょぼいカレンダー、Annict、AniList との連携も、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。
+	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled} {
+		assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{field: false}}, nil), field)
+	}
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
+	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "rejected changes are not saved")
+	assert.True(t, got.SystemSettings.AnimeLinkingEnabled, "rejected changes are not saved")
+}
+
+type drcsReplacement struct {
+	MD5  string `json:"md5"`
+	Text string `json:"text"`
+}
+
+// TestDRCSReplacements は、管理者だけが字幕の外字の置き換えの表を変えられ、ログインしていれば誰でも読めることを確かめる (#825)。
+// 表は、書いた外字だけを変えるので、別々に送った登録を互いに消さない。
+func TestDRCSReplacements(t *testing.T) {
+	t.Parallel()
+
+	const (
+		query    = `{ drcsReplacements { md5 text } }`
+		md5Upper = "0123456789ABCDEF0123456789ABCDEF"
+		md5Lower = "0123456789abcdef0123456789abcdef"
+		md5Other = "ffffffffffffffffffffffffffffffff"
+		md5Third = "00000000000000000000000000000000"
+		// textJi は、字幕の「字」の印を置き換える文字。
+		textJi = "[字]"
+		update = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { drcsReplacements { md5 text } } }`
+	)
+	type payload struct {
+		DRCSReplacements []drcsReplacement `json:"drcsReplacements"`
+	}
+	// input は、外字の表の変更。text が空なら、その外字を消す。
+	input := func(rows ...drcsReplacement) map[string]any {
+		values := make([]map[string]any, 0, len(rows))
+		for _, row := range rows {
+			var text any
+			if row.Text != "" {
+				text = row.Text
+			}
+			values = append(values, map[string]any{"md5": row.MD5, "text": text})
+		}
+
+		return map[string]any{varInput: map[string]any{"drcsReplacements": values}}
+	}
+
+	f := newFixture(t, nil)
+	viewerFixture := f.as(t, "viewer", auth.RoleViewer)
+	var got payload
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Empty(t, got.DRCSReplacements, "empty by default")
+
+	change := input(drcsReplacement{MD5: md5Other, Text: "♪"}, drcsReplacement{MD5: md5Upper, Text: textJi})
+	assert.Equal(t, []string{codeForbidden}, viewerFixture.query(t, update, change, nil), "only administrators can change the table")
+
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	require.Empty(t, admin.query(t, update, change, nil))
+	want := []drcsReplacement{{MD5: md5Lower, Text: textJi}, {MD5: md5Other, Text: "♪"}}
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements, "MD5 is lowercased and sorted")
+
+	// 別に送った登録は、前の登録を消さない。書いた外字だけを変える。
+	require.Empty(t, admin.query(t, update, input(drcsReplacement{MD5: md5Third, Text: "三"}, drcsReplacement{MD5: md5Other, Text: "♫"}), nil))
+	want = []drcsReplacement{{MD5: md5Third, Text: "三"}, {MD5: md5Lower, Text: textJi}, {MD5: md5Other, Text: "♫"}}
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements)
+
+	// 正しくない変更は、BAD_USER_INPUT を返し、保存しない。
+	tooMany := make([]drcsReplacement, 0, 1998)
+	for i := range 1998 {
+		tooMany = append(tooMany, drcsReplacement{MD5: fmt.Sprintf("%032x", i+1), Text: "a"})
+	}
+	for name, rows := range map[string][]drcsReplacement{
+		"not hex":    {{MD5: strings.Repeat("g", 32), Text: "a"}},
+		"short":      {{MD5: "0123", Text: "a"}},
+		"long text":  {{MD5: md5Lower, Text: "12345"}},
+		"duplicated": {{MD5: md5Lower, Text: "a"}, {MD5: md5Upper, Text: "b"}},
+		// 今の 3 件と合わせて、2000 件を超える。
+		"too many rows": tooMany,
+	} {
+		assert.Equal(t, []string{codeBadUserInput}, admin.query(t, update, input(rows...), nil), name)
+	}
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements)
+
+	// 表を省けば変えず、text を null にした外字は消す。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDays: 30}}, nil))
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, want, got.DRCSReplacements)
+	require.Empty(t, admin.query(t, update, input(drcsReplacement{MD5: md5Upper, Text: ""}, drcsReplacement{MD5: md5Third, Text: ""}), nil))
+	require.Empty(t, viewerFixture.query(t, query, nil, &got))
+	assert.Equal(t, []drcsReplacement{{MD5: md5Other, Text: "♫"}}, got.DRCSReplacements)
 }
 
 const fieldSortOrder = "sortOrder"

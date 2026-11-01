@@ -21,12 +21,14 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/animedata"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
@@ -36,15 +38,20 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
+	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
+	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
@@ -53,7 +60,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
+	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
+	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
+	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
@@ -154,7 +164,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return nil, nil, err
 	}
 	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock,
-		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter))
+		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),
+		cmdetect.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
 	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
@@ -166,6 +177,10 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// タイムシフトのバッファは、保持時間を過ぎたチャンクを捨てる (設計書 5.7)。タイムシフトのディレクトリがなければ、何もしない。
 	river.AddWorker(workers, timeshift.NewPruneWorker(deps.DB, deps.Clock, storeOf(deps.Config),
 		logger.With(slog.String("component", "timeshift"))))
+	// タイムシフトのバッファにある、放送の終わった番組を、録画に書き出す (設計書 5.7)。
+	river.AddWorker(workers, recording.NewPromoteWorker(deps.DB, deps.Clock, storeOf(deps.Config), settings.RecordingDefaults, location,
+		logger.With(slog.String("component", "timeshift_promote"))))
+	river.AddWorker(workers, recording.NewReapPromotionsWorker(deps.DB, deps.Clock, logger.With(slog.String("component", "timeshift_promote"))))
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, storeOf(deps.Config), deps.Clock,
 		!deps.Config.Thumbnail.DisablePreview))
@@ -176,13 +191,90 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
 		logger.With(slog.String("component", "segjoin")), 0))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
+	// 録画を終えたら、CM の区間を見分ける (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
+	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock))
 	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
+	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
+	animeLogger := logger.With(slog.String("component", "anime"))
+	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
+	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの取り込みと照合のジョブすべてで共有する。
+	syobocalClient := syobocal.NewClient(nil)
+	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), syobocalClient, inserter, animeLogger)))
+	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
+	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
+	animeRecords, err := newAnimeRecords(deps, logger, inserter)
+	if err != nil {
+		return nil, nil, err
+	}
+	river.AddWorker(workers, animerecord.NewRecordWorker(animeRecords, deps.DB))
+	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
+	// ユーザーが Annict と AniList で「見たい」「見てる」にした作品を、記録の連携のトークンで取り込む (#928)。
+	river.AddWorker(workers, animerecord.NewWishlistWorker(animeRecords, deps.DB))
 
-	return workers, []*river.PeriodicJob{
+	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
-	}, nil
+		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
+		animerecord.WishlistPeriodicJob(),
+	}, anime.MatchPeriodicJobs()...), nil
+}
+
+// newAnimeRecords は、見たアニメを Annict と AniList に記録する部品を作る (#927)。
+// 問い合わせ先は決まったホストだけにし、設定で向け直したときだけ、そのオリジンへ向ける (検証用)。
+// inserter は、連携したときに見たいリストを取り込むジョブ (#928) を入れる River のクライアント。nil なら入れない。
+func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (*animerecord.Service, error) {
+	client := animerecord.NewHTTPClient()
+
+	return animerecord.NewService(&animerecord.Options{
+		Clock: deps.Clock, Recorder: audit.NewRecorder(deps.Clock), AppSecret: deps.Config.Auth.SecretKey.Value(),
+		Destinations: []animerecord.Destination{
+			animerecord.NewAnnict(client, deps.Config.AnimeRecords.AnnictURL),
+			animerecord.NewAniList(client, deps.Config.AnimeRecords.AniListURL),
+		},
+		Logger:           logger.With(slog.String("component", "anime_record")),
+		Inserter:         inserter,
+		WishlistInterval: animerecord.DefaultWishlistRequestInterval,
+	})
+}
+
+// sealedStores は、アプリの秘密キーで暗号化した秘密情報 (設計書 8.4) を扱う部品。
+type sealedStores struct {
+	webhooks     *webhook.Store
+	webPush      *webpush.Service
+	animeRecords *animerecord.Service
+}
+
+// newSealedStores は、アプリの秘密キーで暗号化した秘密情報を扱う部品を作る。
+func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
+	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
+	// VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
+	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
+	if err != nil {
+		return nil, err
+	}
+	// 連携した後の見たいリストの取り込み (#928) は、ジョブを入れられるときだけ始める。
+	var inserter anime.Inserter
+	if deps.Jobs != nil {
+		inserter = deps.Jobs
+	}
+	animeRecords, err := newAnimeRecords(deps, logger, inserter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &sealedStores{webhooks: webhooks, webPush: webPush, animeRecords: animeRecords}, nil
+}
+
+// handleAnimeRecordCallbacks は、Annict と AniList から戻ってくる認可のハンドラーを、記録先ごとに mux に登録する (#927)。
+func handleAnimeRecordCallbacks(mux *http.ServeMux, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
+	logger = logger.With(slog.String("component", "anime_record"))
+	for _, name := range service.Destinations() {
+		mux.Handle("GET "+animerecord.CallbackPathPrefix+name+"/callback", animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
+	}
 }
 
 // defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。
@@ -510,7 +602,9 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 			return err
 		}
 		mux.Handle(kyusu.LivePathPrefix, live.Handler(token))
-		mux.Handle(kyusu.RecordingPathPrefix, vod.Handler(token))
+		vodHandler := vod.Handler(token)
+		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
+		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
@@ -677,15 +771,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	sealed, err := newSealedStores(deps, logger)
 	if err != nil {
 		return nil, err
 	}
-	// VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
-	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, err
-	}
+	webhooks, webPush, animeRecords := sealed.webhooks, sealed.webPush, sealed.animeRecords
 	// subscription は、どの tenban で起きた変更も届けるため、変更の通知のチャンネルを見張る (設計書 1.4、9.1)。
 	changes, err := watch(ctx, logger, deps)
 	if err != nil {
@@ -710,6 +800,18 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
 	streams := newStreamCounter(deps)
 	drainer := streamapi.NewDrainer(streams)
+	// 映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) に使うチューナーサーバー。
+	var opener streamapi.ServiceOpener
+	var logos streamapi.LogoFetcher
+	var ratesOpener stream.ServiceOpener
+	var channelOpener stream.ChannelOpener
+	if deps.Config.Tuner.URL.Value() != "" {
+		client, err := newTunerClient(deps)
+		if err != nil {
+			return nil, err
+		}
+		opener, logos, ratesOpener, channelOpener = client, client, client, client
+	}
 	graphQL := graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
@@ -727,6 +829,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Webhooks:          webhooks,
 		WebPush:           webPush,
 		StreamSigner:      signer,
+		LiveRates:         stream.NewLiveRatesWatcher(ratesOpener, deps.Clock, 0),
+		ChannelInspector:  stream.NewChannelInspector(channelOpener, deps.Clock),
 		JikkyoTable:       jikkyoTable,
 		JikkyoClient:      jikkyoClient,
 		Changes:           changes,
@@ -735,6 +839,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
+		AnimeRecords:      animeRecords,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,
@@ -765,6 +870,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions)
 	mux.Handle("GET /auth/oidc", oidc.StatusHandler(deps.DB))
 	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
+	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
+	handleAnimeRecordCallbacks(mux, deps, animeRecords, logger)
 	for pattern, handler := range map[string]http.Handler{
 		"POST /auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
 		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
@@ -786,16 +893,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"POST /auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
-	}
-	// 映像の配信 (設計書 7.2、7.6、9.6)。セッションか署名付き URL で認可する。
-	var opener streamapi.ServiceOpener
-	var logos streamapi.LogoFetcher
-	if deps.Config.Tuner.URL.Value() != "" {
-		client, err := newTunerClient(deps)
-		if err != nil {
-			return nil, err
-		}
-		opener, logos = client, client
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
@@ -850,9 +947,14 @@ func handleStreams(
 		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
 	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
+	mux.Handle("GET /streams/timeshift/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Middleware(kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger)))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
+	mux.Handle("GET /streams/timeshift/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+		streams.Count(streamapi.StreamTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
@@ -871,7 +973,8 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 	}
 }
 
-// handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
+// handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。キャプチャのほかは、セッションか署名付き URL で認可する。
+// キャプチャは撮ったユーザーだけのものなので、セッションでだけ受け付ける (設計書 7.5)。
 func handleMedia(
 	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
 	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client,
@@ -888,6 +991,17 @@ func handleMedia(
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(
 		jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
+	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
+	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")))
+	mux.Handle("POST "+databroadcastapi.RequestPath, httpserver.RequireSameOrigin(dataBroadcast.RequestHandler()))
+	mux.Handle("POST "+databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(dataBroadcast.ConnectivityHandler()))
+	// キャプチャは、データディレクトリに置く (設計書 5.6、7.5)。受け取るのは状態を変えるので、ほかのオリジンからは受け付けない。
+	captureLogger := logger.With(slog.String("component", "capture"))
+	dataStore := storeOf(deps.Config)
+	captures := capture.New(dataStore, deps.Clock, captureLogger, 0)
+	mux.Handle("POST /media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
+	mux.Handle("GET /media/captures/{id}", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
 }
 
 // handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
@@ -986,8 +1100,9 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 		return nil, nil, nil, err
 	}
 	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
-		Opener:  stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
-		Encoder: vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0, MaxSessions: 0,
+		Opener:    stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
+		Timeshift: stream.NewTimeshiftSource(deps.DB, storeOf(deps.Config), 0),
+		Encoder:   vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0, MaxSessions: 0,
 	})
 	if err != nil {
 		return nil, nil, nil, err

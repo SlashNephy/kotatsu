@@ -54,6 +54,15 @@
   border-radius: 2px;
 }
 
+/* CM とみなした区間 (#479)。途切れた位置の印や、ほかの区間と見分けられるよう、青で重ねる。 */
+.cm {
+  position: absolute;
+  height: 6px;
+  transform: translateY(-50%);
+  background: rgb(116 192 252 / 0.85);
+  border-radius: 2px;
+}
+
 /* 印は、長さのない区間 (録画が途切れた位置など)。バーを縦に切る細い線にする。 */
 .mark {
   position: absolute;

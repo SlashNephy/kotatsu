@@ -112,6 +112,11 @@ func (r *queryResolver) Rules(ctx context.Context) ([]*model.Rule, error) {
 	return toRules(ctx, rules...)
 }
 
+// RuleWarnings is the resolver for the ruleWarnings field.
+func (r *queryResolver) RuleWarnings(ctx context.Context, input model.RuleInput) ([]*model.RuleWarning, error) {
+	return r.ruleWarnings(ctx, &input)
+}
+
 // PreviewRule is the resolver for the previewRule field.
 func (r *queryResolver) PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error) {
 	return r.previewRule(ctx, &input, first, after)

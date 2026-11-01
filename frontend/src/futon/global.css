@@ -17,3 +17,16 @@ body {
 [data-combobox-option][data-checked][data-combobox-selected] {
   background-color: var(--mantine-primary-color-light-hover);
 }
+
+/* ページは画面の端の下まで描くので (#425)、ドロワーも端に掛かる分だけ余白を足す。 */
+/* 左右から出るドロワーは、上の端まで伸びるので、見出しをステータスバーの下にずらす。下から出るドロワーは、上の端に届かないので 0 にする。 */
+.mantine-Drawer-header {
+  padding-top: calc(
+    var(--mb-padding, var(--mantine-spacing-md)) +
+      var(--drawer-safe-area-top, env(safe-area-inset-top))
+  );
+}
+
+.mantine-Drawer-body {
+  padding-bottom: calc(var(--mb-padding, var(--mantine-spacing-md)) + env(safe-area-inset-bottom));
+}

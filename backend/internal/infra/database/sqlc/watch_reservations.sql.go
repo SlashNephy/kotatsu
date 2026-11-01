@@ -49,7 +49,7 @@ INSERT INTO watch_reservations (user_id, service_id, event_id, created_at)
 SELECT $1, p.service_id, p.event_id, $2
 FROM programs p
 WHERE p.service_id = $3 AND p.event_id = $4 AND p.start_at > $2
-ON CONFLICT (user_id, service_id, event_id) DO NOTHING
+ON CONFLICT (user_id, service_id, event_id) DO UPDATE SET watch_rule_id = NULL
 `
 
 type InsertWatchReservationParams struct {
@@ -59,7 +59,8 @@ type InsertWatchReservationParams struct {
 	EventID   int64
 }
 
-// 視聴予約を付ける。付けてあれば何もしない。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+// 視聴予約を付ける。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
+// 視聴ルールが作った視聴予約に手で付け直したら、手で付けたものにする。視聴ルールに一致しなくなっても消さない。
 func (q *Queries) InsertWatchReservation(ctx context.Context, arg InsertWatchReservationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertWatchReservation,
 		arg.UserID,
@@ -198,6 +199,10 @@ WITH due AS (
     AND p.start_at - make_interval(mins => coalesce(us.watch_reminder_minutes, 5)) <= $1
     AND p.end_at > $1
   RETURNING w.user_id, w.service_id, w.event_id
+), notified AS (
+  INSERT INTO watch_rule_dismissals (user_id, service_id, event_id, created_at)
+  SELECT due.user_id, due.service_id, due.event_id, $1 FROM due
+  ON CONFLICT (user_id, service_id, event_id) DO NOTHING
 )
 SELECT due.user_id, due.service_id, due.event_id, p.name, p.start_at, s.name AS service_name
 FROM due
@@ -217,6 +222,8 @@ type TakeDueWatchReservationsRow struct {
 
 // 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
 // 消した行を返すので、nekonote が何台あっても、同じ視聴予約を二度は通知しない。
+// 通知した番組は、手で外した番組と同じく覚え、視聴ルールが付け直さないようにする。放送が遅れたり、通知を何分前に送るかを
+// 縮めたりして、通知の時刻がまた先になっても、二度は通知しない (#1093)。
 func (q *Queries) TakeDueWatchReservations(ctx context.Context, now time.Time) ([]TakeDueWatchReservationsRow, error) {
 	rows, err := q.db.Query(ctx, takeDueWatchReservations, now)
 	if err != nil {

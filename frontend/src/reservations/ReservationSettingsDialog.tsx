@@ -70,6 +70,7 @@ function Form({ id, onClose, onReserved }: Props) {
             poolId
             priority
             joinSegments
+            detectCm
           }
         }
         storagePoolNames
@@ -98,6 +99,7 @@ function Form({ id, onClose, onReserved }: Props) {
                 fileNameTemplate
                 priority
                 joinSegments
+                detectCm
               }
             }
             settings {
@@ -107,6 +109,7 @@ function Form({ id, onClose, onReserved }: Props) {
               endMarginSeconds
               priority
               joinSegments
+              detectCm
             }
           }
         }
@@ -134,6 +137,7 @@ function Form({ id, onClose, onReserved }: Props) {
           endMarginSeconds
           priority
           joinSegments
+          detectCm
         }
         # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
         assignment {
@@ -181,6 +185,7 @@ function Form({ id, onClose, onReserved }: Props) {
   const [joinSegments, setJoinSegments] = useState<boolean | null>(
     reservation?.settings.joinSegments ?? null,
   );
+  const [detectCm, setDetectCm] = useState<boolean | null>(reservation?.settings.detectCm ?? null);
   const [poolId, setPoolId] = useState<string | null>(reservation?.settings.poolId ?? null);
   const [followEventRelay, setFollowEventRelay] = useState(reservation?.followEventRelay ?? true);
   const [error, setError] = useState(false);
@@ -197,12 +202,14 @@ function Form({ id, onClose, onReserved }: Props) {
   const defaults = data.systemSettings.recordingDefaults;
   const rulePriority = rule?.settings.priority ?? null;
   const ruleJoin = rule?.settings.joinSegments ?? null;
+  const ruleDetect = rule?.settings.detectCm ?? null;
   const rulePool = rule?.settings.poolId ?? null;
   const inherited = (fromRule: boolean, value: string) =>
     fromRule && rule !== undefined
       ? t('reservations.settings.inheritedRule', { name: rule.name, value })
       : t('reservations.settings.inheritedDefault', { value });
   const joinLabel = (join: boolean) => t(join ? 'rules.joinSegmentsOn' : 'rules.joinSegmentsOff');
+  const detectLabel = (detect: boolean) => t(detect ? 'rules.detectCmOn' : 'rules.detectCmOff');
   const save = () => {
     setError(false);
     const settings = {
@@ -212,6 +219,7 @@ function Form({ id, onClose, onReserved }: Props) {
       endMarginSeconds: margins.end,
       priority,
       joinSegments,
+      detectCm,
     };
     // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
     const failed = (errors: readonly unknown[] | null | undefined) =>
@@ -347,6 +355,32 @@ function Form({ id, onClose, onReserved }: Props) {
           value={joinSegments === null ? joinDefault : String(joinSegments)}
           onChange={(value) =>
             setJoinSegments(value === null || value === joinDefault ? null : value === 'true')
+          }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {/* 全体に従うなら、録画を終えるときの全体の設定 (ルール予約ならルールの設定) で決める (#1209)。 */}
+        <Select
+          label={t('rules.detectCm')}
+          data={[
+            {
+              value: joinDefault,
+              label:
+                ruleDetect !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: detectLabel(ruleDetect),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: detectLabel(defaults.detectCm),
+                    }),
+            },
+            { value: 'true', label: t('rules.detectCmOn') },
+            { value: 'false', label: t('rules.detectCmOff') },
+          ]}
+          value={detectCm === null ? joinDefault : String(detectCm)}
+          onChange={(value) =>
+            setDetectCm(value === null || value === joinDefault ? null : value === 'true')
           }
           allowDeselect={false}
           disabled={inFlight}

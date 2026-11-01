@@ -15,3 +15,8 @@ func (r *mutationResolver) CreateStreamURL(ctx context.Context, target string) (
 func (r *queryResolver) Transcoding(ctx context.Context) (*model.Transcoding, error) {
 	return r.transcoding(ctx)
 }
+
+// LiveStreamRates is the resolver for the liveStreamRates field.
+func (r *subscriptionResolver) LiveStreamRates(ctx context.Context, service string) (<-chan *model.LiveStreamRates, error) {
+	return r.subscribeLiveStreamRates(ctx, service)
+}

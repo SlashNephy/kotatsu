@@ -38,7 +38,7 @@ import { MarginFields } from '../reservations/MarginFields';
 import { PoolSelect } from '../reservations/PoolSelect';
 import { fromValidFromDate, fromValidUntilDate, validFromDate, validUntilDate } from './validity';
 
-// joinDefault は、分かれたファイルをつなぐかどうかの選択で、全体の既定値に従うことを表す値。
+// joinDefault は、分かれたファイルをつなぐかどうかと CM を見分けるかどうかの選択で、全体の既定値に従うことを表す値。
 const joinDefault = 'default';
 
 type Props = {
@@ -118,6 +118,7 @@ export const ruleEditorRuleFragment = graphql`
       endMarginSeconds
       priority
       joinSegments
+      detectCm
     }
     validFrom
     validUntil
@@ -386,6 +387,28 @@ export function RuleEditor({
                         settings: {
                           ...form.settings,
                           joinSegments:
+                            value === null || value === joinDefault ? null : value === 'true',
+                        },
+                      })
+                    }
+                    allowDeselect={false}
+                  />
+                  <Select
+                    label={t('rules.detectCm')}
+                    maw={360}
+                    data={[
+                      { value: joinDefault, label: t('rules.detectCmDefault') },
+                      { value: 'true', label: t('rules.detectCmOn') },
+                      { value: 'false', label: t('rules.detectCmOff') },
+                    ]}
+                    value={
+                      form.settings.detectCm === null ? joinDefault : String(form.settings.detectCm)
+                    }
+                    onChange={(value) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          detectCm:
                             value === null || value === joinDefault ? null : value === 'true',
                         },
                       })

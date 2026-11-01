@@ -20,6 +20,10 @@ resolver:
 # リゾルバのファイルに「Code generated」の注記を付けない。付けると、整形 (golangci-lint fmt) の対象から外れるからである。
 omit_gqlgen_file_notice: true
 omit_getters: true
+# Go の名前で略語を大文字のままにする語。既定の語 (ID、URL など) に足す。
+go_initialisms:
+  initialisms:
+    - CM
 struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
@@ -47,6 +51,17 @@ models:
         resolver: true
       videoFormat:
         resolver: true
+      timeshiftPrograms:
+        resolver: true
+      timeshiftBuffer:
+        resolver: true
+  TimeshiftProgram:
+    model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftProgram
+    fields:
+      service:
+        resolver: true
+  TimeshiftBuffer:
+    model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftBuffer
   TimeshiftChannel:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.TimeshiftChannel
     fields:
@@ -62,6 +77,8 @@ models:
       reservation:
         resolver: true
       watchReserved:
+        resolver: true
+      animeEpisodes:
         resolver: true
   GuideRow:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.GuideRow
@@ -87,6 +104,12 @@ models:
       watchFrame:
         resolver: true
       rule:
+        resolver: true
+      liveStats:
+        resolver: true
+      animeEpisodes:
+        resolver: true
+      cmSections:
         resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Reservation

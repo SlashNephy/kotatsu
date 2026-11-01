@@ -14,6 +14,12 @@ run = [
 [tasks.mpeg2toh264]
 run = "./scripts/build-mpeg2toh264.sh"
 
+# 静的なデモの映像 (demo/stream.m2ts) を、scripts/build-demo-stream.sh で作り直す (設計書 10.1、#1050)。
+# FFmpeg は mise.demo-stream.toml で固定しているので、MISE_ENV=demo-stream を付けて実行する。
+[tasks.demo-stream]
+depends = ["install"]
+run = "./scripts/build-demo-stream.sh"
+
 # GraphQL のクエリから、Relay の型とアーティファクト (__generated__) を生成する。
 # watchman があれば使おうとするが、使わなくても足りるので切る。
 [tasks.relay]

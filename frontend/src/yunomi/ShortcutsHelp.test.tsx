@@ -10,13 +10,14 @@ afterEach(() => {
 });
 
 describe('ShortcutsHelp', () => {
-  test('渡した操作だけを、割り当てたキーとともに並べる', () => {
+  test('今使える操作のうち、キーを割り当てたものを、登録簿の順に並べる', () => {
     render(
       <MantineProvider>
         <ShortcutsHelp
           opened
           onClose={() => {}}
-          actions={['togglePlay', 'seekBackward']}
+          // seekTo はキーを割り当てていないので、並べない。
+          commands={{ seekBackward: () => {}, seekTo: () => {}, togglePlay: () => {} }}
           target={{ current: null }}
         />
       </MantineProvider>,
@@ -39,7 +40,7 @@ describe('ShortcutsHelp', () => {
         <ShortcutsHelp
           opened
           onClose={() => {}}
-          actions={['togglePlay']}
+          commands={{ togglePlay: () => {} }}
           target={{ current: null }}
           dataBroadcast
         />

@@ -1,0 +1,101 @@
+"""
+見たいリストの作品の状態 (#928)。
+"""
+enum AnimeWishlistStatus {
+  "見たい (AniList の PLANNING)"
+  WANNA_WATCH
+  "見てる (AniList の CURRENT)"
+  WATCHING
+}
+
+"""
+連携した記録先ごとの、見たいリストを取り込んだ様子 (#928)。
+"""
+type AnimeWishlistImport {
+  destination: AnimeRecordDestination!
+  "最後に問い合わせた日時。まだなら null。"
+  checkedAt: Time
+  "最後に取り込めた日時。まだなら null。"
+  importedAt: Time
+  "最後の問い合わせが失敗した理由。取り込めていれば null。"
+  error: String
+  "取り込んだ作品の数。"
+  entryCount: Int!
+}
+
+"""
+候補の作品を、見たいリストに入れた記録先と、その作品。
+"""
+type AnimeWishlistSource {
+  destination: AnimeRecordDestination!
+  "記録先の作品 ID。"
+  workId: Int!
+  status: AnimeWishlistStatus!
+  "記録先の作品のページ。"
+  url: String!
+}
+
+"""
+候補の作品の放送。
+"""
+type AnimeWishlistBroadcast {
+  program: Program!
+  """
+  録るのに選ぶサービスの放送かどうか。作品の最初の放送のサービスを選ぶ。重複の回避 (設計書 4.4) を付けたルールは、
+  最初に録った放送のほかを、同じ番組名を録画済みとして見送るため。予約済みの作品 (covered) では、どの放送も選ばない。
+  """
+  preferred: Boolean!
+}
+
+"""
+見たいリストの作品のうち、これから放送されるもの (#928)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+"""
+type AnimeWishlistWork {
+  "しょぼいカレンダーの TID。"
+  tid: Int!
+  "作品名。Annict の作品名を先に選ぶ。"
+  title: String!
+  sources: [AnimeWishlistSource!]!
+  "予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。"
+  broadcasts: [AnimeWishlistBroadcast!]!
+  "予約のある放送の数。候補からは外している。"
+  reservedBroadcasts: Int!
+  """
+  予約済みかどうか。これからの放送のどれかに予約 (ルール予約か手動の予約) があるか、放送のどれかから作るルールと同じ
+  キーワードとサービスのルール (無効なものも含む) がもうあれば予約済みとする。予約済みの作品は、録る放送が決まっているので、
+  録るサービス (preferred) を選ばず、ルールも作れない。
+  """
+  covered: Boolean!
+}
+
+"""
+ログイン中のユーザーの、見たいリストの作品の放送の候補 (#928)。
+"""
+type AnimeWishlist {
+  "管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。"
+  enabled: Boolean!
+  "連携した記録先ごとの、取り込んだ様子。連携していなければ空。"
+  imports: [AnimeWishlistImport!]!
+  "これから 1 週間に放送がある作品。最初の放送の早い順に並べる。"
+  works: [AnimeWishlistWork!]!
+}
+
+extend type Query {
+  "ログイン中のユーザーの、見たいリストの作品の放送の候補を返す (#928)。ほかのユーザーの見たいリストは見えない。視聴者も使える。"
+  animeWishlist: AnimeWishlist!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの見たいリストを、定期的な取り込みを待たずに取り込み直す (#928)。取り込みはジョブで行うので、終わるのを待たない。
+  視聴者も使える。管理者が連携を無効にしていれば CONFLICT を返す。
+  """
+  refreshAnimeWishlist: Boolean!
+  """
+  ログイン中のユーザーの候補の作品 tid を録るルールを作る (#928)。ルールの条件は、作品の最初の放送から決める
+  (番組名から読んだ作品名をキーワードにし、そのサービスに限る)。ルールの重複の回避とイベントリレーへの追従は、
+  ルールを作るときの既定値に従う。視聴者は使えない。候補にない作品なら NOT_FOUND を、
+  予約済みの作品 (covered) なら、ルールを二重に作らないよう CONFLICT を返す。同時に呼ばれても、作るのは 1 つだけ。
+  """
+  createAnimeWishlistRule(tid: Int!): Rule!
+}
