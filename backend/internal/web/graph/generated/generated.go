@@ -680,6 +680,7 @@ type ComplexityRoot struct {
 		Audios             func(childComplexity int) int
 		BroadcastEndedAt   func(childComplexity int) int
 		BroadcastStartedAt func(childComplexity int) int
+		CMSections         func(childComplexity int) int
 		Description        func(childComplexity int) int
 		Drops              func(childComplexity int) int
 		EndAt              func(childComplexity int) int
@@ -712,6 +713,11 @@ type ComplexityRoot struct {
 		VideoFormat        func(childComplexity int) int
 		WatchFrame         func(childComplexity int) int
 		WatchPositionMs    func(childComplexity int) int
+	}
+
+	RecordingCMSection struct {
+		From func(childComplexity int) int
+		To   func(childComplexity int) int
 	}
 
 	RecordingConnection struct {
@@ -1276,6 +1282,8 @@ type RecordingResolver interface {
 	Service(ctx context.Context, obj *model.Recording) (*model.Service, error)
 
 	StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error)
+
+	CMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error)
 
 	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
 
@@ -4441,6 +4449,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.BroadcastStartedAt(childComplexity), true
+	case "Recording.cmSections":
+		if e.ComplexityRoot.Recording.CMSections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.CMSections(childComplexity), true
 	case "Recording.description":
 		if e.ComplexityRoot.Recording.Description == nil {
 			break
@@ -4633,6 +4647,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.WatchPositionMs(childComplexity), true
+
+	case "RecordingCMSection.from":
+		if e.ComplexityRoot.RecordingCMSection.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMSection.From(childComplexity), true
+	case "RecordingCMSection.to":
+		if e.ComplexityRoot.RecordingCMSection.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMSection.To(childComplexity), true
 
 	case "RecordingConnection.edges":
 		if e.ComplexityRoot.RecordingConnection.Edges == nil {
@@ -7873,6 +7900,15 @@ type RecordingGap {
 }
 
 """
+CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
+"""
+type RecordingCMSection {
+  "区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。"
+  from: Time!
+  to: Time!
+}
+
+"""
 録画のタグ。
 """
 type Tag {
@@ -7910,6 +7946,8 @@ type Recording implements Node {
   """
   streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
+  "CM とみなした区間を、始まりの順に並べる (#479)。見分けていないか、見つからなければ空になる。"
+  cmSections: [RecordingCMSection!]!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -10380,6 +10418,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_streamQuality(ctx, field)
 	case "gaps":
 		return ec.fieldContext_Recording_gaps(ctx, field)
+	case "cmSections":
+		return ec.fieldContext_Recording_cmSections(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
 	case "videoFormat":
@@ -10424,6 +10464,16 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_animeEpisodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingCMSection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "from":
+		return ec.fieldContext_RecordingCMSection_from(ctx, field)
+	case "to":
+		return ec.fieldContext_RecordingCMSection_to(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingCMSection", field.Name)
 }
 
 func (ec *executionContext) childFields_RecordingConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -26004,6 +26054,38 @@ func (ec *executionContext) fieldContext_Recording_gaps(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Recording_cmSections(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_cmSections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().CMSections(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingCMSection) graphql.Marshaler {
+			return ec.marshalNRecordingCMSection2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMSectionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_cmSections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingCMSection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_audios(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26557,6 +26639,52 @@ func (ec *executionContext) fieldContext_Recording_animeEpisodes(_ context.Conte
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _RecordingCMSection_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMSection_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMSection_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMSection", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingCMSection_to(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMSection_to(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMSection_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMSection", field, false, false, errors.New("field of type Time does not have child fields"))
 }
 
 func (ec *executionContext) _RecordingConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.RecordingConnection) (ret graphql.Marshaler) {
@@ -41830,6 +41958,44 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "cmSections":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_cmSections(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "audios":
 			out.Values[i] = ec._Recording_audios(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -42100,6 +42266,49 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var recordingCMSectionImplementors = []string{"RecordingCMSection"}
+
+func (ec *executionContext) _RecordingCMSection(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingCMSection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingCMSectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingCMSection")
+		case "from":
+			out.Values[i] = ec._RecordingCMSection_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._RecordingCMSection_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -47324,6 +47533,32 @@ func (ec *executionContext) marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkot
 		return graphql.Null
 	}
 	return ec._Recording(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRecordingCMSection2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingCMSection) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingCMSection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMSection(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecordingCMSection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMSection(ctx context.Context, sel ast.SelectionSet, v *model.RecordingCMSection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._RecordingCMSection(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNRecordingConnection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingConnection(ctx context.Context, sel ast.SelectionSet, v *model.RecordingConnection) graphql.Marshaler {

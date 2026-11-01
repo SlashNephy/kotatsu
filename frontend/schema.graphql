@@ -2260,6 +2260,10 @@ type Recording implements Node {
   streamQuality: [StreamQuality!]!
   gaps: [RecordingGap!]!
   """
+  CM とみなした区間を、始まりの順に並べる (#479)。見分けていないか、見つからなければ空になる。
+  """
+  cmSections: [RecordingCMSection!]!
+  """
   録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。
   """
   audios: [ProgramAudio!]!
@@ -2338,6 +2342,16 @@ type Recording implements Node {
   結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。
   """
   animeEpisodes: [AnimeEpisode!]!
+}
+"""
+CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
+"""
+type RecordingCMSection {
+  """
+  区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。
+  """
+  from: Time!
+  to: Time!
 }
 type RecordingConnection {
   edges: [RecordingEdge!]!

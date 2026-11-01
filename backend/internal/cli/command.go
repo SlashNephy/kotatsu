@@ -43,6 +43,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
@@ -161,7 +162,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return nil, nil, err
 	}
 	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock,
-		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter))
+		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),
+		cmdetect.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
 	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
@@ -187,6 +189,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
 		logger.With(slog.String("component", "segjoin")), 0))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
+	// 録画を終えたら、CM の区間を見分ける (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
+	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock))
 	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。

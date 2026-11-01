@@ -91,6 +91,21 @@ func (q *Queries) CountRecordingSegments(ctx context.Context, arg CountRecording
 	return i, err
 }
 
+const deleteRecordingCMSections = `-- name: DeleteRecordingCMSections :exec
+DELETE FROM recording_cm_sections WHERE recording_id = $1 AND detector = $2
+`
+
+type DeleteRecordingCMSectionsParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+// 見分け直す前に、同じ見分け方の CM の区間を消す。
+func (q *Queries) DeleteRecordingCMSections(ctx context.Context, arg DeleteRecordingCMSectionsParams) error {
+	_, err := q.db.Exec(ctx, deleteRecordingCMSections, arg.RecordingID, arg.Detector)
+	return err
+}
+
 const deleteRecordingFiles = `-- name: DeleteRecordingFiles :exec
 DELETE FROM recording_files WHERE recording_id = $1 AND id = ANY($2::uuid[])
 `
@@ -442,6 +457,18 @@ func (q *Queries) GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiv
 	return i, err
 }
 
+const getRecordingSID = `-- name: GetRecordingSID :one
+SELECT s.sid FROM recordings r JOIN services s ON s.id = r.service_id WHERE r.id = $1
+`
+
+// 録画したサービスの、放送のサービス ID。TS の中から、録画したサービスのストリームを選ぶのに使う (#479)。
+func (q *Queries) GetRecordingSID(ctx context.Context, id uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getRecordingSID, id)
+	var sid int64
+	err := row.Scan(&sid)
+	return sid, err
+}
+
 const getRecordingWithService = `-- name: GetRecordingWithService :one
 SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
@@ -647,6 +674,28 @@ func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromote
 	return i, err
 }
 
+const insertRecordingCMSection = `-- name: InsertRecordingCMSection :exec
+INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertRecordingCMSectionParams struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	StartOffsetMs int64
+	EndOffsetMs   int64
+}
+
+func (q *Queries) InsertRecordingCMSection(ctx context.Context, arg InsertRecordingCMSectionParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingCMSection,
+		arg.RecordingID,
+		arg.Detector,
+		arg.StartOffsetMs,
+		arg.EndOffsetMs,
+	)
+	return err
+}
+
 const insertRecordingFile = `-- name: InsertRecordingFile :exec
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, $3, $4, $5, 0, $6, NULL, $7)
@@ -806,6 +855,43 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.PIDStats,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordingCMSections = `-- name: ListRecordingCMSections :many
+SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
+WHERE recording_id = $1 AND detector = $2
+ORDER BY start_offset_ms
+`
+
+type ListRecordingCMSectionsParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+type ListRecordingCMSectionsRow struct {
+	StartOffsetMs int64
+	EndOffsetMs   int64
+}
+
+// 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
+func (q *Queries) ListRecordingCMSections(ctx context.Context, arg ListRecordingCMSectionsParams) ([]ListRecordingCMSectionsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingCMSections, arg.RecordingID, arg.Detector)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingCMSectionsRow{}
+	for rows.Next() {
+		var i ListRecordingCMSectionsRow
+		if err := rows.Scan(&i.StartOffsetMs, &i.EndOffsetMs); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1385,6 +1471,30 @@ func (q *Queries) UnlockRecordingJoin(ctx context.Context, recordingID string) (
 	var unlocked bool
 	err := row.Scan(&unlocked)
 	return unlocked, err
+}
+
+const upsertRecordingCMDetection = `-- name: UpsertRecordingCMDetection :exec
+INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at
+`
+
+type UpsertRecordingCMDetectionParams struct {
+	RecordingID     uuid.UUID
+	Detector        string
+	DetectorVersion int32
+	Now             time.Time
+}
+
+// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
+func (q *Queries) UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingCMDetection,
+		arg.RecordingID,
+		arg.Detector,
+		arg.DetectorVersion,
+		arg.Now,
+	)
+	return err
 }
 
 const upsertRecordingLiveStats = `-- name: UpsertRecordingLiveStats :exec

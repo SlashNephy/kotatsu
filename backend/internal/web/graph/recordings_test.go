@@ -602,6 +602,56 @@ func TestRecordingWatchFrame(t *testing.T) {
 	assert.Nil(t, watchFrame(t))
 }
 
+// TestRecordingCMSections は、CM の区間を、録画を始めた日時に足した日時で、始まりの順に返すことを確かめる (#479)。
+func TestRecordingCMSections(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	f.addRecording(t, dir, episode1, "completed", time.Hour)
+	var rawID string
+	var recordedFrom time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text, recorded_from FROM recordings WHERE name = $1`, episode1).Scan(&rawID, &recordedFrom))
+
+	type section struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+	}
+	sections := func(t *testing.T) []section {
+		t.Helper()
+
+		var page struct {
+			Recordings struct {
+				Edges []struct {
+					Node struct {
+						CMSections []section `json:"cmSections"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"recordings"`
+		}
+		require.Empty(t, f.query(t, `query { recordings(first: 1) { edges { node { cmSections { from to } } } } }`, nil, &page))
+		require.Len(t, page.Recordings.Edges, 1)
+
+		return page.Recordings.Edges[0].Node.CMSections
+	}
+
+	// 見分けていなければ、空にする。
+	assert.Empty(t, sections(t))
+
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, 'ffmpeg', 1, $2)`,
+		rawID, testNow())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms) VALUES
+		($1, 'ffmpeg', 600000, 690500), ($1, 'ffmpeg', 0, 59500)`, rawID)
+	require.NoError(t, err)
+
+	got := sections(t)
+	require.Len(t, got, 2)
+	assert.True(t, recordedFrom.Equal(got[0].From))
+	assert.True(t, recordedFrom.Add(59500*time.Millisecond).Equal(got[0].To))
+	assert.True(t, recordedFrom.Add(10*time.Minute).Equal(got[1].From))
+	assert.True(t, recordedFrom.Add(690500*time.Millisecond).Equal(got[1].To))
+}
+
 // TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478)。
 func TestContinueWatching(t *testing.T) {
 	t.Parallel()

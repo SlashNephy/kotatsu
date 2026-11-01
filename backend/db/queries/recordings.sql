@@ -315,3 +315,27 @@ LIMIT @max_count;
 -- name: SetRecordingNormalized :batchexec
 -- 録画の正規化した番組名と概要を書く (#1044)。
 UPDATE recordings SET name_normalized = @name_normalized, description_normalized = @description_normalized WHERE id = @id;
+
+-- name: GetRecordingSID :one
+-- 録画したサービスの、放送のサービス ID。TS の中から、録画したサービスのストリームを選ぶのに使う (#479)。
+SELECT s.sid FROM recordings r JOIN services s ON s.id = r.service_id WHERE r.id = @id;
+
+-- name: UpsertRecordingCMDetection :exec
+-- 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
+INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+VALUES (@recording_id, @detector, @detector_version, @now)
+ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at;
+
+-- name: DeleteRecordingCMSections :exec
+-- 見分け直す前に、同じ見分け方の CM の区間を消す。
+DELETE FROM recording_cm_sections WHERE recording_id = @recording_id AND detector = @detector;
+
+-- name: InsertRecordingCMSection :exec
+INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms)
+VALUES (@recording_id, @detector, @start_offset_ms, @end_offset_ms);
+
+-- name: ListRecordingCMSections :many
+-- 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
+SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
+WHERE recording_id = @recording_id AND detector = @detector
+ORDER BY start_offset_ms;

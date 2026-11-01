@@ -150,6 +150,8 @@ export function createRecordings(options: {
         },
       ],
       gaps: [],
+      // デモの録画の映像は CM を含まないので、CM の区間はない。
+      cmSections: [],
       audios: program.audios,
       videoFormat: program.service.videoFormat,
       genres: program.genres,
