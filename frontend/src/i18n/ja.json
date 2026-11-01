@@ -467,7 +467,8 @@
       "cancelError": "取り消せませんでした。時間をおいてやり直してください",
       "reserveError": "予約できませんでした。時間をおいてやり直してください",
       "openRecording": "録画を見る",
-      "playTimeshift": "追っかけ再生"
+      "playTimeshift": "追っかけ再生",
+      "searchSameName": "同じ番組名で探す"
     },
     "view": {
       "label": "番組表ビュー",

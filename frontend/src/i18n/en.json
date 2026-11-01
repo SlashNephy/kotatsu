@@ -477,7 +477,8 @@
       "cancelError": "Couldn't cancel. Please try again later",
       "reserveError": "Couldn't reserve. Please try again later",
       "openRecording": "Open recording",
-      "playTimeshift": "Play from time shift"
+      "playTimeshift": "Play from time shift",
+      "searchSameName": "Search by the same title"
     },
     "view": {
       "label": "Guide view",

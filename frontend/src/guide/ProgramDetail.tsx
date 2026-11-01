@@ -21,6 +21,7 @@ import {
   Film,
   History,
   ListPlus,
+  Search,
   Play,
   SlidersHorizontal,
   TriangleAlert,
@@ -240,6 +241,17 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
       params: { ruleId: 'new' },
       state: { ruleConditions: conditionsFromProgram(program.name, program.service.id) },
     });
+  // searchSameName は、番組名を条件に引き継いで、過去の放送も含めて番組を探す (#1121)。
+  const searchSameName = () =>
+    void navigate({
+      to: '/search',
+      state: {
+        searchConditions: {
+          ...conditionsFromProgram(program.name, program.service.id),
+          services: [],
+        },
+      },
+    });
   const genres = programGenreLabels(t, program.genres);
 
   return (
@@ -272,7 +284,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
         )}
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
-      {(recording !== undefined || timeshift !== undefined) && (
+      {ended && (
         <Group gap="xs" wrap="nowrap">
           {recording !== undefined && (
             <Button
@@ -290,6 +302,14 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               {t('guide.detail.openRecording')}
             </Button>
           )}
+          <Button
+            variant="default"
+            flex={1}
+            leftSection={<Search size={16} aria-hidden />}
+            onClick={searchSameName}
+          >
+            {t('guide.detail.searchSameName')}
+          </Button>
           {timeshift !== undefined && (
             <Button
               variant="light"
