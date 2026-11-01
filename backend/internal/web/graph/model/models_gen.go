@@ -1140,6 +1140,9 @@ type SystemSettings struct {
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	McpEnabled bool `json:"mcpEnabled"`
+	// データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
+	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
+	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
 	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
 	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// 最後に変えた日時。一度も変えていなければ null。
@@ -1155,6 +1158,8 @@ type SystemSettingsInput struct {
 	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
 	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
+	// 変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。
+	DataBroadcastIPEnabled *bool `json:"dataBroadcastIpEnabled,omitempty"`
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
 	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
 	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`

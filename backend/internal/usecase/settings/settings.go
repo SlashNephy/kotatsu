@@ -54,6 +54,9 @@ type System struct {
 	Rule *RuleDefaults
 	// MCPEnabled は、MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
 	MCPEnabled bool
+	// DataBroadcastIPEnabled は、データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定は false。
+	// 中継すると、文書が送る受信機の情報 (郵便番号など) が、放送局などの外部のサーバーに届く。
+	DataBroadcastIPEnabled bool
 	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換える表 (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
 	DRCSReplacements map[string]string
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
@@ -117,6 +120,7 @@ type Changes struct {
 	NotificationRetentionDays *int
 	Rule                      *RuleChanges
 	MCPEnabled                *bool
+	DataBroadcastIPEnabled    *bool
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
 	DRCSReplacements map[string]*string
 }
@@ -221,7 +225,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
 			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays,
 			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled),
-			DrcsReplacements: replacementsEncoded, Now: now,
+			DataBroadcastIPEnabled: valueOr(changes.DataBroadcastIPEnabled, current.DataBroadcastIPEnabled),
+			DrcsReplacements:       replacementsEncoded, Now: now,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the system settings: %w", err)
@@ -241,6 +246,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"notificationRetentionDays": change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
 				"rule":                      change(current.Rule, updated.Rule),
 				"mcpEnabled":                change(current.MCPEnabled, updated.MCPEnabled),
+				"dataBroadcastIpEnabled":    change(current.DataBroadcastIPEnabled, updated.DataBroadcastIPEnabled),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
 				"drcsReplacements": drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 			},
@@ -376,6 +382,7 @@ func defaults() *System {
 		NotificationRetentionDays: DefaultNotificationRetentionDays,
 		Rule:                      defaultRuleDefaults(),
 		MCPEnabled:                false,
+		DataBroadcastIPEnabled:    false,
 		DRCSReplacements:          map[string]string{},
 		UpdatedAt:                 nil,
 	}
@@ -404,6 +411,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		NotificationRetentionDays: int(row.NotificationRetentionDays),
 		Rule:                      resolveRule(rule),
 		MCPEnabled:                row.MCPEnabled,
+		DataBroadcastIPEnabled:    row.DataBroadcastIPEnabled,
 		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
 }

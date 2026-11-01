@@ -28,6 +28,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		NotificationRetentionDays: input.NotificationRetentionDays,
 		Rule:                      toRuleChanges(input.RuleDefaults),
 		MCPEnabled:                input.McpEnabled,
+		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
 		DRCSReplacements:          replacements,
 	})
 	if err != nil {

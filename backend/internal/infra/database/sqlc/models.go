@@ -472,6 +472,7 @@ type SystemSetting struct {
 	ArchiveRetentionDays      int32
 	NotificationRetentionDays int32
 	MCPEnabled                bool
+	DataBroadcastIPEnabled    bool
 	RuleDefaults              []byte
 	DrcsReplacements          []byte
 	UpdatedAt                 time.Time

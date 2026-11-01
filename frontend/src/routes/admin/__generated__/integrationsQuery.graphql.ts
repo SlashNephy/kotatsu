@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<79781b035d111d182347a8e0f09a571e>>
+ * @generated SignedSource<<6a7751a6a47111628e0fdf19604b21a1>>
  * @lightSyntaxTransform
  */
 
@@ -20,6 +20,7 @@ export type integrationsQuery$data = {
     readonly totp: boolean;
   };
   readonly systemSettings: {
+    readonly dataBroadcastIpEnabled: boolean;
     readonly mcpEnabled: boolean;
   };
   readonly webhooks: ReadonlyArray<{
@@ -58,6 +59,13 @@ v1 = [
         "args": null,
         "kind": "ScalarField",
         "name": "mcpEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "dataBroadcastIpEnabled",
         "storageKey": null
       }
     ],
@@ -166,16 +174,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "d841fb8b8b9e2232ea93f11c2d4e685b",
+    "cacheID": "1a42368dc000335682c4b1d7b8b7dc6c",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ff75d5aefc7ce2714a466c39c9405a62";
+(node as any).hash = "8a43a0c1035c08ddf1501c2272f29ba2";
 
 export default node;

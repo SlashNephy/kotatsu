@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<cc2c20d8316d4d70e894f031805ec946>>
+ * @generated SignedSource<<ad7f76dbf3f548a1b873e01549f2a77b>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type SystemSettingsInput = {
   archiveRetentionDays?: number | null | undefined;
+  dataBroadcastIpEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   notificationRetentionDays?: number | null | undefined;

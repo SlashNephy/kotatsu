@@ -14,11 +14,12 @@ import (
 )
 
 // systemSettingsAdministrator は、全体の設定を変える管理者を確かめ、操作者を返す。
-// MCP のクライアントとの連携を変えるときだけ、外部のサービスに読ませるかどうかを決める操作なので、直近 10 分以内の再認証を求める。
+// MCP のクライアントとの連携と、データ放送の通信の中継 (#501) を変えるときだけ、外部のサービスに読ませたり、受信機の情報を
+// 外部のサーバーへ送らせたりするかどうかを決める操作なので、直近 10 分以内の再認証を求める。
 // 録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
 func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {
 	const message = "only administrators can change the system settings"
-	if input.McpEnabled != nil {
+	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil {
 		return r.recentAdministrator(ctx, message)
 	}
 
@@ -48,9 +49,10 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 			DuplicateWindowDays: system.Rule.DuplicateWindowDays,
 			FollowEventRelay:    system.Rule.FollowEventRelay,
 		},
-		McpEnabled:       system.MCPEnabled,
-		DrcsReplacements: drcsReplacementsOf(system.DRCSReplacements),
-		UpdatedAt:        system.UpdatedAt,
+		McpEnabled:             system.MCPEnabled,
+		DataBroadcastIPEnabled: system.DataBroadcastIPEnabled,
+		DrcsReplacements:       drcsReplacementsOf(system.DRCSReplacements),
+		UpdatedAt:              system.UpdatedAt,
 	}
 }
 

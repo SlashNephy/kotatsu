@@ -57,6 +57,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
 	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
+	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
@@ -908,6 +909,11 @@ func handleMedia(
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(
 		jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
+	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
+	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")))
+	mux.Handle("POST "+databroadcastapi.RequestPath, httpserver.RequireSameOrigin(dataBroadcast.RequestHandler()))
+	mux.Handle("POST "+databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(dataBroadcast.ConnectivityHandler()))
 	// キャプチャは、データディレクトリに置く (設計書 5.6、7.5)。受け取るのは状態を変えるので、ほかのオリジンからは受け付けない。
 	captureLogger := logger.With(slog.String("component", "capture"))
 	dataStore := storeOf(deps.Config)

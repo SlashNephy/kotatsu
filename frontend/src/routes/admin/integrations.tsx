@@ -35,7 +35,10 @@ import type {
   integrationsWebhookCreateMutation,
 } from './__generated__/integrationsWebhookCreateMutation.graphql';
 import type { integrationsWebhookDeleteMutation } from './__generated__/integrationsWebhookDeleteMutation.graphql';
-import type { integrationsMcpMutation } from './__generated__/integrationsMcpMutation.graphql';
+import type {
+  SystemSettingsInput,
+  integrationsSystemSettingsMutation,
+} from './__generated__/integrationsSystemSettingsMutation.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
 
@@ -54,7 +57,8 @@ const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
   (kind) => kind !== 'WATCH_REMINDER',
 );
 
-// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアントと、通知を送る Webhook) を変える、管理者向けの画面 (設計書 6.2、10.3)。
+// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアントと、データ放送の通信の中継と、通知を送る Webhook) を変える、
+// 管理者向けの画面 (設計書 6.2、7.4、10.3)。
 function IntegrationsPage() {
   const { t } = useTranslation();
 
@@ -69,6 +73,7 @@ const query = graphql`
   query integrationsQuery {
     systemSettings {
       mcpEnabled
+      dataBroadcastIpEnabled
     }
     webhooks {
       id
@@ -123,6 +128,22 @@ function Integrations() {
     setMessage({ ok: true, text });
     refresh();
   };
+  // saveSettings は、全体の設定のうち、この画面で変える項目を保存する。どれも再認証を求める (設計書 9.5)。
+  const saveSettings = (input: SystemSettingsInput) =>
+    gate.run(async () => {
+      await mutate<integrationsSystemSettingsMutation>(
+        environment,
+        graphql`
+          mutation integrationsSystemSettingsMutation($input: SystemSettingsInput!) {
+            updateSystemSettings(input: $input) {
+              updatedAt
+            }
+          }
+        `,
+        { input },
+      );
+      succeed(t('admin.saved'));
+    }, fail);
 
   return (
     <Stack gap="md">
@@ -152,26 +173,25 @@ function Integrations() {
           </Alert>
         )}
 
-        <McpSettings
-          key={String(data.systemSettings.mcpEnabled)}
+        <SwitchSetting
+          key={`mcp/${String(data.systemSettings.mcpEnabled)}`}
+          title={t('admin.settings.mcp')}
+          label={t('admin.settings.mcpEnabled')}
+          help={t('admin.settings.mcpHelp')}
           enabled={data.systemSettings.mcpEnabled}
           busy={gate.busy}
-          onSave={(mcpEnabled) =>
-            gate.run(async () => {
-              await mutate<integrationsMcpMutation>(
-                environment,
-                graphql`
-                  mutation integrationsMcpMutation($input: SystemSettingsInput!) {
-                    updateSystemSettings(input: $input) {
-                      updatedAt
-                    }
-                  }
-                `,
-                { input: { mcpEnabled } },
-              );
-              succeed(t('admin.saved'));
-            }, fail)
-          }
+          onSave={(mcpEnabled) => saveSettings({ mcpEnabled })}
+        />
+
+        {/* データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。受信機の情報が外部へ届くので、ここで再認証を求める。 */}
+        <SwitchSetting
+          key={`data-broadcast/${String(data.systemSettings.dataBroadcastIpEnabled)}`}
+          title={t('admin.settings.dataBroadcastIp')}
+          label={t('admin.settings.dataBroadcastIpEnabled')}
+          help={t('admin.settings.dataBroadcastIpHelp')}
+          enabled={data.systemSettings.dataBroadcastIpEnabled}
+          busy={gate.busy}
+          onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
         />
 
         {/* 空のときは、空の表示だけを出す。カードで囲むと、枠が二重になる。 */}
@@ -275,12 +295,19 @@ function Integrations() {
   );
 }
 
-// McpSettings は、MCP のクライアントに使わせるかどうか (#965) を変える。
-function McpSettings({
+// SwitchSetting は、全体の設定のうち、入れるか切るかの項目を変える。MCP のクライアントに使わせるか (#965) と、
+// データ放送の通信を中継するか (#501) に使う。
+function SwitchSetting({
+  title,
+  label,
+  help,
   enabled,
   busy,
   onSave,
 }: {
+  title: string;
+  label: string;
+  help: string;
   enabled: boolean;
   busy: boolean;
   onSave: (enabled: boolean) => void;
@@ -289,12 +316,12 @@ function McpSettings({
   const [checked, setChecked] = useState(enabled);
 
   return (
-    <Section title={t('admin.settings.mcp')}>
+    <Section title={title}>
       <Group justify="space-between" align="flex-end">
         <Switch
           size="sm"
-          label={t('admin.settings.mcpEnabled')}
-          description={t('admin.settings.mcpHelp')}
+          label={label}
+          description={help}
           checked={checked}
           onChange={(event) => setChecked(event.currentTarget.checked)}
           maw={560}
