@@ -135,6 +135,8 @@ func (w *LiveRatesWatcher) Watch(ctx context.Context, serviceID int64) (<-chan *
 		return nil, fmt.Errorf("failed to open the service stream: %w", err)
 	}
 	analyzer := ts.NewAnalyzer(nil)
+	// 最初の間隔の起点は、読み始める前に取る。読む goroutine が先に TS を読み切ると、間隔ごとの差がすべて 0 になる (#1187)。
+	previous := analyzer.Stats()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -148,7 +150,6 @@ func (w *LiveRatesWatcher) Watch(ctx context.Context, serviceID int64) (<-chan *
 		}()
 		ticker := time.NewTicker(w.interval)
 		defer ticker.Stop()
-		previous := analyzer.Stats()
 		stopwatch := w.clock.StartStopwatch()
 		var last time.Duration
 		for {
