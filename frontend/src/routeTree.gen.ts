@@ -47,6 +47,7 @@ import { Route as SettingsSessionsRouteImport } from './routes/settings/sessions
 import { Route as TimeshiftServiceIdRouteImport } from './routes/timeshift/$serviceId'
 import { Route as GuideChannelServiceIdRouteImport } from './routes/guide/channel.$serviceId'
 import { Route as RecordingsRecordingIdPlayRouteImport } from './routes/recordings/$recordingId_.play'
+import { Route as RulesWatchWatchRuleIdRouteImport } from './routes/rules/watch/$watchRuleId'
 import { Route as TimeshiftServiceIdPlayRouteImport } from './routes/timeshift/$serviceId_.play'
 
 const IndexRoute = IndexRouteImport.update({
@@ -240,6 +241,11 @@ const RecordingsRecordingIdPlayRoute =
     path: '/recordings/$recordingId/play',
     getParentRoute: () => rootRouteImport,
   } as any)
+const RulesWatchWatchRuleIdRoute = RulesWatchWatchRuleIdRouteImport.update({
+  id: '/rules/watch/$watchRuleId',
+  path: '/rules/watch/$watchRuleId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TimeshiftServiceIdPlayRoute = TimeshiftServiceIdPlayRouteImport.update({
   id: '/timeshift/$serviceId_/play',
   path: '/timeshift/$serviceId/play',
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
+  '/rules/watch/$watchRuleId': typeof RulesWatchWatchRuleIdRoute
   '/timeshift/$serviceId/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRoutesByTo {
@@ -326,6 +333,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId/play': typeof RecordingsRecordingIdPlayRoute
+  '/rules/watch/$watchRuleId': typeof RulesWatchWatchRuleIdRoute
   '/timeshift/$serviceId/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRoutesById {
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/settings/': typeof SettingsIndexRoute
   '/guide/channel/$serviceId': typeof GuideChannelServiceIdRoute
   '/recordings/$recordingId_/play': typeof RecordingsRecordingIdPlayRoute
+  '/rules/watch/$watchRuleId': typeof RulesWatchWatchRuleIdRoute
   '/timeshift/$serviceId_/play': typeof TimeshiftServiceIdPlayRoute
 }
 export interface FileRouteTypes {
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/guide/channel/$serviceId'
     | '/recordings/$recordingId/play'
+    | '/rules/watch/$watchRuleId'
     | '/timeshift/$serviceId/play'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/guide/channel/$serviceId'
     | '/recordings/$recordingId/play'
+    | '/rules/watch/$watchRuleId'
     | '/timeshift/$serviceId/play'
   id:
     | '__root__'
@@ -493,6 +504,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/guide/channel/$serviceId'
     | '/recordings/$recordingId_/play'
+    | '/rules/watch/$watchRuleId'
     | '/timeshift/$serviceId_/play'
   fileRoutesById: FileRoutesById
 }
@@ -535,6 +547,7 @@ export interface RootRouteChildren {
   SettingsIndexRoute: typeof SettingsIndexRoute
   GuideChannelServiceIdRoute: typeof GuideChannelServiceIdRoute
   RecordingsRecordingIdPlayRoute: typeof RecordingsRecordingIdPlayRoute
+  RulesWatchWatchRuleIdRoute: typeof RulesWatchWatchRuleIdRoute
   TimeshiftServiceIdPlayRoute: typeof TimeshiftServiceIdPlayRoute
 }
 
@@ -806,6 +819,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecordingsRecordingIdPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rules/watch/$watchRuleId': {
+      id: '/rules/watch/$watchRuleId'
+      path: '/rules/watch/$watchRuleId'
+      fullPath: '/rules/watch/$watchRuleId'
+      preLoaderRoute: typeof RulesWatchWatchRuleIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/timeshift/$serviceId_/play': {
       id: '/timeshift/$serviceId_/play'
       path: '/timeshift/$serviceId/play'
@@ -855,6 +875,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsIndexRoute: SettingsIndexRoute,
   GuideChannelServiceIdRoute: GuideChannelServiceIdRoute,
   RecordingsRecordingIdPlayRoute: RecordingsRecordingIdPlayRoute,
+  RulesWatchWatchRuleIdRoute: RulesWatchWatchRuleIdRoute,
   TimeshiftServiceIdPlayRoute: TimeshiftServiceIdPlayRoute,
 }
 export const routeTree = rootRouteImport

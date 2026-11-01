@@ -60,6 +60,14 @@ type GuideViewInput = {
   freeOnly: boolean;
 };
 
+type WatchRuleInput = {
+  name: string;
+  enabled?: boolean | null;
+  conditions: ProgramConditionsInput;
+};
+
+type WatchRule = { input: WatchRuleInput; createdAt: number; updatedAt: number };
+
 const genreCondition = (genre: GenreInput) => ({ lv1: genre.lv1, lv2: genre.lv2 ?? null });
 
 const servicesOf = (ids: readonly string[]) =>
@@ -78,6 +86,10 @@ export function createRootValue(
   let pinned = [services[0]!.id, services[1]!.id];
   const guideViews = new Map<string, GuideViewInput>();
   let nextGuideView = 1;
+  // watchRules は、デモのユーザーの視聴ルール (設計書 4.8)。watchRuleReserved は、視聴ルールが付けた視聴予約の番組。
+  const watchRules = new Map<string, WatchRule>();
+  const watchRuleReserved = new Set<string>();
+  let nextWatchRule = 1;
   let viewerSettingsVersion = 0;
   let minutesBefore = 5;
   const dataVersions = new Map<string, number>();
@@ -140,6 +152,42 @@ export function createRootValue(
     freeOnly: input.freeOnly,
   });
 
+  const watchRuleView = (id: string, rule: WatchRule) => ({
+    __typename: 'WatchRule',
+    id,
+    name: rule.input.name,
+    enabled: rule.input.enabled !== false,
+    conditions: scheduler.conditionsView(rule.input.conditions),
+    createdAt: new Date(rule.createdAt).toISOString(),
+    updatedAt: new Date(rule.updatedAt).toISOString(),
+  });
+
+  // applyWatchRules は、ルールの照合 (設計書 4.8) を簡単にしたもの。有効な視聴ルールに一致したこれからの番組に視聴予約を付け、
+  // 視聴ルールが付けた視聴予約のうち、一致しなくなったものを外す。手で外した番組を覚えることは、デモでは省く。
+  const applyWatchRules = () => {
+    const enabled = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
+    const matched = new Set(
+      programs
+        .filter(
+          (item) =>
+            item.start > now && enabled.some((rule) => matchProgram(item, rule.input.conditions)),
+        )
+        .map((item) => item.id),
+    );
+    for (const id of watchRuleReserved) {
+      if (!matched.has(id)) {
+        watchReserved.delete(id);
+        watchRuleReserved.delete(id);
+      }
+    }
+    for (const id of matched) {
+      if (!watchReserved.has(id)) {
+        watchReserved.add(id);
+        watchRuleReserved.add(id);
+      }
+    }
+  };
+
   // node は、node(id) で引く。ID の頭に型の名前を付けて、型をまたいで重ならないようにしている。
   const node = (id: string) => {
     const found = programsById.get(id);
@@ -149,6 +197,10 @@ export function createRootValue(
     const view = guideViews.get(id);
     if (view !== undefined) {
       return guideView(id, view);
+    }
+    const watchRule = watchRules.get(id);
+    if (watchRule !== undefined) {
+      return watchRuleView(id, watchRule);
     }
     const scheduled = scheduler.node(id) ?? recordings.node(id);
     if (scheduled !== undefined) {
@@ -187,6 +239,7 @@ export function createRootValue(
     services: () => services,
     pinnedServices: () => servicesOf(pinned),
     guideViews: () => [...guideViews].map(([id, input]) => guideView(id, input)),
+    watchRules: () => [...watchRules].map(([id, rule]) => watchRuleView(id, rule)),
     guide: (args: {
       from: string;
       to: string;
@@ -470,6 +523,58 @@ export function createRootValue(
 
       return id;
     },
+    createWatchRule: ({ input }: { input: WatchRuleInput }) => {
+      const id = `WatchRule:${nextWatchRule}`;
+      nextWatchRule += 1;
+      const rule = { input, createdAt: Date.now(), updatedAt: Date.now() };
+      watchRules.set(id, rule);
+      applyWatchRules();
+      viewerSettingsChanged();
+
+      return watchRuleView(id, rule);
+    },
+    updateWatchRule: ({ id, input }: { id: string; input: WatchRuleInput }) => {
+      const found = watchRules.get(id);
+      if (found === undefined) {
+        throw new Error('the watch rule is not found');
+      }
+      const rule = { ...found, input, updatedAt: Date.now() };
+      watchRules.set(id, rule);
+      applyWatchRules();
+      viewerSettingsChanged();
+
+      return watchRuleView(id, rule);
+    },
+    setWatchRuleEnabled: ({ id, enabled }: { id: string; enabled: boolean }) => {
+      const found = watchRules.get(id);
+      if (found === undefined) {
+        throw new Error('the watch rule is not found');
+      }
+      const rule = { ...found, input: { ...found.input, enabled }, updatedAt: Date.now() };
+      watchRules.set(id, rule);
+      applyWatchRules();
+      viewerSettingsChanged();
+
+      return watchRuleView(id, rule);
+    },
+    deleteWatchRule: ({ id }: { id: string }) => {
+      // 視聴ルールを消しても、付けた視聴予約は、手で付けたものとして残す。
+      // ほかの有効な視聴ルールにも一致する番組は、そのルールが付けたものとして扱い続ける。
+      watchRules.delete(id);
+      const remaining = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
+      for (const programId of watchRuleReserved) {
+        const item = programsById.get(programId);
+        if (
+          item === undefined ||
+          !remaining.some((rule) => matchProgram(item, rule.input.conditions))
+        ) {
+          watchRuleReserved.delete(programId);
+        }
+      }
+      viewerSettingsChanged();
+
+      return id;
+    },
     setWatchReservation: ({ program: id, reserved }: { program: string; reserved: boolean }) => {
       const found = programsById.get(id);
       if (found === undefined) {
@@ -484,6 +589,8 @@ export function createRootValue(
       } else {
         watchReserved.delete(id);
       }
+      // 手で付け外しした視聴予約は、視聴ルールが付けたものとして扱わない。
+      watchRuleReserved.delete(id);
       viewerSettingsChanged();
 
       return program(found);

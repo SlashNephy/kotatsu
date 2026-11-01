@@ -105,13 +105,8 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		return r.reservation(ctx, id)
 	case ruleType:
 		return r.rule(ctx, id)
-	case guideViewType:
-		view, err := r.guideView(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-
-		return toGuideView(view)
+	case guideViewType, watchRuleType:
+		return r.ownNode(ctx, typeName, id)
 	default:
 		return nil, NewError(CodeBadUserInput, "unknown type "+typeName)
 	}

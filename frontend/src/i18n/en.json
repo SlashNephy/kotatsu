@@ -97,6 +97,25 @@
     "notifyAt": "Notifies at {{time}}",
     "settingsLink": "Change how many minutes before to notify"
   },
+  "watchRules": {
+    "tab": "Watch rules",
+    "recordingTab": "Recording rules",
+    "description": "Watch rules are yours alone. Upcoming programs that match the conditions get a watch reminder automatically, and you are notified shortly before the broadcast. Nothing is recorded.",
+    "create": "Create watch rule",
+    "empty": "No watch rules yet",
+    "emptyHint": "Create one from \"Create watch rule\" to set watch reminders on matching programs automatically.",
+    "limit": "You can create up to {{count}} watch rules",
+    "toggleError": "Could not change the watch rule",
+    "back": "Back to watch rules",
+    "createTitle": "Create watch rule",
+    "editTitle": "Edit watch rule",
+    "notFound": "Watch rule not found",
+    "editorDescription": "Upcoming programs that match get a watch reminder. Reminders you removed yourself are not set again. When you change the conditions or disable the rule, reminders set by this rule that no longer match are removed.",
+    "outdated": "This watch rule was changed after you started editing. Saving will overwrite those changes",
+    "saved": "Saved. Matching programs will get a watch reminder in the next matching run",
+    "deleteTitle": "Delete watch rule",
+    "deleteDescription": "This watch rule will be deleted. The watch reminders it set are kept."
+  },
   "viewer": {
     "loading": "Loading",
     "signedOut": "Not logged in",
