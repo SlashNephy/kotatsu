@@ -140,4 +140,32 @@ describe('withTransientRetry', () => {
     expect(got.values).toEqual([]);
     expect(tracker.isReconnecting()).toBe(false);
   });
+  test('端末がオフラインなら、一時的な障害でも送り直さずにエラーを出す (#1200)', () => {
+    const tracker = createConnectionTracker();
+    const offline = new TypeError('Failed to fetch');
+    const fetchFn = fetcher([offline]);
+    const { got } = run(
+      withTransientRetry(fetchFn, { tracker, random: () => 0, online: () => false }),
+    );
+
+    expect(got.error).toBe(offline);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(tracker.isReconnecting()).toBe(false);
+  });
+  test('送り直している間にオフラインになったら、それ以上は送り直さずにエラーを出す (#1200)', async () => {
+    const tracker = createConnectionTracker();
+    const fetchFn = fetcher([unavailable(), unavailable(), ok]);
+    let online = true;
+    const { got } = run(
+      withTransientRetry(fetchFn, { tracker, random: () => 0, online: () => online }),
+    );
+    expect(tracker.isReconnecting()).toBe(true);
+
+    online = false;
+    await vi.runAllTimersAsync();
+
+    expect(got.error).toBeInstanceOf(GraphQLRequestError);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(tracker.isReconnecting()).toBe(false);
+  });
 });
