@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -35,6 +36,14 @@ const (
 	orphanGrace = time.Hour
 	// day は、しょぼいカレンダーの放送時間データをキャッシュする単位。
 	day = 24 * time.Hour
+	// maxImportedRecordings は、EPGStation から取り込んだ録画を、1 回に照合する数の上限。
+	maxImportedRecordings = 100
+	// maxImportedDays は、EPGStation から取り込んだ録画を照合するときに、1 回に問い合わせる ChID と日の組の数の上限 (付録 A)。
+	maxImportedDays = 14
+	// maxSpanDays は、しょぼいカレンダーに 1 回で問い合わせる期間の長さの上限 (日)。
+	maxSpanDays = 7
+	// maxProgLookupItems は、db.php が 1 回に返す放送時間データの数の上限。これだけ返ってきたら、続きがあるかもしれない。
+	maxProgLookupItems = 5000
 )
 
 // multipleEpisodes は、複数の話をまとめて放送するときの、放送時間データのサブタイトルの書き方 ("#1～#2")。
@@ -82,10 +91,14 @@ type target struct {
 	eventID   int64
 	startAt   time.Time
 	endAt     time.Time
-	// channelID は、サービスに対応する、しょぼいカレンダーの ChID。
+	// name は、番組名。しょぼいカレンダーで引けなければ、解析して結びつける。
+	name string
+	// channelID は、サービスに対応する、しょぼいカレンダーの ChID。対応がなければ 0。
 	channelID int32
 	// fetchedAfter は、この番組を照合する放送時間データを、いつより後に引いたものにするか。
 	fetchedAfter time.Time
+	// recordingID は、EPGStation から取り込んだ録画を照合するときの録画。番組を照合するときは uuid.Nil。
+	recordingID uuid.UUID
 }
 
 // Episode は、番組に結びついた話 1 つ。
@@ -236,10 +249,73 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	targets := make([]*target, 0, len(rows))
 	for _, row := range rows {
 		targets = append(targets, &target{
-			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt,
-			channelID: channels[row.ServiceID], fetchedAfter: row.EndAt,
+			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
+			channelID: channels[row.ServiceID], fetchedAfter: row.EndAt, recordingID: uuid.Nil,
 		})
 	}
+	if err := m.match(ctx, targets, true, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// MatchImported は、EPGStation から取り込んだ、まだ照合していない録画を、古い順に照合する (設計書 6.3)。
+// 番組を照合していればその結びつきを写し、なければ録画のサービスと開始時刻で照合する。
+// 取り込んだ録画は何年分もあり、日がばらばらなので、1 回に問い合わせる ChID と日の数を maxImportedDays までに抑える。
+func (m *Matcher) MatchImported(ctx context.Context) (*MatchResult, error) {
+	result := new(MatchResult)
+	enabled, err := m.enabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !enabled {
+		result.Disabled = true
+
+		return result, nil
+	}
+	channels, err := m.channels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := sqlc.New(m.db).ListImportedRecordingsToMatch(ctx, maxImportedRecordings)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the imported recordings: %w", err)
+	}
+	now := m.clock.Now()
+	days := map[channelDay]bool{}
+	targets := []*target{}
+	for _, row := range rows {
+		copied, err := m.copyImported(ctx, row.ID, row.ServiceID, row.StartAt, now)
+		if err != nil {
+			return nil, err
+		}
+		if copied {
+			result.Programs++
+
+			continue
+		}
+		channelID := channels[row.ServiceID]
+		if channelID != 0 {
+			added := 0
+			for _, d := range daysOf(row.StartAt, row.EndAt) {
+				if !days[channelDay{channelID: channelID, day: d}] {
+					added++
+				}
+			}
+			if len(days)+added > maxImportedDays {
+				break
+			}
+			for _, d := range daysOf(row.StartAt, row.EndAt) {
+				days[channelDay{channelID: channelID, day: d}] = true
+			}
+		}
+		targets = append(targets, &target{
+			serviceID: row.ServiceID, eventID: 0, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
+			channelID: channelID, fetchedAfter: row.EndAt, recordingID: row.ID,
+		})
+	}
+	// 放送の終わった録画なので、確定させるときと同じく、問い合わせられなかった録画は照合したことにせず、次の機会に回す。
 	if err := m.match(ctx, targets, true, result); err != nil {
 		return nil, err
 	}
@@ -257,7 +333,8 @@ func (m *Matcher) enabled(ctx context.Context) (bool, error) {
 	return system.AnimeLinkingEnabled, nil
 }
 
-// channels は、サービスごとの、しょぼいカレンダーの ChID を返す。ChID のないサービスは含めない。
+// channels は、サービスごとの、しょぼいカレンダーの ChID を返す。ChID のないサービスは 0 にする。
+// ChID のないサービスの番組は、しょぼいカレンダーに問い合わせず、番組名を解析して結びつける。
 func (m *Matcher) channels(ctx context.Context) (map[int64]int32, error) {
 	list, err := ListChannels(ctx, m.db)
 	if err != nil {
@@ -265,12 +342,28 @@ func (m *Matcher) channels(ctx context.Context) (map[int64]int32, error) {
 	}
 	channels := map[int64]int32{}
 	for _, channel := range list {
+		channels[channel.ServiceID] = 0
 		if channel.SyobocalChannelID != nil {
 			channels[channel.ServiceID] = *channel.SyobocalChannelID
 		}
 	}
 
 	return channels, nil
+}
+
+// copyImported は、取り込んだ録画と同じ番組を照合していれば、その結びつきを写し、true を返す。
+func (m *Matcher) copyImported(ctx context.Context, recordingID uuid.UUID, serviceID int64, startAt, now time.Time) (bool, error) {
+	matched, err := sqlc.New(m.db).ProgramAnimeMatchExists(ctx, sqlc.ProgramAnimeMatchExistsParams{ServiceID: serviceID, StartAt: startAt})
+	if err != nil {
+		return false, fmt.Errorf("failed to read the anime match of the program: %w", err)
+	}
+	if !matched {
+		return false, nil
+	}
+
+	return true, pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
+		return CopyToRecording(ctx, tx, recordingID, serviceID, startAt, now)
+	})
 }
 
 // programs は、サービス serviceIDs の、from から to までと放送時間が重なる、確定させていないアニメと特撮の番組を返す。
@@ -290,8 +383,8 @@ func (m *Matcher) programs(
 			continue
 		}
 		targets = append(targets, &target{
-			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt,
-			channelID: channels[row.ServiceID], fetchedAfter: fetchedAfter,
+			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
+			channelID: channels[row.ServiceID], fetchedAfter: fetchedAfter, recordingID: uuid.Nil,
 		})
 	}
 
@@ -312,6 +405,9 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 	// 番組ごとに、その放送時間と重なる日の放送時間データを、いつより後に引いたものにするかを決める。
 	required := map[channelDay]time.Time{}
 	for _, t := range targets {
+		if t.channelID == 0 {
+			continue
+		}
 		for _, d := range daysOf(t.startAt, t.endAt) {
 			key := channelDay{channelID: t.channelID, day: d}
 			if current, ok := required[key]; !ok || t.fetchedAfter.After(current) {
@@ -319,27 +415,16 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 			}
 		}
 	}
-	failed, err := m.refresh(ctx, required, result)
+	failed := map[channelDay]bool{}
+	if len(required) > 0 {
+		var err error
+		if failed, err = m.refresh(ctx, required, result); err != nil {
+			return err
+		}
+	}
+	byChannel, err := m.cachedPrograms(ctx, targets)
 	if err != nil {
 		return err
-	}
-
-	from, to := targets[0].startAt, targets[0].endAt
-	channelIDs := map[int32]bool{}
-	for _, t := range targets {
-		from, to = minTime(from, t.startAt), maxTime(to, t.endAt)
-		channelIDs[t.channelID] = true
-	}
-	// StOffset で前後にずれた放送時間データも拾えるよう、前後に 1 日広げて読む。
-	cached, err := sqlc.New(m.db).ListSyobocalPrograms(ctx, sqlc.ListSyobocalProgramsParams{
-		ChannelIds: slices.Sorted(maps.Keys(channelIDs)), RangeStart: from.Add(-day), RangeEnd: to.Add(day),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to read the syobocal programs: %w", err)
-	}
-	byChannel := map[int32][]*sqlc.SyobocalProgram{}
-	for i := range cached {
-		byChannel[cached[i].ChannelID] = append(byChannel[cached[i].ChannelID], &cached[i])
 	}
 
 	now := m.clock.Now()
@@ -349,15 +434,23 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 		}) {
 			continue
 		}
-		episodes := episodesOf(t, byChannel[t.channelID])
-		if err := m.write(ctx, t, episodes, finalize, now); err != nil {
+		episodes, err := m.episodesFor(ctx, t, byChannel[t.channelID])
+		if err != nil {
+			return err
+		}
+		if t.recordingID != uuid.Nil {
+			err = m.writeRecording(ctx, t.recordingID, episodes, now)
+		} else {
+			err = m.write(ctx, t, episodes, finalize, now)
+		}
+		if err != nil {
 			return err
 		}
 		result.Programs++
 		if len(episodes) > 0 {
 			result.Linked++
 		}
-		if finalize {
+		if finalize && t.recordingID == uuid.Nil {
 			result.Finalized++
 		}
 	}
@@ -367,6 +460,50 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 
 // span は、しょぼいカレンダーに 1 回で問い合わせる期間 (日本時間の日の始まりから、終わりの日の次の日の始まりまで)。
 type span struct{ from, to time.Time }
+
+// episodesFor は、番組 t に結びつける話を決める。しょぼいカレンダーの放送時間データ candidates で引けなければ
+// (ChID のないサービスや、アニメ専門チャンネルのリピート放送など)、番組名を解析する。
+func (m *Matcher) episodesFor(ctx context.Context, t *target, candidates []*sqlc.SyobocalProgram) ([]*Episode, error) {
+	if t.channelID != 0 {
+		if episodes := episodesOf(t, candidates); len(episodes) > 0 {
+			return episodes, nil
+		}
+	}
+
+	return titleEpisodes(ctx, m.db, t.name)
+}
+
+// cachedPrograms は、targets の放送時間と重なる、キャッシュしたしょぼいカレンダーの放送時間データを、ChID ごとに返す。
+func (m *Matcher) cachedPrograms(ctx context.Context, targets []*target) (map[int32][]*sqlc.SyobocalProgram, error) {
+	byChannel := map[int32][]*sqlc.SyobocalProgram{}
+	channelIDs := map[int32]bool{}
+	from, to := time.Time{}, time.Time{}
+	for _, t := range targets {
+		if t.channelID == 0 {
+			continue
+		}
+		if len(channelIDs) == 0 {
+			from, to = t.startAt, t.endAt
+		}
+		from, to = minTime(from, t.startAt), maxTime(to, t.endAt)
+		channelIDs[t.channelID] = true
+	}
+	if len(channelIDs) == 0 {
+		return byChannel, nil
+	}
+	// StOffset で前後にずれた放送時間データも拾えるよう、前後に 1 日広げて読む。
+	cached, err := sqlc.New(m.db).ListSyobocalPrograms(ctx, sqlc.ListSyobocalProgramsParams{
+		ChannelIds: slices.Sorted(maps.Keys(channelIDs)), RangeStart: from.Add(-day), RangeEnd: to.Add(day),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the syobocal programs: %w", err)
+	}
+	for i := range cached {
+		byChannel[cached[i].ChannelID] = append(byChannel[cached[i].ChannelID], &cached[i])
+	}
+
+	return byChannel, nil
+}
 
 // refresh は、required の日のうち、決めた日時より前に引いた (か、まだ引いていない) 放送時間データを引き直す。
 // ChID ごとに続いた日をまとめ、同じ期間を引く ChID をまとめて、1 回の問い合わせにする。引けなかった日を返す。
@@ -435,14 +572,15 @@ func (m *Matcher) staleDays(ctx context.Context, required map[channelDay]time.Ti
 	return stale, nil
 }
 
-// spansOf は、ChID ごとの日を、続いた日の期間にまとめ、同じ期間を引く ChID をまとめる。
+// spansOf は、ChID ごとの日を、続いた日の期間 (maxSpanDays 日まで) にまとめ、同じ期間を引く ChID をまとめる。
+// 期間を区切るのは、db.php が 1 回に 5,000 件までしか返さないからである。
 func spansOf(stale map[int32][]time.Time) map[span][]int32 {
 	groups := map[span][]int32{}
 	for channelID, days := range stale {
 		slices.SortFunc(days, func(a, b time.Time) int { return a.Compare(b) })
 		start := days[0]
 		for i := 1; i <= len(days); i++ {
-			if i < len(days) && days[i].Equal(days[i-1].AddDate(0, 0, 1)) {
+			if i < len(days) && days[i].Equal(days[i-1].AddDate(0, 0, 1)) && days[i].Before(start.AddDate(0, 0, maxSpanDays)) {
 				continue
 			}
 			key := span{from: start, to: days[i-1].AddDate(0, 0, 1)}
@@ -461,6 +599,10 @@ func (m *Matcher) fetch(ctx context.Context, channelIDs []int32, from, to time.T
 	programs, err := m.client.ProgLookup(ctx, channelIDs, from, to)
 	if err != nil {
 		return err
+	}
+	// 上限まで返ってきたら、取りこぼしがあるかもしれないので、キャッシュしない。
+	if len(programs) >= maxProgLookupItems {
+		return fmt.Errorf("%w: ProgLookup returned %d items, which may be truncated", syobocal.ErrUnexpectedResponse, len(programs))
 	}
 	now := m.clock.Now()
 
@@ -516,8 +658,73 @@ func (m *Matcher) write(ctx context.Context, t *target, episodes []*Episode, fin
 			return fmt.Errorf("failed to save the anime match: %w", err)
 		}
 
-		return replaceEpisodes(ctx, q, t.serviceID, t.startAt, episodes)
+		if err := replaceEpisodes(ctx, q, t.serviceID, t.startAt, episodes); err != nil {
+			return err
+		}
+		// 放送が終わるまでに照合し直した結びつきは、この番組の録画の写しにも反映する。
+		recordings, err := q.ListProgramRecordingIDs(ctx, sqlc.ListProgramRecordingIDsParams{ServiceID: t.serviceID, StartAt: t.startAt})
+		if err != nil {
+			return fmt.Errorf("failed to list the recordings of the program: %w", err)
+		}
+		for _, recordingID := range recordings {
+			if err := CopyToRecording(ctx, tx, recordingID, t.serviceID, t.startAt, now); err != nil {
+				return err
+			}
+		}
+
+		return nil
 	})
+}
+
+// writeRecording は、EPGStation から取り込んだ録画 recordingID の結びつきを episodes で入れ替える。
+func (m *Matcher) writeRecording(ctx context.Context, recordingID uuid.UUID, episodes []*Episode, now time.Time) error {
+	return pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
+		q := sqlc.New(tx)
+		if err := q.UpsertRecordingAnimeMatch(ctx, sqlc.UpsertRecordingAnimeMatchParams{RecordingID: recordingID, Now: now}); err != nil {
+			return fmt.Errorf("failed to save the recording anime match: %w", err)
+		}
+		if err := q.DeleteRecordingAnimeEpisodes(ctx, recordingID); err != nil {
+			return fmt.Errorf("failed to delete the recording anime episodes: %w", err)
+		}
+		for i, episode := range episodes[:min(len(episodes), maxEpisodes)] {
+			err := q.InsertRecordingAnimeEpisode(ctx, sqlc.InsertRecordingAnimeEpisodeParams{
+				RecordingID: recordingID, Position: int16(min(i, maxEpisodes)), Source: episode.Source,
+				SyobocalTid: episode.TID, SyobocalPid: episode.PID, CountStart: episode.CountStart, CountEnd: episode.CountEnd,
+				Subtitle: episode.Subtitle, IsFirst: episode.First, IsLast: episode.Last,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to save a recording anime episode: %w", err)
+			}
+		}
+
+		return nil
+	})
+}
+
+// CopyToRecording は、tx の中で、番組 (serviceID, startAt) の結びつきを、録画 recordingID に写す (設計書 3.8)。
+// 解像度と同じく (設計書 3.3)、録画を始めたときに写す。番組をまだ照合していなければ、何もしない。
+func CopyToRecording(ctx context.Context, tx sqlc.DBTX, recordingID uuid.UUID, serviceID int64, startAt, now time.Time) error {
+	q := sqlc.New(tx)
+	matched, err := q.ProgramAnimeMatchExists(ctx, sqlc.ProgramAnimeMatchExistsParams{ServiceID: serviceID, StartAt: startAt})
+	if err != nil {
+		return fmt.Errorf("failed to read the anime match of the program: %w", err)
+	}
+	if !matched {
+		return nil
+	}
+	if err := q.UpsertRecordingAnimeMatch(ctx, sqlc.UpsertRecordingAnimeMatchParams{RecordingID: recordingID, Now: now}); err != nil {
+		return fmt.Errorf("failed to save the recording anime match: %w", err)
+	}
+	if err := q.DeleteRecordingAnimeEpisodes(ctx, recordingID); err != nil {
+		return fmt.Errorf("failed to delete the recording anime episodes: %w", err)
+	}
+	if _, err := q.CopyProgramAnimeEpisodesToRecording(ctx, sqlc.CopyProgramAnimeEpisodesToRecordingParams{
+		RecordingID: recordingID, ServiceID: serviceID, StartAt: startAt,
+	}); err != nil {
+		return fmt.Errorf("failed to copy the anime episodes to the recording: %w", err)
+	}
+
+	return nil
 }
 
 // replaceEpisodes は、番組 (serviceID, startAt) に結びついた話を episodes で入れ替える。

@@ -1118,6 +1118,17 @@ CREATE TABLE timeshift_promotions (
   UNIQUE (service_id, from_at)
 );
 
+-- しょぼいカレンダーのタイトルの一覧 (設計書 3.8)。しょぼいカレンダーで引けない番組の番組名を解析し、作品名から TID を引くのに使う。
+-- nekonote のジョブが 1 日ごとに、前に取り込んでから更新されたタイトルを取り込む。
+CREATE TABLE syobocal_titles (
+  tid integer PRIMARY KEY,
+  title text NOT NULL,
+  -- 作品名を引く鍵。NFKC で正規化し、空白を除き、小文字にしたもの。
+  title_key text NOT NULL,
+  last_update timestamptz
+);
+CREATE INDEX syobocal_titles_title_key_idx ON syobocal_titles (title_key);
+
 -- アニメの番組と作品の結びつき (設計書 3.8)。saya-definitions から取り込んだ、放送のサービスと、
 -- しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応。nekonote のジョブが 1 日ごとに取り込み直す。
 -- saya-definitions は地上波のネットワーク ID を持たない (地域で違う) ので、地上波の行は network_id を 0 にし、
@@ -1160,7 +1171,7 @@ CREATE INDEX anime_works_syobocal_tid_idx ON anime_works (syobocal_tid);
 
 -- 連携先の情報を取り込んだ様子 (設計書 3.8)。取り込み元ごとに 1 行。管理者の画面に出す。
 CREATE TABLE anime_imports (
-  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'arm_supplementary')),
+  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'arm_supplementary', 'syobocal_titles')),
   -- 最後に取り込んだ内容の ETag。変わっていなければ、取り込み元は 304 を返し、読み直さない。
   etag text,
   -- 最後に問い合わせた日時。1 日ごとの取り込みは、これから決める。
@@ -1225,8 +1236,8 @@ CREATE TABLE program_anime_episodes (
   start_at timestamptz NOT NULL,
   -- 番組の中での並びの番号。放送の順に 0 から振る。
   position smallint NOT NULL,
-  -- 結びつけた出どころ。
-  source text NOT NULL CHECK (source IN ('syobocal')),
+  -- 結びつけた出どころ。syobocal はしょぼいカレンダーの放送時間データ、title は番組名の解析。
+  source text NOT NULL CHECK (source IN ('syobocal', 'title')),
   syobocal_tid integer,
   syobocal_pid integer,
   -- 話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では NULL。
@@ -1245,4 +1256,26 @@ CREATE TABLE anime_match_cursor (
   id smallint PRIMARY KEY CHECK (id = 1),
   epg_version bigint NOT NULL,
   updated_at timestamptz NOT NULL
+);
+
+-- 録画に写した、番組の結びつき (設計書 3.8)。解像度と同じく (設計書 3.3)、録画を始めたときの番組の結びつきを写す。
+-- EPGStation から取り込んだ録画は、nekonote のジョブが、サービスと開始時刻から照合して書く。行があれば、照合したか写したことを表す。
+CREATE TABLE recording_anime_matches (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  matched_at timestamptz NOT NULL
+);
+
+-- 録画に結びついた話 (設計書 3.8)。列は program_anime_episodes と同じ。
+CREATE TABLE recording_anime_episodes (
+  recording_id uuid NOT NULL REFERENCES recording_anime_matches (recording_id) ON DELETE CASCADE,
+  position smallint NOT NULL,
+  source text NOT NULL CHECK (source IN ('syobocal', 'title')),
+  syobocal_tid integer,
+  syobocal_pid integer,
+  count_start double precision,
+  count_end double precision,
+  subtitle text,
+  is_first boolean NOT NULL,
+  is_last boolean NOT NULL,
+  PRIMARY KEY (recording_id, position)
 );

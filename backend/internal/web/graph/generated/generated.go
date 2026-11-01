@@ -59,12 +59,33 @@ type ComplexityRoot struct {
 		SyobocalChannelIDOverride func(childComplexity int) int
 	}
 
+	AnimeEpisode struct {
+		CountEnd    func(childComplexity int) int
+		CountStart  func(childComplexity int) int
+		First       func(childComplexity int) int
+		Last        func(childComplexity int) int
+		Source      func(childComplexity int) int
+		Subtitle    func(childComplexity int) int
+		SyobocalTid func(childComplexity int) int
+		SyobocalURL func(childComplexity int) int
+		Works       func(childComplexity int) int
+	}
+
 	AnimeImport struct {
 		CheckedAt  func(childComplexity int) int
 		Error      func(childComplexity int) int
 		ImportedAt func(childComplexity int) int
 		ItemCount  func(childComplexity int) int
 		Source     func(childComplexity int) int
+	}
+
+	AnimeWork struct {
+		AnilistID    func(childComplexity int) int
+		AnilistURL   func(childComplexity int) int
+		AnnictURL    func(childComplexity int) int
+		AnnictWorkID func(childComplexity int) int
+		MalID        func(childComplexity int) int
+		MalURL       func(childComplexity int) int
 	}
 
 	ApiToken struct {
@@ -541,6 +562,7 @@ type ComplexityRoot struct {
 	}
 
 	Program struct {
+		AnimeEpisodes func(childComplexity int) int
 		Archived      func(childComplexity int) int
 		Audios        func(childComplexity int) int
 		Description   func(childComplexity int) int
@@ -654,6 +676,7 @@ type ComplexityRoot struct {
 	}
 
 	Recording struct {
+		AnimeEpisodes      func(childComplexity int) int
 		Audios             func(childComplexity int) int
 		BroadcastEndedAt   func(childComplexity int) int
 		BroadcastStartedAt func(childComplexity int) int
@@ -1181,6 +1204,7 @@ type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
 
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
+	AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error)
 	Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
 
@@ -1260,6 +1284,8 @@ type RecordingResolver interface {
 	LiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error)
 
 	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
+
+	AnimeEpisodes(ctx context.Context, obj *model.Recording) ([]*model.AnimeEpisode, error)
 }
 type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
@@ -1364,6 +1390,61 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AnimeChannel.SyobocalChannelIDOverride(childComplexity), true
 
+	case "AnimeEpisode.countEnd":
+		if e.ComplexityRoot.AnimeEpisode.CountEnd == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.CountEnd(childComplexity), true
+	case "AnimeEpisode.countStart":
+		if e.ComplexityRoot.AnimeEpisode.CountStart == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.CountStart(childComplexity), true
+	case "AnimeEpisode.first":
+		if e.ComplexityRoot.AnimeEpisode.First == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.First(childComplexity), true
+	case "AnimeEpisode.last":
+		if e.ComplexityRoot.AnimeEpisode.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.Last(childComplexity), true
+	case "AnimeEpisode.source":
+		if e.ComplexityRoot.AnimeEpisode.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.Source(childComplexity), true
+	case "AnimeEpisode.subtitle":
+		if e.ComplexityRoot.AnimeEpisode.Subtitle == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.Subtitle(childComplexity), true
+	case "AnimeEpisode.syobocalTid":
+		if e.ComplexityRoot.AnimeEpisode.SyobocalTid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.SyobocalTid(childComplexity), true
+	case "AnimeEpisode.syobocalUrl":
+		if e.ComplexityRoot.AnimeEpisode.SyobocalURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.SyobocalURL(childComplexity), true
+	case "AnimeEpisode.works":
+		if e.ComplexityRoot.AnimeEpisode.Works == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.Works(childComplexity), true
+
 	case "AnimeImport.checkedAt":
 		if e.ComplexityRoot.AnimeImport.CheckedAt == nil {
 			break
@@ -1394,6 +1475,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeImport.Source(childComplexity), true
+
+	case "AnimeWork.anilistId":
+		if e.ComplexityRoot.AnimeWork.AnilistID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWork.AnilistID(childComplexity), true
+	case "AnimeWork.anilistUrl":
+		if e.ComplexityRoot.AnimeWork.AnilistURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWork.AnilistURL(childComplexity), true
+	case "AnimeWork.annictUrl":
+		if e.ComplexityRoot.AnimeWork.AnnictURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWork.AnnictURL(childComplexity), true
+	case "AnimeWork.annictWorkId":
+		if e.ComplexityRoot.AnimeWork.AnnictWorkID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWork.AnnictWorkID(childComplexity), true
+	case "AnimeWork.malId":
+		if e.ComplexityRoot.AnimeWork.MalID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWork.MalID(childComplexity), true
+	case "AnimeWork.malUrl":
+		if e.ComplexityRoot.AnimeWork.MalURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWork.MalURL(childComplexity), true
 
 	case "ApiToken.createdAt":
 		if e.ComplexityRoot.ApiToken.CreatedAt == nil {
@@ -3641,6 +3759,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.PreviewFrame.Y(childComplexity), true
 
+	case "Program.animeEpisodes":
+		if e.ComplexityRoot.Program.AnimeEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.AnimeEpisodes(childComplexity), true
 	case "Program.archived":
 		if e.ComplexityRoot.Program.Archived == nil {
 			break
@@ -4293,6 +4417,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.Webhooks(childComplexity), true
 
+	case "Recording.animeEpisodes":
+		if e.ComplexityRoot.Recording.AnimeEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.AnimeEpisodes(childComplexity), true
 	case "Recording.audios":
 		if e.ComplexityRoot.Recording.Audios == nil {
 			break
@@ -6430,6 +6560,8 @@ enum AnimeImportSource {
   ARM
   "arm を補う、作品 ID の対応"
   ARM_SUPPLEMENTARY
+  "しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う"
+  SYOBOCAL_TITLES
 }
 
 """
@@ -6459,6 +6591,62 @@ input AnimeChannelInput {
   annictChannelId: Int
   "Annict のチャンネルの ID の上書きを消し、取り込んだ対応に戻す。annictChannelId と一緒には使えない。"
   resetAnnictChannelId: Boolean! = false
+}
+
+"""
+番組や録画に結びついた話を、どこから結びつけたか (設計書 3.8)。
+"""
+enum AnimeEpisodeSource {
+  "しょぼいカレンダーの放送時間データ"
+  SYOBOCAL
+  "番組名の解析"
+  TITLE
+}
+
+"""
+しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
+"""
+type AnimeWork {
+  annictWorkId: Int
+  anilistId: Int
+  malId: Int
+  "Annict の作品のページ。"
+  annictUrl: String
+  "AniList の作品のページ。"
+  anilistUrl: String
+  "MyAnimeList の作品のページ。"
+  malUrl: String
+}
+
+"""
+番組や録画に結びついた話 (設計書 3.8)。2 話連続の放送のように、1 つの番組が複数の話に結びつくことがある。
+"""
+type AnimeEpisode {
+  source: AnimeEpisodeSource!
+  "しょぼいカレンダーの作品の ID (TID)。番組名を解析して、作品を決められなかったときは null。"
+  syobocalTid: Int
+  "しょぼいカレンダーの作品のページ。"
+  syobocalUrl: String
+  "話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。"
+  countStart: Float
+  countEnd: Float
+  subtitle: String
+  "しょぼいカレンダーの [新] の印。"
+  first: Boolean!
+  "しょぼいカレンダーの [終] の印。"
+  last: Boolean!
+  "TID に対応する作品。対応がなければ空。"
+  works: [AnimeWork!]!
+}
+
+extend type Program {
+  "結びついた話 (設計書 3.8)。照合していないか、どの話にも結びつかなければ空。番組の詳細で使い、一覧では引かない。"
+  animeEpisodes: [AnimeEpisode!]!
+}
+
+extend type Recording {
+  "結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  animeEpisodes: [AnimeEpisode!]!
 }
 
 extend type Query {
@@ -9206,6 +9394,30 @@ func (ec *executionContext) childFields_AnimeChannel(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type AnimeChannel", field.Name)
 }
 
+func (ec *executionContext) childFields_AnimeEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "source":
+		return ec.fieldContext_AnimeEpisode_source(ctx, field)
+	case "syobocalTid":
+		return ec.fieldContext_AnimeEpisode_syobocalTid(ctx, field)
+	case "syobocalUrl":
+		return ec.fieldContext_AnimeEpisode_syobocalUrl(ctx, field)
+	case "countStart":
+		return ec.fieldContext_AnimeEpisode_countStart(ctx, field)
+	case "countEnd":
+		return ec.fieldContext_AnimeEpisode_countEnd(ctx, field)
+	case "subtitle":
+		return ec.fieldContext_AnimeEpisode_subtitle(ctx, field)
+	case "first":
+		return ec.fieldContext_AnimeEpisode_first(ctx, field)
+	case "last":
+		return ec.fieldContext_AnimeEpisode_last(ctx, field)
+	case "works":
+		return ec.fieldContext_AnimeEpisode_works(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeEpisode", field.Name)
+}
+
 func (ec *executionContext) childFields_AnimeImport(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "source":
@@ -9220,6 +9432,24 @@ func (ec *executionContext) childFields_AnimeImport(ctx context.Context, field g
 		return ec.fieldContext_AnimeImport_error(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AnimeImport", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeWork(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "annictWorkId":
+		return ec.fieldContext_AnimeWork_annictWorkId(ctx, field)
+	case "anilistId":
+		return ec.fieldContext_AnimeWork_anilistId(ctx, field)
+	case "malId":
+		return ec.fieldContext_AnimeWork_malId(ctx, field)
+	case "annictUrl":
+		return ec.fieldContext_AnimeWork_annictUrl(ctx, field)
+	case "anilistUrl":
+		return ec.fieldContext_AnimeWork_anilistUrl(ctx, field)
+	case "malUrl":
+		return ec.fieldContext_AnimeWork_malUrl(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeWork", field.Name)
 }
 
 func (ec *executionContext) childFields_ApiToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10036,6 +10266,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_audios(ctx, field)
 	case "sharedFrom":
 		return ec.fieldContext_Program_sharedFrom(ctx, field)
+	case "animeEpisodes":
+		return ec.fieldContext_Program_animeEpisodes(ctx, field)
 	case "recordings":
 		return ec.fieldContext_Program_recordings(ctx, field)
 	case "reservation":
@@ -10188,6 +10420,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Recording_streamUrl(ctx, field)
+	case "animeEpisodes":
+		return ec.fieldContext_Recording_animeEpisodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
 }
@@ -13020,6 +13254,222 @@ func (ec *executionContext) fieldContext_AnimeChannel_annictChannelId(_ context.
 	return graphql.NewScalarFieldContext("AnimeChannel", field, false, false, errors.New("field of type Int does not have child fields"))
 }
 
+func (ec *executionContext) _AnimeEpisode_source(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AnimeEpisodeSource) graphql.Marshaler {
+			return ec.marshalNAnimeEpisodeSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeSource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type AnimeEpisodeSource does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_syobocalTid(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_syobocalTid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SyobocalTid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_syobocalTid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_syobocalUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_syobocalUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SyobocalURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_syobocalUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_countStart(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_countStart(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CountStart, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_countStart(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_countEnd(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_countEnd(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CountEnd, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_countEnd(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type Float does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_subtitle(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_subtitle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Subtitle, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_subtitle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_first(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_first(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.First, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_first(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_last(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeEpisode_works(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_works(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Works, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeWork) graphql.Marshaler {
+			return ec.marshalNAnimeWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWorkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_works(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeWork(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AnimeImport_source(ctx context.Context, field graphql.CollectedField, obj *model.AnimeImport) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13133,6 +13583,144 @@ func (ec *executionContext) _AnimeImport_error(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_AnimeImport_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AnimeImport", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWork_annictWorkId(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWork_annictWorkId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnnictWorkID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWork_annictWorkId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWork", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWork_anilistId(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWork_anilistId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnilistID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWork_anilistId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWork", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWork_malId(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWork_malId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MalID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWork_malId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWork", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWork_annictUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWork_annictUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnnictURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWork_annictUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWork_anilistUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWork_anilistUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AnilistURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWork_anilistUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWork_malUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWork_malUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MalURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWork_malUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWork", field, false, false, errors.New("field of type String does not have child fields"))
 }
 
 func (ec *executionContext) _ApiToken_id(ctx context.Context, field graphql.CollectedField, obj *model.APIToken) (ret graphql.Marshaler) {
@@ -22321,6 +22909,38 @@ func (ec *executionContext) fieldContext_Program_sharedFrom(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_animeEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_animeEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().AnimeEpisodes(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeEpisode) graphql.Marshaler {
+			return ec.marshalNAnimeEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_animeEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Program_recordings(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -25905,6 +26525,38 @@ func (ec *executionContext) _Recording_streamUrl(ctx context.Context, field grap
 }
 func (ec *executionContext) fieldContext_Recording_streamUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Recording", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _Recording_animeEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_animeEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().AnimeEpisodes(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeEpisode) graphql.Marshaler {
+			return ec.marshalNAnimeEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_animeEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeEpisode(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _RecordingConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.RecordingConnection) (ret graphql.Marshaler) {
@@ -35342,6 +35994,84 @@ func (ec *executionContext) _AnimeChannel(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var animeEpisodeImplementors = []string{"AnimeEpisode"}
+
+func (ec *executionContext) _AnimeEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeEpisode")
+		case "source":
+			out.Values[i] = ec._AnimeEpisode_source(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "syobocalTid":
+			out.Values[i] = ec._AnimeEpisode_syobocalTid(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "syobocalUrl":
+			out.Values[i] = ec._AnimeEpisode_syobocalUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "countStart":
+			out.Values[i] = ec._AnimeEpisode_countStart(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "countEnd":
+			out.Values[i] = ec._AnimeEpisode_countEnd(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "subtitle":
+			out.Values[i] = ec._AnimeEpisode_subtitle(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "first":
+			out.Values[i] = ec._AnimeEpisode_first(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._AnimeEpisode_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "works":
+			out.Values[i] = ec._AnimeEpisode_works(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var animeImportImplementors = []string{"AnimeImport"}
 
 func (ec *executionContext) _AnimeImport(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeImport) graphql.Marshaler {
@@ -35376,6 +36106,69 @@ func (ec *executionContext) _AnimeImport(ctx context.Context, sel ast.SelectionS
 			}
 		case "error":
 			out.Values[i] = ec._AnimeImport_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var animeWorkImplementors = []string{"AnimeWork"}
+
+func (ec *executionContext) _AnimeWork(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWork) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeWorkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeWork")
+		case "annictWorkId":
+			out.Values[i] = ec._AnimeWork_annictWorkId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "anilistId":
+			out.Values[i] = ec._AnimeWork_anilistId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "malId":
+			out.Values[i] = ec._AnimeWork_malId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "annictUrl":
+			out.Values[i] = ec._AnimeWork_annictUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "anilistUrl":
+			out.Values[i] = ec._AnimeWork_anilistUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "malUrl":
+			out.Values[i] = ec._AnimeWork_malUrl(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -39111,6 +39904,44 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "animeEpisodes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Program_animeEpisodes(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "recordings":
 			field := field
 
@@ -41231,6 +42062,44 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "animeEpisodes":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Recording_animeEpisodes(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.IsDeferred() {
+				deferredFieldSet.AddField(field)
+				fieldIndex := len(deferredFieldSet.Values) - 1
+				deferredFieldSet.Concurrently(fieldIndex, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, deferredFieldSet)
+				})
+
+				for _, deferrable := range field.Deferrables {
+					view, ok := deferLabelToView[deferrable.Label]
+					if !ok {
+						view = deferredFieldSet.NewView()
+						deferLabelToView[deferrable.Label] = view
+					}
+					view.AddIndices(fieldIndex)
+				}
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -44894,6 +45763,42 @@ func (ec *executionContext) unmarshalNAnimeChannelInput2githubᚗcomᚋSlashNeph
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNAnimeEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeEpisode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisode(ctx context.Context, sel ast.SelectionSet, v *model.AnimeEpisode) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAnimeEpisodeSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeSource(ctx context.Context, v any) (model.AnimeEpisodeSource, error) {
+	var res model.AnimeEpisodeSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAnimeEpisodeSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeSource(ctx context.Context, sel ast.SelectionSet, v model.AnimeEpisodeSource) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNAnimeImport2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeImport) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -44928,6 +45833,32 @@ func (ec *executionContext) unmarshalNAnimeImportSource2githubᚗcomᚋSlashNeph
 
 func (ec *executionContext) marshalNAnimeImportSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportSource(ctx context.Context, sel ast.SelectionSet, v model.AnimeImportSource) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNAnimeWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWorkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeWork) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWork(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWork(ctx context.Context, sel ast.SelectionSet, v *model.AnimeWork) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeWork(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNApiToken2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAPITokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.APIToken) graphql.Marshaler {

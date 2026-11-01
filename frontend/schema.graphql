@@ -56,6 +56,51 @@ input AnimeChannelInput {
   resetAnnictChannelId: Boolean! = false
 }
 """
+番組や録画に結びついた話 (設計書 3.8)。2 話連続の放送のように、1 つの番組が複数の話に結びつくことがある。
+"""
+type AnimeEpisode {
+  source: AnimeEpisodeSource!
+  """
+  しょぼいカレンダーの作品の ID (TID)。番組名を解析して、作品を決められなかったときは null。
+  """
+  syobocalTid: Int
+  """
+  しょぼいカレンダーの作品のページ。
+  """
+  syobocalUrl: String
+  """
+  話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。
+  """
+  countStart: Float
+  countEnd: Float
+  subtitle: String
+  """
+  しょぼいカレンダーの [新] の印。
+  """
+  first: Boolean!
+  """
+  しょぼいカレンダーの [終] の印。
+  """
+  last: Boolean!
+  """
+  TID に対応する作品。対応がなければ空。
+  """
+  works: [AnimeWork!]!
+}
+"""
+番組や録画に結びついた話を、どこから結びつけたか (設計書 3.8)。
+"""
+enum AnimeEpisodeSource {
+  """
+  しょぼいカレンダーの放送時間データ
+  """
+  SYOBOCAL
+  """
+  番組名の解析
+  """
+  TITLE
+}
+"""
 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
 """
 type AnimeImport {
@@ -93,6 +138,30 @@ enum AnimeImportSource {
   arm を補う、作品 ID の対応
   """
   ARM_SUPPLEMENTARY
+  """
+  しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
+  """
+  SYOBOCAL_TITLES
+}
+"""
+しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
+"""
+type AnimeWork {
+  annictWorkId: Int
+  anilistId: Int
+  malId: Int
+  """
+  Annict の作品のページ。
+  """
+  annictUrl: String
+  """
+  AniList の作品のページ。
+  """
+  anilistUrl: String
+  """
+  MyAnimeList の作品のページ。
+  """
+  malUrl: String
 }
 """
 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
@@ -1763,6 +1832,10 @@ type Program implements Node {
   """
   sharedFrom: Service
   """
+  結びついた話 (設計書 3.8)。照合していないか、どの話にも結びつかなければ空。番組の詳細で使い、一覧では引かない。
+  """
+  animeEpisodes: [AnimeEpisode!]!
+  """
   番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。
   """
   recordings: [Recording!]!
@@ -2261,6 +2334,10 @@ type Recording implements Node {
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
   """
   streamUrl: String!
+  """
+  結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。
+  """
+  animeEpisodes: [AnimeEpisode!]!
 }
 type RecordingConnection {
   edges: [RecordingEdge!]!

@@ -176,7 +176,7 @@ func newMatchFixture(t *testing.T) (*pgxpool.Pool, *clocktest.Fake, *fakeSyoboca
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
-	_, err := anime.NewImporter(db, clk, newFakeFetcher(), nil, slog.New(slog.DiscardHandler)).Import(t.Context(), false)
+	_, err := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(), nil, slog.New(slog.DiscardHandler)).Import(t.Context(), false)
 	require.NoError(t, err)
 	insertProgram(t, db, grService, 1, jst(2, 0, 0), jst(2, 0, 30), genreAnime)
 	insertProgram(t, db, grService, 2, jst(2, 0, 30), jst(2, 1, 30), genreAnime)

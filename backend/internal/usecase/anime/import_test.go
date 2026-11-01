@@ -14,6 +14,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/animedata"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
@@ -165,6 +166,45 @@ func (f *fakeFetcher) wait(source string) {
 	}
 }
 
+// fakeTitles は、しょぼいカレンダーのタイトルの一覧を返す偽物。前に取り込んだ後の更新だけを返す。
+type fakeTitles struct {
+	mu     sync.Mutex
+	titles []*syobocal.Title
+	since  []time.Time
+}
+
+var _ anime.TitleFetcher = new(fakeTitles)
+
+// newFakeTitles は、次のタイトルを持つ偽物を返す。「同名作品」は 2 つあり、どちらか決められない。
+func newFakeTitles() *fakeTitles {
+	updated := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+
+	return &fakeTitles{
+		mu: sync.Mutex{},
+		titles: []*syobocal.Title{
+			{TID: 10, Title: testTitle, LastUpdate: updated},
+			{TID: 30, Title: "リピート 作品", LastUpdate: updated},
+			{TID: 31, Title: "同名作品", LastUpdate: updated},
+			{TID: 32, Title: "同名作品", LastUpdate: updated.Add(time.Hour)},
+		},
+		since: []time.Time{},
+	}
+}
+
+func (f *fakeTitles) TitleLookup(_ context.Context, since time.Time) ([]*syobocal.Title, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.since = append(f.since, since)
+	found := []*syobocal.Title{}
+	for _, title := range f.titles {
+		if since.IsZero() || title.LastUpdate.After(since) {
+			found = append(found, title)
+		}
+	}
+
+	return found, nil
+}
+
 func (f *fakeFetcher) setFailArm(fail bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -184,7 +224,7 @@ func TestImportDisabled(t *testing.T) {
 
 	db := newDB(t)
 	fetcher := newFakeFetcher()
-	result, err := anime.NewImporter(db, clocktest.NewFake(testNow()), fetcher, nil, slog.New(slog.DiscardHandler)).Import(t.Context(), true)
+	result, err := anime.NewImporter(db, clocktest.NewFake(testNow()), fetcher, newFakeTitles(), nil, slog.New(slog.DiscardHandler)).Import(t.Context(), true)
 	require.NoError(t, err)
 	assert.True(t, result.Disabled)
 	for _, source := range []string{anime.SourceSayaDefinitions, anime.SourceArm, anime.SourceArmSupplementary} {
@@ -201,11 +241,13 @@ func TestImport(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeFetcher()
-	importer := anime.NewImporter(db, clk, fetcher, nil, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, fetcher, newFakeTitles(), nil, slog.New(slog.DiscardHandler))
 
 	result, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]int{anime.SourceSayaDefinitions: 3, anime.SourceArm: 2, anime.SourceArmSupplementary: 2}, result.Imported)
+	assert.Equal(t, map[string]int{
+		anime.SourceSayaDefinitions: 3, anime.SourceArm: 2, anime.SourceArmSupplementary: 2, anime.SourceSyobocalTitles: 4,
+	}, result.Imported)
 
 	channels, err := anime.ListChannels(t.Context(), db)
 	require.NoError(t, err)
@@ -236,7 +278,7 @@ func TestImport(t *testing.T) {
 
 	imports, err := anime.ListImports(t.Context(), db)
 	require.NoError(t, err)
-	require.Len(t, imports, 3)
+	require.Len(t, imports, 4)
 	for _, status := range imports {
 		assert.Nil(t, status.Error)
 		require.NotNil(t, status.ImportedAt)
@@ -258,7 +300,7 @@ func TestImportConcurrently(t *testing.T) {
 		barrier.Add(2)
 		fetcher.barriers[source] = barrier
 	}
-	importer := anime.NewImporter(db, clk, fetcher, nil, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, fetcher, newFakeTitles(), nil, slog.New(slog.DiscardHandler))
 
 	results := make([]*anime.ImportResult, 2)
 	errs := make([]error, 2)
@@ -292,7 +334,7 @@ func TestImportSchedule(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeFetcher()
-	importer := anime.NewImporter(db, clk, fetcher, nil, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, fetcher, newFakeTitles(), nil, slog.New(slog.DiscardHandler))
 	_, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
 
@@ -307,7 +349,7 @@ func TestImportSchedule(t *testing.T) {
 	result, err = importer.Import(t.Context(), false)
 	require.NoError(t, err)
 	assert.Equal(t, []string{anime.SourceSayaDefinitions}, result.Unchanged)
-	assert.Equal(t, map[string]int{anime.SourceArmSupplementary: 2}, result.Imported)
+	assert.Equal(t, map[string]int{anime.SourceArmSupplementary: 2, anime.SourceSyobocalTitles: 4}, result.Imported)
 	assert.Equal(t, map[string]string{anime.SourceArm: "connection refused"}, result.Failed)
 	works, err := anime.ListWorks(t.Context(), db, []int32{1575})
 	require.NoError(t, err)
@@ -325,6 +367,8 @@ func TestImportSchedule(t *testing.T) {
 		assert.Nil(t, status.Error, status.Source)
 		counts[status.Source] = status.ItemCount
 	}
-	assert.Equal(t, map[string]int{anime.SourceSayaDefinitions: 3, anime.SourceArm: 2, anime.SourceArmSupplementary: 2}, counts,
+	assert.Equal(t, map[string]int{
+		anime.SourceSayaDefinitions: 3, anime.SourceArm: 2, anime.SourceArmSupplementary: 2, anime.SourceSyobocalTitles: 4,
+	}, counts,
 		"unchanged sources keep the counts imported before")
 }

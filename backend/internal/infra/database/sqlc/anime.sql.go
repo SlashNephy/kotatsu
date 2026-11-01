@@ -8,7 +8,44 @@ package sqlc
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
+
+const copyProgramAnimeEpisodesToRecording = `-- name: CopyProgramAnimeEpisodesToRecording :execrows
+INSERT INTO recording_anime_episodes (
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+)
+SELECT $1, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last
+FROM program_anime_episodes e
+WHERE e.service_id = $2 AND e.start_at = $3
+`
+
+type CopyProgramAnimeEpisodesToRecordingParams struct {
+	RecordingID uuid.UUID
+	ServiceID   int64
+	StartAt     time.Time
+}
+
+// 番組 (サービスと開始時刻の組) に結びついた話を、録画に写す。呼ぶ前に、録画の照合した記録を書き、前に写した話を消す。
+func (q *Queries) CopyProgramAnimeEpisodesToRecording(ctx context.Context, arg CopyProgramAnimeEpisodesToRecordingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, copyProgramAnimeEpisodesToRecording, arg.RecordingID, arg.ServiceID, arg.StartAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const countSyobocalTitles = `-- name: CountSyobocalTitles :one
+SELECT count(*)::integer FROM syobocal_titles
+`
+
+func (q *Queries) CountSyobocalTitles(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, countSyobocalTitles)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
 
 const deleteAnimeChannelDefinitions = `-- name: DeleteAnimeChannelDefinitions :exec
 DELETE FROM anime_channel_definitions
@@ -94,6 +131,15 @@ func (q *Queries) DeleteProgramAnimeEpisodes(ctx context.Context, arg DeleteProg
 	return err
 }
 
+const deleteRecordingAnimeEpisodes = `-- name: DeleteRecordingAnimeEpisodes :exec
+DELETE FROM recording_anime_episodes WHERE recording_id = $1
+`
+
+func (q *Queries) DeleteRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRecordingAnimeEpisodes, recordingID)
+	return err
+}
+
 const getAnimeImport = `-- name: GetAnimeImport :one
 SELECT source, etag, checked_at, imported_at, item_count, error FROM anime_imports WHERE source = $1
 `
@@ -133,6 +179,18 @@ func (q *Queries) GetEPGChangeVersion(ctx context.Context) (int64, error) {
 	var version int64
 	err := row.Scan(&version)
 	return version, err
+}
+
+const getSyobocalTitlesLastUpdate = `-- name: GetSyobocalTitlesLastUpdate :one
+SELECT last_update FROM syobocal_titles WHERE last_update IS NOT NULL ORDER BY last_update DESC LIMIT 1
+`
+
+// 取り込んだタイトルの、最も新しい更新日時を返す。1 つも取り込んでいなければ、行を返さない。
+func (q *Queries) GetSyobocalTitlesLastUpdate(ctx context.Context) (*time.Time, error) {
+	row := q.db.QueryRow(ctx, getSyobocalTitlesLastUpdate)
+	var last_update *time.Time
+	err := row.Scan(&last_update)
+	return last_update, err
 }
 
 const insertAnimeChannelDefinitions = `-- name: InsertAnimeChannelDefinitions :exec
@@ -240,6 +298,45 @@ func (q *Queries) InsertProgramAnimeEpisode(ctx context.Context, arg InsertProgr
 	return err
 }
 
+const insertRecordingAnimeEpisode = `-- name: InsertRecordingAnimeEpisode :exec
+INSERT INTO recording_anime_episodes (
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+)
+VALUES (
+  $1, $2, $3, $4, $5,
+  $6, $7, $8, $9, $10
+)
+`
+
+type InsertRecordingAnimeEpisodeParams struct {
+	RecordingID uuid.UUID
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+func (q *Queries) InsertRecordingAnimeEpisode(ctx context.Context, arg InsertRecordingAnimeEpisodeParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingAnimeEpisode,
+		arg.RecordingID,
+		arg.Position,
+		arg.Source,
+		arg.SyobocalTid,
+		arg.SyobocalPid,
+		arg.CountStart,
+		arg.CountEnd,
+		arg.Subtitle,
+		arg.IsFirst,
+		arg.IsLast,
+	)
+	return err
+}
+
 const listAnimeChannels = `-- name: ListAnimeChannels :many
 SELECT s.id AS service_id,
   d.name AS definition_name,
@@ -330,7 +427,7 @@ func (q *Queries) ListAnimeImports(ctx context.Context) ([]AnimeImport, error) {
 }
 
 const listAnimePrograms = `-- name: ListAnimePrograms :many
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, m.finalized_at
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, m.finalized_at
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY($1::bigint[]) AND p.start_at < $2 AND p.end_at > $3
@@ -349,6 +446,7 @@ type ListAnimeProgramsRow struct {
 	EventID     int64
 	StartAt     time.Time
 	EndAt       time.Time
+	Name        string
 	FinalizedAt *time.Time
 }
 
@@ -367,6 +465,7 @@ func (q *Queries) ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsPa
 			&i.EventID,
 			&i.StartAt,
 			&i.EndAt,
+			&i.Name,
 			&i.FinalizedAt,
 		); err != nil {
 			return nil, err
@@ -380,7 +479,7 @@ func (q *Queries) ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsPa
 }
 
 const listAnimeProgramsToFinalize = `-- name: ListAnimeProgramsToFinalize :many
-SELECT p.service_id, p.event_id, p.start_at, p.end_at
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY($1::bigint[]) AND p.end_at <= $2 AND NOT p.end_undecided
@@ -398,6 +497,7 @@ type ListAnimeProgramsToFinalizeRow struct {
 	EventID   int64
 	StartAt   time.Time
 	EndAt     time.Time
+	Name      string
 }
 
 // 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
@@ -415,6 +515,7 @@ func (q *Queries) ListAnimeProgramsToFinalize(ctx context.Context, arg ListAnime
 			&i.EventID,
 			&i.StartAt,
 			&i.EndAt,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -471,6 +572,52 @@ func (q *Queries) ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]L
 	return items, nil
 }
 
+const listImportedRecordingsToMatch = `-- name: ListImportedRecordingsToMatch :many
+SELECT r.id, r.service_id, r.start_at, r.end_at, r.name FROM recordings r
+JOIN import_sources s ON s.kind = 'recorded' AND s.target_id = r.id
+LEFT JOIN recording_anime_matches m ON m.recording_id = r.id
+WHERE m.recording_id IS NULL AND r.state <> 'recording'
+  AND (r.genres = '[]'::jsonb OR r.genres @> '[{"lv1": 7}]'::jsonb)
+ORDER BY r.start_at, r.id
+LIMIT $1
+`
+
+type ListImportedRecordingsToMatchRow struct {
+	ID        uuid.UUID
+	ServiceID int64
+	StartAt   time.Time
+	EndAt     time.Time
+	Name      string
+}
+
+// EPGStation から取り込んだ、まだ照合していない録画を、古い順に max_count 件返す。
+// 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
+func (q *Queries) ListImportedRecordingsToMatch(ctx context.Context, maxCount int32) ([]ListImportedRecordingsToMatchRow, error) {
+	rows, err := q.db.Query(ctx, listImportedRecordingsToMatch, maxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListImportedRecordingsToMatchRow{}
+	for rows.Next() {
+		var i ListImportedRecordingsToMatchRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProgramAnimeEpisodes = `-- name: ListProgramAnimeEpisodes :many
 SELECT e.service_id, e.start_at, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last FROM program_anime_episodes e
 WHERE (e.service_id, e.start_at) IN (SELECT unnest($1::bigint[]), unnest($2::timestamptz[]))
@@ -495,6 +642,73 @@ func (q *Queries) ListProgramAnimeEpisodes(ctx context.Context, arg ListProgramA
 		if err := rows.Scan(
 			&i.ServiceID,
 			&i.StartAt,
+			&i.Position,
+			&i.Source,
+			&i.SyobocalTid,
+			&i.SyobocalPid,
+			&i.CountStart,
+			&i.CountEnd,
+			&i.Subtitle,
+			&i.IsFirst,
+			&i.IsLast,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramRecordingIDs = `-- name: ListProgramRecordingIDs :many
+SELECT r.id FROM recordings r
+WHERE r.service_id = $1 AND r.start_at = $2
+  AND NOT EXISTS (SELECT 1 FROM import_sources s WHERE s.kind = 'recorded' AND s.target_id = r.id)
+`
+
+type ListProgramRecordingIDsParams struct {
+	ServiceID int64
+	StartAt   time.Time
+}
+
+// 番組 (サービスと開始時刻の組) を録った録画を返す。EPGStation から取り込んだ録画は、自分で照合するので除く。
+func (q *Queries) ListProgramRecordingIDs(ctx context.Context, arg ListProgramRecordingIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listProgramRecordingIDs, arg.ServiceID, arg.StartAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordingAnimeEpisodes = `-- name: ListRecordingAnimeEpisodes :many
+SELECT recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last FROM recording_anime_episodes WHERE recording_id = $1 ORDER BY position
+`
+
+func (q *Queries) ListRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) ([]RecordingAnimeEpisode, error) {
+	rows, err := q.db.Query(ctx, listRecordingAnimeEpisodes, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecordingAnimeEpisode{}
+	for rows.Next() {
+		var i RecordingAnimeEpisode
+		if err := rows.Scan(
+			&i.RecordingID,
 			&i.Position,
 			&i.Source,
 			&i.SyobocalTid,
@@ -591,6 +805,35 @@ func (q *Queries) ListSyobocalPrograms(ctx context.Context, arg ListSyobocalProg
 	return items, nil
 }
 
+const listSyobocalTitlesByKey = `-- name: ListSyobocalTitlesByKey :many
+SELECT tid, title FROM syobocal_titles WHERE title_key = $1 ORDER BY tid LIMIT 2
+`
+
+type ListSyobocalTitlesByKeyRow struct {
+	Tid   int32
+	Title string
+}
+
+func (q *Queries) ListSyobocalTitlesByKey(ctx context.Context, titleKey string) ([]ListSyobocalTitlesByKeyRow, error) {
+	rows, err := q.db.Query(ctx, listSyobocalTitlesByKey, titleKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSyobocalTitlesByKeyRow{}
+	for rows.Next() {
+		var i ListSyobocalTitlesByKeyRow
+		if err := rows.Scan(&i.Tid, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAnimeChannelOverride = `-- name: LockAnimeChannelOverride :one
 SELECT s.id AS service_id, o.syobocal_channel_id, o.annict_channel_id
 FROM services s LEFT JOIN anime_channel_overrides o ON o.service_id = s.id
@@ -621,6 +864,22 @@ SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_import'), hashtext($1::text
 func (q *Queries) LockAnimeImport(ctx context.Context, source string) error {
 	_, err := q.db.Exec(ctx, lockAnimeImport, source)
 	return err
+}
+
+const programAnimeMatchExists = `-- name: ProgramAnimeMatchExists :one
+SELECT EXISTS (SELECT 1 FROM program_anime_matches WHERE service_id = $1 AND start_at = $2)
+`
+
+type ProgramAnimeMatchExistsParams struct {
+	ServiceID int64
+	StartAt   time.Time
+}
+
+func (q *Queries) ProgramAnimeMatchExists(ctx context.Context, arg ProgramAnimeMatchExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, programAnimeMatchExists, arg.ServiceID, arg.StartAt)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const pruneProgramAnimeMatches = `-- name: PruneProgramAnimeMatches :execrows
@@ -774,6 +1033,21 @@ func (q *Queries) UpsertProgramAnimeMatch(ctx context.Context, arg UpsertProgram
 	return err
 }
 
+const upsertRecordingAnimeMatch = `-- name: UpsertRecordingAnimeMatch :exec
+INSERT INTO recording_anime_matches (recording_id, matched_at) VALUES ($1, $2)
+ON CONFLICT (recording_id) DO UPDATE SET matched_at = excluded.matched_at
+`
+
+type UpsertRecordingAnimeMatchParams struct {
+	RecordingID uuid.UUID
+	Now         time.Time
+}
+
+func (q *Queries) UpsertRecordingAnimeMatch(ctx context.Context, arg UpsertRecordingAnimeMatchParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingAnimeMatch, arg.RecordingID, arg.Now)
+	return err
+}
+
 const upsertSyobocalLookup = `-- name: UpsertSyobocalLookup :exec
 INSERT INTO syobocal_lookups (channel_id, day_start, fetched_at) VALUES ($1, $2, $3)
 ON CONFLICT (channel_id, day_start) DO UPDATE SET fetched_at = excluded.fetched_at
@@ -828,6 +1102,28 @@ func (q *Queries) UpsertSyobocalProgram(ctx context.Context, arg UpsertSyobocalP
 		arg.Flag,
 		arg.Deleted,
 		arg.Now,
+	)
+	return err
+}
+
+const upsertSyobocalTitle = `-- name: UpsertSyobocalTitle :exec
+INSERT INTO syobocal_titles (tid, title, title_key, last_update) VALUES ($1, $2, $3, $4)
+ON CONFLICT (tid) DO UPDATE SET title = excluded.title, title_key = excluded.title_key, last_update = excluded.last_update
+`
+
+type UpsertSyobocalTitleParams struct {
+	Tid        int32
+	Title      string
+	TitleKey   string
+	LastUpdate *time.Time
+}
+
+func (q *Queries) UpsertSyobocalTitle(ctx context.Context, arg UpsertSyobocalTitleParams) error {
+	_, err := q.db.Exec(ctx, upsertSyobocalTitle,
+		arg.Tid,
+		arg.Title,
+		arg.TitleKey,
+		arg.LastUpdate,
 	)
 	return err
 }

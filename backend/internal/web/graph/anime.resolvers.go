@@ -28,6 +28,16 @@ func (r *mutationResolver) UpdateAnimeChannel(ctx context.Context, serviceID str
 	return r.animeChannel(ctx, id)
 }
 
+// AnimeEpisodes is the resolver for the animeEpisodes field.
+func (r *programResolver) AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error) {
+	episodes, err := anime.ProgramEpisodes(ctx, r.db, obj.ServiceKey, obj.StartAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return animeEpisodesOf(episodes), nil
+}
+
 // AnimeChannels is the resolver for the animeChannels field.
 func (r *queryResolver) AnimeChannels(ctx context.Context) ([]*model.AnimeChannel, error) {
 	if err := administer(ctx); err != nil {
@@ -52,4 +62,18 @@ func (r *queryResolver) AnimeImports(ctx context.Context) ([]*model.AnimeImport,
 	}
 
 	return r.animeImports(ctx)
+}
+
+// AnimeEpisodes is the resolver for the animeEpisodes field.
+func (r *recordingResolver) AnimeEpisodes(ctx context.Context, obj *model.Recording) ([]*model.AnimeEpisode, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	episodes, err := anime.RecordingEpisodes(ctx, r.db, recordingID)
+	if err != nil {
+		return nil, err
+	}
+
+	return animeEpisodesOf(episodes), nil
 }

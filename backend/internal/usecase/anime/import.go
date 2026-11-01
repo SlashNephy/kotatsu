@@ -58,14 +58,16 @@ type Importer struct {
 	db      Database
 	clock   clock.Clock
 	fetcher Fetcher
+	// titles は、しょぼいカレンダーのタイトルの一覧を引く。番組名の解析で、作品名から TID を引くのに使う。
+	titles TitleFetcher
 	// inserter は、チャンネルの対応が変わったときに、番組を照合し直すジョブを入れる。nil なら入れない。
 	inserter Inserter
 	logger   *slog.Logger
 }
 
 // NewImporter は Importer を返す。
-func NewImporter(db Database, clk clock.Clock, fetcher Fetcher, inserter Inserter, logger *slog.Logger) *Importer {
-	return &Importer{db: db, clock: clk, fetcher: fetcher, inserter: inserter, logger: logger}
+func NewImporter(db Database, clk clock.Clock, fetcher Fetcher, titles TitleFetcher, inserter Inserter, logger *slog.Logger) *Importer {
+	return &Importer{db: db, clock: clk, fetcher: fetcher, titles: titles, inserter: inserter, logger: logger}
 }
 
 // ImportResult は、1 回の取り込みの結果。取り込み元ごとに、取り込んだ件数を持つ。
@@ -94,7 +96,7 @@ func (i *Importer) Import(ctx context.Context, force bool) (*ImportResult, error
 		return result, nil
 	}
 
-	for _, source := range []string{SourceSayaDefinitions, SourceArm, SourceArmSupplementary} {
+	for _, source := range []string{SourceSayaDefinitions, SourceArm, SourceArmSupplementary, SourceSyobocalTitles} {
 		previous, err := sqlc.New(i.db).GetAnimeImport(ctx, source)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("failed to read the import status of %s: %w", source, err)
@@ -146,6 +148,8 @@ func (i *Importer) due(status *sqlc.AnimeImport) bool {
 // importSource は、取り込み元 source を取得して入れ替え、取り込んだ件数を返す。変わっていなければ animedata.ErrNotModified を返す。
 func (i *Importer) importSource(ctx context.Context, source, etag string) (int, error) {
 	switch source {
+	case SourceSyobocalTitles:
+		return i.importTitles(ctx)
 	case SourceSayaDefinitions:
 		channels, newETag, err := i.fetcher.SayaDefinitions(ctx, etag)
 		if err != nil {

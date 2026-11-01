@@ -47,6 +47,25 @@ type AnimeChannelInput struct {
 	ResetAnnictChannelID bool `json:"resetAnnictChannelId"`
 }
 
+// 番組や録画に結びついた話 (設計書 3.8)。2 話連続の放送のように、1 つの番組が複数の話に結びつくことがある。
+type AnimeEpisode struct {
+	Source AnimeEpisodeSource `json:"source"`
+	// しょぼいカレンダーの作品の ID (TID)。番組名を解析して、作品を決められなかったときは null。
+	SyobocalTid *int `json:"syobocalTid,omitempty"`
+	// しょぼいカレンダーの作品のページ。
+	SyobocalURL *string `json:"syobocalUrl,omitempty"`
+	// 話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。
+	CountStart *float64 `json:"countStart,omitempty"`
+	CountEnd   *float64 `json:"countEnd,omitempty"`
+	Subtitle   *string  `json:"subtitle,omitempty"`
+	// しょぼいカレンダーの [新] の印。
+	First bool `json:"first"`
+	// しょぼいカレンダーの [終] の印。
+	Last bool `json:"last"`
+	// TID に対応する作品。対応がなければ空。
+	Works []*AnimeWork `json:"works"`
+}
+
 // 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
 type AnimeImport struct {
 	Source AnimeImportSource `json:"source"`
@@ -58,6 +77,19 @@ type AnimeImport struct {
 	ItemCount int `json:"itemCount"`
 	// 最後の問い合わせが失敗した理由。成功していれば null。
 	Error *string `json:"error,omitempty"`
+}
+
+// しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
+type AnimeWork struct {
+	AnnictWorkID *int `json:"annictWorkId,omitempty"`
+	AnilistID    *int `json:"anilistId,omitempty"`
+	MalID        *int `json:"malId,omitempty"`
+	// Annict の作品のページ。
+	AnnictURL *string `json:"annictUrl,omitempty"`
+	// AniList の作品のページ。
+	AnilistURL *string `json:"anilistUrl,omitempty"`
+	// MyAnimeList の作品のページ。
+	MalURL *string `json:"malUrl,omitempty"`
 }
 
 // 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
@@ -1439,6 +1471,64 @@ type Webhook struct {
 	UpdatedAt time.Time          `json:"updatedAt"`
 }
 
+// 番組や録画に結びついた話を、どこから結びつけたか (設計書 3.8)。
+type AnimeEpisodeSource string
+
+const (
+	// しょぼいカレンダーの放送時間データ
+	AnimeEpisodeSourceSyobocal AnimeEpisodeSource = "SYOBOCAL"
+	// 番組名の解析
+	AnimeEpisodeSourceTitle AnimeEpisodeSource = "TITLE"
+)
+
+var AllAnimeEpisodeSource = []AnimeEpisodeSource{
+	AnimeEpisodeSourceSyobocal,
+	AnimeEpisodeSourceTitle,
+}
+
+func (e AnimeEpisodeSource) IsValid() bool {
+	switch e {
+	case AnimeEpisodeSourceSyobocal, AnimeEpisodeSourceTitle:
+		return true
+	}
+	return false
+}
+
+func (e AnimeEpisodeSource) String() string {
+	return string(e)
+}
+
+func (e *AnimeEpisodeSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeEpisodeSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeEpisodeSource", str)
+	}
+	return nil
+}
+
+func (e AnimeEpisodeSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeEpisodeSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeEpisodeSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // 連携先の情報の取り込み元 (設計書 3.8)。
 type AnimeImportSource string
 
@@ -1449,17 +1539,20 @@ const (
 	AnimeImportSourceArm AnimeImportSource = "ARM"
 	// arm を補う、作品 ID の対応
 	AnimeImportSourceArmSupplementary AnimeImportSource = "ARM_SUPPLEMENTARY"
+	// しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
+	AnimeImportSourceSyobocalTitles AnimeImportSource = "SYOBOCAL_TITLES"
 )
 
 var AllAnimeImportSource = []AnimeImportSource{
 	AnimeImportSourceSayaDefinitions,
 	AnimeImportSourceArm,
 	AnimeImportSourceArmSupplementary,
+	AnimeImportSourceSyobocalTitles,
 }
 
 func (e AnimeImportSource) IsValid() bool {
 	switch e {
-	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceArmSupplementary:
+	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceArmSupplementary, AnimeImportSourceSyobocalTitles:
 		return true
 	}
 	return false

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
@@ -118,4 +119,39 @@ func (r *Resolver) startAnimeLinking(ctx context.Context) {
 	if err := anime.EnqueueStart(ctx, r.db, r.jobs); err != nil {
 		r.logger.WarnContext(ctx, "failed to enqueue the anime import", slog.Any("error", err))
 	}
+}
+
+// animeEpisodesOf は、結びついた話を GraphQL の形にする。
+func animeEpisodesOf(episodes []*anime.LinkedEpisode) []*model.AnimeEpisode {
+	result := make([]*model.AnimeEpisode, 0, len(episodes))
+	for _, episode := range episodes {
+		works := make([]*model.AnimeWork, 0, len(episode.Works))
+		for _, work := range episode.Works {
+			works = append(works, &model.AnimeWork{
+				AnnictWorkID: intOf(work.AnnictWorkID), AnilistID: intOf(work.AniListID), MalID: intOf(work.MALID),
+				AnnictURL: workURL("https://annict.com/works/", work.AnnictWorkID), AnilistURL: workURL("https://anilist.co/anime/", work.AniListID),
+				MalURL: workURL("https://myanimelist.net/anime/", work.MALID),
+			})
+		}
+		source := model.AnimeEpisodeSourceSyobocal
+		if episode.Source == anime.SourceTitle {
+			source = model.AnimeEpisodeSourceTitle
+		}
+		result = append(result, &model.AnimeEpisode{
+			Source: source, SyobocalTid: intOf(episode.TID), SyobocalURL: workURL("https://cal.syoboi.jp/tid/", episode.TID),
+			CountStart: episode.CountStart, CountEnd: episode.CountEnd, Subtitle: episode.Subtitle,
+			First: episode.First, Last: episode.Last, Works: works,
+		})
+	}
+
+	return result
+}
+
+// workURL は、作品の ID のページを返す。ID がなければ nil を返す。
+func workURL(base string, id *int32) *string {
+	if id == nil {
+		return nil
+	}
+
+	return new(base + strconv.FormatInt(int64(*id), 10))
 }

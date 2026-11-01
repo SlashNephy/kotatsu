@@ -105,7 +105,7 @@ ON CONFLICT (id) DO UPDATE SET epg_version = excluded.epg_version, updated_at = 
 
 -- name: ListAnimePrograms :many
 -- サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, m.finalized_at
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, m.finalized_at
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY(@service_ids::bigint[]) AND p.start_at < @range_end AND p.end_at > @range_start
@@ -114,7 +114,7 @@ ORDER BY p.service_id, p.start_at;
 
 -- name: ListAnimeProgramsToFinalize :many
 -- 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
-SELECT p.service_id, p.event_id, p.start_at, p.end_at
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY(@service_ids::bigint[]) AND p.end_at <= @now AND NOT p.end_undecided
@@ -193,3 +193,65 @@ DELETE FROM program_anime_matches m
 WHERE m.matched_at < @before
   AND NOT EXISTS (SELECT 1 FROM programs p WHERE p.service_id = m.service_id AND p.start_at = m.start_at)
   AND NOT EXISTS (SELECT 1 FROM program_archives a WHERE a.service_id = m.service_id AND a.start_at = m.start_at);
+
+-- name: UpsertSyobocalTitle :exec
+INSERT INTO syobocal_titles (tid, title, title_key, last_update) VALUES (@tid, @title, @title_key, sqlc.narg(last_update))
+ON CONFLICT (tid) DO UPDATE SET title = excluded.title, title_key = excluded.title_key, last_update = excluded.last_update;
+
+-- name: CountSyobocalTitles :one
+SELECT count(*)::integer FROM syobocal_titles;
+
+-- name: GetSyobocalTitlesLastUpdate :one
+-- 取り込んだタイトルの、最も新しい更新日時を返す。1 つも取り込んでいなければ、行を返さない。
+SELECT last_update FROM syobocal_titles WHERE last_update IS NOT NULL ORDER BY last_update DESC LIMIT 1;
+
+-- name: ListSyobocalTitlesByKey :many
+SELECT tid, title FROM syobocal_titles WHERE title_key = @title_key ORDER BY tid LIMIT 2;
+
+-- name: ListProgramRecordingIDs :many
+-- 番組 (サービスと開始時刻の組) を録った録画を返す。EPGStation から取り込んだ録画は、自分で照合するので除く。
+SELECT r.id FROM recordings r
+WHERE r.service_id = @service_id AND r.start_at = @start_at
+  AND NOT EXISTS (SELECT 1 FROM import_sources s WHERE s.kind = 'recorded' AND s.target_id = r.id);
+
+-- name: DeleteRecordingAnimeEpisodes :exec
+DELETE FROM recording_anime_episodes WHERE recording_id = @recording_id;
+
+-- name: UpsertRecordingAnimeMatch :exec
+INSERT INTO recording_anime_matches (recording_id, matched_at) VALUES (@recording_id, @now)
+ON CONFLICT (recording_id) DO UPDATE SET matched_at = excluded.matched_at;
+
+-- name: CopyProgramAnimeEpisodesToRecording :execrows
+-- 番組 (サービスと開始時刻の組) に結びついた話を、録画に写す。呼ぶ前に、録画の照合した記録を書き、前に写した話を消す。
+INSERT INTO recording_anime_episodes (
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+)
+SELECT @recording_id, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last
+FROM program_anime_episodes e
+WHERE e.service_id = @service_id AND e.start_at = @start_at;
+
+-- name: ProgramAnimeMatchExists :one
+SELECT EXISTS (SELECT 1 FROM program_anime_matches WHERE service_id = @service_id AND start_at = @start_at);
+
+-- name: InsertRecordingAnimeEpisode :exec
+INSERT INTO recording_anime_episodes (
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+)
+VALUES (
+  @recording_id, @position, @source, sqlc.narg(syobocal_tid), sqlc.narg(syobocal_pid),
+  sqlc.narg(count_start), sqlc.narg(count_end), sqlc.narg(subtitle), @is_first, @is_last
+);
+
+-- name: ListRecordingAnimeEpisodes :many
+SELECT * FROM recording_anime_episodes WHERE recording_id = @recording_id ORDER BY position;
+
+-- name: ListImportedRecordingsToMatch :many
+-- EPGStation から取り込んだ、まだ照合していない録画を、古い順に max_count 件返す。
+-- 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
+SELECT r.id, r.service_id, r.start_at, r.end_at, r.name FROM recordings r
+JOIN import_sources s ON s.kind = 'recorded' AND s.target_id = r.id
+LEFT JOIN recording_anime_matches m ON m.recording_id = r.id
+WHERE m.recording_id IS NULL AND r.state <> 'recording'
+  AND (r.genres = '[]'::jsonb OR r.genres @> '[{"lv1": 7}]'::jsonb)
+ORDER BY r.start_at, r.id
+LIMIT @max_count;

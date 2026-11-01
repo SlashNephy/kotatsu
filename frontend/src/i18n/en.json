@@ -1705,7 +1705,8 @@
       "animeImportFailed": "Failed to import at {{at}}: {{error}}",
       "animeSourceSaya": "Channel mapping (saya-definitions)",
       "animeSourceArm": "Work ID mapping (arm)",
-      "animeSourceArmSupplementary": "Work ID mapping (arm-supplementary)"
+      "animeSourceArmSupplementary": "Work ID mapping (arm-supplementary)",
+      "animeSourceSyobocalTitles": "Syobocal titles"
     },
     "recording": {
       "title": "Recording defaults",
@@ -1867,5 +1868,15 @@
     "back": "Back to saved recordings",
     "notFound": "This recording is not saved on this device.",
     "offlineLink": "Open recordings saved on this device"
+  },
+  "anime": {
+    "episode": "Episode {{number}}",
+    "episodeRange": "Episodes {{from}}–{{to}}",
+    "first": "New",
+    "last": "Final",
+    "annict": "Annict",
+    "anilist": "AniList",
+    "myAnimeList": "MyAnimeList",
+    "syobocal": "Syobocal"
   }
 }

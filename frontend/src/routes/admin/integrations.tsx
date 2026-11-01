@@ -369,6 +369,7 @@ const importSourceKeys = {
   SAYA_DEFINITIONS: 'admin.settings.animeSourceSaya',
   ARM: 'admin.settings.animeSourceArm',
   ARM_SUPPLEMENTARY: 'admin.settings.animeSourceArmSupplementary',
+  SYOBOCAL_TITLES: 'admin.settings.animeSourceSyobocalTitles',
 } as const satisfies Partial<Record<AnimeImportSource, string>>;
 
 type AnimeImportItem = {

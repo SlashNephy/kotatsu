@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<46cb0d1c863eeaf91a18cb7589614fea>>
+ * @generated SignedSource<<1d9a0ce7a1b135f25d093a9af0e6fc28>>
  * @lightSyntaxTransform
  */
 
@@ -17,6 +17,19 @@ export type ProgramDetailQuery$variables = {
 export type ProgramDetailQuery$data = {
   readonly node: {
     readonly __typename: "Program";
+    readonly animeEpisodes: ReadonlyArray<{
+      readonly countEnd: number | null | undefined;
+      readonly countStart: number | null | undefined;
+      readonly first: boolean;
+      readonly last: boolean;
+      readonly subtitle: string | null | undefined;
+      readonly syobocalUrl: string | null | undefined;
+      readonly works: ReadonlyArray<{
+        readonly anilistUrl: string | null | undefined;
+        readonly annictUrl: string | null | undefined;
+        readonly malUrl: string | null | undefined;
+      }>;
+    }>;
     readonly archived: boolean;
     readonly description: string;
     readonly endAt: string;
@@ -240,6 +253,91 @@ v15 = {
 v16 = {
   "alias": null,
   "args": null,
+  "concreteType": "AnimeEpisode",
+  "kind": "LinkedField",
+  "name": "animeEpisodes",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "syobocalUrl",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "countStart",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "countEnd",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "subtitle",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "first",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "last",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "AnimeWork",
+      "kind": "LinkedField",
+      "name": "works",
+      "plural": true,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "annictUrl",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "anilistUrl",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "malUrl",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v17 = {
+  "alias": null,
+  "args": null,
   "concreteType": "ExtendedItem",
   "kind": "LinkedField",
   "name": "extended",
@@ -262,14 +360,14 @@ v16 = {
   ],
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchReserved",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "Reservation",
@@ -385,7 +483,8 @@ return {
               (v15/*:: as any*/),
               (v16/*:: as any*/),
               (v17/*:: as any*/),
-              (v18/*:: as any*/)
+              (v18/*:: as any*/),
+              (v19/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -442,7 +541,8 @@ return {
               (v15/*:: as any*/),
               (v16/*:: as any*/),
               (v17/*:: as any*/),
-              (v18/*:: as any*/)
+              (v18/*:: as any*/),
+              (v19/*:: as any*/)
             ],
             "type": "Program",
             "abstractKey": null
@@ -453,16 +553,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "40cbc782c5457d193543293094233200",
+    "cacheID": "2ffcd36c004129fe85abb29344fef7c3",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "92669d8fde4a058422f6320f26b86418";
+(node as any).hash = "c256983ddb657bf27b86f0010bb79471";
 
 export default node;

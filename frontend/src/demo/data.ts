@@ -1,3 +1,4 @@
+import { demoAnimeEpisodes } from './anime';
 import { createDemoCaptures, type DemoCaptures } from './captures';
 import {
   channelTypes,
@@ -154,6 +155,7 @@ export function createRootValue(
     reservation: () => scheduler.reservationOfProgram(item.id),
     // デモの録画は番組表の番組と結び付けないので、番組の録画はない (#1121)。
     recordings: [],
+    animeEpisodes: demoAnimeEpisodes(item),
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({

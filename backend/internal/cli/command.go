@@ -191,10 +191,11 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	animeLogger := logger.With(slog.String("component", "anime"))
-	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), inserter, animeLogger)))
 	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
-	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの照合のジョブすべてで共有する。
-	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocal.NewClient(nil), animeLogger)))
+	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの取り込みと照合のジョブすべてで共有する。
+	syobocalClient := syobocal.NewClient(nil)
+	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), syobocalClient, inserter, animeLogger)))
+	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),

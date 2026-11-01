@@ -20,7 +20,7 @@ func TestUpdateChannel(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
-	importer := anime.NewImporter(db, clk, newFakeFetcher(), nil, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(), nil, slog.New(slog.DiscardHandler))
 	_, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
 	channels := anime.NewChannels(clk, audit.NewRecorder(clk), nil)

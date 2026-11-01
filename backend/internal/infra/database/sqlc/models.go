@@ -370,6 +370,24 @@ type Recording struct {
 	UpdatedAt             time.Time
 }
 
+type RecordingAnimeEpisode struct {
+	RecordingID uuid.UUID
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+type RecordingAnimeMatch struct {
+	RecordingID uuid.UUID
+	MatchedAt   time.Time
+}
+
 type RecordingAssignment struct {
 	ID               uuid.UUID
 	ReservationID    uuid.UUID
@@ -547,6 +565,13 @@ type SyobocalProgram struct {
 	Flag          int32
 	Deleted       bool
 	FetchedAt     time.Time
+}
+
+type SyobocalTitle struct {
+	Tid        int32
+	Title      string
+	TitleKey   string
+	LastUpdate *time.Time
 }
 
 type SystemSetting struct {

@@ -1631,7 +1631,8 @@
       "animeImportFailed": "{{at}}に取り込めませんでした：{{error}}",
       "animeSourceSaya": "チャンネルの対応（saya-definitions）",
       "animeSourceArm": "作品IDの対応（arm）",
-      "animeSourceArmSupplementary": "作品IDの対応（arm-supplementary）"
+      "animeSourceArmSupplementary": "作品IDの対応（arm-supplementary）",
+      "animeSourceSyobocalTitles": "しょぼいカレンダーのタイトル"
     },
     "recording": {
       "title": "録画の既定値",
@@ -1793,5 +1794,15 @@
     "back": "端末に保存した録画へ戻る",
     "notFound": "この録画は、端末に保存されていません",
     "offlineLink": "端末に保存した録画を見る"
+  },
+  "anime": {
+    "episode": "第{{number}}話",
+    "episodeRange": "第{{from}}〜{{to}}話",
+    "first": "新",
+    "last": "終",
+    "annict": "Annict",
+    "anilist": "AniList",
+    "myAnimeList": "MyAnimeList",
+    "syobocal": "しょぼいカレンダー"
   }
 }

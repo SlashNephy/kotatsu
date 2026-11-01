@@ -74,6 +74,8 @@ models:
         resolver: true
       watchReserved:
         resolver: true
+      animeEpisodes:
+        resolver: true
   GuideRow:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.GuideRow
   GuideView:
@@ -100,6 +102,8 @@ models:
       rule:
         resolver: true
       liveStats:
+        resolver: true
+      animeEpisodes:
         resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Reservation

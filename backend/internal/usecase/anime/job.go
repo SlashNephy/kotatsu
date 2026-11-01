@@ -93,6 +93,8 @@ const (
 	MatchModeHorizon = "horizon"
 	// MatchModeFinalize は、放送が終わった番組を照合し直し、結びつきを確定させる。
 	MatchModeFinalize = "finalize"
+	// MatchModeImported は、EPGStation から取り込んだ録画を照合する。
+	MatchModeImported = "imported"
 )
 
 const (
@@ -102,6 +104,8 @@ const (
 	matchHorizonInterval = 6 * time.Hour
 	// finalizeInterval は、放送が終わった番組の結びつきを確定させる間隔 (付録 A)。アーカイブへ移すまでの猶予 (24 時間) の間に、何度も機会がある。
 	finalizeInterval = time.Hour
+	// matchImportedInterval は、EPGStation から取り込んだ録画を照合する間隔 (付録 A)。少しずつ照合し、しょぼいカレンダーへの問い合わせを散らす。
+	matchImportedInterval = 10 * time.Minute
 )
 
 // MatchArgs は、アニメの番組を照合するジョブの引数。
@@ -147,6 +151,8 @@ func (w *MatchWorker) Work(ctx context.Context, job *river.Job[MatchArgs]) error
 		result, err = w.matcher.MatchHorizon(ctx)
 	case MatchModeFinalize:
 		result, err = w.matcher.Finalize(ctx)
+	case MatchModeImported:
+		result, err = w.matcher.MatchImported(ctx)
 	default:
 		return river.JobCancel(fmt.Errorf("unknown anime match mode %q", job.Args.Mode))
 	}
@@ -161,7 +167,8 @@ func (w *MatchWorker) Work(ctx context.Context, job *river.Job[MatchArgs]) error
 }
 
 // MatchPeriodicJobs は、アニメの番組を照合する定期ジョブを返す。
-// EPG の変更の記録は 1 分ごとに、これから 1 週間の番組は 6 時間ごとに、放送が終わった番組の確定は 1 時間ごとに行う。
+// EPG の変更の記録は 1 分ごとに、これから 1 週間の番組は 6 時間ごとに、放送が終わった番組の確定は 1 時間ごとに、
+// EPGStation から取り込んだ録画は 10 分ごとに照合する。
 func MatchPeriodicJobs() []*river.PeriodicJob {
 	periodic := func(mode string, interval time.Duration) *river.PeriodicJob {
 		return river.NewPeriodicJob(
@@ -177,6 +184,7 @@ func MatchPeriodicJobs() []*river.PeriodicJob {
 		periodic(MatchModeChanges, matchChangesInterval),
 		periodic(MatchModeHorizon, matchHorizonInterval),
 		periodic(MatchModeFinalize, finalizeInterval),
+		periodic(MatchModeImported, matchImportedInterval),
 	}
 }
 

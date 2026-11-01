@@ -43,6 +43,7 @@ import {
   toHalfWidth,
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
+import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
 import { recordingPosition } from '../../yunomi/position';
@@ -183,6 +184,20 @@ function Recording({ recordingId }: { recordingId: string }) {
             genres {
               lv1
               lv2
+            }
+            # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
+            animeEpisodes {
+              syobocalUrl
+              countStart
+              countEnd
+              subtitle
+              first
+              last
+              works {
+                annictUrl
+                anilistUrl
+                malUrl
+              }
             }
             rule {
               id
@@ -433,6 +448,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Badge>
             ))}
           </Group>
+          <AnimeEpisodes episodes={recording.animeEpisodes} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (
