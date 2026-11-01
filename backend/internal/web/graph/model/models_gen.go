@@ -196,7 +196,7 @@ type AnimeWishlistWork struct {
 	Covered bool `json:"covered"`
 }
 
-// しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
+// しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm から取り込んだ対応から引く。
 type AnimeWork struct {
 	AnnictWorkID *int `json:"annictWorkId,omitempty"`
 	AnilistID    *int `json:"anilistId,omitempty"`
@@ -1674,8 +1674,6 @@ const (
 	AnimeImportSourceSayaDefinitions AnimeImportSource = "SAYA_DEFINITIONS"
 	// しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応
 	AnimeImportSourceArm AnimeImportSource = "ARM"
-	// arm を補う、作品 ID の対応
-	AnimeImportSourceArmSupplementary AnimeImportSource = "ARM_SUPPLEMENTARY"
 	// しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
 	AnimeImportSourceSyobocalTitles AnimeImportSource = "SYOBOCAL_TITLES"
 )
@@ -1683,13 +1681,12 @@ const (
 var AllAnimeImportSource = []AnimeImportSource{
 	AnimeImportSourceSayaDefinitions,
 	AnimeImportSourceArm,
-	AnimeImportSourceArmSupplementary,
 	AnimeImportSourceSyobocalTitles,
 }
 
 func (e AnimeImportSource) IsValid() bool {
 	switch e {
-	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceArmSupplementary, AnimeImportSourceSyobocalTitles:
+	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceSyobocalTitles:
 		return true
 	}
 	return false

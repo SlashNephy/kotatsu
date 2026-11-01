@@ -531,9 +531,6 @@ const listAnimeWorks = `-- name: ListAnimeWorks :many
 SELECT w.syobocal_tid, w.position, w.annict_work_id, w.anilist_id, w.mal_id
 FROM anime_works w
 WHERE w.syobocal_tid = ANY($1::integer[])
-  AND (w.source = 'arm_supplementary' OR NOT EXISTS (
-    SELECT 1 FROM anime_works s WHERE s.source = 'arm_supplementary' AND s.syobocal_tid = w.syobocal_tid
-  ))
 ORDER BY w.syobocal_tid, w.position
 `
 
@@ -545,7 +542,6 @@ type ListAnimeWorksRow struct {
 	MalID        *int32
 }
 
-// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を返す (設計書 3.8)。
 func (q *Queries) ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]ListAnimeWorksRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeWorks, syobocalTids)
 	if err != nil {

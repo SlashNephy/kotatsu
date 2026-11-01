@@ -17,7 +17,6 @@ import (
 const (
 	sayaPath = "/saya.json"
 	armPath  = "/arm.json"
-	suppPath = "/supp.json"
 )
 
 // agents は、サーバーが受け取った User-Agent。
@@ -62,7 +61,7 @@ func newServer(t *testing.T, bodies map[string]string, seen *agents) *animedata.
 	t.Cleanup(server.Close)
 
 	return animedata.NewClient(&animedata.Options{
-		HTTPClient: server.Client(), SayaDefinitionsURL: server.URL + sayaPath, ArmURL: server.URL + armPath, ArmSupplementaryURL: server.URL + suppPath,
+		HTTPClient: server.Client(), SayaDefinitionsURL: server.URL + sayaPath, ArmURL: server.URL + armPath,
 	})
 }
 
@@ -75,8 +74,7 @@ func TestClient(t *testing.T) {
 	client := newServer(t, map[string]string{
 		sayaPath: `{"channels":[{"name":"NHK 総合","type":"GR","serviceIds":[1024,1025],"networkId":15,"syobocalId":1,"annictId":1},` +
 			`{"name":"無い","type":"BS","serviceIds":[999],"networkId":4}]}`,
-		armPath:  `[{"mal_id":5114,"anilist_id":5114,"annict_id":1745,"syobocal_tid":1575},{"annict_id":2}]`,
-		suppPath: `[{"annict_id":3,"syobocal_tid":4,"anidb_id":1}]`,
+		armPath: `[{"mal_id":5114,"anilist_id":5114,"annict_id":1745,"syobocal_tid":1575},{"annict_id":2,"anidb_id":1}]`,
 	}, seen)
 
 	channels, etag, err := client.SayaDefinitions(t.Context(), "")
@@ -87,22 +85,19 @@ func TestClient(t *testing.T) {
 		{Name: "無い", Type: "BS", ServiceIDs: []int64{999}, NetworkID: 4, SyobocalID: nil, AnnictID: nil},
 	}, channels)
 
-	works, _, err := client.Arm(t.Context(), false, "")
+	works, _, err := client.Arm(t.Context(), "")
 	require.NoError(t, err)
 	assert.Equal(t, []*animedata.Work{
 		{SyobocalTID: new(int32(1575)), AnnictID: new(int32(1745)), AniListID: new(int32(5114)), MALID: new(int32(5114))},
 		{SyobocalTID: nil, AnnictID: new(int32(2)), AniListID: nil, MALID: nil},
 	}, works)
-	works, _, err = client.Arm(t.Context(), true, "")
-	require.NoError(t, err)
-	assert.Equal(t, []*animedata.Work{{SyobocalTID: new(int32(4)), AnnictID: new(int32(3)), AniListID: nil, MALID: nil}}, works)
 
 	_, _, err = client.SayaDefinitions(t.Context(), `"v1"`)
 	require.ErrorIs(t, err, animedata.ErrNotModified)
-	_, _, err = client.Arm(t.Context(), true, `"v1"`)
+	_, _, err = client.Arm(t.Context(), `"v1"`)
 	require.ErrorIs(t, err, animedata.ErrNotModified)
 
-	require.Len(t, seen.list(), 5)
+	require.Len(t, seen.list(), 4)
 	for _, agent := range seen.list() {
 		assert.True(t, strings.HasPrefix(agent, "Kotatsu/"), agent)
 		assert.Contains(t, agent, "https://github.com/SlashNephy/kotatsu")

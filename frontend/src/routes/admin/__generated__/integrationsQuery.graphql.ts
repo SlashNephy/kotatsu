@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2e6a68c35da338ff1acad54900dcb7e7>>
+ * @generated SignedSource<<db9e9a5f1699fa5c6ee68bd27b6e5459>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type AnimeImportSource = "ARM" | "ARM_SUPPLEMENTARY" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
+export type AnimeImportSource = "ARM" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
 export type AnimeRecordDestination = "ANILIST" | "ANNICT" | "%future added value";
 export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";

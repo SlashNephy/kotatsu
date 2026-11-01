@@ -506,15 +506,11 @@ func TestWishlistCandidates(t *testing.T) {
 			VALUES ($1, $2, 0, 'syobocal', $3, 5, 5, NULL, false, false)`, link.serviceID, link.start, testTID)
 		require.NoError(t, err)
 	}
-	// TID 7000 は、arm では Annict の作品 20 に対応するが、arm-supplementary が 21 に直している。古い対応では引かない。
-	for _, statement := range []string{
-		`INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('arm', 7000, 0, 20, NULL, NULL)`,
-		`INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('arm_supplementary', 7000, 0, 21, NULL, NULL)`,
-	} {
-		_, err := f.pool.Exec(t.Context(), statement)
-		require.NoError(t, err)
-	}
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO program_anime_matches (service_id, start_at, event_id, matched_at)
+	// TID 7000 は、Annict の作品 21 に対応する。Annict の作品 20 は、どの TID にも対応しない。
+	_, err := f.pool.Exec(t.Context(),
+		`INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('arm', 7000, 0, 21, NULL, NULL)`)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO program_anime_matches (service_id, start_at, event_id, matched_at)
 		SELECT service_id, start_at, event_id, now() FROM programs WHERE service_id = $1 AND start_at = $2`, serviceID(), at(14, 0))
 	require.NoError(t, err)
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO program_anime_episodes (service_id, start_at, position, source, syobocal_tid, count_start, count_end, subtitle, is_first, is_last)
@@ -529,10 +525,10 @@ func TestWishlistCandidates(t *testing.T) {
 	f.connect(t, f.alice, animerecord.DestinationAnnict)
 	f.connect(t, f.alice, animerecord.DestinationAniList)
 	f.connect(t, f.bob, animerecord.DestinationAnnict)
-	f.annict.setList([]fakeListEntry{{ID: annictWorkID, Title: titleA, Status: stateWannaWatch}, {ID: 20, Title: "古い対応の作品", Status: stateWannaWatch}}, 0)
+	f.annict.setList([]fakeListEntry{{ID: annictWorkID, Title: titleA, Status: stateWannaWatch}, {ID: 20, Title: "対応のない作品", Status: stateWannaWatch}}, 0)
 	f.anilist.setList([]fakeListEntry{{ID: aniListID, Title: "Work A", Status: listCurrent}}, 0)
 	require.NoError(t, f.service.ImportUserWishlists(t.Context(), f.pool, f.alice.UserID))
-	// bob の見たいリストは、TID 7000 の作品 (arm-supplementary の対応) だけ。
+	// bob の見たいリストは、TID 7000 の作品だけ。
 	f.annict.setList([]fakeListEntry{{ID: 21, Title: titleC, Status: stateWatching}}, 0)
 	require.NoError(t, f.service.ImportUserWishlists(t.Context(), f.pool, f.bob.UserID))
 

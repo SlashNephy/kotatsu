@@ -197,7 +197,7 @@ type Work struct {
 	MALID        *int32
 }
 
-// ListWorks は、TID ごとに、対応する作品を返す。TID ごとに、arm-supplementary の対応があればそちらを、なければ arm の対応を使う。
+// ListWorks は、TID ごとに、対応する作品を返す。
 // 対応のない TID は、返す表に含めない。
 func ListWorks(ctx context.Context, db sqlc.DBTX, tids []int32) (map[int32][]*Work, error) {
 	works := map[int32][]*Work{}

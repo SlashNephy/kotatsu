@@ -1,7 +1,7 @@
 // Package animedata は、アニメの番組と作品の結びつきに使う、連携先の情報を GitHub から取得する (設計書 3.8)。
 //
 // サービスとしょぼいカレンダー、Annict のチャンネルの対応は saya-definitions から、
-// しょぼいカレンダーの TID と Annict、AniList、MyAnimeList の作品 ID の対応は arm と arm-supplementary から取得する。
+// しょぼいカレンダーの TID と Annict、AniList、MyAnimeList の作品 ID の対応は arm から取得する。
 // どれも 1 日ごとに取得し直すので、ETag を送り、変わっていなければ読み直さない。
 package animedata
 
@@ -22,11 +22,9 @@ const (
 	DefaultSayaDefinitionsURL = "https://raw.githubusercontent.com/SlashNephy/saya-definitions/master/definitions.json"
 	// DefaultArmURL は、arm の作品 ID の対応。
 	DefaultArmURL = "https://raw.githubusercontent.com/kawaiioverflow/arm/master/arm.json"
-	// DefaultArmSupplementaryURL は、arm を補う arm-supplementary の作品 ID の対応。
-	DefaultArmSupplementaryURL = "https://raw.githubusercontent.com/SlashNephy/arm-supplementary/master/dist/arm.json"
 	// requestTimeout は、1 回の取得の時間の上限。arm は数 MB ある。
 	requestTimeout = 2 * time.Minute
-	// maxResponseBytes は、読むレスポンスの大きさの上限。arm-supplementary は 2026 年 11 月で約 3.6 MB。
+	// maxResponseBytes は、読むレスポンスの大きさの上限。arm は 2026 年 11 月で約 2 MB。
 	maxResponseBytes = 64 << 20
 )
 
@@ -57,26 +55,21 @@ type Work struct {
 
 // Options は Client の設定。空の項目は既定値を使う。
 type Options struct {
-	HTTPClient          *http.Client
-	SayaDefinitionsURL  string
-	ArmURL              string
-	ArmSupplementaryURL string
+	HTTPClient         *http.Client
+	SayaDefinitionsURL string
+	ArmURL             string
 }
 
 // Client は、連携先の情報を取得する。
 type Client struct {
-	http                *http.Client
-	sayaDefinitionsURL  string
-	armURL              string
-	armSupplementaryURL string
+	http               *http.Client
+	sayaDefinitionsURL string
+	armURL             string
 }
 
 // NewClient は Client を返す。opts が nil なら、既定値を使う。
 func NewClient(opts *Options) *Client {
-	c := &Client{
-		http: http.DefaultClient, sayaDefinitionsURL: DefaultSayaDefinitionsURL,
-		armURL: DefaultArmURL, armSupplementaryURL: DefaultArmSupplementaryURL,
-	}
+	c := &Client{http: http.DefaultClient, sayaDefinitionsURL: DefaultSayaDefinitionsURL, armURL: DefaultArmURL}
 	if opts == nil {
 		return c
 	}
@@ -85,7 +78,6 @@ func NewClient(opts *Options) *Client {
 	}
 	c.sayaDefinitionsURL = valueOr(opts.SayaDefinitionsURL, c.sayaDefinitionsURL)
 	c.armURL = valueOr(opts.ArmURL, c.armURL)
-	c.armSupplementaryURL = valueOr(opts.ArmSupplementaryURL, c.armSupplementaryURL)
 
 	return c
 }
@@ -107,15 +99,11 @@ func (c *Client) SayaDefinitions(ctx context.Context, etag string) ([]*Channel, 
 	return body.Channels, newETag, nil
 }
 
-// Arm は、arm の作品の一覧と ETag を返す。supplementary なら arm-supplementary を取得する。
+// Arm は、arm の作品の一覧と ETag を返す。
 // etag が前に取得したときの ETag で、内容が変わっていなければ ErrNotModified を返す。
-func (c *Client) Arm(ctx context.Context, supplementary bool, etag string) ([]*Work, string, error) {
-	url := c.armURL
-	if supplementary {
-		url = c.armSupplementaryURL
-	}
+func (c *Client) Arm(ctx context.Context, etag string) ([]*Work, string, error) {
 	works := []*Work{}
-	newETag, err := c.fetch(ctx, url, etag, &works)
+	newETag, err := c.fetch(ctx, c.armURL, etag, &works)
 	if err != nil {
 		return nil, "", err
 	}
