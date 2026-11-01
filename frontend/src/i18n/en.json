@@ -735,6 +735,38 @@
     "empty": "No pinned services"
   },
   "reservations": {
+    "wishlist": {
+      "tab": "Wishlist",
+      "description": "Works you marked as \"Want to watch\" or \"Watching\" on Annict or AniList that air in the next week. Reserved broadcasts are not shown. Rules are never created automatically: create a rule from here, or reserve each broadcast, for the works you want to record.",
+      "disabled": "The administrator has not enabled the Syoboi Calendar, Annict and AniList integration",
+      "notConnected": "Connect Annict or AniList to see the broadcasts of the works on your wishlist here",
+      "connect": "Open account connections",
+      "imported": "{{destination}}: {{count}} works (imported {{date}})",
+      "importPending": "{{destination}}: waiting for the import",
+      "importFailed": "{{destination}}: could not import ({{reason}}). It will be retried in an hour",
+      "refresh": "Import again",
+      "refreshStarted": "The import has started. The list will update in a moment",
+      "viewerNote": "Viewer accounts cannot create rules or reservations. Ask your family to record the works you want",
+      "empty": "No works on your wishlist air in the next week",
+      "source": "{{status}} on {{destination}}",
+      "status": {
+        "WANNA_WATCH": "Want to watch",
+        "WATCHING": "Watching"
+      },
+      "reserved": "{{count}} broadcasts are already reserved",
+      "covered": "Reserved",
+      "createRule": "Create rule",
+      "ruleCreated": "Created the rule \"{{name}}\". It reserves the upcoming broadcasts by the title and channel of the first broadcast.",
+      "openRule": "Open the rule",
+      "preferred": "Channel to record",
+      "preferredHelp": "The channel that airs it first. The rule records the broadcasts on this channel",
+      "reserve": "Reserve",
+      "error": {
+        "rule": "Could not create the rule. Please try again later",
+        "reserve": "Could not reserve. Please try again later",
+        "refresh": "Could not import again. Please try again later"
+      }
+    },
     "skipped": {
       "tab": "Skipped as duplicates",
       "description": "These programs matched a rule but were not reserved by duplicate avoidance, because a program with the same name has already been recorded. You can reserve a program manually if you want to record it again. Manual reservations are not subject to duplicate avoidance.",
@@ -1907,6 +1939,8 @@
     "syobocal": "Syobocal"
   },
   "animeRecords": {
+    "wishlistHint": "Once connected, the upcoming broadcasts of the works you want to watch or are watching on Annict and AniList appear as recording candidates.",
+    "wishlistLink": "See the wishlist broadcasts",
     "description": "Anime you actually play for a set share of the program length, live or from a recording, is recorded to your connected Annict and AniList accounts. Pausing or seeking alone does not count. Each episode of a program is recorded only once.",
     "disabled": "The administrator has not enabled the Syobocal, Annict, and AniList integration, so watched anime cannot be recorded",
     "connect": "Connect",

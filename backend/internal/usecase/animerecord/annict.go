@@ -24,6 +24,8 @@ const (
 	annictEpisodesPage = 100
 	// annictMaxEpisodePages は、エピソードを引くページの数の上限。長く続く作品でも、1,000 話までは引く。
 	annictMaxEpisodePages = 10
+	// annictWatching は、Annict の作品の状態の「見てる」。
+	annictWatching = "WATCHING"
 )
 
 // annictScopes は、Annict に求めるスコープを返す。記録を付けるので、write も求める。
@@ -171,7 +173,7 @@ func (a *Annict) RecordEpisode(ctx context.Context, token string, workIDs []int3
 		recorded := &Recorded{URL: fmt.Sprintf("%s/works/%d/episodes/%d", a.webURL, work.AnnictID, found.AnnictID), FollowUp: nil}
 		// 作品の状態は、記録を付けたことを残してから変える。ここで失敗を返すと、送り直しで記録が二重になる。
 		if next, ok := NextStatus(rules, episode.First, episode.Last, annictStatus(work.ViewerStatusState)); ok {
-			state := "WATCHING"
+			state := annictWatching
 			if next == WorkStatusWatched {
 				state = "WATCHED"
 			}
@@ -183,6 +185,70 @@ func (a *Annict) RecordEpisode(ctx context.Context, token string, workIDs []int3
 	}
 
 	return nil, fmt.Errorf("%w: the episode is not on Annict", ErrPermanent)
+}
+
+// annictWishlistPage は、見たいリストを 1 回に引く数。Annict の 1 ページの上限。
+const annictWishlistPage = 100
+
+// Wishlist は、Annict で「見たい」「見てる」にした作品の 1 ページを返す (#928)。ライブラリーを、状態で絞って引く。
+// cursor は、Annict のページの endCursor。
+func (a *Annict) Wishlist(ctx context.Context, token, cursor string) (*WishlistPage, error) {
+	const query = `query ($first: Int, $after: String) { viewer {
+  libraryEntries(states: [WANNA_WATCH, WATCHING], first: $first, after: $after) {
+    nodes { status { state } work { annictId title } } pageInfo { hasNextPage endCursor }
+  } } }`
+	var data struct {
+		Viewer *struct {
+			LibraryEntries *struct {
+				Nodes []*struct {
+					Status *struct {
+						State string `json:"state"`
+					} `json:"status"`
+					Work *struct {
+						AnnictID int32  `json:"annictId"`
+						Title    string `json:"title"`
+					} `json:"work"`
+				} `json:"nodes"`
+				PageInfo struct {
+					HasNextPage bool    `json:"hasNextPage"`
+					EndCursor   *string `json:"endCursor"`
+				} `json:"pageInfo"`
+			} `json:"libraryEntries"`
+		} `json:"viewer"`
+	}
+	variables := map[string]any{"first": annictWishlistPage, "after": nil}
+	if cursor != "" {
+		variables["after"] = cursor
+	}
+	if err := postGraphQL(ctx, a.client, a.endpoints.GraphQLURL, token, query, variables, &data); err != nil {
+		return nil, err
+	}
+	page := &WishlistPage{Entries: []*WishlistEntry{}, Next: ""}
+	if data.Viewer == nil || data.Viewer.LibraryEntries == nil {
+		return page, nil
+	}
+	entries := data.Viewer.LibraryEntries
+	for _, node := range entries.Nodes {
+		if node == nil || node.Work == nil || node.Status == nil {
+			continue
+		}
+		var status string
+		switch node.Status.State {
+		case "WANNA_WATCH":
+			status = WishlistWannaWatch
+		case annictWatching:
+			status = WishlistWatching
+		default:
+			// 絞って引いているので来ないが、ほかの状態の作品は候補にしない。
+			continue
+		}
+		page.Entries = append(page.Entries, &WishlistEntry{WorkID: node.Work.AnnictID, Status: status, Title: node.Work.Title})
+	}
+	if entries.PageInfo.HasNextPage && entries.PageInfo.EndCursor != nil {
+		page.Next = *entries.PageInfo.EndCursor
+	}
+
+	return page, nil
 }
 
 // works は、Annict の作品を、ids の順に引く。Annict にない作品は返さない。
@@ -297,7 +363,7 @@ func annictStatus(state *string) WorkStatus {
 		return WorkStatusNone
 	}
 	switch *state {
-	case "WATCHING":
+	case annictWatching:
 		return WorkStatusWatching
 	case "WATCHED":
 		return WorkStatusWatched

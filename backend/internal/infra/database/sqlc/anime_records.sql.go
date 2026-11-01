@@ -26,7 +26,7 @@ func (q *Queries) DeleteAnimeRecordApp(ctx context.Context, destination string) 
 
 const deleteAnimeRecordConnection = `-- name: DeleteAnimeRecordConnection :one
 DELETE FROM anime_record_connections WHERE user_id = $1 AND destination = $2
-RETURNING user_id, destination, access_token_encrypted, account_name, connected_at
+RETURNING user_id, destination, access_token_encrypted, account_name, connected_at, wishlist_checked_at, wishlist_imported_at, wishlist_error, wishlist_retry_at
 `
 
 type DeleteAnimeRecordConnectionParams struct {
@@ -43,6 +43,10 @@ func (q *Queries) DeleteAnimeRecordConnection(ctx context.Context, arg DeleteAni
 		&i.AccessTokenEncrypted,
 		&i.AccountName,
 		&i.ConnectedAt,
+		&i.WishlistCheckedAt,
+		&i.WishlistImportedAt,
+		&i.WishlistError,
+		&i.WishlistRetryAt,
 	)
 	return i, err
 }
@@ -100,7 +104,7 @@ func (q *Queries) GetAnimeRecordApp(ctx context.Context, destination string) (An
 }
 
 const getAnimeRecordConnection = `-- name: GetAnimeRecordConnection :one
-SELECT user_id, destination, access_token_encrypted, account_name, connected_at FROM anime_record_connections WHERE user_id = $1 AND destination = $2
+SELECT user_id, destination, access_token_encrypted, account_name, connected_at, wishlist_checked_at, wishlist_imported_at, wishlist_error, wishlist_retry_at FROM anime_record_connections WHERE user_id = $1 AND destination = $2
 `
 
 type GetAnimeRecordConnectionParams struct {
@@ -117,6 +121,10 @@ func (q *Queries) GetAnimeRecordConnection(ctx context.Context, arg GetAnimeReco
 		&i.AccessTokenEncrypted,
 		&i.AccountName,
 		&i.ConnectedAt,
+		&i.WishlistCheckedAt,
+		&i.WishlistImportedAt,
+		&i.WishlistError,
+		&i.WishlistRetryAt,
 	)
 	return i, err
 }
@@ -274,7 +282,7 @@ func (q *Queries) ListAnimeRecordApps(ctx context.Context) ([]AnimeRecordApp, er
 }
 
 const listAnimeRecordConnections = `-- name: ListAnimeRecordConnections :many
-SELECT user_id, destination, access_token_encrypted, account_name, connected_at FROM anime_record_connections WHERE user_id = $1 ORDER BY destination
+SELECT user_id, destination, access_token_encrypted, account_name, connected_at, wishlist_checked_at, wishlist_imported_at, wishlist_error, wishlist_retry_at FROM anime_record_connections WHERE user_id = $1 ORDER BY destination
 `
 
 func (q *Queries) ListAnimeRecordConnections(ctx context.Context, userID uuid.UUID) ([]AnimeRecordConnection, error) {
@@ -292,6 +300,10 @@ func (q *Queries) ListAnimeRecordConnections(ctx context.Context, userID uuid.UU
 			&i.AccessTokenEncrypted,
 			&i.AccountName,
 			&i.ConnectedAt,
+			&i.WishlistCheckedAt,
+			&i.WishlistImportedAt,
+			&i.WishlistError,
+			&i.WishlistRetryAt,
 		); err != nil {
 			return nil, err
 		}

@@ -82,6 +82,7 @@ type Querier interface {
 	DeleteAnimeChannelOverride(ctx context.Context, serviceID int64) error
 	DeleteAnimeRecordApp(ctx context.Context, destination string) (int64, error)
 	DeleteAnimeRecordConnection(ctx context.Context, arg DeleteAnimeRecordConnectionParams) (AnimeRecordConnection, error)
+	DeleteAnimeWishlistEntries(ctx context.Context, arg DeleteAnimeWishlistEntriesParams) error
 	DeleteAnimeWorks(ctx context.Context, source string) error
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
@@ -183,6 +184,10 @@ type Querier interface {
 	// 録画した時間の終わりは、書いたセグメントの終わりにする。失敗にした録画は、同じ文で失敗の累計に足す (#960)。
 	FailStuckRecordings(ctx context.Context, arg FailStuckRecordingsParams) ([]FailStuckRecordingsRow, error)
 	FinishAnimeRecord(ctx context.Context, arg FinishAnimeRecordParams) error
+	// 見たいリストを問い合わせた結果を残す。取り込めたら (error が NULL)、取り込めた日時を進め、理由を消す。
+	// 取り込めなければ、問い合わせ直す日時 (retry_at) を残す。
+	// 連携を外した後なら、何も書かない。
+	FinishAnimeWishlistImport(ctx context.Context, arg FinishAnimeWishlistImportParams) (int64, error)
 	// 録画を state で終える。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
 	// prev には FOR UPDATE を付けない。付けると、同じ文の UPDATE がその行を飛ばす。同じ録画を同時に終えないことは、呼び出し側が割り振りの世代のロックで守る。
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
@@ -313,6 +318,8 @@ type Querier interface {
 	// 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
 	InsertAnimeRecord(ctx context.Context, arg InsertAnimeRecordParams) (int64, error)
 	InsertAnimeRecordAuthorization(ctx context.Context, arg InsertAnimeRecordAuthorizationParams) error
+	// 同じ作品が 2 度返ってきたら (見たいと見てるの両方など)、先に返ってきたものを使う。
+	InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnimeWishlistEntriesParams) error
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeWorks(ctx context.Context, arg InsertAnimeWorksParams) error
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
@@ -410,8 +417,15 @@ type Querier interface {
 	ListAnimeProgramsToFinalize(ctx context.Context, arg ListAnimeProgramsToFinalizeParams) ([]ListAnimeProgramsToFinalizeRow, error)
 	ListAnimeRecordApps(ctx context.Context) ([]AnimeRecordApp, error)
 	ListAnimeRecordConnections(ctx context.Context, userID uuid.UUID) ([]AnimeRecordConnection, error)
+	ListAnimeWishlistEntries(ctx context.Context, userID uuid.UUID) ([]AnimeWishlistEntry, error)
+	// TID に結びついた番組のうち、since から until までに始まる、終了時刻の決まった番組を返す (#928)。
+	// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついても、1 行にする。
+	ListAnimeWishlistPrograms(ctx context.Context, arg ListAnimeWishlistProgramsParams) ([]ListAnimeWishlistProgramsRow, error)
 	// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を返す (設計書 3.8)。
 	ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]ListAnimeWorksRow, error)
+	// Annict の作品 ID か AniList の ID が、どれかに当たる作品の対応を返す (#928)。
+	// TID ごとに、arm-supplementary の行があればそちらを、なければ arm の行を使う (設計書 3.8)。
+	ListAnimeWorksByExternalIDs(ctx context.Context, arg ListAnimeWorksByExternalIDsParams) ([]ListAnimeWorksByExternalIDsRow, error)
 	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
 	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
@@ -433,6 +447,9 @@ type Querier interface {
 	// 容量の管理で消せる録画を、古い順に返す。プール pool_id にファイルを持ち、保護されておらず、録画中でなく、
 	// すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。古いほうから skip 件を飛ばす。
 	ListDeletableRecordings(ctx context.Context, arg ListDeletableRecordingsParams) ([]ListDeletableRecordingsRow, error)
+	// 見たいリストを取り込み直す時期が来た連携 (#928) を返す。一度も問い合わせていない連携と、前に取り込めてから
+	// succeeded_before より前に問い合わせた連携と、取り込めなかったときは、問い合わせ直す日時が now を過ぎた連携。
+	ListDueAnimeWishlistConnections(ctx context.Context, arg ListDueAnimeWishlistConnectionsParams) ([]ListDueAnimeWishlistConnectionsRow, error)
 	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
@@ -612,6 +629,8 @@ type Querier interface {
 	LockAnimeImport(ctx context.Context, source string) error
 	// 見た区間を足すときは、同じ番組への報告が重ならないよう、行を作ってからロックする。
 	LockAnimeWatchProgress(ctx context.Context, arg LockAnimeWatchProgressParams) ([]byte, error)
+	// 見たいリストの作品からルールを作るとき (#928)、同じ作品のルールを重ねて作らないよう、TID ごとにトランザクションの終わりまで待ち合わせる。
+	LockAnimeWishlistRule(ctx context.Context, syobocalTid int32) error
 	// 変える前の値を監査ログに残すため、種別の行をロックして読む。
 	LockChannelType(ctx context.Context, type_ string) (ChannelType, error)
 	// 消す直前に、録画をロックして、まだ消せることを確かめる。

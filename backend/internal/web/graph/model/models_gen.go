@@ -138,6 +138,64 @@ type AnimeRecordSettingsInput struct {
 	WatchedOnLast     bool `json:"watchedOnLast"`
 }
 
+// ログイン中のユーザーの、見たいリストの作品の放送の候補 (#928)。
+type AnimeWishlist struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。
+	Enabled bool `json:"enabled"`
+	// 連携した記録先ごとの、取り込んだ様子。連携していなければ空。
+	Imports []*AnimeWishlistImport `json:"imports"`
+	// これから 1 週間に放送がある作品。最初の放送の早い順に並べる。
+	Works []*AnimeWishlistWork `json:"works"`
+}
+
+// 候補の作品の放送。
+type AnimeWishlistBroadcast struct {
+	Program *Program `json:"program"`
+	// 録るのに選ぶサービスの放送かどうか。作品の最初の放送のサービスを選ぶ。重複の回避 (設計書 4.4) を付けたルールは、
+	// 最初に録った放送のほかを、同じ番組名を録画済みとして見送るため。予約済みの作品 (covered) では、どの放送も選ばない。
+	Preferred bool `json:"preferred"`
+}
+
+// 連携した記録先ごとの、見たいリストを取り込んだ様子 (#928)。
+type AnimeWishlistImport struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 最後に問い合わせた日時。まだなら null。
+	CheckedAt *time.Time `json:"checkedAt,omitempty"`
+	// 最後に取り込めた日時。まだなら null。
+	ImportedAt *time.Time `json:"importedAt,omitempty"`
+	// 最後の問い合わせが失敗した理由。取り込めていれば null。
+	Error *string `json:"error,omitempty"`
+	// 取り込んだ作品の数。
+	EntryCount int `json:"entryCount"`
+}
+
+// 候補の作品を、見たいリストに入れた記録先と、その作品。
+type AnimeWishlistSource struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 記録先の作品 ID。
+	WorkID int                 `json:"workId"`
+	Status AnimeWishlistStatus `json:"status"`
+	// 記録先の作品のページ。
+	URL string `json:"url"`
+}
+
+// 見たいリストの作品のうち、これから放送されるもの (#928)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+type AnimeWishlistWork struct {
+	// しょぼいカレンダーの TID。
+	Tid int `json:"tid"`
+	// 作品名。Annict の作品名を先に選ぶ。
+	Title   string                 `json:"title"`
+	Sources []*AnimeWishlistSource `json:"sources"`
+	// 予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。
+	Broadcasts []*AnimeWishlistBroadcast `json:"broadcasts"`
+	// 予約のある放送の数。候補からは外している。
+	ReservedBroadcasts int `json:"reservedBroadcasts"`
+	// 予約済みかどうか。これからの放送のどれかに予約 (ルール予約か手動の予約) があるか、放送のどれかから作るルールと同じ
+	// キーワードとサービスのルール (無効なものも含む) がもうあれば予約済みとする。予約済みの作品は、録る放送が決まっているので、
+	// 録るサービス (preferred) を選ばず、ルールも作れない。
+	Covered bool `json:"covered"`
+}
+
 // しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm と arm-supplementary から取り込んだ対応から引く。
 type AnimeWork struct {
 	AnnictWorkID *int `json:"annictWorkId,omitempty"`
@@ -1723,6 +1781,64 @@ func (e *AnimeRecordDestination) UnmarshalJSON(b []byte) error {
 }
 
 func (e AnimeRecordDestination) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 見たいリストの作品の状態 (#928)。
+type AnimeWishlistStatus string
+
+const (
+	// 見たい (AniList の PLANNING)
+	AnimeWishlistStatusWannaWatch AnimeWishlistStatus = "WANNA_WATCH"
+	// 見てる (AniList の CURRENT)
+	AnimeWishlistStatusWatching AnimeWishlistStatus = "WATCHING"
+)
+
+var AllAnimeWishlistStatus = []AnimeWishlistStatus{
+	AnimeWishlistStatusWannaWatch,
+	AnimeWishlistStatusWatching,
+}
+
+func (e AnimeWishlistStatus) IsValid() bool {
+	switch e {
+	case AnimeWishlistStatusWannaWatch, AnimeWishlistStatusWatching:
+		return true
+	}
+	return false
+}
+
+func (e AnimeWishlistStatus) String() string {
+	return string(e)
+}
+
+func (e *AnimeWishlistStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeWishlistStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeWishlistStatus", str)
+	}
+	return nil
+}
+
+func (e AnimeWishlistStatus) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeWishlistStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeWishlistStatus) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

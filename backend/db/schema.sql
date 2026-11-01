@@ -1190,6 +1190,9 @@ CREATE TABLE anime_works (
   PRIMARY KEY (source, syobocal_tid, position)
 );
 CREATE INDEX anime_works_syobocal_tid_idx ON anime_works (syobocal_tid);
+-- 見たいリストの作品 (#928) から、TID を引くのに使う。
+CREATE INDEX anime_works_annict_work_id_idx ON anime_works (annict_work_id) WHERE annict_work_id IS NOT NULL;
+CREATE INDEX anime_works_anilist_id_idx ON anime_works (anilist_id) WHERE anilist_id IS NOT NULL;
 
 -- 連携先の情報を取り込んだ様子 (設計書 3.8)。取り込み元ごとに 1 行。管理者の画面に出す。
 CREATE TABLE anime_imports (
@@ -1335,6 +1338,13 @@ CREATE TABLE anime_record_connections (
   -- 記録先のアカウントの名前。設定の画面に、どのアカウントと連携したかを出す。
   account_name text NOT NULL,
   connected_at timestamptz NOT NULL,
+  -- 見たいリストを取り込んだ様子 (#928)。最後に問い合わせた日時、最後に取り込めた日時、最後の問い合わせが失敗した理由。
+  -- 一度も問い合わせていなければ NULL。取り込めたら、理由を NULL に戻す。
+  wishlist_checked_at timestamptz,
+  wishlist_imported_at timestamptz,
+  wishlist_error text,
+  -- 取り込めなかった見たいリストを、問い合わせ直す日時。記録先が 429 で Retry-After を返したら、その長さ (1 時間まで) だけ待つ。
+  wishlist_retry_at timestamptz,
   PRIMARY KEY (user_id, destination)
 );
 
@@ -1389,4 +1399,21 @@ CREATE TABLE anime_records (
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   UNIQUE NULLS NOT DISTINCT (user_id, service_id, start_at, destination, syobocal_tid, episode_number)
+);
+
+-- ユーザーが Annict と AniList で「見たい」「見てる」にした作品 (#928)。記録先との連携 (#927) のトークンで、nekonote のジョブが取り込む。
+-- 作品は、記録先の作品 ID だけを持ち、TID は使うときに作品 ID の対応 (anime_works) から引く。arm が後から直っても、候補まで直る。
+-- 取り込み直すときは、ユーザーと記録先の行をすべて入れ替える。連携を外すと、行も消える。
+CREATE TABLE anime_wishlist_entries (
+  user_id uuid NOT NULL,
+  destination text NOT NULL,
+  -- 記録先の作品 ID。Annict の作品 ID か、AniList の ID。
+  work_id integer NOT NULL,
+  -- 見たい (wanna_watch。AniList の PLANNING) か、見てる (watching。AniList の CURRENT)。
+  status text NOT NULL CHECK (status IN ('wanna_watch', 'watching')),
+  -- 記録先の作品名。候補の見出しと、作るルールの名前に使う。
+  title text NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, destination, work_id),
+  FOREIGN KEY (user_id, destination) REFERENCES anime_record_connections (user_id, destination) ON DELETE CASCADE
 );

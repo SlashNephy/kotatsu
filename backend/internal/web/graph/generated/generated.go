@@ -107,6 +107,41 @@ type ComplexityRoot struct {
 		WatchingOnFirst   func(childComplexity int) int
 	}
 
+	AnimeWishlist struct {
+		Enabled func(childComplexity int) int
+		Imports func(childComplexity int) int
+		Works   func(childComplexity int) int
+	}
+
+	AnimeWishlistBroadcast struct {
+		Preferred func(childComplexity int) int
+		Program   func(childComplexity int) int
+	}
+
+	AnimeWishlistImport struct {
+		CheckedAt   func(childComplexity int) int
+		Destination func(childComplexity int) int
+		EntryCount  func(childComplexity int) int
+		Error       func(childComplexity int) int
+		ImportedAt  func(childComplexity int) int
+	}
+
+	AnimeWishlistSource struct {
+		Destination func(childComplexity int) int
+		Status      func(childComplexity int) int
+		URL         func(childComplexity int) int
+		WorkID      func(childComplexity int) int
+	}
+
+	AnimeWishlistWork struct {
+		Broadcasts         func(childComplexity int) int
+		Covered            func(childComplexity int) int
+		ReservedBroadcasts func(childComplexity int) int
+		Sources            func(childComplexity int) int
+		Tid                func(childComplexity int) int
+		Title              func(childComplexity int) int
+	}
+
 	AnimeWork struct {
 		AnilistID    func(childComplexity int) int
 		AnilistURL   func(childComplexity int) int
@@ -382,6 +417,7 @@ type ComplexityRoot struct {
 		ClearWatchPosition           func(childComplexity int, id string) int
 		ConfirmTotpEnrollment        func(childComplexity int, code string) int
 		CreateAPIToken               func(childComplexity int, name string) int
+		CreateAnimeWishlistRule      func(childComplexity int, tid int) int
 		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
 		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule                   func(childComplexity int, input model.RuleInput) int
@@ -415,6 +451,7 @@ type ComplexityRoot struct {
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
 		PromoteTimeshiftProgram      func(childComplexity int, serviceID string, startAt time.Time) int
 		ReanalyzeRecording           func(childComplexity int, id string) int
+		RefreshAnimeWishlist         func(childComplexity int) int
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
 		RegisterPlayer               func(childComplexity int, state model.PlayerStateInput) int
@@ -657,6 +694,7 @@ type ComplexityRoot struct {
 		AnimeImports            func(childComplexity int) int
 		AnimeRecordApps         func(childComplexity int) int
 		AnimeRecordSettings     func(childComplexity int) int
+		AnimeWishlist           func(childComplexity int) int
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
 		Captures                func(childComplexity int, first int, after *string, keyword *string) int
 		CapturesAvailable       func(childComplexity int) int
@@ -1177,6 +1215,8 @@ type MutationResolver interface {
 	DisconnectAnimeRecord(ctx context.Context, destination model.AnimeRecordDestination) (*model.AnimeRecordSettings, error)
 	UpdateAnimeRecordSettings(ctx context.Context, input model.AnimeRecordSettingsInput) (*model.AnimeRecordSettings, error)
 	ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) (bool, error)
+	RefreshAnimeWishlist(ctx context.Context) (bool, error)
+	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
@@ -1277,6 +1317,7 @@ type QueryResolver interface {
 	AnimeImports(ctx context.Context) ([]*model.AnimeImport, error)
 	AnimeRecordApps(ctx context.Context) ([]*model.AnimeRecordApp, error)
 	AnimeRecordSettings(ctx context.Context) (*model.AnimeRecordSettings, error)
+	AnimeWishlist(ctx context.Context) (*model.AnimeWishlist, error)
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
 	Captures(ctx context.Context, first int, after *string, keyword *string) (*model.CaptureConnection, error)
 	CapturesAvailable(ctx context.Context) (bool, error)
@@ -1630,6 +1671,131 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeRecordSettings.WatchingOnFirst(childComplexity), true
+
+	case "AnimeWishlist.enabled":
+		if e.ComplexityRoot.AnimeWishlist.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlist.Enabled(childComplexity), true
+	case "AnimeWishlist.imports":
+		if e.ComplexityRoot.AnimeWishlist.Imports == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlist.Imports(childComplexity), true
+	case "AnimeWishlist.works":
+		if e.ComplexityRoot.AnimeWishlist.Works == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlist.Works(childComplexity), true
+
+	case "AnimeWishlistBroadcast.preferred":
+		if e.ComplexityRoot.AnimeWishlistBroadcast.Preferred == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistBroadcast.Preferred(childComplexity), true
+	case "AnimeWishlistBroadcast.program":
+		if e.ComplexityRoot.AnimeWishlistBroadcast.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistBroadcast.Program(childComplexity), true
+
+	case "AnimeWishlistImport.checkedAt":
+		if e.ComplexityRoot.AnimeWishlistImport.CheckedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistImport.CheckedAt(childComplexity), true
+	case "AnimeWishlistImport.destination":
+		if e.ComplexityRoot.AnimeWishlistImport.Destination == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistImport.Destination(childComplexity), true
+	case "AnimeWishlistImport.entryCount":
+		if e.ComplexityRoot.AnimeWishlistImport.EntryCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistImport.EntryCount(childComplexity), true
+	case "AnimeWishlistImport.error":
+		if e.ComplexityRoot.AnimeWishlistImport.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistImport.Error(childComplexity), true
+	case "AnimeWishlistImport.importedAt":
+		if e.ComplexityRoot.AnimeWishlistImport.ImportedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistImport.ImportedAt(childComplexity), true
+
+	case "AnimeWishlistSource.destination":
+		if e.ComplexityRoot.AnimeWishlistSource.Destination == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistSource.Destination(childComplexity), true
+	case "AnimeWishlistSource.status":
+		if e.ComplexityRoot.AnimeWishlistSource.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistSource.Status(childComplexity), true
+	case "AnimeWishlistSource.url":
+		if e.ComplexityRoot.AnimeWishlistSource.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistSource.URL(childComplexity), true
+	case "AnimeWishlistSource.workId":
+		if e.ComplexityRoot.AnimeWishlistSource.WorkID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistSource.WorkID(childComplexity), true
+
+	case "AnimeWishlistWork.broadcasts":
+		if e.ComplexityRoot.AnimeWishlistWork.Broadcasts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistWork.Broadcasts(childComplexity), true
+	case "AnimeWishlistWork.covered":
+		if e.ComplexityRoot.AnimeWishlistWork.Covered == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistWork.Covered(childComplexity), true
+	case "AnimeWishlistWork.reservedBroadcasts":
+		if e.ComplexityRoot.AnimeWishlistWork.ReservedBroadcasts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistWork.ReservedBroadcasts(childComplexity), true
+	case "AnimeWishlistWork.sources":
+		if e.ComplexityRoot.AnimeWishlistWork.Sources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistWork.Sources(childComplexity), true
+	case "AnimeWishlistWork.tid":
+		if e.ComplexityRoot.AnimeWishlistWork.Tid == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistWork.Tid(childComplexity), true
+	case "AnimeWishlistWork.title":
+		if e.ComplexityRoot.AnimeWishlistWork.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeWishlistWork.Title(childComplexity), true
 
 	case "AnimeWork.anilistId":
 		if e.ComplexityRoot.AnimeWork.AnilistID == nil {
@@ -2647,6 +2813,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateAPIToken(childComplexity, args["name"].(string)), true
+	case "Mutation.createAnimeWishlistRule":
+		if e.ComplexityRoot.Mutation.CreateAnimeWishlistRule == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createAnimeWishlistRule_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateAnimeWishlistRule(childComplexity, args["tid"].(int)), true
 	case "Mutation.createGuideView":
 		if e.ComplexityRoot.Mutation.CreateGuideView == nil {
 			break
@@ -3000,6 +3177,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ReanalyzeRecording(childComplexity, args["id"].(string)), true
+	case "Mutation.refreshAnimeWishlist":
+		if e.ComplexityRoot.Mutation.RefreshAnimeWishlist == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.RefreshAnimeWishlist(childComplexity), true
 	case "Mutation.regenerateRecordingImages":
 		if e.ComplexityRoot.Mutation.RegenerateRecordingImages == nil {
 			break
@@ -4261,6 +4444,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AnimeRecordSettings(childComplexity), true
+	case "Query.animeWishlist":
+		if e.ComplexityRoot.Query.AnimeWishlist == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AnimeWishlist(childComplexity), true
 	case "Query.auditEvents":
 		if e.ComplexityRoot.Query.AuditEvents == nil {
 			break
@@ -7052,6 +7241,108 @@ extend type Mutation {
   番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
   """
   reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../schema/anime_wishlist.graphqls", Input: `"""
+見たいリストの作品の状態 (#928)。
+"""
+enum AnimeWishlistStatus {
+  "見たい (AniList の PLANNING)"
+  WANNA_WATCH
+  "見てる (AniList の CURRENT)"
+  WATCHING
+}
+
+"""
+連携した記録先ごとの、見たいリストを取り込んだ様子 (#928)。
+"""
+type AnimeWishlistImport {
+  destination: AnimeRecordDestination!
+  "最後に問い合わせた日時。まだなら null。"
+  checkedAt: Time
+  "最後に取り込めた日時。まだなら null。"
+  importedAt: Time
+  "最後の問い合わせが失敗した理由。取り込めていれば null。"
+  error: String
+  "取り込んだ作品の数。"
+  entryCount: Int!
+}
+
+"""
+候補の作品を、見たいリストに入れた記録先と、その作品。
+"""
+type AnimeWishlistSource {
+  destination: AnimeRecordDestination!
+  "記録先の作品 ID。"
+  workId: Int!
+  status: AnimeWishlistStatus!
+  "記録先の作品のページ。"
+  url: String!
+}
+
+"""
+候補の作品の放送。
+"""
+type AnimeWishlistBroadcast {
+  program: Program!
+  """
+  録るのに選ぶサービスの放送かどうか。作品の最初の放送のサービスを選ぶ。重複の回避 (設計書 4.4) を付けたルールは、
+  最初に録った放送のほかを、同じ番組名を録画済みとして見送るため。予約済みの作品 (covered) では、どの放送も選ばない。
+  """
+  preferred: Boolean!
+}
+
+"""
+見たいリストの作品のうち、これから放送されるもの (#928)。しょぼいカレンダーの TID ごとに 1 つにまとめる。
+"""
+type AnimeWishlistWork {
+  "しょぼいカレンダーの TID。"
+  tid: Int!
+  "作品名。Annict の作品名を先に選ぶ。"
+  title: String!
+  sources: [AnimeWishlistSource!]!
+  "予約していない放送。放送の早い順に並べ、同じイベントを共有する放送は 1 つにする。"
+  broadcasts: [AnimeWishlistBroadcast!]!
+  "予約のある放送の数。候補からは外している。"
+  reservedBroadcasts: Int!
+  """
+  予約済みかどうか。これからの放送のどれかに予約 (ルール予約か手動の予約) があるか、放送のどれかから作るルールと同じ
+  キーワードとサービスのルール (無効なものも含む) がもうあれば予約済みとする。予約済みの作品は、録る放送が決まっているので、
+  録るサービス (preferred) を選ばず、ルールも作れない。
+  """
+  covered: Boolean!
+}
+
+"""
+ログイン中のユーザーの、見たいリストの作品の放送の候補 (#928)。
+"""
+type AnimeWishlist {
+  "管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。"
+  enabled: Boolean!
+  "連携した記録先ごとの、取り込んだ様子。連携していなければ空。"
+  imports: [AnimeWishlistImport!]!
+  "これから 1 週間に放送がある作品。最初の放送の早い順に並べる。"
+  works: [AnimeWishlistWork!]!
+}
+
+extend type Query {
+  "ログイン中のユーザーの、見たいリストの作品の放送の候補を返す (#928)。ほかのユーザーの見たいリストは見えない。視聴者も使える。"
+  animeWishlist: AnimeWishlist!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーの見たいリストを、定期的な取り込みを待たずに取り込み直す (#928)。取り込みはジョブで行うので、終わるのを待たない。
+  視聴者も使える。管理者が連携を無効にしていれば CONFLICT を返す。
+  """
+  refreshAnimeWishlist: Boolean!
+  """
+  ログイン中のユーザーの候補の作品 tid を録るルールを作る (#928)。ルールの条件は、作品の最初の放送から決める
+  (番組名から読んだ作品名をキーワードにし、そのサービスに限る)。ルールの重複の回避とイベントリレーへの追従は、
+  ルールを作るときの既定値に従う。視聴者は使えない。候補にない作品なら NOT_FOUND を、
+  予約済みの作品 (covered) なら、ルールを二重に作らないよう CONFLICT を返す。同時に呼ばれても、作るのは 1 つだけ。
+  """
+  createAnimeWishlistRule(tid: Int!): Rule!
 }
 `, BuiltIn: false},
 	{Name: "../schema/api_tokens.graphqls", Input: `"""
@@ -9907,6 +10198,76 @@ func (ec *executionContext) childFields_AnimeRecordSettings(ctx context.Context,
 	return nil, fmt.Errorf("no field named %q was found under type AnimeRecordSettings", field.Name)
 }
 
+func (ec *executionContext) childFields_AnimeWishlist(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_AnimeWishlist_enabled(ctx, field)
+	case "imports":
+		return ec.fieldContext_AnimeWishlist_imports(ctx, field)
+	case "works":
+		return ec.fieldContext_AnimeWishlist_works(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeWishlist", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeWishlistBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "program":
+		return ec.fieldContext_AnimeWishlistBroadcast_program(ctx, field)
+	case "preferred":
+		return ec.fieldContext_AnimeWishlistBroadcast_preferred(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeWishlistBroadcast", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeWishlistImport(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "destination":
+		return ec.fieldContext_AnimeWishlistImport_destination(ctx, field)
+	case "checkedAt":
+		return ec.fieldContext_AnimeWishlistImport_checkedAt(ctx, field)
+	case "importedAt":
+		return ec.fieldContext_AnimeWishlistImport_importedAt(ctx, field)
+	case "error":
+		return ec.fieldContext_AnimeWishlistImport_error(ctx, field)
+	case "entryCount":
+		return ec.fieldContext_AnimeWishlistImport_entryCount(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeWishlistImport", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeWishlistSource(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "destination":
+		return ec.fieldContext_AnimeWishlistSource_destination(ctx, field)
+	case "workId":
+		return ec.fieldContext_AnimeWishlistSource_workId(ctx, field)
+	case "status":
+		return ec.fieldContext_AnimeWishlistSource_status(ctx, field)
+	case "url":
+		return ec.fieldContext_AnimeWishlistSource_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeWishlistSource", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeWishlistWork(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "tid":
+		return ec.fieldContext_AnimeWishlistWork_tid(ctx, field)
+	case "title":
+		return ec.fieldContext_AnimeWishlistWork_title(ctx, field)
+	case "sources":
+		return ec.fieldContext_AnimeWishlistWork_sources(ctx, field)
+	case "broadcasts":
+		return ec.fieldContext_AnimeWishlistWork_broadcasts(ctx, field)
+	case "reservedBroadcasts":
+		return ec.fieldContext_AnimeWishlistWork_reservedBroadcasts(ctx, field)
+	case "covered":
+		return ec.fieldContext_AnimeWishlistWork_covered(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeWishlistWork", field.Name)
+}
+
 func (ec *executionContext) childFields_AnimeWork(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "annictWorkId":
@@ -11898,6 +12259,20 @@ func (ec *executionContext) field_Mutation_confirmTotpEnrollment_args(ctx contex
 		return nil, err
 	}
 	args["code"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createAnimeWishlistRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "tid",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["tid"] = arg0
 	return args, nil
 }
 
@@ -14568,6 +14943,511 @@ func (ec *executionContext) fieldContext_AnimeRecordSettings_destinations(_ cont
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _AnimeWishlist_enabled(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlist) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlist_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlist_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlist", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlist_imports(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlist) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlist_imports(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Imports, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeWishlistImport) graphql.Marshaler {
+			return ec.marshalNAnimeWishlistImport2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistImportᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlist_imports(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeWishlist",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeWishlistImport(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeWishlist_works(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlist) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlist_works(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Works, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeWishlistWork) graphql.Marshaler {
+			return ec.marshalNAnimeWishlistWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistWorkᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlist_works(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeWishlist",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeWishlistWork(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeWishlistBroadcast_program(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistBroadcast_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Program, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistBroadcast_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeWishlistBroadcast",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeWishlistBroadcast_preferred(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistBroadcast_preferred(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Preferred, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistBroadcast_preferred(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistBroadcast", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistImport_destination(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistImport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistImport_destination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AnimeRecordDestination) graphql.Marshaler {
+			return ec.marshalNAnimeRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeRecordDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistImport_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistImport", field, false, false, errors.New("field of type AnimeRecordDestination does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistImport_checkedAt(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistImport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistImport_checkedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CheckedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistImport_checkedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistImport", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistImport_importedAt(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistImport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistImport_importedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImportedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistImport_importedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistImport", field, false, false, errors.New("field of type Time does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistImport_error(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistImport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistImport_error(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistImport_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistImport", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistImport_entryCount(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistImport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistImport_entryCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EntryCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistImport_entryCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistImport", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistSource_destination(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistSource_destination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AnimeRecordDestination) graphql.Marshaler {
+			return ec.marshalNAnimeRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeRecordDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistSource_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistSource", field, false, false, errors.New("field of type AnimeRecordDestination does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistSource_workId(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistSource_workId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistSource_workId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistSource", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistSource_status(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistSource_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AnimeWishlistStatus) graphql.Marshaler {
+			return ec.marshalNAnimeWishlistStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistSource_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistSource", field, false, false, errors.New("field of type AnimeWishlistStatus does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistSource_url(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistSource_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistSource_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistSource", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistWork_tid(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistWork_tid(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Tid, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistWork_tid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistWork", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistWork_title(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistWork_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistWork_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistWork", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistWork_sources(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistWork_sources(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sources, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeWishlistSource) graphql.Marshaler {
+			return ec.marshalNAnimeWishlistSource2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistSourceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistWork_sources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeWishlistWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeWishlistSource(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeWishlistWork_broadcasts(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistWork_broadcasts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Broadcasts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeWishlistBroadcast) graphql.Marshaler {
+			return ec.marshalNAnimeWishlistBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistBroadcastᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistWork_broadcasts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeWishlistWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeWishlistBroadcast(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeWishlistWork_reservedBroadcasts(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistWork_reservedBroadcasts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReservedBroadcasts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistWork_reservedBroadcasts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistWork", field, false, false, errors.New("field of type Int does not have child fields"))
+}
+
+func (ec *executionContext) _AnimeWishlistWork_covered(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWishlistWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeWishlistWork_covered(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Covered, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeWishlistWork_covered(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeWishlistWork", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
 func (ec *executionContext) _AnimeWork_annictWorkId(ctx context.Context, field graphql.CollectedField, obj *model.AnimeWork) (ret graphql.Marshaler) {
@@ -18647,6 +19527,73 @@ func (ec *executionContext) fieldContext_Mutation_reportAnimePlayback(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_reportAnimePlayback_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshAnimeWishlist(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshAnimeWishlist(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().RefreshAnimeWishlist(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshAnimeWishlist(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _Mutation_createAnimeWishlistRule(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createAnimeWishlistRule(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateAnimeWishlistRule(ctx, fc.Args["tid"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Rule) graphql.Marshaler {
+			return ec.marshalNRule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRule(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createAnimeWishlistRule(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rule(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createAnimeWishlistRule_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -25260,6 +26207,38 @@ func (ec *executionContext) fieldContext_Query_animeRecordSettings(_ context.Con
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeRecordSettings(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_animeWishlist(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_animeWishlist(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AnimeWishlist(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AnimeWishlist) graphql.Marshaler {
+			return ec.marshalNAnimeWishlist2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlist(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_animeWishlist(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeWishlist(ctx, field)
 		},
 	}
 	return fc, nil
@@ -37934,6 +38913,271 @@ func (ec *executionContext) _AnimeRecordSettings(ctx context.Context, sel ast.Se
 	return out
 }
 
+var animeWishlistImplementors = []string{"AnimeWishlist"}
+
+func (ec *executionContext) _AnimeWishlist(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWishlist) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeWishlistImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeWishlist")
+		case "enabled":
+			out.Values[i] = ec._AnimeWishlist_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "imports":
+			out.Values[i] = ec._AnimeWishlist_imports(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "works":
+			out.Values[i] = ec._AnimeWishlist_works(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var animeWishlistBroadcastImplementors = []string{"AnimeWishlistBroadcast"}
+
+func (ec *executionContext) _AnimeWishlistBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWishlistBroadcast) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeWishlistBroadcastImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeWishlistBroadcast")
+		case "program":
+			out.Values[i] = ec._AnimeWishlistBroadcast_program(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "preferred":
+			out.Values[i] = ec._AnimeWishlistBroadcast_preferred(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var animeWishlistImportImplementors = []string{"AnimeWishlistImport"}
+
+func (ec *executionContext) _AnimeWishlistImport(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWishlistImport) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeWishlistImportImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeWishlistImport")
+		case "destination":
+			out.Values[i] = ec._AnimeWishlistImport_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "checkedAt":
+			out.Values[i] = ec._AnimeWishlistImport_checkedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "importedAt":
+			out.Values[i] = ec._AnimeWishlistImport_importedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._AnimeWishlistImport_error(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "entryCount":
+			out.Values[i] = ec._AnimeWishlistImport_entryCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var animeWishlistSourceImplementors = []string{"AnimeWishlistSource"}
+
+func (ec *executionContext) _AnimeWishlistSource(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWishlistSource) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeWishlistSourceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeWishlistSource")
+		case "destination":
+			out.Values[i] = ec._AnimeWishlistSource_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "workId":
+			out.Values[i] = ec._AnimeWishlistSource_workId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._AnimeWishlistSource_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._AnimeWishlistSource_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
+var animeWishlistWorkImplementors = []string{"AnimeWishlistWork"}
+
+func (ec *executionContext) _AnimeWishlistWork(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWishlistWork) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeWishlistWorkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferredFieldSet := graphql.NewFieldSet(nil)
+	deferLabelToView := make(map[string]*graphql.FieldSetView)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeWishlistWork")
+		case "tid":
+			out.Values[i] = ec._AnimeWishlistWork_tid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "title":
+			out.Values[i] = ec._AnimeWishlistWork_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sources":
+			out.Values[i] = ec._AnimeWishlistWork_sources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcasts":
+			out.Values[i] = ec._AnimeWishlistWork_broadcasts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reservedBroadcasts":
+			out.Values[i] = ec._AnimeWishlistWork_reservedBroadcasts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "covered":
+			out.Values[i] = ec._AnimeWishlistWork_covered(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(min(len(deferLabelToView), math.MaxInt32)))
+
+	ec.ProcessDeferredGroup(graphql.DeferredGroup{
+		Defers:   deferLabelToView,
+		Path:     graphql.GetPath(ctx),
+		FieldSet: deferredFieldSet,
+		Context:  ctx,
+	})
+
+	return out
+}
+
 var animeWorkImplementors = []string{"AnimeWork"}
 
 func (ec *executionContext) _AnimeWork(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeWork) graphql.Marshaler {
@@ -40085,6 +41329,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "reportAnimePlayback":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_reportAnimePlayback(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshAnimeWishlist":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshAnimeWishlist(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createAnimeWishlistRule":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createAnimeWishlistRule(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -42491,6 +43749,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_animeRecordSettings(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "animeWishlist":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_animeWishlist(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -47901,6 +49181,130 @@ func (ec *executionContext) marshalNAnimeRecordSettings2ᚖgithubᚗcomᚋSlashN
 func (ec *executionContext) unmarshalNAnimeRecordSettingsInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeRecordSettingsInput(ctx context.Context, v any) (model.AnimeRecordSettingsInput, error) {
 	res, err := ec.unmarshalInputAnimeRecordSettingsInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAnimeWishlist2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlist(ctx context.Context, sel ast.SelectionSet, v *model.AnimeWishlist) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeWishlist(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAnimeWishlistBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistBroadcastᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeWishlistBroadcast) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeWishlistBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistBroadcast(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeWishlistBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.AnimeWishlistBroadcast) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeWishlistBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAnimeWishlistImport2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistImportᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeWishlistImport) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeWishlistImport2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistImport(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeWishlistImport2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistImport(ctx context.Context, sel ast.SelectionSet, v *model.AnimeWishlistImport) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeWishlistImport(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAnimeWishlistSource2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeWishlistSource) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeWishlistSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistSource(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeWishlistSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistSource(ctx context.Context, sel ast.SelectionSet, v *model.AnimeWishlistSource) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeWishlistSource(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAnimeWishlistStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistStatus(ctx context.Context, v any) (model.AnimeWishlistStatus, error) {
+	var res model.AnimeWishlistStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAnimeWishlistStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistStatus(ctx context.Context, sel ast.SelectionSet, v model.AnimeWishlistStatus) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNAnimeWishlistWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistWorkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeWishlistWork) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeWishlistWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistWork(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeWishlistWork2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWishlistWork(ctx context.Context, sel ast.SelectionSet, v *model.AnimeWishlistWork) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._AnimeWishlistWork(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAnimeWork2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeWorkᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeWork) graphql.Marshaler {
