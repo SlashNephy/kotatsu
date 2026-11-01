@@ -21,3 +21,8 @@ func NewWith(enabled func(context.Context) (bool, error), control Control, confi
 
 	return relay
 }
+
+// NewWithLogger は、ログを logger に書く Relay を返す。ログに残す中身を確かめるのに使う。
+func NewWithLogger(enabled func(context.Context) (bool, error), control Control, logger *slog.Logger) *Relay {
+	return newRelay(enabled, control, clock.Real{}, logger)
+}

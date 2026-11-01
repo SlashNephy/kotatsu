@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -332,4 +333,20 @@ func TestConnectivityHandlerSuccess(t *testing.T) {
 	assert.True(t, got.Success)
 	assert.Equal(t, new("127.0.0.1"), got.IPAddress)
 	assert.NotNil(t, got.ResponseTimeMillis)
+}
+
+// TestRequestHandlerLogsHostOnly は、断ったリクエストのログに、宛先のパスとクエリを残さないことを確かめる。
+// パスとクエリには、文書が入れた受信機の情報 (郵便番号など) が入ることがある。
+func TestRequestHandlerLogsHostOnly(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	relay := databroadcastapi.NewWithLogger(enabledIs(true), publicnet.Control, slog.New(slog.NewJSONHandler(&logs, nil)))
+	rec := post(t, relay.RequestHandler(), viewer(), databroadcastapi.Request{
+		Method: http.MethodGet, URL: "http://127.0.0.1:9/vote/zip?code=1000001", Body: nil,
+	})
+
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	assert.Contains(t, logs.String(), "127.0.0.1:9")
+	assert.NotContains(t, logs.String(), "1000001", "the log must not contain the path or the query")
 }

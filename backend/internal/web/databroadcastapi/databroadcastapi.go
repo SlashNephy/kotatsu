@@ -293,6 +293,11 @@ func (h *Relay) forward(ctx context.Context, method string, target *url.URL, bod
 	}
 	resp, err := h.client.Do(req)
 	if err != nil {
+		// *url.Error は、パスとクエリを含む URL を文に入れる。ログに受信機の情報を残さないよう、URL を外す。
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
+			err = urlErr.Err
+		}
+
 		return nil, fmt.Errorf("failed to send the request: %w", err)
 	}
 	defer resp.Body.Close()
