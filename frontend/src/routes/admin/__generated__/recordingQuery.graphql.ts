@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5f896dc3d547039778c5078eb59bf5b5>>
+ * @generated SignedSource<<3290362c0b41ebc9c165f147d92a66cf>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,7 @@ export type recordingQuery$variables = Record<PropertyKey, never>;
 export type recordingQuery$data = {
   readonly systemSettings: {
     readonly recordingDefaults: {
+      readonly detectCm: boolean;
       readonly endMarginSeconds: number;
       readonly fileNameTemplate: string;
       readonly joinSegments: boolean;
@@ -95,6 +96,13 @@ var v0 = [
             "args": null,
             "kind": "ScalarField",
             "name": "joinSegments",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "detectCm",
             "storageKey": null
           }
         ],
@@ -190,16 +198,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "ea91e61d68b651c6cd5f673abee77cab",
+    "cacheID": "46691464d2cc9a3e32e2ffffa290e40f",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "6ad55e5baf7488c5abfb678f5a76b7d3";
+(node as any).hash = "58df2d457a16838ba891e2c85c0e272c";
 
 export default node;

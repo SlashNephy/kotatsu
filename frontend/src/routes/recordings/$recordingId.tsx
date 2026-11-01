@@ -25,6 +25,7 @@ import {
   RefreshCw,
   ScanSearch,
   Save,
+  Scissors,
   Tag,
   Trash2,
   type LucideIcon,
@@ -49,6 +50,7 @@ import { StreamQualityButton } from '../../recordings/StreamQualityButton';
 import { recordingPosition } from '../../yunomi/position';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
+import type { RecordingIdDetectCmMutation } from './__generated__/RecordingIdDetectCmMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
 import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdReanalyzeMutation.graphql';
@@ -267,9 +269,14 @@ function Recording({ recordingId }: { recordingId: string }) {
       reanalyzeRecording(id: $id)
     }
   `);
-  // regenerated は、画像の作り直しか解析のやり直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
+  const [detectCm, detectingCm] = useMutation<RecordingIdDetectCmMutation>(graphql`
+    mutation RecordingIdDetectCmMutation($id: ID!) {
+      detectRecordingCm(id: $id)
+    }
+  `);
+  // regenerated は、画像の作り直しか解析のやり直しか CM の解析を頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
   const [regenerated, setRegenerated] = useState<{
-    kind: 'images' | 'analysis';
+    kind: 'images' | 'analysis' | 'cm';
     result: 'queued' | 'waiting';
   } | null>(null);
   const node = data.node;
@@ -355,6 +362,32 @@ function Recording({ recordingId }: { recordingId: string }) {
               >
                 {t('recordings.reanalyze')}
               </Button>
+              {/* 全体や予約の設定にかかわらず、CM の区間を見分ける。前の区間は置き換える (#1209)。 */}
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<Scissors size={14} aria-hidden />}
+                loading={detectingCm}
+                onClick={() =>
+                  detectCm({
+                    variables: { id: recording.id },
+                    onCompleted: (response, errors) => {
+                      if (failed(errors)) {
+                        setError(t('recordings.actionError'));
+
+                        return;
+                      }
+                      setRegenerated({
+                        kind: 'cm',
+                        result: response.detectRecordingCm ? 'queued' : 'waiting',
+                      });
+                    },
+                    onError: () => setError(t('recordings.actionError')),
+                  })
+                }
+              >
+                {t('recordings.detectCm')}
+              </Button>
               {regenerated !== null && (
                 <Text size="xs" c="dimmed" role="status">
                   {t(
@@ -362,9 +395,13 @@ function Recording({ recordingId }: { recordingId: string }) {
                       ? regenerated.result === 'queued'
                         ? 'recordings.regenerateQueued'
                         : 'recordings.regenerateWaiting'
-                      : regenerated.result === 'queued'
-                        ? 'recordings.reanalyzeQueued'
-                        : 'recordings.reanalyzeWaiting',
+                      : regenerated.kind === 'analysis'
+                        ? regenerated.result === 'queued'
+                          ? 'recordings.reanalyzeQueued'
+                          : 'recordings.reanalyzeWaiting'
+                        : regenerated.result === 'queued'
+                          ? 'recordings.detectCmQueued'
+                          : 'recordings.detectCmWaiting',
                   )}
                 </Text>
               )}

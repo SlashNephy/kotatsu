@@ -265,6 +265,12 @@ extend type Mutation {
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   reanalyzeRecording(id: ID!): Boolean!
+  """
+  録画の CM とみなす区間を見分けるジョブを入れる (設計書 6.1、#1209)。視聴者は使えない。全体や予約の設定にかかわらず見分け、
+  前に見分けた区間は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  detectRecordingCm(id: ID!): Boolean!
 }
 
 """

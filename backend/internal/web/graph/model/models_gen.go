@@ -1041,6 +1041,8 @@ type RecordingSettings struct {
 	Priority int `json:"priority"`
 	// 引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)
 	JoinSegments bool `json:"joinSegments"`
+	// 録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
+	DetectCM bool `json:"detectCm"`
 }
 
 // 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -1055,6 +1057,8 @@ type RecordingSettingsOverrides struct {
 	Priority *int `json:"priority,omitempty"`
 	// 分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか
 	JoinSegments *bool `json:"joinSegments,omitempty"`
+	// 録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
+	DetectCM *bool `json:"detectCm,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1065,6 +1069,7 @@ type RecordingSettingsOverridesInput struct {
 	EndMarginSeconds   *int    `json:"endMarginSeconds,omitempty"`
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
+	DetectCM           *bool   `json:"detectCm,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。

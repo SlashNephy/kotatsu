@@ -12,6 +12,8 @@ type RecordingSettings {
   priority: Int!
   "引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)"
   joinSegments: Boolean!
+  "録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。"
+  detectCm: Boolean!
 }
 
 """
