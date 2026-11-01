@@ -193,7 +193,7 @@ func NewHandler(opts *Options) http.Handler {
 		recorder:         o.Recorder,
 		settings:         o.Settings,
 		timeshift:        timeshift.NewChannels(o.Clock, o.Recorder),
-		animeChannels:    anime.NewChannels(o.Clock, o.Recorder),
+		animeChannels:    anime.NewChannels(o.Clock, o.Recorder, o.Jobs),
 		inbox:            notification.NewInbox(o.Clock),
 		webhooks:         o.Webhooks,
 		webPush:          o.WebPush,

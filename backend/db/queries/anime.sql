@@ -91,3 +91,105 @@ ON CONFLICT (service_id) DO UPDATE SET
 
 -- name: DeleteAnimeChannelOverride :exec
 DELETE FROM anime_channel_overrides WHERE service_id = @service_id;
+
+-- name: GetEPGChangeVersion :one
+-- EPG の変更の通知の、今の版数を返す。一度も通知していなければ 0。
+SELECT COALESCE((SELECT version FROM change_versions WHERE channel = 'epg'), 0)::bigint AS version;
+
+-- name: GetAnimeMatchCursor :one
+SELECT epg_version FROM anime_match_cursor WHERE id = 1;
+
+-- name: SaveAnimeMatchCursor :exec
+INSERT INTO anime_match_cursor (id, epg_version, updated_at) VALUES (1, @epg_version, @now)
+ON CONFLICT (id) DO UPDATE SET epg_version = excluded.epg_version, updated_at = excluded.updated_at;
+
+-- name: ListAnimePrograms :many
+-- サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, m.finalized_at
+FROM programs p
+LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
+WHERE p.service_id = ANY(@service_ids::bigint[]) AND p.start_at < @range_end AND p.end_at > @range_start
+  AND p.genres @> '[{"lv1": 7}]'::jsonb
+ORDER BY p.service_id, p.start_at;
+
+-- name: ListAnimeProgramsToFinalize :many
+-- 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
+SELECT p.service_id, p.event_id, p.start_at, p.end_at
+FROM programs p
+LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
+WHERE p.service_id = ANY(@service_ids::bigint[]) AND p.end_at <= @now AND NOT p.end_undecided
+  AND p.genres @> '[{"lv1": 7}]'::jsonb AND m.finalized_at IS NULL
+ORDER BY p.service_id, p.start_at;
+
+-- name: ListSyobocalLookups :many
+SELECT channel_id, day_start, fetched_at FROM syobocal_lookups
+WHERE channel_id = ANY(@channel_ids::integer[]) AND day_start >= @range_start AND day_start < @range_end;
+
+-- name: UpsertSyobocalLookup :exec
+INSERT INTO syobocal_lookups (channel_id, day_start, fetched_at) VALUES (@channel_id, @day_start, @now)
+ON CONFLICT (channel_id, day_start) DO UPDATE SET fetched_at = excluded.fetched_at;
+
+-- name: UpsertSyobocalProgram :exec
+INSERT INTO syobocal_programs (pid, tid, channel_id, start_at, end_at, offset_seconds, count, sub_title, st_sub_title, flag, deleted, fetched_at)
+VALUES (@pid, @tid, @channel_id, @start_at, @end_at, @offset_seconds, @count, @sub_title, @st_sub_title, @flag, @deleted, @now)
+ON CONFLICT (pid) DO UPDATE SET
+  tid = excluded.tid, channel_id = excluded.channel_id, start_at = excluded.start_at, end_at = excluded.end_at,
+  offset_seconds = excluded.offset_seconds, count = excluded.count, sub_title = excluded.sub_title,
+  st_sub_title = excluded.st_sub_title, flag = excluded.flag, deleted = excluded.deleted, fetched_at = excluded.fetched_at;
+
+-- name: DeleteMissingSyobocalPrograms :exec
+-- 引いた ChID と期間にあったのに、返ってこなかった放送時間データを消す。期間は db.php と同じく「from < 終了 AND 開始 < to」で決める。
+DELETE FROM syobocal_programs
+WHERE channel_id = ANY(@channel_ids::integer[]) AND end_at > @range_start AND start_at < @range_end AND pid <> ALL(@pids::integer[]);
+
+-- name: ListSyobocalPrograms :many
+SELECT * FROM syobocal_programs
+WHERE channel_id = ANY(@channel_ids::integer[]) AND end_at > @range_start AND start_at < @range_end
+ORDER BY channel_id, start_at, pid;
+
+-- name: DeleteMovedProgramAnimeMatches :exec
+-- 放送時間が変わった番組の、前の放送時間の結びつきを消す。アーカイブへ移した、同じイベント ID の番組の結びつきは残す。
+DELETE FROM program_anime_matches m
+WHERE m.service_id = @service_id AND m.event_id = @event_id AND m.start_at <> @start_at
+  AND NOT EXISTS (
+    SELECT 1 FROM program_archives a WHERE a.service_id = m.service_id AND a.event_id = m.event_id AND a.start_at = m.start_at
+  );
+
+-- name: UpsertProgramAnimeMatch :exec
+-- 照合したことを記録する。確定させた日時は、一度書いたら消さない。
+INSERT INTO program_anime_matches (service_id, start_at, event_id, matched_at, finalized_at)
+VALUES (@service_id, @start_at, @event_id, @now, sqlc.narg(finalized_at))
+ON CONFLICT (service_id, start_at) DO UPDATE SET
+  event_id = excluded.event_id, matched_at = excluded.matched_at,
+  finalized_at = COALESCE(program_anime_matches.finalized_at, excluded.finalized_at);
+
+-- name: DeleteProgramAnimeEpisodes :exec
+DELETE FROM program_anime_episodes WHERE service_id = @service_id AND start_at = @start_at;
+
+-- name: InsertProgramAnimeEpisode :exec
+INSERT INTO program_anime_episodes (
+  service_id, start_at, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+)
+VALUES (
+  @service_id, @start_at, @position, @source, sqlc.narg(syobocal_tid), sqlc.narg(syobocal_pid),
+  sqlc.narg(count_start), sqlc.narg(count_end), sqlc.narg(subtitle), @is_first, @is_last
+);
+
+-- name: ListProgramAnimeEpisodes :many
+-- 番組 (サービスと開始時刻の組) に結びついた話を、番組ごとに並びの順で返す。
+SELECT e.* FROM program_anime_episodes e
+WHERE (e.service_id, e.start_at) IN (SELECT unnest(@service_ids::bigint[]), unnest(@start_ats::timestamptz[]))
+ORDER BY e.service_id, e.start_at, e.position;
+
+-- name: PruneSyobocalPrograms :execrows
+DELETE FROM syobocal_programs WHERE end_at < @before;
+
+-- name: PruneSyobocalLookups :execrows
+DELETE FROM syobocal_lookups WHERE day_start < @before;
+
+-- name: PruneProgramAnimeMatches :execrows
+-- 番組表からも過去の番組からもなくなった番組の結びつきを消す。照合したばかりの結びつきは、番組を書く途中かもしれないので残す。
+DELETE FROM program_anime_matches m
+WHERE m.matched_at < @before
+  AND NOT EXISTS (SELECT 1 FROM programs p WHERE p.service_id = m.service_id AND p.start_at = m.start_at)
+  AND NOT EXISTS (SELECT 1 FROM program_archives a WHERE a.service_id = m.service_id AND a.start_at = m.start_at);

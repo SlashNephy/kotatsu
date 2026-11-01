@@ -58,12 +58,14 @@ type Importer struct {
 	db      Database
 	clock   clock.Clock
 	fetcher Fetcher
-	logger  *slog.Logger
+	// inserter は、チャンネルの対応が変わったときに、番組を照合し直すジョブを入れる。nil なら入れない。
+	inserter Inserter
+	logger   *slog.Logger
 }
 
 // NewImporter は Importer を返す。
-func NewImporter(db Database, clk clock.Clock, fetcher Fetcher, logger *slog.Logger) *Importer {
-	return &Importer{db: db, clock: clk, fetcher: fetcher, logger: logger}
+func NewImporter(db Database, clk clock.Clock, fetcher Fetcher, inserter Inserter, logger *slog.Logger) *Importer {
+	return &Importer{db: db, clock: clk, fetcher: fetcher, inserter: inserter, logger: logger}
 }
 
 // ImportResult は、1 回の取り込みの結果。取り込み元ごとに、取り込んだ件数を持つ。
@@ -177,6 +179,12 @@ func (i *Importer) replaceChannels(ctx context.Context, params *sqlc.InsertAnime
 		}
 		if err := q.InsertAnimeChannelDefinitions(ctx, *params); err != nil {
 			return fmt.Errorf("failed to insert the channel definitions: %w", err)
+		}
+		// 対応が変わったので、これから放送される番組を照合し直す。
+		if i.inserter != nil {
+			if err := EnqueueMatchTx(ctx, tx, i.inserter); err != nil {
+				return err
+			}
 		}
 
 		return q.RecordAnimeImport(ctx, sqlc.RecordAnimeImportParams{

@@ -184,7 +184,7 @@ func TestImportDisabled(t *testing.T) {
 
 	db := newDB(t)
 	fetcher := newFakeFetcher()
-	result, err := anime.NewImporter(db, clocktest.NewFake(testNow()), fetcher, slog.New(slog.DiscardHandler)).Import(t.Context(), true)
+	result, err := anime.NewImporter(db, clocktest.NewFake(testNow()), fetcher, nil, slog.New(slog.DiscardHandler)).Import(t.Context(), true)
 	require.NoError(t, err)
 	assert.True(t, result.Disabled)
 	for _, source := range []string{anime.SourceSayaDefinitions, anime.SourceArm, anime.SourceArmSupplementary} {
@@ -201,7 +201,7 @@ func TestImport(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeFetcher()
-	importer := anime.NewImporter(db, clk, fetcher, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, fetcher, nil, slog.New(slog.DiscardHandler))
 
 	result, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
@@ -258,7 +258,7 @@ func TestImportConcurrently(t *testing.T) {
 		barrier.Add(2)
 		fetcher.barriers[source] = barrier
 	}
-	importer := anime.NewImporter(db, clk, fetcher, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, fetcher, nil, slog.New(slog.DiscardHandler))
 
 	results := make([]*anime.ImportResult, 2)
 	errs := make([]error, 2)
@@ -292,7 +292,7 @@ func TestImportSchedule(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeFetcher()
-	importer := anime.NewImporter(db, clk, fetcher, slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, fetcher, nil, slog.New(slog.DiscardHandler))
 	_, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
 

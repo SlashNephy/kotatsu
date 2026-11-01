@@ -36,6 +36,12 @@ type AnimeImport struct {
 	Error      *string
 }
 
+type AnimeMatchCursor struct {
+	ID         int16
+	EpgVersion int64
+	UpdatedAt  time.Time
+}
+
 type AnimeWork struct {
 	Source       string
 	SyobocalTid  int32
@@ -283,6 +289,28 @@ type Program struct {
 	UpdatedAt             time.Time
 }
 
+type ProgramAnimeEpisode struct {
+	ServiceID   int64
+	StartAt     time.Time
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+type ProgramAnimeMatch struct {
+	ServiceID   int64
+	StartAt     time.Time
+	EventID     int64
+	MatchedAt   time.Time
+	FinalizedAt *time.Time
+}
+
 type ProgramArchive struct {
 	ServiceID             int64
 	EventID               int64
@@ -498,6 +526,27 @@ type StoragePool struct {
 	TotalBytes   *int64
 	FreeBytes    *int64
 	MeasuredAt   *time.Time
+}
+
+type SyobocalLookup struct {
+	ChannelID int32
+	DayStart  time.Time
+	FetchedAt time.Time
+}
+
+type SyobocalProgram struct {
+	Pid           int32
+	Tid           int32
+	ChannelID     int32
+	StartAt       time.Time
+	EndAt         time.Time
+	OffsetSeconds int32
+	Count         string
+	SubTitle      string
+	StSubTitle    string
+	Flag          int32
+	Deleted       bool
+	FetchedAt     time.Time
 }
 
 type SystemSetting struct {

@@ -115,7 +115,7 @@ func (r *Resolver) startAnimeLinking(ctx context.Context) {
 	if r.jobs == nil {
 		return
 	}
-	if err := anime.EnqueueImport(ctx, r.db, r.jobs); err != nil {
+	if err := anime.EnqueueStart(ctx, r.db, r.jobs); err != nil {
 		r.logger.WarnContext(ctx, "failed to enqueue the anime import", slog.Any("error", err))
 	}
 }

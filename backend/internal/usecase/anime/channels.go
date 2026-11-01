@@ -99,11 +99,13 @@ type ChannelChanges struct {
 type Channels struct {
 	clock    clock.Clock
 	recorder audit.Recorder
+	// inserter は、上書きを変えたときに、番組を照合し直すジョブを入れる。nil なら入れない。
+	inserter Inserter
 }
 
 // NewChannels は Channels を返す。
-func NewChannels(clk clock.Clock, recorder audit.Recorder) *Channels {
-	return &Channels{clock: clk, recorder: recorder}
+func NewChannels(clk clock.Clock, recorder audit.Recorder, inserter Inserter) *Channels {
+	return &Channels{clock: clk, recorder: recorder, inserter: inserter}
 }
 
 // Update は、サービス serviceID のチャンネルの対応の上書きを変える。どちらの上書きもなくなれば、行を消す。
@@ -132,6 +134,12 @@ func (c *Channels) Update(ctx context.Context, db Database, actor *audit.Actor, 
 		}
 		if err != nil {
 			return fmt.Errorf("failed to update the anime channel override: %w", err)
+		}
+		// 対応が変わったので、これから放送される番組を照合し直す。
+		if c.inserter != nil {
+			if err := EnqueueMatchTx(ctx, tx, c.inserter); err != nil {
+				return err
+			}
 		}
 
 		return c.recorder.Record(ctx, tx, &audit.Event{

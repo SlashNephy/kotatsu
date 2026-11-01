@@ -20,10 +20,10 @@ func TestUpdateChannel(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
-	importer := anime.NewImporter(db, clk, newFakeFetcher(), slog.New(slog.DiscardHandler))
+	importer := anime.NewImporter(db, clk, newFakeFetcher(), nil, slog.New(slog.DiscardHandler))
 	_, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
-	channels := anime.NewChannels(clk, audit.NewRecorder(clk))
+	channels := anime.NewChannels(clk, audit.NewRecorder(clk), nil)
 	actor := audit.System("test")
 
 	channelOf := func(serviceID int64) *anime.Channel {
@@ -83,7 +83,7 @@ func TestUpdateChannelRejects(t *testing.T) {
 
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
-	channels := anime.NewChannels(clk, audit.NewRecorder(clk))
+	channels := anime.NewChannels(clk, audit.NewRecorder(clk), nil)
 	tests := []struct {
 		name      string
 		serviceID int64

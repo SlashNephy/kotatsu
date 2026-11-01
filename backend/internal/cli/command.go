@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
@@ -190,13 +191,16 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	animeLogger := logger.With(slog.String("component", "anime"))
-	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), animeLogger)))
+	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animedata.NewClient(nil), inserter, animeLogger)))
+	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
+	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの照合のジョブすべてで共有する。
+	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocal.NewClient(nil), animeLogger)))
 
-	return workers, []*river.PeriodicJob{
+	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(),
-	}, nil
+	}, anime.MatchPeriodicJobs()...), nil
 }
 
 // defaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI。

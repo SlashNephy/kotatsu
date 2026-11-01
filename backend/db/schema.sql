@@ -1171,3 +1171,78 @@ CREATE TABLE anime_imports (
   -- 最後の問い合わせが失敗した理由。成功したら NULL に戻す。
   error text
 );
+
+-- しょぼいカレンダーの放送時間データ (ProgLookup の ProgItem) のキャッシュ (設計書 3.8)。
+-- 番組ごとではなく、ChID と期間ごとにまとめて引いたものを、PID ごとに持つ。放送時間は、db.php が返した StTime と EdTime のまま持つ。
+CREATE TABLE syobocal_programs (
+  pid integer PRIMARY KEY,
+  tid integer NOT NULL,
+  channel_id integer NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  -- StOffset (秒)。実際の放送は、start_at と end_at をこれだけずらしたもの。
+  offset_seconds integer NOT NULL,
+  -- 話数。話数のない放送 (特番など) では空。
+  count text NOT NULL,
+  -- 放送時間データのサブタイトル (複数話の放送では "#1～#2" の形) と、タイトルのサブタイトルの表から引いたサブタイトル。
+  sub_title text NOT NULL,
+  st_sub_title text NOT NULL,
+  flag integer NOT NULL,
+  deleted boolean NOT NULL,
+  fetched_at timestamptz NOT NULL
+);
+CREATE INDEX syobocal_programs_channel_id_start_at_idx ON syobocal_programs (channel_id, start_at);
+CREATE INDEX syobocal_programs_end_at_idx ON syobocal_programs (end_at);
+
+-- ChID と日 (日本時間) ごとに、最後にしょぼいカレンダーの放送時間データを引いた日時 (設計書 3.8)。キャッシュが古いかを決めるのに使う。
+CREATE TABLE syobocal_lookups (
+  channel_id integer NOT NULL,
+  -- 日本時間の日の始まり。
+  day_start timestamptz NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (channel_id, day_start)
+);
+
+-- 番組を照合した記録 (設計書 3.8)。どの話にも結びつかなかった番組も、照合したことを残す。
+-- programs の主キーの EID は使い回され、番組はアーカイブへも移るので、programs とは別に、サービスと開始時刻で持つ。
+-- アーカイブへ移す処理には手を入れずに、過去の番組の結びつきも残る。
+CREATE TABLE program_anime_matches (
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  start_at timestamptz NOT NULL,
+  -- 照合したときの番組のイベント ID。放送時間が変わった番組の、前の結びつきを消すのに使う。
+  event_id bigint NOT NULL,
+  matched_at timestamptz NOT NULL,
+  -- 放送が終わった後に照合し直し、結びつきを確定させた日時。確定させた番組は、それからは照合し直さない。
+  finalized_at timestamptz,
+  PRIMARY KEY (service_id, start_at)
+);
+CREATE INDEX program_anime_matches_service_id_event_id_idx ON program_anime_matches (service_id, event_id);
+
+-- 番組に結びついた話 (設計書 3.8)。2 話連続の放送のように、1 つの番組が複数の話に結びつくので、番組と話は 1 対多にする。
+-- Annict や AniList の作品 ID は持たず、TID から作品 ID の対応 (anime_works) を引く。arm が後から直っても、過去の番組まで直る。
+CREATE TABLE program_anime_episodes (
+  service_id bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  -- 番組の中での並びの番号。放送の順に 0 から振る。
+  position smallint NOT NULL,
+  -- 結びつけた出どころ。
+  source text NOT NULL CHECK (source IN ('syobocal')),
+  syobocal_tid integer,
+  syobocal_pid integer,
+  -- 話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では NULL。
+  count_start double precision,
+  count_end double precision,
+  subtitle text,
+  -- しょぼいカレンダーの [新] と [終] の印。
+  is_first boolean NOT NULL,
+  is_last boolean NOT NULL,
+  PRIMARY KEY (service_id, start_at, position),
+  FOREIGN KEY (service_id, start_at) REFERENCES program_anime_matches (service_id, start_at) ON DELETE CASCADE
+);
+
+-- 番組の照合が読み終えた、EPG の変更の記録 (epg_changes) の版数 (設計書 3.8)。1 行だけ持つ。
+CREATE TABLE anime_match_cursor (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  epg_version bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
