@@ -1,14 +1,15 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, matchPrecache, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
-import { NetworkOnly } from 'workbox-strategies';
+import { CacheFirst, NetworkOnly } from 'workbox-strategies';
 
 import { notificationPath } from './notifications/link';
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Service Worker は、アプリの外枠 (HTML、JS、CSS、アイコン) だけをキャッシュする (設計書 10.1)。
+// Service Worker は、アプリの外枠 (HTML、JS、CSS、アイコン、ブラウザの中での変換の WebAssembly) をキャッシュする (設計書 10.1)。
 // 番組データと映像はキャッシュしない。API は Service Worker を通さずに、そのままサーバーに届く。
+// 端末に保存した録画 (#480) は、画面が OPFS に書いて読むので、Service Worker は関わらない。
 
 // 画面の移動は、まずサーバーに取りに行く。index.html には、リクエストごとの CSP の nonce が入るからである。
 // オフラインのときだけ、プリキャッシュした外枠を返す。
@@ -31,6 +32,30 @@ registerRoute(
     },
     { denylist: [/^\/graphql/, /^\/auth\//] },
   ),
+);
+
+// 字幕を描くフォント (7 MB ほど) は、大きいのでプリキャッシュせず、一度読んだら残す。端末に保存した録画 (#480) を
+// オフラインで再生するときも、字幕を描けるようにするためである。ファイル名は版ごとに変わるので、残すのは最後に読んだ 1 つだけにする。
+const broadcastFontCache = 'kotatsu-broadcast-font';
+registerRoute(
+  ({ url }) =>
+    url.origin === self.location.origin &&
+    /\/assets\/rounded-mplus-1m-wadalab-mix-[^/]*\.ttf$/.test(url.pathname),
+  new CacheFirst({
+    cacheName: broadcastFontCache,
+    plugins: [
+      {
+        cacheDidUpdate: async ({ cacheName, request }) => {
+          const cache = await caches.open(cacheName);
+          for (const key of await cache.keys()) {
+            if (key.url !== request.url) {
+              await cache.delete(key);
+            }
+          }
+        },
+      },
+    ],
+  }),
 );
 
 // プリキャッシュの一覧は、vite-plugin-pwa が self.__WB_MANIFEST に注入する。

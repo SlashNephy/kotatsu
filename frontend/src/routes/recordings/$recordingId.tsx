@@ -60,6 +60,7 @@ import { zonedFormat } from '../../futon';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
 import { failureKey } from '../../recordings/failureReason';
+import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -189,11 +190,16 @@ function Recording({ recordingId }: { recordingId: string }) {
             ruleName
             thumbnailUrl
             streamUrl
+            videoFormat
+            jikkyoCommentsUrl
             recordedFrom
             recordedUntil
             service {
               name
               logoUrl
+              jikkyo {
+                id
+              }
             }
             tags {
               id
@@ -373,6 +379,29 @@ function Recording({ recordingId }: { recordingId: string }) {
               {t('recordings.download')}
             </Button>
           )}
+          {/* 録画を終えた録画を端末に保存し、サーバーにつながらなくても見られるようにする (#480)。 */}
+          {segments.length > 0 &&
+            recording.state !== 'RECORDING' &&
+            recording.recordedUntil != null && (
+              <SaveOfflineButton
+                videoFormat={recording.videoFormat}
+                source={{
+                  id: recording.id,
+                  name: recording.name,
+                  serviceName: recording.service.name,
+                  startAt: recording.startAt,
+                  endAt: recording.endAt,
+                  recordedFrom: recording.recordedFrom,
+                  recordedUntil: recording.recordedUntil,
+                  gaps: recording.gaps,
+                  streamUrl: recording.streamUrl,
+                  // 実況のチャンネルのない局では、過去ログを読まない (設計書 7.4)。
+                  jikkyoCommentsUrl:
+                    recording.service.jikkyo == null ? null : recording.jikkyoCommentsUrl,
+                  files: recording.files,
+                }}
+              />
+            )}
         </Stack>
       </Grid.Col>
       <Grid.Col span={{ base: 12, md: 7 }}>

@@ -125,7 +125,7 @@ func TestContentSecurityPolicy(t *testing.T) {
 		directives[name] = value
 	}
 	assert.Equal(t, "'self' 'nonce-n' 'wasm-unsafe-eval'", directives["script-src"])
-	assert.Equal(t, "'self' wss://nx-jikkyo.tsukumijima.net", directives["connect-src"])
+	assert.Equal(t, "'self' blob: wss://nx-jikkyo.tsukumijima.net", directives["connect-src"])
 	assert.Equal(t, "'none'", directives["object-src"])
 	assert.Equal(t, "'none'", directives["frame-ancestors"])
 	for name, value := range directives {

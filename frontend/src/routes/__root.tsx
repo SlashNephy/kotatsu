@@ -1,6 +1,7 @@
-import { Anchor, AppShell, Burger, Group, Stack, Title } from '@mantine/core';
+import { ActionIcon, Anchor, AppShell, Burger, Group, Stack, Title, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { createRootRoute, Link, Outlet, useMatches, useRouterState } from '@tanstack/react-router';
+import { HardDrive } from 'lucide-react';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
@@ -10,6 +11,7 @@ import { UserMenu } from '../auth/UserMenu';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
 import { ColorSchemeToggle, ErrorBoundary, useThemeColor } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { useOfflineRecordings } from '../offline/store';
 import { ConnectionStatus } from '../relay/ConnectionStatus';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
@@ -92,7 +94,10 @@ function RootLayout() {
                 data-fluid={fluid || undefined}
               >
                 {brand}
-                <ColorSchemeToggle />
+                <Group gap="md" wrap="nowrap">
+                  <OfflineShortcut />
+                  <ColorSchemeToggle />
+                </Group>
               </Group>
             }
           >
@@ -194,6 +199,31 @@ function ViewerGate({ children, fetchKey }: { children: ReactNode; fetchKey: str
   );
 
   return children;
+}
+
+// OfflineShortcut は、ログインしていないとき (オフラインで自分のユーザーを読めないときを含む) のヘッダーに出す、
+// 端末に保存した録画 (#480) へのリンク。オフラインでは、ほかのリンクが出ないので、ここから開けるようにする。
+// 保存した録画がなければ出さない。
+function OfflineShortcut() {
+  const { t } = useTranslation();
+  const { saved } = useOfflineRecordings();
+  if (saved === null || saved.length === 0) {
+    return null;
+  }
+
+  return (
+    <Tooltip label={t('nav.offline')}>
+      <ActionIcon
+        component={Link}
+        to="/offline"
+        variant="subtle"
+        size="lg"
+        aria-label={t('nav.offline')}
+      >
+        <HardDrive size={20} aria-hidden />
+      </ActionIcon>
+    </Tooltip>
+  );
 }
 
 function NotFound() {
