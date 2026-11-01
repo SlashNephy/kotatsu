@@ -473,13 +473,15 @@ type ComplexityRoot struct {
 	}
 
 	PlayerCommand struct {
-		Audio    func(childComplexity int) int
-		ID       func(childComplexity int) int
-		Key      func(childComplexity int) int
-		Muted    func(childComplexity int) int
-		Position func(childComplexity int) int
-		Type     func(childComplexity int) int
-		Volume   func(childComplexity int) int
+		Audio       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Key         func(childComplexity int) int
+		Muted       func(childComplexity int) int
+		Position    func(childComplexity int) int
+		RecordingID func(childComplexity int) int
+		ServiceID   func(childComplexity int) int
+		Type        func(childComplexity int) int
+		Volume      func(childComplexity int) int
 	}
 
 	PlayerSettings struct {
@@ -3288,6 +3290,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlayerCommand.Position(childComplexity), true
+	case "PlayerCommand.recordingId":
+		if e.ComplexityRoot.PlayerCommand.RecordingID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.RecordingID(childComplexity), true
+	case "PlayerCommand.serviceId":
+		if e.ComplexityRoot.PlayerCommand.ServiceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerCommand.ServiceID(childComplexity), true
 	case "PlayerCommand.type":
 		if e.ComplexityRoot.PlayerCommand.Type == nil {
 			break
@@ -7132,6 +7146,8 @@ enum PlayerCommandType {
   PRESS_KEY
   "プレイヤーを閉じる。"
   STOP
+  "serviceId のサービスのライブ視聴か、recordingId の録画の再生を開く (キャスト、#802)。どちらか 1 つを渡す。"
+  OPEN
 }
 
 input PlayerCommandInput {
@@ -7141,6 +7157,8 @@ input PlayerCommandInput {
   muted: Boolean
   audio: String
   key: String
+  serviceId: ID
+  recordingId: ID
 }
 
 "プレイヤーへの操作。操作される端末が subscription で受け取る。"
@@ -7153,6 +7171,10 @@ type PlayerCommand {
   muted: Boolean
   audio: String
   key: String
+  "開くサービス (OPEN)。"
+  serviceId: ID
+  "開く録画 (OPEN)。"
+  recordingId: ID
 }
 
 extend type Query {
@@ -9467,6 +9489,10 @@ func (ec *executionContext) childFields_PlayerCommand(ctx context.Context, field
 		return ec.fieldContext_PlayerCommand_audio(ctx, field)
 	case "key":
 		return ec.fieldContext_PlayerCommand_key(ctx, field)
+	case "serviceId":
+		return ec.fieldContext_PlayerCommand_serviceId(ctx, field)
+	case "recordingId":
+		return ec.fieldContext_PlayerCommand_recordingId(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type PlayerCommand", field.Name)
 }
@@ -20263,6 +20289,52 @@ func (ec *executionContext) _PlayerCommand_key(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_PlayerCommand_key(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type String does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_serviceId(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_serviceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ServiceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_serviceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type ID does not have child fields"))
+}
+
+func (ec *executionContext) _PlayerCommand_recordingId(ctx context.Context, field graphql.CollectedField, obj *model.PlayerCommand) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerCommand_recordingId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerCommand_recordingId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerCommand", field, false, false, errors.New("field of type ID does not have child fields"))
 }
 
 func (ec *executionContext) _PlayerSettings_jikkyoEnabled(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
@@ -32408,7 +32480,7 @@ func (ec *executionContext) unmarshalInputPlayerCommandInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"type", "position", "volume", "muted", "audio", "key"}
+	fieldsInOrder := [...]string{"type", "position", "volume", "muted", "audio", "key", "serviceId", "recordingId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -32457,6 +32529,20 @@ func (ec *executionContext) unmarshalInputPlayerCommandInput(ctx context.Context
 				return it, err
 			}
 			it.Key = data
+		case "serviceId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("serviceId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ServiceID = data
+		case "recordingId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recordingId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RecordingID = data
 		}
 	}
 	return it, nil
@@ -36913,6 +36999,16 @@ func (ec *executionContext) _PlayerCommand(ctx context.Context, sel ast.Selectio
 			}
 		case "key":
 			out.Values[i] = ec._PlayerCommand_key(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "serviceId":
+			out.Values[i] = ec._PlayerCommand_serviceId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recordingId":
+			out.Values[i] = ec._PlayerCommand_recordingId(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

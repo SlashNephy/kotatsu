@@ -1453,6 +1453,14 @@ type PlayerCommand {
   muted: Boolean
   audio: String
   key: String
+  """
+  開くサービス (OPEN)。
+  """
+  serviceId: ID
+  """
+  開く録画 (OPEN)。
+  """
+  recordingId: ID
 }
 input PlayerCommandInput {
   type: PlayerCommandType!
@@ -1461,6 +1469,8 @@ input PlayerCommandInput {
   muted: Boolean
   audio: String
   key: String
+  serviceId: ID
+  recordingId: ID
 }
 """
 プレイヤーへの操作の種類。
@@ -1492,6 +1502,10 @@ enum PlayerCommandType {
   プレイヤーを閉じる。
   """
   STOP
+  """
+  serviceId のサービスのライブ視聴か、recordingId の録画の再生を開く (キャスト、#802)。どちらか 1 つを渡す。
+  """
+  OPEN
 }
 """
 再生中のプレイヤーで見ているもの。

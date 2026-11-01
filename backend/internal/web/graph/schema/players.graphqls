@@ -85,6 +85,8 @@ enum PlayerCommandType {
   PRESS_KEY
   "プレイヤーを閉じる。"
   STOP
+  "serviceId のサービスのライブ視聴か、recordingId の録画の再生を開く (キャスト、#802)。どちらか 1 つを渡す。"
+  OPEN
 }
 
 input PlayerCommandInput {
@@ -94,6 +96,8 @@ input PlayerCommandInput {
   muted: Boolean
   audio: String
   key: String
+  serviceId: ID
+  recordingId: ID
 }
 
 "プレイヤーへの操作。操作される端末が subscription で受け取る。"
@@ -106,6 +110,10 @@ type PlayerCommand {
   muted: Boolean
   audio: String
   key: String
+  "開くサービス (OPEN)。"
+  serviceId: ID
+  "開く録画 (OPEN)。"
+  recordingId: ID
 }
 
 extend type Query {

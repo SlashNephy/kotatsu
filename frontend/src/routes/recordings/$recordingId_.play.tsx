@@ -53,6 +53,7 @@ import {
 import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { useRemoteOpen } from '../../yunomi/useRemoteOpen';
 import { documentTitle, usePlayerEvents, type PlayerSnapshot } from '../../yunomi/playerState';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
@@ -740,7 +741,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }, [startedAt, hls, video]);
 
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
-  useRemotePlayer(recording === null || video === null ? null : player, playerEvents, commands);
+  // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
+  const openRemote = useRemoteOpen();
+  useRemotePlayer(
+    recording === null || video === null ? null : player,
+    playerEvents,
+    commands,
+    undefined,
+    openRemote,
+  );
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
