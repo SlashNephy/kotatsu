@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"log/slog"
 	"net/url"
 	"strconv"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -330,4 +332,74 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.Equal(t, []string{codeNotFound}, viewer.query(t, one, map[string]any{varServiceID: timeshiftServiceID(), varStartAt: now}, nil))
 		})
 	}
+}
+
+// TestPromoteTimeshiftProgram は、予約を作れるユーザーが、バッファにある放送の終わった番組を録画に昇格でき、
+// 録画中の録画を返して、書き出すジョブを入れることを確かめる (#1057、設計書 5.7)。
+func TestPromoteTimeshiftProgram(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	f := newFixture(t, &graph.Options{TimeshiftDir: t.TempDir(), Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	now := f.clock.Now()
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		_, err := f.pool.Exec(t.Context(), sql, args...)
+		require.NoError(t, err)
+	}
+	exec(`INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at) VALUES ($1, 7200, $2, $2)`, timeshiftServiceKey, now)
+	exec(`INSERT INTO timeshift_chunks (id, service_id, path, size, started_at, ended_at, created_at) VALUES ($1, $2, 'a.m2ts', 1, $3, NULL, $3)`,
+		id.New(), timeshiftServiceKey, now.Add(-time.Hour))
+	// 番組表にない番組なので、mikan が記録した番組名と時間で録画を作る。
+	started := now.Add(-40 * time.Minute)
+	exec(`INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at) VALUES ($1, $2, 100, '番組', $3)`,
+		timeshiftServiceKey, started, now.Add(-10*time.Minute))
+	const promote = `mutation($serviceId: ID!, $startAt: Time!) {
+		promoteTimeshiftProgram(serviceId: $serviceId, startAt: $startAt) { recording { name state } reservation { id } } }`
+	vars := map[string]any{varServiceID: timeshiftServiceID(), varStartAt: started}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, promote, vars, nil))
+
+	member := f.as(t, "member", auth.RoleMember)
+	var got struct {
+		PromoteTimeshiftProgram struct {
+			Recording *struct {
+				Name  string `json:"name"`
+				State string `json:"state"`
+			} `json:"recording"`
+			Reservation *struct {
+				ID string `json:"id"`
+			} `json:"reservation"`
+		} `json:"promoteTimeshiftProgram"`
+	}
+	require.Empty(t, member.query(t, promote, vars, &got))
+	require.NotNil(t, got.PromoteTimeshiftProgram.Recording)
+	assert.Equal(t, "番組", got.PromoteTimeshiftProgram.Recording.Name)
+	assert.Equal(t, "RECORDING", got.PromoteTimeshiftProgram.Recording.State)
+	assert.Nil(t, got.PromoteTimeshiftProgram.Reservation)
+	var queued int
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT count(*) FROM river_job WHERE kind = 'timeshift_promote'`).Scan(&queued))
+	assert.Equal(t, 1, queued)
+
+	// 番組の一覧には、書き出している途中であることを出す。
+	var programs struct {
+		Node struct {
+			TimeshiftPrograms []struct {
+				Promoting bool `json:"promoting"`
+			} `json:"timeshiftPrograms"`
+		} `json:"node"`
+	}
+	require.Empty(t, member.query(t, `query($id: ID!) { node(id: $id) { ... on Service { timeshiftPrograms { promoting } } } }`,
+		map[string]any{varID: timeshiftServiceID()}, &programs))
+	require.Len(t, programs.Node.TimeshiftPrograms, 1)
+	assert.True(t, programs.Node.TimeshiftPrograms[0].Promoting)
+
+	// 同じ番組を書き出している途中なら CONFLICT、バッファにない番組は NOT_FOUND。
+	assert.Equal(t, []string{codeConflict}, member.query(t, promote, vars, nil))
+	assert.Equal(t, []string{codeNotFound}, member.query(t, promote, map[string]any{varServiceID: timeshiftServiceID(), varStartAt: now}, nil))
 }

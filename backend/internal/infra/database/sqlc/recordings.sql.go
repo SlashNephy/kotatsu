@@ -91,6 +91,21 @@ func (q *Queries) CountRecordingSegments(ctx context.Context, arg CountRecording
 	return i, err
 }
 
+const deleteRecordingCMSections = `-- name: DeleteRecordingCMSections :exec
+DELETE FROM recording_cm_sections WHERE recording_id = $1 AND detector = $2
+`
+
+type DeleteRecordingCMSectionsParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+// 見分け直す前に、同じ見分け方の CM の区間を消す。
+func (q *Queries) DeleteRecordingCMSections(ctx context.Context, arg DeleteRecordingCMSectionsParams) error {
+	_, err := q.db.Exec(ctx, deleteRecordingCMSections, arg.RecordingID, arg.Detector)
+	return err
+}
+
 const deleteRecordingFiles = `-- name: DeleteRecordingFiles :exec
 DELETE FROM recording_files WHERE recording_id = $1 AND id = ANY($2::uuid[])
 `
@@ -155,6 +170,8 @@ WITH failed AS (
     AND NOT EXISTS (
       SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.reservation_id AND a.state <> 'finished'
     )
+    -- タイムシフトのバッファから昇格している録画は、nekonote のジョブが終える (#1057)。
+    AND NOT EXISTS (SELECT 1 FROM timeshift_promotions p WHERE p.recording_id = r.id)
   RETURNING r.id, r.reservation_id, r.name, r.start_at, r.end_at, s.name AS service_name, r.failure_reason
 ), counted AS (
   UPDATE recording_failure_counts c SET count = c.count + f.n, last_failed_at = $1
@@ -296,7 +313,7 @@ func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (G
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -310,6 +327,8 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.EventID,
 		&i.Name,
 		&i.Description,
+		&i.NameNormalized,
+		&i.DescriptionNormalized,
 		&i.StartAt,
 		&i.EndAt,
 		&i.State,
@@ -339,7 +358,7 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 }
 
 const getRecordingInProgressByReservation = `-- name: GetRecordingInProgressByReservation :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
 `
 
 // 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
@@ -354,6 +373,8 @@ func (q *Queries) GetRecordingInProgressByReservation(ctx context.Context, reser
 		&i.EventID,
 		&i.Name,
 		&i.Description,
+		&i.NameNormalized,
+		&i.DescriptionNormalized,
 		&i.StartAt,
 		&i.EndAt,
 		&i.State,
@@ -409,8 +430,47 @@ func (q *Queries) GetRecordingJikkyoSource(ctx context.Context, id uuid.UUID) (G
 	return i, err
 }
 
+const getRecordingLiveStats = `-- name: GetRecordingLiveStats :one
+SELECT l.recording_id, l.bytes, l.drops, l.errors, l.scrambled, l.bitrate, l.updated_at FROM recording_live_stats l JOIN recordings r ON r.id = l.recording_id
+WHERE l.recording_id = $1 AND r.state = 'recording' AND l.updated_at > $2
+`
+
+type GetRecordingLiveStatsParams struct {
+	RecordingID uuid.UUID
+	Since       time.Time
+}
+
+// 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
+// since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
+func (q *Queries) GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiveStatsParams) (RecordingLiveStat, error) {
+	row := q.db.QueryRow(ctx, getRecordingLiveStats, arg.RecordingID, arg.Since)
+	var i RecordingLiveStat
+	err := row.Scan(
+		&i.RecordingID,
+		&i.Bytes,
+		&i.Drops,
+		&i.Errors,
+		&i.Scrambled,
+		&i.Bitrate,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRecordingSID = `-- name: GetRecordingSID :one
+SELECT s.sid FROM recordings r JOIN services s ON s.id = r.service_id WHERE r.id = $1
+`
+
+// 録画したサービスの、放送のサービス ID。TS の中から、録画したサービスのストリームを選ぶのに使う (#479)。
+func (q *Queries) GetRecordingSID(ctx context.Context, id uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, getRecordingSID, id)
+	var sid int64
+	err := row.Scan(&sid)
+	return sid, err
+}
+
 const getRecordingWithService = `-- name: GetRecordingWithService :one
-SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = $1
@@ -433,6 +493,8 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 		&i.Recording.EventID,
 		&i.Recording.Name,
 		&i.Recording.Description,
+		&i.Recording.NameNormalized,
+		&i.Recording.DescriptionNormalized,
 		&i.Recording.StartAt,
 		&i.Recording.EndAt,
 		&i.Recording.State,
@@ -476,10 +538,11 @@ func (q *Queries) GetStoragePoolThreshold(ctx context.Context, id string) (int64
 
 const insertMissedRecording = `-- name: InsertMissedRecording :execrows
 WITH inserted AS (
-  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-    recorded_from, recorded_until, created_at, updated_at)
-  VALUES ($2, $3, $4, $5, $6, $7, $8, $9, 'failed', 'recorder_unavailable',
-    $10, $10, $1, $1)
+  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+    start_at, end_at, state, failure_reason, recorded_from, recorded_until, created_at, updated_at)
+  VALUES ($2, $3, $4, $5, $6, $7, $8, $9,
+    $10, $11, 'failed', 'recorder_unavailable',
+    $12, $12, $1, $1)
   ON CONFLICT (reservation_id) DO NOTHING
   RETURNING failure_reason
 )
@@ -489,16 +552,18 @@ WHERE c.reason = inserted.failure_reason
 `
 
 type InsertMissedRecordingParams struct {
-	Now           time.Time
-	ID            uuid.UUID
-	ReservationID *uuid.UUID
-	ServiceID     int64
-	EventID       *int64
-	Name          string
-	Description   string
-	StartAt       time.Time
-	EndAt         time.Time
-	RecordedFrom  time.Time
+	Now                   time.Time
+	ID                    uuid.UUID
+	ReservationID         *uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	RecordedFrom          time.Time
 }
 
 // mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
@@ -513,6 +578,8 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		arg.EventID,
 		arg.Name,
 		arg.Description,
+		arg.NameNormalized,
+		arg.DescriptionNormalized,
 		arg.StartAt,
 		arg.EndAt,
 		arg.RecordedFrom,
@@ -521,6 +588,112 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const insertPromotedRecording = `-- name: InsertPromotedRecording :one
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+VALUES ($1, NULL, $2, $3, $4, $5, $6, $7,
+  $8, $9, 'recording', NULL,
+  false, 0, 0, 0, $10, $11, $12, NULL, NULL, $13, NULL, $14, $14)
+RETURNING id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at
+`
+
+type InsertPromotedRecordingParams struct {
+	ID                    uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	Audios                []byte
+	VideoResolution       *string
+	Genres                []byte
+	RecordedFrom          time.Time
+	Now                   time.Time
+}
+
+// タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
+// nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
+func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromotedRecordingParams) (Recording, error) {
+	row := q.db.QueryRow(ctx, insertPromotedRecording,
+		arg.ID,
+		arg.ServiceID,
+		arg.EventID,
+		arg.Name,
+		arg.Description,
+		arg.NameNormalized,
+		arg.DescriptionNormalized,
+		arg.StartAt,
+		arg.EndAt,
+		arg.Audios,
+		arg.VideoResolution,
+		arg.Genres,
+		arg.RecordedFrom,
+		arg.Now,
+	)
+	var i Recording
+	err := row.Scan(
+		&i.ID,
+		&i.APIID,
+		&i.ReservationID,
+		&i.ServiceID,
+		&i.EventID,
+		&i.Name,
+		&i.Description,
+		&i.NameNormalized,
+		&i.DescriptionNormalized,
+		&i.StartAt,
+		&i.EndAt,
+		&i.State,
+		&i.FailureReason,
+		&i.Protected,
+		&i.Drops,
+		&i.Errors,
+		&i.Scrambled,
+		&i.Gaps,
+		&i.Audios,
+		&i.VideoResolution,
+		&i.Genres,
+		&i.RuleID,
+		&i.RuleName,
+		&i.ProgramLost,
+		&i.BroadcastStartedAt,
+		&i.BroadcastEndedAt,
+		&i.WaitedForBroadcast,
+		&i.NotBroadcast,
+		&i.AiredEventID,
+		&i.RecordedFrom,
+		&i.RecordedUntil,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertRecordingCMSection = `-- name: InsertRecordingCMSection :exec
+INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertRecordingCMSectionParams struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	StartOffsetMs int64
+	EndOffsetMs   int64
+}
+
+func (q *Queries) InsertRecordingCMSection(ctx context.Context, arg InsertRecordingCMSectionParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingCMSection,
+		arg.RecordingID,
+		arg.Detector,
+		arg.StartOffsetMs,
+		arg.EndOffsetMs,
+	)
+	return err
 }
 
 const insertRecordingFile = `-- name: InsertRecordingFile :exec
@@ -692,6 +865,43 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 	return items, nil
 }
 
+const listRecordingCMSections = `-- name: ListRecordingCMSections :many
+SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
+WHERE recording_id = $1 AND detector = $2
+ORDER BY start_offset_ms
+`
+
+type ListRecordingCMSectionsParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+type ListRecordingCMSectionsRow struct {
+	StartOffsetMs int64
+	EndOffsetMs   int64
+}
+
+// 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
+func (q *Queries) ListRecordingCMSections(ctx context.Context, arg ListRecordingCMSectionsParams) ([]ListRecordingCMSectionsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingCMSections, arg.RecordingID, arg.Detector)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingCMSectionsRow{}
+	for rows.Next() {
+		var i ListRecordingCMSectionsRow
+		if err := rows.Scan(&i.StartOffsetMs, &i.EndOffsetMs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingFileLocations = `-- name: ListRecordingFileLocations :many
 SELECT id, pool_id, path FROM recording_files
 `
@@ -848,6 +1058,40 @@ func (q *Queries) ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) 
 	return items, nil
 }
 
+const listRecordingsWithoutNormalized = `-- name: ListRecordingsWithoutNormalized :many
+SELECT id, name, description FROM recordings
+WHERE name_normalized IS NULL OR description_normalized IS NULL
+ORDER BY id
+LIMIT $1
+`
+
+type ListRecordingsWithoutNormalizedRow struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+}
+
+// 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
+func (q *Queries) ListRecordingsWithoutNormalized(ctx context.Context, maxCount int32) ([]ListRecordingsWithoutNormalizedRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingsWithoutNormalized, maxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingsWithoutNormalizedRow{}
+	for rows.Next() {
+		var i ListRecordingsWithoutNormalizedRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Description); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markRecordingNotBroadcast = `-- name: MarkRecordingNotBroadcast :exec
 UPDATE recordings SET not_broadcast = true, aired_event_id = $1, updated_at = $2 WHERE id = $3
 `
@@ -896,6 +1140,38 @@ func (q *Queries) MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkR
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const moveRecordingRecordedFromBack = `-- name: MoveRecordingRecordedFromBack :exec
+UPDATE recordings SET recorded_from = LEAST(recorded_from, $1::timestamptz), updated_at = $2 WHERE id = $3
+`
+
+type MoveRecordingRecordedFromBackParams struct {
+	At  time.Time
+	Now time.Time
+	ID  uuid.UUID
+}
+
+// 録画の開始が遅れて、予定の開始からの分をタイムシフトのバッファから写したとき、写した分の始まりを、録り始めた日時にする (#826)。
+func (q *Queries) MoveRecordingRecordedFromBack(ctx context.Context, arg MoveRecordingRecordedFromBackParams) error {
+	_, err := q.db.Exec(ctx, moveRecordingRecordedFromBack, arg.At, arg.Now, arg.ID)
+	return err
+}
+
+const resetRecordingLiveStats = `-- name: ResetRecordingLiveStats :exec
+UPDATE recording_live_stats SET bytes = 0, drops = 0, errors = 0, scrambled = 0, bitrate = 0, updated_at = $1
+WHERE recording_id = $2
+`
+
+type ResetRecordingLiveStatsParams struct {
+	Now         time.Time
+	RecordingID uuid.UUID
+}
+
+// セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
+func (q *Queries) ResetRecordingLiveStats(ctx context.Context, arg ResetRecordingLiveStatsParams) error {
+	_, err := q.db.Exec(ctx, resetRecordingLiveStats, arg.Now, arg.RecordingID)
+	return err
 }
 
 const setJoinedRecordingFile = `-- name: SetJoinedRecordingFile :execrows
@@ -1074,15 +1350,16 @@ func (q *Queries) SetRecordingStats(ctx context.Context, arg SetRecordingStatsPa
 }
 
 const startRecording = `-- name: StartRecording :one
-INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at, state, failure_reason,
-  protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
-SELECT $1, $2, $3, $4, $5, $6, $7, $8, 'recording', NULL,
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, 'recording', NULL,
   false, 0, 0, 0,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = $3 AND p.event_id = $4), '[]'::jsonb),
   (SELECT p.video_resolution FROM programs p WHERE p.service_id = $3 AND p.event_id = $4),
   COALESCE((SELECT r.genres FROM reservations r WHERE r.id = $2), '[]'::jsonb),
   m.id, m.name,
-  $9, NULL, $10, $10
+  $11, NULL, $12, $12
 FROM (SELECT 1) AS one
 LEFT JOIN LATERAL (
   SELECT ru.id, ru.name FROM reservation_rules rr JOIN rules ru ON ru.id = rr.rule_id
@@ -1091,20 +1368,22 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) AS m ON true
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
+RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
-	ID            uuid.UUID
-	ReservationID *uuid.UUID
-	ServiceID     int64
-	EventID       *int64
-	Name          string
-	Description   string
-	StartAt       time.Time
-	EndAt         time.Time
-	RecordedFrom  time.Time
-	Now           time.Time
+	ID                    uuid.UUID
+	ReservationID         *uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	RecordedFrom          time.Time
+	Now                   time.Time
 }
 
 type StartRecordingRow struct {
@@ -1124,6 +1403,8 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		arg.EventID,
 		arg.Name,
 		arg.Description,
+		arg.NameNormalized,
+		arg.DescriptionNormalized,
 		arg.StartAt,
 		arg.EndAt,
 		arg.RecordedFrom,
@@ -1138,6 +1419,8 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Recording.EventID,
 		&i.Recording.Name,
 		&i.Recording.Description,
+		&i.Recording.NameNormalized,
+		&i.Recording.DescriptionNormalized,
 		&i.Recording.StartAt,
 		&i.Recording.EndAt,
 		&i.Recording.State,
@@ -1188,4 +1471,60 @@ func (q *Queries) UnlockRecordingJoin(ctx context.Context, recordingID string) (
 	var unlocked bool
 	err := row.Scan(&unlocked)
 	return unlocked, err
+}
+
+const upsertRecordingCMDetection = `-- name: UpsertRecordingCMDetection :exec
+INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at
+`
+
+type UpsertRecordingCMDetectionParams struct {
+	RecordingID     uuid.UUID
+	Detector        string
+	DetectorVersion int32
+	Now             time.Time
+}
+
+// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
+func (q *Queries) UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingCMDetection,
+		arg.RecordingID,
+		arg.Detector,
+		arg.DetectorVersion,
+		arg.Now,
+	)
+	return err
+}
+
+const upsertRecordingLiveStats = `-- name: UpsertRecordingLiveStats :exec
+INSERT INTO recording_live_stats (recording_id, bytes, drops, errors, scrambled, bitrate, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (recording_id) DO UPDATE SET
+  bytes = excluded.bytes, drops = excluded.drops, errors = excluded.errors, scrambled = excluded.scrambled,
+  bitrate = excluded.bitrate, updated_at = excluded.updated_at
+`
+
+type UpsertRecordingLiveStatsParams struct {
+	RecordingID uuid.UUID
+	Bytes       int64
+	Drops       int64
+	Errors      int64
+	Scrambled   int64
+	Bitrate     int64
+	Now         time.Time
+}
+
+// 録画中の録画の、書いているセグメントの様子を書く (#829)。
+func (q *Queries) UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingLiveStats,
+		arg.RecordingID,
+		arg.Bytes,
+		arg.Drops,
+		arg.Errors,
+		arg.Scrambled,
+		arg.Bitrate,
+		arg.Now,
+	)
+	return err
 }

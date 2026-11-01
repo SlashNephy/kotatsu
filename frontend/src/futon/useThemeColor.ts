@@ -10,8 +10,9 @@ const themeColors = {
 } as const;
 
 // useThemeColor は、<meta name="theme-color"> を、表示中のテーマに合わせて書き換える。
-// Android にインストールした PWA は、ナビゲーションの帯をこの色で塗る。マニフェストの theme_color は 1 色しか書けず、
-// ダークテーマで帯だけがみかん色に浮くので、ページの側から変える (#425)。アプリ内でテーマを切り替えたときも追従する。
+// Android にインストールした PWA を Chrome が edge-to-edge で描くときは、帯は透明になり、ボタンの明暗をこの色から決める。
+// edge-to-edge でないときは、Chrome が帯をマニフェストの theme_color で塗り、この色は帯に効かない (#425)。
+// アプリ内でテーマを切り替えたときも追従する。
 export function useThemeColor(): void {
   const colorScheme = useComputedColorScheme('light');
 

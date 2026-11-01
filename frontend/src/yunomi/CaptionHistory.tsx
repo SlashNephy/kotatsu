@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { CaptionEntry } from './captionHistory';
+import { UnknownDRCSList } from './UnknownDRCSList';
 
 // followPause は、利用者が履歴をスクロールしてから、新しい字幕の行へ追うのを止めておく時間 (ミリ秒)。読み返している間は動かさない。
 const followPause = 10_000;
@@ -17,11 +18,19 @@ type Props = {
   onSelect?: (entry: CaptionEntry) => void;
   // height は、履歴の高さ。CSS の長さで渡す。
   height?: string | number;
+  // canRegisterDRCS は、字幕に出た未登録の外字を、履歴の上に出して登録させるかどうか (#825)。管理者だけに出す。
+  canRegisterDRCS?: boolean;
 };
 
 // CaptionHistory は、字幕の履歴 (#450、設計書 7.4)。出た字幕を時刻の順に並べ、新しい字幕が出たらその行へ追う。
 // 各行から字幕の文をコピーでき、録画では行を押すとその位置へ移る。
-export function CaptionHistory({ entries, label, onSelect, height = 240 }: Props) {
+export function CaptionHistory({
+  entries,
+  label,
+  onSelect,
+  height = 240,
+  canRegisterDRCS = false,
+}: Props) {
   const { t } = useTranslation();
   const clipboard = useClipboard();
   const [copiedKey, setCopiedKey] = useState<number | null>(null);
@@ -56,73 +65,76 @@ export function CaptionHistory({ entries, label, onSelect, height = 240 }: Props
   };
 
   return (
-    <ScrollArea
-      h={height}
-      type="auto"
-      viewportRef={viewport}
-      onWheel={markScrolled}
-      onTouchMove={markScrolled}
-      onPointerDown={markScrolled}
-      aria-label={t('captionHistory.list')}
-    >
-      {entries.length === 0 ? (
-        <Text size="sm" c="dimmed" p="xs">
-          {t('captionHistory.empty')}
-        </Text>
-      ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {entries.map((entry) => {
-            const body = (
-              <Group gap="xs" wrap="nowrap" align="flex-start">
-                <Text size="xs" c="dimmed" ff="monospace" pt={2} style={{ flexShrink: 0 }}>
-                  {label(entry)}
-                </Text>
-                <Text
-                  size="sm"
-                  style={{ flex: 1, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}
-                >
-                  {entry.text}
-                </Text>
-              </Group>
-            );
-
-            return (
-              <li key={entry.key} data-key={entry.key}>
-                <Group gap="xs" wrap="nowrap" px="xs" py={2}>
-                  {onSelect === undefined ? (
-                    <div style={{ flex: 1 }}>{body}</div>
-                  ) : (
-                    <UnstyledButton
-                      style={{ flex: 1 }}
-                      // 読み上げでは、時刻と字幕の文を名前にする。押すと移ることは、title で添える。
-                      title={t('captionHistory.seek')}
-                      onClick={() => onSelect(entry)}
-                    >
-                      {body}
-                    </UnstyledButton>
-                  )}
-                  <ActionIcon
+    <>
+      {canRegisterDRCS && <UnknownDRCSList />}
+      <ScrollArea
+        h={height}
+        type="auto"
+        viewportRef={viewport}
+        onWheel={markScrolled}
+        onTouchMove={markScrolled}
+        onPointerDown={markScrolled}
+        aria-label={t('captionHistory.list')}
+      >
+        {entries.length === 0 ? (
+          <Text size="sm" c="dimmed" p="xs">
+            {t('captionHistory.empty')}
+          </Text>
+        ) : (
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+            {entries.map((entry) => {
+              const body = (
+                <Group gap="xs" wrap="nowrap" align="flex-start">
+                  <Text size="xs" c="dimmed" ff="monospace" pt={2} style={{ flexShrink: 0 }}>
+                    {label(entry)}
+                  </Text>
+                  <Text
                     size="sm"
-                    variant="subtle"
-                    color="gray"
-                    aria-label={t('captionHistory.copy')}
-                    onClick={() => {
-                      clipboard.copy(entry.text);
-                      setCopiedKey(entry.key);
-                    }}
+                    style={{ flex: 1, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}
                   >
-                    {clipboard.copied && copiedKey === entry.key ? (
-                      <Check size={14} aria-hidden />
-                    ) : (
-                      <Copy size={14} aria-hidden />
-                    )}
-                  </ActionIcon>
+                    {entry.text}
+                  </Text>
                 </Group>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </ScrollArea>
+              );
+
+              return (
+                <li key={entry.key} data-key={entry.key}>
+                  <Group gap="xs" wrap="nowrap" px="xs" py={2}>
+                    {onSelect === undefined ? (
+                      <div style={{ flex: 1 }}>{body}</div>
+                    ) : (
+                      <UnstyledButton
+                        style={{ flex: 1 }}
+                        // 読み上げでは、時刻と字幕の文を名前にする。押すと移ることは、title で添える。
+                        title={t('captionHistory.seek')}
+                        onClick={() => onSelect(entry)}
+                      >
+                        {body}
+                      </UnstyledButton>
+                    )}
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="gray"
+                      aria-label={t('captionHistory.copy')}
+                      onClick={() => {
+                        clipboard.copy(entry.text);
+                        setCopiedKey(entry.key);
+                      }}
+                    >
+                      {clipboard.copied && copiedKey === entry.key ? (
+                        <Check size={14} aria-hidden />
+                      ) : (
+                        <Copy size={14} aria-hidden />
+                      )}
+                    </ActionIcon>
+                  </Group>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </ScrollArea>
+    </>
   );
 }

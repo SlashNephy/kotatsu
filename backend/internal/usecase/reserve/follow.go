@@ -207,12 +207,14 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 	}
 	// 録画は始めたときの予約の番組情報を写すので、その後の変更も録画に写す (#1045)。
 	recordings, err := sqlc.New(tx).UpdateRecordingProgram(ctx, sqlc.UpdateRecordingProgramParams{
-		StartAt:       row.ProgramStartAt,
-		EndAt:         endAt,
-		Name:          row.ProgramName,
-		Description:   row.ProgramDescription,
-		Now:           now,
-		ReservationID: &row.ID,
+		StartAt:               row.ProgramStartAt,
+		EndAt:                 endAt,
+		Name:                  row.ProgramName,
+		Description:           row.ProgramDescription,
+		NameNormalized:        new(domain.Normalize(row.ProgramName)),
+		DescriptionNormalized: new(domain.Normalize(row.ProgramDescription)),
+		Now:                   now,
+		ReservationID:         &row.ID,
 	})
 	if err != nil {
 		return false, fmt.Errorf("failed to update the recording of reservation %s: %w", row.ID, err)

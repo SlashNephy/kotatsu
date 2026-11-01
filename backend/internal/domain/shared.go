@@ -38,3 +38,40 @@ func SharedFrom(serviceID int64, relatedItems []byte) (int64, error) {
 
 	return from, nil
 }
+
+// SharedProgram は、同じイベントを共有している番組。
+type SharedProgram struct {
+	// ServiceID は、Mirakurun のサービス ID。
+	ServiceID int64
+	EventID   int64
+}
+
+// SharedPrograms は、番組と同じイベントを共有している、ほかのサービスの番組を返す。共有していなければ空を返す。
+// relatedItems は、上流の番組の relatedItems の JSON。ネットワーク ID を省いた項目は、番組と同じネットワークとみなす。
+func SharedPrograms(serviceID int64, relatedItems []byte) ([]*SharedProgram, error) {
+	programs := []*SharedProgram{}
+	if len(relatedItems) == 0 {
+		return programs, nil
+	}
+	var related []*RelatedItem
+	if err := json.Unmarshal(relatedItems, &related); err != nil {
+		return nil, fmt.Errorf("failed to decode the related items: %w", err)
+	}
+	networkID := serviceID / serviceIDBase
+	for _, item := range related {
+		if item.Type != relatedShared {
+			continue
+		}
+		itemNetwork := int64(item.NetworkID)
+		if itemNetwork == 0 {
+			itemNetwork = networkID
+		}
+		other := itemNetwork*serviceIDBase + int64(item.ServiceID)
+		if other == serviceID {
+			continue
+		}
+		programs = append(programs, &SharedProgram{ServiceID: other, EventID: int64(item.EventID)})
+	}
+
+	return programs, nil
+}

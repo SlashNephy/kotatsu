@@ -11,7 +11,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, Link, useLocation, useNavigate } from '@tanstack/react-router';
 import { History, ListPlus, SearchX } from 'lucide-react';
 import { Suspense, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,14 @@ import type {
 } from './__generated__/searchProgramsQuery.graphql';
 import type { searchViewerQuery } from './__generated__/searchViewerQuery.graphql';
 import classes from './search.module.css';
+
+declare module '@tanstack/react-router' {
+  interface HistoryState {
+    // searchConditions は、番組検索の条件の初期値。過去の番組の詳細から、同じ番組名で探すときに渡す (#1121)。
+    // 渡したときは、過去の放送も含めて探す。
+    searchConditions?: ConditionsForm;
+  }
+}
 
 export const Route = createFileRoute('/search')({
   component: SearchPage,
@@ -141,12 +149,12 @@ function Search() {
     `,
     {},
   );
-  // キーワードの行を 1 つ開けておき、すぐに打ち始められるようにする。
-  const [conditions, setConditions] = useState<ConditionsForm>(() => ({
-    ...emptyConditions(),
-    keywords: [emptyKeyword()],
-  }));
-  const [includeArchive, setIncludeArchive] = useState(false);
+  // 番組の詳細から渡された条件があれば、それで始める。なければ、キーワードの行を 1 つ開けておき、すぐに打ち始められるようにする。
+  const initialConditions = useLocation({ select: (location) => location.state.searchConditions });
+  const [conditions, setConditions] = useState<ConditionsForm>(
+    () => initialConditions ?? { ...emptyConditions(), keywords: [emptyKeyword()] },
+  );
+  const [includeArchive, setIncludeArchive] = useState(initialConditions !== undefined);
   const [archiveDays, setArchiveDays] = useState(30);
   const [page, setPage] = useState<Page | null>(null);
   // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。

@@ -24,6 +24,10 @@ import { mutate } from '../../settings/mutate';
 import type { servicesChannelTypeMutation } from './__generated__/servicesChannelTypeMutation.graphql';
 import type { servicesQuery } from './__generated__/servicesQuery.graphql';
 import type { servicesServiceMutation } from './__generated__/servicesServiceMutation.graphql';
+import type {
+  AnimeChannelInput,
+  servicesAnimeChannelMutation,
+} from './__generated__/servicesAnimeChannelMutation.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 
 export const Route = createFileRoute('/admin/services')({
@@ -32,6 +36,7 @@ export const Route = createFileRoute('/admin/services')({
 
 // ServicesPage は、放送波 (チャンネル種別) の表示名と並び順、番組表とライブに出すサービスと並び順を変える、
 // 管理者向けの画面 (設計書 10.3)。タイムシフトで録るサービスは、タイムシフトの画面 (/admin/timeshift) で決める。
+// しょぼいカレンダーと Annict のチャンネルの対応の上書き (設計書 3.8) も、ここで変える。
 function ServicesPage() {
   const { t } = useTranslation();
 
@@ -58,6 +63,17 @@ const query = graphql`
       channelType {
         displayName
       }
+    }
+    systemSettings {
+      animeLinkingEnabled
+    }
+    animeChannels {
+      serviceId
+      definitionName
+      importedSyobocalChannelId
+      importedAnnictChannelId
+      syobocalChannelIdOverride
+      annictChannelIdOverride
     }
   }
 `;
@@ -160,7 +176,161 @@ function ServiceSettings() {
           </Stack>
         </ScrollArea.Autosize>
       </Section>
+
+      <Section title={t('admin.system.animeChannels')}>
+        <Text size="sm" c="dimmed">
+          {t('admin.system.animeChannelsDescription')}
+        </Text>
+        {!data.systemSettings.animeLinkingEnabled && (
+          <Text size="sm" c="dimmed">
+            {t('admin.system.animeChannelsDisabled')}
+          </Text>
+        )}
+        <ScrollArea.Autosize mah={480}>
+          <Stack gap="xs" data-testid="anime-channels">
+            {/* サービスの表示と同じ順に並べる。 */}
+            {data.services.flatMap((service) => {
+              const channel = data.animeChannels.find((item) => item.serviceId === service.id);
+              if (channel === undefined) {
+                return [];
+              }
+
+              return [
+                <AnimeChannelEditor
+                  key={`${channel.serviceId}/${channel.syobocalChannelIdOverride}/${channel.annictChannelIdOverride}`}
+                  service={service}
+                  channel={channel}
+                  onSave={(input) =>
+                    action.run(async () => {
+                      await mutate<servicesAnimeChannelMutation>(
+                        environment,
+                        graphql`
+                          mutation servicesAnimeChannelMutation(
+                            $serviceId: ID!
+                            $input: AnimeChannelInput!
+                          ) {
+                            updateAnimeChannel(serviceId: $serviceId, input: $input) {
+                              serviceId
+                              syobocalChannelIdOverride
+                              annictChannelIdOverride
+                            }
+                          }
+                        `,
+                        { serviceId: channel.serviceId, input },
+                      );
+                      done();
+                    }, fail)
+                  }
+                />,
+              ];
+            })}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Section>
     </Stack>
+  );
+}
+
+type AnimeChannelItem = {
+  definitionName: string | null | undefined;
+  importedSyobocalChannelId: number | null | undefined;
+  importedAnnictChannelId: number | null | undefined;
+  syobocalChannelIdOverride: number | null | undefined;
+  annictChannelIdOverride: number | null | undefined;
+};
+
+// overrideChange は、上書きの入力 value を、今の上書き current と比べ、変える項目にする。
+// 空にすると上書きを消し、取り込んだ対応に戻す。変えていなければ、set も reset もない値を返す。
+function overrideChange(
+  value: number | string,
+  current: number | null | undefined,
+): { set?: number; reset: boolean } {
+  if (typeof value !== 'number') {
+    return { reset: current != null };
+  }
+  if (value === current) {
+    return { reset: false };
+  }
+
+  return { set: value, reset: false };
+}
+
+// AnimeChannelEditor は、サービスとしょぼいカレンダーの ChID、Annict のチャンネルの対応の上書きを変える行 (設計書 3.8)。
+// 入力を空にすると、上書きを消して、saya-definitions から取り込んだ対応 (入力の薄い文字) に戻す。
+function AnimeChannelEditor({
+  service,
+  channel,
+  onSave,
+}: {
+  service: {
+    name: string;
+    logoUrl: string | null | undefined;
+    channelType: { displayName: string };
+  };
+  channel: AnimeChannelItem;
+  onSave: (input: AnimeChannelInput) => void;
+}) {
+  const { t } = useTranslation();
+  const [syobocal, setSyobocal] = useState<number | string>(
+    channel.syobocalChannelIdOverride ?? '',
+  );
+  const [annict, setAnnict] = useState<number | string>(channel.annictChannelIdOverride ?? '');
+  const imported = (id: number | null | undefined) =>
+    id == null ? t('admin.system.animeChannelNone') : String(id);
+  const syobocalChange = overrideChange(syobocal, channel.syobocalChannelIdOverride);
+  const annictChange = overrideChange(annict, channel.annictChannelIdOverride);
+  const changed =
+    syobocalChange.set !== undefined ||
+    syobocalChange.reset ||
+    annictChange.set !== undefined ||
+    annictChange.reset;
+
+  return (
+    <Group gap="xs" align="flex-end">
+      <Stack gap={0} w={200} pb={4}>
+        <Text size="sm" fw={600} truncate>
+          <ServiceLabel name={service.name} logoUrl={service.logoUrl} />
+        </Text>
+        <Text size="xs" c="dimmed" truncate>
+          {channel.definitionName ?? service.channelType.displayName}
+        </Text>
+      </Stack>
+      <NumberInput
+        size="xs"
+        w={180}
+        label={t('admin.system.syobocalChannel')}
+        placeholder={imported(channel.importedSyobocalChannelId)}
+        min={1}
+        allowDecimal={false}
+        value={syobocal}
+        onChange={setSyobocal}
+      />
+      <NumberInput
+        size="xs"
+        w={180}
+        label={t('admin.system.annictChannel')}
+        placeholder={imported(channel.importedAnnictChannelId)}
+        min={1}
+        allowDecimal={false}
+        value={annict}
+        onChange={setAnnict}
+      />
+      <Button
+        size="compact-sm"
+        mb={2}
+        disabled={!changed}
+        onClick={() =>
+          onSave({
+            syobocalChannelId: syobocalChange.set,
+            resetSyobocalChannelId: syobocalChange.reset,
+            annictChannelId: annictChange.set,
+            resetAnnictChannelId: annictChange.reset,
+          })
+        }
+      >
+        {t('admin.save')}
+      </Button>
+    </Group>
   );
 }
 

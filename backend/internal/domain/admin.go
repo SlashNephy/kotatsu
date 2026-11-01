@@ -56,6 +56,15 @@ type StoragePool struct {
 	MeasuredAt *time.Time
 }
 
+// RecordingFailureCount は、理由ごとの、録画の失敗の累計 (設計書 5.5)。
+type RecordingFailureCount struct {
+	Reason       string
+	Count        int64
+	LastFailedAt *time.Time
+	// ResetAt は、管理者が累計を 0 に戻した日時 (#1035)。戻していなければ nil。
+	ResetAt *time.Time
+}
+
 // Instance は、動いているロールのインスタンス。
 type Instance struct {
 	ID          uuid.UUID

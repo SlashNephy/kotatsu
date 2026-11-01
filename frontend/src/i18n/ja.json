@@ -37,6 +37,7 @@
     "openGuide": "番組表を開く",
     "nothingPlaying": "放送中の番組の情報はありません。チューナーサーバーから番組表を同期したか確かめてください",
     "continueWatching": "続きから見る",
+    "removeContinueWatching": "「{{name}}」を続きから見るから外す",
     "recentRecordings": "最近の録画",
     "allRecordings": "すべての録画",
     "noRecordings": "まだ録画はありません",
@@ -47,6 +48,7 @@
   "notifications": {
     "title": "通知",
     "settings": "設定",
+    "viewAll": "すべての通知を見る",
     "settingsTitle": "通知の設定",
     "back": "通知の一覧に戻る",
     "bellLabel": "通知（未読 {{count}}件）",
@@ -79,8 +81,11 @@
       "RESERVATION_CONFLICT": "予約が競合した",
       "STORAGE_LOW": "保存先の空き容量が足りない",
       "TUNER_SERVER_UNREACHABLE": "チューナーサーバーにつながらない",
-      "WATCH_REMINDER": "視聴予約した番組が始まる"
-    }
+      "WATCH_REMINDER": "視聴予約した番組が始まる",
+      "ANIME_RECORDED": "見たアニメを記録した",
+      "ANIME_RECORD_FAILED": "見たアニメを記録できなかった"
+    },
+    "openExternal": "記録先で開く"
   },
   "watch": {
     "reserve": "視聴予約（放送の少し前に知らせます）",
@@ -92,6 +97,25 @@
     "emptyHint": "番組表で番組を開き、ベルのボタンを押すと、放送の少し前に知らせます。",
     "notifyAt": "{{time}} に知らせます",
     "settingsLink": "何分前に知らせるかを変える"
+  },
+  "watchRules": {
+    "tab": "視聴ルール",
+    "recordingTab": "録画のルール",
+    "description": "視聴ルールは、あなただけのルールです。条件に一致するこれからの番組に視聴予約を自動で付け、放送の少し前に知らせます。録画はしません。",
+    "create": "視聴ルールを作成",
+    "empty": "視聴ルールはまだありません",
+    "emptyHint": "「視聴ルールを作成」から作ると、条件に一致する番組に、自動で視聴予約を付けます。",
+    "limit": "視聴ルールは{{count}}個まで作れます",
+    "toggleError": "視聴ルールを変えられませんでした",
+    "back": "視聴ルールの一覧に戻る",
+    "createTitle": "視聴ルールを作成",
+    "editTitle": "視聴ルールを編集",
+    "notFound": "視聴ルールが見つかりませんでした",
+    "editorDescription": "一致したこれからの番組に視聴予約を付けます。手で外した視聴予約は付け直しません。条件を変えたり無効にしたりすると、このルールが付けた視聴予約のうち、一致しなくなったものを外します。",
+    "outdated": "この視聴ルールは、編集を始めた後に変更されました。保存すると、その変更を上書きします",
+    "saved": "保存しました。一致する番組には、次の照合で視聴予約を付けます",
+    "deleteTitle": "視聴ルールを削除",
+    "deleteDescription": "この視聴ルールを削除します。このルールが付けた視聴予約は残ります。"
   },
   "viewer": {
     "loading": "読み込んでいます",
@@ -234,6 +258,24 @@
       "mutedUsersHelp": "実況と過去ログのユーザー ID で、コメントを流さず、一覧にも出しません",
       "userId": "ユーザー ID"
     },
+    "shortcutKeys": {
+      "title": "キー、ゲームパッド、マウスの割り当て",
+      "description": "プレイヤーの操作に割り当てるキーとゲームパッドのボタンを、この端末で変えます。「キーを足す」か「ボタンを足す」を押してから、割り当てたいキーかボタンを押してください（キーは Esc でやめます）。ほかの操作に割り当てていたものは、そちらから外します。キーボードとして見えるリモコンも、ここで割り当てれば使えます。ゲームパッドは、ボタンを 1 度押すと使えるようになります",
+      "add": "キーを足す",
+      "waiting": "キーを押してください",
+      "remove": "{{key}} を外す",
+      "reset": "すべて既定に戻す",
+      "addButton": "ボタンを足す",
+      "waitingButton": "ゲームパッドのボタンを押してください",
+      "wheel": "映像の上のホイール",
+      "wheelActions": {
+        "volume": "音量を変える",
+        "seek": "10 秒ずつシークする",
+        "none": "使わない（ページを流す）"
+      },
+      "middleClick": "映像の中クリック",
+      "none": "使わない"
+    },
     "guide": {
       "title": "番組表の見た目",
       "density": "密度",
@@ -281,6 +323,10 @@
       "sessions": {
         "title": "ログイン中の端末と連携",
         "summary": "ログイン中の端末と、連携中のアプリを確かめ、ログアウトさせたり、連携を取り消したりします"
+      },
+      "account": {
+        "title": "アカウントの連携",
+        "summary": "見たアニメを記録するAnnictとAniListのアカウントと連携します"
       }
     },
     "reauth": {
@@ -397,8 +443,9 @@
     "settings": "設定",
     "live": "ライブ",
     "menu": "メニュー",
-    "captures": "キャプチャの履歴",
-    "remote": "リモコン"
+    "captures": "キャプチャ",
+    "remote": "リモコン",
+    "offline": "端末の録画"
   },
   "guide": {
     "watchLive": "{{name}}をライブ視聴する",
@@ -445,7 +492,10 @@
       "cancelRuleDescription": "ルールで入った録画予約なので、この番組の録画だけをやめます。ルールは残ります。",
       "cancelConfirm": "取り消す",
       "cancelError": "取り消せませんでした。時間をおいてやり直してください",
-      "reserveError": "予約できませんでした。時間をおいてやり直してください"
+      "reserveError": "予約できませんでした。時間をおいてやり直してください",
+      "openRecording": "録画を見る",
+      "playTimeshift": "追っかけ再生",
+      "searchSameName": "同じ番組名で探す"
     },
     "view": {
       "label": "番組表ビュー",
@@ -471,7 +521,8 @@
       "subGenre": "{{genre}}（中分類{{lv2}}）",
       "notFound": "開こうとした番組表ビューは見つかりませんでした。",
       "showAll": "すべての番組を表示する"
-    }
+    },
+    "pastDate": "過去の日"
   },
   "genre": {
     "0": "ニュース・報道",
@@ -674,6 +725,38 @@
     "empty": "ピン留めしたサービスはありません"
   },
   "reservations": {
+    "wishlist": {
+      "tab": "見たいリスト",
+      "description": "AnnictとAniListで「見たい」「見てる」にした作品のうち、これから1週間に放送があるものです。予約のある放送は出しません。ルールは自動では作らないので、録りたい作品は、ここからルールを作るか、放送ごとに予約してください",
+      "disabled": "管理者が、しょぼいカレンダー、Annict、AniListとの連携を使っていません",
+      "notConnected": "AnnictかAniListと連携すると、見たいリストの作品の放送がここに出ます",
+      "connect": "アカウントの連携を開く",
+      "imported": "{{destination}}：{{count}}作品（{{date}}に取り込み）",
+      "importPending": "{{destination}}：取り込みを待っています",
+      "importFailed": "{{destination}}：取り込めませんでした（{{reason}}）。1時間後に取り込み直します",
+      "refresh": "取り込み直す",
+      "refreshStarted": "取り込みを始めました。少し待つと、一覧が新しくなります",
+      "viewerNote": "視聴者のアカウントでは、ルールも予約も作れません。録りたい作品は、家族に頼んでください",
+      "empty": "見たいリストの作品の放送は、これから1週間にはありません",
+      "source": "{{destination}}で{{status}}",
+      "status": {
+        "WANNA_WATCH": "見たい",
+        "WATCHING": "見てる"
+      },
+      "reserved": "{{count}}件の放送は予約してあります",
+      "covered": "予約あり",
+      "createRule": "ルールを作る",
+      "ruleCreated": "ルール「{{name}}」を作りました。最初の放送の作品名とチャンネルで、これからの放送も予約します。",
+      "openRule": "ルールを開く",
+      "preferred": "録る局",
+      "preferredHelp": "最初に放送する局です。ルールは、この局の放送を録ります",
+      "reserve": "予約する",
+      "error": {
+        "rule": "ルールを作れませんでした。時間をおいてやり直してください",
+        "reserve": "予約できませんでした。時間をおいてやり直してください",
+        "refresh": "取り込み直せませんでした。時間をおいてやり直してください"
+      }
+    },
     "skipped": {
       "tab": "重複で見送り",
       "description": "ルールに一致したものの、同じ番組名をすでに録画しているので、重複の回避で予約しなかった番組です。録り直したい番組は、手動で予約できます。手動の予約は、重複の回避の対象になりません",
@@ -881,6 +964,10 @@
     "joinSegmentsDefault": "全体の既定値に従う",
     "joinSegmentsOn": "つなぐ",
     "joinSegmentsOff": "つながない",
+    "detectCm": "録画が終わったらCMの区間を解析する",
+    "detectCmDefault": "全体の既定値に従う",
+    "detectCmOn": "解析する",
+    "detectCmOff": "解析しない",
     "noConditions": "条件がないと、すべての番組に一致してしまうので保存できません",
     "save": "保存",
     "saved": "保存しました。一致する番組は、次の照合で予約されます",
@@ -896,7 +983,11 @@
       "error": "プレビューを取れませんでした",
       "empty": "一致する番組はありません",
       "emptyHint": "キーワードやサービス、ジャンルの条件を見直してください。",
-      "more": "ほかにも一致する番組があります"
+      "more": "ほかにも一致する番組があります",
+      "slowTitle": "ルールの照合が重くなるキーワードがあります",
+      "slowKeyword": "キーワード「{{text}}」は、必ず含む文字列を決められない正規表現で、詳細まで探します。",
+      "slowExcludeKeyword": "除外するキーワード「{{text}}」は、必ず含む文字列を決められない正規表現で、詳細まで探します。",
+      "slowHint": "すべての番組の詳細を正規表現にかけるので、照合に時間がかかります。決まった文字列を含む正規表現にするか、詳細を探す対象から外すと軽くなります。このままでも保存できます。"
     },
     "caseSensitive": "大文字と小文字を区別",
     "timeRangesDescription": "番組の開始時刻がいずれかの時間帯に含まれる番組を対象にします（OR検索）。",
@@ -913,12 +1004,16 @@
     "streamQuality": {
       "open": "PID ごとの内訳",
       "title": "PID ごとの品質",
-      "description": "セグメントを足し合わせた、PID ごとのパケット、ドロップ、エラー、スクランブルの数です。引き継ぎで重なった区間は二重に数えます",
+      "description": "セグメントを足し合わせた、PID ごとのパケット、ドロップ、エラー、スクランブルの数です。引き継ぎで重なった区間は二重に数えます。ビットレートは、パケットの数を録画の長さ（途切れた区間を除く）で割った平均です",
       "kindHeader": "種類",
+      "codec": "形式",
+      "componentTag": "component_tag",
       "packets": "パケット",
+      "bitrate": "ビットレート",
       "drops": "ドロップ",
       "errors": "エラー",
       "scrambled": "スクランブル",
+      "total": "合計",
       "kind": {
         "VIDEO": "映像",
         "AUDIO": "音声",
@@ -1009,17 +1104,40 @@
     "reanalyze": "解析をやり直す",
     "reanalyzeQueued": "解析をやり直しています。終わるとドロップの集計と画像が入れ替わります",
     "reanalyzeWaiting": "前に頼んだ解析のやり直しを待っています",
+    "detectCm": "CMを解析する",
+    "detectCmQueued": "CMの区間を解析しています。終わると、再生のシークバーの区間が入れ替わります",
+    "detectCmWaiting": "前に頼んだCMの解析を待っています",
     "download": "ダウンロード",
     "unknownEnd": "不明",
     "play": "再生"
   },
   "player": {
     "normalizeVolume": "音量を補正する",
+    "audioDelay": {
+      "label": "音ずれ補正",
+      "description": "音だけを遅らせて、映像に合わせます。音が映像より遅いときは補正できません",
+      "resetOnChannelChange": "選局したら音ずれ補正を元に戻す"
+    },
+    "sleepTimer": {
+      "label": "スリープタイマー",
+      "off": "切る",
+      "minutes": "{{minutes}} 分後に止める",
+      "programEnd": "この番組が終わったら止める",
+      "remaining": "あと {{minutes}} 分で止めます",
+      "untilProgramEnd": "番組が終わったら止めます"
+    },
     "virtualSurround": "5.1chをヘッドホン向けのサラウンドで聞く",
     "gapMark": "ここで {{duration}} 途切れています",
+    "cmSection": "CM ({{duration}})",
     "crop": {
-      "scale": "L字の切り抜き",
-      "none": "切り抜かない",
+      "mode": "表示の比率",
+      "modes": {
+        "none": "そのまま",
+        "lShape": "L 字放送を切り抜く",
+        "pillarbox": "4:3 の左右の黒い縁を消す（上下が切れる）",
+        "stretch": "4:3 を横に伸ばして合わせる"
+      },
+      "scale": "拡大率",
       "origin": "拡大の起点",
       "origins": {
         "top-left": "左上",
@@ -1038,6 +1156,32 @@
       "buffered": "バッファ",
       "seconds": "{{seconds}} 秒",
       "rate": "再生速度"
+    },
+    "streamInfo": {
+      "tab": "情報",
+      "bitrateTs": "届いた TS 全体のビットレート",
+      "bitrateSegment": "セグメントのビットレート",
+      "bitrateAverage": "録画の TS の平均ビットレート",
+      "bitrateHistory": "直近 {{seconds}} 秒のビットレート",
+      "breakdownLive": "放送の内訳（tenban が 1 秒ごとに数えたもの）",
+      "breakdownRecorded": "放送の内訳（録画の平均）",
+      "now": "今",
+      "secondsAgo": "{{seconds}} 秒前",
+      "source": "放送の映像",
+      "playing": "再生している映像",
+      "frameRate": "フレームレート",
+      "audio": "放送の音声",
+      "audioFormat": {
+        "mono": "モノラル",
+        "dualMono": "デュアルモノ",
+        "stereo": "ステレオ",
+        "surround": "5.1ch",
+        "other": "component_type {{type}}"
+      },
+      "samplingRate": "{{khz}} kHz",
+      "bandwidth": "推定した帯域",
+      "transport": "TS の異常",
+      "transportCounts": "ドロップ {{dropped}}、エラー {{errors}}、スクランブル {{scrambled}}"
     },
     "commands": {
       "togglePlay": "再生と一時停止",
@@ -1059,12 +1203,16 @@
       "selectAudio": "音声を選ぶ",
       "previousChannel": "前の局へ移る",
       "nextChannel": "次の局へ移る",
+      "lastChannel": "直前の局へ戻る",
       "pictureInPicture": "別のウィンドウに出す",
       "capture": "今の場面を画像に保存する",
       "toggleDataBroadcast": "データ放送を出し入れする",
       "pressKey": "データ放送のリモコンのボタンを押す",
       "restart": "プレイヤーを読み直す",
       "toggleStats": "統計情報を出し入れする",
+      "audioDelayIncrease": "音を遅らせる（音ずれ補正）",
+      "audioDelayDecrease": "音の遅れを戻す（音ずれ補正）",
+      "audioDelayReset": "音ずれ補正を元に戻す",
       "showShortcuts": "この一覧を出す",
       "stop": "再生をやめる"
     },
@@ -1090,7 +1238,8 @@
       "dataBroadcastOn": "データ放送を表示",
       "dataBroadcastOff": "データ放送を隠す",
       "captured": "画像を保存しました",
-      "restarted": "プレイヤーを読み直しました"
+      "restarted": "プレイヤーを読み直しました",
+      "audioDelay": "音ずれ補正 {{ms}} ms"
     },
     "backToRecording": "録画の詳細に戻る",
     "ruleRecordings": "「{{rule}}」の録画",
@@ -1133,6 +1282,11 @@
       "digit": "数字 {{digit}}"
     },
     "audio": "音声",
+    "audioLanguage": {
+      "label": "優先する言語",
+      "description": "この言語の音声があれば、音声を選ぶまでその音声を聞きます（この端末で覚えます）",
+      "none": "決めない（主音声）"
+    },
     "audioMain": "主音声",
     "audioSub": "副音声",
     "audioSecond": "副音声・第2音声",
@@ -1143,6 +1297,7 @@
     "captureCopy": "画像をコピー",
     "captureOverlays": "字幕とコメントを含める",
     "captureError": "キャプチャできませんでした",
+    "captureUploadError": "キャプチャをサーバーに残せませんでした",
     "copied": "画像をコピーしました",
     "pip": "PiP",
     "pipBack": "PiPを終了",
@@ -1167,6 +1322,12 @@
       "chi": "中国語",
       "etc": "その他の言語"
     }
+  },
+  "drcs": {
+    "unknown": "未登録の外字が {{count}} 個あります。置き換える文字を書いて登録できます",
+    "glyph": "外字の画像",
+    "text": "文字",
+    "register": "登録"
   },
   "captionHistory": {
     "list": "字幕の履歴",
@@ -1207,6 +1368,7 @@
       "next": "次 › {{range}}"
     },
     "switchChannel": "ほかのサービスを見る",
+    "recentChannels": "最近",
     "moreActions": "そのほかの操作",
     "tuneRequest": {
       "title": "サービスを移りますか",
@@ -1224,7 +1386,8 @@
     "tunerTaken": "録画のためにチューナーを使っているので、視聴が止まりました。録画中: {{recordings}}",
     "streamEnded": "チューナーサーバーとの接続が切れました",
     "retryIn": "{{seconds}}秒後につなぎ直します",
-    "reconnectNow": "今すぐつなぎ直す"
+    "reconnectNow": "今すぐつなぎ直す",
+    "programDetail": "この番組の詳細と録画予約"
   },
   "timeshift": {
     "backToLive": "ライブ視聴に戻る",
@@ -1235,7 +1398,11 @@
     "onAir": "放送中",
     "partial": "途中から",
     "play": "再生",
-    "list": "タイムシフトの番組"
+    "list": "タイムシフトの番組",
+    "promote": "録画に残す",
+    "promoting": "書き出し中",
+    "reserved": "予約しました",
+    "promoteError": "録画に残せませんでした。時間をおいてやり直してください"
   },
   "admin": {
     "forbidden": "この画面は管理者だけが使えます",
@@ -1302,6 +1469,19 @@
       "error": "付け直せませんでした。時間をおいてやり直してください"
     },
     "system": {
+      "failures": {
+        "title": "録画の失敗の累計",
+        "description": "録画が失敗した回数を、理由ごとに数えたものです。録画を消しても減りません。検証で失敗させた分や、直した障害の分は、0 に戻せます。戻したことは監査ログに残ります。",
+        "reason": "理由",
+        "count": "累計",
+        "lastFailedAt": "最後に失敗した日時",
+        "resetAt": "0 に戻した日時",
+        "reset": "0 に戻す",
+        "confirmTitle": "失敗の累計を 0 に戻す",
+        "confirm": "「{{reason}}」の失敗の累計を 0 に戻し、最後に失敗した日時を消します。監視のアラートは、カウンターのリセットとして扱います。",
+        "cancel": "やめる",
+        "resetError": "失敗の累計を 0 に戻せませんでした"
+      },
       "newRelease": "新しい版 {{version}} があります",
       "newReleaseBody": "動いている版は {{current}} です。{{published}} に公開されました。",
       "newReleaseLink": "リリースのページを開く",
@@ -1361,7 +1541,29 @@
       "servicesDescription": "番組表とライブに出さないサービスを選び、並び順を変えます。並び順は、同じ放送波の中で、小さいほど前に並びます",
       "serviceHidden": "出さない",
       "serviceOrder": "並び順",
-      "serviceOrderDefault": "既定"
+      "serviceOrderDefault": "既定",
+      "activeRecordings": "録画中の録画",
+      "noActiveRecordings": "録画中の録画はありません",
+      "activeRecordingName": "番組名",
+      "activeRecordingService": "サービス",
+      "activeRecordingBitrate": "直近のビットレート",
+      "inspect": {
+        "title": "チャンネルの TS を調べる",
+        "description": "物理チャンネルの TS をまるごと 5 秒ほど受け取り、TSID、サービスの一覧、サービスごとの ES とビットレートを出します。マルチ編成で帯域が分かれる様子が見えます。調べる間、空いたチューナーを 1 本使います（ほかの利用者からは奪いません）。マルチ編成で ES を共有するサービスは、どちらのサービスにも数えます",
+        "channel": "チャンネル",
+        "run": "調べる",
+        "failed": "調べられませんでした。空いたチューナーがないか、チューナーサーバーがチャンネル単位のストリームに対応していないかもしれません",
+        "summary": "TSID {{tsid}}、全体 {{bitrate}}（{{seconds}} 秒）",
+        "service": "サービス {{id}}（{{name}}）",
+        "unknownService": "Kotatsu が知らないサービス",
+        "others": "PMT にない PID（SI、ECM、EMM など）"
+      },
+      "animeChannels": "しょぼいカレンダーとAnnictのチャンネル",
+      "animeChannelsDescription": "アニメの番組を照合するときに使う、サービスとしょぼいカレンダーのChID、Annictのチャンネルの対応です。空欄なら、saya-definitionsから取り込んだ対応（薄い文字）を使います",
+      "animeChannelsDisabled": "連携は無効です。「連携」の画面で有効にすると、この対応で照合します",
+      "animeChannelNone": "対応なし",
+      "syobocalChannel": "しょぼいカレンダーのChID",
+      "annictChannel": "Annictのチャンネル"
     },
     "users": {
       "title": "ユーザー",
@@ -1453,6 +1655,8 @@
       "priorityHelp": "-10 〜 10。チューナーが足りないときは、高い予約から割り当てます",
       "joinSegments": "分かれた録画のファイルを1つにつなぐ",
       "joinSegmentsHelp": "更新や再起動で録画のファイルが分かれたとき、録画が終わってから1つのファイルにつなぎます。重なりが合わないときは、分けたまま残します",
+      "detectCm": "録画が終わったらCMの区間を解析する",
+      "detectCmHelp": "FFmpegで録画を読み、CMとみなした区間をシークバーに示します。予約とルールで「解析する」か「解析しない」を選んだ録画は、その設定に従います。切っても、解析した区間は消しません",
       "archive": "過去の番組",
       "archiveRetentionDays": "保持期間（日）",
       "archiveRetentionHelp": "放送が終わった番組を、番組表と検索に残す日数です。0なら無期限に残します",
@@ -1462,8 +1666,22 @@
       "mcp": "MCPのクライアント",
       "mcpEnabled": "MCPのクライアントとの連携を有効にする",
       "mcpHelp": "ClaudeやChatGPTのようなMCPのクライアントに、番組、予約、ルール、録画を扱わせます。無効にすると、新しい連携も、連携中のアプリも使えなくなります",
+      "dataBroadcastIp": "データ放送の通信",
+      "dataBroadcastIpEnabled": "データ放送の双方向の通信を中継する",
+      "dataBroadcastIpHelp": "投票やプレゼントの応募など、データ放送の文書がインターネットへ送るリクエストを、Kotatsuのサーバーが中継します。送る内容には、受信機の郵便番号などが入ることがあります。LANの中のアドレスへは中継しません",
       "updatedAt": "最終更新 {{at}}",
-      "neverUpdated": "まだ変えていません"
+      "neverUpdated": "まだ変えていません",
+      "anime": "しょぼいカレンダー、Annict、AniList",
+      "animeEnabled": "しょぼいカレンダー、Annict、AniListとの連携を有効にする",
+      "animeHelp": "アニメと特撮の番組を、しょぼいカレンダーで作品と話数に結びつけ、番組と録画の詳細に話数、サブタイトル、AnnictとAniListへのリンクを出します。有効にすると、しょぼいカレンダーとGitHubへ問い合わせます",
+      "animeNotImported": "連携先の情報はまだ取り込んでいません。有効にすると取り込み始め、1日ごとに取り込み直します",
+      "animeNeverImported": "まだ取り込めていません",
+      "animeImported": "{{at}}に{{items}}件を取り込みました",
+      "animeImportFailed": "{{at}}に取り込めませんでした：{{error}}",
+      "animeSourceSaya": "チャンネルの対応（saya-definitions）",
+      "animeSourceArm": "作品IDの対応（arm）",
+      "animeSourceArmSupplementary": "作品IDの対応（arm-supplementary）",
+      "animeSourceSyobocalTitles": "しょぼいカレンダーのタイトル"
     },
     "recording": {
       "title": "録画の既定値",
@@ -1496,6 +1714,17 @@
       "title": "保存先",
       "summary": "保存先プールの優先順位と容量の閾値を変え、見つからない録画やDBにないファイルを片付けます"
     },
+    "captions": {
+      "title": "字幕の外字",
+      "summary": "字幕の外字（放送局が独自に作った文字）を、文字に置き換える表を変えます",
+      "drcs": "外字の置き換え",
+      "drcsHelp": "字幕に出た外字を、画像の MD5 で引いて文字に置き換えます。置き換えた文字は、字幕の履歴とコピー、映像に重ねる字幕に使います。管理者は、字幕の履歴に出る未登録の外字から、その場で登録することもできます",
+      "empty": "まだ登録していません",
+      "md5": "MD5",
+      "text": "置き換える文字",
+      "add": "足す",
+      "remove": "消す"
+    },
     "retention": {
       "title": "保持期間",
       "summary": "放送が終わった番組と、画面内の通知を残す日数を変えます"
@@ -1503,6 +1732,16 @@
     "integrations": {
       "title": "連携",
       "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します"
+    },
+    "animeRecords": {
+      "title": "Annict、AniListへの記録",
+      "help": "利用者が、見たアニメをAnnictとAniListに記録できるよう、Kotatsuのアプリを登録します。それぞれのサービスでアプリを作り、リダイレクトURIに下のURIを入れてから、クライアントIDとシークレットを保存してください。しょぼいカレンダー、Annict、AniListとの連携を有効にしている間だけ使えます。",
+      "configured": "登録済み",
+      "notConfigured": "未登録",
+      "redirectUri": "リダイレクトURI",
+      "clientId": "クライアントID",
+      "clientSecret": "クライアントシークレット",
+      "secretKept": "登録済み（変えるときだけ入れる）"
     }
   },
   "authorship": {
@@ -1543,16 +1782,30 @@
     "unmute": "ミュートを解除",
     "audio": "音声",
     "showDataBroadcast": "データ放送を出す",
-    "stop": "プレイヤーを閉じる"
+    "stop": "プレイヤーを閉じる",
+    "open": {
+      "title": "ほかのチャンネルや録画を開かせる",
+      "live": "チャンネル",
+      "recording": "録画",
+      "servicePlaceholder": "チャンネルを選ぶ",
+      "recordingPlaceholder": "番組名で録画を探す",
+      "searchError": "録画を探せませんでした",
+      "noRecordings": "一致する録画はありません",
+      "search": "探す"
+    }
   },
   "captures": {
-    "title": "キャプチャの履歴",
-    "description": "この端末で撮ったキャプチャを、新しいものから 100 枚まで残します。ほかの端末とは同期しません。",
+    "title": "キャプチャ",
+    "description": "撮ったキャプチャを、サーバーに新しい順に残します。あなただけが見られ、どの端末からも開けます。",
     "search": "番組名やサービス名で探す",
     "empty": "キャプチャはまだありません",
     "emptyHint": "視聴画面のカメラのボタンか s キーで撮ると、ここに残ります。",
     "noMatch": "合うキャプチャはありません",
-    "loadError": "キャプチャの履歴を読めませんでした。ブラウザの設定で、サイトのデータの保存を許可しているか確認してください。",
+    "loadError": "キャプチャを読めませんでした",
+    "unavailable": "このサーバーは、データディレクトリを設定していないので、キャプチャを残せません",
+    "more": "さらに読み込む",
+    "actionError": "画像を読めませんでした",
+    "deleteError": "キャプチャを消せませんでした",
     "save": "保存",
     "copy": "コピー",
     "delete": "削除",
@@ -1575,5 +1828,68 @@
     "invalidRequest": "アプリからの要求が正しくないため、連携できません。アプリの設定を確かめてください",
     "errorRedirect": "アプリに戻ると、連携できなかったことをアプリに知らせます。戻る先: {{host}}。心当たりのないサイトなら、戻らずにこの画面を閉じてください",
     "back": "アプリに戻る"
+  },
+  "offline": {
+    "title": "端末に保存した録画",
+    "description": "端末に保存した録画は、サーバーにつながらなくても再生できます。サーバーで録画を消しても、ここから消すまで残ります",
+    "usage": "この端末で使っている容量: {{usage}} / 上限 {{quota}}",
+    "notPersisted": "ブラウザが保存の永続化を認めませんでした。端末の空きが少なくなると、ブラウザが保存した録画を消すことがあります",
+    "empty": "端末に保存した録画はありません",
+    "emptyHint": "録画の詳細の「端末に保存」から保存できます",
+    "save": "端末に保存",
+    "saving": "端末に保存しています（{{received}}）",
+    "savingOf": "端末に保存しています（{{received}} / {{total}}）",
+    "progress": "端末への保存の進み具合",
+    "keepOpen": "保存し終えるまで、このタブを閉じないでください",
+    "cancel": "中止",
+    "dismiss": "閉じる",
+    "errorQuota": "端末の空きが足りないため、保存できませんでした",
+    "errorBusy": "ほかのタブでこの録画を保存しています",
+    "errorFailed": "保存できませんでした。時間をおいてやり直してください",
+    "playSaved": "端末で再生",
+    "remove": "端末から消す",
+    "removeNamed": "{{name}}を端末から消す",
+    "savedSize": "端末に保存しました（{{size}}）",
+    "back": "端末に保存した録画へ戻る",
+    "notFound": "この録画は、端末に保存されていません",
+    "offlineLink": "端末に保存した録画を見る"
+  },
+  "anime": {
+    "episode": "第{{number}}話",
+    "episodeRange": "第{{from}}〜{{to}}話",
+    "first": "新",
+    "last": "終",
+    "annict": "Annict",
+    "anilist": "AniList",
+    "myAnimeList": "MyAnimeList",
+    "syobocal": "しょぼいカレンダー"
+  },
+  "animeRecords": {
+    "wishlistHint": "連携すると、AnnictとAniListで「見たい」「見てる」にした作品の、これからの放送を、録画の候補として出します。",
+    "wishlistLink": "見たいリストの放送を見る",
+    "description": "ライブ視聴と録画の再生で、番組の長さの一定の割合を実際に再生したアニメを、連携したAnnictとAniListに記録します。一時停止やシークだけでは記録しません。同じ番組の同じ話は、1回だけ記録します。",
+    "disabled": "管理者が、しょぼいカレンダー、Annict、AniListとの連携を有効にしていないので、見たアニメを記録できません",
+    "connect": "連携する",
+    "disconnect": "連携を外す",
+    "connected": "{{name}}と連携しました",
+    "connectedAs": "{{account}} として連携しています（{{date}}）",
+    "notConnected": "連携していません",
+    "notRegistered": "管理者がアプリを登録していないので、連携できません",
+    "aniListRevokeHint": "AniListは、Kotatsuからトークンを取り消せません。連携を外したら、AniListの設定の画面からもアプリを外してください",
+    "settingsTitle": "記録の設定",
+    "threshold": "見たとみなす割合",
+    "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",
+    "statusTitle": "作品の状態を変える",
+    "watchingOnFirst": "第1話（[新]）を見たら「見てる」にする",
+    "watchingOnEpisode": "最終話（[終]）以外を見たら「見てる」にする",
+    "watchedOnLast": "最終話（[終]）を見たら「見た」にする",
+    "statusHelp": "すでに「見た」の作品は「見てる」に戻しません。ただし、第1話なら戻します（分割2クールなど）",
+    "callbackErrors": {
+      "expired": "連携の期限が切れました。もう一度連携してください",
+      "mismatch": "この端末で始めた連携ではないので、受け付けませんでした。もう一度連携してください",
+      "denied": "記録先で連携を断ったので、連携しませんでした",
+      "unavailable": "管理者が連携を無効にしたので、連携できませんでした",
+      "failed": "連携できませんでした。時間をおいてやり直してください"
+    }
   }
 }

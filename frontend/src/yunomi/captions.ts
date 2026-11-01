@@ -2,6 +2,7 @@ import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder, TextRenderer }
 
 import { broadcastFontUrl } from './broadcastFont';
 import { defaultCaptionStyle, rendererColor, type CaptionStyle } from './captionStyle';
+import { drcsReplacements, recordDRCS } from './drcs';
 
 export { rendererColor, type CaptionStyle } from './captionStyle';
 
@@ -39,9 +40,11 @@ type Layer = {
 // textRecorder は、aribb24.js の TextRenderer を広げ、字幕を描くたびに、その文を onText に渡す描画器を作る。
 // aribb24.js は、字幕の時刻 (PTS) に合わせて、付けた描画器すべての render を呼ぶので、時刻を自前で合わせなくてよい。
 // 消すとき (clear) は、空の文を渡す。今出ている字幕をキャプチャに書き込むときに、消えたことを知るためである (#458)。
+// 字幕に出た外字も覚え、表に無いものを管理者が登録できるようにする (#825)。
 function textRecorder(Base: typeof TextRenderer, onText: (text: string) => void): TextRenderer {
   class Recorder extends Base {
     override render(...args: Parameters<TextRenderer['render']>): void {
+      recordDRCS(args[1] ?? []);
       super.render(...args);
       onText(this.getText());
     }
@@ -52,7 +55,7 @@ function textRecorder(Base: typeof TextRenderer, onText: (text: string) => void)
     }
   }
 
-  return new Recorder();
+  return new Recorder({ replace: { half: true, drcs: drcsReplacements } });
 }
 
 type Feed =
@@ -156,8 +159,10 @@ export function createCaptions(
         const controller = new ControllerClass();
         const feeder = new FeederClass({ receive: { type } });
         // 描画の領域を、映像の枠に合わせる。HTML や SVG で描く方法は、CSP で禁じたインラインの style を使うので選ばない。
+        // 外字は、共有の表で文字に置き換える (#825)。表は描くたびに読まれるので、入れ替えれば次の字幕から効く。
         const renderer = new RendererClass({
           font: { normal: captionFont },
+          replace: { drcs: drcsReplacements },
           resize: { target: 'container', objectFit: 'contain' },
         });
         // キャプチャで写す canvas だと分かるよう、印を付ける。

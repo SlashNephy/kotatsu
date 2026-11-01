@@ -1,0 +1,18 @@
+/* 一覧から外すボタンは、カードの右上 (サムネイルの上) に重ねる。 */
+.root {
+  position: relative;
+}
+
+.remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+/* ホバーできる端末では、カードにホバーしているか、フォーカスがあるときだけ出す (PinnableCard と同じ)。 */
+/* タッチの端末ではホバーできないので、いつも出す。 */
+@media (hover: hover) {
+  .root:not(:hover, :focus-within) .remove {
+    opacity: 0;
+  }
+}

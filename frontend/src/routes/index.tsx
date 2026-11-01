@@ -1,5 +1,5 @@
-import { Alert, Stack, Text } from '@mantine/core';
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { Alert, Anchor, Stack, Text } from '@mantine/core';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { startTransition, Suspense, useCallback, useEffect, useState } from 'react';
 
 import { Dashboard, type DashboardRange } from '../home/Dashboard';
@@ -49,7 +49,15 @@ function Home() {
         fallback={(error) =>
           // オフラインでも、Service Worker が外枠を返すので、ここまでは表示される。
           !navigator.onLine ? (
-            <Alert color="amber">{t('viewer.offline')}</Alert>
+            <Alert color="amber">
+              <Stack gap="xs">
+                <Text size="sm">{t('viewer.offline')}</Text>
+                {/* 端末に保存した録画は、オフラインでも見られる (#480)。 */}
+                <Anchor size="sm" component={Link} to="/offline">
+                  {t('offline.offlineLink')}
+                </Anchor>
+              </Stack>
+            </Alert>
           ) : isUnauthenticated(error) ? (
             <SignedOut />
           ) : (

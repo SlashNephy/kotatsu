@@ -38,7 +38,8 @@ var (
 	ErrInvalidReminderMinutes = errors.New("the reminder minutes are out of range")
 )
 
-// Reserve は、ユーザー userID の、番組 key の視聴予約を付ける。付けてあれば何もしない。
+// Reserve は、ユーザー userID の、番組 key の視聴予約を手で付ける。付けてあれば、手で付けたものにする。
+// 手で外した記録 (Cancel) は消すので、視聴ルールも、また付けられるようになる。
 // 番組が EPG にないか、放送が始まっていれば ErrProgramUnavailable を返す。
 func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUID, key domain.ProgramKey) error {
 	q := sqlc.New(db)
@@ -49,6 +50,12 @@ func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUI
 		return fmt.Errorf("failed to insert the watch reservation: %w", err)
 	}
 	if inserted > 0 {
+		if err := q.DeleteWatchRuleDismissal(ctx, sqlc.DeleteWatchRuleDismissalParams{
+			UserID: userID, ServiceID: key.ServiceID, EventID: key.EventID,
+		}); err != nil {
+			return fmt.Errorf("failed to delete the watch rule dismissal: %w", err)
+		}
+
 		return nil
 	}
 	// 付けられなかったのは、付けてあったからか、番組がないか始まっていたからかを見分ける。
@@ -65,12 +72,24 @@ func Reserve(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUI
 	return nil
 }
 
-// Cancel は、ユーザー userID の、番組 key の視聴予約を外す。付けていなければ何もしない。
-func Cancel(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, key domain.ProgramKey) error {
-	if _, err := sqlc.New(db).DeleteWatchReservation(ctx, sqlc.DeleteWatchReservationParams{
+// Cancel は、ユーザー userID の、番組 key の視聴予約を手で外す。付けていなければ何もしない。
+// 外した番組は覚えておき、視聴ルールに一致しても付け直さない (設計書 4.8)。
+func Cancel(ctx context.Context, db sqlc.DBTX, clk clock.Clock, userID uuid.UUID, key domain.ProgramKey) error {
+	q := sqlc.New(db)
+	deleted, err := q.DeleteWatchReservation(ctx, sqlc.DeleteWatchReservationParams{
 		UserID: userID, ServiceID: key.ServiceID, EventID: key.EventID,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("failed to delete the watch reservation: %w", err)
+	}
+	// 付けていなかった番組 (ほかの端末で外した後の古い画面からの操作など) は、外したことにしない。
+	if deleted == 0 {
+		return nil
+	}
+	if err := q.InsertWatchRuleDismissal(ctx, sqlc.InsertWatchRuleDismissalParams{
+		UserID: userID, ServiceID: key.ServiceID, EventID: key.EventID, Now: clk.Now(),
+	}); err != nil {
+		return fmt.Errorf("failed to remember the dismissed watch reservation: %w", err)
 	}
 
 	return nil
@@ -84,7 +103,7 @@ func SetReserved(ctx context.Context, db usersettings.Beginner, clk clock.Clock,
 			if err := Reserve(ctx, tx, clk, userID, key); err != nil {
 				return err
 			}
-		} else if err := Cancel(ctx, tx, userID, key); err != nil {
+		} else if err := Cancel(ctx, tx, clk, userID, key); err != nil {
 			return err
 		}
 

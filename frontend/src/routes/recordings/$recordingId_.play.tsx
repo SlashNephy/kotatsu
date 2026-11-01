@@ -4,18 +4,12 @@ import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
-import {
-  ErrorBoundary,
-  PageLoader,
-  ProgramTitle,
-  splitProgramMarks,
-  toHalfWidth,
-  useDocumentTitle,
-} from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { CommentList } from '../../jikkyo/CommentList';
@@ -24,8 +18,11 @@ import { RuleRecordingList } from '../../recordings/RuleRecordingList';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
+import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
+import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
+import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
 import {
   insertRecordedCaption,
   normalizeCaption,
@@ -48,20 +45,28 @@ import {
   PlaybackUnavailable,
   QualitySelect,
   CropSelect,
+  AudioDelaySetting,
   NormalizeVolumeToggle,
+  SleepTimerSelect,
   VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { useRemoteOpen } from '../../yunomi/useRemoteOpen';
+import { documentTitle, usePlayerEvents, type PlayerSnapshot } from '../../yunomi/playerState';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useWatchPositionSaver } from '../../yunomi/useWatchPositionSaver';
+import { usePlaybackReporter } from '../../animeRecords/usePlaybackReporter';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
+import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../yunomi/commands';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import {
@@ -71,6 +76,9 @@ import {
   useCapture,
 } from '../../yunomi/PlayerTools';
 import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
+import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
+import { averageBitrate } from '../../yunomi/streamMeter';
+import { kindBitrates } from '../../recordings/streamQuality';
 import {
   PlayerAlert,
   BigPlayButton,
@@ -176,6 +184,10 @@ const playQuery = graphql`
           from
           to
         }
+        cmSections {
+          from
+          to
+        }
         jikkyoCommentsUrl
         rule {
           id
@@ -187,6 +199,18 @@ const playQuery = graphql`
         audios {
           componentType
           languages
+          samplingRate
+        }
+        files {
+          kind
+          size
+        }
+        drops
+        errors
+        scrambled
+        streamQuality {
+          kind
+          packets
         }
         service {
           name
@@ -372,6 +396,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
   const channel = recording?.service.jikkyo ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
+  // 実際に再生した区間を送り、見たアニメを記録させる (#927)。
+  usePlaybackReporter(recording === null ? null : { recordingId }, video, () =>
+    recording === null
+      ? null
+      : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
+  );
   const jikkyo = useRecordedJikkyo(
     channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
@@ -423,12 +453,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
   // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
   const [statsShown, setStatsShown] = useState(false);
+  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  const streamMeter = useStreamMeter(quality);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
+  useAudioDelayer(video);
   // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
   const surroundAvailable = route.kind === 'convert' && isSurroundAudio(recording?.audios ?? null);
   useVirtualSurround(video, surroundAvailable);
-  // crop は、L 字放送の切り抜き (#496)。その場限りで、画面を開き直したら戻す。
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
   const startAt = (seconds: number) => {
@@ -466,6 +499,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
   const currentCaption = useRef<string | null>(null);
+  // 字幕の外字を置き換える表を読む (#825)。
+  const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
@@ -559,7 +594,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
   const [autoPictureInPicture] = useAutoPictureInPicture();
   // commands は、この画面で今使える操作 (#809)。キー、OS のメディア操作、ほかの端末からの操作は、どれもここから呼ぶ。
+  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
+  const audioDelayCommands = useAudioDelayCommands((ms) =>
+    showFlash(t('player.flash.audioDelay', { ms })),
+  );
   const commands: PlayerCommands = {
+    ...audioDelayCommands,
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay,
@@ -619,22 +659,40 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         }
       : {}),
   };
+  // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
+  const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
-  // タブの題名や OS のメディアの表示は印を描けないので、囲み文字を外し、全角の英数字は半角にする。
-  const recordingTitle =
-    recording == null ? null : toHalfWidth(splitProgramMarks(recording.name).name);
-  useDocumentTitle([recordingTitle]);
+  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
+  const contextMenu = usePlayerContextMenu(commands);
+  // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
+  usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  const mouseRef = usePlayerMouse(commands);
+  // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
+  const boxRef = useMergedRef(playerBoxRef, mouseRef);
+  // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
+  const player = {
+    kind: 'RECORDING',
+    target: recordingId,
+    serviceName: recording?.service.name ?? '',
+    program: recording === null ? null : { id: recordingId, name: recording.name },
+    artwork: recording?.thumbnailUrl ?? null,
+    paused,
+    position,
+    duration,
+    playbackRate: rate,
+    volume: videoState.volume,
+    muted: videoState.muted,
+    audios: audio.remote.choices,
+    audio: audio.remote.selected,
+    dataBroadcast: false,
+    keyGroups: [],
+  } satisfies PlayerSnapshot;
+  const playerEvents = usePlayerEvents(player);
+  useDocumentTitle(documentTitle(player));
   useMediaSession(
-    {
-      title: recordingTitle ?? '',
-      artist: toHalfWidth(recording?.service.name ?? ''),
-      artwork: recording?.thumbnailUrl ?? null,
-    },
+    player,
     commands,
-    {
-      playing: !videoState.paused,
-      position: { duration, position: seeking ?? position, playbackRate: rate },
-    },
     // 設定で選んでいれば、タブを切り替えたときに、別のウィンドウに出す (#492)。
     autoPictureInPicture,
   );
@@ -694,24 +752,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   }, [startedAt, hls, video]);
 
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
+  // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
+  const openRemote = useRemoteOpen();
   useRemotePlayer(
-    recording === null || video === null
-      ? null
-      : {
-          kind: 'RECORDING',
-          target: recordingId,
-          title: recording.name,
-          paused,
-          position,
-          duration,
-          volume: videoState.volume,
-          muted: videoState.muted,
-          audios: audio.remote.choices,
-          audio: audio.remote.selected,
-          dataBroadcast: false,
-          keyGroups: [],
-        },
+    recording === null || video === null ? null : player,
+    playerEvents,
     commands,
+    undefined,
+    openRemote,
   );
 
   if (recording === null) {
@@ -771,13 +819,30 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return { from: at, to: at, label: t('player.gapMark', { duration: formatDuration(length) }) };
   });
+  // cmBands は、CM とみなした区間 (#479)。途切れた区間と同じく、録画の時間軸の日時を、途切れた分を詰めた再生の位置にする。
+  // 途切れた位置の印を上に重ねるよう、先に並べる。
+  const cmBands = (recording?.cmSections ?? []).map((section) => {
+    const from = recordingPosition(
+      recording!.recordedFrom,
+      recording!.gaps,
+      Date.parse(section.from),
+    );
+    const to = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(section.to));
+
+    return {
+      from,
+      to,
+      label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
+      kind: 'cm' as const,
+    };
+  });
 
   const controlBar = (
     <PlayerControls
       visible={controls.visible}
       seek={
         <SeekBar
-          bands={gapMarks}
+          bands={[...cmBands, ...gapMarks]}
           duration={duration}
           value={shown}
           previewUrl={recording.previewUrl}
@@ -820,6 +885,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <AudioDelaySetting />
+            <SleepTimerSelect timer={sleep} />
             {surroundAvailable && <VirtualSurroundToggle />}
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
@@ -846,7 +913,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
   const playerBox = (
     <div
-      ref={playerBoxRef}
+      ref={boxRef}
+      // 映像を右クリックすると、操作のメニューを出す (#1140)。
+      onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
@@ -868,6 +937,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       // タッチで映像の左右の 3 分の 1 をダブルタップすると、10 秒戻るか進む (#452)。
       onPointerUp={doubleTap}
     >
+      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
           url={url}
@@ -898,6 +968,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             </>
           }
           onAudio={audio.onAudio}
+          onReading={streamMeter.onReading}
           audio={audio.convertAudio}
         />
       )}
@@ -907,6 +978,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
+          onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
@@ -968,7 +1040,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       }
       side={
         <>
-          {/* 実況の過去ログのうち再生位置までに流れたもの (#489) と、字幕の履歴を、見出しで切り替える。過去ログがなければ、字幕の履歴だけを出す。 */}
+          {/* 実況の過去ログのうち再生位置までに流れたもの (#489) と、字幕の履歴と再生の情報 (#828) を、見出しで切り替える。過去ログがなければ、コメントの一覧を出さない。 */}
           <WatchPanel
             label={t('player.sidePanel')}
             tabs={[
@@ -997,6 +1069,34 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                       formatClock(broadcastTime(recording.recordedFrom, recording.gaps, entry.at))
                     }
                     onSelect={(entry) => seek(entry.at)}
+                    canRegisterDRCS={drcs.canRegister}
+                    height={watchCommentsHeight}
+                  />
+                ),
+              },
+              {
+                value: 'info',
+                label: t('player.streamInfo.tab'),
+                content: (
+                  <StreamInfo
+                    meter={streamMeter.meter}
+                    video={video}
+                    quality={quality}
+                    kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
+                    audios={recording?.audios ?? null}
+                    recordedKinds={
+                      recording === null ? null : kindBitrates(recording.streamQuality, duration)
+                    }
+                    average={recording === null ? null : averageBitrate(recording, Date.now())}
+                    transport={
+                      recording === null
+                        ? null
+                        : {
+                            dropped: Number(recording.drops),
+                            errors: Number(recording.errors),
+                            scrambled: Number(recording.scrambled),
+                          }
+                    }
                     height={watchCommentsHeight}
                   />
                 ),

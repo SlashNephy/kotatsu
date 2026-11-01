@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { requestSubscription, type Environment } from 'relay-runtime';
 
@@ -8,6 +8,12 @@ import type { useRemotePlayerRegisterMutation } from './__generated__/useRemoteP
 import type { useRemotePlayerUnregisterMutation } from './__generated__/useRemotePlayerUnregisterMutation.graphql';
 import type { useRemotePlayerUpdateMutation } from './__generated__/useRemotePlayerUpdateMutation.graphql';
 import { runCommand, type PlayerCommands } from './commands';
+import {
+  usePlayerEvent,
+  type PlayerEvents,
+  type PlayerEventType,
+  type PlayerSnapshot,
+} from './playerState';
 import { RemoteKey } from './useDataBroadcast';
 
 // heartbeatMs は、状態を送る間隔。サーバーは、3 回分送られてこなければ、閉じたとみなす (設計書 7.7)。
@@ -42,13 +48,22 @@ export type RemoteCommand = {
     | 'SET_MUTED'
     | 'SELECT_AUDIO'
     | 'PRESS_KEY'
-    | 'STOP';
+    | 'STOP'
+    | 'OPEN';
   position: number | null;
   volume: number | null;
   muted: boolean | null;
   audio: string | null;
   key: string | null;
+  // serviceId と recordingId は、開かせるもの (OPEN、#802)。どちらか 1 つが入る。
+  serviceId: string | null;
+  recordingId: string | null;
 };
+
+// RemoteTarget は、ほかの端末から開かせるもの (キャスト、#802)。
+export type RemoteTarget =
+  | { kind: 'LIVE'; serviceId: string }
+  | { kind: 'RECORDING'; recordingId: string };
 
 // RemoteApi は、サーバーとのやり取り。テストでは差し替える。
 export type RemoteApi = {
@@ -59,19 +74,50 @@ export type RemoteApi = {
   subscribe: (id: string, onCommand: (command: RemoteCommand) => void) => () => void;
 };
 
+// RemotePlayerSnapshot は、ほかの端末から操作できるプレイヤーの状態。タイムシフトの再生は、まだ登録しない。
+export type RemotePlayerSnapshot = PlayerSnapshot & { kind: RemoteState['kind'] };
+
+// remoteState は、プレイヤーの状態のうち、ほかの端末に見せる部分。
+export function remoteState(state: RemotePlayerSnapshot): RemoteState {
+  return {
+    kind: state.kind,
+    target: state.target,
+    title: state.program?.name ?? null,
+    paused: state.paused,
+    position: state.position,
+    duration: state.duration,
+    volume: state.volume,
+    muted: state.muted,
+    audios: state.audios,
+    audio: state.audio,
+    dataBroadcast: state.dataBroadcast,
+    keyGroups: state.keyGroups,
+  };
+}
+
+// announcedEvents は、ほかの端末に知らせるイベント。RemoteState のうち、再生位置と長さのほかが変わったときに出る。
+// 再生位置と長さは、10 秒ごとに送る状態で伝わる。追っかけ再生では、長さも描くたびに延びるので、知らせると、
+// ほかの端末に一覧を読み直させ続けることになる。
+const announcedEvents = [
+  'programChanged',
+  'pausedChanged',
+  'volumeChanged',
+  'audioChanged',
+  'dataBroadcastChanged',
+] as const satisfies readonly PlayerEventType[];
+
 // remoteKey は、操作で届いたキーの名前を、データ放送のリモコンのボタンにする。知らない名前なら null。
 export function remoteKey(name: string): RemoteKey | null {
   return Object.hasOwn(RemoteKey, name) ? RemoteKey[name as keyof typeof RemoteKey] : null;
 }
 
-// announced は、ほかの端末に知らせる部分。再生位置と長さが変わっただけなら、知らせない。追っかけ再生では、長さも
-// 描くたびに延びるので、知らせると、ほかの端末に一覧を読み直させ続けることになる。どちらも、10 秒ごとに送る状態で伝わる。
-function announced(state: RemoteState): string {
-  return JSON.stringify({ ...state, position: null, duration: null });
-}
-
 // dispatch は、届いた操作を、登録簿の操作にして呼ぶ。今使えない操作と、値の足りない操作は捨てる。
-export function dispatch(command: RemoteCommand, commands: PlayerCommands) {
+// 開かせる操作 (OPEN) は、open で、その画面へ移る。open がなければ捨てる。
+export function dispatch(
+  command: RemoteCommand,
+  commands: PlayerCommands,
+  open?: (target: RemoteTarget) => void,
+) {
   switch (command.type) {
     case 'PLAY':
       runCommand(commands, 'play');
@@ -109,16 +155,26 @@ export function dispatch(command: RemoteCommand, commands: PlayerCommands) {
     case 'STOP':
       runCommand(commands, 'stop');
       break;
+    case 'OPEN':
+      if (command.serviceId !== null) {
+        open?.({ kind: 'LIVE', serviceId: command.serviceId });
+      } else if (command.recordingId !== null) {
+        open?.({ kind: 'RECORDING', recordingId: command.recordingId });
+      }
+      break;
   }
 }
 
 // useRemotePlayer は、このプレイヤーを「再生中のプレイヤー」として登録し、同じアカウントのほかの端末から操作できるようにする
-// (#459、設計書 7.7)。state が null の間は登録しない。登録したら、状態を 10 秒ごとに送り、再生位置のほかが変わったら、
-// すぐにほかの端末に知らせる。届いた操作は、commands の操作にして呼ぶ。画面を離れたら、登録を取り消す。
+// (#459、設計書 7.7)。state が null の間は登録しない。登録したら、状態を 10 秒ごとに送る。events で再生位置のほかが
+// 変わったと知ったら、少し待ってから、ほかの端末に知らせる。届いた操作は、commands の操作にして呼ぶ。画面を離れたら、登録を取り消す。
 export function useRemotePlayer(
-  state: RemoteState | null,
+  state: RemotePlayerSnapshot | null,
+  events: PlayerEvents,
   commands: PlayerCommands,
   api?: RemoteApi,
+  // open は、ほかの端末から開かせられたものの画面へ移る (#802)。
+  open?: (target: RemoteTarget) => void,
 ): void {
   const environment = useRelayEnvironment();
   // remote は、最初に描いたときの API を使い続ける。
@@ -128,12 +184,36 @@ export function useRemotePlayer(
   stateRef.current = state;
   const commandsRef = useRef(commands);
   commandsRef.current = commands;
-  // id は、登録したプレイヤーの ID。登録の返事を待つ間に状態が変わったら、返事が来たところで知らせられるよう、state に持つ。
-  const [id, setId] = useState<string | null>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
+  // id は、登録したプレイヤーの ID。
   const idRef = useRef<string | null>(null);
-  // lastAnnounced は、最後にほかの端末に知らせた状態 (再生位置のほか)。
-  const lastAnnounced = useRef<string | null>(null);
+  // changed は、最後に送ってから、知らせるべき変化があったかどうか。登録の返事を待つ間に変わったら、返事が来たところで知らせる。
+  const changed = useRef(false);
+  const announceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const active = state !== null;
+
+  // announceSoon は、少し待ってから、今の状態をほかの端末に知らせる。待つ間にまた変わったら、最後の変化から待ち直してまとめて送る。
+  const announceSoon = useCallback(() => {
+    changed.current = true;
+    const id = idRef.current;
+    if (id === null) {
+      return;
+    }
+    if (announceTimer.current !== null) {
+      clearTimeout(announceTimer.current);
+    }
+    announceTimer.current = setTimeout(() => {
+      announceTimer.current = null;
+      const current = stateRef.current;
+      if (current === null || idRef.current !== id) {
+        return;
+      }
+      changed.current = false;
+      void apiRef.current.update(id, remoteState(current), true).catch(() => {});
+    }, announceDelayMs);
+  }, []);
+  usePlayerEvent(events, announcedEvents, announceSoon);
 
   // 登録、状態の送信、操作の購読、取り消し。
   useEffect(() => {
@@ -150,8 +230,9 @@ export function useRemotePlayer(
     if (initial === null) {
       return;
     }
+    changed.current = false;
     void remote
-      .register(initial)
+      .register(remoteState(initial))
       .then((id) => {
         if (closed) {
           remote.unregister(id);
@@ -159,20 +240,21 @@ export function useRemotePlayer(
           return;
         }
         idRef.current = id;
-        lastAnnounced.current = announced(initial);
-        setId(id);
+        if (changed.current) {
+          announceSoon();
+        }
         unsubscribe = remote.subscribe(id, (command) => {
           const commandId = Number(command.id);
           if (commandId <= handled) {
             return;
           }
           handled = commandId;
-          dispatch(command, commandsRef.current);
+          dispatch(command, commandsRef.current, openRef.current);
         });
         timer = setInterval(() => {
           const current = stateRef.current;
           if (current !== null) {
-            void remote.update(id, current, false).catch(() => {});
+            void remote.update(id, remoteState(current), false).catch(() => {});
           }
         }, heartbeatMs);
       })
@@ -184,31 +266,16 @@ export function useRemotePlayer(
       if (timer !== null) {
         clearInterval(timer);
       }
+      if (announceTimer.current !== null) {
+        clearTimeout(announceTimer.current);
+        announceTimer.current = null;
+      }
       if (idRef.current !== null) {
         remote.unregister(idRef.current);
         idRef.current = null;
       }
-      setId(null);
     };
-  }, [active]);
-
-  // 再生位置のほかが変わったら、少し待ってから、ほかの端末に知らせる。
-  const key = state === null ? null : announced(state);
-  useEffect(() => {
-    if (key === null || id === null || key === lastAnnounced.current) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      const current = stateRef.current;
-      if (current === null) {
-        return;
-      }
-      lastAnnounced.current = key;
-      void apiRef.current.update(id, current, true).catch(() => {});
-    }, announceDelayMs);
-
-    return () => clearTimeout(timer);
-  }, [id, key]);
+  }, [active, announceSoon]);
 }
 
 // relayRemoteApi は、GraphQL でサーバーとやり取りする RemoteApi を返す。
@@ -271,6 +338,8 @@ function relayRemoteApi(environment: Environment): RemoteApi {
               muted
               audio
               key
+              serviceId
+              recordingId
             }
           }
         `,
@@ -286,6 +355,8 @@ function relayRemoteApi(environment: Environment): RemoteApi {
               muted: command.muted ?? null,
               audio: command.audio ?? null,
               key: command.key ?? null,
+              serviceId: command.serviceId ?? null,
+              recordingId: command.recordingId ?? null,
             });
           }
         },

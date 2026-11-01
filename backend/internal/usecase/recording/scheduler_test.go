@@ -277,14 +277,17 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 		// assignment は、録画の割り振りの状態。空なら割り振りがない (予約を消して CASCADE で消えたとき)。
 		assignment string
 		// elapsed は、番組の終わり (14:00) からの時間。
-		elapsed  time.Duration
-		wantFail bool
+		elapsed time.Duration
+		// promoting は、予約のない録画で、タイムシフトのバッファから昇格している途中かどうか (#1057)。nekonote のジョブが終える。
+		promoting bool
+		wantFail  bool
 	}{
-		{name: "no assignment", assignment: "", elapsed: 11 * time.Minute, wantFail: true},
-		{name: "finished assignment", assignment: "finished", elapsed: 11 * time.Minute, wantFail: true},
-		{name: "still recording", assignment: "recording", elapsed: 11 * time.Minute, wantFail: false},
-		{name: "waiting for a handover", assignment: "handover", elapsed: 11 * time.Minute, wantFail: false},
-		{name: "within the grace", assignment: "", elapsed: 9 * time.Minute, wantFail: false},
+		{name: "no assignment", assignment: "", elapsed: 11 * time.Minute, promoting: false, wantFail: true},
+		{name: "finished assignment", assignment: "finished", elapsed: 11 * time.Minute, promoting: false, wantFail: true},
+		{name: "still recording", assignment: "recording", elapsed: 11 * time.Minute, promoting: false, wantFail: false},
+		{name: "waiting for a handover", assignment: "handover", elapsed: 11 * time.Minute, promoting: false, wantFail: false},
+		{name: "within the grace", assignment: "", elapsed: 9 * time.Minute, promoting: false, wantFail: false},
+		{name: "promoting from the timeshift buffer", assignment: "", elapsed: 11 * time.Minute, promoting: true, wantFail: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,6 +302,13 @@ func TestSchedulerFailsStuckRecordings(t *testing.T) {
 				state, recorded_from, protected, created_at, updated_at)
 				VALUES ($1, $2, $3, 6, '録画', '', $4, $5, 'recording', $4, false, $4, $4)`, recordingID, reservationID, grService(0), start, end)
 			require.NoError(t, err)
+			if tt.promoting {
+				_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET reservation_id = NULL WHERE id = $1`, recordingID)
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO timeshift_promotions (recording_id, service_id, from_at, to_at, created_by, created_at)
+					VALUES ($1, $2, $3, $4, NULL, $4)`, recordingID, grService(0), start, end)
+				require.NoError(t, err)
+			}
 			if tt.assignment != "" {
 				_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_assignments (id, reservation_id, priority, state, generation, created_at, updated_at)
 					VALUES ($1, $2, 0, $3, 1, $4, $4)`, id.New(), reservationID, tt.assignment, start)

@@ -15,15 +15,29 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 	if err != nil {
 		return nil, err
 	}
+	// nil のままなら、外字の置き換えの表は変えない。
+	var replacements map[string]*string
+	if input.DrcsReplacements != nil {
+		if replacements, err = toDRCSReplacements(input.DrcsReplacements); err != nil {
+			return nil, err
+		}
+	}
 	updated, err := r.settings.Update(ctx, r.db, actor, &settings.Changes{
 		Recording:                 toOverrides(input.RecordingDefaults),
 		ArchiveRetentionDays:      input.ArchiveRetentionDays,
 		NotificationRetentionDays: input.NotificationRetentionDays,
 		Rule:                      toRuleChanges(input.RuleDefaults),
 		MCPEnabled:                input.McpEnabled,
+		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
+		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
+		DRCSReplacements:          replacements,
 	})
 	if err != nil {
 		return nil, settingsError(err)
+	}
+	// 連携を有効にしたら、1 時間ごとの確かめを待たずに、連携先の情報を取り込み始める (設計書 3.8)。
+	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {
+		r.startAnimeLinking(ctx)
 	}
 
 	return systemSettingsOf(updated), nil
@@ -88,6 +102,19 @@ func (r *mutationResolver) UpdateStoragePool(ctx context.Context, id string, inp
 	}
 
 	return r.storagePoolOf(id, updated), nil
+}
+
+// DrcsReplacements is the resolver for the drcsReplacements field.
+func (r *queryResolver) DrcsReplacements(ctx context.Context) ([]*model.DrcsReplacement, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	system, err := settings.Load(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+
+	return drcsReplacementsOf(system.DRCSReplacements), nil
 }
 
 // SystemSettings is the resolver for the systemSettings field.

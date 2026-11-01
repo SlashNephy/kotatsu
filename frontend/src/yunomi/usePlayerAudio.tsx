@@ -11,7 +11,9 @@ import {
   kyusuAudioChoices,
   type ProgramAudio,
 } from './audio';
+import { preferredSlot, useAudioLanguage } from './audioLanguage';
 import {
+  AudioLanguageSelect,
   AudioSelect,
   audioChoiceLabel,
   KyusuAudioSelect,
@@ -51,16 +53,20 @@ export function usePlayerAudio(
   const [tracks, setTracks] = useState<AudioTracks | null>(null);
   // choice は、ブラウザの中で変換する経路のメニューで選んだもの。kyusu の経路で選び直したら捨てる。
   const [choice, setChoice] = useState<string | null>(null);
-  const [slot, setSlot] = useState<KyusuAudio>(1);
+  // pickedSlot は、利用者が選んだ音声の番号。選ぶまでは null で、番組ごとに、優先する言語 (#819) の音声か、第 1 音声にする。
+  const [pickedSlot, setSlot] = useState<KyusuAudio | null>(null);
+  const [language] = useAudioLanguage();
   const convertTracks = route.kind === 'convert' ? tracks : null;
   const kyusuChoices = kyusuAudioChoices(programAudios);
+  const slot = pickedSlot ?? preferredSlot(kyusuChoices, language) ?? 1;
   // 選んだ番号の音声がない番組では、第 1 音声を流す。選んだ番号は、次に第 2 音声がある番組のために覚えておく。
   const kyusuAudio = kyusuChoices.some((candidate) => candidate.slot === slot) ? slot : 1;
   const choices = audioChoices(convertTracks);
   // 選んだものが今の番組の音声になければ (番組が変わって音声の構成が変わったときなど)、選んだ音声の番号から選び直す。
-  // 第 1 音声なら、プレイヤーの既定 (主音声) のままにする。
+  // 第 1 音声も明示して選ぶ。優先する言語 (#819) で第 2 音声にしていた後に、言語を変えたり番組が変わったりして
+  // 第 1 音声に戻るとき、プレイヤーの既定に任せると、第 2 音声のまま残る。選べる音声が 1 つなら、null になる。
   const current = choices.some((candidate) => candidate.value === choice) ? choice : null;
-  const convertAudio = current ?? (slot === 1 ? null : choiceForSlot(choices, slot));
+  const convertAudio = current ?? choiceForSlot(choices, slot);
 
   const selectConvert = (value: string) => {
     setChoice(value);
@@ -78,6 +84,12 @@ export function usePlayerAudio(
   };
 
   let menu: ReactNode = null;
+  // available は、選べる音声が 2 つ以上あるかどうか。なければ、メニューは何も出さない。
+  const available =
+    route.kind === 'convert'
+      ? choices.length >= 2
+      : route.kind === 'kyusu' && kyusuChoices.length >= 2;
+
   if (route.kind === 'convert') {
     menu = (
       <AudioSelect
@@ -89,12 +101,26 @@ export function usePlayerAudio(
   } else if (route.kind === 'kyusu') {
     menu = <KyusuAudioSelect choices={kyusuChoices} value={kyusuAudio} onChange={selectKyusu} />;
   }
-
-  // available は、選べる音声が 2 つ以上あるかどうか。なければ、メニューは何も出さない。
-  const available =
-    route.kind === 'convert'
-      ? choices.length >= 2
-      : route.kind === 'kyusu' && kyusuChoices.length >= 2;
+  // 選べる音声があるときは、優先する言語 (#819) も、音声の選択の下で選べるようにする。
+  if (available) {
+    menu = (
+      <>
+        {menu}
+        <AudioLanguageSelect
+          onChange={(next) => {
+            // kyusu の経路では、聞く音声が変わると HLS の URL が変わって読み直すので、その前に onReload を呼ぶ。
+            const nextSlot = pickedSlot ?? preferredSlot(kyusuChoices, next) ?? 1;
+            const nextAudio = kyusuChoices.some((candidate) => candidate.slot === nextSlot)
+              ? nextSlot
+              : 1;
+            if (route.kind === 'kyusu' && nextAudio !== kyusuAudio) {
+              onReload?.();
+            }
+          }}
+        />
+      </>
+    );
+  }
 
   const selectComponent = (componentTag: number, channelId?: number) => {
     const value = choiceForComponent(convertTracks, componentTag, channelId);

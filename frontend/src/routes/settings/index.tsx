@@ -6,6 +6,8 @@ import {
   CalendarDays,
   CircleDot,
   HardDrive,
+  Link2,
+  Captions,
   Hourglass,
   MonitorPlay,
   MonitorSmartphone,
@@ -52,6 +54,12 @@ function SettingsPage() {
       icon: Bell,
       title: t('notifications.settingsTitle'),
       body: t('settings.notificationsSummary'),
+    },
+    {
+      to: '/settings/account',
+      icon: Link2,
+      title: t('settings.pages.account.title'),
+      body: t('settings.pages.account.summary'),
     },
     {
       to: '/settings/security',
@@ -125,6 +133,12 @@ function AdminLinks() {
           title: t('admin.storage.title'),
           body: t('admin.storage.summary'),
           icon: HardDrive,
+        },
+        {
+          to: '/admin/captions',
+          title: t('admin.captions.title'),
+          body: t('admin.captions.summary'),
+          icon: Captions,
         },
         {
           to: '/admin/retention',

@@ -1,11 +1,14 @@
-import { Alert, Anchor, Badge, Button, Group, Stack, Table, Text } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Group, Loader, Stack, Table, Text } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type ReactNode } from 'react';
+import { startTransition, Suspense, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { ActiveRecordings } from '../../admin/ActiveRecordings';
+import { ChannelInspector } from '../../admin/ChannelInspector';
+import { FailureCounts } from '../../admin/FailureCounts';
 import { Section } from '../../admin/Section';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { systemQuery } from './__generated__/systemQuery.graphql';
@@ -27,7 +30,7 @@ const dateTimeFormat = zonedFormat({
 const formatTime = (time: string) => dateTimeFormat.format(Date.parse(time));
 
 // SystemPage は、チューナーサーバー、チューナー、インスタンス、リースの状態を見る、管理者向けの画面 (設計書 10.3)。
-// 見るだけの画面なので、本人確認はしない。保存先プールは、保存先の画面 (/admin/storage) で変える。
+// 本人確認はしない。録画の失敗の累計を 0 に戻す操作は、第三者に影響しない管理の操作なので、再認証も求めない (設計書 9.5)。保存先プールは、保存先の画面 (/admin/storage) で変える。
 function SystemPage() {
   const { t } = useTranslation();
 
@@ -80,6 +83,12 @@ const query = graphql`
         available
         remote
         fault
+      }
+      recordingFailures {
+        reason
+        count
+        lastFailedAt
+        resetAt
       }
     }
   }
@@ -216,6 +225,26 @@ function SystemStatus() {
             }))}
           />
         )}
+      </Section>
+
+      <Section title={t('admin.system.failures.title')}>
+        <FailureCounts
+          counts={status.recordingFailures}
+          formatTime={formatTime}
+          onReset={refresh}
+        />
+      </Section>
+
+      <Section title={t('admin.system.activeRecordings')}>
+        <Suspense fallback={<Loader size="sm" />}>
+          <ActiveRecordings />
+        </Suspense>
+      </Section>
+
+      <Section title={t('admin.system.inspect.title')}>
+        <Suspense fallback={<Loader size="sm" />}>
+          <ChannelInspector />
+        </Suspense>
       </Section>
 
       <Section title={t('admin.system.instances')}>

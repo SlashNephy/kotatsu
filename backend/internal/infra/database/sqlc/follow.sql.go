@@ -230,17 +230,21 @@ UPDATE recordings SET
   end_at = $2,
   name = $3,
   description = $4,
-  updated_at = $5
-WHERE reservation_id = $6
+  name_normalized = $5,
+  description_normalized = $6,
+  updated_at = $7
+WHERE reservation_id = $8
 `
 
 type UpdateRecordingProgramParams struct {
-	StartAt       time.Time
-	EndAt         time.Time
-	Name          string
-	Description   string
-	Now           time.Time
-	ReservationID *uuid.UUID
+	StartAt               time.Time
+	EndAt                 time.Time
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	Now                   time.Time
+	ReservationID         *uuid.UUID
 }
 
 // 予約の録画の番組情報を、追従した予約に合わせる。録画を始めた後に繰り下げや延長が届いても、録画に古い時刻を残さない (#1045)。
@@ -250,6 +254,8 @@ func (q *Queries) UpdateRecordingProgram(ctx context.Context, arg UpdateRecordin
 		arg.EndAt,
 		arg.Name,
 		arg.Description,
+		arg.NameNormalized,
+		arg.DescriptionNormalized,
 		arg.Now,
 		arg.ReservationID,
 	)

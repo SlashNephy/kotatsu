@@ -10,6 +10,7 @@ import {
 import { browserStorage } from './volume';
 import { broadcastFontUrl } from './broadcastFont';
 import { createDataBroadcastAudio, type DataBroadcastAudio } from './dataBroadcastAudio';
+import { createDataBroadcastIP } from './dataBroadcastIP';
 import { isStandbyDocument, renderedRoot } from './dataBroadcastStandby';
 import type { DataBroadcastEnd, DataBroadcastRequest } from './dataBroadcastWorker';
 import { reconnectDelay } from './reconnect';
@@ -138,6 +139,8 @@ export function useDataBroadcast(
   source: DataBroadcastSource | null,
   videoRef: RefObject<HTMLVideoElement | null>,
   shown: boolean,
+  // ipEnabled は、管理者が、文書の双方向の通信を tenban に中継させているか (#501)。切っていれば、文書に通信の機能を渡さない。
+  ipEnabled: boolean,
   handlers: DataBroadcastHandlers = {},
 ): {
   layer: ReactNode;
@@ -233,6 +236,9 @@ export function useDataBroadcast(
       },
       setMainAudioStreamCallback: (componentId, channelId) =>
         handlersRef.current.onSelectAudio?.(componentId, channelId) ?? false,
+      // 文書の双方向の通信 (投票やプレゼントの応募など) は、管理者が有効にしたときだけ、tenban に中継させる (#501)。
+      // 渡さなければ、web-bml は、受信機がインターネットにつながっていないものとして文書に答える。
+      ...(ipEnabled ? { ip: createDataBroadcastIP() } : {}),
     });
     browserRef.current = browser;
     // restore は、データ放送の中へ移した映像を、プレイヤーへ戻す。移していなければ null。
@@ -460,7 +466,7 @@ export function useDataBroadcast(
       setInvisible(false);
       setKeyGroups(defaultKeyGroups);
     };
-  }, [url, serviceId, layer, videoRef, generation]);
+  }, [url, serviceId, layer, videoRef, generation, ipEnabled]);
 
   // 出すことになったら、データ放送の画面に入る。出すのをやめたら、最初の文書へ戻す。
   // 最初の描画では、まだ文書がないので、何もしない。

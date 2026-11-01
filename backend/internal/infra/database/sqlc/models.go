@@ -11,6 +11,123 @@ import (
 	"github.com/google/uuid"
 )
 
+type AnimeChannelDefinition struct {
+	ChannelType       string
+	NetworkID         int64
+	Sid               int64
+	Name              string
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
+}
+
+type AnimeChannelOverride struct {
+	ServiceID         int64
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
+	UpdatedAt         time.Time
+}
+
+type AnimeImport struct {
+	Source     string
+	Etag       *string
+	CheckedAt  time.Time
+	ImportedAt *time.Time
+	ItemCount  int32
+	Error      *string
+}
+
+type AnimeMatchCursor struct {
+	ID         int16
+	EpgVersion int64
+	UpdatedAt  time.Time
+}
+
+type AnimeRecord struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	ServiceID     int64
+	StartAt       time.Time
+	Destination   string
+	SyobocalTid   int32
+	EpisodeNumber *float64
+	Subtitle      *string
+	IsFirst       bool
+	IsLast        bool
+	ProgramName   string
+	State         string
+	URL           *string
+	Error         *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type AnimeRecordApp struct {
+	Destination           string
+	ClientID              string
+	ClientSecretEncrypted []byte
+	UpdatedAt             time.Time
+}
+
+type AnimeRecordAuthorization struct {
+	ID           uuid.UUID
+	StateHash    []byte
+	SessionID    uuid.UUID
+	UserID       uuid.UUID
+	Destination  string
+	CodeVerifier string
+	RedirectUri  string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
+}
+
+type AnimeRecordConnection struct {
+	UserID               uuid.UUID
+	Destination          string
+	AccessTokenEncrypted []byte
+	AccountName          string
+	ConnectedAt          time.Time
+	WishlistCheckedAt    *time.Time
+	WishlistImportedAt   *time.Time
+	WishlistError        *string
+	WishlistRetryAt      *time.Time
+}
+
+type AnimeRecordSetting struct {
+	UserID            uuid.UUID
+	ThresholdPercent  int16
+	WatchingOnFirst   bool
+	WatchingOnEpisode bool
+	WatchedOnLast     bool
+	UpdatedAt         time.Time
+}
+
+type AnimeWatchProgress struct {
+	UserID    uuid.UUID
+	ServiceID int64
+	StartAt   time.Time
+	Played    []byte
+	PlayedMs  int64
+	UpdatedAt time.Time
+}
+
+type AnimeWishlistEntry struct {
+	UserID      uuid.UUID
+	Destination string
+	WorkID      int32
+	Status      string
+	Title       string
+	FetchedAt   time.Time
+}
+
+type AnimeWork struct {
+	Source       string
+	SyobocalTid  int32
+	Position     int16
+	AnnictWorkID *int32
+	AnilistID    *int32
+	MalID        *int32
+}
+
 type ApiToken struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
@@ -33,6 +150,22 @@ type AuditEvent struct {
 	SourceIP    *netip.Addr
 	UserAgent   *string
 	ActorClient *string
+}
+
+type Capture struct {
+	ID                    uuid.UUID
+	UserID                uuid.UUID
+	RecordingID           *uuid.UUID
+	PositionMs            *int64
+	ServiceName           string
+	ProgramName           *string
+	ServiceNameNormalized string
+	ProgramNameNormalized string
+	Caption               *string
+	BroadcastAt           time.Time
+	TakenAt               time.Time
+	Size                  int64
+	CreatedAt             time.Time
 }
 
 type ChangeVersion struct {
@@ -233,6 +366,28 @@ type Program struct {
 	UpdatedAt             time.Time
 }
 
+type ProgramAnimeEpisode struct {
+	ServiceID   int64
+	StartAt     time.Time
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+type ProgramAnimeMatch struct {
+	ServiceID   int64
+	StartAt     time.Time
+	EventID     int64
+	MatchedAt   time.Time
+	FinalizedAt *time.Time
+}
+
 type ProgramArchive struct {
 	ServiceID             int64
 	EventID               int64
@@ -257,37 +412,57 @@ type ProgramArchive struct {
 }
 
 type Recording struct {
-	ID                 uuid.UUID
-	APIID              int64
-	ReservationID      *uuid.UUID
-	ServiceID          int64
-	EventID            *int64
-	Name               string
-	Description        string
-	StartAt            time.Time
-	EndAt              time.Time
-	State              string
-	FailureReason      *string
-	Protected          bool
-	Drops              int64
-	Errors             int64
-	Scrambled          int64
-	Gaps               []byte
-	Audios             []byte
-	VideoResolution    *string
-	Genres             []byte
-	RuleID             *uuid.UUID
-	RuleName           *string
-	ProgramLost        bool
-	BroadcastStartedAt *time.Time
-	BroadcastEndedAt   *time.Time
-	WaitedForBroadcast bool
-	NotBroadcast       bool
-	AiredEventID       *int64
-	RecordedFrom       time.Time
-	RecordedUntil      *time.Time
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	ID                    uuid.UUID
+	APIID                 int64
+	ReservationID         *uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	State                 string
+	FailureReason         *string
+	Protected             bool
+	Drops                 int64
+	Errors                int64
+	Scrambled             int64
+	Gaps                  []byte
+	Audios                []byte
+	VideoResolution       *string
+	Genres                []byte
+	RuleID                *uuid.UUID
+	RuleName              *string
+	ProgramLost           bool
+	BroadcastStartedAt    *time.Time
+	BroadcastEndedAt      *time.Time
+	WaitedForBroadcast    bool
+	NotBroadcast          bool
+	AiredEventID          *int64
+	RecordedFrom          time.Time
+	RecordedUntil         *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type RecordingAnimeEpisode struct {
+	RecordingID uuid.UUID
+	Position    int16
+	Source      string
+	SyobocalTid *int32
+	SyobocalPid *int32
+	CountStart  *float64
+	CountEnd    *float64
+	Subtitle    *string
+	IsFirst     bool
+	IsLast      bool
+}
+
+type RecordingAnimeMatch struct {
+	RecordingID uuid.UUID
+	MatchedAt   time.Time
 }
 
 type RecordingAssignment struct {
@@ -303,10 +478,25 @@ type RecordingAssignment struct {
 	UpdatedAt        time.Time
 }
 
+type RecordingCmDetection struct {
+	RecordingID     uuid.UUID
+	Detector        string
+	DetectorVersion int32
+	DetectedAt      time.Time
+}
+
+type RecordingCmSection struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	StartOffsetMs int64
+	EndOffsetMs   int64
+}
+
 type RecordingFailureCount struct {
 	Reason       string
 	Count        int64
 	LastFailedAt *time.Time
+	ResetAt      *time.Time
 }
 
 type RecordingFile struct {
@@ -330,6 +520,16 @@ type RecordingHistory struct {
 	StartAt   time.Time
 	EndAt     time.Time
 	CreatedAt time.Time
+}
+
+type RecordingLiveStat struct {
+	RecordingID uuid.UUID
+	Bytes       int64
+	Drops       int64
+	Errors      int64
+	Scrambled   int64
+	Bitrate     int64
+	UpdatedAt   time.Time
 }
 
 type RecordingTag struct {
@@ -437,13 +637,44 @@ type StoragePool struct {
 	MeasuredAt   *time.Time
 }
 
+type SyobocalLookup struct {
+	ChannelID int32
+	DayStart  time.Time
+	FetchedAt time.Time
+}
+
+type SyobocalProgram struct {
+	Pid           int32
+	Tid           int32
+	ChannelID     int32
+	StartAt       time.Time
+	EndAt         time.Time
+	OffsetSeconds int32
+	Count         string
+	SubTitle      string
+	StSubTitle    string
+	Flag          int32
+	Deleted       bool
+	FetchedAt     time.Time
+}
+
+type SyobocalTitle struct {
+	Tid        int32
+	Title      string
+	TitleKey   string
+	LastUpdate *time.Time
+}
+
 type SystemSetting struct {
 	ID                        int16
 	RecordingDefaults         []byte
 	ArchiveRetentionDays      int32
 	NotificationRetentionDays int32
 	MCPEnabled                bool
+	DataBroadcastIPEnabled    bool
+	AnimeLinkingEnabled       bool
 	RuleDefaults              []byte
+	DrcsReplacements          []byte
 	UpdatedAt                 time.Time
 }
 
@@ -490,6 +721,15 @@ type TimeshiftProgram struct {
 	EventID   int64
 	Name      string
 	EndedAt   *time.Time
+}
+
+type TimeshiftPromotion struct {
+	RecordingID uuid.UUID
+	ServiceID   int64
+	FromAt      time.Time
+	ToAt        time.Time
+	CreatedBy   *uuid.UUID
+	CreatedAt   time.Time
 }
 
 type TotpEnrollment struct {
@@ -595,6 +835,24 @@ type WatchProgress struct {
 }
 
 type WatchReservation struct {
+	UserID      uuid.UUID
+	ServiceID   int64
+	EventID     int64
+	CreatedAt   time.Time
+	WatchRuleID *uuid.UUID
+}
+
+type WatchRule struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	Enabled    bool
+	Conditions []byte
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type WatchRuleDismissal struct {
 	UserID    uuid.UUID
 	ServiceID int64
 	EventID   int64

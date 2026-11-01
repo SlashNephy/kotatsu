@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
@@ -191,6 +192,30 @@ func TestFindOrphansTimeshiftIndex(t *testing.T) {
 		}
 		assert.Equal(t, tt.orphan, slices.Contains(f.orphans(t), indexDir), tt.name)
 	}
+}
+
+// TestFindOrphansCaptures は、データディレクトリにあるキャプチャの画像を、行がある間は返さず、
+// 行のない画像は、DB にないファイルとして返すことを確かめる (設計書 5.6、7.5)。
+func TestFindOrphansCaptures(t *testing.T) {
+	t.Parallel()
+
+	f := orphanFixture(t)
+	captures := capture.New(kago.New(nil, nil).WithDataDir(f.dataRoot), f.clock, slog.New(slog.DiscardHandler), 0)
+	saved, err := captures.Save(t.Context(), f.pool, f.userID, &capture.Upload{
+		ServiceName: "こたつテスト1", ProgramName: nil, Caption: nil, RecordingID: nil, Position: nil,
+		BroadcastAt: f.clock.Now(), TakenAt: f.clock.Now(), Image: []byte("\x89PNG\r\n\x1a\nimage"),
+	})
+	require.NoError(t, err)
+	kept := kago.CaptureLocation(f.userID, saved.ID)
+	// 記録する前に止まった画像のように、行のない画像を置く。
+	stray := kago.CaptureLocation(f.userID, id.New())
+	require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, stray.Path), []byte("\x89PNG\r\n\x1a\nstray"), 0o600))
+	// 書いてから時間が経ったものにする。
+	f.clock.Advance(2 * time.Hour)
+
+	found := f.orphans(t)
+	assert.NotContains(t, found, orphan{pool: kago.DataPoolID, path: kept.Path, segmentDir: false})
+	assert.Contains(t, found, orphan{pool: kago.DataPoolID, path: stray.Path, segmentDir: false})
 }
 
 // TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。

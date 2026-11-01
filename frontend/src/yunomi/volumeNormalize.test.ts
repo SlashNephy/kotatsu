@@ -9,6 +9,7 @@ class FakeNode {
   readonly ratio = { value: 0 };
   readonly attack = { value: 0 };
   readonly release = { value: 0 };
+  readonly delayTime = { value: 0 };
   readonly positionX = { value: 0 };
   readonly positionY = { value: 0 };
   readonly positionZ = { value: 0 };
@@ -36,6 +37,9 @@ class FakeAudioContext {
   }
   createDynamicsCompressor() {
     return new FakeNode('compressor');
+  }
+  createDelay() {
+    return new FakeNode('delay');
   }
   createMediaElementSource() {
     return new FakeNode('source');
@@ -175,5 +179,86 @@ describe('setNormalize', () => {
     setSurround(video, false);
     expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
     FakeAudioContext.prototype.createMediaElementSource = original;
+  });
+});
+
+describe('setAudioDelay', () => {
+  // RecordingContext は、作った元の音と DelayNode を覚える AudioContext。
+  const recordingContext = () => {
+    const sources: FakeNode[] = [];
+    const delays: FakeNode[] = [];
+    class RecordingContext extends FakeAudioContext {
+      override createMediaElementSource() {
+        const node = super.createMediaElementSource();
+        sources.push(node);
+
+        return node;
+      }
+      override createDelay() {
+        const node = super.createDelay();
+        delays.push(node);
+
+        return node;
+      }
+    }
+
+    return { RecordingContext, sources, delays };
+  };
+
+  test('遅らせると、最初の段に DelayNode を挟んで長さを当て、0 にすると外す (#818)', async () => {
+    const { RecordingContext, sources, delays } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
+    const { setAudioDelay, setNormalize } = await import('./volumeBoost');
+    window.dispatchEvent(new Event('pointerdown'));
+    const video = document.createElement('video');
+
+    setNormalize(video, true);
+    setAudioDelay(video, 0.12);
+    expect(path(sources[0]!)).toEqual([
+      'source',
+      'delay',
+      'compressor',
+      'gain',
+      'gain',
+      'destination',
+    ]);
+    expect(delays[0]?.delayTime.value).toBe(0.12);
+
+    // 長さだけを変えたときも当てる。
+    setAudioDelay(video, 0.2);
+    expect(delays[0]?.delayTime.value).toBe(0.2);
+
+    setAudioDelay(video, 0);
+    expect(path(sources[0]!)).toEqual(['source', 'compressor', 'gain', 'gain', 'destination']);
+  });
+
+  test('操作の前に遅らせたら覚えておき、操作した後に、覚えた長さで入れる', async () => {
+    const { RecordingContext, delays } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
+    const { setAudioDelay, resumePendingBoost } = await import('./volumeBoost');
+    const video = document.createElement('video');
+
+    setAudioDelay(video, 0.1);
+    expect(delays).toHaveLength(0);
+
+    window.dispatchEvent(new Event('pointerdown'));
+    resumePendingBoost(video);
+    expect(delays[0]?.delayTime.value).toBe(0.1);
+  });
+
+  test('操作の前に音量を上げて遅らせたら、操作した後に、上げた音量で作るグラフにも覚えた長さを当てる', async () => {
+    const { RecordingContext, delays } = recordingContext();
+    vi.stubGlobal('AudioContext', RecordingContext);
+    const { applyVolume, boostOf, setAudioDelay, resumePendingBoost } =
+      await import('./volumeBoost');
+    const video = document.createElement('video');
+
+    applyVolume(video, 1.5);
+    setAudioDelay(video, 0.1);
+
+    window.dispatchEvent(new Event('pointerdown'));
+    resumePendingBoost(video);
+    expect(delays[0]?.delayTime.value).toBe(0.1);
+    expect(boostOf(video)).toBe(1.5);
   });
 });

@@ -1,4 +1,10 @@
-import type { AudioTracks, Mpeg2TsPlayer, PlayerState, PrivateStream } from '@mpeg2toh264/player';
+import type {
+  AudioTracks,
+  Mpeg2TsPlayer,
+  PlayerState,
+  PrivateStream,
+  Stats,
+} from '@mpeg2toh264/player';
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { audioChoices, currentAudioChoice } from './audio';
@@ -7,6 +13,7 @@ import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { deinterlacerCanvas } from './deinterlacer';
 import { fitMedia } from './mediaFit';
+import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import classes from './TsPlayer.module.css';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
@@ -29,7 +36,7 @@ type Props = {
   superimpose?: boolean;
   // captionStyle は、字幕の見た目 (#491)。
   captionStyle?: CaptionStyle;
-  // crop は、L 字放送の切り抜き (#496)。映像と字幕をまとめて拡大する。
+  // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。映像と字幕をまとめて拡大する。
   crop?: Crop;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
@@ -47,6 +54,8 @@ type Props = {
   onAudio?: (tracks: AudioTracks) => void;
   // audio は、聞く音声 (audioChoices の値)。null なら、プレイヤーに任せる。
   audio?: string | null;
+  // onReading は、映っている組の読み込みが進んだときに、読んだバイト数と放送の形式を受け取る (#828)。
+  onReading?: (reading: TsPlayerReading) => void;
 };
 
 // Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
@@ -57,8 +66,45 @@ type Slot = {
   captions: Captions;
   // player は、変換のプレイヤー。モジュールを読み終えるまでは null。
   player: Mpeg2TsPlayer | null;
+  // load は、読み込みを見分ける番号。読み直すたびに変わる。
+  load: number;
+  // stats は、この読み込みでプレイヤーが最後に知らせた統計。
+  stats: Stats | null;
+  // bytesRead は、この読み込みで読んだバイト数。
+  bytesRead: number;
   destroyed: boolean;
 };
+
+// loads は、読み込みに振った番号の最後。
+let loads = 0;
+
+// bufferedEnd は、今の位置を含む、読み込んである範囲の終わり。なければ、最後の範囲の終わり。
+function bufferedEnd(video: HTMLVideoElement): number {
+  const { buffered, currentTime } = video;
+  for (let i = 0; i < buffered.length; i++) {
+    if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) {
+      return buffered.end(i);
+    }
+  }
+
+  return buffered.length > 0 ? buffered.end(buffered.length - 1) : 0;
+}
+
+// sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
+function sourcePicture(player: Mpeg2TsPlayer): SourcePicture | null {
+  const timeline = player.deinterlacer?.videoTimeline ?? [];
+  const now = player.video.currentTime;
+  const state = timeline.findLast((entry) => entry.start <= now) ?? timeline[0];
+  if (state?.codedSize === undefined) {
+    return null;
+  }
+
+  return {
+    width: state.codedSize.width,
+    height: state.codedSize.height,
+    interlaced: state.scan?.interlaced ?? null,
+  };
+}
 
 // loadModules は、変換のプレイヤーと yadif を読む。yadif は LGPL なので、別のチャンクとして読む。
 const loadModules = () =>
@@ -86,6 +132,7 @@ export function TsPlayer({
   onVideo,
   onAudio,
   audio = null,
+  onReading,
 }: Props) {
   // active は、映っている組。pending は、切り替えるために裏で読み込んでいる組。
   const activeRef = useRef<Slot | null>(null);
@@ -101,8 +148,8 @@ export function TsPlayer({
   const styleRef = useRef(captionStyle);
   styleRef.current = captionStyle;
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo });
-  handlers.current = { onState, onError, onLoaded, onAudio, onVideo };
+  const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo, onReading });
+  handlers.current = { onState, onError, onLoaded, onAudio, onVideo, onReading };
   const audioRef = useRef(audio);
   audioRef.current = audio;
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
@@ -136,7 +183,16 @@ export function TsPlayer({
     renderer.setVisible(showCaptions.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
-    const slot: Slot = { container, video, captions: renderer, player: null, destroyed: false };
+    const slot: Slot = {
+      container,
+      video,
+      captions: renderer,
+      player: null,
+      load: 0,
+      stats: null,
+      bytesRead: 0,
+      destroyed: false,
+    };
     // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
     // 見張れないので、知らせて読み直させる。
     video.addEventListener('error', () => {
@@ -176,6 +232,35 @@ export function TsPlayer({
       if (isActive()) {
         handlers.current.onError?.(event.detail.error);
       }
+    });
+    // 読んだバイト数と、変換を終えたメディアの長さから、ビットレートを出す (#828)。
+    // 最初の progress までは、読んだバイト数が分からないので知らせない。
+    const report = () => {
+      if (isActive() && slot.bytesRead > 0) {
+        handlers.current.onReading?.({
+          load: slot.load,
+          bytesRead: slot.bytesRead,
+          mediaEnd: bufferedEnd(slot.video),
+          seeking: player.state === 'seeking',
+          transport:
+            slot.stats === null
+              ? null
+              : {
+                  dropped: slot.stats.dropped,
+                  errors: slot.stats.errors,
+                  scrambled: slot.stats.scrambled,
+                },
+          source: sourcePicture(player),
+        });
+      }
+    };
+    player.addEventListener('progress', (event) => {
+      slot.bytesRead = event.detail.bytesRead;
+      report();
+    });
+    player.addEventListener('stats', (event) => {
+      slot.stats = event.detail;
+      report();
     });
     // 字幕は private_stream_1、文字スーパーは private_stream_2 で届く。時刻は、video の時刻にそろっている。
     const feed = (event: CustomEvent<PrivateStream>) => {
@@ -327,6 +412,9 @@ export function TsPlayer({
             return;
           }
           selectAudio(next, audioRef.current);
+          slot.load = ++loads;
+          slot.stats = null;
+          slot.bytesRead = 0;
           await next.load(url);
           // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
@@ -355,6 +443,9 @@ export function TsPlayer({
     }
     active.captions.reset();
     selectAudio(player, audioRef.current);
+    active.load = ++loads;
+    active.stats = null;
+    active.bytesRead = 0;
     player.load(url).then(
       () => {
         if (!cancelled) {

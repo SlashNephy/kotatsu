@@ -16,6 +16,7 @@ export type SettingsInput = {
   endMarginSeconds?: number | null;
   priority?: number | null;
   joinSegments?: boolean | null;
+  detectCm?: boolean | null;
 };
 
 export type RuleInput = {
@@ -164,6 +165,7 @@ export function createScheduler(options: {
     endMarginSeconds: settings?.endMarginSeconds ?? null,
     priority: settings?.priority ?? null,
     joinSegments: settings?.joinSegments ?? null,
+    detectCm: settings?.detectCm ?? null,
   });
 
   const conditionsView = (conditions: ProgramConditionsInput) => ({
@@ -373,6 +375,9 @@ export function createScheduler(options: {
 
       return rule === undefined ? undefined : ruleView(rule);
     },
+
+    // conditionsView は、条件の入力を、tenban が返す ProgramConditions の形にする。視聴ルールでも使う。
+    conditionsView,
 
     // Query
     rules: () => [...rules.values()].map(ruleView),

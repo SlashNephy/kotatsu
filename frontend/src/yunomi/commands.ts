@@ -29,10 +29,16 @@ export type PlayerCommandArgs = {
   pressKey: [key: RemoteKey];
   previousChannel: [];
   nextChannel: [];
+  // lastChannel は、直前に見ていた局へ戻る (#816)。
+  lastChannel: [];
   pictureInPicture: [];
   capture: [];
   restart: [];
   toggleStats: [];
+  // audioDelayIncrease と audioDelayDecrease は、音ずれ補正 (#818) で、音を遅らせる長さを 1 刻み変える。
+  audioDelayIncrease: [];
+  audioDelayDecrease: [];
+  audioDelayReset: [];
   showShortcuts: [];
   // stop は、再生をやめ、プレイヤーを閉じる。
   stop: [];
@@ -76,17 +82,35 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   selectAudio: { repeatable: false },
   previousChannel: { repeatable: false },
   nextChannel: { repeatable: false },
+  lastChannel: { repeatable: false },
   pictureInPicture: { repeatable: false },
   capture: { repeatable: false },
   toggleDataBroadcast: { repeatable: false },
   pressKey: { repeatable: false },
   restart: { repeatable: false },
   toggleStats: { repeatable: false },
+  audioDelayIncrease: { repeatable: true },
+  audioDelayDecrease: { repeatable: true },
+  audioDelayReset: { repeatable: false },
   showShortcuts: { repeatable: false },
   stop: { repeatable: false },
 };
 
 export const playerCommandIds = Object.keys(playerCommands) as PlayerCommandId[];
+
+// argumentCommands は、引数を取る操作。キーには割り当てられない。操作を足したら、型がここに足すことを求める。
+const argumentCommands: Readonly<Record<Exclude<PlayerCommandId, SimpleCommandId>, true>> = {
+  seekTo: true,
+  setMuted: true,
+  setVolume: true,
+  selectAudio: true,
+  pressKey: true,
+};
+
+// simpleCommandIds は、キーに割り当てられる操作。登録簿の順に並べる。
+export const simpleCommandIds = playerCommandIds.filter(
+  (id): id is SimpleCommandId => !Object.hasOwn(argumentCommands, id),
+);
 
 // runCommand は、操作を呼ぶ。今使えない操作なら、何もせず false を返す。
 export function runCommand<Id extends PlayerCommandId>(

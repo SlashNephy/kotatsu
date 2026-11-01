@@ -4,24 +4,21 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { Captions, Keyboard } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useMergedRef } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
-import {
-  ErrorBoundary,
-  PageLoader,
-  ProgramTitle,
-  splitProgramMarks,
-  toHalfWidth,
-  useDocumentTitle,
-} from '../../futon';
+import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { WatchPanel } from '../../yunomi/WatchPanel';
 import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
+import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
+import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
+import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
 import {
   insertRecordedCaption,
   normalizeCaption,
@@ -38,7 +35,9 @@ import { useSeekableStream } from '../../yunomi/useSeekableStream';
 import {
   RateSelect,
   CropSelect,
+  AudioDelaySetting,
   NormalizeVolumeToggle,
+  SleepTimerSelect,
   PlaybackUnavailable,
   QualitySelect,
 } from '../../yunomi/QualitySelect';
@@ -46,6 +45,7 @@ import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { useHlsStream } from '../../yunomi/useHlsStream';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
+import { documentTitle, type PlayerSnapshot } from '../../yunomi/playerState';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
@@ -53,6 +53,9 @@ import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
 import { usePlayerShortcuts } from '../../yunomi/usePlayerShortcuts';
+import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
+import { usePlayerGamepad } from '../../yunomi/gamepad';
+import { usePlayerMouse } from '../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../yunomi/commands';
 import {
   CaptureButton,
@@ -248,6 +251,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
 
   const [statsShown, setStatsShown] = useState(false);
   useVolumeNormalizer(video);
+  useAudioDelayer(video);
   const [crop, setCrop] = useState<Crop>(noCrop);
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
@@ -280,6 +284,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   const currentCaption = useRef<string | null>(null);
+  // 字幕の外字を置き換える表を読む (#825)。
+  const drcs = useDRCSReplacements();
   const onCaptionText = (text: string) => {
     const normalized = normalizeCaption(text);
     currentCaption.current = normalized === '' ? null : normalized;
@@ -359,7 +365,12 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   };
   const [autoPictureInPicture] = useAutoPictureInPicture();
   // commands は、この画面で今使える操作 (#809)。キーと OS のメディア操作は、どちらもここから呼ぶ。
+  // audioDelayCommands は、音ずれ補正 (#818) の操作。変えたら、長さを映像の上に短く出す。
+  const audioDelayCommands = useAudioDelayCommands((ms) =>
+    showFlash(t('player.flash.audioDelay', { ms })),
+  );
   const commands: PlayerCommands = {
+    ...audioDelayCommands,
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay,
@@ -410,18 +421,38 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
         }
       : {}),
   };
+  // sleep は、スリープタイマー (#821)。時間になったら、プレイヤーを閉じる。
+  const sleep = useSleepTimer(() => commands.stop?.());
   usePlayerShortcuts(commands);
-  const programTitle = toHalfWidth(splitProgramMarks(program.name).name);
-  useDocumentTitle([programTitle === '' ? null : programTitle]);
-  useMediaSession(
-    { title: programTitle, artist: toHalfWidth(program.service.name), artwork: null },
-    commands,
-    {
-      playing: !videoState.paused,
-      position: { duration, position: seeking ?? position, playbackRate: rate },
-    },
-    autoPictureInPicture,
-  );
+  // contextMenu は、映像を右クリックしたときのメニュー (#1140)。
+  const contextMenu = usePlayerContextMenu(commands);
+  // ゲームパッドでも、同じ操作を呼べるようにする (#810)。
+  usePlayerGamepad(commands);
+  // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
+  const mouseRef = usePlayerMouse(commands);
+  // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
+  const boxRef = useMergedRef(playerBoxRef, mouseRef);
+  // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
+  // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
+  const player = {
+    kind: 'TIMESHIFT',
+    target: serviceId,
+    serviceName: program.service.name,
+    program: { id: `${serviceId}:${startAt}`, name: program.name },
+    artwork: null,
+    paused: videoState.paused,
+    position,
+    duration,
+    playbackRate: rate,
+    volume: videoState.volume,
+    muted: videoState.muted,
+    audios: audio.remote.choices,
+    audio: audio.remote.selected,
+    dataBroadcast: false,
+    keyGroups: [],
+  } satisfies PlayerSnapshot;
+  useDocumentTitle(documentTitle(player));
+  useMediaSession(player, commands, autoPictureInPicture);
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。
   const resumeAfterCut = () => {
@@ -518,6 +549,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
+            <AudioDelaySetting />
+            <SleepTimerSelect timer={sleep} />
             <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
@@ -543,7 +576,9 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
 
   const playerBox = (
     <div
-      ref={playerBoxRef}
+      ref={boxRef}
+      // 映像を右クリックすると、操作のメニューを出す (#1140)。
+      onContextMenu={contextMenu.onContextMenu}
       className={playerControlsClasses.box}
       data-controls-visible={controls.visible}
       {...controls.containerProps}
@@ -562,6 +597,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       }}
       onPointerUp={doubleTap}
     >
+      {contextMenu.menu}
       {route.kind === 'convert' && (
         <TsPlayer
           url={stream.url}
@@ -673,6 +709,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
                     formatClock(broadcastTime(program.playableFrom, program.gaps, entry.at))
                   }
                   onSelect={(entry) => seek(entry.at)}
+                  canRegisterDRCS={drcs.canRegister}
                   height={watchCommentsHeight}
                 />
               ),

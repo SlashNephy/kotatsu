@@ -3,11 +3,11 @@
   gap: var(--mantine-spacing-md);
 }
 
-/* 広い画面では、本文を画面の高さ (ヘッダーの 64px と上下の余白を除く) に収め、条件と結果を左右に並べる。
+/* 広い画面では、本文を画面の高さ (ヘッダーと上下の余白を除く) に収め、条件と結果を左右に並べる。
    ページはスクロールさせず、それぞれの列の中だけをスクロールする。狭い画面では縦に積み、ページをスクロールする。 */
 @media (min-width: 62em) {
   .page {
-    height: calc(100dvh - 64px - 2 * var(--mantine-spacing-md));
+    height: calc(100dvh - var(--app-shell-header-height) - 2 * var(--mantine-spacing-md));
   }
 
   .layout {

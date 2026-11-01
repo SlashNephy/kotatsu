@@ -11,18 +11,22 @@ export const maxRetries = 12;
 export type TransientRetryOptions = {
   tracker?: ConnectionTracker;
   random?: () => number;
+  // online は、端末がネットワークにつながっているかを返す。既定は navigator.onLine。
+  online?: () => boolean;
 };
 
 // withTransientRetry は、一時的な障害 (isTransientError) で失敗した query を、間をおいて送り直す FetchFunction を返す。
 // 送り直している間、Relay からは応答を待っているように見えるので、画面は読み込み中のままで、エラーを出さない。
 // 送り直している間は、tracker に知らせ、ヘッダーに印を出す。送り直して通ったら、tracker がサーバーが戻ったことを知らせる。
 // mutation は、同じ操作を 2 回行うおそれがあるので、送り直さない。
+// 端末がオフラインのときも送り直さない。送り直しても届かず、画面がオフラインの知らせを出せないまま、読み込み中で止まるからである (#1200)。
 export function withTransientRetry(
   fetchFn: FetchFunction,
   options: TransientRetryOptions = {},
 ): FetchFunction {
   const tracker = options.tracker ?? serverConnections;
   const random = options.random ?? Math.random;
+  const online = options.online ?? (() => navigator.onLine);
 
   return (operation, variables, cacheConfig, uploadables) =>
     Observable.create<GraphQLResponse>((sink) => {
@@ -52,7 +56,8 @@ export function withTransientRetry(
             if (
               operation.operationKind !== 'query' ||
               retries >= maxRetries ||
-              !isTransientError(error)
+              !isTransientError(error) ||
+              !online()
             ) {
               connection?.release();
               sink.error(error);

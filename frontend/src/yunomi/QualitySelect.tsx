@@ -1,10 +1,13 @@
-import { Alert, Select, Switch } from '@mantine/core';
+import { Alert, NumberInput, Select, Switch } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import type { AudioChoice, KyusuAudioChoice } from './audio';
-import { cropOrigins, cropScales, type Crop } from './crop';
+import { type Crop, cropForMode, cropMode, cropModes, cropOrigins, cropScales } from './crop';
 import { useNormalizeVolume } from './volumeNormalize';
+import { audioLanguages, useAudioLanguage, type AudioLanguage } from './audioLanguage';
+import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } from './audioDelay';
+import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 
@@ -136,7 +139,7 @@ export function DataBroadcastToggle({
 const languages = ['jpn', 'eng', 'kor', 'zho', 'chi', 'etc'] as const;
 
 // languageName は、言語のコードを、メニューに出す名前にする。知らない言語は、コードのまま出す。
-function languageName(t: TFunction, code: string): string {
+export function languageName(t: TFunction, code: string): string {
   const known = languages.find((language) => language === code);
 
   return known === undefined ? code : t(`player.languages.${known}`);
@@ -164,6 +167,40 @@ export function kyusuAudioChoiceLabel(t: TFunction, choice: KyusuAudioChoice): s
   }
 
   return choice.language === null ? base : `${base}（${languageName(t, choice.language)}）`;
+}
+
+// AudioLanguageSelect は、音声のメニューに置く、優先する言語 (#819) の選択。端末ごとの設定を変える。
+// 選んだ言語の音声が番組にあれば、利用者が音声を選ぶまで、その音声を聞く。
+// onChange は、言語を変える直前に、新しい言語を受け取る。
+export function AudioLanguageSelect({
+  onChange,
+}: {
+  onChange?: (language: AudioLanguage | null) => void;
+}) {
+  const { t } = useTranslation();
+  const [language, setLanguage] = useAudioLanguage();
+
+  return (
+    <Select
+      size="xs"
+      label={t('player.audioLanguage.label')}
+      description={t('player.audioLanguage.description')}
+      comboboxProps={{ withinPortal: false }}
+      allowDeselect={false}
+      value={language ?? 'none'}
+      data={[
+        { value: 'none', label: t('player.audioLanguage.none') },
+        ...audioLanguages.map((code) => ({ value: code, label: languageName(t, code) })),
+      ]}
+      onChange={(next) => {
+        if (next !== null) {
+          const language = audioLanguages.find((code) => code === next) ?? null;
+          onChange?.(language);
+          setLanguage(language);
+        }
+      }}
+    />
+  );
 }
 
 // AudioSelect は、音声のメニュー。二か国語放送の音声や、デュアルモノの主音声と副音声を選ぶ (設計書 7.5)。
@@ -266,48 +303,110 @@ export function RateSelect({
   );
 }
 
-// CropSelect は、L 字放送の切り抜き (#496) を選ぶ。拡大率と、拡大の起点を選ぶ。切り抜きは、その場限りで覚えない。
+// CropSelect は、表示の比率を選ぶ (#496、#824)。L 字放送の切り抜きでは、拡大率と拡大の起点も選ぶ。
+// 4:3 の映像の左右の黒い縁を消す、横に伸ばす、のプリセットも選べる。切り抜きは、その場限りで覚えない。
 export function CropSelect({ value, onChange }: { value: Crop; onChange: (crop: Crop) => void }) {
   const { t } = useTranslation();
+  const mode = cropMode(value);
 
   return (
     <>
       <Select
-        label={t('player.crop.scale')}
+        label={t('player.crop.mode')}
         size="xs"
         comboboxProps={{ withinPortal: false }}
         allowDeselect={false}
-        data={cropScales.map((scale) => ({
-          value: String(scale),
-          label: scale === 1 ? t('player.crop.none') : `${scale}x`,
+        data={cropModes.map((candidate) => ({
+          value: candidate,
+          label: t(`player.crop.modes.${candidate}`),
         }))}
-        value={String(value.scale)}
+        value={mode}
         onChange={(next) => {
-          if (next !== null) {
-            onChange({ ...value, scale: Number(next) });
+          const selected = cropModes.find((candidate) => candidate === next);
+          if (selected !== undefined && selected !== mode) {
+            onChange(cropForMode(selected));
           }
         }}
       />
-      {value.scale !== 1 && (
-        <Select
-          label={t('player.crop.origin')}
-          size="xs"
-          comboboxProps={{ withinPortal: false }}
-          allowDeselect={false}
-          data={cropOrigins.map((origin) => ({
-            value: origin,
-            label: t(`player.crop.origins.${origin}`),
-          }))}
-          value={value.origin}
-          onChange={(next) => {
-            const origin = cropOrigins.find((candidate) => candidate === next);
-            if (origin !== undefined) {
-              onChange({ ...value, origin });
-            }
-          }}
-        />
+      {mode === 'lShape' && (
+        <>
+          <Select
+            label={t('player.crop.scale')}
+            size="xs"
+            comboboxProps={{ withinPortal: false }}
+            allowDeselect={false}
+            data={cropScales
+              .filter((scale) => scale !== 1)
+              .map((scale) => ({ value: String(scale), label: `${scale}x` }))}
+            value={String(value.scale)}
+            onChange={(next) => {
+              if (next !== null) {
+                onChange({ ...value, scale: Number(next) });
+              }
+            }}
+          />
+          <Select
+            label={t('player.crop.origin')}
+            size="xs"
+            comboboxProps={{ withinPortal: false }}
+            allowDeselect={false}
+            data={cropOrigins.map((origin) => ({
+              value: origin,
+              label: t(`player.crop.origins.${origin}`),
+            }))}
+            value={value.origin}
+            onChange={(next) => {
+              const origin = cropOrigins.find((candidate) => candidate === next);
+              if (origin !== undefined) {
+                onChange({ ...value, origin });
+              }
+            }}
+          />
+        </>
       )}
     </>
+  );
+}
+
+// SleepTimerSelect は、設定のメニューに置く、スリープタイマー (#821) の選択。
+// programEnd なら (ライブ視聴)、番組が終わったら止める選択肢も出す。
+export function SleepTimerSelect({
+  timer,
+  programEnd = false,
+}: {
+  timer: SleepTimer;
+  programEnd?: boolean;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Select
+      size="xs"
+      label={t('player.sleepTimer.label')}
+      description={
+        timer.remaining !== null
+          ? t('player.sleepTimer.remaining', { minutes: timer.remaining })
+          : timer.choice === 'programEnd'
+            ? t('player.sleepTimer.untilProgramEnd')
+            : undefined
+      }
+      value={timer.choice}
+      allowDeselect={false}
+      comboboxProps={{ withinPortal: false }}
+      data={[
+        { value: 'off', label: t('player.sleepTimer.off') },
+        ...sleepMinuteChoices.map((minutes) => ({
+          value: minutes,
+          label: t('player.sleepTimer.minutes', { minutes }),
+        })),
+        ...(programEnd ? [{ value: 'programEnd', label: t('player.sleepTimer.programEnd') }] : []),
+      ]}
+      onChange={(value) => {
+        if (value !== null) {
+          timer.setChoice(value as SleepChoice);
+        }
+      }}
+    />
   );
 }
 
@@ -323,6 +422,39 @@ export function NormalizeVolumeToggle() {
       checked={enabled}
       onChange={(event) => setEnabled(event.currentTarget.checked)}
     />
+  );
+}
+
+// AudioDelaySetting は、設定のメニューに置く、音ずれ補正 (#818) の長さ。端末ごとの設定を変える。
+// resettable なら (ライブ視聴)、選局したときに元に戻すかの切り替えも出す。
+export function AudioDelaySetting({ resettable = false }: { resettable?: boolean }) {
+  const { t } = useTranslation();
+  const [ms, setMs] = useAudioDelay();
+  const [reset, setReset] = useResetAudioDelay();
+
+  return (
+    <>
+      <NumberInput
+        size="xs"
+        label={t('player.audioDelay.label')}
+        description={t('player.audioDelay.description')}
+        value={ms}
+        min={0}
+        max={maxAudioDelayMs}
+        step={audioDelayStepMs}
+        suffix=" ms"
+        allowDecimal={false}
+        onChange={(value) => setMs(typeof value === 'number' ? value : Number(value) || 0)}
+      />
+      {resettable && (
+        <Switch
+          size="xs"
+          label={t('player.audioDelay.resetOnChannelChange')}
+          checked={reset}
+          onChange={(event) => setReset(event.currentTarget.checked)}
+        />
+      )}
+    </>
   );
 }
 

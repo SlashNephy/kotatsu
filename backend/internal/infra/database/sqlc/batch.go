@@ -10,6 +10,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -65,6 +66,58 @@ func (b *DeleteProgramsBatchResults) Exec(f func(int, error)) {
 }
 
 func (b *DeleteProgramsBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
+const setRecordingNormalized = `-- name: SetRecordingNormalized :batchexec
+UPDATE recordings SET name_normalized = $1, description_normalized = $2 WHERE id = $3
+`
+
+type SetRecordingNormalizedBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetRecordingNormalizedParams struct {
+	NameNormalized        *string
+	DescriptionNormalized *string
+	ID                    uuid.UUID
+}
+
+// 録画の正規化した番組名と概要を書く (#1044)。
+func (q *Queries) SetRecordingNormalized(ctx context.Context, arg []SetRecordingNormalizedParams) *SetRecordingNormalizedBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.NameNormalized,
+			a.DescriptionNormalized,
+			a.ID,
+		}
+		batch.Queue(setRecordingNormalized, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetRecordingNormalizedBatchResults{br, len(arg), false}
+}
+
+func (b *SetRecordingNormalizedBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetRecordingNormalizedBatchResults) Close() error {
 	b.closed = true
 	return b.br.Close()
 }

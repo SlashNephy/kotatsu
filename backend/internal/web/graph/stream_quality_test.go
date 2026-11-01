@@ -22,7 +22,7 @@ func TestStreamQuality(t *testing.T) {
 		{"pid": 18, "kind": "psi", "packets": 10, "drops": 0, "errors": 0, "scrambled": 0}]'`)
 	require.NoError(t, err)
 	for _, stats := range []*string{
-		new(`[{"pid": 256, "kind": "video", "packets": 50, "drops": 2, "errors": 1, "scrambled": 3}]`),
+		new(`[{"pid": 256, "kind": "video", "packets": 50, "drops": 2, "errors": 1, "scrambled": 3, "streamType": 2, "componentTag": 0}]`),
 		nil,
 	} {
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at)
@@ -38,16 +38,19 @@ func TestStreamQuality(t *testing.T) {
 		Drops     int64  `json:"drops"`
 		Errors    int64  `json:"errors"`
 		Scrambled int64  `json:"scrambled"`
+		// StreamType と ComponentTag は、記録していないセグメントがあっても、記録したものから埋める。
+		StreamType   *int `json:"streamType"`
+		ComponentTag *int `json:"componentTag"`
 	}
 	var node struct {
 		Node struct {
 			StreamQuality []quality `json:"streamQuality"`
 		} `json:"node"`
 	}
-	require.Empty(t, f.query(t, `query($id: ID!) { node(id: $id) { ... on Recording { streamQuality { pid kind packets drops errors scrambled } } } }`,
+	require.Empty(t, f.query(t, `query($id: ID!) { node(id: $id) { ... on Recording { streamQuality { pid kind packets drops errors scrambled streamType componentTag } } } }`,
 		map[string]any{varID: recordingID}, &node))
 	assert.Equal(t, []quality{
-		{PID: 18, Kind: "PSI", Packets: 10, Drops: 0, Errors: 0, Scrambled: 0},
-		{PID: 256, Kind: "VIDEO", Packets: 150, Drops: 3, Errors: 1, Scrambled: 3},
+		{PID: 18, Kind: "PSI", Packets: 10, Drops: 0, Errors: 0, Scrambled: 0, StreamType: nil, ComponentTag: nil},
+		{PID: 256, Kind: "VIDEO", Packets: 150, Drops: 3, Errors: 1, Scrambled: 3, StreamType: new(2), ComponentTag: new(0)},
 	}, node.Node.StreamQuality)
 }

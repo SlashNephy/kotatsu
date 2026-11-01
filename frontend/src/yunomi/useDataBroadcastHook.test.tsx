@@ -29,6 +29,7 @@ const fake = vi.hoisted(() => {
       mediaElement: HTMLElement;
       epg?: { tune?: (networkId: number, transportStreamId: number, serviceId: number) => boolean };
       setMainAudioStreamCallback?: (componentId: number, channelId?: number) => boolean;
+      ip?: { isIPConnected?: () => number; transmitTextDataOverIP?: unknown };
     };
 
     constructor(options: FakeBrowser['options']) {
@@ -90,6 +91,7 @@ function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: 
     receive ? { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 } : null,
     videoRef,
     shown,
+    false,
   );
 
   return (
@@ -692,6 +694,7 @@ function TuneHarness({
     { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
     videoRef,
     true,
+    false,
     { onTune, onSelectAudio },
   );
 
@@ -723,5 +726,37 @@ describe('データ放送の文書からの選局と音声の切り替え', () =
     expect(fake.FakeBrowser.instances).toHaveLength(1);
     expect(browser.options.epg?.tune?.(32736, 32736, 1024)).toBe(false);
     expect(second).toHaveBeenCalledWith(32736, 1024);
+  });
+});
+
+// IPHarness は、データ放送の文書の通信を中継させるかを切り替える (#501)。
+function IPHarness({ ipEnabled }: { ipEnabled: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const { layer } = useDataBroadcast(
+    { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+    videoRef,
+    true,
+    ipEnabled,
+  );
+
+  return (
+    <div className={classes.media}>
+      <video ref={videoRef} />
+      {layer}
+    </div>
+  );
+}
+
+describe('データ放送の文書の通信', () => {
+  test('中継させないなら通信の機能を渡さず、中継させるなら渡す。切り替えたら作り直す', () => {
+    const { rerender } = render(<IPHarness ipEnabled={false} />);
+    expect(fake.FakeBrowser.instances).toHaveLength(1);
+    expect(fake.FakeBrowser.instances[0]?.options.ip).toBeUndefined();
+
+    rerender(<IPHarness ipEnabled />);
+    expect(fake.FakeBrowser.instances).toHaveLength(2);
+    const ip = fake.FakeBrowser.instances[1]?.options.ip;
+    expect(ip?.isIPConnected?.()).toBe(1);
+    expect(ip?.transmitTextDataOverIP).toBeTypeOf('function');
   });
 });

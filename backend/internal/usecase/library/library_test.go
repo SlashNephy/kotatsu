@@ -256,6 +256,35 @@ func TestSetTags(t *testing.T) {
 	}
 }
 
+// TestClearProgress は、ユーザーの再生位置を消し、再生位置がなくても失敗しないことを確かめる (#1074)。
+func TestClearProgress(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		saved bool
+	}{
+		{name: "再生位置がある", saved: true},
+		{name: "再生位置がない", saved: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, completed, false)
+			if tt.saved {
+				require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, recordingID, time.Minute))
+			}
+			require.NoError(t, f.library.ClearProgress(t.Context(), f.pool, f.userID, recordingID))
+			rows, err := sqlc.New(f.pool).ListWatchProgress(t.Context(), sqlc.ListWatchProgressParams{UserID: f.userID, RecordingIds: []uuid.UUID{recordingID}})
+			require.NoError(t, err)
+			assert.Empty(t, rows)
+			assert.Empty(t, f.actions(t, recordingID))
+		})
+	}
+}
+
 // TestSaveProgress は、ユーザーごとに再生位置を保存し、上書きすることを確かめる。
 func TestSaveProgress(t *testing.T) {
 	t.Parallel()

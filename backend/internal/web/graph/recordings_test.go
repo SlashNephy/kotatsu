@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -158,7 +159,7 @@ func (f *fixture) recordings(t *testing.T, first int, after *string, filter map[
 func TestRecordings(t *testing.T) {
 	t.Parallel()
 
-	const travelogue = "みかん紀行"
+	const travelogue = "みかん紀行 ＳＰ"
 	f, dir := newRecordingFixture(t)
 	oldest := f.addRecording(t, dir, episode1, "completed", 3*time.Hour)
 	f.addRecording(t, dir, travelogue, "failed", 2*time.Hour)
@@ -243,6 +244,13 @@ func TestRecordings(t *testing.T) {
 	assert.Equal(t, "アニメ", tags.Tags[0].Name)
 	assert.Equal(t, 1, tags.Tags[0].Recordings)
 
+	const filterKeyword = "keyword"
+	// 番組名と概要の正規化した列は、録画を書くときに Go で作る (設計書 3.5)。ほかの録画は、列を知らない古いバイナリが書いたものとして NULL のまま残す。
+	const travelogueDescription = "ＴＯＫＹＯ　ＭＸで放送"
+	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET description = $2, name_normalized = $3, description_normalized = $4 WHERE name = $1`,
+		travelogue, travelogueDescription, domain.Normalize(travelogue), domain.Normalize(travelogueDescription))
+	require.NoError(t, err)
+
 	tests := []struct {
 		name   string
 		filter map[string]any
@@ -250,8 +258,11 @@ func TestRecordings(t *testing.T) {
 	}{
 		{name: "タグ", filter: map[string]any{"tagIds": []string{tags.Tags[1].ID}}, want: []string{episode1}},
 		{name: "状態", filter: map[string]any{"states": []string{"COMPLETED", "PARTIAL"}}, want: []string{episode2, episode1}},
-		{name: "番組名", filter: map[string]any{"keyword": "こたつ特集 第"}, want: []string{episode2, episode1}},
-		{name: "LIKE の特別な文字は文字そのもの", filter: map[string]any{"keyword": "%"}, want: []string{}},
+		{name: "番組名", filter: map[string]any{filterKeyword: "こたつ特集 第"}, want: []string{episode2, episode1}},
+		{name: "正規化した番組名", filter: map[string]any{filterKeyword: "紀行 sp"}, want: []string{travelogue}},
+		{name: "正規化した概要", filter: map[string]any{filterKeyword: "tokyo mx"}, want: []string{travelogue}},
+		{name: "キーワードも正規化する", filter: map[string]any{filterKeyword: "ＴＯＫＹＯ"}, want: []string{travelogue}},
+		{name: "LIKE の特別な文字は文字そのもの", filter: map[string]any{filterKeyword: "%"}, want: []string{}},
 		{name: "放送の期間", filter: map[string]any{"since": testNow().Add(-150 * time.Minute)}, want: []string{episode2, travelogue}},
 	}
 	for _, tt := range tests {
@@ -484,6 +495,66 @@ func TestReanalyzeRecording(t *testing.T) {
 	assert.Len(t, queued(), 1)
 }
 
+// TestDetectRecordingCM は、録画の CM の区間を見分けるジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確かめる (#1209)。
+// 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねず、見分け終えた録画は見分け直せる。
+func TestDetectRecordingCM(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
+	recordingNow := f.addRecording(t, dir, "こたつ中継", "recording", time.Hour)
+	// TS のない録画 (EPGStation から取り込んだ MP4 だけの録画など)。
+	mp4Only := f.addRecording(t, dir, "こたつ再放送", "completed", 2*time.Hour)
+	_, rawMP4Only, err := graph.ParseGlobalID(mp4Only)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET kind = 'other' WHERE recording_id = $1", rawMP4Only)
+	require.NoError(t, err)
+	_, rawID, err := graph.ParseGlobalID(recordingID)
+	require.NoError(t, err)
+	const detect = `mutation($id: ID!) { detectRecordingCm(id: $id) }`
+	queued := func() []string {
+		rows, err := f.pool.Query(t.Context(), `SELECT queue FROM river_job WHERE kind = 'recording_cm_detect' AND args->>'recordingId' = $1 ORDER BY id`, rawID)
+		require.NoError(t, err)
+		queues, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+
+		return queues
+	}
+	var got struct {
+		DetectRecordingCM bool `json:"detectRecordingCm"`
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, detect, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeConflict}, f.query(t, detect, map[string]any{varID: recordingNow}, nil), "a recording in progress")
+	assert.Equal(t, []string{codeConflict}, f.query(t, detect, map[string]any{varID: mp4Only}, nil), "a recording without TS segments")
+	assert.Equal(t, []string{codeNotFound}, f.query(t, detect, map[string]any{varID: graph.GlobalID("Recording", uuid.New().String())}, nil))
+	assert.Empty(t, queued())
+
+	// 全体の設定は既定 (見分けない) のままでも、頼まれたら見分ける。メンバーも頼める。
+	require.Empty(t, f.as(t, "member", auth.RoleMember).query(t, detect, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.DetectRecordingCM)
+	assert.Equal(t, []string{jobs.QueueCM}, queued())
+
+	// 待っているジョブがあれば、重ねて入れない。
+	require.Empty(t, f.query(t, detect, map[string]any{varID: recordingID}, &got))
+	assert.False(t, got.DetectRecordingCM)
+	assert.Len(t, queued(), 1)
+
+	// 見分け終えた録画は、見分け直せる。
+	_, err = f.pool.Exec(t.Context(), "UPDATE river_job SET state = 'completed', finalized_at = now() WHERE kind = 'recording_cm_detect'")
+	require.NoError(t, err)
+	require.Empty(t, f.query(t, detect, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.DetectRecordingCM)
+	assert.Len(t, queued(), 2)
+}
+
 // TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確かめる (#471)。
 func TestDeleteRecordings(t *testing.T) {
 	t.Parallel()
@@ -591,6 +662,56 @@ func TestRecordingWatchFrame(t *testing.T) {
 	assert.Nil(t, watchFrame(t))
 }
 
+// TestRecordingCMSections は、CM の区間を、録画を始めた日時に足した日時で、始まりの順に返すことを確かめる (#479)。
+func TestRecordingCMSections(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	f.addRecording(t, dir, episode1, "completed", time.Hour)
+	var rawID string
+	var recordedFrom time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text, recorded_from FROM recordings WHERE name = $1`, episode1).Scan(&rawID, &recordedFrom))
+
+	type section struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+	}
+	sections := func(t *testing.T) []section {
+		t.Helper()
+
+		var page struct {
+			Recordings struct {
+				Edges []struct {
+					Node struct {
+						CMSections []section `json:"cmSections"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"recordings"`
+		}
+		require.Empty(t, f.query(t, `query { recordings(first: 1) { edges { node { cmSections { from to } } } } }`, nil, &page))
+		require.Len(t, page.Recordings.Edges, 1)
+
+		return page.Recordings.Edges[0].Node.CMSections
+	}
+
+	// 見分けていなければ、空にする。
+	assert.Empty(t, sections(t))
+
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, 'ffmpeg', 1, $2)`,
+		rawID, testNow())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms) VALUES
+		($1, 'ffmpeg', 600000, 690500), ($1, 'ffmpeg', 0, 59500)`, rawID)
+	require.NoError(t, err)
+
+	got := sections(t)
+	require.Len(t, got, 2)
+	assert.True(t, recordedFrom.Equal(got[0].From))
+	assert.True(t, recordedFrom.Add(59500*time.Millisecond).Equal(got[0].To))
+	assert.True(t, recordedFrom.Add(10*time.Minute).Equal(got[1].From))
+	assert.True(t, recordedFrom.Add(690500*time.Millisecond).Equal(got[1].To))
+}
+
 // TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478)。
 func TestContinueWatching(t *testing.T) {
 	t.Parallel()
@@ -636,6 +757,22 @@ func TestContinueWatching(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"continueWatching"`
 	}
-	require.Empty(t, f.as(t, "other", auth.RoleMember).query(t, `{ continueWatching { name } }`, nil, &other))
+	otherFixture := f.as(t, "other", auth.RoleMember)
+	require.Empty(t, otherFixture.query(t, `{ continueWatching { name } }`, nil, &other))
 	assert.Empty(t, other.ContinueWatching)
+
+	// 再生位置を消すと、一覧から外れる (#1074)。ほかのユーザーが消しても、自分の再生位置は消えない。
+	const clearWatchPosition = `mutation($id: ID!) { clearWatchPosition(id: $id) { ` + recordingFields + ` } }`
+	require.Empty(t, otherFixture.query(t, clearWatchPosition, map[string]any{varID: ids["後半"]}, nil))
+	var cleared struct {
+		ClearWatchPosition recordingNode `json:"clearWatchPosition"`
+	}
+	require.Empty(t, f.query(t, clearWatchPosition, map[string]any{varID: ids["後半"]}, &cleared))
+	assert.Nil(t, cleared.ClearWatchPosition.WatchPositionMs)
+	require.Empty(t, f.query(t, `{ continueWatching { name } }`, nil, &got))
+	names = names[:0]
+	for _, recording := range got.ContinueWatching {
+		names = append(names, recording.Name)
+	}
+	assert.Equal(t, []string{"録画中", "前半"}, names)
 }

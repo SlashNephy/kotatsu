@@ -23,7 +23,7 @@ jobs:
       # GITHUB_TOKEN で打ったタグでは、ほかの workflow が動かないので、リリースとイメージの workflow を、そのタグで手で動かす。
       actions: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           # 既にある版を数えるので、タグを含めて取得する。
           fetch-depth: 0

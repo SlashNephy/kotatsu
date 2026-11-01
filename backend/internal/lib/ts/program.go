@@ -45,6 +45,28 @@ type Stream struct {
 	// StreamType は stream_type。0x02 は MPEG-2 映像、0x1B は H.264、0x24 は HEVC、0x0F は AAC (ADTS) を表す。
 	StreamType uint8
 	Kind       StreamKind
+	// ComponentTag は、ストリーム識別記述子の component_tag (#827)。EPG の映像と音声のコンポーネントと対応づける。
+	// 記述子がなければ nil。
+	ComponentTag *uint8
+}
+
+// descriptorTagStreamIdentifier は、ストリーム識別記述子 (stream_identifier_descriptor) の記述子タグ。
+const descriptorTagStreamIdentifier = 0x52
+
+// componentTag は、PMT の ES_info の記述子の並びから、ストリーム識別記述子の component_tag を読む。なければ nil。
+func componentTag(descriptors []byte) *uint8 {
+	for len(descriptors) >= 2 {
+		tag, length := descriptors[0], int(descriptors[1])
+		if 2+length > len(descriptors) {
+			return nil
+		}
+		if tag == descriptorTagStreamIdentifier && length >= 1 {
+			return new(descriptors[2])
+		}
+		descriptors = descriptors[2+length:]
+	}
+
+	return nil
 }
 
 // streamKind は、stream_type から大まかな種類を決める。
@@ -69,10 +91,12 @@ type programTable struct {
 	programs map[uint16]*Program
 	// generation は、PAT か PMT を読んで構成が変わるたびに増える。
 	generation int
+	// transportStreamID は、最後に読んだ PAT の transport_stream_id (#830)。まだ読んでいなければ nil。
+	transportStreamID *uint16
 }
 
 func newProgramTable() *programTable {
-	return &programTable{patVersion: -1, pmtPIDs: map[uint16]uint16{}, programs: map[uint16]*Program{}, generation: 0}
+	return &programTable{patVersion: -1, pmtPIDs: map[uint16]uint16{}, programs: map[uint16]*Program{}, generation: 0, transportStreamID: nil}
 }
 
 // isPMTPID は、pid が PAT に書かれた PMT の PID かどうかを返す。
@@ -92,6 +116,7 @@ func (t *programTable) handlePAT(section []byte) {
 	if header == nil || header.tableID != tableIDPAT || !header.currentNext {
 		return
 	}
+	t.transportStreamID = new(header.tableIDExtension)
 	// PAT は 100 ミリ秒ほどの間隔で同じ内容が繰り返し届くので、構成が変わったときだけ世代を進める。
 	changed := false
 	if int(header.version) != t.patVersion {
@@ -150,10 +175,15 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 	for entry := body[4+programInfoLength:]; len(entry) >= 5; {
 		streamType := entry[0]
 		esInfoLength := int(entry[3]&0x0F)<<8 | int(entry[4])
+		var tag *uint8
+		if 5+esInfoLength <= len(entry) {
+			tag = componentTag(entry[5 : 5+esInfoLength])
+		}
 		program.Streams = append(program.Streams, &Stream{
-			PID:        uint16(entry[1]&0x1F)<<8 | uint16(entry[2]),
-			StreamType: streamType,
-			Kind:       streamKind(streamType),
+			PID:          uint16(entry[1]&0x1F)<<8 | uint16(entry[2]),
+			StreamType:   streamType,
+			Kind:         streamKind(streamType),
+			ComponentTag: tag,
 		})
 		if 5+esInfoLength > len(entry) {
 			break
@@ -175,6 +205,17 @@ func (t *programTable) firstVideo() (*Stream, bool) {
 	}
 
 	return nil, false
+}
+
+// firstVideoProgram は、映像のある番組のうち、program_number が最も小さいものを返す。なければ nil を返す。
+func (t *programTable) firstVideoProgram() *Program {
+	for _, number := range slices.Sorted(maps.Keys(t.programs)) {
+		if slices.ContainsFunc(t.programs[number].Streams, func(s *Stream) bool { return s.Kind == StreamVideo }) {
+			return t.programs[number]
+		}
+	}
+
+	return nil
 }
 
 // snapshot は、番組の構成を program_number の昇順に並べて複製する。

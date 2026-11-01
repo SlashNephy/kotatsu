@@ -10,7 +10,7 @@ export type WatchPanelTab = {
   footer?: ReactNode;
 };
 
-// WatchPanel は、視聴の画面の右の列に置く枠 (設計書 7.4)。実況のコメントの一覧と字幕の履歴を、見出しで切り替えて出す。
+// WatchPanel は、視聴の画面の右の列に置く枠 (設計書 7.4)。実況のコメントの一覧と字幕の履歴と再生の情報を、見出しで切り替えて出す。
 // tabs の先頭を既定にする。選んだ中身がなくなったら (実況を切ったときなど)、先頭に戻る。
 export function WatchPanel({ tabs, label }: { tabs: readonly WatchPanelTab[]; label: string }) {
   // picked は、利用者が選んだ中身。選ぶまでは、先頭に従う。録画の実況の過去ログのように、後から先頭に足されたものに移れるようにする。

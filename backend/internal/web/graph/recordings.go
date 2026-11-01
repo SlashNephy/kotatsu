@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -177,7 +179,8 @@ func searchParams(filter *model.RecordingFilter) (*query.SearchRecordingsParams,
 		params.TagIDs = append(params.TagIDs, tagID)
 	}
 	if filter.Keyword != nil && strings.TrimSpace(*filter.Keyword) != "" {
-		params.Keyword = new(escapeLike(strings.TrimSpace(*filter.Keyword)))
+		// 番組名と概要の正規化した列に当てるので、キーワードも正規化する (設計書 3.5)。
+		params.Keyword = new(escapeLike(domain.Normalize(strings.TrimSpace(*filter.Keyword))))
 	}
 	params.Since, params.Until = filter.Since, filter.Until
 	if filter.RuleID != nil {
@@ -248,7 +251,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 	imageSegments := map[uuid.UUID]uuid.UUID{}
 	for i := range fileRows {
 		row := &fileRows[i]
-		if _, ok := imageSegments[row.RecordingID]; !ok && row.Kind == "segment" && row.Size > 0 {
+		if _, ok := imageSegments[row.RecordingID]; !ok && row.Kind == fileKindSegment && row.Size > 0 {
 			imageSegments[row.RecordingID] = row.ID
 		}
 		file := &model.RecordingFile{
@@ -522,6 +525,9 @@ func (r *Resolver) regenerateRecordingImages(ctx context.Context, globalID strin
 // dbStateRecording は、DB に記録する録画中の状態。
 const dbStateRecording = "recording"
 
+// fileKindSegment は、DB に記録する、TS のセグメントのファイルの種類。
+const fileKindSegment = "segment"
+
 // reanalyzeRecording は、録画の索引と集計を作り直すジョブを入れる。同じ録画のジョブを待っていれば、入れずに false を返す。
 func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (bool, error) {
 	if _, err := librarian(ctx); err != nil {
@@ -547,6 +553,41 @@ func (r *Resolver) reanalyzeRecording(ctx context.Context, globalID string) (boo
 
 	// 頼まれてやり直すので、取り込んだ録画の解析より先に回す。
 	return analysis.EnqueuePriority(ctx, r.db, r.jobs, recordingID)
+}
+
+// detectRecordingCM は、録画の CM の区間を見分けるジョブを入れる (設計書 6.1)。同じ録画のジョブを待っていれば、入れずに false を返す。
+// 全体や予約の設定にかかわらず見分ける。画像の作り直しや解析のやり直しと同じく、視聴者には許さない (設計書 9.7)。
+func (r *Resolver) detectRecordingCM(ctx context.Context, globalID string) (bool, error) {
+	if _, err := librarian(ctx); err != nil {
+		return false, err
+	}
+	recordingID, err := parseRecordingID(globalID)
+	if err != nil {
+		return false, err
+	}
+	if r.jobs == nil {
+		return false, errors.New("the job client is not configured")
+	}
+	recording, err := r.queries.GetRecording(ctx, recordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, NewError(CodeNotFound, "recording not found")
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get the recording: %w", err)
+	}
+	// 録画中は、セグメントを書き終えていない。
+	if recording.State == dbStateRecording {
+		return false, NewError(CodeConflict, "the recording is still being recorded")
+	}
+	// 見分けるのは TS のセグメントだけ。EPGStation から取り込んだ MP4 のような、TS のない録画は見分けられない。
+	files, err := r.queries.ListRecordingFilesByRecordings(ctx, []uuid.UUID{recordingID})
+	if err != nil {
+		return false, fmt.Errorf("failed to list the recording files: %w", err)
+	}
+	if !slices.ContainsFunc(files, func(f domain.RecordingFile) bool { return f.Kind == fileKindSegment && f.Size > 0 }) {
+		return false, NewError(CodeConflict, "the recording has no TS segment to detect CM sections in")
+	}
+
+	return cmdetect.Enqueue(ctx, r.db, r.jobs, recordingID)
 }
 
 func (r *Resolver) setRecordingTags(ctx context.Context, globalID string, tags []string) (*model.Recording, error) {
@@ -575,6 +616,22 @@ func (r *Resolver) saveWatchPosition(ctx context.Context, globalID string, posit
 		return nil, err
 	}
 	if err := r.library.SaveProgress(ctx, r.db, principal.UserID, recordingID, time.Duration(positionMs)*time.Millisecond); err != nil {
+		return nil, libraryError(err)
+	}
+
+	return r.recording(ctx, recordingID)
+}
+
+func (r *Resolver) clearWatchPosition(ctx context.Context, globalID string) (*model.Recording, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	recordingID, err := parseRecordingID(globalID)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.library.ClearProgress(ctx, r.db, principal.UserID, recordingID); err != nil {
 		return nil, libraryError(err)
 	}
 
@@ -614,4 +671,50 @@ func (r *Resolver) writingFileSize(poolID, path string, recorded int64) int64 {
 	}
 
 	return info.Size()
+}
+
+// liveStatsFreshness は、録画中の録画の様子を、今の値とみなす長さ。mikan は 10 秒ごとに書くので、その 3 回分にする。
+const liveStatsFreshness = 30 * time.Second
+
+// recordingLiveStats は、録画中の録画の、書いているセグメントの様子を返す (#829)。録画中でないか、まだ書いていなければ nil。
+func (r *Resolver) recordingLiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error) {
+	var found *model.RecordingLiveStats
+	if obj.State != model.RecordingStateRecording {
+		return found, nil
+	}
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	stats, err := r.queries.GetRecordingLiveStats(ctx, recordingID, r.clock.Now().Add(-liveStatsFreshness))
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// まだ書いていない。
+		return found, nil
+	case err != nil:
+		return nil, fmt.Errorf("failed to get the live recording stats: %w", err)
+	}
+
+	return &model.RecordingLiveStats{
+		Bitrate: stats.Bitrate, Bytes: stats.Bytes, Drops: stats.Drops, Errors: stats.Errors, Scrambled: stats.Scrambled,
+		UpdatedAt: stats.UpdatedAt,
+	}, nil
+}
+
+// recordingCMSections は、録画の CM とみなした区間を、録画の時間軸の日時にして返す (#479)。
+func (r *Resolver) recordingCMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	sections, err := cmdetect.RecordingSections(ctx, r.db, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*model.RecordingCMSection, 0, len(sections))
+	for _, s := range sections {
+		out = append(out, &model.RecordingCMSection{From: obj.RecordedFrom.Add(s.Start), To: obj.RecordedFrom.Add(s.End)})
+	}
+
+	return out, nil
 }

@@ -61,6 +61,8 @@ type esEntry struct {
 	streamType byte
 	pid        uint16
 	infoLength int
+	// descriptors は、ES_info に入れる記述子。infoLength の埋め草の前に置く。
+	descriptors []byte
 }
 
 // pmtSection は、program_number が programNum の PMT を作る。
@@ -69,7 +71,8 @@ func pmtSection(version byte, streams ...esEntry) []byte {
 	for _, s := range streams {
 		body = append(body, s.streamType)
 		body = binary.BigEndian.AppendUint16(body, 0xE000|s.pid)
-		body = binary.BigEndian.AppendUint16(body, 0xF000|uint16(s.infoLength&0x0FFF))
+		body = binary.BigEndian.AppendUint16(body, 0xF000|uint16((len(s.descriptors)+s.infoLength)&0x0FFF))
+		body = append(body, s.descriptors...)
 		// 中身を読まない記述子の代わりに、0xFF で埋める。
 		for range s.infoLength {
 			body = append(body, 0xFF)
@@ -244,6 +247,40 @@ func TestAnalyzerPrograms(t *testing.T) {
 				kinds = append(kinds, s.Kind)
 			}
 			assert.Equal(t, tt.wantStreams, kinds)
+		})
+	}
+}
+
+// TestAnalyzerProgramsComponentTag は、PMT のストリーム識別記述子から component_tag を読むことを確かめる (#827)。
+func TestAnalyzerProgramsComponentTag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		descriptors []byte
+		want        *uint8
+	}{
+		{name: "stream identifier descriptor", descriptors: []byte{0x52, 0x01, 0x10}, want: new(uint8(0x10))},
+		{name: "after another descriptor", descriptors: []byte{0x09, 0x02, 0xAA, 0xBB, 0x52, 0x01, 0x11}, want: new(uint8(0x11))},
+		{name: "no descriptor", descriptors: nil, want: nil},
+		{name: "truncated descriptor", descriptors: []byte{0x52, 0x05, 0x10}, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cc := map[uint16]*byte{0: new(byte), pmtPID: new(byte)}
+			pat := map[uint16]uint16{programNum: pmtPID}
+			audio := esEntry{streamType: 0x0F, pid: 0x0112, descriptors: tt.descriptors}
+			pkts := append(psiPackets(0, cc[0], patSection(0, pat)), psiPackets(pmtPID, cc[pmtPID], pmtSection(0, audio))...)
+			analyzer := ts.NewAnalyzer(nil)
+			_, err := analyzer.Write(join(pkts))
+			require.NoError(t, err)
+
+			programs := analyzer.Stats().Programs
+			require.Len(t, programs, 1)
+			require.Len(t, programs[0].Streams, 1)
+			assert.Equal(t, tt.want, programs[0].Streams[0].ComponentTag)
 		})
 	}
 }

@@ -32,6 +32,11 @@ func (r *mutationResolver) SaveWatchPosition(ctx context.Context, id string, pos
 	return r.saveWatchPosition(ctx, id, positionMs)
 }
 
+// ClearWatchPosition is the resolver for the clearWatchPosition field.
+func (r *mutationResolver) ClearWatchPosition(ctx context.Context, id string) (*model.Recording, error) {
+	return r.clearWatchPosition(ctx, id)
+}
+
 // RegenerateRecordingImages is the resolver for the regenerateRecordingImages field.
 func (r *mutationResolver) RegenerateRecordingImages(ctx context.Context, id string) (bool, error) {
 	return r.regenerateRecordingImages(ctx, id)
@@ -40,6 +45,11 @@ func (r *mutationResolver) RegenerateRecordingImages(ctx context.Context, id str
 // ReanalyzeRecording is the resolver for the reanalyzeRecording field.
 func (r *mutationResolver) ReanalyzeRecording(ctx context.Context, id string) (bool, error) {
 	return r.reanalyzeRecording(ctx, id)
+}
+
+// DetectRecordingCM is the resolver for the detectRecordingCm field.
+func (r *mutationResolver) DetectRecordingCM(ctx context.Context, id string) (bool, error) {
+	return r.detectRecordingCM(ctx, id)
 }
 
 // Recordings is the resolver for the recordings field.
@@ -72,6 +82,11 @@ func (r *recordingResolver) StreamQuality(ctx context.Context, obj *model.Record
 	return r.streamQuality(ctx, obj)
 }
 
+// CMSections is the resolver for the cmSections field.
+func (r *recordingResolver) CMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error) {
+	return r.recordingCMSections(ctx, obj)
+}
+
 // VideoFormat is the resolver for the videoFormat field.
 func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
 	return r.recordingVideoFormat(ctx, obj)
@@ -80,6 +95,11 @@ func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recordin
 // Rule is the resolver for the rule field.
 func (r *recordingResolver) Rule(ctx context.Context, obj *model.Recording) (*model.Rule, error) {
 	return r.recordingRule(ctx, obj)
+}
+
+// LiveStats is the resolver for the liveStats field.
+func (r *recordingResolver) LiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error) {
+	return r.recordingLiveStats(ctx, obj)
 }
 
 // WatchFrame is the resolver for the watchFrame field.

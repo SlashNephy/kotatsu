@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -103,6 +104,45 @@ func (r *Resolver) timeshiftPrograms(ctx context.Context, serviceID int64) ([]*m
 	return result, nil
 }
 
+// promoteTimeshiftProgram は、サービスのバッファの、startAt に始まった番組を、録画に昇格する (設計書 5.7)。
+// 放送中の番組は番組予約を作り、放送の終わった番組は、録画を作って、バッファから書き出すジョブを入れる。
+func (r *Resolver) promoteTimeshiftProgram(ctx context.Context, serviceGlobalID string, startAt time.Time) (*model.TimeshiftPromotion, error) {
+	actor, err := scheduler(ctx)
+	if err != nil {
+		return nil, err
+	}
+	serviceID, err := parseServiceGlobalID(serviceGlobalID)
+	if err != nil {
+		return nil, err
+	}
+	if r.jobs == nil {
+		return nil, errors.New("the job queue is not configured")
+	}
+	promotion, err := timeshift.NewPromoter(r.clock, r.recorder, r.reservations, settings.RecordingDefaults, r.jobs).Promote(ctx, r.db, actor, serviceID, startAt)
+	switch {
+	case errors.Is(err, timeshift.ErrProgramNotFound):
+		return nil, NewError(CodeNotFound, "timeshift program not found")
+	case errors.Is(err, timeshift.ErrAlreadyPromoting):
+		return nil, NewError(CodeConflict, "the timeshift program is already being promoted")
+	case err != nil:
+		return nil, err
+	}
+	if promotion.Reservation != nil {
+		reservation, err := toReservationModel(ctx, promotion.Reservation)
+		if err != nil {
+			return nil, err
+		}
+
+		return &model.TimeshiftPromotion{Recording: nil, Reservation: reservation}, nil
+	}
+	recording, err := r.recording(ctx, *promotion.RecordingID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.TimeshiftPromotion{Recording: recording, Reservation: nil}, nil
+}
+
 // timeshiftBuffer は、サービスのバッファの再生できる範囲を返す。どのロールも視聴できるので、ログインだけを確かめる。
 // 録っていないか、チャンクがないか、この tenban にタイムシフトのディレクトリがなければ、ok を false にする。
 func (r *Resolver) timeshiftBuffer(ctx context.Context, serviceID int64) (*model.TimeshiftBuffer, bool, error) {
@@ -152,7 +192,7 @@ func toTimeshiftProgram(serviceID int64, program *timeshift.PlayableProgram) *mo
 
 	return &model.TimeshiftProgram{
 		EventID: int(program.EventID), Name: program.Name, StartAt: program.StartedAt, EndAt: program.EndedAt,
-		PlayableFrom: program.PlayableFrom, Gaps: gaps, FromStart: program.FromStart, ServiceKey: serviceID,
+		PlayableFrom: program.PlayableFrom, Gaps: gaps, FromStart: program.FromStart, Promoting: program.Promoting, ServiceKey: serviceID,
 	}
 }
 

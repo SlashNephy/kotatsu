@@ -173,14 +173,14 @@ func TestEngineIsIdempotent(t *testing.T) {
 	f := newEngineFixture(t)
 	f.createRule(t, `テスト番組 (5|6)$`, nil)
 
-	assert.Equal(t, &rule.Result{Created: 2, Deleted: 0, Linked: 2, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
+	assert.Equal(t, &rule.Result{Created: 2, Deleted: 0, Linked: 2, Unlinked: 0, Skipped: map[uuid.UUID]error{}, WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0}, f.run(t))
 	want := map[int64]bool{5: true, 6: true}
 	assert.Equal(t, want, f.reserved(t))
 	assert.Equal(t, domain.ReservationKindRule, f.reservationOf(t, 5).Kind)
 
 	// 同じ EPG とルールで何度照合しても、予約の集合は変わらない。
 	for range 3 {
-		assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
+		assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}, WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0}, f.run(t))
 		assert.Equal(t, want, f.reserved(t))
 	}
 }
@@ -245,7 +245,7 @@ func TestEngineKeepsReservationsWhoseRecordingStarted(t *testing.T) {
 		VALUES ($1, $2, $3, 5, '', '', $4, $4, 'recording', $5, $5, $5)`, id.New(), reservation.ID, serviceID(), reservation.StartAt, f.clock.Now())
 	require.NoError(t, err)
 	// ルールに一致したままなら、何も変えない。録画中の予約を作り直そうとしない。
-	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
+	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}, WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0}, f.run(t))
 
 	in := unmatchedInput(r)
 	_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
@@ -314,7 +314,7 @@ func TestManualReservationOverridesRuleReservation(t *testing.T) {
 			assert.Equal(t, &domain.RecordingOverrides{EndMarginSeconds: new(120)}, got.Overrides)
 
 			// ルールに一致したまま照合しても、手動の予約のまま変えない。
-			assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
+			assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}, WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0}, f.run(t))
 			assert.Equal(t, domain.ReservationKindProgram, f.reservationOf(t, 5).Kind)
 
 			// ルールに一致しなくなっても、手動の予約は残る。
@@ -338,7 +338,7 @@ func TestEngineDoesNotRecreateDisabledReservations(t *testing.T) {
 	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 5).ID))
 	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
 
-	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}}, f.run(t))
+	assert.Equal(t, &rule.Result{Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{}, WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0}, f.run(t))
 	assert.Equal(t, map[int64]bool{5: false}, f.reserved(t))
 
 	// ルールを消すと、無効にした予約も消える。
@@ -433,20 +433,25 @@ func TestEngineKeepsOneReservationForMultipleRules(t *testing.T) {
 	assert.Empty(t, f.linkedRules(t, 6))
 }
 
+// sharedEventName は、sharedEvent の番組の名前。
+const sharedEventName = "共有イベント"
+
+// sharedEvent は、こたつテスト1 のサービス serviceID で、otherServiceID と同じイベントを流している (イベント共有の) 番組を返す。
+// 番組は 5 時間後に始まる。
+func sharedEvent(serviceID, otherServiceID int) *faketuner.Program {
+	return &faketuner.Program{
+		ID: faketuner.ProgramID(grNetworkID, serviceID, 200), EventID: 200, ServiceID: serviceID, NetworkID: grNetworkID,
+		StartAt: testNow().Add(5 * time.Hour).UnixMilli(), Duration: time.Hour.Milliseconds(), IsFree: true, Name: sharedEventName, Description: "",
+		RelatedItems: []*faketuner.RelatedItem{{Type: "shared", NetworkID: 0, ServiceID: otherServiceID, EventID: 200}},
+	}
+}
+
 // TestEnginePicksOneOfSharedEvents は、同じイベントを複数のサービスで放送している番組が一致したとき、1 つだけを予約することを確かめる。
 func TestEnginePicksOneOfSharedEvents(t *testing.T) {
 	t.Parallel()
 
-	start := testNow().Add(5 * time.Hour).UnixMilli()
-	shared := func(serviceID, otherServiceID int) *faketuner.Program {
-		return &faketuner.Program{
-			ID: faketuner.ProgramID(grNetworkID, serviceID, 200), EventID: 200, ServiceID: serviceID, NetworkID: grNetworkID,
-			StartAt: start, Duration: time.Hour.Milliseconds(), IsFree: true, Name: "共有イベント", Description: "",
-			RelatedItems: []*faketuner.RelatedItem{{Type: "shared", NetworkID: 0, ServiceID: otherServiceID, EventID: 200}},
-		}
-	}
-	f := newEngineFixture(t, shared(grServiceID, subServiceID), shared(subServiceID, grServiceID))
-	f.createRule(t, `共有イベント`, func(in *rule.Input) {
+	f := newEngineFixture(t, sharedEvent(grServiceID, subServiceID), sharedEvent(subServiceID, grServiceID))
+	f.createRule(t, sharedEventName, func(in *rule.Input) {
 		in.Conditions.ServiceIDs = []int64{serviceID(), faketuner.ServiceItemID(grNetworkID, subServiceID)}
 	})
 
@@ -503,14 +508,6 @@ func TestEngineFailsOnUnreadablePrograms(t *testing.T) {
 func TestEngineExcludesSharedEventsOfExcludedServices(t *testing.T) {
 	t.Parallel()
 
-	start := testNow().Add(5 * time.Hour).UnixMilli()
-	shared := func(serviceID, otherServiceID int) *faketuner.Program {
-		return &faketuner.Program{
-			ID: faketuner.ProgramID(grNetworkID, serviceID, 200), EventID: 200, ServiceID: serviceID, NetworkID: grNetworkID,
-			StartAt: start, Duration: time.Hour.Milliseconds(), IsFree: true, Name: "共有イベント", Description: "",
-			RelatedItems: []*faketuner.RelatedItem{{Type: "shared", NetworkID: 0, ServiceID: otherServiceID, EventID: 200}},
-		}
-	}
 	tests := []struct {
 		name     string
 		excluded int64
@@ -523,8 +520,8 @@ func TestEngineExcludesSharedEventsOfExcludedServices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := newEngineFixture(t, shared(grServiceID, subServiceID), shared(subServiceID, grServiceID))
-			f.createRule(t, `共有イベント`, func(in *rule.Input) {
+			f := newEngineFixture(t, sharedEvent(grServiceID, subServiceID), sharedEvent(subServiceID, grServiceID))
+			f.createRule(t, sharedEventName, func(in *rule.Input) {
 				in.Conditions.ChannelTypes = []string{"GR"}
 				in.Conditions.ExcludeServiceIDs = []int64{tt.excluded}
 			})

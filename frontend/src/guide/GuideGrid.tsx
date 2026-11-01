@@ -230,7 +230,8 @@ export function GuideGrid({
       data-testid="guide-scroller"
       style={{
         overflow: 'auto',
-        height: 'calc(100dvh - 180px)',
+        // ヘッダーと、表の上の操作 (116px) を除いた高さにする。ヘッダーは、ステータスバーの下まで描くと高くなる (#425)。
+        height: 'calc(100dvh - var(--app-shell-header-height) - 116px)',
         minHeight: 320,
         border: '1px solid var(--mantine-color-default-border)',
         borderRadius: 'var(--mantine-radius-md)',
