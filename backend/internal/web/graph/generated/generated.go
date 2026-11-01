@@ -406,6 +406,7 @@ type ComplexityRoot struct {
 		DeleteWatchRule              func(childComplexity int, id string) int
 		DeleteWebhook                func(childComplexity int, id string) int
 		DenyOAuthAuthorization       func(childComplexity int, query string) int
+		DetectRecordingCM            func(childComplexity int, id string) int
 		DisableUser                  func(childComplexity int, id string) int
 		DisconnectAnimeRecord        func(childComplexity int, destination model.AnimeRecordDestination) int
 		EnableUser                   func(childComplexity int, id string) int
@@ -808,6 +809,7 @@ type ComplexityRoot struct {
 	}
 
 	RecordingSettings struct {
+		DetectCM           func(childComplexity int) int
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
 		JoinSegments       func(childComplexity int) int
@@ -817,6 +819,7 @@ type ComplexityRoot struct {
 	}
 
 	RecordingSettingsOverrides struct {
+		DetectCM           func(childComplexity int) int
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
 		JoinSegments       func(childComplexity int) int
@@ -1203,6 +1206,7 @@ type MutationResolver interface {
 	ClearWatchPosition(ctx context.Context, id string) (*model.Recording, error)
 	RegenerateRecordingImages(ctx context.Context, id string) (bool, error)
 	ReanalyzeRecording(ctx context.Context, id string) (bool, error)
+	DetectRecordingCM(ctx context.Context, id string) (bool, error)
 	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
 	CreateTimeReservation(ctx context.Context, input model.TimeReservationInput) (*model.Reservation, error)
 	UpdateReservation(ctx context.Context, id string, input model.ReservationUpdateInput) (*model.Reservation, error)
@@ -2902,6 +2906,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DenyOAuthAuthorization(childComplexity, args["query"].(string)), true
+	case "Mutation.detectRecordingCm":
+		if e.ComplexityRoot.Mutation.DetectRecordingCM == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_detectRecordingCm_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DetectRecordingCM(childComplexity, args["id"].(string)), true
 	case "Mutation.disableUser":
 		if e.ComplexityRoot.Mutation.DisableUser == nil {
 			break
@@ -5047,6 +5062,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingRename.Recording(childComplexity), true
 
+	case "RecordingSettings.detectCm":
+		if e.ComplexityRoot.RecordingSettings.DetectCM == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.DetectCM(childComplexity), true
 	case "RecordingSettings.endMarginSeconds":
 		if e.ComplexityRoot.RecordingSettings.EndMarginSeconds == nil {
 			break
@@ -5084,6 +5105,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingSettings.StartMarginSeconds(childComplexity), true
 
+	case "RecordingSettingsOverrides.detectCm":
+		if e.ComplexityRoot.RecordingSettingsOverrides.DetectCM == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.DetectCM(childComplexity), true
 	case "RecordingSettingsOverrides.endMarginSeconds":
 		if e.ComplexityRoot.RecordingSettingsOverrides.EndMarginSeconds == nil {
 			break
@@ -8430,6 +8457,12 @@ extend type Mutation {
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   reanalyzeRecording(id: ID!): Boolean!
+  """
+  録画の CM とみなす区間を見分けるジョブを入れる (設計書 6.1、#1209)。視聴者は使えない。全体や予約の設定にかかわらず見分け、
+  前に見分けた区間は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  detectRecordingCm(id: ID!): Boolean!
 }
 
 """
@@ -8714,6 +8747,8 @@ type RecordingSettingsOverrides {
   priority: Int
   "分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか"
   joinSegments: Boolean
+  "録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。"
+  detectCm: Boolean
 }
 
 """
@@ -8726,6 +8761,7 @@ input RecordingSettingsOverridesInput {
   endMarginSeconds: Int
   priority: Int
   joinSegments: Boolean
+  detectCm: Boolean
 }
 
 """
@@ -9022,6 +9058,8 @@ type RecordingSettings {
   priority: Int!
   "引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)"
   joinSegments: Boolean!
+  "録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。"
+  detectCm: Boolean!
 }
 
 """
@@ -10991,6 +11029,8 @@ func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, f
 		return ec.fieldContext_RecordingSettings_priority(ctx, field)
 	case "joinSegments":
 		return ec.fieldContext_RecordingSettings_joinSegments(ctx, field)
+	case "detectCm":
+		return ec.fieldContext_RecordingSettings_detectCm(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettings", field.Name)
 }
@@ -11009,6 +11049,8 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_priority(ctx, field)
 	case "joinSegments":
 		return ec.fieldContext_RecordingSettingsOverrides_joinSegments(ctx, field)
+	case "detectCm":
+		return ec.fieldContext_RecordingSettingsOverrides_detectCm(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -12192,6 +12234,20 @@ func (ec *executionContext) field_Mutation_denyOAuthAuthorization_args(ctx conte
 		return nil, err
 	}
 	args["query"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_detectRecordingCm_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -19846,6 +19902,50 @@ func (ec *executionContext) fieldContext_Mutation_reanalyzeRecording(ctx context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_reanalyzeRecording_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_detectRecordingCm(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_detectRecordingCm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DetectRecordingCM(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_detectRecordingCm(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_detectRecordingCm_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -28677,6 +28777,29 @@ func (ec *executionContext) fieldContext_RecordingSettings_joinSegments(_ contex
 	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
+func (ec *executionContext) _RecordingSettings_detectCm(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_detectCm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DetectCM, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_detectCm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
 func (ec *executionContext) _RecordingSettingsOverrides_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -28812,6 +28935,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_joinSegments(ctx context
 	)
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_joinSegments(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, errors.New("field of type Boolean does not have child fields"))
+}
+
+func (ec *executionContext) _RecordingSettingsOverrides_detectCm(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_detectCm(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DetectCM, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_detectCm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, errors.New("field of type Boolean does not have child fields"))
 }
 
@@ -36546,7 +36692,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -36595,6 +36741,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.JoinSegments = data
+		case "detectCm":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("detectCm"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DetectCM = data
 		}
 	}
 	return it, nil
@@ -40135,6 +40288,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "reanalyzeRecording":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_reanalyzeRecording(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detectRecordingCm":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_detectRecordingCm(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -44378,6 +44538,11 @@ func (ec *executionContext) _RecordingSettings(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "detectCm":
+			out.Values[i] = ec._RecordingSettings_detectCm(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -44438,6 +44603,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "joinSegments":
 			out.Values[i] = ec._RecordingSettingsOverrides_joinSegments(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "detectCm":
+			out.Values[i] = ec._RecordingSettingsOverrides_detectCm(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

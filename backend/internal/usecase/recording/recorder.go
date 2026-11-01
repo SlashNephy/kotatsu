@@ -1719,7 +1719,7 @@ func recordingPayload(recordingID uuid.UUID, name, serviceName string, startAt, 
 // at は、録画を止めた時刻。DB に届かずに記録が遅れても、録画の終わりはこの時刻にする。
 func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason, at time.Time) error {
 	// 録画設定は、トランザクションの外で先に読む。トランザクションの中でプールから別の接続を借りると、接続が足りないときに詰まる。
-	join := r.joinSegments(ctx, assignment)
+	settings := r.completionSettings(ctx, assignment)
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		// 引き継ぎの最中に予定の終わりが来ると、古い mikan と新しい mikan の両方が録画を終えようとする。
@@ -1779,7 +1779,8 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 			files = append(files, map[string]string{"poolId": segment.PoolID, "path": segment.Path})
 		}
 		payload["files"] = files
-		payload["joinSegments"] = join
+		payload["joinSegments"] = settings.JoinSegments
+		payload["detectCm"] = settings.DetectCM
 		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)
@@ -1796,24 +1797,25 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 	return nil
 }
 
-// joinSegments は、録画が終わったら、分かれたセグメントを 1 つにつなぐかどうかを、予約の録画設定から求める (設計書 5.4)。
-// 予約が消えていれば、全体の既定値に従う。録画設定を読めなくても、録画の完了は止めない。
-func (r *Recorder) joinSegments(ctx context.Context, assignment *Assignment) bool {
+// completionSettings は、録画を終えた後の処理 (分かれたセグメントをつなぐか (設計書 5.4)、CM の区間を見分けるか (設計書 6.1)) に使う録画設定を、
+// 録画を終えるときの全体の既定値に、ルールと予約の上書きを重ねて求める。録画を終えるときに求めるので、予約の後で全体の既定値を変えても効く。
+// 予約が消えていれば、全体の既定値に従う。録画設定を読めなくても、録画の完了は止めず、Go の既定値 (つなぎ、CM は見分けない) にする。
+func (r *Recorder) completionSettings(ctx context.Context, assignment *Assignment) *domain.RecordingSettings {
 	reservation, err := sqlc.New(r.pool).GetReservationForRecording(ctx, assignment.ReservationID)
 	if err == nil {
 		settings, err := r.settings(ctx, &reservation)
 		if err == nil {
-			return settings.JoinSegments
+			return settings
 		}
 	}
 	settings, err := r.defaults(ctx, r.pool)
 	if err != nil {
-		r.logger.WarnContext(ctx, "failed to read the recording settings; joining the segments by default", slog.Any("error", err))
+		r.logger.WarnContext(ctx, "failed to read the recording settings; using the built-in defaults after the recording", slog.Any("error", err))
 
-		return domain.DefaultRecordingSettings().JoinSegments
+		return domain.DefaultRecordingSettings()
 	}
 
-	return settings.JoinSegments
+	return settings
 }
 
 // addNotBroadcast は、予約した番組が放送されなかったら、通知に、そのことと、その時間に放送されていた番組の名前を載せる (#389)。

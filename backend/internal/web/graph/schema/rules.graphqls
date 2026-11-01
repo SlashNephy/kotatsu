@@ -57,6 +57,8 @@ type RecordingSettingsOverrides {
   priority: Int
   "分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか"
   joinSegments: Boolean
+  "録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。"
+  detectCm: Boolean
 }
 
 """
@@ -69,6 +71,7 @@ input RecordingSettingsOverridesInput {
   endMarginSeconds: Int
   priority: Int
   joinSegments: Boolean
+  detectCm: Boolean
 }
 
 """

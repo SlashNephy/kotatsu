@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<621fb4f72f469829f934270c89b254ec>>
+ * @generated SignedSource<<6eca65993a21a413e7ddf01697172036>>
  * @lightSyntaxTransform
  */
 
@@ -11,6 +11,7 @@ import { ConcreteRequest } from 'relay-runtime';
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type RecordingSettingsOverridesInput = {
+  detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
   joinSegments?: boolean | null | undefined;

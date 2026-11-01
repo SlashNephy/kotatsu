@@ -322,6 +322,7 @@ func (r *Recorder) finishPromotion(
 			}
 			payload["files"] = files
 			payload["joinSegments"] = settings.JoinSegments
+			payload["detectCm"] = settings.DetectCM
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, audienceOf(promotion.CreatedBy))
 		})

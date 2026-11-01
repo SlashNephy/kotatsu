@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7579b53e4e555523578002963306db5e>>
+ * @generated SignedSource<<26546349e603f322a034e46eb2987b1b>>
  * @lightSyntaxTransform
  */
 
@@ -55,6 +55,7 @@ export type TimeRangeInput = {
   weekdays: ReadonlyArray<number>;
 };
 export type RecordingSettingsOverridesInput = {
+  detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
   joinSegments?: boolean | null | undefined;

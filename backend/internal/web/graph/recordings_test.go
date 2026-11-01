@@ -495,6 +495,66 @@ func TestReanalyzeRecording(t *testing.T) {
 	assert.Len(t, queued(), 1)
 }
 
+// TestDetectRecordingCM は、録画の CM の区間を見分けるジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確かめる (#1209)。
+// 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねず、見分け終えた録画は見分け直せる。
+func TestDetectRecordingCM(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
+	recordingNow := f.addRecording(t, dir, "こたつ中継", "recording", time.Hour)
+	// TS のない録画 (EPGStation から取り込んだ MP4 だけの録画など)。
+	mp4Only := f.addRecording(t, dir, "こたつ再放送", "completed", 2*time.Hour)
+	_, rawMP4Only, err := graph.ParseGlobalID(mp4Only)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET kind = 'other' WHERE recording_id = $1", rawMP4Only)
+	require.NoError(t, err)
+	_, rawID, err := graph.ParseGlobalID(recordingID)
+	require.NoError(t, err)
+	const detect = `mutation($id: ID!) { detectRecordingCm(id: $id) }`
+	queued := func() []string {
+		rows, err := f.pool.Query(t.Context(), `SELECT queue FROM river_job WHERE kind = 'recording_cm_detect' AND args->>'recordingId' = $1 ORDER BY id`, rawID)
+		require.NoError(t, err)
+		queues, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+
+		return queues
+	}
+	var got struct {
+		DetectRecordingCM bool `json:"detectRecordingCm"`
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, detect, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeConflict}, f.query(t, detect, map[string]any{varID: recordingNow}, nil), "a recording in progress")
+	assert.Equal(t, []string{codeConflict}, f.query(t, detect, map[string]any{varID: mp4Only}, nil), "a recording without TS segments")
+	assert.Equal(t, []string{codeNotFound}, f.query(t, detect, map[string]any{varID: graph.GlobalID("Recording", uuid.New().String())}, nil))
+	assert.Empty(t, queued())
+
+	// 全体の設定は既定 (見分けない) のままでも、頼まれたら見分ける。メンバーも頼める。
+	require.Empty(t, f.as(t, "member", auth.RoleMember).query(t, detect, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.DetectRecordingCM)
+	assert.Equal(t, []string{jobs.QueueCM}, queued())
+
+	// 待っているジョブがあれば、重ねて入れない。
+	require.Empty(t, f.query(t, detect, map[string]any{varID: recordingID}, &got))
+	assert.False(t, got.DetectRecordingCM)
+	assert.Len(t, queued(), 1)
+
+	// 見分け終えた録画は、見分け直せる。
+	_, err = f.pool.Exec(t.Context(), "UPDATE river_job SET state = 'completed', finalized_at = now() WHERE kind = 'recording_cm_detect'")
+	require.NoError(t, err)
+	require.Empty(t, f.query(t, detect, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.DetectRecordingCM)
+	assert.Len(t, queued(), 2)
+}
+
 // TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確かめる (#471)。
 func TestDeleteRecordings(t *testing.T) {
 	t.Parallel()

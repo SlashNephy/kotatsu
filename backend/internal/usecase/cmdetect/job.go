@@ -37,6 +37,8 @@ const (
 	lockedSnooze = 10 * time.Minute
 	// foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。見分けている間に録画が消されたときに返る。
 	foreignKeyViolation = "23503"
+	// detectKey は、録画の完了のイベントの、CM の区間を見分けるかどうかのキー。
+	detectKey = "detectCm"
 	// mergeGap は、セグメントをまたいで続く CM の区間を 1 つにまとめる間隔。引き継ぎで重ねて録った区間では、同じ CM が両方に入る。
 	mergeGap = time.Second
 )
@@ -68,6 +70,30 @@ func (DetectArgs) InsertOpts() river.InsertOpts {
 			rivertype.JobStateRunning, rivertype.JobStateScheduled,
 		}},
 	}
+}
+
+// Beginner は、トランザクションを始められるもの。*pgxpool.Pool が満たす。
+type Beginner interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// Enqueue は、録画 recordingID の CM の区間を見分けるジョブを投入する。録画の詳細から頼まれたときに使う (設計書 6.1)。
+// 全体や予約の設定にかかわらず見分ける。見分け終えた録画も見分け直せ、前の区間は置き換える。同じ録画のジョブを待っていれば、入れずに false を返す。
+func Enqueue(ctx context.Context, db Beginner, inserter Inserter, recordingID uuid.UUID) (bool, error) {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to begin a transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: DetectArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	if err != nil {
+		return false, fmt.Errorf("failed to insert the CM detection job: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("failed to commit the CM detection job: %w", err)
+	}
+
+	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
 }
 
 // Inserter は、ジョブをトランザクションの中で投入する。*jobs.Client が満たす。
@@ -104,9 +130,13 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 }
 
 // shouldDetect は、録画の完了のイベントの材料 payload から、録画の CM の区間を見分けるかどうかを決める。
-// 見分けるかどうかは、ここだけで決める。いまは、TS のセグメントを書いた録画はすべて見分ける。
+// 見分けるかどうかは、ここだけで決める。録画の設定の detectCm (設計書 6.1) は、録画を終えるときに、全体の既定値に、
+// ルールと予約の上書きを重ねて求めてある (予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定)。
+// TS のセグメントを書いた録画のうち、detectCm が true のものだけを見分ける。detectCm のないイベント (足す前の版の mikan が出したもの) は、既定に合わせて見分けない。
 func shouldDetect(payload map[string]any) bool {
-	return segmentCount(payload) > 0
+	detect, _ := payload[detectKey].(bool)
+
+	return detect && segmentCount(payload) > 0
 }
 
 // recordingIDOf は、録画の完了のイベントの材料から、録画の ID を読む。

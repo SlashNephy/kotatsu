@@ -1271,6 +1271,12 @@ type Mutation {
   """
   reanalyzeRecording(id: ID!): Boolean!
   """
+  録画の CM とみなす区間を見分けるジョブを入れる (設計書 6.1、#1209)。視聴者は使えない。全体や予約の設定にかかわらず見分け、
+  前に見分けた区間は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
+  """
+  detectRecordingCm(id: ID!): Boolean!
+  """
   番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。
   """
   createProgramReservation(input: ProgramReservationInput!): Reservation!
@@ -2708,6 +2714,10 @@ type RecordingSettings {
   引き継ぎや再起動で分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか (設計書 5.4)
   """
   joinSegments: Boolean!
+  """
+  録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
+  """
+  detectCm: Boolean!
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -2731,6 +2741,10 @@ type RecordingSettingsOverrides {
   分かれた録画のファイルを、録画が終わったら 1 つにつなぐかどうか
   """
   joinSegments: Boolean
+  """
+  録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
+  """
+  detectCm: Boolean
 }
 """
 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -2742,6 +2756,7 @@ input RecordingSettingsOverridesInput {
   endMarginSeconds: Int
   priority: Int
   joinSegments: Boolean
+  detectCm: Boolean
 }
 """
 録画の状態 (設計書 5.5)。

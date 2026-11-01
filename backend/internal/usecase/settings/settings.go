@@ -315,6 +315,9 @@ func merge(base, changes *domain.RecordingOverrides) *domain.RecordingOverrides 
 	if changes.JoinSegments != nil {
 		merged.JoinSegments = changes.JoinSegments
 	}
+	if changes.DetectCM != nil {
+		merged.DetectCM = changes.DetectCM
+	}
 
 	return &merged
 }

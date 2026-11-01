@@ -38,6 +38,8 @@ const (
 	segmentB = "b.m2ts"
 	// filesKey は、録画の完了のイベントの、セグメントの一覧のキー。
 	filesKey = "files"
+	// detectKey は、録画の完了のイベントの、CM の区間を見分けるかどうかのキー。
+	detectKey = "detectCm"
 )
 
 type fixture struct {
@@ -245,6 +247,11 @@ func TestRecordingSections(t *testing.T) {
 	assert.Equal(t, []cmdetect.Section{{Start: 0, End: 59500 * time.Millisecond}, {Start: 10 * time.Minute, End: 690 * time.Second}}, got)
 }
 
+// oneSegment は、録画の完了のイベントに載せる、セグメント 1 つの一覧。
+func oneSegment() []map[string]string {
+	return []map[string]string{{"poolId": poolID, "path": segmentA}}
+}
+
 func TestEnqueuer(t *testing.T) {
 	t.Parallel()
 
@@ -255,16 +262,24 @@ func TestEnqueuer(t *testing.T) {
 		want    bool
 	}{
 		{
-			name: "録画を終えたら、見分けるジョブを入れる", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{filesKey: []map[string]string{{"poolId": poolID, "path": segmentA}}}, want: true,
+			name: "見分ける設定の録画を終えたら、見分けるジョブを入れる", kind: domain.NotificationKindRecordingCompleted,
+			payload: map[string]any{filesKey: oneSegment(), detectKey: true}, want: true,
+		},
+		{
+			name: "見分けない設定の録画では、何もしない", kind: domain.NotificationKindRecordingCompleted,
+			payload: map[string]any{filesKey: oneSegment(), detectKey: false}, want: false,
+		},
+		{
+			name: "見分けるかどうかを載せていないイベント (前の版の mikan が出したもの) では、何もしない", kind: domain.NotificationKindRecordingCompleted,
+			payload: map[string]any{filesKey: oneSegment()}, want: false,
 		},
 		{
 			name: "セグメントのない録画では、何もしない", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{filesKey: []map[string]string{}}, want: false,
+			payload: map[string]any{filesKey: []map[string]string{}, detectKey: true}, want: false,
 		},
 		{
 			name: "録画の失敗では、何もしない", kind: domain.NotificationKindRecordingFailed,
-			payload: map[string]any{filesKey: []map[string]string{{"poolId": poolID, "path": segmentA}}}, want: false,
+			payload: map[string]any{filesKey: oneSegment(), detectKey: true}, want: false,
 		},
 	}
 	for _, tt := range tests {

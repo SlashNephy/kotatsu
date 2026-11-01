@@ -452,7 +452,7 @@ func (a *applier) reserve(ctx context.Context, tx pgx.Tx, r *Reserve) (uuid.UUID
 	if !ok {
 		return uuid.Nil, skip("directory %q is not mapped to a pool", r.ParentDirectoryName)
 	}
-	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil}
+	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil}
 
 	created, err := a.createReservation(ctx, tx, r, overrides)
 	if err != nil {

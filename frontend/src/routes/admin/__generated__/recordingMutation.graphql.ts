@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<624dcd416ea1d946f81de7cb7a85d28f>>
+ * @generated SignedSource<<0a0db26bacb1683bf3f4fec83b4fda28>>
  * @lightSyntaxTransform
  */
 
@@ -19,6 +19,7 @@ export type SystemSettingsInput = {
   ruleDefaults?: RuleDefaultsInput | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
+  detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
   joinSegments?: boolean | null | undefined;
