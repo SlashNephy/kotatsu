@@ -25,7 +25,7 @@ import { authApi, type OIDCStatus } from '../../auth/api';
 import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ApiTokens } from '../../settings/ApiTokens';
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
@@ -70,6 +70,7 @@ const dateTimeFormat = zonedFormat({
 // パスワード、認証アプリ、パスキー、IdP との紐付け、API トークンを扱う。
 function SecurityPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('settings.pages.security.title')]);
 
   return (
     <Stack gap="md">

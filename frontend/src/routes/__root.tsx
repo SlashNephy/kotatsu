@@ -11,7 +11,7 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import { UserMenu } from '../auth/UserMenu';
 import UserMenuQueryNode from '../auth/__generated__/UserMenuQuery.graphql';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
-import { ColorSchemeToggle, ErrorBoundary, useThemeColor } from '../futon';
+import { ColorSchemeToggle, ErrorBoundary, useDocumentTitle, useThemeColor } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { useOfflineRecordings } from '../offline/store';
 import { ConnectionStatus } from '../relay/ConnectionStatus';
@@ -286,6 +286,7 @@ function OfflineShortcut() {
 
 function NotFound() {
   const { t } = useTranslation();
+  useDocumentTitle([t('notFound.title')]);
 
   return (
     <Stack gap="xs">

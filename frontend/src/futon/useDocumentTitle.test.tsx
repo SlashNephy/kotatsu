@@ -13,11 +13,15 @@ describe('useDocumentTitle', () => {
     const { rerender, unmount } = renderHook(({ parts }) => useDocumentTitle(parts), {
       initialProps: { parts: ['🈑ニュース7🈞', 'NHK総合1・東京'] as (string | null)[] },
     });
-    expect(document.title).toBe('ニュース7 - NHK総合1・東京 - Kotatsu');
+    expect(document.title).toBe('ニュース7 - NHK総合1・東京 | Kotatsu');
 
     // 番組が変わったら変える。番組がなければ、サービス名だけにする。
     rerender({ parts: [null, 'NHK総合1・東京'] });
-    expect(document.title).toBe('NHK総合1・東京 - Kotatsu');
+    expect(document.title).toBe('NHK総合1・東京 | Kotatsu');
+
+    // データが届くまでのように、すべて空なら Kotatsu だけにする。
+    rerender({ parts: [null, ''] });
+    expect(document.title).toBe('Kotatsu');
 
     unmount();
     expect(document.title).toBe('Kotatsu');

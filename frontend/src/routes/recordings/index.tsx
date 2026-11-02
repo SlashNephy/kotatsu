@@ -42,7 +42,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader, toHalfWidth } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader, toHalfWidth, useDocumentTitle } from '../../futon';
 import { genreKey } from '../../guide/genres';
 import { broadcastRange } from '../../recordings/filterRange';
 import { RecordingCard } from '../../recordings/RecordingCard';
@@ -137,6 +137,7 @@ type Order = recordingsListQuery$variables['order'];
 // 狭い画面では、絞り込みのフォームを一覧の上に置かず、見出しの右のボタンから、下から出るシートで開く。
 function RecordingsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('recordings.title')]);
   const { rule } = Route.useSearch();
   // formFilter は、フォームで決めた絞り込み。最初は絞り込まずに、新しい録画から出す。
   const [formFilter, setFilter] = useState<Filter>({});

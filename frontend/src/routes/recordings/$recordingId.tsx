@@ -42,6 +42,7 @@ import {
   PageLoader,
   ProgramTitle,
   toHalfWidth,
+  useDocumentTitle,
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
@@ -285,6 +286,7 @@ function Recording({ recordingId }: { recordingId: string }) {
   const [editedTags, setEditedTags] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useDocumentTitle([node?.__typename === 'Recording' ? toHalfWidth(node.name) : null]);
   if (node?.__typename !== 'Recording') {
     throw new RecordingNotFoundError();
   }

@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
 import { useDataChanges } from '../../changes/DataChanges';
-import { ErrorBoundary, PageLoader, zonedFormat } from '../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle, zonedFormat } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { deviceName } from '../../settings/device';
@@ -45,6 +45,7 @@ const dateTimeFormat = zonedFormat({
 // 再認証を求めない。セキュリティの画面から分けて、乗っ取りに気づいたときに、本人確認で待たせずに使えるようにする。
 function SessionsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('settings.pages.sessions.title')]);
 
   return (
     <Stack gap="md">

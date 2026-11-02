@@ -39,7 +39,14 @@ import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../changes/DataChanges';
 import type { DataChannel } from '../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader, ProgramTitle, toHalfWidth } from '../futon';
+import {
+  EmptyState,
+  ErrorBoundary,
+  PageLoader,
+  ProgramTitle,
+  toHalfWidth,
+  useDocumentTitle,
+} from '../futon';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { isUnauthenticated } from '../relay/environment';
 import { RecordingStateBadge } from '../recordings/RecordingStateBadge';
@@ -187,6 +194,7 @@ type Reservation = Node & { readonly startMs: number; readonly endMs: number };
 // 終わった予約は出さない。録画の結果は、録画の画面で見る。
 function ReservationsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('reservations.title')]);
   // 画面を開いた時刻から数える。放送中の予約も、終わる前なので時間帯に重なって入る。
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
   const [range] = useState(() => {

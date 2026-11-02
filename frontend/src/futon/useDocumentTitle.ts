@@ -4,17 +4,15 @@ import { splitProgramMarks } from './programMarks';
 
 const appName = 'Kotatsu';
 
-// useDocumentTitle は、タブのタイトルを「parts - Kotatsu」にし、画面を離れたら元に戻す。
-// 番組名などに入る囲み文字は外す。null や空の部分は飛ばす。
+// useDocumentTitle は、タブのタイトルを「parts | Kotatsu」(parts は「 - 」でつなぐ) にし、画面を離れたら元に戻す。
+// 番組名などに入る囲み文字は外す。null や空の部分は飛ばし、すべて空なら「Kotatsu」だけにする。
 export function useDocumentTitle(parts: readonly (string | null)[]): void {
-  const title = [
-    ...parts.flatMap((part) => {
-      const name = part === null ? '' : splitProgramMarks(part).name;
+  const names = parts.flatMap((part) => {
+    const name = part === null ? '' : splitProgramMarks(part).name;
 
-      return name === '' ? [] : [name];
-    }),
-    appName,
-  ].join(' - ');
+    return name === '' ? [] : [name];
+  });
+  const title = names.length === 0 ? appName : `${names.join(' - ')} | ${appName}`;
 
   useEffect(() => {
     const previous = document.title;

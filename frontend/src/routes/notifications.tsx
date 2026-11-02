@@ -3,7 +3,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ErrorBoundary, PageLoader } from '../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
 import { NotificationList } from '../notifications/NotificationList';
 import { isUnauthenticated } from '../relay/environment';
 
@@ -14,6 +14,7 @@ export const Route = createFileRoute('/notifications')({
 // NotificationsPage は、画面内の通知の一覧 (設計書 6.2)。開くと、その時点の通知をすべて既読にする。
 function NotificationsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('notifications.title')]);
 
   return (
     <Stack gap="sm">

@@ -22,7 +22,14 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, fromWallClock, PageLoader, useNow } from '../../futon';
+import {
+  EmptyState,
+  ErrorBoundary,
+  fromWallClock,
+  PageLoader,
+  useDocumentTitle,
+  useNow,
+} from '../../futon';
 import { loadExtendedHours, saveExtendedHours } from '../../guide/hourNotation';
 import { GuideGrid, type GuideColumn } from '../../guide/GuideGrid';
 import { GuideViewEditor, type EditableGuideView } from '../../guide/GuideViewEditor';
@@ -94,6 +101,7 @@ function dayFrom(date: string | undefined, todayFrom: number): number {
 
 function GuidePage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('guide.title')]);
   const navigate = useNavigate({ from: '/guide/' });
   const { view } = Route.useSearch();
 

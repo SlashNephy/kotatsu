@@ -7,7 +7,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { ConditionsForm } from '../../conditions/form';
 import { emptyRuleForm, fromRule, type RuleForm } from '../../rules/form';
@@ -79,6 +79,7 @@ function RulePage() {
 const ruleChannels: readonly ChangeChannel[] = ['RULES'];
 
 function Rule({ ruleId }: { ruleId: string }) {
+  const { t } = useTranslation();
   const isNew = ruleId === newRuleId;
   // ほかの端末でルールが変わったら、読み直す (#867)。入力を触っていれば、RuleEditor は入れ直さない。
   const changes = useDataChanges(ruleChannels);
@@ -132,6 +133,7 @@ function Rule({ ruleId }: { ruleId: string }) {
     node?.__typename === 'Rule' ? node.rule : null,
   );
   const ruleConditions = useLocation({ select: (location) => location.state.ruleConditions });
+  useDocumentTitle([isNew ? t('rules.createTitle') : (rule?.name ?? null)]);
   if (!isNew && node?.__typename !== 'Rule') {
     throw new RuleNotFoundError();
   }

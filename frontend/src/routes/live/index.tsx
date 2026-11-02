@@ -8,7 +8,14 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, nextWakeAt, PageLoader, useWakeAt } from '../../futon';
+import {
+  EmptyState,
+  ErrorBoundary,
+  nextWakeAt,
+  PageLoader,
+  useDocumentTitle,
+  useWakeAt,
+} from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
@@ -22,6 +29,7 @@ export const Route = createFileRoute('/live/')({
 // LivePage は、ライブ視聴のチャンネルの一覧 (設計書 10.3)。
 function LivePage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('live.title')]);
   // 放送中の番組を出すので、画面を開いた時刻から 1 分間の時間帯を引く。
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
   const [range, setRange] = useState(() => liveRange(Date.now()));
