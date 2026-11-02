@@ -160,7 +160,7 @@ type Generator struct {
 
 // NewGenerator は Generator を返す。opts が nil なら、プレビュー画像も、既定の間隔で作る。
 func NewGenerator(extractor Extractor, opts *Options) *Generator {
-	o := Options{Preview: true, Interval: DefaultInterval}
+	o := Options{Preview: true, Interval: DefaultInterval, Latest: false}
 	if opts != nil {
 		o = *opts
 	}

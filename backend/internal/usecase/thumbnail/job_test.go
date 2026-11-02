@@ -39,6 +39,9 @@ const (
 	indexName = "index"
 	// kindSegment は、recording_files の、セグメントの種類。
 	kindSegment = "segment"
+	// stateRecording と stateCompleted は、録画中と、録り終えた録画の状態。
+	stateRecording = "recording"
+	stateCompleted = "completed"
 )
 
 type jobFixture struct {
@@ -314,8 +317,8 @@ func TestGenerateWorkerLive(t *testing.T) {
 		// want は、代表画像を作るかどうか。
 		want bool
 	}{
-		{name: "録画中なら作る", state: "recording", want: true},
-		{name: "録画を終えていれば作らない", state: "completed", want: false},
+		{name: "録画中なら作る", state: stateRecording, want: true},
+		{name: "録画を終えていれば作らない", state: stateCompleted, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -371,9 +374,9 @@ func TestLiveWorker(t *testing.T) {
 		state string
 		from  time.Time
 	}{
-		{name: "old", state: "recording", from: now.Add(-thumbnail.LiveInterval)},
-		{name: "new", state: "recording", from: now.Add(-time.Minute)},
-		{name: "completed", state: "completed", from: now.Add(-time.Hour)},
+		{name: "old", state: stateRecording, from: now.Add(-thumbnail.LiveInterval)},
+		{name: "new", state: stateRecording, from: now.Add(-time.Minute)},
+		{name: stateCompleted, state: stateCompleted, from: now.Add(-time.Hour)},
 	} {
 		recordingID := id.New()
 		_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,

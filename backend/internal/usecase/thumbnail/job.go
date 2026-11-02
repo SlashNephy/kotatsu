@@ -322,7 +322,7 @@ func EnqueueGenerate(ctx context.Context, db Beginner, inserter Inserter, record
 		return false, fmt.Errorf("failed to begin a transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID, Live: false}, InsertOpts: nil}})
 	if err != nil {
 		return false, fmt.Errorf("failed to insert the thumbnail job: %w", err)
 	}
