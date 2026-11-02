@@ -776,3 +776,32 @@ func TestContinueWatching(t *testing.T) {
 	}
 	assert.Equal(t, []string{"録画中", "前半"}, names)
 }
+
+// TestRecordingsLiveThumbnail は、書いている最中のセグメント (大きさ 0、終わりが NULL) にある代表画像の URL を返し、
+// 閉じた空のセグメントの画像は返さないことを確かめる (録画中の代表画像。#1236)。
+func TestRecordingsLiveThumbnail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		endedAt *time.Time
+		want    bool
+	}{
+		{name: "書いている最中のセグメント", endedAt: nil, want: true},
+		{name: "閉じた空のセグメント", endedAt: new(testNow()), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f, dir := newRecordingFixture(t)
+			f.addRecording(t, dir, episode1, "recording", time.Hour)
+			_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET size = 0, ended_at = $2 WHERE path = $1`, episode1+".m2ts", tt.endedAt)
+			require.NoError(t, err)
+			f.writeImage(t, dir, "thumbnail.jpg", "jpeg", testNow())
+
+			node := f.recordings(t, 10, nil, nil).Recordings.Edges[0].Node
+			assert.Equal(t, tt.want, node.ThumbnailURL != nil)
+			assert.Nil(t, node.PreviewURL, "the preview is made after the recording ends")
+		})
+	}
+}

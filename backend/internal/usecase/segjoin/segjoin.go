@@ -131,7 +131,7 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 		// 録画の ID のないイベントでは、何もできない。ほかの通知は配りたいので、失敗にはしない。
 		return nil
 	}
-	var args river.JobArgs = thumbnail.GenerateArgs{RecordingID: recordingID}
+	var args river.JobArgs = thumbnail.GenerateArgs{RecordingID: recordingID, Live: false}
 	if join, _ := event.Payload["joinSegments"].(bool); join && segmentCount(event.Payload) > 1 {
 		args = JoinArgs{RecordingID: recordingID}
 	}
@@ -252,7 +252,7 @@ func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 	logger := w.logger.With(slog.String("recording_id", recording.ID.String()))
 	if len(segments) < 2 {
 		// つなぐものがなければ、画像だけを作る。
-		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID})
+		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID, Live: false})
 	}
 
 	first := segments[0]
@@ -265,7 +265,7 @@ func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		// 書いても閾値を下回らない空きがなければ、分けたまま残す (#515)。
 		logger.WarnContext(ctx, "kept the recording split; the storage pool does not have room for the joined file", slog.String("pool_id", first.PoolID))
 
-		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID})
+		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID, Live: false})
 	}
 	outPath, err := w.store.Path(first.PoolID, first.Path+tempSuffix)
 	if err != nil {
@@ -277,7 +277,7 @@ func (w *JoinWorker) work(ctx context.Context, job *river.Job[JoinArgs]) error {
 		logger.WarnContext(ctx, "kept the recording split; the segments do not overlap packet by packet", slog.Any("error", err))
 		_ = os.Remove(outPath)
 
-		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID})
+		return w.enqueue(ctx, thumbnail.GenerateArgs{RecordingID: recording.ID, Live: false})
 	}
 	if err != nil {
 		_ = os.Remove(outPath)

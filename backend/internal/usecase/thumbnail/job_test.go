@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -38,6 +39,9 @@ const (
 	indexName = "index"
 	// kindSegment は、recording_files の、セグメントの種類。
 	kindSegment = "segment"
+	// stateRecording と stateCompleted は、録画中と、録り終えた録画の状態。
+	stateRecording = "recording"
+	stateCompleted = "completed"
 )
 
 type jobFixture struct {
@@ -300,4 +304,89 @@ func TestGenerateWorkerRemovesImagesOfDeletedRecording(t *testing.T) {
 	require.ErrorAs(t, err, &cancel)
 	require.ErrorContains(t, err, "the recording no longer exists")
 	assert.NoDirExists(t, filepath.Join(f.dataRoot, f.segmentID.String()))
+}
+
+// TestGenerateWorkerLive は、録画中の録画の代表画像 (#1236) を、書いている最中のセグメントから作り、プレビュー画像は作らず、
+// 録画を終えた録画では作らないことを確かめる。
+func TestGenerateWorkerLive(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		state string
+		// want は、代表画像を作るかどうか。
+		want bool
+	}{
+		{name: "録画中なら作る", state: stateRecording, want: true},
+		{name: "録画を終えていれば作らない", state: stateCompleted, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newJobFixture(t)
+			recordingID := f.recording(t, 30)
+			// 書いている最中のセグメントは、大きさが 0 で、終わりが NULL。
+			_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET size = 0, ended_at = NULL WHERE id = $1`, f.segmentID)
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET state = $2 WHERE id = $1`, recordingID, tt.state)
+			require.NoError(t, err)
+
+			worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
+			err = worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
+				JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: true},
+			})
+			if !tt.want {
+				var cancel *rivertype.JobCancelError
+				require.ErrorAs(t, err, &cancel)
+				assert.False(t, f.hasThumbnail(t))
+
+				return
+			}
+			require.NoError(t, err)
+			assert.True(t, f.hasThumbnail(t))
+			_, err = os.Stat(filepath.Join(f.dataRoot, f.segmentID.String(), thumbnail.PreviewFileName))
+			assert.ErrorIs(t, err, os.ErrNotExist, "the preview is made after the recording ends")
+		})
+	}
+}
+
+// fakeInserter は、入れたジョブを覚える。
+type fakeInserter struct {
+	args []river.JobArgs
+}
+
+func (f *fakeInserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	for _, param := range params {
+		f.args = append(f.args, param.Args)
+	}
+
+	return []*rivertype.JobInsertResult{}, nil
+}
+
+// TestLiveWorker は、録り始めてから LiveInterval たった録画中の録画だけに、今の様子の代表画像を作るジョブを入れることを確かめる (#1236)。
+func TestLiveWorker(t *testing.T) {
+	t.Parallel()
+	f := newJobFixture(t)
+	now := f.clock.Now()
+	recordings := map[string]uuid.UUID{}
+	for _, recording := range []struct {
+		name  string
+		state string
+		from  time.Time
+	}{
+		{name: "old", state: stateRecording, from: now.Add(-thumbnail.LiveInterval)},
+		{name: "new", state: stateRecording, from: now.Add(-time.Minute)},
+		{name: stateCompleted, state: stateCompleted, from: now.Add(-time.Hour)},
+	} {
+		recordingID := id.New()
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+			state, protected, recorded_from, created_at, updated_at)
+			VALUES ($1, NULL, $2, NULL, '録画', '', $3, $3, $4, false, $3, $3, $3)`, recordingID, serviceID, recording.from, recording.state)
+		require.NoError(t, err)
+		recordings[recording.name] = recordingID
+	}
+	inserter := new(fakeInserter)
+
+	require.NoError(t, thumbnail.NewLiveWorker(f.pool, inserter, f.clock).Work(t.Context(), &river.Job[thumbnail.LiveArgs]{JobRow: new(rivertype.JobRow), Args: thumbnail.LiveArgs{}}))
+	assert.Equal(t, []river.JobArgs{thumbnail.GenerateArgs{RecordingID: recordings["old"], Live: true}}, inserter.args)
 }

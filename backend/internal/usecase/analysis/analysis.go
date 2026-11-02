@@ -344,7 +344,7 @@ func (w *AnalyzeWorker) record(
 		// 画像は、解析と同じ優先度で作る。取り込んだ録画の画像は、新しく録った録画の画像より後に回し、
 		// 頼まれてやり直す録画と、セグメントをつないだ録画の画像は、取り込んだ分を待たせない。キューと一意性は、GenerateArgs に従う。
 		params := []river.InsertManyParams{{
-			Args:       thumbnail.GenerateArgs{RecordingID: recordingID},
+			Args:       thumbnail.GenerateArgs{RecordingID: recordingID, Live: false},
 			InsertOpts: &river.InsertOpts{Priority: priority},
 		}}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, params); err != nil {

@@ -251,7 +251,8 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 	imageSegments := map[uuid.UUID]uuid.UUID{}
 	for i := range fileRows {
 		row := &fileRows[i]
-		if _, ok := imageSegments[row.RecordingID]; !ok && row.Kind == fileKindSegment && row.Size > 0 {
+		// 画像を置くセグメントは、thumbnail.ImageSegment と同じく選ぶ (録画中は、書いている最中のセグメントも選ぶ)。
+		if _, ok := imageSegments[row.RecordingID]; !ok && thumbnail.HasContent(row.Kind, row.Size, row.EndedAt) {
 			imageSegments[row.RecordingID] = row.ID
 		}
 		file := &model.RecordingFile{
