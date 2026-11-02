@@ -377,10 +377,12 @@ function WorkCard({
                       season: seasonLabel(t, work.season),
                     })
                   : t('anime.year', { year: work.seasonYear })),
-              work.progress != null &&
-                (work.episodesCount != null
+              // まだ見ていない作品は、見終えた話数の代わりに全話数を出す。
+              work.progress != null && work.progress > 0
+                ? work.episodesCount != null
                   ? t('anime.progressOf', { progress: work.progress, total: work.episodesCount })
-                  : t('anime.progress', { progress: work.progress })),
+                  : t('anime.progress', { progress: work.progress })
+                : work.episodesCount != null && t('anime.total', { total: work.episodesCount }),
             ]
               .filter(Boolean)
               .join(' · ')}

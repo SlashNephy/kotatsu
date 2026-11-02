@@ -1961,6 +1961,7 @@
     },
     "progress": "Watched up to episode {{progress}}",
     "progressOf": "Watched {{progress}} / {{total}}",
+    "total": "{{total}} episodes",
     "next": "Next: {{episode}}{{title}}",
     "noNext": "The next episode is unknown",
     "noBroadcast": "No broadcasts in the next week",

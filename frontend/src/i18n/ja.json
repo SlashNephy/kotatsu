@@ -1887,6 +1887,7 @@
     },
     "progress": "{{progress}}話まで見た",
     "progressOf": "{{progress}} / {{total}}話まで見た",
+    "total": "全{{total}}話",
     "next": "次は {{episode}}{{title}}",
     "noNext": "次に見る話は分かりません",
     "noBroadcast": "これから1週間の放送はありません",
