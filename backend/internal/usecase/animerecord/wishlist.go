@@ -329,24 +329,13 @@ func shortenError(err error) string {
 // 予約のある番組 (ルール予約を含む) と、それと同じイベントを共有する番組は、候補から外す。
 func (s *Service) Wishlist(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*Wishlist, error) {
 	q := sqlc.New(db)
-	connections, err := q.ListAnimeRecordConnections(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list the anime record connections: %w", err)
-	}
 	rows, err := q.ListAnimeWishlistEntries(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the wishlist entries: %w", err)
 	}
-	counts := map[string]int{}
-	for i := range rows {
-		counts[rows[i].Destination]++
-	}
-	imports := make([]*WishlistImport, 0, len(connections))
-	for i := range connections {
-		c := &connections[i]
-		imports = append(imports, &WishlistImport{
-			Destination: c.Destination, CheckedAt: c.WishlistCheckedAt, ImportedAt: c.WishlistImportedAt, Error: c.WishlistError, Entries: counts[c.Destination],
-		})
+	imports, err := wishlistImports(ctx, q, userID, rows)
+	if err != nil {
+		return nil, err
 	}
 	sources, err := wishlistSources(ctx, q, rows)
 	if err != nil {

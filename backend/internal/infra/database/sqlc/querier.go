@@ -415,6 +415,13 @@ type Querier interface {
 	// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
 	ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error)
 	ListAnimeImports(ctx context.Context) ([]AnimeImport, error)
+	// 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
+	// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
+	// 話数のない放送 (特番など) の話数は、-1 にする。
+	ListAnimeLibraryPrograms(ctx context.Context, arg ListAnimeLibraryProgramsParams) ([]ListAnimeLibraryProgramsRow, error)
+	// 視聴管理の画面 (#1231) の、TID に結びついた話の録画を返す。話数のない録画と、録れなかった録画は返さない。
+	// 同じ話の録画は、新しく録ったものを先に並べる。
+	ListAnimeLibraryRecordings(ctx context.Context, syobocalTids []int32) ([]ListAnimeLibraryRecordingsRow, error)
 	// サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
 	ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsParams) ([]ListAnimeProgramsRow, error)
 	// 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。

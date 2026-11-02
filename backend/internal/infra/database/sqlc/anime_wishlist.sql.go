@@ -148,6 +148,107 @@ func (q *Queries) InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnim
 	return err
 }
 
+const listAnimeLibraryPrograms = `-- name: ListAnimeLibraryPrograms :many
+SELECT e.syobocal_tid::integer AS syobocal_tid, p.service_id, p.event_id, p.start_at,
+  COALESCE(min(e.count_start), -1)::double precision AS count_start, COALESCE(max(e.count_end), -1)::double precision AS count_end
+FROM program_anime_episodes e
+JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at
+JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+WHERE e.syobocal_tid = ANY($1::integer[]) AND p.end_at > $2 AND p.start_at < $3
+GROUP BY e.syobocal_tid, p.service_id, p.event_id, p.start_at
+ORDER BY p.start_at, p.service_id, e.syobocal_tid
+`
+
+type ListAnimeLibraryProgramsParams struct {
+	SyobocalTids []int32
+	Now          time.Time
+	Until        time.Time
+}
+
+type ListAnimeLibraryProgramsRow struct {
+	SyobocalTid int32
+	ServiceID   int64
+	EventID     int64
+	StartAt     time.Time
+	CountStart  float64
+	CountEnd    float64
+}
+
+// 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
+// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
+// 話数のない放送 (特番など) の話数は、-1 にする。
+func (q *Queries) ListAnimeLibraryPrograms(ctx context.Context, arg ListAnimeLibraryProgramsParams) ([]ListAnimeLibraryProgramsRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeLibraryPrograms, arg.SyobocalTids, arg.Now, arg.Until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeLibraryProgramsRow{}
+	for rows.Next() {
+		var i ListAnimeLibraryProgramsRow
+		if err := rows.Scan(
+			&i.SyobocalTid,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.CountStart,
+			&i.CountEnd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnimeLibraryRecordings = `-- name: ListAnimeLibraryRecordings :many
+SELECT e.syobocal_tid::integer AS syobocal_tid, e.count_start::double precision AS count_start,
+  e.count_end::double precision AS count_end, e.subtitle, r.id AS recording_id
+FROM recording_anime_episodes e
+JOIN recordings r ON r.id = e.recording_id
+WHERE e.syobocal_tid = ANY($1::integer[]) AND e.count_start IS NOT NULL AND e.count_end IS NOT NULL AND r.state <> 'failed'
+ORDER BY e.syobocal_tid, e.count_start, e.count_end, r.recorded_from DESC, r.id
+`
+
+type ListAnimeLibraryRecordingsRow struct {
+	SyobocalTid int32
+	CountStart  float64
+	CountEnd    float64
+	Subtitle    *string
+	RecordingID uuid.UUID
+}
+
+// 視聴管理の画面 (#1231) の、TID に結びついた話の録画を返す。話数のない録画と、録れなかった録画は返さない。
+// 同じ話の録画は、新しく録ったものを先に並べる。
+func (q *Queries) ListAnimeLibraryRecordings(ctx context.Context, syobocalTids []int32) ([]ListAnimeLibraryRecordingsRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeLibraryRecordings, syobocalTids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeLibraryRecordingsRow{}
+	for rows.Next() {
+		var i ListAnimeLibraryRecordingsRow
+		if err := rows.Scan(
+			&i.SyobocalTid,
+			&i.CountStart,
+			&i.CountEnd,
+			&i.Subtitle,
+			&i.RecordingID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAnimeWishlistEntries = `-- name: ListAnimeWishlistEntries :many
 SELECT user_id, destination, work_id, status, title, next_episode_id, next_episode_number, next_episode_number_text, next_episode_title, progress, episodes_count, season_year, season_name, image_url, fetched_at FROM anime_wishlist_entries WHERE user_id = $1 ORDER BY destination, work_id
 `

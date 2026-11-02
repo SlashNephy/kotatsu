@@ -3,11 +3,9 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"strconv"
 
-	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -84,23 +82,8 @@ func (r *Resolver) wishlistPrograms(ctx context.Context, works []*animerecord.Wi
 			serviceIDs, eventIDs = append(serviceIDs, broadcast.ServiceID), append(eventIDs, broadcast.EventID)
 		}
 	}
-	programs := map[string]*model.Program{}
-	if len(serviceIDs) == 0 {
-		return programs, nil
-	}
-	rows, err := r.queries.ListGuideProgramsByKeys(ctx, query.ListGuideProgramsByKeysParams{ServiceIDs: serviceIDs, EventIDs: eventIDs})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list the programs: %w", err)
-	}
-	for i := range rows {
-		program, err := toProgram(&rows[i])
-		if err != nil {
-			return nil, err
-		}
-		programs[programKeyOf(rows[i].ServiceID, rows[i].EventID)] = program
-	}
 
-	return programs, nil
+	return r.programsByKeys(ctx, serviceIDs, eventIDs)
 }
 
 func programKeyOf(serviceID, eventID int64) string {

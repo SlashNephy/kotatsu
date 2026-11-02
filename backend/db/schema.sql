@@ -1274,6 +1274,8 @@ CREATE TABLE program_anime_episodes (
   PRIMARY KEY (service_id, start_at, position),
   FOREIGN KEY (service_id, start_at) REFERENCES program_anime_matches (service_id, start_at) ON DELETE CASCADE
 );
+-- 見たいリストの候補と視聴管理の画面 (#928、#1231) で、作品 (TID) の番組を引く。
+CREATE INDEX program_anime_episodes_syobocal_tid_idx ON program_anime_episodes (syobocal_tid) WHERE (syobocal_tid IS NOT NULL);
 
 -- 番組の照合が読み終えた、EPG の変更の記録 (epg_changes) の版数 (設計書 3.8)。1 行だけ持つ。
 CREATE TABLE anime_match_cursor (
@@ -1303,6 +1305,8 @@ CREATE TABLE recording_anime_episodes (
   is_last boolean NOT NULL,
   PRIMARY KEY (recording_id, position)
 );
+-- 視聴管理の画面 (#1231) で、作品 (TID) の録画を引く。
+CREATE INDEX recording_anime_episodes_syobocal_tid_idx ON recording_anime_episodes (syobocal_tid) WHERE (syobocal_tid IS NOT NULL);
 
 -- 管理者が Annict と AniList に登録したアプリ (#927)。利用者は、このアプリで認可して、見たアニメを記録させる。
 -- クライアントシークレットは、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、その記録先には繋げない。
