@@ -1947,7 +1947,8 @@
         "niconicoChannel": "ニコニコチャンネル",
         "bandaiChannel": "バンダイチャンネル",
         "youtube": "YouTube"
-      }
+      },
+      "chooseButton": "配信サービス（{{count}}）"
     }
   },
   "animeRecords": {

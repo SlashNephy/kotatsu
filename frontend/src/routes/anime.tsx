@@ -3,7 +3,8 @@ import {
   Anchor,
   Checkbox,
   Group,
-  MultiSelect,
+  Button,
+  Popover,
   SegmentedControl,
   Select,
   Stack,
@@ -11,6 +12,7 @@ import {
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { Tv } from 'lucide-react';
 import { Suspense, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -111,23 +113,35 @@ function AnimePage() {
             label: t(`anime.weekdays.${day}`),
           }))}
         />
-        <MultiSelect
-          size="xs"
-          w={260}
-          aria-label={t('anime.streaming.choose')}
-          placeholder={streaming.length === 0 ? t('anime.streaming.choose') : undefined}
-          clearable
-          value={[...streaming]}
-          onChange={(values) => {
-            const next = streamingServices.filter((service) => values.includes(service));
-            setStreaming(next);
-            saveStreamingServices(next);
-          }}
-          data={streamingServices.map((value) => ({
-            value,
-            label: t(`anime.streaming.services.${value}`),
-          }))}
-        />
+        <Popover position="bottom-start" withinPortal>
+          <Popover.Target>
+            <Button size="xs" variant="default" leftSection={<Tv size={14} aria-hidden />}>
+              {t('anime.streaming.chooseButton', { count: streaming.length })}
+            </Button>
+          </Popover.Target>
+          <Popover.Dropdown>
+            <Checkbox.Group
+              label={t('anime.streaming.choose')}
+              value={[...streaming]}
+              onChange={(values) => {
+                const next = streamingServices.filter((service) => values.includes(service));
+                setStreaming(next);
+                saveStreamingServices(next);
+              }}
+            >
+              <Stack gap={6} mt="xs">
+                {streamingServices.map((value) => (
+                  <Checkbox
+                    key={value}
+                    size="xs"
+                    value={value}
+                    label={t(`anime.streaming.services.${value}`)}
+                  />
+                ))}
+              </Stack>
+            </Checkbox.Group>
+          </Popover.Dropdown>
+        </Popover>
         <Checkbox
           size="xs"
           label={t('anime.excludeReruns')}
