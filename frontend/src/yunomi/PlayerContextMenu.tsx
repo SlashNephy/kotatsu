@@ -35,26 +35,29 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
 } {
   const { t } = useTranslation();
   const [keymap] = useKeymap();
-  // position は、メニューを出す位置 (画面の座標)。閉じていれば null。
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  // opened は、メニューを開いているかどうか。
+  const [opened, setOpened] = useState(false);
+  // position は、最後にメニューを出した位置 (画面の座標)。閉じても残し、閉じる間のアニメーションで
+  // メニューが左上へ動いて見えないようにする (#1259)。
+  const [position, setPosition] = useState({ x: 0, y: 0 });
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   // メニューの外を押したら閉じる。Mantine は、ページの document だけを見るので、プレイヤーを別のウィンドウ
   // (Document Picture-in-Picture) に移したときは、そのウィンドウの document でも見る。
   useEffect(() => {
     const doc = anchorRef.current?.ownerDocument;
-    if (position === null || doc === undefined || doc === document) {
+    if (!opened || doc === undefined || doc === document) {
       return;
     }
     const onPointerDown = (event: PointerEvent) => {
       if (!(event.target instanceof Node) || !dropdownRef.current?.contains(event.target)) {
-        setPosition(null);
+        setOpened(false);
       }
     };
     doc.addEventListener('pointerdown', onPointerDown, true);
 
     return () => doc.removeEventListener('pointerdown', onPointerDown, true);
-  }, [position]);
+  }, [opened]);
 
   const onContextMenu = (event: MouseEvent<HTMLElement>) => {
     if (!onVideoSurface(event.target)) {
@@ -62,6 +65,7 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
     }
     event.preventDefault();
     setPosition({ x: event.clientX, y: event.clientY });
+    setOpened(true);
   };
 
   const items = contextMenuItems(commands);
@@ -76,12 +80,8 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
       onKeyDown={(event) => event.stopPropagation()}
     >
       <Menu
-        opened={position !== null}
-        onChange={(opened) => {
-          if (!opened) {
-            setPosition(null);
-          }
-        }}
+        opened={opened}
+        onChange={setOpened}
         position="bottom-start"
         offset={0}
         // 全画面と別のウィンドウでも見えるよう、プレイヤーの中に描く。
@@ -94,8 +94,8 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
             aria-hidden
             style={{
               position: 'fixed',
-              left: position?.x ?? 0,
-              top: position?.y ?? 0,
+              left: position.x,
+              top: position.y,
               width: 1,
               height: 1,
               pointerEvents: 'none',
