@@ -109,6 +109,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           ... on Program {
             id
             name
+            ruleKeyword
             description
             startAt
             endAt
@@ -249,12 +250,19 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           Date.parse(candidate.startAt) < Date.parse(program.endAt),
       )
     : undefined;
-  // createRule は、番組名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と同じ画面。
+  // createRule は、番組名から読んだ作品名とサービスを条件に引き継いで、ルールの作成画面を開く。番組検索の「この条件でルールを作成」と
+  // 同じ画面。話数やサブタイトルまで入れると、その話にしか一致しないため、作品名だけにする (#1240)。
   const createRule = () =>
     void navigate({
       to: '/rules/$ruleId',
       params: { ruleId: 'new' },
-      state: { ruleConditions: conditionsFromProgram(program.name, program.service.id) },
+      state: {
+        ruleConditions: conditionsFromProgram(
+          program.name,
+          program.service.id,
+          program.ruleKeyword,
+        ),
+      },
     });
   // searchSameName は、番組名を条件に引き継いで、過去の放送も含めて番組を探す (#1121)。
   const searchSameName = () =>
