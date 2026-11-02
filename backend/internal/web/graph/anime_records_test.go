@@ -128,4 +128,22 @@ func TestAnimeRecordSettings(t *testing.T) {
 	require.Empty(t, viewer.query(t, report, map[string]any{"service": graph.GlobalID("Service", "3273601024"), "intervals": intervals}, &reported))
 	assert.False(t, reported.ReportAnimePlayback, "nothing is recorded before connecting")
 	assert.Equal(t, []string{codeBadUserInput}, viewer.query(t, report, map[string]any{"intervals": intervals}, nil), "a target is required")
+
+	// 手で記録するときは、番組、録画、作品のどれか 1 つを指し、連携していなければ NOT_FOUND を返す (#1232)。
+	const (
+		record     = `mutation($input: RecordAnimeEpisodesInput!) { recordAnimeEpisodes(input: $input) }`
+		varTid     = "tid"
+		varEpisode = "episode"
+	)
+	assert.Equal(t, []string{codeBadUserInput}, viewer.query(t, record, map[string]any{varInput: map[string]any{}}, nil), "a target is required")
+	assert.Equal(t, []string{codeBadUserInput}, viewer.query(t, record, map[string]any{varInput: map[string]any{
+		varTid: 6776, varEpisode: 1, "recording": graph.GlobalID("Recording", "0192f000-0000-7000-8000-000000000001"),
+	}}, nil), "only one target is allowed")
+	assert.Equal(t, []string{codeBadUserInput}, viewer.query(t, record, map[string]any{varInput: map[string]any{varTid: 6776}}, nil),
+		"an episode is required for a work")
+	assert.Equal(t, []string{codeBadUserInput}, viewer.query(t, record, map[string]any{varInput: map[string]any{
+		varTid: 6776, varEpisode: 1, "title": strings.Repeat("あ", 201),
+	}}, nil), "the title is at most 200 characters")
+	assert.Equal(t, []string{codeNotFound}, viewer.query(t, record, map[string]any{varInput: map[string]any{varTid: 6776, varEpisode: 1}}, nil),
+		"viewers can record, but not before connecting")
 }

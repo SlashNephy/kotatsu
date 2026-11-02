@@ -79,7 +79,7 @@ func TestLibrary(t *testing.T) {
 				nextText    *string
 				progress    *int32
 			}{
-				{animerecord.DestinationAnnict, annictWorkID, "watching", "作品A", nextID, tt.annictNext, nextText, tt.annictProgress},
+				{animerecord.DestinationAnnict, annictWorkID, "watching", titleA, nextID, tt.annictNext, nextText, tt.annictProgress},
 				{animerecord.DestinationAniList, aniListID, "wanna_watch", titleWorkA, nil, nil, nil, tt.aniListProgress},
 				// 作品 ID の対応のない作品は、番組も録画も引けないので、後ろに回る。
 				{animerecord.DestinationAnnict, 99, "wanna_watch", "作品Z", nil, nil, nil, nil},
