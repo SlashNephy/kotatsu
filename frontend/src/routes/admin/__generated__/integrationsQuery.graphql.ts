@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<db9e9a5f1699fa5c6ee68bd27b6e5459>>
+ * @generated SignedSource<<8cc66eb052ad0e05b93b32aef22672c5>>
  * @lightSyntaxTransform
  */
 
@@ -8,12 +8,15 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type AnimeImportSource = "ARM" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
+export type AnimeImportSource = "ANNICT_WORKS" | "ARM" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
 export type AnimeRecordDestination = "ANILIST" | "ANNICT" | "%future added value";
 export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
 export type integrationsQuery$data = {
+  readonly animeImportToken: {
+    readonly configured: boolean;
+  };
   readonly animeImports: ReadonlyArray<{
     readonly checkedAt: string;
     readonly error: string | null | undefined;
@@ -58,10 +61,17 @@ var v0 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "configured",
+  "storageKey": null
+},
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v1 = [
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -116,13 +126,7 @@ v1 = [
         "name": "clientId",
         "storageKey": null
       },
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "configured",
-        "storageKey": null
-      },
+      (v0/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -130,6 +134,18 @@ v1 = [
         "name": "redirectUri",
         "storageKey": null
       }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "AnimeImportToken",
+    "kind": "LinkedField",
+    "name": "animeImportToken",
+    "plural": false,
+    "selections": [
+      (v0/*:: as any*/)
     ],
     "storageKey": null
   },
@@ -187,7 +203,7 @@ v1 = [
     "name": "webhooks",
     "plural": true,
     "selections": [
-      (v0/*:: as any*/),
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -259,7 +275,7 @@ v1 = [
     "name": "passkeys",
     "plural": true,
     "selections": [
-      (v0/*:: as any*/)
+      (v1/*:: as any*/)
     ],
     "storageKey": null
   }
@@ -270,7 +286,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "integrationsQuery",
-    "selections": (v1/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -279,19 +295,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "integrationsQuery",
-    "selections": (v1/*:: as any*/)
+    "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "1b6ea3edc1fb2980ed08020e6b30dc5b",
+    "cacheID": "a15c8505fe2bc05900e7d4683b7069a7",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d52f435f99c82db3d3a6307f309cb367";
+(node as any).hash = "d0a02c38e8d8faa63be20149b6649888";
 
 export default node;

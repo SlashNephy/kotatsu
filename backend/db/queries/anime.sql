@@ -50,9 +50,11 @@ FROM (
 ) AS t;
 
 -- name: ListAnimeWorks :many
+-- TID ごとに、自前の対応 (annict) があればそれを、なければ arm の対応を返す (#1223)。
 SELECT w.syobocal_tid, w.position, w.annict_work_id, w.anilist_id, w.mal_id
 FROM anime_works w
 WHERE w.syobocal_tid = ANY(@syobocal_tids::integer[])
+  AND (w.source = 'annict' OR NOT EXISTS (SELECT 1 FROM anime_works o WHERE o.syobocal_tid = w.syobocal_tid AND o.source = 'annict'))
 ORDER BY w.syobocal_tid, w.position;
 
 -- name: ListAnimeChannels :many
@@ -251,3 +253,62 @@ WHERE m.recording_id IS NULL AND r.state <> 'recording'
   AND (r.genres = '[]'::jsonb OR r.genres @> '[{"lv1": 7}]'::jsonb)
 ORDER BY r.start_at, r.id
 LIMIT @max_count;
+
+-- name: GetAnimeImportToken :one
+SELECT * FROM anime_import_tokens WHERE id = 1;
+
+-- name: UpsertAnimeImportToken :exec
+INSERT INTO anime_import_tokens (id, annict_token_encrypted, updated_at) VALUES (1, @annict_token_encrypted, @now)
+ON CONFLICT (id) DO UPDATE SET annict_token_encrypted = EXCLUDED.annict_token_encrypted, updated_at = EXCLUDED.updated_at;
+
+-- name: DeleteAnimeImportToken :execrows
+DELETE FROM anime_import_tokens WHERE id = 1;
+
+-- name: GetAnnictWorkSync :one
+-- Annict の作品の取り込みの進み具合 (#1223) を返す。まだなければ作る。
+INSERT INTO annict_work_sync (id) VALUES (1)
+ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
+RETURNING *;
+
+-- name: UpdateAnnictWorkSync :exec
+UPDATE annict_work_sync SET
+  seasonal_at = sqlc.narg(seasonal_at)::timestamptz, full_cursor = sqlc.narg(full_cursor)::text,
+  full_completed_at = sqlc.narg(full_completed_at)::timestamptz
+WHERE id = 1;
+
+-- name: UpsertAnnictWorks :exec
+-- Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
+-- 配列は NULL を持てないので、対応のない ID は 0 で渡す。
+INSERT INTO annict_works (annict_id, syobocal_tid, mal_anime_id, anilist_id, anilist_checked_at, fetched_at)
+SELECT t.annict_id, NULLIF(t.syobocal_tid, 0), NULLIF(t.mal_anime_id, 0), NULL, NULL, @now
+FROM (
+  SELECT unnest(@annict_ids::integer[]) AS annict_id, unnest(@syobocal_tids::integer[]) AS syobocal_tid,
+    unnest(@mal_anime_ids::integer[]) AS mal_anime_id
+) AS t
+ON CONFLICT (annict_id) DO UPDATE SET
+  syobocal_tid = EXCLUDED.syobocal_tid, fetched_at = EXCLUDED.fetched_at,
+  anilist_id = CASE WHEN annict_works.mal_anime_id IS DISTINCT FROM EXCLUDED.mal_anime_id THEN NULL ELSE annict_works.anilist_id END,
+  anilist_checked_at = CASE WHEN annict_works.mal_anime_id IS DISTINCT FROM EXCLUDED.mal_anime_id THEN NULL ELSE annict_works.anilist_checked_at END,
+  mal_anime_id = EXCLUDED.mal_anime_id;
+
+-- name: ListAnnictWorksToResolve :many
+-- AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+SELECT annict_id, mal_anime_id::integer AS mal_anime_id FROM annict_works
+WHERE mal_anime_id IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < @checked_before::timestamptz)
+ORDER BY anilist_checked_at NULLS FIRST, annict_id
+LIMIT @max_count;
+
+-- name: UpdateAnnictWorksAniList :exec
+-- 作品 annict_ids[i] の AniList の ID を anilist_ids[i] にする。見つからなかった作品は 0 で渡す。
+UPDATE annict_works w SET anilist_id = NULLIF(t.anilist_id, 0), anilist_checked_at = @now::timestamptz
+FROM (SELECT unnest(@annict_ids::integer[]) AS annict_id, unnest(@anilist_ids::integer[]) AS anilist_id) AS t
+WHERE w.annict_id = t.annict_id;
+
+-- name: InsertAnnictAnimeWorks :execrows
+-- Annict から取り込んだ作品から、作品 ID の対応 (anime_works の annict) を作る (#1223)。前に作った行は、先に DeleteAnimeWorks で消す。
+-- TID のない作品は使わない。1 つの TID に複数の作品が対応すれば、Annict の作品 ID の順に並べる。
+INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id)
+SELECT 'annict', w.syobocal_tid, (row_number() OVER (PARTITION BY w.syobocal_tid ORDER BY w.annict_id) - 1)::smallint,
+  w.annict_id, w.anilist_id, w.mal_anime_id
+FROM annict_works w
+WHERE w.syobocal_tid IS NOT NULL;

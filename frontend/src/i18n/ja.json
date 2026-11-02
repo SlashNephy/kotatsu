@@ -1681,7 +1681,14 @@
       "animeImportFailed": "{{at}}に取り込めませんでした：{{error}}",
       "animeSourceSaya": "チャンネルの対応（saya-definitions）",
       "animeSourceArm": "作品IDの対応（arm）",
-      "animeSourceSyobocalTitles": "しょぼいカレンダーのタイトル"
+      "animeSourceSyobocalTitles": "しょぼいカレンダーのタイトル",
+      "animeSourceAnnictWorks": "作品IDの対応（Annict、AniList）",
+      "animeToken": "Annictのアクセストークン",
+      "animeTokenHelp": "作品IDの対応を、AnnictとAniListから引いて作るのに使います。armの対応より優先し、armにない新しい作品も結びつけます。Annictの「アプリ」の設定で、読み込みの権限の個人用アクセストークンを作って入れてください",
+      "animeTokenConfigured": "設定済み",
+      "animeTokenNotConfigured": "未設定",
+      "animeTokenKept": "設定済み（変えるときだけ入れる）",
+      "animeTokenDelete": "消す"
     },
     "recording": {
       "title": "録画の既定値",

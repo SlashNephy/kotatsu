@@ -77,6 +77,7 @@ type Service struct {
 	recorder     audit.Recorder
 	appBox       *secretbox.Box
 	tokenBox     *secretbox.Box
+	importBox    *secretbox.Box
 	destinations map[string]Destination
 	// order は、画面に並べる記録先の順。
 	order  []string
@@ -113,6 +114,10 @@ func NewService(opts *Options) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
+	importBox, err := secretbox.New(opts.AppSecret, importSealPurpose)
+	if err != nil {
+		return nil, err
+	}
 	destinations := make(map[string]Destination, len(opts.Destinations))
 	order := make([]string, 0, len(opts.Destinations))
 	for _, destination := range opts.Destinations {
@@ -121,7 +126,7 @@ func NewService(opts *Options) (*Service, error) {
 	}
 
 	return &Service{
-		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, tokenBox: tokenBox,
+		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, tokenBox: tokenBox, importBox: importBox,
 		destinations: destinations, order: order, logger: opts.Logger, inserter: opts.Inserter,
 		wishlistMu: sync.Mutex{}, wishlistLast: map[string]time.Time{}, wishlistInterval: opts.WishlistInterval,
 	}, nil

@@ -147,3 +147,41 @@ func TestAnimeRecordSettings(t *testing.T) {
 	assert.Equal(t, []string{codeNotFound}, viewer.query(t, record, map[string]any{varInput: map[string]any{varTid: 6776, varEpisode: 1}}, nil),
 		"viewers can record, but not before connecting")
 }
+
+// TestAnimeImportToken は、管理者だけが作品 ID を引くための Annict のトークンを設定でき、トークンを返さず、
+// 変えるときは直近の再認証を求めることを確かめる (#1223、設計書 9.5)。
+func TestAnimeImportToken(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t, nil)
+	const (
+		animeImportToken       = `{ animeImportToken { configured } }`
+		updateAnimeImportToken = `mutation($token: String!) { updateAnimeImportToken(annictToken: $token) { configured } }`
+		varToken               = "token"
+	)
+	input := map[string]any{varToken: "top-secret-token"}
+
+	assert.Equal(t, []string{codeForbidden}, f.query(t, animeImportToken, nil, nil), "members cannot see the token")
+	assert.Equal(t, []string{codeForbidden}, f.query(t, updateAnimeImportToken, input, nil), "members cannot change the token")
+
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	type status struct {
+		Configured bool `json:"configured"`
+	}
+	var updated struct {
+		UpdateAnimeImportToken status `json:"updateAnimeImportToken"`
+	}
+	require.Empty(t, admin.query(t, updateAnimeImportToken, input, &updated))
+	assert.True(t, updated.UpdateAnimeImportToken.Configured)
+	var got struct {
+		AnimeImportToken status `json:"animeImportToken"`
+	}
+	require.Empty(t, admin.query(t, animeImportToken, nil, &got))
+	assert.True(t, got.AnimeImportToken.Configured)
+	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateAnimeImportToken, map[string]any{varToken: strings.Repeat("a", 257)}, nil))
+
+	require.Empty(t, admin.query(t, updateAnimeImportToken, map[string]any{varToken: ""}, &updated))
+	assert.False(t, updated.UpdateAnimeImportToken.Configured, "an empty token deletes it")
+
+	f.clock.Advance(auth.RecentAuthenticationWindow * 2)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateAnimeImportToken, input, nil))
+}

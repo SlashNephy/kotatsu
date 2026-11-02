@@ -81,6 +81,14 @@ type AnimeImport struct {
 	Error *string `json:"error,omitempty"`
 }
 
+// 作品 ID の対応を作るために、管理者が設定した Annict のトークン (#1223)。トークンは返さない。
+type AnimeImportToken struct {
+	// 設定したかどうか。設定していなければ、Annict と AniList から作品 ID の対応を作らない。
+	Configured bool `json:"configured"`
+	// 最後に変えた日時。設定していなければ null。
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
+}
+
 // ログイン中のユーザーの、見たいリストの作品を、作品ごとに並べたもの (視聴管理の画面。#1231)。
 type AnimeLibrary struct {
 	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。
@@ -305,7 +313,7 @@ type AnimeWishlistWork struct {
 	Covered bool `json:"covered"`
 }
 
-// しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm から取り込んだ対応から引く。
+// しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。Annict と AniList から作った対応があればそれを、なければ arm から取り込んだ対応から引く (#1223)。
 type AnimeWork struct {
 	AnnictWorkID *int `json:"annictWorkId,omitempty"`
 	AnilistID    *int `json:"anilistId,omitempty"`
@@ -1799,17 +1807,20 @@ const (
 	AnimeImportSourceArm AnimeImportSource = "ARM"
 	// しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
 	AnimeImportSourceSyobocalTitles AnimeImportSource = "SYOBOCAL_TITLES"
+	// Annict と AniList から作った、しょぼいカレンダーの TID と作品 ID の対応 (#1223)。arm の対応より優先する
+	AnimeImportSourceAnnictWorks AnimeImportSource = "ANNICT_WORKS"
 )
 
 var AllAnimeImportSource = []AnimeImportSource{
 	AnimeImportSourceSayaDefinitions,
 	AnimeImportSourceArm,
 	AnimeImportSourceSyobocalTitles,
+	AnimeImportSourceAnnictWorks,
 }
 
 func (e AnimeImportSource) IsValid() bool {
 	switch e {
-	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceSyobocalTitles:
+	case AnimeImportSourceSayaDefinitions, AnimeImportSourceArm, AnimeImportSourceSyobocalTitles, AnimeImportSourceAnnictWorks:
 		return true
 	}
 	return false

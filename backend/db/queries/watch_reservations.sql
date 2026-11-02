@@ -88,7 +88,9 @@ ORDER BY user_id;
 -- 同じ話を複数の局で放送するときは、最も早い放送 (同じ時刻ならサービス ID の小さい局) だけにし、二度通知しない。
 SELECT DISTINCT ON (e.syobocal_tid, e.count_start) p.service_id, p.event_id
 FROM anime_wishlist_entries w
-JOIN anime_works aw ON (w.destination = 'annict' AND aw.annict_work_id = w.work_id) OR (w.destination = 'anilist' AND aw.anilist_id = w.work_id)
+JOIN anime_works aw ON ((w.destination = 'annict' AND aw.annict_work_id = w.work_id) OR (w.destination = 'anilist' AND aw.anilist_id = w.work_id))
+  -- TID ごとに、自前の対応 (annict) があればそれを、なければ arm の対応を使う (#1223)。
+  AND (aw.source = 'annict' OR NOT EXISTS (SELECT 1 FROM anime_works o WHERE o.syobocal_tid = aw.syobocal_tid AND o.source = 'annict'))
 JOIN program_anime_episodes e ON e.syobocal_tid = aw.syobocal_tid AND NOT e.is_rerun AND e.count_start IS NOT NULL
 JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at
 JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at

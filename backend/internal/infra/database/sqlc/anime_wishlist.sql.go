@@ -424,6 +424,8 @@ const listAnimeWorksByExternalIDs = `-- name: ListAnimeWorksByExternalIDs :many
 SELECT w.syobocal_tid, w.annict_work_id, w.anilist_id
 FROM anime_works w
 WHERE (w.annict_work_id = ANY($1::integer[]) OR w.anilist_id = ANY($2::integer[]))
+  -- TID ごとに、自前の対応 (annict) があればそれを、なければ arm の対応を使う (#1223)。
+  AND (w.source = 'annict' OR NOT EXISTS (SELECT 1 FROM anime_works o WHERE o.syobocal_tid = w.syobocal_tid AND o.source = 'annict'))
 ORDER BY w.syobocal_tid, w.position
 `
 

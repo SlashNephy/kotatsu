@@ -28,6 +28,23 @@ func (r *mutationResolver) UpdateAnimeChannel(ctx context.Context, serviceID str
 	return r.animeChannel(ctx, id)
 }
 
+// UpdateAnimeImportToken is the resolver for the updateAnimeImportToken field.
+func (r *mutationResolver) UpdateAnimeImportToken(ctx context.Context, annictToken string) (*model.AnimeImportToken, error) {
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can change the anime import token")
+	if err != nil {
+		return nil, err
+	}
+	service, err := r.animeRecordService()
+	if err != nil {
+		return nil, err
+	}
+	if err := service.UpdateImportToken(ctx, r.db, actor, annictToken); err != nil {
+		return nil, animeRecordError(err)
+	}
+
+	return r.animeImportToken(ctx)
+}
+
 // AnimeEpisodes is the resolver for the animeEpisodes field.
 func (r *programResolver) AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error) {
 	episodes, err := anime.ProgramEpisodes(ctx, r.db, obj.ServiceKey, obj.StartAt)
@@ -62,6 +79,15 @@ func (r *queryResolver) AnimeImports(ctx context.Context) ([]*model.AnimeImport,
 	}
 
 	return r.animeImports(ctx)
+}
+
+// AnimeImportToken is the resolver for the animeImportToken field.
+func (r *queryResolver) AnimeImportToken(ctx context.Context) (*model.AnimeImportToken, error) {
+	if err := administer(ctx); err != nil {
+		return nil, err
+	}
+
+	return r.animeImportToken(ctx)
 }
 
 // AnimeEpisodes is the resolver for the animeEpisodes field.
