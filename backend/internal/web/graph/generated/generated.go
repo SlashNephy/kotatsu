@@ -127,6 +127,7 @@ type ComplexityRoot struct {
 		Broadcasts       func(childComplexity int) int
 		EpisodesCount    func(childComplexity int) int
 		ID               func(childComplexity int) int
+		ImageURL         func(childComplexity int) int
 		NextBroadcast    func(childComplexity int) int
 		NextEpisode      func(childComplexity int) int
 		Progress         func(childComplexity int) int
@@ -1818,6 +1819,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeLibraryWork.ID(childComplexity), true
+	case "AnimeLibraryWork.imageUrl":
+		if e.ComplexityRoot.AnimeLibraryWork.ImageURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryWork.ImageURL(childComplexity), true
 	case "AnimeLibraryWork.nextBroadcast":
 		if e.ComplexityRoot.AnimeLibraryWork.NextBroadcast == nil {
 			break
@@ -7554,6 +7561,10 @@ type AnimeLibraryWork {
   tid: Int
   "作品名。Annict の作品名を先に選ぶ。"
   title: String!
+  """
+  作品の画像 (#1235)。tenban が記録先の画像を中継する URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
+  """
+  imageUrl: String
   "どれかの記録先で「見てる」にしていれば WATCHING。"
   status: AnimeWishlistStatus!
   sources: [AnimeLibrarySource!]!
@@ -10740,6 +10751,8 @@ func (ec *executionContext) childFields_AnimeLibraryWork(ctx context.Context, fi
 		return ec.fieldContext_AnimeLibraryWork_tid(ctx, field)
 	case "title":
 		return ec.fieldContext_AnimeLibraryWork_title(ctx, field)
+	case "imageUrl":
+		return ec.fieldContext_AnimeLibraryWork_imageUrl(ctx, field)
 	case "status":
 		return ec.fieldContext_AnimeLibraryWork_status(ctx, field)
 	case "sources":
@@ -15913,6 +15926,29 @@ func (ec *executionContext) _AnimeLibraryWork_title(ctx context.Context, field g
 	)
 }
 func (ec *executionContext) fieldContext_AnimeLibraryWork_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeLibraryWork", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeLibraryWork_imageUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryWork_imageUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ImageURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryWork_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AnimeLibraryWork", field, false, false, "String")
 }
 
@@ -41311,6 +41347,11 @@ func (ec *executionContext) _AnimeLibraryWork(ctx context.Context, sel ast.Selec
 		case "title":
 			out.Values[i] = ec._AnimeLibraryWork_title(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "imageUrl":
+			out.Values[i] = ec._AnimeLibraryWork_imageUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "status":

@@ -157,6 +157,8 @@ type AnimeLibraryWork struct {
 	Tid *int `json:"tid,omitempty"`
 	// 作品名。Annict の作品名を先に選ぶ。
 	Title string `json:"title"`
+	// 作品の画像 (#1235)。tenban が記録先の画像を中継する URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
+	ImageURL *string `json:"imageUrl,omitempty"`
 	// どれかの記録先で「見てる」にしていれば WATCHING。
 	Status  AnimeWishlistStatus   `json:"status"`
 	Sources []*AnimeLibrarySource `json:"sources"`

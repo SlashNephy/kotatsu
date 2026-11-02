@@ -86,6 +86,10 @@ type AnimeLibraryWork {
   tid: Int
   "作品名。Annict の作品名を先に選ぶ。"
   title: String!
+  """
+  作品の画像 (#1235)。tenban が記録先の画像を中継する URL のパス。AniList の画像を先に選ぶ。画像がなければ null。
+  """
+  imageUrl: String
   "どれかの記録先で「見てる」にしていれば WATCHING。"
   status: AnimeWishlistStatus!
   sources: [AnimeLibrarySource!]!

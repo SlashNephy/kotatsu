@@ -10,6 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/web/animeimage"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -74,13 +75,16 @@ func libraryWorkModel(work *animerecord.LibraryWork, programs map[string]*model.
 		})
 	}
 	result := &model.AnimeLibraryWork{
-		ID: GlobalID(animeLibraryWorkType, libraryWorkKey(work)), Tid: intOf(work.TID), Title: work.Title, Status: status, Sources: sources,
+		ID: GlobalID(animeLibraryWorkType, libraryWorkKey(work)), Tid: intOf(work.TID), Title: work.Title, ImageURL: nil, Status: status, Sources: sources,
 		Progress: intOf(work.Progress), EpisodesCount: intOf(work.EpisodesCount), SeasonYear: intOf(work.SeasonYear),
 		Season: seasonOf(work.SeasonName), NextEpisode: nil, NextBroadcast: nil, Broadcasts: []*model.AnimeLibraryBroadcast{},
 		RecordedEpisodes: []*model.AnimeLibraryRecordedEpisode{}, RecentBroadcasts: make([]*model.AnimeLibraryPastBroadcast, 0, len(work.RecentBroadcasts)),
 	}
 	for _, past := range work.RecentBroadcasts {
 		result.RecentBroadcasts = append(result.RecentBroadcasts, &model.AnimeLibraryPastBroadcast{StartAt: past.StartAt, Rerun: past.Rerun, Last: past.Last})
+	}
+	if work.Image != nil {
+		result.ImageURL = new(animeimage.Path(work.Image.Destination, work.Image.WorkID, work.Image.URL))
 	}
 	if next := work.NextEpisode; next != nil {
 		result.NextEpisode = &model.AnimeLibraryEpisode{Number: intOf(next.Number), NumberText: nonEmpty(next.NumberText), Title: nonEmpty(next.Title)}

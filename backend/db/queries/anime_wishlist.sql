@@ -111,3 +111,8 @@ SELECT DISTINCT ON (e.syobocal_tid, e.is_rerun)
 FROM program_anime_episodes e
 WHERE e.syobocal_tid = ANY(@syobocal_tids::integer[]) AND e.start_at >= @since AND e.start_at < @now
 ORDER BY e.syobocal_tid, e.is_rerun, e.start_at DESC, e.position DESC;
+
+-- name: GetAnimeWishlistImageURL :one
+-- ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
+SELECT image_url FROM anime_wishlist_entries
+WHERE user_id = @user_id AND destination = @destination AND work_id = @work_id AND image_url IS NOT NULL;
