@@ -17,6 +17,7 @@ export type AnimeEpisodeItem = {
   readonly subtitle: string | null | undefined;
   readonly first: boolean;
   readonly last: boolean;
+  readonly rerun: boolean;
   readonly works: readonly AnimeWorkItem[];
 };
 
@@ -91,6 +92,11 @@ export function AnimeEpisodes({ episodes }: { episodes: readonly AnimeEpisodeIte
             {episode.last && (
               <Badge size="sm" variant="light" color="grape">
                 {t('anime.last')}
+              </Badge>
+            )}
+            {episode.rerun && (
+              <Badge size="sm" variant="light" color="gray">
+                {t('anime.rerun')}
               </Badge>
             )}
             {episodeLinks(t, episode).map((link) => (

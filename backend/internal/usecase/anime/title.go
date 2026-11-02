@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -99,7 +100,7 @@ func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string) ([]*Episode, 
 	}
 	episode := &Episode{
 		Source: SourceTitle, TID: nil, PID: nil, CountStart: new(parsed.CountStart), CountEnd: new(parsed.CountEnd),
-		Subtitle: nil, First: false, Last: false,
+		Subtitle: nil, First: false, Last: false, Rerun: slices.Contains(domain.Marks(name), "再"),
 	}
 	if parsed.Subtitle != "" {
 		episode.Subtitle = new(parsed.Subtitle)

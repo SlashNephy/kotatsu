@@ -164,11 +164,11 @@ DELETE FROM program_anime_episodes WHERE service_id = @service_id AND start_at =
 
 -- name: InsertProgramAnimeEpisode :exec
 INSERT INTO program_anime_episodes (
-  service_id, start_at, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+  service_id, start_at, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
 VALUES (
   @service_id, @start_at, @position, @source, sqlc.narg(syobocal_tid), sqlc.narg(syobocal_pid),
-  sqlc.narg(count_start), sqlc.narg(count_end), sqlc.narg(subtitle), @is_first, @is_last
+  sqlc.narg(count_start), sqlc.narg(count_end), sqlc.narg(subtitle), @is_first, @is_last, @is_rerun
 );
 
 -- name: ListProgramAnimeEpisodes :many
@@ -220,9 +220,9 @@ ON CONFLICT (recording_id) DO UPDATE SET matched_at = excluded.matched_at;
 -- name: CopyProgramAnimeEpisodesToRecording :execrows
 -- 番組 (サービスと開始時刻の組) に結びついた話を、録画に写す。呼ぶ前に、録画の照合した記録を書き、前に写した話を消す。
 INSERT INTO recording_anime_episodes (
-  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
-SELECT @recording_id, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last
+SELECT @recording_id, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last, e.is_rerun
 FROM program_anime_episodes e
 WHERE e.service_id = @service_id AND e.start_at = @start_at;
 
@@ -231,11 +231,11 @@ SELECT EXISTS (SELECT 1 FROM program_anime_matches WHERE service_id = @service_i
 
 -- name: InsertRecordingAnimeEpisode :exec
 INSERT INTO recording_anime_episodes (
-  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
 VALUES (
   @recording_id, @position, @source, sqlc.narg(syobocal_tid), sqlc.narg(syobocal_pid),
-  sqlc.narg(count_start), sqlc.narg(count_end), sqlc.narg(subtitle), @is_first, @is_last
+  sqlc.narg(count_start), sqlc.narg(count_end), sqlc.narg(subtitle), @is_first, @is_last, @is_rerun
 );
 
 -- name: ListRecordingAnimeEpisodes :many

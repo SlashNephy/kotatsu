@@ -29,7 +29,8 @@ import type {
 } from './__generated__/AnimeLibraryQuery.graphql';
 import type { AnimeLibraryCreateRuleMutation } from './__generated__/AnimeLibraryCreateRuleMutation.graphql';
 import type { AnimeLibraryReserveMutation } from './__generated__/AnimeLibraryReserveMutation.graphql';
-import type { LibraryStatus } from './status';
+import { nextBroadcastOf, periodOf, sortWorks, type Period } from './library';
+import { matchesFilters, type LibraryFilters } from './status';
 
 const dateTimeFormat = zonedFormat({
   month: 'numeric',
@@ -45,11 +46,20 @@ const maxRecordedEpisodes = 6;
 
 type Work = AnimeLibraryQuery$data['animeLibrary']['works'][number];
 type RecordedEpisode = Work['recordedEpisodes'][number];
+type WorkBroadcast = Work['broadcasts'][number];
+
+// periodColors は、放送の時期のバッジの色。「それより後」と「未定」は、バッジを出さない。
+const periodColors: Partial<Record<Period, string>> = {
+  today: 'red',
+  yesterday: 'orange',
+  tomorrow: 'blue',
+  ended: 'gray',
+};
 
 // AnimeLibrary は、ログイン中のユーザーが Annict と AniList で「見たい」「見てる」にした作品を、作品ごとに、次の話、次の放送、
 // まだ見ていない録画と並べる (視聴管理の画面。設計書 3.8、10.3、#1231)。ルールを作るのと予約は、予約の画面の「見たいリスト」タブと
 // 同じ処理を使い、視聴者には出さない (設計書 9.7)。
-export function AnimeLibrary({ status }: { status: LibraryStatus }) {
+export function AnimeLibrary({ filters }: { filters: LibraryFilters }) {
   const { t } = useTranslation();
   // 予約やルール、録画、番組表が変わったら、読み直す。
   const changes = useDataChanges(['RESERVATIONS', 'RULES', 'RECORDINGS', 'EPG']);
@@ -88,9 +98,11 @@ export function AnimeLibrary({ status }: { status: LibraryStatus }) {
               numberText
               title
             }
-            nextBroadcast {
+            broadcasts {
               countStart
               countEnd
+              rerun
+              last
               program {
                 id
                 name
@@ -107,6 +119,11 @@ export function AnimeLibrary({ status }: { status: LibraryStatus }) {
                   }
                 }
               }
+            }
+            recentBroadcasts {
+              startAt
+              rerun
+              last
             }
             recordedEpisodes {
               countStart
@@ -172,7 +189,10 @@ export function AnimeLibrary({ status }: { status: LibraryStatus }) {
   }
   // 「見たいリスト」タブの候補にある作品だけ、ルールを作れる (候補にない作品は、サーバーが断る)。
   const candidates = new Map(data.animeWishlist.works.map((work) => [work.tid, work.covered]));
-  const works = library.works.filter((work) => status === 'all' || work.status === status);
+  const works = sortWorks(
+    library.works.filter((work) => matchesFilters(work, filters, now)),
+    filters.excludeReruns,
+  );
 
   const run = (
     key: string,
@@ -276,6 +296,7 @@ export function AnimeLibrary({ status }: { status: LibraryStatus }) {
                 key={work.id}
                 work={work}
                 now={now}
+                excludeReruns={filters.excludeReruns}
                 canEdit={canEdit}
                 pending={pending}
                 busy={busy}
@@ -296,6 +317,7 @@ export function AnimeLibrary({ status }: { status: LibraryStatus }) {
 function WorkCard({
   work,
   now,
+  excludeReruns,
   canEdit,
   pending,
   busy,
@@ -306,6 +328,7 @@ function WorkCard({
 }: {
   work: Work;
   now: number;
+  excludeReruns: boolean;
   canEdit: boolean;
   pending: boolean;
   busy: string | null;
@@ -316,7 +339,10 @@ function WorkCard({
 }) {
   const { t } = useTranslation();
   const next = work.nextEpisode;
-  const broadcast = work.nextBroadcast;
+  // 次の放送は、再放送を除く絞り込みのときは、本放送から選ぶ。
+  const broadcast = nextBroadcastOf(work, excludeReruns);
+  const period = periodOf(work, now, excludeReruns);
+  const periodColor = periodColors[period];
   // 見終えた話数が分かれば、まだ見ていない話の録画だけを並べる。分からなければ、見たかを示さずにすべて並べる。
   const recorded = work.recordedEpisodes.filter((episode) => episode.watched !== true);
   const shown = recorded.slice(0, maxRecordedEpisodes);
@@ -326,9 +352,21 @@ function WorkCard({
       <Stack gap="xs">
         <Stack gap={4}>
           <Group gap="xs" wrap="nowrap" justify="space-between" align="flex-start">
-            <Title order={3} size="h5" style={{ minWidth: 0 }}>
-              {work.title}
-            </Title>
+            <Group gap={4} style={{ minWidth: 0 }}>
+              <Title order={3} size="h5">
+                {work.title}
+              </Title>
+              {periodColor !== undefined && (
+                <Badge size="sm" color={periodColor} variant="light" tt="none">
+                  {t(`anime.period.${period}`)}
+                </Badge>
+              )}
+              {broadcast?.rerun === true && (
+                <Badge size="sm" color="gray" variant="light" tt="none">
+                  {t('anime.rerun')}
+                </Badge>
+              )}
+            </Group>
             {covered && (
               <Badge
                 size="sm"
@@ -461,7 +499,7 @@ function Broadcast({
   busy,
   onReserve,
 }: {
-  broadcast: NonNullable<Work['nextBroadcast']>;
+  broadcast: WorkBroadcast;
   now: number;
   canEdit: boolean;
   pending: boolean;
@@ -562,7 +600,7 @@ function RecordedEpisodeButton({ episode }: { episode: RecordedEpisode }) {
 }
 
 // seasonLabel は、放送のシーズンの名前を返す。
-function seasonLabel(t: TFunction, season: NonNullable<Work['season']>): string {
+export function seasonLabel(t: TFunction, season: NonNullable<Work['season']>): string {
   switch (season) {
     case 'WINTER':
       return t('anime.seasons.WINTER');

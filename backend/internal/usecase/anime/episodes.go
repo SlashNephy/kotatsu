@@ -30,7 +30,7 @@ func ProgramEpisodes(ctx context.Context, db sqlc.DBTX, serviceID int64, startAt
 	for _, row := range rows {
 		episodes = append(episodes, &Episode{
 			Source: row.Source, TID: row.SyobocalTid, PID: row.SyobocalPid, CountStart: row.CountStart, CountEnd: row.CountEnd,
-			Subtitle: row.Subtitle, First: row.IsFirst, Last: row.IsLast,
+			Subtitle: row.Subtitle, First: row.IsFirst, Last: row.IsLast, Rerun: row.IsRerun,
 		})
 	}
 
@@ -47,7 +47,7 @@ func RecordingEpisodes(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID)
 	for _, row := range rows {
 		episodes = append(episodes, &Episode{
 			Source: row.Source, TID: row.SyobocalTid, PID: row.SyobocalPid, CountStart: row.CountStart, CountEnd: row.CountEnd,
-			Subtitle: row.Subtitle, First: row.IsFirst, Last: row.IsLast,
+			Subtitle: row.Subtitle, First: row.IsFirst, Last: row.IsLast, Rerun: row.IsRerun,
 		})
 	}
 

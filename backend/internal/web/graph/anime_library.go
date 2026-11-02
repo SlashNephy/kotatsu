@@ -77,7 +77,10 @@ func libraryWorkModel(work *animerecord.LibraryWork, programs map[string]*model.
 		ID: GlobalID(animeLibraryWorkType, libraryWorkKey(work)), Tid: intOf(work.TID), Title: work.Title, Status: status, Sources: sources,
 		Progress: intOf(work.Progress), EpisodesCount: intOf(work.EpisodesCount), SeasonYear: intOf(work.SeasonYear),
 		Season: seasonOf(work.SeasonName), NextEpisode: nil, NextBroadcast: nil, Broadcasts: []*model.AnimeLibraryBroadcast{},
-		RecordedEpisodes: []*model.AnimeLibraryRecordedEpisode{},
+		RecordedEpisodes: []*model.AnimeLibraryRecordedEpisode{}, RecentBroadcasts: make([]*model.AnimeLibraryPastBroadcast, 0, len(work.RecentBroadcasts)),
+	}
+	for _, past := range work.RecentBroadcasts {
+		result.RecentBroadcasts = append(result.RecentBroadcasts, &model.AnimeLibraryPastBroadcast{StartAt: past.StartAt, Rerun: past.Rerun, Last: past.Last})
 	}
 	if next := work.NextEpisode; next != nil {
 		result.NextEpisode = &model.AnimeLibraryEpisode{Number: intOf(next.Number), NumberText: nonEmpty(next.NumberText), Title: nonEmpty(next.Title)}
@@ -87,7 +90,9 @@ func libraryWorkModel(work *animerecord.LibraryWork, programs map[string]*model.
 		if !ok {
 			continue
 		}
-		converted := &model.AnimeLibraryBroadcast{Program: program, CountStart: broadcast.CountStart, CountEnd: broadcast.CountEnd}
+		converted := &model.AnimeLibraryBroadcast{
+			Program: program, CountStart: broadcast.CountStart, CountEnd: broadcast.CountEnd, Rerun: broadcast.Rerun, Last: broadcast.Last,
+		}
 		result.Broadcasts = append(result.Broadcasts, converted)
 		if broadcast == work.NextBroadcast {
 			result.NextBroadcast = converted

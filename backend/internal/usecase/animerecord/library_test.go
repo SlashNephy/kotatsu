@@ -172,3 +172,33 @@ func describeLibraryWork(work *animerecord.LibraryWork) string {
 
 	return fmt.Sprintf("%s|%s|%s|progress=%s|next=%s|broadcast=%s|%s", tid, work.Title, status, progress, next, broadcast, strings.Join(episodes, ","))
 }
+
+// TestLibraryBroadcastMarks は、放送の再放送と最終話の印と、この 1 週間に始まった本放送と再放送の最も新しい放送を返すことを確かめる (#1233)。
+func TestLibraryBroadcastMarks(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_wishlist_entries (user_id, destination, work_id, status, title, fetched_at)
+VALUES ($1, 'annict', $2, 'watching', '作品A', now())`, f.alice.UserID, annictWorkID)
+	require.NoError(t, err)
+	// 11:00 の番組は第 2 話の再放送、12:00 の番組 (放送中) は第 3 話と第 4 話、13:00 の番組は最終話の第 5 話。
+	linkProgram(t, f, 11, 2)
+	linkProgram(t, f, 13, 5)
+	_, err = f.pool.Exec(t.Context(), `UPDATE program_anime_episodes SET is_rerun = (start_at = $1), is_last = (start_at = $2)`, at(11, 0), at(13, 0))
+	require.NoError(t, err)
+
+	library, err := f.service.Library(t.Context(), f.pool, f.alice.UserID)
+	require.NoError(t, err)
+	require.Len(t, library.Works, 1)
+	work := library.Works[0]
+	broadcasts := make([]string, 0, len(work.Broadcasts))
+	for _, broadcast := range work.Broadcasts {
+		broadcasts = append(broadcasts, fmt.Sprintf("%s rerun=%t last=%t", broadcast.StartAt.UTC().Format("15:04"), broadcast.Rerun, broadcast.Last))
+	}
+	assert.Equal(t, []string{"12:00 rerun=false last=false", "13:00 rerun=false last=true"}, broadcasts, "only broadcasts not yet ended are upcoming")
+	recent := make([]string, 0, len(work.RecentBroadcasts))
+	for _, past := range work.RecentBroadcasts {
+		recent = append(recent, fmt.Sprintf("%s rerun=%t", past.StartAt.UTC().Format("15:04"), past.Rerun))
+	}
+	assert.Equal(t, []string{"12:00 rerun=false", "11:00 rerun=true"}, recent, "the latest broadcast and the latest rerun, newest first")
+}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f99977f7a79b697adf55f217eec8a937>>
+ * @generated SignedSource<<2ae0ff1f0dc7fadf1a7c6476046b118f>>
  * @lightSyntaxTransform
  */
 
@@ -23,11 +23,10 @@ export type AnimeLibraryQuery$data = {
       readonly importedAt: string | null | undefined;
     }>;
     readonly works: ReadonlyArray<{
-      readonly episodesCount: number | null | undefined;
-      readonly id: string;
-      readonly nextBroadcast: {
+      readonly broadcasts: ReadonlyArray<{
         readonly countEnd: number | null | undefined;
         readonly countStart: number | null | undefined;
+        readonly last: boolean;
         readonly program: {
           readonly endAt: string;
           readonly id: string;
@@ -44,13 +43,21 @@ export type AnimeLibraryQuery$data = {
           };
           readonly startAt: string;
         };
-      } | null | undefined;
+        readonly rerun: boolean;
+      }>;
+      readonly episodesCount: number | null | undefined;
+      readonly id: string;
       readonly nextEpisode: {
         readonly number: number | null | undefined;
         readonly numberText: string | null | undefined;
         readonly title: string | null | undefined;
       } | null | undefined;
       readonly progress: number | null | undefined;
+      readonly recentBroadcasts: ReadonlyArray<{
+        readonly last: boolean;
+        readonly rerun: boolean;
+        readonly startAt: string;
+      }>;
       readonly recordedEpisodes: ReadonlyArray<{
         readonly countEnd: number;
         readonly countStart: number;
@@ -271,31 +278,45 @@ v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "name",
+  "name": "rerun",
   "storageKey": null
 },
 v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "startAt",
+  "name": "last",
   "storageKey": null
 },
 v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endAt",
+  "name": "name",
   "storageKey": null
 },
 v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "startAt",
   "storageKey": null
 },
 v20 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "endAt",
+  "storageKey": null
+},
+v21 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v22 = {
   "alias": null,
   "args": null,
   "concreteType": "ChannelType",
@@ -313,7 +334,21 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v23 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "AnimeLibraryPastBroadcast",
+  "kind": "LinkedField",
+  "name": "recentBroadcasts",
+  "plural": true,
+  "selections": [
+    (v19/*:: as any*/),
+    (v16/*:: as any*/),
+    (v17/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v24 = {
   "alias": null,
   "args": null,
   "concreteType": "AnimeLibraryRecordedEpisode",
@@ -359,7 +394,7 @@ v21 = {
   ],
   "storageKey": null
 },
-v22 = {
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "AnimeWishlist",
@@ -441,11 +476,13 @@ return {
                 "args": null,
                 "concreteType": "AnimeLibraryBroadcast",
                 "kind": "LinkedField",
-                "name": "nextBroadcast",
-                "plural": false,
+                "name": "broadcasts",
+                "plural": true,
                 "selections": [
                   (v14/*:: as any*/),
                   (v15/*:: as any*/),
+                  (v16/*:: as any*/),
+                  (v17/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -455,9 +492,9 @@ return {
                     "plural": false,
                     "selections": [
                       (v4/*:: as any*/),
-                      (v16/*:: as any*/),
-                      (v17/*:: as any*/),
                       (v18/*:: as any*/),
+                      (v19/*:: as any*/),
+                      (v20/*:: as any*/),
                       {
                         "alias": null,
                         "args": null,
@@ -478,9 +515,9 @@ return {
                         "name": "service",
                         "plural": false,
                         "selections": [
-                          (v16/*:: as any*/),
-                          (v19/*:: as any*/),
-                          (v20/*:: as any*/)
+                          (v18/*:: as any*/),
+                          (v21/*:: as any*/),
+                          (v22/*:: as any*/)
                         ],
                         "storageKey": null
                       }
@@ -490,14 +527,15 @@ return {
                 ],
                 "storageKey": null
               },
-              (v21/*:: as any*/)
+              (v23/*:: as any*/),
+              (v24/*:: as any*/)
             ],
             "storageKey": null
           }
         ],
         "storageKey": null
       },
-      (v22/*:: as any*/)
+      (v25/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -554,11 +592,13 @@ return {
                 "args": null,
                 "concreteType": "AnimeLibraryBroadcast",
                 "kind": "LinkedField",
-                "name": "nextBroadcast",
-                "plural": false,
+                "name": "broadcasts",
+                "plural": true,
                 "selections": [
                   (v14/*:: as any*/),
                   (v15/*:: as any*/),
+                  (v16/*:: as any*/),
+                  (v17/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -568,9 +608,9 @@ return {
                     "plural": false,
                     "selections": [
                       (v4/*:: as any*/),
-                      (v16/*:: as any*/),
-                      (v17/*:: as any*/),
                       (v18/*:: as any*/),
+                      (v19/*:: as any*/),
+                      (v20/*:: as any*/),
                       {
                         "alias": null,
                         "args": null,
@@ -592,9 +632,9 @@ return {
                         "name": "service",
                         "plural": false,
                         "selections": [
-                          (v16/*:: as any*/),
-                          (v19/*:: as any*/),
-                          (v20/*:: as any*/),
+                          (v18/*:: as any*/),
+                          (v21/*:: as any*/),
+                          (v22/*:: as any*/),
                           (v4/*:: as any*/)
                         ],
                         "storageKey": null
@@ -605,27 +645,28 @@ return {
                 ],
                 "storageKey": null
               },
-              (v21/*:: as any*/)
+              (v23/*:: as any*/),
+              (v24/*:: as any*/)
             ],
             "storageKey": null
           }
         ],
         "storageKey": null
       },
-      (v22/*:: as any*/)
+      (v25/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "c1b4239333ae0fcce80a3dfef9f32cc4",
+    "cacheID": "3a8224a1ccb6d056cefb6f71639ffb1a",
     "id": null,
     "metadata": {},
     "name": "AnimeLibraryQuery",
     "operationKind": "query",
-    "text": "query AnimeLibraryQuery {\n  viewer {\n    role\n    id\n  }\n  animeLibrary {\n    enabled\n    imports {\n      destination\n      importedAt\n      error\n      entryCount\n    }\n    works {\n      id\n      tid\n      title\n      status\n      progress\n      episodesCount\n      seasonYear\n      season\n      sources {\n        destination\n        workId\n        status\n        url\n      }\n      nextEpisode {\n        number\n        numberText\n        title\n      }\n      nextBroadcast {\n        countStart\n        countEnd\n        program {\n          id\n          name\n          startAt\n          endAt\n          reservation {\n            enabled\n            id\n          }\n          service {\n            name\n            logoUrl\n            channelType {\n              type\n            }\n            id\n          }\n        }\n      }\n      recordedEpisodes {\n        countStart\n        countEnd\n        subtitle\n        recordingCount\n        watched\n        recording {\n          id\n        }\n      }\n    }\n  }\n  animeWishlist {\n    works {\n      tid\n      covered\n    }\n  }\n}\n"
+    "text": "query AnimeLibraryQuery {\n  viewer {\n    role\n    id\n  }\n  animeLibrary {\n    enabled\n    imports {\n      destination\n      importedAt\n      error\n      entryCount\n    }\n    works {\n      id\n      tid\n      title\n      status\n      progress\n      episodesCount\n      seasonYear\n      season\n      sources {\n        destination\n        workId\n        status\n        url\n      }\n      nextEpisode {\n        number\n        numberText\n        title\n      }\n      broadcasts {\n        countStart\n        countEnd\n        rerun\n        last\n        program {\n          id\n          name\n          startAt\n          endAt\n          reservation {\n            enabled\n            id\n          }\n          service {\n            name\n            logoUrl\n            channelType {\n              type\n            }\n            id\n          }\n        }\n      }\n      recentBroadcasts {\n        startAt\n        rerun\n        last\n      }\n      recordedEpisodes {\n        countStart\n        countEnd\n        subtitle\n        recordingCount\n        watched\n        recording {\n          id\n        }\n      }\n    }\n  }\n  animeWishlist {\n    works {\n      tid\n      covered\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "360a0d2e38b587d003954c5f71af95c4";
+(node as any).hash = "47356bd0073e7ae699edf747dede091a";
 
 export default node;

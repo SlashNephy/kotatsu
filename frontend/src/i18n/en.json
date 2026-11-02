@@ -1974,7 +1974,33 @@
     "unwatched": "Recordings you have not watched",
     "recorded": "Recordings",
     "recordingCount": "{{label}} ({{count}})",
-    "moreRecorded": "{{count}} more"
+    "moreRecorded": "{{count}} more",
+    "rerun": "Rerun",
+    "seasonFilter": "Season",
+    "allSeasons": "All seasons",
+    "currentSeason": "This season",
+    "periodFilter": "Broadcast",
+    "allPeriods": "All broadcasts",
+    "period": {
+      "ended": "Ended",
+      "yesterday": "Yesterday",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "later": "Later",
+      "unknown": "Unknown"
+    },
+    "weekdayFilter": "Weekday",
+    "allWeekdays": "All weekdays",
+    "weekdays": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    },
+    "excludeReruns": "Exclude reruns"
   },
   "animeRecords": {
     "wishlistHint": "Once connected, the upcoming broadcasts of the works you want to watch or are watching on Annict and AniList appear as recording candidates.",

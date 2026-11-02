@@ -1271,6 +1271,8 @@ CREATE TABLE program_anime_episodes (
   -- しょぼいカレンダーの [新] と [終] の印。
   is_first boolean NOT NULL,
   is_last boolean NOT NULL,
+  -- 再放送かどうか (#1233)。しょぼいカレンダーの Flag の再放送の印 (8) か、番組名の解析では番組名の [再] の印から読む。
+  is_rerun boolean NOT NULL DEFAULT false,
   PRIMARY KEY (service_id, start_at, position),
   FOREIGN KEY (service_id, start_at) REFERENCES program_anime_matches (service_id, start_at) ON DELETE CASCADE
 );
@@ -1303,6 +1305,7 @@ CREATE TABLE recording_anime_episodes (
   subtitle text,
   is_first boolean NOT NULL,
   is_last boolean NOT NULL,
+  is_rerun boolean NOT NULL DEFAULT false,
   PRIMARY KEY (recording_id, position)
 );
 -- 視聴管理の画面 (#1231) で、作品 (TID) の録画を引く。

@@ -14,9 +14,9 @@ import (
 
 const copyProgramAnimeEpisodesToRecording = `-- name: CopyProgramAnimeEpisodesToRecording :execrows
 INSERT INTO recording_anime_episodes (
-  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
-SELECT $1, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last
+SELECT $1, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last, e.is_rerun
 FROM program_anime_episodes e
 WHERE e.service_id = $2 AND e.start_at = $3
 `
@@ -259,11 +259,11 @@ func (q *Queries) InsertAnimeWorks(ctx context.Context, arg InsertAnimeWorksPara
 
 const insertProgramAnimeEpisode = `-- name: InsertProgramAnimeEpisode :exec
 INSERT INTO program_anime_episodes (
-  service_id, start_at, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+  service_id, start_at, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
 VALUES (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11
+  $7, $8, $9, $10, $11, $12
 )
 `
 
@@ -279,6 +279,7 @@ type InsertProgramAnimeEpisodeParams struct {
 	Subtitle    *string
 	IsFirst     bool
 	IsLast      bool
+	IsRerun     bool
 }
 
 func (q *Queries) InsertProgramAnimeEpisode(ctx context.Context, arg InsertProgramAnimeEpisodeParams) error {
@@ -294,17 +295,18 @@ func (q *Queries) InsertProgramAnimeEpisode(ctx context.Context, arg InsertProgr
 		arg.Subtitle,
 		arg.IsFirst,
 		arg.IsLast,
+		arg.IsRerun,
 	)
 	return err
 }
 
 const insertRecordingAnimeEpisode = `-- name: InsertRecordingAnimeEpisode :exec
 INSERT INTO recording_anime_episodes (
-  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last
+  recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 )
 VALUES (
   $1, $2, $3, $4, $5,
-  $6, $7, $8, $9, $10
+  $6, $7, $8, $9, $10, $11
 )
 `
 
@@ -319,6 +321,7 @@ type InsertRecordingAnimeEpisodeParams struct {
 	Subtitle    *string
 	IsFirst     bool
 	IsLast      bool
+	IsRerun     bool
 }
 
 func (q *Queries) InsertRecordingAnimeEpisode(ctx context.Context, arg InsertRecordingAnimeEpisodeParams) error {
@@ -333,6 +336,7 @@ func (q *Queries) InsertRecordingAnimeEpisode(ctx context.Context, arg InsertRec
 		arg.Subtitle,
 		arg.IsFirst,
 		arg.IsLast,
+		arg.IsRerun,
 	)
 	return err
 }
@@ -615,7 +619,7 @@ func (q *Queries) ListImportedRecordingsToMatch(ctx context.Context, maxCount in
 }
 
 const listProgramAnimeEpisodes = `-- name: ListProgramAnimeEpisodes :many
-SELECT e.service_id, e.start_at, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last FROM program_anime_episodes e
+SELECT e.service_id, e.start_at, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last, e.is_rerun FROM program_anime_episodes e
 WHERE (e.service_id, e.start_at) IN (SELECT unnest($1::bigint[]), unnest($2::timestamptz[]))
 ORDER BY e.service_id, e.start_at, e.position
 `
@@ -647,6 +651,7 @@ func (q *Queries) ListProgramAnimeEpisodes(ctx context.Context, arg ListProgramA
 			&i.Subtitle,
 			&i.IsFirst,
 			&i.IsLast,
+			&i.IsRerun,
 		); err != nil {
 			return nil, err
 		}
@@ -691,7 +696,7 @@ func (q *Queries) ListProgramRecordingIDs(ctx context.Context, arg ListProgramRe
 }
 
 const listRecordingAnimeEpisodes = `-- name: ListRecordingAnimeEpisodes :many
-SELECT recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last FROM recording_anime_episodes WHERE recording_id = $1 ORDER BY position
+SELECT recording_id, position, source, syobocal_tid, syobocal_pid, count_start, count_end, subtitle, is_first, is_last, is_rerun FROM recording_anime_episodes WHERE recording_id = $1 ORDER BY position
 `
 
 func (q *Queries) ListRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) ([]RecordingAnimeEpisode, error) {
@@ -714,6 +719,7 @@ func (q *Queries) ListRecordingAnimeEpisodes(ctx context.Context, recordingID uu
 			&i.Subtitle,
 			&i.IsFirst,
 			&i.IsLast,
+			&i.IsRerun,
 		); err != nil {
 			return nil, err
 		}

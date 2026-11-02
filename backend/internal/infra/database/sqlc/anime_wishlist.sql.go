@@ -150,7 +150,8 @@ func (q *Queries) InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnim
 
 const listAnimeLibraryPrograms = `-- name: ListAnimeLibraryPrograms :many
 SELECT e.syobocal_tid::integer AS syobocal_tid, p.service_id, p.event_id, p.start_at,
-  COALESCE(min(e.count_start), -1)::double precision AS count_start, COALESCE(max(e.count_end), -1)::double precision AS count_end
+  COALESCE(min(e.count_start), -1)::double precision AS count_start, COALESCE(max(e.count_end), -1)::double precision AS count_end,
+  bool_or(e.is_rerun)::boolean AS is_rerun, bool_or(e.is_last)::boolean AS is_last
 FROM program_anime_episodes e
 JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at
 JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
@@ -172,11 +173,14 @@ type ListAnimeLibraryProgramsRow struct {
 	StartAt     time.Time
 	CountStart  float64
 	CountEnd    float64
+	IsRerun     bool
+	IsLast      bool
 }
 
 // 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
 // 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
 // 話数のない放送 (特番など) の話数は、-1 にする。
+// 再放送と最終話の印は、結びついた話のどれかに付いていれば付ける。
 func (q *Queries) ListAnimeLibraryPrograms(ctx context.Context, arg ListAnimeLibraryProgramsParams) ([]ListAnimeLibraryProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeLibraryPrograms, arg.SyobocalTids, arg.Now, arg.Until)
 	if err != nil {
@@ -193,6 +197,57 @@ func (q *Queries) ListAnimeLibraryPrograms(ctx context.Context, arg ListAnimeLib
 			&i.StartAt,
 			&i.CountStart,
 			&i.CountEnd,
+			&i.IsRerun,
+			&i.IsLast,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnimeLibraryRecentBroadcasts = `-- name: ListAnimeLibraryRecentBroadcasts :many
+SELECT DISTINCT ON (e.syobocal_tid, e.is_rerun)
+  e.syobocal_tid::integer AS syobocal_tid, e.start_at, e.is_rerun, e.is_last
+FROM program_anime_episodes e
+WHERE e.syobocal_tid = ANY($1::integer[]) AND e.start_at >= $2 AND e.start_at < $3
+ORDER BY e.syobocal_tid, e.is_rerun, e.start_at DESC, e.position DESC
+`
+
+type ListAnimeLibraryRecentBroadcastsParams struct {
+	SyobocalTids []int32
+	Since        time.Time
+	Now          time.Time
+}
+
+type ListAnimeLibraryRecentBroadcastsRow struct {
+	SyobocalTid int32
+	StartAt     time.Time
+	IsRerun     bool
+	IsLast      bool
+}
+
+// 視聴管理の画面 (#1233) の、TID ごとの、since から now までに始まった最も新しい放送を返す。「昨日」「終了」のバッジに使う。
+// 過去の番組は、放送が終わってしばらくするとアーカイブに移るので、番組ではなく、番組の結びつきの開始時刻と印だけを読む。
+// 再放送を除いて見るときのため、本放送の最も新しい放送も別に返す。
+func (q *Queries) ListAnimeLibraryRecentBroadcasts(ctx context.Context, arg ListAnimeLibraryRecentBroadcastsParams) ([]ListAnimeLibraryRecentBroadcastsRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeLibraryRecentBroadcasts, arg.SyobocalTids, arg.Since, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeLibraryRecentBroadcastsRow{}
+	for rows.Next() {
+		var i ListAnimeLibraryRecentBroadcastsRow
+		if err := rows.Scan(
+			&i.SyobocalTid,
+			&i.StartAt,
+			&i.IsRerun,
+			&i.IsLast,
 		); err != nil {
 			return nil, err
 		}
