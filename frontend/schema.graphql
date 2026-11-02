@@ -402,6 +402,11 @@ type AnimeRecordSettings {
   最終話 ([終]) を見たら、作品を「見た」にするかどうか。
   """
   watchedOnLast: Boolean!
+  """
+  見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。通知するなら、見たいリストの作品のこれからの本放送のうち、
+  見終えた話数より後の話ごとに最も早い放送に、ルールの照合で視聴予約を付け、作品が見たいリストから外れたら外す。
+  """
+  notifyWishlist: Boolean!
   destinations: [AnimeRecordDestinationStatus!]!
 }
 input AnimeRecordSettingsInput {
@@ -409,6 +414,10 @@ input AnimeRecordSettingsInput {
   watchingOnFirst: Boolean!
   watchingOnEpisode: Boolean!
   watchedOnLast: Boolean!
+  """
+  見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。省けば変えない。
+  """
+  notifyWishlist: Boolean
 }
 """
 作品の放送の時期 (#1230)。Annict の AUTUMN と AniList の FALL は、どちらも AUTUMN にする。

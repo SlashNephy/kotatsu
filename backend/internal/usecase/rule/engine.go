@@ -79,13 +79,16 @@ type Result struct {
 	WatchSkipped map[uuid.UUID]error
 	// DismissalsPruned は、番組が programs からなくなったので消した、手で外した視聴予約の記録の数。
 	DismissalsPruned int
+	// WishlistCreated と WishlistDeleted は、見たいリストの作品の放送の通知 (#1234) で付けた視聴予約と、外した視聴予約の数。
+	WishlistCreated int
+	WishlistDeleted int
 }
 
 // newResult は、空の照合の結果を返す。
 func newResult() *Result {
 	return &Result{
 		Created: 0, Deleted: 0, Linked: 0, Unlinked: 0, Skipped: map[uuid.UUID]error{},
-		WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0,
+		WatchCreated: 0, WatchDeleted: 0, WatchSkipped: map[uuid.UUID]error{}, DismissalsPruned: 0, WishlistCreated: 0, WishlistDeleted: 0,
 	}
 }
 
@@ -129,6 +132,10 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 			return err
 		}
 		if err := e.apply(ctx, tx, now, desired, result); err != nil {
+			return err
+		}
+
+		if err := e.applyWishlistWatch(ctx, tx, now, result); err != nil {
 			return err
 		}
 

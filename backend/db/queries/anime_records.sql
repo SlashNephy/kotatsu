@@ -45,11 +45,14 @@ RETURNING *;
 SELECT * FROM anime_record_settings WHERE user_id = @user_id;
 
 -- name: UpsertAnimeRecordSettings :one
-INSERT INTO anime_record_settings (user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, updated_at)
-VALUES (@user_id, @threshold_percent, @watching_on_first, @watching_on_episode, @watched_on_last, @now)
+INSERT INTO anime_record_settings (
+  user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, notify_wishlist, updated_at
+)
+VALUES (@user_id, @threshold_percent, @watching_on_first, @watching_on_episode, @watched_on_last, @notify_wishlist, @now)
 ON CONFLICT (user_id) DO UPDATE SET
   threshold_percent = EXCLUDED.threshold_percent, watching_on_first = EXCLUDED.watching_on_first,
-  watching_on_episode = EXCLUDED.watching_on_episode, watched_on_last = EXCLUDED.watched_on_last, updated_at = EXCLUDED.updated_at
+  watching_on_episode = EXCLUDED.watching_on_episode, watched_on_last = EXCLUDED.watched_on_last,
+  notify_wishlist = EXCLUDED.notify_wishlist, updated_at = EXCLUDED.updated_at
 RETURNING *;
 
 -- name: ListLiveProgramsInRange :many

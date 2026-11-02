@@ -2028,6 +2028,9 @@
       "denied": "You declined on the service, so nothing was connected",
       "unavailable": "The administrator disabled the integration, so you cannot connect",
       "failed": "Could not connect. Try again later"
-    }
+    },
+    "notifyTitle": "Wishlist broadcast reminders",
+    "notifyWishlist": "Remind me of broadcasts of works on my wishlist",
+    "notifyWishlistHelp": "Adds watch reminders to the earliest first-run broadcast of each episode you have not watched yet. Reruns are skipped. Reminders are removed when a work leaves your wishlist."
   }
 }

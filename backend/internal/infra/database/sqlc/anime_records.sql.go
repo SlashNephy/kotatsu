@@ -130,7 +130,7 @@ func (q *Queries) GetAnimeRecordConnection(ctx context.Context, arg GetAnimeReco
 }
 
 const getAnimeRecordSettings = `-- name: GetAnimeRecordSettings :one
-SELECT user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, updated_at FROM anime_record_settings WHERE user_id = $1
+SELECT user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, notify_wishlist, updated_at FROM anime_record_settings WHERE user_id = $1
 `
 
 func (q *Queries) GetAnimeRecordSettings(ctx context.Context, userID uuid.UUID) (AnimeRecordSetting, error) {
@@ -142,6 +142,7 @@ func (q *Queries) GetAnimeRecordSettings(ctx context.Context, userID uuid.UUID) 
 		&i.WatchingOnFirst,
 		&i.WatchingOnEpisode,
 		&i.WatchedOnLast,
+		&i.NotifyWishlist,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -559,12 +560,15 @@ func (q *Queries) UpsertAnimeRecordConnection(ctx context.Context, arg UpsertAni
 }
 
 const upsertAnimeRecordSettings = `-- name: UpsertAnimeRecordSettings :one
-INSERT INTO anime_record_settings (user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO anime_record_settings (
+  user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, notify_wishlist, updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (user_id) DO UPDATE SET
   threshold_percent = EXCLUDED.threshold_percent, watching_on_first = EXCLUDED.watching_on_first,
-  watching_on_episode = EXCLUDED.watching_on_episode, watched_on_last = EXCLUDED.watched_on_last, updated_at = EXCLUDED.updated_at
-RETURNING user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, updated_at
+  watching_on_episode = EXCLUDED.watching_on_episode, watched_on_last = EXCLUDED.watched_on_last,
+  notify_wishlist = EXCLUDED.notify_wishlist, updated_at = EXCLUDED.updated_at
+RETURNING user_id, threshold_percent, watching_on_first, watching_on_episode, watched_on_last, notify_wishlist, updated_at
 `
 
 type UpsertAnimeRecordSettingsParams struct {
@@ -573,6 +577,7 @@ type UpsertAnimeRecordSettingsParams struct {
 	WatchingOnFirst   bool
 	WatchingOnEpisode bool
 	WatchedOnLast     bool
+	NotifyWishlist    bool
 	Now               time.Time
 }
 
@@ -583,6 +588,7 @@ func (q *Queries) UpsertAnimeRecordSettings(ctx context.Context, arg UpsertAnime
 		arg.WatchingOnFirst,
 		arg.WatchingOnEpisode,
 		arg.WatchedOnLast,
+		arg.NotifyWishlist,
 		arg.Now,
 	)
 	var i AnimeRecordSetting
@@ -592,6 +598,7 @@ func (q *Queries) UpsertAnimeRecordSettings(ctx context.Context, arg UpsertAnime
 		&i.WatchingOnFirst,
 		&i.WatchingOnEpisode,
 		&i.WatchedOnLast,
+		&i.NotifyWishlist,
 		&i.UpdatedAt,
 	)
 	return i, err

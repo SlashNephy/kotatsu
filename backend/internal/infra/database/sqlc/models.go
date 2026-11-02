@@ -98,6 +98,7 @@ type AnimeRecordSetting struct {
 	WatchingOnFirst   bool
 	WatchingOnEpisode bool
 	WatchedOnLast     bool
+	NotifyWishlist    bool
 	UpdatedAt         time.Time
 }
 
@@ -846,11 +847,12 @@ type WatchProgress struct {
 }
 
 type WatchReservation struct {
-	UserID      uuid.UUID
-	ServiceID   int64
-	EventID     int64
-	CreatedAt   time.Time
-	WatchRuleID *uuid.UUID
+	UserID       uuid.UUID
+	ServiceID    int64
+	EventID      int64
+	CreatedAt    time.Time
+	WatchRuleID  *uuid.UUID
+	FromWishlist bool
 }
 
 type WatchRule struct {

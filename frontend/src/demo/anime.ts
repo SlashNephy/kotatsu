@@ -39,6 +39,7 @@ export function demoAnimeRecordSettings() {
     watchingOnFirst: false,
     watchingOnEpisode: false,
     watchedOnLast: false,
+    notifyWishlist: false,
     destinations: (['ANNICT', 'ANILIST'] as const).map((destination) => ({
       destination,
       available: false,
