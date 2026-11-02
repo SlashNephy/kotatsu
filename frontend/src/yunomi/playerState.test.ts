@@ -154,6 +154,11 @@ describe('documentTitle', () => {
       want: [null, 'KOTATSUテレビ'],
     },
     {
+      name: 'タイムシフトでも、番組名に局の名前を添える',
+      state: { ...state, kind: 'TIMESHIFT' },
+      want: ['こたつのニュース', 'KOTATSUテレビ'],
+    },
+    {
       name: '録画では、番組名だけ',
       state: { ...state, kind: 'RECORDING' },
       want: ['こたつのニュース', null],

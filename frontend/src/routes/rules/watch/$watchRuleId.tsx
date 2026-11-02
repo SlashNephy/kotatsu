@@ -6,7 +6,7 @@ import { graphql, useFragment } from 'react-relay';
 import { useLazyLoadQuery } from '../../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../../changes/DataChanges';
-import { ErrorBoundary, PageLoader } from '../../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../../relay/environment';
 import { WatchRuleEditor, watchRuleEditorFragment } from '../../../watch/WatchRuleEditor';
 import type { WatchRuleEditor_watchRule$key } from '../../../watch/__generated__/WatchRuleEditor_watchRule.graphql';
@@ -71,6 +71,7 @@ function WatchRulePage() {
 }
 
 function WatchRule({ watchRuleId }: { watchRuleId: string }) {
+  const { t } = useTranslation();
   const isNew = watchRuleId === newWatchRuleId;
   // ほかの端末で視聴ルールが変わったら、読み直す。入力を触っていれば、WatchRuleEditor は入れ直さない。
   const changes = useDataChanges(['VIEWER_SETTINGS']);
@@ -108,6 +109,7 @@ function WatchRule({ watchRuleId }: { watchRuleId: string }) {
     watchRuleEditorFragment,
     node?.__typename === 'WatchRule' ? node.watchRule : null,
   );
+  useDocumentTitle([isNew ? t('watchRules.createTitle') : (watchRule?.name ?? null)]);
   if (!isNew && node?.__typename !== 'WatchRule') {
     throw new WatchRuleNotFoundError();
   }

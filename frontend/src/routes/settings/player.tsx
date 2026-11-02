@@ -14,7 +14,7 @@ import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
 import { ShortcutKeysCard } from '../../settings/ShortcutKeysCard';
 import { isUnauthenticated } from '../../relay/environment';
@@ -43,6 +43,7 @@ export const Route = createFileRoute('/settings/player')({
 // PlayerSettingsPage は、プレイヤーと実況のコメントの設定 (設計書 10.3、#980)。
 function PlayerSettingsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('settings.pages.player.title')]);
 
   return (
     <Stack gap="md">

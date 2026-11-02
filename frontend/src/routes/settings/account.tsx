@@ -21,7 +21,7 @@ import {
   type AnimeRecordDestinationName,
 } from '../../animeRecords/destinations';
 import { useDataChanges } from '../../changes/DataChanges';
-import { ErrorBoundary, PageLoader, zonedFormat } from '../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle, zonedFormat } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { settingsErrorMessage } from '../../settings/errors';
@@ -69,6 +69,7 @@ const connectedAtFormat = zonedFormat({
 // 管理者がしょぼいカレンダー、Annict、AniList との連携を無効にしているときは、設定を出さない。
 function AccountPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('settings.pages.account.title')]);
 
   return (
     <Stack gap="md">

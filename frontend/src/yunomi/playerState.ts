@@ -170,7 +170,7 @@ export function playerTitle(state: PlayerSnapshot): string | null {
   return state.program === null ? null : toHalfWidth(splitProgramMarks(state.program.name).name);
 }
 
-// documentTitle は、タブの題名に並べるもの。ライブでは、局の名前も添える。
+// documentTitle は、タブの題名に並べるもの。ライブとタイムシフトでは、局の名前も添える。
 export function documentTitle(state: PlayerSnapshot): (string | null)[] {
-  return [playerTitle(state), state.kind === 'LIVE' ? toHalfWidth(state.serviceName) : null];
+  return [playerTitle(state), state.kind === 'RECORDING' ? null : toHalfWidth(state.serviceName)];
 }

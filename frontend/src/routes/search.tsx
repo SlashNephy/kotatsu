@@ -27,7 +27,7 @@ import {
   type ConditionsForm,
 } from '../conditions/form';
 import { ProgramList } from '../conditions/ProgramList';
-import { EmptyState, ErrorBoundary, PageLoader } from '../futon';
+import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
 import { ProgramDetail } from '../guide/ProgramDetail';
 import { isUnauthenticated } from '../relay/environment';
 import type {
@@ -97,6 +97,7 @@ type Page = {
 // 条件の入力欄は、ルールの画面と同じものを使い、左に条件、右に結果を並べる。
 function SearchPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('search.title')]);
 
   return (
     <Stack gap="sm" className={classes.page}>

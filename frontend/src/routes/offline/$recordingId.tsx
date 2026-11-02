@@ -4,7 +4,7 @@ import { Captions, MessageSquareText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
+import { PageLoader, ProgramTitle, toHalfWidth, useDocumentTitle } from '../../futon';
 import { setTimeZone } from '../../futon/timeZone';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { openOfflineRecording, type OfflineFiles } from '../../offline/store';
@@ -111,7 +111,7 @@ function OfflinePlayer({ files }: { files: OfflineFiles }) {
   const { meta } = files;
   // オフラインではサーバーのタイムゾーンを読めないので、保存したときのタイムゾーンで日時を書く。
   setTimeZone(meta.timeZone);
-  useDocumentTitle([meta.name]);
+  useDocumentTitle([toHalfWidth(meta.name)]);
   const videoURL = useObjectURL(files.video);
   const jikkyoURL = useObjectURL(files.jikkyo);
   const videoRef = useRef<HTMLVideoElement | null>(null);

@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
-import { ErrorBoundary } from '../../futon';
+import { ErrorBoundary, useDocumentTitle } from '../../futon';
 import type { settingsViewerQuery } from './__generated__/settingsViewerQuery.graphql';
 
 export const Route = createFileRoute('/settings/')({
@@ -36,6 +36,7 @@ type SettingsLink = { to: string; title: string; body: string; icon: LucideIcon 
 // SettingsPage は、設定の入り口 (設計書 10.3)。管理者には、管理者向けの画面へのリンクも出す。
 function SettingsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('settings.title')]);
   const links: SettingsLink[] = [
     {
       to: '/settings/player',

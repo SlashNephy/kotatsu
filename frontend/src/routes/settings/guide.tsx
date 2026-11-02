@@ -2,6 +2,7 @@ import { Anchor, Stack, Title } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 
+import { useDocumentTitle } from '../../futon';
 import { GuideAppearanceSettings } from '../../guide/GuideAppearanceSettings';
 
 export const Route = createFileRoute('/settings/guide')({
@@ -11,6 +12,7 @@ export const Route = createFileRoute('/settings/guide')({
 // GuideSettingsPage は、番組表の見た目の設定 (設計書 10.3、#980)。
 function GuideSettingsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('settings.pages.guide.title')]);
 
   return (
     <Stack gap="md">

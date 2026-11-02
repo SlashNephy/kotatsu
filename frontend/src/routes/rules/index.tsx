@@ -22,7 +22,7 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { DataChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader } from '../../futon';
+import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { outOfValidity } from '../../rules/validity';
 import { WatchRuleList } from '../../watch/WatchRuleList';
@@ -45,6 +45,7 @@ export const Route = createFileRoute('/rules/')({
 // RulesPage は、ルールの一覧の画面 (設計書 10.3)。ルールは家族で共有する。
 function RulesPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('rules.title')]);
   const { watch } = Route.useSearch();
   const navigate = Route.useNavigate();
   const tab = watch === true ? 'watch' : 'recording';

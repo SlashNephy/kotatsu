@@ -8,7 +8,14 @@ import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
-import { EmptyState, ErrorBoundary, PageLoader, zonedFormat } from '../../futon';
+import {
+  EmptyState,
+  ErrorBoundary,
+  PageLoader,
+  toHalfWidth,
+  useDocumentTitle,
+  zonedFormat,
+} from '../../futon';
 import { channelWeekColumns, channelWeekDays, type ChannelDay } from '../../guide/channelWeek';
 import { GuideGrid } from '../../guide/GuideGrid';
 import { loadExtendedHours } from '../../guide/hourNotation';
@@ -146,6 +153,9 @@ function ChannelGuide() {
     [row, now],
   );
   const [extendedHours] = useState(loadExtendedHours);
+  useDocumentTitle(
+    row === undefined ? [] : [toHalfWidth(row.service.name), t('guide.channel.title')],
+  );
   if (row === undefined) {
     return <Alert color="amber">{t('guide.channel.notFound')}</Alert>;
   }

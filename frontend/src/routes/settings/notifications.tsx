@@ -6,7 +6,7 @@ import { graphql, useMutation } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import type { PayloadError, RecordSourceSelectorProxy } from 'relay-runtime';
 
-import { ErrorBoundary, PageLoader } from '../../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { currentSubscription, pushSupported, subscribe } from '../../notifications/push';
 import { notificationKinds } from '../../notifications/kinds';
 import { isUnauthenticated } from '../../relay/environment';
@@ -24,6 +24,7 @@ export const Route = createFileRoute('/settings/notifications')({
 // NotificationSettingsPage は、通知の受け取り方の設定 (設計書 6.2)。
 function NotificationSettingsPage() {
   const { t } = useTranslation();
+  useDocumentTitle([t('notifications.title')]);
 
   return (
     <Stack gap="sm">

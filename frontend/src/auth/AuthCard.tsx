@@ -1,6 +1,8 @@
 import { Card, Center, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
 
+import { useDocumentTitle } from '../futon';
+
 type Props = {
   title: string;
   description?: string;
@@ -9,6 +11,8 @@ type Props = {
 
 // AuthCard は、セットアップとログインの画面の枠。
 export function AuthCard({ title, description, children }: Props) {
+  useDocumentTitle([title]);
+
   return (
     <Center py="xl">
       <Card withBorder w="100%" maw={440} padding="lg">

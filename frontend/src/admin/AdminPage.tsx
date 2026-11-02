@@ -3,13 +3,14 @@ import { Link } from '@tanstack/react-router';
 import { Suspense, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ErrorBoundary, PageLoader } from '../futon';
+import { ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../relay/environment';
 
 // AdminPage は、管理者向けの画面の枠 (設計書 10.3)。設定に戻るリンクと見出しを出し、
 // 読み込み中と、ログインしていないとき、管理者でないときの表示をまとめる。
 export function AdminPage({ title, children }: { title: string; children: ReactNode }) {
   const { t } = useTranslation();
+  useDocumentTitle([title]);
 
   return (
     <Stack gap="md">
