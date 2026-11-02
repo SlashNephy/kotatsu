@@ -13,13 +13,13 @@ var (
 	keywordLeadingPattern = regexp.MustCompile(`^(?:\s+|【[^】]*】|<[^>]*>|\[[^\[\]]{1,3}\]|[^\s◆◇「『]{1,4}[◆◇]|(?:TV|テレビ)?アニメ(?:\s+|[:：]|([「『])))`)
 	// keywordQuotedPattern は、「TVアニメ『作品名』」のように、かぎ括弧で囲んだ作品名。前置きを除いた後の頭にあるものだけを読む。
 	keywordQuotedPattern = regexp.MustCompile(`^[「『]([^」』]+)[」』]`)
-	// keywordEpisodePattern は、話数 (#1、第1話、第六話、(15)、CHAPTER:5、Episode 5)。(1971) のような 4 桁の年は、話数とみなさない。
-	keywordEpisodePattern = regexp.MustCompile(`(?i)#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+話|\([0-9]{1,3}\)|\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\.?\s*[0-9]`)
+	// keywordEpisodePattern は、話数 (#1、第1話、第六話、第1回、(15)、CHAPTER:5、Episode: 5)。(1971) のような 4 桁の年は、話数とみなさない。
+	keywordEpisodePattern = regexp.MustCompile(`(?i)#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+[話回]|\([0-9]{1,3}\)|\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\s*[:.]?\s*[0-9]`)
 	// keywordInnerQuotePattern は、話数の前にある、かぎ括弧で囲んだ部分。「ドラマ「作品名」 第3話」の括弧は、作品名の一部とする。
 	keywordInnerQuotePattern = regexp.MustCompile(`「[^「」]+」`)
 	// keywordEndPattern は、作品名の終わりを示すもの。話数、サブタイトルのかぎ括弧、囲み文字の印 (【一挙】のような編成の印を含む)、
 	// 注記の山括弧、▽のようなサブタイトルの区切り、出演者の案内。
-	keywordEndPattern = regexp.MustCompile(`(?i)#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+話|\([0-9]{1,3}\)|\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\.?\s*[0-9]|「|<|[▽▼]|\s出演[:：]|` +
+	keywordEndPattern = regexp.MustCompile(`(?i)#\s*[0-9]|第[0-9〇一二三四五六七八九十百]+[話回]|\([0-9]{1,3}\)|\bchapter\s*[:.]?\s*[0-9]|\bep(?:isode)?\s*[:.]?\s*[0-9]|「|<|[▽▼]|\s出演[:：]|` +
 		`[\[【(（](?:新|再|字|終|二|ニ|多|解|デ|S|SS|無|映|双|天|生|吹|声|手|交|日|N|B|HV|SD|PPV|MV|料|初|販|他|吹替|字幕|無料|一挙|連日|` +
 		`2K|4K|8K|3D|HDR|SHV|UHD|5\.1|7\.1|22\.2)[\]】)）]`)
 )
