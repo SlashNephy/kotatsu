@@ -25,6 +25,7 @@ describe('episodeLinks', () => {
       subtitle: null,
       first: false,
       last: false,
+      rerun: false,
       works: [
         {
           annictUrl: 'https://annict.com/works/2',

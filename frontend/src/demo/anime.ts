@@ -25,6 +25,7 @@ export function demoAnimeEpisodes(program: Pick<DemoProgram, 'name' | 'genres'>)
       subtitle: null,
       first: number === 1,
       last: false,
+      rerun: false,
       works: [],
     },
   ];

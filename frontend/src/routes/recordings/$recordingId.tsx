@@ -195,6 +195,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               subtitle
               first
               last
+              rerun
               works {
                 annictUrl
                 anilistUrl

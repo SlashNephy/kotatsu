@@ -1,22 +1,34 @@
-import { Alert, Anchor, Group, SegmentedControl, Stack, Text, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Checkbox,
+  Group,
+  SegmentedControl,
+  Select,
+  Stack,
+  Text,
+  Title,
+} from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
-import { AnimeLibrary } from '../anime/AnimeLibrary';
-import { libraryStatuses, parseLibraryStatus, type LibraryStatus } from '../anime/status';
+import { AnimeLibrary, seasonLabel } from '../anime/AnimeLibrary';
+import { currentSeason, periods, type AnimeSeason } from '../anime/library';
+import {
+  filtersOf,
+  libraryStatuses,
+  parseAnimeSearch,
+  type AnimeSearch,
+  type LibraryStatus,
+} from '../anime/status';
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 
-type AnimeSearch = { status?: LibraryStatus };
-
 export const Route = createFileRoute('/anime')({
-  // 既定の「見てる」は、URL に載せない。
-  validateSearch: (search: Record<string, unknown>): AnimeSearch => {
-    const status = parseLibraryStatus(search['status']);
-
-    return status === 'WATCHING' ? {} : { status };
-  },
+  // 既定の値 (見てる、絞り込まない) は、URL に載せない。
+  validateSearch: (search: Record<string, unknown>): AnimeSearch => parseAnimeSearch(search),
   component: AnimePage,
 });
 
@@ -26,7 +38,15 @@ function AnimePage() {
   useDocumentTitle([t('anime.title')]);
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const status = search.status ?? 'WATCHING';
+  const filters = filtersOf(search);
+  // update は、絞り込みを変える。既定の値は、URL から外す。
+  const update = (changes: Partial<AnimeSearch>) =>
+    void navigate({
+      search: (prev) =>
+        Object.fromEntries(
+          Object.entries({ ...prev, ...changes }).filter(([, value]) => value !== undefined),
+        ) as AnimeSearch,
+    });
 
   return (
     <Stack gap="sm">
@@ -40,17 +60,56 @@ function AnimePage() {
           {t('anime.openWishlist')}
         </Anchor>
       </Text>
-      <Group>
+      <Group gap="sm" align="flex-end">
         <SegmentedControl
           size="xs"
           aria-label={t('anime.statusFilter')}
-          value={status}
+          value={filters.status}
           onChange={(value) =>
-            void navigate({
-              search: value === 'WATCHING' ? {} : { status: value as LibraryStatus },
-            })
+            update({ status: value === 'WATCHING' ? undefined : (value as LibraryStatus) })
           }
           data={libraryStatuses.map((value) => ({ value, label: t(`anime.status.${value}`) }))}
+        />
+        <Select
+          size="xs"
+          w={140}
+          aria-label={t('anime.seasonFilter')}
+          placeholder={t('anime.allSeasons')}
+          clearable
+          value={filters.season ?? null}
+          onChange={(value) => update({ season: value ?? undefined })}
+          data={seasonOptions(t)}
+        />
+        <Select
+          size="xs"
+          w={140}
+          aria-label={t('anime.periodFilter')}
+          placeholder={t('anime.allPeriods')}
+          clearable
+          value={filters.period ?? null}
+          onChange={(value) => update({ period: periods.find((period) => period === value) })}
+          data={periods.map((value) => ({ value, label: t(`anime.period.${value}`) }))}
+        />
+        <Select
+          size="xs"
+          w={120}
+          aria-label={t('anime.weekdayFilter')}
+          placeholder={t('anime.allWeekdays')}
+          clearable
+          value={filters.weekday?.toString() ?? null}
+          onChange={(value) => update({ weekday: value == null ? undefined : Number(value) })}
+          data={weekdays.map((day) => ({
+            value: day.toString(),
+            label: t(`anime.weekdays.${day}`),
+          }))}
+        />
+        <Checkbox
+          size="xs"
+          label={t('anime.excludeReruns')}
+          checked={filters.excludeReruns}
+          onChange={(event) =>
+            update({ rerun: event.currentTarget.checked ? 'exclude' : undefined })
+          }
         />
       </Group>
       <ErrorBoundary
@@ -67,9 +126,31 @@ function AnimePage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <AnimeLibrary status={status} />
+          <AnimeLibrary filters={filters} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
   );
+}
+
+const weekdays = [1, 2, 3, 4, 5, 6, 0] as const;
+const seasonNames: readonly AnimeSeason[] = ['WINTER', 'SPRING', 'SUMMER', 'AUTUMN'];
+
+// seasonOptions は、時期の絞り込みの候補。今期と、今期から 2 年前までの時期を、新しい順に並べる。
+function seasonOptions(t: TFunction): { value: string; label: string }[] {
+  const now = currentSeason(Date.now());
+  const options: { value: string; label: string }[] = [
+    { value: 'current', label: t('anime.currentSeason') },
+  ];
+  let index = now.year * 4 + seasonNames.indexOf(now.season);
+  for (let i = 0; i < 9; i++, index--) {
+    const year = Math.floor(index / 4);
+    const season = seasonNames[index % 4] ?? 'WINTER';
+    options.push({
+      value: `${year}-${season}`,
+      label: t('anime.season', { year, season: seasonLabel(t, season) }),
+    });
+  }
+
+  return options;
 }

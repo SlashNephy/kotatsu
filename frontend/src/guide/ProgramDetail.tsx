@@ -143,6 +143,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
               subtitle
               first
               last
+              rerun
               works {
                 annictUrl
                 anilistUrl
