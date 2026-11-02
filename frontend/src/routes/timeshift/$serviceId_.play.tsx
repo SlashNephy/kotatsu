@@ -18,6 +18,7 @@ import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay'
 import { useSleepTimer } from '../../yunomi/sleepTimer';
 import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
+import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
 import {
   insertRecordedCaption,
@@ -63,7 +64,6 @@ import {
   PipButton,
   useCapture,
 } from '../../yunomi/PlayerTools';
-import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import {
   PlayerAlert,
   BigPlayButton,
@@ -249,7 +249,8 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
   // handover は、次の読み直しで、今の映像を流したまま裏で読み込んで切り替えるかどうか (#1085)。
   const [handover, setHandover] = useState(false);
 
-  const [statsShown, setStatsShown] = useState(false);
+  // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
+  const streamMeter = useStreamMeter(quality);
   useVolumeNormalizer(video);
   useAudioDelayer(video);
   const [crop, setCrop] = useState<Crop>(noCrop);
@@ -408,7 +409,6 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
       showFlash(t('player.flash.restarted'));
     },
     seekTo: seek,
-    toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
     setVolume: videoState.setVolume,
     ...(pip.supported
@@ -551,7 +551,6 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
             <SleepTimerSelect timer={sleep} />
-            <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
           <CommandButton
@@ -618,11 +617,11 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
           onError={resumeAfterCut}
           onState={onConvertState}
           onAudio={audio.onAudio}
+          onReading={streamMeter.onReading}
           audio={audio.convertAudio}
           overlay={
             <>
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
@@ -636,6 +635,7 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
           url={`${hlsURL(program.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
+          onSegment={streamMeter.onSegment}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
@@ -647,7 +647,6 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
           overlay={
             <>
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
@@ -710,6 +709,22 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
                   }
                   onSelect={(entry) => seek(entry.at)}
                   canRegisterDRCS={drcs.canRegister}
+                  height={watchCommentsHeight}
+                />
+              ),
+            },
+            {
+              value: 'info',
+              label: t('player.streamInfo.tab'),
+              content: (
+                <StreamInfo
+                  meter={streamMeter.meter}
+                  video={video}
+                  quality={quality}
+                  kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
+                  audios={null}
+                  // タイムシフトの再生は、プレイヤーが先まで読むので測れない。平均も分からないので出さない。
+                  average={null}
                   height={watchCommentsHeight}
                 />
               ),

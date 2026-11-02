@@ -1149,10 +1149,7 @@
       }
     },
     "stats": {
-      "title": "統計情報",
-      "toggle": "統計情報を出す",
       "quality": "画質",
-      "resolution": "解像度",
       "droppedFrames": "捨てたフレーム",
       "buffered": "バッファ",
       "seconds": "{{seconds}} 秒",
@@ -1210,7 +1207,6 @@
       "toggleDataBroadcast": "データ放送を出し入れする",
       "pressKey": "データ放送のリモコンのボタンを押す",
       "restart": "プレイヤーを読み直す",
-      "toggleStats": "統計情報を出し入れする",
       "audioDelayIncrease": "音を遅らせる（音ずれ補正）",
       "audioDelayDecrease": "音の遅れを戻す（音ずれ補正）",
       "audioDelayReset": "音ずれ補正を元に戻す",

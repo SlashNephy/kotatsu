@@ -10,7 +10,7 @@ import type {
   StreamInfoLiveRatesSubscription$data,
 } from './__generated__/StreamInfoLiveRatesSubscription.graphql';
 
-import { readVideoStats, type VideoStats } from './PlayerStats';
+import { readVideoStats, type VideoStats } from './videoStats';
 import { languageName } from './QualitySelect';
 import {
   StreamMeter,

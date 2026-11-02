@@ -75,7 +75,6 @@ import {
   PipButton,
   useCapture,
 } from '../../yunomi/PlayerTools';
-import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { averageBitrate } from '../../yunomi/streamMeter';
 import { kindBitrates } from '../../recordings/streamQuality';
@@ -451,8 +450,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                   : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
         });
 
-  // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
-  const [statsShown, setStatsShown] = useState(false);
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   const streamMeter = useStreamMeter(quality);
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
@@ -639,7 +636,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       showFlash(t('player.flash.restarted'));
     },
     seekTo: seek,
-    toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
     setVolume: videoState.setVolume,
     setMuted: (muted) => {
@@ -888,7 +884,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <AudioDelaySetting />
             <SleepTimerSelect timer={sleep} />
             {surroundAvailable && <VirtualSurroundToggle />}
-            <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
           <CommandButton
@@ -961,7 +956,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <>
               {jikkyo.overlay}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
@@ -991,7 +985,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <>
               {jikkyo.overlay}
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {statsShown && <PlayerStats video={video} quality={quality} />}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
