@@ -202,3 +202,44 @@ VALUES ($1, 'annict', $2, 'watching', '作品A', now())`, f.alice.UserID, annict
 	}
 	assert.Equal(t, []string{"12:00 rerun=false", "11:00 rerun=true"}, recent, "the latest broadcast and the latest rerun, newest first")
 }
+
+// TestLibraryImage は、作品の画像に AniList の画像を先に選び、AniList に画像がなければ Annict の画像を使うことを確かめる (#1235)。
+func TestLibraryImage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		annict  *string
+		aniList *string
+		want    string
+	}{
+		{name: "AniList の画像を先に選ぶ", annict: new("https://example.com/a.png"), aniList: new("https://example.com/b.png"), want: "anilist:https://example.com/b.png"},
+		{name: "AniList に画像がなければ Annict の画像", annict: new("https://example.com/a.png"), aniList: nil, want: "annict:https://example.com/a.png"},
+		{name: "どちらにもなければ画像はない", annict: nil, aniList: nil, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newRecordFixture(t)
+			f.connect(t, f.alice, animerecord.DestinationAnnict)
+			f.connect(t, f.alice, animerecord.DestinationAniList)
+			for _, entry := range []struct {
+				destination string
+				workID      int32
+				image       *string
+			}{{animerecord.DestinationAnnict, annictWorkID, tt.annict}, {animerecord.DestinationAniList, aniListID, tt.aniList}} {
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_wishlist_entries (user_id, destination, work_id, status, title, image_url, fetched_at)
+VALUES ($1, $2, $3, 'watching', $4, $5, now())`, f.alice.UserID, entry.destination, entry.workID, titleA, entry.image)
+				require.NoError(t, err)
+			}
+			library, err := f.service.Library(t.Context(), f.pool, f.alice.UserID)
+			require.NoError(t, err)
+			require.Len(t, library.Works, 1)
+			got := ""
+			if image := library.Works[0].Image; image != nil {
+				got = image.Destination + ":" + image.URL
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

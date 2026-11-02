@@ -54,6 +54,7 @@ func TestHandler(t *testing.T) {
 		{name: "画像を中継し、2 回目は覚えた画像を返す", imagePath: imagePath, workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 1},
 		{name: "リダイレクトをたどる", imagePath: "/moved", workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 2},
 		{name: "見たいリストにない作品は返さない", imagePath: imagePath, workID: "11", signedIn: true, wantStatus: http.StatusNotFound, wantFetches: 0},
+		{name: "SVG は画像とみなさずに断る", imagePath: "/image.svg", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
 		{name: "中身が画像でなければ断る", imagePath: "/page.html", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
 		{name: "http でも https でもない URL は取りに行かない", imagePath: "", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 0},
 		{name: "ログインしていなければ返さない", imagePath: imagePath, workID: "10", signedIn: false, wantStatus: http.StatusUnauthorized, wantFetches: 0},
@@ -74,7 +75,12 @@ func TestHandler(t *testing.T) {
 
 					return
 				}
-				w.Header().Set("Content-Type", "image/png")
+				w.Header().Set("Content-Type", "image/svg+xml")
+				if r.URL.Path == "/image.svg" {
+					_, _ = w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`))
+
+					return
+				}
 				_, _ = w.Write([]byte("<html><body>not an image</body></html>"))
 			}))
 			t.Cleanup(upstream.Close)
@@ -129,4 +135,25 @@ func TestPath(t *testing.T) {
 	assert.Equal(t, a, animeimage.Path("anilist", 10, "https://example.com/a.png"))
 	assert.NotEqual(t, a, animeimage.Path("anilist", 10, "https://example.com/b.png"))
 	assert.Contains(t, a, "/media/anime-works/anilist/10/image?v=")
+}
+
+// TestCache は、覚えた画像が上限を超えたら、古く覚えたものから忘れ、上限より大きい画像は覚えないことを確かめる。
+func TestCache(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		sizes []int
+		want  []string
+	}{
+		{name: "上限までは覚える", sizes: []int{3, 3, 4}, want: []string{"a", "b", "c"}},
+		{name: "超えたら古いものから忘れる", sizes: []int{3, 3, 4, 5}, want: []string{"c", "d"}},
+		{name: "上限より大きい画像は覚えない", sizes: []int{3, 11}, want: []string{"a"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, animeimage.CacheKeys(10, tt.sizes))
+		})
+	}
 }
