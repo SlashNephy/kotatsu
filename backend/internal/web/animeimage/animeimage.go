@@ -58,7 +58,8 @@ func Path(destination string, workID int32, imageURL string) string {
 // Handler は、見たいリストの作品の画像を中継する (GET /media/anime-works/{destination}/{workId}/image)。
 //
 // 画像の URL は記録先が返すが、Annict の画像は作品の公式サイトなど、どのホストにもありうる。そのため、ログイン中のユーザーの
-// 見たいリストにある作品の画像に限り、http か https の、グローバルなアドレスにだけ接続し、リダイレクトには従わない。
+// 見たいリストにある作品の画像に限り、http か https の、グローバルなアドレスにだけ接続する。リダイレクトは 3 回までたどり、
+// 向け直した先への接続も、グローバルなアドレスに限る。
 // 古い公式サイトは http のことがあるので、http も取る (ブラウザは tenban から読むので、混在コンテンツにはならない)。
 // LAN の中のサーバーへリクエストを送らせないためである。
 type Handler struct {
@@ -77,8 +78,21 @@ func NewHandler(pool *pgxpool.Pool, logger *slog.Logger) *Handler {
 	return newHandler(pool, logger, &http.Client{
 		Transport:     &http.Transport{Proxy: nil, DialContext: dialer.DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: fetchTimeout},
 		Timeout:       fetchTimeout,
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		CheckRedirect: checkRedirect,
 	})
+}
+
+// maxRedirects は、画像を取るときにたどるリダイレクトの数の上限。古い公式サイトは、http から https へ向け直すことが多い。
+const maxRedirects = 3
+
+// checkRedirect は、http か https への、maxRedirects 回までのリダイレクトだけをたどる。
+// 向け直した先への接続も、publicnet.Control でグローバルなアドレスに限るので、LAN の中へは向けられない。
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) > maxRedirects || (req.URL.Scheme != "https" && req.URL.Scheme != "http") {
+		return http.ErrUseLastResponse
+	}
+
+	return nil
 }
 
 func newHandler(pool *pgxpool.Pool, logger *slog.Logger, client *http.Client) *Handler {
@@ -140,13 +154,13 @@ func (h *Handler) fetch(ctx context.Context, imageURL string) (*image, error) {
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return nil, errInvalidURL
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // 作品の画像を中継するのが目的。接続先は publicnet.Control で許したグローバルなアドレスに限り、リダイレクトに従わない (#1235)。
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // 作品の画像を中継するのが目的。接続先は、リダイレクトの先も含めて publicnet.Control で許したグローバルなアドレスに限る (#1235)。
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the request: %w", err)
 	}
 	req.Header.Set("Accept", "image/*")
 	req.Header.Set("User-Agent", buildinfo.UserAgent())
-	resp, err := h.client.Do(req) //nolint:gosec // 作品の画像を中継するのが目的。接続先は publicnet.Control で許したグローバルなアドレスに限り、リダイレクトに従わない (#1235)。
+	resp, err := h.client.Do(req) //nolint:gosec // 作品の画像を中継するのが目的。接続先は、リダイレクトの先も含めて publicnet.Control で許したグローバルなアドレスに限る (#1235)。
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the image: %w", err)
 	}

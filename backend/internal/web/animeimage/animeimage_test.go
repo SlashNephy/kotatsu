@@ -52,6 +52,7 @@ func TestHandler(t *testing.T) {
 		wantFetches int64
 	}{
 		{name: "画像を中継し、2 回目は覚えた画像を返す", imagePath: imagePath, workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 1},
+		{name: "リダイレクトをたどる", imagePath: "/moved", workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 2},
 		{name: "見たいリストにない作品は返さない", imagePath: imagePath, workID: "11", signedIn: true, wantStatus: http.StatusNotFound, wantFetches: 0},
 		{name: "中身が画像でなければ断る", imagePath: "/page.html", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
 		{name: "http でも https でもない URL は取りに行かない", imagePath: "", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 0},
@@ -63,6 +64,11 @@ func TestHandler(t *testing.T) {
 			var fetches atomic.Int64
 			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fetches.Add(1)
+				if r.URL.Path == "/moved" {
+					http.Redirect(w, r, imagePath, http.StatusMovedPermanently)
+
+					return
+				}
 				if r.URL.Path == imagePath {
 					_, _ = w.Write(pngImage(t))
 
