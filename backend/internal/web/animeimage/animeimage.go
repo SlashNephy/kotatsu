@@ -44,7 +44,7 @@ var (
 	errUpstreamStatus = errors.New("the image server returned an unexpected status")
 	errTooLarge       = errors.New("the image is too large")
 	errNotImage       = errors.New("the response is not an image")
-	errInvalidURL     = errors.New("the image URL is not an https URL")
+	errInvalidURL     = errors.New("the image URL is not an http or https URL")
 )
 
 // Path は、記録先 destination の作品 workID の画像を中継する URL のパスを返す。imageURL は、記録先が示した画像の URL で、
@@ -58,7 +58,8 @@ func Path(destination string, workID int32, imageURL string) string {
 // Handler は、見たいリストの作品の画像を中継する (GET /media/anime-works/{destination}/{workId}/image)。
 //
 // 画像の URL は記録先が返すが、Annict の画像は作品の公式サイトなど、どのホストにもありうる。そのため、ログイン中のユーザーの
-// 見たいリストにある作品の画像に限り、https の、グローバルなアドレスにだけ接続し、リダイレクトには従わない。
+// 見たいリストにある作品の画像に限り、http か https の、グローバルなアドレスにだけ接続し、リダイレクトには従わない。
+// 古い公式サイトは http のことがあるので、http も取る (ブラウザは tenban から読むので、混在コンテンツにはならない)。
 // LAN の中のサーバーへリクエストを送らせないためである。
 type Handler struct {
 	queries *query.Queries
@@ -136,16 +137,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // fetch は、画像を取ってきて、中身と、中身から決めた Content-Type を返す。
 func (h *Handler) fetch(ctx context.Context, imageURL string) (*image, error) {
 	u, err := url.Parse(imageURL)
-	if err != nil || u.Scheme != "https" || u.Host == "" {
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return nil, errInvalidURL
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // 作品の画像を中継するのが目的。接続先は https の、publicnet.Control で許したグローバルなアドレスに限り、リダイレクトに従わない (#1235)。
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody) //nolint:gosec // 作品の画像を中継するのが目的。接続先は publicnet.Control で許したグローバルなアドレスに限り、リダイレクトに従わない (#1235)。
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the request: %w", err)
 	}
 	req.Header.Set("Accept", "image/*")
 	req.Header.Set("User-Agent", buildinfo.UserAgent())
-	resp, err := h.client.Do(req) //nolint:gosec // 作品の画像を中継するのが目的。接続先は https の、publicnet.Control で許したグローバルなアドレスに限り、リダイレクトに従わない (#1235)。
+	resp, err := h.client.Do(req) //nolint:gosec // 作品の画像を中継するのが目的。接続先は publicnet.Control で許したグローバルなアドレスに限り、リダイレクトに従わない (#1235)。
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the image: %w", err)
 	}

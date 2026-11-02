@@ -42,7 +42,7 @@ func TestHandler(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// imagePath は、見たいリストの作品の画像の、上流のサーバーでのパス。空なら https でない URL にする。
+		// imagePath は、見たいリストの作品の画像の、上流のサーバーでのパス。空なら http でも https でもない URL にする。
 		imagePath string
 		// workID は、頼む作品。見たいリストにあるのは 10 だけ。
 		workID     string
@@ -54,7 +54,7 @@ func TestHandler(t *testing.T) {
 		{name: "画像を中継し、2 回目は覚えた画像を返す", imagePath: imagePath, workID: "10", signedIn: true, wantStatus: http.StatusOK, wantFetches: 1},
 		{name: "見たいリストにない作品は返さない", imagePath: imagePath, workID: "11", signedIn: true, wantStatus: http.StatusNotFound, wantFetches: 0},
 		{name: "中身が画像でなければ断る", imagePath: "/page.html", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 2},
-		{name: "https でない URL は取りに行かない", imagePath: "", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 0},
+		{name: "http でも https でもない URL は取りに行かない", imagePath: "", workID: "10", signedIn: true, wantStatus: http.StatusBadGateway, wantFetches: 0},
 		{name: "ログインしていなければ返さない", imagePath: imagePath, workID: "10", signedIn: false, wantStatus: http.StatusUnauthorized, wantFetches: 0},
 	}
 	for _, tt := range tests {
@@ -72,7 +72,7 @@ func TestHandler(t *testing.T) {
 				_, _ = w.Write([]byte("<html><body>not an image</body></html>"))
 			}))
 			t.Cleanup(upstream.Close)
-			imageURL := "http://example.com/image.png"
+			imageURL := "ftp://example.com/image.png"
 			if tt.imagePath != "" {
 				imageURL = upstream.URL + tt.imagePath
 			}

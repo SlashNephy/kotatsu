@@ -366,7 +366,9 @@ function WorkCard({
   const thumbnail = work.recordedEpisodes.findLast(
     (episode) => episode.recording.thumbnailUrl != null,
   )?.recording.thumbnailUrl;
-  const image = work.imageUrl ?? thumbnail;
+  // 作品の画像も代わりの代表画像も読めなければ、画像の枠を出さない。
+  const [imageFailed, setImageFailed] = useState(false);
+  const image = imageFailed ? undefined : (work.imageUrl ?? thumbnail);
 
   return (
     <Card component="section" withBorder padding="sm" aria-label={work.title}>
@@ -379,6 +381,7 @@ function WorkCard({
             fit="cover"
             alt=""
             loading="lazy"
+            onError={thumbnail == null ? () => setImageFailed(true) : undefined}
           />
         </Card.Section>
       )}
