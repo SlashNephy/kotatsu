@@ -3,6 +3,7 @@ import {
   Anchor,
   Checkbox,
   Group,
+  MultiSelect,
   SegmentedControl,
   Select,
   Stack,
@@ -10,7 +11,7 @@ import {
   Title,
 } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
@@ -23,6 +24,11 @@ import {
   type AnimeSearch,
   type LibraryStatus,
 } from '../anime/status';
+import {
+  loadStreamingServices,
+  saveStreamingServices,
+  streamingServices,
+} from '../anime/streaming';
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../futon';
 import { isUnauthenticated } from '../relay/environment';
 
@@ -39,6 +45,8 @@ function AnimePage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const filters = filtersOf(search);
+  // 作品を探すリンクを出す配信サービス (#1235)。端末ごとに覚える。
+  const [streaming, setStreaming] = useState(loadStreamingServices);
   // update は、絞り込みを変える。既定の値は、URL から外す。
   const update = (changes: Partial<AnimeSearch>) =>
     void navigate({
@@ -103,6 +111,23 @@ function AnimePage() {
             label: t(`anime.weekdays.${day}`),
           }))}
         />
+        <MultiSelect
+          size="xs"
+          w={260}
+          aria-label={t('anime.streaming.choose')}
+          placeholder={streaming.length === 0 ? t('anime.streaming.choose') : undefined}
+          clearable
+          value={[...streaming]}
+          onChange={(values) => {
+            const next = streamingServices.filter((service) => values.includes(service));
+            setStreaming(next);
+            saveStreamingServices(next);
+          }}
+          data={streamingServices.map((value) => ({
+            value,
+            label: t(`anime.streaming.services.${value}`),
+          }))}
+        />
         <Checkbox
           size="xs"
           label={t('anime.excludeReruns')}
@@ -126,7 +151,7 @@ function AnimePage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <AnimeLibrary filters={filters} />
+          <AnimeLibrary filters={filters} streaming={streaming} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
