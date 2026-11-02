@@ -1207,10 +1207,7 @@
       }
     },
     "stats": {
-      "title": "Statistics",
-      "toggle": "Show statistics",
       "quality": "Quality",
-      "resolution": "Resolution",
       "droppedFrames": "Dropped frames",
       "buffered": "Buffer",
       "seconds": "{{seconds}} s",
@@ -1268,7 +1265,6 @@
       "toggleDataBroadcast": "Show or hide data broadcasting",
       "pressKey": "Press a remote button for data broadcasting",
       "restart": "Reload the player",
-      "toggleStats": "Show or hide statistics",
       "audioDelayIncrease": "Delay audio (audio sync)",
       "audioDelayDecrease": "Reduce audio delay (audio sync)",
       "audioDelayReset": "Reset audio sync",

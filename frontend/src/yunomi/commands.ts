@@ -34,7 +34,6 @@ export type PlayerCommandArgs = {
   pictureInPicture: [];
   capture: [];
   restart: [];
-  toggleStats: [];
   // audioDelayIncrease と audioDelayDecrease は、音ずれ補正 (#818) で、音を遅らせる長さを 1 刻み変える。
   audioDelayIncrease: [];
   audioDelayDecrease: [];
@@ -88,7 +87,6 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   toggleDataBroadcast: { repeatable: false },
   pressKey: { repeatable: false },
   restart: { repeatable: false },
-  toggleStats: { repeatable: false },
   audioDelayIncrease: { repeatable: true },
   audioDelayDecrease: { repeatable: true },
   audioDelayReset: { repeatable: false },

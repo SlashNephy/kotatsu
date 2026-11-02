@@ -33,7 +33,6 @@ export const defaultKeymap: Keymap = {
   lastChannel: ['b'],
   capture: ['s'],
   restart: ['r'],
-  toggleStats: ['i'],
   // ] で音を遅らせ、[ で戻す (#818)。
   audioDelayIncrease: [']'],
   audioDelayDecrease: ['['],

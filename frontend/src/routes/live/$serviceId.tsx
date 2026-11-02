@@ -119,7 +119,6 @@ import {
   PipButton,
   useCapture,
 } from '../../yunomi/PlayerTools';
-import { PlayerStats, StatsToggle } from '../../yunomi/PlayerStats';
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
@@ -532,8 +531,6 @@ function Live({
       setSession((n) => n + 1);
     }
   }, [drains, route.kind, disconnection]);
-  // statsShown は、再生の統計情報を映像の上に出しているかどうか (#499)。
-  const [statsShown, setStatsShown] = useState(false);
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
   const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
@@ -761,7 +758,6 @@ function Live({
       reload();
       showFlash(t('player.flash.restarted'));
     },
-    toggleStats: () => setStatsShown(!statsShown),
     showShortcuts: () => setShortcutsOpen(true),
     setVolume: videoState.setVolume,
     setMuted: (muted) => {
@@ -972,7 +968,6 @@ function Live({
             <AudioDelaySetting resettable />
             <SleepTimerSelect timer={sleep} programEnd />
             {surroundAvailable && <VirtualSurroundToggle />}
-            <StatsToggle shown={statsShown} onChange={setStatsShown} />
           </SettingsButton>
           <CaptureButton capture={capture} />
           <CommandButton
@@ -1073,7 +1068,6 @@ function Live({
                 next={nextProgram}
               />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}
@@ -1135,7 +1129,6 @@ function Live({
                 next={nextProgram}
               />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
-              {statsShown && <PlayerStats video={video} quality={quality} />}
               {dataBroadcast.receiving && (
                 <PlayerNotice loading>{t('player.dataBroadcastReceiving')}</PlayerNotice>
               )}

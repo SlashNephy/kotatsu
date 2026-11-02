@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { readVideoStats } from './PlayerStats';
+import { readVideoStats } from './videoStats';
 
 // ranges は、video.buffered と同じ形の TimeRanges を作る。
 function ranges(list: [number, number][]): TimeRanges {
