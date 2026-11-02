@@ -47,6 +47,8 @@ const (
 	testCode = "code"
 	// annictThirdPending は、Annict に第 3 話を送る前の記録。
 	annictThirdPending = "annict:3:pending"
+	// annictFourthPending は、Annict に第 4 話を送る前の記録。
+	annictFourthPending = "annict:4:pending"
 	// annictThirdRecorded と annictFourthRecorded は、Annict に第 3 話と第 4 話を送れた記録。
 	annictThirdRecorded  = "annict:3:recorded"
 	annictFourthRecorded = "annict:4:recorded"
@@ -413,7 +415,7 @@ func TestReport(t *testing.T) {
 	// 1 分を足して 6 分になったら、2 話連続の放送の両方の話を、記録先ごとに記録する。
 	_, err = f.service.Report(t.Context(), f.pool, f.inserter, f.alice.UserID, live, []*animerecord.Interval{interval(12, 5, 12, 6)})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"anilist:3:pending", "anilist:4:pending", annictThirdPending, "annict:4:pending"}, pendingRecords(t, f, f.alice.UserID))
+	assert.Equal(t, []string{"anilist:3:pending", "anilist:4:pending", annictThirdPending, annictFourthPending}, pendingRecords(t, f, f.alice.UserID))
 	jobs := f.inserter.taken()
 	require.Len(t, jobs, 2)
 	assert.ElementsMatch(t, []string{animerecord.DestinationAnnict, animerecord.DestinationAniList}, []string{jobs[0].Destination, jobs[1].Destination})

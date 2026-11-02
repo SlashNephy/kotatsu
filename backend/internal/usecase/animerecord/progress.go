@@ -296,13 +296,18 @@ func (s *Service) add(
 			return nil
 		}
 
-		return s.enqueue(ctx, tx, inserter, userID, p, connections)
+		_, err = s.insertRecords(ctx, tx, inserter, userID, p, connections)
+
+		return err
 	})
 }
 
-// enqueue は、番組 p の話を、連携した記録先ごとに記録する行を作り、新しく作った記録先のジョブを入れる。
+// insertRecords は、番組 p の話を、連携した記録先ごとに記録する行を作り、新しく作った記録先のジョブを入れる。
 // 同じユーザー、番組、話、記録先の組は 1 回だけ記録するので、見直しても、割合に届いた後の報告でも、行もジョブも増えない。
-func (s *Service) enqueue(ctx context.Context, tx pgx.Tx, inserter Inserter, userID uuid.UUID, p *program, connections []*Connection) error {
+// 行を 1 つでも作れば true を返す。
+func (s *Service) insertRecords(
+	ctx context.Context, tx pgx.Tx, inserter Inserter, userID uuid.UUID, p *program, connections []*Connection,
+) (bool, error) {
 	q := sqlc.New(tx)
 	now := s.clock.Now()
 	jobs := []river.InsertManyParams{}
@@ -319,7 +324,7 @@ func (s *Service) enqueue(ctx context.Context, tx pgx.Tx, inserter Inserter, use
 					ProgramName: p.name, Now: now,
 				})
 				if err != nil {
-					return fmt.Errorf("failed to insert the anime record: %w", err)
+					return false, fmt.Errorf("failed to insert the anime record: %w", err)
 				}
 				inserted += n
 			}
@@ -332,17 +337,17 @@ func (s *Service) enqueue(ctx context.Context, tx pgx.Tx, inserter Inserter, use
 		}
 	}
 	if len(jobs) == 0 {
-		return nil
+		return false, nil
 	}
 	// ジョブを入れられないまま記録の行だけを残すと、送られないまま、次の報告でも作り直されない。行ごと取り消す。
 	if inserter == nil {
-		return errNoInserter
+		return false, errNoInserter
 	}
 	if _, err := inserter.InsertManyTx(ctx, tx, jobs); err != nil {
-		return fmt.Errorf("failed to enqueue the anime record: %w", err)
+		return false, fmt.Errorf("failed to enqueue the anime record: %w", err)
 	}
 
-	return nil
+	return true, nil
 }
 
 // episodeNumbers は、結びついた話の話数を、1 話ずつに分けて返す。話数のない放送は、話数のない 1 つにする。

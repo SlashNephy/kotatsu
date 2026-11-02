@@ -319,6 +319,8 @@ type Querier interface {
 	// 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeChannelDefinitions(ctx context.Context, arg InsertAnimeChannelDefinitionsParams) error
 	// 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
+	// 番組によらず手で記録した話 (service_id が 0。#1232) と同じ話は、記録できなかったもののほかにあれば、番組を見ても記録しない。
+	// 手で記録するときも、同じ話の記録があれば記録しない。
 	InsertAnimeRecord(ctx context.Context, arg InsertAnimeRecordParams) (int64, error)
 	InsertAnimeRecordAuthorization(ctx context.Context, arg InsertAnimeRecordAuthorizationParams) error
 	// 同じ作品が 2 度返ってきたら (見たいと見てるの両方など)、先に返ってきたものを使う。

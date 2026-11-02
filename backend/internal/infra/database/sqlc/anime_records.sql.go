@@ -176,9 +176,14 @@ const insertAnimeRecord = `-- name: InsertAnimeRecord :execrows
 INSERT INTO anime_records (
   id, user_id, service_id, start_at, destination, syobocal_tid, episode_number, subtitle, is_first, is_last,
   program_name, state, created_at, updated_at
-) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+)
+SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
   $11, 'pending', $12, $12
+WHERE NOT EXISTS (
+  SELECT 1 FROM anime_records r
+  WHERE r.user_id = $2 AND r.destination = $5 AND r.syobocal_tid = $6
+    AND r.episode_number IS NOT DISTINCT FROM $7::double precision AND r.state <> 'failed'
+    AND (r.service_id = 0 OR $3::bigint = 0)
 )
 ON CONFLICT (user_id, service_id, start_at, destination, syobocal_tid, episode_number) DO NOTHING
 `
@@ -199,6 +204,8 @@ type InsertAnimeRecordParams struct {
 }
 
 // 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
+// 番組によらず手で記録した話 (service_id が 0。#1232) と同じ話は、記録できなかったもののほかにあれば、番組を見ても記録しない。
+// 手で記録するときも、同じ話の記録があれば記録しない。
 func (q *Queries) InsertAnimeRecord(ctx context.Context, arg InsertAnimeRecordParams) (int64, error) {
 	result, err := q.db.Exec(ctx, insertAnimeRecord,
 		arg.ID,
