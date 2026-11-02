@@ -490,6 +490,8 @@ type Querier interface {
 	ListLeases(ctx context.Context) ([]Lease, error)
 	// サービス service_id で、from から to までに重なる番組を、開始時刻の順に返す。終了時刻が未定の番組は、長さが分からないので返さない。
 	ListLiveProgramsInRange(ctx context.Context, arg ListLiveProgramsInRangeParams) ([]ListLiveProgramsInRangeRow, error)
+	// 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
+	ListLiveThumbnailRecordings(ctx context.Context, startedBefore time.Time) ([]uuid.UUID, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
 	// 映像か音声を流すサービス (media_service_types) の番組だけを対象にする。
 	// 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。

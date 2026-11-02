@@ -33,6 +33,8 @@ const (
 
 	// kindSegment は、recording_files の、TS のセグメントの種類。
 	kindSegment = "segment"
+	// stateRecording は、録画中の録画の状態。
+	stateRecording = "recording"
 
 	// generateMaxAttempts は、画像を作るジョブを試す回数の上限。
 	generateMaxAttempts = 3
@@ -43,11 +45,15 @@ const (
 var (
 	errRecordingNotFound = errors.New("the recording no longer exists")
 	errNoSegment         = errors.New("the recording has no segment with an index on the mounted pools")
+	errNotRecording      = errors.New("the recording is no longer being recorded")
 )
 
 // GenerateArgs は、録画の代表画像とプレビュー画像を作るジョブの引数。
 type GenerateArgs struct {
 	RecordingID uuid.UUID `json:"recordingId"`
+	// Live なら、録画中の録画の、今の様子の代表画像だけを作る (#1236)。プレビュー画像は、録画を終えてから作る。
+	// 録画を終えた録画では、何もしない (録画を終えたときのジョブが作り直す)。
+	Live bool `json:"live,omitempty"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(GenerateArgs)
@@ -113,10 +119,8 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 		return err
 	}
 	q := sqlc.New(w.db)
-	if _, err := q.GetRecording(ctx, job.Args.RecordingID); errors.Is(err, pgx.ErrNoRows) {
-		return river.JobCancel(errRecordingNotFound)
-	} else if err != nil {
-		return fmt.Errorf("failed to get the recording: %w", err)
+	if err := w.checkRecording(ctx, q, &job.Args); err != nil {
+		return err
 	}
 	files, err := q.ListRecordingFiles(ctx, job.Args.RecordingID)
 	if err != nil {
@@ -130,12 +134,20 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	if !ok {
 		return river.JobCancel(errNoSegment)
 	}
-	result, err := NewGenerator(extractor, &Options{Preview: w.preview, Interval: 0}).Generate(ctx, segments)
+	opts := &Options{Preview: w.preview && !job.Args.Live, Interval: 0, Latest: job.Args.Live}
+	result, err := NewGenerator(extractor, opts).Generate(ctx, segments)
 	if errors.Is(err, ErrNoKeyframe) {
 		return river.JobCancel(err)
 	}
 	if err != nil {
 		return err
+	}
+	// 作っている間に録画を終えていたら、録画を終えたときのジョブが作る画像を、今の様子で上書きしない。
+	// 録画が消されていたら、書いた後に、下で画像を消す。
+	if job.Args.Live {
+		if recording, err := q.GetRecording(ctx, job.Args.RecordingID); err == nil && recording.State != stateRecording {
+			return river.JobCancel(errNotRecording)
+		}
 	}
 	if err := w.write(owner, result); err != nil {
 		return err
@@ -158,17 +170,41 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	return nil
 }
 
+// checkRecording は、録画がまだあるかを確かめる。録画中の録画の画像 (Live) なら、まだ録画中かも確かめる。
+// なければ、ジョブを取りやめるエラーを返す。
+func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, args *GenerateArgs) error {
+	recording, err := q.GetRecording(ctx, args.RecordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return river.JobCancel(errRecordingNotFound)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to get the recording: %w", err)
+	}
+	if args.Live && recording.State != stateRecording {
+		return river.JobCancel(errNotRecording)
+	}
+
+	return nil
+}
+
 // ImageSegment は、録画の代表画像とプレビュー画像を置くセグメントのファイルの ID を返す。
 // 画像は、書いたものがある最初のセグメント (始まりの順) の、データディレクトリのディレクトリに置く。セグメントがなければ false を返す。
+// 書いている最中のセグメントは、大きさを閉じるときに書くので、大きさが 0 でも、書いたものがあるとみなす (録画中の代表画像。#1236)。
 // files は、ListRecordingFiles の順 (始まりの順) に並べて渡す。
 func ImageSegment(files []sqlc.RecordingFile) (uuid.UUID, bool) {
 	for i := range files {
-		if files[i].Kind == kindSegment && files[i].Size > 0 {
+		if HasContent(files[i].Kind, files[i].Size, files[i].EndedAt) {
 			return files[i].ID, true
 		}
 	}
 
 	return uuid.Nil, false
+}
+
+// HasContent は、録画のファイルが、書いたもののある TS のセグメントかどうかを返す。閉じたセグメントは大きさで、
+// 書いている最中のセグメント (終わりが NULL) は、大きさを閉じるときに書くので、書いたものがあるとみなす。
+func HasContent(kind string, size int64, endedAt *time.Time) bool {
+	return kind == kindSegment && (size > 0 || endedAt == nil)
 }
 
 // segments は、録画のファイルから、索引のあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
@@ -180,7 +216,7 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, error)
 	var startedAt *time.Time
 	for i := range files {
 		file := &files[i]
-		if file.Kind != kindSegment || file.Size == 0 {
+		if !HasContent(file.Kind, file.Size, file.EndedAt) {
 			continue
 		}
 		segmentPath, err := w.store.Path(file.PoolID, file.Path)

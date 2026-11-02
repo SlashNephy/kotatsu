@@ -45,6 +45,9 @@ const (
 	jpegQuality = 80
 	// thumbnailAttempts は、代表画像を取り出せなかったときに、後ろの I フレームで試し直す回数。
 	thumbnailAttempts = 3
+	// LiveThumbnailLag は、録画中の録画の代表画像 (#1236) を、書いた終わりからどれだけ前の I フレームから作るか。
+	// 終わりの I フレームは、GOP の続きをまだ書いていないことがあるので、少し前にする。
+	LiveThumbnailLag = 10 * time.Second
 )
 
 var (
@@ -144,6 +147,9 @@ type Options struct {
 	Preview bool
 	// Interval は、プレビュー画像のコマの間隔の下限。0 なら DefaultInterval。
 	Interval time.Duration
+	// Latest は、代表画像を、録画の長さの ThumbnailPosition の位置ではなく、書いた終わりの近くから作るかどうか。
+	// 録画中の録画の、今の様子を示すのに使う (#1236)。
+	Latest bool
 }
 
 // Generator は、録画の代表画像とプレビュー画像を作る。
@@ -196,12 +202,16 @@ func (g *Generator) Generate(ctx context.Context, segments []Segment) (*Result, 
 }
 
 // thumbnail は、録画の ThumbnailPosition の位置に最も近い I フレームから、代表画像を作る。
-// 取り出せなければ、後ろの I フレームで試し直す。
+// 取り出せなければ、後ろの I フレームで試し直す。Latest なら、書いた終わりの LiveThumbnailLag 前に最も近い I フレームから作り、
+// 取り出せなければ、前の I フレームで試し直す (後ろは、まだ書き終えていないことがあるため)。
 func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, error) {
 	duration := keyframes[len(keyframes)-1].at
-	start := nearest(keyframes, time.Duration(float64(duration)*ThumbnailPosition))
+	start, step := nearest(keyframes, time.Duration(float64(duration)*ThumbnailPosition)), 1
+	if g.opts.Latest {
+		start, step = nearest(keyframes, max(duration-LiveThumbnailLag, 0)), -1
+	}
 	errs := []error{}
-	for i := start; i < len(keyframes) && i < start+thumbnailAttempts; i++ {
+	for i, attempt := start, 0; i >= 0 && i < len(keyframes) && attempt < thumbnailAttempts; i, attempt = i+step, attempt+1 {
 		frame, err := g.extract(ctx, segments, keyframes[i], SizeThumbnail)
 		if err == nil {
 			return frame, nil

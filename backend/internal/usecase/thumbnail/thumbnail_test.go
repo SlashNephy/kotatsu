@@ -297,3 +297,29 @@ func TestGenerateFails(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateLatest は、録画中の代表画像 (#1236) を、書いた終わりの少し前の I フレームから作り、取り出せなければ前で試し直すことを確かめる。
+func TestGenerateLatest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		broken map[byte]bool
+		// want は、代表画像にした I フレームの通し番号。
+		want int
+	}{
+		// 1 秒ごとの 15 個の I フレーム (0〜14 秒) の、終わりの 10 秒前は 4 秒の I フレーム (通し番号 5)。
+		{name: "書いた終わりの少し前から作る", broken: nil, want: 5},
+		{name: "取り出せなければ前で試し直す", broken: map[byte]bool{5: true}, want: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			generator := thumbnail.NewGenerator(&fakeExtractor{broken: tt.broken}, &thumbnail.Options{Preview: false, Interval: 0, Latest: true})
+			result, err := generator.Generate(t.Context(), []thumbnail.Segment{segment(t, 0, 15, time.Second, 0)})
+			require.NoError(t, err)
+			assert.Nil(t, result.Preview, "no preview is made while recording")
+			assert.Equal(t, tt.want, marker(decode(t, result.Thumbnail), thumbnail.ThumbnailWidth/2, thumbnail.ThumbnailHeight/2))
+		})
+	}
+}

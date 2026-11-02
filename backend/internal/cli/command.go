@@ -184,6 +184,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, storeOf(deps.Config), deps.Clock,
 		!deps.Config.Thumbnail.DisablePreview))
+	// 録画中の録画は、一定の間隔で、今の様子の代表画像を作り直す (#1236)。
+	river.AddWorker(workers, thumbnail.NewLiveWorker(deps.DB, inserter, deps.Clock))
 	// 取り込んだ録画は、録画ファイルを読み直して索引と集計を作ってから、画像を作るジョブに渡す (設計書 6.3)。
 	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter))
 	// 引き継ぎや再起動で分かれた録画のファイルは、録画が終わったら 1 つにつなぐ (設計書 5.4)。
@@ -216,7 +218,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
-		animerecord.WishlistPeriodicJob(),
+		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
 	}, anime.MatchPeriodicJobs()...), nil
 }
 

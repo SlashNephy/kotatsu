@@ -829,6 +829,31 @@ func (q *Queries) ListFinishedRecordingSegments(ctx context.Context) ([]ListFini
 	return items, nil
 }
 
+const listLiveThumbnailRecordings = `-- name: ListLiveThumbnailRecordings :many
+SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= $1 ORDER BY recorded_from, id
+`
+
+// 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
+func (q *Queries) ListLiveThumbnailRecordings(ctx context.Context, startedBefore time.Time) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listLiveThumbnailRecordings, startedBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
 SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `

@@ -339,3 +339,7 @@ VALUES (@recording_id, @detector, @start_offset_ms, @end_offset_ms);
 SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
 WHERE recording_id = @recording_id AND detector = @detector
 ORDER BY start_offset_ms;
+
+-- name: ListLiveThumbnailRecordings :many
+-- 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
+SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @started_before ORDER BY recorded_from, id;
