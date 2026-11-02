@@ -193,12 +193,18 @@ func TestImportAnnictWorks(t *testing.T) {
 	seasonal, full, aniList = fetcher.calls()
 	assert.Equal(t, []int{2, 2, 1}, []int{seasonal, full, aniList})
 
-	// 30 日後は、すべての作品を初めから引き直し、AniList の ID も引き直す。
+	// 30 日後は、すべての作品を初めから引き直し、AniList の ID も引き直す。Annict で TID が外れた作品は、対応からも外す。
+	fetcher.mu.Lock()
+	fetcher.pages[""].Works[0].SyobocalTID = nil
+	fetcher.mu.Unlock()
 	clk.Advance(30 * 24 * time.Hour)
 	_, err = importer.Import(t.Context(), false)
 	require.NoError(t, err)
 	seasonal, full, aniList = fetcher.calls()
 	assert.Equal(t, []int{3, 4, 2}, []int{seasonal, full, aniList})
+	works, err = anime.ListWorks(t.Context(), db, []int32{7000})
+	require.NoError(t, err)
+	assert.Empty(t, works)
 }
 
 // TestImportAnnictWorksFailure は、Annict に問い合わせられなければ、理由を残し、ほかの取り込み元は取り込み、

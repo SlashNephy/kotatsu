@@ -132,15 +132,9 @@ func (i *Importer) Import(ctx context.Context, force bool) (*ImportResult, error
 			return nil, fmt.Errorf("failed to record the import status of %s: %w", source, err)
 		}
 	}
-	// 作品 ID の対応を自前で作る (#1223)。取り込めなくても、理由は anime_imports に残すので、ほかの取り込み元と同じくジョブは失敗させない。
-	if _, err := i.importAnnictWorks(ctx, force, result); err != nil {
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		if _, failed := result.Failed[SourceAnnictWorks]; !failed {
-			return nil, err
-		}
-		i.logger.WarnContext(ctx, "failed to import anime data", slog.String("source", SourceAnnictWorks), slog.Any("error", err))
+	// 作品 ID の対応を自前で作る (#1223)。取り込めなくても、ほかの取り込み元と同じく、理由を anime_imports に残してジョブは失敗させない。
+	if err := i.importAnnictWorks(ctx, force, result); err != nil {
+		return nil, err
 	}
 
 	return result, nil

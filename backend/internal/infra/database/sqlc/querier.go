@@ -459,6 +459,7 @@ type Querier interface {
 	// Annict の作品 ID か AniList の ID が、どれかに当たる作品の対応を返す (#928)。
 	ListAnimeWorksByExternalIDs(ctx context.Context, arg ListAnimeWorksByExternalIDsParams) ([]ListAnimeWorksByExternalIDsRow, error)
 	// AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+	// TID のない作品は、対応を作れないので引かない。
 	ListAnnictWorksToResolve(ctx context.Context, arg ListAnnictWorksToResolveParams) ([]ListAnnictWorksToResolveRow, error)
 	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
 	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)

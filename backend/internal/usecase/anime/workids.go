@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -66,29 +67,31 @@ func (i *Importer) WithWorkIDs(opts *WorkIDOptions) *Importer {
 }
 
 // importAnnictWorks は、Annict と AniList から作品 ID を引いて、作品 ID の対応 (anime_works の annict) を作り直す (#1223)。
-// 管理者が Annict のトークンを設定していなければ、何もせず false を返す。
+// 管理者が Annict のトークンを設定していなければ、何もしない。
 //
 // Annict の負荷を抑えるため、今期と来期の作品は 1 日に 1 回、それ以外は、1 回に fullPassPages ページずつ数日かけて引き、
 // 引き終えたら 30 日後にまた初めから引く。引いた作品は annict_works に持ち、引いたところまでを annict_work_sync に覚えるので、
 // 途中で失敗しても、次は続きから引く。AniList の ID は、MyAnimeList の ID から 50 件ずつ引く。
-func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *ImportResult) (bool, error) {
+// 問い合わせに失敗したら、理由を result と anime_imports に残して nil を返し、1 時間後に問い合わせ直す。
+// 429 の Retry-After も、1 時間までなら、これで守れる。
+func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *ImportResult) error {
 	if i.workIDs == nil {
-		return false, nil
+		return nil
 	}
 	token, err := i.workIDs.Tokens.AnnictImportToken(ctx, i.db)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if token == "" {
-		return false, nil
+		return nil
 	}
 	previous, err := sqlc.New(i.db).GetAnimeImport(ctx, SourceAnnictWorks)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return false, fmt.Errorf("failed to read the import status of %s: %w", SourceAnnictWorks, err)
+		return fmt.Errorf("failed to read the import status of %s: %w", SourceAnnictWorks, err)
 	}
 	found := err == nil
 	if found && !force && previous.Error != nil && !i.due(&previous) {
-		return false, nil
+		return nil
 	}
 
 	changed, err := i.fetchAnnictWorks(ctx, token, force)
@@ -98,34 +101,43 @@ func (i *Importer) importAnnictWorks(ctx context.Context, force bool, result *Im
 		changed = changed || resolved
 	}
 	if err != nil {
-		if ctx.Err() != nil {
-			return true, ctx.Err()
-		}
-		reason := truncate(err.Error(), maxErrorLength)
-		result.Failed[SourceAnnictWorks] = reason
-		if err := sqlc.New(i.db).RecordAnimeImportFailure(ctx, sqlc.RecordAnimeImportFailureParams{
-			Source: SourceAnnictWorks, Now: i.clock.Now(), Error: &reason,
-		}); err != nil {
-			return true, fmt.Errorf("failed to record the import status of %s: %w", SourceAnnictWorks, err)
-		}
-
-		return true, err
+		return i.recordAnnictWorksFailure(ctx, err, result)
 	}
 	// 前の取り込みが途中で失敗していれば、そこまでに引いた作品を、まだ対応に写していない。
 	if !changed && found && previous.Error == nil && previous.ImportedAt != nil {
 		result.Unchanged = append(result.Unchanged, SourceAnnictWorks)
-
-		return true, sqlc.New(i.db).RecordAnimeImport(ctx, sqlc.RecordAnimeImportParams{
+		if err := sqlc.New(i.db).RecordAnimeImport(ctx, sqlc.RecordAnimeImportParams{
 			Source: SourceAnnictWorks, Etag: nil, Now: i.clock.Now(), ItemCount: previous.ItemCount,
-		})
+		}); err != nil {
+			return fmt.Errorf("failed to record the import status of %s: %w", SourceAnnictWorks, err)
+		}
+
+		return nil
 	}
 	count, err := i.rebuildAnnictWorks(ctx)
 	if err != nil {
-		return true, err
+		return err
 	}
 	result.Imported[SourceAnnictWorks] = count
 
-	return true, nil
+	return nil
+}
+
+// recordAnnictWorksFailure は、作品 ID を引けなかった理由を、result と anime_imports に残す。
+func (i *Importer) recordAnnictWorksFailure(ctx context.Context, cause error, result *ImportResult) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	i.logger.WarnContext(ctx, "failed to import anime data", slog.String("source", SourceAnnictWorks), slog.Any("error", cause))
+	reason := truncate(cause.Error(), maxErrorLength)
+	result.Failed[SourceAnnictWorks] = reason
+	if err := sqlc.New(i.db).RecordAnimeImportFailure(ctx, sqlc.RecordAnimeImportFailureParams{
+		Source: SourceAnnictWorks, Now: i.clock.Now(), Error: &reason,
+	}); err != nil {
+		return fmt.Errorf("failed to record the import status of %s: %w", SourceAnnictWorks, err)
+	}
+
+	return nil
 }
 
 // fetchAnnictWorks は、引く時期の来た Annict の作品を引いて、annict_works に書く。作品を書いたかどうかを返す。
@@ -235,15 +247,12 @@ func (i *Importer) annictPage(ctx context.Context, token string, seasons []strin
 	return page, nil
 }
 
-// upsertAnnictWorks は、Annict の作品のうち、TID を持つものを annict_works に書く。TID のない作品は、対応を作れないので持たない。
+// upsertAnnictWorks は、Annict の作品を annict_works に書く。TID のない作品も書き、Annict で TID が外れたら、対応からも外す。
 func (i *Importer) upsertAnnictWorks(ctx context.Context, works []*workids.AnnictWork) error {
 	params := sqlc.UpsertAnnictWorksParams{AnnictIds: []int32{}, SyobocalTids: []int32{}, MalAnimeIds: []int32{}, Now: i.clock.Now()}
 	for _, work := range works {
-		if work.SyobocalTID == nil {
-			continue
-		}
 		params.AnnictIds = append(params.AnnictIds, work.AnnictID)
-		params.SyobocalTids = append(params.SyobocalTids, *work.SyobocalTID)
+		params.SyobocalTids = append(params.SyobocalTids, positiveOrZero(work.SyobocalTID))
 		params.MalAnimeIds = append(params.MalAnimeIds, positiveOrZero(work.MALAnimeID))
 	}
 	if len(params.AnnictIds) == 0 {

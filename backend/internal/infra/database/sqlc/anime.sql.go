@@ -636,7 +636,7 @@ func (q *Queries) ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]L
 
 const listAnnictWorksToResolve = `-- name: ListAnnictWorksToResolve :many
 SELECT annict_id, mal_anime_id::integer AS mal_anime_id FROM annict_works
-WHERE mal_anime_id IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < $1::timestamptz)
+WHERE mal_anime_id IS NOT NULL AND syobocal_tid IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < $1::timestamptz)
 ORDER BY anilist_checked_at NULLS FIRST, annict_id
 LIMIT $2
 `
@@ -652,6 +652,7 @@ type ListAnnictWorksToResolveRow struct {
 }
 
 // AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+// TID のない作品は、対応を作れないので引かない。
 func (q *Queries) ListAnnictWorksToResolve(ctx context.Context, arg ListAnnictWorksToResolveParams) ([]ListAnnictWorksToResolveRow, error) {
 	rows, err := q.db.Query(ctx, listAnnictWorksToResolve, arg.CheckedBefore, arg.MaxCount)
 	if err != nil {

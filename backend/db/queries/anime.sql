@@ -293,8 +293,9 @@ ON CONFLICT (annict_id) DO UPDATE SET
 
 -- name: ListAnnictWorksToResolve :many
 -- AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+-- TID のない作品は、対応を作れないので引かない。
 SELECT annict_id, mal_anime_id::integer AS mal_anime_id FROM annict_works
-WHERE mal_anime_id IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < @checked_before::timestamptz)
+WHERE mal_anime_id IS NOT NULL AND syobocal_tid IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < @checked_before::timestamptz)
 ORDER BY anilist_checked_at NULLS FIRST, annict_id
 LIMIT @max_count;
 

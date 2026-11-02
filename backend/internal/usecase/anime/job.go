@@ -13,6 +13,10 @@ import (
 // importCheckInterval は、取り込み直す時期が来たかを確かめる間隔。取り込めなかった取り込み元を、1 時間後に問い合わせ直すのにも使う。
 const importCheckInterval = time.Hour
 
+// importTimeout は、取り込みのジョブの時間の上限 (付録 A)。Annict と AniList から作品 ID を引くときは、
+// 間を空けて 1 つずつ、60 回ほど問い合わせるので、River の既定の 1 分では足りない。
+const importTimeout = 15 * time.Minute
+
 // Inserter は、ジョブを入れる River のクライアント。*jobs.Client が満たす。
 type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)
@@ -40,6 +44,11 @@ var _ river.Worker[ImportArgs] = new(ImportWorker)
 // NewImportWorker は ImportWorker を作る。
 func NewImportWorker(importer *Importer) *ImportWorker {
 	return &ImportWorker{WorkerDefaults: river.WorkerDefaults[ImportArgs]{}, importer: importer}
+}
+
+// Timeout は、取り込みのジョブの時間の上限を返す。
+func (w *ImportWorker) Timeout(*river.Job[ImportArgs]) time.Duration {
+	return importTimeout
 }
 
 func (w *ImportWorker) Work(ctx context.Context, job *river.Job[ImportArgs]) error {
