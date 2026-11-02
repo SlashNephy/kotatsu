@@ -124,3 +124,27 @@ export function weekdayOf<B extends LibraryBroadcast>(
 
   return new Date(`${dateOf(broadcastDay(Date.parse(start)).from)}T00:00:00Z`).getUTCDay();
 }
+
+// sortWorks は、作品を、次の放送の早い順に並べ、放送の予定のない作品を、作品名の順に後ろに回す (サーバーと同じ並び)。
+// 再放送を除くと次の放送が変わるので、画面でも並べ直す。
+export function sortWorks<
+  B extends LibraryBroadcast,
+  W extends LibraryWorkTiming<B> & { readonly title: string },
+>(works: readonly W[], excludeReruns: boolean): W[] {
+  const starts = new Map(
+    works.map((work) => [work, nextBroadcastOf(work, excludeReruns)?.program.startAt]),
+  );
+
+  return [...works].sort((a, b) => {
+    const startA = starts.get(a);
+    const startB = starts.get(b);
+    if (startA !== undefined && startB !== undefined) {
+      return Date.parse(startA) - Date.parse(startB);
+    }
+    if (startA !== undefined || startB !== undefined) {
+      return startA === undefined ? 1 : -1;
+    }
+
+    return a.title < b.title ? -1 : a.title > b.title ? 1 : 0;
+  });
+}

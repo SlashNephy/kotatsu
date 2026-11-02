@@ -29,7 +29,7 @@ import type {
 } from './__generated__/AnimeLibraryQuery.graphql';
 import type { AnimeLibraryCreateRuleMutation } from './__generated__/AnimeLibraryCreateRuleMutation.graphql';
 import type { AnimeLibraryReserveMutation } from './__generated__/AnimeLibraryReserveMutation.graphql';
-import { nextBroadcastOf, periodOf, type Period } from './library';
+import { nextBroadcastOf, periodOf, sortWorks, type Period } from './library';
 import { matchesFilters, type LibraryFilters } from './status';
 
 const dateTimeFormat = zonedFormat({
@@ -189,7 +189,10 @@ export function AnimeLibrary({ filters }: { filters: LibraryFilters }) {
   }
   // 「見たいリスト」タブの候補にある作品だけ、ルールを作れる (候補にない作品は、サーバーが断る)。
   const candidates = new Map(data.animeWishlist.works.map((work) => [work.tid, work.covered]));
-  const works = library.works.filter((work) => matchesFilters(work, filters, now));
+  const works = sortWorks(
+    library.works.filter((work) => matchesFilters(work, filters, now)),
+    filters.excludeReruns,
+  );
 
   const run = (
     key: string,

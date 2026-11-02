@@ -48,7 +48,12 @@ export function parseAnimeSearch(search: Record<string, unknown>): AnimeSearch {
   const status = parseLibraryStatus(search['status']);
   const season = search['season'];
   const period = periods.find((value) => value === search['period']);
-  const weekday = Number(search['weekday']);
+  // 空の値は、Number で 0 (日曜) になるので、数か数字の文字列だけを読む。
+  const rawWeekday = search['weekday'];
+  const weekday =
+    typeof rawWeekday === 'number' || (typeof rawWeekday === 'string' && /^\d$/.test(rawWeekday))
+      ? Number(rawWeekday)
+      : Number.NaN;
 
   return {
     ...(status === 'WATCHING' ? {} : { status }),
@@ -57,9 +62,7 @@ export function parseAnimeSearch(search: Record<string, unknown>): AnimeSearch {
       : {}),
     ...(search['rerun'] === 'exclude' ? { rerun: 'exclude' as const } : {}),
     ...(period === undefined ? {} : { period }),
-    ...(search['weekday'] != null && Number.isInteger(weekday) && weekday >= 0 && weekday <= 6
-      ? { weekday }
-      : {}),
+    ...(Number.isInteger(weekday) && weekday >= 0 && weekday <= 6 ? { weekday } : {}),
   };
 }
 

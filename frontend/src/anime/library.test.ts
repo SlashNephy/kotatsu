@@ -4,6 +4,7 @@ import {
   currentSeason,
   nextBroadcastOf,
   periodOf,
+  sortWorks,
   weekdayOf,
   type LibraryBroadcast,
   type PastBroadcast,
@@ -108,5 +109,38 @@ describe('weekdayOf', () => {
     expect(
       weekdayOf({ progress: null, broadcasts: [], recentBroadcasts: [] }, false),
     ).toBeUndefined();
+  });
+});
+
+describe('sortWorks', () => {
+  const work = (title: string, broadcasts: readonly LibraryBroadcast[]) => ({
+    title,
+    progress: null,
+    broadcasts,
+    recentBroadcasts: [],
+  });
+  const works = [
+    work('再放送だけ', [broadcast(jst(2, 21), 1, true)]),
+    work('来週', [broadcast(jst(9, 23), 1)]),
+    work('明日', [broadcast(jst(3, 23), 1)]),
+    work('予定なし', []),
+  ];
+
+  test('次の放送の早い順に並べ、放送の予定のない作品を後ろに回す', () => {
+    expect(sortWorks(works, false).map((w) => w.title)).toEqual([
+      '再放送だけ',
+      '明日',
+      '来週',
+      '予定なし',
+    ]);
+  });
+
+  test('再放送を除くと、再放送だけの作品は放送の予定のない作品として後ろに回す', () => {
+    expect(sortWorks(works, true).map((w) => w.title)).toEqual([
+      '明日',
+      '来週',
+      '予定なし',
+      '再放送だけ',
+    ]);
   });
 });
