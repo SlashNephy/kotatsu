@@ -60,6 +60,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
+	"github.com/SlashNephy/kotatsu/internal/web/animeimage"
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
 	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
@@ -987,6 +988,9 @@ func handleMedia(
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
 	mux.Handle("GET /media/users/{id}/avatar",
 		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")))))
+	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
+	mux.Handle("GET /media/anime-works/{destination}/{workId}/image",
+		authorizer.Middleware(animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")))))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	mux.Handle("GET /media/recordings/{id}/{file}",
 		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))

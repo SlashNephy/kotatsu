@@ -2008,6 +2008,21 @@
       "already": "Already recorded",
       "notConnected": "You have not connected Annict or AniList",
       "failed": "Could not request the record"
+    },
+    "streaming": {
+      "search": "Find on streaming",
+      "choose": "Streaming services to search",
+      "services": {
+        "danime": "d Anime Store",
+        "danimeNiconico": "d Anime Store Niconico",
+        "abema": "ABEMA",
+        "netflix": "Netflix",
+        "primeVideo": "Prime Video",
+        "niconicoChannel": "Niconico Channel",
+        "bandaiChannel": "Bandai Channel",
+        "youtube": "YouTube"
+      },
+      "chooseButton": "Streaming ({{count}})"
     }
   },
   "animeRecords": {

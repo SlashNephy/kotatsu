@@ -212,6 +212,8 @@ type Querier interface {
 	GetAnimeRecordApp(ctx context.Context, destination string) (AnimeRecordApp, error)
 	GetAnimeRecordConnection(ctx context.Context, arg GetAnimeRecordConnectionParams) (AnimeRecordConnection, error)
 	GetAnimeRecordSettings(ctx context.Context, userID uuid.UUID) (AnimeRecordSetting, error)
+	// ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
+	GetAnimeWishlistImageURL(ctx context.Context, arg GetAnimeWishlistImageURLParams) (*string, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)

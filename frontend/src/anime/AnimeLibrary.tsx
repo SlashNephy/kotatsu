@@ -5,13 +5,15 @@ import {
   Button,
   Card,
   Group,
+  Image,
+  Menu,
   SimpleGrid,
   Stack,
   Text,
   Title,
 } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { CalendarCheck, ListChecks, ListPlus, Play } from 'lucide-react';
+import { CalendarCheck, ListChecks, ListPlus, Play, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -32,6 +34,7 @@ import type { AnimeLibraryCreateRuleMutation } from './__generated__/AnimeLibrar
 import type { AnimeLibraryReserveMutation } from './__generated__/AnimeLibraryReserveMutation.graphql';
 import { nextBroadcastOf, periodOf, sortWorks, type Period } from './library';
 import { matchesFilters, type LibraryFilters } from './status';
+import { searchURL, type StreamingService } from './streaming';
 
 const dateTimeFormat = zonedFormat({
   month: 'numeric',
@@ -60,7 +63,13 @@ const periodColors: Partial<Record<Period, string>> = {
 // AnimeLibrary は、ログイン中のユーザーが Annict と AniList で「見たい」「見てる」にした作品を、作品ごとに、次の話、次の放送、
 // まだ見ていない録画と並べる (視聴管理の画面。設計書 3.8、10.3、#1231)。ルールを作るのと予約は、予約の画面の「見たいリスト」タブと
 // 同じ処理を使い、視聴者には出さない (設計書 9.7)。
-export function AnimeLibrary({ filters }: { filters: LibraryFilters }) {
+export function AnimeLibrary({
+  filters,
+  streaming,
+}: {
+  filters: LibraryFilters;
+  streaming: readonly StreamingService[];
+}) {
   const { t } = useTranslation();
   // 予約やルール、録画、番組表が変わったら、読み直す。
   const changes = useDataChanges(['RESERVATIONS', 'RULES', 'RECORDINGS', 'EPG']);
@@ -83,6 +92,7 @@ export function AnimeLibrary({ filters }: { filters: LibraryFilters }) {
             id
             tid
             title
+            imageUrl
             status
             progress
             episodesCount
@@ -134,6 +144,7 @@ export function AnimeLibrary({ filters }: { filters: LibraryFilters }) {
               watched
               recording {
                 id
+                thumbnailUrl
               }
             }
           }
@@ -298,6 +309,7 @@ export function AnimeLibrary({ filters }: { filters: LibraryFilters }) {
                 work={work}
                 now={now}
                 excludeReruns={filters.excludeReruns}
+                streaming={streaming}
                 canEdit={canEdit}
                 pending={pending}
                 busy={busy}
@@ -319,6 +331,7 @@ function WorkCard({
   work,
   now,
   excludeReruns,
+  streaming,
   canEdit,
   pending,
   busy,
@@ -330,6 +343,7 @@ function WorkCard({
   work: Work;
   now: number;
   excludeReruns: boolean;
+  streaming: readonly StreamingService[];
   canEdit: boolean;
   pending: boolean;
   busy: string | null;
@@ -348,8 +362,29 @@ function WorkCard({
   const recorded = work.recordedEpisodes.filter((episode) => episode.watched !== true);
   const shown = recorded.slice(0, maxRecordedEpisodes);
 
+  // 作品の画像がなければ (読めなければ)、その作品の最も新しい録画の代表画像を出す (#1235)。
+  const thumbnail = work.recordedEpisodes.findLast(
+    (episode) => episode.recording.thumbnailUrl != null,
+  )?.recording.thumbnailUrl;
+  // 作品の画像も代わりの代表画像も読めなければ、画像の枠を出さない。
+  const [imageFailed, setImageFailed] = useState(false);
+  const image = imageFailed ? undefined : (work.imageUrl ?? thumbnail);
+
   return (
     <Card component="section" withBorder padding="sm" aria-label={work.title}>
+      {image != null && (
+        <Card.Section mb="xs">
+          <Image
+            src={image}
+            fallbackSrc={thumbnail ?? undefined}
+            h={140}
+            fit="cover"
+            alt=""
+            loading="lazy"
+            onError={thumbnail == null ? () => setImageFailed(true) : undefined}
+          />
+        </Card.Section>
+      )}
       <Stack gap="xs">
         <Stack gap={4}>
           <Group gap="xs" wrap="nowrap" justify="space-between" align="flex-start">
@@ -382,6 +417,7 @@ function WorkCard({
             )}
           </Group>
           <Group gap={4}>
+            {streaming.length > 0 && <StreamingMenu title={work.title} services={streaming} />}
             {work.sources.map((source) => (
               <Badge
                 key={`${source.destination}:${source.workId}`}
@@ -641,4 +677,46 @@ function relativeTime(t: TFunction, start: number, now: number): string {
   }
 
   return t('anime.inDays', { count: Math.floor(hours / 24) });
+}
+
+// StreamingMenu は、配信サービスで作品名を探すリンクを並べたメニュー (#1235)。どのサービスを出すかは、端末ごとに選ぶ。
+function StreamingMenu({
+  title,
+  services,
+}: {
+  title: string;
+  services: readonly StreamingService[];
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Menu position="bottom-start" withinPortal>
+      <Menu.Target>
+        <Badge
+          component="button"
+          type="button"
+          variant="default"
+          size="sm"
+          tt="none"
+          leftSection={<Search size={10} aria-hidden />}
+          style={{ cursor: 'pointer' }}
+        >
+          {t('anime.streaming.search')}
+        </Badge>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {services.map((service) => (
+          <Menu.Item
+            key={service}
+            component="a"
+            href={searchURL(service, title)}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t(`anime.streaming.services.${service}`)}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
+  );
 }

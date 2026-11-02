@@ -89,6 +89,25 @@ func (q *Queries) FinishAnimeWishlistImport(ctx context.Context, arg FinishAnime
 	return result.RowsAffected(), nil
 }
 
+const getAnimeWishlistImageURL = `-- name: GetAnimeWishlistImageURL :one
+SELECT image_url FROM anime_wishlist_entries
+WHERE user_id = $1 AND destination = $2 AND work_id = $3 AND image_url IS NOT NULL
+`
+
+type GetAnimeWishlistImageURLParams struct {
+	UserID      uuid.UUID
+	Destination string
+	WorkID      int32
+}
+
+// ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
+func (q *Queries) GetAnimeWishlistImageURL(ctx context.Context, arg GetAnimeWishlistImageURLParams) (*string, error) {
+	row := q.db.QueryRow(ctx, getAnimeWishlistImageURL, arg.UserID, arg.Destination, arg.WorkID)
+	var image_url *string
+	err := row.Scan(&image_url)
+	return image_url, err
+}
+
 const insertAnimeWishlistEntries = `-- name: InsertAnimeWishlistEntries :exec
 INSERT INTO anime_wishlist_entries (
   user_id, destination, work_id, status, title, next_episode_id, next_episode_number, next_episode_number_text, next_episode_title,

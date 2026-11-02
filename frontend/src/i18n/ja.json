@@ -1934,6 +1934,21 @@
       "already": "記録済みです",
       "notConnected": "AnnictかAniListと連携していません",
       "failed": "記録を頼めませんでした"
+    },
+    "streaming": {
+      "search": "配信で探す",
+      "choose": "作品を探す配信サービス",
+      "services": {
+        "danime": "dアニメストア",
+        "danimeNiconico": "dアニメストア ニコニコ支店",
+        "abema": "ABEMA",
+        "netflix": "Netflix",
+        "primeVideo": "Prime Video",
+        "niconicoChannel": "ニコニコチャンネル",
+        "bandaiChannel": "バンダイチャンネル",
+        "youtube": "YouTube"
+      },
+      "chooseButton": "配信サービス（{{count}}）"
     }
   },
   "animeRecords": {

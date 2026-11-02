@@ -47,6 +47,16 @@ type LibraryWork struct {
 	RecordedEpisodes []*LibraryRecordedEpisode
 	// RecentBroadcasts は、この 1 週間に始まった放送のうち、本放送と再放送それぞれの最も新しいもの (#1233)。新しい順に並べる。
 	RecentBroadcasts []*LibraryPastBroadcast
+	// Image は、作品の画像 (#1235)。AniList の画像を先に選ぶ。AniList の画像は AniList の配信のホストにあり、Annict の画像は
+	// 作品の公式サイトなどにあって、消えたり差し替わったりしやすいため。画像がなければ nil。
+	Image *LibraryImage
+}
+
+// LibraryImage は、作品の画像と、それを示した記録先の作品。
+type LibraryImage struct {
+	Destination string
+	WorkID      int32
+	URL         string
 }
 
 // LibraryPastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻と印だけを持つ。
@@ -228,7 +238,7 @@ func newLibraryWork(tid *int32) *LibraryWork {
 	return &LibraryWork{
 		TID: tid, Title: "", Sources: []*LibrarySource{}, Progress: nil, EpisodesCount: nil, SeasonYear: nil, SeasonName: "",
 		NextEpisode: nil, Broadcasts: []*LibraryBroadcast{}, NextBroadcast: nil, RecordedEpisodes: []*LibraryRecordedEpisode{},
-		RecentBroadcasts: []*LibraryPastBroadcast{},
+		RecentBroadcasts: []*LibraryPastBroadcast{}, Image: nil,
 	}
 }
 
@@ -237,6 +247,9 @@ func addLibrarySource(work *LibraryWork, row *sqlc.AnimeWishlistEntry) {
 	work.Sources = append(work.Sources, &LibrarySource{
 		Destination: row.Destination, WorkID: row.WorkID, Status: row.Status, Title: row.Title, Progress: row.Progress,
 	})
+	if row.ImageURL != nil && (work.Image == nil || row.Destination == DestinationAniList) {
+		work.Image = &LibraryImage{Destination: row.Destination, WorkID: row.WorkID, URL: *row.ImageURL}
+	}
 	work.Progress = maxOf(work.Progress, row.Progress)
 	work.EpisodesCount = maxOf(work.EpisodesCount, row.EpisodesCount)
 	// 時期と次の話は、Annict の値を先に選ぶ。記録先は Annict を先に取り込むとは限らないので、後から来た Annict の値で上書きする。
