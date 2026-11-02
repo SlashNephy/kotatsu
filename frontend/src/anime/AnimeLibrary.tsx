@@ -471,7 +471,8 @@ function Broadcast({
   const { t } = useTranslation();
   const { program } = broadcast;
   const start = Date.parse(program.startAt);
-  const reserved = program.reservation?.enabled === true;
+  // 無効にした予約も予約として扱う。「予約する」は、無効にした予約を有効にしないので、出さない。
+  const reservation = program.reservation;
 
   return (
     <Group gap="sm" wrap="nowrap" justify="space-between">
@@ -504,14 +505,19 @@ function Broadcast({
           <Text size="xs" c={start <= now ? 'red' : 'dimmed'}>
             {relativeTime(t, start, now)}
           </Text>
-          {reserved && (
-            <Badge size="xs" color="teal" variant="light" tt="none">
-              {t('anime.reserved')}
+          {reservation != null && (
+            <Badge
+              size="xs"
+              color={reservation.enabled ? 'teal' : 'gray'}
+              variant="light"
+              tt="none"
+            >
+              {reservation.enabled ? t('anime.reserved') : t('anime.reservationDisabled')}
             </Badge>
           )}
         </Group>
       </Stack>
-      {canEdit && !reserved && (
+      {canEdit && reservation == null && (
         <Button
           size="xs"
           variant="default"

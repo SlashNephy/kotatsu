@@ -1970,6 +1970,7 @@
     "inHours": "In {{count}} h",
     "inDays": "In {{count}} d",
     "reserved": "Reserved",
+    "reservationDisabled": "Reservation disabled",
     "unwatched": "Recordings you have not watched",
     "recorded": "Recordings",
     "recordingCount": "{{label}} ({{count}})",

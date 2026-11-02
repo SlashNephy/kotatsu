@@ -1896,6 +1896,7 @@
     "inHours": "あと{{count}}時間",
     "inDays": "あと{{count}}日",
     "reserved": "予約済み",
+    "reservationDisabled": "予約は無効",
     "unwatched": "まだ見ていない録画",
     "recorded": "録画",
     "recordingCount": "{{label}}（{{count}}件）",

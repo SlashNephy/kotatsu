@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d2de123ac978381f55e33456d48e33a2>>
+ * @generated SignedSource<<6d5ca0a5230c5f36c30113fe920bc876>>
  * @lightSyntaxTransform
  */
 
@@ -10,9 +10,6 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type RootViewerQuery$variables = Record<PropertyKey, never>;
 export type RootViewerQuery$data = {
-  readonly animeRecordSettings: {
-    readonly enabled: boolean;
-  };
   readonly viewer: {
     readonly username: string;
   };
@@ -28,24 +25,6 @@ var v0 = {
   "args": null,
   "kind": "ScalarField",
   "name": "username",
-  "storageKey": null
-},
-v1 = {
-  "alias": null,
-  "args": null,
-  "concreteType": "AnimeRecordSettings",
-  "kind": "LinkedField",
-  "name": "animeRecordSettings",
-  "plural": false,
-  "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "enabled",
-      "storageKey": null
-    }
-  ],
   "storageKey": null
 };
 return {
@@ -66,8 +45,7 @@ return {
           (v0/*:: as any*/)
         ],
         "storageKey": null
-      },
-      (v1/*:: as any*/)
+      }
     ],
     "type": "Query",
     "abstractKey": null
@@ -96,21 +74,20 @@ return {
           }
         ],
         "storageKey": null
-      },
-      (v1/*:: as any*/)
+      }
     ]
   },
   "params": {
-    "cacheID": "e7f5fbd427c09f5f4e8ab4f13a9cf60b",
+    "cacheID": "4cc1d18bf55150a30bd8c98e1435d9d2",
     "id": null,
     "metadata": {},
     "name": "RootViewerQuery",
     "operationKind": "query",
-    "text": "query RootViewerQuery {\n  viewer {\n    username\n    id\n  }\n  animeRecordSettings {\n    enabled\n  }\n}\n"
+    "text": "query RootViewerQuery {\n  viewer {\n    username\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ce6a2b751c0104594110db86e2056995";
+(node as any).hash = "c59aba27e4288c7d46a5269ff6a1da67";
 
 export default node;

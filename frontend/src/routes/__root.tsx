@@ -13,6 +13,7 @@ import { ColorSchemeToggle, ErrorBoundary, useThemeColor } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { useOfflineRecordings } from '../offline/store';
 import { ConnectionStatus } from '../relay/ConnectionStatus';
+import type { RootNavQuery } from './__generated__/RootNavQuery.graphql';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
 
@@ -41,6 +42,8 @@ const navItems = [
 
 // animeNavItem は、管理者がアニメの連携を有効にしているときだけ出す、視聴管理の画面へのリンク (#1231)。
 const animeNavItem = { to: '/anime', key: 'nav.anime' } as const;
+
+type NavItem = (typeof navItems)[number] | typeof animeNavItem;
 
 // RootLayout は、すべての画面の枠。広い画面では、ヘッダーにリンクを並べる。
 // 狭い画面では、リンクが収まらず重なるので、ヘッダーのボタンで開く引き出しに移す。
@@ -171,10 +174,6 @@ const rootViewerQuery = graphql`
     viewer {
       username
     }
-    # 視聴管理の画面へのリンクを出すかどうか (#1231)。
-    animeRecordSettings {
-      enabled
-    }
   }
 `;
 
@@ -190,16 +189,47 @@ function ViewerGate({ children, fetchKey }: { children: ReactNode; fetchKey: str
   return children;
 }
 
-// NavLinks は、ヘッダーと引き出しに並べるリンク。ViewerGate が読んだ自分のユーザーと同じクエリを、ストアから読む。
-// 視聴管理の画面へのリンクは、管理者がアニメの連携を有効にしているときだけ出す (#1231)。
+// NavLinks は、ヘッダーと引き出しに並べるリンク。視聴管理の画面へのリンクは、管理者がアニメの連携を有効にしているときだけ出す (#1231)。
+// 連携の設定を読めない間と、読めなかったときは、ほかのリンクだけを出す (ヘッダーまで出なくならないようにする)。
 function NavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => void }) {
-  const { t } = useTranslation();
-  const data = useLazyLoadQuery<RootViewerQuery>(
-    rootViewerQuery,
+  const fallback = <NavAnchors items={navItems} size={size} onClick={onClick} />;
+
+  return (
+    <ErrorBoundary fallback={() => fallback}>
+      <Suspense fallback={fallback}>
+        <AnimeAwareNavLinks size={size} onClick={onClick} />
+      </Suspense>
+    </ErrorBoundary>
+  );
+}
+
+function AnimeAwareNavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => void }) {
+  const data = useLazyLoadQuery<RootNavQuery>(
+    graphql`
+      query RootNavQuery {
+        animeRecordSettings {
+          enabled
+        }
+      }
+    `,
     {},
     { fetchPolicy: 'store-or-network' },
   );
   const items = data.animeRecordSettings.enabled ? [...navItems, animeNavItem] : navItems;
+
+  return <NavAnchors items={items} size={size} onClick={onClick} />;
+}
+
+function NavAnchors({
+  items,
+  size,
+  onClick,
+}: {
+  items: readonly NavItem[];
+  size?: 'sm';
+  onClick?: () => void;
+}) {
+  const { t } = useTranslation();
 
   return items.map((item) => (
     <Anchor
