@@ -81,6 +81,10 @@ func (s *Service) RecordManually(ctx context.Context, db Database, inserter Inse
 	}
 
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		// 二度押しやほかのタブから同時に頼まれても、同じ話の記録を二重に作らない。
+		if err := sqlc.New(tx).LockManualAnimeRecords(ctx, userID.String()); err != nil {
+			return fmt.Errorf("failed to lock the manual anime records: %w", err)
+		}
 		inserted, err := s.insertRecords(ctx, tx, inserter, userID, p, connections)
 		if err != nil {
 			return err

@@ -101,3 +101,8 @@ ORDER BY syobocal_tid, episode_number NULLS FIRST;
 -- name: FinishAnimeRecord :exec
 UPDATE anime_records SET state = @state, url = sqlc.narg(url), error = sqlc.narg(error), updated_at = @now
 WHERE id = @id AND state = 'pending';
+
+-- name: LockManualAnimeRecords :exec
+-- 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
+-- 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
+SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_manual_record'), hashtext(@user_key::text));

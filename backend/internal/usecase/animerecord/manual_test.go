@@ -2,7 +2,9 @@ package animerecord_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -125,4 +127,54 @@ func TestRecordManuallySends(t *testing.T) {
 	records, _, _ := f.annict.snapshot()
 	assert.Equal(t, []string{"E3"}, records)
 	assert.Equal(t, []string{annictThirdRecorded}, pendingRecords(t, f, f.alice.UserID))
+}
+
+// TestRecordManuallyConcurrently は、同じ作品の話を同時に記録しても、1 回だけ記録することを確かめる (#1232)。
+func TestRecordManuallyConcurrently(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	target := &animerecord.ManualTarget{Program: nil, RecordingID: nil, Work: &animerecord.ManualWork{TID: testTID, Number: 7, Title: titleA}}
+	const n = 5
+	errs := make(chan error, n)
+	start := make(chan struct{})
+	for range n {
+		go func() {
+			<-start
+			// 頼んだ日時が重ならないよう、時計を進めてから頼む。
+			f.clock.Advance(time.Millisecond)
+			errs <- f.service.RecordManually(t.Context(), f.pool, f.inserter, f.alice.UserID, target)
+		}()
+	}
+	close(start)
+	succeeded := 0
+	for range n {
+		if err := <-errs; err == nil {
+			succeeded++
+		} else {
+			require.ErrorIs(t, err, animerecord.ErrAlreadyRecorded)
+		}
+	}
+	assert.Equal(t, 1, succeeded)
+	assert.Equal(t, []string{"annict:7:pending"}, pendingRecords(t, f, f.alice.UserID))
+}
+
+// TestRecordManuallyRecording は、録画から、録画に写した結びつきの話を記録することを確かめる (#1232)。
+func TestRecordManuallyRecording(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	recordingID := uuid.MustParse("0192f000-0000-7000-8000-000000000001")
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+		VALUES ($1, $2, 'テスト', '', $3, $4, 'completed', $3, now(), now())`, recordingID, serviceID(), at(12, 0), at(12, 30))
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_anime_matches (recording_id, matched_at) VALUES ($1, now())`, recordingID)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_anime_episodes (recording_id, position, source, syobocal_tid, count_start, count_end, is_first, is_last)
+		VALUES ($1, 0, 'syobocal', 6776, 3, 3, false, false)`, recordingID)
+	require.NoError(t, err)
+
+	target := &animerecord.ManualTarget{Program: nil, RecordingID: &recordingID, Work: nil}
+	require.NoError(t, f.service.RecordManually(t.Context(), f.pool, f.inserter, f.alice.UserID, target))
+	assert.Equal(t, []string{annictThirdPending}, pendingRecords(t, f, f.alice.UserID))
 }

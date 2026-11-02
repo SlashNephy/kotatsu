@@ -661,6 +661,9 @@ type Querier interface {
 	// FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
 	// 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
+	// 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
+	LockManualAnimeRecords(ctx context.Context, userKey string) error
 	// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。
 	LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (LockOAuthRefreshTokenRow, error)
 	// 録画を変える前に、ロックして読む。

@@ -453,7 +453,9 @@ function WorkCard({
         )}
         {work.tid != null && next?.number != null && (
           <Group gap="xs">
+            {/* 次の話が進んだら、記録を頼んだ表示を消して、次の話のボタンにする。 */}
             <RecordAnimeButton
+              key={next.number}
               input={{ tid: work.tid, episode: next.number, title: work.title }}
               label={t('anime.record.next', {
                 episode: t('anime.episode', { number: next.number }),

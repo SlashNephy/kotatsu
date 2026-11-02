@@ -449,6 +449,17 @@ func (q *Queries) LockAnimeWatchProgress(ctx context.Context, arg LockAnimeWatch
 	return played, err
 }
 
+const lockManualAnimeRecords = `-- name: LockManualAnimeRecords :exec
+SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_manual_record'), hashtext($1::text))
+`
+
+// 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
+// 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
+func (q *Queries) LockManualAnimeRecords(ctx context.Context, userKey string) error {
+	_, err := q.db.Exec(ctx, lockManualAnimeRecords, userKey)
+	return err
+}
+
 const pruneAnimeWatchProgress = `-- name: PruneAnimeWatchProgress :execrows
 DELETE FROM anime_watch_progress WHERE updated_at < $1
 `
