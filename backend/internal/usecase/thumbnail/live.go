@@ -18,6 +18,8 @@ const LiveInterval = 5 * time.Minute
 // LiveArgs は、録画中の録画の代表画像を作り直すジョブを入れる、定期ジョブの引数。
 type LiveArgs struct{}
 
+var _ river.JobArgs = new(LiveArgs)
+
 func (LiveArgs) Kind() string { return "thumbnail_live" }
 
 // LiveWorker は、録画中の録画ごとに、今の様子の代表画像を作るジョブ (GenerateArgs.Live) を入れる。
