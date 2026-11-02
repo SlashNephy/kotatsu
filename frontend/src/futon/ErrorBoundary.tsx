@@ -20,6 +20,8 @@ export const ErrorBoundaryAttemptContext = createContext(0);
 type Props = {
   fallback: (error: Error) => ReactNode;
   children: ReactNode;
+  // resetKey は、失敗している間に変わったら、子を描き直す値 (画面のパスなど)。失敗していなければ、変わっても何もしない。
+  resetKey?: unknown;
 };
 
 type State = {
@@ -58,6 +60,13 @@ export class ErrorBoundary extends Component<Props, State> {
       this.stopWaiting();
       this.setState((state) => ({ error: null, attempt: state.attempt + 1 }));
     });
+  }
+
+  override componentDidUpdate(previous: Props) {
+    if (this.state.error !== null && !Object.is(previous.resetKey, this.props.resetKey)) {
+      this.stopWaiting();
+      this.setState((state) => ({ error: null, attempt: state.attempt + 1 }));
+    }
   }
 
   override componentWillUnmount() {
