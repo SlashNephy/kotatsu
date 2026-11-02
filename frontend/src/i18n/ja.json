@@ -445,7 +445,8 @@
     "menu": "メニュー",
     "captures": "キャプチャ",
     "remote": "リモコン",
-    "offline": "端末の録画"
+    "offline": "端末の録画",
+    "anime": "アニメ"
   },
   "guide": {
     "watchLive": "{{name}}をライブ視聴する",
@@ -1861,7 +1862,43 @@
     "annict": "Annict",
     "anilist": "AniList",
     "myAnimeList": "MyAnimeList",
-    "syobocal": "しょぼいカレンダー"
+    "syobocal": "しょぼいカレンダー",
+    "title": "アニメ",
+    "description": "AnnictとAniListで「見てる」「見たい」にした作品を、次に見る話、次の放送、まだ見ていない録画と並べます。",
+    "openWishlist": "見たいリストの放送の候補",
+    "statusFilter": "作品の状態",
+    "status": {
+      "WATCHING": "見てる",
+      "WANNA_WATCH": "見たい",
+      "all": "すべて"
+    },
+    "loadError": "作品を読み込めませんでした",
+    "disabled": "管理者がアニメの連携を有効にしていません",
+    "notConnected": "AnnictかAniListと連携していません",
+    "connect": "アカウントの連携を開く",
+    "empty": "作品はありません",
+    "season": "{{year}}年{{season}}",
+    "year": "{{year}}年",
+    "seasons": {
+      "WINTER": "冬",
+      "SPRING": "春",
+      "SUMMER": "夏",
+      "AUTUMN": "秋"
+    },
+    "progress": "{{progress}}話まで見た",
+    "progressOf": "{{progress}} / {{total}}話まで見た",
+    "next": "次は {{episode}}{{title}}",
+    "noNext": "次に見る話は分かりません",
+    "noBroadcast": "これから1週間の放送はありません",
+    "onAir": "放送中",
+    "inMinutes": "あと{{count}}分",
+    "inHours": "あと{{count}}時間",
+    "inDays": "あと{{count}}日",
+    "reserved": "予約済み",
+    "unwatched": "まだ見ていない録画",
+    "recorded": "録画",
+    "recordingCount": "{{label}}（{{count}}件）",
+    "moreRecorded": "ほか{{count}}話"
   },
   "animeRecords": {
     "wishlistHint": "連携すると、AnnictとAniListで「見たい」「見てる」にした作品の、これからの放送を、録画の候補として出します。",

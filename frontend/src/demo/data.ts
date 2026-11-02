@@ -1,6 +1,7 @@
 import {
   demoAnimeEpisodes,
   demoAnimeRecordApps,
+  demoAnimeLibrary,
   demoAnimeWishlist,
   demoAnimeRecordSettings,
 } from './anime';
@@ -383,6 +384,7 @@ export function createRootValue(
     animeRecordSettings: () => demoAnimeRecordSettings(),
     animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
     animeWishlist: () => demoAnimeWishlist(),
+    animeLibrary: () => demoAnimeLibrary(),
     storagePoolNames: () => ['default'],
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({

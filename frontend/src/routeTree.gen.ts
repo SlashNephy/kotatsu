@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AnimeRouteImport } from './routes/anime'
 import { Route as AuthorizeRouteImport } from './routes/authorize'
 import { Route as CapturesRouteImport } from './routes/captures'
 import { Route as NotificationsRouteImport } from './routes/notifications'
@@ -56,6 +57,11 @@ import { Route as TimeshiftServiceIdPlayRouteImport } from './routes/timeshift/$
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnimeRoute = AnimeRouteImport.update({
+  id: '/anime',
+  path: '/anime',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthorizeRoute = AuthorizeRouteImport.update({
@@ -272,6 +278,7 @@ const TimeshiftServiceIdPlayRoute = TimeshiftServiceIdPlayRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
@@ -363,6 +371,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
   '/notifications': typeof NotificationsRoute
@@ -410,6 +419,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/anime'
     | '/authorize'
     | '/captures'
     | '/notifications'
@@ -455,6 +465,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/anime'
     | '/authorize'
     | '/captures'
     | '/notifications'
@@ -500,6 +511,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/anime'
     | '/authorize'
     | '/captures'
     | '/notifications'
@@ -546,6 +558,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnimeRoute: typeof AnimeRoute
   AuthorizeRoute: typeof AuthorizeRoute
   CapturesRoute: typeof CapturesRoute
   NotificationsRoute: typeof NotificationsRoute
@@ -597,6 +610,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/anime': {
+      id: '/anime'
+      path: '/anime'
+      fullPath: '/anime'
+      preLoaderRoute: typeof AnimeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/authorize': {
@@ -898,6 +918,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnimeRoute: AnimeRoute,
   AuthorizeRoute: AuthorizeRoute,
   CapturesRoute: CapturesRoute,
   NotificationsRoute: NotificationsRoute,
