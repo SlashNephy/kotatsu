@@ -2,12 +2,14 @@ import { ActionIcon, Anchor, AppShell, Burger, Group, Stack, Title, Tooltip } fr
 import { useDisclosure } from '@mantine/hooks';
 import { createRootRoute, Link, Outlet, useMatches, useRouterState } from '@tanstack/react-router';
 import { HardDrive } from 'lucide-react';
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { graphql } from 'react-relay';
+import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
+import type { Environment } from 'relay-runtime';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 
 import { UserMenu } from '../auth/UserMenu';
+import UserMenuQueryNode from '../auth/__generated__/UserMenuQuery.graphql';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
 import { ColorSchemeToggle, ErrorBoundary, useThemeColor } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
@@ -156,14 +158,15 @@ function RootLayout() {
 
 // SignedIn は、ログインしていれば children を、していなければ (自分のユーザーを読めなければ) fallback を出す。
 // 読み込みの間は、ヘッダーが空にならないよう、fallback を出す。
-// 読み込みに一度失敗しても、画面を移ると読み直すよう、ErrorBoundary をパスごとに作り直す。
+// 読み込みに一度失敗しても、画面を移ると読み直す。読めている間は、画面を移っても作り直さない。
+// 作り直すと、ヘッダーが描き直されてちらつき、データの変更の購読もつなぎ直すため。
 function SignedIn({ children, fallback }: { children: ReactNode; fallback: ReactNode }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   return (
-    <ErrorBoundary key={pathname} fallback={() => fallback}>
+    <ErrorBoundary resetKey={pathname} fallback={() => fallback}>
       <Suspense fallback={fallback}>
-        <ViewerGate fetchKey={pathname}>{children}</ViewerGate>
+        <ViewerGate>{children}</ViewerGate>
       </Suspense>
     </ErrorBoundary>
   );
@@ -178,16 +181,33 @@ const rootViewerQuery = graphql`
 `;
 
 // ViewerGate は、自分のユーザーを読めたときだけ children を出す。読めなければ、読み込みが例外を投げる。
-// 失敗した読み込みは Relay が覚えているので、fetchKey を変えて読み直させる。読めた後は、ストアの値を使う。
-function ViewerGate({ children, fetchKey }: { children: ReactNode; fetchKey: string }) {
-  useLazyLoadQuery<RootViewerQuery>(
-    rootViewerQuery,
-    {},
-    { fetchKey, fetchPolicy: 'store-or-network' },
-  );
+// 失敗した読み込みは Relay が覚えているので、ErrorBoundary が描き直すときに読み直す。読めた後は、ストアの値を使う。
+// ヘッダーが読むクエリは、自分のユーザーを読み終えてから送ると、その分だけ仮のヘッダーが長く出るので、同時に送り始める。
+function ViewerGate({ children }: { children: ReactNode }) {
+  const environment = useRelayEnvironment();
+  useState(() => prefetchHeaderQueries(environment));
+  useLazyLoadQuery<RootViewerQuery>(rootViewerQuery, {}, { fetchPolicy: 'store-or-network' });
 
   return children;
 }
+
+// prefetchHeaderQueries は、ヘッダーのリンクとユーザーのメニューのクエリを送り始める。描画するときの読み込みは、送っている途中のものに合流し、
+// ストアにあれば送らない。失敗は、描画するときの読み込みが扱う。
+function prefetchHeaderQueries(environment: Environment) {
+  for (const query of [rootNavQuery, UserMenuQueryNode]) {
+    fetchQuery(environment, query, {}, { fetchPolicy: 'store-or-network' }).subscribe({
+      error: () => undefined,
+    });
+  }
+}
+
+const rootNavQuery = graphql`
+  query RootNavQuery {
+    animeRecordSettings {
+      enabled
+    }
+  }
+`;
 
 // NavLinks は、ヘッダーと引き出しに並べるリンク。視聴管理の画面へのリンクは、管理者がアニメの連携を有効にしているときだけ出す (#1231)。
 // 連携の設定を読めない間と、読めなかったときは、ほかのリンクだけを出す (ヘッダーまで出なくならないようにする)。
@@ -205,13 +225,7 @@ function NavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => void }) {
 
 function AnimeAwareNavLinks({ size, onClick }: { size?: 'sm'; onClick?: () => void }) {
   const data = useLazyLoadQuery<RootNavQuery>(
-    graphql`
-      query RootNavQuery {
-        animeRecordSettings {
-          enabled
-        }
-      }
-    `,
+    rootNavQuery,
     {},
     { fetchPolicy: 'store-or-network' },
   );
