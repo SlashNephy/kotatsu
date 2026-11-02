@@ -142,6 +142,23 @@ enum AnimeImportSource {
   しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う
   """
   SYOBOCAL_TITLES
+  """
+  Annict と AniList から作った、しょぼいカレンダーの TID と作品 ID の対応 (#1223)。arm の対応より優先する
+  """
+  ANNICT_WORKS
+}
+"""
+作品 ID の対応を作るために、管理者が設定した Annict のトークン (#1223)。トークンは返さない。
+"""
+type AnimeImportToken {
+  """
+  設定したかどうか。設定していなければ、Annict と AniList から作品 ID の対応を作らない。
+  """
+  configured: Boolean!
+  """
+  最後に変えた日時。設定していなければ null。
+  """
+  updatedAt: Time
 }
 """
 ログイン中のユーザーの、見たいリストの作品を、作品ごとに並べたもの (視聴管理の画面。#1231)。
@@ -539,7 +556,7 @@ type AnimeWishlistWork {
   covered: Boolean!
 }
 """
-しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm から取り込んだ対応から引く。
+しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。Annict と AniList から作った対応があればそれを、なければ arm から取り込んだ対応から引く (#1223)。
 """
 type AnimeWork {
   annictWorkId: Int
@@ -1410,6 +1427,11 @@ type Mutation {
   サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateAnimeChannel(serviceId: ID!, input: AnimeChannelInput!): AnimeChannel!
+  """
+  作品 ID の対応を作るための Annict のトークンを変える (#1223)。空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。256 文字を超えれば BAD_USER_INPUT を返す。
+  """
+  updateAnimeImportToken(annictToken: String!): AnimeImportToken!
   """
   記録先 destination に登録したアプリを変える (#927)。管理者だけが使える。
   利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
@@ -2462,6 +2484,10 @@ type Query {
   連携先の情報を取り込んだ様子 (設計書 3.8)。管理者だけが使える。
   """
   animeImports: [AnimeImport!]!
+  """
+  作品 ID の対応を作るための Annict のトークンの様子 (#1223)。管理者だけが使える。
+  """
+  animeImportToken: AnimeImportToken!
   """
   ログイン中のユーザーの見たいリストの作品を、次の話と次の放送と録画と並べて返す (#1231)。ほかのユーザーの見たいリストは見えない。視聴者も使える。
   """

@@ -59,6 +59,8 @@ SELECT * FROM anime_wishlist_entries WHERE user_id = @user_id ORDER BY destinati
 SELECT w.syobocal_tid, w.annict_work_id, w.anilist_id
 FROM anime_works w
 WHERE (w.annict_work_id = ANY(@annict_work_ids::integer[]) OR w.anilist_id = ANY(@anilist_ids::integer[]))
+  -- TID ごとに、自前の対応 (annict) があればそれを、なければ arm の対応を使う (#1223)。
+  AND (w.source = 'annict' OR NOT EXISTS (SELECT 1 FROM anime_works o WHERE o.syobocal_tid = w.syobocal_tid AND o.source = 'annict'))
 ORDER BY w.syobocal_tid, w.position;
 
 -- name: ListAnimeWishlistPrograms :many

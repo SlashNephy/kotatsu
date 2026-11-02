@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
+	"github.com/SlashNephy/kotatsu/internal/infra/workids"
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -203,13 +204,20 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
 	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの取り込みと照合のジョブすべてで共有する。
 	syobocalClient := syobocal.NewClient(nil)
-	river.AddWorker(workers, anime.NewImportWorker(anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config), syobocalClient, inserter, animeLogger)))
-	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
 	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
 	animeRecords, err := newAnimeRecords(deps, logger, inserter)
 	if err != nil {
 		return nil, nil, err
 	}
+	// 管理者が Annict のトークンを設定していれば、Annict と AniList から作品 ID の対応を作る (#1223)。
+	importer := anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config), syobocalClient, inserter, animeLogger).WithWorkIDs(&anime.WorkIDOptions{
+		Fetcher: workids.NewClient(&workids.Options{
+			HTTPClient: nil, AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
+		}),
+		Tokens: animeRecords, AnnictInterval: anime.DefaultAnnictRequestInterval, AniListInterval: anime.DefaultAniListRequestInterval,
+	})
+	river.AddWorker(workers, anime.NewImportWorker(importer))
+	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
 	river.AddWorker(workers, animerecord.NewRecordWorker(animeRecords, deps.DB))
 	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
 	// ユーザーが Annict と AniList で「見たい」「見てる」にした作品を、記録の連携のトークンで取り込む (#928)。

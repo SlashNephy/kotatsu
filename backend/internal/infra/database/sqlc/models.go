@@ -36,6 +36,12 @@ type AnimeImport struct {
 	Error      *string
 }
 
+type AnimeImportToken struct {
+	ID                   int16
+	AnnictTokenEncrypted []byte
+	UpdatedAt            time.Time
+}
+
 type AnimeMatchCursor struct {
 	ID         int16
 	EpgVersion int64
@@ -136,6 +142,22 @@ type AnimeWork struct {
 	AnnictWorkID *int32
 	AnilistID    *int32
 	MalID        *int32
+}
+
+type AnnictWork struct {
+	AnnictID         int32
+	SyobocalTid      *int32
+	MalAnimeID       *int32
+	AnilistID        *int32
+	AnilistCheckedAt *time.Time
+	FetchedAt        time.Time
+}
+
+type AnnictWorkSync struct {
+	ID              int16
+	SeasonalAt      *time.Time
+	FullCursor      *string
+	FullCompletedAt *time.Time
 }
 
 type ApiToken struct {

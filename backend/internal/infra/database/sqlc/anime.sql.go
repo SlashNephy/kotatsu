@@ -65,6 +65,18 @@ func (q *Queries) DeleteAnimeChannelOverride(ctx context.Context, serviceID int6
 	return err
 }
 
+const deleteAnimeImportToken = `-- name: DeleteAnimeImportToken :execrows
+DELETE FROM anime_import_tokens WHERE id = 1
+`
+
+func (q *Queries) DeleteAnimeImportToken(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAnimeImportToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteAnimeWorks = `-- name: DeleteAnimeWorks :exec
 DELETE FROM anime_works WHERE source = $1
 `
@@ -158,6 +170,17 @@ func (q *Queries) GetAnimeImport(ctx context.Context, source string) (AnimeImpor
 	return i, err
 }
 
+const getAnimeImportToken = `-- name: GetAnimeImportToken :one
+SELECT id, annict_token_encrypted, updated_at FROM anime_import_tokens WHERE id = 1
+`
+
+func (q *Queries) GetAnimeImportToken(ctx context.Context) (AnimeImportToken, error) {
+	row := q.db.QueryRow(ctx, getAnimeImportToken)
+	var i AnimeImportToken
+	err := row.Scan(&i.ID, &i.AnnictTokenEncrypted, &i.UpdatedAt)
+	return i, err
+}
+
 const getAnimeMatchCursor = `-- name: GetAnimeMatchCursor :one
 SELECT epg_version FROM anime_match_cursor WHERE id = 1
 `
@@ -167,6 +190,25 @@ func (q *Queries) GetAnimeMatchCursor(ctx context.Context) (int64, error) {
 	var epg_version int64
 	err := row.Scan(&epg_version)
 	return epg_version, err
+}
+
+const getAnnictWorkSync = `-- name: GetAnnictWorkSync :one
+INSERT INTO annict_work_sync (id) VALUES (1)
+ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
+RETURNING id, seasonal_at, full_cursor, full_completed_at
+`
+
+// Annict の作品の取り込みの進み具合 (#1223) を返す。まだなければ作る。
+func (q *Queries) GetAnnictWorkSync(ctx context.Context) (AnnictWorkSync, error) {
+	row := q.db.QueryRow(ctx, getAnnictWorkSync)
+	var i AnnictWorkSync
+	err := row.Scan(
+		&i.ID,
+		&i.SeasonalAt,
+		&i.FullCursor,
+		&i.FullCompletedAt,
+	)
+	return i, err
 }
 
 const getEPGChangeVersion = `-- name: GetEPGChangeVersion :one
@@ -255,6 +297,24 @@ func (q *Queries) InsertAnimeWorks(ctx context.Context, arg InsertAnimeWorksPara
 		arg.MalIds,
 	)
 	return err
+}
+
+const insertAnnictAnimeWorks = `-- name: InsertAnnictAnimeWorks :execrows
+INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id)
+SELECT 'annict', w.syobocal_tid, (row_number() OVER (PARTITION BY w.syobocal_tid ORDER BY w.annict_id) - 1)::smallint,
+  w.annict_id, w.anilist_id, w.mal_anime_id
+FROM annict_works w
+WHERE w.syobocal_tid IS NOT NULL
+`
+
+// Annict から取り込んだ作品から、作品 ID の対応 (anime_works の annict) を作る (#1223)。前に作った行は、先に DeleteAnimeWorks で消す。
+// TID のない作品は使わない。1 つの TID に複数の作品が対応すれば、Annict の作品 ID の順に並べる。
+func (q *Queries) InsertAnnictAnimeWorks(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, insertAnnictAnimeWorks)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertProgramAnimeEpisode = `-- name: InsertProgramAnimeEpisode :exec
@@ -535,6 +595,7 @@ const listAnimeWorks = `-- name: ListAnimeWorks :many
 SELECT w.syobocal_tid, w.position, w.annict_work_id, w.anilist_id, w.mal_id
 FROM anime_works w
 WHERE w.syobocal_tid = ANY($1::integer[])
+  AND (w.source = 'annict' OR NOT EXISTS (SELECT 1 FROM anime_works o WHERE o.syobocal_tid = w.syobocal_tid AND o.source = 'annict'))
 ORDER BY w.syobocal_tid, w.position
 `
 
@@ -546,6 +607,7 @@ type ListAnimeWorksRow struct {
 	MalID        *int32
 }
 
+// TID ごとに、自前の対応 (annict) があればそれを、なければ arm の対応を返す (#1223)。
 func (q *Queries) ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]ListAnimeWorksRow, error) {
 	rows, err := q.db.Query(ctx, listAnimeWorks, syobocalTids)
 	if err != nil {
@@ -562,6 +624,45 @@ func (q *Queries) ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]L
 			&i.AnilistID,
 			&i.MalID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnnictWorksToResolve = `-- name: ListAnnictWorksToResolve :many
+SELECT annict_id, mal_anime_id::integer AS mal_anime_id FROM annict_works
+WHERE mal_anime_id IS NOT NULL AND syobocal_tid IS NOT NULL AND (anilist_checked_at IS NULL OR anilist_checked_at < $1::timestamptz)
+ORDER BY anilist_checked_at NULLS FIRST, annict_id
+LIMIT $2
+`
+
+type ListAnnictWorksToResolveParams struct {
+	CheckedBefore time.Time
+	MaxCount      int32
+}
+
+type ListAnnictWorksToResolveRow struct {
+	AnnictID   int32
+	MalAnimeID int32
+}
+
+// AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+// TID のない作品は、対応を作れないので引かない。
+func (q *Queries) ListAnnictWorksToResolve(ctx context.Context, arg ListAnnictWorksToResolveParams) ([]ListAnnictWorksToResolveRow, error) {
+	rows, err := q.db.Query(ctx, listAnnictWorksToResolve, arg.CheckedBefore, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnnictWorksToResolveRow{}
+	for rows.Next() {
+		var i ListAnnictWorksToResolveRow
+		if err := rows.Scan(&i.AnnictID, &i.MalAnimeID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -983,6 +1084,42 @@ func (q *Queries) SaveAnimeMatchCursor(ctx context.Context, arg SaveAnimeMatchCu
 	return err
 }
 
+const updateAnnictWorkSync = `-- name: UpdateAnnictWorkSync :exec
+UPDATE annict_work_sync SET
+  seasonal_at = $1::timestamptz, full_cursor = $2::text,
+  full_completed_at = $3::timestamptz
+WHERE id = 1
+`
+
+type UpdateAnnictWorkSyncParams struct {
+	SeasonalAt      *time.Time
+	FullCursor      *string
+	FullCompletedAt *time.Time
+}
+
+func (q *Queries) UpdateAnnictWorkSync(ctx context.Context, arg UpdateAnnictWorkSyncParams) error {
+	_, err := q.db.Exec(ctx, updateAnnictWorkSync, arg.SeasonalAt, arg.FullCursor, arg.FullCompletedAt)
+	return err
+}
+
+const updateAnnictWorksAniList = `-- name: UpdateAnnictWorksAniList :exec
+UPDATE annict_works w SET anilist_id = NULLIF(t.anilist_id, 0), anilist_checked_at = $1::timestamptz
+FROM (SELECT unnest($2::integer[]) AS annict_id, unnest($3::integer[]) AS anilist_id) AS t
+WHERE w.annict_id = t.annict_id
+`
+
+type UpdateAnnictWorksAniListParams struct {
+	Now        time.Time
+	AnnictIds  []int32
+	AnilistIds []int32
+}
+
+// 作品 annict_ids[i] の AniList の ID を anilist_ids[i] にする。見つからなかった作品は 0 で渡す。
+func (q *Queries) UpdateAnnictWorksAniList(ctx context.Context, arg UpdateAnnictWorksAniListParams) error {
+	_, err := q.db.Exec(ctx, updateAnnictWorksAniList, arg.Now, arg.AnnictIds, arg.AnilistIds)
+	return err
+}
+
 const upsertAnimeChannelOverride = `-- name: UpsertAnimeChannelOverride :exec
 INSERT INTO anime_channel_overrides (service_id, syobocal_channel_id, annict_channel_id, updated_at)
 VALUES ($1, $2, $3, $4)
@@ -1003,6 +1140,54 @@ func (q *Queries) UpsertAnimeChannelOverride(ctx context.Context, arg UpsertAnim
 		arg.SyobocalChannelID,
 		arg.AnnictChannelID,
 		arg.Now,
+	)
+	return err
+}
+
+const upsertAnimeImportToken = `-- name: UpsertAnimeImportToken :exec
+INSERT INTO anime_import_tokens (id, annict_token_encrypted, updated_at) VALUES (1, $1, $2)
+ON CONFLICT (id) DO UPDATE SET annict_token_encrypted = EXCLUDED.annict_token_encrypted, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertAnimeImportTokenParams struct {
+	AnnictTokenEncrypted []byte
+	Now                  time.Time
+}
+
+func (q *Queries) UpsertAnimeImportToken(ctx context.Context, arg UpsertAnimeImportTokenParams) error {
+	_, err := q.db.Exec(ctx, upsertAnimeImportToken, arg.AnnictTokenEncrypted, arg.Now)
+	return err
+}
+
+const upsertAnnictWorks = `-- name: UpsertAnnictWorks :exec
+INSERT INTO annict_works (annict_id, syobocal_tid, mal_anime_id, anilist_id, anilist_checked_at, fetched_at)
+SELECT t.annict_id, NULLIF(t.syobocal_tid, 0), NULLIF(t.mal_anime_id, 0), NULL, NULL, $1
+FROM (
+  SELECT unnest($2::integer[]) AS annict_id, unnest($3::integer[]) AS syobocal_tid,
+    unnest($4::integer[]) AS mal_anime_id
+) AS t
+ON CONFLICT (annict_id) DO UPDATE SET
+  syobocal_tid = EXCLUDED.syobocal_tid, fetched_at = EXCLUDED.fetched_at,
+  anilist_id = CASE WHEN annict_works.mal_anime_id IS DISTINCT FROM EXCLUDED.mal_anime_id THEN NULL ELSE annict_works.anilist_id END,
+  anilist_checked_at = CASE WHEN annict_works.mal_anime_id IS DISTINCT FROM EXCLUDED.mal_anime_id THEN NULL ELSE annict_works.anilist_checked_at END,
+  mal_anime_id = EXCLUDED.mal_anime_id
+`
+
+type UpsertAnnictWorksParams struct {
+	Now          time.Time
+	AnnictIds    []int32
+	SyobocalTids []int32
+	MalAnimeIds  []int32
+}
+
+// Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
+// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
+func (q *Queries) UpsertAnnictWorks(ctx context.Context, arg UpsertAnnictWorksParams) error {
+	_, err := q.db.Exec(ctx, upsertAnnictWorks,
+		arg.Now,
+		arg.AnnictIds,
+		arg.SyobocalTids,
+		arg.MalAnimeIds,
 	)
 	return err
 }

@@ -17,7 +17,7 @@ import {
 } from '@mantine/core';
 import { Webhook } from 'lucide-react';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useState, type FormEvent } from 'react';
+import { startTransition, useState, type FormEvent, type ReactNode } from 'react';
 import { useDataChanges } from '../../changes/DataChanges';
 import { EmptyState, zonedFormat } from '../../futon';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +50,7 @@ import type {
   AnimeRecordDestination,
   integrationsAnimeRecordAppMutation,
 } from './__generated__/integrationsAnimeRecordAppMutation.graphql';
+import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
 import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
@@ -93,6 +94,9 @@ const query = graphql`
       clientId
       configured
       redirectUri
+    }
+    animeImportToken {
+      configured
     }
     animeImports {
       source
@@ -226,7 +230,31 @@ function Integrations() {
           imports={data.animeImports}
           busy={gate.busy}
           onSave={(animeLinkingEnabled) => saveSettings({ animeLinkingEnabled })}
-        />
+        >
+          {/* 作品 ID の対応を作るための Annict のトークン (#1223)。サーバーが外部へ問い合わせるときの秘密情報なので、ここで再認証を求める。 */}
+          <AnimeImportTokenForm
+            key={String(data.animeImportToken.configured)}
+            configured={data.animeImportToken.configured}
+            busy={gate.busy}
+            onSave={(annictToken, onDone) =>
+              gate.run(async () => {
+                await mutate<integrationsAnimeImportTokenMutation>(
+                  environment,
+                  graphql`
+                    mutation integrationsAnimeImportTokenMutation($annictToken: String!) {
+                      updateAnimeImportToken(annictToken: $annictToken) {
+                        configured
+                      }
+                    }
+                  `,
+                  { annictToken },
+                );
+                onDone();
+                succeed(t('admin.saved'));
+              }, fail)
+            }
+          />
+        </AnimeLinkingSettings>
 
         {/* 見たアニメを記録させるアプリ (#927)。利用者を記録先へ送り出すアプリを決めるので、ここで再認証を求める。 */}
         <Section title={t('admin.animeRecords.title')}>
@@ -424,6 +452,7 @@ const importSourceKeys = {
   SAYA_DEFINITIONS: 'admin.settings.animeSourceSaya',
   ARM: 'admin.settings.animeSourceArm',
   SYOBOCAL_TITLES: 'admin.settings.animeSourceSyobocalTitles',
+  ANNICT_WORKS: 'admin.settings.animeSourceAnnictWorks',
 } as const satisfies Partial<Record<AnimeImportSource, string>>;
 
 type AnimeImportItem = {
@@ -441,11 +470,13 @@ function AnimeLinkingSettings({
   imports,
   busy,
   onSave,
+  children,
 }: {
   enabled: boolean;
   imports: readonly AnimeImportItem[];
   busy: boolean;
   onSave: (enabled: boolean) => void;
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [checked, setChecked] = useState(enabled);
@@ -505,8 +536,74 @@ function AnimeLinkingSettings({
             ))}
           </Stack>
         )}
+        {children}
       </Stack>
     </Section>
+  );
+}
+
+// AnimeImportTokenForm は、作品 ID の対応を作るための Annict のトークンを変える (#1223)。
+// トークンはサーバーから返らないので、変えるときだけ入れる。
+function AnimeImportTokenForm({
+  configured,
+  busy,
+  onSave,
+}: {
+  configured: boolean;
+  busy: boolean;
+  onSave: (annictToken: string, onDone: () => void) => void;
+}) {
+  const { t } = useTranslation();
+  const [token, setToken] = useState('');
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSave(token.trim(), () => setToken(''));
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <Stack gap="xs">
+        <Group gap="xs">
+          <Text size="sm" fw={600}>
+            {t('admin.settings.animeToken')}
+          </Text>
+          <Badge size="sm" variant="light" color={configured ? 'teal' : 'gray'}>
+            {configured
+              ? t('admin.settings.animeTokenConfigured')
+              : t('admin.settings.animeTokenNotConfigured')}
+          </Badge>
+        </Group>
+        <Text size="xs" c="dimmed" maw={560}>
+          {t('admin.settings.animeTokenHelp')}
+        </Text>
+        <Group align="flex-end" wrap="wrap">
+          <PasswordInput
+            size="sm"
+            aria-label={t('admin.settings.animeToken')}
+            placeholder={configured ? t('admin.settings.animeTokenKept') : undefined}
+            value={token}
+            onChange={(event) => setToken(event.currentTarget.value)}
+            autoComplete="new-password"
+            w={320}
+          />
+          <Button type="submit" size="compact-sm" disabled={token.trim() === '' || busy}>
+            {t('admin.save')}
+          </Button>
+          {configured && (
+            <Button
+              type="button"
+              size="compact-sm"
+              variant="default"
+              color="red"
+              disabled={busy}
+              onClick={() => onSave('', () => setToken(''))}
+            >
+              {t('admin.settings.animeTokenDelete')}
+            </Button>
+          )}
+        </Group>
+      </Stack>
+    </form>
   );
 }
 

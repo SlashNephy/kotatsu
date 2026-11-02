@@ -62,11 +62,13 @@ type Importer struct {
 	// inserter は、チャンネルの対応が変わったときに、番組を照合し直すジョブを入れる。nil なら入れない。
 	inserter Inserter
 	logger   *slog.Logger
+	// workIDs は、Annict と AniList から作品 ID の対応を作るための設定 (#1223)。nil なら作らない。
+	workIDs *WorkIDOptions
 }
 
 // NewImporter は Importer を返す。
 func NewImporter(db Database, clk clock.Clock, fetcher Fetcher, titles TitleFetcher, inserter Inserter, logger *slog.Logger) *Importer {
-	return &Importer{db: db, clock: clk, fetcher: fetcher, titles: titles, inserter: inserter, logger: logger}
+	return &Importer{db: db, clock: clk, fetcher: fetcher, titles: titles, inserter: inserter, logger: logger, workIDs: nil}
 }
 
 // ImportResult は、1 回の取り込みの結果。取り込み元ごとに、取り込んだ件数を持つ。
@@ -129,6 +131,10 @@ func (i *Importer) Import(ctx context.Context, force bool) (*ImportResult, error
 		if err != nil {
 			return nil, fmt.Errorf("failed to record the import status of %s: %w", source, err)
 		}
+	}
+	// 作品 ID の対応を自前で作る (#1223)。取り込めなくても、ほかの取り込み元と同じく、理由を anime_imports に残してジョブは失敗させない。
+	if err := i.importAnnictWorks(ctx, force, result); err != nil {
+		return nil, err
 	}
 
 	return result, nil

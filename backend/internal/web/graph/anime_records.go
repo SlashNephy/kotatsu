@@ -145,7 +145,7 @@ func toIntervals(input []*model.PlaybackIntervalInput) ([]*animerecord.Interval,
 // animeRecordError は、記録のエラーを、エラーコードを持つエラーにする。
 func animeRecordError(err error) error {
 	switch {
-	case errors.Is(err, animerecord.ErrInvalidApp), errors.Is(err, animerecord.ErrInvalidSettings),
+	case errors.Is(err, animerecord.ErrInvalidApp), errors.Is(err, animerecord.ErrInvalidSettings), errors.Is(err, animerecord.ErrInvalidImportToken),
 		errors.Is(err, animerecord.ErrInvalidReport), errors.Is(err, animerecord.ErrUnknownDestination):
 		return NewError(CodeBadUserInput, err.Error())
 	case errors.Is(err, animerecord.ErrUnavailable):
@@ -241,4 +241,18 @@ func (r *Resolver) manualTarget(ctx context.Context, input *model.RecordAnimeEpi
 			Program: nil, RecordingID: nil, Work: &animerecord.ManualWork{TID: int32(tid), Number: *input.Episode, Title: title},
 		}, nil
 	}
+}
+
+// animeImportToken は、作品 ID の対応を作るための Annict のトークンの様子を返す (#1223)。
+func (r *Resolver) animeImportToken(ctx context.Context) (*model.AnimeImportToken, error) {
+	service, err := r.animeRecordService()
+	if err != nil {
+		return nil, err
+	}
+	status, err := service.ImportToken(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AnimeImportToken{Configured: status.Configured, UpdatedAt: status.UpdatedAt}, nil
 }

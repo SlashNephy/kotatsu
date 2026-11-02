@@ -80,6 +80,11 @@ type ComplexityRoot struct {
 		Source     func(childComplexity int) int
 	}
 
+	AnimeImportToken struct {
+		Configured func(childComplexity int) int
+		UpdatedAt  func(childComplexity int) int
+	}
+
 	AnimeLibrary struct {
 		Enabled func(childComplexity int) int
 		Imports func(childComplexity int) int
@@ -542,6 +547,7 @@ type ComplexityRoot struct {
 		UnregisterPlayer             func(childComplexity int, id string) int
 		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
 		UpdateAnimeChannel           func(childComplexity int, serviceID string, input model.AnimeChannelInput) int
+		UpdateAnimeImportToken       func(childComplexity int, annictToken string) int
 		UpdateAnimeRecordApp         func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
 		UpdateAnimeRecordSettings    func(childComplexity int, input model.AnimeRecordSettingsInput) int
 		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
@@ -756,6 +762,7 @@ type ComplexityRoot struct {
 	Query struct {
 		APITokens               func(childComplexity int) int
 		AnimeChannels           func(childComplexity int) int
+		AnimeImportToken        func(childComplexity int) int
 		AnimeImports            func(childComplexity int) int
 		AnimeLibrary            func(childComplexity int) int
 		AnimeRecordApps         func(childComplexity int) int
@@ -1276,6 +1283,7 @@ type MutationResolver interface {
 	DeleteGuideView(ctx context.Context, id string) (string, error)
 	ResetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error)
 	UpdateAnimeChannel(ctx context.Context, serviceID string, input model.AnimeChannelInput) (*model.AnimeChannel, error)
+	UpdateAnimeImportToken(ctx context.Context, annictToken string) (*model.AnimeImportToken, error)
 	UpdateAnimeRecordApp(ctx context.Context, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) (*model.AnimeRecordApp, error)
 	BeginAnimeRecordConnection(ctx context.Context, destination model.AnimeRecordDestination) (string, error)
 	DisconnectAnimeRecord(ctx context.Context, destination model.AnimeRecordDestination) (*model.AnimeRecordSettings, error)
@@ -1382,6 +1390,7 @@ type QueryResolver interface {
 	StoragePoolNames(ctx context.Context) ([]string, error)
 	AnimeChannels(ctx context.Context) ([]*model.AnimeChannel, error)
 	AnimeImports(ctx context.Context) ([]*model.AnimeImport, error)
+	AnimeImportToken(ctx context.Context) (*model.AnimeImportToken, error)
 	AnimeLibrary(ctx context.Context) (*model.AnimeLibrary, error)
 	AnimeRecordApps(ctx context.Context) ([]*model.AnimeRecordApp, error)
 	AnimeRecordSettings(ctx context.Context) (*model.AnimeRecordSettings, error)
@@ -1645,6 +1654,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeImport.Source(childComplexity), true
+
+	case "AnimeImportToken.configured":
+		if e.ComplexityRoot.AnimeImportToken.Configured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeImportToken.Configured(childComplexity), true
+	case "AnimeImportToken.updatedAt":
+		if e.ComplexityRoot.AnimeImportToken.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeImportToken.UpdatedAt(childComplexity), true
 
 	case "AnimeLibrary.enabled":
 		if e.ComplexityRoot.AnimeLibrary.Enabled == nil {
@@ -3797,6 +3819,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateAnimeChannel(childComplexity, args["serviceId"].(string), args["input"].(model.AnimeChannelInput)), true
+	case "Mutation.updateAnimeImportToken":
+		if e.ComplexityRoot.Mutation.UpdateAnimeImportToken == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateAnimeImportToken_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateAnimeImportToken(childComplexity, args["annictToken"].(string)), true
 	case "Mutation.updateAnimeRecordApp":
 		if e.ComplexityRoot.Mutation.UpdateAnimeRecordApp == nil {
 			break
@@ -4770,6 +4803,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AnimeChannels(childComplexity), true
+	case "Query.animeImportToken":
+		if e.ComplexityRoot.Query.AnimeImportToken == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AnimeImportToken(childComplexity), true
 	case "Query.animeImports":
 		if e.ComplexityRoot.Query.AnimeImports == nil {
 			break
@@ -7375,6 +7414,18 @@ enum AnimeImportSource {
   ARM
   "しょぼいカレンダーのタイトルの一覧。番組名を解析して、作品名から TID を引くのに使う"
   SYOBOCAL_TITLES
+  "Annict と AniList から作った、しょぼいカレンダーの TID と作品 ID の対応 (#1223)。arm の対応より優先する"
+  ANNICT_WORKS
+}
+
+"""
+作品 ID の対応を作るために、管理者が設定した Annict のトークン (#1223)。トークンは返さない。
+"""
+type AnimeImportToken {
+  "設定したかどうか。設定していなければ、Annict と AniList から作品 ID の対応を作らない。"
+  configured: Boolean!
+  "最後に変えた日時。設定していなければ null。"
+  updatedAt: Time
 }
 
 """
@@ -7417,7 +7468,7 @@ enum AnimeEpisodeSource {
 }
 
 """
-しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。arm から取り込んだ対応から引く。
+しょぼいカレンダーの TID に対応する作品 (設計書 3.8)。Annict と AniList から作った対応があればそれを、なければ arm から取り込んだ対応から引く (#1223)。
 """
 type AnimeWork {
   annictWorkId: Int
@@ -7469,6 +7520,8 @@ extend type Query {
   animeChannels: [AnimeChannel!]!
   "連携先の情報を取り込んだ様子 (設計書 3.8)。管理者だけが使える。"
   animeImports: [AnimeImport!]!
+  "作品 ID の対応を作るための Annict のトークンの様子 (#1223)。管理者だけが使える。"
+  animeImportToken: AnimeImportToken!
 }
 
 extend type Mutation {
@@ -7478,6 +7531,11 @@ extend type Mutation {
   サービスがなければ NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateAnimeChannel(serviceId: ID!, input: AnimeChannelInput!): AnimeChannel!
+  """
+  作品 ID の対応を作るための Annict のトークンを変える (#1223)。空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。256 文字を超えれば BAD_USER_INPUT を返す。
+  """
+  updateAnimeImportToken(annictToken: String!): AnimeImportToken!
 }
 `, BuiltIn: false},
 	{Name: "../schema/anime_library.graphqls", Input: `"""
@@ -10669,6 +10727,16 @@ func (ec *executionContext) childFields_AnimeImport(ctx context.Context, field g
 		return ec.fieldContext_AnimeImport_error(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AnimeImport", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeImportToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "configured":
+		return ec.fieldContext_AnimeImportToken_configured(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_AnimeImportToken_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeImportToken", field.Name)
 }
 
 func (ec *executionContext) childFields_AnimeLibrary(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -13873,6 +13941,20 @@ func (ec *executionContext) field_Mutation_updateAnimeChannel_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_updateAnimeImportToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "annictToken",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["annictToken"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_updateAnimeRecordApp_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15263,6 +15345,52 @@ func (ec *executionContext) _AnimeImport_error(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_AnimeImport_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AnimeImport", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeImportToken_configured(ctx context.Context, field graphql.CollectedField, obj *model.AnimeImportToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeImportToken_configured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Configured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeImportToken_configured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeImportToken", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeImportToken_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.AnimeImportToken) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeImportToken_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeImportToken_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeImportToken", field, false, false, "Time")
 }
 
 func (ec *executionContext) _AnimeLibrary_enabled(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibrary) (ret graphql.Marshaler) {
@@ -21046,6 +21174,50 @@ func (ec *executionContext) fieldContext_Mutation_updateAnimeChannel(ctx context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateAnimeChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateAnimeImportToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateAnimeImportToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateAnimeImportToken(ctx, fc.Args["annictToken"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AnimeImportToken) graphql.Marshaler {
+			return ec.marshalNAnimeImportToken2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportToken(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateAnimeImportToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeImportToken(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateAnimeImportToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -27949,6 +28121,38 @@ func (ec *executionContext) fieldContext_Query_animeImports(_ context.Context, f
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeImport(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_animeImportToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_animeImportToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AnimeImportToken(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AnimeImportToken) graphql.Marshaler {
+			return ec.marshalNAnimeImportToken2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportToken(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_animeImportToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeImportToken(ctx, field)
 		},
 	}
 	return fc, nil
@@ -41076,6 +41280,44 @@ func (ec *executionContext) _AnimeImport(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var animeImportTokenImplementors = []string{"AnimeImportToken"}
+
+func (ec *executionContext) _AnimeImportToken(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeImportToken) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeImportTokenImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeImportToken")
+		case "configured":
+			out.Values[i] = ec._AnimeImportToken_configured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._AnimeImportToken_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var animeLibraryImplementors = []string{"AnimeLibrary"}
 
 func (ec *executionContext) _AnimeLibrary(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeLibrary) graphql.Marshaler {
@@ -43801,6 +44043,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "updateAnimeImportToken":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateAnimeImportToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateAnimeRecordApp":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateAnimeRecordApp(ctx, field)
@@ -45716,6 +45965,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_animeImports(ctx, field)
+				})
+		case "animeImportToken":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_animeImportToken(ctx, field)
 				})
 		case "animeLibrary":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -49402,6 +49657,14 @@ func (ec *executionContext) unmarshalNAnimeImportSource2githubᚗcomᚋSlashNeph
 
 func (ec *executionContext) marshalNAnimeImportSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportSource(ctx context.Context, sel ast.SelectionSet, v model.AnimeImportSource) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNAnimeImportToken2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportToken(ctx context.Context, sel ast.SelectionSet, v *model.AnimeImportToken) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AnimeImportToken!")
+		return graphql.Null
+	}
+	return ec._AnimeImportToken(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAnimeLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeLibrary(ctx context.Context, sel ast.SelectionSet, v *model.AnimeLibrary) graphql.Marshaler {

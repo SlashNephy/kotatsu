@@ -1178,11 +1178,12 @@ CREATE TABLE anime_channel_overrides (
   CHECK (syobocal_channel_id IS NOT NULL OR annict_channel_id IS NOT NULL)
 );
 
--- arm から取り込んだ、しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応 (設計書 3.8)。
+-- しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応 (設計書 3.8)。
 -- 1 つの TID に複数の作品が対応することがある (分割された作品など) ので、TID ごとに並びの番号 (position) を振る。
 -- 取り込み元ごとに行を持ち、取り込み直すときは、その取り込み元の行だけを入れ替える。
+-- 取り込み元は、Annict の API から自前で作った対応 (annict。#1223) と arm。TID ごとに、annict の行があれば arm の行は使わない。
 CREATE TABLE anime_works (
-  source text NOT NULL CHECK (source IN ('arm')),
+  source text NOT NULL CHECK (source IN ('annict', 'arm')),
   syobocal_tid integer NOT NULL,
   position smallint NOT NULL,
   annict_work_id integer,
@@ -1197,7 +1198,7 @@ CREATE INDEX anime_works_anilist_id_idx ON anime_works (anilist_id) WHERE anilis
 
 -- 連携先の情報を取り込んだ様子 (設計書 3.8)。取り込み元ごとに 1 行。管理者の画面に出す。
 CREATE TABLE anime_imports (
-  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'syobocal_titles')),
+  source text PRIMARY KEY CHECK (source IN ('saya_definitions', 'arm', 'syobocal_titles', 'annict_works')),
   -- 最後に取り込んだ内容の ETag。変わっていなければ、取り込み元は 304 を返し、読み直さない。
   etag text,
   -- 最後に問い合わせた日時。1 日ごとの取り込みは、これから決める。
@@ -1320,6 +1321,40 @@ CREATE TABLE anime_record_apps (
   client_id text NOT NULL,
   client_secret_encrypted bytea NOT NULL,
   updated_at timestamptz NOT NULL
+);
+
+-- 作品 ID の対応を自前で作るのに使う、管理者が設定した Annict のアクセストークン (#1223)。1 行だけ持つ。
+-- 記録先のアプリのクライアントシークレットと同じく、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、自前の対応は作らない。
+CREATE TABLE anime_import_tokens (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  annict_token_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- Annict の API から取り込んだ作品 (#1223)。作品 ID の対応 (anime_works の annict) の元にする。
+-- 取得したデータは外に出さない (Annict の API 利用規約 第6条、第7条)。
+CREATE TABLE annict_works (
+  annict_id integer PRIMARY KEY,
+  syobocal_tid integer,
+  mal_anime_id integer,
+  -- MyAnimeList の ID から、AniList の API で引いた AniList の ID。引いていないか、見つからなければ NULL。
+  anilist_id integer,
+  -- AniList の ID を最後に引いた日時。引き直す時期を決めるのに使う。
+  anilist_checked_at timestamptz,
+  fetched_at timestamptz NOT NULL
+);
+CREATE INDEX annict_works_anilist_checked_at_idx ON annict_works (anilist_checked_at NULLS FIRST) WHERE mal_anime_id IS NOT NULL;
+
+-- Annict の作品の取り込みの進み具合 (#1223)。1 行だけ持つ。
+-- 今期と来期の作品は 1 日ごとに、すべての作品は、1 回に少しずつページをたどって取り込み、終えたら間を空けて始め直す。
+CREATE TABLE annict_work_sync (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  -- 今期と来期の作品を最後に取り込んだ日時。
+  seasonal_at timestamptz,
+  -- すべての作品をたどる途中の cursor。たどっていなければ NULL。
+  full_cursor text,
+  -- すべての作品を最後にたどり終えた日時。
+  full_completed_at timestamptz
 );
 
 -- 記録先への認可の途中の状態 (#927)。認可を始めたセッションのまま戻ってきたことを確かめるため、セッションを持つ。

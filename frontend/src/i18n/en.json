@@ -1755,7 +1755,14 @@
       "animeImportFailed": "Failed to import at {{at}}: {{error}}",
       "animeSourceSaya": "Channel mapping (saya-definitions)",
       "animeSourceArm": "Work ID mapping (arm)",
-      "animeSourceSyobocalTitles": "Syobocal titles"
+      "animeSourceSyobocalTitles": "Syobocal titles",
+      "animeSourceAnnictWorks": "Work ID mapping (Annict, AniList)",
+      "animeToken": "Annict access token",
+      "animeTokenHelp": "Used to build the work ID mapping from Annict and AniList. It takes precedence over the arm mapping and also covers new works missing from arm. Create a personal access token with read scope in the Applications settings on Annict and enter it here",
+      "animeTokenConfigured": "Configured",
+      "animeTokenNotConfigured": "Not configured",
+      "animeTokenKept": "Configured (enter only to change)",
+      "animeTokenDelete": "Delete"
     },
     "recording": {
       "title": "Recording defaults",

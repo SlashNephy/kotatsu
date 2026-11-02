@@ -83,6 +83,7 @@ type Querier interface {
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
 	DeleteAnimeChannelDefinitions(ctx context.Context) error
 	DeleteAnimeChannelOverride(ctx context.Context, serviceID int64) error
+	DeleteAnimeImportToken(ctx context.Context) (int64, error)
 	DeleteAnimeRecordApp(ctx context.Context, destination string) (int64, error)
 	DeleteAnimeRecordConnection(ctx context.Context, arg DeleteAnimeRecordConnectionParams) (AnimeRecordConnection, error)
 	DeleteAnimeWishlistEntries(ctx context.Context, arg DeleteAnimeWishlistEntriesParams) error
@@ -208,12 +209,15 @@ type Querier interface {
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
 	GetAnimeImport(ctx context.Context, source string) (AnimeImport, error)
+	GetAnimeImportToken(ctx context.Context) (AnimeImportToken, error)
 	GetAnimeMatchCursor(ctx context.Context) (int64, error)
 	GetAnimeRecordApp(ctx context.Context, destination string) (AnimeRecordApp, error)
 	GetAnimeRecordConnection(ctx context.Context, arg GetAnimeRecordConnectionParams) (AnimeRecordConnection, error)
 	GetAnimeRecordSettings(ctx context.Context, userID uuid.UUID) (AnimeRecordSetting, error)
 	// ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
 	GetAnimeWishlistImageURL(ctx context.Context, arg GetAnimeWishlistImageURLParams) (*string, error)
+	// Annict の作品の取り込みの進み具合 (#1223) を返す。まだなければ作る。
+	GetAnnictWorkSync(ctx context.Context) (AnnictWorkSync, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
 	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
@@ -333,6 +337,9 @@ type Querier interface {
 	InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnimeWishlistEntriesParams) error
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeWorks(ctx context.Context, arg InsertAnimeWorksParams) error
+	// Annict から取り込んだ作品から、作品 ID の対応 (anime_works の annict) を作る (#1223)。前に作った行は、先に DeleteAnimeWorks で消す。
+	// TID のない作品は使わない。1 つの TID に複数の作品が対応すれば、Annict の作品 ID の順に並べる。
+	InsertAnnictAnimeWorks(ctx context.Context) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	// キャプチャを記録する (設計書 7.5)。録画が見つからなければ (撮った後に消されたなど)、録画の参照と再生位置を NULL にする。
 	InsertCapture(ctx context.Context, arg InsertCaptureParams) (Capture, error)
@@ -447,9 +454,13 @@ type Querier interface {
 	// TID に結びついた番組のうち、since から until までに始まる、終了時刻の決まった番組を返す (#928)。
 	// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついても、1 行にする。
 	ListAnimeWishlistPrograms(ctx context.Context, arg ListAnimeWishlistProgramsParams) ([]ListAnimeWishlistProgramsRow, error)
+	// TID ごとに、自前の対応 (annict) があればそれを、なければ arm の対応を返す (#1223)。
 	ListAnimeWorks(ctx context.Context, syobocalTids []int32) ([]ListAnimeWorksRow, error)
 	// Annict の作品 ID か AniList の ID が、どれかに当たる作品の対応を返す (#928)。
 	ListAnimeWorksByExternalIDs(ctx context.Context, arg ListAnimeWorksByExternalIDsParams) ([]ListAnimeWorksByExternalIDsRow, error)
+	// AniList の ID を引く (#1223) 作品を返す。一度も引いていない作品を先に、引いてから checked_before より前の作品を引き直す。
+	// TID のない作品は、対応を作れないので引かない。
+	ListAnnictWorksToResolve(ctx context.Context, arg ListAnnictWorksToResolveParams) ([]ListAnnictWorksToResolveRow, error)
 	// 時間帯 [from, to) に重なる、放送が終わった番組 (過去の番組表、#1121)。ListProgramsInRange と同じ列を返す。
 	ListArchivedProgramsInRange(ctx context.Context, arg ListArchivedProgramsInRangeParams) ([]ListArchivedProgramsInRangeRow, error)
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
@@ -891,6 +902,9 @@ type Querier interface {
 	UnlockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
 	UnpinService(ctx context.Context, arg UnpinServiceParams) error
 	UpdateAnimeWatchProgress(ctx context.Context, arg UpdateAnimeWatchProgressParams) error
+	UpdateAnnictWorkSync(ctx context.Context, arg UpdateAnnictWorkSyncParams) error
+	// 作品 annict_ids[i] の AniList の ID を anilist_ids[i] にする。見つからなかった作品は 0 で渡す。
+	UpdateAnnictWorksAniList(ctx context.Context, arg UpdateAnnictWorksAniListParams) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) error
 	UpdateChannelType(ctx context.Context, arg UpdateChannelTypeParams) (ChannelType, error)
 	UpdateGuideView(ctx context.Context, arg UpdateGuideViewParams) (int64, error)
@@ -910,9 +924,13 @@ type Querier interface {
 	UpdateWatchRule(ctx context.Context, arg UpdateWatchRuleParams) (int64, error)
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
 	UpsertAnimeChannelOverride(ctx context.Context, arg UpsertAnimeChannelOverrideParams) error
+	UpsertAnimeImportToken(ctx context.Context, arg UpsertAnimeImportTokenParams) error
 	UpsertAnimeRecordApp(ctx context.Context, arg UpsertAnimeRecordAppParams) error
 	UpsertAnimeRecordConnection(ctx context.Context, arg UpsertAnimeRecordConnectionParams) error
 	UpsertAnimeRecordSettings(ctx context.Context, arg UpsertAnimeRecordSettingsParams) (AnimeRecordSetting, error)
+	// Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
+	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
+	UpsertAnnictWorks(ctx context.Context, arg UpsertAnnictWorksParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	// プレイヤーの設定を変える。null の項目は変えない。
