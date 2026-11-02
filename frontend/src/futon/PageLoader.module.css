@@ -1,13 +1,11 @@
-/* ヘッダーの下を覆い、真ん中にスピナーを出す。 */
-/* すぐ読み終わるときにちらつかないよう、少し待ってから出す。 */
+/* 読み込んでいる部分に、スピナーを出す。ヘッダーの下を覆う膜にすると、先に出ている題名やタブまで隠れて、ちらつく。 */
+/* ふつうの読み込みでは出ないよう、0.5 秒待ってから出す。すぐ消える膜が出ると、点滅して見える。 */
 .root {
-  position: fixed;
-  inset: var(--app-shell-header-height, 0px) 0 0 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--mantine-color-body);
-  animation: appear 0.2s ease-out 0.15s both;
+  min-height: 50dvh;
+  animation: appear 0.2s ease-out 0.5s both;
 }
 
 @keyframes appear {
