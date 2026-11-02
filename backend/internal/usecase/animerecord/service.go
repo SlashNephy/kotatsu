@@ -18,6 +18,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
@@ -26,6 +27,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
 const (
@@ -463,6 +465,8 @@ type UserSettings struct {
 	// ThresholdPercent は、番組の長さのうち、何 % を見たら記録するか (1〜100)。
 	ThresholdPercent int
 	Rules            *StatusRules
+	// NotifyWishlist は、見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。
+	NotifyWishlist bool
 }
 
 // LoadSettings は、ユーザー userID の記録の設定を返す。変えていなければ既定値を返す。
@@ -472,6 +476,7 @@ func LoadSettings(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (*UserSet
 		return &UserSettings{
 			ThresholdPercent: DefaultThresholdPercent,
 			Rules:            &StatusRules{WatchingOnFirst: false, WatchingOnEpisode: false, WatchedOnLast: false},
+			NotifyWishlist:   false,
 		}, nil
 	}
 	if err != nil {
@@ -485,6 +490,7 @@ func settingsOf(row *sqlc.AnimeRecordSetting) *UserSettings {
 	return &UserSettings{
 		ThresholdPercent: int(row.ThresholdPercent),
 		Rules:            &StatusRules{WatchingOnFirst: row.WatchingOnFirst, WatchingOnEpisode: row.WatchingOnEpisode, WatchedOnLast: row.WatchedOnLast},
+		NotifyWishlist:   row.NotifyWishlist,
 	}
 }
 
@@ -499,12 +505,16 @@ func (s *Service) SaveSettings(ctx context.Context, db Database, userID uuid.UUI
 		row, err := sqlc.New(tx).UpsertAnimeRecordSettings(ctx, sqlc.UpsertAnimeRecordSettingsParams{
 			UserID: userID, ThresholdPercent: threshold,
 			WatchingOnFirst: changes.Rules.WatchingOnFirst, WatchingOnEpisode: changes.Rules.WatchingOnEpisode,
-			WatchedOnLast: changes.Rules.WatchedOnLast, Now: s.clock.Now(),
+			WatchedOnLast: changes.Rules.WatchedOnLast, NotifyWishlist: changes.NotifyWishlist, Now: s.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to save the anime record settings: %w", err)
 		}
 		saved = settingsOf(&row)
+		// 見たいリストの放送の通知は、ルールの照合で視聴予約を付け外しするので、照合を走らせる (#1234)。
+		if _, err := notify.Publish(ctx, tx, s.clock, watch.RulesNotifyChannel); err != nil {
+			return err
+		}
 
 		return usersettings.Touch(ctx, tx, s.clock, userID)
 	})

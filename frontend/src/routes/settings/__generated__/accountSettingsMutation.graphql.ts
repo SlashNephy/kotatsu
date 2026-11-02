@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9269b070a711663db10bf637a653af28>>
+ * @generated SignedSource<<74377c7dbf4fc78fe15985b0c92e14ff>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type AnimeRecordSettingsInput = {
+  notifyWishlist?: boolean | null | undefined;
   thresholdPercent: number;
   watchedOnLast: boolean;
   watchingOnEpisode: boolean;

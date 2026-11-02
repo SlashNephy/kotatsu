@@ -1005,6 +1005,8 @@ CREATE TABLE watch_reservations (
   -- 視聴予約を作った視聴ルール。手で付けた視聴予約では NULL。
   -- 視聴ルールを消しても視聴予約は残すので、NULL にして、手で付けたものと同じく扱う。
   watch_rule_id uuid REFERENCES watch_rules (id) ON DELETE SET NULL,
+  -- 見たいリストの作品の放送の通知 (#1234) が付けた視聴予約かどうか。手で付け直したら、手で付けたものにする。
+  from_wishlist boolean NOT NULL DEFAULT false,
   PRIMARY KEY (user_id, service_id, event_id)
 );
 
@@ -1363,6 +1365,8 @@ CREATE TABLE anime_record_settings (
   watching_on_first boolean NOT NULL DEFAULT false,
   watching_on_episode boolean NOT NULL DEFAULT false,
   watched_on_last boolean NOT NULL DEFAULT false,
+  -- 見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。
+  notify_wishlist boolean NOT NULL DEFAULT false,
   updated_at timestamptz NOT NULL
 );
 

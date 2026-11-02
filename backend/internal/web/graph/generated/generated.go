@@ -162,6 +162,7 @@ type ComplexityRoot struct {
 	AnimeRecordSettings struct {
 		Destinations      func(childComplexity int) int
 		Enabled           func(childComplexity int) int
+		NotifyWishlist    func(childComplexity int) int
 		ThresholdPercent  func(childComplexity int) int
 		WatchedOnLast     func(childComplexity int) int
 		WatchingOnEpisode func(childComplexity int) int
@@ -1960,6 +1961,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeRecordSettings.Enabled(childComplexity), true
+	case "AnimeRecordSettings.notifyWishlist":
+		if e.ComplexityRoot.AnimeRecordSettings.NotifyWishlist == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeRecordSettings.NotifyWishlist(childComplexity), true
 	case "AnimeRecordSettings.thresholdPercent":
 		if e.ComplexityRoot.AnimeRecordSettings.ThresholdPercent == nil {
 			break
@@ -7664,6 +7671,11 @@ type AnimeRecordSettings {
   watchingOnEpisode: Boolean!
   "最終話 ([終]) を見たら、作品を「見た」にするかどうか。"
   watchedOnLast: Boolean!
+  """
+  見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。通知するなら、見たいリストの作品のこれからの本放送のうち、
+  見終えた話数より後の話ごとに最も早い放送に、ルールの照合で視聴予約を付け、作品が見たいリストから外れたら外す。
+  """
+  notifyWishlist: Boolean!
   destinations: [AnimeRecordDestinationStatus!]!
 }
 
@@ -7672,6 +7684,8 @@ input AnimeRecordSettingsInput {
   watchingOnFirst: Boolean!
   watchingOnEpisode: Boolean!
   watchedOnLast: Boolean!
+  "見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。省けば変えない。"
+  notifyWishlist: Boolean
 }
 
 """
@@ -10816,6 +10830,8 @@ func (ec *executionContext) childFields_AnimeRecordSettings(ctx context.Context,
 		return ec.fieldContext_AnimeRecordSettings_watchingOnEpisode(ctx, field)
 	case "watchedOnLast":
 		return ec.fieldContext_AnimeRecordSettings_watchedOnLast(ctx, field)
+	case "notifyWishlist":
+		return ec.fieldContext_AnimeRecordSettings_notifyWishlist(ctx, field)
 	case "destinations":
 		return ec.fieldContext_AnimeRecordSettings_destinations(ctx, field)
 	}
@@ -16574,6 +16590,29 @@ func (ec *executionContext) _AnimeRecordSettings_watchedOnLast(ctx context.Conte
 	)
 }
 func (ec *executionContext) fieldContext_AnimeRecordSettings_watchedOnLast(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeRecordSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeRecordSettings_notifyWishlist(ctx context.Context, field graphql.CollectedField, obj *model.AnimeRecordSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeRecordSettings_notifyWishlist(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NotifyWishlist, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeRecordSettings_notifyWishlist(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AnimeRecordSettings", field, false, false, "Boolean")
 }
 
@@ -38147,7 +38186,7 @@ func (ec *executionContext) unmarshalInputAnimeRecordSettingsInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"thresholdPercent", "watchingOnFirst", "watchingOnEpisode", "watchedOnLast"}
+	fieldsInOrder := [...]string{"thresholdPercent", "watchingOnFirst", "watchingOnEpisode", "watchedOnLast", "notifyWishlist"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -38182,6 +38221,13 @@ func (ec *executionContext) unmarshalInputAnimeRecordSettingsInput(ctx context.C
 				return it, err
 			}
 			it.WatchedOnLast = data
+		case "notifyWishlist":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("notifyWishlist"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NotifyWishlist = data
 		}
 	}
 	return it, nil
@@ -41552,6 +41598,11 @@ func (ec *executionContext) _AnimeRecordSettings(ctx context.Context, sel ast.Se
 			}
 		case "watchedOnLast":
 			out.Values[i] = ec._AnimeRecordSettings_watchedOnLast(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notifyWishlist":
+			out.Values[i] = ec._AnimeRecordSettings_notifyWishlist(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

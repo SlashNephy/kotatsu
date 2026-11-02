@@ -104,7 +104,7 @@ func (r *Resolver) animeRecordSettings(ctx context.Context, userID uuid.UUID) (*
 	return &model.AnimeRecordSettings{
 		Enabled: availability.LinkingEnabled, ThresholdPercent: userSettings.ThresholdPercent,
 		WatchingOnFirst: userSettings.Rules.WatchingOnFirst, WatchingOnEpisode: userSettings.Rules.WatchingOnEpisode,
-		WatchedOnLast: userSettings.Rules.WatchedOnLast, Destinations: destinations,
+		WatchedOnLast: userSettings.Rules.WatchedOnLast, NotifyWishlist: userSettings.NotifyWishlist, Destinations: destinations,
 	}, nil
 }
 

@@ -105,6 +105,7 @@ const query = graphql`
       watchingOnFirst
       watchingOnEpisode
       watchedOnLast
+      notifyWishlist
       destinations {
         destination
         available
@@ -284,12 +285,13 @@ function AnimeRecords() {
         );
       })}
       <RecordSettings
-        key={`${settings.thresholdPercent}/${String(settings.watchingOnFirst)}/${String(settings.watchingOnEpisode)}/${String(settings.watchedOnLast)}`}
+        key={`${settings.thresholdPercent}/${String(settings.watchingOnFirst)}/${String(settings.watchingOnEpisode)}/${String(settings.watchedOnLast)}/${String(settings.notifyWishlist)}`}
         initial={{
           thresholdPercent: settings.thresholdPercent,
           watchingOnFirst: settings.watchingOnFirst,
           watchingOnEpisode: settings.watchingOnEpisode,
           watchedOnLast: settings.watchedOnLast,
+          notifyWishlist: settings.notifyWishlist,
         }}
         busy={running}
         saved={saved}
@@ -317,7 +319,8 @@ function RecordSettings({
     input.thresholdPercent !== initial.thresholdPercent ||
     input.watchingOnFirst !== initial.watchingOnFirst ||
     input.watchingOnEpisode !== initial.watchingOnEpisode ||
-    input.watchedOnLast !== initial.watchedOnLast;
+    input.watchedOnLast !== initial.watchedOnLast ||
+    input.notifyWishlist !== initial.notifyWishlist;
 
   return (
     <Card withBorder>
@@ -357,6 +360,16 @@ function RecordSettings({
           description={t('animeRecords.statusHelp')}
           checked={input.watchedOnLast}
           onChange={(event) => setInput({ ...input, watchedOnLast: event.currentTarget.checked })}
+        />
+        {/* 見たいリストの作品の放送を、視聴予約で通知する (#1234)。 */}
+        <Text size="sm" fw={500}>
+          {t('animeRecords.notifyTitle')}
+        </Text>
+        <Checkbox
+          label={t('animeRecords.notifyWishlist')}
+          description={t('animeRecords.notifyWishlistHelp')}
+          checked={input.notifyWishlist === true}
+          onChange={(event) => setInput({ ...input, notifyWishlist: event.currentTarget.checked })}
         />
         <Group justify="flex-end" gap="sm">
           {saved && !changed && (

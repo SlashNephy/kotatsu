@@ -229,8 +229,11 @@ type AnimeRecordSettings struct {
 	// 最終話 ([終]) 以外を見たら、作品を「見てる」にするかどうか。
 	WatchingOnEpisode bool `json:"watchingOnEpisode"`
 	// 最終話 ([終]) を見たら、作品を「見た」にするかどうか。
-	WatchedOnLast bool                            `json:"watchedOnLast"`
-	Destinations  []*AnimeRecordDestinationStatus `json:"destinations"`
+	WatchedOnLast bool `json:"watchedOnLast"`
+	// 見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。通知するなら、見たいリストの作品のこれからの本放送のうち、
+	// 見終えた話数より後の話ごとに最も早い放送に、ルールの照合で視聴予約を付け、作品が見たいリストから外れたら外す。
+	NotifyWishlist bool                            `json:"notifyWishlist"`
+	Destinations   []*AnimeRecordDestinationStatus `json:"destinations"`
 }
 
 type AnimeRecordSettingsInput struct {
@@ -238,6 +241,8 @@ type AnimeRecordSettingsInput struct {
 	WatchingOnFirst   bool `json:"watchingOnFirst"`
 	WatchingOnEpisode bool `json:"watchingOnEpisode"`
 	WatchedOnLast     bool `json:"watchedOnLast"`
+	// 見たいリストの作品の放送を、視聴予約で通知するかどうか (#1234)。省けば変えない。
+	NotifyWishlist *bool `json:"notifyWishlist,omitempty"`
 }
 
 // ログイン中のユーザーの、見たいリストの作品の放送の候補 (#928)。

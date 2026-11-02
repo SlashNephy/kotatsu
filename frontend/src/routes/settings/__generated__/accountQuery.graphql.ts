@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f2827b88635a80510ac0ef023a2428c0>>
+ * @generated SignedSource<<82229907c57972c535e802845ff1ef42>>
  * @lightSyntaxTransform
  */
 
@@ -21,6 +21,7 @@ export type accountQuery$data = {
       readonly destination: AnimeRecordDestination;
     }>;
     readonly enabled: boolean;
+    readonly notifyWishlist: boolean;
     readonly thresholdPercent: number;
     readonly watchedOnLast: boolean;
     readonly watchingOnEpisode: boolean;
@@ -75,6 +76,13 @@ var v0 = [
         "args": null,
         "kind": "ScalarField",
         "name": "watchedOnLast",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "notifyWishlist",
         "storageKey": null
       },
       {
@@ -149,16 +157,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "d63dc7675336c7951535954cae3b797b",
+    "cacheID": "efe89edc4ed5233519298daf16de8664",
     "id": null,
     "metadata": {},
     "name": "accountQuery",
     "operationKind": "query",
-    "text": "query accountQuery {\n  animeRecordSettings {\n    enabled\n    thresholdPercent\n    watchingOnFirst\n    watchingOnEpisode\n    watchedOnLast\n    destinations {\n      destination\n      available\n      connection {\n        accountName\n        connectedAt\n      }\n    }\n  }\n}\n"
+    "text": "query accountQuery {\n  animeRecordSettings {\n    enabled\n    thresholdPercent\n    watchingOnFirst\n    watchingOnEpisode\n    watchedOnLast\n    notifyWishlist\n    destinations {\n      destination\n      available\n      connection {\n        accountName\n        connectedAt\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3af087c166825cce33c5a8e28d03c770";
+(node as any).hash = "17d5898e8b261fde40091692ba4e6412";
 
 export default node;

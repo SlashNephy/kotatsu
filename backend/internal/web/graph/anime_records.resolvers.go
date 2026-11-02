@@ -79,11 +79,20 @@ func (r *mutationResolver) UpdateAnimeRecordSettings(ctx context.Context, input 
 	if err != nil {
 		return nil, err
 	}
+	current, err := animerecord.LoadSettings(ctx, r.db, principal.UserID)
+	if err != nil {
+		return nil, err
+	}
+	notifyWishlist := current.NotifyWishlist
+	if input.NotifyWishlist != nil {
+		notifyWishlist = *input.NotifyWishlist
+	}
 	if _, err := service.SaveSettings(ctx, r.db, principal.UserID, &animerecord.UserSettings{
 		ThresholdPercent: input.ThresholdPercent,
 		Rules: &animerecord.StatusRules{
 			WatchingOnFirst: input.WatchingOnFirst, WatchingOnEpisode: input.WatchingOnEpisode, WatchedOnLast: input.WatchedOnLast,
 		},
+		NotifyWishlist: notifyWishlist,
 	}); err != nil {
 		return nil, animeRecordError(err)
 	}

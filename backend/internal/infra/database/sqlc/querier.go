@@ -149,6 +149,9 @@ type Querier interface {
 	// 範囲の外は、サービスの残っているチャンクの最も早い始まりより前。チャンクが 1 つも残っていなければ、今より前。
 	// タイムシフトから外し、チャンクのなくなったサービスの行も残さない。
 	DeleteStaleTimeshiftPrograms(ctx context.Context, now time.Time) (int64, error)
+	// 見たいリストの通知 (#1234) が付けた、放送の前の視聴予約のうち、(service_ids[i], event_ids[i]) の組にないものを消す。
+	// 作品が見たいリストから外れた、見終えた、通知をやめたときに消すため。手で付けたものと、視聴ルールが付けたものは消さない。
+	DeleteStaleWishlistWatchReservations(ctx context.Context, arg DeleteStaleWishlistWatchReservationsParams) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	// neko が、チューナーを渡すため、またはチャンネルの設定がなくなったために、割り振りを取り消す。状態によらず消す。
 	DeleteTimeshiftAssignment(ctx context.Context, serviceID int64) (int64, error)
@@ -389,13 +392,16 @@ type Querier interface {
 	// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
 	InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams) error
 	// 視聴予約を付ける。放送が始まった番組と、EPG にない番組には付けない (設計書 4.8)。
-	// 視聴ルールが作った視聴予約に手で付け直したら、手で付けたものにする。視聴ルールに一致しなくなっても消さない。
+	// 視聴ルールや見たいリストの通知 (#1234) が作った視聴予約に手で付け直したら、手で付けたものにする。一致しなくなっても消さない。
 	InsertWatchReservation(ctx context.Context, arg InsertWatchReservationParams) (int64, error)
 	InsertWatchRule(ctx context.Context, arg InsertWatchRuleParams) error
 	// ユーザーが手で外した視聴予約の番組を覚える。視聴ルールに一致しても、付け直さない。
 	InsertWatchRuleDismissal(ctx context.Context, arg InsertWatchRuleDismissalParams) error
 	InsertWebAuthnCeremony(ctx context.Context, arg InsertWebAuthnCeremonyParams) error
 	InsertWebhook(ctx context.Context, arg InsertWebhookParams) (Webhook, error)
+	// 見たいリストの作品の放送 (service_ids[i], event_ids[i]) に、見たいリストの通知 (#1234) が付けたものとして、ユーザーの視聴予約を付ける。
+	// 視聴ルールと同じく、付けてある番組と、手で外した番組と、通知を送る時刻を過ぎた番組には付けない。
+	InsertWishlistWatchReservations(ctx context.Context, arg InsertWishlistWatchReservationsParams) (int64, error)
 	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
 	IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error)
 	LastPlayerCommandID(ctx context.Context, playerID uuid.UUID) (int64, error)
@@ -638,6 +644,13 @@ type Querier interface {
 	ListWebhooks(ctx context.Context) ([]Webhook, error)
 	// イベントの種類 kind を送る、有効な Webhook の ID を返す。
 	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
+	// ユーザーの見たいリストの作品の、これからの本放送のうち、話ごとに最も早い放送を返す (#1234)。
+	// 見終えた話数までの話、再放送、話数のない放送 (特番など)、終了時刻の決まっていない番組は除く。
+	// 同じ話を複数の局で放送するときは、最も早い放送 (同じ時刻ならサービス ID の小さい局) だけにし、二度通知しない。
+	ListWishlistWatchCandidates(ctx context.Context, arg ListWishlistWatchCandidatesParams) ([]ListWishlistWatchCandidatesRow, error)
+	// 見たいリストの作品の放送を通知する (#1234) ユーザーと、見たいリストの通知が付けた視聴予約を持つユーザーを返す。
+	// 通知をやめたユーザーの視聴予約も、照合で消すため。
+	ListWishlistWatchUsers(ctx context.Context) ([]ListWishlistWatchUsersRow, error)
 	// 有効な管理者の行をロックする。最後の管理者を外したり無効にしたりする操作を、同時に行わせない。
 	LockActiveAdmins(ctx context.Context) ([]uuid.UUID, error)
 	// 変える前の値を監査ログに残すため、上書きの行をロックして読む。サービスがなければ行を返さない。
