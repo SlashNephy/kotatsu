@@ -2,6 +2,9 @@ import { Anchor, Badge, Group, Stack, Text } from '@mantine/core';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
+import type { RecordAnimeEpisodesInput } from './__generated__/RecordAnimeButtonMutation.graphql';
+import { RecordAnimeButton } from './RecordAnimeButton';
+
 // AnimeWorkItem は、TID に対応する作品のページ。
 export type AnimeWorkItem = {
   readonly annictUrl: string | null | undefined;
@@ -60,11 +63,20 @@ export function episodeLinks(
 
 // AnimeEpisodes は、番組と録画の詳細に、結びついた話の話数とサブタイトル、作品のページへのリンクを出す (設計書 3.8)。
 // 2 話連続の放送のように、1 つの番組が複数の話に結びつけば、1 話ずつ並べる。結びついた話がなければ、何も出さない。
-export function AnimeEpisodes({ episodes }: { episodes: readonly AnimeEpisodeItem[] }) {
+// record を渡せば、結びついた話を、連携した記録先に手で記録するボタンを置く (#1232)。作品に結びついた話がなければ置かない。
+export function AnimeEpisodes({
+  episodes,
+  record,
+}: {
+  episodes: readonly AnimeEpisodeItem[];
+  record?: RecordAnimeEpisodesInput;
+}) {
   const { t } = useTranslation();
   if (episodes.length === 0) {
     return null;
   }
+  const recordable =
+    record !== undefined && episodes.some((episode) => episode.syobocalUrl != null);
 
   return (
     <Stack gap={4} data-testid="anime-episodes">
@@ -113,6 +125,11 @@ export function AnimeEpisodes({ episodes }: { episodes: readonly AnimeEpisodeIte
           </Group>
         );
       })}
+      {recordable && (
+        <Group gap="xs">
+          <RecordAnimeButton input={record} label={t('anime.record.button')} />
+        </Group>
+      )}
     </Stack>
   );
 }

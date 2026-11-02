@@ -1926,7 +1926,15 @@
       "5": "金曜",
       "6": "土曜"
     },
-    "excludeReruns": "再放送を除く"
+    "excludeReruns": "再放送を除く",
+    "record": {
+      "button": "見たことを記録する",
+      "next": "{{episode}}を見たことを記録する",
+      "requested": "記録を頼みました。結果は通知で知らせます",
+      "already": "記録済みです",
+      "notConnected": "AnnictかAniListと連携していません",
+      "failed": "記録を頼めませんでした"
+    }
   },
   "animeRecords": {
     "wishlistHint": "連携すると、AnnictとAniListで「見たい」「見てる」にした作品の、これからの放送を、録画の候補として出します。",

@@ -486,7 +486,7 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Badge>
             ))}
           </Group>
-          <AnimeEpisodes episodes={recording.animeEpisodes} />
+          <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (
