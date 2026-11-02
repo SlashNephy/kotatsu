@@ -322,6 +322,8 @@ type Querier interface {
 	// 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeChannelDefinitions(ctx context.Context, arg InsertAnimeChannelDefinitionsParams) error
 	// 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
+	// 番組によらず手で記録した話 (service_id が 0。#1232) と同じ話は、記録できなかったもののほかにあれば、番組を見ても記録しない。
+	// 手で記録するときも、同じ話の記録があれば記録しない。
 	InsertAnimeRecord(ctx context.Context, arg InsertAnimeRecordParams) (int64, error)
 	InsertAnimeRecordAuthorization(ctx context.Context, arg InsertAnimeRecordAuthorizationParams) error
 	// 同じ作品が 2 度返ってきたら (見たいと見てるの両方など)、先に返ってきたものを使う。
@@ -672,6 +674,9 @@ type Querier interface {
 	// FOR KEY SHARE で行をロックするので、このトランザクションが終わるまで、他のインスタンスはリースを取れない (取る前に FOR UPDATE で待つ)。
 	// 延長 (RenewLease) の UPDATE とはぶつからないので、長い書き込みの間もリースを延ばせる (#729)。
 	LockLeaseForWrite(ctx context.Context, arg LockLeaseForWriteParams) (int64, error)
+	// 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
+	// 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
+	LockManualAnimeRecords(ctx context.Context, userKey string) error
 	// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。
 	LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (LockOAuthRefreshTokenRow, error)
 	// 録画を変える前に、ロックして読む。

@@ -1390,6 +1390,7 @@ CREATE INDEX anime_watch_progress_updated_at_idx ON anime_watch_progress (update
 CREATE TABLE anime_records (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- 見た番組。番組によらず、視聴管理の画面から手で記録した話 (#1232) では、service_id を 0 に、start_at を記録を頼んだ日時にする。
   service_id bigint NOT NULL,
   start_at timestamptz NOT NULL,
   destination text NOT NULL CHECK (destination IN ('annict', 'anilist')),

@@ -23,6 +23,7 @@ import { EmptyState, ProgramTitle, useNow, zonedFormat } from '../futon';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
+import { RecordAnimeButton } from './RecordAnimeButton';
 import type {
   AnimeLibraryQuery,
   AnimeLibraryQuery$data,
@@ -449,6 +450,18 @@ function WorkCard({
             busy={busy}
             onReserve={onReserve}
           />
+        )}
+        {work.tid != null && next?.number != null && (
+          <Group gap="xs">
+            {/* 次の話が進んだら、記録を頼んだ表示を消して、次の話のボタンにする。 */}
+            <RecordAnimeButton
+              key={next.number}
+              input={{ tid: work.tid, episode: next.number, title: work.title }}
+              label={t('anime.record.next', {
+                episode: t('anime.episode', { number: next.number }),
+              })}
+            />
+          </Group>
         )}
         {recorded.length > 0 && (
           <Stack gap={4}>

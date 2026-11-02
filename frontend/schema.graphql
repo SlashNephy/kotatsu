@@ -1432,6 +1432,14 @@ type Mutation {
   """
   reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
   """
+  ログイン中のユーザーが手で選んだ話を、連携した記録先ごとに記録する (#1232)。プレイヤーで見た割合から記録するときと同じジョブで送り、
+  結果は、そのユーザーだけに通知する。送るのを待たずに返す。視聴者も使える。
+  番組と録画は、番組と話と記録先の組で 1 回だけ記録し、作品の話は、同じ話の記録がどこにもなければ記録する。
+  管理者が連携を無効にしていれば CONFLICT を、連携していなければ NOT_FOUND を、記録できる話がなければ BAD_USER_INPUT を、
+  すべて記録済みなら CONFLICT を返す。
+  """
+  recordAnimeEpisodes(input: RecordAnimeEpisodesInput!): Boolean!
+  """
   ログイン中のユーザーの見たいリストを、定期的な取り込みを待たずに取り込み直す (#928)。取り込みはジョブで行うので、終わるのを待たない。
   視聴者も使える。管理者が連携を無効にしていれば CONFLICT を返す。
   """
@@ -2694,6 +2702,31 @@ type Query {
   Webhook を作った順に返す。管理者だけが使える (設計書 9.7)。
   """
   webhooks: [Webhook!]!
+}
+"""
+手で記録する話 (#1232)。program、recording、tid のどれか 1 つを指す。
+"""
+input RecordAnimeEpisodesInput {
+  """
+  番組。番組に結びついた話を記録する (番組の詳細から)。
+  """
+  program: ID
+  """
+  録画。録画に写した結びつきの話を記録する (録画の詳細から)。
+  """
+  recording: ID
+  """
+  作品のしょぼいカレンダーの TID。episode の話を、番組によらず記録する (視聴管理の画面から)。
+  """
+  tid: Int
+  """
+  tid の話数。
+  """
+  episode: Float
+  """
+  tid の作品名。通知に出す。200 文字まで。
+  """
+  title: String
 }
 """
 録画 (設計書 5.5、8.2)。

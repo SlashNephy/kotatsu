@@ -513,6 +513,7 @@ type ComplexityRoot struct {
 		MarkNotificationsRead        func(childComplexity int, ids []string) int
 		PromoteTimeshiftProgram      func(childComplexity int, serviceID string, startAt time.Time) int
 		ReanalyzeRecording           func(childComplexity int, id string) int
+		RecordAnimeEpisodes          func(childComplexity int, input model.RecordAnimeEpisodesInput) int
 		RefreshAnimeWishlist         func(childComplexity int) int
 		RegenerateRecordingImages    func(childComplexity int, id string) int
 		RegenerateRecoveryCodes      func(childComplexity int) int
@@ -1279,6 +1280,7 @@ type MutationResolver interface {
 	DisconnectAnimeRecord(ctx context.Context, destination model.AnimeRecordDestination) (*model.AnimeRecordSettings, error)
 	UpdateAnimeRecordSettings(ctx context.Context, input model.AnimeRecordSettingsInput) (*model.AnimeRecordSettings, error)
 	ReportAnimePlayback(ctx context.Context, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) (bool, error)
+	RecordAnimeEpisodes(ctx context.Context, input model.RecordAnimeEpisodesInput) (bool, error)
 	RefreshAnimeWishlist(ctx context.Context) (bool, error)
 	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
@@ -3495,6 +3497,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ReanalyzeRecording(childComplexity, args["id"].(string)), true
+	case "Mutation.recordAnimeEpisodes":
+		if e.ComplexityRoot.Mutation.RecordAnimeEpisodes == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_recordAnimeEpisodes_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RecordAnimeEpisodes(childComplexity, args["input"].(model.RecordAnimeEpisodesInput)), true
 	case "Mutation.refreshAnimeWishlist":
 		if e.ComplexityRoot.Mutation.RefreshAnimeWishlist == nil {
 			break
@@ -7010,6 +7023,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("PlayerStateInput", ec.unmarshalInputPlayerStateInput),
 			graphql.NewInputUnmarshaler("ProgramConditionsInput", ec.unmarshalInputProgramConditionsInput),
 			graphql.NewInputUnmarshaler("ProgramReservationInput", ec.unmarshalInputProgramReservationInput),
+			graphql.NewInputUnmarshaler("RecordAnimeEpisodesInput", ec.unmarshalInputRecordAnimeEpisodesInput),
 			graphql.NewInputUnmarshaler("RecordingFilter", ec.unmarshalInputRecordingFilter),
 			graphql.NewInputUnmarshaler("RecordingSettingsOverridesInput", ec.unmarshalInputRecordingSettingsOverridesInput),
 			graphql.NewInputUnmarshaler("ReservationUpdateInput", ec.unmarshalInputReservationUpdateInput),
@@ -7711,6 +7725,33 @@ extend type Mutation {
   番組の長さのうち、決めた割合を見たら、結びついた話を記録する。記録の対象でなければ (連携が無効か、連携していない) false を返す。
   """
   reportAnimePlayback(serviceId: ID, recordingId: ID, intervals: [PlaybackIntervalInput!]!): Boolean!
+}
+
+"""
+手で記録する話 (#1232)。program、recording、tid のどれか 1 つを指す。
+"""
+input RecordAnimeEpisodesInput {
+  "番組。番組に結びついた話を記録する (番組の詳細から)。"
+  program: ID
+  "録画。録画に写した結びつきの話を記録する (録画の詳細から)。"
+  recording: ID
+  "作品のしょぼいカレンダーの TID。episode の話を、番組によらず記録する (視聴管理の画面から)。"
+  tid: Int
+  "tid の話数。"
+  episode: Float
+  "tid の作品名。通知に出す。200 文字まで。"
+  title: String
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーが手で選んだ話を、連携した記録先ごとに記録する (#1232)。プレイヤーで見た割合から記録するときと同じジョブで送り、
+  結果は、そのユーザーだけに通知する。送るのを待たずに返す。視聴者も使える。
+  番組と録画は、番組と話と記録先の組で 1 回だけ記録し、作品の話は、同じ話の記録がどこにもなければ記録する。
+  管理者が連携を無効にしていれば CONFLICT を、連携していなければ NOT_FOUND を、記録できる話がなければ BAD_USER_INPUT を、
+  すべて記録済みなら CONFLICT を返す。
+  """
+  recordAnimeEpisodes(input: RecordAnimeEpisodesInput!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/anime_wishlist.graphqls", Input: `"""
@@ -13338,6 +13379,20 @@ func (ec *executionContext) field_Mutation_reanalyzeRecording_args(ctx context.C
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_recordAnimeEpisodes_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.RecordAnimeEpisodesInput, error) {
+			return ec.unmarshalNRecordAnimeEpisodesInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordAnimeEpisodesInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -21175,6 +21230,50 @@ func (ec *executionContext) fieldContext_Mutation_reportAnimePlayback(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_reportAnimePlayback_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_recordAnimeEpisodes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_recordAnimeEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RecordAnimeEpisodes(ctx, fc.Args["input"].(model.RecordAnimeEpisodesInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_recordAnimeEpisodes(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_recordAnimeEpisodes_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -39593,6 +39692,76 @@ func UnmarshalProgramReservationInput(ctx context.Context, raw any) (model.Progr
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputRecordAnimeEpisodesInput(ctx context.Context, obj any) (model.RecordAnimeEpisodesInput, error) {
+	var it model.RecordAnimeEpisodesInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"program", "recording", "tid", "episode", "title"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "program":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("program"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Program = data
+		case "recording":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recording"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Recording = data
+		case "tid":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tid"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Tid = data
+		case "episode":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("episode"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Episode = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalRecordAnimeEpisodesInput unmarshals raw into the RecordAnimeEpisodesInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalRecordAnimeEpisodesInput(ctx context.Context, raw any) (model.RecordAnimeEpisodesInput, error) {
+	var out model.RecordAnimeEpisodesInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "RecordAnimeEpisodesInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, obj any) (model.RecordingFilter, error) {
 	var it model.RecordingFilter
 	if obj == nil {
@@ -43622,6 +43791,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "reportAnimePlayback":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_reportAnimePlayback(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordAnimeEpisodes":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_recordAnimeEpisodes(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -50860,6 +51036,11 @@ func (ec *executionContext) marshalNProgramEdge2ᚖgithubᚗcomᚋSlashNephyᚋk
 
 func (ec *executionContext) unmarshalNProgramReservationInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgramReservationInput(ctx context.Context, v any) (model.ProgramReservationInput, error) {
 	res, err := ec.unmarshalInputProgramReservationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNRecordAnimeEpisodesInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordAnimeEpisodesInput(ctx context.Context, v any) (model.RecordAnimeEpisodesInput, error) {
+	res, err := ec.unmarshalInputRecordAnimeEpisodesInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

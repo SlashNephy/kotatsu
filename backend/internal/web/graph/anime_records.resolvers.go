@@ -125,6 +125,11 @@ func (r *mutationResolver) ReportAnimePlayback(ctx context.Context, serviceID *s
 	return tracked, nil
 }
 
+// RecordAnimeEpisodes is the resolver for the recordAnimeEpisodes field.
+func (r *mutationResolver) RecordAnimeEpisodes(ctx context.Context, input model.RecordAnimeEpisodesInput) (bool, error) {
+	return r.recordAnimeEpisodes(ctx, &input)
+}
+
 // AnimeRecordApps is the resolver for the animeRecordApps field.
 func (r *queryResolver) AnimeRecordApps(ctx context.Context) ([]*model.AnimeRecordApp, error) {
 	if err := administer(ctx); err != nil {

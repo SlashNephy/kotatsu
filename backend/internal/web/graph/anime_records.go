@@ -3,7 +3,9 @@ package graph
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -157,5 +159,86 @@ func animeRecordError(err error) error {
 		return NewError(CodeConflict, "the saved secret cannot be decrypted; register it again")
 	default:
 		return err
+	}
+}
+
+// maxRecordTitleRunes は、手で記録するときに受け取る作品名の長さの上限。
+const maxRecordTitleRunes = 200
+
+// recordAnimeEpisodes は、ログイン中のユーザーが手で選んだ話を、連携した記録先ごとに記録するジョブを入れる (#1232)。
+func (r *Resolver) recordAnimeEpisodes(ctx context.Context, input *model.RecordAnimeEpisodesInput) (bool, error) {
+	principal, err := viewer(ctx)
+	if err != nil {
+		return false, err
+	}
+	target, err := r.manualTarget(ctx, input)
+	if err != nil {
+		return false, err
+	}
+	if r.animeRecords == nil {
+		return false, NewError(CodeConflict, "anime records are not available")
+	}
+	if err := r.animeRecords.RecordManually(ctx, r.db, r.jobs, principal.UserID, target); err != nil {
+		switch {
+		case errors.Is(err, animerecord.ErrNothingToRecord):
+			return false, NewError(CodeBadUserInput, err.Error())
+		case errors.Is(err, animerecord.ErrAlreadyRecorded):
+			return false, NewError(CodeConflict, err.Error())
+		default:
+			return false, animeRecordError(err)
+		}
+	}
+
+	return true, nil
+}
+
+// manualTarget は、手で記録する話の入力を、usecase の形にする。番組、録画、作品のどれか 1 つを受け付ける。
+func (r *Resolver) manualTarget(ctx context.Context, input *model.RecordAnimeEpisodesInput) (*animerecord.ManualTarget, error) {
+	given := 0
+	for _, set := range []bool{input.Program != nil, input.Recording != nil, input.Tid != nil} {
+		if set {
+			given++
+		}
+	}
+	if given != 1 {
+		return nil, NewError(CodeBadUserInput, "exactly one of program, recording and tid is required")
+	}
+	switch {
+	case input.Program != nil:
+		node, err := (&queryResolver{r}).Node(ctx, *input.Program)
+		if err != nil {
+			return nil, err
+		}
+		program, ok := node.(*model.Program)
+		if !ok {
+			return nil, NewError(CodeBadUserInput, "program must be a program ID")
+		}
+
+		return &animerecord.ManualTarget{
+			Program: &animerecord.ManualProgram{ServiceID: program.ServiceKey, StartAt: program.StartAt, Name: program.Name}, RecordingID: nil, Work: nil,
+		}, nil
+	case input.Recording != nil:
+		id, err := parseRecordingID(*input.Recording)
+		if err != nil {
+			return nil, err
+		}
+
+		return &animerecord.ManualTarget{Program: nil, RecordingID: &id, Work: nil}, nil
+	default:
+		tid := *input.Tid
+		if tid <= 0 || tid > math.MaxInt32 || input.Episode == nil {
+			return nil, NewError(CodeBadUserInput, "tid and episode are required")
+		}
+		title := ""
+		if input.Title != nil {
+			title = strings.TrimSpace(*input.Title)
+		}
+		if utf8.RuneCountInString(title) > maxRecordTitleRunes {
+			return nil, NewError(CodeBadUserInput, "title is too long")
+		}
+
+		return &animerecord.ManualTarget{
+			Program: nil, RecordingID: nil, Work: &animerecord.ManualWork{TID: int32(tid), Number: *input.Episode, Title: title},
+		}, nil
 	}
 }

@@ -1100,6 +1100,20 @@ type ProgramReservationInput struct {
 type Query struct {
 }
 
+// 手で記録する話 (#1232)。program、recording、tid のどれか 1 つを指す。
+type RecordAnimeEpisodesInput struct {
+	// 番組。番組に結びついた話を記録する (番組の詳細から)。
+	Program *string `json:"program,omitempty"`
+	// 録画。録画に写した結びつきの話を記録する (録画の詳細から)。
+	Recording *string `json:"recording,omitempty"`
+	// 作品のしょぼいカレンダーの TID。episode の話を、番組によらず記録する (視聴管理の画面から)。
+	Tid *int `json:"tid,omitempty"`
+	// tid の話数。
+	Episode *float64 `json:"episode,omitempty"`
+	// tid の作品名。通知に出す。200 文字まで。
+	Title *string `json:"title,omitempty"`
+}
+
 // CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
 type RecordingCMSection struct {
 	// 区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。

@@ -80,12 +80,19 @@ DELETE FROM anime_watch_progress WHERE updated_at < @before;
 
 -- name: InsertAnimeRecord :execrows
 -- 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
+-- 番組によらず手で記録した話 (service_id が 0。#1232) と同じ話は、記録できなかったもののほかにあれば、番組を見ても記録しない。
+-- 手で記録するときも、同じ話の記録があれば記録しない。
 INSERT INTO anime_records (
   id, user_id, service_id, start_at, destination, syobocal_tid, episode_number, subtitle, is_first, is_last,
   program_name, state, created_at, updated_at
-) VALUES (
-  @id, @user_id, @service_id, @start_at, @destination, @syobocal_tid, sqlc.narg(episode_number), sqlc.narg(subtitle), @is_first, @is_last,
+)
+SELECT @id, @user_id, @service_id, @start_at, @destination, @syobocal_tid, sqlc.narg(episode_number), sqlc.narg(subtitle), @is_first, @is_last,
   @program_name, 'pending', @now, @now
+WHERE NOT EXISTS (
+  SELECT 1 FROM anime_records r
+  WHERE r.user_id = @user_id AND r.destination = @destination AND r.syobocal_tid = @syobocal_tid
+    AND r.episode_number IS NOT DISTINCT FROM sqlc.narg(episode_number)::double precision AND r.state <> 'failed'
+    AND (r.service_id = 0 OR @service_id::bigint = 0)
 )
 ON CONFLICT (user_id, service_id, start_at, destination, syobocal_tid, episode_number) DO NOTHING;
 
@@ -97,3 +104,8 @@ ORDER BY syobocal_tid, episode_number NULLS FIRST;
 -- name: FinishAnimeRecord :exec
 UPDATE anime_records SET state = @state, url = sqlc.narg(url), error = sqlc.narg(error), updated_at = @now
 WHERE id = @id AND state = 'pending';
+
+-- name: LockManualAnimeRecords :exec
+-- 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
+-- 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
+SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_manual_record'), hashtext(@user_key::text));

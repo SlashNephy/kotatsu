@@ -2000,7 +2000,15 @@
       "5": "Friday",
       "6": "Saturday"
     },
-    "excludeReruns": "Exclude reruns"
+    "excludeReruns": "Exclude reruns",
+    "record": {
+      "button": "Record as watched",
+      "next": "Record {{episode}} as watched",
+      "requested": "Requested. You will be notified of the result",
+      "already": "Already recorded",
+      "notConnected": "You have not connected Annict or AniList",
+      "failed": "Could not request the record"
+    }
   },
   "animeRecords": {
     "wishlistHint": "Once connected, the upcoming broadcasts of the works you want to watch or are watching on Annict and AniList appear as recording candidates.",
