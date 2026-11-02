@@ -28,6 +28,8 @@ const (
 	AnnictPageSize = 50
 	// AniListBatchSize は、AniList に 1 回に問い合わせる MyAnimeList の ID の数。AniList の 1 ページの上限。
 	AniListBatchSize = 50
+	// maxAniListPages は、1 回の AniListIDsByMAL で引くページの数の上限。50 件の ID に 250 作品まで対応できる。
+	maxAniListPages = 5
 )
 
 var (
@@ -156,37 +158,47 @@ func (c *Client) AnnictWorks(ctx context.Context, token string, seasons []string
 }
 
 // AniListIDsByMAL は、MyAnimeList の作品 ID (AniListBatchSize 件まで) に対応する、AniList の作品 ID を返す。見つからない ID は含めない。
-// AniList の公開 API なので、トークンは使わない。
+// AniList の公開 API なので、トークンは使わない。1 つの MyAnimeList の作品に複数の作品が対応すると、1 ページに収まらないので、続きのページも引く。
 func (c *Client) AniListIDsByMAL(ctx context.Context, malIDs []int32) (map[int32]int32, error) {
 	if len(malIDs) > AniListBatchSize {
 		return nil, fmt.Errorf("too many MyAnimeList IDs: %d", len(malIDs))
 	}
-	const query = `query ($ids: [Int], $perPage: Int) { Page(perPage: $perPage) { media(idMal_in: $ids, type: ANIME) { id idMal } } }`
-	var data struct {
-		Page *struct {
-			Media []*struct {
-				ID    int32  `json:"id"`
-				IDMal *int32 `json:"idMal"`
-			} `json:"media"`
-		} `json:"Page"`
-	}
-	if err := c.post(ctx, c.aniListURL, "", query, map[string]any{"ids": malIDs, "perPage": AniListBatchSize}, &data); err != nil {
-		return nil, err
-	}
+	const query = `query ($ids: [Int], $page: Int, $perPage: Int) {
+  Page(page: $page, perPage: $perPage) { media(idMal_in: $ids, type: ANIME) { id idMal } pageInfo { hasNextPage } } }`
 	result := map[int32]int32{}
-	if data.Page == nil {
-		return result, nil
-	}
-	for _, media := range data.Page.Media {
-		if media != nil && media.IDMal != nil {
-			// 1 つの MyAnimeList の作品に複数の AniList の作品が対応するときは、小さい ID を使う。
-			if current, ok := result[*media.IDMal]; !ok || media.ID < current {
-				result[*media.IDMal] = media.ID
+	for page := 1; page <= maxAniListPages; page++ {
+		var data struct {
+			Page *struct {
+				Media []*struct {
+					ID    int32  `json:"id"`
+					IDMal *int32 `json:"idMal"`
+				} `json:"media"`
+				PageInfo struct {
+					HasNextPage bool `json:"hasNextPage"`
+				} `json:"pageInfo"`
+			} `json:"Page"`
+		}
+		variables := map[string]any{"ids": malIDs, "page": page, "perPage": AniListBatchSize}
+		if err := c.post(ctx, c.aniListURL, "", query, variables, &data); err != nil {
+			return nil, err
+		}
+		if data.Page == nil {
+			return result, nil
+		}
+		for _, media := range data.Page.Media {
+			if media != nil && media.IDMal != nil {
+				// 1 つの MyAnimeList の作品に複数の AniList の作品が対応するときは、小さい ID を使う。
+				if current, ok := result[*media.IDMal]; !ok || media.ID < current {
+					result[*media.IDMal] = media.ID
+				}
 			}
+		}
+		if !data.Page.PageInfo.HasNextPage {
+			return result, nil
 		}
 	}
 
-	return result, nil
+	return nil, errors.New("too many AniList works for the MyAnimeList IDs")
 }
 
 // graphQLResponse は、GraphQL の応答。

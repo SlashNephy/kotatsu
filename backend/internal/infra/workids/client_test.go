@@ -146,6 +146,30 @@ func TestAniListIDsByMAL(t *testing.T) {
 	assert.Equal(t, []any{float64(318), float64(5114), float64(7)}, received.Variables["ids"])
 }
 
+// TestAniListIDsByMALPages は、対応する作品が 1 ページに収まらなければ、続きのページも引くことを確かめる。
+func TestAniListIDsByMALPages(t *testing.T) {
+	t.Parallel()
+
+	pages := []string{
+		`{"data":{"Page":{"media":[{"id":1,"idMal":10}],"pageInfo":{"hasNextPage":true}}}}`,
+		`{"data":{"Page":{"media":[{"id":2,"idMal":20}],"pageInfo":{"hasNextPage":false}}}}`,
+	}
+	requested := []any{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request graphQLRequest
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		requested = append(requested, request.Variables["page"])
+		_, _ = w.Write([]byte(pages[len(requested)-1]))
+	}))
+	t.Cleanup(server.Close)
+	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: "", AniListBaseURL: server.URL})
+
+	found, err := client.AniListIDsByMAL(t.Context(), []int32{10, 20})
+	require.NoError(t, err)
+	assert.Equal(t, map[int32]int32{10: 1, 20: 2}, found)
+	assert.Equal(t, []any{float64(1), float64(2)}, requested)
+}
+
 func TestAniListIDsByMALTooMany(t *testing.T) {
 	t.Parallel()
 

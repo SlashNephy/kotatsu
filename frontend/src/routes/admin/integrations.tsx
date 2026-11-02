@@ -591,6 +591,7 @@ function AnimeImportTokenForm({
           </Button>
           {configured && (
             <Button
+              type="button"
               size="compact-sm"
               variant="default"
               color="red"
