@@ -599,7 +599,7 @@ func TestWishlistCandidates(t *testing.T) {
 	f.connect(t, f.alice, animerecord.DestinationAniList)
 	f.connect(t, f.bob, animerecord.DestinationAnnict)
 	f.annict.setList([]fakeListEntry{{ID: annictWorkID, Title: titleA, Status: stateWannaWatch}, {ID: 20, Title: "対応のない作品", Status: stateWannaWatch}}, 0)
-	f.anilist.setList([]fakeListEntry{{ID: aniListID, Title: "Work A", Status: listCurrent}}, 0)
+	f.anilist.setList([]fakeListEntry{{ID: aniListID, Title: titleWorkA, Status: listCurrent}}, 0)
 	require.NoError(t, f.service.ImportUserWishlists(t.Context(), f.pool, f.alice.UserID))
 	// bob の見たいリストは、TID 7000 の作品だけ。
 	f.annict.setList([]fakeListEntry{{ID: 21, Title: titleC, Status: stateWatching}}, 0)
@@ -653,7 +653,7 @@ func TestWishlistCandidates(t *testing.T) {
 	// 連携を外すと、その記録先の見たいリストも消え、ほかの記録先の分だけが残る。
 	require.NoError(t, f.service.Disconnect(t.Context(), f.pool, audit.User(f.alice.UserID), f.alice.UserID, animerecord.DestinationAnnict))
 	check(t, f.alice.UserID, []want{{
-		tid: testTID, title: "Work A", sources: []string{"anilist:watching"}, reserved: 1,
+		tid: testTID, title: titleWorkA, sources: []string{"anilist:watching"}, reserved: 1,
 		broadcasts: []pickedBroadcast{
 			{ServiceID: otherService, EventID: event(otherService, at(12, 30)), Preferred: false},
 			{ServiceID: serviceID(), EventID: event(serviceID(), at(13, 0)), Preferred: false},

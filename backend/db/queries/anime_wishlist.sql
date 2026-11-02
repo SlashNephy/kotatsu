@@ -76,3 +76,26 @@ ORDER BY p.service_id, p.event_id, e.syobocal_tid;
 -- name: LockAnimeWishlistRule :exec
 -- 見たいリストの作品からルールを作るとき (#928)、同じ作品のルールを重ねて作らないよう、TID ごとにトランザクションの終わりまで待ち合わせる。
 SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_wishlist_rule'), @syobocal_tid::integer);
+
+-- name: ListAnimeLibraryPrograms :many
+-- 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
+-- 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
+-- 話数のない放送 (特番など) の話数は、-1 にする。
+SELECT e.syobocal_tid::integer AS syobocal_tid, p.service_id, p.event_id, p.start_at,
+  COALESCE(min(e.count_start), -1)::double precision AS count_start, COALESCE(max(e.count_end), -1)::double precision AS count_end
+FROM program_anime_episodes e
+JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at
+JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+WHERE e.syobocal_tid = ANY(@syobocal_tids::integer[]) AND p.end_at > @now AND p.start_at < @until
+GROUP BY e.syobocal_tid, p.service_id, p.event_id, p.start_at
+ORDER BY p.start_at, p.service_id, e.syobocal_tid;
+
+-- name: ListAnimeLibraryRecordings :many
+-- 視聴管理の画面 (#1231) の、TID に結びついた話の録画を返す。話数のない録画と、録れなかった録画は返さない。
+-- 同じ話の録画は、新しく録ったものを先に並べる。
+SELECT e.syobocal_tid::integer AS syobocal_tid, e.count_start::double precision AS count_start,
+  e.count_end::double precision AS count_end, e.subtitle, r.id AS recording_id
+FROM recording_anime_episodes e
+JOIN recordings r ON r.id = e.recording_id
+WHERE e.syobocal_tid = ANY(@syobocal_tids::integer[]) AND e.count_start IS NOT NULL AND e.count_end IS NOT NULL AND r.state <> 'failed'
+ORDER BY e.syobocal_tid, e.count_start, e.count_end, r.recorded_from DESC, r.id;

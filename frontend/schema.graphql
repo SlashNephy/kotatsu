@@ -140,6 +140,149 @@ enum AnimeImportSource {
   SYOBOCAL_TITLES
 }
 """
+ログイン中のユーザーの、見たいリストの作品を、作品ごとに並べたもの (視聴管理の画面。#1231)。
+"""
+type AnimeLibrary {
+  """
+  管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。
+  """
+  enabled: Boolean!
+  """
+  連携した記録先ごとの、取り込んだ様子。連携していなければ空。
+  """
+  imports: [AnimeWishlistImport!]!
+  """
+  見たいリストの作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。
+  """
+  works: [AnimeLibraryWork!]!
+}
+"""
+作品の放送 (#1231)。
+"""
+type AnimeLibraryBroadcast {
+  program: Program!
+  """
+  放送する話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。
+  """
+  countStart: Float
+  countEnd: Float
+}
+"""
+作品の次に見る話 (#1231)。
+"""
+type AnimeLibraryEpisode {
+  """
+  話数。分からなければ null。
+  """
+  number: Int
+  """
+  話数の文字列 (第1話、#1 など)。記録先が示さなければ null。
+  """
+  numberText: String
+  """
+  サブタイトル。記録先が示さなければ null。
+  """
+  title: String
+}
+"""
+作品の、録画のある話 (#1231)。
+"""
+type AnimeLibraryRecordedEpisode {
+  """
+  話数の範囲。1 話だけなら同じ値。
+  """
+  countStart: Float!
+  countEnd: Float!
+  subtitle: String
+  """
+  その話の録画のうち、最も新しく録ったもの。
+  """
+  recording: Recording!
+  """
+  その話の録画の数。2 局で録ったときなどは 2 以上になる。
+  """
+  recordingCount: Int!
+  """
+  見終えた話数までの話かどうか。見終えた話数が分からなければ null。
+  """
+  watched: Boolean
+}
+"""
+視聴管理の画面の作品を、見たいリストに入れた記録先と、記録先での様子 (#1231)。
+"""
+type AnimeLibrarySource {
+  destination: AnimeRecordDestination!
+  """
+  記録先の作品 ID。
+  """
+  workId: Int!
+  status: AnimeWishlistStatus!
+  """
+  記録先の作品のページ。
+  """
+  url: String!
+  """
+  記録先の見終えた話数。分からなければ null。
+  """
+  progress: Int
+}
+"""
+視聴管理の画面の 1 作品 (#1231)。しょぼいカレンダーの TID に対応する作品は TID ごとに 1 つにまとめ、
+Annict と AniList の両方に入れた作品も 1 つにする。TID に対応しない作品は、記録先の作品ごとに 1 つにし、放送も録画も引けない。
+"""
+type AnimeLibraryWork {
+  """
+  作品を見分ける ID。TID か、TID がなければ記録先の作品から作る。
+  """
+  id: ID!
+  """
+  しょぼいカレンダーの TID。対応しなければ null。
+  """
+  tid: Int
+  """
+  作品名。Annict の作品名を先に選ぶ。
+  """
+  title: String!
+  """
+  どれかの記録先で「見てる」にしていれば WATCHING。
+  """
+  status: AnimeWishlistStatus!
+  sources: [AnimeLibrarySource!]!
+  """
+  見終えた話数。記録先ごとの見終えた話数のうち、大きいほう。どの記録先も分からなければ null。
+  """
+  progress: Int
+  """
+  全話数。分からなければ null。
+  """
+  episodesCount: Int
+  """
+  放送の年。分からなければ null。
+  """
+  seasonYear: Int
+  """
+  放送のシーズン。分からなければ null。
+  """
+  season: AnimeSeason
+  """
+  次に見る話。Annict が示した次の話があればそれを、なければ見終えた話数の次の話数だけを返す。分からなければ null。
+  """
+  nextEpisode: AnimeLibraryEpisode
+  """
+  次の放送 (放送中を含む)。これから 1 週間の放送のうち、見終えた話数より後の話の放送で最も早いもの。なければ、最も早い放送。
+  放送がなければ null。
+  """
+  nextBroadcast: AnimeLibraryBroadcast
+  """
+  これから 1 週間の放送 (放送中を含む)。放送の早い順に並べる。
+  """
+  broadcasts: [AnimeLibraryBroadcast!]!
+  """
+  録画のある話。話数の順に並べる。
+  """
+  recordedEpisodes: [AnimeLibraryRecordedEpisode!]!
+}
+"""
 管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。
 """
 type AnimeRecordApp {
@@ -236,6 +379,15 @@ input AnimeRecordSettingsInput {
   watchingOnFirst: Boolean!
   watchingOnEpisode: Boolean!
   watchedOnLast: Boolean!
+}
+"""
+作品の放送の時期 (#1230)。Annict の AUTUMN と AniList の FALL は、どちらも AUTUMN にする。
+"""
+enum AnimeSeason {
+  WINTER
+  SPRING
+  SUMMER
+  AUTUMN
 }
 """
 ログイン中のユーザーの、見たいリストの作品の放送の候補 (#928)。
@@ -2259,6 +2411,10 @@ type Query {
   連携先の情報を取り込んだ様子 (設計書 3.8)。管理者だけが使える。
   """
   animeImports: [AnimeImport!]!
+  """
+  ログイン中のユーザーの見たいリストの作品を、次の話と次の放送と録画と並べて返す (#1231)。ほかのユーザーの見たいリストは見えない。視聴者も使える。
+  """
+  animeLibrary: AnimeLibrary!
   """
   記録先ごとに、管理者が登録したアプリを返す (#927)。管理者だけが使える。
   """

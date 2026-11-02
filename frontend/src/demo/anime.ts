@@ -61,3 +61,8 @@ export function demoAnimeRecordApps(origin: string) {
 export function demoAnimeWishlist() {
   return { enabled: false, imports: [], works: [] };
 }
+
+// demoAnimeLibrary は、デモの、視聴管理の画面の作品 (#1231)。デモは外部へ問い合わせないので、連携は使わない。
+export function demoAnimeLibrary() {
+  return { enabled: false, imports: [], works: [] };
+}

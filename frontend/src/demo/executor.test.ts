@@ -7,6 +7,7 @@ import GuideViewEditorCreateMutation from '../guide/__generated__/GuideViewEdito
 import GuideViewEditorDeleteMutation from '../guide/__generated__/GuideViewEditorDeleteMutation.graphql';
 import GuideViewEditorUpdateMutation from '../guide/__generated__/GuideViewEditorUpdateMutation.graphql';
 import PinButtonMutation from '../guide/__generated__/PinButtonMutation.graphql';
+import AnimeLibraryQuery from '../anime/__generated__/AnimeLibraryQuery.graphql';
 import ProgramDetailQuery from '../guide/__generated__/ProgramDetailQuery.graphql';
 import DashboardQuery from '../home/__generated__/DashboardQuery.graphql';
 import RootViewerQuery from '../routes/__generated__/RootViewerQuery.graphql';
@@ -113,6 +114,7 @@ describe('demo executor answers the queries of the screens', () => {
       variables: { conditions: {}, archive: null, first: 50, after: null },
     },
     { name: 'program detail', request: ProgramDetailQuery, variables: { id: past } },
+    { name: 'anime library', request: AnimeLibraryQuery, variables: {} },
     { name: 'pin', request: PinButtonMutation, variables: { id: 'Service:1040', pinned: true } },
     {
       name: 'watch reservation',

@@ -79,6 +79,91 @@ type AnimeImport struct {
 	Error *string `json:"error,omitempty"`
 }
 
+// ログイン中のユーザーの、見たいリストの作品を、作品ごとに並べたもの (視聴管理の画面。#1231)。
+type AnimeLibrary struct {
+	// 管理者が、しょぼいカレンダー、Annict、AniList との連携を有効にしているかどうか (設計書 3.8)。無効なら、ほかの項目は空。
+	Enabled bool `json:"enabled"`
+	// 連携した記録先ごとの、取り込んだ様子。連携していなければ空。
+	Imports []*AnimeWishlistImport `json:"imports"`
+	// 見たいリストの作品。次の放送の早い順に並べ、放送の予定のない作品は、作品名の順に後ろに回す。
+	Works []*AnimeLibraryWork `json:"works"`
+}
+
+// 作品の放送 (#1231)。
+type AnimeLibraryBroadcast struct {
+	Program *Program `json:"program"`
+	// 放送する話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。
+	CountStart *float64 `json:"countStart,omitempty"`
+	CountEnd   *float64 `json:"countEnd,omitempty"`
+}
+
+// 作品の次に見る話 (#1231)。
+type AnimeLibraryEpisode struct {
+	// 話数。分からなければ null。
+	Number *int `json:"number,omitempty"`
+	// 話数の文字列 (第1話、#1 など)。記録先が示さなければ null。
+	NumberText *string `json:"numberText,omitempty"`
+	// サブタイトル。記録先が示さなければ null。
+	Title *string `json:"title,omitempty"`
+}
+
+// 作品の、録画のある話 (#1231)。
+type AnimeLibraryRecordedEpisode struct {
+	// 話数の範囲。1 話だけなら同じ値。
+	CountStart float64 `json:"countStart"`
+	CountEnd   float64 `json:"countEnd"`
+	Subtitle   *string `json:"subtitle,omitempty"`
+	// その話の録画のうち、最も新しく録ったもの。
+	Recording *Recording `json:"recording"`
+	// その話の録画の数。2 局で録ったときなどは 2 以上になる。
+	RecordingCount int `json:"recordingCount"`
+	// 見終えた話数までの話かどうか。見終えた話数が分からなければ null。
+	Watched *bool `json:"watched,omitempty"`
+}
+
+// 視聴管理の画面の作品を、見たいリストに入れた記録先と、記録先での様子 (#1231)。
+type AnimeLibrarySource struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 記録先の作品 ID。
+	WorkID int                 `json:"workId"`
+	Status AnimeWishlistStatus `json:"status"`
+	// 記録先の作品のページ。
+	URL string `json:"url"`
+	// 記録先の見終えた話数。分からなければ null。
+	Progress *int `json:"progress,omitempty"`
+}
+
+// 視聴管理の画面の 1 作品 (#1231)。しょぼいカレンダーの TID に対応する作品は TID ごとに 1 つにまとめ、
+// Annict と AniList の両方に入れた作品も 1 つにする。TID に対応しない作品は、記録先の作品ごとに 1 つにし、放送も録画も引けない。
+type AnimeLibraryWork struct {
+	// 作品を見分ける ID。TID か、TID がなければ記録先の作品から作る。
+	ID string `json:"id"`
+	// しょぼいカレンダーの TID。対応しなければ null。
+	Tid *int `json:"tid,omitempty"`
+	// 作品名。Annict の作品名を先に選ぶ。
+	Title string `json:"title"`
+	// どれかの記録先で「見てる」にしていれば WATCHING。
+	Status  AnimeWishlistStatus   `json:"status"`
+	Sources []*AnimeLibrarySource `json:"sources"`
+	// 見終えた話数。記録先ごとの見終えた話数のうち、大きいほう。どの記録先も分からなければ null。
+	Progress *int `json:"progress,omitempty"`
+	// 全話数。分からなければ null。
+	EpisodesCount *int `json:"episodesCount,omitempty"`
+	// 放送の年。分からなければ null。
+	SeasonYear *int `json:"seasonYear,omitempty"`
+	// 放送のシーズン。分からなければ null。
+	Season *AnimeSeason `json:"season,omitempty"`
+	// 次に見る話。Annict が示した次の話があればそれを、なければ見終えた話数の次の話数だけを返す。分からなければ null。
+	NextEpisode *AnimeLibraryEpisode `json:"nextEpisode,omitempty"`
+	// 次の放送 (放送中を含む)。これから 1 週間の放送のうち、見終えた話数より後の話の放送で最も早いもの。なければ、最も早い放送。
+	// 放送がなければ null。
+	NextBroadcast *AnimeLibraryBroadcast `json:"nextBroadcast,omitempty"`
+	// これから 1 週間の放送 (放送中を含む)。放送の早い順に並べる。
+	Broadcasts []*AnimeLibraryBroadcast `json:"broadcasts"`
+	// 録画のある話。話数の順に並べる。
+	RecordedEpisodes []*AnimeLibraryRecordedEpisode `json:"recordedEpisodes"`
+}
+
 // 管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。
 type AnimeRecordApp struct {
 	Destination AnimeRecordDestination `json:"destination"`
@@ -1778,6 +1863,66 @@ func (e *AnimeRecordDestination) UnmarshalJSON(b []byte) error {
 }
 
 func (e AnimeRecordDestination) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 作品の放送の時期 (#1230)。Annict の AUTUMN と AniList の FALL は、どちらも AUTUMN にする。
+type AnimeSeason string
+
+const (
+	AnimeSeasonWinter AnimeSeason = "WINTER"
+	AnimeSeasonSpring AnimeSeason = "SPRING"
+	AnimeSeasonSummer AnimeSeason = "SUMMER"
+	AnimeSeasonAutumn AnimeSeason = "AUTUMN"
+)
+
+var AllAnimeSeason = []AnimeSeason{
+	AnimeSeasonWinter,
+	AnimeSeasonSpring,
+	AnimeSeasonSummer,
+	AnimeSeasonAutumn,
+}
+
+func (e AnimeSeason) IsValid() bool {
+	switch e {
+	case AnimeSeasonWinter, AnimeSeasonSpring, AnimeSeasonSummer, AnimeSeasonAutumn:
+		return true
+	}
+	return false
+}
+
+func (e AnimeSeason) String() string {
+	return string(e)
+}
+
+func (e *AnimeSeason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeSeason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeSeason", str)
+	}
+	return nil
+}
+
+func (e AnimeSeason) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeSeason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeSeason) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

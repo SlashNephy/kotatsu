@@ -455,7 +455,8 @@
     "menu": "Menu",
     "captures": "Captures",
     "remote": "Remote",
-    "offline": "Saved recordings"
+    "offline": "Saved recordings",
+    "anime": "Anime"
   },
   "guide": {
     "watchLive": "Watch {{name}} live",
@@ -1935,7 +1936,45 @@
     "annict": "Annict",
     "anilist": "AniList",
     "myAnimeList": "MyAnimeList",
-    "syobocal": "Syobocal"
+    "syobocal": "Syobocal",
+    "title": "Anime",
+    "description": "Works you marked as watching or want to watch on Annict and AniList, with the next episode, the next broadcast, and recordings you have not watched.",
+    "openWishlist": "Broadcasts from your wishlist",
+    "statusFilter": "Work status",
+    "status": {
+      "WATCHING": "Watching",
+      "WANNA_WATCH": "Want to watch",
+      "all": "All"
+    },
+    "loadError": "Could not load the works",
+    "disabled": "The administrator has not enabled anime linking",
+    "notConnected": "You have not connected Annict or AniList",
+    "connect": "Open account connections",
+    "empty": "No works",
+    "season": "{{season}} {{year}}",
+    "year": "{{year}}",
+    "seasons": {
+      "WINTER": "Winter",
+      "SPRING": "Spring",
+      "SUMMER": "Summer",
+      "AUTUMN": "Autumn"
+    },
+    "progress": "Watched up to episode {{progress}}",
+    "progressOf": "Watched {{progress}} / {{total}}",
+    "total": "{{total}} episodes",
+    "next": "Next: {{episode}}{{title}}",
+    "noNext": "The next episode is unknown",
+    "noBroadcast": "No broadcasts in the next week",
+    "onAir": "On air",
+    "inMinutes": "In {{count}} min",
+    "inHours": "In {{count}} h",
+    "inDays": "In {{count}} d",
+    "reserved": "Reserved",
+    "reservationDisabled": "Reservation disabled",
+    "unwatched": "Recordings you have not watched",
+    "recorded": "Recordings",
+    "recordingCount": "{{label}} ({{count}})",
+    "moreRecorded": "{{count}} more"
   },
   "animeRecords": {
     "wishlistHint": "Once connected, the upcoming broadcasts of the works you want to watch or are watching on Annict and AniList appear as recording candidates.",
