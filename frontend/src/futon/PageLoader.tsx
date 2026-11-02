@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import classes from './PageLoader.module.css';
 
-// PageLoader は、画面を読み込んでいる間に出す、全画面のスピナー。Suspense の fallback に使う。
+// PageLoader は、画面を読み込んでいる間に出すスピナー。Suspense の fallback に使い、読み込んでいる部分の中に出す。
 // 読み上げでは「読み込んでいます」と伝える。
 export function PageLoader() {
   const { t } = useTranslation();
