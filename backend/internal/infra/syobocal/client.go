@@ -33,9 +33,11 @@ const (
 	timeLayout = "2006-01-02 15:04:05"
 	// rangeLayout は、db.php に渡す期間の書き方。日本時間で書く。
 	rangeLayout = "20060102_150405"
-	// FlagNew、FlagFinal は、放送時間データのフラグ (https://docs.cal.syoboi.jp/spec/proginfo-flag/)。
+	// FlagNew、FlagFinal、FlagRerun は、放送時間データのフラグ (https://docs.cal.syoboi.jp/spec/proginfo-flag/)。
 	FlagNew   = 0x2
 	FlagFinal = 0x4
+	// FlagRerun は、再放送の印 (#1233)。
+	FlagRerun = 0x8
 	// MaxChannelsPerRequest は、1 回の ProgLookup に並べるチャンネルの数の上限。URL を長くしすぎず、5,000 件の上限にも当たらないようにする。
 	MaxChannelsPerRequest = 10
 )

@@ -103,6 +103,8 @@ type AnimeEpisode {
   first: Boolean!
   "しょぼいカレンダーの [終] の印。"
   last: Boolean!
+  "再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。"
+  rerun: Boolean!
   "TID に対応する作品。対応がなければ空。"
   works: [AnimeWork!]!
 }

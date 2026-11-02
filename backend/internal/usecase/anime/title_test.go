@@ -113,7 +113,7 @@ func TestMatchTitleFallback(t *testing.T) {
 	t.Parallel()
 
 	db, _, client, matcher := newMatchFixture(t)
-	insertNamedProgram(t, db, csService, 1, jst(2, 3, 0), jst(2, 3, 30), "[字]リピート作品 #12「おわり」")
+	insertNamedProgram(t, db, csService, 1, jst(2, 3, 0), jst(2, 3, 30), "[字][再]リピート作品 #12「おわり」")
 	insertNamedProgram(t, db, grService, 9, jst(2, 4, 0), jst(2, 4, 30), "同名作品 #3")
 	_, err := matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
@@ -122,8 +122,8 @@ func TestMatchTitleFallback(t *testing.T) {
 	}
 
 	assert.Equal(t, []episodeRow{
-		{Position: 0, TID: new(int32(30)), CountStart: new(12.0), CountEnd: new(12.0), Subtitle: new("おわり"), First: false, Last: false},
-	}, episodesOfProgram(t, db, csService, jst(2, 3, 0)))
+		{Position: 0, TID: new(int32(30)), CountStart: new(12.0), CountEnd: new(12.0), Subtitle: new("おわり"), First: false, Last: false, Rerun: true},
+	}, episodesOfProgram(t, db, csService, jst(2, 3, 0)), "the rerun mark is read from the name")
 	assert.Equal(t, []episodeRow{
 		{Position: 0, TID: nil, CountStart: new(3.0), CountEnd: new(3.0), Subtitle: nil, First: false, Last: false},
 	}, episodesOfProgram(t, db, grService, jst(2, 4, 0)), "an ambiguous title gets no TID")
@@ -193,6 +193,13 @@ func TestCopyToRecording(t *testing.T) {
 	recordingID := insertRecording(t, db, grService, jst(2, 0, 30), jst(2, 1, 30), false)
 	require.NoError(t, anime.CopyToRecording(t.Context(), db, recordingID, grService, jst(2, 0, 30), clk.Now()))
 	assert.Equal(t, []float64{1, 2}, recordingEpisodes(t, db, recordingID))
+
+	// 再放送の印も写す (#1233)。
+	rerun := insertRecording(t, db, bsService, jst(2, 22, 0), jst(2, 23, 0), false)
+	require.NoError(t, anime.CopyToRecording(t.Context(), db, rerun, bsService, jst(2, 22, 0), clk.Now()))
+	var copied bool
+	require.NoError(t, db.QueryRow(t.Context(), `SELECT bool_and(is_rerun) FROM recording_anime_episodes WHERE recording_id = $1`, rerun).Scan(&copied))
+	assert.True(t, copied)
 
 	// 照合していない番組の録画には、何も写さない。
 	other := insertRecording(t, db, grService, jst(2, 1, 30), jst(2, 2, 0), false)

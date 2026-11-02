@@ -64,6 +64,7 @@ type ComplexityRoot struct {
 		CountStart  func(childComplexity int) int
 		First       func(childComplexity int) int
 		Last        func(childComplexity int) int
+		Rerun       func(childComplexity int) int
 		Source      func(childComplexity int) int
 		Subtitle    func(childComplexity int) int
 		SyobocalTid func(childComplexity int) int
@@ -88,13 +89,21 @@ type ComplexityRoot struct {
 	AnimeLibraryBroadcast struct {
 		CountEnd   func(childComplexity int) int
 		CountStart func(childComplexity int) int
+		Last       func(childComplexity int) int
 		Program    func(childComplexity int) int
+		Rerun      func(childComplexity int) int
 	}
 
 	AnimeLibraryEpisode struct {
 		Number     func(childComplexity int) int
 		NumberText func(childComplexity int) int
 		Title      func(childComplexity int) int
+	}
+
+	AnimeLibraryPastBroadcast struct {
+		Last    func(childComplexity int) int
+		Rerun   func(childComplexity int) int
+		StartAt func(childComplexity int) int
 	}
 
 	AnimeLibraryRecordedEpisode struct {
@@ -121,6 +130,7 @@ type ComplexityRoot struct {
 		NextBroadcast    func(childComplexity int) int
 		NextEpisode      func(childComplexity int) int
 		Progress         func(childComplexity int) int
+		RecentBroadcasts func(childComplexity int) int
 		RecordedEpisodes func(childComplexity int) int
 		Season           func(childComplexity int) int
 		SeasonYear       func(childComplexity int) int
@@ -1564,6 +1574,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeEpisode.Last(childComplexity), true
+	case "AnimeEpisode.rerun":
+		if e.ComplexityRoot.AnimeEpisode.Rerun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeEpisode.Rerun(childComplexity), true
 	case "AnimeEpisode.source":
 		if e.ComplexityRoot.AnimeEpisode.Source == nil {
 			break
@@ -1657,12 +1673,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeLibraryBroadcast.CountStart(childComplexity), true
+	case "AnimeLibraryBroadcast.last":
+		if e.ComplexityRoot.AnimeLibraryBroadcast.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryBroadcast.Last(childComplexity), true
 	case "AnimeLibraryBroadcast.program":
 		if e.ComplexityRoot.AnimeLibraryBroadcast.Program == nil {
 			break
 		}
 
 		return e.ComplexityRoot.AnimeLibraryBroadcast.Program(childComplexity), true
+	case "AnimeLibraryBroadcast.rerun":
+		if e.ComplexityRoot.AnimeLibraryBroadcast.Rerun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryBroadcast.Rerun(childComplexity), true
 
 	case "AnimeLibraryEpisode.number":
 		if e.ComplexityRoot.AnimeLibraryEpisode.Number == nil {
@@ -1682,6 +1710,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeLibraryEpisode.Title(childComplexity), true
+
+	case "AnimeLibraryPastBroadcast.last":
+		if e.ComplexityRoot.AnimeLibraryPastBroadcast.Last == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryPastBroadcast.Last(childComplexity), true
+	case "AnimeLibraryPastBroadcast.rerun":
+		if e.ComplexityRoot.AnimeLibraryPastBroadcast.Rerun == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryPastBroadcast.Rerun(childComplexity), true
+	case "AnimeLibraryPastBroadcast.startAt":
+		if e.ComplexityRoot.AnimeLibraryPastBroadcast.StartAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryPastBroadcast.StartAt(childComplexity), true
 
 	case "AnimeLibraryRecordedEpisode.countEnd":
 		if e.ComplexityRoot.AnimeLibraryRecordedEpisode.CountEnd == nil {
@@ -1787,6 +1834,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeLibraryWork.Progress(childComplexity), true
+	case "AnimeLibraryWork.recentBroadcasts":
+		if e.ComplexityRoot.AnimeLibraryWork.RecentBroadcasts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeLibraryWork.RecentBroadcasts(childComplexity), true
 	case "AnimeLibraryWork.recordedEpisodes":
 		if e.ComplexityRoot.AnimeLibraryWork.RecordedEpisodes == nil {
 			break
@@ -7367,6 +7420,8 @@ type AnimeEpisode {
   first: Boolean!
   "しょぼいカレンダーの [終] の印。"
   last: Boolean!
+  "再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。"
+  rerun: Boolean!
   "TID に対応する作品。対応がなければ空。"
   works: [AnimeWork!]!
 }
@@ -7441,6 +7496,21 @@ type AnimeLibraryBroadcast {
   "放送する話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。"
   countStart: Float
   countEnd: Float
+  "再放送かどうか (#1233)。"
+  rerun: Boolean!
+  "最終話 ([終]) かどうか。"
+  last: Boolean!
+}
+
+"""
+作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+"""
+type AnimeLibraryPastBroadcast {
+  startAt: Time!
+  "再放送かどうか。"
+  rerun: Boolean!
+  "最終話 ([終]) かどうか。"
+  last: Boolean!
 }
 
 """
@@ -7492,6 +7562,8 @@ type AnimeLibraryWork {
   broadcasts: [AnimeLibraryBroadcast!]!
   "録画のある話。話数の順に並べる。"
   recordedEpisodes: [AnimeLibraryRecordedEpisode!]!
+  "この 1 週間に始まった放送のうち、本放送と再放送それぞれの最も新しいもの (#1233)。新しい順に並べる。"
+  recentBroadcasts: [AnimeLibraryPastBroadcast!]!
 }
 
 """
@@ -10509,6 +10581,8 @@ func (ec *executionContext) childFields_AnimeEpisode(ctx context.Context, field 
 		return ec.fieldContext_AnimeEpisode_first(ctx, field)
 	case "last":
 		return ec.fieldContext_AnimeEpisode_last(ctx, field)
+	case "rerun":
+		return ec.fieldContext_AnimeEpisode_rerun(ctx, field)
 	case "works":
 		return ec.fieldContext_AnimeEpisode_works(ctx, field)
 	}
@@ -10551,6 +10625,10 @@ func (ec *executionContext) childFields_AnimeLibraryBroadcast(ctx context.Contex
 		return ec.fieldContext_AnimeLibraryBroadcast_countStart(ctx, field)
 	case "countEnd":
 		return ec.fieldContext_AnimeLibraryBroadcast_countEnd(ctx, field)
+	case "rerun":
+		return ec.fieldContext_AnimeLibraryBroadcast_rerun(ctx, field)
+	case "last":
+		return ec.fieldContext_AnimeLibraryBroadcast_last(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AnimeLibraryBroadcast", field.Name)
 }
@@ -10565,6 +10643,18 @@ func (ec *executionContext) childFields_AnimeLibraryEpisode(ctx context.Context,
 		return ec.fieldContext_AnimeLibraryEpisode_title(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AnimeLibraryEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeLibraryPastBroadcast(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "startAt":
+		return ec.fieldContext_AnimeLibraryPastBroadcast_startAt(ctx, field)
+	case "rerun":
+		return ec.fieldContext_AnimeLibraryPastBroadcast_rerun(ctx, field)
+	case "last":
+		return ec.fieldContext_AnimeLibraryPastBroadcast_last(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeLibraryPastBroadcast", field.Name)
 }
 
 func (ec *executionContext) childFields_AnimeLibraryRecordedEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10629,6 +10719,8 @@ func (ec *executionContext) childFields_AnimeLibraryWork(ctx context.Context, fi
 		return ec.fieldContext_AnimeLibraryWork_broadcasts(ctx, field)
 	case "recordedEpisodes":
 		return ec.fieldContext_AnimeLibraryWork_recordedEpisodes(ctx, field)
+	case "recentBroadcasts":
+		return ec.fieldContext_AnimeLibraryWork_recentBroadcasts(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AnimeLibraryWork", field.Name)
 }
@@ -14919,6 +15011,29 @@ func (ec *executionContext) fieldContext_AnimeEpisode_last(_ context.Context, fi
 	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _AnimeEpisode_rerun(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeEpisode_rerun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rerun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeEpisode_rerun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeEpisode", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _AnimeEpisode_works(ctx context.Context, field graphql.CollectedField, obj *model.AnimeEpisode) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15231,6 +15346,52 @@ func (ec *executionContext) fieldContext_AnimeLibraryBroadcast_countEnd(_ contex
 	return graphql.NewScalarFieldContext("AnimeLibraryBroadcast", field, false, false, "Float")
 }
 
+func (ec *executionContext) _AnimeLibraryBroadcast_rerun(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryBroadcast_rerun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rerun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryBroadcast_rerun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeLibraryBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeLibraryBroadcast_last(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryBroadcast_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryBroadcast_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeLibraryBroadcast", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _AnimeLibraryEpisode_number(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryEpisode) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -15298,6 +15459,75 @@ func (ec *executionContext) _AnimeLibraryEpisode_title(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_AnimeLibraryEpisode_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AnimeLibraryEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeLibraryPastBroadcast_startAt(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryPastBroadcast_startAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryPastBroadcast_startAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeLibraryPastBroadcast", field, false, false, "Time")
+}
+
+func (ec *executionContext) _AnimeLibraryPastBroadcast_rerun(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryPastBroadcast_rerun(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Rerun, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryPastBroadcast_rerun(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeLibraryPastBroadcast", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeLibraryPastBroadcast_last(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryPastBroadcast) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryPastBroadcast_last(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Last, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryPastBroadcast_last(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeLibraryPastBroadcast", field, false, false, "Boolean")
 }
 
 func (ec *executionContext) _AnimeLibraryRecordedEpisode_countStart(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryRecordedEpisode) (ret graphql.Marshaler) {
@@ -15901,6 +16131,38 @@ func (ec *executionContext) fieldContext_AnimeLibraryWork_recordedEpisodes(_ con
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeLibraryRecordedEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeLibraryWork_recentBroadcasts(ctx context.Context, field graphql.CollectedField, obj *model.AnimeLibraryWork) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeLibraryWork_recentBroadcasts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecentBroadcasts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeLibraryPastBroadcast) graphql.Marshaler {
+			return ec.marshalNAnimeLibraryPastBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeLibraryPastBroadcastᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeLibraryWork_recentBroadcasts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeLibraryWork",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeLibraryPastBroadcast(ctx, field)
 		},
 	}
 	return fc, nil
@@ -40483,6 +40745,11 @@ func (ec *executionContext) _AnimeEpisode(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "rerun":
+			out.Values[i] = ec._AnimeEpisode_rerun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "works":
 			out.Values[i] = ec._AnimeEpisode_works(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -40627,6 +40894,16 @@ func (ec *executionContext) _AnimeLibraryBroadcast(ctx context.Context, sel ast.
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "rerun":
+			out.Values[i] = ec._AnimeLibraryBroadcast_rerun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._AnimeLibraryBroadcast_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -40668,6 +40945,49 @@ func (ec *executionContext) _AnimeLibraryEpisode(ctx context.Context, sel ast.Se
 		case "title":
 			out.Values[i] = ec._AnimeLibraryEpisode_title(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var animeLibraryPastBroadcastImplementors = []string{"AnimeLibraryPastBroadcast"}
+
+func (ec *executionContext) _AnimeLibraryPastBroadcast(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeLibraryPastBroadcast) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeLibraryPastBroadcastImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeLibraryPastBroadcast")
+		case "startAt":
+			out.Values[i] = ec._AnimeLibraryPastBroadcast_startAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "rerun":
+			out.Values[i] = ec._AnimeLibraryPastBroadcast_rerun(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "last":
+			out.Values[i] = ec._AnimeLibraryPastBroadcast_last(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -40871,6 +41191,11 @@ func (ec *executionContext) _AnimeLibraryWork(ctx context.Context, sel ast.Selec
 			}
 		case "recordedEpisodes":
 			out.Values[i] = ec._AnimeLibraryWork_recordedEpisodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recentBroadcasts":
+			out.Values[i] = ec._AnimeLibraryWork_recentBroadcasts(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -48841,6 +49166,30 @@ func (ec *executionContext) marshalNAnimeLibraryBroadcast2ᚖgithubᚗcomᚋSlas
 		return graphql.Null
 	}
 	return ec._AnimeLibraryBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAnimeLibraryPastBroadcast2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeLibraryPastBroadcastᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeLibraryPastBroadcast) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeLibraryPastBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeLibraryPastBroadcast(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeLibraryPastBroadcast2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeLibraryPastBroadcast(ctx context.Context, sel ast.SelectionSet, v *model.AnimeLibraryPastBroadcast) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AnimeLibraryPastBroadcast!")
+		return graphql.Null
+	}
+	return ec._AnimeLibraryPastBroadcast(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAnimeLibraryRecordedEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeLibraryRecordedEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeLibraryRecordedEpisode) graphql.Marshaler {

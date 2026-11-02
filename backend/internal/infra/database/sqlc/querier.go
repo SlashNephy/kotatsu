@@ -418,7 +418,12 @@ type Querier interface {
 	// 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
 	// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
 	// 話数のない放送 (特番など) の話数は、-1 にする。
+	// 再放送と最終話の印は、結びついた話のどれかに付いていれば付ける。
 	ListAnimeLibraryPrograms(ctx context.Context, arg ListAnimeLibraryProgramsParams) ([]ListAnimeLibraryProgramsRow, error)
+	// 視聴管理の画面 (#1233) の、TID ごとの、since から now までに始まった最も新しい放送を返す。「昨日」「終了」のバッジに使う。
+	// 過去の番組は、放送が終わってしばらくするとアーカイブに移るので、番組ではなく、番組の結びつきの開始時刻と印だけを読む。
+	// 再放送を除いて見るときのため、本放送の最も新しい放送も別に返す。
+	ListAnimeLibraryRecentBroadcasts(ctx context.Context, arg ListAnimeLibraryRecentBroadcastsParams) ([]ListAnimeLibraryRecentBroadcastsRow, error)
 	// 視聴管理の画面 (#1231) の、TID に結びついた話の録画を返す。話数のない録画と、録れなかった録画は返さない。
 	// 同じ話の録画は、新しく録ったものを先に並べる。
 	ListAnimeLibraryRecordings(ctx context.Context, syobocalTids []int32) ([]ListAnimeLibraryRecordingsRow, error)

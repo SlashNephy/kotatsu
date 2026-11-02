@@ -90,7 +90,7 @@ func syobocalProgram(pid, tid, channelID int32, start, end time.Time, count, sub
 
 // defaultSyobocal は、次の放送時間データを持つ偽物を返す。
 //   - 地上波 (ChID 1)：11 月 2 日 0:00 から第 5 話、0:30 から第 1 話と第 2 話 (最終話)、削除された放送時間データ
-//   - BS (ChID 9)：11 月 2 日 22:00 から、第 3 話と第 4 話をまとめた放送時間データ
+//   - BS (ChID 9)：11 月 2 日 22:00 から、第 3 話と第 4 話をまとめた放送時間データ (再放送)
 func defaultSyobocal() *fakeSyobocal {
 	deleted := syobocalProgram(103, 99, grChannel, jst(2, 0, 0), jst(2, 0, 30), "1", "", "", 0)
 	deleted.Deleted = true
@@ -102,7 +102,8 @@ func defaultSyobocal() *fakeSyobocal {
 			syobocalProgram(101, 11, grChannel, jst(2, 0, 30), jst(2, 1, 0), "1", "", "はじまり", 0),
 			syobocalProgram(102, 11, grChannel, jst(2, 1, 0), jst(2, 1, 30), "2", "", "", syobocal.FlagFinal),
 			deleted,
-			syobocalProgram(200, 20, bsChannel, jst(2, 22, 0), jst(2, 23, 0), "3", "#3～#4", "", 0),
+			// BS の放送は、再放送の印 (#1233) を持つ。
+			syobocalProgram(200, 20, bsChannel, jst(2, 22, 0), jst(2, 23, 0), "3", "#3～#4", "", syobocal.FlagRerun),
 		},
 		calls: []lookupCall{},
 		fail:  false,
@@ -129,19 +130,20 @@ type episodeRow struct {
 	Subtitle   *string
 	First      bool
 	Last       bool
+	Rerun      bool
 }
 
 func episodesOfProgram(t *testing.T, db *pgxpool.Pool, serviceID int64, start time.Time) []episodeRow {
 	t.Helper()
 
-	rows, err := db.Query(t.Context(), `SELECT position, syobocal_tid, count_start, count_end, subtitle, is_first, is_last
+	rows, err := db.Query(t.Context(), `SELECT position, syobocal_tid, count_start, count_end, subtitle, is_first, is_last, is_rerun
 		FROM program_anime_episodes WHERE service_id = $1 AND start_at = $2 ORDER BY position`, serviceID, start)
 	require.NoError(t, err)
 	defer rows.Close()
 	result := []episodeRow{}
 	for rows.Next() {
 		var row episodeRow
-		require.NoError(t, rows.Scan(&row.Position, &row.TID, &row.CountStart, &row.CountEnd, &row.Subtitle, &row.First, &row.Last))
+		require.NoError(t, rows.Scan(&row.Position, &row.TID, &row.CountStart, &row.CountEnd, &row.Subtitle, &row.First, &row.Last, &row.Rerun))
 		result = append(result, row)
 	}
 	require.NoError(t, rows.Err())
@@ -211,8 +213,8 @@ func TestMatchHorizon(t *testing.T) {
 		{Position: 1, TID: new(int32(11)), CountStart: new(2.0), CountEnd: new(2.0), Subtitle: nil, First: false, Last: true},
 	}, episodesOfProgram(t, db, grService, jst(2, 0, 30)), "a program of two episodes links to both")
 	assert.Equal(t, []episodeRow{
-		{Position: 0, TID: new(int32(20)), CountStart: new(3.0), CountEnd: new(4.0), Subtitle: nil, First: false, Last: false},
-	}, episodesOfProgram(t, db, bsService, jst(2, 22, 0)), "the range of episodes is read from the subtitle")
+		{Position: 0, TID: new(int32(20)), CountStart: new(3.0), CountEnd: new(4.0), Subtitle: nil, First: false, Last: false, Rerun: true},
+	}, episodesOfProgram(t, db, bsService, jst(2, 22, 0)), "the range of episodes and the rerun mark are read")
 	assert.False(t, matchOf(t, db, grService, jst(2, 1, 30)).found, "programs other than anime are not matched")
 
 	// 6 時間たつまでは、引いた放送時間データを使い回す。

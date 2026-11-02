@@ -62,6 +62,8 @@ type AnimeEpisode struct {
 	First bool `json:"first"`
 	// しょぼいカレンダーの [終] の印。
 	Last bool `json:"last"`
+	// 再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。
+	Rerun bool `json:"rerun"`
 	// TID に対応する作品。対応がなければ空。
 	Works []*AnimeWork `json:"works"`
 }
@@ -95,6 +97,10 @@ type AnimeLibraryBroadcast struct {
 	// 放送する話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。
 	CountStart *float64 `json:"countStart,omitempty"`
 	CountEnd   *float64 `json:"countEnd,omitempty"`
+	// 再放送かどうか (#1233)。
+	Rerun bool `json:"rerun"`
+	// 最終話 ([終]) かどうか。
+	Last bool `json:"last"`
 }
 
 // 作品の次に見る話 (#1231)。
@@ -105,6 +111,15 @@ type AnimeLibraryEpisode struct {
 	NumberText *string `json:"numberText,omitempty"`
 	// サブタイトル。記録先が示さなければ null。
 	Title *string `json:"title,omitempty"`
+}
+
+// 作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+type AnimeLibraryPastBroadcast struct {
+	StartAt time.Time `json:"startAt"`
+	// 再放送かどうか。
+	Rerun bool `json:"rerun"`
+	// 最終話 ([終]) かどうか。
+	Last bool `json:"last"`
 }
 
 // 作品の、録画のある話 (#1231)。
@@ -162,6 +177,8 @@ type AnimeLibraryWork struct {
 	Broadcasts []*AnimeLibraryBroadcast `json:"broadcasts"`
 	// 録画のある話。話数の順に並べる。
 	RecordedEpisodes []*AnimeLibraryRecordedEpisode `json:"recordedEpisodes"`
+	// この 1 週間に始まった放送のうち、本放送と再放送それぞれの最も新しいもの (#1233)。新しい順に並べる。
+	RecentBroadcasts []*AnimeLibraryPastBroadcast `json:"recentBroadcasts"`
 }
 
 // 管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。

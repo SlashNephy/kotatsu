@@ -387,6 +387,7 @@ type ProgramAnimeEpisode struct {
 	Subtitle    *string
 	IsFirst     bool
 	IsLast      bool
+	IsRerun     bool
 }
 
 type ProgramAnimeMatch struct {
@@ -467,6 +468,7 @@ type RecordingAnimeEpisode struct {
 	Subtitle    *string
 	IsFirst     bool
 	IsLast      bool
+	IsRerun     bool
 }
 
 type RecordingAnimeMatch struct {

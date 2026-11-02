@@ -140,7 +140,7 @@ func animeEpisodesOf(episodes []*anime.LinkedEpisode) []*model.AnimeEpisode {
 		result = append(result, &model.AnimeEpisode{
 			Source: source, SyobocalTid: intOf(episode.TID), SyobocalURL: workURL("https://cal.syoboi.jp/tid/", episode.TID),
 			CountStart: episode.CountStart, CountEnd: episode.CountEnd, Subtitle: episode.Subtitle,
-			First: episode.First, Last: episode.Last, Works: works,
+			First: episode.First, Last: episode.Last, Rerun: episode.Rerun, Works: works,
 		})
 	}
 

@@ -116,6 +116,8 @@ type Episode struct {
 	// First と Last は、しょぼいカレンダーの [新] と [終] の印。
 	First bool
 	Last  bool
+	// Rerun は、再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。
+	Rerun bool
 }
 
 // MatchChanges は、EPG の同期が「EPG が変わった」と通知した (設計書 3.3) サービスと時間帯の番組を照合する。
@@ -690,7 +692,7 @@ func (m *Matcher) writeRecording(ctx context.Context, recordingID uuid.UUID, epi
 			err := q.InsertRecordingAnimeEpisode(ctx, sqlc.InsertRecordingAnimeEpisodeParams{
 				RecordingID: recordingID, Position: int16(min(i, maxEpisodes)), Source: episode.Source,
 				SyobocalTid: episode.TID, SyobocalPid: episode.PID, CountStart: episode.CountStart, CountEnd: episode.CountEnd,
-				Subtitle: episode.Subtitle, IsFirst: episode.First, IsLast: episode.Last,
+				Subtitle: episode.Subtitle, IsFirst: episode.First, IsLast: episode.Last, IsRerun: episode.Rerun,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to save a recording anime episode: %w", err)
@@ -736,7 +738,7 @@ func replaceEpisodes(ctx context.Context, q *sqlc.Queries, serviceID int64, star
 		err := q.InsertProgramAnimeEpisode(ctx, sqlc.InsertProgramAnimeEpisodeParams{
 			ServiceID: serviceID, StartAt: startAt, Position: int16(min(i, maxEpisodes)), Source: episode.Source,
 			SyobocalTid: episode.TID, SyobocalPid: episode.PID, CountStart: episode.CountStart, CountEnd: episode.CountEnd,
-			Subtitle: episode.Subtitle, IsFirst: episode.First, IsLast: episode.Last,
+			Subtitle: episode.Subtitle, IsFirst: episode.First, IsLast: episode.Last, IsRerun: episode.Rerun,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to save an anime episode: %w", err)
@@ -791,7 +793,7 @@ func episodesOf(t *target, candidates []*sqlc.SyobocalProgram) []*Episode {
 func episodeOf(program *sqlc.SyobocalProgram) *Episode {
 	episode := &Episode{
 		Source: SourceSyobocal, TID: new(program.Tid), PID: new(program.Pid), CountStart: nil, CountEnd: nil, Subtitle: nil,
-		First: program.Flag&syobocal.FlagNew != 0, Last: program.Flag&syobocal.FlagFinal != 0,
+		First: program.Flag&syobocal.FlagNew != 0, Last: program.Flag&syobocal.FlagFinal != 0, Rerun: program.Flag&syobocal.FlagRerun != 0,
 	}
 	if match := multipleEpisodes.FindStringSubmatch(program.SubTitle); match != nil {
 		episode.CountStart, episode.CountEnd = parseCount(match[1]), parseCount(match[2])

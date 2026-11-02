@@ -42,6 +42,21 @@ type AnimeLibraryBroadcast {
   "放送する話数の範囲。1 話だけなら同じ値。話数のない放送 (特番など) では null。"
   countStart: Float
   countEnd: Float
+  "再放送かどうか (#1233)。"
+  rerun: Boolean!
+  "最終話 ([終]) かどうか。"
+  last: Boolean!
+}
+
+"""
+作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+"""
+type AnimeLibraryPastBroadcast {
+  startAt: Time!
+  "再放送かどうか。"
+  rerun: Boolean!
+  "最終話 ([終]) かどうか。"
+  last: Boolean!
 }
 
 """
@@ -93,6 +108,8 @@ type AnimeLibraryWork {
   broadcasts: [AnimeLibraryBroadcast!]!
   "録画のある話。話数の順に並べる。"
   recordedEpisodes: [AnimeLibraryRecordedEpisode!]!
+  "この 1 週間に始まった放送のうち、本放送と再放送それぞれの最も新しいもの (#1233)。新しい順に並べる。"
+  recentBroadcasts: [AnimeLibraryPastBroadcast!]!
 }
 
 """

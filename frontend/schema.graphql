@@ -83,6 +83,10 @@ type AnimeEpisode {
   """
   last: Boolean!
   """
+  再放送かどうか (#1233)。しょぼいカレンダーの再放送の印か、番組名の解析では番組名の [再] の印。
+  """
+  rerun: Boolean!
+  """
   TID に対応する作品。対応がなければ空。
   """
   works: [AnimeWork!]!
@@ -166,6 +170,14 @@ type AnimeLibraryBroadcast {
   """
   countStart: Float
   countEnd: Float
+  """
+  再放送かどうか (#1233)。
+  """
+  rerun: Boolean!
+  """
+  最終話 ([終]) かどうか。
+  """
+  last: Boolean!
 }
 """
 作品の次に見る話 (#1231)。
@@ -183,6 +195,20 @@ type AnimeLibraryEpisode {
   サブタイトル。記録先が示さなければ null。
   """
   title: String
+}
+"""
+作品の始まった放送 (#1233)。番組は、放送が終わってしばらくするとアーカイブに移るので、開始時刻と印だけを返す。
+"""
+type AnimeLibraryPastBroadcast {
+  startAt: Time!
+  """
+  再放送かどうか。
+  """
+  rerun: Boolean!
+  """
+  最終話 ([終]) かどうか。
+  """
+  last: Boolean!
 }
 """
 作品の、録画のある話 (#1231)。
@@ -281,6 +307,10 @@ type AnimeLibraryWork {
   録画のある話。話数の順に並べる。
   """
   recordedEpisodes: [AnimeLibraryRecordedEpisode!]!
+  """
+  この 1 週間に始まった放送のうち、本放送と再放送それぞれの最も新しいもの (#1233)。新しい順に並べる。
+  """
+  recentBroadcasts: [AnimeLibraryPastBroadcast!]!
 }
 """
 管理者が記録先に登録したアプリ (#927)。クライアントシークレットは返さない。

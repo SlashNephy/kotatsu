@@ -45,6 +45,16 @@ type LibraryWork struct {
 	NextBroadcast *LibraryBroadcast
 	// RecordedEpisodes は、録画のある話。話数の順に並べる。
 	RecordedEpisodes []*LibraryRecordedEpisode
+	// RecentBroadcasts は、この 1 週間に始まった放送のうち、本放送と再放送それぞれの最も新しいもの (#1233)。新しい順に並べる。
+	RecentBroadcasts []*LibraryPastBroadcast
+}
+
+// LibraryPastBroadcast は、作品の始まった放送。番組はアーカイブに移っていることがあるので、開始時刻と印だけを持つ。
+type LibraryPastBroadcast struct {
+	StartAt time.Time
+	// Rerun は再放送かどうか、Last は最終話 ([終]) かどうか。
+	Rerun bool
+	Last  bool
 }
 
 // Watching は、どれかの記録先で「見てる」にしているかどうか。
@@ -71,6 +81,9 @@ type LibraryBroadcast struct {
 	// CountStart と CountEnd は、放送する話数の範囲。話数のない放送 (特番など) では nil。
 	CountStart *float64
 	CountEnd   *float64
+	// Rerun は再放送かどうか、Last は最終話 ([終]) かどうか (#1233)。
+	Rerun bool
+	Last  bool
 }
 
 // LibraryRecordedEpisode は、録画のある話。
@@ -117,8 +130,14 @@ func (s *Service) Library(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recordings of the library: %w", err)
 	}
+	recent, err := q.ListAnimeLibraryRecentBroadcasts(ctx, sqlc.ListAnimeLibraryRecentBroadcastsParams{
+		SyobocalTids: tids, Since: now.Add(-WishlistHorizon), Now: now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the recent broadcasts of the library: %w", err)
+	}
 
-	return &Library{Imports: imports, Works: arrangeLibrary(works, programs, recordings)}, nil
+	return &Library{Imports: imports, Works: arrangeLibrary(works, programs, recordings, recent)}, nil
 }
 
 // wishlistImports は、連携した記録先ごとの、見たいリストを取り込んだ様子を返す。
@@ -209,6 +228,7 @@ func newLibraryWork(tid *int32) *LibraryWork {
 	return &LibraryWork{
 		TID: tid, Title: "", Sources: []*LibrarySource{}, Progress: nil, EpisodesCount: nil, SeasonYear: nil, SeasonName: "",
 		NextEpisode: nil, Broadcasts: []*LibraryBroadcast{}, NextBroadcast: nil, RecordedEpisodes: []*LibraryRecordedEpisode{},
+		RecentBroadcasts: []*LibraryPastBroadcast{},
 	}
 }
 
@@ -257,7 +277,10 @@ func finishLibraryWork(work *LibraryWork) {
 }
 
 // arrangeLibrary は、作品に、これからの放送と録画のある話を足し、次の放送の早い順に並べる。
-func arrangeLibrary(works []*LibraryWork, programs []sqlc.ListAnimeLibraryProgramsRow, recordings []sqlc.ListAnimeLibraryRecordingsRow) []*LibraryWork {
+func arrangeLibrary(
+	works []*LibraryWork, programs []sqlc.ListAnimeLibraryProgramsRow, recordings []sqlc.ListAnimeLibraryRecordingsRow,
+	recent []sqlc.ListAnimeLibraryRecentBroadcastsRow,
+) []*LibraryWork {
 	byTID := map[int32]*LibraryWork{}
 	for _, work := range works {
 		if work.TID != nil {
@@ -272,6 +295,7 @@ func arrangeLibrary(works []*LibraryWork, programs []sqlc.ListAnimeLibraryProgra
 		}
 		work.Broadcasts = append(work.Broadcasts, &LibraryBroadcast{
 			ServiceID: row.ServiceID, EventID: row.EventID, StartAt: row.StartAt, CountStart: count(row.CountStart), CountEnd: count(row.CountEnd),
+			Rerun: row.IsRerun, Last: row.IsLast,
 		})
 	}
 	for i := range recordings {
@@ -296,7 +320,14 @@ func arrangeLibrary(works []*LibraryWork, programs []sqlc.ListAnimeLibraryProgra
 			CountStart: row.CountStart, CountEnd: row.CountEnd, Subtitle: row.Subtitle, RecordingIDs: []uuid.UUID{row.RecordingID}, Watched: watched,
 		})
 	}
+	for i := range recent {
+		row := &recent[i]
+		if work, ok := byTID[row.SyobocalTid]; ok {
+			work.RecentBroadcasts = append(work.RecentBroadcasts, &LibraryPastBroadcast{StartAt: row.StartAt, Rerun: row.IsRerun, Last: row.IsLast})
+		}
+	}
 	for _, work := range works {
+		slices.SortFunc(work.RecentBroadcasts, func(a, b *LibraryPastBroadcast) int { return b.StartAt.Compare(a.StartAt) })
 		work.NextBroadcast = nextBroadcast(work)
 	}
 	slices.SortStableFunc(works, func(a, b *LibraryWork) int {
