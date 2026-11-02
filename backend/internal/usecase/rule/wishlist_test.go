@@ -146,3 +146,21 @@ func TestEngineWishlistWatch(t *testing.T) {
 		})
 	}
 }
+
+// TestEngineWishlistWatchManual は、見たいリストの通知が付けた視聴予約に手で付け直したら、手で付けたものにし、
+// 通知をやめても消さないことを確かめる (#1234)。
+func TestEngineWishlistWatchManual(t *testing.T) {
+	t.Parallel()
+	f := newWatchFixture(t)
+	f.enableWishlistWatch(t, f.alice, nil)
+	f.setNotifyWishlist(t, f.alice, true)
+	f.run(t)
+	require.Equal(t, []int64{4, 5}, f.wishlistReserved(t, f.alice))
+
+	require.NoError(t, watch.Reserve(t.Context(), f.pool, f.clock, f.alice, f.programKey(4)))
+	f.setNotifyWishlist(t, f.alice, false)
+	result := f.run(t)
+	assert.Equal(t, 1, result.WishlistDeleted)
+	assert.Empty(t, f.wishlistReserved(t, f.alice))
+	assert.Equal(t, map[int64]bool{4: false}, f.watchReserved(t, f.alice), "the reservation added again by hand is kept")
+}
