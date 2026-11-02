@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 var (
@@ -78,6 +80,11 @@ type Program struct {
 }
 
 func (Program) IsNode() {}
+
+// RuleKeyword は、番組からルールを作るときに、番組名のキーワードにする作品名 (#1240)。gqlgen が Program.ruleKeyword に使う。
+func (p Program) RuleKeyword() string {
+	return domain.RuleKeyword(p.Name)
+}
 
 // GuideRow は、番組表の 1 列。
 type GuideRow struct {

@@ -1295,8 +1295,6 @@ type MutationResolver interface {
 type ProgramResolver interface {
 	Service(ctx context.Context, obj *model.Program) (*model.Service, error)
 
-	RuleKeyword(ctx context.Context, obj *model.Program) (string, error)
-
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error)
 	Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error)
@@ -25016,7 +25014,7 @@ func (ec *executionContext) _Program_ruleKeyword(ctx context.Context, field grap
 			return ec.fieldContext_Program_ruleKeyword(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Program().RuleKeyword(ctx, obj)
+			return obj.RuleKeyword(), nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -25027,7 +25025,7 @@ func (ec *executionContext) _Program_ruleKeyword(ctx context.Context, field grap
 	)
 }
 func (ec *executionContext) fieldContext_Program_ruleKeyword(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Program", field, true, true, "String")
+	return graphql.NewScalarFieldContext("Program", field, true, false, "String")
 }
 
 func (ec *executionContext) _Program_description(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
@@ -43069,11 +43067,10 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "ruleKeyword":
-			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
-				true, true,
-				func(ctx context.Context) graphql.Marshaler {
-					return ec._Program_ruleKeyword(ctx, field, obj)
-				})
+			out.Values[i] = ec._Program_ruleKeyword(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "description":
 			out.Values[i] = ec._Program_description(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
