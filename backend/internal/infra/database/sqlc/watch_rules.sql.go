@@ -53,7 +53,8 @@ type DeleteWatchRuleParams struct {
 	UserID uuid.UUID
 }
 
-// 作った視聴予約は、watch_rule_id を NULL にして残す (設計書 4.8)。
+// 作った視聴予約のうち、放送が始まった番組のものは、watch_rule_id を NULL にして残す (設計書 4.8)。
+// 放送の前のものは、先に DeleteWatchRuleReservations で消しておく。
 func (q *Queries) DeleteWatchRule(ctx context.Context, arg DeleteWatchRuleParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteWatchRule, arg.ID, arg.UserID)
 	if err != nil {
@@ -75,6 +76,28 @@ type DeleteWatchRuleDismissalParams struct {
 func (q *Queries) DeleteWatchRuleDismissal(ctx context.Context, arg DeleteWatchRuleDismissalParams) error {
 	_, err := q.db.Exec(ctx, deleteWatchRuleDismissal, arg.UserID, arg.ServiceID, arg.EventID)
 	return err
+}
+
+const deleteWatchRuleReservations = `-- name: DeleteWatchRuleReservations :execrows
+DELETE FROM watch_reservations w
+USING programs p
+WHERE w.user_id = $1 AND w.watch_rule_id = $2
+  AND p.service_id = w.service_id AND p.event_id = w.event_id AND p.start_at > $3
+`
+
+type DeleteWatchRuleReservationsParams struct {
+	UserID      uuid.UUID
+	WatchRuleID *uuid.UUID
+	Now         time.Time
+}
+
+// ユーザーの視聴ルールが作った視聴予約のうち、番組の放送が始まっていないものを消す。視聴ルールを消すときに使う (#1268)。
+func (q *Queries) DeleteWatchRuleReservations(ctx context.Context, arg DeleteWatchRuleReservationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWatchRuleReservations, arg.UserID, arg.WatchRuleID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getWatchRule = `-- name: GetWatchRule :one

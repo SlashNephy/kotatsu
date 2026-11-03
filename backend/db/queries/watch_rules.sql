@@ -28,8 +28,16 @@ WHERE id = @id AND user_id = @user_id;
 UPDATE watch_rules SET enabled = @enabled, updated_at = @now WHERE id = @id AND user_id = @user_id;
 
 -- name: DeleteWatchRule :execrows
--- 作った視聴予約は、watch_rule_id を NULL にして残す (設計書 4.8)。
+-- 作った視聴予約のうち、放送が始まった番組のものは、watch_rule_id を NULL にして残す (設計書 4.8)。
+-- 放送の前のものは、先に DeleteWatchRuleReservations で消しておく。
 DELETE FROM watch_rules WHERE id = @id AND user_id = @user_id;
+
+-- name: DeleteWatchRuleReservations :execrows
+-- ユーザーの視聴ルールが作った視聴予約のうち、番組の放送が始まっていないものを消す。視聴ルールを消すときに使う (#1268)。
+DELETE FROM watch_reservations w
+USING programs p
+WHERE w.user_id = @user_id AND w.watch_rule_id = @watch_rule_id
+  AND p.service_id = w.service_id AND p.event_id = w.event_id AND p.start_at > @now;
 
 -- name: ListRuleWatchReservations :many
 -- 視聴ルールが作った視聴予約のうち、番組の放送が始まっていないもの。照合で、一致しなくなったものを消すのに使う。

@@ -496,10 +496,10 @@ describe('demo watch rules', () => {
     expect(await reservedCount(executor)).toBe(0);
   });
 
-  it('keeps the watch reservations after the rule is deleted', async () => {
+  it('removes the watch reservations of programs not yet started when the rule is deleted', async () => {
     const { executor } = newExecutor();
     const id = await create(executor);
-    const before = await reservedCount(executor);
+    expect(await reservedCount(executor)).toBeGreaterThan(0);
 
     const updated = await executor.execute(text(WatchRuleEditorUpdateMutation), {
       id,
@@ -508,6 +508,6 @@ describe('demo watch rules', () => {
     expect(updated.errors).toBeUndefined();
     await executor.execute(text(WatchRuleEditorDeleteMutation), { id });
 
-    expect(await reservedCount(executor)).toBe(before);
+    expect(await reservedCount(executor)).toBe(0);
   });
 });
