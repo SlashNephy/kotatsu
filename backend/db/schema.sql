@@ -1003,7 +1003,7 @@ CREATE TABLE watch_reservations (
   event_id bigint NOT NULL,
   created_at timestamptz NOT NULL,
   -- 視聴予約を作った視聴ルール。手で付けた視聴予約では NULL。
-  -- 視聴ルールを消しても視聴予約は残すので、NULL にして、手で付けたものと同じく扱う。
+  -- 視聴ルールを消すと、放送の前の視聴予約は消し (#1268)、放送が始まった番組のものは NULL にして、手で付けたものと同じく扱う。
   watch_rule_id uuid REFERENCES watch_rules (id) ON DELETE SET NULL,
   -- 見たいリストの作品の放送の通知 (#1234) が付けた視聴予約かどうか。手で付け直したら、手で付けたものにする。
   from_wishlist boolean NOT NULL DEFAULT false,

@@ -325,11 +325,15 @@ func TestEngineWatchRulesDeleteRule(t *testing.T) {
 		manual []int64
 		// started は、照合の後、視聴ルールを消す前に、放送が始まったことにする番組の eventId。
 		started []int64
-		want    map[int64]bool
+		// other は、消す視聴ルールの後に作る、ほかの視聴ルールの番組名のパターン。空なら作らない。
+		other string
+		want  map[int64]bool
 	}{
 		{name: "放送の前のものを消す", want: map[int64]bool{}},
 		{name: "手で付けたものは残す", manual: []int64{4}, want: map[int64]bool{4: false}},
 		{name: "放送が始まった番組のものは、手で付けたものとして残す", started: []int64{4}, want: map[int64]bool{4: false}},
+		// 消した視聴ルールが付けたものは一度消え、次の照合で、ほかの視聴ルールが付け直す。
+		{name: "ほかの視聴ルールにも一致する番組は、そのルールが付け直す", other: `テスト番組 5$`, want: map[int64]bool{5: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -340,6 +344,9 @@ func TestEngineWatchRulesDeleteRule(t *testing.T) {
 				require.NoError(t, watch.Reserve(t.Context(), f.pool, f.clock, f.alice, f.programKey(eventID)))
 			}
 			created := f.createWatchRule(t, f.alice, `テスト番組 (4|5)$`)
+			if tt.other != "" {
+				f.createWatchRule(t, f.alice, tt.other)
+			}
 			f.run(t)
 			for _, eventID := range tt.started {
 				_, err := f.pool.Exec(t.Context(), "UPDATE programs SET start_at = $1 WHERE service_id = $2 AND event_id = $3",
@@ -348,8 +355,8 @@ func TestEngineWatchRulesDeleteRule(t *testing.T) {
 			}
 			require.NoError(t, watch.DeleteRule(t.Context(), f.pool, f.clock, f.alice, created.ID))
 
-			assert.Equal(t, tt.want, f.watchReserved(t, f.alice))
 			result := f.run(t)
+			assert.Equal(t, tt.want, f.watchReserved(t, f.alice))
 			assert.Zero(t, result.WatchDeleted)
 		})
 	}
