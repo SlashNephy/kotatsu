@@ -10535,7 +10535,7 @@ extend type Mutation {
   updateWatchRule(id: ID!, input: WatchRuleInput!): WatchRule!
   "ログイン中のユーザーの視聴ルールを有効または無効にする。無効にすると、視聴ルールが付けた視聴予約は、次の照合で外す。"
   setWatchRuleEnabled(id: ID!, enabled: Boolean!): WatchRule!
-  "ログイン中のユーザーの視聴ルールを消し、消したルールの ID を返す。視聴ルールが付けた視聴予約は、手で付けたものとして残す。"
+  "ログイン中のユーザーの視聴ルールを消し、消したルールの ID を返す。視聴ルールが付けた視聴予約のうち、放送の前のものも消し、放送が始まった番組のものは、手で付けたものとして残す。"
   deleteWatchRule(id: ID!): ID!
 }
 `, BuiltIn: false},

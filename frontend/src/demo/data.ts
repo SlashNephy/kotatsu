@@ -628,7 +628,8 @@ export function createRootValue(
       return watchRuleView(id, rule);
     },
     deleteWatchRule: ({ id }: { id: string }) => {
-      // 視聴ルールを消しても、付けた視聴予約は、手で付けたものとして残す。
+      // 視聴ルールを消したら、付けた視聴予約のうち、放送の前のものも外す (#1268)。
+      // 放送が始まった番組のものは、手で付けたものとして残す。
       // ほかの有効な視聴ルールにも一致する番組は、そのルールが付けたものとして扱い続ける。
       watchRules.delete(id);
       const remaining = [...watchRules.values()].filter((rule) => rule.input.enabled !== false);
@@ -639,6 +640,9 @@ export function createRootValue(
           !remaining.some((rule) => matchProgram(item, rule.input.conditions))
         ) {
           watchRuleReserved.delete(programId);
+          if (item !== undefined && item.start > now) {
+            watchReserved.delete(programId);
+          }
         }
       }
       viewerSettingsChanged();

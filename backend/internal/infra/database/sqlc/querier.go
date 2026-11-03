@@ -175,9 +175,12 @@ type Querier interface {
 	// ユーザーの録画の再生位置を消す。続きから見るの一覧から外すのに使う (#1074)。
 	DeleteWatchProgress(ctx context.Context, arg DeleteWatchProgressParams) error
 	DeleteWatchReservation(ctx context.Context, arg DeleteWatchReservationParams) (int64, error)
-	// 作った視聴予約は、watch_rule_id を NULL にして残す (設計書 4.8)。
+	// 作った視聴予約のうち、放送が始まった番組のものは、watch_rule_id を NULL にして残す (設計書 4.8)。
+	// 放送の前のものは、先に DeleteWatchRuleReservations で消しておく。
 	DeleteWatchRule(ctx context.Context, arg DeleteWatchRuleParams) (int64, error)
 	DeleteWatchRuleDismissal(ctx context.Context, arg DeleteWatchRuleDismissalParams) error
+	// ユーザーの視聴ルールが作った視聴予約のうち、番組の放送が始まっていないものを消す。視聴ルールを消すときに使う (#1268)。
+	DeleteWatchRuleReservations(ctx context.Context, arg DeleteWatchRuleReservationsParams) (int64, error)
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)

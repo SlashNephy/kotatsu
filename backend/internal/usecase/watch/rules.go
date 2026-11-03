@@ -163,9 +163,15 @@ func SetRuleEnabled(ctx context.Context, db usersettings.Beginner, clk clock.Clo
 	return rule, nil
 }
 
-// DeleteRule は、ユーザー userID の視聴ルールを消す。視聴ルールが作った視聴予約は、手で付けたものとして残す。
+// DeleteRule は、ユーザー userID の視聴ルールを消す。視聴ルールが作った視聴予約のうち、放送の前のものも消す。
+// 放送が始まった番組のものは、手で付けたものとして残す。
 func DeleteRule(ctx context.Context, db usersettings.Beginner, clk clock.Clock, userID, ruleID uuid.UUID) error {
 	return changeRules(ctx, db, clk, userID, func(q *sqlc.Queries) error {
+		if _, err := q.DeleteWatchRuleReservations(ctx, sqlc.DeleteWatchRuleReservationsParams{
+			UserID: userID, WatchRuleID: new(ruleID), Now: clk.Now(),
+		}); err != nil {
+			return fmt.Errorf("failed to delete the watch reservations of the watch rule: %w", err)
+		}
 		n, err := q.DeleteWatchRule(ctx, sqlc.DeleteWatchRuleParams{ID: ruleID, UserID: userID})
 		if err != nil {
 			return fmt.Errorf("failed to delete the watch rule: %w", err)
