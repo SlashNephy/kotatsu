@@ -66,7 +66,7 @@ jobs:
           - db: latest
             postgres: docker.io/library/postgres:18@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32 # renovate: latest
             mysql: docker.io/library/mysql:26.7@sha256:625f74ddf93652d9d0f8d4ea7d741b9189554a5e96d27bb770abd0902d89c6e3 # renovate: latest
-            mariadb: docker.io/library/mariadb:13.0@sha256:0e4bb0f339feba125d1154fbacd36c16ec8518f52e44e1f82ecec7d6771caf39 # renovate: latest
+            mariadb: docker.io/library/mariadb:13.0@sha256:f4054da26e3a9dd6c8b5cc97363e544408b15c0fb369d7359c25dc04826eb6e1 # renovate: latest
     services:
       postgres:
         image: ${{ matrix.postgres }}
