@@ -27,7 +27,7 @@ RUN pnpm exec vp build
 
 # Go のバイナリは、ビルドするマシンのアーキテクチャのまま、対象のアーキテクチャへクロスコンパイルする。
 # Go の脆弱性の影響を受ける版かどうかがわかるよう、タグはパッチバージョンまで書く (mise.toml の go と合わせる)。
-FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4 AS build
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-trixie@sha256:c65ecfe613b539ac74c62a4c3b2c27e8f8a6076384c8f27e8a3c0f3be17cc385 AS build
 WORKDIR /src
 # go.work に足したモジュールの go.mod と go.sum も、ここで写す。
 COPY go.work go.work.sum ./
