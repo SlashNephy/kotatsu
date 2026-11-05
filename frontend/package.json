@@ -60,7 +60,7 @@
     "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
     "vite-plugin-pwa": "2.0.0",
     "vite-plus": "1.4.0",
-    "vitest": "5.0.5",
+    "vitest": "5.1.0",
     "workbox-window": "7.4.1"
   },
   "packageManager": "pnpm@12.16.1"
