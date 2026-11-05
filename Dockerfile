@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/lib/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
-FROM docker.io/library/debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS tools
+FROM docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS tools
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates g++ git make \
     && rm -rf /var/lib/apt/lists/*
@@ -67,7 +67,7 @@ USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/kotatsu"]
 
 # FFmpeg と tsreadex を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
-FROM docker.io/library/debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS runtime
+FROM docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS runtime
 ARG TARGETARCH
 # FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使う (#77)。
 # VAAPI と QSV のドライバのうち、Intel のものは amd64 にしかない。Intel の VAAPI のドライバだけは、non-free の
