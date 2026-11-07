@@ -1966,6 +1966,8 @@
     "notConnected": "連携していません",
     "notRegistered": "管理者がアプリを登録していないので、連携できません",
     "aniListRevokeHint": "AniListは、Kotatsuからトークンを取り消せません。連携を外したら、AniListの設定の画面からもアプリを外してください",
+    "recordOnDevice": "この端末で見たアニメを記録する",
+    "recordOnDeviceHelp": "切ると、この端末のライブ視聴と録画の再生では、見たアニメを記録しません。この設定は端末ごとに覚え、ほかの端末とは同期しません。",
     "settingsTitle": "記録の設定",
     "threshold": "見たとみなす割合",
     "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",
