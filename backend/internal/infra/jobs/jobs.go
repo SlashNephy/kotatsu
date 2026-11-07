@@ -32,6 +32,8 @@ const (
 	// QueueCM は、録画の CM の区間を見分けるジョブのキュー (#479)。録画を読み通して FFmpeg を動かすので、1 つずつ実行する。
 	// 代表画像やセグメントをつなぐジョブ (QueueMedia) を、見分け終わるまで待たせないよう、別のキューにする。
 	QueueCM = "cm"
+	// QueueTranscode は、録画を終えた後に録画を変換するジョブのキュー (#1253)。録画を読み通して FFmpeg でエンコードするので、1 つずつ実行する。
+	QueueTranscode = "transcode"
 	// PriorityImported は、取り込んだ録画のためのジョブの優先度 (River の 1〜4 のうち、最も低い 4)。
 	// 大量に取り込んでも、新しく録った録画の解析やサムネイルが、取り込んだ分の後ろで待たないようにする (#551)。
 	PriorityImported = 4
@@ -67,6 +69,7 @@ func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client,
 			river.QueueDefault: {MaxWorkers: maxWorkers},
 			QueueMedia:         {MaxWorkers: 1},
 			QueueCM:            {MaxWorkers: 1},
+			QueueTranscode:     {MaxWorkers: 1},
 		}
 		config.PeriodicJobs = opts.PeriodicJobs
 	}

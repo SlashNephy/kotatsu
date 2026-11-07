@@ -357,6 +357,28 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 	return i, err
 }
 
+const getRecordingFileOwner = `-- name: GetRecordingFileOwner :one
+SELECT recording_id, kind FROM recording_files WHERE pool_id = $1 AND path = $2
+`
+
+type GetRecordingFileOwnerParams struct {
+	PoolID string
+	Path   string
+}
+
+type GetRecordingFileOwnerRow struct {
+	RecordingID uuid.UUID
+	Kind        string
+}
+
+// プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
+func (q *Queries) GetRecordingFileOwner(ctx context.Context, arg GetRecordingFileOwnerParams) (GetRecordingFileOwnerRow, error) {
+	row := q.db.QueryRow(ctx, getRecordingFileOwner, arg.PoolID, arg.Path)
+	var i GetRecordingFileOwnerRow
+	err := row.Scan(&i.RecordingID, &i.Kind)
+	return i, err
+}
+
 const getRecordingInProgressByReservation = `-- name: GetRecordingInProgressByReservation :one
 SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
 `
@@ -1549,6 +1571,39 @@ func (q *Queries) UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecord
 		arg.Errors,
 		arg.Scrambled,
 		arg.Bitrate,
+		arg.Now,
+	)
+	return err
+}
+
+const upsertTranscodedRecordingFile = `-- name: UpsertTranscodedRecordingFile :exec
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES ($1, $2, 'other', $3, $4, $5, $6, $7, $8)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other'
+`
+
+type UpsertTranscodedRecordingFileParams struct {
+	ID          uuid.UUID
+	RecordingID uuid.UUID
+	PoolID      string
+	Path        string
+	Size        int64
+	StartedAt   time.Time
+	EndedAt     *time.Time
+	Now         time.Time
+}
+
+// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
+func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) error {
+	_, err := q.db.Exec(ctx, upsertTranscodedRecordingFile,
+		arg.ID,
+		arg.RecordingID,
+		arg.PoolID,
+		arg.Path,
+		arg.Size,
+		arg.StartedAt,
+		arg.EndedAt,
 		arg.Now,
 	)
 	return err

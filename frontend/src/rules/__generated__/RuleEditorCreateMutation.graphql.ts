@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3a4bac23c1d4e786216f66ae335fa22a>>
+ * @generated SignedSource<<faf756847cbb9bb9f302a2c32a235206>>
  * @lightSyntaxTransform
  */
 
@@ -61,6 +61,7 @@ export type RecordingSettingsOverridesInput = {
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;
+  transcodePreset?: string | null | undefined;
 };
 export type RuleEditorCreateMutation$variables = {
   input: RuleInput;
