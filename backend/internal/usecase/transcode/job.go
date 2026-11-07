@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -228,43 +229,48 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, recordingID uuid.UUI
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("%w: %w", errNoSegment, err))
 	}
-	owner, err := q.GetRecordingFileOwner(ctx, sqlc.GetRecordingFileOwnerParams{PoolID: poolID, Path: rel})
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-	case err != nil:
-		return fmt.Errorf("failed to check the output path: %w", err)
-	case owner.RecordingID != recordingID || owner.Kind != kindOther:
-		return river.JobCancel(fmt.Errorf("%w: %s/%s", errPathTaken, poolID, rel))
+	ours, err := checkOutput(ctx, q, recordingID, poolID, rel, out)
+	if err != nil {
+		return err
 	}
 
 	opened, err := w.source.Open(ctx, recordingID)
 	if err != nil {
 		return fmt.Errorf("failed to open the recording: %w", err)
 	}
-	partial := out + partialSuffix
+	// 書いている途中のファイルは、ジョブごとに重ならない名前で、ここで作る (ほかのファイルを書き換えない)。
+	partialFile, err := os.CreateTemp(filepath.Dir(out), filepath.Base(out)+".*"+partialSuffix)
+	if err != nil {
+		return fmt.Errorf("failed to create the transcoded file: %w", err)
+	}
+	partial := partialFile.Name()
+	_ = partialFile.Close()
+	defer func() { _ = os.Remove(partial) }()
 	if err := w.encode(ctx, encoder, opened, preset, partial); err != nil {
-		_ = os.Remove(partial)
-
 		return err
 	}
-	if err := os.Rename(partial, out); err != nil {
-		_ = os.Remove(partial)
-
-		return fmt.Errorf("failed to move the transcoded file: %w", err)
+	created, err := place(partial, out, ours)
+	if err != nil {
+		return err
 	}
 	info, err := os.Stat(out)
 	if err != nil {
 		return fmt.Errorf("failed to stat the transcoded file: %w", err)
 	}
-	err = q.UpsertTranscodedRecordingFile(ctx, sqlc.UpsertTranscodedRecordingFileParams{
+	upserted, err := q.UpsertTranscodedRecordingFile(ctx, sqlc.UpsertTranscodedRecordingFileParams{
 		ID: id.New(), RecordingID: recordingID, PoolID: poolID, Path: rel, Size: info.Size(),
 		StartedAt: recording.RecordedFrom, EndedAt: recording.RecordedUntil, Now: w.clock.Now(),
 	})
-	if err != nil {
-		// 変換している間に録画が消されたら、書いたファイルも消す。
-		_ = os.Remove(out)
+	if err != nil || upserted == 0 {
+		// 変換している間に録画が消されたり、ほかのファイルがそのパスを使い始めたりしたら、ここで置いたファイルだけを消す。
+		if created {
+			_ = os.Remove(out)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to record the transcoded file: %w", err)
+		}
 
-		return fmt.Errorf("failed to record the transcoded file: %w", err)
+		return river.JobCancel(fmt.Errorf("%w: %s/%s", errPathTaken, poolID, rel))
 	}
 
 	return nil
@@ -293,6 +299,47 @@ func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.
 	}
 
 	return nil
+}
+
+// checkOutput は、出力のパス (プール poolID の rel、ファイルシステムの out) に書いてよいかを確かめ、
+// この録画を前に変換した MP4 のものかどうかを返す。ほかのファイルが使っていれば、取りやめる。
+func checkOutput(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, poolID, rel, out string) (bool, error) {
+	owner, err := q.GetRecordingFileOwner(ctx, sqlc.GetRecordingFileOwnerParams{PoolID: poolID, Path: rel})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// DB に記録がなくても、ほかの誰かが置いたファイルがあれば、上書きしない。
+		if _, err := os.Lstat(out); err == nil {
+			return false, river.JobCancel(fmt.Errorf("%w: %s/%s", errPathTaken, poolID, rel))
+		}
+
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("failed to check the output path: %w", err)
+	case owner.RecordingID != recordingID || owner.Kind != kindOther:
+		return false, river.JobCancel(fmt.Errorf("%w: %s/%s", errPathTaken, poolID, rel))
+	default:
+		return true, nil
+	}
+}
+
+// place は、書き終えた partial を out に置き、out を新しく作ったかを返す。
+// 前に変換した MP4 (ours) なら置き換える。そうでなければ、置いている間にほかのファイルが現れても上書きしないよう、
+// ハードリンクで、まだないときだけ置く。
+func place(partial, out string, ours bool) (bool, error) {
+	if ours {
+		if err := os.Rename(partial, out); err != nil {
+			return false, fmt.Errorf("failed to move the transcoded file: %w", err)
+		}
+
+		return false, nil
+	}
+	if err := os.Link(partial, out); errors.Is(err, os.ErrExist) {
+		return false, river.JobCancel(fmt.Errorf("%w: %s", errPathTaken, out))
+	} else if err != nil {
+		return false, fmt.Errorf("failed to move the transcoded file: %w", err)
+	}
+
+	return true, nil
 }
 
 // outputPath は、録画の最初のセグメントのパス segment から、変換した MP4 のパスを作る。拡張子を、画質と .mp4 に変える。

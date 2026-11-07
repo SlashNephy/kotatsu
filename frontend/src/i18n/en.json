@@ -1136,7 +1136,7 @@
     "deleteError": "Could not delete. Please try again later.",
     "actionError": "The operation failed. Please try again later.",
     "otherFiles": "Other files",
-    "otherFilesDescription": "Files imported from EPGStation. If your browser supports the format, they can be played as is.",
+    "otherFilesDescription": "Files imported from EPGStation and MP4 files transcoded after recording. If your browser supports the format, they can be played as is.",
     "regenerateImages": "Regenerate thumbnails",
     "select": "Select",
     "selectDone": "Stop selecting",

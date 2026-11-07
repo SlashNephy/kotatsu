@@ -963,7 +963,8 @@ type Querier interface {
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)
 	UpsertTimeshiftChannel(ctx context.Context, arg UpsertTimeshiftChannelParams) error
 	// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
-	UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) error
+	// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+	UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error)
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error

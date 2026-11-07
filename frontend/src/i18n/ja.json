@@ -1090,7 +1090,7 @@
     "deleteError": "削除できませんでした。時間をおいてやり直してください。",
     "actionError": "操作できませんでした。時間をおいてやり直してください。",
     "otherFiles": "その他のファイル",
-    "otherFilesDescription": "EPGStationから取り込んだファイルです。ブラウザが対応している形式なら、そのまま再生できます",
+    "otherFilesDescription": "EPGStationから取り込んだファイルと、録画が終わった後に変換したMP4です。ブラウザが対応している形式なら、そのまま再生できます",
     "regenerateImages": "サムネイルを作り直す",
     "select": "選ぶ",
     "selectDone": "選ぶのをやめる",

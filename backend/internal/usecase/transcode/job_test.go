@@ -204,6 +204,18 @@ func TestWorkerCancels(t *testing.T) {
 			},
 		},
 		{
+			name: "untracked file at the output path", preset: preset720p,
+			setup: func(t *testing.T, f *fixture) uuid.UUID {
+				t.Helper()
+
+				recordingID := f.recording(t, []byte("ts"))
+				// 利用者が手で置いたファイルは、DB に記録がなくても上書きしない。
+				require.NoError(t, os.WriteFile(filepath.Join(f.dir, outputName), []byte("mine"), 0o600))
+
+				return recordingID
+			},
+		},
+		{
 			name: "output path used by another recording", preset: preset720p,
 			setup: func(t *testing.T, f *fixture) uuid.UUID {
 				t.Helper()
@@ -233,6 +245,9 @@ func TestWorkerCancels(t *testing.T) {
 			var cancel *river.JobCancelError
 			require.ErrorAs(t, work(t, f, encoder, recordingID, tt.preset), &cancel)
 			assert.Empty(t, encoder.presets, "nothing is encoded")
+			if written, err := os.ReadFile(filepath.Join(f.dir, outputName)); err == nil {
+				assert.NotEqual(t, []byte("ts"), written, "an existing file is not overwritten")
+			}
 		})
 	}
 }

@@ -1576,7 +1576,7 @@ func (q *Queries) UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecord
 	return err
 }
 
-const upsertTranscodedRecordingFile = `-- name: UpsertTranscodedRecordingFile :exec
+const upsertTranscodedRecordingFile = `-- name: UpsertTranscodedRecordingFile :execrows
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES ($1, $2, 'other', $3, $4, $5, $6, $7, $8)
 ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
@@ -1595,8 +1595,9 @@ type UpsertTranscodedRecordingFileParams struct {
 }
 
 // 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
-func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) error {
-	_, err := q.db.Exec(ctx, upsertTranscodedRecordingFile,
+// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTranscodedRecordingFile,
 		arg.ID,
 		arg.RecordingID,
 		arg.PoolID,
@@ -1606,5 +1607,8 @@ func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertT
 		arg.EndedAt,
 		arg.Now,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
