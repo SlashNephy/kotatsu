@@ -23,7 +23,7 @@
     "@zxcvbn-ts/language-ja": "4.1.1",
     "aribb24.js": "2.0.34",
     "get-nonce": "1.0.1",
-    "graphql": "17.0.2",
+    "graphql": "17.1.0",
     "graphql-sse": "2.6.3",
     "hls.js": "1.7.4",
     "i18next": "26.7.1",
