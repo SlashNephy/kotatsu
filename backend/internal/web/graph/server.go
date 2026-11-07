@@ -110,6 +110,8 @@ type Options struct {
 	AnimeRecords *animerecord.Service
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
+	// JobAdmin は、管理者向けにジョブを読み、試し直し、取り消す River のクライアント (#1279)。nil なら、ジョブの画面を使えない。
+	JobAdmin JobAdmin
 	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	TotalSpace kago.TotalSpaceFunc
 	Clock      clock.Clock
@@ -214,6 +216,7 @@ func NewHandler(opts *Options) http.Handler {
 		pools:            o.Pools,
 		freeSpace:        o.FreeSpace,
 		jobs:             o.Jobs,
+		jobAdmin:         o.JobAdmin,
 		totalSpace:       o.TotalSpace,
 		store:            kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
 		library:          library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),

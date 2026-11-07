@@ -452,6 +452,39 @@ type ComplexityRoot struct {
 		Viewers func(childComplexity int) int
 	}
 
+	Job struct {
+		Attempt     func(childComplexity int) int
+		AttemptedAt func(childComplexity int) int
+		Cancellable func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Errors      func(childComplexity int) int
+		FinalizedAt func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Kind        func(childComplexity int) int
+		MaxAttempts func(childComplexity int) int
+		Queue       func(childComplexity int) int
+		Recording   func(childComplexity int) int
+		Retryable   func(childComplexity int) int
+		ScheduledAt func(childComplexity int) int
+		State       func(childComplexity int) int
+	}
+
+	JobError struct {
+		At      func(childComplexity int) int
+		Attempt func(childComplexity int) int
+		Message func(childComplexity int) int
+	}
+
+	JobPage struct {
+		EndCursor func(childComplexity int) int
+		Nodes     func(childComplexity int) int
+	}
+
+	JobStateCount struct {
+		Count func(childComplexity int) int
+		State func(childComplexity int) int
+	}
+
 	Keyword struct {
 		CaseSensitive func(childComplexity int) int
 		Fields        func(childComplexity int) int
@@ -490,6 +523,7 @@ type ComplexityRoot struct {
 		ApproveOAuthAuthorization    func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection   func(childComplexity int, destination model.AnimeRecordDestination) int
 		BeginTotpEnrollment          func(childComplexity int) int
+		CancelJob                    func(childComplexity int, id string) int
 		ChangePassword               func(childComplexity int, password string) int
 		CleanUpMissingRecordings     func(childComplexity int, ids []string) int
 		ClearWatchPosition           func(childComplexity int, id string) int
@@ -542,6 +576,7 @@ type ComplexityRoot struct {
 		ReportAnimePlayback          func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
 		ResetRecordingFailureCounts  func(childComplexity int, reasons []model.RecordingFailureReason) int
 		ResetUserPassword            func(childComplexity int, id string, password string) int
+		RetryJob                     func(childComplexity int, id string) int
 		RevokeOtherSessions          func(childComplexity int) int
 		RevokeSession                func(childComplexity int, id string) int
 		SaveWatchPosition            func(childComplexity int, id string, positionMs int64) int
@@ -791,6 +826,8 @@ type ComplexityRoot struct {
 		FileNameTemplateHelp    func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
+		JobCounts               func(childComplexity int) int
+		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
 		MissingRecordings       func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
@@ -1312,6 +1349,8 @@ type MutationResolver interface {
 	DeleteCalendarFeed(ctx context.Context) (bool, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
+	RetryJob(ctx context.Context, id string) (*model.Job, error)
+	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
 	MarkNotificationsRead(ctx context.Context, ids []string) (int, error)
 	MarkAllNotificationsRead(ctx context.Context) (int, error)
@@ -1424,6 +1463,8 @@ type QueryResolver interface {
 	FileNameTemplateHelp(ctx context.Context) (*model.FileNameTemplateHelp, error)
 	PreviewFileName(ctx context.Context, template string, program *string) (*model.FileNamePreview, error)
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
+	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
+	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
@@ -2987,6 +3028,136 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.JikkyoChannel.Viewers(childComplexity), true
 
+	case "Job.attempt":
+		if e.ComplexityRoot.Job.Attempt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Attempt(childComplexity), true
+	case "Job.attemptedAt":
+		if e.ComplexityRoot.Job.AttemptedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.AttemptedAt(childComplexity), true
+	case "Job.cancellable":
+		if e.ComplexityRoot.Job.Cancellable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Cancellable(childComplexity), true
+	case "Job.createdAt":
+		if e.ComplexityRoot.Job.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.CreatedAt(childComplexity), true
+	case "Job.errors":
+		if e.ComplexityRoot.Job.Errors == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Errors(childComplexity), true
+	case "Job.finalizedAt":
+		if e.ComplexityRoot.Job.FinalizedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.FinalizedAt(childComplexity), true
+	case "Job.id":
+		if e.ComplexityRoot.Job.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.ID(childComplexity), true
+	case "Job.kind":
+		if e.ComplexityRoot.Job.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Kind(childComplexity), true
+	case "Job.maxAttempts":
+		if e.ComplexityRoot.Job.MaxAttempts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.MaxAttempts(childComplexity), true
+	case "Job.queue":
+		if e.ComplexityRoot.Job.Queue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Queue(childComplexity), true
+	case "Job.recording":
+		if e.ComplexityRoot.Job.Recording == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Recording(childComplexity), true
+	case "Job.retryable":
+		if e.ComplexityRoot.Job.Retryable == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Retryable(childComplexity), true
+	case "Job.scheduledAt":
+		if e.ComplexityRoot.Job.ScheduledAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.ScheduledAt(childComplexity), true
+	case "Job.state":
+		if e.ComplexityRoot.Job.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.State(childComplexity), true
+
+	case "JobError.at":
+		if e.ComplexityRoot.JobError.At == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobError.At(childComplexity), true
+	case "JobError.attempt":
+		if e.ComplexityRoot.JobError.Attempt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobError.Attempt(childComplexity), true
+	case "JobError.message":
+		if e.ComplexityRoot.JobError.Message == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobError.Message(childComplexity), true
+
+	case "JobPage.endCursor":
+		if e.ComplexityRoot.JobPage.EndCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobPage.EndCursor(childComplexity), true
+	case "JobPage.nodes":
+		if e.ComplexityRoot.JobPage.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobPage.Nodes(childComplexity), true
+
+	case "JobStateCount.count":
+		if e.ComplexityRoot.JobStateCount.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobStateCount.Count(childComplexity), true
+	case "JobStateCount.state":
+		if e.ComplexityRoot.JobStateCount.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobStateCount.State(childComplexity), true
+
 	case "Keyword.caseSensitive":
 		if e.ComplexityRoot.Keyword.CaseSensitive == nil {
 			break
@@ -3151,6 +3322,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BeginTotpEnrollment(childComplexity), true
+	case "Mutation.cancelJob":
+		if e.ComplexityRoot.Mutation.CancelJob == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cancelJob_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CancelJob(childComplexity, args["id"].(string)), true
 	case "Mutation.changePassword":
 		if e.ComplexityRoot.Mutation.ChangePassword == nil {
 			break
@@ -3693,6 +3875,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ResetUserPassword(childComplexity, args["id"].(string), args["password"].(string)), true
+	case "Mutation.retryJob":
+		if e.ComplexityRoot.Mutation.RetryJob == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_retryJob_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RetryJob(childComplexity, args["id"].(string)), true
 	case "Mutation.revokeOtherSessions":
 		if e.ComplexityRoot.Mutation.RevokeOtherSessions == nil {
 			break
@@ -4982,6 +5175,23 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.GuideViews(childComplexity), true
 
+	case "Query.jobCounts":
+		if e.ComplexityRoot.Query.JobCounts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.JobCounts(childComplexity), true
+	case "Query.jobs":
+		if e.ComplexityRoot.Query.Jobs == nil {
+			break
+		}
+
+		args, err := ec.field_Query_jobs_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Jobs(childComplexity, args["state"].(model.JobState), args["first"].(int), args["after"].(*string)), true
 	case "Query.missingRecordings":
 		if e.ComplexityRoot.Query.MissingRecordings == nil {
 			break
@@ -8561,6 +8771,84 @@ type Mutation {
   deleteGuideView(id: ID!): ID!
 }
 `, BuiltIn: false},
+	{Name: "../schema/jobs.graphqls", Input: `"""
+River のジョブの状態 (#1279)。
+"""
+enum JobState {
+  AVAILABLE
+  CANCELLED
+  COMPLETED
+  DISCARDED
+  PENDING
+  RETRYABLE
+  RUNNING
+  SCHEDULED
+}
+
+"""
+nekonote の River のジョブ (#1279、設計書 6.1)。管理者だけが読める。引数の JSON はそのまま返さず、対象を名前で引けるようにする。
+"""
+type Job {
+  "River のジョブの ID。"
+  id: ID!
+  "ジョブの種類 (River の kind)。画面は、これを設計書 6.1 の名前に読み替える。"
+  kind: String!
+  state: JobState!
+  queue: String!
+  "試した回数。"
+  attempt: Int!
+  "試す回数の上限。"
+  maxAttempts: Int!
+  createdAt: Time!
+  "次に試す (試した) 時刻。"
+  scheduledAt: Time!
+  "最後に試し始めた時刻。まだ試していなければ null。"
+  attemptedAt: Time
+  "終えた時刻 (完了、取り消し、破棄)。終えていなければ null。"
+  finalizedAt: Time
+  "試したときのエラー。古い順。"
+  errors: [JobError!]!
+  "ジョブの対象の録画。録画を対象にしないジョブか、録画が消えていれば null。"
+  recording: Recording
+  "画面から再試行できるか。動いているジョブは再試行できない。"
+  retryable: Boolean!
+  "画面から取り消せるか。終えたジョブと、取り消すと録画を失いうるジョブ (タイムシフトの昇格、セグメントをつなぐジョブ) は取り消せない。"
+  cancellable: Boolean!
+}
+
+type JobError {
+  at: Time!
+  attempt: Int!
+  message: String!
+}
+
+"ジョブの一覧の 1 ページ。"
+type JobPage {
+  nodes: [Job!]!
+  "次のページのカーソル。続きがなければ null。"
+  endCursor: String
+}
+
+"状態ごとのジョブの数。"
+type JobStateCount {
+  state: JobState!
+  count: Int!
+}
+
+extend type Query {
+  "状態が state のジョブを、新しい順に返す (#1279)。管理者だけが使える。完了したジョブは、River が消すまで (既定は 24 時間) 返す。"
+  jobs(state: JobState!, first: Int! = 50, after: String): JobPage!
+  "状態ごとのジョブの数 (#1279)。管理者だけが使える。"
+  jobCounts: [JobStateCount!]!
+}
+
+extend type Mutation {
+  "ジョブを、すぐに試し直す (#1279)。管理者だけが使える。動いているジョブは試し直せない。監査ログに残す。"
+  retryJob(id: ID!): Job!
+  "ジョブを取り消す (#1279)。管理者だけが使える。動いているジョブには、止めるよう知らせる。監査ログに残す。"
+  cancelJob(id: ID!): Job!
+}
+`, BuiltIn: false},
 	{Name: "../schema/missing_recordings.graphqls", Input: `"""
 セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 """
@@ -11574,6 +11862,72 @@ func (ec *executionContext) childFields_JikkyoChannel(ctx context.Context, field
 	return nil, fmt.Errorf("no field named %q was found under type JikkyoChannel", field.Name)
 }
 
+func (ec *executionContext) childFields_Job(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Job_id(ctx, field)
+	case "kind":
+		return ec.fieldContext_Job_kind(ctx, field)
+	case "state":
+		return ec.fieldContext_Job_state(ctx, field)
+	case "queue":
+		return ec.fieldContext_Job_queue(ctx, field)
+	case "attempt":
+		return ec.fieldContext_Job_attempt(ctx, field)
+	case "maxAttempts":
+		return ec.fieldContext_Job_maxAttempts(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Job_createdAt(ctx, field)
+	case "scheduledAt":
+		return ec.fieldContext_Job_scheduledAt(ctx, field)
+	case "attemptedAt":
+		return ec.fieldContext_Job_attemptedAt(ctx, field)
+	case "finalizedAt":
+		return ec.fieldContext_Job_finalizedAt(ctx, field)
+	case "errors":
+		return ec.fieldContext_Job_errors(ctx, field)
+	case "recording":
+		return ec.fieldContext_Job_recording(ctx, field)
+	case "retryable":
+		return ec.fieldContext_Job_retryable(ctx, field)
+	case "cancellable":
+		return ec.fieldContext_Job_cancellable(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Job", field.Name)
+}
+
+func (ec *executionContext) childFields_JobError(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "at":
+		return ec.fieldContext_JobError_at(ctx, field)
+	case "attempt":
+		return ec.fieldContext_JobError_attempt(ctx, field)
+	case "message":
+		return ec.fieldContext_JobError_message(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type JobError", field.Name)
+}
+
+func (ec *executionContext) childFields_JobPage(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_JobPage_nodes(ctx, field)
+	case "endCursor":
+		return ec.fieldContext_JobPage_endCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type JobPage", field.Name)
+}
+
+func (ec *executionContext) childFields_JobStateCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "state":
+		return ec.fieldContext_JobStateCount_state(ctx, field)
+	case "count":
+		return ec.fieldContext_JobStateCount_count(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type JobStateCount", field.Name)
+}
+
 func (ec *executionContext) childFields_Keyword(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "text":
@@ -13052,6 +13406,20 @@ func (ec *executionContext) field_Mutation_beginAnimeRecordConnection_args(ctx c
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_cancelJob_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -13741,6 +14109,20 @@ func (ec *executionContext) field_Mutation_resetUserPassword_args(ctx context.Co
 		return nil, err
 	}
 	args["password"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_retryJob_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -14521,6 +14903,36 @@ func (ec *executionContext) field_Query_guide_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["view"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_jobs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "state",
+		func(ctx context.Context, v any) (model.JobState, error) {
+			return ec.unmarshalNJobState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobState(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["after"] = arg2
 	return args, nil
 }
 
@@ -20669,6 +21081,516 @@ func (ec *executionContext) fieldContext_JikkyoChannel_viewers(_ context.Context
 	return graphql.NewScalarFieldContext("JikkyoChannel", field, false, false, "Int")
 }
 
+func (ec *executionContext) _Job_id(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Job_kind(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "String")
+}
+
+func (ec *executionContext) _Job_state(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.JobState) graphql.Marshaler {
+			return ec.marshalNJobState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "JobState")
+}
+
+func (ec *executionContext) _Job_queue(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_queue(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Queue, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_queue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "String")
+}
+
+func (ec *executionContext) _Job_attempt(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_attempt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Attempt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_attempt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Int")
+}
+
+func (ec *executionContext) _Job_maxAttempts(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_maxAttempts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MaxAttempts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_maxAttempts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Int")
+}
+
+func (ec *executionContext) _Job_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Job_scheduledAt(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_scheduledAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScheduledAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_scheduledAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Job_attemptedAt(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_attemptedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AttemptedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Job_attemptedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Job_finalizedAt(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_finalizedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FinalizedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Job_finalizedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Job_errors(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_errors(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Errors, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.JobError) graphql.Marshaler {
+			return ec.marshalNJobError2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobErrorᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_errors(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Job",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobError(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Job_recording(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_recording(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recording, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalORecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Job_recording(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Job",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Job_retryable(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_retryable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Retryable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_retryable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _Job_cancellable(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_cancellable(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Cancellable, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Job_cancellable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Job", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _JobError_at(ctx context.Context, field graphql.CollectedField, obj *model.JobError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobError_at(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.At, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobError_at(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobError", field, false, false, "Time")
+}
+
+func (ec *executionContext) _JobError_attempt(ctx context.Context, field graphql.CollectedField, obj *model.JobError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobError_attempt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Attempt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobError_attempt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobError", field, false, false, "Int")
+}
+
+func (ec *executionContext) _JobError_message(ctx context.Context, field graphql.CollectedField, obj *model.JobError) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobError_message(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Message, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobError_message(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobError", field, false, false, "String")
+}
+
+func (ec *executionContext) _JobPage_nodes(ctx context.Context, field graphql.CollectedField, obj *model.JobPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobPage_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Job) graphql.Marshaler {
+			return ec.marshalNJob2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobPage_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "JobPage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Job(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _JobPage_endCursor(ctx context.Context, field graphql.CollectedField, obj *model.JobPage) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobPage_endCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_JobPage_endCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobPage", field, false, false, "String")
+}
+
+func (ec *executionContext) _JobStateCount_state(ctx context.Context, field graphql.CollectedField, obj *model.JobStateCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobStateCount_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.JobState) graphql.Marshaler {
+			return ec.marshalNJobState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobStateCount_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobStateCount", field, false, false, "JobState")
+}
+
+func (ec *executionContext) _JobStateCount_count(ctx context.Context, field graphql.CollectedField, obj *model.JobStateCount) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobStateCount_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobStateCount_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobStateCount", field, false, false, "Int")
+}
+
 func (ec *executionContext) _Keyword_text(ctx context.Context, field graphql.CollectedField, obj *model.Keyword) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22004,6 +22926,94 @@ func (ec *executionContext) fieldContext_Mutation_inspectChannel(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_inspectChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_retryJob(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_retryJob(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RetryJob(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Job) graphql.Marshaler {
+			return ec.marshalNJob2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJob(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_retryJob(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Job(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_retryJob_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelJob(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_cancelJob(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CancelJob(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Job) graphql.Marshaler {
+			return ec.marshalNJob2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJob(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_cancelJob(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Job(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cancelJob_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -29009,6 +30019,82 @@ func (ec *executionContext) fieldContext_Query_guideViews(_ context.Context, fie
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_GuideView(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_jobs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_jobs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Jobs(ctx, fc.Args["state"].(model.JobState), fc.Args["first"].(int), fc.Args["after"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.JobPage) graphql.Marshaler {
+			return ec.marshalNJobPage2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobPage(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_jobs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobPage(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_jobs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_jobCounts(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_jobCounts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().JobCounts(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.JobStateCount) graphql.Marshaler {
+			return ec.marshalNJobStateCount2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobStateCountᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_jobCounts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobStateCount(ctx, field)
 		},
 	}
 	return fc, nil
@@ -44177,6 +45263,223 @@ func (ec *executionContext) _JikkyoChannel(ctx context.Context, sel ast.Selectio
 	return out
 }
 
+var jobImplementors = []string{"Job"}
+
+func (ec *executionContext) _Job(ctx context.Context, sel ast.SelectionSet, obj *model.Job) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jobImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Job")
+		case "id":
+			out.Values[i] = ec._Job_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._Job_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._Job_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "queue":
+			out.Values[i] = ec._Job_queue(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attempt":
+			out.Values[i] = ec._Job_attempt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "maxAttempts":
+			out.Values[i] = ec._Job_maxAttempts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._Job_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scheduledAt":
+			out.Values[i] = ec._Job_scheduledAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attemptedAt":
+			out.Values[i] = ec._Job_attemptedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "finalizedAt":
+			out.Values[i] = ec._Job_finalizedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "errors":
+			out.Values[i] = ec._Job_errors(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recording":
+			out.Values[i] = ec._Job_recording(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "retryable":
+			out.Values[i] = ec._Job_retryable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancellable":
+			out.Values[i] = ec._Job_cancellable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var jobErrorImplementors = []string{"JobError"}
+
+func (ec *executionContext) _JobError(ctx context.Context, sel ast.SelectionSet, obj *model.JobError) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jobErrorImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("JobError")
+		case "at":
+			out.Values[i] = ec._JobError_at(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attempt":
+			out.Values[i] = ec._JobError_attempt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "message":
+			out.Values[i] = ec._JobError_message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var jobPageImplementors = []string{"JobPage"}
+
+func (ec *executionContext) _JobPage(ctx context.Context, sel ast.SelectionSet, obj *model.JobPage) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jobPageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("JobPage")
+		case "nodes":
+			out.Values[i] = ec._JobPage_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endCursor":
+			out.Values[i] = ec._JobPage_endCursor(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var jobStateCountImplementors = []string{"JobStateCount"}
+
+func (ec *executionContext) _JobStateCount(ctx context.Context, sel ast.SelectionSet, obj *model.JobStateCount) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jobStateCountImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("JobStateCount")
+		case "state":
+			out.Values[i] = ec._JobStateCount_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._JobStateCount_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var keywordImplementors = []string{"Keyword"}
 
 func (ec *executionContext) _Keyword(ctx context.Context, sel ast.SelectionSet, obj *model.Keyword) graphql.Marshaler {
@@ -44554,6 +45857,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "inspectChannel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_inspectChannel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "retryJob":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_retryJob(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelJob":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelJob(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -46497,6 +47814,18 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_guideViews(ctx, field)
+				})
+		case "jobs":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_jobs(ctx, field)
+				})
+		case "jobCounts":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_jobCounts(ctx, field)
 				})
 		case "missingRecordings":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -51141,6 +52470,96 @@ func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.Sel
 		graphql.AddInvalidNullFromMarshaler(ctx, "Int64!")
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNJob2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Job) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNJob2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJob(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNJob2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJob(ctx context.Context, sel ast.SelectionSet, v *model.Job) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Job!")
+		return graphql.Null
+	}
+	return ec._Job(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNJobError2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobErrorᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.JobError) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNJobError2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobError(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNJobError2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobError(ctx context.Context, sel ast.SelectionSet, v *model.JobError) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "JobError!")
+		return graphql.Null
+	}
+	return ec._JobError(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNJobPage2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobPage(ctx context.Context, sel ast.SelectionSet, v *model.JobPage) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "JobPage!")
+		return graphql.Null
+	}
+	return ec._JobPage(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNJobState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobState(ctx context.Context, v any) (model.JobState, error) {
+	var res model.JobState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJobState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobState(ctx context.Context, sel ast.SelectionSet, v model.JobState) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNJobStateCount2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobStateCountᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.JobStateCount) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNJobStateCount2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobStateCount(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNJobStateCount2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobStateCount(ctx context.Context, sel ast.SelectionSet, v *model.JobStateCount) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "JobStateCount!")
+		return graphql.Null
+	}
+	return ec._JobStateCount(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNKeyword2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Keyword) graphql.Marshaler {
