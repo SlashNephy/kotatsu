@@ -944,6 +944,7 @@ type ComplexityRoot struct {
 		Size      func(childComplexity int) int
 		StartedAt func(childComplexity int) int
 		URL       func(childComplexity int) int
+		Video     func(childComplexity int) int
 	}
 
 	RecordingFileRename struct {
@@ -1078,6 +1079,14 @@ type ComplexityRoot struct {
 	SecondFactorStatus struct {
 		RemainingRecoveryCodes func(childComplexity int) int
 		Totp                   func(childComplexity int) int
+	}
+
+	SegmentVideoFormat struct {
+		Codec      func(childComplexity int) int
+		FrameRate  func(childComplexity int) int
+		Height     func(childComplexity int) int
+		Interlaced func(childComplexity int) int
+		Width      func(childComplexity int) int
 	}
 
 	Service struct {
@@ -5841,6 +5850,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingFile.URL(childComplexity), true
+	case "RecordingFile.video":
+		if e.ComplexityRoot.RecordingFile.Video == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFile.Video(childComplexity), true
 
 	case "RecordingFileRename.from":
 		if e.ComplexityRoot.RecordingFileRename.From == nil {
@@ -6356,6 +6371,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SecondFactorStatus.Totp(childComplexity), true
+
+	case "SegmentVideoFormat.codec":
+		if e.ComplexityRoot.SegmentVideoFormat.Codec == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Codec(childComplexity), true
+	case "SegmentVideoFormat.frameRate":
+		if e.ComplexityRoot.SegmentVideoFormat.FrameRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.FrameRate(childComplexity), true
+	case "SegmentVideoFormat.height":
+		if e.ComplexityRoot.SegmentVideoFormat.Height == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Height(childComplexity), true
+	case "SegmentVideoFormat.interlaced":
+		if e.ComplexityRoot.SegmentVideoFormat.Interlaced == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Interlaced(childComplexity), true
+	case "SegmentVideoFormat.width":
+		if e.ComplexityRoot.SegmentVideoFormat.Width == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Width(childComplexity), true
 
 	case "Service.channel":
 		if e.ComplexityRoot.Service.Channel == nil {
@@ -9522,6 +9568,21 @@ type RecordingFile {
   ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
   """
   url: String
+  "セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。"
+  video: SegmentVideoFormat
+}
+
+"""
+セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+"""
+type SegmentVideoFormat {
+  "mpeg2、h264、hevc のどれか。"
+  codec: String!
+  width: Int!
+  height: Int!
+  interlaced: Boolean!
+  "フレームレート。読めなければ null (HEVC は読まない)。"
+  frameRate: Float
 }
 
 """
@@ -12524,6 +12585,8 @@ func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field
 		return ec.fieldContext_RecordingFile_endedAt(ctx, field)
 	case "url":
 		return ec.fieldContext_RecordingFile_url(ctx, field)
+	case "video":
+		return ec.fieldContext_RecordingFile_video(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFile", field.Name)
 }
@@ -12794,6 +12857,22 @@ func (ec *executionContext) childFields_SecondFactorStatus(ctx context.Context, 
 		return ec.fieldContext_SecondFactorStatus_remainingRecoveryCodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SecondFactorStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_SegmentVideoFormat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "codec":
+		return ec.fieldContext_SegmentVideoFormat_codec(ctx, field)
+	case "width":
+		return ec.fieldContext_SegmentVideoFormat_width(ctx, field)
+	case "height":
+		return ec.fieldContext_SegmentVideoFormat_height(ctx, field)
+	case "interlaced":
+		return ec.fieldContext_SegmentVideoFormat_interlaced(ctx, field)
+	case "frameRate":
+		return ec.fieldContext_SegmentVideoFormat_frameRate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SegmentVideoFormat", field.Name)
 }
 
 func (ec *executionContext) childFields_Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -32786,6 +32865,38 @@ func (ec *executionContext) fieldContext_RecordingFile_url(_ context.Context, fi
 	return graphql.NewScalarFieldContext("RecordingFile", field, false, false, "String")
 }
 
+func (ec *executionContext) _RecordingFile_video(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFile_video(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Video, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SegmentVideoFormat) graphql.Marshaler {
+			return ec.marshalOSegmentVideoFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSegmentVideoFormat(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFile_video(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SegmentVideoFormat(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RecordingFileRename_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileRename) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34837,6 +34948,121 @@ func (ec *executionContext) _SecondFactorStatus_remainingRecoveryCodes(ctx conte
 }
 func (ec *executionContext) fieldContext_SecondFactorStatus_remainingRecoveryCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SecondFactorStatus", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_codec(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_codec(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Codec, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_codec(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "String")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_width(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_width(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Width, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_width(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_height(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_height(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Height, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_height(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_interlaced(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_interlaced(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Interlaced, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_interlaced(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_frameRate(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_frameRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FrameRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_frameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Float")
 }
 
 func (ec *executionContext) _Service_id(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
@@ -48503,6 +48729,11 @@ func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "video":
+			out.Values[i] = ec._RecordingFile_video(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -49395,6 +49626,59 @@ func (ec *executionContext) _SecondFactorStatus(ctx context.Context, sel ast.Sel
 		case "remainingRecoveryCodes":
 			out.Values[i] = ec._SecondFactorStatus_remainingRecoveryCodes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var segmentVideoFormatImplementors = []string{"SegmentVideoFormat"}
+
+func (ec *executionContext) _SegmentVideoFormat(ctx context.Context, sel ast.SelectionSet, obj *model.SegmentVideoFormat) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, segmentVideoFormatImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SegmentVideoFormat")
+		case "codec":
+			out.Values[i] = ec._SegmentVideoFormat_codec(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "width":
+			out.Values[i] = ec._SegmentVideoFormat_width(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "height":
+			out.Values[i] = ec._SegmentVideoFormat_height(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "interlaced":
+			out.Values[i] = ec._SegmentVideoFormat_interlaced(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "frameRate":
+			out.Values[i] = ec._SegmentVideoFormat_frameRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -54985,6 +55269,13 @@ func (ec *executionContext) unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashN
 	}
 	res, err := ec.unmarshalInputRuleDefaultsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOSegmentVideoFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSegmentVideoFormat(ctx context.Context, sel ast.SelectionSet, v *model.SegmentVideoFormat) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SegmentVideoFormat(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐService(ctx context.Context, sel ast.SelectionSet, v *model.Service) graphql.Marshaler {

@@ -1078,6 +1078,7 @@
     "qualityCounts": "ドロップ {{drops}} / エラー {{errors}} / スクランブル {{scrambled}}",
     "recordedRange": "録画した時刻 {{from}} 〜 {{until}}",
     "size": "{{size}}（{{count}}ファイル）",
+    "videoFormat": "映像 {{format}}",
     "gap": "{{from}} 〜 {{to}} が途切れています",
     "programLost": "録画中に、番組が番組表から消えました",
     "broadcastRange": "実際の放送: {{from}} 〜 {{until}}",

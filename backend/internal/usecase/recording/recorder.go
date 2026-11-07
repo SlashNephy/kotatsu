@@ -35,6 +35,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
 )
 
 const (
@@ -1558,6 +1559,10 @@ func (r *Recorder) closeSegmentFile(logger *slog.Logger, recording *sqlc.Recordi
 			logger.WarnContext(ctx, "failed to encode the PID stats", slog.Any("error", err))
 		} else if err := q.SetRecordingFilePIDStats(ctx, sqlc.SetRecordingFilePIDStatsParams{PIDStats: pidStats, ID: seg.fileID}); err != nil {
 			logger.WarnContext(ctx, "failed to save the PID stats", slog.Any("error", err))
+		}
+		// 映像の形式は、EPG の解像度より確かなので、録画の解像度にも使う (#1310)。書けなくても録画の失敗にしない。
+		if err := videoformat.Save(ctx, q, recordingID, seg.fileID, seg.startedAt, stats.Video); err != nil {
+			logger.WarnContext(ctx, "failed to save the video format", slog.Any("error", err))
 		}
 
 		return nil

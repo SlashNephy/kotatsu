@@ -854,6 +854,8 @@ type Querier interface {
 	// セグメントの PID ごとの品質の集計を書く (#473)。
 	SetRecordingFilePIDStats(ctx context.Context, arg SetRecordingFilePIDStatsParams) error
 	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
+	// セグメントの映像の形式を書く (#1310)。
+	SetRecordingFileVideo(ctx context.Context, arg SetRecordingFileVideoParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	// 録画の正規化した番組名と概要を書く (#1044)。
@@ -865,6 +867,9 @@ type Querier interface {
 	// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
 	// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
 	SetRecordingStats(ctx context.Context, arg SetRecordingStatsParams) error
+	// 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+	// 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
+	SetRecordingVideoResolutionFromFile(ctx context.Context, arg SetRecordingVideoResolutionFromFileParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)

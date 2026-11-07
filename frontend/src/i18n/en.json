@@ -1124,6 +1124,7 @@
     "qualityCounts": "Drops {{drops}} / errors {{errors}} / scrambled {{scrambled}}",
     "recordedRange": "Recorded {{from}} – {{until}}",
     "size": "{{size}} ({{count}} files)",
+    "videoFormat": "Video {{format}}",
     "gap": "{{from}} – {{to}} is missing",
     "programLost": "The program disappeared from the guide during recording",
     "broadcastRange": "Actual broadcast: {{from}} – {{until}}",

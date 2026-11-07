@@ -343,3 +343,16 @@ ORDER BY start_offset_ms;
 -- name: ListLiveThumbnailRecordings :many
 -- 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
 SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @started_before ORDER BY recorded_from, id;
+
+-- name: SetRecordingFileVideo :exec
+-- セグメントの映像の形式を書く (#1310)。
+UPDATE recording_files SET video = @video WHERE id = @id;
+
+-- name: SetRecordingVideoResolutionFromFile :exec
+-- 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+-- 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
+UPDATE recordings r SET video_resolution = @video_resolution
+WHERE r.id = @recording_id AND NOT EXISTS (
+  SELECT 1 FROM recording_files f
+  WHERE f.recording_id = r.id AND f.video IS NOT NULL AND f.started_at < @started_at
+);
