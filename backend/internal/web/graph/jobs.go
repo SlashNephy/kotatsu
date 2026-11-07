@@ -16,7 +16,6 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -77,13 +76,9 @@ func (r *Resolver) listJobs(ctx context.Context, state model.JobState, first int
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs: %w", err)
 	}
-	nodes := make([]*model.Job, 0, len(result.Jobs))
-	for _, row := range result.Jobs {
-		job, err := r.jobModel(ctx, row)
-		if err != nil {
-			return nil, err
-		}
-		nodes = append(nodes, job)
+	nodes, err := r.jobModels(ctx, result.Jobs)
+	if err != nil {
+		return nil, err
 	}
 	page := &model.JobPage{Nodes: nodes, EndCursor: nil}
 	if len(result.Jobs) == first && result.LastCursor != nil {
@@ -170,7 +165,12 @@ func (r *Resolver) changeJob(ctx context.Context, id, action string) (*model.Job
 		return nil, err
 	}
 
-	return r.jobModel(ctx, changed)
+	jobs, err := r.jobModels(ctx, []*rivertype.JobRow{changed})
+	if err != nil {
+		return nil, err
+	}
+
+	return jobs[0], nil
 }
 
 // retryable は、ジョブを画面から試し直せるかを返す。動いているジョブは試し直せない。
@@ -187,36 +187,57 @@ func cancellable(job *rivertype.JobRow) bool {
 	return !slices.Contains([]rivertype.JobState{rivertype.JobStateCompleted, rivertype.JobStateCancelled, rivertype.JobStateDiscarded}, job.State)
 }
 
-// jobModel は、River のジョブを GraphQL の形にする。引数の JSON は返さず、録画を対象にするジョブなら、その録画を引く。
-func (r *Resolver) jobModel(ctx context.Context, row *rivertype.JobRow) (*model.Job, error) {
+// jobModels は、River のジョブを GraphQL の形にする。引数の JSON は返さず、録画を対象にするジョブなら、その録画を引く。
+// 一覧は 5 秒ごとに読み直すので、録画はジョブごとに引かず、まとめて 1 回で引く。
+func (r *Resolver) jobModels(ctx context.Context, rows []*rivertype.JobRow) ([]*model.Job, error) {
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		if id, ok := jobRecordingID(row); ok && !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	byID := map[string]*model.Recording{}
+	if len(ids) > 0 {
+		recordings, err := r.queries.ListRecordingsByIDs(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list the recordings of the jobs: %w", err)
+		}
+		models, err := r.recordingModels(ctx, recordings)
+		if err != nil {
+			return nil, err
+		}
+		for i := range recordings {
+			if i < len(models) {
+				byID[recordings[i].ID.String()] = models[i]
+			}
+		}
+	}
+	jobs := make([]*model.Job, 0, len(rows))
+	for _, row := range rows {
+		job := jobModel(row)
+		if id, ok := jobRecordingID(row); ok {
+			// 録画が消えていれば、null のままにする。
+			job.Recording = byID[id.String()]
+		}
+		jobs = append(jobs, job)
+	}
+
+	return jobs, nil
+}
+
+// jobModel は、River のジョブの、録画のほかの項目を GraphQL の形にする。
+func jobModel(row *rivertype.JobRow) *model.Job {
 	errs := make([]*model.JobError, 0, len(row.Errors))
 	for _, e := range row.Errors {
 		errs = append(errs, &model.JobError{At: e.At, Attempt: e.Attempt, Message: e.Error})
 	}
-	job := &model.Job{
+
+	return &model.Job{
 		ID: strconv.FormatInt(row.ID, 10), Kind: row.Kind, State: model.JobState(strings.ToUpper(string(row.State))),
 		Queue: row.Queue, Attempt: row.Attempt, MaxAttempts: row.MaxAttempts, CreatedAt: row.CreatedAt,
 		ScheduledAt: row.ScheduledAt, AttemptedAt: row.AttemptedAt, FinalizedAt: row.FinalizedAt, Errors: errs,
 		Recording: nil, Retryable: retryable(row), Cancellable: cancellable(row),
 	}
-	recordingID, ok := jobRecordingID(row)
-	if !ok {
-		return job, nil
-	}
-	recording, err := r.queries.GetRecording(ctx, recordingID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return job, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get the recording of the job: %w", err)
-	}
-	models, err := r.recordingModels(ctx, []domain.Recording{recording})
-	if err != nil {
-		return nil, err
-	}
-	job.Recording = models[0]
-
-	return job, nil
 }
 
 // jobRecordingID は、ジョブの引数から、対象の録画の ID を読む。録画を対象にしないジョブでは false を返す。
