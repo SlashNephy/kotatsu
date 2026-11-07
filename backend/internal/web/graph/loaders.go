@@ -34,6 +34,8 @@ type Loaders struct {
 	ProgramReservations *dataloadgen.Loader[domain.ProgramKey, *domain.Reservation]
 	// WatchReserved は、ユーザーが番組を視聴予約しているかどうか。
 	WatchReserved *dataloadgen.Loader[watchReservedKey, bool]
+	// ProgramRecorded は、番組の録画があるかどうか (#1278)。番組表の番組ごとに引かず、まとめて引く。
+	ProgramRecorded *dataloadgen.Loader[query.ProgramSpan, bool]
 }
 
 // watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
@@ -131,7 +133,28 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 		WatchReserved: dataloadgen.NewLoader(func(ctx context.Context, keys []watchReservedKey) ([]bool, []error) {
 			return loadWatchReserved(ctx, q, keys)
 		}, dataloadgen.WithWait(loaderWait)),
+		ProgramRecorded: dataloadgen.NewLoader(func(ctx context.Context, keys []query.ProgramSpan) ([]bool, []error) {
+			return loadProgramRecorded(ctx, q, keys)
+		}, dataloadgen.WithWait(loaderWait)),
 	}
+}
+
+// loadProgramRecorded は、keys の番組に、それぞれ録画があるかどうかを返す (#1278)。
+func loadProgramRecorded(ctx context.Context, q *query.Queries, keys []query.ProgramSpan) ([]bool, []error) {
+	programs := make([]*query.ProgramSpan, 0, len(keys))
+	for i := range keys {
+		programs = append(programs, &keys[i])
+	}
+	recorded, err := q.RecordedPrograms(ctx, programs)
+	if err != nil {
+		return failAll[bool](len(keys), err)
+	}
+	found := make([]bool, 0, len(keys))
+	for _, program := range programs {
+		found = append(found, recorded[program.Key()])
+	}
+
+	return found, make([]error, len(keys))
 }
 
 // loadWatchReserved は、keys の番組を、それぞれのユーザーが視聴予約しているかどうかを返す。

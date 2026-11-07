@@ -144,4 +144,6 @@ extend type Query {
 extend type Program {
   "番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。"
   recordings: [Recording!]!
+  "番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組に印を出すのに使う。"
+  recorded: Boolean!
 }

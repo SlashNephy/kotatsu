@@ -2,7 +2,7 @@ import { ActionIcon, Anchor, Box, Group, Text, Tooltip, UnstyledButton } from '@
 import { Link } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BellRing, CalendarRange } from 'lucide-react';
+import { BellRing, CalendarRange, CircleDot } from 'lucide-react';
 
 import classes from './GuideGrid.module.css';
 import { densities, genreBackground, useGuideAppearance, type GuideAppearance } from './appearance';
@@ -42,6 +42,8 @@ export type GuideProgram = {
   reserved: boolean;
   // watchReserved は、ログイン中のユーザーが視聴予約したこと。時刻の前にベルの印を出す (設計書 4.8)。
   watchReserved: boolean;
+  // recorded は、番組の録画があること (#1278)。時刻の前に録画の印を出す。
+  recorded: boolean;
 };
 
 // GuideGenre は、番組のジャンルの大分類と中分類。
@@ -510,6 +512,18 @@ function GuideColumnView({
                       marginRight: 2,
                       verticalAlign: '-1px',
                       color: 'var(--mantine-color-mikan-7)',
+                    }}
+                  />
+                )}
+                {program.recorded && (
+                  <CircleDot
+                    size={11}
+                    role="img"
+                    aria-label={t('guide.recorded')}
+                    style={{
+                      marginRight: 2,
+                      verticalAlign: '-1px',
+                      color: 'var(--mantine-color-red-7)',
                     }}
                   />
                 )}

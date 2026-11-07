@@ -568,6 +568,9 @@ type Querier interface {
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	// 番組 (サービス, eventId, 放送時間) のうち、録画のあるものを返す (#1278)。失敗した録画は数えない。
+	// eventId は使い回されるので、ListProgramRecordings と同じく、放送時間に重なる録画だけを数える。
+	ListRecordedPrograms(ctx context.Context, arg ListRecordedProgramsParams) ([]ListRecordedProgramsRow, error)
 	ListRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) ([]RecordingAnimeEpisode, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	// 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。

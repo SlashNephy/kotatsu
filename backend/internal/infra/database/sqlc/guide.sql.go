@@ -508,3 +508,57 @@ func (q *Queries) ListProgramsInRange(ctx context.Context, arg ListProgramsInRan
 	}
 	return items, nil
 }
+
+const listRecordedPrograms = `-- name: ListRecordedPrograms :many
+WITH k AS (
+  SELECT unnest($1::bigint[]) AS service_id, unnest($2::bigint[]) AS event_id,
+    unnest($3::timestamptz[]) AS start_at, unnest($4::timestamptz[]) AS end_at
+)
+SELECT k.service_id::bigint AS service_id, k.event_id::bigint AS event_id, k.start_at::timestamptz AS start_at
+FROM k
+WHERE EXISTS (
+  SELECT 1 FROM recordings r
+  WHERE r.service_id = k.service_id AND r.event_id = k.event_id AND r.start_at < k.end_at AND r.end_at > k.start_at
+    AND r.state <> 'failed'
+)
+`
+
+type ListRecordedProgramsParams struct {
+	ServiceIds []int64
+	EventIds   []int64
+	StartAts   []time.Time
+	EndAts     []time.Time
+}
+
+type ListRecordedProgramsRow struct {
+	ServiceID int64
+	EventID   int64
+	StartAt   time.Time
+}
+
+// 番組 (サービス, eventId, 放送時間) のうち、録画のあるものを返す (#1278)。失敗した録画は数えない。
+// eventId は使い回されるので、ListProgramRecordings と同じく、放送時間に重なる録画だけを数える。
+func (q *Queries) ListRecordedPrograms(ctx context.Context, arg ListRecordedProgramsParams) ([]ListRecordedProgramsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedPrograms,
+		arg.ServiceIds,
+		arg.EventIds,
+		arg.StartAts,
+		arg.EndAts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedProgramsRow{}
+	for rows.Next() {
+		var i ListRecordedProgramsRow
+		if err := rows.Scan(&i.ServiceID, &i.EventID, &i.StartAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

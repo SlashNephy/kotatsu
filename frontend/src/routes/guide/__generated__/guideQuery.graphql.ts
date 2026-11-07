@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b3336cac0ac9d87eb87cd2d6cd4d199d>>
+ * @generated SignedSource<<6b2cf64cb209ffc51dfd092dfc1d0dc0>>
  * @lightSyntaxTransform
  */
 
@@ -28,6 +28,7 @@ export type guideQuery$data = {
       }>;
       readonly id: string;
       readonly name: string;
+      readonly recorded: boolean;
       readonly reservation: {
         readonly enabled: boolean;
         readonly id: string;
@@ -410,6 +411,13 @@ v8 = [
             "kind": "ScalarField",
             "name": "watchReserved",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "recorded",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -436,16 +444,16 @@ return {
     "selections": (v8/*:: as any*/)
   },
   "params": {
-    "cacheID": "3ac2a3f3e74fd258b4f8069e8595a4d4",
+    "cacheID": "81a396b8623522c55e66dd87aa37c7e5",
     "id": null,
     "metadata": {},
     "name": "guideQuery",
     "operationKind": "query",
-    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  oldestArchivedProgramAt\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n    freeOnly\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n        lv2\n      }\n      sharedFrom {\n        id\n      }\n      reservation {\n        id\n        enabled\n      }\n      watchReserved\n    }\n  }\n}\n"
+    "text": "query guideQuery(\n  $from: Time!\n  $to: Time!\n  $view: ID\n) {\n  oldestArchivedProgramAt\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  guideViews {\n    id\n    name\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    minDurationSeconds\n    services {\n      id\n    }\n    hideEmptyServices\n    freeOnly\n  }\n  guide(from: $from, to: $to, view: $view) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n        lv2\n      }\n      sharedFrom {\n        id\n      }\n      reservation {\n        id\n        enabled\n      }\n      watchReserved\n      recorded\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9798ef9d72a5806f6fd703c0962cb7ad";
+(node as any).hash = "19b1bab6f125954c4b5f53b60241a337";
 
 export default node;

@@ -689,3 +689,84 @@ func TestGuideArchivedPrograms(t *testing.T) {
 	require.Empty(t, f.query(t, `{ oldestArchivedProgramAt }`, nil, &oldest))
 	assert.True(t, oldest.OldestArchivedProgramAt.Equal(pastStart), oldest.OldestArchivedProgramAt)
 }
+
+// inProgressState は、録画中の録画の状態。
+const inProgressState = "recording"
+
+// TestProgramRecorded は、番組表の番組に、録画があるかを返すことを確かめる (#1278)。
+// 失敗した録画は数えず、eventId が同じでも放送時間の重ならない録画は数えない。
+func TestProgramRecorded(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.syncEPG(t)
+	serviceID := f.serviceIDs(t)["こたつテスト1"]
+	span := func(eventID int) (time.Time, time.Time) {
+		t.Helper()
+
+		var start, end time.Time
+		require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT start_at, end_at FROM programs WHERE event_id = $1
+			AND service_id = (SELECT id FROM services WHERE name = 'こたつテスト1')`, eventID).Scan(&start, &end))
+
+		return start, end
+	}
+	record := func(eventID int, start, end time.Time, state string) {
+		t.Helper()
+
+		_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, event_id, name, description, start_at, end_at,
+			state, recorded_from, created_at, updated_at)
+			SELECT $1, id, $2, '録画', '', $3, $4, $5, $3, $3, $3 FROM services WHERE name = 'こたつテスト1'`,
+			id.New(), eventID, start, end, state)
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name    string
+		eventID int
+		setup   func(start, end time.Time)
+		want    bool
+	}{
+		{name: "completed", eventID: 2, setup: func(start, end time.Time) { record(2, start, end, "completed") }, want: true},
+		{name: "in progress", eventID: 3, setup: func(start, end time.Time) { record(3, start, end, inProgressState) }, want: true},
+		{name: "failed", eventID: 4, setup: func(start, end time.Time) { record(4, start, end, "failed") }, want: false},
+		{
+			name: "reused event ID", eventID: 5,
+			setup: func(start, end time.Time) {
+				record(5, start.Add(-7*24*time.Hour), end.Add(-7*24*time.Hour), "completed")
+			},
+			want: false,
+		},
+		{name: "no recording", eventID: 6, setup: func(time.Time, time.Time) {}, want: false},
+	}
+	from, _ := span(tests[0].eventID)
+	_, to := span(tests[len(tests)-1].eventID)
+	for _, tt := range tests {
+		tt.setup(span(tt.eventID))
+	}
+
+	var got struct {
+		Guide []struct {
+			Programs []struct {
+				Name     string `json:"name"`
+				Recorded bool   `json:"recorded"`
+			} `json:"programs"`
+		} `json:"guide"`
+	}
+	require.Empty(t, f.query(t, `query($from: Time!, $to: Time!, $services: [ID!]) {
+		guide(from: $from, to: $to, services: $services) { programs { name recorded } } }`,
+		guideVariables(from.Format(time.RFC3339), to.Format(time.RFC3339), []string{serviceID}), &got))
+	require.Len(t, got.Guide, 1)
+	recorded := map[string]bool{}
+	for _, program := range got.Guide[0].Programs {
+		recorded[program.Name] = program.Recorded
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, ok := recorded[programName(tt.eventID)]
+			require.True(t, ok, "the program is in the guide")
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
