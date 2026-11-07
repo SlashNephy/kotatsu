@@ -192,6 +192,7 @@ type AuditEvent struct {
 
 type CalendarFeed struct {
 	UserID     uuid.UUID
+	Kind       string
 	TokenHash  []byte
 	CreatedAt  time.Time
 	LastUsedAt *time.Time

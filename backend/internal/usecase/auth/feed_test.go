@@ -27,7 +27,7 @@ func TestCalendarFeeds(t *testing.T) {
 	actor := audit.User(member.ID)
 
 	_, err = feeds.Get(t.Context(), member.ID)
-	require.ErrorIs(t, err, auth.ErrCalendarFeedNotFound, "nothing is issued yet")
+	require.ErrorIs(t, err, auth.ErrFeedNotFound, "nothing is issued yet")
 
 	first, feed, err := feeds.Create(t.Context(), actor, member.ID)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestCalendarFeeds(t *testing.T) {
 	require.NoError(t, feeds.Delete(t.Context(), actor, member.ID))
 	_, err = feeds.Authenticate(t.Context(), second)
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
-	require.ErrorIs(t, feeds.Delete(t.Context(), actor, member.ID), auth.ErrCalendarFeedNotFound)
+	require.ErrorIs(t, feeds.Delete(t.Context(), actor, member.ID), auth.ErrFeedNotFound)
 }
 
 // TestCalendarFeedsDisabledUser は、無効にしたユーザーの URL は使えないことを確かめる (#1255)。
@@ -97,4 +97,54 @@ func TestCalendarFeedsDisabledUser(t *testing.T) {
 
 	_, err = feeds.Authenticate(t.Context(), token)
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
+}
+
+// TestFeedKinds は、予約の iCalendar と IPTV の配信で、秘密の値を分けることを確かめる (#1324)。
+// 一方の値で、もう一方を読めず、一方を取り消しても、もう一方は使える。
+func TestFeedKinds(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	clk := clocktest.NewFake(testNow())
+	member, err := auth.NewUsers(clk).Create(t.Context(), db, &auth.NewUser{Username: "iptv", DisplayName: "iptv", Role: auth.RoleMember, PasswordHash: nil})
+	require.NoError(t, err)
+	calendar := auth.NewCalendarFeeds(db, clk, audit.NewRecorder(clk))
+	iptv := auth.NewIPTVFeeds(db, clk, audit.NewRecorder(clk))
+	actor := audit.User(member.ID)
+
+	calendarToken, _, err := calendar.Create(t.Context(), actor, member.ID)
+	require.NoError(t, err)
+	_, err = iptv.Get(t.Context(), member.ID)
+	require.ErrorIs(t, err, auth.ErrFeedNotFound, "issuing a calendar feed does not issue an IPTV feed")
+	iptvToken, _, err := iptv.Create(t.Context(), actor, member.ID)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(iptvToken, "kotatsu_iptv_"))
+
+	principal, err := iptv.Authenticate(t.Context(), iptvToken)
+	require.NoError(t, err)
+	assert.Equal(t, member.ID, principal.UserID)
+	for name, check := range map[string]func() error{
+		"calendar token for IPTV": func() error {
+			_, err := iptv.Authenticate(t.Context(), calendarToken)
+
+			return err
+		},
+		"IPTV token for calendar": func() error {
+			_, err := calendar.Authenticate(t.Context(), iptvToken)
+
+			return err
+		},
+		// 印を付け替えても、ほかの種類の値は受け付けない。
+		"calendar token with the IPTV mark": func() error {
+			_, err := iptv.Authenticate(t.Context(), "kotatsu_iptv_"+strings.TrimPrefix(calendarToken, "kotatsu_cal_"))
+
+			return err
+		},
+	} {
+		require.ErrorIs(t, check(), auth.ErrUnauthenticated, name)
+	}
+
+	require.NoError(t, iptv.Delete(t.Context(), actor, member.ID))
+	_, err = calendar.Authenticate(t.Context(), calendarToken)
+	require.NoError(t, err, "revoking the IPTV feed keeps the calendar feed")
 }
