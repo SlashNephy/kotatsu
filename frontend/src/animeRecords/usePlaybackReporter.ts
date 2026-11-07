@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { graphql, useMutation } from 'react-relay';
 
 import type { usePlaybackReporterMutation } from './__generated__/usePlaybackReporterMutation.graphql';
-import { useRecordOnDevice } from './recordOnDevice';
+import { browserStorage } from '../yunomi/volume';
+import { loadRecordOnDevice, useRecordOnDevice } from './recordOnDevice';
 
 // sampleInterval は、再生した区間を確かめる間隔 (ミリ秒)。
 const sampleInterval = 1_000;
@@ -180,6 +181,10 @@ export function usePlaybackReporter(
       window.removeEventListener('pagehide', onPageHide);
       clearInterval(sampler);
       clearInterval(reporter);
+      // この端末で記録しない設定に切り替えたときは、それまでに集めた区間も送らない。
+      if (!loadRecordOnDevice(browserStorage())) {
+        return;
+      }
       sample();
       report();
     };

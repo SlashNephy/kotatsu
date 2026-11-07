@@ -27,9 +27,13 @@ function subscribe(onChange: () => void): () => void {
   };
 }
 
+function getSnapshot(): boolean {
+  return loadRecordOnDevice(browserStorage());
+}
+
 // useRecordOnDevice は、この端末で見たアニメを記録するかと、それを変える関数を返す。ほかのタブで変えても追う。
 export function useRecordOnDevice(): [boolean, (enabled: boolean) => void] {
-  const enabled = useSyncExternalStore(subscribe, () => loadRecordOnDevice(browserStorage()));
+  const enabled = useSyncExternalStore(subscribe, getSnapshot);
 
   return [
     enabled,
