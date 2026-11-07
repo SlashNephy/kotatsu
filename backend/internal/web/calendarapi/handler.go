@@ -24,12 +24,12 @@ const (
 	calendarName = "Kotatsu の録画予約"
 )
 
-// Authenticator は、購読用の URL の秘密の値から、発行したユーザーを引く。*auth.CalendarFeeds が満たす。
+// Authenticator は、購読用の URL の秘密の値から、発行したユーザーを引く。*auth.Feeds が満たす。
 type Authenticator interface {
 	Authenticate(ctx context.Context, token string) (*auth.Principal, error)
 }
 
-var _ Authenticator = new(auth.CalendarFeeds)
+var _ Authenticator = new(auth.Feeds)
 
 // Queries は、予約とサービスを読む。*query.Queries が満たす。
 type Queries interface {

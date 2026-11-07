@@ -191,3 +191,26 @@ func TestLogoHandlerNotModified(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotModified, second.StatusCode)
 }
+
+// TestLogoHandlerKeepsCacheControl は、手前で Cache-Control を決めていれば、上書きしないことを確かめる (#1324)。
+// IPTV の配信は、URL に秘密の値を含むので、ロゴも途中のキャッシュに残させない。
+func TestLogoHandlerKeepsCacheControl(t *testing.T) {
+	t.Parallel()
+
+	handler := streamapi.NewLogoHandler(fakeTunerClient(t), nil, slog.New(slog.DiscardHandler))
+	mux := http.NewServeMux()
+	mux.Handle(logoPattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "private, no-store")
+		handler.ServeHTTP(w, r)
+	}))
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/media/services/"+serviceID+"/logo", nil)
+	require.NoError(t, err)
+	resp, err := server.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "private, no-store", resp.Header.Get("Cache-Control"))
+}

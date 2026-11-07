@@ -26,6 +26,7 @@ import { settingsErrorMessage } from '../../settings/errors';
 import { PasskeyCancelledError, passkeyAvailable, registerPasskey } from '../../auth/passkey';
 import { ApiTokens } from '../../settings/ApiTokens';
 import { CalendarFeed } from '../../settings/CalendarFeed';
+import { IptvFeed } from '../../settings/IptvFeed';
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
@@ -113,6 +114,10 @@ const query = graphql`
       lastUsedAt
     }
     calendarFeed {
+      createdAt
+      lastUsedAt
+    }
+    iptvFeed {
       createdAt
       lastUsedAt
     }
@@ -212,6 +217,14 @@ function Security() {
 
             <CalendarFeed
               feed={data.calendarFeed}
+              onChanged={refresh}
+              run={run}
+              fail={fail}
+              environment={environment}
+            />
+
+            <IptvFeed
+              feed={data.iptvFeed}
               onChanged={refresh}
               run={run}
               fail={fail}
