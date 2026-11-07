@@ -1259,20 +1259,25 @@ type ComplexityRoot struct {
 	}
 
 	TunerServerHealth struct {
-		ClockSkewMs   func(childComplexity int) int
-		ClockSkewed   func(childComplexity int) int
-		Degraded      func(childComplexity int) int
-		DegradedSince func(childComplexity int) int
-	}
-
-	TunerServerStatus struct {
-		CheckedAt            func(childComplexity int) int
+		BroadcastClockSkewMs func(childComplexity int) int
+		BroadcastClockSkewed func(childComplexity int) int
 		ClockSkewMs          func(childComplexity int) int
-		ClockSkewThresholdMs func(childComplexity int) int
 		ClockSkewed          func(childComplexity int) int
 		Degraded             func(childComplexity int) int
 		DegradedSince        func(childComplexity int) int
-		LastError            func(childComplexity int) int
+	}
+
+	TunerServerStatus struct {
+		BroadcastClockCheckedAt func(childComplexity int) int
+		BroadcastClockSkewMs    func(childComplexity int) int
+		BroadcastClockSkewed    func(childComplexity int) int
+		CheckedAt               func(childComplexity int) int
+		ClockSkewMs             func(childComplexity int) int
+		ClockSkewThresholdMs    func(childComplexity int) int
+		ClockSkewed             func(childComplexity int) int
+		Degraded                func(childComplexity int) int
+		DegradedSince           func(childComplexity int) int
+		LastError               func(childComplexity int) int
 	}
 
 	User struct {
@@ -7087,6 +7092,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Tuner.Types(childComplexity), true
 
+	case "TunerServerHealth.broadcastClockSkewMs":
+		if e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewMs(childComplexity), true
+	case "TunerServerHealth.broadcastClockSkewed":
+		if e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewed(childComplexity), true
 	case "TunerServerHealth.clockSkewMs":
 		if e.ComplexityRoot.TunerServerHealth.ClockSkewMs == nil {
 			break
@@ -7112,6 +7129,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TunerServerHealth.DegradedSince(childComplexity), true
 
+	case "TunerServerStatus.broadcastClockCheckedAt":
+		if e.ComplexityRoot.TunerServerStatus.BroadcastClockCheckedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.BroadcastClockCheckedAt(childComplexity), true
+	case "TunerServerStatus.broadcastClockSkewMs":
+		if e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewMs(childComplexity), true
+	case "TunerServerStatus.broadcastClockSkewed":
+		if e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewed(childComplexity), true
 	case "TunerServerStatus.checkedAt":
 		if e.ComplexityRoot.TunerServerStatus.CheckedAt == nil {
 			break
@@ -7605,6 +7640,12 @@ type TunerServerStatus {
   "時計の差を警告する閾値 (ミリ秒)。"
   clockSkewThresholdMs: Int!
   checkedAt: Time!
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。"
+  broadcastClockSkewMs: Int
+  "放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。"
+  broadcastClockSkewed: Boolean!
+  "放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。"
+  broadcastClockCheckedAt: Time
 }
 
 """
@@ -7691,6 +7732,10 @@ type TunerServerHealth {
   clockSkewed: Boolean!
   "チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。"
   clockSkewMs: Int
+  "録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。"
+  broadcastClockSkewed: Boolean!
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。"
+  broadcastClockSkewMs: Int
 }
 
 extend type Query {
@@ -13201,6 +13246,10 @@ func (ec *executionContext) childFields_TunerServerHealth(ctx context.Context, f
 		return ec.fieldContext_TunerServerHealth_clockSkewed(ctx, field)
 	case "clockSkewMs":
 		return ec.fieldContext_TunerServerHealth_clockSkewMs(ctx, field)
+	case "broadcastClockSkewed":
+		return ec.fieldContext_TunerServerHealth_broadcastClockSkewed(ctx, field)
+	case "broadcastClockSkewMs":
+		return ec.fieldContext_TunerServerHealth_broadcastClockSkewMs(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TunerServerHealth", field.Name)
 }
@@ -13221,6 +13270,12 @@ func (ec *executionContext) childFields_TunerServerStatus(ctx context.Context, f
 		return ec.fieldContext_TunerServerStatus_clockSkewThresholdMs(ctx, field)
 	case "checkedAt":
 		return ec.fieldContext_TunerServerStatus_checkedAt(ctx, field)
+	case "broadcastClockSkewMs":
+		return ec.fieldContext_TunerServerStatus_broadcastClockSkewMs(ctx, field)
+	case "broadcastClockSkewed":
+		return ec.fieldContext_TunerServerStatus_broadcastClockSkewed(ctx, field)
+	case "broadcastClockCheckedAt":
+		return ec.fieldContext_TunerServerStatus_broadcastClockCheckedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TunerServerStatus", field.Name)
 }
@@ -37922,6 +37977,52 @@ func (ec *executionContext) fieldContext_TunerServerHealth_clockSkewMs(_ context
 	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Int")
 }
 
+func (ec *executionContext) _TunerServerHealth_broadcastClockSkewed(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_broadcastClockSkewed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_broadcastClockSkewed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _TunerServerHealth_broadcastClockSkewMs(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_broadcastClockSkewMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_broadcastClockSkewMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Int")
+}
+
 func (ec *executionContext) _TunerServerStatus_degraded(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38080,6 +38181,75 @@ func (ec *executionContext) _TunerServerStatus_checkedAt(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_TunerServerStatus_checkedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Time")
+}
+
+func (ec *executionContext) _TunerServerStatus_broadcastClockSkewMs(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_broadcastClockSkewMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_broadcastClockSkewMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Int")
+}
+
+func (ec *executionContext) _TunerServerStatus_broadcastClockSkewed(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_broadcastClockSkewed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_broadcastClockSkewed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _TunerServerStatus_broadcastClockCheckedAt(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_broadcastClockCheckedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockCheckedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_broadcastClockCheckedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Time")
 }
 
@@ -50807,6 +50977,16 @@ func (ec *executionContext) _TunerServerHealth(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "broadcastClockSkewed":
+			out.Values[i] = ec._TunerServerHealth_broadcastClockSkewed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClockSkewMs":
+			out.Values[i] = ec._TunerServerHealth_broadcastClockSkewMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -50868,6 +51048,21 @@ func (ec *executionContext) _TunerServerStatus(ctx context.Context, sel ast.Sele
 		case "checkedAt":
 			out.Values[i] = ec._TunerServerStatus_checkedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClockSkewMs":
+			out.Values[i] = ec._TunerServerStatus_broadcastClockSkewMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "broadcastClockSkewed":
+			out.Values[i] = ec._TunerServerStatus_broadcastClockSkewed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClockCheckedAt":
+			out.Values[i] = ec._TunerServerStatus_broadcastClockCheckedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:

@@ -792,11 +792,13 @@ type Tuner struct {
 }
 
 type TunerServerStatus struct {
-	ID            bool
-	DegradedSince *time.Time
-	LastError     string
-	ClockSkewMs   *int64
-	CheckedAt     time.Time
+	ID                      bool
+	DegradedSince           *time.Time
+	LastError               string
+	ClockSkewMs             *int64
+	CheckedAt               time.Time
+	BroadcastClockSkewMs    *int64
+	BroadcastClockCheckedAt *time.Time
 }
 
 type User struct {

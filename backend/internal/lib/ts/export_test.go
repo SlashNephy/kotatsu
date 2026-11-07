@@ -1,5 +1,7 @@
 package ts
 
+import "time"
+
 // IsH264ISliceHeader は、テストから isH264ISliceHeader を呼ぶためのもの。
 func IsH264ISliceHeader(header uint16) bool {
 	return isH264ISliceHeader(header)
@@ -11,4 +13,9 @@ func ParseVideoFormatForTest(codec string, es []byte) *VideoFormat {
 	format, _ := parseVideoFormat(codecs[codec], es)
 
 	return format
+}
+
+// ParseTOTForTest は、テストから parseTOT を呼ぶためのもの。
+func ParseTOTForTest(section []byte) (time.Time, bool) {
+	return parseTOT(section)
 }

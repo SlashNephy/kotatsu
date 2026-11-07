@@ -452,6 +452,8 @@ Kotatsuを通さずにチューナーを使う利用者（TVTestなど）もい�
 時刻の基準はOSの時計（NTPで同期済みのもの）とします。
 チューナーサーバーが返すHTTPのDateヘッダーと比べて10秒より大きくずれていたら、警告します。nekoはログに残し、画面では、システムの状態でずれを強調し、ホームで全員に知らせます。録画の開始と終了がずれうるので、管理者でなくても気付けるようにします。通知は送りません。
 
+Dateヘッダーとの比較では、チューナーサーバーとKotatsuの時計が同じ向きにずれたときに気付けません。そこで、mikanは、録画しているTSのTDTとTOT（PID 0x14）から放送の時刻（日本標準時）を読み、届いた時点のOSの時計と比べます（#1309）。TOTは秒単位で、数秒ごとにしか届かず、TSが届くまでの遅れも含むので、1〜2秒の差は測れません。PCRで補うことはしません。差は、書いているセグメントの様子と同じく10秒ごとに書き、Dateヘッダーとの差とは別の値として、システムの状態に出します。閾値（10秒）を超えたら、mikanはログに残し、ホームで全員に知らせます。Dateヘッダーとの差を知らせている間は、そちらを優先します。録画していない間は、最後に測った値のまま出し、測った日時を添えます。
+
 チューナーサーバーに接続できない間は、UIに縮退中であることを表示し、バックオフしながら再接続を続けます。
 再接続できたら、全量の突き合わせからやり直します。
 チューナーサーバーの状態は、Kotatsuの起動やlivenessの判定には影響させません。
@@ -2379,7 +2381,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | [SlashNephy/annict-tracker](https://github.com/SlashNephy/annict-tracker) | 見たいリストの作品を、次の話と次の放送とともにカードで並べる視聴管理の画面（#1229）、放送の時期のバッジと絞り込み、配信サービスで作品を探すリンクのURLの形 |
 | [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
 | [DBCTRADO/TVTest](https://github.com/DBCTRADO/TVTest) | プレイヤーの機能を、IDを持つコマンドとして1つにまとめ、キー、メニュー、外部からの操作で同じものを呼ぶ作り（#808、#809）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードや表は写しません。 |
-| [DBCTRADO/LibISDB](https://github.com/DBCTRADO/LibISDB) | 映像のシーケンスヘッダーとSPSから、大きさ、インターレースかどうか、フレームレートを読む作り（#1310）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードは写さず、ISO/IEC 13818-2、ITU-T H.264、H.265を見て実装しました。 |
+| [DBCTRADO/LibISDB](https://github.com/DBCTRADO/LibISDB) | 映像のシーケンスヘッダーとSPSから、大きさ、インターレースかどうか、フレームレートを読む作り（#1310）と、TOTで放送の時刻を読む作り（#1309）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードは写さず、ISO/IEC 13818-2、ITU-T H.264、H.265、ARIB STD-B10を見て実装しました。 |
 | [SlashNephy/TVTestAnnictRecorder](https://github.com/SlashNephy/TVTestAnnictRecorder) | アニメの番組と作品の照合の流れ（しょぼいカレンダー → arm → Annict）、話数とサブタイトルによるエピソードの特定、`[新]`と`[終]`による作品の状態の変更、番組名からの作品名と話数の解析（[3.8](#38-アニメの番組と作品の結びつき)） |
 | [SlashNephy/saya-definitions](https://github.com/SlashNephy/saya-definitions) | サービスと、しょぼいカレンダーのチャンネル、Annictのチャンネルの対応 |
 | [kawaiioverflow/arm](https://github.com/kawaiioverflow/arm) | しょぼいカレンダーのTIDと、Annict、AniList、MyAnimeListの作品IDの対応 |

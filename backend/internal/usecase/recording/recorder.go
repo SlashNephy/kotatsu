@@ -35,6 +35,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
 )
 
@@ -143,6 +144,21 @@ type Recorder struct {
 	location *time.Location
 	logger   *slog.Logger
 	opts     RecorderOptions
+	// broadcastSkew は、録画している TS の TOT で最後に測った、放送の時刻と OS の時計の差 (#1309)。まだ測っていなければ nil。
+	broadcastSkew atomic.Pointer[broadcastSkew]
+}
+
+// broadcastSkew は、TOT で測った時計の差と、測った時刻。
+type broadcastSkew struct {
+	skew time.Duration
+	at   time.Time
+}
+
+// observeTOT は、録画している TS の TOT が示す放送の時刻 at と、届いた時点の OS の時計を比べて覚える (#1309)。
+// TS を書く途中で呼ぶので、DB には書かず、書いているセグメントの様子と一緒に書く。TOT は秒単位なので、1 秒ほどの差は測れない。
+func (r *Recorder) observeTOT(at time.Time) {
+	now := r.clock.Now()
+	r.broadcastSkew.Store(&broadcastSkew{skew: now.Sub(at), at: now})
 }
 
 // NewRecorder は Recorder を返す。defaults は録画設定の全体の既定値、location はファイル名に使う表示のタイムゾーン。opts は nil でもよい。
@@ -884,7 +900,7 @@ func (r *Recorder) newSegment(
 	}
 	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
-	analyzer, indexFile, indexErr := CreateIndex(r.store, fileID)
+	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -931,6 +947,11 @@ func poolsFrom(rows []sqlc.StoragePool, mounted []string, poolID string) []*kago
 // CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
 // 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。タイムシフトのチャンクも、同じ作りの索引を書く。
 func CreateIndex(store *kago.Store, fileID uuid.UUID) (*ts.Analyzer, *os.File, error) {
+	return createIndex(store, fileID, nil)
+}
+
+// createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
+func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time)) (*ts.Analyzer, *os.File, error) {
 	if _, err := store.CreateSegmentDir(fileID); err != nil {
 		return ts.NewAnalyzer(nil), nil, err
 	}
@@ -950,7 +971,7 @@ func CreateIndex(store *kago.Store, fileID uuid.UUID) (*ts.Analyzer, *os.File, e
 		return ts.NewAnalyzer(nil), nil, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil}), file, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT}), file, nil
 }
 
 // endReason は、録画を止めた理由。
@@ -1923,10 +1944,14 @@ type liveStatsWriter struct {
 	// lastAt と lastBytes は、前に書いたときの経過時間とバイト数。まだ書いていなければ、lastAt は負。
 	lastAt    time.Duration
 	lastBytes int64
+	// lastSkewAt は、前に書いた、TOT で測った時計の差の、測った時刻 (#1309)。
+	lastSkewAt time.Time
 }
 
 func newLiveStatsWriter(r *Recorder, recordingID *atomic.Pointer[uuid.UUID]) *liveStatsWriter {
-	return &liveStatsWriter{recorder: r, recordingID: recordingID, stopwatch: r.clock.StartStopwatch(), lastAt: -1, lastBytes: 0}
+	return &liveStatsWriter{
+		recorder: r, recordingID: recordingID, stopwatch: r.clock.StartStopwatch(), lastAt: -1, lastBytes: 0, lastSkewAt: time.Time{},
+	}
 }
 
 // maybeWrite は、前に書いてから liveStatsInterval が過ぎていれば、stats を書く。最初は、ビットレートを測るための区切りにする。
@@ -1956,5 +1981,23 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 	})
 	if err != nil && ctx.Err() == nil {
 		w.recorder.logger.WarnContext(ctx, "failed to save the live recording stats", slog.Any("error", err))
+	}
+	w.writeBroadcastSkew(dbCtx)
+}
+
+// writeBroadcastSkew は、前に書いてから TOT で測り直していれば、放送の時刻と OS の時計の差を書く (#1309)。
+// 差が閾値を超えていれば、ログにも残す。見るためだけなので、書けなくても録画を止めない。
+func (w *liveStatsWriter) writeBroadcastSkew(ctx context.Context) {
+	measured := w.recorder.broadcastSkew.Load()
+	if measured == nil || !measured.at.After(w.lastSkewAt) {
+		return
+	}
+	w.lastSkewAt = measured.at
+	skewMs := measured.skew.Milliseconds()
+	if measured.skew.Abs() > tunerstate.DefaultSkewThreshold {
+		w.recorder.logger.WarnContext(ctx, "the system clock differs from the broadcast time (TOT)", slog.Int64("skew_ms", skewMs))
+	}
+	if err := sqlc.New(w.recorder.pool).SetBroadcastClockSkew(ctx, sqlc.SetBroadcastClockSkewParams{Now: measured.at, SkewMs: &skewMs}); err != nil && ctx.Err() == nil {
+		w.recorder.logger.WarnContext(ctx, "failed to save the broadcast clock skew", slog.Any("error", err))
 	}
 }

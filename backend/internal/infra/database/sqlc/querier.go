@@ -834,6 +834,8 @@ type Querier interface {
 	// SearchRecordings の古い順。after_at と after_id より後 (新しい) の録画だけを返し、ページを送る。
 	SearchRecordingsOldest(ctx context.Context, arg SearchRecordingsOldestParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
+	// 録画している TS の TOT で測った、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
+	SetBroadcastClockSkew(ctx context.Context, arg SetBroadcastClockSkewParams) error
 	// 字幕の見た目と、文字スーパーを出すかどうかの設定を、まるごと置き換える (#491)。
 	SetCaptionSettings(ctx context.Context, arg SetCaptionSettingsParams) error
 	// 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。

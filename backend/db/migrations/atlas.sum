@@ -1,4 +1,4 @@
-h1:82DtJOfs1hbiHUjCwVzzm1g4CiAW6LNa/+A12uAdl1A=
+h1:DdikcpLJjHFQAKSu7rN8stUQmfybyQ7rnvFSza/r6fM=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -84,3 +84,4 @@ h1:82DtJOfs1hbiHUjCwVzzm1g4CiAW6LNa/+A12uAdl1A=
 20261107044440_add_recordings_service_event_index.sql h1:XSUmmXHIOmKUzVd64Ma85S89mRsD/hrIz9chC3u/YnQ=
 20261107053731_add_calendar_feeds.sql h1:NxtoXL7FX6lu+cT2BbFMe6d9KhbwThrcd9v7tvPOuoE=
 20261107065410_add_recording_files_video.sql h1:GPjMVdtid23x3T+fII/OG2YRPiV5fYHbqsfBn62QHBk=
+20261107072014_add_broadcast_clock_skew.sql h1:W3+0ms2GjjQBf50gzmq7gDsOc8AhxWYKLoxful2m6Dc=

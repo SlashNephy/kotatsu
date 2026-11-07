@@ -75,6 +75,9 @@ const query = graphql`
         clockSkewed
         clockSkewThresholdMs
         checkedAt
+        broadcastClockSkewMs
+        broadcastClockSkewed
+        broadcastClockCheckedAt
       }
       tuners {
         index
@@ -178,6 +181,26 @@ function SystemStatus() {
                 )}
               </Text>
             )}
+            {status.tunerServer.broadcastClockSkewMs != null &&
+              status.tunerServer.broadcastClockCheckedAt != null && (
+                // 録画している TS の TOT で測った、放送の時刻との差 (#1309)。Date ヘッダーとの差とは別に示す。
+                <Text
+                  size="sm"
+                  c={status.tunerServer.broadcastClockSkewed ? 'amber.8' : undefined}
+                  fw={status.tunerServer.broadcastClockSkewed ? 700 : undefined}
+                >
+                  {t(
+                    status.tunerServer.broadcastClockSkewed
+                      ? 'admin.system.broadcastClockSkewExceeded'
+                      : 'admin.system.broadcastClockSkew',
+                    {
+                      ms: status.tunerServer.broadcastClockSkewMs,
+                      threshold: status.tunerServer.clockSkewThresholdMs,
+                      at: formatTime(status.tunerServer.broadcastClockCheckedAt),
+                    },
+                  )}
+                </Text>
+              )}
             <Text size="xs" c="dimmed">
               {t('admin.system.checkedAt', { at: formatTime(status.tunerServer.checkedAt) })}
             </Text>

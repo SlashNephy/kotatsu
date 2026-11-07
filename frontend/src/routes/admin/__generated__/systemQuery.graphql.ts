@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<18f77cf3a90ddd1635b8e370e370304a>>
+ * @generated SignedSource<<5251acf8f7d4442af504e9f228d66e02>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,9 @@ export type systemQuery$data = {
       readonly resetAt: string | null | undefined;
     }>;
     readonly tunerServer: {
+      readonly broadcastClockCheckedAt: string | null | undefined;
+      readonly broadcastClockSkewMs: number | null | undefined;
+      readonly broadcastClockSkewed: boolean;
       readonly checkedAt: string;
       readonly clockSkewMs: number | null | undefined;
       readonly clockSkewThresholdMs: number;
@@ -276,6 +279,27 @@ v2 = [
             "kind": "ScalarField",
             "name": "checkedAt",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "broadcastClockSkewMs",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "broadcastClockSkewed",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "broadcastClockCheckedAt",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -388,16 +412,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "2593439c08c778adb7b95e4849304de2",
+    "cacheID": "691ca606121ec52dad7b0efd225881f9",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    recordingFailures {\n      reason\n      count\n      lastFailedAt\n      resetAt\n    }\n  }\n}\n"
+    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n      broadcastClockSkewMs\n      broadcastClockSkewed\n      broadcastClockCheckedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    recordingFailures {\n      reason\n      count\n      lastFailedAt\n      resetAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cdcc0d597e4935aa38082ac5b72faeb2";
+(node as any).hash = "cf8ba8afbf4780871416fb35fecdfa2a";
 
 export default node;

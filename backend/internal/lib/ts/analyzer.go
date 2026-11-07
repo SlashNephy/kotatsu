@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 )
 
 // Analyzer は、書き込まれる TS を流し読みし、PID ごとの統計と、PAT と PMT が表す番組の構成を記録する。
@@ -45,6 +46,8 @@ type Analyzer struct {
 	videoProbe *videoFormatProbe
 	// videoFormat は、読んだ映像の形式 (#1310)。まだ読んでいなければ nil。
 	videoFormat *VideoFormat
+	// onTOT は、TDT か TOT を読んだときに呼ぶ (#1309)。nil なら TOT を読まない。
+	onTOT func(time.Time)
 	// cutoffPTS と beforeCutoff は、AnalyzerOptions.CutoffPTS と、そこに届いたときの PID ごとの統計。届いていなければ nil。
 	cutoffPTS    *int64
 	beforeCutoff []*PIDStats
@@ -57,6 +60,8 @@ type AnalyzerOptions struct {
 	// CutoffPTS は、PID ごとの統計を控えておく位置。PTS がこの値に届いた I フレームを見つけたときの統計を、
 	// Stats.PIDsBeforeCutoff に返す。引き継ぎで重なった区間を、古いセグメントの集計から除くのに使う (#525)。nil なら控えない。
 	CutoffPTS *int64
+	// OnTOT は、TDT か TOT を読んだときに、放送の現在の時刻を受け取る (#1309)。Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
+	OnTOT func(time.Time)
 }
 
 var _ io.Writer = new(Analyzer)
@@ -114,8 +119,9 @@ type Stats struct {
 func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	var index *IndexWriter
 	var cutoff *int64
+	var onTOT func(time.Time)
 	if opts != nil {
-		index, cutoff = opts.Index, opts.CutoffPTS
+		index, cutoff, onTOT = opts.Index, opts.CutoffPTS, opts.OnTOT
 	}
 
 	return &Analyzer{
@@ -139,6 +145,7 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		firstPTS:           nil,
 		videoProbe:         nil,
 		videoFormat:        nil,
+		onTOT:              onTOT,
 		cutoffPTS:          cutoff,
 		beforeCutoff:       nil,
 	}
@@ -355,7 +362,7 @@ func (a *Analyzer) probeVideoFormat(pkt *packet) {
 // handlePSI は、PAT、PMT、EIT のパケットからセクションを組み立てて読む。
 func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	pid := pkt.pid
-	if pid != patPID && pid != eitPID && !a.programs.isPMTPID(pid) {
+	if pid != patPID && pid != eitPID && (pid != totPID || a.onTOT == nil) && !a.programs.isPMTPID(pid) {
 		return
 	}
 
@@ -374,6 +381,10 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 			a.programs.handlePAT(section)
 		case eitPID:
 			a.eit.handle(section)
+		case totPID:
+			if at, ok := parseTOT(section); ok {
+				a.onTOT(at)
+			}
 		default:
 			a.programs.handlePMT(pid, section)
 		}
