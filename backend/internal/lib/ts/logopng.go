@@ -22,6 +22,8 @@ const (
 	transparentColor = 8
 	// halfAlpha は、共通固定色の後ろ半分の不透明度。
 	halfAlpha = 0x80
+	// maxLogoSide は、ロゴとして読む画像の幅と高さの上限。放送のロゴは 64×36 まで (ARIB TR-B15)。
+	maxLogoSide = 256
 )
 
 var errInvalidLogo = errors.New("invalid logo PNG")
@@ -56,8 +58,13 @@ func LogoPNG(data []byte) ([]byte, error) {
 		}
 		fixed = append(fixed, data[ihdrEnd:]...)
 	}
-	if _, err := png.DecodeConfig(bytes.NewReader(fixed)); err != nil {
+	config, err := png.DecodeConfig(bytes.NewReader(fixed))
+	if err != nil {
 		return nil, errors.Join(errInvalidLogo, err)
+	}
+	// 放送のTSは信じず、展開する前に大きさを確かめる。ロゴは 64×36 までなので、余裕を持たせた大きさを超えれば読まない。
+	if config.Width > maxLogoSide || config.Height > maxLogoSide {
+		return nil, errInvalidLogo
 	}
 	if _, err := png.Decode(bytes.NewReader(fixed)); err != nil {
 		return nil, errors.Join(errInvalidLogo, err)

@@ -3,6 +3,7 @@ package ts_test
 import (
 	"bytes"
 	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
@@ -185,9 +186,14 @@ func TestLogoPNG(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, withPalette, got)
 
+	// 幅を大きく偽った PNG は、展開せずに断る。
+	huge := withoutPalette(t, indexedPNG(t, 1))
+	binary.BigEndian.PutUint32(huge[16:20], 65535)
+	binary.BigEndian.PutUint32(huge[29:33], crc32.ChecksumIEEE(huge[12:29]))
 	for name, data := range map[string][]byte{
 		"not a PNG": []byte("GIF89a"),
 		"truncated": withoutPalette(t, indexedPNG(t, 1))[:40],
+		"too large": huge,
 	} {
 		_, err := ts.LogoPNG(data)
 		assert.Error(t, err, name)
