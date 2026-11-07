@@ -86,6 +86,8 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
           degradedSince
           clockSkewed
           clockSkewMs
+          broadcastClockSkewed
+          broadcastClockSkewMs
         }
         channelTypes {
           type
@@ -302,6 +304,20 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
                 ? 'home.clockSkew.ahead'
                 : 'home.clockSkew.behind',
               { seconds: Math.round(Math.abs(data.tunerServerHealth.clockSkewMs) / 1000) },
+            )}
+          </Alert>
+        )}
+      {/* チューナーサーバーと Kotatsu の時計が同じ向きにずれると、Date ヘッダーとの比較では気付けないので、放送の時刻 (TOT) とも比べる (#1309)。 */}
+      {!data.tunerServerHealth.degraded &&
+        !data.tunerServerHealth.clockSkewed &&
+        data.tunerServerHealth.broadcastClockSkewed &&
+        data.tunerServerHealth.broadcastClockSkewMs != null && (
+          <Alert color="amber" role="alert" title={t('home.broadcastClockSkew.title')}>
+            {t(
+              data.tunerServerHealth.broadcastClockSkewMs > 0
+                ? 'home.broadcastClockSkew.ahead'
+                : 'home.broadcastClockSkew.behind',
+              { seconds: Math.round(Math.abs(data.tunerServerHealth.broadcastClockSkewMs) / 1000) },
             )}
           </Alert>
         )}

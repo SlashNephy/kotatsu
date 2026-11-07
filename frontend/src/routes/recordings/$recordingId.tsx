@@ -14,6 +14,7 @@ import {
   Text,
   Title,
 } from '@mantine/core';
+import { distinctVideoLabels } from '../../recordings/videoFormat';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Download,
@@ -229,6 +230,13 @@ function Recording({ recordingId }: { recordingId: string }) {
               path
               size
               url
+              video {
+                codec
+                width
+                height
+                interlaced
+                frameRate
+              }
             }
           }
         }
@@ -556,6 +564,14 @@ function Recording({ recordingId }: { recordingId: string }) {
                 {segments.length > 0 &&
                   ` ・ ${t('recordings.size', { size: formatBytes(size), count: segments.length })}`}
               </Text>
+              {/* 映像の形式は、セグメントの映像から読んだもの (#1310)。途中で変わった録画では、変わった順に並べる。 */}
+              {distinctVideoLabels(segments.map((file) => file.video)).length > 0 && (
+                <Text size="sm" c="dimmed">
+                  {t('recordings.videoFormat', {
+                    format: distinctVideoLabels(segments.map((file) => file.video)).join(' → '),
+                  })}
+                </Text>
+              )}
               {recording.gaps.map((gap, index) => (
                 <Text key={index} size="sm" c="amber.8">
                   {t('recordings.gap', {

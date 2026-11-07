@@ -1,0 +1,64 @@
+"""
+予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+"""
+type CalendarFeed {
+  createdAt: Time!
+  "最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。"
+  lastUsedAt: Time
+}
+
+"発行した購読用の URL。"
+type CreatedCalendarFeed {
+  "URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
+  path: String!
+  calendarFeed: CalendarFeed!
+}
+
+extend type Query {
+  "ログイン中のユーザーの購読用の URL。発行していなければ null。"
+  calendarFeed: CalendarFeed
+}
+
+extend type Mutation {
+  """
+  予約を iCalendar で購読する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとして予約を読めるようになる。
+  """
+  createCalendarFeed: CreatedCalendarFeed!
+  "購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。"
+  deleteCalendarFeed: Boolean!
+}
+
+"""
+ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+"""
+type IptvFeed {
+  createdAt: Time!
+  "最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。"
+  lastUsedAt: Time
+}
+
+"発行した IPTV の配信の URL。"
+type CreatedIptvFeed {
+  "M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。"
+  playlistPath: String!
+  "XMLTV のパス (/iptv/<秘密の値>/guide.xml)。"
+  guidePath: String!
+  iptvFeed: IptvFeed!
+}
+
+extend type Query {
+  "ログイン中のユーザーの IPTV の配信の URL。発行していなければ null。"
+  iptvFeed: IptvFeed
+}
+
+extend type Mutation {
+  """
+  ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  """
+  createIptvFeed: CreatedIptvFeed!
+  "IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。"
+  deleteIptvFeed: Boolean!
+}

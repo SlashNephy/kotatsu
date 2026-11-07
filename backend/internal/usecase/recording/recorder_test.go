@@ -1449,7 +1449,13 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT audios = $2::jsonb, video_resolution FROM recordings WHERE reservation_id = $1",
 		reservationID, bilingual).Scan(&same, &resolution))
 	assert.True(t, same)
-	assert.Equal(t, new("2160p"), resolution)
+	// 解像度は、録画を始めたときに EPG から写した値 (2160p) を、セグメントを閉じたときに、映像から読んだ値で置き換える (#1310)。
+	// テストの TS は、720x480 のプログレッシブの MPEG-2。
+	assert.Equal(t, new("480p"), resolution)
+	var video []byte
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT f.video FROM recording_files f JOIN recordings r ON r.id = f.recording_id
+		WHERE r.reservation_id = $1`, reservationID).Scan(&video))
+	assert.JSONEq(t, `{"codec":"mpeg2","width":720,"height":480,"interlaced":false,"frameRate":29.97002997002997}`, string(video))
 }
 
 // TestRecorderCopiesRuleAndGenres は、録画を始めたときに、予約のジャンルと、一致したルールのうち最も古いものとその名前を、

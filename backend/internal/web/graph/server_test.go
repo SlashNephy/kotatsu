@@ -152,6 +152,8 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 	opts.WebPush, err = webpush.NewService(clk, "kotatsu-graph-test-application-key-0123456789")
 	require.NoError(tb, err)
 	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
+	opts.CalendarFeeds = auth.NewCalendarFeeds(pool, clk, audit.NewRecorder(clk))
+	opts.IPTVFeeds = auth.NewIPTVFeeds(pool, clk, audit.NewRecorder(clk))
 	opts.OAuth = oauth.NewServer(pool, clk, oauth.NewFetcher(clk), audit.NewRecorder(clk))
 	opts.Players = player.NewService(pool, clk)
 	// 記録先には問い合わせない。届かないアドレスに向けておく。

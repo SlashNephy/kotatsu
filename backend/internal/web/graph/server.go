@@ -67,6 +67,10 @@ type Options struct {
 	Passkeys *auth.Passkeys
 	// APITokens は、読み取り専用の API トークンを発行する (#431)。nil なら、API トークンを扱わない。
 	APITokens *auth.APITokens
+	// CalendarFeeds は、予約を iCalendar で購読する URL を発行する (#1255)。nil なら、購読用の URL を扱わない。
+	CalendarFeeds *auth.Feeds
+	// IPTVFeeds は、ライブ視聴の M3U と番組表の XMLTV を配信する URL を発行する (#1324)。nil なら、その URL を扱わない。
+	IPTVFeeds *auth.Feeds
 	// OAuth は、MCP のクライアントにトークンを発行する認可サーバー (#963)。nil なら、同意の操作を扱わない。
 	OAuth *oauth.Server
 	// Players は、再生中のプレイヤーを扱う (#459)。nil なら、プレイヤーを扱わない。
@@ -108,6 +112,8 @@ type Options struct {
 	AnimeRecords *animerecord.Service
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
+	// JobAdmin は、管理者向けにジョブを読み、試し直し、取り消す River のクライアント (#1279)。nil なら、ジョブの画面を使えない。
+	JobAdmin JobAdmin
 	// TotalSpace は、保存先プールのファイルシステムの容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	TotalSpace kago.TotalSpaceFunc
 	Clock      clock.Clock
@@ -187,6 +193,8 @@ func NewHandler(opts *Options) http.Handler {
 		factors:          o.SecondFactors,
 		passkeys:         o.Passkeys,
 		apiTokens:        o.APITokens,
+		calendarFeeds:    o.CalendarFeeds,
+		iptvFeeds:        o.IPTVFeeds,
 		oauth:            o.OAuth,
 		players:          o.Players,
 		userAdmin:        o.UserAdmin,
@@ -211,6 +219,7 @@ func NewHandler(opts *Options) http.Handler {
 		pools:            o.Pools,
 		freeSpace:        o.FreeSpace,
 		jobs:             o.Jobs,
+		jobAdmin:         o.JobAdmin,
 		totalSpace:       o.TotalSpace,
 		store:            kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir).WithTimeshiftDir(o.TimeshiftDir),
 		library:          library.New(o.Clock, o.Recorder, kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Logger),

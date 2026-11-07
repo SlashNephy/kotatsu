@@ -162,14 +162,18 @@ func (r *Resolver) tunerServerHealth(ctx context.Context) (*model.TunerServerHea
 	server, err := r.queries.GetTunerServerStatus(ctx)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return &model.TunerServerHealth{Degraded: false, DegradedSince: nil, ClockSkewed: false, ClockSkewMs: nil}, nil
+		return &model.TunerServerHealth{
+			Degraded: false, DegradedSince: nil, ClockSkewed: false, ClockSkewMs: nil, BroadcastClockSkewed: false, BroadcastClockSkewMs: nil,
+		}, nil
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the tuner server status: %w", err)
 	}
 	skewMs, skewed := clockSkew(server.ClockSkewMs)
+	broadcastMs, broadcastSkewed := clockSkew(server.BroadcastClockSkewMs)
 
 	return &model.TunerServerHealth{
 		Degraded: server.DegradedSince != nil, DegradedSince: server.DegradedSince, ClockSkewed: skewed, ClockSkewMs: skewMs,
+		BroadcastClockSkewed: broadcastSkewed, BroadcastClockSkewMs: broadcastMs,
 	}, nil
 }
 
@@ -224,10 +228,12 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 		return nil, fmt.Errorf("failed to get the tuner server status: %w", err)
 	default:
 		skewMs, skewed := clockSkew(server.ClockSkewMs)
+		broadcastMs, broadcastSkewed := clockSkew(server.BroadcastClockSkewMs)
 		status.TunerServer = &model.TunerServerStatus{
 			Degraded: server.DegradedSince != nil, DegradedSince: server.DegradedSince, LastError: server.LastError,
 			ClockSkewMs: skewMs, ClockSkewed: skewed, ClockSkewThresholdMs: int(tunerstate.DefaultSkewThreshold.Milliseconds()),
-			CheckedAt: server.CheckedAt,
+			CheckedAt: server.CheckedAt, BroadcastClockSkewMs: broadcastMs, BroadcastClockSkewed: broadcastSkewed,
+			BroadcastClockCheckedAt: server.BroadcastClockCheckedAt,
 		}
 	}
 	tuners, err := q.ListTuners(ctx)

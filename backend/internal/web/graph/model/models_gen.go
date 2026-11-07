@@ -419,6 +419,13 @@ type BulkOperationPayload struct {
 	Skipped int `json:"skipped"`
 }
 
+// 予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+type CalendarFeed struct {
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 type CaptionSettings struct {
 	// ライブ視聴で、文字スーパー (速報など) を出すかどうか。
@@ -570,6 +577,22 @@ type CreatedAPIToken struct {
 	APIToken *APIToken `json:"apiToken"`
 }
 
+// 発行した購読用の URL。
+type CreatedCalendarFeed struct {
+	// URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
+	Path         string        `json:"path"`
+	CalendarFeed *CalendarFeed `json:"calendarFeed"`
+}
+
+// 発行した IPTV の配信の URL。
+type CreatedIptvFeed struct {
+	// M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
+	PlaylistPath string `json:"playlistPath"`
+	// XMLTV のパス (/iptv/<秘密の値>/guide.xml)。
+	GuidePath string    `json:"guidePath"`
+	IptvFeed  *IptvFeed `json:"iptvFeed"`
+}
+
 // データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
 type DataChange struct {
 	Channel DataChannel `json:"channel"`
@@ -711,6 +734,14 @@ type Instance struct {
 	Alive bool `json:"alive"`
 }
 
+// ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+// 予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+type IptvFeed struct {
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // NX-Jikkyo の実況のチャンネル。
 type JikkyoChannel struct {
 	// jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。
@@ -720,6 +751,54 @@ type JikkyoChannel struct {
 	Force *int `json:"force,omitempty"`
 	// 放送中のスレッドを見ている人の数。放送中のスレッドがなければ null。
 	Viewers *int `json:"viewers,omitempty"`
+}
+
+// nekonote の River のジョブ (#1279、設計書 6.1)。管理者だけが読める。引数の JSON はそのまま返さず、対象を名前で引けるようにする。
+type Job struct {
+	// River のジョブの ID。
+	ID string `json:"id"`
+	// ジョブの種類 (River の kind)。画面は、これを設計書 6.1 の名前に読み替える。
+	Kind  string   `json:"kind"`
+	State JobState `json:"state"`
+	Queue string   `json:"queue"`
+	// 試した回数。
+	Attempt int `json:"attempt"`
+	// 試す回数の上限。
+	MaxAttempts int       `json:"maxAttempts"`
+	CreatedAt   time.Time `json:"createdAt"`
+	// 次に試す (試した) 時刻。
+	ScheduledAt time.Time `json:"scheduledAt"`
+	// 最後に試し始めた時刻。まだ試していなければ null。
+	AttemptedAt *time.Time `json:"attemptedAt,omitempty"`
+	// 終えた時刻 (完了、取り消し、破棄)。終えていなければ null。
+	FinalizedAt *time.Time `json:"finalizedAt,omitempty"`
+	// 試したときのエラー。古い順。
+	Errors []*JobError `json:"errors"`
+	// ジョブの対象の録画。録画を対象にしないジョブか、録画が消えていれば null。
+	Recording *Recording `json:"recording,omitempty"`
+	// 画面から再試行できるか。動いているジョブは再試行できない。
+	Retryable bool `json:"retryable"`
+	// 画面から取り消せるか。終えたジョブと、取り消すと録画を失いうるジョブ (タイムシフトの昇格、セグメントをつなぐジョブ) は取り消せない。
+	Cancellable bool `json:"cancellable"`
+}
+
+type JobError struct {
+	At      time.Time `json:"at"`
+	Attempt int       `json:"attempt"`
+	Message string    `json:"message"`
+}
+
+// ジョブの一覧の 1 ページ。
+type JobPage struct {
+	Nodes []*Job `json:"nodes"`
+	// 次のページのカーソル。続きがなければ null。
+	EndCursor *string `json:"endCursor,omitempty"`
+}
+
+// 状態ごとのジョブの数。
+type JobStateCount struct {
+	State JobState `json:"state"`
+	Count int      `json:"count"`
 }
 
 // キーワードと、その照合の仕方。
@@ -1166,6 +1245,8 @@ type RecordingFile struct {
 	// ファイルをそのまま流す URL のパス。その他のファイル (OTHER) だけにあり、ほかの種類では null。
 	// ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
 	URL *string `json:"url,omitempty"`
+	// セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。
+	Video *SegmentVideoFormat `json:"video,omitempty"`
 }
 
 type RecordingFileRename struct {
@@ -1369,6 +1450,17 @@ type SecondFactorStatus struct {
 	Totp bool `json:"totp"`
 	// 使っていないリカバリーコードの数。
 	RemainingRecoveryCodes int `json:"remainingRecoveryCodes"`
+}
+
+// セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+type SegmentVideoFormat struct {
+	// mpeg2、h264、hevc のどれか。
+	Codec      string `json:"codec"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Interlaced bool   `json:"interlaced"`
+	// フレームレート。読めなければ null (HEVC は読まない)。
+	FrameRate *float64 `json:"frameRate,omitempty"`
 }
 
 // サービスの表示の変える項目。省いた項目は変えない。
@@ -1612,6 +1704,10 @@ type TunerServerHealth struct {
 	ClockSkewed bool `json:"clockSkewed"`
 	// チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
 	ClockSkewMs *int `json:"clockSkewMs,omitempty"`
+	// 録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。
+	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。
+	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
 }
 
 // チューナーサーバーの状態 (設計書 3.7)。
@@ -1628,6 +1724,12 @@ type TunerServerStatus struct {
 	// 時計の差を警告する閾値 (ミリ秒)。
 	ClockSkewThresholdMs int       `json:"clockSkewThresholdMs"`
 	CheckedAt            time.Time `json:"checkedAt"`
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。
+	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
+	// 放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。
+	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
+	// 放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。
+	BroadcastClockCheckedAt *time.Time `json:"broadcastClockCheckedAt,omitempty"`
 }
 
 // ユーザーの変える項目。省いた項目は変えない。
@@ -2170,6 +2272,74 @@ func (e *DataChannel) UnmarshalJSON(b []byte) error {
 }
 
 func (e DataChannel) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// River のジョブの状態 (#1279)。
+type JobState string
+
+const (
+	JobStateAvailable JobState = "AVAILABLE"
+	JobStateCancelled JobState = "CANCELLED"
+	JobStateCompleted JobState = "COMPLETED"
+	JobStateDiscarded JobState = "DISCARDED"
+	JobStatePending   JobState = "PENDING"
+	JobStateRetryable JobState = "RETRYABLE"
+	JobStateRunning   JobState = "RUNNING"
+	JobStateScheduled JobState = "SCHEDULED"
+)
+
+var AllJobState = []JobState{
+	JobStateAvailable,
+	JobStateCancelled,
+	JobStateCompleted,
+	JobStateDiscarded,
+	JobStatePending,
+	JobStateRetryable,
+	JobStateRunning,
+	JobStateScheduled,
+}
+
+func (e JobState) IsValid() bool {
+	switch e {
+	case JobStateAvailable, JobStateCancelled, JobStateCompleted, JobStateDiscarded, JobStatePending, JobStateRetryable, JobStateRunning, JobStateScheduled:
+		return true
+	}
+	return false
+}
+
+func (e JobState) String() string {
+	return string(e)
+}
+
+func (e *JobState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = JobState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid JobState", str)
+	}
+	return nil
+}
+
+func (e JobState) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *JobState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e JobState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4752b7e76fd736112e6e4d133221c9e7>>
+ * @generated SignedSource<<c2a953a8eb540ee658d6729ff353fb1d>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,14 @@ export type securityQuery$data = {
     readonly lastUsedAt: string | null | undefined;
     readonly name: string;
   }>;
+  readonly calendarFeed: {
+    readonly createdAt: string;
+    readonly lastUsedAt: string | null | undefined;
+  } | null | undefined;
+  readonly iptvFeed: {
+    readonly createdAt: string;
+    readonly lastUsedAt: string | null | undefined;
+  } | null | undefined;
   readonly passkeys: ReadonlyArray<{
     readonly createdAt: string;
     readonly id: string;
@@ -33,7 +41,21 @@ export type securityQuery = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = [
+var v0 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "createdAt",
+  "storageKey": null
+},
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "lastUsedAt",
+  "storageKey": null
+},
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -48,22 +70,14 @@ var v0 = [
     "name": "name",
     "storageKey": null
   },
-  {
-    "alias": null,
-    "args": null,
-    "kind": "ScalarField",
-    "name": "createdAt",
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "kind": "ScalarField",
-    "name": "lastUsedAt",
-    "storageKey": null
-  }
+  (v0/*:: as any*/),
+  (v1/*:: as any*/)
 ],
-v1 = [
+v3 = [
+  (v0/*:: as any*/),
+  (v1/*:: as any*/)
+],
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -96,7 +110,27 @@ v1 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
-    "selections": (v0/*:: as any*/),
+    "selections": (v2/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "CalendarFeed",
+    "kind": "LinkedField",
+    "name": "calendarFeed",
+    "plural": false,
+    "selections": (v3/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "IptvFeed",
+    "kind": "LinkedField",
+    "name": "iptvFeed",
+    "plural": false,
+    "selections": (v3/*:: as any*/),
     "storageKey": null
   },
   {
@@ -106,7 +140,7 @@ v1 = [
     "kind": "LinkedField",
     "name": "apiTokens",
     "plural": true,
-    "selections": (v0/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "storageKey": null
   }
 ];
@@ -116,7 +150,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "securityQuery",
-    "selections": (v1/*:: as any*/),
+    "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -125,19 +159,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "securityQuery",
-    "selections": (v1/*:: as any*/)
+    "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "071e558b88ecd896cd11333171d2da15",
+    "cacheID": "1c6358ef4e938040e6773e27c9ea2fa1",
     "id": null,
     "metadata": {},
     "name": "securityQuery",
     "operationKind": "query",
-    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
+    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  iptvFeed {\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3cd273a6903fb8203c154d7457b7d96e";
+(node as any).hash = "0af71b31a641e895bff8f671bf10ae00";
 
 export default node;

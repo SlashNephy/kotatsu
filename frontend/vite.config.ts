@@ -155,6 +155,10 @@ export default defineConfig(({ mode }) => ({
       '/.well-known': { target: devAPI, changeOrigin: false },
       // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
       '/mcp': { target: devAPI, changeOrigin: false },
+      // 予約の iCalendar (#1255) も、開発サーバーから確かめられるようにする。
+      '/calendar': { target: devAPI, changeOrigin: false },
+      // ライブ視聴の M3U と番組表の XMLTV (#1324) も、開発サーバーから確かめられるようにする。
+      '/iptv': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {
