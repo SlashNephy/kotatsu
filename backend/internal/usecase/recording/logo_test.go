@@ -92,11 +92,12 @@ func TestRecorderCollectsLogo(t *testing.T) {
 	require.ErrorIs(t, err, servicelogo.ErrNoLogo)
 
 	reservationID := f.reserve(t, 0)
-	recorder, _ := f.newRecorder(t, onceStream{data: stream}, nil)
+	// TS の後ろの CDT まで読み終えてから録画を止める。読み終える前に止めると、遅い環境では CDT を読まないことがある。
+	drained := newDrainedStream(stream)
+	recorder, _ := f.newRecorder(t, drained, nil)
 	_, done := f.session(t, recorder, reservationID)
 	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
-	require.Eventually(t, func() bool { return len(f.files(t, reservationID)) == 1 }, waitTimeout, 10*time.Millisecond)
-	time.Sleep(100 * time.Millisecond)
+	drained.wait(t)
 	f.clock.Advance(time.Hour)
 	require.NoError(t, wait(t, done))
 
