@@ -737,6 +737,16 @@ type BulkOperationPayload {
   skipped: Int!
 }
 """
+予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+"""
+type CalendarFeed {
+  createdAt: Time!
+  """
+  最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+  """
+  lastUsedAt: Time
+}
+"""
 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 """
 type CaptionSettings {
@@ -963,6 +973,16 @@ type CreatedApiToken {
   """
   token: String!
   apiToken: ApiToken!
+}
+"""
+発行した購読用の URL。
+"""
+type CreatedCalendarFeed {
+  """
+  URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
+  """
+  path: String!
+  calendarFeed: CalendarFeed!
 }
 """
 データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
@@ -1486,6 +1506,15 @@ type Mutation {
   API トークンを取り消し、取り消したトークンの ID を返す。
   """
   deleteApiToken(id: ID!): ID!
+  """
+  予約を iCalendar で購読する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとして予約を読めるようになる。
+  """
+  createCalendarFeed: CreatedCalendarFeed!
+  """
+  購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。
+  """
+  deleteCalendarFeed: Boolean!
   """
   ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
   """
@@ -2512,6 +2541,10 @@ type Query {
   ログイン中のユーザーの API トークン。新しい順に並べる。
   """
   apiTokens: [ApiToken!]!
+  """
+  ログイン中のユーザーの購読用の URL。発行していなければ null。
+  """
+  calendarFeed: CalendarFeed
   """
   ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
   keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。

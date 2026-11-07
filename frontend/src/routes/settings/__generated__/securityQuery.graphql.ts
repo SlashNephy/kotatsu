@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4752b7e76fd736112e6e4d133221c9e7>>
+ * @generated SignedSource<<3b1ce2adf3d6f8d64098dfec1492c0eb>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,10 @@ export type securityQuery$data = {
     readonly lastUsedAt: string | null | undefined;
     readonly name: string;
   }>;
+  readonly calendarFeed: {
+    readonly createdAt: string;
+    readonly lastUsedAt: string | null | undefined;
+  } | null | undefined;
   readonly passkeys: ReadonlyArray<{
     readonly createdAt: string;
     readonly id: string;
@@ -33,7 +37,21 @@ export type securityQuery = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = [
+var v0 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "createdAt",
+  "storageKey": null
+},
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "lastUsedAt",
+  "storageKey": null
+},
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -48,22 +66,10 @@ var v0 = [
     "name": "name",
     "storageKey": null
   },
-  {
-    "alias": null,
-    "args": null,
-    "kind": "ScalarField",
-    "name": "createdAt",
-    "storageKey": null
-  },
-  {
-    "alias": null,
-    "args": null,
-    "kind": "ScalarField",
-    "name": "lastUsedAt",
-    "storageKey": null
-  }
+  (v0/*:: as any*/),
+  (v1/*:: as any*/)
 ],
-v1 = [
+v3 = [
   {
     "alias": null,
     "args": null,
@@ -96,7 +102,20 @@ v1 = [
     "kind": "LinkedField",
     "name": "passkeys",
     "plural": true,
-    "selections": (v0/*:: as any*/),
+    "selections": (v2/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "CalendarFeed",
+    "kind": "LinkedField",
+    "name": "calendarFeed",
+    "plural": false,
+    "selections": [
+      (v0/*:: as any*/),
+      (v1/*:: as any*/)
+    ],
     "storageKey": null
   },
   {
@@ -106,7 +125,7 @@ v1 = [
     "kind": "LinkedField",
     "name": "apiTokens",
     "plural": true,
-    "selections": (v0/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "storageKey": null
   }
 ];
@@ -116,7 +135,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "securityQuery",
-    "selections": (v1/*:: as any*/),
+    "selections": (v3/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -125,19 +144,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "securityQuery",
-    "selections": (v1/*:: as any*/)
+    "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "071e558b88ecd896cd11333171d2da15",
+    "cacheID": "c64794219f7417d92959d03c2800bbf9",
     "id": null,
     "metadata": {},
     "name": "securityQuery",
     "operationKind": "query",
-    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
+    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3cd273a6903fb8203c154d7457b7d96e";
+(node as any).hash = "dae20ed4aa74d163d59d91c0007566f2";
 
 export default node;

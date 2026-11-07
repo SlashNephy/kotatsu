@@ -49,6 +49,7 @@ type Resolver struct {
 	factors           *auth.SecondFactors
 	passkeys          *auth.Passkeys
 	apiTokens         *auth.APITokens
+	calendarFeeds     *auth.CalendarFeeds
 	oauth             *oauth.Server
 	players           *player.Service
 	userAdmin         *auth.UserAdmin

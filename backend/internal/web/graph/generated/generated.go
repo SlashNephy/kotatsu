@@ -267,6 +267,11 @@ type ComplexityRoot struct {
 		Skipped   func(childComplexity int) int
 	}
 
+	CalendarFeed struct {
+		CreatedAt  func(childComplexity int) int
+		LastUsedAt func(childComplexity int) int
+	}
+
 	CaptionSettings struct {
 		BackgroundOpacity   func(childComplexity int) int
 		Stroke              func(childComplexity int) int
@@ -334,6 +339,11 @@ type ComplexityRoot struct {
 	CreatedApiToken struct {
 		APIToken func(childComplexity int) int
 		Token    func(childComplexity int) int
+	}
+
+	CreatedCalendarFeed struct {
+		CalendarFeed func(childComplexity int) int
+		Path         func(childComplexity int) int
 	}
 
 	DataChange struct {
@@ -486,6 +496,7 @@ type ComplexityRoot struct {
 		ConfirmTotpEnrollment        func(childComplexity int, code string) int
 		CreateAPIToken               func(childComplexity int, name string) int
 		CreateAnimeWishlistRule      func(childComplexity int, tid int) int
+		CreateCalendarFeed           func(childComplexity int) int
 		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
 		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule                   func(childComplexity int, input model.RuleInput) int
@@ -495,6 +506,7 @@ type ComplexityRoot struct {
 		CreateWatchRule              func(childComplexity int, input model.WatchRuleInput) int
 		CreateWebhook                func(childComplexity int, input model.CreateWebhookInput) int
 		DeleteAPIToken               func(childComplexity int, id string) int
+		DeleteCalendarFeed           func(childComplexity int) int
 		DeleteCapture                func(childComplexity int, id string) int
 		DeleteGuideView              func(childComplexity int, id string) int
 		DeleteOAuthGrant             func(childComplexity int, id string) int
@@ -770,6 +782,7 @@ type ComplexityRoot struct {
 		AnimeRecordSettings     func(childComplexity int) int
 		AnimeWishlist           func(childComplexity int) int
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
+		CalendarFeed            func(childComplexity int) int
 		Captures                func(childComplexity int, first int, after *string, keyword *string) int
 		CapturesAvailable       func(childComplexity int) int
 		ChannelTypes            func(childComplexity int) int
@@ -1295,6 +1308,8 @@ type MutationResolver interface {
 	CreateAnimeWishlistRule(ctx context.Context, tid int) (*model.Rule, error)
 	CreateAPIToken(ctx context.Context, name string) (*model.CreatedAPIToken, error)
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
+	CreateCalendarFeed(ctx context.Context) (*model.CreatedCalendarFeed, error)
+	DeleteCalendarFeed(ctx context.Context) (bool, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
@@ -1398,6 +1413,7 @@ type QueryResolver interface {
 	AnimeRecordSettings(ctx context.Context) (*model.AnimeRecordSettings, error)
 	AnimeWishlist(ctx context.Context) (*model.AnimeWishlist, error)
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
+	CalendarFeed(ctx context.Context) (*model.CalendarFeed, error)
 	Captures(ctx context.Context, first int, after *string, keyword *string) (*model.CaptureConnection, error)
 	CapturesAvailable(ctx context.Context) (bool, error)
 	Node(ctx context.Context, id string) (model.Node, error)
@@ -2354,6 +2370,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.BulkOperationPayload.Skipped(childComplexity), true
 
+	case "CalendarFeed.createdAt":
+		if e.ComplexityRoot.CalendarFeed.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CalendarFeed.CreatedAt(childComplexity), true
+	case "CalendarFeed.lastUsedAt":
+		if e.ComplexityRoot.CalendarFeed.LastUsedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CalendarFeed.LastUsedAt(childComplexity), true
+
 	case "CaptionSettings.backgroundOpacity":
 		if e.ComplexityRoot.CaptionSettings.BackgroundOpacity == nil {
 			break
@@ -2597,6 +2626,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.CreatedApiToken.Token(childComplexity), true
+
+	case "CreatedCalendarFeed.calendarFeed":
+		if e.ComplexityRoot.CreatedCalendarFeed.CalendarFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreatedCalendarFeed.CalendarFeed(childComplexity), true
+	case "CreatedCalendarFeed.path":
+		if e.ComplexityRoot.CreatedCalendarFeed.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreatedCalendarFeed.Path(childComplexity), true
 
 	case "DataChange.channel":
 		if e.ComplexityRoot.DataChange.Channel == nil {
@@ -3175,6 +3217,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateAnimeWishlistRule(childComplexity, args["tid"].(int)), true
+	case "Mutation.createCalendarFeed":
+		if e.ComplexityRoot.Mutation.CreateCalendarFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.CreateCalendarFeed(childComplexity), true
 	case "Mutation.createGuideView":
 		if e.ComplexityRoot.Mutation.CreateGuideView == nil {
 			break
@@ -3274,6 +3322,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteAPIToken(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteCalendarFeed":
+		if e.ComplexityRoot.Mutation.DeleteCalendarFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteCalendarFeed(childComplexity), true
 	case "Mutation.deleteCapture":
 		if e.ComplexityRoot.Mutation.DeleteCapture == nil {
 			break
@@ -4858,6 +4912,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AuditEvents(childComplexity, args["first"].(int), args["after"].(*string), args["filter"].(*model.AuditEventFilter)), true
+	case "Query.calendarFeed":
+		if e.ComplexityRoot.Query.CalendarFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.CalendarFeed(childComplexity), true
 	case "Query.captures":
 		if e.ComplexityRoot.Query.Captures == nil {
 			break
@@ -7966,6 +8026,37 @@ extend type Mutation {
   createApiToken(name: String!): CreatedApiToken!
   "API トークンを取り消し、取り消したトークンの ID を返す。"
   deleteApiToken(id: ID!): ID!
+}
+`, BuiltIn: false},
+	{Name: "../schema/calendar_feeds.graphqls", Input: `"""
+予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+"""
+type CalendarFeed {
+  createdAt: Time!
+  "最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。"
+  lastUsedAt: Time
+}
+
+"発行した購読用の URL。"
+type CreatedCalendarFeed {
+  "URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
+  path: String!
+  calendarFeed: CalendarFeed!
+}
+
+extend type Query {
+  "ログイン中のユーザーの購読用の URL。発行していなければ null。"
+  calendarFeed: CalendarFeed
+}
+
+extend type Mutation {
+  """
+  予約を iCalendar で購読する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとして予約を読めるようになる。
+  """
+  createCalendarFeed: CreatedCalendarFeed!
+  "購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。"
+  deleteCalendarFeed: Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/captures.graphqls", Input: `"""
@@ -11113,6 +11204,16 @@ func (ec *executionContext) childFields_BulkOperationPayload(ctx context.Context
 	return nil, fmt.Errorf("no field named %q was found under type BulkOperationPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_CalendarFeed(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "createdAt":
+		return ec.fieldContext_CalendarFeed_createdAt(ctx, field)
+	case "lastUsedAt":
+		return ec.fieldContext_CalendarFeed_lastUsedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CalendarFeed", field.Name)
+}
+
 func (ec *executionContext) childFields_CaptionSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "superimposeLive":
@@ -11249,6 +11350,16 @@ func (ec *executionContext) childFields_CreatedApiToken(ctx context.Context, fie
 		return ec.fieldContext_CreatedApiToken_apiToken(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CreatedApiToken", field.Name)
+}
+
+func (ec *executionContext) childFields_CreatedCalendarFeed(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "path":
+		return ec.fieldContext_CreatedCalendarFeed_path(ctx, field)
+	case "calendarFeed":
+		return ec.fieldContext_CreatedCalendarFeed_calendarFeed(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CreatedCalendarFeed", field.Name)
 }
 
 func (ec *executionContext) childFields_DataChange(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -18142,6 +18253,52 @@ func (ec *executionContext) fieldContext_BulkOperationPayload_skipped(_ context.
 	return graphql.NewScalarFieldContext("BulkOperationPayload", field, false, false, "Int")
 }
 
+func (ec *executionContext) _CalendarFeed_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.CalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CalendarFeed_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CalendarFeed_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CalendarFeed", field, false, false, "Time")
+}
+
+func (ec *executionContext) _CalendarFeed_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *model.CalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CalendarFeed_lastUsedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUsedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CalendarFeed_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CalendarFeed", field, false, false, "Time")
+}
+
 func (ec *executionContext) _CaptionSettings_superimposeLive(ctx context.Context, field graphql.CollectedField, obj *model.CaptionSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19106,6 +19263,61 @@ func (ec *executionContext) fieldContext_CreatedApiToken_apiToken(_ context.Cont
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ApiToken(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CreatedCalendarFeed_path(ctx context.Context, field graphql.CollectedField, obj *model.CreatedCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreatedCalendarFeed_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreatedCalendarFeed_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreatedCalendarFeed", field, false, false, "String")
+}
+
+func (ec *executionContext) _CreatedCalendarFeed_calendarFeed(ctx context.Context, field graphql.CollectedField, obj *model.CreatedCalendarFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreatedCalendarFeed_calendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CalendarFeed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {
+			return ec.marshalNCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreatedCalendarFeed_calendarFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreatedCalendarFeed",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CalendarFeed(ctx, field)
 		},
 	}
 	return fc, nil
@@ -21653,6 +21865,61 @@ func (ec *executionContext) fieldContext_Mutation_deleteApiToken(ctx context.Con
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createCalendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().CreateCalendarFeed(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CreatedCalendarFeed) graphql.Marshaler {
+			return ec.marshalNCreatedCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCreatedCalendarFeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createCalendarFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CreatedCalendarFeed(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCalendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteCalendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteCalendarFeed(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteCalendarFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Boolean")
 }
 
 func (ec *executionContext) _Mutation_deleteCapture(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -28348,6 +28615,38 @@ func (ec *executionContext) fieldContext_Query_apiTokens(_ context.Context, fiel
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_ApiToken(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_calendarFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_calendarFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().CalendarFeed(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {
+			return ec.marshalOCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_calendarFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CalendarFeed(ctx, field)
 		},
 	}
 	return fc, nil
@@ -42575,6 +42874,44 @@ func (ec *executionContext) _BulkOperationPayload(ctx context.Context, sel ast.S
 	return out
 }
 
+var calendarFeedImplementors = []string{"CalendarFeed"}
+
+func (ec *executionContext) _CalendarFeed(ctx context.Context, sel ast.SelectionSet, obj *model.CalendarFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, calendarFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CalendarFeed")
+		case "createdAt":
+			out.Values[i] = ec._CalendarFeed_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._CalendarFeed_lastUsedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var captionSettingsImplementors = []string{"CaptionSettings"}
 
 func (ec *executionContext) _CaptionSettings(ctx context.Context, sel ast.SelectionSet, obj *model.CaptionSettings) graphql.Marshaler {
@@ -43030,6 +43367,44 @@ func (ec *executionContext) _CreatedApiToken(ctx context.Context, sel ast.Select
 			}
 		case "apiToken":
 			out.Values[i] = ec._CreatedApiToken_apiToken(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var createdCalendarFeedImplementors = []string{"CreatedCalendarFeed"}
+
+func (ec *executionContext) _CreatedCalendarFeed(ctx context.Context, sel ast.SelectionSet, obj *model.CreatedCalendarFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createdCalendarFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreatedCalendarFeed")
+		case "path":
+			out.Values[i] = ec._CreatedCalendarFeed_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "calendarFeed":
+			out.Values[i] = ec._CreatedCalendarFeed_calendarFeed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -44151,6 +44526,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteApiToken":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteApiToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createCalendarFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createCalendarFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCalendarFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCalendarFeed(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -46042,6 +46431,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_apiTokens(ctx, field)
+				})
+		case "calendarFeed":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_calendarFeed(ctx, field)
 				})
 		case "captures":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -50162,6 +50557,14 @@ func (ec *executionContext) marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlash
 	return ec._BulkOperationPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "CalendarFeed!")
+		return graphql.Null
+	}
+	return ec._CalendarFeed(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSettings(ctx context.Context, sel ast.SelectionSet, v *model.CaptionSettings) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "CaptionSettings!")
@@ -50287,6 +50690,14 @@ func (ec *executionContext) marshalNCreatedApiToken2ᚖgithubᚗcomᚋSlashNephy
 		return graphql.Null
 	}
 	return ec._CreatedApiToken(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNCreatedCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCreatedCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *model.CreatedCalendarFeed) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "CreatedCalendarFeed!")
+		return graphql.Null
+	}
+	return ec._CreatedCalendarFeed(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNDataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDataChange(ctx context.Context, sel ast.SelectionSet, v *model.DataChange) graphql.Marshaler {
@@ -52742,6 +53153,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CalendarFeed(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOCaptionSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSettingsInput(ctx context.Context, v any) (*model.CaptionSettingsInput, error) {
