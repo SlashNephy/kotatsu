@@ -154,13 +154,6 @@ type broadcastSkew struct {
 	at   time.Time
 }
 
-// observeTOT は、録画している TS の TOT が示す放送の時刻 at と、届いた時点の OS の時計を比べて覚える (#1309)。
-// TS を書く途中で呼ぶので、DB には書かず、書いているセグメントの様子と一緒に書く。TOT は秒単位なので、1 秒ほどの差は測れない。
-func (r *Recorder) observeTOT(at time.Time) {
-	now := r.clock.Now()
-	r.broadcastSkew.Store(&broadcastSkew{skew: now.Sub(at), at: now})
-}
-
 // NewRecorder は Recorder を返す。defaults は録画設定の全体の既定値、location はファイル名に使う表示のタイムゾーン。opts は nil でもよい。
 func NewRecorder(
 	pool *pgxpool.Pool, clk clock.Clock, tuner StreamOpener, store *kago.Store, defaults assign.DefaultsFunc,
@@ -181,12 +174,22 @@ func NewRecorder(
 		}
 	}
 
-	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, defaults: defaults, location: location, logger: logger, opts: o}
+	return &Recorder{
+		pool: pool, clock: clk, tuner: tuner, store: store, defaults: defaults, location: location, logger: logger, opts: o,
+		broadcastSkew: atomic.Pointer[broadcastSkew]{},
+	}
 }
 
 // Session は、Worker に渡す Session を返す。
 func (r *Recorder) Session() Session {
 	return r.record
+}
+
+// observeTOT は、録画している TS の TOT が示す放送の時刻 at と、届いた時点の OS の時計を比べて覚える (#1309)。
+// TS を書く途中で呼ぶので、DB には書かず、書いているセグメントの様子と一緒に書く。TOT は秒単位なので、1 秒ほどの差は測れない。
+func (r *Recorder) observeTOT(at time.Time) {
+	now := r.clock.Now()
+	r.broadcastSkew.Store(&broadcastSkew{skew: now.Sub(at), at: now})
 }
 
 // record は、割り振りの予約を録画する。録画しなくてよくなったときと、録画を終えたときに nil を返す。
