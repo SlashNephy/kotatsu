@@ -1167,6 +1167,7 @@
       "now": "今",
       "secondsAgo": "{{seconds}} 秒前",
       "source": "放送の映像",
+      "film": "{{picture}}（プルダウンを検出し、24pで表示）",
       "playing": "再生している映像",
       "frameRate": "フレームレート",
       "audio": "放送の音声",

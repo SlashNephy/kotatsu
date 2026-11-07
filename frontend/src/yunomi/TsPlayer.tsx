@@ -11,7 +11,7 @@ import { audioChoices, currentAudioChoice } from './audio';
 import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
-import { deinterlacerCanvas } from './deinterlacer';
+import { deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { fitMedia } from './mediaFit';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import classes from './TsPlayer.module.css';
@@ -70,6 +70,8 @@ type Slot = {
   load: number;
   // stats は、この読み込みでプレイヤーが最後に知らせた統計。
   stats: Stats | null;
+  // film は、yadif が 2:3 プルダウンを見つけ、24p で出していること (#1284)。
+  film: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
   bytesRead: number;
   destroyed: boolean;
@@ -91,7 +93,7 @@ function bufferedEnd(video: HTMLVideoElement): number {
 }
 
 // sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
-function sourcePicture(player: Mpeg2TsPlayer): SourcePicture | null {
+function sourcePicture(player: Mpeg2TsPlayer, film: boolean): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
   const state = timeline.findLast((entry) => entry.start <= now) ?? timeline[0];
@@ -103,6 +105,7 @@ function sourcePicture(player: Mpeg2TsPlayer): SourcePicture | null {
     width: state.codedSize.width,
     height: state.codedSize.height,
     interlaced: state.scan?.interlaced ?? null,
+    film,
   };
 }
 
@@ -190,6 +193,7 @@ export function TsPlayer({
       player: null,
       load: 0,
       stats: null,
+      film: false,
       bytesRead: 0,
       destroyed: false,
     };
@@ -215,7 +219,16 @@ export function TsPlayer({
       wasmUrl: wasmURL,
       deinterlace: true,
       deinterlacer: (element) => {
-        const deinterlacer = new Deinterlacer(element);
+        const deinterlacer = new Deinterlacer(element, {
+          // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
+          onStats: (stats) => {
+            slot.film = stats.film;
+          },
+        });
+        // アニメのように 2:3 プルダウンで 24 コマを 60 フィールドに載せた映像は、プルダウンを見つけたら
+        // フィールドを組み直して 24p で出す (#1284)。縞が残らず、コマの間隔も元の映像どおりになる。
+        // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
+        enableFilm(deinterlacer);
         // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
         // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
         deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
@@ -250,7 +263,7 @@ export function TsPlayer({
                   errors: slot.stats.errors,
                   scrambled: slot.stats.scrambled,
                 },
-          source: sourcePicture(player),
+          source: sourcePicture(player, slot.film),
         });
       }
     };

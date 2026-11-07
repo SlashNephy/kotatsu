@@ -194,7 +194,13 @@ export function audioFormatKey(componentType: number): AudioFormatKey | null {
 export type TransportCounts = { dropped: number; errors: number; scrambled: number };
 
 // SourcePicture は、放送の映像の大きさと走査の方式。interlaced が分からなければ null。
-export type SourcePicture = { width: number; height: number; interlaced: boolean | null };
+// film は、yadif が 2:3 プルダウンを見つけ、24p に組み直して出していること (#1284)。
+export type SourcePicture = {
+  width: number;
+  height: number;
+  interlaced: boolean | null;
+  film: boolean;
+};
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。
 export type EncodedStream = {
