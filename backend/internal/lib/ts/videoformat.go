@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"slices"
 )
 
 // maxProbeBytes は、映像の形式を読むのに溜めるエレメンタリーストリームの長さの上限。
@@ -35,6 +36,9 @@ func (f *VideoFormat) Resolution() string {
 
 var errBitstreamEnd = errors.New("unexpected end of the bitstream")
 
+// maxPOCCycle は、H.264 の num_ref_frames_in_pic_order_cnt_cycle の上限。
+const maxPOCCycle = 255
+
 // videoFormatProbe は、映像のエレメンタリーストリームの先頭を溜め、映像の形式を読む。
 type videoFormatProbe struct {
 	codec  videoCodec
@@ -64,7 +68,17 @@ func (p *videoFormatProbe) feed(pkt *packet) {
 		// PES の途中からは読まない。
 		return
 	}
+	// 前に溜めた末尾の 2 バイトと合わせて、新しい start code が届いたときだけ読み直す。
+	// パケットのたびに溜めた全体を読み直すと、映像の先頭を読むのに時間がかかる。
+	tail := p.buf[max(len(p.buf)-2, 0):]
 	p.buf = append(p.buf, payload...)
+	if !bytes.Contains(append(slices.Clone(tail), payload...), []byte{0, 0, 1}) {
+		if len(p.buf) >= maxProbeBytes {
+			p.done, p.buf = true, nil
+		}
+
+		return
+	}
 	if format, ok := parseVideoFormat(p.codec, p.buf); ok {
 		p.format, p.done = format, true
 		p.buf = nil
@@ -342,7 +356,14 @@ func skipH264POC(r *bitReader) {
 		r.skip(1) // delta_pic_order_always_zero_flag
 		r.se()    // offset_for_non_ref_pic
 		r.se()    // offset_for_top_to_bottom_field
-		for range r.ue() {
+		// num_ref_frames_in_pic_order_cnt_cycle は 0〜255 (ITU-T H.264 7.4.2.1.1)。壊れた値で、長く回さない。
+		cycle := r.ue()
+		if cycle > maxPOCCycle {
+			r.err = errBitstreamEnd
+
+			return
+		}
+		for range cycle {
 			r.se()
 		}
 	}
