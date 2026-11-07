@@ -20,6 +20,10 @@ func TestTraceable(t *testing.T) {
 		want bool
 	}{
 		{name: "calendar", path: "/calendar/kotatsu_cal_x/reservations.ics", want: false},
+		{name: "double slash", path: "//calendar/kotatsu_cal_x/reservations.ics", want: false},
+		{name: "dot segment", path: "/./api/../calendar/kotatsu_cal_x/reservations.ics", want: false},
+		{name: "calendar directory", path: "/calendar", want: false},
+		{name: "similar prefix", path: "/calendars", want: true},
 		{name: "graphql", path: "/graphql", want: true},
 		{name: "api", path: "/api/recorded", want: true},
 	}

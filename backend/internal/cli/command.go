@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -1060,8 +1061,10 @@ const calendarPathPrefix = "/calendar/"
 
 // traceable は、リクエストをトレースに残してよいかを返す。予約の iCalendar はパスに秘密の値を含むので、
 // トレースの属性 (URL のパス) に残さないよう、トレースしない。
+// ServeMux は、整っていないパス (//calendar/... など) を、整えたパスへのリダイレクトで返すので、そのリクエストも外せるよう、
+// パスを整えてから比べる。
 func traceable(r *http.Request) bool {
-	return !strings.HasPrefix(r.URL.Path, calendarPathPrefix)
+	return !strings.HasPrefix(path.Clean("/"+r.URL.Path)+"/", calendarPathPrefix)
 }
 
 // handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を mux に登録する。
