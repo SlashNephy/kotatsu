@@ -985,6 +985,20 @@ type CreatedCalendarFeed {
   calendarFeed: CalendarFeed!
 }
 """
+発行した IPTV の配信の URL。
+"""
+type CreatedIptvFeed {
+  """
+  M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
+  """
+  playlistPath: String!
+  """
+  XMLTV のパス (/iptv/<秘密の値>/guide.xml)。
+  """
+  guidePath: String!
+  iptvFeed: IptvFeed!
+}
+"""
 データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
 """
 type DataChange {
@@ -1266,6 +1280,17 @@ type Instance {
 64 ビットの整数。ファイルや容量の大きさ (バイト) のように、32 ビットの Int に収まらない値に使う。
 """
 scalar Int64
+"""
+ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+"""
+type IptvFeed {
+  createdAt: Time!
+  """
+  最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+  """
+  lastUsedAt: Time
+}
 """
 NX-Jikkyo の実況のチャンネル。
 """
@@ -1602,6 +1627,15 @@ type Mutation {
   購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。
   """
   deleteCalendarFeed: Boolean!
+  """
+  ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  """
+  createIptvFeed: CreatedIptvFeed!
+  """
+  IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。
+  """
+  deleteIptvFeed: Boolean!
   """
   ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
   """
@@ -2640,6 +2674,10 @@ type Query {
   ログイン中のユーザーの購読用の URL。発行していなければ null。
   """
   calendarFeed: CalendarFeed
+  """
+  ログイン中のユーザーの IPTV の配信の URL。発行していなければ null。
+  """
+  iptvFeed: IptvFeed
   """
   ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
   keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。

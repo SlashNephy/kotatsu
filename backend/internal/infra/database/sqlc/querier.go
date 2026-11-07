@@ -90,7 +90,7 @@ type Querier interface {
 	DeleteAnimeWorks(ctx context.Context, source string) error
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
-	DeleteCalendarFeed(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteCalendarFeed(ctx context.Context, arg DeleteCalendarFeedParams) (int64, error)
 	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
 	DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (Capture, error)
 	DeleteExpiredAnimeRecordAuthorizations(ctx context.Context, now time.Time) (int64, error)
@@ -223,9 +223,10 @@ type Querier interface {
 	// Annict の作品の取り込みの進み具合 (#1223) を返す。まだなければ作る。
 	GetAnnictWorkSync(ctx context.Context) (AnnictWorkSync, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
-	GetCalendarFeed(ctx context.Context, userID uuid.UUID) (CalendarFeed, error)
-	// 秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
-	GetCalendarFeedUser(ctx context.Context, tokenHash []byte) (GetCalendarFeedUserRow, error)
+	GetCalendarFeed(ctx context.Context, arg GetCalendarFeedParams) (CalendarFeed, error)
+	// 種類 kind の秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+	// ほかの種類の値は、同じユーザーのものでも受け付けない。
+	GetCalendarFeedUser(ctx context.Context, arg GetCalendarFeedUserParams) (GetCalendarFeedUserRow, error)
 	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
 	// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
@@ -952,7 +953,7 @@ type Querier interface {
 	// Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	UpsertAnnictWorks(ctx context.Context, arg UpsertAnnictWorksParams) error
-	// ユーザーの購読用の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
+	// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error

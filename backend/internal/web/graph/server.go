@@ -68,7 +68,9 @@ type Options struct {
 	// APITokens は、読み取り専用の API トークンを発行する (#431)。nil なら、API トークンを扱わない。
 	APITokens *auth.APITokens
 	// CalendarFeeds は、予約を iCalendar で購読する URL を発行する (#1255)。nil なら、購読用の URL を扱わない。
-	CalendarFeeds *auth.CalendarFeeds
+	CalendarFeeds *auth.Feeds
+	// IPTVFeeds は、ライブ視聴の M3U と番組表の XMLTV を配信する URL を発行する (#1324)。nil なら、その URL を扱わない。
+	IPTVFeeds *auth.Feeds
 	// OAuth は、MCP のクライアントにトークンを発行する認可サーバー (#963)。nil なら、同意の操作を扱わない。
 	OAuth *oauth.Server
 	// Players は、再生中のプレイヤーを扱う (#459)。nil なら、プレイヤーを扱わない。
@@ -192,6 +194,7 @@ func NewHandler(opts *Options) http.Handler {
 		passkeys:         o.Passkeys,
 		apiTokens:        o.APITokens,
 		calendarFeeds:    o.CalendarFeeds,
+		iptvFeeds:        o.IPTVFeeds,
 		oauth:            o.OAuth,
 		players:          o.Players,
 		userAdmin:        o.UserAdmin,

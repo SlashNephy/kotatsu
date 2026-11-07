@@ -584,6 +584,15 @@ type CreatedCalendarFeed struct {
 	CalendarFeed *CalendarFeed `json:"calendarFeed"`
 }
 
+// 発行した IPTV の配信の URL。
+type CreatedIptvFeed struct {
+	// M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
+	PlaylistPath string `json:"playlistPath"`
+	// XMLTV のパス (/iptv/<秘密の値>/guide.xml)。
+	GuidePath string    `json:"guidePath"`
+	IptvFeed  *IptvFeed `json:"iptvFeed"`
+}
+
 // データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
 type DataChange struct {
 	Channel DataChannel `json:"channel"`
@@ -723,6 +732,14 @@ type Instance struct {
 	HeartbeatAt time.Time `json:"heartbeatAt"`
 	// 最近ハートビートを書いたかどうか。止まったインスタンスは、しばらく残してから消す。
 	Alive bool `json:"alive"`
+}
+
+// ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+// 予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+type IptvFeed struct {
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
 // NX-Jikkyo の実況のチャンネル。

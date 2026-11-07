@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3b1ce2adf3d6f8d64098dfec1492c0eb>>
+ * @generated SignedSource<<c2a953a8eb540ee658d6729ff353fb1d>>
  * @lightSyntaxTransform
  */
 
@@ -17,6 +17,10 @@ export type securityQuery$data = {
     readonly name: string;
   }>;
   readonly calendarFeed: {
+    readonly createdAt: string;
+    readonly lastUsedAt: string | null | undefined;
+  } | null | undefined;
+  readonly iptvFeed: {
     readonly createdAt: string;
     readonly lastUsedAt: string | null | undefined;
   } | null | undefined;
@@ -70,6 +74,10 @@ v2 = [
   (v1/*:: as any*/)
 ],
 v3 = [
+  (v0/*:: as any*/),
+  (v1/*:: as any*/)
+],
+v4 = [
   {
     "alias": null,
     "args": null,
@@ -112,10 +120,17 @@ v3 = [
     "kind": "LinkedField",
     "name": "calendarFeed",
     "plural": false,
-    "selections": [
-      (v0/*:: as any*/),
-      (v1/*:: as any*/)
-    ],
+    "selections": (v3/*:: as any*/),
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "IptvFeed",
+    "kind": "LinkedField",
+    "name": "iptvFeed",
+    "plural": false,
+    "selections": (v3/*:: as any*/),
     "storageKey": null
   },
   {
@@ -135,7 +150,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "securityQuery",
-    "selections": (v3/*:: as any*/),
+    "selections": (v4/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -144,19 +159,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "securityQuery",
-    "selections": (v3/*:: as any*/)
+    "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "c64794219f7417d92959d03c2800bbf9",
+    "cacheID": "1c6358ef4e938040e6773e27c9ea2fa1",
     "id": null,
     "metadata": {},
     "name": "securityQuery",
     "operationKind": "query",
-    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
+    "text": "query securityQuery {\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  iptvFeed {\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "dae20ed4aa74d163d59d91c0007566f2";
+(node as any).hash = "0af71b31a641e895bff8f671bf10ae00";
 
 export default node;
