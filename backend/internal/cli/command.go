@@ -38,6 +38,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
@@ -64,6 +65,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/animeimage"
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
+	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
 	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
@@ -805,6 +807,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
+	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
@@ -829,6 +832,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
 		APITokens:         apiTokens,
+		CalendarFeeds:     calendarFeeds,
 		OAuth:             authorizationServer,
 		Players:           player.NewService(deps.DB, deps.Clock),
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
@@ -928,6 +932,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/streams/", api)
 	root.Handle("/media/", api)
 	root.Handle("/api/", compat)
+	handleCalendar(root, deps, calendarFeeds, logger)
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 
@@ -1048,6 +1053,13 @@ func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 	}
 
 	return streams
+}
+
+// handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を mux に登録する。
+// カレンダーのアプリは Cookie を送れないので、パスの秘密の値だけで認証する。
+func handleCalendar(mux *http.ServeMux, deps *Deps, feeds *auth.CalendarFeeds, logger *slog.Logger) {
+	mux.Handle("GET /calendar/{token}/reservations.ics", calendarapi.NewHandler(
+		feeds, query.New(deps.DB), deps.Clock, logger.With(slog.String("component", "calendar"))))
 }
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。

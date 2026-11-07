@@ -184,6 +184,13 @@ type AuditEvent struct {
 	ActorClient *string
 }
 
+type CalendarFeed struct {
+	UserID     uuid.UUID
+	TokenHash  []byte
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+}
+
 type Capture struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID

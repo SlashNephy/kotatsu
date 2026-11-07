@@ -419,6 +419,13 @@ type BulkOperationPayload struct {
 	Skipped int `json:"skipped"`
 }
 
+// 予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+type CalendarFeed struct {
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 type CaptionSettings struct {
 	// ライブ視聴で、文字スーパー (速報など) を出すかどうか。
@@ -568,6 +575,13 @@ type CreatedAPIToken struct {
 	// トークンそのもの。ここでしか分からないので、すぐに控えてもらう。
 	Token    string    `json:"token"`
 	APIToken *APIToken `json:"apiToken"`
+}
+
+// 発行した購読用の URL。
+type CreatedCalendarFeed struct {
+	// URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
+	Path         string        `json:"path"`
+	CalendarFeed *CalendarFeed `json:"calendarFeed"`
 }
 
 // データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
