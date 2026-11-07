@@ -350,6 +350,8 @@
       "captionBackground": "Caption background",
       "captionBackgroundBroadcast": "As specified by the broadcast",
       "lowLatencyHelp": "In live viewing, when the delay from the broadcast exceeds 3 seconds, playback speeds up to 1.1x to catch up. On slow connections, playback may stall more often.",
+      "cmAutoSkip": "Skip commercials in recordings automatically",
+      "cmAutoSkipHelp": "When playback of a recording enters a section detected as commercials, jump to its end. Detection can be wrong. Sections you seek into yourself are not skipped.",
       "deviceOnly": "Not synced across devices",
       "dataBroadcastZipcode": "Postal code for data broadcasting",
       "dataBroadcastZipcodeHelp": "Passed to data broadcasting that selects a region by postal code, such as weather and news. Enter 7 digits. Leave empty to not pass it.",
@@ -1296,7 +1298,8 @@
       "dataBroadcastOff": "Data broadcasting hidden",
       "captured": "Image saved",
       "restarted": "Player reloaded",
-      "audioDelay": "Audio sync {{ms}} ms"
+      "audioDelay": "Audio sync {{ms}} ms",
+      "cmSkipped": "Skipped commercials"
     },
     "backToRecording": "Back to recording details",
     "ruleRecordings": "Recordings of “{{rule}}”",

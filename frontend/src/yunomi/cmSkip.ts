@@ -15,3 +15,18 @@ export function cmSectionAt<T extends CmSection>(
     null
   );
 }
+
+// shouldAutoSkip は、CM を自動で飛ばす設定 (#1282) のとき、いま再生している CM の区間 section を飛ばすかを返す。
+// 再生していない間と、利用者が自分でその区間へシークしたとき (lastSeek が区間の中) は、見たいものとして飛ばさない。
+export function shouldAutoSkip(
+  section: CmSection | null,
+  enabled: boolean,
+  playing: boolean,
+  lastSeek: number | null,
+): boolean {
+  if (!enabled || !playing || section === null) {
+    return false;
+  }
+
+  return lastSeek === null || lastSeek < section.from || section.to <= lastSeek;
+}
