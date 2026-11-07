@@ -293,6 +293,30 @@ export function PlayerAlert({
   );
 }
 
+// SkipButton は、CM の区間を再生している間、映像の右下に出す、区間を飛ばすボタン (#1300)。
+// 操作バーを出している間は、操作バーに重ならないよう、その上に出す。
+export function SkipButton({
+  raised,
+  onClick,
+  children,
+}: {
+  raised: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={classes.skip}
+      data-raised={raised}
+      onClick={onClick}
+      {...{ [controlsAttribute]: '' }}
+    >
+      {children}
+    </button>
+  );
+}
+
 // PlayerFlash は、キーで操作した結果 (音量、ミュート、シークなど) を、映像の上の中央に短く出す (#448)。
 export function PlayerFlash({ children }: { children: ReactNode }) {
   return (
