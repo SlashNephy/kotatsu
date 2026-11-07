@@ -419,6 +419,13 @@ type BulkOperationPayload struct {
 	Skipped int `json:"skipped"`
 }
 
+// 予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+type CalendarFeed struct {
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 type CaptionSettings struct {
 	// ライブ視聴で、文字スーパー (速報など) を出すかどうか。
@@ -568,6 +575,13 @@ type CreatedAPIToken struct {
 	// トークンそのもの。ここでしか分からないので、すぐに控えてもらう。
 	Token    string    `json:"token"`
 	APIToken *APIToken `json:"apiToken"`
+}
+
+// 発行した購読用の URL。
+type CreatedCalendarFeed struct {
+	// URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
+	Path         string        `json:"path"`
+	CalendarFeed *CalendarFeed `json:"calendarFeed"`
 }
 
 // データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
@@ -720,6 +734,54 @@ type JikkyoChannel struct {
 	Force *int `json:"force,omitempty"`
 	// 放送中のスレッドを見ている人の数。放送中のスレッドがなければ null。
 	Viewers *int `json:"viewers,omitempty"`
+}
+
+// nekonote の River のジョブ (#1279、設計書 6.1)。管理者だけが読める。引数の JSON はそのまま返さず、対象を名前で引けるようにする。
+type Job struct {
+	// River のジョブの ID。
+	ID string `json:"id"`
+	// ジョブの種類 (River の kind)。画面は、これを設計書 6.1 の名前に読み替える。
+	Kind  string   `json:"kind"`
+	State JobState `json:"state"`
+	Queue string   `json:"queue"`
+	// 試した回数。
+	Attempt int `json:"attempt"`
+	// 試す回数の上限。
+	MaxAttempts int       `json:"maxAttempts"`
+	CreatedAt   time.Time `json:"createdAt"`
+	// 次に試す (試した) 時刻。
+	ScheduledAt time.Time `json:"scheduledAt"`
+	// 最後に試し始めた時刻。まだ試していなければ null。
+	AttemptedAt *time.Time `json:"attemptedAt,omitempty"`
+	// 終えた時刻 (完了、取り消し、破棄)。終えていなければ null。
+	FinalizedAt *time.Time `json:"finalizedAt,omitempty"`
+	// 試したときのエラー。古い順。
+	Errors []*JobError `json:"errors"`
+	// ジョブの対象の録画。録画を対象にしないジョブか、録画が消えていれば null。
+	Recording *Recording `json:"recording,omitempty"`
+	// 画面から再試行できるか。動いているジョブは再試行できない。
+	Retryable bool `json:"retryable"`
+	// 画面から取り消せるか。終えたジョブと、取り消すと録画を失いうるジョブ (タイムシフトの昇格、セグメントをつなぐジョブ) は取り消せない。
+	Cancellable bool `json:"cancellable"`
+}
+
+type JobError struct {
+	At      time.Time `json:"at"`
+	Attempt int       `json:"attempt"`
+	Message string    `json:"message"`
+}
+
+// ジョブの一覧の 1 ページ。
+type JobPage struct {
+	Nodes []*Job `json:"nodes"`
+	// 次のページのカーソル。続きがなければ null。
+	EndCursor *string `json:"endCursor,omitempty"`
+}
+
+// 状態ごとのジョブの数。
+type JobStateCount struct {
+	State JobState `json:"state"`
+	Count int      `json:"count"`
 }
 
 // キーワードと、その照合の仕方。
@@ -2176,6 +2238,74 @@ func (e *DataChannel) UnmarshalJSON(b []byte) error {
 }
 
 func (e DataChannel) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// River のジョブの状態 (#1279)。
+type JobState string
+
+const (
+	JobStateAvailable JobState = "AVAILABLE"
+	JobStateCancelled JobState = "CANCELLED"
+	JobStateCompleted JobState = "COMPLETED"
+	JobStateDiscarded JobState = "DISCARDED"
+	JobStatePending   JobState = "PENDING"
+	JobStateRetryable JobState = "RETRYABLE"
+	JobStateRunning   JobState = "RUNNING"
+	JobStateScheduled JobState = "SCHEDULED"
+)
+
+var AllJobState = []JobState{
+	JobStateAvailable,
+	JobStateCancelled,
+	JobStateCompleted,
+	JobStateDiscarded,
+	JobStatePending,
+	JobStateRetryable,
+	JobStateRunning,
+	JobStateScheduled,
+}
+
+func (e JobState) IsValid() bool {
+	switch e {
+	case JobStateAvailable, JobStateCancelled, JobStateCompleted, JobStateDiscarded, JobStatePending, JobStateRetryable, JobStateRunning, JobStateScheduled:
+		return true
+	}
+	return false
+}
+
+func (e JobState) String() string {
+	return string(e)
+}
+
+func (e *JobState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = JobState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid JobState", str)
+	}
+	return nil
+}
+
+func (e JobState) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *JobState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e JobState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

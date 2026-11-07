@@ -1,0 +1,30 @@
+"""
+予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+"""
+type CalendarFeed {
+  createdAt: Time!
+  "最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。"
+  lastUsedAt: Time
+}
+
+"発行した購読用の URL。"
+type CreatedCalendarFeed {
+  "URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
+  path: String!
+  calendarFeed: CalendarFeed!
+}
+
+extend type Query {
+  "ログイン中のユーザーの購読用の URL。発行していなければ null。"
+  calendarFeed: CalendarFeed
+}
+
+extend type Mutation {
+  """
+  予約を iCalendar で購読する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとして予約を読めるようになる。
+  """
+  createCalendarFeed: CreatedCalendarFeed!
+  "購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。"
+  deleteCalendarFeed: Boolean!
+}

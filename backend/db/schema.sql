@@ -107,6 +107,16 @@ CREATE TABLE api_tokens (
 
 CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
 
+-- calendar_feeds は、予約を iCalendar で購読する URL の秘密の値 (#1255、設計書 9.8)。ユーザーごとに 1 つだけ持つ。
+-- 秘密の値そのものは持たず、SHA-256 だけを持つ。発行し直すと、前の URL は使えなくなる。
+CREATE TABLE calendar_feeds (
+  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  token_hash bytea NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL,
+  -- 最後に読まれた日時。書き込みを減らすため、一定の間隔でしか更新しない。読まれていなければ NULL。
+  last_used_at timestamptz
+);
+
 -- MCP のクライアントの認可コード (#963、設計書 9.9)。同意したときに作り、トークンと引き換えたら消す。
 -- 認可コードそのものは持たず、SHA-256 だけを保存する。
 CREATE TABLE oauth_authorization_codes (

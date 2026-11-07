@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path"
 	"slices"
 	"strings"
 	"time"
@@ -38,6 +39,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
@@ -65,6 +67,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/animeimage"
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
+	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
 	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
@@ -622,7 +625,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
-	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
+	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -810,6 +813,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
+	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
@@ -834,6 +838,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
 		APITokens:         apiTokens,
+		CalendarFeeds:     calendarFeeds,
 		OAuth:             authorizationServer,
 		Players:           player.NewService(deps.DB, deps.Clock),
 		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
@@ -855,6 +860,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
+		JobAdmin:          jobAdminOf(deps),
 		AnimeRecords:      animeRecords,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
@@ -933,6 +939,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/streams/", api)
 	root.Handle("/media/", api)
 	root.Handle("/api/", compat)
+	handleCalendar(root, deps, calendarFeeds, logger)
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 
@@ -1053,6 +1060,34 @@ func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 	}
 
 	return streams
+}
+
+// calendarPathPrefix は、予約の iCalendar のパスの頭。パスに購読用の URL の秘密の値を含む (#1255)。
+const calendarPathPrefix = "/calendar/"
+
+// traceable は、リクエストをトレースに残してよいかを返す。予約の iCalendar はパスに秘密の値を含むので、
+// トレースの属性 (URL のパス) に残さないよう、トレースしない。
+// ServeMux は、整っていないパス (//calendar/... など) を、整えたパスへのリダイレクトで返すので、そのリクエストも外せるよう、
+// パスを整えてから比べる。
+func traceable(r *http.Request) bool {
+	return !strings.HasPrefix(path.Clean("/"+r.URL.Path)+"/", calendarPathPrefix)
+}
+
+// jobAdminOf は、管理者向けのジョブの画面 (#1279) に使う River のクライアントを返す。なければ nil を返す。
+// nil のポインタを interface に入れると nil と比べられなくなるので、ここで分ける。
+func jobAdminOf(deps *Deps) graph.JobAdmin {
+	if deps.Jobs == nil {
+		return nil
+	}
+
+	return deps.Jobs
+}
+
+// handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を mux に登録する。
+// カレンダーのアプリは Cookie を送れないので、パスの秘密の値だけで認証する。
+func handleCalendar(mux *http.ServeMux, deps *Deps, feeds *auth.CalendarFeeds, logger *slog.Logger) {
+	mux.Handle("GET "+calendarPathPrefix+"{token}/reservations.ics", calendarapi.NewHandler(
+		feeds, query.New(deps.DB), deps.Clock, logger.With(slog.String("component", "calendar"))))
 }
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。

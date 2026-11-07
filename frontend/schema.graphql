@@ -737,6 +737,16 @@ type BulkOperationPayload {
   skipped: Int!
 }
 """
+予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
+"""
+type CalendarFeed {
+  createdAt: Time!
+  """
+  最後にカレンダーのアプリが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+  """
+  lastUsedAt: Time
+}
+"""
 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 """
 type CaptionSettings {
@@ -963,6 +973,16 @@ type CreatedApiToken {
   """
   token: String!
   apiToken: ApiToken!
+}
+"""
+発行した購読用の URL。
+"""
+type CreatedCalendarFeed {
+  """
+  URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
+  """
+  path: String!
+  calendarFeed: CalendarFeed!
 }
 """
 データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
@@ -1265,6 +1285,93 @@ type JikkyoChannel {
   viewers: Int
 }
 """
+nekonote の River のジョブ (#1279、設計書 6.1)。管理者だけが読める。引数の JSON はそのまま返さず、対象を名前で引けるようにする。
+"""
+type Job {
+  """
+  River のジョブの ID。
+  """
+  id: ID!
+  """
+  ジョブの種類 (River の kind)。画面は、これを設計書 6.1 の名前に読み替える。
+  """
+  kind: String!
+  state: JobState!
+  queue: String!
+  """
+  試した回数。
+  """
+  attempt: Int!
+  """
+  試す回数の上限。
+  """
+  maxAttempts: Int!
+  createdAt: Time!
+  """
+  次に試す (試した) 時刻。
+  """
+  scheduledAt: Time!
+  """
+  最後に試し始めた時刻。まだ試していなければ null。
+  """
+  attemptedAt: Time
+  """
+  終えた時刻 (完了、取り消し、破棄)。終えていなければ null。
+  """
+  finalizedAt: Time
+  """
+  試したときのエラー。古い順。
+  """
+  errors: [JobError!]!
+  """
+  ジョブの対象の録画。録画を対象にしないジョブか、録画が消えていれば null。
+  """
+  recording: Recording
+  """
+  画面から再試行できるか。動いているジョブは再試行できない。
+  """
+  retryable: Boolean!
+  """
+  画面から取り消せるか。終えたジョブと、取り消すと録画を失いうるジョブ (タイムシフトの昇格、セグメントをつなぐジョブ) は取り消せない。
+  """
+  cancellable: Boolean!
+}
+type JobError {
+  at: Time!
+  attempt: Int!
+  message: String!
+}
+"""
+ジョブの一覧の 1 ページ。
+"""
+type JobPage {
+  nodes: [Job!]!
+  """
+  次のページのカーソル。続きがなければ null。
+  """
+  endCursor: String
+}
+"""
+River のジョブの状態 (#1279)。
+"""
+enum JobState {
+  AVAILABLE
+  CANCELLED
+  COMPLETED
+  DISCARDED
+  PENDING
+  RETRYABLE
+  RUNNING
+  SCHEDULED
+}
+"""
+状態ごとのジョブの数。
+"""
+type JobStateCount {
+  state: JobState!
+  count: Int!
+}
+"""
 キーワードと、その照合の仕方。
 """
 type Keyword {
@@ -1487,6 +1594,15 @@ type Mutation {
   """
   deleteApiToken(id: ID!): ID!
   """
+  予約を iCalendar で購読する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとして予約を読めるようになる。
+  """
+  createCalendarFeed: CreatedCalendarFeed!
+  """
+  購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。
+  """
+  deleteCalendarFeed: Boolean!
+  """
   ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
   """
   deleteCapture(id: ID!): ID!
@@ -1496,6 +1612,14 @@ type Mutation {
   調べる間、チューナーを 1 本使う。
   """
   inspectChannel(channelType: String!, channel: String!): ChannelInspection!
+  """
+  ジョブを、すぐに試し直す (#1279)。管理者だけが使える。動いているジョブは試し直せない。監査ログに残す。
+  """
+  retryJob(id: ID!): Job!
+  """
+  ジョブを取り消す (#1279)。管理者だけが使える。動いているジョブには、止めるよう知らせる。監査ログに残す。
+  """
+  cancelJob(id: ID!): Job!
   """
   録画 ids のセグメントのファイルを確かめ直し、見つからないものの記録を DB から消す。ファイルは触らない。管理者だけが使える。
   セグメントが 1 つも見つからなければ録画を消し、一部だけなら、見つからないセグメントの記録だけを消す。監査ログに残す。
@@ -2513,6 +2637,10 @@ type Query {
   """
   apiTokens: [ApiToken!]!
   """
+  ログイン中のユーザーの購読用の URL。発行していなければ null。
+  """
+  calendarFeed: CalendarFeed
+  """
   ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
   keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
   """
@@ -2563,6 +2691,14 @@ type Query {
   ログイン中のユーザーの番組表ビュー。
   """
   guideViews: [GuideView!]!
+  """
+  状態が state のジョブを、新しい順に返す (#1279)。管理者だけが使える。完了したジョブは、River が消すまで (既定は 24 時間) 返す。
+  """
+  jobs(state: JobState!, first: Int! = 50, after: String): JobPage!
+  """
+  状態ごとのジョブの数 (#1279)。管理者だけが使える。
+  """
+  jobCounts: [JobStateCount!]!
   """
   セグメントのファイルが見つからない録画を、録画を始めた日時の新しい順に返す。管理者だけが使える。
   このインスタンスにマウントしたプールのファイルだけを調べ、マウントしていないプールのファイルは見つからないとはみなさない。

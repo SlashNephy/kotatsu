@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"log/slog"
+	"net/http"
 )
 
 // RunAlongside は、テストから runAlongside を呼ぶために公開する。
@@ -26,3 +27,8 @@ func SourceWithPassword(source string, env map[string]string) (string, error) {
 
 // ErrSourcePassword は、テストから errSourcePassword と比べるために公開する。
 var ErrSourcePassword = errSourcePassword
+
+// Traceable は、テストから traceable を呼ぶために公開する。
+func Traceable(r *http.Request) bool {
+	return traceable(r)
+}
