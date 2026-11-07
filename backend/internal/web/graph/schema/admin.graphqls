@@ -102,6 +102,12 @@ type TunerServerStatus {
   "時計の差を警告する閾値 (ミリ秒)。"
   clockSkewThresholdMs: Int!
   checkedAt: Time!
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。"
+  broadcastClockSkewMs: Int
+  "放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。"
+  broadcastClockSkewed: Boolean!
+  "放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。"
+  broadcastClockCheckedAt: Time
 }
 
 """
@@ -188,6 +194,10 @@ type TunerServerHealth {
   clockSkewed: Boolean!
   "チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。"
   clockSkewMs: Int
+  "録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。"
+  broadcastClockSkewed: Boolean!
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。"
+  broadcastClockSkewMs: Int
 }
 
 extend type Query {

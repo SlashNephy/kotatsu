@@ -186,6 +186,7 @@ type AuditEvent struct {
 
 type CalendarFeed struct {
 	UserID     uuid.UUID
+	Kind       string
 	TokenHash  []byte
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
@@ -550,6 +551,7 @@ type RecordingFile struct {
 	StartedAt   time.Time
 	EndedAt     *time.Time
 	PIDStats    []byte
+	Video       []byte
 	CreatedAt   time.Time
 }
 
@@ -647,6 +649,15 @@ type Service struct {
 	SortOrder          *int32
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+type ServiceLogo struct {
+	NetworkID int64
+	LogoID    int64
+	LogoType  int16
+	Version   int64
+	Data      []byte
+	UpdatedAt time.Time
 }
 
 type Session struct {
@@ -791,11 +802,13 @@ type Tuner struct {
 }
 
 type TunerServerStatus struct {
-	ID            bool
-	DegradedSince *time.Time
-	LastError     string
-	ClockSkewMs   *int64
-	CheckedAt     time.Time
+	ID                      bool
+	DegradedSince           *time.Time
+	LastError               string
+	ClockSkewMs             *int64
+	CheckedAt               time.Time
+	BroadcastClockSkewMs    *int64
+	BroadcastClockCheckedAt *time.Time
 }
 
 type User struct {

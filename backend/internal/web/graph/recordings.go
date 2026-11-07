@@ -16,6 +16,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -261,7 +262,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 		}
 		file := &model.RecordingFile{
 			Kind: model.RecordingFileKind(strings.ToUpper(row.Kind)), PoolID: row.PoolID, Path: row.Path, Size: row.Size,
-			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil,
+			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil, Video: segmentVideoOf(row.Video),
 		}
 		if file.Kind == model.RecordingFileKindOther {
 			file.URL = new(streamapi.OtherFileURL(row.RecordingID, row.ID))
@@ -722,4 +723,23 @@ func (r *Resolver) recordingCMSections(ctx context.Context, obj *model.Recording
 	}
 
 	return out, nil
+}
+
+// segmentVideoOf は、セグメントの映像の形式の JSON (#1310) を GraphQL の形にする。なければ nil を返す。
+func segmentVideoOf(raw []byte) *model.SegmentVideoFormat {
+	if len(raw) == 0 {
+		return nil
+	}
+	var format ts.VideoFormat
+	if err := json.Unmarshal(raw, &format); err != nil || format.Codec == "" {
+		return nil
+	}
+	video := &model.SegmentVideoFormat{
+		Codec: format.Codec, Width: format.Width, Height: format.Height, Interlaced: format.Interlaced, FrameRate: nil,
+	}
+	if format.FrameRate > 0 {
+		video.FrameRate = new(format.FrameRate)
+	}
+
+	return video
 }

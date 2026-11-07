@@ -107,14 +107,17 @@ CREATE TABLE api_tokens (
 
 CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
 
--- calendar_feeds は、予約を iCalendar で購読する URL の秘密の値 (#1255、設計書 9.8)。ユーザーごとに 1 つだけ持つ。
+-- calendar_feeds は、Cookie を送れないアプリに配信する URL の秘密の値 (設計書 9.8)。ユーザーと種類ごとに 1 つだけ持つ。
+-- 種類は、予約の iCalendar (calendar。#1255) と、ライブ視聴の M3U と番組表の XMLTV (iptv。#1324)。用途ごとに別の値にし、別々に取り消せる。
 -- 秘密の値そのものは持たず、SHA-256 だけを持つ。発行し直すと、前の URL は使えなくなる。
 CREATE TABLE calendar_feeds (
-  user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  kind text NOT NULL DEFAULT 'calendar' CHECK (kind IN ('calendar', 'iptv')),
   token_hash bytea NOT NULL UNIQUE,
   created_at timestamptz NOT NULL,
   -- 最後に読まれた日時。書き込みを減らすため、一定の間隔でしか更新しない。読まれていなければ NULL。
-  last_used_at timestamptz
+  last_used_at timestamptz,
+  PRIMARY KEY (user_id, kind)
 );
 
 -- MCP のクライアントの認可コード (#963、設計書 9.9)。同意したときに作り、トークンと引き換えたら消す。
@@ -540,6 +543,20 @@ CREATE TABLE services (
   updated_at timestamptz NOT NULL
 );
 
+-- 録画している TS の CDT から集めた、サービスのロゴ (#1308、設計書 3.1)。チューナーサーバーがロゴを返さないときに返す。
+-- ロゴはネットワークごとの logo_id で送られ、サービスとは services.logo_id で結ぶ。サービスより先に届くこともあるので、外部キーは張らない。
+CREATE TABLE service_logos (
+  network_id bigint NOT NULL,
+  logo_id bigint NOT NULL,
+  -- ロゴの種類 (logo_type)。大きさを表す (ARIB TR-B15)。
+  logo_type smallint NOT NULL,
+  version bigint NOT NULL,
+  -- パレットを補った PNG。
+  data bytea NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (network_id, logo_id, logo_type)
+);
+
 -- 放送中の番組と、これから放送される番組 (設計書 3.4)。
 -- Mirakurun と同じく、サービスと eventId の組で一意にする。EID は再利用されうるが、上流が同時に持つ番組の中では一意である。
 -- 放送時間が変わっても同じ行を更新するので、番組予約は (サービス, eventId) で番組を追える (設計書 4.6)。
@@ -715,7 +732,11 @@ CREATE TABLE tuner_server_status (
   last_error text NOT NULL,
   -- チューナーサーバーの時計 (HTTP の Date ヘッダー) と OS の時計の差 (ミリ秒)。分からなければ NULL。
   clock_skew_ms bigint,
-  checked_at timestamptz NOT NULL
+  checked_at timestamptz NOT NULL,
+  -- 録画している TS の TOT が示す放送の時刻と、mikan の OS の時計の差 (ミリ秒、#1309)。録画していない間は、最後に測った値のまま。
+  -- 分からなければ NULL。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付けるよう、Date ヘッダーとは別に持つ。
+  broadcast_clock_skew_ms bigint,
+  broadcast_clock_checked_at timestamptz
 );
 
 -- ルール (設計書 4.2)。条件は match パッケージの型で検証し、スキーマのバージョンを付けて JSONB に保存する (設計書 8.3)。
@@ -878,6 +899,9 @@ CREATE TABLE recording_files (
   -- セグメントの PID ごとの品質の集計 (#473)。[{pid, kind, packets, drops, errors, scrambled}] の形で、セグメントを閉じるときに書く。
   -- セグメント以外と、書き終えていないセグメントと、これを足す前に閉じたセグメントは NULL。
   pid_stats jsonb,
+  -- セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。{codec, width, height, interlaced, frameRate} の形で、
+  -- セグメントを閉じるときと、録画を解析したときに書く。読めなかったセグメントと、セグメント以外は NULL。
+  video jsonb,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

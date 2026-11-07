@@ -65,6 +65,21 @@ type RecordingFile {
   ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
   """
   url: String
+  "セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。"
+  video: SegmentVideoFormat
+}
+
+"""
+セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+"""
+type SegmentVideoFormat {
+  "mpeg2、h264、hevc のどれか。"
+  codec: String!
+  width: Int!
+  height: Int!
+  interlaced: Boolean!
+  "フレームレート。読めなければ null (HEVC は読まない)。"
+  frameRate: Float
 }
 
 """

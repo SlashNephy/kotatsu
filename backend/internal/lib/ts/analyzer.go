@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 )
 
 // Analyzer は、書き込まれる TS を流し読みし、PID ごとの統計と、PAT と PMT が表す番組の構成を記録する。
@@ -41,9 +42,17 @@ type Analyzer struct {
 	programsGeneration int
 	// firstPTS は、最初に見つけた I フレームの PTS。まだなければ nil。
 	firstPTS *int64
+	// videoProbe は、映像の形式を読むために、映像の先頭を溜める。読み終えたら nil にする。
+	videoProbe *videoFormatProbe
+	// videoFormat は、読んだ映像の形式 (#1310)。まだ読んでいなければ nil。
+	videoFormat *VideoFormat
+	// onTOT は、TDT か TOT を読んだときに呼ぶ (#1309)。nil なら TOT を読まない。
+	onTOT func(time.Time)
 	// cutoffPTS と beforeCutoff は、AnalyzerOptions.CutoffPTS と、そこに届いたときの PID ごとの統計。届いていなければ nil。
 	cutoffPTS    *int64
 	beforeCutoff []*PIDStats
+	// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。nil なら CDT を読まない。
+	onLogo func(*Logo)
 }
 
 // AnalyzerOptions は Analyzer の設定。
@@ -53,6 +62,10 @@ type AnalyzerOptions struct {
 	// CutoffPTS は、PID ごとの統計を控えておく位置。PTS がこの値に届いた I フレームを見つけたときの統計を、
 	// Stats.PIDsBeforeCutoff に返す。引き継ぎで重なった区間を、古いセグメントの集計から除くのに使う (#525)。nil なら控えない。
 	CutoffPTS *int64
+	// OnTOT は、TDT か TOT を読んだときに、放送の現在の時刻を受け取る (#1309)。Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
+	OnTOT func(time.Time)
+	// OnLogo は、CDT でロゴを読んだときに、そのロゴを受け取る (#1308)。Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
+	OnLogo func(*Logo)
 }
 
 var _ io.Writer = new(Analyzer)
@@ -102,14 +115,18 @@ type Stats struct {
 	FirstPTS *int64
 	// PIDsBeforeCutoff は、AnalyzerOptions.CutoffPTS に届いたときの、PID ごとの統計。届かなければ nil。
 	PIDsBeforeCutoff []*PIDStats
+	// Video は、最初の映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。読めなければ nil。
+	Video *VideoFormat
 }
 
 // NewAnalyzer は Analyzer を作る。opts は nil でもよい。
 func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	var index *IndexWriter
 	var cutoff *int64
+	var onTOT func(time.Time)
+	var onLogo func(*Logo)
 	if opts != nil {
-		index, cutoff = opts.Index, opts.CutoffPTS
+		index, cutoff, onTOT, onLogo = opts.Index, opts.CutoffPTS, opts.OnTOT, opts.OnLogo
 	}
 
 	return &Analyzer{
@@ -131,8 +148,12 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		video:              nil,
 		programsGeneration: -1,
 		firstPTS:           nil,
+		videoProbe:         nil,
+		videoFormat:        nil,
+		onTOT:              onTOT,
 		cutoffPTS:          cutoff,
 		beforeCutoff:       nil,
+		onLogo:             onLogo,
 	}
 }
 
@@ -207,6 +228,7 @@ func (a *Analyzer) Stats() *Stats {
 		Events:            a.eit.snapshot(),
 
 		FirstPTS:         a.firstPTS,
+		Video:            a.videoFormat,
 		PIDsBeforeCutoff: a.beforeCutoff,
 	}
 }
@@ -299,6 +321,10 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 			a.video = nil
 		case a.video == nil || a.video.pid != video.PID || a.video.streamType != video.StreamType:
 			a.video = newIFrameDetector(video.PID, video.StreamType)
+			// I フレームを探せない符号化方式の映像 (newIFrameDetector が nil を返す) では、形式も読まない。
+			if a.video != nil && a.videoFormat == nil {
+				a.videoProbe = newVideoFormatProbe(a.video.codec)
+			}
 		}
 	}
 	if a.video == nil || a.video.pid != pkt.pid {
@@ -306,6 +332,9 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 	if dropped {
 		a.video.reset()
+	}
+	if !dropped {
+		a.probeVideoFormat(pkt)
 	}
 
 	entry, ok := a.video.feed(pkt, offset)
@@ -324,10 +353,22 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 }
 
-// handlePSI は、PAT、PMT、EIT のパケットからセクションを組み立てて読む。
+// probeVideoFormat は、映像の先頭を溜め、映像の形式を読み終えたら覚える (#1310)。
+func (a *Analyzer) probeVideoFormat(pkt *packet) {
+	if a.videoProbe == nil {
+		return
+	}
+	a.videoProbe.feed(pkt)
+	if a.videoProbe.done {
+		a.videoFormat = a.videoProbe.format
+		a.videoProbe = nil
+	}
+}
+
+// handlePSI は、PAT、PMT、EIT と、OnTOT があれば TOT、OnLogo があれば CDT のパケットからセクションを組み立てて読む。
 func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	pid := pkt.pid
-	if pid != patPID && pid != eitPID && !a.programs.isPMTPID(pid) {
+	if pid != patPID && pid != eitPID && (pid != totPID || a.onTOT == nil) && (pid != cdtPID || a.onLogo == nil) && !a.programs.isPMTPID(pid) {
 		return
 	}
 
@@ -346,6 +387,14 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 			a.programs.handlePAT(section)
 		case eitPID:
 			a.eit.handle(section)
+		case totPID:
+			if at, ok := parseTOT(section); ok {
+				a.onTOT(at)
+			}
+		case cdtPID:
+			if logo, ok := parseCDTLogo(section); ok {
+				a.onLogo(logo)
+			}
 		default:
 			a.programs.handlePMT(pid, section)
 		}

@@ -10,7 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/cli"
 )
 
-// TestTraceable は、パスに秘密の値を含む予約の iCalendar を、トレースに残さないことを確かめる (#1255)。
+// TestTraceable は、パスに秘密の値を含む予約の iCalendar (#1255) と IPTV の配信 (#1324) を、トレースに残さないことを確かめる。
 func TestTraceable(t *testing.T) {
 	t.Parallel()
 
@@ -24,6 +24,9 @@ func TestTraceable(t *testing.T) {
 		{name: "dot segment", path: "/./api/../calendar/kotatsu_cal_x/reservations.ics", want: false},
 		{name: "calendar directory", path: "/calendar", want: false},
 		{name: "similar prefix", path: "/calendars", want: true},
+		{name: "IPTV playlist", path: "/iptv/kotatsu_iptv_x/channels.m3u", want: false},
+		{name: "IPTV stream", path: "//iptv/kotatsu_iptv_x/services/1/stream.m2ts", want: false},
+		{name: "IPTV similar prefix", path: "/iptvs", want: true},
 		{name: "graphql", path: "/graphql", want: true},
 		{name: "api", path: "/api/recorded", want: true},
 	}

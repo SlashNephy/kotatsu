@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# テスト用の TS (backend/testdata/ts/test.ts、test-h264.ts、test-hevc.ts、test-hevc-main10.ts) を作る。Docker が要る。
+# テスト用の TS (backend/testdata/ts/test.ts、test-h264.ts、test-hevc.ts、test-hevc-main10.ts、test-mpeg2-1080i.ts、test-h264-1080i.ts) を作る。Docker が要る。
 #
 # FFmpeg と TSDuck をコンテナに閉じ込め、手元の環境に依らず同じ手順で作る。
 set -euo pipefail
