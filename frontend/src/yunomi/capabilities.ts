@@ -15,12 +15,18 @@ export function detectCapabilities(scope: typeof globalThis = globalThis): Capab
   const anySource = mediaSource ?? managed;
 
   return {
-    // ブラウザの中での変換は、MediaSource のある PC のブラウザで使う。ManagedMediaSource しかない
-    // iPhone では、変換の負荷と電池の消費が大きいので、kyusu を使う (設計書 2.1)。
-    convert: mediaSource?.isTypeSupported(h264) ?? false,
+    // ブラウザの中での変換は、MediaSource か ManagedMediaSource で H.264 を再生できれば使う。
+    // ManagedMediaSource しかない iPhone でも、変換のプレイヤーが ManagedMediaSource で動く (#1256)。
+    convert: anySource?.isTypeSupported(h264) ?? false,
     // hls.js は、MediaSource か ManagedMediaSource があれば動く。
     hls: anySource?.isTypeSupported(h264) ?? false,
     hevc: anySource?.isTypeSupported(hevc) ?? false,
     hevcUhd: anySource?.isTypeSupported(hevcUhd) ?? false,
   };
+}
+
+// prefersManagedMediaSource は、変換のプレイヤーに ManagedMediaSource を使わせるかを返す (#1256)。
+// MediaSource がなく、ManagedMediaSource だけがある端末 (iPhone の Safari) で使う。
+export function prefersManagedMediaSource(scope: typeof globalThis = globalThis): boolean {
+  return !('MediaSource' in scope) && 'ManagedMediaSource' in scope;
 }
