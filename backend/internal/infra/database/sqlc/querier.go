@@ -90,7 +90,7 @@ type Querier interface {
 	DeleteAnimeWorks(ctx context.Context, source string) error
 	// before より前の記録を、古い順に max_count 件まで消す。1 回のトランザクションで大量の行を消さないよう、件数を区切る。
 	DeleteAuditEventsBefore(ctx context.Context, arg DeleteAuditEventsBeforeParams) (int64, error)
-	DeleteCalendarFeed(ctx context.Context, userID uuid.UUID) (int64, error)
+	DeleteCalendarFeed(ctx context.Context, arg DeleteCalendarFeedParams) (int64, error)
 	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
 	DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (Capture, error)
 	DeleteExpiredAnimeRecordAuthorizations(ctx context.Context, now time.Time) (int64, error)
@@ -223,9 +223,10 @@ type Querier interface {
 	// Annict の作品の取り込みの進み具合 (#1223) を返す。まだなければ作る。
 	GetAnnictWorkSync(ctx context.Context) (AnnictWorkSync, error)
 	GetArchivedProgram(ctx context.Context, arg GetArchivedProgramParams) (GetArchivedProgramRow, error)
-	GetCalendarFeed(ctx context.Context, userID uuid.UUID) (CalendarFeed, error)
-	// 秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
-	GetCalendarFeedUser(ctx context.Context, tokenHash []byte) (GetCalendarFeedUserRow, error)
+	GetCalendarFeed(ctx context.Context, arg GetCalendarFeedParams) (CalendarFeed, error)
+	// 種類 kind の秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+	// ほかの種類の値は、同じユーザーのものでも受け付けない。
+	GetCalendarFeedUser(ctx context.Context, arg GetCalendarFeedUserParams) (GetCalendarFeedUserRow, error)
 	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
 	// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
@@ -293,6 +294,8 @@ type Querier interface {
 	// 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
 	GetReservationForRecording(ctx context.Context, id uuid.UUID) (GetReservationForRecordingRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
+	// サービスのロゴのうち、いちばん望ましい種類のものを返す (#1308)。HD の大きいロゴ (64×36) を先にする。
+	GetServiceLogo(ctx context.Context, serviceID int64) ([]byte, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
 	GetSessionUsable(ctx context.Context, arg GetSessionUsableParams) (bool, error)
@@ -836,6 +839,8 @@ type Querier interface {
 	// SearchRecordings の古い順。after_at と after_id より後 (新しい) の録画だけを返し、ページを送る。
 	SearchRecordingsOldest(ctx context.Context, arg SearchRecordingsOldestParams) ([]Recording, error)
 	ServiceExists(ctx context.Context, id int64) (bool, error)
+	// 録画している TS の TOT で測った、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
+	SetBroadcastClockSkew(ctx context.Context, arg SetBroadcastClockSkewParams) error
 	// 字幕の見た目と、文字スーパーを出すかどうかの設定を、まるごと置き換える (#491)。
 	SetCaptionSettings(ctx context.Context, arg SetCaptionSettingsParams) error
 	// 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。
@@ -856,6 +861,8 @@ type Querier interface {
 	// セグメントの PID ごとの品質の集計を書く (#473)。
 	SetRecordingFilePIDStats(ctx context.Context, arg SetRecordingFilePIDStatsParams) error
 	SetRecordingFilePath(ctx context.Context, arg SetRecordingFilePathParams) error
+	// セグメントの映像の形式を書く (#1310)。
+	SetRecordingFileVideo(ctx context.Context, arg SetRecordingFileVideoParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
 	// 録画の正規化した番組名と概要を書く (#1044)。
@@ -867,6 +874,9 @@ type Querier interface {
 	// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
 	// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
 	SetRecordingStats(ctx context.Context, arg SetRecordingStatsParams) error
+	// 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+	// 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
+	SetRecordingVideoResolutionFromFile(ctx context.Context, arg SetRecordingVideoResolutionFromFileParams) error
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
@@ -945,7 +955,7 @@ type Querier interface {
 	// Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	UpsertAnnictWorks(ctx context.Context, arg UpsertAnnictWorksParams) error
-	// ユーザーの購読用の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
+	// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
@@ -961,6 +971,8 @@ type Querier interface {
 	UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
+	// 版か画像が変わったときだけ書き換える (#1308)。
+	UpsertServiceLogo(ctx context.Context, arg UpsertServiceLogoParams) (int64, error)
 	UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolParams) (StoragePool, error)
 	UpsertSyobocalLookup(ctx context.Context, arg UpsertSyobocalLookupParams) error
 	UpsertSyobocalProgram(ctx context.Context, arg UpsertSyobocalProgramParams) error

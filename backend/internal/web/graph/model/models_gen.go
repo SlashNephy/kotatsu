@@ -584,6 +584,15 @@ type CreatedCalendarFeed struct {
 	CalendarFeed *CalendarFeed `json:"calendarFeed"`
 }
 
+// 発行した IPTV の配信の URL。
+type CreatedIptvFeed struct {
+	// M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
+	PlaylistPath string `json:"playlistPath"`
+	// XMLTV のパス (/iptv/<秘密の値>/guide.xml)。
+	GuidePath string    `json:"guidePath"`
+	IptvFeed  *IptvFeed `json:"iptvFeed"`
+}
+
 // データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
 type DataChange struct {
 	Channel DataChannel `json:"channel"`
@@ -723,6 +732,14 @@ type Instance struct {
 	HeartbeatAt time.Time `json:"heartbeatAt"`
 	// 最近ハートビートを書いたかどうか。止まったインスタンスは、しばらく残してから消す。
 	Alive bool `json:"alive"`
+}
+
+// ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+// 予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+type IptvFeed struct {
+	CreatedAt time.Time `json:"createdAt"`
+	// 最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
 // NX-Jikkyo の実況のチャンネル。
@@ -1228,6 +1245,8 @@ type RecordingFile struct {
 	// ファイルをそのまま流す URL のパス。その他のファイル (OTHER) だけにあり、ほかの種類では null。
 	// ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
 	URL *string `json:"url,omitempty"`
+	// セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。
+	Video *SegmentVideoFormat `json:"video,omitempty"`
 }
 
 type RecordingFileRename struct {
@@ -1437,6 +1456,17 @@ type SecondFactorStatus struct {
 	Totp bool `json:"totp"`
 	// 使っていないリカバリーコードの数。
 	RemainingRecoveryCodes int `json:"remainingRecoveryCodes"`
+}
+
+// セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+type SegmentVideoFormat struct {
+	// mpeg2、h264、hevc のどれか。
+	Codec      string `json:"codec"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Interlaced bool   `json:"interlaced"`
+	// フレームレート。読めなければ null (HEVC は読まない)。
+	FrameRate *float64 `json:"frameRate,omitempty"`
 }
 
 // サービスの表示の変える項目。省いた項目は変えない。
@@ -1680,6 +1710,10 @@ type TunerServerHealth struct {
 	ClockSkewed bool `json:"clockSkewed"`
 	// チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
 	ClockSkewMs *int `json:"clockSkewMs,omitempty"`
+	// 録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。
+	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。
+	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
 }
 
 // チューナーサーバーの状態 (設計書 3.7)。
@@ -1696,6 +1730,12 @@ type TunerServerStatus struct {
 	// 時計の差を警告する閾値 (ミリ秒)。
 	ClockSkewThresholdMs int       `json:"clockSkewThresholdMs"`
 	CheckedAt            time.Time `json:"checkedAt"`
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。
+	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
+	// 放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。
+	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
+	// 放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。
+	BroadcastClockCheckedAt *time.Time `json:"broadcastClockCheckedAt,omitempty"`
 }
 
 // ユーザーの変える項目。省いた項目は変えない。

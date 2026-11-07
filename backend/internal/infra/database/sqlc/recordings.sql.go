@@ -877,7 +877,7 @@ func (q *Queries) ListLiveThumbnailRecordings(ctx context.Context, startedBefore
 }
 
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `
 
 // 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
@@ -900,6 +900,7 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.PIDStats,
+			&i.Video,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -981,7 +982,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 }
 
 const listRecordingFiles = `-- name: ListRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
@@ -1003,6 +1004,7 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.PIDStats,
+			&i.Video,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1332,6 +1334,21 @@ func (q *Queries) SetRecordingFilePath(ctx context.Context, arg SetRecordingFile
 	return err
 }
 
+const setRecordingFileVideo = `-- name: SetRecordingFileVideo :exec
+UPDATE recording_files SET video = $1 WHERE id = $2
+`
+
+type SetRecordingFileVideoParams struct {
+	Video []byte
+	ID    uuid.UUID
+}
+
+// セグメントの映像の形式を書く (#1310)。
+func (q *Queries) SetRecordingFileVideo(ctx context.Context, arg SetRecordingFileVideoParams) error {
+	_, err := q.db.Exec(ctx, setRecordingFileVideo, arg.Video, arg.ID)
+	return err
+}
+
 const setRecordingGaps = `-- name: SetRecordingGaps :exec
 UPDATE recordings SET gaps = $1, updated_at = $2 WHERE id = $3
 `
@@ -1393,6 +1410,27 @@ func (q *Queries) SetRecordingStats(ctx context.Context, arg SetRecordingStatsPa
 		arg.Now,
 		arg.ID,
 	)
+	return err
+}
+
+const setRecordingVideoResolutionFromFile = `-- name: SetRecordingVideoResolutionFromFile :exec
+UPDATE recordings r SET video_resolution = $1
+WHERE r.id = $2 AND NOT EXISTS (
+  SELECT 1 FROM recording_files f
+  WHERE f.recording_id = r.id AND f.video IS NOT NULL AND f.started_at < $3
+)
+`
+
+type SetRecordingVideoResolutionFromFileParams struct {
+	VideoResolution *string
+	RecordingID     uuid.UUID
+	StartedAt       time.Time
+}
+
+// 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+// 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
+func (q *Queries) SetRecordingVideoResolutionFromFile(ctx context.Context, arg SetRecordingVideoResolutionFromFileParams) error {
+	_, err := q.db.Exec(ctx, setRecordingVideoResolutionFromFile, arg.VideoResolution, arg.RecordingID, arg.StartedAt)
 	return err
 }
 

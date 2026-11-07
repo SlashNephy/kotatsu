@@ -20,14 +20,16 @@ func (q *Queries) DeleteTuners(ctx context.Context) error {
 }
 
 const getTunerServerStatus = `-- name: GetTunerServerStatus :one
-SELECT degraded_since, last_error, clock_skew_ms, checked_at FROM tuner_server_status WHERE id
+SELECT degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at FROM tuner_server_status WHERE id
 `
 
 type GetTunerServerStatusRow struct {
-	DegradedSince *time.Time
-	LastError     string
-	ClockSkewMs   *int64
-	CheckedAt     time.Time
+	DegradedSince           *time.Time
+	LastError               string
+	ClockSkewMs             *int64
+	CheckedAt               time.Time
+	BroadcastClockSkewMs    *int64
+	BroadcastClockCheckedAt *time.Time
 }
 
 func (q *Queries) GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error) {
@@ -38,6 +40,8 @@ func (q *Queries) GetTunerServerStatus(ctx context.Context) (GetTunerServerStatu
 		&i.LastError,
 		&i.ClockSkewMs,
 		&i.CheckedAt,
+		&i.BroadcastClockSkewMs,
+		&i.BroadcastClockCheckedAt,
 	)
 	return i, err
 }
@@ -108,6 +112,23 @@ func (q *Queries) ListTuners(ctx context.Context) ([]ListTunersRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setBroadcastClockSkew = `-- name: SetBroadcastClockSkew :exec
+INSERT INTO tuner_server_status (id, degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at)
+VALUES (true, NULL, '', NULL, $1, $2, $1)
+ON CONFLICT (id) DO UPDATE SET broadcast_clock_skew_ms = excluded.broadcast_clock_skew_ms, broadcast_clock_checked_at = excluded.broadcast_clock_checked_at
+`
+
+type SetBroadcastClockSkewParams struct {
+	Now    time.Time
+	SkewMs *int64
+}
+
+// 録画している TS の TOT で測った、放送の時刻と OS の時計の差を書く (#1309)。行がなければ作る。
+func (q *Queries) SetBroadcastClockSkew(ctx context.Context, arg SetBroadcastClockSkewParams) error {
+	_, err := q.db.Exec(ctx, setBroadcastClockSkew, arg.Now, arg.SkewMs)
+	return err
 }
 
 const upsertTunerServerStatus = `-- name: UpsertTunerServerStatus :exec

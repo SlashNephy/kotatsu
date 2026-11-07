@@ -25,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
+	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 )
 
 const (
@@ -72,6 +73,8 @@ type Recorder struct {
 	store  *kago.Store
 	logger *slog.Logger
 	opts   RecorderOptions
+	// logos は、録っている TS の CDT から集めたロゴ (#1308)。チャンクを閉じるときに書く。
+	logos *servicelogo.Collector
 }
 
 // NewRecorder は Recorder を返す。store には、タイムシフトのディレクトリとデータディレクトリが要る。opts は nil でもよい。
@@ -90,7 +93,7 @@ func NewRecorder(pool *pgxpool.Pool, clk clock.Clock, tuner recording.StreamOpen
 		}
 	}
 
-	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o}
+	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger)}
 }
 
 // Session は、Worker に渡す Session を返す。
@@ -442,7 +445,7 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	}
 	// 索引は、データディレクトリの、チャンクの ID のディレクトリに置く。作れなくても、録り続ける。
 	chunkID := id.New()
-	analyzer, indexFile, indexErr := recording.CreateIndex(r.store, chunkID)
+	analyzer, indexFile, indexErr := recording.CreateIndex(r.store, chunkID, r.logos.Observe)
 	if indexErr != nil {
 		logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -506,6 +509,12 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 	})
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to save the timeshift chunk size: %w", err))
+	}
+	// DB に届かない間は、ロゴは書かずに溜めておく。
+	if !pending.waiting() {
+		logoCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
+		r.logos.Flush(logoCtx, sqlc.New(r.pool))
+		cancel()
 	}
 	if err := errors.Join(errs...); err != nil {
 		logger.WarnContext(ctx, "failed to close the timeshift chunk", slog.String("chunk_id", c.id.String()), slog.Any("error", err))

@@ -140,7 +140,7 @@ func (q *Queries) ListContinueWatching(ctx context.Context, arg ListContinueWatc
 }
 
 const listRecordingFilesByRecordings = `-- name: ListRecordingFilesByRecordings :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, created_at FROM recording_files WHERE recording_id = ANY($1::uuid[]) ORDER BY recording_id, started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, created_at FROM recording_files WHERE recording_id = ANY($1::uuid[]) ORDER BY recording_id, started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error) {
@@ -162,6 +162,7 @@ func (q *Queries) ListRecordingFilesByRecordings(ctx context.Context, recordingI
 			&i.StartedAt,
 			&i.EndedAt,
 			&i.PIDStats,
+			&i.Video,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

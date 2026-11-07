@@ -13,11 +13,16 @@ import (
 )
 
 const deleteCalendarFeed = `-- name: DeleteCalendarFeed :execrows
-DELETE FROM calendar_feeds WHERE user_id = $1
+DELETE FROM calendar_feeds WHERE user_id = $1 AND kind = $2
 `
 
-func (q *Queries) DeleteCalendarFeed(ctx context.Context, userID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteCalendarFeed, userID)
+type DeleteCalendarFeedParams struct {
+	UserID uuid.UUID
+	Kind   string
+}
+
+func (q *Queries) DeleteCalendarFeed(ctx context.Context, arg DeleteCalendarFeedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteCalendarFeed, arg.UserID, arg.Kind)
 	if err != nil {
 		return 0, err
 	}
@@ -25,14 +30,20 @@ func (q *Queries) DeleteCalendarFeed(ctx context.Context, userID uuid.UUID) (int
 }
 
 const getCalendarFeed = `-- name: GetCalendarFeed :one
-SELECT user_id, token_hash, created_at, last_used_at FROM calendar_feeds WHERE user_id = $1
+SELECT user_id, kind, token_hash, created_at, last_used_at FROM calendar_feeds WHERE user_id = $1 AND kind = $2
 `
 
-func (q *Queries) GetCalendarFeed(ctx context.Context, userID uuid.UUID) (CalendarFeed, error) {
-	row := q.db.QueryRow(ctx, getCalendarFeed, userID)
+type GetCalendarFeedParams struct {
+	UserID uuid.UUID
+	Kind   string
+}
+
+func (q *Queries) GetCalendarFeed(ctx context.Context, arg GetCalendarFeedParams) (CalendarFeed, error) {
+	row := q.db.QueryRow(ctx, getCalendarFeed, arg.UserID, arg.Kind)
 	var i CalendarFeed
 	err := row.Scan(
 		&i.UserID,
+		&i.Kind,
 		&i.TokenHash,
 		&i.CreatedAt,
 		&i.LastUsedAt,
@@ -44,8 +55,13 @@ const getCalendarFeedUser = `-- name: GetCalendarFeedUser :one
 SELECT f.last_used_at, u.id AS user_id, u.role
 FROM calendar_feeds f
 JOIN users u ON u.id = f.user_id
-WHERE f.token_hash = $1 AND u.disabled_at IS NULL
+WHERE f.token_hash = $1 AND f.kind = $2 AND u.disabled_at IS NULL
 `
+
+type GetCalendarFeedUserParams struct {
+	TokenHash []byte
+	Kind      string
+}
 
 type GetCalendarFeedUserRow struct {
 	LastUsedAt *time.Time
@@ -53,41 +69,49 @@ type GetCalendarFeedUserRow struct {
 	Role       string
 }
 
-// 秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
-func (q *Queries) GetCalendarFeedUser(ctx context.Context, tokenHash []byte) (GetCalendarFeedUserRow, error) {
-	row := q.db.QueryRow(ctx, getCalendarFeedUser, tokenHash)
+// 種類 kind の秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+// ほかの種類の値は、同じユーザーのものでも受け付けない。
+func (q *Queries) GetCalendarFeedUser(ctx context.Context, arg GetCalendarFeedUserParams) (GetCalendarFeedUserRow, error) {
+	row := q.db.QueryRow(ctx, getCalendarFeedUser, arg.TokenHash, arg.Kind)
 	var i GetCalendarFeedUserRow
 	err := row.Scan(&i.LastUsedAt, &i.UserID, &i.Role)
 	return i, err
 }
 
 const touchCalendarFeed = `-- name: TouchCalendarFeed :exec
-UPDATE calendar_feeds SET last_used_at = $1 WHERE user_id = $2
+UPDATE calendar_feeds SET last_used_at = $1 WHERE user_id = $2 AND kind = $3
 `
 
 type TouchCalendarFeedParams struct {
 	Now    *time.Time
 	UserID uuid.UUID
+	Kind   string
 }
 
 func (q *Queries) TouchCalendarFeed(ctx context.Context, arg TouchCalendarFeedParams) error {
-	_, err := q.db.Exec(ctx, touchCalendarFeed, arg.Now, arg.UserID)
+	_, err := q.db.Exec(ctx, touchCalendarFeed, arg.Now, arg.UserID, arg.Kind)
 	return err
 }
 
 const upsertCalendarFeed = `-- name: UpsertCalendarFeed :exec
-INSERT INTO calendar_feeds (user_id, token_hash, created_at, last_used_at) VALUES ($1, $2, $3, NULL)
-ON CONFLICT (user_id) DO UPDATE SET token_hash = EXCLUDED.token_hash, created_at = EXCLUDED.created_at, last_used_at = NULL
+INSERT INTO calendar_feeds (user_id, kind, token_hash, created_at, last_used_at) VALUES ($1, $2, $3, $4, NULL)
+ON CONFLICT (user_id, kind) DO UPDATE SET token_hash = EXCLUDED.token_hash, created_at = EXCLUDED.created_at, last_used_at = NULL
 `
 
 type UpsertCalendarFeedParams struct {
 	UserID    uuid.UUID
+	Kind      string
 	TokenHash []byte
 	Now       time.Time
 }
 
-// ユーザーの購読用の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
+// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 func (q *Queries) UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error {
-	_, err := q.db.Exec(ctx, upsertCalendarFeed, arg.UserID, arg.TokenHash, arg.Now)
+	_, err := q.db.Exec(ctx, upsertCalendarFeed,
+		arg.UserID,
+		arg.Kind,
+		arg.TokenHash,
+		arg.Now,
+	)
 	return err
 }

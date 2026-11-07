@@ -1,7 +1,11 @@
 package recording
 
 import (
+	"context"
+	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
@@ -61,4 +65,14 @@ func (p *Preroll) Bytes() []byte {
 
 func (p *Preroll) StartedAt(now time.Time) time.Time {
 	return p.preroll.startedAt(now)
+}
+
+// ObserveTOT は、テストから Recorder.observeTOT を呼ぶために公開する。
+func ObserveTOT(r *Recorder, at time.Time) {
+	r.observeTOT(at)
+}
+
+// WriteBroadcastSkew は、テストから、書いているセグメントの様子と一緒に、TOT で測った時計の差を書くために公開する。
+func WriteBroadcastSkew(ctx context.Context, r *Recorder) {
+	newLiveStatsWriter(r, new(atomic.Pointer[uuid.UUID])).writeBroadcastSkew(ctx)
 }

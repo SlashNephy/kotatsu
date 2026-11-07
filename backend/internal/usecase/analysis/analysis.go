@@ -29,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
 )
 
 const (
@@ -122,6 +123,8 @@ type analyzed struct {
 	segment *sqlc.RecordingFile
 	// pidStats は、PID ごとの品質の集計の JSON (#473)。
 	pidStats []byte
+	// video は、セグメントの映像から読んだ映像の形式 (#1310)。読めなければ nil。
+	video *ts.VideoFormat
 }
 
 // Work は、録画ごとの advisory lock を取ってから、録画を解析する。
@@ -286,7 +289,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err != nil {
 		return nil, nil, err
 	}
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: cutoff})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: cutoff, OnTOT: nil, OnLogo: nil})
 	// 数 GB のセグメントを読む間でも、nekonote を止めたら読むのをやめる。
 	reader := readerFunc(func(p []byte) (int, error) {
 		if err := ctx.Err(); err != nil {
@@ -310,7 +313,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 		return nil, nil, fmt.Errorf("failed to replace the index file: %w", err)
 	}
 
-	return &analyzed{segment: segment, pidStats: nil}, stats, nil
+	return &analyzed{segment: segment, pidStats: nil, video: stats.Video}, stats, nil
 }
 
 // record は、集計を記録し、同じトランザクションで、代表画像とプレビュー画像を作るジョブを投入する。
@@ -324,6 +327,9 @@ func (w *AnalyzeWorker) record(
 		for _, result := range results {
 			if err := q.SetRecordingFilePIDStats(ctx, sqlc.SetRecordingFilePIDStatsParams{PIDStats: result.pidStats, ID: result.segment.ID}); err != nil {
 				return fmt.Errorf("failed to record the PID stats: %w", err)
+			}
+			if err := videoformat.Save(ctx, q, recordingID, result.segment.ID, result.segment.StartedAt, result.video); err != nil {
+				return err
 			}
 		}
 		err := q.SetRecordingStats(ctx, sqlc.SetRecordingStatsParams{

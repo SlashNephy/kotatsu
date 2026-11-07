@@ -985,6 +985,20 @@ type CreatedCalendarFeed {
   calendarFeed: CalendarFeed!
 }
 """
+発行した IPTV の配信の URL。
+"""
+type CreatedIptvFeed {
+  """
+  M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
+  """
+  playlistPath: String!
+  """
+  XMLTV のパス (/iptv/<秘密の値>/guide.xml)。
+  """
+  guidePath: String!
+  iptvFeed: IptvFeed!
+}
+"""
 データの変更。何が変わったかだけを知らせるので、クライアントは、そのデータを読み直す。
 """
 type DataChange {
@@ -1266,6 +1280,17 @@ type Instance {
 64 ビットの整数。ファイルや容量の大きさ (バイト) のように、32 ビットの Int に収まらない値に使う。
 """
 scalar Int64
+"""
+ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+"""
+type IptvFeed {
+  createdAt: Time!
+  """
+  最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。
+  """
+  lastUsedAt: Time
+}
 """
 NX-Jikkyo の実況のチャンネル。
 """
@@ -1602,6 +1627,15 @@ type Mutation {
   購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。
   """
   deleteCalendarFeed: Boolean!
+  """
+  ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  """
+  createIptvFeed: CreatedIptvFeed!
+  """
+  IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。
+  """
+  deleteIptvFeed: Boolean!
   """
   ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
   """
@@ -2641,6 +2675,10 @@ type Query {
   """
   calendarFeed: CalendarFeed
   """
+  ログイン中のユーザーの IPTV の配信の URL。発行していなければ null。
+  """
+  iptvFeed: IptvFeed
+  """
   ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
   keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
   """
@@ -3121,6 +3159,10 @@ type RecordingFile {
   ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
   """
   url: String
+  """
+  セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。
+  """
+  video: SegmentVideoFormat
 }
 """
 録画のファイルの種類。
@@ -3596,6 +3638,22 @@ type SecondFactorStatus {
   使っていないリカバリーコードの数。
   """
   remainingRecoveryCodes: Int!
+}
+"""
+セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+"""
+type SegmentVideoFormat {
+  """
+  mpeg2、h264、hevc のどれか。
+  """
+  codec: String!
+  width: Int!
+  height: Int!
+  interlaced: Boolean!
+  """
+  フレームレート。読めなければ null (HEVC は読まない)。
+  """
+  frameRate: Float
 }
 """
 サービス (設計書 3.2)。
@@ -4175,6 +4233,14 @@ type TunerServerHealth {
   チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
   """
   clockSkewMs: Int
+  """
+  録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。
+  """
+  broadcastClockSkewed: Boolean!
+  """
+  録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。
+  """
+  broadcastClockSkewMs: Int
 }
 """
 チューナーサーバーの状態 (設計書 3.7)。
@@ -4202,6 +4268,18 @@ type TunerServerStatus {
   """
   clockSkewThresholdMs: Int!
   checkedAt: Time!
+  """
+  録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。
+  """
+  broadcastClockSkewMs: Int
+  """
+  放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。
+  """
+  broadcastClockSkewed: Boolean!
+  """
+  放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。
+  """
+  broadcastClockCheckedAt: Time
 }
 """
 ユーザーの変える項目。省いた項目は変えない。

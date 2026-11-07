@@ -346,6 +346,12 @@ type ComplexityRoot struct {
 		Path         func(childComplexity int) int
 	}
 
+	CreatedIptvFeed struct {
+		GuidePath    func(childComplexity int) int
+		IptvFeed     func(childComplexity int) int
+		PlaylistPath func(childComplexity int) int
+	}
+
 	DataChange struct {
 		Channel func(childComplexity int) int
 		Version func(childComplexity int) int
@@ -445,6 +451,11 @@ type ComplexityRoot struct {
 		StartedAt   func(childComplexity int) int
 	}
 
+	IptvFeed struct {
+		CreatedAt  func(childComplexity int) int
+		LastUsedAt func(childComplexity int) int
+	}
+
 	JikkyoChannel struct {
 		Force   func(childComplexity int) int
 		ID      func(childComplexity int) int
@@ -532,6 +543,7 @@ type ComplexityRoot struct {
 		CreateAnimeWishlistRule      func(childComplexity int, tid int) int
 		CreateCalendarFeed           func(childComplexity int) int
 		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
+		CreateIptvFeed               func(childComplexity int) int
 		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule                   func(childComplexity int, input model.RuleInput) int
 		CreateStreamURL              func(childComplexity int, target string) int
@@ -543,6 +555,7 @@ type ComplexityRoot struct {
 		DeleteCalendarFeed           func(childComplexity int) int
 		DeleteCapture                func(childComplexity int, id string) int
 		DeleteGuideView              func(childComplexity int, id string) int
+		DeleteIptvFeed               func(childComplexity int) int
 		DeleteOAuthGrant             func(childComplexity int, id string) int
 		DeleteOrphanFiles            func(childComplexity int, files []*model.OrphanFileInput) int
 		DeletePasskey                func(childComplexity int, id string) int
@@ -826,6 +839,7 @@ type ComplexityRoot struct {
 		FileNameTemplateHelp    func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
+		IptvFeed                func(childComplexity int) int
 		JobCounts               func(childComplexity int) int
 		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
 		MissingRecordings       func(childComplexity int) int
@@ -945,6 +959,7 @@ type ComplexityRoot struct {
 		Size      func(childComplexity int) int
 		StartedAt func(childComplexity int) int
 		URL       func(childComplexity int) int
+		Video     func(childComplexity int) int
 	}
 
 	RecordingFileRename struct {
@@ -1081,6 +1096,14 @@ type ComplexityRoot struct {
 	SecondFactorStatus struct {
 		RemainingRecoveryCodes func(childComplexity int) int
 		Totp                   func(childComplexity int) int
+	}
+
+	SegmentVideoFormat struct {
+		Codec      func(childComplexity int) int
+		FrameRate  func(childComplexity int) int
+		Height     func(childComplexity int) int
+		Interlaced func(childComplexity int) int
+		Width      func(childComplexity int) int
 	}
 
 	Service struct {
@@ -1253,20 +1276,25 @@ type ComplexityRoot struct {
 	}
 
 	TunerServerHealth struct {
-		ClockSkewMs   func(childComplexity int) int
-		ClockSkewed   func(childComplexity int) int
-		Degraded      func(childComplexity int) int
-		DegradedSince func(childComplexity int) int
-	}
-
-	TunerServerStatus struct {
-		CheckedAt            func(childComplexity int) int
+		BroadcastClockSkewMs func(childComplexity int) int
+		BroadcastClockSkewed func(childComplexity int) int
 		ClockSkewMs          func(childComplexity int) int
-		ClockSkewThresholdMs func(childComplexity int) int
 		ClockSkewed          func(childComplexity int) int
 		Degraded             func(childComplexity int) int
 		DegradedSince        func(childComplexity int) int
-		LastError            func(childComplexity int) int
+	}
+
+	TunerServerStatus struct {
+		BroadcastClockCheckedAt func(childComplexity int) int
+		BroadcastClockSkewMs    func(childComplexity int) int
+		BroadcastClockSkewed    func(childComplexity int) int
+		CheckedAt               func(childComplexity int) int
+		ClockSkewMs             func(childComplexity int) int
+		ClockSkewThresholdMs    func(childComplexity int) int
+		ClockSkewed             func(childComplexity int) int
+		Degraded                func(childComplexity int) int
+		DegradedSince           func(childComplexity int) int
+		LastError               func(childComplexity int) int
 	}
 
 	User struct {
@@ -1350,6 +1378,8 @@ type MutationResolver interface {
 	DeleteAPIToken(ctx context.Context, id string) (string, error)
 	CreateCalendarFeed(ctx context.Context) (*model.CreatedCalendarFeed, error)
 	DeleteCalendarFeed(ctx context.Context) (bool, error)
+	CreateIptvFeed(ctx context.Context) (*model.CreatedIptvFeed, error)
+	DeleteIptvFeed(ctx context.Context) (bool, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
@@ -1456,6 +1486,7 @@ type QueryResolver interface {
 	AnimeWishlist(ctx context.Context) (*model.AnimeWishlist, error)
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
 	CalendarFeed(ctx context.Context) (*model.CalendarFeed, error)
+	IptvFeed(ctx context.Context) (*model.IptvFeed, error)
 	Captures(ctx context.Context, first int, after *string, keyword *string) (*model.CaptureConnection, error)
 	CapturesAvailable(ctx context.Context) (bool, error)
 	Node(ctx context.Context, id string) (model.Node, error)
@@ -2685,6 +2716,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CreatedCalendarFeed.Path(childComplexity), true
 
+	case "CreatedIptvFeed.guidePath":
+		if e.ComplexityRoot.CreatedIptvFeed.GuidePath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreatedIptvFeed.GuidePath(childComplexity), true
+	case "CreatedIptvFeed.iptvFeed":
+		if e.ComplexityRoot.CreatedIptvFeed.IptvFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreatedIptvFeed.IptvFeed(childComplexity), true
+	case "CreatedIptvFeed.playlistPath":
+		if e.ComplexityRoot.CreatedIptvFeed.PlaylistPath == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CreatedIptvFeed.PlaylistPath(childComplexity), true
+
 	case "DataChange.channel":
 		if e.ComplexityRoot.DataChange.Channel == nil {
 			break
@@ -3006,6 +3056,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Instance.StartedAt(childComplexity), true
+
+	case "IptvFeed.createdAt":
+		if e.ComplexityRoot.IptvFeed.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IptvFeed.CreatedAt(childComplexity), true
+	case "IptvFeed.lastUsedAt":
+		if e.ComplexityRoot.IptvFeed.LastUsedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IptvFeed.LastUsedAt(childComplexity), true
 
 	case "JikkyoChannel.force":
 		if e.ComplexityRoot.JikkyoChannel.Force == nil {
@@ -3420,6 +3483,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateGuideView(childComplexity, args["input"].(model.GuideViewInput)), true
+	case "Mutation.createIptvFeed":
+		if e.ComplexityRoot.Mutation.CreateIptvFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.CreateIptvFeed(childComplexity), true
 	case "Mutation.createProgramReservation":
 		if e.ComplexityRoot.Mutation.CreateProgramReservation == nil {
 			break
@@ -3536,6 +3605,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteGuideView(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteIptvFeed":
+		if e.ComplexityRoot.Mutation.DeleteIptvFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteIptvFeed(childComplexity), true
 	case "Mutation.deleteOAuthGrant":
 		if e.ComplexityRoot.Mutation.DeleteOAuthGrant == nil {
 			break
@@ -5179,6 +5254,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Query.GuideViews(childComplexity), true
 
+	case "Query.iptvFeed":
+		if e.ComplexityRoot.Query.IptvFeed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.IptvFeed(childComplexity), true
 	case "Query.jobCounts":
 		if e.ComplexityRoot.Query.JobCounts == nil {
 			break
@@ -5851,6 +5932,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingFile.URL(childComplexity), true
+	case "RecordingFile.video":
+		if e.ComplexityRoot.RecordingFile.Video == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFile.Video(childComplexity), true
 
 	case "RecordingFileRename.from":
 		if e.ComplexityRoot.RecordingFileRename.From == nil {
@@ -6378,6 +6465,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SecondFactorStatus.Totp(childComplexity), true
+
+	case "SegmentVideoFormat.codec":
+		if e.ComplexityRoot.SegmentVideoFormat.Codec == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Codec(childComplexity), true
+	case "SegmentVideoFormat.frameRate":
+		if e.ComplexityRoot.SegmentVideoFormat.FrameRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.FrameRate(childComplexity), true
+	case "SegmentVideoFormat.height":
+		if e.ComplexityRoot.SegmentVideoFormat.Height == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Height(childComplexity), true
+	case "SegmentVideoFormat.interlaced":
+		if e.ComplexityRoot.SegmentVideoFormat.Interlaced == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Interlaced(childComplexity), true
+	case "SegmentVideoFormat.width":
+		if e.ComplexityRoot.SegmentVideoFormat.Width == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SegmentVideoFormat.Width(childComplexity), true
 
 	case "Service.channel":
 		if e.ComplexityRoot.Service.Channel == nil {
@@ -7063,6 +7181,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Tuner.Types(childComplexity), true
 
+	case "TunerServerHealth.broadcastClockSkewMs":
+		if e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewMs(childComplexity), true
+	case "TunerServerHealth.broadcastClockSkewed":
+		if e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerHealth.BroadcastClockSkewed(childComplexity), true
 	case "TunerServerHealth.clockSkewMs":
 		if e.ComplexityRoot.TunerServerHealth.ClockSkewMs == nil {
 			break
@@ -7088,6 +7218,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.TunerServerHealth.DegradedSince(childComplexity), true
 
+	case "TunerServerStatus.broadcastClockCheckedAt":
+		if e.ComplexityRoot.TunerServerStatus.BroadcastClockCheckedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.BroadcastClockCheckedAt(childComplexity), true
+	case "TunerServerStatus.broadcastClockSkewMs":
+		if e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewMs(childComplexity), true
+	case "TunerServerStatus.broadcastClockSkewed":
+		if e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.BroadcastClockSkewed(childComplexity), true
 	case "TunerServerStatus.checkedAt":
 		if e.ComplexityRoot.TunerServerStatus.CheckedAt == nil {
 			break
@@ -7581,6 +7729,12 @@ type TunerServerStatus {
   "時計の差を警告する閾値 (ミリ秒)。"
   clockSkewThresholdMs: Int!
   checkedAt: Time!
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。"
+  broadcastClockSkewMs: Int
+  "放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。"
+  broadcastClockSkewed: Boolean!
+  "放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。"
+  broadcastClockCheckedAt: Time
 }
 
 """
@@ -7667,6 +7821,10 @@ type TunerServerHealth {
   clockSkewed: Boolean!
   "チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。"
   clockSkewMs: Int
+  "録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。"
+  broadcastClockSkewed: Boolean!
+  "録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。"
+  broadcastClockSkewMs: Int
 }
 
 extend type Query {
@@ -8289,6 +8447,40 @@ extend type Mutation {
   createCalendarFeed: CreatedCalendarFeed!
   "購読用の URL を取り消す。発行していなければ NOT_FOUND を返す。"
   deleteCalendarFeed: Boolean!
+}
+
+"""
+ライブ視聴の一覧 (M3U) と番組表 (XMLTV) を、IPTV のクライアント (Kodi、Jellyfin、Plex など) に配信する URL (#1324、設計書 9.8)。
+予約の iCalendar とは別の秘密の値を使う。URL の秘密の値は、発行したときにだけ返す。
+"""
+type IptvFeed {
+  createdAt: Time!
+  "最後に IPTV のクライアントが読んだ日時。1 分ごとにしか書き直さない。読まれていなければ null。"
+  lastUsedAt: Time
+}
+
+"発行した IPTV の配信の URL。"
+type CreatedIptvFeed {
+  "M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。"
+  playlistPath: String!
+  "XMLTV のパス (/iptv/<秘密の値>/guide.xml)。"
+  guidePath: String!
+  iptvFeed: IptvFeed!
+}
+
+extend type Query {
+  "ログイン中のユーザーの IPTV の配信の URL。発行していなければ null。"
+  iptvFeed: IptvFeed
+}
+
+extend type Mutation {
+  """
+  ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
+  URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  """
+  createIptvFeed: CreatedIptvFeed!
+  "IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。"
+  deleteIptvFeed: Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/captures.graphqls", Input: `"""
@@ -9544,6 +9736,21 @@ type RecordingFile {
   ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
   """
   url: String
+  "セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。"
+  video: SegmentVideoFormat
+}
+
+"""
+セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+"""
+type SegmentVideoFormat {
+  "mpeg2、h264、hevc のどれか。"
+  codec: String!
+  width: Int!
+  height: Int!
+  interlaced: Boolean!
+  "フレームレート。読めなければ null (HEVC は読まない)。"
+  frameRate: Float
 }
 
 """
@@ -11680,6 +11887,18 @@ func (ec *executionContext) childFields_CreatedCalendarFeed(ctx context.Context,
 	return nil, fmt.Errorf("no field named %q was found under type CreatedCalendarFeed", field.Name)
 }
 
+func (ec *executionContext) childFields_CreatedIptvFeed(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "playlistPath":
+		return ec.fieldContext_CreatedIptvFeed_playlistPath(ctx, field)
+	case "guidePath":
+		return ec.fieldContext_CreatedIptvFeed_guidePath(ctx, field)
+	case "iptvFeed":
+		return ec.fieldContext_CreatedIptvFeed_iptvFeed(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CreatedIptvFeed", field.Name)
+}
+
 func (ec *executionContext) childFields_DataChange(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "channel":
@@ -11876,6 +12095,16 @@ func (ec *executionContext) childFields_Instance(ctx context.Context, field grap
 		return ec.fieldContext_Instance_alive(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Instance", field.Name)
+}
+
+func (ec *executionContext) childFields_IptvFeed(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "createdAt":
+		return ec.fieldContext_IptvFeed_createdAt(ctx, field)
+	case "lastUsedAt":
+		return ec.fieldContext_IptvFeed_lastUsedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type IptvFeed", field.Name)
 }
 
 func (ec *executionContext) childFields_JikkyoChannel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -12554,6 +12783,8 @@ func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field
 		return ec.fieldContext_RecordingFile_endedAt(ctx, field)
 	case "url":
 		return ec.fieldContext_RecordingFile_url(ctx, field)
+	case "video":
+		return ec.fieldContext_RecordingFile_video(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFile", field.Name)
 }
@@ -12828,6 +13059,22 @@ func (ec *executionContext) childFields_SecondFactorStatus(ctx context.Context, 
 		return ec.fieldContext_SecondFactorStatus_remainingRecoveryCodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SecondFactorStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_SegmentVideoFormat(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "codec":
+		return ec.fieldContext_SegmentVideoFormat_codec(ctx, field)
+	case "width":
+		return ec.fieldContext_SegmentVideoFormat_width(ctx, field)
+	case "height":
+		return ec.fieldContext_SegmentVideoFormat_height(ctx, field)
+	case "interlaced":
+		return ec.fieldContext_SegmentVideoFormat_interlaced(ctx, field)
+	case "frameRate":
+		return ec.fieldContext_SegmentVideoFormat_frameRate(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SegmentVideoFormat", field.Name)
 }
 
 func (ec *executionContext) childFields_Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -13156,6 +13403,10 @@ func (ec *executionContext) childFields_TunerServerHealth(ctx context.Context, f
 		return ec.fieldContext_TunerServerHealth_clockSkewed(ctx, field)
 	case "clockSkewMs":
 		return ec.fieldContext_TunerServerHealth_clockSkewMs(ctx, field)
+	case "broadcastClockSkewed":
+		return ec.fieldContext_TunerServerHealth_broadcastClockSkewed(ctx, field)
+	case "broadcastClockSkewMs":
+		return ec.fieldContext_TunerServerHealth_broadcastClockSkewMs(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TunerServerHealth", field.Name)
 }
@@ -13176,6 +13427,12 @@ func (ec *executionContext) childFields_TunerServerStatus(ctx context.Context, f
 		return ec.fieldContext_TunerServerStatus_clockSkewThresholdMs(ctx, field)
 	case "checkedAt":
 		return ec.fieldContext_TunerServerStatus_checkedAt(ctx, field)
+	case "broadcastClockSkewMs":
+		return ec.fieldContext_TunerServerStatus_broadcastClockSkewMs(ctx, field)
+	case "broadcastClockSkewed":
+		return ec.fieldContext_TunerServerStatus_broadcastClockSkewed(ctx, field)
+	case "broadcastClockCheckedAt":
+		return ec.fieldContext_TunerServerStatus_broadcastClockCheckedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type TunerServerStatus", field.Name)
 }
@@ -19769,6 +20026,84 @@ func (ec *executionContext) fieldContext_CreatedCalendarFeed_calendarFeed(_ cont
 	return fc, nil
 }
 
+func (ec *executionContext) _CreatedIptvFeed_playlistPath(ctx context.Context, field graphql.CollectedField, obj *model.CreatedIptvFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreatedIptvFeed_playlistPath(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PlaylistPath, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreatedIptvFeed_playlistPath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreatedIptvFeed", field, false, false, "String")
+}
+
+func (ec *executionContext) _CreatedIptvFeed_guidePath(ctx context.Context, field graphql.CollectedField, obj *model.CreatedIptvFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreatedIptvFeed_guidePath(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GuidePath, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreatedIptvFeed_guidePath(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CreatedIptvFeed", field, false, false, "String")
+}
+
+func (ec *executionContext) _CreatedIptvFeed_iptvFeed(ctx context.Context, field graphql.CollectedField, obj *model.CreatedIptvFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CreatedIptvFeed_iptvFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IptvFeed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.IptvFeed) graphql.Marshaler {
+			return ec.marshalNIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIptvFeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CreatedIptvFeed_iptvFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CreatedIptvFeed",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IptvFeed(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DataChange_channel(ctx context.Context, field graphql.CollectedField, obj *model.DataChange) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -21021,6 +21356,52 @@ func (ec *executionContext) _Instance_alive(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_Instance_alive(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Instance", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _IptvFeed_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.IptvFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IptvFeed_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IptvFeed_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IptvFeed", field, false, false, "Time")
+}
+
+func (ec *executionContext) _IptvFeed_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *model.IptvFeed) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IptvFeed_lastUsedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUsedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IptvFeed_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IptvFeed", field, false, false, "Time")
 }
 
 func (ec *executionContext) _JikkyoChannel_id(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannel) (ret graphql.Marshaler) {
@@ -22875,6 +23256,61 @@ func (ec *executionContext) _Mutation_deleteCalendarFeed(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_Mutation_deleteCalendarFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Boolean")
+}
+
+func (ec *executionContext) _Mutation_createIptvFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createIptvFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().CreateIptvFeed(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CreatedIptvFeed) graphql.Marshaler {
+			return ec.marshalNCreatedIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCreatedIptvFeed(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createIptvFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CreatedIptvFeed(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteIptvFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteIptvFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteIptvFeed(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteIptvFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Boolean")
 }
 
@@ -29696,6 +30132,38 @@ func (ec *executionContext) fieldContext_Query_calendarFeed(_ context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_iptvFeed(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_iptvFeed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().IptvFeed(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.IptvFeed) graphql.Marshaler {
+			return ec.marshalOIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIptvFeed(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_iptvFeed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IptvFeed(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_captures(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32843,6 +33311,38 @@ func (ec *executionContext) fieldContext_RecordingFile_url(_ context.Context, fi
 	return graphql.NewScalarFieldContext("RecordingFile", field, false, false, "String")
 }
 
+func (ec *executionContext) _RecordingFile_video(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFile_video(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Video, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SegmentVideoFormat) graphql.Marshaler {
+			return ec.marshalOSegmentVideoFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSegmentVideoFormat(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFile_video(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SegmentVideoFormat(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RecordingFileRename_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileRename) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34940,6 +35440,121 @@ func (ec *executionContext) _SecondFactorStatus_remainingRecoveryCodes(ctx conte
 }
 func (ec *executionContext) fieldContext_SecondFactorStatus_remainingRecoveryCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SecondFactorStatus", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_codec(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_codec(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Codec, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_codec(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "String")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_width(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_width(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Width, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_width(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_height(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_height(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Height, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_height(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_interlaced(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_interlaced(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Interlaced, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_interlaced(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SegmentVideoFormat_frameRate(ctx context.Context, field graphql.CollectedField, obj *model.SegmentVideoFormat) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SegmentVideoFormat_frameRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FrameRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SegmentVideoFormat_frameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Float")
 }
 
 func (ec *executionContext) _Service_id(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
@@ -37799,6 +38414,52 @@ func (ec *executionContext) fieldContext_TunerServerHealth_clockSkewMs(_ context
 	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Int")
 }
 
+func (ec *executionContext) _TunerServerHealth_broadcastClockSkewed(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_broadcastClockSkewed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_broadcastClockSkewed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _TunerServerHealth_broadcastClockSkewMs(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerHealth) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerHealth_broadcastClockSkewMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerHealth_broadcastClockSkewMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Int")
+}
+
 func (ec *executionContext) _TunerServerStatus_degraded(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37957,6 +38618,75 @@ func (ec *executionContext) _TunerServerStatus_checkedAt(ctx context.Context, fi
 	)
 }
 func (ec *executionContext) fieldContext_TunerServerStatus_checkedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Time")
+}
+
+func (ec *executionContext) _TunerServerStatus_broadcastClockSkewMs(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_broadcastClockSkewMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_broadcastClockSkewMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Int")
+}
+
+func (ec *executionContext) _TunerServerStatus_broadcastClockSkewed(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_broadcastClockSkewed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockSkewed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_broadcastClockSkewed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _TunerServerStatus_broadcastClockCheckedAt(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_broadcastClockCheckedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClockCheckedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_broadcastClockCheckedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "Time")
 }
 
@@ -44621,6 +45351,49 @@ func (ec *executionContext) _CreatedCalendarFeed(ctx context.Context, sel ast.Se
 	return out
 }
 
+var createdIptvFeedImplementors = []string{"CreatedIptvFeed"}
+
+func (ec *executionContext) _CreatedIptvFeed(ctx context.Context, sel ast.SelectionSet, obj *model.CreatedIptvFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createdIptvFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CreatedIptvFeed")
+		case "playlistPath":
+			out.Values[i] = ec._CreatedIptvFeed_playlistPath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "guidePath":
+			out.Values[i] = ec._CreatedIptvFeed_guidePath(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "iptvFeed":
+			out.Values[i] = ec._CreatedIptvFeed_iptvFeed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var dataChangeImplementors = []string{"DataChange"}
 
 func (ec *executionContext) _DataChange(ctx context.Context, sel ast.SelectionSet, obj *model.DataChange) graphql.Marshaler {
@@ -45325,6 +46098,44 @@ func (ec *executionContext) _Instance(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var iptvFeedImplementors = []string{"IptvFeed"}
+
+func (ec *executionContext) _IptvFeed(ctx context.Context, sel ast.SelectionSet, obj *model.IptvFeed) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, iptvFeedImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IptvFeed")
+		case "createdAt":
+			out.Values[i] = ec._IptvFeed_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._IptvFeed_lastUsedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var jikkyoChannelImplementors = []string{"JikkyoChannel"}
 
 func (ec *executionContext) _JikkyoChannel(ctx context.Context, sel ast.SelectionSet, obj *model.JikkyoChannel) graphql.Marshaler {
@@ -45953,6 +46764,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteCalendarFeed":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteCalendarFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createIptvFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createIptvFeed(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteIptvFeed":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteIptvFeed(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -47865,6 +48690,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_calendarFeed(ctx, field)
 				})
+		case "iptvFeed":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_iptvFeed(ctx, field)
+				})
 		case "captures":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -48616,6 +49447,11 @@ func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.Selectio
 			}
 		case "url":
 			out.Values[i] = ec._RecordingFile_url(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "video":
+			out.Values[i] = ec._RecordingFile_video(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -49521,6 +50357,59 @@ func (ec *executionContext) _SecondFactorStatus(ctx context.Context, sel ast.Sel
 		case "remainingRecoveryCodes":
 			out.Values[i] = ec._SecondFactorStatus_remainingRecoveryCodes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var segmentVideoFormatImplementors = []string{"SegmentVideoFormat"}
+
+func (ec *executionContext) _SegmentVideoFormat(ctx context.Context, sel ast.SelectionSet, obj *model.SegmentVideoFormat) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, segmentVideoFormatImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SegmentVideoFormat")
+		case "codec":
+			out.Values[i] = ec._SegmentVideoFormat_codec(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "width":
+			out.Values[i] = ec._SegmentVideoFormat_width(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "height":
+			out.Values[i] = ec._SegmentVideoFormat_height(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "interlaced":
+			out.Values[i] = ec._SegmentVideoFormat_interlaced(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "frameRate":
+			out.Values[i] = ec._SegmentVideoFormat_frameRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -50649,6 +51538,16 @@ func (ec *executionContext) _TunerServerHealth(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "broadcastClockSkewed":
+			out.Values[i] = ec._TunerServerHealth_broadcastClockSkewed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClockSkewMs":
+			out.Values[i] = ec._TunerServerHealth_broadcastClockSkewMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -50710,6 +51609,21 @@ func (ec *executionContext) _TunerServerStatus(ctx context.Context, sel ast.Sele
 		case "checkedAt":
 			out.Values[i] = ec._TunerServerStatus_checkedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClockSkewMs":
+			out.Values[i] = ec._TunerServerStatus_broadcastClockSkewMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "broadcastClockSkewed":
+			out.Values[i] = ec._TunerServerStatus_broadcastClockSkewed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClockCheckedAt":
+			out.Values[i] = ec._TunerServerStatus_broadcastClockCheckedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -52155,6 +53069,14 @@ func (ec *executionContext) marshalNCreatedCalendarFeed2ᚖgithubᚗcomᚋSlashN
 	return ec._CreatedCalendarFeed(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCreatedIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCreatedIptvFeed(ctx context.Context, sel ast.SelectionSet, v *model.CreatedIptvFeed) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "CreatedIptvFeed!")
+		return graphql.Null
+	}
+	return ec._CreatedIptvFeed(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDataChange(ctx context.Context, sel ast.SelectionSet, v *model.DataChange) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "DataChange!")
@@ -52596,6 +53518,14 @@ func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.Sel
 		graphql.AddInvalidNullFromMarshaler(ctx, "Int64!")
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIptvFeed(ctx context.Context, sel ast.SelectionSet, v *model.IptvFeed) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "IptvFeed!")
+		return graphql.Null
+	}
+	return ec._IptvFeed(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNJob2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Job) graphql.Marshaler {
@@ -54905,6 +55835,13 @@ func (ec *executionContext) marshalOInt642ᚖint64(ctx context.Context, sel ast.
 	return res
 }
 
+func (ec *executionContext) marshalOIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIptvFeed(ctx context.Context, sel ast.SelectionSet, v *model.IptvFeed) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IptvFeed(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOJikkyoChannel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJikkyoChannel(ctx context.Context, sel ast.SelectionSet, v *model.JikkyoChannel) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -55111,6 +56048,13 @@ func (ec *executionContext) unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashN
 	}
 	res, err := ec.unmarshalInputRuleDefaultsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOSegmentVideoFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSegmentVideoFormat(ctx context.Context, sel ast.SelectionSet, v *model.SegmentVideoFormat) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SegmentVideoFormat(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐService(ctx context.Context, sel ast.SelectionSet, v *model.Service) graphql.Marshaler {

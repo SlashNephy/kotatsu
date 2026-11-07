@@ -355,3 +355,16 @@ INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, starte
 VALUES (@id, @recording_id, 'other', @pool_id, @path, @size, @started_at, @ended_at, @now)
 ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
 WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other';
+
+-- name: SetRecordingFileVideo :exec
+-- セグメントの映像の形式を書く (#1310)。
+UPDATE recording_files SET video = @video WHERE id = @id;
+
+-- name: SetRecordingVideoResolutionFromFile :exec
+-- 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
+-- 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
+UPDATE recordings r SET video_resolution = @video_resolution
+WHERE r.id = @recording_id AND NOT EXISTS (
+  SELECT 1 FROM recording_files f
+  WHERE f.recording_id = r.id AND f.video IS NOT NULL AND f.started_at < @started_at
+);
