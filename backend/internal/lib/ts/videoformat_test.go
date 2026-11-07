@@ -150,3 +150,54 @@ func TestParseH264SPSHugePOCCycle(t *testing.T) {
 		})
 	}
 }
+
+// TestParseH264SPSCrop422 は、4:2:2 の H.264 のクロップを、縦は 1 行単位で数えることを確かめる (#1310、ITU-T H.264 表 6-1)。
+func TestParseH264SPSCrop422(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		chroma uint64
+		bottom uint64
+		want   int
+	}{
+		{name: "4:2:0", chroma: 1, bottom: 4, want: 1080},
+		{name: "4:2:2", chroma: 2, bottom: 8, want: 1080},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			w := &bitWriter{bits: []byte{}}
+			w.put(122, 8) // profile_idc (High 4:2:2)
+			w.put(40, 16)
+			w.ue(0)         // seq_parameter_set_id
+			w.ue(tt.chroma) // chroma_format_idc
+			w.ue(0)         // bit_depth_luma_minus8
+			w.ue(0)         // bit_depth_chroma_minus8
+			w.put(0, 1)     // qpprime_y_zero_transform_bypass_flag
+			w.put(0, 1)     // seq_scaling_matrix_present_flag
+			w.ue(0)         // log2_max_frame_num_minus4
+			w.ue(2)         // pic_order_cnt_type
+			w.ue(1)         // max_num_ref_frames
+			w.put(0, 1)     // gaps_in_frame_num_value_allowed_flag
+			w.ue(119)       // pic_width_in_mbs_minus1 (1920)
+			w.ue(67)        // pic_height_in_map_units_minus1 (1088)
+			w.put(1, 1)     // frame_mbs_only_flag
+			w.put(1, 1)     // direct_8x8_inference_flag
+			w.put(1, 1)     // frame_cropping_flag
+			w.ue(0)
+			w.ue(0)
+			w.ue(0)
+			w.ue(tt.bottom)
+			w.put(0, 1) // vui_parameters_present_flag
+			w.put(1, 1) // rbsp_stop_one_bit
+			es := append([]byte{0, 0, 1, 0x67}, w.bytes()...)
+			es = append(es, 0, 0, 1, 0x65)
+			got := ts.ParseVideoFormatForTest("h264", es)
+			require.NotNil(t, got)
+			assert.Equal(t, 1920, got.Width)
+			assert.Equal(t, tt.want, got.Height)
+		})
+	}
+}

@@ -308,7 +308,8 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 			a.video = nil
 		case a.video == nil || a.video.pid != video.PID || a.video.streamType != video.StreamType:
 			a.video = newIFrameDetector(video.PID, video.StreamType)
-			if a.videoFormat == nil {
+			// I フレームを探せない符号化方式の映像 (newIFrameDetector が nil を返す) では、形式も読まない。
+			if a.video != nil && a.videoFormat == nil {
 				a.videoProbe = newVideoFormatProbe(a.video.codec)
 			}
 		}
@@ -319,12 +320,8 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	if dropped {
 		a.video.reset()
 	}
-	if a.videoProbe != nil && !dropped {
-		a.videoProbe.feed(pkt)
-		if a.videoProbe.done {
-			a.videoFormat = a.videoProbe.format
-			a.videoProbe = nil
-		}
+	if !dropped {
+		a.probeVideoFormat(pkt)
 	}
 
 	entry, ok := a.video.feed(pkt, offset)
@@ -340,6 +337,18 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 	if a.index != nil && a.indexErr == nil {
 		a.indexErr = a.index.Append(entry)
+	}
+}
+
+// probeVideoFormat は、映像の先頭を溜め、映像の形式を読み終えたら覚える (#1310)。
+func (a *Analyzer) probeVideoFormat(pkt *packet) {
+	if a.videoProbe == nil {
+		return
+	}
+	a.videoProbe.feed(pkt)
+	if a.videoProbe.done {
+		a.videoFormat = a.videoProbe.format
+		a.videoProbe = nil
 	}
 }
 

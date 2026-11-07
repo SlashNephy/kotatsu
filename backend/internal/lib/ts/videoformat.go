@@ -305,9 +305,13 @@ func parseH264SPS(sps []byte) (*VideoFormat, error) {
 	height := int(heightMapUnits+1) * 16 * int(2-frameMBsOnly)
 	if r.bit() == 1 { // frame_cropping_flag
 		left, right, top, bottom := r.ue(), r.ue(), r.ue(), r.ue()
+		// CropUnitX と CropUnitY は、色の形式の SubWidthC と SubHeightC から決める (ITU-T H.264 表 6-1、式 7-19 から 7-22)。
 		cropX, cropY := 2, 2*int(2-frameMBsOnly)
-		if chromaFormat == 0 || chromaFormat == 3 {
+		switch chromaFormat {
+		case 0, 3:
 			cropX, cropY = 1, int(2-frameMBsOnly)
+		case 2:
+			cropY = int(2 - frameMBsOnly)
 		}
 		width -= cropX * int(left+right)
 		height -= cropY * int(top+bottom)
