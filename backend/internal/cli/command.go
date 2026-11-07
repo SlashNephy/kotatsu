@@ -216,6 +216,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	importer := anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config), syobocalClient, inserter, animeLogger).WithWorkIDs(&anime.WorkIDOptions{
 		Fetcher: workids.NewClient(&workids.Options{
 			HTTPClient: nil, AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
+			JikanBaseURL: deps.Config.AnimeRecords.JikanURL,
 		}),
 		Tokens: animeRecords, AnnictInterval: anime.DefaultAnnictRequestInterval, AniListInterval: anime.DefaultAniListRequestInterval,
 	})
@@ -249,6 +250,10 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (
 		Logger:           logger.With(slog.String("component", "anime_record")),
 		Inserter:         inserter,
 		WishlistInterval: animerecord.DefaultWishlistRequestInterval,
+		Artworks: workids.NewClient(&workids.Options{
+			HTTPClient: nil, AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
+			JikanBaseURL: deps.Config.AnimeRecords.JikanURL,
+		}),
 	})
 }
 

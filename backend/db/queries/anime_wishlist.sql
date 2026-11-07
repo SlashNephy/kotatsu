@@ -19,7 +19,13 @@ INSERT INTO anime_wishlist_entries (
 )
 SELECT @user_id, @destination, t.work_id, t.status, t.title, NULLIF(t.next_episode_id, ''), NULLIF(t.next_episode_number, -1),
   NULLIF(t.next_episode_number_text, ''), NULLIF(t.next_episode_title, ''), NULLIF(t.progress, -1), NULLIF(t.episodes_count, -1),
-  NULLIF(t.season_year, -1), NULLIF(t.season_name, ''), NULLIF(t.image_url, ''), @now
+  NULLIF(t.season_year, -1), NULLIF(t.season_name, ''),
+  -- Annict の作品は、高画質の画像があれば、そちらを使う (#1315)。
+  COALESCE((
+    SELECT a.image_url FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
+    WHERE @destination::text = 'annict' AND w.annict_work_id = t.work_id AND a.image_url IS NOT NULL
+    ORDER BY w.source = 'annict' DESC LIMIT 1
+  ), NULLIF(t.image_url, '')), @now
 FROM (
   SELECT unnest(@work_ids::integer[]) AS work_id, unnest(@statuses::text[]) AS status, unnest(@titles::text[]) AS title,
     unnest(@next_episode_ids::text[]) AS next_episode_id, unnest(@next_episode_numbers::integer[]) AS next_episode_number,
@@ -118,3 +124,23 @@ ORDER BY e.syobocal_tid, e.is_rerun, e.start_at DESC, e.position DESC;
 -- ユーザーの見たいリストの、記録先の作品の画像の URL を返す (#1235)。画像を中継するときに、ユーザーの見たいリストにある作品に限るため。
 SELECT image_url FROM anime_wishlist_entries
 WHERE user_id = @user_id AND destination = @destination AND work_id = @work_id AND image_url IS NOT NULL;
+
+-- name: ListAnimeArtworkTargets :many
+-- 見たいリストの Annict の作品のうち、高画質の画像をまだ引いていないか、引き直す時期が来た作品の MyAnimeList の ID を返す (#1315)。
+SELECT DISTINCT w.mal_id::integer AS mal_id
+FROM anime_wishlist_entries e
+JOIN anime_works w ON w.annict_work_id = e.work_id
+WHERE e.destination = 'annict' AND w.mal_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM anime_artworks a WHERE a.mal_id = w.mal_id AND a.fetched_at >= @stale_before)
+ORDER BY 1
+LIMIT @max_count;
+
+-- name: UpsertAnimeArtwork :exec
+INSERT INTO anime_artworks (mal_id, image_url, fetched_at) VALUES (@mal_id, @image_url, @now)
+ON CONFLICT (mal_id) DO UPDATE SET image_url = excluded.image_url, fetched_at = excluded.fetched_at;
+
+-- name: ApplyAnimeArtworks :exec
+-- 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
+UPDATE anime_wishlist_entries e SET image_url = a.image_url
+FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
+WHERE e.destination = 'annict' AND w.annict_work_id = e.work_id AND a.image_url IS NOT NULL AND e.image_url IS DISTINCT FROM a.image_url;

@@ -207,6 +207,9 @@ type AnimeRecords struct {
 	// AniListURL は、AniList の画面と API を向ける先のオリジン。空なら https://anilist.co と https://graphql.anilist.co にする。
 	// 本物の記録先の代わりに、検証用のサーバーへ向けるときだけ使う。
 	AniListURL string `yaml:"anilist_url"`
+	// JikanURL は、Jikan (MyAnimeList の非公式 API) の API を向ける先の URL。空なら https://api.jikan.moe/v4 にする (#1315)。
+	// 本物の API の代わりに、検証用のサーバーへ向けるときだけ使う。
+	JikanURL string `yaml:"jikan_url"`
 }
 
 // validate は、anime_records の値の形式を検査する。
@@ -217,6 +220,9 @@ func (a *AnimeRecords) validate() []error {
 	}
 	if err := validateHTTPURL(a.AniListURL); err != nil {
 		errs = append(errs, fieldError("anime_records.anilist_url", err))
+	}
+	if err := validateHTTPURL(a.JikanURL); err != nil {
+		errs = append(errs, fieldError("anime_records.jikan_url", err))
 	}
 
 	return errs
@@ -372,7 +378,7 @@ func Default() *Config {
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
-		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: ""},
+		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
 	}
 }
 

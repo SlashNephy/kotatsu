@@ -3,6 +3,7 @@ package animerecord
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,11 +56,18 @@ func (w *WishlistWorker) Timeout(*river.Job[WishlistArgs]) time.Duration {
 }
 
 func (w *WishlistWorker) Work(ctx context.Context, job *river.Job[WishlistArgs]) error {
+	var err error
 	if job.Args.UserID != nil {
-		return w.service.ImportUserWishlists(ctx, w.db, *job.Args.UserID)
+		err = w.service.ImportUserWishlists(ctx, w.db, *job.Args.UserID)
+	} else {
+		err = w.service.ImportDueWishlists(ctx, w.db)
+	}
+	// 取り込んだ作品の高画質の画像を引く (#1315)。引けなくても、取り込みは失敗にしない。次の機会に引き直す。
+	if refreshErr := w.service.RefreshArtworks(ctx, w.db); refreshErr != nil && ctx.Err() == nil {
+		w.service.logger.WarnContext(ctx, "failed to refresh the artworks", slog.Any("error", refreshErr))
 	}
 
-	return w.service.ImportDueWishlists(ctx, w.db)
+	return err
 }
 
 // WishlistPeriodicJob は、見たいリストを取り込み直す時期が来たかを、10 分ごとに確かめる定期ジョブを返す。

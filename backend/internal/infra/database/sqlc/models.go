@@ -11,6 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type AnimeArtwork struct {
+	MalID     int32
+	ImageURL  *string
+	FetchedAt time.Time
+}
+
 type AnimeChannelDefinition struct {
 	ChannelType       string
 	NetworkID         int64
