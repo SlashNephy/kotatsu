@@ -479,7 +479,8 @@ type Querier interface {
 	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
 	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
 	// ユーザーが途中まで見た録画を、最後に見た新しい順に返す (続きから見る)。
-	// 少しだけ見た録画 (min_position_ms より前) と、終わりの end_margin_ms 以内まで見た録画は、見終えたものとして外す。
+	// 少しだけ見た録画 (min_position_ms より前) は外す。終わりの end_margin_ms 以内まで見た録画と、
+	// 録画の長さの finished_ratio 以上を見た録画は、見終えたものとして外す (#1301)。
 	// 録画中の録画は、終わりが決まっていないので外さない。
 	ListContinueWatching(ctx context.Context, arg ListContinueWatchingParams) ([]ListContinueWatchingRow, error)
 	// 容量の管理で消せる録画を、古い順に返す。プール pool_id にファイルを持ち、保護されておらず、録画中でなく、
