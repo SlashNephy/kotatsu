@@ -95,8 +95,10 @@ import {
   SettingsButton,
   VolumeControl,
   PlayerFlash,
+  SkipButton,
   usePlayerFlash,
 } from '../../yunomi/PlayerControls';
+import { cmSectionAt } from '../../yunomi/cmSkip';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { useFullscreen } from '../../yunomi/useFullscreen';
@@ -839,6 +841,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     };
   });
 
+  // currentCm は、いま再生している CM の区間 (#1300)。あれば、区間の終わりへ飛ばすボタンを出す。
+  const currentCm = seeking === null ? cmSectionAt(cmBands, position) : null;
+  const skipButton = currentCm !== null && (
+    <SkipButton raised={controls.visible} onClick={() => seek(currentCm.to)}>
+      {t('player.skipCm')}
+    </SkipButton>
+  );
+
   const controlBar = (
     <PlayerControls
       visible={controls.visible}
@@ -964,6 +974,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
+              {skipButton}
               {errorAlert}
             </>
           }
@@ -993,6 +1004,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
+              {skipButton}
               {errorAlert}
             </>
           }

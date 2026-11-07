@@ -290,3 +290,43 @@
 .programInfo[data-visible='false'] {
   opacity: 0;
 }
+
+/* CM の区間を飛ばすボタン (#1300)。YouTube の広告のスキップと同じく、映像の右下に出す。 */
+.skip {
+  position: absolute;
+  inset-block-end: 24px;
+  inset-inline-end: 16px;
+  /* 実況のコメントや字幕より上に置く。操作バーとは重ならない位置にする。 */
+  z-index: 2;
+  padding: 8px 16px;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  border-radius: var(--mantine-radius-sm);
+  background: rgb(0 0 0 / 0.7);
+  color: #fff;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  /* 重ねたもの (overlay) は操作を通すので、ボタンだけは押せるようにする。 */
+  pointer-events: auto;
+  transition: inset-block-end 200ms ease;
+}
+
+.skip:hover {
+  background: rgb(0 0 0 / 0.85);
+}
+
+.skip:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+/* 操作バーを出している間は、その上に上げる。 */
+.skip[data-raised='true'] {
+  inset-block-end: 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip {
+    transition: none;
+  }
+}
