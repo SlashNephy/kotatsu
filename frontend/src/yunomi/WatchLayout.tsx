@@ -1,8 +1,8 @@
-import { Group, Stack, Text, Title } from '@mantine/core';
+import { Group, Spoiler, Stack, Text, Title } from '@mantine/core';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { zonedFormat } from '../futon';
+import { LinkifiedText, toHalfWidth, zonedFormat } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
 import classes from './WatchLayout.module.css';
 
@@ -114,3 +114,26 @@ export function WatchHeading({ title, serviceName, serviceLogoUrl, time, actions
 
 // watchCommentsHeight は、右の列に置く実況のコメントの一覧の高さ。画面の幅で変わる。
 export const watchCommentsHeight = 'var(--watch-comments-height)';
+
+// descriptionMaxHeight は、番組の説明を畳んでおく高さ (px)。3 行ほど出し、長ければ「もっと見る」で開く。
+const descriptionMaxHeight = 66;
+
+// WatchDescription は、番組名とサービスの行の下に置く、番組の説明 (#1266)。空なら何も出さない。
+export function WatchDescription({ text }: { text: string }) {
+  const { t } = useTranslation();
+  if (text.trim() === '') {
+    return null;
+  }
+
+  return (
+    <Spoiler
+      maxHeight={descriptionMaxHeight}
+      showLabel={t('player.description.show')}
+      hideLabel={t('player.description.hide')}
+    >
+      <Text size="sm" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
+        <LinkifiedText text={toHalfWidth(text)} />
+      </Text>
+    </Spoiler>
+  );
+}
