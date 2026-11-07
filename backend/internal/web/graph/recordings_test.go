@@ -712,13 +712,13 @@ func TestRecordingCMSections(t *testing.T) {
 	assert.True(t, recordedFrom.Add(690500*time.Millisecond).Equal(got[1].To))
 }
 
-// TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478)。
+// TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478、#1301)。
 func TestContinueWatching(t *testing.T) {
 	t.Parallel()
 
 	f, dir := newRecordingFixture(t)
 	ids := map[string]string{}
-	for _, name := range []string{"前半", "後半", "冒頭だけ", "見終えた"} {
+	for _, name := range []string{"前半", "後半", "冒頭だけ", "見終えた", "ほぼ見終えた"} {
 		ids[name] = f.addRecording(t, dir, name, "completed", 2*time.Hour)
 	}
 	// 録画中の録画は、終わり (recorded_until) が決まっていない。
@@ -736,6 +736,8 @@ func TestContinueWatching(t *testing.T) {
 	// 続きから再生しても最初から始まる位置 (10 秒より前) は、含めない。
 	save("冒頭だけ", 9_000)
 	save("見終えた", 30*60_000-5_000)
+	// 録画の長さの 90% 以上を見た録画も、見終えたものとして含めない (#1301)。終わりの 10 秒より前でも外す。
+	save("ほぼ見終えた", 27*60_000)
 	save("録画中", 60_000)
 	save("後半", 20*60_000)
 
