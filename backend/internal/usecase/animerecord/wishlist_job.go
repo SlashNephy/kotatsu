@@ -62,12 +62,15 @@ func (w *WishlistWorker) Work(ctx context.Context, job *river.Job[WishlistArgs])
 	} else {
 		err = w.service.ImportDueWishlists(ctx, w.db)
 	}
+	if err != nil {
+		return err
+	}
 	// 取り込んだ作品の高画質の画像を引く (#1315)。引けなくても、取り込みは失敗にしない。次の機会に引き直す。
 	if refreshErr := w.service.RefreshArtworks(ctx, w.db); refreshErr != nil && ctx.Err() == nil {
 		w.service.logger.WarnContext(ctx, "failed to refresh the artworks", slog.Any("error", refreshErr))
 	}
 
-	return err
+	return nil
 }
 
 // WishlistPeriodicJob は、見たいリストを取り込み直す時期が来たかを、10 分ごとに確かめる定期ジョブを返す。

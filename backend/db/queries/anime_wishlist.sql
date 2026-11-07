@@ -24,7 +24,7 @@ SELECT @user_id, @destination, t.work_id, t.status, t.title, NULLIF(t.next_episo
   COALESCE((
     SELECT a.image_url FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
     WHERE @destination::text = 'annict' AND w.annict_work_id = t.work_id AND a.image_url IS NOT NULL
-    ORDER BY w.source = 'annict' DESC LIMIT 1
+    ORDER BY w.source = 'annict' DESC, w.syobocal_tid, w.position LIMIT 1
   ), NULLIF(t.image_url, '')), @now
 FROM (
   SELECT unnest(@work_ids::integer[]) AS work_id, unnest(@statuses::text[]) AS status, unnest(@titles::text[]) AS title,
@@ -141,6 +141,12 @@ ON CONFLICT (mal_id) DO UPDATE SET image_url = excluded.image_url, fetched_at = 
 
 -- name: ApplyAnimeArtworks :exec
 -- 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
-UPDATE anime_wishlist_entries e SET image_url = a.image_url
-FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
-WHERE e.destination = 'annict' AND w.annict_work_id = e.work_id AND a.image_url IS NOT NULL AND e.image_url IS DISTINCT FROM a.image_url;
+-- 1 つの作品に作品 ID の対応が複数あれば、取り込むとき (InsertAnimeWishlistEntries) と同じ順で 1 つを選ぶ。
+UPDATE anime_wishlist_entries e SET image_url = chosen.image_url
+FROM (
+  SELECT DISTINCT ON (w.annict_work_id) w.annict_work_id, a.image_url
+  FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
+  WHERE w.annict_work_id IS NOT NULL AND a.image_url IS NOT NULL
+  ORDER BY w.annict_work_id, w.source = 'annict' DESC, w.syobocal_tid, w.position
+) AS chosen
+WHERE e.destination = 'annict' AND e.work_id = chosen.annict_work_id AND e.image_url IS DISTINCT FROM chosen.image_url;

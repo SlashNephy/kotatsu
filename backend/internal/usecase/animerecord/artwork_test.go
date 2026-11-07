@@ -205,3 +205,22 @@ func TestRefreshArtworksDisabled(t *testing.T) {
 	assert.Empty(t, artworks.aniList)
 	assert.Equal(t, annictImageA, images(t, f)["annict:10"])
 }
+
+// TestRefreshArtworksDuplicateWorks は、1 つの Annict の作品に作品 ID の対応が複数あっても、Annict が自前で作った対応を先にして、
+// いつも同じ画像を選ぶことを確かめる (#1315)。取り込み直しても、同じ画像を選ぶ。
+func TestRefreshArtworksDuplicateWorks(t *testing.T) {
+	t.Parallel()
+
+	artworks := &fakeArtworks{
+		mu: sync.Mutex{}, covers: map[int32]string{100: aniListCover, 400: "https://anilist.example/xl-400.jpg"}, jikan: map[int32]string{200: jikanImage},
+		jikanErr: map[int32]error{300: workids.ErrNotFound}, aniList: nil, jikanIDs: nil,
+	}
+	f, service := newArtworkFixture(t, artworks)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('annict', 7003, 0, 10, NULL, 400)`)
+	require.NoError(t, err)
+
+	for range 2 {
+		require.NoError(t, service.RefreshArtworks(t.Context(), f.pool))
+		assert.Equal(t, "https://anilist.example/xl-400.jpg", images(t, f)["annict:10"])
+	}
+}

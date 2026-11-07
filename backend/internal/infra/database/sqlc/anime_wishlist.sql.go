@@ -42,12 +42,18 @@ func (q *Queries) AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceA
 }
 
 const applyAnimeArtworks = `-- name: ApplyAnimeArtworks :exec
-UPDATE anime_wishlist_entries e SET image_url = a.image_url
-FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
-WHERE e.destination = 'annict' AND w.annict_work_id = e.work_id AND a.image_url IS NOT NULL AND e.image_url IS DISTINCT FROM a.image_url
+UPDATE anime_wishlist_entries e SET image_url = chosen.image_url
+FROM (
+  SELECT DISTINCT ON (w.annict_work_id) w.annict_work_id, a.image_url
+  FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
+  WHERE w.annict_work_id IS NOT NULL AND a.image_url IS NOT NULL
+  ORDER BY w.annict_work_id, w.source = 'annict' DESC, w.syobocal_tid, w.position
+) AS chosen
+WHERE e.destination = 'annict' AND e.work_id = chosen.annict_work_id AND e.image_url IS DISTINCT FROM chosen.image_url
 `
 
 // 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
+// 1 つの作品に作品 ID の対応が複数あれば、取り込むとき (InsertAnimeWishlistEntries) と同じ順で 1 つを選ぶ。
 func (q *Queries) ApplyAnimeArtworks(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, applyAnimeArtworks)
 	return err
@@ -132,7 +138,7 @@ SELECT $1, $2, t.work_id, t.status, t.title, NULLIF(t.next_episode_id, ''), NULL
   COALESCE((
     SELECT a.image_url FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
     WHERE $2::text = 'annict' AND w.annict_work_id = t.work_id AND a.image_url IS NOT NULL
-    ORDER BY w.source = 'annict' DESC LIMIT 1
+    ORDER BY w.source = 'annict' DESC, w.syobocal_tid, w.position LIMIT 1
   ), NULLIF(t.image_url, '')), $3
 FROM (
   SELECT unnest($4::integer[]) AS work_id, unnest($5::text[]) AS status, unnest($6::text[]) AS title,
