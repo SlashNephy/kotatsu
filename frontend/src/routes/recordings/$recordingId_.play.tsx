@@ -98,7 +98,8 @@ import {
   SkipButton,
   usePlayerFlash,
 } from '../../yunomi/PlayerControls';
-import { cmSectionAt } from '../../yunomi/cmSkip';
+import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
+import { cmSectionAt, shouldAutoSkip } from '../../yunomi/cmSkip';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { useFullscreen } from '../../yunomi/useFullscreen';
@@ -375,6 +376,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const positionRef = useRef(resumeAt);
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
+  // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
+  const lastSeek = useRef<number | null>(null);
+  const [cmAutoSkip] = useCmAutoSkip();
   const [error, setError] = useState<string | null>(null);
   // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
   const lastAutoRetry = useRef<number | null>(null);
@@ -515,6 +519,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const seek = (target: number) => {
     // 録画の外へは移らない。OS のメディア操作からも、範囲の外の位置が届くことがある。
     const seconds = Math.min(Math.max(target, 0), duration);
+    lastSeek.current = seconds;
     const video = videoRef.current;
     if (hls && video !== null) {
       video.currentTime = seconds;
@@ -766,6 +771,36 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     openRemote,
   );
 
+  // cmBands は、CM とみなした区間 (#479)。途切れた区間と同じく、録画の時間軸の日時を、途切れた分を詰めた再生の位置にする。
+  // 途切れた位置の印を上に重ねるよう、先に並べる。
+  const cmBands = (recording?.cmSections ?? []).map((section) => {
+    const from = recordingPosition(
+      recording!.recordedFrom,
+      recording!.gaps,
+      Date.parse(section.from),
+    );
+    const to = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(section.to));
+
+    return {
+      from,
+      to,
+      label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
+      kind: 'cm' as const,
+    };
+  });
+
+  // currentCm は、いま再生している CM の区間 (#1300)。あれば、区間の終わりへ飛ばすボタンを出す。
+  const currentCm = seeking === null ? cmSectionAt(cmBands, position) : null;
+  // CM を自動で飛ばす設定 (#1282) なら、再生して CM の区間に入ったとき、区間の終わりへ移る。
+  // 利用者が自分で区間の中へシークしたときは、見たいものとして飛ばさない。
+  useEffect(() => {
+    if (!shouldAutoSkip(currentCm, cmAutoSkip, !paused, lastSeek.current)) {
+      return;
+    }
+    seek(currentCm!.to);
+    showFlash(t('player.flash.cmSkipped'));
+  }, [currentCm?.from, cmAutoSkip, paused]);
+
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
   }
@@ -823,26 +858,6 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return { from: at, to: at, label: t('player.gapMark', { duration: formatDuration(length) }) };
   });
-  // cmBands は、CM とみなした区間 (#479)。途切れた区間と同じく、録画の時間軸の日時を、途切れた分を詰めた再生の位置にする。
-  // 途切れた位置の印を上に重ねるよう、先に並べる。
-  const cmBands = (recording?.cmSections ?? []).map((section) => {
-    const from = recordingPosition(
-      recording!.recordedFrom,
-      recording!.gaps,
-      Date.parse(section.from),
-    );
-    const to = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(section.to));
-
-    return {
-      from,
-      to,
-      label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
-      kind: 'cm' as const,
-    };
-  });
-
-  // currentCm は、いま再生している CM の区間 (#1300)。あれば、区間の終わりへ飛ばすボタンを出す。
-  const currentCm = seeking === null ? cmSectionAt(cmBands, position) : null;
   const skipButton = currentCm !== null && (
     <SkipButton raised={controls.visible} onClick={() => seek(currentCm.to)}>
       {t('player.skipCm')}

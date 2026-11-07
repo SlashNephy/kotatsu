@@ -348,6 +348,8 @@
       "captionBackground": "字幕の背景",
       "captionBackgroundBroadcast": "放送の指定どおり",
       "lowLatencyHelp": "ライブ視聴で、放送からの遅れが3秒を超えたら、1.1倍の速さで再生して追いつきます。回線が細いと、止まりやすくなります。",
+      "cmAutoSkip": "録画のCMを自動でスキップする",
+      "cmAutoSkipHelp": "録画の再生で、CMとみなした区間に入ったら、区間の終わりへ移ります。CMの見分けは間違えることがあります。自分でCMの区間へシークしたときは、スキップしません。",
       "deviceOnly": "端末間同期なし",
       "dataBroadcastZipcode": "データ放送の郵便番号",
       "dataBroadcastZipcodeHelp": "天気やニュースなど、郵便番号で地域を選ぶデータ放送に渡します。7桁の数字で入れてください。空にすると渡しません",
@@ -1238,7 +1240,8 @@
       "dataBroadcastOff": "データ放送を隠す",
       "captured": "画像を保存しました",
       "restarted": "プレイヤーを読み直しました",
-      "audioDelay": "音ずれ補正 {{ms}} ms"
+      "audioDelay": "音ずれ補正 {{ms}} ms",
+      "cmSkipped": "CMをスキップしました"
     },
     "backToRecording": "録画の詳細に戻る",
     "ruleRecordings": "「{{rule}}」の録画",
