@@ -224,6 +224,7 @@ type ListContinueWatchingParams struct {
 	UserID        uuid.UUID
 	MinPositionMs int64
 	EndMarginMs   int64
+	FinishedRatio float64
 	MaxCount      int32
 }
 

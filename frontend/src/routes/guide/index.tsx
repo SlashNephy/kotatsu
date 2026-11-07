@@ -236,6 +236,7 @@ function Guide() {
               enabled
             }
             watchReserved
+            recorded
           }
         }
       }
@@ -301,6 +302,7 @@ function Guide() {
           shared: program.shared,
           reserved: program.reservation?.enabled === true,
           watchReserved: program.watchReserved,
+          recorded: program.recorded,
         })),
       })),
     [data.guide, type, pinned],

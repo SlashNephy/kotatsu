@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<050613c604b319d319f926f509667c81>>
+ * @generated SignedSource<<1563e23d3785d3bc103b3715f1abde0b>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type channelServiceIdGuideQuery$data = {
       }>;
       readonly id: string;
       readonly name: string;
+      readonly recorded: boolean;
       readonly reservation: {
         readonly enabled: boolean;
         readonly id: string;
@@ -220,6 +221,13 @@ v5 = [
             "kind": "ScalarField",
             "name": "watchReserved",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "recorded",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -254,16 +262,16 @@ return {
     "selections": (v5/*:: as any*/)
   },
   "params": {
-    "cacheID": "87be95dc4d5be9c7dc2645e2acdb74da",
+    "cacheID": "2b89f6ebe8ecba17329858c70b15039a",
     "id": null,
     "metadata": {},
     "name": "channelServiceIdGuideQuery",
     "operationKind": "query",
-    "text": "query channelServiceIdGuideQuery(\n  $from: Time!\n  $to: Time!\n  $services: [ID!]\n) {\n  guide(from: $from, to: $to, services: $services) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n        lv2\n      }\n      reservation {\n        id\n        enabled\n      }\n      watchReserved\n    }\n  }\n}\n"
+    "text": "query channelServiceIdGuideQuery(\n  $from: Time!\n  $to: Time!\n  $services: [ID!]\n) {\n  guide(from: $from, to: $to, services: $services) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      startAt\n      endAt\n      endUndecided\n      name\n      genres {\n        lv1\n        lv2\n      }\n      reservation {\n        id\n        enabled\n      }\n      watchReserved\n      recorded\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "96837e63215d8d8b71acf8b9bbe36c24";
+(node as any).hash = "1a995ce968259cd7d286de3713b1ab30";
 
 export default node;

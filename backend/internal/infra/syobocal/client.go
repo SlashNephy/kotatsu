@@ -42,6 +42,10 @@ const (
 	MaxChannelsPerRequest = 10
 )
 
+// resultNotFound は、条件に一致するデータがないときに db.php が返す Result の Code。HTTP の状態は 200 のまま返る。
+// 失敗ではなく 0 件の結果なので、空の結果として扱う (#1303)。
+const resultNotFound = http.StatusNotFound
+
 // ErrUnexpectedResponse は、db.php が想定しない応答を返したことを表す。
 var ErrUnexpectedResponse = errors.New("unexpected response from syobocal")
 
@@ -161,6 +165,9 @@ func (c *Client) ProgLookup(ctx context.Context, channelIDs []int32, from, to ti
 	if err := c.get(ctx, query, &body); err != nil {
 		return nil, err
 	}
+	if body.Result.Code == resultNotFound {
+		return []*Program{}, nil
+	}
 	if body.Result.Code != http.StatusOK {
 		return nil, fmt.Errorf("%w: ProgLookup returned %d %s", ErrUnexpectedResponse, body.Result.Code, body.Result.Message)
 	}
@@ -217,6 +224,9 @@ func (c *Client) TitleLookup(ctx context.Context, since time.Time) ([]*Title, er
 	var body titleLookupResponse
 	if err := c.get(ctx, query, &body); err != nil {
 		return nil, err
+	}
+	if body.Result.Code == resultNotFound {
+		return []*Title{}, nil
 	}
 	if body.Result.Code != http.StatusOK {
 		return nil, fmt.Errorf("%w: TitleLookup returned %d %s", ErrUnexpectedResponse, body.Result.Code, body.Result.Message)

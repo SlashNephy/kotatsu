@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { graphql, useMutation } from 'react-relay';
 
 import type { usePlaybackReporterMutation } from './__generated__/usePlaybackReporterMutation.graphql';
+import { browserStorage } from '../yunomi/volume';
+import { loadRecordOnDevice, useRecordOnDevice } from './recordOnDevice';
 
 // sampleInterval は、再生した区間を確かめる間隔 (ミリ秒)。
 const sampleInterval = 1_000;
@@ -104,18 +106,20 @@ function variablesOf(target: PlaybackTarget, intervals: PlayedInterval[]) {
 // usePlaybackReporter は、ライブ視聴と録画の再生で、実際に再生した区間を、しばらくごとと、画面を閉じるときにサーバーへ送る (#927)。
 // サーバーは、番組の長さの一定の割合を見たら、Annict と AniList に記録する。broadcastAt は、いま出している場面の放送の時刻
 // (Unix ミリ秒) を返す。分からなければ null を返す。記録の対象でないとサーバーが答えたら、この画面では送るのをやめる。
+// この端末で記録しない設定 (#1283) にしていれば、区間を集めず、何も送らない。
 export function usePlaybackReporter(
   target: PlaybackTarget | null,
   video: HTMLVideoElement | null,
   broadcastAt: () => number | null,
 ): void {
   const [commit] = useMutation<usePlaybackReporterMutation>(mutation);
+  const [recordOnDevice] = useRecordOnDevice();
   const broadcastAtRef = useRef(broadcastAt);
   broadcastAtRef.current = broadcastAt;
   const targetKey = target === null ? null : JSON.stringify(target);
 
   useEffect(() => {
-    if (targetKey === null || video === null) {
+    if (targetKey === null || video === null || !recordOnDevice) {
       return;
     }
     const reportTarget = JSON.parse(targetKey) as PlaybackTarget;
@@ -177,8 +181,12 @@ export function usePlaybackReporter(
       window.removeEventListener('pagehide', onPageHide);
       clearInterval(sampler);
       clearInterval(reporter);
+      // この端末で記録しない設定に切り替えたときは、それまでに集めた区間も送らない。
+      if (!loadRecordOnDevice(browserStorage())) {
+        return;
+      }
       sample();
       report();
     };
-  }, [targetKey, video, commit]);
+  }, [targetKey, video, commit, recordOnDevice]);
 }

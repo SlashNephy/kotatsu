@@ -161,6 +161,7 @@ export function createRootValue(
     reservation: () => scheduler.reservationOfProgram(item.id),
     // デモの録画は番組表の番組と結び付けないので、番組の録画はない (#1121)。
     recordings: [],
+    recorded: false,
     animeEpisodes: demoAnimeEpisodes(item),
   });
 

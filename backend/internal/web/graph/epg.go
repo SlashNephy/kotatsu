@@ -262,3 +262,15 @@ func (r *Resolver) programRecordings(ctx context.Context, program *model.Program
 
 	return r.recordingModels(ctx, rows)
 }
+
+// programRecorded は、番組 program の録画があるかを返す (#1278)。番組表で番組ごとに引くので、ローダーでまとめて引く。
+func (r *Resolver) programRecorded(ctx context.Context, program *model.Program) (bool, error) {
+	recorded, err := loadersFrom(ctx).ProgramRecorded.Load(ctx, query.ProgramSpan{
+		ServiceID: program.ServiceKey, EventID: int64(program.EventID), StartAt: program.StartAt.UTC(), EndAt: program.EndAt.UTC(),
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to check the recordings of the program: %w", err)
+	}
+
+	return recorded, nil
+}

@@ -523,7 +523,8 @@
       "notFound": "開こうとした番組表ビューは見つかりませんでした。",
       "showAll": "すべての番組を表示する"
     },
-    "pastDate": "過去の日"
+    "pastDate": "過去の日",
+    "recorded": "録画あり"
   },
   "genre": {
     "0": "ニュース・報道",
@@ -1319,6 +1320,10 @@
       "zho": "中国語",
       "chi": "中国語",
       "etc": "その他の言語"
+    },
+    "description": {
+      "show": "もっと見る",
+      "hide": "閉じる"
     }
   },
   "drcs": {
@@ -1967,6 +1972,8 @@
     "notConnected": "連携していません",
     "notRegistered": "管理者がアプリを登録していないので、連携できません",
     "aniListRevokeHint": "AniListは、Kotatsuからトークンを取り消せません。連携を外したら、AniListの設定の画面からもアプリを外してください",
+    "recordOnDevice": "この端末で見たアニメを記録する",
+    "recordOnDeviceHelp": "切ると、この端末のライブ視聴と録画の再生では、見たアニメを記録しません。この設定は端末ごとに覚え、ほかの端末とは同期しません。",
     "settingsTitle": "記録の設定",
     "threshold": "見たとみなす割合",
     "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",

@@ -241,7 +241,7 @@ export function createRecordings(options: {
         )
         .map(view),
     // continueWatching は、途中まで見た録画を、最後に見た新しい順に返す。
-    // 10 秒より前と、終わりの 10 秒以内まで見た録画は、見終えたものとして含めない。
+    // 10 秒より前まで見た録画は含めない。終わりの 10 秒以内か、長さの 90% 以上まで見た録画は、見終えたものとして含めない (#1301)。
     continueWatching: (first: number) =>
       [...recordings.values()]
         .filter((item) => {
@@ -250,7 +250,7 @@ export function createRecordings(options: {
           return (
             item.watchPositionMs !== null &&
             item.watchPositionMs >= 10_000 &&
-            item.watchPositionMs < duration - 10_000
+            item.watchPositionMs < Math.min(duration - 10_000, duration * 0.9)
           );
         })
         .toSorted((a, b) => b.watchedAt - a.watchedAt)

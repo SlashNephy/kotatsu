@@ -55,15 +55,19 @@ SELECT r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.des
 JOIN recordings r ON r.id = w.recording_id
 WHERE w.user_id = $1 AND w.position_ms >= $2::bigint
   AND (r.recorded_until IS NULL
-    OR w.position_ms < extract(epoch FROM (r.recorded_until - r.recorded_from)) * 1000 - $3::bigint)
+    OR w.position_ms < least(
+      extract(epoch FROM (r.recorded_until - r.recorded_from)) * 1000 - $3::bigint,
+      extract(epoch FROM (r.recorded_until - r.recorded_from)) * 1000 * $4::double precision
+    ))
 ORDER BY w.updated_at DESC, r.id DESC
-LIMIT $4
+LIMIT $5
 `
 
 type ListContinueWatchingParams struct {
 	UserID        uuid.UUID
 	MinPositionMs int64
 	EndMarginMs   int64
+	FinishedRatio float64
 	MaxCount      int32
 }
 
@@ -72,13 +76,15 @@ type ListContinueWatchingRow struct {
 }
 
 // ユーザーが途中まで見た録画を、最後に見た新しい順に返す (続きから見る)。
-// 少しだけ見た録画 (min_position_ms より前) と、終わりの end_margin_ms 以内まで見た録画は、見終えたものとして外す。
+// 少しだけ見た録画 (min_position_ms より前) は外す。終わりの end_margin_ms 以内まで見た録画と、
+// 録画の長さの finished_ratio 以上を見た録画は、見終えたものとして外す (#1301)。
 // 録画中の録画は、終わりが決まっていないので外さない。
 func (q *Queries) ListContinueWatching(ctx context.Context, arg ListContinueWatchingParams) ([]ListContinueWatchingRow, error) {
 	rows, err := q.db.Query(ctx, listContinueWatching,
 		arg.UserID,
 		arg.MinPositionMs,
 		arg.EndMarginMs,
+		arg.FinishedRatio,
 		arg.MaxCount,
 	)
 	if err != nil {

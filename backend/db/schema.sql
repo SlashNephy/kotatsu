@@ -916,6 +916,8 @@ CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, 
 
 -- ルールで録画を絞るのと、ルールを消したときに録画の rule_id を NULL にするのに使う (#468)。
 CREATE INDEX recordings_rule_id_idx ON recordings (rule_id) WHERE rule_id IS NOT NULL;
+-- 番組表で、番組の録画があるかをまとめて引く (#1278)。
+CREATE INDEX recordings_service_id_event_id_idx ON recordings (service_id, event_id);
 
 -- 録画のタグ (設計書 8.2)。名前は、前後の空白を落として重ならないようにする。
 CREATE TABLE tags (

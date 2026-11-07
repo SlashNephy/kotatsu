@@ -41,6 +41,21 @@ SELECT * FROM recordings
 WHERE service_id = @service_id AND event_id = @event_id AND start_at < @end_at AND end_at > @start_at
 ORDER BY start_at, id;
 
+-- name: ListRecordedPrograms :many
+-- 番組 (サービス, eventId, 放送時間) のうち、録画のあるものを返す (#1278)。失敗した録画は数えない。
+-- eventId は使い回されるので、ListProgramRecordings と同じく、放送時間に重なる録画だけを数える。
+WITH k AS (
+  SELECT unnest(@service_ids::bigint[]) AS service_id, unnest(@event_ids::bigint[]) AS event_id,
+    unnest(@start_ats::timestamptz[]) AS start_at, unnest(@end_ats::timestamptz[]) AS end_at
+)
+SELECT k.service_id::bigint AS service_id, k.event_id::bigint AS event_id, k.start_at::timestamptz AS start_at
+FROM k
+WHERE EXISTS (
+  SELECT 1 FROM recordings r
+  WHERE r.service_id = k.service_id AND r.event_id = k.event_id AND r.start_at < k.end_at AND r.end_at > k.start_at
+    AND r.state <> 'failed'
+);
+
 -- name: GetGuideProgram :one
 SELECT service_id, event_id, start_at, end_at, end_undecided, is_free, name, description, extended, genres, audios,
   related_items

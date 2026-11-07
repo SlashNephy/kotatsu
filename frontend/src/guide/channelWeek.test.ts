@@ -19,6 +19,7 @@ function program(id: string, startAt: number, minutes: number): GuideProgram {
     shared: false,
     reserved: false,
     watchReserved: false,
+    recorded: false,
   };
 }
 

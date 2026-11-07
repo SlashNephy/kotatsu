@@ -29,7 +29,12 @@ import { CommentList } from '../../jikkyo/CommentList';
 import { WatchPanel } from '../../yunomi/WatchPanel';
 import { ProgramDetail } from '../../guide/ProgramDetail';
 import { LiveServiceList } from '../../guide/LiveServiceList';
-import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
+import {
+  watchCommentsHeight,
+  WatchDescription,
+  WatchHeading,
+  WatchLayout,
+} from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import {
@@ -304,6 +309,7 @@ function Live({
           programs {
             id
             name
+            description
             startAt
             endAt
             endUndecided
@@ -1240,6 +1246,7 @@ function Live({
                 </Menu>
               }
             />
+            {program !== null && <WatchDescription text={program.description} />}
             {disconnection !== null && (
               <Alert color="amber" role="alert" title={t('live.disconnected')}>
                 <Stack gap="xs" align="flex-start">

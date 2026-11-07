@@ -120,6 +120,9 @@ const (
 	continueMinPositionMs = 10000
 	// continueEndMarginMs は、見終えたとみなす、終わりからの長さ (ミリ秒)。resume.ts の endMargin とそろえる。
 	continueEndMarginMs = 10000
+	// continueFinishedRatio は、見終えたとみなす、録画の長さに対する再生位置の割合 (#1301)。
+	// 番組の終わりのエンディングや次回の予告まで見なくても、一覧から外す。
+	continueFinishedRatio = 0.9
 )
 
 // continueWatching は、ログイン中のユーザーが途中まで見た録画を、最後に見た新しい順に first 件まで返す。
@@ -132,7 +135,8 @@ func (r *Resolver) continueWatching(ctx context.Context, first int) ([]*model.Re
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxRecordings))
 	}
 	found, err := r.queries.ListContinueWatching(ctx, query.ListContinueWatchingParams{
-		UserID: principal.UserID, MinPositionMs: continueMinPositionMs, EndMarginMs: continueEndMarginMs, MaxCount: int32(first),
+		UserID: principal.UserID, MinPositionMs: continueMinPositionMs, EndMarginMs: continueEndMarginMs,
+		FinishedRatio: continueFinishedRatio, MaxCount: int32(first),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the recordings to continue: %w", err)

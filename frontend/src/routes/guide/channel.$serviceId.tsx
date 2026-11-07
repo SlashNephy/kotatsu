@@ -117,6 +117,7 @@ function ChannelGuide() {
               enabled
             }
             watchReserved
+            recorded
           }
         }
       }
@@ -148,6 +149,7 @@ function ChannelGuide() {
               shared: false,
               reserved: program.reservation?.enabled === true,
               watchReserved: program.watchReserved,
+              recorded: program.recorded,
             })),
           ),
     [row, now],

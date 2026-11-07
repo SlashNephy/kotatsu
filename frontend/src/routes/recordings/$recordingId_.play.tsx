@@ -15,7 +15,12 @@ import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment'
 import { CommentList } from '../../jikkyo/CommentList';
 import { WatchPanel } from '../../yunomi/WatchPanel';
 import { RuleRecordingList } from '../../recordings/RuleRecordingList';
-import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
+import {
+  WatchDescription,
+  WatchHeading,
+  WatchLayout,
+  watchCommentsHeight,
+} from '../../yunomi/WatchLayout';
 import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
@@ -175,6 +180,7 @@ const playQuery = graphql`
       __typename
       ... on Recording {
         name
+        description
         startAt
         endAt
         streamUrl
@@ -1031,6 +1037,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             serviceLogoUrl={recording.service.logoUrl}
             time={recording}
           />
+          <WatchDescription text={recording.description} />
           {error !== null && (
             <Alert color="red" role="alert">
               <Group justify="space-between" gap="xs">

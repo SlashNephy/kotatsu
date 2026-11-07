@@ -2332,6 +2332,10 @@ type Program implements Node {
   """
   recordings: [Recording!]!
   """
+  番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組に印を出すのに使う。
+  """
+  recorded: Boolean!
+  """
   この番組の予約。予約がなければ null。
   """
   reservation: Reservation
