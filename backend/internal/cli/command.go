@@ -619,7 +619,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
-	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider))
+	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -1055,10 +1055,19 @@ func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 	return streams
 }
 
+// calendarPathPrefix は、予約の iCalendar のパスの頭。パスに購読用の URL の秘密の値を含む (#1255)。
+const calendarPathPrefix = "/calendar/"
+
+// traceable は、リクエストをトレースに残してよいかを返す。予約の iCalendar はパスに秘密の値を含むので、
+// トレースの属性 (URL のパス) に残さないよう、トレースしない。
+func traceable(r *http.Request) bool {
+	return !strings.HasPrefix(r.URL.Path, calendarPathPrefix)
+}
+
 // handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を mux に登録する。
 // カレンダーのアプリは Cookie を送れないので、パスの秘密の値だけで認証する。
 func handleCalendar(mux *http.ServeMux, deps *Deps, feeds *auth.CalendarFeeds, logger *slog.Logger) {
-	mux.Handle("GET /calendar/{token}/reservations.ics", calendarapi.NewHandler(
+	mux.Handle("GET "+calendarPathPrefix+"{token}/reservations.ics", calendarapi.NewHandler(
 		feeds, query.New(deps.DB), deps.Clock, logger.With(slog.String("component", "calendar"))))
 }
 
