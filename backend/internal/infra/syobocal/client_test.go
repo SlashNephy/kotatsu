@@ -1,6 +1,8 @@
 package syobocal_test
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -129,6 +131,49 @@ func TestClientErrors(t *testing.T) {
 			from := time.Date(2026, 11, 1, 15, 0, 0, 0, time.UTC)
 			_, err := client.ProgLookup(t.Context(), []int32{19}, from, from.Add(time.Hour))
 			require.ErrorIs(t, err, syobocal.ErrUnexpectedResponse)
+		})
+	}
+}
+
+// notFoundXML は、条件に一致するデータがないときに db.php が返す応答 (2026 年 11 月に確かめたもの)。HTTP の状態は 200 で、Result の Code が 404 になる。
+const notFoundXML = `<?xml version="1.0" encoding="UTF-8"?><%[1]s><Result><Code>404</Code>` +
+	`<Message>条件に一致するデータは存在しません</Message></Result></%[1]s>`
+
+// TestNotFound は、条件に一致するデータがない (Code が 404) とき、失敗にせず、0 件の結果を返すことを確かめる (#1303)。
+func TestNotFound(t *testing.T) {
+	t.Parallel()
+
+	from := time.Date(2026, 11, 1, 15, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name   string
+		root   string
+		lookup func(ctx context.Context, client *syobocal.Client) (int, error)
+	}{
+		{
+			name: "ProgLookup", root: "ProgLookupResponse",
+			lookup: func(ctx context.Context, client *syobocal.Client) (int, error) {
+				programs, err := client.ProgLookup(ctx, []int32{19}, from, from.Add(24*time.Hour))
+
+				return len(programs), err
+			},
+		},
+		{
+			name: "TitleLookup", root: "TitleLookupResponse",
+			lookup: func(ctx context.Context, client *syobocal.Client) (int, error) {
+				titles, err := client.TitleLookup(ctx, from)
+
+				return len(titles), err
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _ := newClient(t, fmt.Sprintf(notFoundXML, tt.root), time.Millisecond)
+			count, err := tt.lookup(t.Context(), client)
+			require.NoError(t, err)
+			assert.Zero(t, count)
 		})
 	}
 }
