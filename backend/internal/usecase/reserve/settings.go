@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"text/template"
 	"time"
 
@@ -87,6 +88,9 @@ func ValidateOverrides(o *domain.RecordingOverrides) error {
 	}
 	if o.Priority != nil && (*o.Priority < minPriority || *o.Priority > maxPriority) {
 		errs = append(errs, fmt.Errorf("%w: priority must be between %d and %d", ErrInvalidSettings, minPriority, maxPriority))
+	}
+	if o.TranscodePreset != nil && *o.TranscodePreset != "" && !slices.Contains(domain.TranscodePresets(), *o.TranscodePreset) {
+		errs = append(errs, fmt.Errorf("%w: transcodePreset must be one of %v or empty", ErrInvalidSettings, domain.TranscodePresets()))
 	}
 
 	return errors.Join(errs...)

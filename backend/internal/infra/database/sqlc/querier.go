@@ -269,6 +269,8 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
+	GetRecordingFileOwner(ctx context.Context, arg GetRecordingFileOwnerParams) (GetRecordingFileOwnerRow, error)
 	GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.UUID, error)
 	// 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
 	GetRecordingInProgressByReservation(ctx context.Context, reservationID *uuid.UUID) (Recording, error)
@@ -979,6 +981,9 @@ type Querier interface {
 	// 名前のタグを作り、ID を返す。すでにあれば、そのタグの ID を返す。
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)
 	UpsertTimeshiftChannel(ctx context.Context, arg UpsertTimeshiftChannelParams) error
+	// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
+	// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+	UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error)
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error

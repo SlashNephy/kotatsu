@@ -13,6 +13,14 @@ import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
+import {
+  noTranscode,
+  optionOfPreset,
+  presetOfOption,
+  transcodeLabel,
+  transcodeOptions,
+  useTranscodePresets,
+} from '../rules/transcode';
 
 import { Authorship, ErrorBoundary } from '../futon';
 import { FileNameTemplateField, InheritedFileNameTemplateField } from './FileNameTemplateField';
@@ -71,6 +79,7 @@ function Form({ id, onClose, onReserved }: Props) {
             priority
             joinSegments
             detectCm
+            transcodePreset
           }
         }
         storagePoolNames
@@ -100,6 +109,7 @@ function Form({ id, onClose, onReserved }: Props) {
                 priority
                 joinSegments
                 detectCm
+                transcodePreset
               }
             }
             settings {
@@ -110,6 +120,7 @@ function Form({ id, onClose, onReserved }: Props) {
               priority
               joinSegments
               detectCm
+              transcodePreset
             }
           }
         }
@@ -138,6 +149,7 @@ function Form({ id, onClose, onReserved }: Props) {
           priority
           joinSegments
           detectCm
+          transcodePreset
         }
         # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
         assignment {
@@ -186,6 +198,10 @@ function Form({ id, onClose, onReserved }: Props) {
     reservation?.settings.joinSegments ?? null,
   );
   const [detectCm, setDetectCm] = useState<boolean | null>(reservation?.settings.detectCm ?? null);
+  const [transcodePreset, setTranscodePreset] = useState<string | null>(
+    reservation?.settings.transcodePreset ?? null,
+  );
+  const transcodePresets = useTranscodePresets();
   const [poolId, setPoolId] = useState<string | null>(reservation?.settings.poolId ?? null);
   const [followEventRelay, setFollowEventRelay] = useState(reservation?.followEventRelay ?? true);
   const [error, setError] = useState(false);
@@ -203,6 +219,7 @@ function Form({ id, onClose, onReserved }: Props) {
   const rulePriority = rule?.settings.priority ?? null;
   const ruleJoin = rule?.settings.joinSegments ?? null;
   const ruleDetect = rule?.settings.detectCm ?? null;
+  const ruleTranscode = rule?.settings.transcodePreset ?? null;
   const rulePool = rule?.settings.poolId ?? null;
   const inherited = (fromRule: boolean, value: string) =>
     fromRule && rule !== undefined
@@ -220,6 +237,7 @@ function Form({ id, onClose, onReserved }: Props) {
       priority,
       joinSegments,
       detectCm,
+      transcodePreset,
     };
     // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
     const failed = (errors: readonly unknown[] | null | undefined) =>
@@ -381,6 +399,33 @@ function Form({ id, onClose, onReserved }: Props) {
           value={detectCm === null ? joinDefault : String(detectCm)}
           onChange={(value) =>
             setDetectCm(value === null || value === joinDefault ? null : value === 'true')
+          }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {/* 全体に従うなら、録画を終えるときの全体の設定 (ルール予約ならルールの設定) で決める (#1253)。 */}
+        <Select
+          label={t('rules.transcode')}
+          data={[
+            {
+              value: joinDefault,
+              label:
+                ruleTranscode !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: transcodeLabel(t, ruleTranscode),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: transcodeLabel(t, defaults.transcodePreset ?? noTranscode),
+                    }),
+            },
+            ...transcodeOptions(t, transcodePresets),
+          ]}
+          value={transcodePreset === null ? joinDefault : optionOfPreset(transcodePreset)}
+          onChange={(value) =>
+            setTranscodePreset(
+              value === null || value === joinDefault ? null : presetOfOption(value),
+            )
           }
           allowDeselect={false}
           disabled={inFlight}

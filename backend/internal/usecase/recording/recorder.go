@@ -1827,6 +1827,7 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		payload["files"] = files
 		payload["joinSegments"] = settings.JoinSegments
 		payload["detectCm"] = settings.DetectCM
+		payload["transcodePreset"] = settings.TranscodePreset
 		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)

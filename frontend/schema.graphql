@@ -2855,6 +2855,10 @@ type Query {
   """
   drcsReplacements: [DrcsReplacement!]!
   """
+  録画を終えた後の変換 (#1253) で選べる画質の名前。
+  """
+  transcodePresets: [String!]!
+  """
   全体の設定。ログイン中のユーザーなら誰でも読める。
   """
   systemSettings: SystemSettings!
@@ -3281,6 +3285,10 @@ type RecordingSettings {
   録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
   """
   detectCm: Boolean!
+  """
+  録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
+  """
+  transcodePreset: String
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -3308,6 +3316,10 @@ type RecordingSettingsOverrides {
   録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
   """
   detectCm: Boolean
+  """
+  録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
+  """
+  transcodePreset: String
 }
 """
 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -3320,6 +3332,10 @@ input RecordingSettingsOverridesInput {
   priority: Int
   joinSegments: Boolean
   detectCm: Boolean
+  """
+  変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
+  """
+  transcodePreset: String
 }
 """
 録画の状態 (設計書 5.5)。
