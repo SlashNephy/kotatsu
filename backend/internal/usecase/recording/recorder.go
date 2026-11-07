@@ -35,6 +35,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
 )
@@ -148,6 +149,8 @@ type Recorder struct {
 	broadcastSkew atomic.Pointer[broadcastSkew]
 	// savedBroadcastSkew は、broadcastSkew のうち、最後に DB に書いたもの。録画を並べても、測り直した値を一度だけ書く。
 	savedBroadcastSkew atomic.Pointer[broadcastSkew]
+	// logos は、録画している TS の CDT から集めたロゴ (#1308)。書いているセグメントの様子と一緒に書く。
+	logos *servicelogo.Collector
 }
 
 // broadcastSkew は、TOT で測った時計の差と、測った時刻。
@@ -179,6 +182,7 @@ func NewRecorder(
 	return &Recorder{
 		pool: pool, clock: clk, tuner: tuner, store: store, defaults: defaults, location: location, logger: logger, opts: o,
 		broadcastSkew: atomic.Pointer[broadcastSkew]{}, savedBroadcastSkew: atomic.Pointer[broadcastSkew]{},
+		logos: servicelogo.NewCollector(clk, logger),
 	}
 }
 
@@ -905,7 +909,7 @@ func (r *Recorder) newSegment(
 	}
 	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
-	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT)
+	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT, r.logos.Observe)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -951,14 +955,15 @@ func poolsFrom(rows []sqlc.StoragePool, mounted []string, poolID string) []*kago
 
 // CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
 // 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。タイムシフトのチャンクも、同じ作りの索引を書く。
-func CreateIndex(store *kago.Store, fileID uuid.UUID) (*ts.Analyzer, *os.File, error) {
-	return createIndex(store, fileID, nil)
+// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。nil なら呼ばない。
+func CreateIndex(store *kago.Store, fileID uuid.UUID, onLogo func(*ts.Logo)) (*ts.Analyzer, *os.File, error) {
+	return createIndex(store, fileID, nil, onLogo)
 }
 
 // createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
-func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time)) (*ts.Analyzer, *os.File, error) {
-	// 索引を作れなくても、TOT は読む。
-	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT})
+func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo)) (*ts.Analyzer, *os.File, error) {
+	// 索引を作れなくても、TOT とロゴは読む。
+	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo})
 	if _, err := store.CreateSegmentDir(fileID); err != nil {
 		return noIndex, nil, err
 	}
@@ -978,7 +983,7 @@ func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time)) (*t
 		return noIndex, nil, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT}), file, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo}), file, nil
 }
 
 // endReason は、録画を止めた理由。
@@ -1518,7 +1523,7 @@ func (r *Recorder) closeSegment(
 	stop := ctx
 	ctx = context.WithoutCancel(ctx)
 	errs := seg.syncAndClose(ctx, logger)
-	writes := []pendingWrite{r.closeSegmentFile(logger, recording, seg, stats, now), r.saveSegmentStats(seg, stats, now)}
+	writes := []pendingWrite{r.closeSegmentFile(logger, recording, seg, stats, now), r.saveSegmentStats(seg, stats, now), r.saveLogos}
 	if stop.Err() != nil {
 		// リースを失ったか、止めるときは、DB に届くのを待たずに、1 度だけ書いてみる。
 		if err := tracker.pending.save(ctx, r, tracker); err != nil {
@@ -1565,6 +1570,14 @@ func (seg *segment) syncAndClose(ctx context.Context, logger *slog.Logger) []err
 	}
 
 	return errs
+}
+
+// saveLogos は、セグメントの TS の CDT から集めたロゴを書く (#1308)。録画の様子を書く間隔より短い録画でも、閉じるときに書く。
+// 見るためだけなので、書けなくても録画の失敗にしない。書けなかったロゴは、次に書くときに書き直す。
+func (r *Recorder) saveLogos(ctx context.Context, q *sqlc.Queries, _ uuid.UUID) error {
+	r.logos.Flush(ctx, q)
+
+	return nil
 }
 
 // closeSegmentFile は、セグメント seg の大きさと、表す時間の終わり now を記録する書き込みを返す。
@@ -1988,6 +2001,7 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 		w.recorder.logger.WarnContext(ctx, "failed to save the live recording stats", slog.Any("error", err))
 	}
 	w.writeBroadcastSkew(dbCtx)
+	w.recorder.logos.Flush(dbCtx, sqlc.New(w.recorder.pool))
 }
 
 // writeBroadcastSkew は、前に書いてから TOT で測り直していれば、放送の時刻と OS の時計の差を書く (#1309)。

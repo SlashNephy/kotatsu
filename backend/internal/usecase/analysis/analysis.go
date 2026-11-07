@@ -289,7 +289,7 @@ func (w *AnalyzeWorker) analyze(ctx context.Context, segment *sqlc.RecordingFile
 	if err != nil {
 		return nil, nil, err
 	}
-	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: cutoff, OnTOT: nil})
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: cutoff, OnTOT: nil, OnLogo: nil})
 	// 数 GB のセグメントを読む間でも、nekonote を止めたら読むのをやめる。
 	reader := readerFunc(func(p []byte) (int, error) {
 		if err := ctx.Err(); err != nil {

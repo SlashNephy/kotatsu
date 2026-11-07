@@ -540,6 +540,20 @@ CREATE TABLE services (
   updated_at timestamptz NOT NULL
 );
 
+-- 録画している TS の CDT から集めた、サービスのロゴ (#1308、設計書 3.1)。チューナーサーバーがロゴを返さないときに返す。
+-- ロゴはネットワークごとの logo_id で送られ、サービスとは services.logo_id で結ぶ。サービスより先に届くこともあるので、外部キーは張らない。
+CREATE TABLE service_logos (
+  network_id bigint NOT NULL,
+  logo_id bigint NOT NULL,
+  -- ロゴの種類 (logo_type)。大きさを表す (ARIB TR-B15)。
+  logo_type smallint NOT NULL,
+  version bigint NOT NULL,
+  -- パレットを補った PNG。
+  data bytea NOT NULL,
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (network_id, logo_id, logo_type)
+);
+
 -- 放送中の番組と、これから放送される番組 (設計書 3.4)。
 -- Mirakurun と同じく、サービスと eventId の組で一意にする。EID は再利用されうるが、上流が同時に持つ番組の中では一意である。
 -- 放送時間が変わっても同じ行を更新するので、番組予約は (サービス, eventId) で番組を追える (設計書 4.6)。
