@@ -137,6 +137,36 @@ func TestMatchTitleFallback(t *testing.T) {
 	assert.Equal(t, anime.SourceTitle, source)
 }
 
+// TestMatchSeriesFallback は、番組名に話数がなければ、シリーズの記述子の話数で話に結びつけることを確かめる (#1311)。
+// 記述子の再放送の印も読む。番組名に話数があれば、記述子の話数と食い違っても、番組名の話数を使う。
+func TestMatchSeriesFallback(t *testing.T) {
+	t.Parallel()
+
+	db, _, _, matcher := newMatchFixture(t)
+	insertNamedProgram(t, db, csService, 1, jst(2, 3, 0), jst(2, 3, 30), "[字]リピート作品")
+	insertNamedProgram(t, db, csService, 2, jst(2, 4, 0), jst(2, 4, 30), "リピート作品 #12")
+	insertNamedProgram(t, db, csService, 3, jst(2, 5, 0), jst(2, 5, 30), "リピート作品")
+	for _, series := range []struct {
+		eventID int64
+		episode int32
+		repeat  bool
+	}{{eventID: 1, episode: 7, repeat: true}, {eventID: 2, episode: 99, repeat: false}} {
+		_, err := db.Exec(t.Context(), `UPDATE programs SET series_episode = $1, series_repeat = $2 WHERE service_id = $3 AND event_id = $4`,
+			series.episode, series.repeat, csService, series.eventID)
+		require.NoError(t, err)
+	}
+	_, err := matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+
+	assert.Equal(t, []episodeRow{
+		{Position: 0, TID: new(int32(30)), CountStart: new(7.0), CountEnd: new(7.0), Subtitle: nil, First: false, Last: false, Rerun: true},
+	}, episodesOfProgram(t, db, csService, jst(2, 3, 0)), "the episode and the rerun mark are read from the series descriptor")
+	assert.Equal(t, []episodeRow{
+		{Position: 0, TID: new(int32(30)), CountStart: new(12.0), CountEnd: new(12.0), Subtitle: nil, First: false, Last: false, Rerun: false},
+	}, episodesOfProgram(t, db, csService, jst(2, 4, 0)), "the episode in the name wins")
+	assert.Empty(t, episodesOfProgram(t, db, csService, jst(2, 5, 0)), "no episode without the name or the descriptor")
+}
+
 // insertNamedProgram は、番組名 name のアニメの番組を足す。
 func insertNamedProgram(t *testing.T, db *pgxpool.Pool, serviceID, eventID int64, start, end time.Time, name string) {
 	t.Helper()

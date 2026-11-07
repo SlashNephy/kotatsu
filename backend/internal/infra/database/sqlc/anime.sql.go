@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const copyProgramAnimeEpisodesToRecording = `-- name: CopyProgramAnimeEpisodesToRecording :execrows
@@ -491,7 +492,7 @@ func (q *Queries) ListAnimeImports(ctx context.Context) ([]AnimeImport, error) {
 }
 
 const listAnimePrograms = `-- name: ListAnimePrograms :many
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, m.finalized_at
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.series_episode, p.series_repeat, m.finalized_at
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY($1::bigint[]) AND p.start_at < $2 AND p.end_at > $3
@@ -506,12 +507,14 @@ type ListAnimeProgramsParams struct {
 }
 
 type ListAnimeProgramsRow struct {
-	ServiceID   int64
-	EventID     int64
-	StartAt     time.Time
-	EndAt       time.Time
-	Name        string
-	FinalizedAt *time.Time
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EndAt         time.Time
+	Name          string
+	SeriesEpisode *int32
+	SeriesRepeat  pgtype.Bool
+	FinalizedAt   *time.Time
 }
 
 // サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
@@ -530,6 +533,8 @@ func (q *Queries) ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsPa
 			&i.StartAt,
 			&i.EndAt,
 			&i.Name,
+			&i.SeriesEpisode,
+			&i.SeriesRepeat,
 			&i.FinalizedAt,
 		); err != nil {
 			return nil, err
@@ -543,7 +548,7 @@ func (q *Queries) ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsPa
 }
 
 const listAnimeProgramsToFinalize = `-- name: ListAnimeProgramsToFinalize :many
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.series_episode, p.series_repeat
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY($1::bigint[]) AND p.end_at <= $2 AND NOT p.end_undecided
@@ -557,11 +562,13 @@ type ListAnimeProgramsToFinalizeParams struct {
 }
 
 type ListAnimeProgramsToFinalizeRow struct {
-	ServiceID int64
-	EventID   int64
-	StartAt   time.Time
-	EndAt     time.Time
-	Name      string
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EndAt         time.Time
+	Name          string
+	SeriesEpisode *int32
+	SeriesRepeat  pgtype.Bool
 }
 
 // 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
@@ -580,6 +587,8 @@ func (q *Queries) ListAnimeProgramsToFinalize(ctx context.Context, arg ListAnime
 			&i.StartAt,
 			&i.EndAt,
 			&i.Name,
+			&i.SeriesEpisode,
+			&i.SeriesRepeat,
 		); err != nil {
 			return nil, err
 		}
