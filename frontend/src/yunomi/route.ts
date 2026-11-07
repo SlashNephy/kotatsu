@@ -3,7 +3,7 @@
 // Capabilities は、端末で使える再生の仕組み。
 export type Capabilities = {
   // convert は、ブラウザの中で MPEG-2 を H.264 に変換して再生できるかどうか。
-  // MediaSource で H.264 を再生できる必要がある。iPhone のように ManagedMediaSource しかない端末では使わない。
+  // MediaSource か ManagedMediaSource (iPhone、#1256) で H.264 を再生できる必要がある。
   convert: boolean;
   // hls は、kyusu の HLS を hls.js で再生できるかどうか。
   hls: boolean;

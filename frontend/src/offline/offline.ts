@@ -102,7 +102,7 @@ export function hasRoom(estimate: StorageEstimate, required: number): boolean {
 export type OfflineSupport = 'supported' | 'noStorage' | 'noConverter';
 
 // offlineSupport は、この端末で、録画を保存して再生できるかを返す。
-// 保存した TS は、ブラウザの中で変換して再生する (設計書 7.2) ので、変換の使えない端末 (iPhone など) と、
+// 保存した TS は、ブラウザの中で変換して再生する (設計書 7.2) ので、変換の使えない端末と、
 // ブラウザの中で変換できない BS4K と 8K の録画は、保存しても見られない。
 export function offlineSupport(
   scope: typeof globalThis,

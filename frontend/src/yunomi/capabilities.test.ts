@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { detectCapabilities } from './capabilities';
+import { detectCapabilities, prefersManagedMediaSource } from './capabilities';
 
 // source は、指定したコーデックだけを再生できる MediaSource の代わり。
 const source = (...codecs: string[]) => ({
@@ -15,9 +15,9 @@ describe('detectCapabilities', () => {
       want: { convert: true, hls: true, hevc: true, hevcUhd: true },
     },
     {
-      name: 'iPhone は ManagedMediaSource しかないので、kyusu だけを使う',
+      name: 'iPhone は ManagedMediaSource しかないが、変換もトランスコードも使える (#1256)',
       scope: { ManagedMediaSource: source('avc1', 'hvc1') },
-      want: { convert: false, hls: true, hevc: true, hevcUhd: true },
+      want: { convert: true, hls: true, hevc: true, hevcUhd: true },
     },
     {
       name: 'HEVC を再生できないブラウザ',
@@ -37,5 +37,23 @@ describe('detectCapabilities', () => {
     },
   ])('$name', ({ scope, want }) => {
     expect(detectCapabilities(scope as unknown as typeof globalThis)).toEqual(want);
+  });
+});
+
+describe('prefersManagedMediaSource', () => {
+  test.each([
+    {
+      name: 'ManagedMediaSource しかない端末 (iPhone) では使う',
+      scope: { ManagedMediaSource: source() },
+      want: true,
+    },
+    {
+      name: 'MediaSource のある端末では使わない',
+      scope: { MediaSource: source(), ManagedMediaSource: source() },
+      want: false,
+    },
+    { name: 'どちらもない端末では使わない', scope: {}, want: false },
+  ])('$name', ({ scope, want }) => {
+    expect(prefersManagedMediaSource(scope as unknown as typeof globalThis)).toBe(want);
   });
 });
