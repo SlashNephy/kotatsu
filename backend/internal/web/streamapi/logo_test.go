@@ -3,6 +3,7 @@ package streamapi_test
 import (
 	"bytes"
 	"context"
+	"image"
 	"image/png"
 	"io"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -28,12 +30,30 @@ func (htmlLogo) ServiceLogo(context.Context, int64) ([]byte, error) {
 	return []byte("<!DOCTYPE html><script>alert(1)</script>"), nil
 }
 
+// collectedLogos は、録画している TS から集めたロゴの代わり。サービス ID ごとに PNG を持つ。
+type collectedLogos map[int64][]byte
+
+func (c collectedLogos) ServiceLogo(_ context.Context, serviceID int64) ([]byte, error) {
+	if data, ok := c[serviceID]; ok {
+		return data, nil
+	}
+
+	return nil, servicelogo.ErrNoLogo
+}
+
 // logoServer は、tuner を上流にした tenban のロゴの中継を立てる。
 func logoServer(t *testing.T, tuner streamapi.LogoFetcher) *httptest.Server {
 	t.Helper()
 
+	return logoServerWithCollected(t, tuner, nil)
+}
+
+// logoServerWithCollected は、tuner を上流にし、collected を集めたロゴにした、tenban のロゴの中継を立てる。
+func logoServerWithCollected(t *testing.T, tuner, collected streamapi.LogoFetcher) *httptest.Server {
+	t.Helper()
+
 	mux := http.NewServeMux()
-	mux.Handle(logoPattern, streamapi.NewLogoHandler(tuner, slog.New(slog.DiscardHandler)))
+	mux.Handle(logoPattern, streamapi.NewLogoHandler(tuner, collected, slog.New(slog.DiscardHandler)))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
@@ -95,6 +115,55 @@ func TestLogoHandler(t *testing.T) {
 			config, err := png.DecodeConfig(bytes.NewReader(body))
 			require.NoError(t, err)
 			assert.Equal(t, 64, config.Width)
+		})
+	}
+}
+
+// TestLogoHandlerCollected は、チューナーサーバーがロゴを返さないときに、録画している TS から集めたロゴを返すことを確かめる (#1308)。
+// チューナーサーバーがロゴを返せば、そちらを先にする。
+func TestLogoHandlerCollected(t *testing.T) {
+	t.Parallel()
+
+	client := fakeTunerClient(t)
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, image.NewNRGBA(image.Rect(0, 0, 48, 27))))
+	// GR 26 のサービスは、チューナーサーバーが画像をまだ受信していない。
+	notReceived := int64(3273701032)
+	collected := collectedLogos{notReceived: buf.Bytes(), 3273601024: buf.Bytes()}
+	tests := []struct {
+		name       string
+		tuner      streamapi.LogoFetcher
+		id         string
+		wantStatus int
+		wantWidth  int
+	}{
+		{name: "tuner server has the logo", tuner: client, id: serviceID, wantStatus: http.StatusOK, wantWidth: 64},
+		{name: "logo not received", tuner: client, id: "3273701032", wantStatus: http.StatusOK, wantWidth: 48},
+		{name: "tuner server not configured", tuner: nil, id: "3273701032", wantStatus: http.StatusOK, wantWidth: 48},
+		{name: "not collected", tuner: client, id: "1", wantStatus: http.StatusNotFound, wantWidth: 0},
+		{name: "not collected without tuner server", tuner: nil, id: "1", wantStatus: http.StatusServiceUnavailable, wantWidth: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := logoServerWithCollected(t, tt.tuner, collected)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/media/services/"+tt.id+"/logo", nil)
+			require.NoError(t, err)
+			resp, err := server.Client().Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantStatus, resp.StatusCode, string(body))
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			assert.Equal(t, "image/png", resp.Header.Get("Content-Type"))
+			config, err := png.DecodeConfig(bytes.NewReader(body))
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantWidth, config.Width)
 		})
 	}
 }

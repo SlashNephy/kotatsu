@@ -51,6 +51,8 @@ type Analyzer struct {
 	// cutoffPTS と beforeCutoff は、AnalyzerOptions.CutoffPTS と、そこに届いたときの PID ごとの統計。届いていなければ nil。
 	cutoffPTS    *int64
 	beforeCutoff []*PIDStats
+	// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。nil なら CDT を読まない。
+	onLogo func(*Logo)
 }
 
 // AnalyzerOptions は Analyzer の設定。
@@ -62,6 +64,8 @@ type AnalyzerOptions struct {
 	CutoffPTS *int64
 	// OnTOT は、TDT か TOT を読んだときに、放送の現在の時刻を受け取る (#1309)。Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
 	OnTOT func(time.Time)
+	// OnLogo は、CDT でロゴを読んだときに、そのロゴを受け取る (#1308)。Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
+	OnLogo func(*Logo)
 }
 
 var _ io.Writer = new(Analyzer)
@@ -120,8 +124,9 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	var index *IndexWriter
 	var cutoff *int64
 	var onTOT func(time.Time)
+	var onLogo func(*Logo)
 	if opts != nil {
-		index, cutoff, onTOT = opts.Index, opts.CutoffPTS, opts.OnTOT
+		index, cutoff, onTOT, onLogo = opts.Index, opts.CutoffPTS, opts.OnTOT, opts.OnLogo
 	}
 
 	return &Analyzer{
@@ -148,6 +153,7 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		onTOT:              onTOT,
 		cutoffPTS:          cutoff,
 		beforeCutoff:       nil,
+		onLogo:             onLogo,
 	}
 }
 
@@ -359,10 +365,10 @@ func (a *Analyzer) probeVideoFormat(pkt *packet) {
 	}
 }
 
-// handlePSI は、PAT、PMT、EIT と、OnTOT があれば TOT のパケットからセクションを組み立てて読む。
+// handlePSI は、PAT、PMT、EIT と、OnTOT があれば TOT、OnLogo があれば CDT のパケットからセクションを組み立てて読む。
 func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	pid := pkt.pid
-	if pid != patPID && pid != eitPID && (pid != totPID || a.onTOT == nil) && !a.programs.isPMTPID(pid) {
+	if pid != patPID && pid != eitPID && (pid != totPID || a.onTOT == nil) && (pid != cdtPID || a.onLogo == nil) && !a.programs.isPMTPID(pid) {
 		return
 	}
 
@@ -384,6 +390,10 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 		case totPID:
 			if at, ok := parseTOT(section); ok {
 				a.onTOT(at)
+			}
+		case cdtPID:
+			if logo, ok := parseCDTLogo(section); ok {
+				a.onLogo(logo)
 			}
 		default:
 			a.programs.handlePMT(pid, section)

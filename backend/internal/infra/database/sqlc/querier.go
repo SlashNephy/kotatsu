@@ -291,6 +291,8 @@ type Querier interface {
 	// 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
 	GetReservationForRecording(ctx context.Context, id uuid.UUID) (GetReservationForRecordingRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
+	// サービスのロゴのうち、いちばん望ましい種類のものを返す (#1308)。HD の大きいロゴ (64×36) を先にする。
+	GetServiceLogo(ctx context.Context, serviceID int64) ([]byte, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
 	GetSessionUsable(ctx context.Context, arg GetSessionUsableParams) (bool, error)
@@ -966,6 +968,8 @@ type Querier interface {
 	UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
+	// 版か画像が変わったときだけ書き換える (#1308)。
+	UpsertServiceLogo(ctx context.Context, arg UpsertServiceLogoParams) (int64, error)
 	UpsertStoragePool(ctx context.Context, arg UpsertStoragePoolParams) (StoragePool, error)
 	UpsertSyobocalLookup(ctx context.Context, arg UpsertSyobocalLookupParams) error
 	UpsertSyobocalProgram(ctx context.Context, arg UpsertSyobocalProgramParams) error
