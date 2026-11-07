@@ -258,6 +258,8 @@ export function createRootValue(
       degradedSince: null,
       clockSkewed: false,
       clockSkewMs: null,
+      broadcastClockSkewed: false,
+      broadcastClockSkewMs: null,
     }),
     channelTypes: () => channelTypes,
     node: ({ id }: { id: string }) => node(id),

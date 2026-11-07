@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<36cc9603b0a5f54a5a11eaea87912fc0>>
+ * @generated SignedSource<<6a75908bc346e980829ef00e97d418cc>>
  * @lightSyntaxTransform
  */
 
@@ -123,6 +123,8 @@ export type DashboardQuery$data = {
     };
   };
   readonly tunerServerHealth: {
+    readonly broadcastClockSkewMs: number | null | undefined;
+    readonly broadcastClockSkewed: boolean;
     readonly clockSkewMs: number | null | undefined;
     readonly clockSkewed: boolean;
     readonly degraded: boolean;
@@ -214,6 +216,20 @@ v5 = {
       "args": null,
       "kind": "ScalarField",
       "name": "clockSkewMs",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "broadcastClockSkewed",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "broadcastClockSkewMs",
       "storageKey": null
     }
   ],
@@ -914,16 +930,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "01547d76fd172fe5e5a5ae3054a9f0da",
+    "cacheID": "8496add68f8d67aa2c36444486182c6f",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n    clockSkewed\n    clockSkewMs\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  continueWatching(first: $recordings) {\n    id\n    name\n    startAt\n    endAt\n    state\n    drops\n    errors\n    scrambled\n    recordedFrom\n    recordedUntil\n    gaps {\n      from\n      to\n    }\n    watchPositionMs\n    thumbnailUrl\n    previewUrl\n    watchFrame {\n      url\n      x\n      y\n      width\n      height\n      sheetWidth\n      sheetHeight\n    }\n    service {\n      name\n      logoUrl\n      id\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n    clockSkewed\n    clockSkewMs\n    broadcastClockSkewed\n    broadcastClockSkewMs\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n    }\n    programs {\n      id\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n    }\n  }\n  continueWatching(first: $recordings) {\n    id\n    name\n    startAt\n    endAt\n    state\n    drops\n    errors\n    scrambled\n    recordedFrom\n    recordedUntil\n    gaps {\n      from\n      to\n    }\n    watchPositionMs\n    thumbnailUrl\n    previewUrl\n    watchFrame {\n      url\n      x\n      y\n      width\n      height\n      sheetWidth\n      sheetHeight\n    }\n    service {\n      name\n      logoUrl\n      id\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0281c1bb744bdb522bcf346f7bb81830";
+(node as any).hash = "f631f588ef9ac26a7f7eed0510e84c74";
 
 export default node;

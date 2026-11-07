@@ -26,6 +26,11 @@
       "ahead": "チューナーサーバーの時計が、Kotatsuより{{seconds}}秒進んでいます。録画の開始と終了がずれることがあります。チューナーサーバーの時刻合わせを確かめてください",
       "behind": "チューナーサーバーの時計が、Kotatsuより{{seconds}}秒遅れています。録画の開始と終了がずれることがあります。チューナーサーバーの時刻合わせを確かめてください"
     },
+    "broadcastClockSkew": {
+      "title": "Kotatsuの時計が、放送の時刻とずれています",
+      "ahead": "Kotatsuの時計が、放送の時刻（TOT）より{{seconds}}秒進んでいます。録画の開始と終了がずれることがあります。Kotatsuを動かしている機器の時刻合わせを確かめてください",
+      "behind": "Kotatsuの時計が、放送の時刻（TOT）より{{seconds}}秒遅れています。録画の開始と終了がずれることがあります。Kotatsuを動かしている機器の時刻合わせを確かめてください"
+    },
     "conflicts": {
       "title": "録画できないかもしれない予約があります",
       "body": "これから1週間の予約のうち、{{count}}件が、チューナーが足りずに録画できないか、一部しか録画できない見込みです",
@@ -1510,6 +1515,8 @@
       "lastError": "最後のエラー: {{error}}",
       "clockSkew": "時計のずれ: {{ms}}ミリ秒",
       "clockSkewExceeded": "時計のずれ: {{ms}}ミリ秒 (閾値の{{threshold}}ミリ秒を超えています)",
+      "broadcastClockSkew": "放送の時刻（TOT）とのずれ: {{ms}}ミリ秒（{{at}}に録画で測定）",
+      "broadcastClockSkewExceeded": "放送の時刻（TOT）とのずれ: {{ms}}ミリ秒（{{at}}に録画で測定。閾値の{{threshold}}ミリ秒を超えています）",
       "checkedAt": "最後に確かめた日時 {{at}}",
       "tuners": "チューナー",
       "noTuners": "チューナーの情報がありません",

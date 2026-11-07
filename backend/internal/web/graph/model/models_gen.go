@@ -1687,6 +1687,10 @@ type TunerServerHealth struct {
 	ClockSkewed bool `json:"clockSkewed"`
 	// チューナーサーバーの時計と OS の時計の差 (ミリ秒)。分からなければ null。
 	ClockSkewMs *int `json:"clockSkewMs,omitempty"`
+	// 録画している TS の TOT が示す放送の時刻との差が、警告する閾値を超えているかどうか (#1309)。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付ける。
+	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒)。まだ測っていなければ null。
+	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
 }
 
 // チューナーサーバーの状態 (設計書 3.7)。
@@ -1703,6 +1707,12 @@ type TunerServerStatus struct {
 	// 時計の差を警告する閾値 (ミリ秒)。
 	ClockSkewThresholdMs int       `json:"clockSkewThresholdMs"`
 	CheckedAt            time.Time `json:"checkedAt"`
+	// 録画している TS の TOT が示す放送の時刻と OS の時計の差 (ミリ秒、#1309)。まだ測っていなければ null。
+	BroadcastClockSkewMs *int `json:"broadcastClockSkewMs,omitempty"`
+	// 放送の時刻との差が、警告する閾値 (clockSkewThresholdMs) を超えているかどうか。
+	BroadcastClockSkewed bool `json:"broadcastClockSkewed"`
+	// 放送の時刻との差を最後に測った日時。録画していない間は、最後に測ったときのまま。
+	BroadcastClockCheckedAt *time.Time `json:"broadcastClockCheckedAt,omitempty"`
 }
 
 // ユーザーの変える項目。省いた項目は変えない。

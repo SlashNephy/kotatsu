@@ -26,6 +26,11 @@
       "ahead": "The tuner server's clock is {{seconds}} seconds ahead of Kotatsu. Recordings may start and end at the wrong time. Check the tuner server's time synchronization.",
       "behind": "The tuner server's clock is {{seconds}} seconds behind Kotatsu. Recordings may start and end at the wrong time. Check the tuner server's time synchronization."
     },
+    "broadcastClockSkew": {
+      "title": "Kotatsu's clock differs from the broadcast time",
+      "ahead": "Kotatsu's clock is {{seconds}} seconds ahead of the broadcast time (TOT). Recordings may start and end at the wrong time. Check the time synchronization of the machine running Kotatsu.",
+      "behind": "Kotatsu's clock is {{seconds}} seconds behind the broadcast time (TOT). Recordings may start and end at the wrong time. Check the time synchronization of the machine running Kotatsu."
+    },
     "conflicts": {
       "title": "Some reservations may not be recorded",
       "body": "Of the reservations for the next week, {{count}} are expected to be recorded only partially or not at all because there are not enough tuners.",
@@ -1584,6 +1589,8 @@
       "lastError": "Last error: {{error}}",
       "clockSkew": "Clock skew: {{ms}} ms",
       "clockSkewExceeded": "Clock skew: {{ms}} ms (exceeds the threshold of {{threshold}} ms)",
+      "broadcastClockSkew": "Offset from the broadcast time (TOT): {{ms}} ms (measured while recording at {{at}})",
+      "broadcastClockSkewExceeded": "Offset from the broadcast time (TOT): {{ms}} ms (measured while recording at {{at}}; exceeds the threshold of {{threshold}} ms)",
       "checkedAt": "Last checked {{at}}",
       "tuners": "Tuners",
       "noTuners": "No tuner information",

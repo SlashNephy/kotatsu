@@ -715,7 +715,11 @@ CREATE TABLE tuner_server_status (
   last_error text NOT NULL,
   -- チューナーサーバーの時計 (HTTP の Date ヘッダー) と OS の時計の差 (ミリ秒)。分からなければ NULL。
   clock_skew_ms bigint,
-  checked_at timestamptz NOT NULL
+  checked_at timestamptz NOT NULL,
+  -- 録画している TS の TOT が示す放送の時刻と、mikan の OS の時計の差 (ミリ秒、#1309)。録画していない間は、最後に測った値のまま。
+  -- 分からなければ NULL。チューナーサーバーと Kotatsu の時計が同じ向きにずれても気付けるよう、Date ヘッダーとは別に持つ。
+  broadcast_clock_skew_ms bigint,
+  broadcast_clock_checked_at timestamptz
 );
 
 -- ルール (設計書 4.2)。条件は match パッケージの型で検証し、スキーマのバージョンを付けて JSONB に保存する (設計書 8.3)。

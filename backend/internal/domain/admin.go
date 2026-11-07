@@ -41,6 +41,10 @@ type TunerServerStatus struct {
 	LastError     string
 	ClockSkewMs   *int64
 	CheckedAt     time.Time
+	// BroadcastClockSkewMs と BroadcastClockCheckedAt は、録画している TS の TOT で測った、放送の時刻と OS の時計の差と、
+	// 測った日時 (#1309)。まだ測っていなければ nil。
+	BroadcastClockSkewMs    *int64
+	BroadcastClockCheckedAt *time.Time
 }
 
 // StoragePool は、保存先プールの設定と状態。
