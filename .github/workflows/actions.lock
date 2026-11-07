@@ -7,7 +7,7 @@ workflows:
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.2'
-        - 'jdx/mise-action@v5.2.4'
+        - 'jdx/mise-action@v5.2.5'
     '.github/workflows/image.yml':
         - 'actions/checkout@v7.0.1'
         - 'docker/build-push-action@v7.4.0'
@@ -22,13 +22,13 @@ workflows:
     '.github/workflows/release.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/create-github-app-token@v3.3.0'
-        - 'jdx/mise-action@v5.2.4'
+        - 'jdx/mise-action@v5.2.5'
     '.github/workflows/screenshots.yml':
         - 'actions/cache@v6.1.0'
         - 'actions/checkout@v7.0.1'
         - 'actions/create-github-app-token@v3.3.0'
         - 'actions/upload-artifact@v7.0.2'
-        - 'jdx/mise-action@v5.2.4'
+        - 'jdx/mise-action@v5.2.5'
         - 'peter-evans/create-pull-request@v8.1.1'
     '.github/workflows/tag-release.yml':
         - 'actions/checkout@v7.0.1'
@@ -95,9 +95,9 @@ dependencies:
         commit: 'sha1-99012661954931238ded8c8b007157a8430204e1'
         owner_id: 5429470
         repo_id: 288487894
-    'jdx/mise-action@v5.2.4':
-        ref: 'v5.2.4'
-        commit: 'sha1-6be3c7ed4c21d4f76b208d351d95aac273ebb76d'
+    'jdx/mise-action@v5.2.5':
+        ref: 'v5.2.5'
+        commit: 'sha1-6612f0ef07ed2a736cd1e00a94a065522dd41195'
         owner_id: 216188
         repo_id: 738284564
     'peter-evans/create-pull-request@v8.1.1':
