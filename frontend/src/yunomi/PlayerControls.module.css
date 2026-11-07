@@ -306,6 +306,8 @@
   font-size: var(--mantine-font-size-sm);
   font-weight: 600;
   cursor: pointer;
+  /* 重ねたもの (overlay) は操作を通すので、ボタンだけは押せるようにする。 */
+  pointer-events: auto;
   transition: inset-block-end 200ms ease;
 }
 
