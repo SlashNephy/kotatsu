@@ -7,6 +7,7 @@ import {
   Group,
   NumberInput,
   Stack,
+  Switch,
   Text,
   Title,
 } from '@mantine/core';
@@ -20,6 +21,7 @@ import {
   destinationNames,
   type AnimeRecordDestinationName,
 } from '../../animeRecords/destinations';
+import { useRecordOnDevice } from '../../animeRecords/recordOnDevice';
 import { useDataChanges } from '../../changes/DataChanges';
 import { ErrorBoundary, PageLoader, useDocumentTitle, zonedFormat } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
@@ -285,6 +287,7 @@ function AnimeRecords() {
           </Card>
         );
       })}
+      <RecordOnDeviceSwitch />
       <RecordSettings
         key={`${settings.thresholdPercent}/${String(settings.watchingOnFirst)}/${String(settings.watchingOnEpisode)}/${String(settings.watchedOnLast)}/${String(settings.notifyWishlist)}`}
         initial={{
@@ -299,6 +302,24 @@ function AnimeRecords() {
         onSave={save}
       />
     </Stack>
+  );
+}
+
+// RecordOnDeviceSwitch は、この端末で見たアニメを記録するかを切り替える (#1283)。
+// 端末ごとに覚え、ほかの端末と同期しないので、保存のボタンを待たずにすぐ反映する。
+function RecordOnDeviceSwitch() {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useRecordOnDevice();
+
+  return (
+    <Card withBorder>
+      <Switch
+        label={t('animeRecords.recordOnDevice')}
+        description={t('animeRecords.recordOnDeviceHelp')}
+        checked={enabled}
+        onChange={(event) => setEnabled(event.currentTarget.checked)}
+      />
+    </Card>
   );
 }
 

@@ -2040,6 +2040,8 @@
     "notConnected": "Not connected",
     "notRegistered": "The administrator has not registered an app, so you cannot connect",
     "aniListRevokeHint": "Kotatsu cannot revoke AniList tokens. After disconnecting, also remove the app in your AniList settings",
+    "recordOnDevice": "Record anime watched on this device",
+    "recordOnDeviceHelp": "When off, live viewing and recording playback on this device do not record watched anime. This setting is kept per device and is not synced to other devices.",
     "settingsTitle": "Recording settings",
     "threshold": "Share to count as watched",
     "thresholdHelp": "Record once the time you actually played reaches this share of the program length",
