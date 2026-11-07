@@ -45,6 +45,21 @@ func TestBroadcastClockSkew(t *testing.T) {
 	require.NotNil(t, checked)
 	assert.True(t, f.clock.Now().Equal(*checked), checked)
 
+	// 別のセグメントは、同じ測った値を書き直さない。
+	_, err := f.pool.Exec(t.Context(), "UPDATE tuner_server_status SET broadcast_clock_skew_ms = NULL")
+	require.NoError(t, err)
+	recording.WriteBroadcastSkew(t.Context(), recorder)
+	skew, _ = read()
+	assert.Nil(t, skew)
+
+	// OS の時計が、放送の時刻より遅れている。
+	f.clock.Advance(time.Minute)
+	recording.ObserveTOT(recorder, f.clock.Now().Add(20*time.Second))
+	recording.WriteBroadcastSkew(t.Context(), recorder)
+	skew, _ = read()
+	require.NotNil(t, skew)
+	assert.Equal(t, int64(-20_000), *skew)
+
 	// 放送の時刻に追いついたら、書き直す。
 	f.clock.Advance(time.Minute)
 	recording.ObserveTOT(recorder, f.clock.Now())

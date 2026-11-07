@@ -146,6 +146,8 @@ type Recorder struct {
 	opts     RecorderOptions
 	// broadcastSkew は、録画している TS の TOT で最後に測った、放送の時刻と OS の時計の差 (#1309)。まだ測っていなければ nil。
 	broadcastSkew atomic.Pointer[broadcastSkew]
+	// savedBroadcastSkew は、broadcastSkew のうち、最後に DB に書いたもの。録画を並べても、測り直した値を一度だけ書く。
+	savedBroadcastSkew atomic.Pointer[broadcastSkew]
 }
 
 // broadcastSkew は、TOT で測った時計の差と、測った時刻。
@@ -176,7 +178,7 @@ func NewRecorder(
 
 	return &Recorder{
 		pool: pool, clock: clk, tuner: tuner, store: store, defaults: defaults, location: location, logger: logger, opts: o,
-		broadcastSkew: atomic.Pointer[broadcastSkew]{},
+		broadcastSkew: atomic.Pointer[broadcastSkew]{}, savedBroadcastSkew: atomic.Pointer[broadcastSkew]{},
 	}
 }
 
@@ -955,23 +957,25 @@ func CreateIndex(store *kago.Store, fileID uuid.UUID) (*ts.Analyzer, *os.File, e
 
 // createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
 func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time)) (*ts.Analyzer, *os.File, error) {
+	// 索引を作れなくても、TOT は読む。
+	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT})
 	if _, err := store.CreateSegmentDir(fileID); err != nil {
-		return ts.NewAnalyzer(nil), nil, err
+		return noIndex, nil, err
 	}
 	index := kago.IndexLocation(fileID)
 	path, err := store.Path(index.PoolID, index.Path)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, err
+		return noIndex, nil, err
 	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
-		return ts.NewAnalyzer(nil), nil, fmt.Errorf("failed to create the index file: %w", err)
+		return noIndex, nil, fmt.Errorf("failed to create the index file: %w", err)
 	}
 	writer, err := ts.NewIndexWriter(file)
 	if err != nil {
 		_ = file.Close()
 
-		return ts.NewAnalyzer(nil), nil, err
+		return noIndex, nil, err
 	}
 
 	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT}), file, nil
@@ -1947,13 +1951,11 @@ type liveStatsWriter struct {
 	// lastAt と lastBytes は、前に書いたときの経過時間とバイト数。まだ書いていなければ、lastAt は負。
 	lastAt    time.Duration
 	lastBytes int64
-	// lastSkewAt は、前に書いた、TOT で測った時計の差の、測った時刻 (#1309)。
-	lastSkewAt time.Time
 }
 
 func newLiveStatsWriter(r *Recorder, recordingID *atomic.Pointer[uuid.UUID]) *liveStatsWriter {
 	return &liveStatsWriter{
-		recorder: r, recordingID: recordingID, stopwatch: r.clock.StartStopwatch(), lastAt: -1, lastBytes: 0, lastSkewAt: time.Time{},
+		recorder: r, recordingID: recordingID, stopwatch: r.clock.StartStopwatch(), lastAt: -1, lastBytes: 0,
 	}
 }
 
@@ -1989,18 +1991,25 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 }
 
 // writeBroadcastSkew は、前に書いてから TOT で測り直していれば、放送の時刻と OS の時計の差を書く (#1309)。
+// 録画を並べていても、測り直した値は、最初に気づいたセグメントだけが書く。書けなければ、次の機会に書き直す。
 // 差が閾値を超えていれば、ログにも残す。見るためだけなので、書けなくても録画を止めない。
 func (w *liveStatsWriter) writeBroadcastSkew(ctx context.Context) {
-	measured := w.recorder.broadcastSkew.Load()
-	if measured == nil || !measured.at.After(w.lastSkewAt) {
+	r := w.recorder
+	measured := r.broadcastSkew.Load()
+	saved := r.savedBroadcastSkew.Load()
+	if measured == nil || measured == saved || !r.savedBroadcastSkew.CompareAndSwap(saved, measured) {
 		return
 	}
-	w.lastSkewAt = measured.at
 	skewMs := measured.skew.Milliseconds()
-	if measured.skew.Abs() > tunerstate.DefaultSkewThreshold {
-		w.recorder.logger.WarnContext(ctx, "the system clock differs from the broadcast time (TOT)", slog.Int64("skew_ms", skewMs))
+	if err := sqlc.New(r.pool).SetBroadcastClockSkew(ctx, sqlc.SetBroadcastClockSkewParams{Now: measured.at, SkewMs: &skewMs}); err != nil {
+		r.savedBroadcastSkew.CompareAndSwap(measured, saved)
+		if ctx.Err() == nil {
+			r.logger.WarnContext(ctx, "failed to save the broadcast clock skew", slog.Any("error", err))
+		}
+
+		return
 	}
-	if err := sqlc.New(w.recorder.pool).SetBroadcastClockSkew(ctx, sqlc.SetBroadcastClockSkewParams{Now: measured.at, SkewMs: &skewMs}); err != nil && ctx.Err() == nil {
-		w.recorder.logger.WarnContext(ctx, "failed to save the broadcast clock skew", slog.Any("error", err))
+	if measured.skew.Abs() > tunerstate.DefaultSkewThreshold {
+		r.logger.WarnContext(ctx, "the system clock differs from the broadcast time (TOT)", slog.Int64("skew_ms", skewMs))
 	}
 }

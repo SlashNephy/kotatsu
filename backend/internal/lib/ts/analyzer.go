@@ -359,7 +359,7 @@ func (a *Analyzer) probeVideoFormat(pkt *packet) {
 	}
 }
 
-// handlePSI は、PAT、PMT、EIT のパケットからセクションを組み立てて読む。
+// handlePSI は、PAT、PMT、EIT と、OnTOT があれば TOT のパケットからセクションを組み立てて読む。
 func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	pid := pkt.pid
 	if pid != patPID && pid != eitPID && (pid != totPID || a.onTOT == nil) && !a.programs.isPMTPID(pid) {
