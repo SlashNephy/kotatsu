@@ -221,8 +221,12 @@ export function TsPlayer({
       deinterlacer: (element) => {
         const deinterlacer = new Deinterlacer(element, {
           // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
+          // 読み込みを終えた録画では progress が来ないので、変わったらここで知らせる。
           onStats: (stats) => {
-            slot.film = stats.film;
+            if (slot.film !== stats.film) {
+              slot.film = stats.film;
+              report();
+            }
           },
         });
         // アニメのように 2:3 プルダウンで 24 コマを 60 フィールドに載せた映像は、プルダウンを見つけたら
