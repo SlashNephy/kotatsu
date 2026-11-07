@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -299,4 +300,53 @@ func (q *Queries) ListPinnedServiceIDs(ctx context.Context, userID uuid.UUID) ([
 	}
 
 	return result, nil
+}
+
+// ProgramSpan は、番組 (サービス, eventId) とその放送時間。eventId は使い回されるので、時間と組にして番組を指す。
+type ProgramSpan struct {
+	ServiceID int64
+	EventID   int64
+	StartAt   time.Time
+	EndAt     time.Time
+}
+
+// RecordedProgramKey は、RecordedPrograms が返す、録画のある番組を引くキー。時刻はミリ秒で持ち、タイムゾーンの違いで外さない。
+type RecordedProgramKey struct {
+	ServiceID   int64
+	EventID     int64
+	StartUnixMs int64
+}
+
+// Key は、番組 p を RecordedPrograms の結果から引くキーを返す。
+func (p *ProgramSpan) Key() RecordedProgramKey {
+	return RecordedProgramKey{ServiceID: p.ServiceID, EventID: p.EventID, StartUnixMs: p.StartAt.UnixMilli()}
+}
+
+// RecordedPrograms は、programs のうち、録画のある番組を返す (#1278)。失敗した録画は数えない。
+func (q *Queries) RecordedPrograms(ctx context.Context, programs []*ProgramSpan) (map[RecordedProgramKey]bool, error) {
+	recorded := make(map[RecordedProgramKey]bool, len(programs))
+	if len(programs) == 0 {
+		return recorded, nil
+	}
+	params := sqlc.ListRecordedProgramsParams{
+		ServiceIds: make([]int64, 0, len(programs)),
+		EventIds:   make([]int64, 0, len(programs)),
+		StartAts:   make([]time.Time, 0, len(programs)),
+		EndAts:     make([]time.Time, 0, len(programs)),
+	}
+	for _, program := range programs {
+		params.ServiceIds = append(params.ServiceIds, program.ServiceID)
+		params.EventIds = append(params.EventIds, program.EventID)
+		params.StartAts = append(params.StartAts, program.StartAt)
+		params.EndAts = append(params.EndAts, program.EndAt)
+	}
+	rows, err := sqlc.New(q.pool).ListRecordedPrograms(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list recorded programs: %w", err)
+	}
+	for _, row := range rows {
+		recorded[RecordedProgramKey{ServiceID: row.ServiceID, EventID: row.EventID, StartUnixMs: row.StartAt.UnixMilli()}] = true
+	}
+
+	return recorded, nil
 }

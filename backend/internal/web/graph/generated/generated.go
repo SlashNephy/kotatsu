@@ -716,6 +716,7 @@ type ComplexityRoot struct {
 		ID            func(childComplexity int) int
 		IsFree        func(childComplexity int) int
 		Name          func(childComplexity int) int
+		Recorded      func(childComplexity int) int
 		Recordings    func(childComplexity int) int
 		Reservation   func(childComplexity int) int
 		RuleKeyword   func(childComplexity int) int
@@ -1372,6 +1373,7 @@ type ProgramResolver interface {
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error)
 	Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error)
+	Recorded(ctx context.Context, obj *model.Program) (bool, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
 
 	WatchReserved(ctx context.Context, obj *model.Program) (bool, error)
@@ -4612,6 +4614,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Name(childComplexity), true
+	case "Program.recorded":
+		if e.ComplexityRoot.Program.Recorded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Recorded(childComplexity), true
 	case "Program.recordings":
 		if e.ComplexityRoot.Program.Recordings == nil {
 			break
@@ -8366,6 +8374,8 @@ extend type Query {
 extend type Program {
   "番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。"
   recordings: [Recording!]!
+  "番組の録画があるか (#1278)。失敗した録画は数えない。番組表で、録画した番組に印を出すのに使う。"
+  recorded: Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/file_names.graphqls", Input: `"""
@@ -11829,6 +11839,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_animeEpisodes(ctx, field)
 	case "recordings":
 		return ec.fieldContext_Program_recordings(ctx, field)
+	case "recorded":
+		return ec.fieldContext_Program_recorded(ctx, field)
 	case "reservation":
 		return ec.fieldContext_Program_reservation(ctx, field)
 	case "archived":
@@ -27168,6 +27180,29 @@ func (ec *executionContext) fieldContext_Program_recordings(_ context.Context, f
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Program_recorded(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_recorded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().Recorded(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_recorded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, true, true, "Boolean")
 }
 
 func (ec *executionContext) _Program_reservation(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
@@ -45634,6 +45669,12 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Program_recordings(ctx, field, obj)
+				})
+		case "recorded":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Program_recorded(ctx, field, obj)
 				})
 		case "reservation":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,

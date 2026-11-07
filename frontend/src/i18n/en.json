@@ -533,7 +533,8 @@
       "notFound": "The guide view you tried to open was not found.",
       "showAll": "Show all programs"
     },
-    "pastDate": "Past date"
+    "pastDate": "Past date",
+    "recorded": "Recorded"
   },
   "genre": {
     "0": "News/Reports",

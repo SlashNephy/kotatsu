@@ -48,6 +48,11 @@ func (r *programResolver) Recordings(ctx context.Context, obj *model.Program) ([
 	return r.programRecordings(ctx, obj)
 }
 
+// Recorded is the resolver for the recorded field.
+func (r *programResolver) Recorded(ctx context.Context, obj *model.Program) (bool, error) {
+	return r.programRecorded(ctx, obj)
+}
+
 // Node is the resolver for the node field.
 func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error) {
 	typeName, raw, err := ParseGlobalID(id)
