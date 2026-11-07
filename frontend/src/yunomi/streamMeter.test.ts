@@ -274,7 +274,7 @@ describe('StreamMeter', () => {
     mediaEnd,
     seeking: false,
     transport: { dropped: 1, errors: 2, scrambled: 3 },
-    source: { width: 1440, height: 1080, interlaced: true },
+    source: { width: 1440, height: 1080, interlaced: true, film: false },
   });
 
   test('変換の経路の読みから、ビットレートと TS の異常と放送の映像を溜める', () => {
@@ -284,7 +284,7 @@ describe('StreamMeter', () => {
 
     expect(meter.bitrate.rate(2_000)).toBe(16_000_000);
     expect(meter.transport).toEqual({ dropped: 1, errors: 2, scrambled: 3 });
-    expect(meter.source).toEqual({ width: 1440, height: 1080, interlaced: true });
+    expect(meter.source).toEqual({ width: 1440, height: 1080, interlaced: true, film: false });
   });
 
   test('reset の後の最初の読みは、区切りにするだけ', () => {

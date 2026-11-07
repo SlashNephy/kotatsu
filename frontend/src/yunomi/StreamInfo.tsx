@@ -266,7 +266,11 @@ export function StreamInfo({
               <dd>
                 {source === null
                   ? '-'
-                  : pictureLabel(source.width, source.height, source.interlaced)}
+                  : source.film
+                    ? t('player.streamInfo.film', {
+                        picture: pictureLabel(source.width, source.height, source.interlaced),
+                      })
+                    : pictureLabel(source.width, source.height, source.interlaced)}
               </dd>
             </>
           )}
