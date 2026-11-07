@@ -878,6 +878,9 @@ CREATE TABLE recording_files (
   -- セグメントの PID ごとの品質の集計 (#473)。[{pid, kind, packets, drops, errors, scrambled}] の形で、セグメントを閉じるときに書く。
   -- セグメント以外と、書き終えていないセグメントと、これを足す前に閉じたセグメントは NULL。
   pid_stats jsonb,
+  -- セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。{codec, width, height, interlaced, frameRate} の形で、
+  -- セグメントを閉じるときと、録画を解析したときに書く。読めなかったセグメントと、セグメント以外は NULL。
+  video jsonb,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

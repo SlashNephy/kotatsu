@@ -550,6 +550,7 @@ type RecordingFile struct {
 	StartedAt   time.Time
 	EndedAt     *time.Time
 	PIDStats    []byte
+	Video       []byte
 	CreatedAt   time.Time
 }
 

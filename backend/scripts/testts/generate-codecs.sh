@@ -38,3 +38,21 @@ ffmpeg -hide_banner -loglevel error -y \
   -fflags +bitexact -flags:v +bitexact -flags:a +bitexact \
   -f mpegts -mpegts_start_pid 0x0111 \
   "${out_dir}/test-hevc-main10.ts"
+
+# 放送に似せた、1440x1080 のインターレースの MPEG-2 と H.264 の TS。映像の形式 (#1310) を、
+# MPEG-2 の sequence_extension と、H.264 の SPS (frame_mbs_only_flag とクロップ) から読めるかを確かめる。小さく保つため、短くする。
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "testsrc2=size=1440x1080:rate=30000/1001" \
+  -t 0.5 \
+  -vf "setfield=tff" -c:v mpeg2video -q:v 20 -g 15 -top 1 \
+  -fflags +bitexact -flags:v +bitexact+ilme+ildct \
+  -f mpegts -mpegts_start_pid 0x0111 \
+  "${out_dir}/test-mpeg2-1080i.ts"
+
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i "testsrc2=size=1440x1080:rate=30000/1001" \
+  -t 0.5 \
+  -vf "setfield=tff" -c:v libx264 -preset ultrafast -crf 40 -x264-params "interlaced=1:tff=1:keyint=15" \
+  -fflags +bitexact -flags:v +bitexact \
+  -f mpegts -mpegts_start_pid 0x0111 \
+  "${out_dir}/test-h264-1080i.ts"

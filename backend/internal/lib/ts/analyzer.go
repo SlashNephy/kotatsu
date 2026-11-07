@@ -41,6 +41,10 @@ type Analyzer struct {
 	programsGeneration int
 	// firstPTS は、最初に見つけた I フレームの PTS。まだなければ nil。
 	firstPTS *int64
+	// videoProbe は、映像の形式を読むために、映像の先頭を溜める。読み終えたら nil にする。
+	videoProbe *videoFormatProbe
+	// videoFormat は、読んだ映像の形式 (#1310)。まだ読んでいなければ nil。
+	videoFormat *VideoFormat
 	// cutoffPTS と beforeCutoff は、AnalyzerOptions.CutoffPTS と、そこに届いたときの PID ごとの統計。届いていなければ nil。
 	cutoffPTS    *int64
 	beforeCutoff []*PIDStats
@@ -102,6 +106,8 @@ type Stats struct {
 	FirstPTS *int64
 	// PIDsBeforeCutoff は、AnalyzerOptions.CutoffPTS に届いたときの、PID ごとの統計。届かなければ nil。
 	PIDsBeforeCutoff []*PIDStats
+	// Video は、最初の映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。読めなければ nil。
+	Video *VideoFormat
 }
 
 // NewAnalyzer は Analyzer を作る。opts は nil でもよい。
@@ -131,6 +137,8 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		video:              nil,
 		programsGeneration: -1,
 		firstPTS:           nil,
+		videoProbe:         nil,
+		videoFormat:        nil,
 		cutoffPTS:          cutoff,
 		beforeCutoff:       nil,
 	}
@@ -207,6 +215,7 @@ func (a *Analyzer) Stats() *Stats {
 		Events:            a.eit.snapshot(),
 
 		FirstPTS:         a.firstPTS,
+		Video:            a.videoFormat,
 		PIDsBeforeCutoff: a.beforeCutoff,
 	}
 }
@@ -299,6 +308,10 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 			a.video = nil
 		case a.video == nil || a.video.pid != video.PID || a.video.streamType != video.StreamType:
 			a.video = newIFrameDetector(video.PID, video.StreamType)
+			// I フレームを探せない符号化方式の映像 (newIFrameDetector が nil を返す) では、形式も読まない。
+			if a.video != nil && a.videoFormat == nil {
+				a.videoProbe = newVideoFormatProbe(a.video.codec)
+			}
 		}
 	}
 	if a.video == nil || a.video.pid != pkt.pid {
@@ -306,6 +319,9 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 	if dropped {
 		a.video.reset()
+	}
+	if !dropped {
+		a.probeVideoFormat(pkt)
 	}
 
 	entry, ok := a.video.feed(pkt, offset)
@@ -321,6 +337,18 @@ func (a *Analyzer) handleVideo(pkt *packet, offset int64, dropped bool) {
 	}
 	if a.index != nil && a.indexErr == nil {
 		a.indexErr = a.index.Append(entry)
+	}
+}
+
+// probeVideoFormat は、映像の先頭を溜め、映像の形式を読み終えたら覚える (#1310)。
+func (a *Analyzer) probeVideoFormat(pkt *packet) {
+	if a.videoProbe == nil {
+		return
+	}
+	a.videoProbe.feed(pkt)
+	if a.videoProbe.done {
+		a.videoFormat = a.videoProbe.format
+		a.videoProbe = nil
 	}
 }
 

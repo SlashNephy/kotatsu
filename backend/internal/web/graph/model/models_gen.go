@@ -1228,6 +1228,8 @@ type RecordingFile struct {
 	// ファイルをそのまま流す URL のパス。その他のファイル (OTHER) だけにあり、ほかの種類では null。
 	// ブラウザがそのコーデックに対応していれば、<video> でそのまま再生できる (設計書 6.3)。
 	URL *string `json:"url,omitempty"`
+	// セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。
+	Video *SegmentVideoFormat `json:"video,omitempty"`
 }
 
 type RecordingFileRename struct {
@@ -1431,6 +1433,17 @@ type SecondFactorStatus struct {
 	Totp bool `json:"totp"`
 	// 使っていないリカバリーコードの数。
 	RemainingRecoveryCodes int `json:"remainingRecoveryCodes"`
+}
+
+// セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。
+type SegmentVideoFormat struct {
+	// mpeg2、h264、hevc のどれか。
+	Codec      string `json:"codec"`
+	Width      int    `json:"width"`
+	Height     int    `json:"height"`
+	Interlaced bool   `json:"interlaced"`
+	// フレームレート。読めなければ null (HEVC は読まない)。
+	FrameRate *float64 `json:"frameRate,omitempty"`
 }
 
 // サービスの表示の変える項目。省いた項目は変えない。
