@@ -1483,6 +1483,15 @@ CREATE TABLE anime_records (
   UNIQUE NULLS NOT DISTINCT (user_id, service_id, start_at, destination, syobocal_tid, episode_number)
 );
 
+-- 見たいリストの Annict の作品の、高画質の画像 (#1315、設計書 3.8)。MyAnimeList の作品 ID ごとに、ユーザーをまたいで持つ。
+-- AniList の coverImage.extraLarge を先に引き、AniList にない作品は Jikan (MyAnimeList の非公式 API) で引く。
+CREATE TABLE anime_artworks (
+  mal_id integer PRIMARY KEY,
+  -- 画像の URL。どちらにもなければ NULL にし、引き直す時期まで問い合わせない。
+  image_url text,
+  fetched_at timestamptz NOT NULL
+);
+
 -- ユーザーが Annict と AniList で「見たい」「見てる」にした作品 (#928)。記録先との連携 (#927) のトークンで、nekonote のジョブが取り込む。
 -- 作品は、記録先の作品 ID だけを持ち、TID は使うときに作品 ID の対応 (anime_works) から引く。arm が後から直っても、候補まで直る。
 -- 取り込み直すときは、ユーザーと記録先の行をすべて入れ替える。連携を外すと、行も消える。
