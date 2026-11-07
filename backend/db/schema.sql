@@ -586,6 +586,10 @@ CREATE TABLE programs (
   audios jsonb NOT NULL DEFAULT '[]',
   -- 映像の解像度 (2160p、4320p など、Mirakurun の video.resolution)。上流が返さなければ NULL。BS4K と 8K を見分けるのに使う (#806)。
   video_resolution text,
+  -- シリーズの記述子の話数 (Mirakurun の series.episode) と、再放送かどうか (series.repeat が 0 でない) (#1311)。
+  -- 番組名から話数を読めないときに、アニメの話を結びつけるのに使う。記述子がないか、話数が 0 なら NULL。
+  series_episode integer,
+  series_repeat boolean,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -628,6 +632,8 @@ CREATE TABLE program_archives (
   related_items jsonb NOT NULL,
   audios jsonb NOT NULL DEFAULT '[]',
   video_resolution text,
+  series_episode integer,
+  series_repeat boolean,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   archived_at timestamptz NOT NULL,

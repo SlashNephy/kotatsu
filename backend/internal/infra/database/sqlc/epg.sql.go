@@ -8,6 +8,8 @@ package sqlc
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const archivePrograms = `-- name: ArchivePrograms :execrows
@@ -19,17 +21,17 @@ WITH moved AS (
     ORDER BY p.end_at
     LIMIT $3::integer
   )
-  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, created_at, updated_at
+  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, created_at, updated_at
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, created_at, updated_at, archived_at
+  video_resolution, series_episode, series_repeat, created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, created_at, updated_at, $1
+  video_resolution, series_episode, series_repeat, created_at, updated_at, $1
 FROM moved
 ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -46,6 +48,8 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   related_items = excluded.related_items,
   audios = excluded.audios,
   video_resolution = excluded.video_resolution,
+  series_episode = excluded.series_episode,
+  series_repeat = excluded.series_repeat,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at
 `
@@ -147,7 +151,7 @@ func (q *Queries) ListEPGChangesSince(ctx context.Context, version int64) ([]Lis
 
 const listPrograms = `-- name: ListPrograms :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items, audios, video_resolution
+  extended, genres, related_items, audios, video_resolution, series_episode, series_repeat
 FROM programs
 ORDER BY service_id, event_id
 `
@@ -167,6 +171,8 @@ type ListProgramsRow struct {
 	RelatedItems    []byte
 	Audios          []byte
 	VideoResolution *string
+	SeriesEpisode   *int32
+	SeriesRepeat    pgtype.Bool
 }
 
 func (q *Queries) ListPrograms(ctx context.Context) ([]ListProgramsRow, error) {
@@ -193,6 +199,8 @@ func (q *Queries) ListPrograms(ctx context.Context) ([]ListProgramsRow, error) {
 			&i.RelatedItems,
 			&i.Audios,
 			&i.VideoResolution,
+			&i.SeriesEpisode,
+			&i.SeriesRepeat,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +214,7 @@ func (q *Queries) ListPrograms(ctx context.Context) ([]ListProgramsRow, error) {
 
 const listProgramsOfService = `-- name: ListProgramsOfService :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items, audios, video_resolution
+  extended, genres, related_items, audios, video_resolution, series_episode, series_repeat
 FROM programs
 WHERE service_id = $1
 ORDER BY event_id
@@ -227,6 +235,8 @@ type ListProgramsOfServiceRow struct {
 	RelatedItems    []byte
 	Audios          []byte
 	VideoResolution *string
+	SeriesEpisode   *int32
+	SeriesRepeat    pgtype.Bool
 }
 
 func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error) {
@@ -253,6 +263,8 @@ func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([
 			&i.RelatedItems,
 			&i.Audios,
 			&i.VideoResolution,
+			&i.SeriesEpisode,
+			&i.SeriesRepeat,
 		); err != nil {
 			return nil, err
 		}

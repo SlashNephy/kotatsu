@@ -66,6 +66,19 @@ type Program struct {
 	Audios []*domain.Audio `json:"audios,omitempty"`
 	// Video は、番組の映像。EIT のコンポーネント記述子から作られる。上流が返さなければ nil。
 	Video *Video `json:"video,omitempty"`
+	// Series は、EIT のシリーズの記述子 (#1311)。上流が返さなければ nil。
+	Series *Series `json:"series,omitempty"`
+}
+
+// Series は、番組のシリーズの記述子 (ARIB STD-B10 の series_descriptor)。Mirakurun と mirakc は同じ形で返す。
+type Series struct {
+	ID int `json:"id"`
+	// Repeat は、再放送の番号 (repeat_label)。0 なら初回の放送。
+	Repeat int `json:"repeat"`
+	// Episode は話数、LastEpisode は最終話の話数。分からなければ 0。
+	Episode     int    `json:"episode"`
+	LastEpisode int    `json:"lastEpisode"`
+	Name        string `json:"name,omitempty"`
 }
 
 // Video は、番組の映像。

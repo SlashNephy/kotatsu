@@ -33,13 +33,13 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- name: ListPrograms :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items, audios, video_resolution
+  extended, genres, related_items, audios, video_resolution, series_episode, series_repeat
 FROM programs
 ORDER BY service_id, event_id;
 
 -- name: ListProgramsOfService :many
 SELECT service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
-  extended, genres, related_items, audios, video_resolution
+  extended, genres, related_items, audios, video_resolution, series_episode, series_repeat
 FROM programs
 WHERE service_id = @service_id
 ORDER BY event_id;
@@ -48,12 +48,12 @@ ORDER BY event_id;
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, created_at, updated_at
+  video_resolution, series_episode, series_repeat, created_at, updated_at
 )
 VALUES (
   @service_id, @event_id, @mirakurun_id, @start_at, @end_at, @end_undecided, @is_free,
   @name, @description, @name_normalized, @description_normalized, @extended_normalized, @extended, @genres, @related_items, @audios,
-  sqlc.narg(video_resolution), @now, @now
+  sqlc.narg(video_resolution), sqlc.narg(series_episode), sqlc.narg(series_repeat), @now, @now
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -71,6 +71,8 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   related_items = excluded.related_items,
   audios = excluded.audios,
   video_resolution = excluded.video_resolution,
+  series_episode = excluded.series_episode,
+  series_repeat = excluded.series_repeat,
   updated_at = excluded.updated_at;
 
 -- name: DeletePrograms :batchexec
@@ -106,12 +108,12 @@ WITH moved AS (
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, created_at, updated_at, archived_at
+  video_resolution, series_episode, series_repeat, created_at, updated_at, archived_at
 )
 SELECT
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, created_at, updated_at, @now
+  video_resolution, series_episode, series_repeat, created_at, updated_at, @now
 FROM moved
 -- 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
 ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
@@ -129,6 +131,8 @@ ON CONFLICT (service_id, event_id, start_at) DO UPDATE SET
   related_items = excluded.related_items,
   audios = excluded.audios,
   video_resolution = excluded.video_resolution,
+  series_episode = excluded.series_episode,
+  series_repeat = excluded.series_repeat,
   updated_at = excluded.updated_at,
   archived_at = excluded.archived_at;
 

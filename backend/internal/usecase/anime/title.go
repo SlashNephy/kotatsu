@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -54,7 +55,7 @@ type ParsedTitle struct {
 // ParseTitle は、しょぼいカレンダーで引けない番組 (アニメ専門チャンネルのリピート放送など) の番組名から、作品名と話数を読み取る (設計書 3.8)。
 // 話数が書かれていなければ、ok は false。
 func ParseTitle(name string) (*ParsedTitle, bool) {
-	normalized := strings.TrimSpace(trailingMarks.ReplaceAllString(leadingMarks.ReplaceAllString(domain.Normalize(name), ""), ""))
+	normalized := stripMarks(name)
 	// 先に、複数の話をまとめた書き方を試す。
 	for _, pattern := range []*regexp.Regexp{multipleHashEpisodes, multipleKanjiEpisodes, singleHashEpisode, singleKanjiEpisode} {
 		match := pattern.FindStringSubmatch(normalized)
@@ -80,6 +81,11 @@ func ParseTitle(name string) (*ParsedTitle, bool) {
 	return nil, false
 }
 
+// stripMarks は、番組名を NFKC で正規化し、前後の [新] や [字] のような印を除く。
+func stripMarks(name string) string {
+	return strings.TrimSpace(trailingMarks.ReplaceAllString(leadingMarks.ReplaceAllString(domain.Normalize(name), ""), ""))
+}
+
 // TitleKey は、作品名を引く鍵を返す。NFKC で正規化し、空白を除き、小文字にする。
 func TitleKey(title string) string {
 	return strings.Map(func(r rune) rune {
@@ -91,16 +97,40 @@ func TitleKey(title string) string {
 	}, domain.Normalize(title))
 }
 
+// Series は、番組のシリーズの記述子の話数と、再放送かどうか (#1311)。
+type Series struct {
+	Episode int32
+	Repeat  bool
+}
+
+// seriesOf は、DB の列から Series を返す。話数がなければ nil を返す。
+func seriesOf(episode *int32, repeat pgtype.Bool) *Series {
+	if episode == nil || *episode <= 0 {
+		return nil
+	}
+
+	return &Series{Episode: *episode, Repeat: repeat.Valid && repeat.Bool}
+}
+
 // titleEpisodes は、番組名 name を解析した話を返す。作品名がしょぼいカレンダーのタイトル 1 つだけに一致すれば、その TID を付ける。
-// 話数が書かれていなければ、空の一覧を返す。
-func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string) ([]*Episode, error) {
+// 番組名に話数が書かれていなければ、シリーズの記述子の話数 series を使い (#1311)、印を除いた番組名を作品名とする。
+// 番組名の話数とシリーズの記述子の話数が食い違えば、番組名の話数を使う。番組名は人が書くので、記述子より誤りに気付かれやすい。
+// どちらにも話数がなければ、空の一覧を返す。
+func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Series) ([]*Episode, error) {
 	parsed, ok := ParseTitle(name)
 	if !ok {
-		return []*Episode{}, nil
+		if series == nil {
+			return []*Episode{}, nil
+		}
+		parsed = &ParsedTitle{Title: stripMarks(name), CountStart: float64(series.Episode), CountEnd: float64(series.Episode), Subtitle: ""}
+		if parsed.Title == "" {
+			return []*Episode{}, nil
+		}
 	}
+	rerun := slices.Contains(domain.Marks(name), "再") || (series != nil && series.Repeat)
 	episode := &Episode{
 		Source: SourceTitle, TID: nil, PID: nil, CountStart: new(parsed.CountStart), CountEnd: new(parsed.CountEnd),
-		Subtitle: nil, First: false, Last: false, Rerun: slices.Contains(domain.Marks(name), "再"),
+		Subtitle: nil, First: false, Last: false, Rerun: rerun,
 	}
 	if parsed.Subtitle != "" {
 		episode.Subtitle = new(parsed.Subtitle)

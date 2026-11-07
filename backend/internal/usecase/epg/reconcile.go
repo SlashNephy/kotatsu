@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"reflect"
 	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -394,6 +396,9 @@ type program struct {
 	Audios       []*domain.Audio
 	// VideoResolution は、映像の解像度 (2160p など)。上流が返さなければ空 (#806)。
 	VideoResolution string
+	// SeriesEpisode と SeriesRepeat は、シリーズの記述子の話数と、再放送かどうか (#1311)。記述子がないか、話数が 0 なら nil。
+	SeriesEpisode *int32
+	SeriesRepeat  *bool
 }
 
 // programKey は番組の主キー (サービスと eventId の組)。
@@ -430,6 +435,7 @@ func fromUpstream(p *mirakurun.Program) *program {
 	if p.Video != nil {
 		resolution = p.Video.Resolution
 	}
+	episode, repeat := seriesOf(p.Series)
 
 	return &program{
 		ServiceID:       int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID),
@@ -446,7 +452,28 @@ func fromUpstream(p *mirakurun.Program) *program {
 		RelatedItems:    related,
 		Audios:          audios,
 		VideoResolution: resolution,
+		SeriesEpisode:   episode,
+		SeriesRepeat:    repeat,
 	}
+}
+
+// nullBool は、nil を NULL にする。
+func nullBool(value *bool) pgtype.Bool {
+	if value == nil {
+		return pgtype.Bool{Bool: false, Valid: false}
+	}
+
+	return pgtype.Bool{Bool: *value, Valid: true}
+}
+
+// seriesOf は、シリーズの記述子から、話数と再放送かどうかを返す (#1311)。
+// 局によっては、記述子を送っても、どの値も 0 にしている (2026 年 11 月に確かめた地上波の 1 局)。話数が 0 なら、どちらも nil にする。
+func seriesOf(series *mirakurun.Series) (*int32, *bool) {
+	if series == nil || series.Episode <= 0 || series.Episode > math.MaxInt32 {
+		return nil, nil
+	}
+
+	return new(int32(series.Episode)), new(series.Repeat != 0)
 }
 
 // fromRow は、DB の行を program にする。
@@ -466,6 +493,11 @@ func fromRow(row sqlc.ListProgramsRow) (*program, error) {
 		RelatedItems:    []*domain.RelatedItem{},
 		Audios:          []*domain.Audio{},
 		VideoResolution: "",
+		SeriesEpisode:   row.SeriesEpisode,
+		SeriesRepeat:    nil,
+	}
+	if row.SeriesRepeat.Valid {
+		p.SeriesRepeat = new(row.SeriesRepeat.Bool)
 	}
 	if row.VideoResolution != nil {
 		p.VideoResolution = *row.VideoResolution
@@ -587,6 +619,8 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			RelatedItems:          columns.related,
 			Audios:                columns.audios,
 			VideoResolution:       videoResolution(p.VideoResolution),
+			SeriesEpisode:         p.SeriesEpisode,
+			SeriesRepeat:          nullBool(p.SeriesRepeat),
 			Now:                   now,
 		})
 	}
