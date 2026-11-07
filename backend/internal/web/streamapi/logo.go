@@ -73,7 +73,10 @@ func (h *LogoHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	sum := sha256.Sum256(data)
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", logoCacheControl)
+	// 手前で Cache-Control を決めていれば (URL に秘密の値を含む IPTV の配信。#1324)、そちらに従う。
+	if w.Header().Get("Cache-Control") == "" {
+		w.Header().Set("Cache-Control", logoCacheControl)
+	}
 	w.Header().Set("ETag", `"`+hex.EncodeToString(sum[:16])+`"`)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// ServeContent は、ETag で If-None-Match に答える。

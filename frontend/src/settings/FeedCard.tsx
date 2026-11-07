@@ -120,11 +120,11 @@ export function FeedCard({
         )}
         <Group gap="xs">
           <Button size="compact-sm" onClick={onCreate}>
-            {feed == null ? createLabel : t('settings.account.recreateCalendarFeed')}
+            {feed == null ? createLabel : t('settings.account.recreateFeed')}
           </Button>
           {feed != null && (
             <Button size="compact-sm" variant="default" color="red" onClick={onRevoke}>
-              {t('settings.account.revokeCalendarFeed')}
+              {t('settings.account.revokeFeed')}
             </Button>
           )}
         </Group>
