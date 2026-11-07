@@ -1,4 +1,4 @@
-h1:9d77b6UGGosor6BvredijluD2Qe6DMCiVutDyTSelmo=
+h1:BTCVa9huiy/30YY1LFQ+sVKS1ii7Ez7LhLkcaOh6dN4=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -85,4 +85,5 @@ h1:9d77b6UGGosor6BvredijluD2Qe6DMCiVutDyTSelmo=
 20261107053731_add_calendar_feeds.sql h1:NxtoXL7FX6lu+cT2BbFMe6d9KhbwThrcd9v7tvPOuoE=
 20261107065410_add_recording_files_video.sql h1:GPjMVdtid23x3T+fII/OG2YRPiV5fYHbqsfBn62QHBk=
 20261107072014_add_broadcast_clock_skew.sql h1:W3+0ms2GjjQBf50gzmq7gDsOc8AhxWYKLoxful2m6Dc=
-20261107081336_add_anime_artworks.sql h1:nAcXcdjQiUqqxMkFwjqoINjIhKjzCM3QXce/EQtY9no=
+20261107074534_add_service_logos.sql h1:PbX+fUmjXY44pJlr6kW3xSylGnx8Sw1o7mipTgpDaKU=
+20261107081336_add_anime_artworks.sql h1:x7qbgshFmDM7BxJuC8jz386IMj1NSCks4AvUfom7OCE=

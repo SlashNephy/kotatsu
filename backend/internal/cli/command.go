@@ -56,6 +56,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
+	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -1004,7 +1005,7 @@ func handleMedia(
 ) {
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
-	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(streamapi.NewLogoHandler(logos, streamLogger)))
+	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
 	mux.Handle("GET /media/users/{id}/avatar",
 		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")))))
@@ -1100,7 +1101,7 @@ func newEPGStationAPI(
 	mux.HandleFunc("GET /api/version", h.Version)
 	mux.HandleFunc("GET /api/config", h.Config)
 	mux.HandleFunc("GET /api/channels", h.Channels)
-	mux.Handle("GET /api/channels/{id}/logo", streamapi.NewLogoHandler(logos, streamLogger))
+	mux.Handle("GET /api/channels/{id}/logo", streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger))
 	mux.HandleFunc("GET /api/schedules", h.Schedules)
 	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
 	mux.Handle("GET /api/streams/live/{id}/m2ts", streams.Count(streamapi.StreamLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))))

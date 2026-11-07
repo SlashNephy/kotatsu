@@ -656,6 +656,15 @@ type Service struct {
 	UpdatedAt          time.Time
 }
 
+type ServiceLogo struct {
+	NetworkID int64
+	LogoID    int64
+	LogoType  int16
+	Version   int64
+	Data      []byte
+	UpdatedAt time.Time
+}
+
 type Session struct {
 	ID              uuid.UUID
 	TokenHash       []byte

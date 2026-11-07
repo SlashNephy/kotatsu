@@ -19,3 +19,8 @@ func ParseVideoFormatForTest(codec string, es []byte) *VideoFormat {
 func ParseTOTForTest(section []byte) (time.Time, bool) {
 	return parseTOT(section)
 }
+
+// ParseCDTLogoForTest は、テストから parseCDTLogo を呼ぶためのもの。読めなければ nil を返す。
+func ParseCDTLogoForTest(section []byte) (*Logo, bool) {
+	return parseCDTLogo(section)
+}
