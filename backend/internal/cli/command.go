@@ -855,6 +855,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
+		JobAdmin:          jobAdminOf(deps),
 		AnimeRecords:      animeRecords,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
@@ -1065,6 +1066,16 @@ const calendarPathPrefix = "/calendar/"
 // パスを整えてから比べる。
 func traceable(r *http.Request) bool {
 	return !strings.HasPrefix(path.Clean("/"+r.URL.Path)+"/", calendarPathPrefix)
+}
+
+// jobAdminOf は、管理者向けのジョブの画面 (#1279) に使う River のクライアントを返す。なければ nil を返す。
+// nil のポインタを interface に入れると nil と比べられなくなるので、ここで分ける。
+func jobAdminOf(deps *Deps) graph.JobAdmin {
+	if deps.Jobs == nil {
+		return nil
+	}
+
+	return deps.Jobs
 }
 
 // handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を mux に登録する。

@@ -85,6 +85,8 @@ type Resolver struct {
 	freeSpace kago.FreeSpaceFunc
 	// jobs は、ジョブを入れる River のクライアント。
 	jobs thumbnail.Inserter
+	// jobAdmin は、管理者向けに River のジョブを読み、試し直し、取り消す (#1279)。nil なら、ジョブの画面を使えない。
+	jobAdmin JobAdmin
 	// totalSpace は、保存先プールのファイルシステムの容量を調べる。
 	totalSpace kago.TotalSpaceFunc
 	// updates は、新しいリリースを確かめた結果。確かめない設定なら nil。
