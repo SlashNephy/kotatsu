@@ -50,7 +50,8 @@ func NewFFmpegEncoder(cfg *config.Kyusu) (*FFmpegEncoder, error) {
 
 // Encode は、src の TS を、preset の画質の MP4 にして out に書く。
 func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string) error {
-	cmd := exec.CommandContext(ctx, ffmpegCommand, FFmpegArgs(e.cfg, preset, out)...)
+	// コマンドは定数で、引数は設定のエンコーダーと固定の表の画質、録画のセグメントから作った出力のパスから組み立てる。
+	cmd := exec.CommandContext(ctx, ffmpegCommand, FFmpegArgs(e.cfg, preset, out)...) //nolint:gosec // G204 の誤検知。理由は上のとおり。
 	cmd.Stdin = src
 	var stderr bytes.Buffer
 	cmd.Stderr = &limitedWriter{buf: &stderr, limit: stderrLimit}
