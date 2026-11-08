@@ -41,6 +41,24 @@ func (q *Queries) AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceA
 	return err
 }
 
+const applyAnimeArtworks = `-- name: ApplyAnimeArtworks :exec
+UPDATE anime_wishlist_entries e SET image_url = chosen.image_url
+FROM (
+  SELECT DISTINCT ON (w.annict_work_id) w.annict_work_id, a.image_url
+  FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
+  WHERE w.annict_work_id IS NOT NULL AND a.image_url IS NOT NULL
+  ORDER BY w.annict_work_id, w.source = 'annict' DESC, w.syobocal_tid, w.position
+) AS chosen
+WHERE e.destination = 'annict' AND e.work_id = chosen.annict_work_id AND e.image_url IS DISTINCT FROM chosen.image_url
+`
+
+// 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
+// 1 つの作品に作品 ID の対応が複数あれば、取り込むとき (InsertAnimeWishlistEntries) と同じ順で 1 つを選ぶ。
+func (q *Queries) ApplyAnimeArtworks(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, applyAnimeArtworks)
+	return err
+}
+
 const deleteAnimeWishlistEntries = `-- name: DeleteAnimeWishlistEntries :exec
 DELETE FROM anime_wishlist_entries WHERE user_id = $1 AND destination = $2
 `
@@ -115,7 +133,13 @@ INSERT INTO anime_wishlist_entries (
 )
 SELECT $1, $2, t.work_id, t.status, t.title, NULLIF(t.next_episode_id, ''), NULLIF(t.next_episode_number, -1),
   NULLIF(t.next_episode_number_text, ''), NULLIF(t.next_episode_title, ''), NULLIF(t.progress, -1), NULLIF(t.episodes_count, -1),
-  NULLIF(t.season_year, -1), NULLIF(t.season_name, ''), NULLIF(t.image_url, ''), $3
+  NULLIF(t.season_year, -1), NULLIF(t.season_name, ''),
+  -- Annict の作品は、高画質の画像があれば、そちらを使う (#1315)。
+  COALESCE((
+    SELECT a.image_url FROM anime_works w JOIN anime_artworks a ON a.mal_id = w.mal_id
+    WHERE $2::text = 'annict' AND w.annict_work_id = t.work_id AND a.image_url IS NOT NULL
+    ORDER BY w.source = 'annict' DESC, w.syobocal_tid, w.position LIMIT 1
+  ), NULLIF(t.image_url, '')), $3
 FROM (
   SELECT unnest($4::integer[]) AS work_id, unnest($5::text[]) AS status, unnest($6::text[]) AS title,
     unnest($7::text[]) AS next_episode_id, unnest($8::integer[]) AS next_episode_number,
@@ -165,6 +189,42 @@ func (q *Queries) InsertAnimeWishlistEntries(ctx context.Context, arg InsertAnim
 		arg.ImageURLs,
 	)
 	return err
+}
+
+const listAnimeArtworkTargets = `-- name: ListAnimeArtworkTargets :many
+SELECT DISTINCT w.mal_id::integer AS mal_id
+FROM anime_wishlist_entries e
+JOIN anime_works w ON w.annict_work_id = e.work_id
+WHERE e.destination = 'annict' AND w.mal_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM anime_artworks a WHERE a.mal_id = w.mal_id AND a.fetched_at >= $1)
+ORDER BY 1
+LIMIT $2
+`
+
+type ListAnimeArtworkTargetsParams struct {
+	StaleBefore time.Time
+	MaxCount    int32
+}
+
+// 見たいリストの Annict の作品のうち、高画質の画像をまだ引いていないか、引き直す時期が来た作品の MyAnimeList の ID を返す (#1315)。
+func (q *Queries) ListAnimeArtworkTargets(ctx context.Context, arg ListAnimeArtworkTargetsParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listAnimeArtworkTargets, arg.StaleBefore, arg.MaxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var mal_id int32
+		if err := rows.Scan(&mal_id); err != nil {
+			return nil, err
+		}
+		items = append(items, mal_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAnimeLibraryPrograms = `-- name: ListAnimeLibraryPrograms :many
@@ -508,5 +568,21 @@ SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_wishlist_rule'), $1::intege
 // 見たいリストの作品からルールを作るとき (#928)、同じ作品のルールを重ねて作らないよう、TID ごとにトランザクションの終わりまで待ち合わせる。
 func (q *Queries) LockAnimeWishlistRule(ctx context.Context, syobocalTid int32) error {
 	_, err := q.db.Exec(ctx, lockAnimeWishlistRule, syobocalTid)
+	return err
+}
+
+const upsertAnimeArtwork = `-- name: UpsertAnimeArtwork :exec
+INSERT INTO anime_artworks (mal_id, image_url, fetched_at) VALUES ($1, $2, $3)
+ON CONFLICT (mal_id) DO UPDATE SET image_url = excluded.image_url, fetched_at = excluded.fetched_at
+`
+
+type UpsertAnimeArtworkParams struct {
+	MalID    int32
+	ImageURL *string
+	Now      time.Time
+}
+
+func (q *Queries) UpsertAnimeArtwork(ctx context.Context, arg UpsertAnimeArtworkParams) error {
+	_, err := q.db.Exec(ctx, upsertAnimeArtwork, arg.MalID, arg.ImageURL, arg.Now)
 	return err
 }

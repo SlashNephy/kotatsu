@@ -88,6 +88,8 @@ type Service struct {
 	wishlistMu       sync.Mutex
 	wishlistLast     map[string]time.Time
 	wishlistInterval time.Duration
+	// artworks は、見たいリストの作品の高画質の画像を引く先 (#1315)。nil なら引かない。
+	artworks ArtworkSource
 }
 
 // Options は NewService の設定。
@@ -102,6 +104,8 @@ type Options struct {
 	Inserter anime.Inserter
 	// WishlistInterval は、見たいリストを引く問い合わせの間を空ける長さ (#928)。0 なら空けない。
 	WishlistInterval time.Duration
+	// Artworks は、見たいリストの作品の高画質の画像を引く先 (#1315)。nil なら引かない。
+	Artworks ArtworkSource
 }
 
 // NewService は Service を返す。
@@ -129,6 +133,7 @@ func NewService(opts *Options) (*Service, error) {
 		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, tokenBox: tokenBox, importBox: importBox,
 		destinations: destinations, order: order, logger: opts.Logger, inserter: opts.Inserter,
 		wishlistMu: sync.Mutex{}, wishlistLast: map[string]time.Time{}, wishlistInterval: opts.WishlistInterval,
+		artworks: opts.Artworks,
 	}, nil
 }
 

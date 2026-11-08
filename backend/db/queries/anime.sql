@@ -103,7 +103,7 @@ ON CONFLICT (id) DO UPDATE SET epg_version = excluded.epg_version, updated_at = 
 
 -- name: ListAnimePrograms :many
 -- サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, m.finalized_at
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.series_episode, p.series_repeat, m.finalized_at
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY(@service_ids::bigint[]) AND p.start_at < @range_end AND p.end_at > @range_start
@@ -112,7 +112,7 @@ ORDER BY p.service_id, p.start_at;
 
 -- name: ListAnimeProgramsToFinalize :many
 -- 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.name, p.series_episode, p.series_repeat
 FROM programs p
 LEFT JOIN program_anime_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.service_id = ANY(@service_ids::bigint[]) AND p.end_at <= @now AND NOT p.end_undecided

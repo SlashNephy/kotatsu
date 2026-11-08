@@ -9,7 +9,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type AnimeArtwork struct {
+	MalID     int32
+	ImageURL  *string
+	FetchedAt time.Time
+}
 
 type AnimeChannelDefinition struct {
 	ChannelType       string
@@ -402,6 +409,8 @@ type Program struct {
 	RelatedItems          []byte
 	Audios                []byte
 	VideoResolution       *string
+	SeriesEpisode         *int32
+	SeriesRepeat          pgtype.Bool
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -447,6 +456,8 @@ type ProgramArchive struct {
 	RelatedItems          []byte
 	Audios                []byte
 	VideoResolution       *string
+	SeriesEpisode         *int32
+	SeriesRepeat          pgtype.Bool
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time

@@ -172,7 +172,7 @@ func (a *AniList) Wishlist(ctx context.Context, token, cursor string) (*Wishlist
   MediaListCollection(userId: $userId, type: ANIME, status_in: [PLANNING, CURRENT], chunk: $chunk, perChunk: $perChunk) {
     hasNextChunk lists { entries {
       status progress
-      media { id title { native romaji } episodes season seasonYear coverImage { large } }
+      media { id title { native romaji } episodes season seasonYear coverImage { extraLarge large } }
     } }
   } }`
 	var data struct {
@@ -230,7 +230,8 @@ type aniListWishlistMedia struct {
 	Season     *string            `json:"season"`
 	SeasonYear *int32             `json:"seasonYear"`
 	CoverImage *struct {
-		Large *string `json:"large"`
+		ExtraLarge *string `json:"extraLarge"`
+		Large      *string `json:"large"`
 	} `json:"coverImage"`
 }
 
@@ -243,8 +244,15 @@ func aniListWishlistEntry(media *aniListWishlistMedia, status string, progress *
 	if progress != nil && *progress >= 0 {
 		entry.Progress = progress
 	}
-	if media.CoverImage != nil && media.CoverImage.Large != nil {
-		entry.ImageURL = strings.TrimSpace(*media.CoverImage.Large)
+	// 高画質の画像 (extraLarge) を先に選ぶ (#1315)。
+	if media.CoverImage != nil {
+		for _, url := range []*string{media.CoverImage.ExtraLarge, media.CoverImage.Large} {
+			if url != nil && strings.TrimSpace(*url) != "" {
+				entry.ImageURL = strings.TrimSpace(*url)
+
+				break
+			}
+		}
 	}
 
 	return entry
