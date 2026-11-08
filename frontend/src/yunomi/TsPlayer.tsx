@@ -72,6 +72,8 @@ type Slot = {
   stats: Stats | null;
   // film は、yadif が 2:3 プルダウンを見つけ、24p で出していること (#1284)。
   film: boolean;
+  // filmFps は、24p で出している間に、yadif が実際に出した 1 秒あたりのコマの数。それ以外は null。
+  filmFps: number | null;
   // bytesRead は、この読み込みで読んだバイト数。
   bytesRead: number;
   destroyed: boolean;
@@ -93,7 +95,11 @@ function bufferedEnd(video: HTMLVideoElement): number {
 }
 
 // sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
-function sourcePicture(player: Mpeg2TsPlayer, film: boolean): SourcePicture | null {
+function sourcePicture(
+  player: Mpeg2TsPlayer,
+  film: boolean,
+  filmFps: number | null,
+): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
   const state = timeline.findLast((entry) => entry.start <= now) ?? timeline[0];
@@ -106,6 +112,7 @@ function sourcePicture(player: Mpeg2TsPlayer, film: boolean): SourcePicture | nu
     height: state.codedSize.height,
     interlaced: state.scan?.interlaced ?? null,
     film,
+    filmFps,
   };
 }
 
@@ -194,6 +201,7 @@ export function TsPlayer({
       load: 0,
       stats: null,
       film: false,
+      filmFps: null,
       bytesRead: 0,
       destroyed: false,
     };
@@ -221,10 +229,12 @@ export function TsPlayer({
       deinterlacer: (element) => {
         const deinterlacer = new Deinterlacer(element, {
           // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
-          // 読み込みを終えた録画では progress が来ないので、変わったらここで知らせる。
+          // 読み込みを終えた録画では progress が来ないので、変わったときと、24p で出している間はここで知らせる。
           onStats: (stats) => {
-            if (slot.film !== stats.film) {
-              slot.film = stats.film;
+            const changed = slot.film !== stats.film;
+            slot.film = stats.film;
+            slot.filmFps = stats.film ? stats.fps : null;
+            if (changed || stats.film) {
               report();
             }
           },
@@ -267,7 +277,7 @@ export function TsPlayer({
                   errors: slot.stats.errors,
                   scrambled: slot.stats.scrambled,
                 },
-          source: sourcePicture(player, slot.film),
+          source: sourcePicture(player, slot.film, slot.filmFps),
         });
       }
     };

@@ -20,6 +20,7 @@ import {
   formatBitrate,
   frameRate,
   historySeconds,
+  shownFrameRate,
   type EncodedStream,
   type FrameCount,
   type HlsSegment,
@@ -198,7 +199,7 @@ export function StreamInfo({
   // averaged は、測った値でなく平均を出すかどうか。
   const averaged = kind === 'convert' && average !== undefined;
   const rate = averaged ? average : (snapshot?.rate ?? null);
-  const fps = snapshot?.fps ?? null;
+  const fps = shownFrameRate(kind === 'convert' ? source : null, snapshot?.fps ?? null);
   // 再生している映像の大きさは、プレイリストに書いてあればそれを、なければ video から読む。
   const size =
     encoded !== null && encoded.width > 0
