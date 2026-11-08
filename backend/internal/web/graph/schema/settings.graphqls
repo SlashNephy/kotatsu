@@ -14,6 +14,8 @@ type RecordingSettings {
   joinSegments: Boolean!
   "録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。"
   detectCm: Boolean!
+  "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
+  transcodePreset: String
 }
 
 """
@@ -108,6 +110,8 @@ input DrcsReplacementInput {
 extend type Query {
   "字幕の外字の置き換えの表 (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
   drcsReplacements: [DrcsReplacement!]!
+  "録画を終えた後の変換 (#1253) で選べる画質の名前。"
+  transcodePresets: [String!]!
 }
 
 """

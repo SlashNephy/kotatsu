@@ -893,7 +893,8 @@ CREATE TABLE recording_files (
   id uuid PRIMARY KEY,
   recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
   -- 種類は、TS のセグメント (segment) か、その他のファイル (other)。
-  -- その他のファイルは、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル (設計書 6.3)。
+  -- その他のファイルは、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル (設計書 6.3) と、
+  -- 録画を終えた後に Kotatsu が変換した MP4 (#1253)。
   kind text NOT NULL CHECK (kind IN ('segment', 'other')),
   -- 保存先プールの ID と、プール内の相対パス (設計書 5.6)。
   pool_id text NOT NULL,

@@ -677,7 +677,7 @@ func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rul
 
 	return &rule.Input{
 		Name: work.Title, Memo: "", Enabled: true, Conditions: conditions,
-		Overrides: &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil},
+		Overrides: &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, TranscodePreset: nil},
 		ValidFrom: nil, ValidUntil: nil,
 		AvoidDuplicates: defaults.AvoidDuplicates, DuplicateWindowDays: defaults.DuplicateWindowDays, FollowEventRelay: defaults.FollowEventRelay,
 	}

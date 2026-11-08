@@ -11,6 +11,13 @@ import { useAction } from '../../admin/useAction';
 import { SaveRow } from '../../admin/SaveRow';
 import { settingsErrorMessage } from '../../settings/errors';
 import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
+import {
+  noTranscode,
+  optionOfPreset,
+  presetOfOption,
+  transcodeOptions,
+  useTranscodePresets,
+} from '../../rules/transcode';
 import { mutate } from '../../settings/mutate';
 import type { recordingMutation } from './__generated__/recordingMutation.graphql';
 import type { recordingQuery } from './__generated__/recordingQuery.graphql';
@@ -45,6 +52,7 @@ const query = graphql`
         priority
         joinSegments
         detectCm
+        transcodePreset
       }
       ruleDefaults {
         avoidDuplicates
@@ -70,6 +78,8 @@ type Form = {
   joinSegments: boolean;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。既定は切る。
   detectCm: boolean;
+  // transcodePreset は、録画が終わったら変換するときの画質 (#1253)。空なら変換しない (既定)。
+  transcodePreset: string;
   // ルールを作るときの既定値 (#470)。重複を避ける日数は、空なら期間を区切らない。
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
@@ -78,6 +88,7 @@ type Form = {
 
 function RecordingSettings() {
   const { t } = useTranslation();
+  const transcodePresets = useTranscodePresets();
   const environment = useRelayEnvironment();
   // fetchKey を変えると、読み直す。読み直す間も画面を出したままにするため、transition の中で変える。
   const [fetchKey, setFetchKey] = useState(0);
@@ -100,6 +111,7 @@ function RecordingSettings() {
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
     detectCm: defaults.detectCm,
+    transcodePreset: defaults.transcodePreset ?? noTranscode,
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
@@ -133,6 +145,7 @@ function RecordingSettings() {
                 priority: Number(form.priority),
                 joinSegments: form.joinSegments,
                 detectCm: form.detectCm,
+                transcodePreset: form.transcodePreset,
               },
               ruleDefaults: {
                 avoidDuplicates: form.ruleAvoidDuplicates,
@@ -238,6 +251,18 @@ function RecordingSettings() {
               description={t('admin.settings.detectCmHelp')}
               checked={form.detectCm}
               onChange={(event) => set({ detectCm: event.currentTarget.checked })}
+            />
+            <Select
+              size="sm"
+              label={t('rules.transcode')}
+              description={t('admin.settings.transcodeHelp')}
+              maw={360}
+              data={transcodeOptions(t, transcodePresets)}
+              value={optionOfPreset(form.transcodePreset)}
+              onChange={(value) =>
+                value !== null && set({ transcodePreset: presetOfOption(value) })
+              }
+              allowDeselect={false}
             />
           </Stack>
         </Card>

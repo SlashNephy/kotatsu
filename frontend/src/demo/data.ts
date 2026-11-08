@@ -362,6 +362,17 @@ export function createRootValue(
           createdAt: new Date(now).toISOString(),
         })),
     watchReminderSettings: () => ({ minutesBefore }),
+    // 録画を終えた後の変換 (#1253) で選べる画質。デモでは変換しないが、設定の画面を出せるようにする。
+    transcodePresets: () => [
+      '1080p',
+      '720p',
+      '540p',
+      '360p',
+      '1080p-hevc',
+      '720p-hevc',
+      '540p-hevc',
+      '360p-hevc',
+    ],
     systemSettings: () => ({
       recordingDefaults: {
         poolId: 'default',
@@ -371,6 +382,7 @@ export function createRootValue(
         priority: 0,
         joinSegments: true,
         detectCm: false,
+        transcodePreset: null,
       },
       archiveRetentionDays: 30,
       notificationRetentionDays: 30,

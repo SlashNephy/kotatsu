@@ -36,6 +36,7 @@ import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
 import { MarginFields } from '../reservations/MarginFields';
 import { PoolSelect } from '../reservations/PoolSelect';
+import { optionOfPreset, presetOfOption, transcodeOptions, useTranscodePresets } from './transcode';
 import { fromValidFromDate, fromValidUntilDate, validFromDate, validUntilDate } from './validity';
 
 // joinDefault は、分かれたファイルをつなぐかどうかと CM を見分けるかどうかの選択で、全体の既定値に従うことを表す値。
@@ -119,6 +120,7 @@ export const ruleEditorRuleFragment = graphql`
       priority
       joinSegments
       detectCm
+      transcodePreset
     }
     validFrom
     validUntil
@@ -145,6 +147,7 @@ export function RuleEditor({
   authorship,
 }: Props) {
   const { t } = useTranslation();
+  const transcodePresets = useTranscodePresets();
   // zoneLabel は、有効期間を入れるタイムゾーンの呼び方。
   const zoneLabel = useTimeZoneLabel();
   const navigate = useNavigate();
@@ -410,6 +413,31 @@ export function RuleEditor({
                           ...form.settings,
                           detectCm:
                             value === null || value === joinDefault ? null : value === 'true',
+                        },
+                      })
+                    }
+                    allowDeselect={false}
+                  />
+                  {/* 全体に従うなら、録画を終えるときの全体の設定で決める (#1253)。 */}
+                  <Select
+                    label={t('rules.transcode')}
+                    description={t('rules.transcodeHelp')}
+                    maw={360}
+                    data={[
+                      { value: joinDefault, label: t('rules.transcodeDefault') },
+                      ...transcodeOptions(t, transcodePresets),
+                    ]}
+                    value={
+                      form.settings.transcodePreset === null
+                        ? joinDefault
+                        : optionOfPreset(form.settings.transcodePreset)
+                    }
+                    onChange={(value) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          transcodePreset:
+                            value === null || value === joinDefault ? null : presetOfOption(value),
                         },
                       })
                     }

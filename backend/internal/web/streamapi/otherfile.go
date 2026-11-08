@@ -17,7 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 )
 
-// kindOther は、EPGStation から取り込んだ、TS 以外のファイルの種類 (設計書 6.3)。
+// kindOther は、EPGStation から取り込んだ TS 以外のファイルと、録画を終えた後に変換した MP4 (#1253) の種類 (設計書 6.3)。
 const kindOther = "other"
 
 // videoContentTypeOf は、拡張子 ext の動画の種類を返す。動画でなければ false を返す。

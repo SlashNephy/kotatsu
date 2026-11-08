@@ -1313,6 +1313,8 @@ type RecordingSettings struct {
 	JoinSegments bool `json:"joinSegments"`
 	// 録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
 	DetectCM bool `json:"detectCm"`
+	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
+	TranscodePreset *string `json:"transcodePreset,omitempty"`
 }
 
 // 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -1329,6 +1331,8 @@ type RecordingSettingsOverrides struct {
 	JoinSegments *bool `json:"joinSegments,omitempty"`
 	// 録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
 	DetectCM *bool `json:"detectCm,omitempty"`
+	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
+	TranscodePreset *string `json:"transcodePreset,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1340,6 +1344,8 @@ type RecordingSettingsOverridesInput struct {
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 	DetectCM           *bool   `json:"detectCm,omitempty"`
+	// 変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
+	TranscodePreset *string `json:"transcodePreset,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
