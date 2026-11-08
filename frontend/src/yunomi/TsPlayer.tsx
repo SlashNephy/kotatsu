@@ -11,6 +11,7 @@ import { audioChoices, currentAudioChoice } from './audio';
 import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
+import { prefersManagedMediaSource } from './capabilities';
 import { deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { fitMedia } from './mediaFit';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -225,6 +226,8 @@ export function TsPlayer({
     const isActive = () => activeRef.current === slot;
     const player = new Player(slot.video, {
       wasmUrl: wasmURL,
+      // iPhone のように MediaSource がなく ManagedMediaSource だけがある端末では、ManagedMediaSource で再生する (#1256)。
+      preferManagedMediaSource: prefersManagedMediaSource(),
       deinterlace: true,
       deinterlacer: (element) => {
         const deinterlacer = new Deinterlacer(element, {
