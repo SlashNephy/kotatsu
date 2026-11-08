@@ -10,6 +10,7 @@ import {
   formatBitrate,
   frameRate,
   nextTsChunk,
+  shownFrameRate,
   type TsReading,
 } from './streamMeter';
 
@@ -136,6 +137,34 @@ describe('frameRate', () => {
     },
   ])('$name', ({ previous, next, want }) => {
     expect(frameRate(previous, next)).toBe(want);
+  });
+});
+
+describe('shownFrameRate', () => {
+  const picture = { width: 1440, height: 1080, interlaced: true };
+
+  test.each([
+    {
+      name: '24p で出している間は、video の要素の数ではなく、実際に出したコマの数を返す',
+      source: { ...picture, film: true, filmFps: 24 },
+      measured: 29.97,
+      want: 24,
+    },
+    {
+      name: '24p で出していなければ、video の要素から測った値を返す',
+      source: { ...picture, film: false, filmFps: null },
+      measured: 29.97,
+      want: 29.97,
+    },
+    {
+      name: '放送の映像が分からなければ、測った値を返す',
+      source: null,
+      measured: 29.97,
+      want: 29.97,
+    },
+    { name: 'どちらも分からなければ null', source: null, measured: null, want: null },
+  ])('$name', ({ source, measured, want }) => {
+    expect(shownFrameRate(source, measured)).toBe(want);
   });
 });
 
@@ -274,7 +303,7 @@ describe('StreamMeter', () => {
     mediaEnd,
     seeking: false,
     transport: { dropped: 1, errors: 2, scrambled: 3 },
-    source: { width: 1440, height: 1080, interlaced: true },
+    source: { width: 1440, height: 1080, interlaced: true, film: false, filmFps: null },
   });
 
   test('変換の経路の読みから、ビットレートと TS の異常と放送の映像を溜める', () => {
@@ -284,7 +313,13 @@ describe('StreamMeter', () => {
 
     expect(meter.bitrate.rate(2_000)).toBe(16_000_000);
     expect(meter.transport).toEqual({ dropped: 1, errors: 2, scrambled: 3 });
-    expect(meter.source).toEqual({ width: 1440, height: 1080, interlaced: true });
+    expect(meter.source).toEqual({
+      width: 1440,
+      height: 1080,
+      interlaced: true,
+      film: false,
+      filmFps: null,
+    });
   });
 
   test('reset の後の最初の読みは、区切りにするだけ', () => {

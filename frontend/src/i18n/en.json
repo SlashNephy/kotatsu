@@ -1253,6 +1253,7 @@
       "now": "Now",
       "secondsAgo": "{{seconds}} s ago",
       "source": "Broadcast video",
+      "film": "{{picture}} (pulldown detected, shown at 24p)",
       "playing": "Playing video",
       "frameRate": "Frame rate",
       "audio": "Broadcast audio",

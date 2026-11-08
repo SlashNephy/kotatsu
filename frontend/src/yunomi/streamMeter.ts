@@ -148,6 +148,15 @@ export function frameRate(previous: FrameCount, next: FrameCount): number | null
   return Math.round((frames / time) * 100) / 100;
 }
 
+// shownFrameRate は、再生の情報に出すフレームレート。measured は video の要素のフレームの数から測った値で、
+// 24p に組み直す前の 30 コマのままなので、24p で出している間は、yadif が実際に出したコマの数を返す。
+export function shownFrameRate(
+  source: SourcePicture | null,
+  measured: number | null,
+): number | null {
+  return source?.filmFps ?? measured;
+}
+
 // formatBitrate は、ビットレートを、1 Mbps 以上なら Mbps で、それより小さければ kbps で書く。
 export function formatBitrate(bps: number): string {
   return bps >= 1_000_000
@@ -194,7 +203,15 @@ export function audioFormatKey(componentType: number): AudioFormatKey | null {
 export type TransportCounts = { dropped: number; errors: number; scrambled: number };
 
 // SourcePicture は、放送の映像の大きさと走査の方式。interlaced が分からなければ null。
-export type SourcePicture = { width: number; height: number; interlaced: boolean | null };
+// film は、yadif が 2:3 プルダウンを見つけ、24p に組み直して出していること (#1284)。
+// filmFps は、24p で出している間に、yadif が実際に出した 1 秒あたりのコマの数。それ以外は null。
+export type SourcePicture = {
+  width: number;
+  height: number;
+  interlaced: boolean | null;
+  film: boolean;
+  filmFps: number | null;
+};
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。
 export type EncodedStream = {
