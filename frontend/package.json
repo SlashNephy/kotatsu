@@ -41,7 +41,7 @@
     "workbox-strategies": "7.4.1"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1",
+    "@playwright/test": "1.65.0",
     "@rolldown/plugin-babel": "0.3.0",
     "@storybook/react-vite": "10.6.6",
     "@tanstack/router-plugin": "1.168.48",
