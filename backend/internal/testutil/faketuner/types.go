@@ -58,6 +58,19 @@ type Program struct {
 	Audios []*Audio `json:"audios,omitempty"`
 	// Video は、番組の映像。
 	Video *Video `json:"video,omitempty"`
+	// Series は、番組のシリーズの記述子。nil なら返さない。
+	Series *Series `json:"series,omitempty"`
+}
+
+// Series は、番組のシリーズの記述子。Mirakurun の series と同じ形にする。
+type Series struct {
+	ID          int    `json:"id"`
+	Repeat      int    `json:"repeat"`
+	Pattern     int    `json:"pattern"`
+	ExpiresAt   int64  `json:"expiresAt"`
+	Episode     int    `json:"episode"`
+	LastEpisode int    `json:"lastEpisode"`
+	Name        string `json:"name"`
 }
 
 // Video は、番組の映像。Mirakurun の video と同じ形にする。

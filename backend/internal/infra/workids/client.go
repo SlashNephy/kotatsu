@@ -1,5 +1,6 @@
 // Package workids は、作品 ID の対応を自前で作るために、Annict と AniList の GraphQL API に問い合わせる (#1223、設計書 3.8)。
 // Annict からは作品のしょぼいカレンダーの TID と MyAnimeList の ID を、AniList からは MyAnimeList の ID に対応する AniList の ID を引く。
+// 見たいリストの作品の高画質の画像 (#1315) も、AniList と Jikan から MyAnimeList の ID で引く。
 package workids
 
 import (
@@ -20,6 +21,7 @@ import (
 const (
 	annictGraphQLURL  = "https://api.annict.com/graphql"
 	aniListGraphQLURL = "https://graphql.anilist.co"
+	jikanAPIURL       = "https://api.jikan.moe/v4"
 	// requestTimeout は、1 回の問い合わせの時間の上限。
 	requestTimeout = 30 * time.Second
 	// maxResponseBytes は、応答を読む量の上限。1 ページ (50 件) の作品なら十分に収まる。
@@ -73,6 +75,8 @@ type Options struct {
 	// AnnictBaseURL と AniListBaseURL は、検証用に API を向け直すときの URL。GraphQL のエンドポイントは、その /graphql。
 	AnnictBaseURL  string
 	AniListBaseURL string
+	// JikanBaseURL は、検証用に Jikan を向け直すときの URL。作品は、その /anime/{id} で引く。
+	JikanBaseURL string
 }
 
 // Client は、Annict と AniList の GraphQL API に問い合わせる。
@@ -80,6 +84,7 @@ type Client struct {
 	client     *http.Client
 	annictURL  string
 	aniListURL string
+	jikanURL   string
 }
 
 // NewClient は Client を返す。
@@ -100,7 +105,12 @@ func NewClient(opts *Options) *Client {
 		aniListURL = strings.TrimRight(opts.AniListBaseURL, "/") + "/graphql"
 	}
 
-	return &Client{client: client, annictURL: annictURL, aniListURL: aniListURL}
+	jikanURL := jikanAPIURL
+	if opts.JikanBaseURL != "" {
+		jikanURL = strings.TrimRight(opts.JikanBaseURL, "/")
+	}
+
+	return &Client{client: client, annictURL: annictURL, aniListURL: aniListURL, jikanURL: jikanURL}
 }
 
 // AnnictWorks は、Annict の作品の 1 ページを、作った順に返す。seasons (2026-autumn の形) を渡せば、その時期の作品に絞る。

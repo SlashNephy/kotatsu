@@ -93,6 +93,8 @@ type target struct {
 	endAt     time.Time
 	// name は、番組名。しょぼいカレンダーで引けなければ、解析して結びつける。
 	name string
+	// series は、番組のシリーズの記述子の話数と、再放送かどうか (#1311)。番組名から話数を読めないときに使う。
+	series *Series
 	// channelID は、サービスに対応する、しょぼいカレンダーの ChID。対応がなければ 0。
 	channelID int32
 	// fetchedAfter は、この番組を照合する放送時間データを、いつより後に引いたものにするか。
@@ -252,7 +254,7 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	for _, row := range rows {
 		targets = append(targets, &target{
 			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
-			channelID: channels[row.ServiceID], fetchedAfter: row.EndAt, recordingID: uuid.Nil,
+			series: seriesOf(row.SeriesEpisode, row.SeriesRepeat), channelID: channels[row.ServiceID], fetchedAfter: row.EndAt, recordingID: uuid.Nil,
 		})
 	}
 	if err := m.match(ctx, targets, true, result); err != nil {
@@ -314,7 +316,7 @@ func (m *Matcher) MatchImported(ctx context.Context) (*MatchResult, error) {
 		}
 		targets = append(targets, &target{
 			serviceID: row.ServiceID, eventID: 0, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
-			channelID: channelID, fetchedAfter: row.EndAt, recordingID: row.ID,
+			series: nil, channelID: channelID, fetchedAfter: row.EndAt, recordingID: row.ID,
 		})
 	}
 	// 放送の終わった録画なので、確定させるときと同じく、問い合わせられなかった録画は照合したことにせず、次の機会に回す。
@@ -386,7 +388,7 @@ func (m *Matcher) programs(
 		}
 		targets = append(targets, &target{
 			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
-			channelID: channels[row.ServiceID], fetchedAfter: fetchedAfter, recordingID: uuid.Nil,
+			series: seriesOf(row.SeriesEpisode, row.SeriesRepeat), channelID: channels[row.ServiceID], fetchedAfter: fetchedAfter, recordingID: uuid.Nil,
 		})
 	}
 
@@ -472,7 +474,7 @@ func (m *Matcher) episodesFor(ctx context.Context, t *target, candidates []*sqlc
 		}
 	}
 
-	return titleEpisodes(ctx, m.db, t.name)
+	return titleEpisodes(ctx, m.db, t.name, t.series)
 }
 
 // cachedPrograms は、targets の放送時間と重なる、キャッシュしたしょぼいカレンダーの放送時間データを、ChID ごとに返す。

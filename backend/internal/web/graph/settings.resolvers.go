@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -115,6 +116,15 @@ func (r *queryResolver) DrcsReplacements(ctx context.Context) ([]*model.DrcsRepl
 	}
 
 	return drcsReplacementsOf(system.DRCSReplacements), nil
+}
+
+// TranscodePresets is the resolver for the transcodePresets field.
+func (r *queryResolver) TranscodePresets(ctx context.Context) ([]string, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+
+	return domain.TranscodePresets(), nil
 }
 
 // SystemSettings is the resolver for the systemSettings field.

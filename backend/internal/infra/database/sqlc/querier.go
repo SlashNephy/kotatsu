@@ -30,6 +30,9 @@ type Querier interface {
 	// kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
 	// 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
 	AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceAnimeWishlistProgressParams) error
+	// 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
+	// 1 つの作品に作品 ID の対応が複数あれば、取り込むとき (InsertAnimeWishlistEntries) と同じ順で 1 つを選ぶ。
+	ApplyAnimeArtworks(ctx context.Context) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
 	// 終了時刻が未定の番組は、開始時刻が before より前なら移す。猶予 (既定 24 時間) より長い番組は無いからである。
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
@@ -269,6 +272,8 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
+	GetRecordingFileOwner(ctx context.Context, arg GetRecordingFileOwnerParams) (GetRecordingFileOwnerRow, error)
 	GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.UUID, error)
 	// 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
 	GetRecordingInProgressByReservation(ctx context.Context, reservationID *uuid.UUID) (Recording, error)
@@ -438,6 +443,8 @@ type Querier interface {
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
 	// 生成物のない録画を探して、解析し直すのに使う (#897)。
 	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
+	// 見たいリストの Annict の作品のうち、高画質の画像をまだ引いていないか、引き直す時期が来た作品の MyAnimeList の ID を返す (#1315)。
+	ListAnimeArtworkTargets(ctx context.Context, arg ListAnimeArtworkTargetsParams) ([]int32, error)
 	// サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
 	// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
 	ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error)
@@ -945,6 +952,7 @@ type Querier interface {
 	UpdateWaitingRecordingPriorities(ctx context.Context, arg UpdateWaitingRecordingPrioritiesParams) (int64, error)
 	UpdateWatchRule(ctx context.Context, arg UpdateWatchRuleParams) (int64, error)
 	UpdateWebhook(ctx context.Context, arg UpdateWebhookParams) (Webhook, error)
+	UpsertAnimeArtwork(ctx context.Context, arg UpsertAnimeArtworkParams) error
 	UpsertAnimeChannelOverride(ctx context.Context, arg UpsertAnimeChannelOverrideParams) error
 	UpsertAnimeImportToken(ctx context.Context, arg UpsertAnimeImportTokenParams) error
 	UpsertAnimeRecordApp(ctx context.Context, arg UpsertAnimeRecordAppParams) error
@@ -979,6 +987,9 @@ type Querier interface {
 	// 名前のタグを作り、ID を返す。すでにあれば、そのタグの ID を返す。
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)
 	UpsertTimeshiftChannel(ctx context.Context, arg UpsertTimeshiftChannelParams) error
+	// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
+	// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+	UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error)
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error

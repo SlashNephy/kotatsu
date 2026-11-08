@@ -586,6 +586,10 @@ CREATE TABLE programs (
   audios jsonb NOT NULL DEFAULT '[]',
   -- 映像の解像度 (2160p、4320p など、Mirakurun の video.resolution)。上流が返さなければ NULL。BS4K と 8K を見分けるのに使う (#806)。
   video_resolution text,
+  -- シリーズの記述子の話数 (Mirakurun の series.episode) と、再放送かどうか (series.repeat が 0 でない) (#1311)。
+  -- 番組名から話数を読めないときに、アニメの話を結びつけるのに使う。記述子がないか、話数が 0 なら NULL。
+  series_episode integer,
+  series_repeat boolean,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -628,6 +632,8 @@ CREATE TABLE program_archives (
   related_items jsonb NOT NULL,
   audios jsonb NOT NULL DEFAULT '[]',
   video_resolution text,
+  series_episode integer,
+  series_repeat boolean,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   archived_at timestamptz NOT NULL,
@@ -887,7 +893,8 @@ CREATE TABLE recording_files (
   id uuid PRIMARY KEY,
   recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
   -- 種類は、TS のセグメント (segment) か、その他のファイル (other)。
-  -- その他のファイルは、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル (設計書 6.3)。
+  -- その他のファイルは、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイル (設計書 6.3) と、
+  -- 録画を終えた後に Kotatsu が変換した MP4 (#1253)。
   kind text NOT NULL CHECK (kind IN ('segment', 'other')),
   -- 保存先プールの ID と、プール内の相対パス (設計書 5.6)。
   pool_id text NOT NULL,
@@ -1481,6 +1488,15 @@ CREATE TABLE anime_records (
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   UNIQUE NULLS NOT DISTINCT (user_id, service_id, start_at, destination, syobocal_tid, episode_number)
+);
+
+-- 見たいリストの Annict の作品の、高画質の画像 (#1315、設計書 3.8)。MyAnimeList の作品 ID ごとに、ユーザーをまたいで持つ。
+-- AniList の coverImage.extraLarge を先に引き、AniList にない作品は Jikan (MyAnimeList の非公式 API) で引く。
+CREATE TABLE anime_artworks (
+  mal_id integer PRIMARY KEY,
+  -- 画像の URL。どちらにもなければ NULL にし、引き直す時期まで問い合わせない。
+  image_url text,
+  fetched_at timestamptz NOT NULL
 );
 
 -- ユーザーが Annict と AniList で「見たい」「見てる」にした作品 (#928)。記録先との連携 (#927) のトークンで、nekonote のジョブが取り込む。

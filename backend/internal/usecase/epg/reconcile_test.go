@@ -274,6 +274,44 @@ func TestSyncAllStoresProgramVideoResolution(t *testing.T) {
 	assert.Nil(t, resolution())
 }
 
+// TestSyncAllStoresProgramSeries は、シリーズの記述子の話数と再放送の印を保存し、変わらなければ書き直さないことを確かめる (#1311)。
+// 話数が 0 の記述子 (どの値も 0 にして送る局がある) は、ないものとする。
+func TestSyncAllStoresProgramSeries(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	series := func() (*int32, *bool) {
+		var episode *int32
+		var repeat *bool
+		require.NoError(t, f.pool.QueryRow(t.Context(),
+			"SELECT series_episode, series_repeat FROM programs WHERE service_id = $1 AND event_id = 6", serviceID()).Scan(&episode, &repeat))
+
+		return episode, repeat
+	}
+	require.NoError(t, f.fake.ChangeProgramSeries(programID(6), &faketuner.Series{
+		ID: 1, Repeat: 1, Pattern: 0, ExpiresAt: 0, Episode: 5, LastEpisode: 12, Name: "シリーズ",
+	}))
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	episode, repeat := series()
+	assert.Equal(t, new(int32(5)), episode)
+	assert.Equal(t, new(true), repeat)
+
+	// DB から読み直しても、上流と同じとみなす。
+	result, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, &epg.Result{ServicesUpserted: 0, ProgramsUpserted: 0, ProgramsDeleted: 0, Version: 0}, result)
+
+	require.NoError(t, f.fake.ChangeProgramSeries(programID(6), &faketuner.Series{
+		ID: 0, Repeat: 0, Pattern: 0, ExpiresAt: 0, Episode: 0, LastEpisode: 0, Name: "",
+	}))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	episode, repeat = series()
+	assert.Nil(t, episode)
+	assert.Nil(t, repeat)
+}
+
 // TestSyncAllKeepsAdministratorSettings は、管理者が画面から変えた値を同期が上書きしないことを確かめる。
 func TestSyncAllKeepsAdministratorSettings(t *testing.T) {
 	t.Parallel()

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<25f10c538efd053fffcbae2a08017e92>>
+ * @generated SignedSource<<267f6a4606fa8ff0386de22dbf7d9eb4>>
  * @lightSyntaxTransform
  */
 
@@ -71,6 +71,7 @@ export type RuleEditor_rule$data = {
     readonly poolId: string | null | undefined;
     readonly priority: number | null | undefined;
     readonly startMarginSeconds: number | null | undefined;
+    readonly transcodePreset: string | null | undefined;
   };
   readonly updatedAt: string;
   readonly updatedBy: {
@@ -421,6 +422,13 @@ return {
           "kind": "ScalarField",
           "name": "detectCm",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "transcodePreset",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -466,6 +474,6 @@ return {
 };
 })();
 
-(node as any).hash = "58f7574741a98b0e49985cc231c7dbd0";
+(node as any).hash = "a1727d5624997ecc950155c328abf720";
 
 export default node;

@@ -17,6 +17,7 @@ export type SettingsInput = {
   priority?: number | null;
   joinSegments?: boolean | null;
   detectCm?: boolean | null;
+  transcodePreset?: string | null;
 };
 
 export type RuleInput = {
@@ -166,6 +167,7 @@ export function createScheduler(options: {
     priority: settings?.priority ?? null,
     joinSegments: settings?.joinSegments ?? null,
     detectCm: settings?.detectCm ?? null,
+    transcodePreset: settings?.transcodePreset ?? null,
   });
 
   const conditionsView = (conditions: ProgramConditionsInput) => ({

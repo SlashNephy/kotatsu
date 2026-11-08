@@ -874,6 +874,7 @@ type ComplexityRoot struct {
 		TimeshiftAvailable      func(childComplexity int) int
 		TimeshiftChannels       func(childComplexity int) int
 		TimeshiftProgram        func(childComplexity int, serviceID string, startAt time.Time) int
+		TranscodePresets        func(childComplexity int) int
 		Transcoding             func(childComplexity int) int
 		TunerServerHealth       func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
@@ -993,6 +994,7 @@ type ComplexityRoot struct {
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
+		TranscodePreset    func(childComplexity int) int
 	}
 
 	RecordingSettingsOverrides struct {
@@ -1003,6 +1005,7 @@ type ComplexityRoot struct {
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
+		TranscodePreset    func(childComplexity int) int
 	}
 
 	RecoveryCodes struct {
@@ -1518,6 +1521,7 @@ type QueryResolver interface {
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
 	SecondFactors(ctx context.Context) (*model.SecondFactorStatus, error)
 	DrcsReplacements(ctx context.Context) ([]*model.DrcsReplacement, error)
+	TranscodePresets(ctx context.Context) ([]string, error)
 	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
 	SkippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error)
 	Transcoding(ctx context.Context) (*model.Transcoding, error)
@@ -5520,6 +5524,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.TimeshiftProgram(childComplexity, args["serviceId"].(string), args["startAt"].(time.Time)), true
+	case "Query.transcodePresets":
+		if e.ComplexityRoot.Query.TranscodePresets == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.TranscodePresets(childComplexity), true
 	case "Query.transcoding":
 		if e.ComplexityRoot.Query.Transcoding == nil {
 			break
@@ -6047,6 +6057,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettings.StartMarginSeconds(childComplexity), true
+	case "RecordingSettings.transcodePreset":
+		if e.ComplexityRoot.RecordingSettings.TranscodePreset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.TranscodePreset(childComplexity), true
 
 	case "RecordingSettingsOverrides.detectCm":
 		if e.ComplexityRoot.RecordingSettingsOverrides.DetectCM == nil {
@@ -6090,6 +6106,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettingsOverrides.StartMarginSeconds(childComplexity), true
+	case "RecordingSettingsOverrides.transcodePreset":
+		if e.ComplexityRoot.RecordingSettingsOverrides.TranscodePreset == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.TranscodePreset(childComplexity), true
 
 	case "RecoveryCodes.codes":
 		if e.ComplexityRoot.RecoveryCodes.Codes == nil {
@@ -10221,6 +10243,8 @@ type RecordingSettingsOverrides {
   joinSegments: Boolean
   "録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。"
   detectCm: Boolean
+  "録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。"
+  transcodePreset: String
 }
 
 """
@@ -10234,6 +10258,8 @@ input RecordingSettingsOverridesInput {
   priority: Int
   joinSegments: Boolean
   detectCm: Boolean
+  "変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。"
+  transcodePreset: String
 }
 
 """
@@ -10532,6 +10558,8 @@ type RecordingSettings {
   joinSegments: Boolean!
   "録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。"
   detectCm: Boolean!
+  "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
+  transcodePreset: String
 }
 
 """
@@ -10626,6 +10654,8 @@ input DrcsReplacementInput {
 extend type Query {
   "字幕の外字の置き換えの表 (#825)。ログインしていれば、誰でも読める。字幕の履歴とコピー、映像に重ねる字幕で使う。"
   drcsReplacements: [DrcsReplacement!]!
+  "録画を終えた後の変換 (#1253) で選べる画質の名前。"
+  transcodePresets: [String!]!
 }
 
 """
@@ -12823,6 +12853,8 @@ func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, f
 		return ec.fieldContext_RecordingSettings_joinSegments(ctx, field)
 	case "detectCm":
 		return ec.fieldContext_RecordingSettings_detectCm(ctx, field)
+	case "transcodePreset":
+		return ec.fieldContext_RecordingSettings_transcodePreset(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettings", field.Name)
 }
@@ -12843,6 +12875,8 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_joinSegments(ctx, field)
 	case "detectCm":
 		return ec.fieldContext_RecordingSettingsOverrides_detectCm(ctx, field)
+	case "transcodePreset":
+		return ec.fieldContext_RecordingSettingsOverrides_transcodePreset(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -31359,6 +31393,29 @@ func (ec *executionContext) fieldContext_Query_drcsReplacements(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_transcodePresets(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_transcodePresets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().TranscodePresets(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_transcodePresets(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Query", field, true, true, "String")
+}
+
 func (ec *executionContext) _Query_systemSettings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -33741,6 +33798,29 @@ func (ec *executionContext) fieldContext_RecordingSettings_detectCm(_ context.Co
 	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _RecordingSettings_transcodePreset(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_transcodePreset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TranscodePreset, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_transcodePreset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, "String")
+}
+
 func (ec *executionContext) _RecordingSettingsOverrides_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -33900,6 +33980,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_detectCm(ctx context.Con
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_detectCm(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _RecordingSettingsOverrides_transcodePreset(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_transcodePreset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TranscodePreset, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_transcodePreset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "String")
 }
 
 func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field graphql.CollectedField, obj *model.RecoveryCodes) (ret graphql.Marshaler) {
@@ -42254,7 +42357,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -42310,6 +42413,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.DetectCM = data
+		case "transcodePreset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transcodePreset"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TranscodePreset = data
 		}
 	}
 	return it, nil
@@ -48790,6 +48900,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_drcsReplacements(ctx, field)
 				})
+		case "transcodePresets":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_transcodePresets(ctx, field)
+				})
 		case "systemSettings":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -49574,6 +49690,11 @@ func (ec *executionContext) _RecordingSettings(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "transcodePreset":
+			out.Values[i] = ec._RecordingSettings_transcodePreset(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -49634,6 +49755,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "detectCm":
 			out.Values[i] = ec._RecordingSettingsOverrides_detectCm(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "transcodePreset":
+			out.Values[i] = ec._RecordingSettingsOverrides_transcodePreset(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

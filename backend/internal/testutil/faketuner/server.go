@@ -180,6 +180,13 @@ func (s *Server) ChangeProgramVideo(id int64, video *Video) error {
 	})
 }
 
+// ChangeProgramSeries は、番組のシリーズの記述子を変え、program の update イベントを送る。nil なら返さなくする。
+func (s *Server) ChangeProgramSeries(id int64, series *Series) error {
+	return s.updateProgram(id, func(p *Program) {
+		p.Series = series
+	})
+}
+
 // RemoveProgram は番組を消し、program の remove イベントを送る。
 func (s *Server) RemoveProgram(id int64) error {
 	s.mu.Lock()

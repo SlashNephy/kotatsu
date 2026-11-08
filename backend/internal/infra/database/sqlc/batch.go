@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 var (
@@ -126,12 +127,12 @@ const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, created_at, updated_at
+  video_resolution, series_episode, series_repeat, created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, $14, $15, $16,
-  $17, $18, $18
+  $17, $18, $19, $20, $20
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -149,6 +150,8 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   related_items = excluded.related_items,
   audios = excluded.audios,
   video_resolution = excluded.video_resolution,
+  series_episode = excluded.series_episode,
+  series_repeat = excluded.series_repeat,
   updated_at = excluded.updated_at
 `
 
@@ -176,6 +179,8 @@ type UpsertProgramsParams struct {
 	RelatedItems          []byte
 	Audios                []byte
 	VideoResolution       *string
+	SeriesEpisode         *int32
+	SeriesRepeat          pgtype.Bool
 	Now                   time.Time
 }
 
@@ -200,6 +205,8 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.RelatedItems,
 			a.Audios,
 			a.VideoResolution,
+			a.SeriesEpisode,
+			a.SeriesRepeat,
 			a.Now,
 		}
 		batch.Queue(upsertPrograms, vals...)

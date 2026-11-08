@@ -116,6 +116,15 @@ type RecordingSettings struct {
 	JoinSegments bool
 	// DetectCM は、録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1)。既定では見分けない。
 	DetectCM bool
+	// TranscodePreset は、録画が終わったら、録画を変換して MP4 を足すときの画質 (TranscodePresets のどれか、#1253)。
+	// 空なら変換しない。既定では変換しない。
+	TranscodePreset string
+}
+
+// TranscodePresets は、録画を終えた後の変換 (#1253) で選べる画質を返す。kyusu の画質のプリセットのうち、
+// 30fps の H.264 と HEVC に限る。映像を変換しないものと、フィールドごとに 1 フレームにするものは、ファイルに残す意味が薄いので除く。
+func TranscodePresets() []string {
+	return []string{"1080p", "720p", "540p", "360p", "1080p-hevc", "720p-hevc", "540p-hevc", "360p-hevc"}
 }
 
 // DefaultRecordingSettings は、Go の既定値を返す。
@@ -129,6 +138,7 @@ func DefaultRecordingSettings() *RecordingSettings {
 		Priority:           DefaultPriority,
 		JoinSegments:       true,
 		DetectCM:           false,
+		TranscodePreset:    "",
 	}
 }
 
@@ -141,6 +151,8 @@ type RecordingOverrides struct {
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 	DetectCM           *bool   `json:"detectCm,omitempty"`
+	// TranscodePreset は、空の文字列なら「変換しない」で上書きする。nil なら上書きしない。
+	TranscodePreset *string `json:"transcodePreset,omitempty"`
 }
 
 // Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
@@ -169,6 +181,9 @@ func (s *RecordingSettings) Resolve(o *RecordingOverrides) *RecordingSettings {
 	}
 	if o.DetectCM != nil {
 		resolved.DetectCM = *o.DetectCM
+	}
+	if o.TranscodePreset != nil {
+		resolved.TranscodePreset = *o.TranscodePreset
 	}
 
 	return &resolved

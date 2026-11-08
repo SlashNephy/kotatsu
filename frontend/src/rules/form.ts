@@ -18,6 +18,8 @@ type Settings = {
   joinSegments: boolean | null;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。null なら全体の設定に従う。
   detectCm: boolean | null;
+  // transcodePreset は、録画を終えた後に変換するときの画質 (#1253)。空なら変換しない。null なら全体の設定に従う。
+  transcodePreset: string | null;
 };
 
 // RuleForm は、ルールの編集の画面の入力。番組の条件と、ルールだけの項目を並べる。
@@ -47,6 +49,7 @@ export type RuleData = {
     readonly priority?: number | null;
     readonly joinSegments?: boolean | null;
     readonly detectCm?: boolean | null;
+    readonly transcodePreset?: string | null;
   };
   readonly validFrom?: string | null;
   readonly validUntil?: string | null;
@@ -73,6 +76,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
       priority: null,
       joinSegments: null,
       detectCm: null,
+      transcodePreset: null,
     },
     validFrom: null,
     validUntil: null,
@@ -97,6 +101,7 @@ export function fromRule(rule: RuleData): RuleForm {
       priority: rule.settings.priority ?? null,
       joinSegments: rule.settings.joinSegments ?? null,
       detectCm: rule.settings.detectCm ?? null,
+      transcodePreset: rule.settings.transcodePreset ?? null,
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,

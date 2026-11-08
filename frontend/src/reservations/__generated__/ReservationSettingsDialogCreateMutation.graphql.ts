@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6eca65993a21a413e7ddf01697172036>>
+ * @generated SignedSource<<31f57df6d6e971b070603b8ac523192a>>
  * @lightSyntaxTransform
  */
 
@@ -18,6 +18,7 @@ export type RecordingSettingsOverridesInput = {
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;
+  transcodePreset?: string | null | undefined;
 };
 export type ReservationSettingsDialogCreateMutation$variables = {
   followEventRelay: boolean;

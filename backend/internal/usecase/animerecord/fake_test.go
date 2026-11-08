@@ -363,7 +363,8 @@ func (f *fakeService) listPage(operation string, variables map[string]any) any {
 	for _, entry := range f.list[start:end] {
 		var cover any
 		if entry.Image != "" {
-			cover = map[string]any{"large": entry.Image}
+			// AniList は、大きさの違う画像を返す。高画質の extraLarge を選ぶことを確かめるため、large は別の URL にする (#1315)。
+			cover = map[string]any{"extraLarge": entry.Image, "large": entry.Image + "?medium"}
 		}
 		entries = append(entries, map[string]any{"status": entry.Status, "progress": entry.Progress, "media": map[string]any{
 			"id": entry.ID, "title": map[string]any{"native": entry.Title, "romaji": "romaji"},
