@@ -147,7 +147,8 @@ export default defineConfig(({ mode }) => ({
       '/auth/': { target: devAPI, changeOrigin: false },
       // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
       '/streams': { target: devAPI, changeOrigin: false },
-      '/media': { target: devAPI, changeOrigin: false },
+      // 実況のコメントの中継 (/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
+      '/media': { target: devAPI, changeOrigin: false, ws: true },
       // EPGStation 互換の API (#431) も、開発サーバーから確かめられるようにする。
       '/api': { target: devAPI, changeOrigin: false },
       // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。

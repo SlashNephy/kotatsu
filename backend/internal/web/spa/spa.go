@@ -20,12 +20,10 @@ const (
 	noncePlaceholder = "__KOTATSU_CSP_NONCE__"
 	// nonceBytes は、nonce の乱数の長さ。
 	nonceBytes = 16
-	// NXJikkyoOrigin は、実況のコメントを受け取る NX-Jikkyo の WebSocket の接続先 (設計書 10.4)。
-	NXJikkyoOrigin = "wss://nx-jikkyo.tsukumijima.net"
 )
 
 // ContentSecurityPolicy は、nonce を使う、index.html の Content Security Policy を返す (設計書 10.4)。
-// 明示的に許すのは、WebAssembly の実行と NX-Jikkyo への WebSocket の接続だけにする。
+// 明示的に許すのは、WebAssembly の実行だけにする。実況のコメントも tenban が中継するので、外部への接続は許さない。
 // nonce は、Mantine が差し込む <style> と、Vite が出力する <script> と <link> に付く。
 func ContentSecurityPolicy(nonce string) string {
 	return strings.Join([]string{
@@ -36,7 +34,7 @@ func ContentSecurityPolicy(nonce string) string {
 		"media-src 'self' blob:",
 		"font-src 'self'",
 		// blob: は、端末に保存した録画 (#480) の映像と実況の過去ログを、OPFS のファイルから読むのに使う。
-		"connect-src 'self' blob: " + NXJikkyoOrigin,
+		"connect-src 'self' blob:",
 		"worker-src 'self' blob:",
 		"manifest-src 'self'",
 		"object-src 'none'",

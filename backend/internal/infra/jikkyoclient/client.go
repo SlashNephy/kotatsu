@@ -78,14 +78,18 @@ type ClientOptions struct {
 	KakologURL  string
 	HTTPClient  *http.Client
 	Clock       clock.Clock
+	// LiveRetryDelays は、テストで差し替える。nil なら既定の間隔を使う。
+	LiveRetryDelays []time.Duration
 }
 
-// Client は、NX-Jikkyo のチャンネルの一覧と、過去ログ API から過去ログを取る。
+// Client は、NX-Jikkyo のチャンネルの一覧とライブのコメントと、過去ログ API から過去ログを取る。
 type Client struct {
 	nxJikkyoURL string
 	kakologURL  string
 	http        *http.Client
 	clock       clock.Clock
+	// liveRetryDelays は、NX-Jikkyo との WebSocket が切れてからつなぎ直すまでの間隔。
+	liveRetryDelays []time.Duration
 
 	// refreshes は、チャンネルの一覧の取得を、同時に 1 つにまとめる。
 	refreshes singleflight.Group
@@ -118,8 +122,12 @@ func NewClient(opts *ClientOptions) *Client {
 		o.Clock = new(clock.Real)
 	}
 
+	if len(o.LiveRetryDelays) == 0 {
+		o.LiveRetryDelays = defaultLiveRetryDelays()
+	}
+
 	return &Client{
-		nxJikkyoURL: o.NXJikkyoURL, kakologURL: o.KakologURL, http: o.HTTPClient, clock: o.Clock,
+		nxJikkyoURL: o.NXJikkyoURL, kakologURL: o.KakologURL, http: o.HTTPClient, clock: o.Clock, liveRetryDelays: o.LiveRetryDelays,
 		refreshes: singleflight.Group{}, mu: sync.Mutex{}, channels: nil, fetchedAt: time.Time{}, attemptedAt: time.Time{}, fetchErr: nil,
 	}
 }

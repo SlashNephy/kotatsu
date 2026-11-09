@@ -28,7 +28,7 @@ vi.mock('./CommentCanvas', async () => {
   };
 });
 
-// sessions は、偽の NXJikkyoSession。リアルタイムのコメントを、外から送れる。
+// sessions は、偽の JikkyoSession。リアルタイムのコメントを、外から送れる。
 const sessions = vi.hoisted(
   () =>
     [] as {
@@ -39,7 +39,7 @@ const sessions = vi.hoisted(
 );
 
 vi.mock('./session', () => ({
-  NXJikkyoSession: class {
+  JikkyoSession: class {
     private readonly entry;
 
     constructor(

@@ -420,7 +420,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     currentPosition,
     visible,
     // 録画中の録画を追っかけ再生している間は、リアルタイムのコメントも流す (#667)。
-    channelId !== null && recording !== null && recording.recordedUntil == null
+    channelId !== null && jikkyoEnabled && recording !== null && recording.recordedUntil == null
       ? { channelId, recordedFrom: recording.recordedFrom, gaps: recording.gaps }
       : null,
     commentSettings,

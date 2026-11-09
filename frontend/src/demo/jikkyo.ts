@@ -1,8 +1,8 @@
 import type { JikkyoComment } from '../jikkyo/comments';
-import { nxJikkyoOrigin } from '../jikkyo/session';
+import { jikkyoSocketPath } from '../jikkyo/session';
 
 // 静的なデモ (#832、#1050) の実況。外部の NX-Jikkyo にはつながず、架空のコメントをブラウザの中で流す。
-// ライブ視聴は、NX-Jikkyo の WebSocket を偽物に差し替え、録画の再生は、過去ログの応答を fetch の横取りで返す。
+// ライブ視聴は、tenban の実況の中継の WebSocket を偽物に差し替え、録画の再生は、過去ログの応答を fetch の横取りで返す。
 // コメントは、デモの映像 (demo/stream.m2ts、山のふもとの朝の景色) に合わせた、架空のもの。
 
 // demoCommentsPath は、録画の再生で読む、実況の過去ログの URL。src/demo/index.ts が横取りして返す。
@@ -58,7 +58,7 @@ export function demoRecordedComments(seconds = 20): JikkyoComment[] {
   return comments;
 }
 
-// FakeJikkyoSocket は、NX-Jikkyo の視聴セッションとコメントセッションの WebSocket の振りをする。
+// FakeJikkyoSocket は、tenban の実況の中継の WebSocket の振りをする。
 // src/jikkyo/session.ts が送り、受け取るメッセージだけを扱う。
 export class FakeJikkyoSocket extends EventTarget {
   readonly url: string;
@@ -69,17 +69,18 @@ export class FakeJikkyoSocket extends EventTarget {
   constructor(url: string) {
     super();
     this.url = url;
-    this.later(() => this.dispatchEvent(new Event('open')), 0);
+    this.later(() => {
+      this.dispatchEvent(new Event('open'));
+      this.reply({ type: 'status', kind: 'connected' });
+      this.flow();
+    }, 0);
   }
 
   send(data: string): void {
-    const message = JSON.parse(data) as unknown;
-    if (this.url.endsWith('/ws/watch')) {
-      this.onWatch(message as { type?: string });
-    } else if (Array.isArray(message)) {
-      // コメントセッションの最初のメッセージ。直近のコメントは送らず、送り終えた知らせ (rf:0) を返して、流し始める。
-      this.reply({ ping: { content: 'rf:0' } });
-      this.flow();
+    const message = JSON.parse(data) as { type?: string; id?: number };
+    if (message.type === 'post') {
+      // 投稿は、どこにも送らずに受け付けたことにする。自分の投稿は、画面が先に流す。
+      this.reply({ type: 'postResult', id: message.id });
     }
   }
 
@@ -91,31 +92,6 @@ export class FakeJikkyoSocket extends EventTarget {
     this.timers.clear();
   }
 
-  private onWatch(message: { type?: string }): void {
-    switch (message.type) {
-      case 'startWatching': {
-        const channel = this.url.slice(0, -'/ws/watch'.length);
-        this.reply({ type: 'seat', data: { keepIntervalSec: 30 } });
-        this.reply({
-          type: 'room',
-          data: {
-            messageServer: { uri: `${channel}/ws/comment` },
-            threadId: 'demo',
-            yourPostKey: 'demo',
-            vposBaseTime: new Date().toISOString(),
-          },
-        });
-        break;
-      }
-      case 'postComment':
-        // 投稿は、どこにも送らずに受け付けたことにする。自分の投稿は、画面が先に流す。
-        this.reply({ type: 'postCommentResult' });
-        break;
-      default:
-        break;
-    }
-  }
-
   // flow は、架空のコメントを、間を空けながら送り続ける。
   private flow(): void {
     const n = this.count++;
@@ -123,7 +99,10 @@ export class FakeJikkyoSocket extends EventTarget {
       () => {
         const comment = demoComment(n);
         this.reply({
-          chat: { content: comment.content, mail: comment.mail, user_id: comment.userId },
+          type: 'comment',
+          content: comment.content,
+          mail: comment.mail,
+          userId: comment.userId,
         });
         this.flow();
       },
@@ -148,12 +127,12 @@ export class FakeJikkyoSocket extends EventTarget {
   }
 }
 
-// installFakeJikkyo は、NX-Jikkyo への WebSocket を、偽物に差し替える。ほかの接続先は、そのまま本物を使う。
+// installFakeJikkyo は、実況の中継の WebSocket を、偽物に差し替える。ほかの接続先は、そのまま本物を使う。
 export function installFakeJikkyo(): void {
   const Original = window.WebSocket;
   const Patched = function (url: string | URL, protocols?: string | string[]) {
     const href = String(url);
-    if (href.startsWith(`${nxJikkyoOrigin}/`)) {
+    if (new URL(href).pathname.startsWith(jikkyoSocketPath)) {
       return new FakeJikkyoSocket(href);
     }
 

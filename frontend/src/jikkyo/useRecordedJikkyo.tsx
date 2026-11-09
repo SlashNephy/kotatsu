@@ -8,7 +8,7 @@ import {
   type JikkyoComment,
 } from './comments';
 import { recordingPosition, type Gap } from '../yunomi/position';
-import { NXJikkyoSession } from './session';
+import { JikkyoSession } from './session';
 
 type RecordedComments = {
   channel: { id: string } | null;
@@ -135,7 +135,7 @@ export function useRecordedJikkyo(
     if (url === null || liveChannel === null || !drawing) {
       return;
     }
-    const session = new NXJikkyoSession(liveChannel, {
+    const session = new JikkyoSession(liveChannel, {
       onComment: (received) => {
         const current = liveRef.current;
         if (current === null) {

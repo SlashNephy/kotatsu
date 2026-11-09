@@ -778,7 +778,7 @@ type IptvFeed struct {
 
 // NX-Jikkyo の実況のチャンネル。
 type JikkyoChannel struct {
-	// jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。
+	// jk1 などの ID。tenban の実況の中継の URL に使う。
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// 勢い (1 分あたりのコメントの数。#490)。NX-Jikkyo の値を 1 分ほど使い回す。放送中のスレッドがないか、勢いが 0 で見ている人かコメントも 0 なら null。

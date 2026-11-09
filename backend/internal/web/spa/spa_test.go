@@ -115,7 +115,7 @@ func TestNonceChangesPerResponse(t *testing.T) {
 	assert.Len(t, nonces, 3)
 }
 
-// TestContentSecurityPolicy は、明示的に許すのが WebAssembly の実行と NX-Jikkyo への接続だけであることを確かめる (設計書 10.4)。
+// TestContentSecurityPolicy は、明示的に許すのが WebAssembly の実行だけで、外部への接続を許さないことを確かめる (設計書 10.4)。
 func TestContentSecurityPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -125,7 +125,7 @@ func TestContentSecurityPolicy(t *testing.T) {
 		directives[name] = value
 	}
 	assert.Equal(t, "'self' 'nonce-n' 'wasm-unsafe-eval'", directives["script-src"])
-	assert.Equal(t, "'self' blob: wss://nx-jikkyo.tsukumijima.net", directives["connect-src"])
+	assert.Equal(t, "'self' blob:", directives["connect-src"])
 	assert.Equal(t, "'none'", directives["object-src"])
 	assert.Equal(t, "'none'", directives["frame-ancestors"])
 	for name, value := range directives {

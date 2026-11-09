@@ -1389,7 +1389,7 @@ NX-Jikkyo の実況のチャンネル。
 """
 type JikkyoChannel {
   """
-  jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。
+  jk1 などの ID。tenban の実況の中継の URL に使う。
   """
   id: String!
   name: String!

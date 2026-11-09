@@ -99,6 +99,26 @@ func parseServiceKey(key string) (int64, int64, bool) {
 	return networkID, serviceID, true
 }
 
+// Channel は、対応表にある実況のチャンネルの ID のうち、id と同じものを返す。なければ false を返す。
+// 利用者が指定した文字列でなく、対応表の値で NX-Jikkyo へつなぐためである。
+func (t *Table) Channel(id string) (string, bool) {
+	if id == "" {
+		return "", false
+	}
+	for _, channel := range t.services {
+		if channel == id {
+			return channel, true
+		}
+	}
+	for _, channel := range t.terrestrial {
+		if channel == id {
+			return channel, true
+		}
+	}
+
+	return "", false
+}
+
 // Lookup は、サービスの実況のチャンネルの ID を返す。対応するチャンネルがなければ false を返す。
 // 地上波は、サービス ID だけで引く。サブチャンネルは対応表にないので、サービス ID が 1 つ前か 2 つ前のメインチャンネルに寄せる。
 func (t *Table) Lookup(networkID, serviceID int64) (string, bool) {
