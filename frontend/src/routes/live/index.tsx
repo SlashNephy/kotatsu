@@ -1,7 +1,7 @@
-import { Alert, Anchor, Group, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
+import { Alert, Anchor, Stack, Title } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { startTransition, Suspense, useCallback, useEffect, useState } from 'react';
+import { startTransition, Suspense, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -18,9 +18,9 @@ import {
 } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
-import { NowPlayingCard } from '../../guide/NowPlayingCard';
-import { PinnableCard } from '../../guide/PinnableCard';
-import { sharesWithListed } from '../../guide/sharedEvent';
+import { NowPlayingGrid } from '../../guide/NowPlayingGrid';
+import { NowPlayingTabs } from '../../guide/NowPlayingTabs';
+import { nowPlayingTabs, useNowPlayingTabs } from '../../guide/useNowPlayingTabs';
 
 export const Route = createFileRoute('/live/')({
   component: LivePage,
@@ -73,9 +73,6 @@ const liveChannels: readonly ChangeChannel[] = ['EPG'];
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
 const maxWaitMs = 10 * 60_000;
 
-// pinnedTab は、ピン留めしたサービスを出すタブの値。チャンネル種別とぶつからないよう、小文字にする。
-const pinnedTab = 'pinned';
-
 function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void }) {
   const { t } = useTranslation();
   const changes = useDataChanges(liveChannels);
@@ -98,6 +95,7 @@ function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void 
               type
             }
             jikkyo {
+              id
               force
             }
           }
@@ -124,93 +122,22 @@ function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void 
     ),
     onExpire,
   );
-  const types = data.channelTypes.filter((type) =>
-    data.guide.some((row) => row.service.channelType.type === type.type),
-  );
   // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
   const pinned = data.pinnedServices.map((service) => service.id);
-  const pinnedSet = new Set(pinned);
-  // ピン留めしたサービスがあれば、ピン留めのタブから出す。
-  const [selectedType, setType] = useState(pinned.length > 0 ? pinnedTab : (types[0]?.type ?? ''));
-  // ピン留めをすべて外したら、ピン留めのタブはなくなるので、最初の種別に戻す。後でまたピン留めしても、ピン留めのタブへは戻さない。
-  const fallBack = selectedType === pinnedTab && pinned.length === 0;
-  useEffect(() => {
-    if (fallBack) {
-      setType(types[0]?.type ?? '');
-    }
-  }, [fallBack, types]);
-  const type = fallBack ? (types[0]?.type ?? '') : selectedType;
-  // order は、並べる順。勢いの順では、実況の勢いが強い局から並べる (#490)。勢いの分からない局は後ろに回す。
-  const [order, setOrder] = useState<'guide' | 'force'>('guide');
-  // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
-  // ピン留めのタブでは、ピン留めしたサービスをそのまま出す。
-  const listed = new Set(data.guide.map((row) => row.service.id));
-  const filtered =
-    type === pinnedTab
-      ? pinned.flatMap((id) => data.guide.filter((row) => row.service.id === id))
-      : data.guide.filter(
-          (row) =>
-            row.service.channelType.type === type && !sharesWithListed(row.programs[0], listed),
-        );
-  const shown =
-    order === 'force'
-      ? [...filtered].sort(
-          (a, b) => (b.service.jikkyo?.force ?? -1) - (a.service.jikkyo?.force ?? -1),
-        )
-      : filtered;
+  const tabs = useNowPlayingTabs(
+    nowPlayingTabs(data.channelTypes, data.guide, pinned, {
+      pinned: t('pin.tab'),
+      force: t('live.forceTab'),
+    }),
+  );
 
   return (
     <Stack>
-      <Group justify="space-between" gap="xs">
-        {(types.length > 1 || pinned.length > 0) && (
-          <SegmentedControl
-            size="xs"
-            value={type}
-            onChange={setType}
-            data={[
-              ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
-              ...types.map((channelType) => ({
-                value: channelType.type,
-                label: channelType.displayName,
-              })),
-            ]}
-          />
-        )}
-        {/* 並べる局がなければ、並べる順も出さない。 */}
-        {types.length > 0 && (
-          <SegmentedControl
-            size="xs"
-            value={order}
-            onChange={(value) => setOrder(value === 'force' ? 'force' : 'guide')}
-            aria-label={t('live.order')}
-            data={[
-              { value: 'guide', label: t('live.orderGuide') },
-              { value: 'force', label: t('live.orderForce') },
-            ]}
-          />
-        )}
-      </Group>
-      {types.length === 0 && (
+      <NowPlayingTabs state={tabs} style={{ alignSelf: 'flex-start' }} />
+      {tabs.tabs.length === 0 && (
         <EmptyState icon={Tv} title={t('live.empty')} hint={t('live.emptyHint')} />
       )}
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
-        {shown.map((row) => (
-          <PinnableCard
-            key={row.service.id}
-            serviceId={row.service.id}
-            serviceName={row.service.name}
-            pinned={pinnedSet.has(row.service.id)}
-          >
-            <NowPlayingCard
-              serviceId={row.service.id}
-              serviceName={row.service.name}
-              serviceLogoUrl={row.service.logoUrl ?? null}
-              program={row.programs[0] ?? null}
-              force={row.service.jikkyo?.force ?? null}
-            />
-          </PinnableCard>
-        ))}
-      </SimpleGrid>
+      <NowPlayingGrid rows={tabs.rows} pinned={pinned} />
     </Stack>
   );
 }

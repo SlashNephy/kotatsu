@@ -16,6 +16,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 )
 
@@ -67,7 +68,7 @@ func serveImage(t *testing.T, store *kago.Store, f *jobFixture, path string, hea
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
 	require.NoError(t, err)
 	maps.Copy(req.Header, header)
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	body, err := io.ReadAll(res.Body)

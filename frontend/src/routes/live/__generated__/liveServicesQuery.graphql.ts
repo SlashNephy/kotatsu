@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<453007c9779af37744262e6581a50833>>
+ * @generated SignedSource<<096144f5a606e65d60a84fa18d133a50>>
  * @lightSyntaxTransform
  */
 
@@ -33,6 +33,7 @@ export type liveServicesQuery$data = {
       readonly id: string;
       readonly jikkyo: {
         readonly force: number | null | undefined;
+        readonly id: string;
       } | null | undefined;
       readonly logoUrl: string | null | undefined;
       readonly name: string;
@@ -162,6 +163,7 @@ v8 = {
       "name": "jikkyo",
       "plural": false,
       "selections": [
+        (v3/*:: as any*/),
         {
           "alias": null,
           "args": null,
@@ -278,16 +280,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "2dfc65fe2bf3ae64e44b259deddd5e7c",
+    "cacheID": "6cd0855d05f272d3a04ef4313403a243",
     "id": null,
     "metadata": {},
     "name": "liveServicesQuery",
     "operationKind": "query",
-    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n      jikkyo {\n        force\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
+    "text": "query liveServicesQuery(\n  $from: Time!\n  $to: Time!\n) {\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $to) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n      jikkyo {\n        id\n        force\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "aa5bf590b3916d812484711a3cbf9442";
+(node as any).hash = "a79a6fb559a117c7f37846f01b21dd59";
 
 export default node;

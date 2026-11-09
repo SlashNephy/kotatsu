@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -28,7 +29,7 @@ func TestDataBroadcastHandlerFiltersPackets(t *testing.T) {
 	upstream := httptest.NewServer(faketuner.New(faketuner.DefaultOptions(clk.Now(), loadTestTS(t))))
 	t.Cleanup(upstream.Close)
 	client, err := mirakurun.New(&mirakurun.Options{
-		URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: nil, RequestTimeout: 0, DetectInterval: 0, Clock: clk,
+		URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: httpclienttest.New(t), RequestTimeout: 0, DetectInterval: 0, Clock: clk,
 	})
 	require.NoError(t, err)
 	mux := http.NewServeMux()
@@ -38,7 +39,7 @@ func TestDataBroadcastHandlerFiltersPackets(t *testing.T) {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/services/"+serviceID+"/data-broadcast", nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

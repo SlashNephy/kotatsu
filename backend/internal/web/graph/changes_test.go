@@ -15,6 +15,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
@@ -34,7 +35,7 @@ func (f *fixture) subscribe(t *testing.T, query string) <-chan json.RawMessage {
 	r.Header.Set("Content-Type", contentTypeJSON)
 	r.Header.Set("Accept", "text/event-stream")
 	r.Header.Set("Cookie", auth.CookieName+"="+f.token)
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpclienttest.New(t).Do(r)
 	require.NoError(t, err)
 	// 本文は、テストが終わるときに閉じ、購読をやめる。
 	t.Cleanup(func() { _ = resp.Body.Close() })
@@ -145,7 +146,7 @@ func TestDataChangedRequiresLogin(t *testing.T) {
 	require.NoError(t, err)
 	r.Header.Set("Content-Type", contentTypeJSON)
 	r.Header.Set("Accept", "text/event-stream")
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpclienttest.New(t).Do(r)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)

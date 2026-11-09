@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
 // testNow は、テストで使う現在時刻。
@@ -207,7 +208,7 @@ func TestBadRequests(t *testing.T) {
 			if tt.priority != "" {
 				req.Header.Set("X-Mirakurun-Priority", tt.priority)
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer res.Body.Close()
 
@@ -347,7 +348,7 @@ func openStream(t *testing.T, baseURL string, serviceID int64, priority int) *st
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/api/services/"+strconv.FormatInt(serviceID, 10)+"/stream?decode=1", nil)
 	require.NoError(t, err)
 	req.Header.Set("X-Mirakurun-Priority", strconv.Itoa(priority))
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = res.Body.Close() })
 
@@ -389,7 +390,7 @@ func subscribe(t *testing.T, url string) <-chan *rawEvent {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	require.NoError(t, err)
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = res.Body.Close() })
 	require.Equal(t, http.StatusOK, res.StatusCode)
@@ -451,7 +452,7 @@ func getJSON(t *testing.T, url string, v any) {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	require.NoError(t, err)
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)

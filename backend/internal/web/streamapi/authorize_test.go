@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
@@ -175,7 +176,7 @@ func TestAuthorizer(t *testing.T) {
 			if tt.cookie != "" {
 				req.Header.Set("Cookie", auth.CookieName+"="+tt.cookie)
 			}
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
@@ -227,7 +228,7 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 		if cookie != "" {
 			req.Header.Set("Cookie", auth.CookieName+"="+cookie)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpclienttest.New(t).Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 

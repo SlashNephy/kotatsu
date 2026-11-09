@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -145,7 +146,7 @@ func (f *recordingFixture) get(t *testing.T, recordingID uuid.UUID, query string
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String()+query, nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -244,7 +245,7 @@ func (f *recordingFixture) getRange(t *testing.T, recordingID uuid.UUID, rangeHe
 	if rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -350,7 +351,7 @@ func TestRecordingHandlerStreamsRecordingInProgress(t *testing.T) {
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
 	req.Header.Set("Range", "bytes=1000-1999")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -390,7 +391,7 @@ func TestRecordingHandlerReportsStartOnHead(t *testing.T) {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, f.server.URL+"/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -414,7 +415,7 @@ func TestRecordingHandlerFollowsGrowingFile(t *testing.T) {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -465,7 +466,7 @@ func TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable(t *testing
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/recordings/"+recordingID.String(), nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -522,7 +523,7 @@ func TestRecordingHandlerEndsWhenSegmentClosesShort(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpclienttest.New(t).Do(req)
 		if err != nil {
 			done <- result{err: err}
 
@@ -610,7 +611,7 @@ func TestRecordingHandlerFollowsHandover(t *testing.T) {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -659,7 +660,7 @@ func TestRecordingHandlerAcrossHandovers(t *testing.T) {
 			segmentA := f.segment(t, recordingID, "a.m2ts", a, 0, tt.openA)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -691,7 +692,7 @@ func TestRecordingHandlerTrimsOpenPredecessor(t *testing.T) {
 	segmentB := f.segment(t, recordingID, "b.m2ts", data[packetAligned(200000):], time.Second, true)
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

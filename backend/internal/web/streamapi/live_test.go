@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -49,7 +50,7 @@ func liveServer(t *testing.T, tuner bool) (*httptest.Server, *faketuner.Server) 
 	var opener streamapi.ServiceOpener
 	if tuner {
 		client, err := mirakurun.New(&mirakurun.Options{
-			URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: nil, RequestTimeout: 0, DetectInterval: 0, Clock: clk,
+			URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: httpclienttest.New(t), RequestTimeout: 0, DetectInterval: 0, Clock: clk,
 		})
 		require.NoError(t, err)
 		opener = client
@@ -82,7 +83,7 @@ func TestLiveHandlerRelaysAndReleases(t *testing.T) {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/streams/services/"+serviceID, nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -107,7 +108,7 @@ func TestLiveHandlerHead(t *testing.T) {
 	server, fake := liveServer(t, true)
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, server.URL+"/streams/services/"+serviceID, nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -141,7 +142,7 @@ func TestLiveHandlerErrors(t *testing.T) {
 			server, fake := liveServer(t, tt.tuner)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/services/"+tt.serviceID, nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)

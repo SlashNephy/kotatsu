@@ -13,6 +13,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
 // fakeJikkyo は、NX-Jikkyo と過去ログ API の代わり。
@@ -71,7 +72,7 @@ func TestClientChannel(t *testing.T) {
 
 	fake, server := newFakeJikkyo(t, channelsJSON, "")
 	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
-	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: clk})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: clk})
 
 	got, err := client.Channel(t.Context(), jkNHK)
 	require.NoError(t, err)
@@ -121,13 +122,38 @@ func TestClientChannelActivity(t *testing.T) {
 			threads: `[{"status":"PAST","jikkyo_force":3,"viewers":5}]`,
 			want:    nil,
 		},
+		{
+			name:    "見ている人とコメントがあれば、勢いが 0 でも返す",
+			threads: `[{"status":"ACTIVE","jikkyo_force":0,"viewers":3,"comments":12}]`,
+			want:    &jikkyoclient.Activity{Force: 0, Viewers: 3},
+		},
+		{
+			name:    "勢いも見ている人も 0 なら nil",
+			threads: `[{"status":"ACTIVE","jikkyo_force":0,"viewers":0,"comments":12}]`,
+			want:    nil,
+		},
+		{
+			name:    "勢いが 0 で、見ている人がいてもコメントがなければ nil",
+			threads: `[{"status":"ACTIVE","jikkyo_force":0,"viewers":3,"comments":0}]`,
+			want:    nil,
+		},
+		{
+			name:    "勢いがあれば、コメントの数によらず返す",
+			threads: `[{"status":"ACTIVE","jikkyo_force":2,"viewers":0,"comments":0}]`,
+			want:    &jikkyoclient.Activity{Force: 2, Viewers: 0},
+		},
+		{
+			name:    "勢いが null なら、0 と扱わず nil",
+			threads: `[{"status":"ACTIVE","jikkyo_force":null,"viewers":3,"comments":12}]`,
+			want:    nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			_, server := newFakeJikkyo(t, `[{"id":"jk1","name":"NHK総合","threads":`+tt.threads+`}]`, "")
-			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
+			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 
 			got, err := client.Channel(t.Context(), jkNHK)
 			require.NoError(t, err)
@@ -142,7 +168,7 @@ func TestClientChannelRefreshesActivityEveryMinute(t *testing.T) {
 
 	fake, server := newFakeJikkyo(t, `[{"id":"jk1","name":"NHK総合","threads":[{"status":"ACTIVE","jikkyo_force":1,"viewers":1}]}]`, "")
 	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
-	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: clk})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: clk})
 	_, err := client.Channel(t.Context(), jkNHK)
 	require.NoError(t, err)
 
@@ -167,7 +193,7 @@ func TestClientChannelDoesNotWaitForUnresponsiveServer(t *testing.T) {
 
 	fake, server := newFakeJikkyo(t, channelsJSON, "")
 	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
-	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: clk})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: clk})
 	hold := make(chan struct{})
 	fake.hold.Store(&hold)
 
@@ -209,7 +235,7 @@ func TestClientChannelRetriesAfterCanceledRequest(t *testing.T) {
 
 	fake, server := newFakeJikkyo(t, channelsJSON, "")
 	clk := clocktest.NewFake(time.Date(2026, 10, 11, 0, 0, 0, 0, time.UTC))
-	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: clk})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: clk})
 
 	// 取りやめた要求で取れなかったことは、NX-Jikkyo が落ちているとはみなさない。次の要求では、すぐに取り直す。
 	ctx, cancel := context.WithCancel(t.Context())
@@ -226,7 +252,7 @@ func TestClientChannelWithoutAnyList(t *testing.T) {
 	t.Parallel()
 
 	_, server := newFakeJikkyo(t, "", "")
-	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 
 	// 一度も一覧を取れていなければ、エラーにする。
 	_, err := client.Channel(t.Context(), jkNHK)
@@ -262,7 +288,7 @@ func TestClientComments(t *testing.T) {
 			t.Parallel()
 
 			fake, server := newFakeJikkyo(t, channelsJSON, tt.kakolog)
-			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
+			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 			got, err := client.Comments(t.Context(), jkNHK, from, from.Add(30*time.Minute))
 			if tt.wantErr {
 				assert.Error(t, err)

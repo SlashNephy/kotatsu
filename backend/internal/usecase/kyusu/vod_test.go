@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
@@ -200,7 +201,7 @@ func (f *vodFixture) getPreset(t *testing.T, recordingID uuid.UUID, preset, file
 		f.server.URL+kyusu.RecordingPathPrefix+recordingID.String()+"/"+preset+"/1/"+file, nil)
 	require.NoError(t, err)
 	f.token.Authorize(req)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

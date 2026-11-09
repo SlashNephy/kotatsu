@@ -742,10 +742,10 @@
     "descriptionRule": "空ならルール「{{name}}」の設定 ({{seconds}} 秒) に従います"
   },
   "pin": {
-    "pin": "{{name}}をピン留めする",
-    "unpin": "{{name}}のピン留めを外す",
-    "tab": "ピン留め",
-    "empty": "ピン留めしたサービスはありません"
+    "pin": "{{name}}をお気に入りに追加",
+    "unpin": "{{name}}をお気に入りから外す",
+    "tab": "お気に入り",
+    "empty": "お気に入りのサービスはありません"
   },
   "reservations": {
     "wishlist": {
@@ -1392,9 +1392,7 @@
     "muteUser": "このユーザーをミュート"
   },
   "live": {
-    "order": "並べる順",
-    "orderGuide": "番組表の順",
-    "orderForce": "実況の勢いの順",
+    "forceTab": "人気の実況",
     "overlay": {
       "endUndecided": "終了時刻未定",
       "next": "次 › {{range}}"

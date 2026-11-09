@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/workids"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
 // cursorAfter は、続きを引くときに渡す cursor。
@@ -56,7 +57,7 @@ func TestAnnictWorks(t *testing.T) {
 			null
 		],
 		"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}`)
-	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: server.URL + "/", AniListBaseURL: ""})
+	client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: server.URL + "/", AniListBaseURL: ""})
 
 	page, err := client.AnnictWorks(t.Context(), "secret", []string{"2026-autumn", "2027-winter"}, cursorAfter)
 	require.NoError(t, err)
@@ -78,7 +79,7 @@ func TestAnnictWorksLastPage(t *testing.T) {
 	t.Parallel()
 
 	server, received, _ := newServer(t, http.StatusOK, nil, `{"data":{"searchWorks":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":"x"}}}}`)
-	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: server.URL, AniListBaseURL: ""})
+	client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: server.URL, AniListBaseURL: ""})
 
 	page, err := client.AnnictWorks(t.Context(), "secret", nil, "")
 	require.NoError(t, err)
@@ -109,7 +110,7 @@ func TestAnnictWorksErrors(t *testing.T) {
 			t.Parallel()
 
 			server, _, _ := newServer(t, tt.status, tt.header, tt.body)
-			client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: server.URL, AniListBaseURL: ""})
+			client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: server.URL, AniListBaseURL: ""})
 
 			_, err := client.AnnictWorks(t.Context(), "secret", nil, "")
 			require.Error(t, err)
@@ -136,7 +137,7 @@ func TestAniListIDsByMAL(t *testing.T) {
 		{"id":1,"idMal":null},
 		null
 	]}}}`)
-	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: "", AniListBaseURL: server.URL})
+	client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: "", AniListBaseURL: server.URL})
 
 	found, err := client.AniListIDsByMAL(t.Context(), []int32{318, 5114, 7})
 	require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestAniListIDsByMALPages(t *testing.T) {
 		_, _ = w.Write([]byte(pages[len(requested)-1]))
 	}))
 	t.Cleanup(server.Close)
-	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: "", AniListBaseURL: server.URL})
+	client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: "", AniListBaseURL: server.URL})
 
 	found, err := client.AniListIDsByMAL(t.Context(), []int32{10, 20})
 	require.NoError(t, err)
@@ -173,7 +174,7 @@ func TestAniListIDsByMALPages(t *testing.T) {
 func TestAniListIDsByMALTooMany(t *testing.T) {
 	t.Parallel()
 
-	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: "", AniListBaseURL: "http://127.0.0.1:1"})
+	client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: "", AniListBaseURL: "http://127.0.0.1:1"})
 	_, err := client.AniListIDsByMAL(t.Context(), make([]int32, workids.AniListBatchSize+1))
 	require.Error(t, err)
 }

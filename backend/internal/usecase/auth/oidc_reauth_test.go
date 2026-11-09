@@ -34,7 +34,13 @@ type oidcReauthFixture struct {
 func newOIDCReauthFixture(t *testing.T) *oidcReauthFixture {
 	t.Helper()
 
-	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
+	return newOIDCReauthFixtureFrom(t, newOIDCFixture(t, auth.OIDCAutoCreate{}))
+}
+
+// newOIDCReauthFixtureFrom は、f の時計の今の時刻にログインし、そこから時間が経ったセッションを作る。
+func newOIDCReauthFixtureFrom(t *testing.T, f *oidcFixture) *oidcReauthFixture {
+	t.Helper()
+
 	user := f.linkedUser(t)
 	token, session, err := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock}).Create(t.Context(), f.db, user.ID, f.client)
 	require.NoError(t, err)
@@ -241,9 +247,11 @@ func TestBeginOIDCReauthenticationRejects(t *testing.T) {
 func TestOIDCReauthenticationHandlers(t *testing.T) {
 	t.Parallel()
 
-	f := newOIDCReauthFixture(t)
+	base := newOIDCFixture(t, auth.OIDCAutoCreate{})
 	// Cookie の期限は時計から決まる。過去の時刻のままだと、Cookie の入れ物が期限切れとして捨てる。
-	f.clock.Advance(time.Since(f.clock.Now()))
+	// セッションも時計で期限切れになるので、ログインの前に、ログインから時間が経った後でちょうど今になるよう時計を進める。
+	base.clock.Advance(time.Since(base.clock.Now()) - auth.RecentAuthenticationWindow - time.Minute)
+	f := newOIDCReauthFixtureFrom(t, base)
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
 	mux.Handle("POST /auth/reauth/oidc", f.oidc.ReauthenticationHandler(f.db, client))

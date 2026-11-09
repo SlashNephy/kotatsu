@@ -1,17 +1,5 @@
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Box,
-  Group,
-  SegmentedControl,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-} from '@mantine/core';
+import { Alert, Anchor, Badge, Box, Group, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
@@ -22,12 +10,12 @@ import { RecordingCard } from '../recordings/RecordingCard';
 import { ContinueWatchingCard } from './ContinueWatchingCard';
 import type { DashboardQuery } from './__generated__/DashboardQuery.graphql';
 import classes from './Dashboard.module.css';
-import { nowPlaying, pinnedNowPlaying } from './nowPlaying';
 import { broadcastDay, dateOf } from '../guide/layout';
 import { nextWakeAt, ProgramTitle, toHalfWidth, useWakeAt } from '../futon';
-import { NowPlayingCard } from '../guide/NowPlayingCard';
-import { PinnableCard } from '../guide/PinnableCard';
+import { NowPlayingGrid } from '../guide/NowPlayingGrid';
+import { NowPlayingTabs } from '../guide/NowPlayingTabs';
 import { ServiceLabel } from '../guide/ServiceLabel';
+import { nowPlayingTabs, useNowPlayingTabs } from '../guide/useNowPlayingTabs';
 import { zonedFormat } from '../futon';
 
 const dateTimeFormat = zonedFormat({
@@ -61,9 +49,6 @@ const homeChannels: readonly ChangeChannel[] = [
 
 // maxWaitMs は、時刻で読み直すまでに待つ最大の時間。放送中の番組がないサービスで、番組が始まるのに気づくのに使う。
 const maxWaitMs = 10 * 60_000;
-
-// pinnedTab は、ピン留めしたサービスを出すタブの値。チャンネル種別とぶつからないよう、小文字にする (ライブの一覧と同じ)。
-const pinnedTab = 'pinned';
 
 // Dashboard は、ホームの中身。縮退と予約の競合の警告、これからの予約、最近の録画、放送中の番組を出す (設計書 10.3)。
 // range は、待たない親で決めた時刻。待つ間に決め直すと、読み込みが終わらなくなる。
@@ -104,9 +89,12 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
             channelType {
               type
             }
+            jikkyo {
+              id
+              force
+            }
           }
           programs {
-            id
             name
             startAt
             endAt
@@ -230,41 +218,18 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
     },
     { fetchKey: changes, fetchPolicy: 'store-and-network' },
   );
-  // 放送中の番組を、チャンネルの種類ごとに分ける。サービスのない種類は、選べないようにする。
   // これからの予約は、まだ始まっていないものだけにする。始まった予約は、録画中として最近の録画に出る。
   const upcoming = data.upcoming.edges
     .filter(({ node }) => Date.parse(node.startAt) > range.now)
     .slice(0, maxUpcoming);
-  const playingByType = data.channelTypes
-    .map((channelType) => ({
-      ...channelType,
-      playing: nowPlaying(
-        data.guide.filter((row) => row.service.channelType.type === channelType.type),
-        range.now,
-      ),
-    }))
-    .filter((channelType) => channelType.playing.length > 0);
   // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
-  // 番組表にあるサービスをピン留めしていれば、種類の前に「ピン留め」のタブを置き、そこから出す。
   const pinned = data.pinnedServices.map((service) => service.id);
-  const pinnedSet = new Set(pinned);
-  const pinnedPlaying = pinnedNowPlaying(data.guide, pinned, range.now);
-  const tabs = [
-    ...(pinnedPlaying.length > 0
-      ? [{ type: pinnedTab, displayName: t('pin.tab'), playing: pinnedPlaying }]
-      : []),
-    ...playingByType,
-  ];
-  const [selectedType, setSelectedType] = useState<string | null>(() =>
-    pinnedPlaying.length > 0 ? pinnedTab : null,
+  const tabs = useNowPlayingTabs(
+    nowPlayingTabs(data.channelTypes, data.guide, pinned, {
+      pinned: t('pin.tab'),
+      force: t('live.forceTab'),
+    }),
   );
-  // ピン留めのタブがなくなったら、最初の種類に戻す。後でまたピン留めのタブができても、ピン留めのタブへは戻さない。
-  const fallBack = selectedType === pinnedTab && pinnedPlaying.length === 0;
-  useEffect(() => {
-    if (fallBack) {
-      setSelectedType(null);
-    }
-  }, [fallBack]);
   // 放送中の番組が終わる時刻か、これからの予約が始まる時刻のうち、最も早いものに読み直す。
   useWakeAt(
     nextWakeAt(
@@ -277,8 +242,6 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
     ),
     onExpire,
   );
-  const current = tabs.find((tab) => tab.type === selectedType) ?? playingByType[0];
-  const playing = current?.playing ?? [];
   // 100 件を超えたら、「100 件以上」と示す。
   const troubles = data.troubles.edges.length;
   const moreTroubles = data.troubles.pageInfo.hasNextPage;
@@ -452,41 +415,17 @@ export function Dashboard({ range, onExpire }: { range: DashboardRange; onExpire
           <Title order={3} size="h5" className={classes.title}>
             {t('home.nowPlaying')}
           </Title>
-          {tabs.length > 1 && (
-            <SegmentedControl
-              className={classes.types}
-              size="xs"
-              value={current?.type ?? ''}
-              onChange={setSelectedType}
-              data={tabs.map((tab) => ({ value: tab.type, label: tab.displayName }))}
-            />
-          )}
+          <NowPlayingTabs state={tabs} className={classes.types} />
           <Anchor component={Link} to="/guide" size="sm" className={classes.link}>
             {t('home.openGuide')}
           </Anchor>
         </div>
-        {playing.length === 0 ? (
+        {tabs.rows.length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('home.nothingPlaying')}
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 4 }} spacing="xs">
-            {playing.map((item) => (
-              <PinnableCard
-                key={item.serviceId}
-                serviceId={item.serviceId}
-                serviceName={item.serviceName}
-                pinned={pinnedSet.has(item.serviceId)}
-              >
-                <NowPlayingCard
-                  serviceId={item.serviceId}
-                  serviceName={item.serviceName}
-                  serviceLogoUrl={item.serviceLogoUrl}
-                  program={item.program}
-                />
-              </PinnableCard>
-            ))}
-          </SimpleGrid>
+          <NowPlayingGrid rows={tabs.rows} pinned={pinned} />
         )}
       </Stack>
     </Stack>

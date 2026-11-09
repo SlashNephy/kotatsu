@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/workids"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
 // TestAniListCoversByMAL は、MyAnimeList の ID に対応する AniList の作品の高画質の画像を、extraLarge を先に選んで返すことを確かめる (#1315)。
@@ -23,7 +24,7 @@ func TestAniListCoversByMAL(t *testing.T) {
 		{"id":5,"idMal":null,"coverImage":{"extraLarge":"https://example.com/none.jpg","large":null}},
 		null
 	],"pageInfo":{"hasNextPage":false}}}}`)
-	client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: "", AniListBaseURL: server.URL, JikanBaseURL: ""})
+	client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: "", AniListBaseURL: server.URL, JikanBaseURL: ""})
 
 	covers, err := client.AniListCoversByMAL(t.Context(), []int32{10, 20, 30, 40})
 	require.NoError(t, err)
@@ -77,7 +78,7 @@ func TestJikanImage(t *testing.T) {
 				_, _ = w.Write([]byte(tt.body))
 			}))
 			t.Cleanup(server.Close)
-			client := workids.NewClient(&workids.Options{HTTPClient: nil, AnnictBaseURL: "", AniListBaseURL: "", JikanBaseURL: server.URL + "/v4/"})
+			client := workids.NewClient(&workids.Options{HTTPClient: httpclienttest.New(t), AnnictBaseURL: "", AniListBaseURL: "", JikanBaseURL: server.URL + "/v4/"})
 
 			got, err := client.JikanImage(t.Context(), 52991)
 			if tt.wantErr != nil {

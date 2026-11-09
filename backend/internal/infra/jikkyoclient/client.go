@@ -48,7 +48,7 @@ type Channel struct {
 	// ID は、jk1 などの ID。
 	ID   string
 	Name string
-	// Activity は、放送中のスレッドの勢いと視聴者数 (#490)。放送中のスレッドがなければ nil。
+	// Activity は、放送中のスレッドの勢いと視聴者数 (#490)。放送中のスレッドがないか、勢いのデータがなければ nil。
 	Activity *Activity
 }
 
@@ -251,9 +251,12 @@ func (c *Client) fetchChannels(ctx context.Context) (map[string]*Channel, error)
 		ID      string `json:"id"`
 		Name    string `json:"name"`
 		Threads []struct {
-			Status      string `json:"status"`
-			JikkyoForce int    `json:"jikkyo_force"`
-			Viewers     int    `json:"viewers"`
+			Status string `json:"status"`
+			// JikkyoForce と Viewers は、値がなければ null で届く。
+			JikkyoForce *int `json:"jikkyo_force"`
+			Viewers     *int `json:"viewers"`
+			// Comments は、スレッドのコメントの累計。
+			Comments int `json:"comments"`
 		} `json:"threads"`
 	}
 	if err := c.getJSON(ctx, c.nxJikkyoURL+"/api/v1/channels", &body); err != nil {
@@ -264,7 +267,7 @@ func (c *Client) fetchChannels(ctx context.Context) (map[string]*Channel, error)
 		var activity *Activity
 		for _, thread := range channel.Threads {
 			if thread.Status == threadActive {
-				activity = &Activity{Force: thread.JikkyoForce, Viewers: thread.Viewers}
+				activity = newActivity(thread.JikkyoForce, thread.Viewers, thread.Comments)
 
 				break
 			}
@@ -273,6 +276,23 @@ func (c *Client) fetchChannels(ctx context.Context) (map[string]*Channel, error)
 	}
 
 	return channels, nil
+}
+
+// newActivity は、放送中のスレッドの値から Activity を返す。
+// 勢いが分からないときと、勢いが 0 で、見ている人かスレッドのコメントも 0 のときは、実況が使われていないものとして nil を返す。
+func newActivity(force, viewers *int, comments int) *Activity {
+	if force == nil {
+		return nil
+	}
+	watching := 0
+	if viewers != nil {
+		watching = *viewers
+	}
+	if *force == 0 && (watching == 0 || comments == 0) {
+		return nil
+	}
+
+	return &Activity{Force: *force, Viewers: watching}
 }
 
 func (c *Client) getJSON(ctx context.Context, rawURL string, v any) error {

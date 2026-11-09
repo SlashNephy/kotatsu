@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
@@ -69,7 +70,7 @@ func (f *vodFixture) getTimeshift(t *testing.T, timeshiftID, file string) (int, 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+kyusu.TimeshiftPathPrefix+timeshiftID+"/360p/1/"+file, nil)
 	require.NoError(t, err)
 	f.token.Authorize(req)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

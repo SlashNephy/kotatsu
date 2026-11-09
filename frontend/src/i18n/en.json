@@ -752,10 +752,10 @@
     "descriptionRule": "If empty, follows the setting of rule \"{{name}}\" ({{seconds}} sec)"
   },
   "pin": {
-    "pin": "Pin {{name}}",
-    "unpin": "Unpin {{name}}",
-    "tab": "Pinned",
-    "empty": "No pinned services"
+    "pin": "Add {{name}} to favorites",
+    "unpin": "Remove {{name}} from favorites",
+    "tab": "Favorites",
+    "empty": "No favorite services"
   },
   "reservations": {
     "wishlist": {
@@ -1454,9 +1454,7 @@
     "kakologLoaded_other": "{{count}} past comments"
   },
   "live": {
-    "order": "Sort order",
-    "orderGuide": "Guide order",
-    "orderForce": "Live comment activity",
+    "forceTab": "Trending",
     "overlay": {
       "endUndecided": "End time undecided",
       "next": "Next › {{range}}"

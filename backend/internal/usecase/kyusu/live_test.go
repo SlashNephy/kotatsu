@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
@@ -141,7 +142,7 @@ func (f *liveFixture) get(t *testing.T, path string) (int, string) {
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+path, nil)
 	require.NoError(t, err)
 	f.token.Authorize(req)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -234,7 +235,7 @@ func TestLiveWaitsForSlowStart(t *testing.T) {
 	f.token.Authorize(req)
 	done := make(chan result, 1)
 	go func() {
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpclienttest.New(t).Do(req)
 		if err != nil {
 			done <- result{status: 0, body: "", err: err}
 
@@ -343,7 +344,7 @@ func TestLiveRequiresToken(t *testing.T) {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+livePath+kyusu.PlaylistName, nil)
 		require.NoError(t, err)
 		authorize(req)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpclienttest.New(t).Do(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
@@ -362,7 +363,7 @@ func TestLiveTranscodesTunerStream(t *testing.T) {
 	upstream := httptest.NewServer(fake)
 	t.Cleanup(upstream.Close)
 	client, err := mirakurun.New(&mirakurun.Options{
-		URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: nil, RequestTimeout: 0, DetectInterval: 0, Clock: clk,
+		URL: upstream.URL, Username: "", Password: "", UserAgent: "", HTTPClient: httpclienttest.New(t), RequestTimeout: 0, DetectInterval: 0, Clock: clk,
 	})
 	require.NoError(t, err)
 	f := newLiveFixture(t, client, transcoder)

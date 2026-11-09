@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 )
@@ -57,7 +58,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	fake, server := newFakeJikkyo(t, channelsJSON, kakolog)
 	table, err := jikkyo.NewTable(nil)
 	require.NoError(t, err)
-	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: nil, Clock: nil})
+	client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: server.URL, KakologURL: server.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 	// 今は、録画を始めて 40 分後。録画中の録画は、今までの過去ログを引く。
 	clk := clocktest.NewFake(recordedFrom().Add(40 * time.Minute))
 	handler := jikkyoapi.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
