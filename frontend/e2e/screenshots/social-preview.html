@@ -70,6 +70,8 @@
         border: 1px solid rgb(46 38 34 / 0.5);
         border-radius: 18px;
         box-shadow: 0 24px 60px rgb(70 35 10 / 0.42);
+        /* 別のレイヤーにして傾けると、縁が階段状にならない。 */
+        will-change: transform;
       }
       .guide {
         top: -74px;
