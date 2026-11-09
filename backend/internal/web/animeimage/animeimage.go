@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -136,7 +137,7 @@ func (h *Handler) ServeFollowingAvatar(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	imageURL, err := h.queries.GetAnimeFollowingAvatarURL(r.Context(), principal.UserID, r.PathValue("destination"), r.PathValue("username"))
+	imageURL, err := h.queries.GetAnimeFollowingAvatarURL(r.Context(), principal.UserID, r.PathValue("destination"), r.PathValue("username"), time.Now().Add(-animerecord.FollowingRetention))
 	h.serve(w, r, imageURL, err)
 }
 

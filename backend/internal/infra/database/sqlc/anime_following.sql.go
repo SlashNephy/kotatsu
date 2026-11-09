@@ -30,19 +30,29 @@ func (q *Queries) DeleteAnimeFollowingViewings(ctx context.Context, arg DeleteAn
 
 const getAnimeFollowingAvatarURL = `-- name: GetAnimeFollowingAvatarURL :one
 SELECT v.avatar_url FROM anime_following_viewings v
+JOIN anime_following_fetches f USING (user_id, destination, syobocal_tid)
 WHERE v.user_id = $1 AND v.destination = $2 AND v.username = $3 AND v.avatar_url IS NOT NULL
+  AND f.fetched_at >= $4::timestamptz
+ORDER BY f.fetched_at DESC
 LIMIT 1
 `
 
 type GetAnimeFollowingAvatarURLParams struct {
-	UserID      uuid.UUID
-	Destination string
-	Username    string
+	UserID       uuid.UUID
+	Destination  string
+	Username     string
+	FetchedAfter time.Time
 }
 
-// ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。
+// ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。保持する期間を過ぎたものは返さない。
+// 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。
 func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, arg GetAnimeFollowingAvatarURLParams) (*string, error) {
-	row := q.db.QueryRow(ctx, getAnimeFollowingAvatarURL, arg.UserID, arg.Destination, arg.Username)
+	row := q.db.QueryRow(ctx, getAnimeFollowingAvatarURL,
+		arg.UserID,
+		arg.Destination,
+		arg.Username,
+		arg.FetchedAfter,
+	)
 	var avatar_url *string
 	err := row.Scan(&avatar_url)
 	return avatar_url, err

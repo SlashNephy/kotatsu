@@ -17,6 +17,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
@@ -104,7 +105,7 @@ func (FollowingArgs) Kind() string { return "anime_following_import" }
 // InsertOpts は、同じ引数のジョブを、終わるまでは 1 つにする。画面を開き直しても、問い合わせを重ねない。
 // 取得できなかったら、River では送り直さず、次に画面を開いたときに、問い合わせ直す日時を過ぎていれば取得する。
 func (FollowingArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{MaxAttempts: 1, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
+	return river.InsertOpts{MaxAttempts: 1, Queue: jobs.QueueAnimeFollowing, UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
 		rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRetryable, rivertype.JobStateRunning, rivertype.JobStateScheduled,
 	}}}
 }
@@ -295,7 +296,7 @@ func (s *Service) ImportFollowing(ctx context.Context, db Database, userID uuid.
 	if !attempted {
 		return nil
 	}
-	// 失敗も画面に伝えるので、どちらでも知らせる。ジョブの期限で取り消さない。
+	// 失敗も画面に伝えるので、どちらでも知らせる。
 	if _, err := notify.Publish(context.WithoutCancel(ctx), db, s.clock, FollowingNotifyChannel); err != nil {
 		return fmt.Errorf("failed to publish the following viewings change: %w", err)
 	}
@@ -303,23 +304,30 @@ func (s *Service) ImportFollowing(ctx context.Context, db Database, userID uuid.
 	return nil
 }
 
-// importFollowing は、1 つの記録先の視聴状況を取得し、入れ替える。
+// importFollowing は、1 つの記録先の視聴状況を取得し、入れ替える。取得か保存に失敗したら、理由と問い合わせ直す日時を残す。
+// ジョブの期限や停止で取り消されたときは、記録先の失敗ではないので残さず、次に画面を開いたときに問い合わせ直す。
 func (s *Service) importFollowing(ctx context.Context, db Database, userID uuid.UUID, tid int32, target *followingTarget) error {
 	name := target.destination.Name()
 	viewings, err := s.fetchFollowing(ctx, db, userID, target)
-	if err != nil {
-		reason := shortenError(err)
-		now := s.clock.Now()
-		// 失敗を残す書き込みは、ジョブの期限で取り消さない。
-		if _, saveErr := sqlc.New(db).SaveAnimeFollowingFetch(context.WithoutCancel(ctx), sqlc.SaveAnimeFollowingFetchParams{
-			SyobocalTid: tid, Now: now, Error: &reason, RetryAt: new(now.Add(retryDelay(err))), UserID: userID, Destination: name,
-		}); saveErr != nil {
-			return errors.Join(err, fmt.Errorf("failed to save the following import failure: %w", saveErr))
-		}
-
+	if err == nil {
+		err = s.replaceFollowing(ctx, db, userID, tid, name, viewings)
+	}
+	if err == nil || ctx.Err() != nil {
 		return err
 	}
+	reason := shortenError(err)
+	now := s.clock.Now()
+	if _, saveErr := sqlc.New(db).SaveAnimeFollowingFetch(ctx, sqlc.SaveAnimeFollowingFetchParams{
+		SyobocalTid: tid, Now: now, Error: &reason, RetryAt: new(now.Add(retryDelay(err))), UserID: userID, Destination: name,
+	}); saveErr != nil {
+		return errors.Join(err, fmt.Errorf("failed to save the following import failure: %w", saveErr))
+	}
 
+	return err
+}
+
+// replaceFollowing は、取得した視聴状況で入れ替え、取得できたことを残す。
+func (s *Service) replaceFollowing(ctx context.Context, db Database, userID uuid.UUID, tid int32, name string, viewings []*FollowingViewing) error {
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		// 連携を外した後なら、視聴状況を書かない。

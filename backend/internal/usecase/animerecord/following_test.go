@@ -1,6 +1,7 @@
 package animerecord_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -228,6 +229,41 @@ func TestImportFollowingFailure(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, got.Failed)
 	assert.Empty(t, got.Viewings, "a successful fetch replaces the previous result")
+}
+
+// TestImportFollowingCanceled は、ジョブが取り消されたら失敗として残さず、次に問い合わせ直せることを確かめる (#1372)。
+func TestImportFollowingCanceled(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	f.annict.mu.Lock()
+	f.annict.hooks[opFollowing] = cancel
+	f.annict.mu.Unlock()
+
+	require.ErrorIs(t, f.service.ImportFollowing(ctx, f.pool, f.alice.UserID, testTID), context.Canceled)
+
+	got, err := f.service.FollowingViewings(t.Context(), f.pool, f.alice.UserID, testTID)
+	require.NoError(t, err)
+	assert.False(t, got.Failed)
+	assert.True(t, got.NeedsRefresh)
+}
+
+// TestImportFollowingSaveFailure は、取得できても保存できなければ、失敗として残し、すぐには問い合わせ直さないことを確かめる (#1372)。
+func TestImportFollowingSaveFailure(t *testing.T) {
+	t.Parallel()
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAniList)
+	// PostgreSQL の text は NUL を持てない。
+	f.anilist.setFollowing([]fakeFollowing{{Username: userCurrent, WorkID: aniListID, Status: listCurrent, Notes: "a\x00b"}}, 0)
+
+	require.NoError(t, f.service.ImportFollowing(t.Context(), f.pool, f.alice.UserID, testTID))
+
+	got, err := f.service.FollowingViewings(t.Context(), f.pool, f.alice.UserID, testTID)
+	require.NoError(t, err)
+	assert.True(t, got.Failed)
+	assert.False(t, got.NeedsRefresh)
 }
 
 // TestImportFollowingRateLimited は、429 を返した記録先には、示された長さの間、ほかのユーザーの分も問い合わせないことを確かめる (#1372)。

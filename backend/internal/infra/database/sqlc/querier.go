@@ -216,7 +216,8 @@ type Querier interface {
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
-	// ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。
+	// ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。保持する期間を過ぎたものは返さない。
+	// 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。
 	GetAnimeFollowingAvatarURL(ctx context.Context, arg GetAnimeFollowingAvatarURLParams) (*string, error)
 	GetAnimeImport(ctx context.Context, source string) (AnimeImport, error)
 	GetAnimeImportToken(ctx context.Context) (AnimeImportToken, error)

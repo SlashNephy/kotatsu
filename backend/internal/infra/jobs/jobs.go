@@ -32,6 +32,9 @@ const (
 	// QueueCM は、録画の CM の区間を見分けるジョブのキュー (#479)。録画を読み通して FFmpeg を動かすので、1 つずつ実行する。
 	// 代表画像やセグメントをつなぐジョブ (QueueMedia) を、見分け終わるまで待たせないよう、別のキューにする。
 	QueueCM = "cm"
+	// QueueAnimeFollowing は、フォロー中のユーザーの視聴状況を取得するジョブのキュー (#1372)。問い合わせは間を空けて 1 つずつ送るので、
+	// 順番を待つジョブが既定のキューの枠を埋めないよう、1 つずつ実行する。
+	QueueAnimeFollowing = "anime_following"
 	// QueueTranscode は、録画を終えた後に録画を変換するジョブのキュー (#1253)。録画を読み通して FFmpeg でエンコードするので、1 つずつ実行する。
 	QueueTranscode = "transcode"
 	// PriorityImported は、取り込んだ録画のためのジョブの優先度 (River の 1〜4 のうち、最も低い 4)。
@@ -66,10 +69,11 @@ func NewClient(pool *pgxpool.Pool, logger *slog.Logger, opts *Options) (*Client,
 	if opts.Workers != nil {
 		config.Workers = opts.Workers
 		config.Queues = map[string]river.QueueConfig{
-			river.QueueDefault: {MaxWorkers: maxWorkers},
-			QueueMedia:         {MaxWorkers: 1},
-			QueueCM:            {MaxWorkers: 1},
-			QueueTranscode:     {MaxWorkers: 1},
+			river.QueueDefault:  {MaxWorkers: maxWorkers},
+			QueueMedia:          {MaxWorkers: 1},
+			QueueCM:             {MaxWorkers: 1},
+			QueueTranscode:      {MaxWorkers: 1},
+			QueueAnimeFollowing: {MaxWorkers: 1},
 		}
 		config.PeriodicJobs = opts.PeriodicJobs
 	}

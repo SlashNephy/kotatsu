@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -26,10 +27,10 @@ func (q *Queries) GetAnimeWishlistImageURL(ctx context.Context, userID uuid.UUID
 }
 
 // GetAnimeFollowingAvatarURL は、ユーザー userID が取り込んだ視聴状況にある、記録先 destination のユーザー username のアバターの
-// URL を返す (#1372)。なければ pgx.ErrNoRows を返す。
-func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, userID uuid.UUID, destination, username string) (string, error) {
+// URL を返す (#1372)。fetchedAfter より前に取り込んだものは返さない。なければ pgx.ErrNoRows を返す。
+func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, userID uuid.UUID, destination, username string, fetchedAfter time.Time) (string, error) {
 	result, err := sqlc.New(q.pool).GetAnimeFollowingAvatarURL(ctx, sqlc.GetAnimeFollowingAvatarURLParams{
-		UserID: userID, Destination: destination, Username: username,
+		UserID: userID, Destination: destination, Username: username, FetchedAfter: fetchedAfter,
 	})
 	if err != nil {
 		return "", err

@@ -140,6 +140,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 	}{
 		{name: "取り込んだ人のアバターを中継する", username: "someone", signedIn: true, wantStatus: http.StatusOK},
 		{name: "取り込んでいない人のアバターは返さない", username: "stranger", signedIn: true, wantStatus: http.StatusNotFound},
+		{name: "保持する期間を過ぎたアバターは返さない", username: "expired", signedIn: true, wantStatus: http.StatusNotFound},
 		{name: "ログインしていなければ返さない", username: "someone", signedIn: false, wantStatus: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {
@@ -166,6 +167,12 @@ func TestServeFollowingAvatar(t *testing.T) {
 			}
 			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_viewings (user_id, destination, syobocal_tid, username, name, avatar_url, status)
 				VALUES ($1, 'annict', 1, 'someone', '人', $2, 'watching')`, user.ID, upstream.URL+imagePath)
+			require.NoError(t, err)
+			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_fetches (user_id, destination, syobocal_tid, checked_at, fetched_at)
+				VALUES ($1, 'annict', 2, now() - interval '25 hours', now() - interval '25 hours')`, user.ID)
+			require.NoError(t, err)
+			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_viewings (user_id, destination, syobocal_tid, username, name, avatar_url, status)
+				VALUES ($1, 'annict', 2, 'expired', '人', $2, 'watching')`, user.ID, upstream.URL+imagePath)
 			require.NoError(t, err)
 			handler := animeimage.NewHandlerWithClient(pool, slog.New(slog.DiscardHandler), upstream.Client())
 			mux := http.NewServeMux()
