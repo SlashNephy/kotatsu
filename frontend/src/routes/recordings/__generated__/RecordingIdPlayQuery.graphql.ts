@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5c108817deb7870ba660a159396957f5>>
+ * @generated SignedSource<<3b4c528fb98ed00477e07c62dc05d2b6>>
  * @lightSyntaxTransform
  */
 
@@ -54,6 +54,7 @@ export type RecordingIdPlayQuery$data = {
         readonly id: string;
         readonly name: string;
       } | null | undefined;
+      readonly jikkyoChannelId: string | null | undefined;
       readonly logoUrl: string | null | undefined;
       readonly name: string;
     };
@@ -356,6 +357,13 @@ v28 = {
 v29 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "jikkyoChannelId",
+  "storageKey": null
+},
+v30 = {
+  "alias": null,
+  "args": null,
   "concreteType": "JikkyoChannel",
   "kind": "LinkedField",
   "name": "jikkyo",
@@ -363,7 +371,7 @@ v29 = {
   "selections": (v16/*:: as any*/),
   "storageKey": null
 },
-v30 = {
+v31 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -457,7 +465,8 @@ return {
                 "selections": [
                   (v3/*:: as any*/),
                   (v28/*:: as any*/),
-                  (v29/*:: as any*/)
+                  (v29/*:: as any*/),
+                  (v30/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -468,7 +477,7 @@ return {
         ],
         "storageKey": null
       },
-      (v30/*:: as any*/)
+      (v31/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -523,6 +532,7 @@ return {
                   (v3/*:: as any*/),
                   (v28/*:: as any*/),
                   (v29/*:: as any*/),
+                  (v30/*:: as any*/),
                   (v15/*:: as any*/)
                 ],
                 "storageKey": null
@@ -535,20 +545,20 @@ return {
         ],
         "storageKey": null
       },
-      (v30/*:: as any*/)
+      (v31/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "bc28b6415f282e2d1951a0cdcc758bc0",
+    "cacheID": "ab1cf066963ff5c59dbc7ea679058045",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      description\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n      files {\n        kind\n        size\n      }\n      drops\n      errors\n      scrambled\n      streamQuality {\n        kind\n        packets\n      }\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      description\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n      files {\n        kind\n        size\n      }\n      drops\n      errors\n      scrambled\n      streamQuality {\n        kind\n        packets\n      }\n      service {\n        name\n        logoUrl\n        jikkyoChannelId\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0bfbd7dcdbfdfb2348f351d9a1fbf9b9";
+(node as any).hash = "8d1abab894a491806e3307c3af180318";
 
 export default node;

@@ -31,6 +31,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		MCPEnabled:                input.McpEnabled,
 		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
 		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
+		JikkyoEnabled:             input.JikkyoEnabled,
 		DRCSReplacements:          replacements,
 	})
 	if err != nil {

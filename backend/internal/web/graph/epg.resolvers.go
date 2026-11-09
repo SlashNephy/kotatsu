@@ -252,6 +252,11 @@ func (r *serviceResolver) Jikkyo(ctx context.Context, obj *model.Service) (*mode
 	return r.serviceJikkyo(ctx, obj), nil
 }
 
+// JikkyoChannelID is the resolver for the jikkyoChannelId field.
+func (r *serviceResolver) JikkyoChannelID(ctx context.Context, obj *model.Service) (*string, error) {
+	return r.serviceJikkyoChannelID(ctx, obj), nil
+}
+
 // VideoFormat is the resolver for the videoFormat field.
 func (r *serviceResolver) VideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error) {
 	return r.serviceVideoFormat(ctx, obj)

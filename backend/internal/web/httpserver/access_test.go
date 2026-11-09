@@ -287,3 +287,43 @@ func TestRequireSameOrigin(t *testing.T) {
 		})
 	}
 }
+
+// TestRequireSameOriginUpgrade は、WebSocket の接続を始める GET も、同じオリジンからだけ受け付けることを確かめる。
+func TestRequireSameOriginUpgrade(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		remoteAddr string
+		headers    map[string]string
+		wantStatus int
+	}{
+		{name: "same origin", remoteAddr: lanAddr, headers: map[string]string{headerOrigin: "http://" + hostName}, wantStatus: http.StatusOK},
+		{name: "different origin", remoteAddr: lanAddr, headers: map[string]string{headerOrigin: "http://evil.example.com"}, wantStatus: http.StatusForbidden},
+		{name: "missing Origin", remoteAddr: lanAddr, wantStatus: http.StatusForbidden},
+		{
+			name: "same origin behind a trusted proxy", remoteAddr: trustedProxy,
+			headers:    map[string]string{headerXFF: lanAddr, headerXFP: schemeHTTPS, headerXFH: proxiedHost, headerOrigin: "https://" + proxiedHost},
+			wantStatus: http.StatusOK,
+		},
+	}
+	policy, err := httpserver.NewAccessPolicy(&config.Server{
+		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+	}, slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	handler := policy.Middleware(httpserver.RequireSameOriginUpgrade(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+hostName+"/media/jikkyo/jk1/ws", nil)
+			req.RemoteAddr = tt.remoteAddr + ":51234"
+			for key, value := range tt.headers {
+				req.Header.Set(key, value)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code, rec.Body.String())
+		})
+	}
+}

@@ -760,6 +760,7 @@ type SystemSetting struct {
 	MCPEnabled                bool
 	DataBroadcastIPEnabled    bool
 	AnimeLinkingEnabled       bool
+	JikkyoEnabled             bool
 	RuleDefaults              []byte
 	DrcsReplacements          []byte
 	UpdatedAt                 time.Time

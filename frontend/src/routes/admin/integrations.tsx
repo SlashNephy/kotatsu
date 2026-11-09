@@ -70,7 +70,7 @@ const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
   (kind) => !personalKinds.includes(kind),
 );
 
-// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、しょぼいカレンダー、Annict、AniList、
+// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、ニコニコ実況、しょぼいカレンダー、Annict、AniList、
 // 通知を送る Webhook) を変える、管理者向けの画面 (設計書 3.8、6.2、7.4、10.3)。
 function IntegrationsPage() {
   const { t } = useTranslation();
@@ -88,6 +88,7 @@ const query = graphql`
       mcpEnabled
       dataBroadcastIpEnabled
       animeLinkingEnabled
+      jikkyoEnabled
     }
     animeRecordApps {
       destination
@@ -222,6 +223,17 @@ function Integrations() {
           enabled={data.systemSettings.dataBroadcastIpEnabled}
           busy={gate.busy}
           onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
+        />
+
+        {/* ニコニコ実況を使うか。外部と通信し始めるので、ここで再認証を求める (設計書 0.3、7.4)。 */}
+        <SwitchSetting
+          key={`jikkyo/${String(data.systemSettings.jikkyoEnabled)}`}
+          title={t('admin.settings.jikkyo')}
+          label={t('admin.settings.jikkyoEnabled')}
+          help={t('admin.settings.jikkyoHelp')}
+          enabled={data.systemSettings.jikkyoEnabled}
+          busy={gate.busy}
+          onSave={(jikkyoEnabled) => saveSettings({ jikkyoEnabled })}
         />
 
         <AnimeLinkingSettings

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { NXJikkyoSession, type LiveComment, type SessionStatus } from '../jikkyo/session';
+import { JikkyoSession, type LiveComment, type SessionStatus } from '../jikkyo/session';
 import { demoRecordedComments, FakeJikkyoSocket } from './jikkyo';
 
 describe('FakeJikkyoSocket', () => {
@@ -12,11 +12,11 @@ describe('FakeJikkyoSocket', () => {
   });
 
   // 偽物の WebSocket が、画面の実況のセッションが求める手順に沿い、架空のコメントを流せるかを確かめる。
-  test('drives NXJikkyoSession to connected and streams comments', async () => {
+  test('drives JikkyoSession to connected and streams comments', async () => {
     const sockets: FakeJikkyoSocket[] = [];
     const statuses: SessionStatus[] = [];
     const comments: LiveComment[] = [];
-    const session = new NXJikkyoSession(
+    const session = new JikkyoSession(
       'demo1024',
       {
         onComment: (comment) => comments.push(comment),
@@ -34,10 +34,8 @@ describe('FakeJikkyoSocket', () => {
 
     await vi.advanceTimersByTimeAsync(5000);
 
-    expect(sockets.map((socket) => socket.url)).toEqual([
-      'wss://nx-jikkyo.tsukumijima.net/api/v1/channels/demo1024/ws/watch',
-      'wss://nx-jikkyo.tsukumijima.net/api/v1/channels/demo1024/ws/comment',
-    ]);
+    expect(sockets).toHaveLength(1);
+    expect(new URL(sockets[0]!.url).pathname).toBe('/media/jikkyo/demo1024/ws');
     expect(statuses).toEqual([{ kind: 'connecting' }, { kind: 'connected' }]);
     expect(comments.length).toBeGreaterThanOrEqual(3);
     expect(comments[0]).toMatchObject({ content: 'おはよう', userId: 'demo-user-0' });

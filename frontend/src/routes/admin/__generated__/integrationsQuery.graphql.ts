@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8cc66eb052ad0e05b93b32aef22672c5>>
+ * @generated SignedSource<<172a65871a2f9346b3c031814c913edd>>
  * @lightSyntaxTransform
  */
 
@@ -40,6 +40,7 @@ export type integrationsQuery$data = {
   readonly systemSettings: {
     readonly animeLinkingEnabled: boolean;
     readonly dataBroadcastIpEnabled: boolean;
+    readonly jikkyoEnabled: boolean;
     readonly mcpEnabled: boolean;
   };
   readonly webhooks: ReadonlyArray<{
@@ -99,6 +100,13 @@ v2 = [
         "args": null,
         "kind": "ScalarField",
         "name": "animeLinkingEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "jikkyoEnabled",
         "storageKey": null
       }
     ],
@@ -298,16 +306,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "a15c8505fe2bc05900e7d4683b7069a7",
+    "cacheID": "e5cf2fae33622b2bd0fb29400b80d18e",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n    jikkyoEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d0a02c38e8d8faa63be20149b6649888";
+(node as any).hash = "a7328c4c8b29393a20db9129069df9f8";
 
 export default node;

@@ -346,6 +346,8 @@ CREATE TABLE system_settings (
   -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   anime_linking_enabled boolean NOT NULL DEFAULT false,
+  -- ニコニコ実況を使うかどうか (設計書 7.4)。外部へ問い合わせるので、既定では使わない (設計書 0.3)。
+  jikkyo_enabled boolean NOT NULL DEFAULT false,
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
   -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。
@@ -455,8 +457,8 @@ CREATE TABLE player_versions (
 -- 端末をまたいで同期する、プレイヤーの設定 (設計書 9.1)。行がなければ既定値を使う。
 CREATE TABLE user_settings (
   user_id uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
-  -- 実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。
-  jikkyo_enabled boolean NOT NULL DEFAULT true,
+  -- 実況のコメントを出すかどうか。全体の設定と両方で有効なときだけ、外部へ問い合わせる (設計書 7.4)。既定では出さない。
+  jikkyo_enabled boolean NOT NULL DEFAULT false,
   -- 字幕と文字スーパーを出すかどうか。
   captions_enabled boolean NOT NULL DEFAULT true,
   -- 視聴予約の通知を、放送の何分前に送るか (設計書 4.8)。

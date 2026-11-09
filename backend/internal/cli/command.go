@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
@@ -819,7 +820,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock})
+	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock, LiveRetryDelays: nil})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
@@ -930,7 +931,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	registerFallbacks(deps, map[string]func() int64{
 		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "kyusu_instances": instances.FallbackUsed,
 	})
-	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient)
+	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
 	api := sessions.Middleware(deps.DB)(mux)
 	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streams, streamLogger)
 
@@ -1006,7 +1007,7 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 // キャプチャは撮ったユーザーだけのものなので、セッションでだけ受け付ける (設計書 7.5)。
 func handleMedia(
 	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
-	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client,
+	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions,
 ) {
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
@@ -1026,6 +1027,14 @@ func handleMedia(
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(
 		jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	// ライブの実況のコメントは、tenban が NX-Jikkyo との間を中継する (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
+	mux.Handle("GET "+jikkyoapi.LivePath, httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{
+		Pool: deps.DB, Table: jikkyoTable, Client: jikkyoClient, Relay: jikkyo.NewRelay(jikkyoClient),
+		Sessions: func(ctx context.Context, sessionID uuid.UUID) (bool, error) {
+			return sessions.Usable(ctx, deps.DB, sessionID)
+		},
+		Secret: deps.Config.Auth.SecretKey.Value(), Clock: deps.Clock, Logger: logger.With(slog.String("component", "jikkyo")), RevalidateInterval: 0,
+	})))
 	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
 	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
 	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")))

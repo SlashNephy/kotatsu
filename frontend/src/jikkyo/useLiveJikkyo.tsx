@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import { appendComment, liveForce, type ListedComment } from './commentList';
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import { compileMute, defaultCommentSettings, type CommentSettings } from './comments';
-import { NXJikkyoSession, type SessionStatus } from './session';
+import { JikkyoSession, type SessionStatus } from './session';
 
 // liveRetainSeconds は、ライブで、設定を変えて描き直すときに足し直すコメントの秒数。流れている間のコメントが収まればよい。
 const liveRetainSeconds = 30;
@@ -45,7 +45,7 @@ export function useLiveJikkyo(
   // コメントを描く時計。画面を開いてからの秒。
   const origin = useRef(performance.now());
   const clock = () => (performance.now() - origin.current) / 1000;
-  const sessionRef = useRef<NXJikkyoSession | null>(null);
+  const sessionRef = useRef<JikkyoSession | null>(null);
   const [status, setStatus] = useState<SessionStatus | null>(null);
   const [comments, setComments] = useState<readonly ListedComment[]>([]);
   // arrivals は、直近に届いたコメントの時刻 (performance.now)。ミュートしたものも数える。勢いは、局の盛り上がりを表すからである。
@@ -59,7 +59,7 @@ export function useLiveJikkyo(
     if (channelId === null || !active) {
       return;
     }
-    const session = new NXJikkyoSession(channelId, {
+    const session = new JikkyoSession(channelId, {
       onComment: (comment) => {
         arrivals.current.push(comment.at);
         const time = (comment.at - origin.current) / 1000 + playbackDelay(videoRef.current);

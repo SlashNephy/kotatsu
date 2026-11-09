@@ -290,6 +290,21 @@ func RequireSameOrigin(next http.Handler) http.Handler {
 	})
 }
 
+// RequireSameOriginUpgrade は、WebSocket の接続のように GET で状態を持つ接続を始める要求を、同じオリジンからだけ受け付ける。
+// WebSocket は CORS の対象でなく、Cookie も送られるので、ほかのサイトのページからつながれないようにする。
+func RequireSameOriginUpgrade(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		client := clientinfo.From(r.Context())
+		origin := r.Header.Get("Origin")
+		if client == nil || origin == "" || !sameOrigin(origin, client.Origin()) {
+			http.Error(w, "cross-origin request is not allowed", http.StatusForbidden)
+
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // sameOrigin は、2 つのオリジンが、scheme とホスト (ポートを含む) で一致するかを返す。
 func sameOrigin(a, b string) bool {
 	ua, err := url.Parse(a)

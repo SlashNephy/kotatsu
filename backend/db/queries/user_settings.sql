@@ -10,17 +10,23 @@ SELECT coalesce((SELECT version FROM user_setting_versions WHERE user_id = @user
 -- name: GetPlayerSettings :one
 -- プレイヤーの設定。一度も変えていなければ、既定値を返す。
 SELECT
-  coalesce(s.jikkyo_enabled, true)::boolean AS jikkyo_enabled,
+  coalesce(s.jikkyo_enabled, false)::boolean AS jikkyo_enabled,
   coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
   s.comment_settings,
   s.caption_settings
 FROM (SELECT @user_id::uuid AS id) AS u
 LEFT JOIN user_settings s ON s.user_id = u.id;
 
+-- name: GetJikkyoAccess :one
+-- 実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。どちらも、行がなければ無効とする。
+SELECT
+  coalesce((SELECT jikkyo_enabled FROM system_settings WHERE id = 1), false)::boolean AS system_enabled,
+  coalesce((SELECT jikkyo_enabled FROM user_settings WHERE user_id = @user_id), false)::boolean AS user_enabled;
+
 -- name: UpsertPlayerSettings :one
 -- プレイヤーの設定を変える。null の項目は変えない。
 INSERT INTO user_settings (user_id, jikkyo_enabled, captions_enabled, updated_at)
-VALUES (@user_id, coalesce(sqlc.narg(jikkyo_enabled)::boolean, true), coalesce(sqlc.narg(captions_enabled)::boolean, true), @now)
+VALUES (@user_id, coalesce(sqlc.narg(jikkyo_enabled)::boolean, false), coalesce(sqlc.narg(captions_enabled)::boolean, true), @now)
 ON CONFLICT (user_id) DO UPDATE SET
   jikkyo_enabled = coalesce(sqlc.narg(jikkyo_enabled)::boolean, user_settings.jikkyo_enabled),
   captions_enabled = coalesce(sqlc.narg(captions_enabled)::boolean, user_settings.captions_enabled),

@@ -3,6 +3,7 @@ package graph_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -55,6 +57,7 @@ func TestServiceJikkyo(t *testing.T) {
 			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
 			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})
 			f.syncEPG(t)
+			enableJikkyo(t, f)
 
 			var got struct {
 				Services []struct {
@@ -74,6 +77,76 @@ func TestServiceJikkyo(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tt.want, ids)
+		})
+	}
+}
+
+// enableJikkyo は、全体の設定とユーザーの設定の両方で実況を有効にする。
+func enableJikkyo(t *testing.T, f *fixture) {
+	t.Helper()
+
+	require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
+	require.Empty(t, f.query(t, `mutation { updatePlayerSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
+}
+
+// TestServiceJikkyoOptIn は、全体の設定とユーザーの設定の両方で有効なときだけ NX-Jikkyo へ問い合わせ、
+// ID は全体の設定だけで決まることを確かめる (設計書 0.3、7.4)。
+func TestServiceJikkyoOptIn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		system       bool
+		user         bool
+		wantJikkyo   bool
+		wantChannel  bool
+		wantRequests bool
+	}{
+		{name: "どちらも無効", system: false, user: false, wantJikkyo: false, wantChannel: false, wantRequests: false},
+		{name: "全体の設定だけが有効なら、ボタンのための ID だけを返す", system: true, user: false, wantJikkyo: false, wantChannel: true, wantRequests: false},
+		{name: "ユーザーの設定だけが有効", system: false, user: true, wantJikkyo: false, wantChannel: false, wantRequests: false},
+		{name: "両方が有効", system: true, user: true, wantJikkyo: true, wantChannel: true, wantRequests: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requests atomic.Int64
+			nx := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requests.Add(1)
+				_, _ = w.Write([]byte(`[{"id":"jk1","name":"NHK総合"}]`))
+			}))
+			t.Cleanup(nx.Close)
+			table, err := jikkyo.NewTable(nil)
+			require.NoError(t, err)
+			client := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: nx.URL, KakologURL: nx.URL, HTTPClient: httpclienttest.New(t), Clock: nil})
+			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})
+			f.syncEPG(t)
+			if tt.system {
+				require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
+			}
+			if tt.user {
+				require.Empty(t, f.query(t, `mutation { updatePlayerSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
+			}
+
+			var got struct {
+				Services []struct {
+					ServiceID       int     `json:"serviceId"`
+					JikkyoChannelID *string `json:"jikkyoChannelId"`
+					Jikkyo          *struct {
+						ID string `json:"id"`
+					} `json:"jikkyo"`
+				} `json:"services"`
+			}
+			require.Empty(t, f.query(t, `{ services(includeHidden: true) { serviceId jikkyoChannelId jikkyo { id } } }`, nil, &got))
+			for _, service := range got.Services {
+				if service.ServiceID != 0x0400 {
+					continue
+				}
+				assert.Equal(t, tt.wantJikkyo, service.Jikkyo != nil)
+				assert.Equal(t, tt.wantChannel, service.JikkyoChannelID != nil)
+			}
+			assert.Equal(t, tt.wantRequests, requests.Load() > 0)
 		})
 	}
 }

@@ -29,15 +29,24 @@ type Service implements Node {
   streamUrl: String!
   "ロゴの画像の URL のパス。ログイン中のセッションで使う。放送がロゴを送っていなければ null。チューナーサーバーがまだ受信していなければ、URL は 404 を返す。"
   logoUrl: String
-  "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
+  """
+  ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。
+  全体の設定か、読んだユーザーの設定で実況を切っていれば、外部へ問い合わせずに null を返す。
+  """
   jikkyo: JikkyoChannel
+  """
+  同梱の対応表で引いた、ニコニコ実況のチャンネルの ID (設計書 7.4)。外部へは問い合わせない。
+  全体の設定で実況を切っているか、対応するチャンネルがなければ null。
+  ユーザーが実況を切っている間も、プレイヤーの実況のボタンを出すのに使う。
+  """
+  jikkyoChannelId: String
   "放送中の番組の映像の種類 (#806)。番組の映像の解像度が分からなければ、チャンネル種別から決める。"
   videoFormat: VideoFormat!
 }
 
 "NX-Jikkyo の実況のチャンネル。"
 type JikkyoChannel {
-  "jk1 などの ID。NX-Jikkyo の WebSocket の URL に使う。"
+  "jk1 などの ID。tenban の実況の中継の URL に使う。"
   id: String!
   name: String!
   "勢い (1 分あたりのコメントの数。#490)。NX-Jikkyo の値を 1 分ほど使い回す。放送中のスレッドがないか、勢いが 0 で見ている人かコメントも 0 なら null。"

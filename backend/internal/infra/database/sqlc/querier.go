@@ -244,6 +244,8 @@ type Querier interface {
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	// 取り込み元のデータを、既に取り込んだかどうか。取り込んでいれば、作った行の ID を返す。
 	GetImportedTarget(ctx context.Context, arg GetImportedTargetParams) (uuid.UUID, error)
+	// 実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。どちらも、行がなければ無効とする。
+	GetJikkyoAccess(ctx context.Context, userID uuid.UUID) (GetJikkyoAccessRow, error)
 	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
 	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
