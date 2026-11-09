@@ -164,6 +164,7 @@ mise run //frontend:screenshots
 
 mainへのpushのたびにCIが撮り直し、差があれば、画像を差し替えるPRを自動で作ってマージします。
 手で撮った画像をコミットする必要はありません。
+GitHubのSocial previewに使う`docs/screenshots/social-preview.png`も、番組表とライブ視聴の画像からここで合成します。GitHubへの反映は自動ではないので、この画像が大きく変わったら、リポジトリのSettingsのSocial previewからアップロードし直します。
 手元ではフォントなどがCIと違うので、撮るとすべての画像が書き換わります。撮れるかどうかや、見た目を確かめるのに使い、書き換わった画像はコミットしないでください。
 
 ## よく使うコマンド

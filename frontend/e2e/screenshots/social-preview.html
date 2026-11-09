@@ -1,0 +1,95 @@
+<!doctype html>
+<!-- GitHub の Social preview に使う画像の原本。social-preview.spec.ts が開いて撮る。 -->
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kotatsu</title>
+    <style>
+      @font-face {
+        font-family: 'Rounded Latin';
+        font-weight: 500;
+        src: url('/fonts/latin-500.woff2');
+      }
+      @font-face {
+        font-family: 'Rounded Latin';
+        font-weight: 800;
+        src: url('/fonts/latin-800.woff2');
+      }
+      @font-face {
+        font-family: 'Rounded Japanese';
+        font-weight: 500;
+        src: url('/fonts/japanese-500.woff2');
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1280px;
+        height: 640px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        color: #2e2622;
+        font-family: 'Rounded Latin', 'Rounded Japanese', sans-serif;
+        background:
+          radial-gradient(1000px 760px at 108% 104%, #f3b97a 0, rgb(243 185 122 / 0) 72%), #fbf7ef;
+      }
+      .text {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 72px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        width: 520px;
+      }
+      .icon {
+        display: block;
+        width: 150px;
+        height: 150px;
+        margin-bottom: 28px;
+        filter: drop-shadow(0 12px 28px rgb(110 60 20 / 0.28));
+      }
+      h1 {
+        margin: 0;
+        font-size: 104px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+        line-height: 1;
+      }
+      p {
+        margin: 26px 0 0;
+        font-size: 36px;
+        font-weight: 500;
+        line-height: 1.5;
+      }
+      .screen {
+        position: absolute;
+        width: 700px;
+        border: 1px solid rgb(46 38 34 / 0.5);
+        border-radius: 18px;
+        box-shadow: 0 24px 60px rgb(70 35 10 / 0.42);
+      }
+      .guide {
+        top: -74px;
+        left: 760px;
+        transform: rotate(5deg);
+      }
+      .live {
+        top: 158px;
+        left: 612px;
+        transform: rotate(-3deg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="text">
+      <img class="icon" src="/icon.svg" alt="" />
+      <h1>Kotatsu</h1>
+      <p>テレビ番組を<br />予約、録画、視聴<br />できる Web アプリ</p>
+    </div>
+    <img class="screen guide" src="/guide.png" alt="" />
+    <img class="screen live" src="/live.png" alt="" />
+  </body>
+</html>
