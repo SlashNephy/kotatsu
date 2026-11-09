@@ -1,13 +1,18 @@
 import { useSyncExternalStore } from 'react';
 
+import defaultTable from '../../vendor/libaribcaption/drcs.json';
 import { md5 } from './md5';
 
 // 字幕の外字 (DRCS) を文字に置き換える表と、置き換えられなかった外字の一覧 (#825、設計書 7.4)。
 // aribb24.js は、描くたびに、描画器に渡した Map を読むので、ページの中で 1 つの Map を共有し、中身だけを入れ替える。
 // こうすると、表を読み直したり外字を登録したりしても、字幕の描画器を作り直さずに、次の字幕から効く。
 
+// defaultReplacements は、同梱の既定の表 (vendor/libaribcaption/SOURCE の commit から作る)。
+const defaultReplacements = Object.entries<string>(defaultTable.replacements);
+
 // drcsReplacements は、外字の画像の MD5 (小文字の 16 進) から、置き換える文字への表。字幕の描画器すべてに渡す。
-export const drcsReplacements = new Map<string, string>();
+// 既定の表から始めるので、管理者の表を読めなくても、よく使う外字は置き換わる。
+export const drcsReplacements = new Map<string, string>(defaultReplacements);
 
 // DRCSGlyph は、字幕に出た外字。画像は、1 画素あたり depth ビットで、左上から行の順に詰めてある。
 export type DRCSGlyph = {
@@ -71,9 +76,17 @@ export function diffDRCS(
   return changes;
 }
 
-// setDRCSReplacements は、外字の置き換えの表を入れ替える。
-export function setDRCSReplacements(rows: readonly { md5: string; text: string }[]) {
+// restoreDefaults は、表を既定の表だけに戻す。
+function restoreDefaults() {
   drcsReplacements.clear();
+  for (const [key, text] of defaultReplacements) {
+    drcsReplacements.set(key, text);
+  }
+}
+
+// setDRCSReplacements は、外字の置き換えの表を、既定の表に管理者の登録 (rows) を重ねたものに入れ替える。登録を優先する。
+export function setDRCSReplacements(rows: readonly { md5: string; text: string }[]) {
+  restoreDefaults();
   for (const { md5: key, text } of rows) {
     drcsReplacements.set(key.toLowerCase(), text);
   }
@@ -174,9 +187,9 @@ export function drcsImage(glyph: DRCSGlyph, color: string): string {
   return canvas.toDataURL();
 }
 
-// resetDRCSForTest は、覚えた外字と表を空にする。テストのためだけに使う。
+// resetDRCSForTest は、覚えた外字を忘れ、表を既定の表に戻す。テストのためだけに使う。
 export function resetDRCSForTest() {
   seen.clear();
-  drcsReplacements.clear();
+  restoreDefaults();
   notify();
 }
