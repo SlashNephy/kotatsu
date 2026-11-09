@@ -77,7 +77,7 @@ func (f *fixture) emit(t *testing.T, kind domain.NotificationKind, payload map[s
 func (f *fixture) deliver(t *testing.T, webhookID, eventID uuid.UUID) error {
 	t.Helper()
 
-	worker := webhook.NewDeliverWorker(f.pool, f.store, f.clock, tokyo(t))
+	worker := webhook.NewDeliverWorker(f.pool, f.store, f.clock, tokyo(t), nil)
 	job := &river.Job[webhook.DeliverArgs]{JobRow: new(rivertype.JobRow), Args: webhook.DeliverArgs{WebhookID: webhookID, EventID: eventID}}
 
 	return worker.Work(t.Context(), job)

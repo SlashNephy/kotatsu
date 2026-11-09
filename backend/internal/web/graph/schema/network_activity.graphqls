@@ -1,0 +1,62 @@
+"外部との通信の目的。固定の種類で、画面の題名と一文を決める。"
+enum NetworkActivityPurpose {
+  JIKKYO_CHANNELS
+  JIKKYO_COMMENTS
+  JIKKYO_KAKOLOG
+  ANIME_PROGRAM_SYNC
+  ANIME_MAPPINGS
+  ANIME_WORK_IDS
+  ANIME_ARTWORKS
+  ANIME_RECORD
+  ANIME_LINK
+  ANIME_IMAGE
+  USER_AVATAR
+  OIDC
+  HIBP
+  MCP_CLIENT_METADATA
+  UPDATE_CHECK
+  TELEMETRY_TRACES
+  TELEMETRY_METRICS
+  WEB_PUSH
+  WEBHOOK
+  DATA_BROADCAST
+}
+
+"外部との通信のきっかけ。"
+enum NetworkActivityInitiator {
+  SCHEDULED
+  USER
+}
+
+"外部との通信の 1 時間ごとの集計の 1 行。"
+type NetworkActivityEntry {
+  "時間帯の始まり。"
+  hour: Time!
+  purpose: NetworkActivityPurpose!
+  "接続先のホスト名。視聴の内容や設定の中身が分かるものは null。"
+  host: String
+  initiator: NetworkActivityInitiator!
+  success: Boolean!
+  count: Int64!
+  sentBytes: Int64!
+  receivedBytes: Int64!
+}
+
+"外部との通信の記録 (#1369)。"
+type NetworkActivity {
+  enabled: Boolean!
+  "記録を有効にした日時。無効の間は null。"
+  enabledAt: Time
+  retentionDays: Int!
+  "保持期間の中の、通信の回数の合計。"
+  totalCount: Int64!
+  totalSentBytes: Int64!
+  totalReceivedBytes: Int64!
+  "新しい時間帯からの集計。"
+  entries: [NetworkActivityEntry!]!
+}
+
+extend type Query {
+  "外部との通信の記録。ログイン中のユーザーなら誰でも見られる。"
+  networkActivity: NetworkActivity!
+}

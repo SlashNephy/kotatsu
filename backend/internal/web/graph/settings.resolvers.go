@@ -28,12 +28,13 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		ArchiveRetentionDays:       input.ArchiveRetentionDays,
 		NotificationRetentionDays:  input.NotificationRetentionDays,
 		WatchProgressRetentionDays: input.WatchProgressRetentionDays,
-		Rule:                       toRuleChanges(input.RuleDefaults),
-		MCPEnabled:                 input.McpEnabled,
-		DataBroadcastIPEnabled:     input.DataBroadcastIPEnabled,
-		AnimeLinkingEnabled:        input.AnimeLinkingEnabled,
-		JikkyoEnabled:              input.JikkyoEnabled,
-		DRCSReplacements:           replacements,
+		NetworkActivityEnabled:     input.NetworkActivityEnabled, NetworkActivityRetentionDays: input.NetworkActivityRetentionDays,
+		Rule:                   toRuleChanges(input.RuleDefaults),
+		MCPEnabled:             input.McpEnabled,
+		DataBroadcastIPEnabled: input.DataBroadcastIPEnabled,
+		AnimeLinkingEnabled:    input.AnimeLinkingEnabled,
+		JikkyoEnabled:          input.JikkyoEnabled,
+		DRCSReplacements:       replacements,
 	})
 	if err != nil {
 		return nil, settingsError(err)

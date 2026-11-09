@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
@@ -111,15 +112,15 @@ type DeliverWorker struct {
 var _ river.Worker[DeliverArgs] = new(DeliverWorker)
 
 // NewDeliverWorker は DeliverWorker を返す。location は、Discord や Slack に送る文の日時のタイムゾーン。
-func NewDeliverWorker(db sqlc.DBTX, store *Store, clk clock.Clock, location *time.Location) *DeliverWorker {
+func NewDeliverWorker(db sqlc.DBTX, store *Store, clk clock.Clock, location *time.Location, recorder *netactivity.Recorder) *DeliverWorker {
 	return &DeliverWorker{
 		WorkerDefaults: river.WorkerDefaults[DeliverArgs]{},
 		db:             db, store: store, clock: clk, location: location,
-		client: &http.Client{
-			Timeout: requestTimeout,
+		client: netactivity.NewClient(recorder, netactivity.PurposeWebhook, netactivity.ClientOptions{
+			Transport: nil, Timeout: requestTimeout,
 			// 署名した本文を別の送り先に渡さないよう、リダイレクトには従わない。3xx は失敗として扱う。
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
+		}),
 	}
 }
 

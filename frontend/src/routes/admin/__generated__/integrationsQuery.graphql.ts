@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<172a65871a2f9346b3c031814c913edd>>
+ * @generated SignedSource<<5bdc9220c562fca730eef3fd7764b4df>>
  * @lightSyntaxTransform
  */
 
@@ -42,6 +42,7 @@ export type integrationsQuery$data = {
     readonly dataBroadcastIpEnabled: boolean;
     readonly jikkyoEnabled: boolean;
     readonly mcpEnabled: boolean;
+    readonly networkActivityEnabled: boolean;
   };
   readonly webhooks: ReadonlyArray<{
     readonly enabled: boolean;
@@ -93,6 +94,13 @@ v2 = [
         "args": null,
         "kind": "ScalarField",
         "name": "dataBroadcastIpEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "networkActivityEnabled",
         "storageKey": null
       },
       {
@@ -306,16 +314,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "e5cf2fae33622b2bd0fb29400b80d18e",
+    "cacheID": "fa3039139b18120a342f24df7df73262",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    animeLinkingEnabled\n    jikkyoEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    jikkyoEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a7328c4c8b29393a20db9129069df9f8";
+(node as any).hash = "dd6b0ddab3c63fbebc66787ab566f7b6";
 
 export default node;

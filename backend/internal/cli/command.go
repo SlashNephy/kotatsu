@@ -39,6 +39,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
@@ -53,6 +54,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
+	"github.com/SlashNephy/kotatsu/internal/usecase/networkactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
@@ -165,6 +167,16 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return system.WatchProgressRetention(), nil
 	}))
 
+	// 外部との通信の記録は、画面から変えられる保持期間を過ぎたら消す (#1369)。
+	river.AddWorker(workers, networkactivity.NewPruneWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
+		system, err := settings.Load(ctx, deps.DB)
+		if err != nil {
+			return 0, err
+		}
+
+		return time.Duration(system.NetworkActivityRetentionDays) * 24 * time.Hour, nil
+	}))
+
 	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
 	inserter, err := jobs.NewClient(deps.DB, logger, &jobs.Options{PollOnly: deps.Config.Database.Pooler, Workers: nil, PeriodicJobs: nil})
@@ -188,8 +200,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),
 		cmdetect.NewEnqueuer(inserter), transcode.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
-	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location))
-	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient()))
+	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location, deps.Network))
+	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient(deps.Network)))
 
 	// 保存先プールの容量は、このインスタンスにマウントされたプールについて調べる (設計書 6.1)。
 	manager := capacity.NewManager(deps.DB, deps.Clock, storeOf(deps.Config), audit.NewRecorder(deps.Clock),
@@ -226,16 +238,19 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	animeLogger := logger.With(slog.String("component", "anime"))
 	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
 	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの取り込みと照合のジョブすべてで共有する。
-	syobocalClient := syobocal.NewClient(nil)
+	syobocalClient := syobocal.NewClient(&syobocal.Options{
+		HTTPClient: netactivity.NewClient(deps.Network, netactivity.PurposeAnimeProgramSync, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}),
+		URL:        "", Interval: 0,
+	})
 	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
-	animeRecords, err := newAnimeRecords(deps, logger, inserter)
+	animeRecords, err := newAnimeRecords(deps, logger, inserter, netactivity.PurposeAnimeRecord)
 	if err != nil {
 		return nil, nil, err
 	}
 	// 管理者が Annict のトークンを設定していれば、Annict と AniList から作品 ID の対応を作る (#1223)。
-	importer := anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config), syobocalClient, inserter, animeLogger).WithWorkIDs(&anime.WorkIDOptions{
+	importer := anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config, deps.Network), syobocalClient, inserter, animeLogger).WithWorkIDs(&anime.WorkIDOptions{
 		Fetcher: workids.NewClient(&workids.Options{
-			HTTPClient: nil, AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
+			HTTPClient: workids.NewHTTPClient(deps.Network, netactivity.PurposeAnimeWorkIDs), AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
 			JikanBaseURL: deps.Config.AnimeRecords.JikanURL,
 		}),
 		Tokens: animeRecords, AnnictInterval: anime.DefaultAnnictRequestInterval, AniListInterval: anime.DefaultAniListRequestInterval,
@@ -250,7 +265,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, animerecord.NewFollowingWorker(animeRecords, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
-		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
+		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
 		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
@@ -260,8 +275,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 // newAnimeRecords は、見たアニメを Annict と AniList に記録する部品を作る (#927)。
 // 問い合わせ先は決まったホストだけにし、設定で向け直したときだけ、そのオリジンへ向ける (検証用)。
 // inserter は、連携したときに見たいリストを取り込むジョブ (#928) を入れる River のクライアント。nil なら入れない。
-func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (*animerecord.Service, error) {
-	client := animerecord.NewHTTPClient()
+func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter, purpose netactivity.Purpose) (*animerecord.Service, error) {
+	client := animerecord.NewHTTPClient(deps.Network, purpose)
 
 	return animerecord.NewService(&animerecord.Options{
 		Clock: deps.Clock, Recorder: audit.NewRecorder(deps.Clock), AppSecret: deps.Config.Auth.SecretKey.Value(),
@@ -273,7 +288,7 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter) (
 		Inserter:         inserter,
 		WishlistInterval: animerecord.DefaultWishlistRequestInterval,
 		Artworks: workids.NewClient(&workids.Options{
-			HTTPClient: nil, AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
+			HTTPClient: workids.NewHTTPClient(deps.Network, netactivity.PurposeAnimeArtworks), AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
 			JikanBaseURL: deps.Config.AnimeRecords.JikanURL,
 		}),
 	})
@@ -302,7 +317,7 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 	if deps.Jobs != nil {
 		inserter = deps.Jobs
 	}
-	animeRecords, err := newAnimeRecords(deps, logger, inserter)
+	animeRecords, err := newAnimeRecords(deps, logger, inserter, netactivity.PurposeAnimeLink)
 	if err != nil {
 		return nil, err
 	}
@@ -457,6 +472,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Metrics:        telemetry.NewRegistry(),
 			ClusterMetrics: prometheus.NewRegistry(),
 			Clock:          opts.Clock,
+			Network:        netactivity.NewRecorder(opts.Clock),
 			InstanceID:     id.New(),
 			Jobs:           nil,
 			JobWorkers:     nil,
@@ -570,6 +586,7 @@ func newMeterProviders(ctx context.Context, logger *slog.Logger, deps *Deps, rol
 		Roles:      names,
 		Version:    buildinfo.Get().Version,
 		Logger:     logger.With(slog.String("component", "metrics")),
+		Recorder:   deps.Network,
 	})
 }
 
@@ -579,7 +596,7 @@ func newMeterProviders(ctx context.Context, logger *slog.Logger, deps *Deps, rol
 // どれかが失敗すると、残りも止める。ロールがすべて終わったときも、HTTP サーバーを止めて終わる。
 func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error {
 	logger := opts.Logger
-	tracerProvider, shutdownTracing, err := telemetry.NewTracerProvider(ctx, &deps.Config.Telemetry)
+	tracerProvider, shutdownTracing, err := telemetry.NewTracerProvider(ctx, &deps.Config.Telemetry, deps.Network)
 	if err != nil {
 		return err
 	}
@@ -659,6 +676,14 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 
 		return runRoles(ctx, logger, deps, roles)
 	})
+	// 外部との通信の記録は、書けなくても通信を止めないので、エラーを返さない (#1369)。
+	if deps.DB != nil {
+		eg.Go(func() error {
+			deps.Network.Run(ctx, networkactivity.NewStore(deps.DB), logger.With(slog.String("component", "network_activity")))
+
+			return nil
+		})
+	}
 	// tenban は、止まる前に、流している視聴者に、新しい接続を張ってから切り替えてもらう (設計書 11.4、#1085)。
 	// 知らせは変更の購読 (SSE) で届けるので、HTTP サーバーと変更の購読は、視聴者がつなぎ直すまで止めない。
 	apiCtx := ctx
@@ -750,7 +775,8 @@ func newUpdates(logger *slog.Logger, deps *Deps) (*update.Checker, graph.Updates
 		return nil, nil
 	}
 	checker := update.NewChecker(&update.Options{
-		Current: buildinfo.Get().Version, URL: "", Interval: 0, HTTPClient: nil, Logger: logger.With(slog.String("component", "update")),
+		Current: buildinfo.Get().Version, URL: "", Interval: 0,
+		HTTPClient: netactivity.NewClient(deps.Network, netactivity.PurposeUpdateCheck, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}), Logger: logger.With(slog.String("component", "update")),
 	})
 
 	return checker, checker
@@ -808,7 +834,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Logger:   logger.With(slog.String("component", "passkey")),
 		Sessions: sessions,
 	})
-	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config), StrengthTimeout: 0, Estimator: nil, Logger: logger})
+	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config, deps.Network), StrengthTimeout: 0, Estimator: nil, Logger: logger})
 	if err != nil {
 		return nil, err
 	}
@@ -832,12 +858,12 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: nil, Clock: deps.Clock, LiveRetryDelays: nil})
+	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: jikkyoclient.NewHTTPClient(deps.Network), Clock: deps.Clock, LiveRetryDelays: nil})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	iptvFeeds := auth.NewIPTVFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
-	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock), audit.NewRecorder(deps.Clock))
+	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock, deps.Network), audit.NewRecorder(deps.Clock))
 	mux := http.NewServeMux()
 	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
@@ -907,7 +933,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確かめる (設計書 9.5)。
 	mux.Handle("GET /auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
 	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
-	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions)
+	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions, deps.Network)
 	mux.Handle("GET /auth/oidc", oidc.StatusHandler(deps.DB))
 	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
 	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
@@ -1026,9 +1052,9 @@ func handleMedia(
 	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
 	mux.Handle("GET /media/users/{id}/avatar",
-		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")))))
+		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")), deps.Network)))
 	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
-	animeImages := animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")))
+	animeImages := animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")), deps.Network)
 	mux.Handle("GET /media/anime-works/{destination}/{workId}/image", authorizer.Middleware(animeImages))
 	// フォロー中のユーザーのアバターも、記録先が示した URL から取って中継する (#1372)。
 	mux.Handle("GET /media/anime-following/{destination}/{username}/avatar",
@@ -1049,7 +1075,7 @@ func handleMedia(
 	})))
 	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
 	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
-	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")))
+	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")), deps.Network)
 	mux.Handle("POST "+databroadcastapi.RequestPath, httpserver.RequireSameOrigin(dataBroadcast.RequestHandler()))
 	mux.Handle("POST "+databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(dataBroadcast.ConnectivityHandler()))
 	// キャプチャは、データディレクトリに置く (設計書 5.6、7.5)。受け取るのは状態を変えるので、ほかのオリジンからは受け付けない。
@@ -1281,8 +1307,11 @@ func closePool(pool *pgxpool.Pool) {
 }
 
 // animeDataClient は、連携先の情報を取得するクライアントを返す。作品 ID の対応は、設定した arm と同じ形の JSON から取り込む (設計書 3.8)。
-func animeDataClient(cfg *config.Config) *animedata.Client {
-	return animedata.NewClient(&animedata.Options{HTTPClient: nil, SayaDefinitionsURL: "", ArmURL: cfg.AnimeLinking.ArmURL.Value()})
+func animeDataClient(cfg *config.Config, recorder *netactivity.Recorder) *animedata.Client {
+	return animedata.NewClient(&animedata.Options{
+		HTTPClient:         netactivity.NewClient(recorder, netactivity.PurposeAnimeMappings, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}),
+		SayaDefinitionsURL: "", ArmURL: cfg.AnimeLinking.ArmURL.Value(),
+	})
 }
 
 // storeOf は、設定のプールと、データディレクトリを使う kago.Store を返す。

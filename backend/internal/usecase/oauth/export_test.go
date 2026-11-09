@@ -9,7 +9,7 @@ import (
 
 // NewFetcherWithTransport は、テストのサーバー (ループバックのアドレス) に接続できる Fetcher を返す。
 func NewFetcherWithTransport(clk clock.Clock, transport http.RoundTripper) *Fetcher {
-	return newFetcher(clk, transport)
+	return newFetcher(clk, transport, nil)
 }
 
 // Freshness は freshness をテストから呼ぶ。

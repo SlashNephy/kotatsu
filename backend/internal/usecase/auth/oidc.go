@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )
 
@@ -116,11 +117,16 @@ type OIDC struct {
 	provider *oidc.Provider
 }
 
+// NewOIDCHTTPClient は、IdP との通信を recorder に記録する HTTP クライアントを返す。
+func NewOIDCHTTPClient(recorder *netactivity.Recorder) *http.Client {
+	return netactivity.NewClient(recorder, netactivity.PurposeOIDC, netactivity.ClientOptions{Transport: nil, Timeout: oidcHTTPTimeout, CheckRedirect: nil})
+}
+
 // NewOIDC は OIDC を返す。IdP の設定は、最初に使うときに引く。IdP が落ちていても、Kotatsu は起動できる。
 func NewOIDC(opts *OIDCOptions) *OIDC {
 	httpClient := opts.HTTPClient
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: oidcHTTPTimeout}
+		httpClient = NewOIDCHTTPClient(nil)
 	}
 
 	return &OIDC{

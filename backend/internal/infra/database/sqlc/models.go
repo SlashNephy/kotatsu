@@ -313,6 +313,17 @@ type LoginThrottle struct {
 	LastFailedAt time.Time
 }
 
+type NetworkActivity struct {
+	Hour          time.Time
+	Purpose       string
+	Host          string
+	Initiator     string
+	Success       bool
+	Count         int64
+	SentBytes     int64
+	ReceivedBytes int64
+}
+
 type Notification struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -753,18 +764,21 @@ type SyobocalTitle struct {
 }
 
 type SystemSetting struct {
-	ID                         int16
-	RecordingDefaults          []byte
-	ArchiveRetentionDays       int32
-	NotificationRetentionDays  int32
-	WatchProgressRetentionDays int32
-	MCPEnabled                 bool
-	DataBroadcastIPEnabled     bool
-	AnimeLinkingEnabled        bool
-	JikkyoEnabled              bool
-	RuleDefaults               []byte
-	DrcsReplacements           []byte
-	UpdatedAt                  time.Time
+	ID                           int16
+	RecordingDefaults            []byte
+	ArchiveRetentionDays         int32
+	NotificationRetentionDays    int32
+	WatchProgressRetentionDays   int32
+	NetworkActivityEnabled       bool
+	NetworkActivityEnabledAt     *time.Time
+	NetworkActivityRetentionDays int32
+	MCPEnabled                   bool
+	DataBroadcastIPEnabled       bool
+	AnimeLinkingEnabled          bool
+	JikkyoEnabled                bool
+	RuleDefaults                 []byte
+	DrcsReplacements             []byte
+	UpdatedAt                    time.Time
 }
 
 type Tag struct {

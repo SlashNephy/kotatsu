@@ -133,6 +133,14 @@ linters:
       explicit-mode: true
       enforce-patterns:
         - ^github.com/SlashNephy/kotatsu/.+$
+    gocritic:
+      enabled-checks:
+        - ruleguard
+      settings:
+        ruleguard:
+          # 外部との通信の記録を通らない HTTP クライアントを検出する (#1369)。
+          rules: "${base-path}/lint/outbound_http.go"
+          failOn: all
     forbidigo:
       forbid:
         # context を渡さないログの呼び出しを禁止する
@@ -151,6 +159,11 @@ linters:
       - path: _test\.go
         linters:
           - exhaustruct_v5
+      # 内部の通信 (チューナーサーバー、kyusu の中継) と、記録を差し込む側は、外部との通信の記録の対象にしない
+      - path: (_test\.go|internal/lib/netactivity/|internal/infra/mirakurun/|internal/usecase/kyusu/|internal/testutil/)
+        linters:
+          - gocritic
+        text: outbound HTTP must go through
 
 formatters:
   enable:

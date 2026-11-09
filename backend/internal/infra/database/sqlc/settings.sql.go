@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -23,6 +23,9 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.ArchiveRetentionDays,
 		&i.NotificationRetentionDays,
 		&i.WatchProgressRetentionDays,
+		&i.NetworkActivityEnabled,
+		&i.NetworkActivityEnabledAt,
+		&i.NetworkActivityRetentionDays,
 		&i.MCPEnabled,
 		&i.DataBroadcastIPEnabled,
 		&i.AnimeLinkingEnabled,
@@ -68,7 +71,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -86,6 +89,9 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.ArchiveRetentionDays,
 		&i.NotificationRetentionDays,
 		&i.WatchProgressRetentionDays,
+		&i.NetworkActivityEnabled,
+		&i.NetworkActivityEnabledAt,
+		&i.NetworkActivityRetentionDays,
 		&i.MCPEnabled,
 		&i.DataBroadcastIPEnabled,
 		&i.AnimeLinkingEnabled,
@@ -139,25 +145,29 @@ func (q *Queries) UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDis
 
 const updateSystemSettings = `-- name: UpdateSystemSettings :one
 UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
-  notification_retention_days = $3, watch_progress_retention_days = $4, rule_defaults = $5, mcp_enabled = $6,
-  data_broadcast_ip_enabled = $7, anime_linking_enabled = $8, jikkyo_enabled = $9,
-  drcs_replacements = $10, updated_at = $11
+  notification_retention_days = $3, watch_progress_retention_days = $4, network_activity_enabled = $5,
+  network_activity_enabled_at = $6, network_activity_retention_days = $7, rule_defaults = $8, mcp_enabled = $9,
+  data_broadcast_ip_enabled = $10, anime_linking_enabled = $11, jikkyo_enabled = $12,
+  drcs_replacements = $13, updated_at = $14
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
-	RecordingDefaults          []byte
-	ArchiveRetentionDays       int32
-	NotificationRetentionDays  int32
-	WatchProgressRetentionDays int32
-	RuleDefaults               []byte
-	MCPEnabled                 bool
-	DataBroadcastIPEnabled     bool
-	AnimeLinkingEnabled        bool
-	JikkyoEnabled              bool
-	DrcsReplacements           []byte
-	Now                        time.Time
+	RecordingDefaults            []byte
+	ArchiveRetentionDays         int32
+	NotificationRetentionDays    int32
+	WatchProgressRetentionDays   int32
+	NetworkActivityEnabled       bool
+	NetworkActivityEnabledAt     *time.Time
+	NetworkActivityRetentionDays int32
+	RuleDefaults                 []byte
+	MCPEnabled                   bool
+	DataBroadcastIPEnabled       bool
+	AnimeLinkingEnabled          bool
+	JikkyoEnabled                bool
+	DrcsReplacements             []byte
+	Now                          time.Time
 }
 
 func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) (SystemSetting, error) {
@@ -166,6 +176,9 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.ArchiveRetentionDays,
 		arg.NotificationRetentionDays,
 		arg.WatchProgressRetentionDays,
+		arg.NetworkActivityEnabled,
+		arg.NetworkActivityEnabledAt,
+		arg.NetworkActivityRetentionDays,
 		arg.RuleDefaults,
 		arg.MCPEnabled,
 		arg.DataBroadcastIPEnabled,
@@ -181,6 +194,9 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.ArchiveRetentionDays,
 		&i.NotificationRetentionDays,
 		&i.WatchProgressRetentionDays,
+		&i.NetworkActivityEnabled,
+		&i.NetworkActivityEnabledAt,
+		&i.NetworkActivityRetentionDays,
 		&i.MCPEnabled,
 		&i.DataBroadcastIPEnabled,
 		&i.AnimeLinkingEnabled,

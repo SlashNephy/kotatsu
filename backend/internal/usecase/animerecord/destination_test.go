@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 )
 
@@ -152,7 +153,7 @@ func TestAnnictRecordEpisode(t *testing.T) {
 			fake := newFakeService(t)
 			fake.tokens["token"] = true
 			fake.works[tt.work.AnnictID] = tt.work
-			annict := animerecord.NewAnnict(animerecord.NewHTTPClient(), fake.server.URL)
+			annict := animerecord.NewAnnict(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeRecord), fake.server.URL)
 
 			recorded, err := annict.RecordEpisode(t.Context(), "token", []int32{tt.work.AnnictID}, tt.episode, tt.rules)
 			// 作品の状態は、記録を付けたことを残した後に、ジョブが変える。
@@ -231,7 +232,7 @@ func TestAniListRecordEpisode(t *testing.T) {
 			if tt.entry != nil {
 				fake.entries[600] = tt.entry
 			}
-			anilist := animerecord.NewAniList(animerecord.NewHTTPClient(), fake.server.URL)
+			anilist := animerecord.NewAniList(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeRecord), fake.server.URL)
 
 			recorded, err := anilist.RecordEpisode(t.Context(), "token", []int32{600}, tt.episode, tt.rules)
 			_, _, saves := fake.snapshot()
@@ -254,7 +255,7 @@ func TestGraphQLErrors(t *testing.T) {
 	fake := newFakeService(t)
 	fake.tokens["token"] = true
 	fake.failures["viewer"] = 1
-	annict := animerecord.NewAnnict(animerecord.NewHTTPClient(), fake.server.URL)
+	annict := animerecord.NewAnnict(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeRecord), fake.server.URL)
 
 	_, err := annict.AccountName(t.Context(), "token")
 	require.Error(t, err)

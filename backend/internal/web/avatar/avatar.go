@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/query"
 )
@@ -59,7 +60,7 @@ type Handler struct {
 var _ http.Handler = new(Handler)
 
 // NewHandler は Handler を返す。issuer は、OIDC の issuer の URL。OIDC を使わなければ空にする。
-func NewHandler(pool *pgxpool.Pool, issuer string, logger *slog.Logger) *Handler {
+func NewHandler(pool *pgxpool.Pool, issuer string, logger *slog.Logger, recorder *netactivity.Recorder) *Handler {
 	issuerHost := ""
 	if u, err := url.Parse(issuer); err == nil {
 		issuerHost = u.Host
@@ -69,12 +70,12 @@ func NewHandler(pool *pgxpool.Pool, issuer string, logger *slog.Logger) *Handler
 
 	return &Handler{
 		queries: query.New(pool), logger: logger, issuerHost: issuerHost,
-		public: &http.Client{
+		public: netactivity.NewClient(recorder, netactivity.PurposeUserAvatar, netactivity.ClientOptions{
 			Transport:     &http.Transport{Proxy: nil, DialContext: dialer.DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: fetchTimeout},
 			Timeout:       fetchTimeout,
 			CheckRedirect: noRedirect,
-		},
-		issuer: &http.Client{Transport: http.DefaultTransport, Timeout: fetchTimeout, CheckRedirect: noRedirect},
+		}),
+		issuer: netactivity.NewClient(recorder, netactivity.PurposeUserAvatar, netactivity.ClientOptions{Transport: nil, Timeout: fetchTimeout, CheckRedirect: noRedirect}),
 	}
 }
 

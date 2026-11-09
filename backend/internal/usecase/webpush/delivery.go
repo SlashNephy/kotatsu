@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/lib/redact"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -262,10 +263,10 @@ var (
 // 購読の送り先はユーザーが渡すので、LAN の中のサーバーに送らせないよう、接続するときに、グローバルなアドレスかを確かめる。
 // 名前を引いた後のアドレスで確かめるので、DNS の応答を後から変えられても、LAN の中には送らない。
 // 同じ理由で、環境変数のプロキシは使わず、リダイレクトにも従わない。
-func NewHTTPClient() *http.Client {
+func NewHTTPClient(recorder *netactivity.Recorder) *http.Client {
 	dialer := &net.Dialer{Timeout: requestTimeout, Control: publicnet.Control}
 
-	return &http.Client{
+	return netactivity.NewClient(recorder, netactivity.PurposeWebPush, netactivity.ClientOptions{
 		Transport: &http.Transport{
 			Proxy:               nil,
 			DialContext:         dialer.DialContext,
@@ -276,5 +277,5 @@ func NewHTTPClient() *http.Client {
 		},
 		Timeout:       requestTimeout,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
+	})
 }

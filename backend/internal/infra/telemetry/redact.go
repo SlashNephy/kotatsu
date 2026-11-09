@@ -8,6 +8,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const urlPathKey = attribute.Key("url.path")
@@ -31,6 +33,9 @@ func isDroppedAttribute(key attribute.Key) bool {
 // redactingExporter は、外の送信先に渡す直前に、span から視聴者を識別できる属性と、何を再生したかが分かるパスの ID を除く (#1364)。
 type redactingExporter struct {
 	sdktrace.SpanExporter
+
+	// recorder は、外部との通信の記録 (#1369)。送信先は HTTP クライアントを通らないので、送るたびに数える。
+	recorder *netactivity.Recorder
 }
 
 // redactedSpan は、属性だけを差し替えた span。
@@ -51,7 +56,9 @@ func (e redactingExporter) ExportSpans(ctx context.Context, spans []sdktrace.Rea
 	for _, span := range spans {
 		redacted = append(redacted, redactedSpan{ReadOnlySpan: span, attributes: redactAttributes(span.Attributes())})
 	}
-	if err := e.SpanExporter.ExportSpans(ctx, redacted); err != nil {
+	err := e.SpanExporter.ExportSpans(ctx, redacted)
+	e.recorder.Add(netactivity.PurposeTelemetryTraces, "", err == nil, netactivity.Totals{Count: 1, SentBytes: 0, ReceivedBytes: 0})
+	if err != nil {
 		return fmt.Errorf("failed to export spans: %w", err)
 	}
 

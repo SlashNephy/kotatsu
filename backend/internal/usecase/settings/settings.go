@@ -31,6 +31,8 @@ const (
 	DefaultNotificationRetentionDays = 90
 	// DefaultWatchProgressRetentionDays は、録画の再生位置の保持期間の既定値 (付録 A、#1366)。
 	DefaultWatchProgressRetentionDays = 365
+	// DefaultNetworkActivityRetentionDays は、外部との通信の記録の保持期間の既定値 (付録 A、#1369)。
+	DefaultNetworkActivityRetentionDays = 30
 	// maxArchiveRetentionDays は、過去の番組と通知の保持期間の上限。無期限にするなら 0 にする。
 	maxArchiveRetentionDays = 3650
 	// auditTarget は、設定の監査ログの対象の種類。
@@ -54,6 +56,12 @@ type System struct {
 	NotificationRetentionDays int
 	// WatchProgressRetentionDays は、録画の再生位置の保持期間 (日)。0 なら無期限 (#1366)。
 	WatchProgressRetentionDays int
+	// NetworkActivityEnabled は、外部との通信を記録するかどうか (#1369)。既定は false。
+	NetworkActivityEnabled bool
+	// NetworkActivityEnabledAt は、記録を有効にした日時。無効の間は nil。
+	NetworkActivityEnabledAt *time.Time
+	// NetworkActivityRetentionDays は、外部との通信の記録の保持期間 (日)。
+	NetworkActivityRetentionDays int
 	// Rule は、ルールを作るときの既定値 (#470)。
 	Rule *RuleDefaults
 	// MCPEnabled は、MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
@@ -133,15 +141,17 @@ func defaultRuleDefaults() *RuleDefaults {
 // Changes は、変える項目。nil の項目は変えない。
 type Changes struct {
 	// Recording は、録画設定の既定値の変える項目。項目を既定値に戻すときは、既定値と同じ値を渡す。
-	Recording                  *domain.RecordingOverrides
-	ArchiveRetentionDays       *int
-	NotificationRetentionDays  *int
-	WatchProgressRetentionDays *int
-	Rule                       *RuleChanges
-	MCPEnabled                 *bool
-	DataBroadcastIPEnabled     *bool
-	AnimeLinkingEnabled        *bool
-	JikkyoEnabled              *bool
+	Recording                    *domain.RecordingOverrides
+	ArchiveRetentionDays         *int
+	NotificationRetentionDays    *int
+	WatchProgressRetentionDays   *int
+	NetworkActivityEnabled       *bool
+	NetworkActivityRetentionDays *int
+	Rule                         *RuleChanges
+	MCPEnabled                   *bool
+	DataBroadcastIPEnabled       *bool
+	AnimeLinkingEnabled          *bool
+	JikkyoEnabled                *bool
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
 	DRCSReplacements map[string]*string
 }
@@ -186,6 +196,43 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
+// networkActivityEnabledAt は、外部との通信の記録を有効にした日時を返す (#1369)。無効の間は nil。
+func networkActivityEnabledAt(current *System, enabled bool, now time.Time) *time.Time {
+	switch {
+	case enabled && current.NetworkActivityEnabled:
+		return current.NetworkActivityEnabledAt
+	case enabled:
+		return &now
+	default:
+		return nil
+	}
+}
+
+// resolvedRetention は、保存する保持期間 (日)。
+type resolvedRetention struct {
+	archive, notification, watchProgress, networkActivity int32
+}
+
+// resolveRetention は、変える項目を今の値に重ねた保持期間を返す。
+func resolveRetention(current *System, changes *Changes) (resolvedRetention, error) {
+	var result resolvedRetention
+	var err error
+	if result.archive, err = retentionDays("archiveRetentionDays", valueOr(changes.ArchiveRetentionDays, current.ArchiveRetentionDays)); err != nil {
+		return result, err
+	}
+	if result.notification, err = retentionDays("notificationRetentionDays", valueOr(changes.NotificationRetentionDays, current.NotificationRetentionDays)); err != nil {
+		return result, err
+	}
+	if result.watchProgress, err = retentionDays("watchProgressRetentionDays", valueOr(changes.WatchProgressRetentionDays, current.WatchProgressRetentionDays)); err != nil {
+		return result, err
+	}
+	if result.networkActivity, err = retentionDays("networkActivityRetentionDays", valueOr(changes.NetworkActivityRetentionDays, current.NetworkActivityRetentionDays)); err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 // validateRetentionChanges は、変える保持期間を確かめる。
 func validateRetentionChanges(changes *Changes) error {
 	for _, field := range []struct {
@@ -202,6 +249,9 @@ func validateRetentionChanges(changes *Changes) error {
 		if _, err := retentionDays(field.name, *field.days); err != nil {
 			return err
 		}
+	}
+	if days := changes.NetworkActivityRetentionDays; days != nil && *days < 1 {
+		return fmt.Errorf("%w: networkActivityRetentionDays must be at least 1", ErrInvalidSettings)
 	}
 
 	return nil
@@ -236,19 +286,17 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSettings, err)
 		}
-		archiveDays, err := retentionDays("archiveRetentionDays", valueOr(changes.ArchiveRetentionDays, current.ArchiveRetentionDays))
+		retention, err := resolveRetention(current, changes)
 		if err != nil {
 			return err
 		}
-		notificationDays, err := retentionDays(
-			"notificationRetentionDays", valueOr(changes.NotificationRetentionDays, current.NotificationRetentionDays))
-		if err != nil {
-			return err
-		}
-		watchProgressDays, err := retentionDays(
-			"watchProgressRetentionDays", valueOr(changes.WatchProgressRetentionDays, current.WatchProgressRetentionDays))
-		if err != nil {
-			return err
+		networkEnabled := valueOr(changes.NetworkActivityEnabled, current.NetworkActivityEnabled)
+		networkEnabledAt := networkActivityEnabledAt(current, networkEnabled, now)
+		// 無効に戻したら、それまでの記録を消す。
+		if current.NetworkActivityEnabled && !networkEnabled {
+			if err := q.DeleteAllNetworkActivity(ctx); err != nil {
+				return fmt.Errorf("failed to delete the network activity: %w", err)
+			}
 		}
 		ruleDefaults, err := decodeRuleDefaults(row.RuleDefaults)
 		if err != nil {
@@ -263,7 +311,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			return err
 		}
 		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
-			RecordingDefaults: encoded, ArchiveRetentionDays: archiveDays, NotificationRetentionDays: notificationDays, WatchProgressRetentionDays: watchProgressDays,
+			RecordingDefaults: encoded, ArchiveRetentionDays: retention.archive, NotificationRetentionDays: retention.notification, WatchProgressRetentionDays: retention.watchProgress,
+			NetworkActivityEnabled: networkEnabled, NetworkActivityEnabledAt: networkEnabledAt, NetworkActivityRetentionDays: retention.networkActivity,
 			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled),
 			DataBroadcastIPEnabled: valueOr(changes.DataBroadcastIPEnabled, current.DataBroadcastIPEnabled),
 			AnimeLinkingEnabled:    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
@@ -283,15 +332,17 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			TargetType: auditTarget,
 			TargetID:   "system",
 			Summary: map[string]any{
-				"recording":                  change(current.RecordingOverrides, updated.RecordingOverrides),
-				"archiveRetentionDays":       change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
-				"notificationRetentionDays":  change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
-				"watchProgressRetentionDays": change(current.WatchProgressRetentionDays, updated.WatchProgressRetentionDays),
-				"rule":                       change(current.Rule, updated.Rule),
-				"mcpEnabled":                 change(current.MCPEnabled, updated.MCPEnabled),
-				"dataBroadcastIpEnabled":     change(current.DataBroadcastIPEnabled, updated.DataBroadcastIPEnabled),
-				"animeLinkingEnabled":        change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
-				"jikkyoEnabled":              change(current.JikkyoEnabled, updated.JikkyoEnabled),
+				"recording":                    change(current.RecordingOverrides, updated.RecordingOverrides),
+				"archiveRetentionDays":         change(current.ArchiveRetentionDays, updated.ArchiveRetentionDays),
+				"notificationRetentionDays":    change(current.NotificationRetentionDays, updated.NotificationRetentionDays),
+				"watchProgressRetentionDays":   change(current.WatchProgressRetentionDays, updated.WatchProgressRetentionDays),
+				"networkActivityEnabled":       change(current.NetworkActivityEnabled, updated.NetworkActivityEnabled),
+				"networkActivityRetentionDays": change(current.NetworkActivityRetentionDays, updated.NetworkActivityRetentionDays),
+				"rule":                         change(current.Rule, updated.Rule),
+				"mcpEnabled":                   change(current.MCPEnabled, updated.MCPEnabled),
+				"dataBroadcastIpEnabled":       change(current.DataBroadcastIPEnabled, updated.DataBroadcastIPEnabled),
+				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
+				"jikkyoEnabled":                change(current.JikkyoEnabled, updated.JikkyoEnabled),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
 				"drcsReplacements": drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 			},
@@ -432,13 +483,14 @@ func defaults() *System {
 		ArchiveRetentionDays:       DefaultArchiveRetentionDays,
 		NotificationRetentionDays:  DefaultNotificationRetentionDays,
 		WatchProgressRetentionDays: DefaultWatchProgressRetentionDays,
-		Rule:                       defaultRuleDefaults(),
-		MCPEnabled:                 false,
-		DataBroadcastIPEnabled:     false,
-		AnimeLinkingEnabled:        false,
-		JikkyoEnabled:              false,
-		DRCSReplacements:           map[string]string{},
-		UpdatedAt:                  nil,
+		NetworkActivityEnabled:     false, NetworkActivityEnabledAt: nil, NetworkActivityRetentionDays: DefaultNetworkActivityRetentionDays,
+		Rule:                   defaultRuleDefaults(),
+		MCPEnabled:             false,
+		DataBroadcastIPEnabled: false,
+		AnimeLinkingEnabled:    false,
+		JikkyoEnabled:          false,
+		DRCSReplacements:       map[string]string{},
+		UpdatedAt:              nil,
 	}
 }
 
@@ -464,12 +516,13 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		ArchiveRetentionDays:       int(row.ArchiveRetentionDays),
 		NotificationRetentionDays:  int(row.NotificationRetentionDays),
 		WatchProgressRetentionDays: int(row.WatchProgressRetentionDays),
-		Rule:                       resolveRule(rule),
-		MCPEnabled:                 row.MCPEnabled,
-		DataBroadcastIPEnabled:     row.DataBroadcastIPEnabled,
-		AnimeLinkingEnabled:        row.AnimeLinkingEnabled,
-		JikkyoEnabled:              row.JikkyoEnabled,
-		UpdatedAt:                  &row.UpdatedAt,
+		NetworkActivityEnabled:     row.NetworkActivityEnabled, NetworkActivityEnabledAt: row.NetworkActivityEnabledAt, NetworkActivityRetentionDays: int(row.NetworkActivityRetentionDays),
+		Rule:                   resolveRule(rule),
+		MCPEnabled:             row.MCPEnabled,
+		DataBroadcastIPEnabled: row.DataBroadcastIPEnabled,
+		AnimeLinkingEnabled:    row.AnimeLinkingEnabled,
+		JikkyoEnabled:          row.JikkyoEnabled,
+		UpdatedAt:              &row.UpdatedAt,
 	}, nil
 }
 

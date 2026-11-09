@@ -653,6 +653,27 @@ type ComplexityRoot struct {
 		Text  func(childComplexity int) int
 	}
 
+	NetworkActivity struct {
+		Enabled            func(childComplexity int) int
+		EnabledAt          func(childComplexity int) int
+		Entries            func(childComplexity int) int
+		RetentionDays      func(childComplexity int) int
+		TotalCount         func(childComplexity int) int
+		TotalReceivedBytes func(childComplexity int) int
+		TotalSentBytes     func(childComplexity int) int
+	}
+
+	NetworkActivityEntry struct {
+		Count         func(childComplexity int) int
+		Host          func(childComplexity int) int
+		Hour          func(childComplexity int) int
+		Initiator     func(childComplexity int) int
+		Purpose       func(childComplexity int) int
+		ReceivedBytes func(childComplexity int) int
+		SentBytes     func(childComplexity int) int
+		Success       func(childComplexity int) int
+	}
+
 	Notification struct {
 		ExternalURL func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -866,6 +887,7 @@ type ComplexityRoot struct {
 		JobCounts               func(childComplexity int) int
 		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
 		MissingRecordings       func(childComplexity int) int
+		NetworkActivity         func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
@@ -1213,17 +1235,19 @@ type ComplexityRoot struct {
 	}
 
 	SystemSettings struct {
-		AnimeLinkingEnabled        func(childComplexity int) int
-		ArchiveRetentionDays       func(childComplexity int) int
-		DataBroadcastIPEnabled     func(childComplexity int) int
-		DrcsReplacements           func(childComplexity int) int
-		JikkyoEnabled              func(childComplexity int) int
-		McpEnabled                 func(childComplexity int) int
-		NotificationRetentionDays  func(childComplexity int) int
-		RecordingDefaults          func(childComplexity int) int
-		RuleDefaults               func(childComplexity int) int
-		UpdatedAt                  func(childComplexity int) int
-		WatchProgressRetentionDays func(childComplexity int) int
+		AnimeLinkingEnabled          func(childComplexity int) int
+		ArchiveRetentionDays         func(childComplexity int) int
+		DataBroadcastIPEnabled       func(childComplexity int) int
+		DrcsReplacements             func(childComplexity int) int
+		JikkyoEnabled                func(childComplexity int) int
+		McpEnabled                   func(childComplexity int) int
+		NetworkActivityEnabled       func(childComplexity int) int
+		NetworkActivityRetentionDays func(childComplexity int) int
+		NotificationRetentionDays    func(childComplexity int) int
+		RecordingDefaults            func(childComplexity int) int
+		RuleDefaults                 func(childComplexity int) int
+		UpdatedAt                    func(childComplexity int) int
+		WatchProgressRetentionDays   func(childComplexity int) int
 	}
 
 	SystemStatus struct {
@@ -1529,6 +1553,7 @@ type QueryResolver interface {
 	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
 	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
+	NetworkActivity(ctx context.Context) (*model.NetworkActivity, error)
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
@@ -4481,6 +4506,98 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MutedKeyword.Text(childComplexity), true
 
+	case "NetworkActivity.enabled":
+		if e.ComplexityRoot.NetworkActivity.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.Enabled(childComplexity), true
+	case "NetworkActivity.enabledAt":
+		if e.ComplexityRoot.NetworkActivity.EnabledAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.EnabledAt(childComplexity), true
+	case "NetworkActivity.entries":
+		if e.ComplexityRoot.NetworkActivity.Entries == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.Entries(childComplexity), true
+	case "NetworkActivity.retentionDays":
+		if e.ComplexityRoot.NetworkActivity.RetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.RetentionDays(childComplexity), true
+	case "NetworkActivity.totalCount":
+		if e.ComplexityRoot.NetworkActivity.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.TotalCount(childComplexity), true
+	case "NetworkActivity.totalReceivedBytes":
+		if e.ComplexityRoot.NetworkActivity.TotalReceivedBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.TotalReceivedBytes(childComplexity), true
+	case "NetworkActivity.totalSentBytes":
+		if e.ComplexityRoot.NetworkActivity.TotalSentBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivity.TotalSentBytes(childComplexity), true
+
+	case "NetworkActivityEntry.count":
+		if e.ComplexityRoot.NetworkActivityEntry.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.Count(childComplexity), true
+	case "NetworkActivityEntry.host":
+		if e.ComplexityRoot.NetworkActivityEntry.Host == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.Host(childComplexity), true
+	case "NetworkActivityEntry.hour":
+		if e.ComplexityRoot.NetworkActivityEntry.Hour == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.Hour(childComplexity), true
+	case "NetworkActivityEntry.initiator":
+		if e.ComplexityRoot.NetworkActivityEntry.Initiator == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.Initiator(childComplexity), true
+	case "NetworkActivityEntry.purpose":
+		if e.ComplexityRoot.NetworkActivityEntry.Purpose == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.Purpose(childComplexity), true
+	case "NetworkActivityEntry.receivedBytes":
+		if e.ComplexityRoot.NetworkActivityEntry.ReceivedBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.ReceivedBytes(childComplexity), true
+	case "NetworkActivityEntry.sentBytes":
+		if e.ComplexityRoot.NetworkActivityEntry.SentBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.SentBytes(childComplexity), true
+	case "NetworkActivityEntry.success":
+		if e.ComplexityRoot.NetworkActivityEntry.Success == nil {
+			break
+		}
+
+		return e.ComplexityRoot.NetworkActivityEntry.Success(childComplexity), true
+
 	case "Notification.externalUrl":
 		if e.ComplexityRoot.Notification.ExternalURL == nil {
 			break
@@ -5427,6 +5544,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.MissingRecordings(childComplexity), true
+	case "Query.networkActivity":
+		if e.ComplexityRoot.Query.NetworkActivity == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.NetworkActivity(childComplexity), true
 	case "Query.node":
 		if e.ComplexityRoot.Query.Node == nil {
 			break
@@ -7032,6 +7155,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.McpEnabled(childComplexity), true
+	case "SystemSettings.networkActivityEnabled":
+		if e.ComplexityRoot.SystemSettings.NetworkActivityEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.NetworkActivityEnabled(childComplexity), true
+	case "SystemSettings.networkActivityRetentionDays":
+		if e.ComplexityRoot.SystemSettings.NetworkActivityRetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.NetworkActivityRetentionDays(childComplexity), true
 	case "SystemSettings.notificationRetentionDays":
 		if e.ComplexityRoot.SystemSettings.NotificationRetentionDays == nil {
 			break
@@ -9338,6 +9473,69 @@ extend type Mutation {
   cleanUpMissingRecordings(ids: [ID!]!): CleanUpMissingRecordingsPayload!
 }
 `, BuiltIn: false},
+	{Name: "../schema/network_activity.graphqls", Input: `"外部との通信の目的。固定の種類で、画面の題名と一文を決める。"
+enum NetworkActivityPurpose {
+  JIKKYO_CHANNELS
+  JIKKYO_COMMENTS
+  JIKKYO_KAKOLOG
+  ANIME_PROGRAM_SYNC
+  ANIME_MAPPINGS
+  ANIME_WORK_IDS
+  ANIME_ARTWORKS
+  ANIME_RECORD
+  ANIME_LINK
+  ANIME_IMAGE
+  USER_AVATAR
+  OIDC
+  HIBP
+  MCP_CLIENT_METADATA
+  UPDATE_CHECK
+  TELEMETRY_TRACES
+  TELEMETRY_METRICS
+  WEB_PUSH
+  WEBHOOK
+  DATA_BROADCAST
+}
+
+"外部との通信のきっかけ。"
+enum NetworkActivityInitiator {
+  SCHEDULED
+  USER
+}
+
+"外部との通信の 1 時間ごとの集計の 1 行。"
+type NetworkActivityEntry {
+  "時間帯の始まり。"
+  hour: Time!
+  purpose: NetworkActivityPurpose!
+  "接続先のホスト名。視聴の内容や設定の中身が分かるものは null。"
+  host: String
+  initiator: NetworkActivityInitiator!
+  success: Boolean!
+  count: Int64!
+  sentBytes: Int64!
+  receivedBytes: Int64!
+}
+
+"外部との通信の記録 (#1369)。"
+type NetworkActivity {
+  enabled: Boolean!
+  "記録を有効にした日時。無効の間は null。"
+  enabledAt: Time
+  retentionDays: Int!
+  "保持期間の中の、通信の回数の合計。"
+  totalCount: Int64!
+  totalSentBytes: Int64!
+  totalReceivedBytes: Int64!
+  "新しい時間帯からの集計。"
+  entries: [NetworkActivityEntry!]!
+}
+
+extend type Query {
+  "外部との通信の記録。ログイン中のユーザーなら誰でも見られる。"
+  networkActivity: NetworkActivity!
+}
+`, BuiltIn: false},
 	{Name: "../schema/notifications.graphqls", Input: `"""
 通知するイベントの種類 (設計書 6.2)。
 """
@@ -10836,6 +11034,10 @@ type SystemSettings {
   notificationRetentionDays: Int!
   "録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。"
   watchProgressRetentionDays: Int!
+  "外部との通信を記録するかどうか (#1369)。"
+  networkActivityEnabled: Boolean!
+  "外部との通信の記録の保持期間 (日)。"
+  networkActivityRetentionDays: Int!
   "ルールを作るときの既定値。"
   ruleDefaults: RuleDefaults!
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
@@ -10867,6 +11069,8 @@ input SystemSettingsInput {
   archiveRetentionDays: Int
   notificationRetentionDays: Int
   watchProgressRetentionDays: Int
+  networkActivityEnabled: Boolean
+  networkActivityRetentionDays: Int
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
   mcpEnabled: Boolean
@@ -12553,6 +12757,48 @@ func (ec *executionContext) childFields_MutedKeyword(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type MutedKeyword", field.Name)
 }
 
+func (ec *executionContext) childFields_NetworkActivity(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_NetworkActivity_enabled(ctx, field)
+	case "enabledAt":
+		return ec.fieldContext_NetworkActivity_enabledAt(ctx, field)
+	case "retentionDays":
+		return ec.fieldContext_NetworkActivity_retentionDays(ctx, field)
+	case "totalCount":
+		return ec.fieldContext_NetworkActivity_totalCount(ctx, field)
+	case "totalSentBytes":
+		return ec.fieldContext_NetworkActivity_totalSentBytes(ctx, field)
+	case "totalReceivedBytes":
+		return ec.fieldContext_NetworkActivity_totalReceivedBytes(ctx, field)
+	case "entries":
+		return ec.fieldContext_NetworkActivity_entries(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type NetworkActivity", field.Name)
+}
+
+func (ec *executionContext) childFields_NetworkActivityEntry(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "hour":
+		return ec.fieldContext_NetworkActivityEntry_hour(ctx, field)
+	case "purpose":
+		return ec.fieldContext_NetworkActivityEntry_purpose(ctx, field)
+	case "host":
+		return ec.fieldContext_NetworkActivityEntry_host(ctx, field)
+	case "initiator":
+		return ec.fieldContext_NetworkActivityEntry_initiator(ctx, field)
+	case "success":
+		return ec.fieldContext_NetworkActivityEntry_success(ctx, field)
+	case "count":
+		return ec.fieldContext_NetworkActivityEntry_count(ctx, field)
+	case "sentBytes":
+		return ec.fieldContext_NetworkActivityEntry_sentBytes(ctx, field)
+	case "receivedBytes":
+		return ec.fieldContext_NetworkActivityEntry_receivedBytes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type NetworkActivityEntry", field.Name)
+}
+
 func (ec *executionContext) childFields_Notification(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -13519,6 +13765,10 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_notificationRetentionDays(ctx, field)
 	case "watchProgressRetentionDays":
 		return ec.fieldContext_SystemSettings_watchProgressRetentionDays(ctx, field)
+	case "networkActivityEnabled":
+		return ec.fieldContext_SystemSettings_networkActivityEnabled(ctx, field)
+	case "networkActivityRetentionDays":
+		return ec.fieldContext_SystemSettings_networkActivityRetentionDays(ctx, field)
 	case "ruleDefaults":
 		return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
 	case "mcpEnabled":
@@ -27214,6 +27464,360 @@ func (ec *executionContext) fieldContext_MutedKeyword_match(_ context.Context, f
 	return graphql.NewScalarFieldContext("MutedKeyword", field, false, false, "KeywordMuteMatch")
 }
 
+func (ec *executionContext) _NetworkActivity_enabled(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivity", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _NetworkActivity_enabledAt(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_enabledAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EnabledAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_enabledAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivity", field, false, false, "Time")
+}
+
+func (ec *executionContext) _NetworkActivity_retentionDays(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_retentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_retentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivity", field, false, false, "Int")
+}
+
+func (ec *executionContext) _NetworkActivity_totalCount(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_totalCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivity", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _NetworkActivity_totalSentBytes(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_totalSentBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalSentBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_totalSentBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivity", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _NetworkActivity_totalReceivedBytes(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_totalReceivedBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TotalReceivedBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_totalReceivedBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivity", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _NetworkActivity_entries(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivity) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivity_entries(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Entries, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.NetworkActivityEntry) graphql.Marshaler {
+			return ec.marshalNNetworkActivityEntry2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityEntryᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivity_entries(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkActivity",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_NetworkActivityEntry(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NetworkActivityEntry_hour(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_hour(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Hour, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_hour(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "Time")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_purpose(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_purpose(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Purpose, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.NetworkActivityPurpose) graphql.Marshaler {
+			return ec.marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityPurpose(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_purpose(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "NetworkActivityPurpose")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_host(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_host(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Host, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_host(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "String")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_initiator(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_initiator(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Initiator, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.NetworkActivityInitiator) graphql.Marshaler {
+			return ec.marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityInitiator(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_initiator(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "NetworkActivityInitiator")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_success(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_success(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_count(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_sentBytes(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_sentBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SentBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_sentBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _NetworkActivityEntry_receivedBytes(ctx context.Context, field graphql.CollectedField, obj *model.NetworkActivityEntry) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_NetworkActivityEntry_receivedBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReceivedBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_NetworkActivityEntry_receivedBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("NetworkActivityEntry", field, false, false, "Int64")
+}
+
 func (ec *executionContext) _Notification_id(ctx context.Context, field graphql.CollectedField, obj *model.Notification) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -31393,6 +31997,38 @@ func (ec *executionContext) fieldContext_Query_missingRecordings(_ context.Conte
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_MissingRecording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_networkActivity(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_networkActivity(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().NetworkActivity(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.NetworkActivity) graphql.Marshaler {
+			return ec.marshalNNetworkActivity2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivity(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_networkActivity(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_NetworkActivity(ctx, field)
 		},
 	}
 	return fc, nil
@@ -37824,6 +38460,52 @@ func (ec *executionContext) fieldContext_SystemSettings_watchProgressRetentionDa
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
 }
 
+func (ec *executionContext) _SystemSettings_networkActivityEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_networkActivityEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NetworkActivityEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_networkActivityEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_networkActivityRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_networkActivityRetentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NetworkActivityRetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_networkActivityRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
 func (ec *executionContext) _SystemSettings_ruleDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -43652,7 +44334,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "jikkyoEnabled", "drcsReplacements"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "jikkyoEnabled", "drcsReplacements"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -43687,6 +44369,20 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.WatchProgressRetentionDays = data
+		case "networkActivityEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("networkActivityEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NetworkActivityEnabled = data
+		case "networkActivityRetentionDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("networkActivityRetentionDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.NetworkActivityRetentionDays = data
 		case "ruleDefaults":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleDefaults"))
 			data, err := ec.unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleDefaultsInput(ctx, v)
@@ -48335,6 +49031,137 @@ func (ec *executionContext) _MutedKeyword(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var networkActivityImplementors = []string{"NetworkActivity"}
+
+func (ec *executionContext) _NetworkActivity(ctx context.Context, sel ast.SelectionSet, obj *model.NetworkActivity) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, networkActivityImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NetworkActivity")
+		case "enabled":
+			out.Values[i] = ec._NetworkActivity_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "enabledAt":
+			out.Values[i] = ec._NetworkActivity_enabledAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "retentionDays":
+			out.Values[i] = ec._NetworkActivity_retentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._NetworkActivity_totalCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalSentBytes":
+			out.Values[i] = ec._NetworkActivity_totalSentBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalReceivedBytes":
+			out.Values[i] = ec._NetworkActivity_totalReceivedBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "entries":
+			out.Values[i] = ec._NetworkActivity_entries(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var networkActivityEntryImplementors = []string{"NetworkActivityEntry"}
+
+func (ec *executionContext) _NetworkActivityEntry(ctx context.Context, sel ast.SelectionSet, obj *model.NetworkActivityEntry) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, networkActivityEntryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NetworkActivityEntry")
+		case "hour":
+			out.Values[i] = ec._NetworkActivityEntry_hour(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "purpose":
+			out.Values[i] = ec._NetworkActivityEntry_purpose(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "host":
+			out.Values[i] = ec._NetworkActivityEntry_host(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "initiator":
+			out.Values[i] = ec._NetworkActivityEntry_initiator(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "success":
+			out.Values[i] = ec._NetworkActivityEntry_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._NetworkActivityEntry_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sentBytes":
+			out.Values[i] = ec._NetworkActivityEntry_sentBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "receivedBytes":
+			out.Values[i] = ec._NetworkActivityEntry_receivedBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var notificationImplementors = []string{"Notification"}
 
 func (ec *executionContext) _Notification(ctx context.Context, sel ast.SelectionSet, obj *model.Notification) graphql.Marshaler {
@@ -49766,6 +50593,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_missingRecordings(ctx, field)
+				})
+		case "networkActivity":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_networkActivity(ctx, field)
 				})
 		case "notifications":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -51954,6 +52787,16 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "watchProgressRetentionDays":
 			out.Values[i] = ec._SystemSettings_watchProgressRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "networkActivityEnabled":
+			out.Values[i] = ec._SystemSettings_networkActivityEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "networkActivityRetentionDays":
+			out.Values[i] = ec._SystemSettings_networkActivityRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -54855,6 +55698,58 @@ func (ec *executionContext) unmarshalNMutedKeywordInput2ᚕᚖgithubᚗcomᚋSla
 func (ec *executionContext) unmarshalNMutedKeywordInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐMutedKeywordInput(ctx context.Context, v any) (*model.MutedKeywordInput, error) {
 	res, err := ec.unmarshalInputMutedKeywordInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNetworkActivity2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivity(ctx context.Context, sel ast.SelectionSet, v *model.NetworkActivity) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "NetworkActivity!")
+		return graphql.Null
+	}
+	return ec._NetworkActivity(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNNetworkActivityEntry2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityEntryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NetworkActivityEntry) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNNetworkActivityEntry2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityEntry(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNNetworkActivityEntry2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityEntry(ctx context.Context, sel ast.SelectionSet, v *model.NetworkActivityEntry) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "NetworkActivityEntry!")
+		return graphql.Null
+	}
+	return ec._NetworkActivityEntry(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityInitiator(ctx context.Context, v any) (model.NetworkActivityInitiator, error) {
+	var res model.NetworkActivityInitiator
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityInitiator(ctx context.Context, sel ast.SelectionSet, v model.NetworkActivityInitiator) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityPurpose(ctx context.Context, v any) (model.NetworkActivityPurpose, error) {
+	var res model.NetworkActivityPurpose
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityPurpose(ctx context.Context, sel ast.SelectionSet, v model.NetworkActivityPurpose) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *model.Notification) graphql.Marshaler {

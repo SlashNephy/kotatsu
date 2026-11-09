@@ -19,9 +19,11 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -45,6 +47,8 @@ type MeterOptions struct {
 	Roles      []string
 	Version    string
 	Logger     *slog.Logger
+	// Recorder は、外部との通信の記録 (#1369)。OTLP の gRPC は HTTP クライアントを通らないので、送るたびに数える。
+	Recorder *netactivity.Recorder
 }
 
 // NewMeterProviders は、Prometheus のレジストリの内容を、OTLP で決まった間隔で送る (設計書 11.3)。
@@ -87,7 +91,7 @@ func NewMeterProviders(ctx context.Context, cfg *config.Telemetry, opts *MeterOp
 		if err != nil {
 			return nil, err
 		}
-		reader := sdkmetric.NewPeriodicReader(exporter,
+		reader := sdkmetric.NewPeriodicReader(countingExporter{Exporter: exporter, recorder: opts.Recorder},
 			sdkmetric.WithInterval(time.Duration(cfg.OTLPMetricsIntervalSeconds)*time.Second),
 			sdkmetric.WithProducer(otelprom.NewMetricProducer(otelprom.WithGatherer(
 				&excludeGatherer{gatherer: scope.gatherer, patterns: cfg.OTLPMetricsExclude},
@@ -193,4 +197,22 @@ func (g *leaderGatherer) Gather() ([]*dto.MetricFamily, error) {
 	}
 
 	return g.gatherer.Gather()
+}
+
+// countingExporter は、メトリクスを送るたびに、外部との通信の記録に数える (#1369)。
+type countingExporter struct {
+	sdkmetric.Exporter
+
+	recorder *netactivity.Recorder
+}
+
+// Export は、送った結果を数える。
+func (e countingExporter) Export(ctx context.Context, rm *metricdata.ResourceMetrics) error {
+	err := e.Exporter.Export(ctx, rm)
+	e.recorder.Add(netactivity.PurposeTelemetryMetrics, "", err == nil, netactivity.Totals{Count: 1, SentBytes: 0, ReceivedBytes: 0})
+	if err != nil {
+		return fmt.Errorf("failed to export metrics: %w", err)
+	}
+
+	return nil
 }

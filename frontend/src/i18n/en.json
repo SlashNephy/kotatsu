@@ -338,6 +338,10 @@
       "account": {
         "title": "Connected accounts",
         "summary": "Connect Annict and AniList accounts to record the anime you watch"
+      },
+      "networkActivity": {
+        "title": "Network activity",
+        "summary": "Check the external connections the server made"
       }
     },
     "reauth": {
@@ -1864,7 +1868,10 @@
       "animeTokenConfigured": "Configured",
       "animeTokenNotConfigured": "Not configured",
       "animeTokenKept": "Configured (enter only to change)",
-      "animeTokenDelete": "Delete"
+      "animeTokenDelete": "Delete",
+      "networkActivity": "Network activity record",
+      "networkActivityRetentionDays": "Retention period (days)",
+      "networkActivityRetentionHelp": "Number of days to keep the record. Older records are deleted daily."
     },
     "recording": {
       "title": "Recording defaults",
@@ -2181,5 +2188,128 @@
     "notifyTitle": "Wishlist broadcast reminders",
     "notifyWishlist": "Remind me of broadcasts of works on my wishlist",
     "notifyWishlistHelp": "Adds watch reminders to the earliest first-run broadcast of each episode you have not watched yet. Reruns are skipped. Reminders are removed when a work leaves your wishlist."
+  },
+  "networkActivity": {
+    "title": "Network activity",
+    "description": "See the external connections this server actually made, grouped by hour.",
+    "adminLabel": "Record network activity",
+    "adminHelp": "When an admin enables this, records appear here. Disabling it deletes the existing records.",
+    "disabled": "Recording is off. Once an admin enables it, connections from that moment on are recorded.",
+    "empty": "Nothing recorded yet",
+    "totalsTitle": "Total for the last {{days}} days",
+    "totalCount": "Connections",
+    "totalSent": "Sent",
+    "totalReceived": "Received",
+    "notesTitle": "About this record",
+    "noteLocal": "This record is never sent outside.",
+    "noteSince": "Recorded since it was enabled on {{date}}. Recording starts within about a minute.",
+    "noteAbstract": "URL paths, headers, bodies, users and programs are not recorded. Times are grouped by hour.",
+    "noteExcluded": "Following an external link is browser traffic and is not recorded.",
+    "noteLost": "If the server crashes, about the last minute of unsaved totals is lost.",
+    "initiator": {
+      "SCHEDULED": "Scheduled",
+      "USER": "User action"
+    },
+    "failed": "Failed",
+    "times": "{{count}} times",
+    "categories": {
+      "jikkyo": "Jikkyo",
+      "anime": "Anime",
+      "auth": "Authentication",
+      "operation": "Operations",
+      "notification": "Notifications",
+      "other": "Other"
+    },
+    "purposes": {
+      "JIKKYO_CHANNELS": {
+        "title": "Jikkyo channel list",
+        "body": "Fetched the channel list to check which stations have live comments"
+      },
+      "JIKKYO_COMMENTS": {
+        "title": "Jikkyo live comments",
+        "body": "Received or posted live comments"
+      },
+      "JIKKYO_KAKOLOG": {
+        "title": "Jikkyo past comments",
+        "body": "Fetched the comments for a recording"
+      },
+      "ANIME_PROGRAM_SYNC": {
+        "title": "Program matching",
+        "body": "Matched broadcasts to anime works"
+      },
+      "ANIME_MAPPINGS": {
+        "title": "Work and channel mapping",
+        "body": "Fetched the work ID and channel mapping"
+      },
+      "ANIME_WORK_IDS": {
+        "title": "Work ID lookup",
+        "body": "Looked up work IDs on the linked services"
+      },
+      "ANIME_ARTWORKS": {
+        "title": "Artwork lookup",
+        "body": "Looked up high-quality artwork locations"
+      },
+      "ANIME_RECORD": {
+        "title": "Watched anime sync",
+        "body": "Exchanged watched anime and wish lists with the linked services"
+      },
+      "ANIME_LINK": {
+        "title": "Anime account linking",
+        "body": "Linked or unlinked an anime record service"
+      },
+      "ANIME_IMAGE": {
+        "title": "Artwork images",
+        "body": "Fetched artwork shown on the screen",
+        "hostLabel": "Image host"
+      },
+      "USER_AVATAR": {
+        "title": "User avatars",
+        "body": "Fetched avatars shown on the screen",
+        "hostLabel": "Avatar host"
+      },
+      "OIDC": {
+        "title": "Identity provider",
+        "body": "Exchanged login information with the identity provider",
+        "hostLabel": "Configured destination"
+      },
+      "HIBP": {
+        "title": "Breached password check",
+        "body": "Checked whether a password has been breached"
+      },
+      "MCP_CLIENT_METADATA": {
+        "title": "MCP client check",
+        "body": "Fetched the metadata of a connecting client",
+        "hostLabel": "Connecting client"
+      },
+      "UPDATE_CHECK": {
+        "title": "Update check",
+        "body": "Checked for a new release"
+      },
+      "TELEMETRY_TRACES": {
+        "title": "Trace export",
+        "body": "Sent traces to the configured destination",
+        "hostLabel": "Configured destination"
+      },
+      "TELEMETRY_METRICS": {
+        "title": "Metrics export",
+        "body": "Sent metrics to the configured destination",
+        "hostLabel": "Configured destination"
+      },
+      "WEB_PUSH": {
+        "title": "Web Push",
+        "body": "Sent encrypted notifications to subscribed devices"
+      },
+      "WEBHOOK": {
+        "title": "Webhook",
+        "body": "Sent notifications to the configured destination",
+        "hostLabel": "Configured destination"
+      },
+      "DATA_BROADCAST": {
+        "title": "Data broadcast",
+        "body": "Relayed a request from a data broadcast document",
+        "hostLabel": "Data broadcast"
+      }
+    },
+    "hostHidden": "Undisclosed destination"
   }
 }

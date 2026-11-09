@@ -28,6 +28,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
@@ -117,10 +118,11 @@ type Relay struct {
 	client      *http.Client
 	clock       clock.Clock
 	logger      *slog.Logger
+	recorder    *netactivity.Recorder
 }
 
 // New は、全体の設定で有効にしたときだけ答え、グローバルなアドレスにだけ接続する Relay を返す。
-func New(db *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *Relay {
+func New(db *pgxpool.Pool, clk clock.Clock, logger *slog.Logger, recorder *netactivity.Recorder) *Relay {
 	enabled := func(ctx context.Context) (bool, error) {
 		system, err := settings.Load(ctx, db)
 		if err != nil {
@@ -130,10 +132,10 @@ func New(db *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *Relay {
 		return system.DataBroadcastIPEnabled, nil
 	}
 
-	return newRelay(enabled, publicnet.Control, clk, logger)
+	return newRelay(enabled, publicnet.Control, clk, logger, recorder)
 }
 
-func newRelay(enabled func(ctx context.Context) (bool, error), control Control, clk clock.Clock, logger *slog.Logger) *Relay {
+func newRelay(enabled func(ctx context.Context) (bool, error), control Control, clk clock.Clock, logger *slog.Logger, recorder *netactivity.Recorder) *Relay {
 	dialer := &net.Dialer{Timeout: requestTimeout, Control: control}
 	transport := &http.Transport{
 		// 環境変数のプロキシを使うと、プロキシから先のアドレスを確かめられないので、使わない。
@@ -142,8 +144,8 @@ func newRelay(enabled func(ctx context.Context) (bool, error), control Control, 
 	}
 
 	return &Relay{
-		enabled: enabled, control: control, confirmPort: defaultConfirmPort, clock: clk, logger: logger,
-		client: &http.Client{Transport: transport, Timeout: requestTimeout, CheckRedirect: checkRedirect, Jar: nil},
+		enabled: enabled, control: control, confirmPort: defaultConfirmPort, clock: clk, logger: logger, recorder: recorder,
+		client: netactivity.NewClient(recorder, netactivity.PurposeDataBroadcast, netactivity.ClientOptions{Transport: transport, Timeout: requestTimeout, CheckRedirect: checkRedirect}),
 	}
 }
 
@@ -321,6 +323,8 @@ func (h *Relay) confirm(ctx context.Context, destination string, timeout time.Du
 	dialer := &net.Dialer{Timeout: timeout, Control: h.control}
 	stopwatch := h.clock.StartStopwatch()
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(destination, h.confirmPort))
+	// 接続の確認は HTTP クライアントを通らないので、ここで数える (#1369)。接続先は目的ごとの規則でホスト名を残さない。
+	h.recorder.Add(netactivity.PurposeDataBroadcast, destination, err == nil, netactivity.Totals{Count: 1, SentBytes: 0, ReceivedBytes: 0})
 	if err != nil {
 		return failed
 	}

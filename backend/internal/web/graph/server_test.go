@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -155,7 +156,7 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 	opts.APITokens = auth.NewAPITokens(pool, clk, audit.NewRecorder(clk))
 	opts.CalendarFeeds = auth.NewCalendarFeeds(pool, clk, audit.NewRecorder(clk))
 	opts.IPTVFeeds = auth.NewIPTVFeeds(pool, clk, audit.NewRecorder(clk))
-	opts.OAuth = oauth.NewServer(pool, clk, oauth.NewFetcher(clk), audit.NewRecorder(clk))
+	opts.OAuth = oauth.NewServer(pool, clk, oauth.NewFetcher(clk, nil), audit.NewRecorder(clk))
 	opts.Players = player.NewService(pool, clk)
 	// 記録先には問い合わせない。届かないアドレスに向けておく。
 	if opts.AnimeRecords == nil {
@@ -163,8 +164,8 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 		opts.AnimeRecords, err = animerecord.NewService(&animerecord.Options{
 			Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: applicationKey,
 			Destinations: []animerecord.Destination{
-				animerecord.NewAnnict(animerecord.NewHTTPClient(), "http://127.0.0.1:9"),
-				animerecord.NewAniList(animerecord.NewHTTPClient(), "http://127.0.0.1:9"),
+				animerecord.NewAnnict(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeLink), "http://127.0.0.1:9"),
+				animerecord.NewAniList(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeLink), "http://127.0.0.1:9"),
 			},
 			Logger: slog.New(slog.DiscardHandler),
 		})

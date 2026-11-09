@@ -909,6 +909,34 @@ type MutedKeywordInput struct {
 	Match KeywordMuteMatch `json:"match"`
 }
 
+// 外部との通信の記録 (#1369)。
+type NetworkActivity struct {
+	Enabled bool `json:"enabled"`
+	// 記録を有効にした日時。無効の間は null。
+	EnabledAt     *time.Time `json:"enabledAt,omitempty"`
+	RetentionDays int        `json:"retentionDays"`
+	// 保持期間の中の、通信の回数の合計。
+	TotalCount         int64 `json:"totalCount"`
+	TotalSentBytes     int64 `json:"totalSentBytes"`
+	TotalReceivedBytes int64 `json:"totalReceivedBytes"`
+	// 新しい時間帯からの集計。
+	Entries []*NetworkActivityEntry `json:"entries"`
+}
+
+// 外部との通信の 1 時間ごとの集計の 1 行。
+type NetworkActivityEntry struct {
+	// 時間帯の始まり。
+	Hour    time.Time              `json:"hour"`
+	Purpose NetworkActivityPurpose `json:"purpose"`
+	// 接続先のホスト名。視聴の内容や設定の中身が分かるものは null。
+	Host          *string                  `json:"host,omitempty"`
+	Initiator     NetworkActivityInitiator `json:"initiator"`
+	Success       bool                     `json:"success"`
+	Count         int64                    `json:"count"`
+	SentBytes     int64                    `json:"sentBytes"`
+	ReceivedBytes int64                    `json:"receivedBytes"`
+}
+
 // ログイン中のユーザーに届いた、画面内の通知 (設計書 6.2)。
 type Notification struct {
 	ID   string           `json:"id"`
@@ -1615,6 +1643,10 @@ type SystemSettings struct {
 	NotificationRetentionDays int `json:"notificationRetentionDays"`
 	// 録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。
 	WatchProgressRetentionDays int `json:"watchProgressRetentionDays"`
+	// 外部との通信を記録するかどうか (#1369)。
+	NetworkActivityEnabled bool `json:"networkActivityEnabled"`
+	// 外部との通信の記録の保持期間 (日)。
+	NetworkActivityRetentionDays int `json:"networkActivityRetentionDays"`
 	// ルールを作るときの既定値。
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
@@ -1636,10 +1668,12 @@ type SystemSettings struct {
 // 全体の設定の変える項目。省いた項目は変えない。
 type SystemSettingsInput struct {
 	// 録画設定の既定値の変える項目。省いた項目は変えない。
-	RecordingDefaults          *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
-	ArchiveRetentionDays       *int                             `json:"archiveRetentionDays,omitempty"`
-	NotificationRetentionDays  *int                             `json:"notificationRetentionDays,omitempty"`
-	WatchProgressRetentionDays *int                             `json:"watchProgressRetentionDays,omitempty"`
+	RecordingDefaults            *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
+	ArchiveRetentionDays         *int                             `json:"archiveRetentionDays,omitempty"`
+	NotificationRetentionDays    *int                             `json:"notificationRetentionDays,omitempty"`
+	WatchProgressRetentionDays   *int                             `json:"watchProgressRetentionDays,omitempty"`
+	NetworkActivityEnabled       *bool                            `json:"networkActivityEnabled,omitempty"`
+	NetworkActivityRetentionDays *int                             `json:"networkActivityRetentionDays,omitempty"`
 	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
 	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
@@ -2647,6 +2681,154 @@ func (e *KeywordMuteMatch) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordMuteMatch) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 外部との通信のきっかけ。
+type NetworkActivityInitiator string
+
+const (
+	NetworkActivityInitiatorScheduled NetworkActivityInitiator = "SCHEDULED"
+	NetworkActivityInitiatorUser      NetworkActivityInitiator = "USER"
+)
+
+var AllNetworkActivityInitiator = []NetworkActivityInitiator{
+	NetworkActivityInitiatorScheduled,
+	NetworkActivityInitiatorUser,
+}
+
+func (e NetworkActivityInitiator) IsValid() bool {
+	switch e {
+	case NetworkActivityInitiatorScheduled, NetworkActivityInitiatorUser:
+		return true
+	}
+	return false
+}
+
+func (e NetworkActivityInitiator) String() string {
+	return string(e)
+}
+
+func (e *NetworkActivityInitiator) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = NetworkActivityInitiator(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid NetworkActivityInitiator", str)
+	}
+	return nil
+}
+
+func (e NetworkActivityInitiator) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *NetworkActivityInitiator) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e NetworkActivityInitiator) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 外部との通信の目的。固定の種類で、画面の題名と一文を決める。
+type NetworkActivityPurpose string
+
+const (
+	NetworkActivityPurposeJikkyoChannels    NetworkActivityPurpose = "JIKKYO_CHANNELS"
+	NetworkActivityPurposeJikkyoComments    NetworkActivityPurpose = "JIKKYO_COMMENTS"
+	NetworkActivityPurposeJikkyoKakolog     NetworkActivityPurpose = "JIKKYO_KAKOLOG"
+	NetworkActivityPurposeAnimeProgramSync  NetworkActivityPurpose = "ANIME_PROGRAM_SYNC"
+	NetworkActivityPurposeAnimeMappings     NetworkActivityPurpose = "ANIME_MAPPINGS"
+	NetworkActivityPurposeAnimeWorkIDS      NetworkActivityPurpose = "ANIME_WORK_IDS"
+	NetworkActivityPurposeAnimeArtworks     NetworkActivityPurpose = "ANIME_ARTWORKS"
+	NetworkActivityPurposeAnimeRecord       NetworkActivityPurpose = "ANIME_RECORD"
+	NetworkActivityPurposeAnimeLink         NetworkActivityPurpose = "ANIME_LINK"
+	NetworkActivityPurposeAnimeImage        NetworkActivityPurpose = "ANIME_IMAGE"
+	NetworkActivityPurposeUserAvatar        NetworkActivityPurpose = "USER_AVATAR"
+	NetworkActivityPurposeOidc              NetworkActivityPurpose = "OIDC"
+	NetworkActivityPurposeHibp              NetworkActivityPurpose = "HIBP"
+	NetworkActivityPurposeMcpClientMetadata NetworkActivityPurpose = "MCP_CLIENT_METADATA"
+	NetworkActivityPurposeUpdateCheck       NetworkActivityPurpose = "UPDATE_CHECK"
+	NetworkActivityPurposeTelemetryTraces   NetworkActivityPurpose = "TELEMETRY_TRACES"
+	NetworkActivityPurposeTelemetryMetrics  NetworkActivityPurpose = "TELEMETRY_METRICS"
+	NetworkActivityPurposeWebPush           NetworkActivityPurpose = "WEB_PUSH"
+	NetworkActivityPurposeWebhook           NetworkActivityPurpose = "WEBHOOK"
+	NetworkActivityPurposeDataBroadcast     NetworkActivityPurpose = "DATA_BROADCAST"
+)
+
+var AllNetworkActivityPurpose = []NetworkActivityPurpose{
+	NetworkActivityPurposeJikkyoChannels,
+	NetworkActivityPurposeJikkyoComments,
+	NetworkActivityPurposeJikkyoKakolog,
+	NetworkActivityPurposeAnimeProgramSync,
+	NetworkActivityPurposeAnimeMappings,
+	NetworkActivityPurposeAnimeWorkIDS,
+	NetworkActivityPurposeAnimeArtworks,
+	NetworkActivityPurposeAnimeRecord,
+	NetworkActivityPurposeAnimeLink,
+	NetworkActivityPurposeAnimeImage,
+	NetworkActivityPurposeUserAvatar,
+	NetworkActivityPurposeOidc,
+	NetworkActivityPurposeHibp,
+	NetworkActivityPurposeMcpClientMetadata,
+	NetworkActivityPurposeUpdateCheck,
+	NetworkActivityPurposeTelemetryTraces,
+	NetworkActivityPurposeTelemetryMetrics,
+	NetworkActivityPurposeWebPush,
+	NetworkActivityPurposeWebhook,
+	NetworkActivityPurposeDataBroadcast,
+}
+
+func (e NetworkActivityPurpose) IsValid() bool {
+	switch e {
+	case NetworkActivityPurposeJikkyoChannels, NetworkActivityPurposeJikkyoComments, NetworkActivityPurposeJikkyoKakolog, NetworkActivityPurposeAnimeProgramSync, NetworkActivityPurposeAnimeMappings, NetworkActivityPurposeAnimeWorkIDS, NetworkActivityPurposeAnimeArtworks, NetworkActivityPurposeAnimeRecord, NetworkActivityPurposeAnimeLink, NetworkActivityPurposeAnimeImage, NetworkActivityPurposeUserAvatar, NetworkActivityPurposeOidc, NetworkActivityPurposeHibp, NetworkActivityPurposeMcpClientMetadata, NetworkActivityPurposeUpdateCheck, NetworkActivityPurposeTelemetryTraces, NetworkActivityPurposeTelemetryMetrics, NetworkActivityPurposeWebPush, NetworkActivityPurposeWebhook, NetworkActivityPurposeDataBroadcast:
+		return true
+	}
+	return false
+}
+
+func (e NetworkActivityPurpose) String() string {
+	return string(e)
+}
+
+func (e *NetworkActivityPurpose) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = NetworkActivityPurpose(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid NetworkActivityPurpose", str)
+	}
+	return nil
+}
+
+func (e NetworkActivityPurpose) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *NetworkActivityPurpose) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e NetworkActivityPurpose) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

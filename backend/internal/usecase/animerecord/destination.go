@@ -20,6 +20,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 )
 
@@ -225,15 +226,11 @@ type Endpoints struct {
 
 // NewHTTPClient は、記録先に問い合わせる HTTP クライアントを返す。
 // 問い合わせ先は決まったホストだけなので、リダイレクトはたどらない (ほかのホストへ、トークンを付けて向け直させない)。
-func NewHTTPClient() *http.Client {
-	return &http.Client{
-		Transport: nil,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Jar:     nil,
-		Timeout: requestTimeout,
-	}
+func NewHTTPClient(recorder *netactivity.Recorder, purpose netactivity.Purpose) *http.Client {
+	return netactivity.NewClient(recorder, purpose, netactivity.ClientOptions{
+		Transport: nil, Timeout: requestTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	})
 }
 
 // oauth2Config は、記録先の OAuth のクライアントの設定を返す。

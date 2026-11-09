@@ -87,6 +87,7 @@ const query = graphql`
     systemSettings {
       mcpEnabled
       dataBroadcastIpEnabled
+      networkActivityEnabled
       animeLinkingEnabled
       jikkyoEnabled
     }
@@ -212,6 +213,17 @@ function Integrations() {
           enabled={data.systemSettings.mcpEnabled}
           busy={gate.busy}
           onSave={(mcpEnabled) => saveSettings({ mcpEnabled })}
+        />
+
+        {/* 外部との通信を記録するか (#1369、設計書 11.8)。 */}
+        <SwitchSetting
+          key={`network-activity/${String(data.systemSettings.networkActivityEnabled)}`}
+          title={t('networkActivity.title')}
+          label={t('networkActivity.adminLabel')}
+          help={t('networkActivity.adminHelp')}
+          enabled={data.systemSettings.networkActivityEnabled}
+          busy={gate.busy}
+          onSave={(networkActivityEnabled) => saveSettings({ networkActivityEnabled })}
         />
 
         {/* データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。受信機の情報が外部へ届くので、ここで再認証を求める。 */}

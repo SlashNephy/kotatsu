@@ -35,6 +35,7 @@ const query = graphql`
       archiveRetentionDays
       notificationRetentionDays
       watchProgressRetentionDays
+      networkActivityRetentionDays
       updatedAt
     }
   }
@@ -62,7 +63,11 @@ function RetentionSettings() {
   const [watchProgressDays, setWatchProgressDays] = useState<number | string>(
     settings.watchProgressRetentionDays,
   );
+  const [networkActivityDays, setNetworkActivityDays] = useState<number | string>(
+    settings.networkActivityRetentionDays,
+  );
   const valid =
+    typeof networkActivityDays === 'number' &&
     typeof archiveDays === 'number' &&
     typeof notificationDays === 'number' &&
     typeof watchProgressDays === 'number';
@@ -87,6 +92,7 @@ function RetentionSettings() {
               archiveRetentionDays: Number(archiveDays),
               notificationRetentionDays: Number(notificationDays),
               watchProgressRetentionDays: Number(watchProgressDays),
+              networkActivityRetentionDays: Number(networkActivityDays),
             },
           },
         );
@@ -161,6 +167,24 @@ function RetentionSettings() {
               allowDecimal={false}
               value={watchProgressDays}
               onChange={setWatchProgressDays}
+            />
+          </Stack>
+        </Card>
+
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.networkActivity')}
+            </Title>
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.networkActivityRetentionDays')}
+              description={t('admin.settings.networkActivityRetentionHelp')}
+              min={1}
+              allowDecimal={false}
+              value={networkActivityDays}
+              onChange={setNetworkActivityDays}
             />
           </Stack>
         </Card>

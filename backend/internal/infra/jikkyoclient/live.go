@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -549,7 +551,7 @@ func (s *LiveSession) dial(ctx context.Context, uri string) (*websocket.Conn, er
 		header.Set("Cookie", nxUserIDCookie+"="+s.opts.Cookie)
 	}
 
-	conn, response, err := websocket.Dial(ctx, uri, &websocket.DialOptions{HTTPClient: s.client.http, HTTPHeader: header})
+	conn, response, err := websocket.Dial(netactivity.WithPurpose(ctx, netactivity.PurposeJikkyoComments), uri, &websocket.DialOptions{HTTPClient: s.client.http, HTTPHeader: header})
 	if response != nil && response.Body != nil {
 		_ = response.Body.Close()
 	}

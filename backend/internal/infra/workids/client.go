@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -87,15 +88,20 @@ type Client struct {
 	jikanURL   string
 }
 
+// NewHTTPClient は、目的 purpose の通信を recorder に記録する HTTP クライアントを返す。
+// 問い合わせ先は決まったホストだけなので、リダイレクトはたどらない (ほかのホストへ、トークンを付けて向け直させない)。
+func NewHTTPClient(recorder *netactivity.Recorder, purpose netactivity.Purpose) *http.Client {
+	return netactivity.NewClient(recorder, purpose, netactivity.ClientOptions{
+		Transport: nil, Timeout: requestTimeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	})
+}
+
 // NewClient は Client を返す。
 func NewClient(opts *Options) *Client {
 	client := opts.HTTPClient
 	if client == nil {
-		client = &http.Client{
-			Transport: nil, Jar: nil, Timeout: requestTimeout,
-			// 問い合わせ先は決まったホストだけなので、リダイレクトはたどらない (ほかのホストへ、トークンを付けて向け直させない)。
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		}
+		client = NewHTTPClient(nil, netactivity.PurposeAnimeWorkIDs)
 	}
 	annictURL, aniListURL := annictGraphQLURL, aniListGraphQLURL
 	if opts.AnnictBaseURL != "" {
