@@ -32,9 +32,28 @@ func (q *Queries) BumpUserSettingsVersion(ctx context.Context, arg BumpUserSetti
 	return version, err
 }
 
+const getJikkyoAccess = `-- name: GetJikkyoAccess :one
+SELECT
+  coalesce((SELECT jikkyo_enabled FROM system_settings WHERE id = 1), false)::boolean AS system_enabled,
+  coalesce((SELECT jikkyo_enabled FROM user_settings WHERE user_id = $1), false)::boolean AS user_enabled
+`
+
+type GetJikkyoAccessRow struct {
+	SystemEnabled bool
+	UserEnabled   bool
+}
+
+// 実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。どちらも、行がなければ無効とする。
+func (q *Queries) GetJikkyoAccess(ctx context.Context, userID uuid.UUID) (GetJikkyoAccessRow, error) {
+	row := q.db.QueryRow(ctx, getJikkyoAccess, userID)
+	var i GetJikkyoAccessRow
+	err := row.Scan(&i.SystemEnabled, &i.UserEnabled)
+	return i, err
+}
+
 const getPlayerSettings = `-- name: GetPlayerSettings :one
 SELECT
-  coalesce(s.jikkyo_enabled, true)::boolean AS jikkyo_enabled,
+  coalesce(s.jikkyo_enabled, false)::boolean AS jikkyo_enabled,
   coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
   s.comment_settings,
   s.caption_settings
@@ -166,7 +185,7 @@ func (q *Queries) UnpinService(ctx context.Context, arg UnpinServiceParams) erro
 
 const upsertPlayerSettings = `-- name: UpsertPlayerSettings :one
 INSERT INTO user_settings (user_id, jikkyo_enabled, captions_enabled, updated_at)
-VALUES ($1, coalesce($2::boolean, true), coalesce($3::boolean, true), $4)
+VALUES ($1, coalesce($2::boolean, false), coalesce($3::boolean, true), $4)
 ON CONFLICT (user_id) DO UPDATE SET
   jikkyo_enabled = coalesce($2::boolean, user_settings.jikkyo_enabled),
   captions_enabled = coalesce($3::boolean, user_settings.captions_enabled),

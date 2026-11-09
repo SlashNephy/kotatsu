@@ -1097,7 +1097,7 @@ type PlayerCommandInput struct {
 
 // ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
 type PlayerSettings struct {
-	// 実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。
+	// 実況のコメントを出すかどうか。既定は false。全体の設定と両方で有効なときだけ、外部へ問い合わせる (設計書 7.4)。
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
 	// 字幕と文字スーパーを出すかどうか。
 	CaptionsEnabled bool `json:"captionsEnabled"`
@@ -1622,6 +1622,9 @@ type SystemSettings struct {
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
+	// ニコニコ実況を使うかどうか (設計書 7.4)。既定は false。
+	// ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
+	JikkyoEnabled bool `json:"jikkyoEnabled"`
 	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
 	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// 最後に変えた日時。一度も変えていなければ null。
@@ -1641,6 +1644,8 @@ type SystemSettingsInput struct {
 	DataBroadcastIPEnabled *bool `json:"dataBroadcastIpEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
+	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	JikkyoEnabled *bool `json:"jikkyoEnabled,omitempty"`
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
 	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
 	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`

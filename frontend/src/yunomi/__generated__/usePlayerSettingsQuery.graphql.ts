@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d08e81c1792f184e16d9f3ad32224147>>
+ * @generated SignedSource<<1634bdb01990d5f4ea1c56746b9f2a62>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,9 @@ export type usePlayerSettingsQuery$data = {
     };
     readonly jikkyoEnabled: boolean;
   };
+  readonly systemSettings: {
+    readonly jikkyoEnabled: boolean;
+  };
 };
 export type usePlayerSettingsQuery = {
   response: usePlayerSettingsQuery$data;
@@ -39,7 +42,26 @@ export type usePlayerSettingsQuery = {
 };
 
 const node: ConcreteRequest = (function(){
-var v0 = [
+var v0 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "jikkyoEnabled",
+  "storageKey": null
+},
+v1 = [
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "SystemSettings",
+    "kind": "LinkedField",
+    "name": "systemSettings",
+    "plural": false,
+    "selections": [
+      (v0/*:: as any*/)
+    ],
+    "storageKey": null
+  },
   {
     "alias": null,
     "args": null,
@@ -48,13 +70,7 @@ var v0 = [
     "name": "playerSettings",
     "plural": false,
     "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "jikkyoEnabled",
-        "storageKey": null
-      },
+      (v0/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -182,7 +198,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "usePlayerSettingsQuery",
-    "selections": (v0/*:: as any*/),
+    "selections": (v1/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -191,19 +207,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "usePlayerSettingsQuery",
-    "selections": (v0/*:: as any*/)
+    "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "24a9d35c62c7b5254c889a73c945142e",
+    "cacheID": "298e69905d591bc93dfd1dfa7fcb0693",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsQuery",
     "operationKind": "query",
-    "text": "query usePlayerSettingsQuery {\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
+    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n  }\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "87cab6f817dd26481b27528e312a33a2";
+(node as any).hash = "68f1b8c0be8286f18e499d5a5542b68d";
 
 export default node;

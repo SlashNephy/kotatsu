@@ -223,6 +223,7 @@ const playQuery = graphql`
         service {
           name
           logoUrl
+          jikkyoChannelId
           jikkyo {
             id
             name
@@ -405,7 +406,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
     return convertedPosition(video.currentTime);
   };
-  const channel = recording?.service.jikkyo ?? null;
+  // channelId は、実況のチャンネルの ID。実況を切っているユーザーにもボタンを出すため、外部へ問い合わせずに返る値を使う (設計書 7.4)。
+  const channelId = recording?.service.jikkyoChannelId ?? null;
   useWatchPositionSaver(recordingId, currentPosition, !paused);
   // 実際に再生した区間を送り、見たアニメを記録させる (#927)。
   usePlaybackReporter(recording === null ? null : { recordingId }, video, () =>
@@ -414,12 +416,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
   );
   const jikkyo = useRecordedJikkyo(
-    channel !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
+    channelId !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
     visible,
     // 録画中の録画を追っかけ再生している間は、リアルタイムのコメントも流す (#667)。
-    channel !== null && recording !== null && recording.recordedUntil == null
-      ? { channelId: channel.id, recordedFrom: recording.recordedFrom, gaps: recording.gaps }
+    channelId !== null && recording !== null && recording.recordedUntil == null
+      ? { channelId, recordedFrom: recording.recordedFrom, gaps: recording.gaps }
       : null,
     commentSettings,
   );
@@ -630,7 +632,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       showFlash(t('player.flash.seekForwardLong'));
     },
     toggleCaptions: () => setCaptions(!captions),
-    ...(channel === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
+    ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     toggleMute: () => {
       const video = videoRef.current;
       if (video === null) {

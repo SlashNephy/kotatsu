@@ -54,8 +54,8 @@ func TestPlayerSettings(t *testing.T) {
 		{name: "字幕だけを切ると、実況は変えない", input: map[string]any{"captionsEnabled": false}, want: playerSettings{JikkyoEnabled: false, CaptionsEnabled: false}},
 		{name: "両方を入れる", input: map[string]any{"jikkyoEnabled": true, "captionsEnabled": true}, want: playerSettings{JikkyoEnabled: true, CaptionsEnabled: true}},
 	}
-	// 一度も変えていなければ、どちらも出す。
-	assert.Equal(t, playerSettings{JikkyoEnabled: true, CaptionsEnabled: true}, get())
+	// 一度も変えていなければ、字幕は出し、外部と通信する実況は切っておく (設計書 0.3)。
+	assert.Equal(t, playerSettings{JikkyoEnabled: false, CaptionsEnabled: true}, get())
 	// 順に変えていくので、並行に動かさない。
 	for _, tt := range tests {
 		before := version()

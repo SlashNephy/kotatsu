@@ -88,11 +88,13 @@ function PlayerSettings() {
     <Stack gap="md">
       <Card withBorder>
         <Stack gap="xs">
-          <Switch
-            label={t('settings.account.jikkyo')}
-            checked={player.jikkyoEnabled}
-            onChange={(event) => player.setJikkyoEnabled(event.currentTarget.checked)}
-          />
+          {player.jikkyoAvailable && (
+            <Switch
+              label={t('settings.account.jikkyo')}
+              checked={player.jikkyoEnabled}
+              onChange={(event) => player.setJikkyoEnabled(event.currentTarget.checked)}
+            />
+          )}
           <Switch
             label={t('settings.account.captions')}
             checked={player.captionsEnabled}
@@ -245,7 +247,7 @@ function PlayerSettings() {
 
       <ShortcutKeysCard />
 
-      <CommentSettingsCard />
+      {player.jikkyoAvailable && <CommentSettingsCard />}
     </Stack>
   );
 }

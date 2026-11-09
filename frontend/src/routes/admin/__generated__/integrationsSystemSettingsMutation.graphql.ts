@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b650cccccf6455a2cc057e604e03f449>>
+ * @generated SignedSource<<5044f5916a2e75672b1aa6d6c22925ac>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,7 @@ export type SystemSettingsInput = {
   archiveRetentionDays?: number | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
+  jikkyoEnabled?: boolean | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;

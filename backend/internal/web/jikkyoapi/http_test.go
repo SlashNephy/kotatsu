@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 )
@@ -38,7 +39,21 @@ func recordedFrom() time.Time {
 type commentsFixture struct {
 	pool    *pgxpool.Pool
 	handler http.Handler
+	mux     http.Handler
 	fake    *fakeJikkyo
+	userID  uuid.UUID
+}
+
+// setJikkyo は、全体の設定とユーザーの設定で、実況を使うかどうかを決める。
+func (f *commentsFixture) setJikkyo(t *testing.T, system, user bool) {
+	t.Helper()
+
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, jikkyo_enabled, updated_at)
+		VALUES (1, '{}', 30, $1, $2) ON CONFLICT (id) DO UPDATE SET jikkyo_enabled = EXCLUDED.jikkyo_enabled`, system, recordedFrom())
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO user_settings (user_id, jikkyo_enabled, updated_at) VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE SET jikkyo_enabled = EXCLUDED.jikkyo_enabled`, f.userID, user, recordedFrom())
+	require.NoError(t, err)
 }
 
 func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
@@ -64,8 +79,16 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	handler := jikkyoapi.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, handler)
+	f := &commentsFixture{pool: pool, fake: fake, userID: id.New(), mux: mux, handler: nil}
+	_, err = pool.Exec(t.Context(), `INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'member', 'member', 'member', $2, $2)`,
+		f.userID, recordedFrom())
+	require.NoError(t, err)
+	f.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: uuid.Nil, AuthenticatedAt: recordedFrom(), OAuthClientID: ""})))
+	})
+	f.setJikkyo(t, true, true)
 
-	return &commentsFixture{pool: pool, handler: mux, fake: fake}
+	return f
 }
 
 // recording は、録画を作る。until が nil なら録画中にする。
@@ -235,6 +258,44 @@ func TestCommentsHandlerErrors(t *testing.T) {
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 				"/media/recordings/"+path+"/"+jikkyoapi.CommentsFileName, http.NoBody))
 			assert.Equal(t, tt.wantStatus, rec.Code)
+		})
+	}
+}
+
+// TestCommentsHandlerOptIn は、全体の設定かユーザーの設定で実況を切っていれば、過去ログ API へ問い合わせないことを確かめる (設計書 0.3、7.4)。
+func TestCommentsHandlerOptIn(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		system       bool
+		user         bool
+		anonymous    bool
+		wantStatus   int
+		wantUpstream bool
+	}{
+		{name: "両方が有効", system: true, user: true, wantStatus: http.StatusOK, wantUpstream: true},
+		{name: "全体の設定で切っている", system: false, user: true, wantStatus: http.StatusNotFound, wantUpstream: false},
+		{name: "ユーザーの設定で切っている", system: true, user: false, wantStatus: http.StatusNotFound, wantUpstream: false},
+		{name: "誰の要求か分からない", system: true, user: true, anonymous: true, wantStatus: http.StatusNotFound, wantUpstream: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newCommentsFixture(t, `{"packet":[]}`)
+			f.setJikkyo(t, tt.system, tt.user)
+			finished := recordedFrom().Add(time.Hour)
+			recordingID := f.recording(t, grServiceID, recordedFrom(), &finished)
+			handler := f.handler
+			if tt.anonymous {
+				handler = f.mux
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+				"/media/recordings/"+recordingID.String()+"/"+jikkyoapi.CommentsFileName, http.NoBody))
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Equal(t, tt.wantUpstream, f.fake.query.Load() != nil)
 		})
 	}
 }

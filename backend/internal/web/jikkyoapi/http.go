@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 )
 
@@ -33,6 +34,7 @@ const finishedCacheControl = "private, max-age=600"
 // (GET /media/recordings/{id}/jikkyo.json、設計書 7.4)。
 // 描画とミュートに使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。
 // ユーザー ID は、過去ログ API が公開している匿名の ID で、ID でのミュートに使う (#488)。
+// 全体の設定かユーザーの設定で実況を切っていれば、過去ログ API へ問い合わせずに 404 を返す。
 type CommentsHandler struct {
 	queries *query.Queries
 	table   *jikkyo.Table
@@ -73,6 +75,17 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	recordingID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "invalid recording ID", http.StatusBadRequest)
+
+		return
+	}
+	allowed, err := h.allowed(r.Context())
+	if err != nil {
+		h.internalError(w, r, err)
+
+		return
+	}
+	if !allowed {
+		http.NotFound(w, r)
 
 		return
 	}
@@ -132,6 +145,21 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	h.write(w, r, resp, source.RecordedUntil != nil)
+}
+
+// allowed は、リクエストのユーザーが実況を使えるかどうかを返す (設計書 7.4)。
+// 署名付きの URL では誰の要求かをここで知れないが、この URL は画面がセッションで読むだけなので、使えないものとして扱う。
+func (h *CommentsHandler) allowed(ctx context.Context) (bool, error) {
+	principal := auth.PrincipalFrom(ctx)
+	if principal == nil {
+		return false, nil
+	}
+	access, err := h.queries.GetJikkyoAccess(ctx, principal.UserID)
+	if err != nil {
+		return false, fmt.Errorf("failed to read whether jikkyo is enabled: %w", err)
+	}
+
+	return access.Allowed(), nil
 }
 
 // origin は、コメントの時刻の基準を返す。録画の配信は、最初のセグメントを書き始めた時刻を 0 秒にするので、それに合わせる。

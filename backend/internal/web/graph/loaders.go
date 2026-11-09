@@ -36,6 +36,8 @@ type Loaders struct {
 	WatchReserved *dataloadgen.Loader[watchReservedKey, bool]
 	// ProgramRecorded は、番組の録画があるかどうか (#1278)。番組表の番組ごとに引かず、まとめて引く。
 	ProgramRecorded *dataloadgen.Loader[query.ProgramSpan, bool]
+	// JikkyoAccess は、ユーザーが実況を使えるかどうか (設計書 7.4)。一覧のサービスごとに引かず、リクエストにつき 1 度だけ読む。
+	JikkyoAccess *dataloadgen.Loader[uuid.UUID, domain.JikkyoAccess]
 }
 
 // watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
@@ -136,7 +138,21 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 		ProgramRecorded: dataloadgen.NewLoader(func(ctx context.Context, keys []query.ProgramSpan) ([]bool, []error) {
 			return loadProgramRecorded(ctx, q, keys)
 		}, dataloadgen.WithWait(loaderWait)),
+		JikkyoAccess: dataloadgen.NewLoader(func(ctx context.Context, userIDs []uuid.UUID) ([]domain.JikkyoAccess, []error) {
+			return loadJikkyoAccess(ctx, q, userIDs)
+		}, dataloadgen.WithWait(loaderWait)),
 	}
+}
+
+// loadJikkyoAccess は、ユーザーごとに、実況を使えるかどうかを読む。リクエストのユーザーは 1 人なので、まとめて引かない。
+func loadJikkyoAccess(ctx context.Context, q *query.Queries, userIDs []uuid.UUID) ([]domain.JikkyoAccess, []error) {
+	accesses := make([]domain.JikkyoAccess, len(userIDs))
+	errs := make([]error, len(userIDs))
+	for i, userID := range userIDs {
+		accesses[i], errs[i] = q.GetJikkyoAccess(ctx, userID)
+	}
+
+	return accesses, errs
 }
 
 // loadProgramRecorded は、keys の番組に、それぞれ録画があるかどうかを返す (#1278)。

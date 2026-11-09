@@ -285,6 +285,7 @@ function Live({
             logoUrl
             streamUrl
             videoFormat
+            jikkyoChannelId
             jikkyo {
               id
               name
@@ -401,9 +402,14 @@ function Live({
     muteUser,
     captions: captionSettings,
   } = usePlayerSettings();
-  const channel = data.node?.__typename === 'Service' ? (data.node.jikkyo ?? null) : null;
+  // channelId は、実況のチャンネルの ID。実況を切っているユーザーにもボタンを出すため、外部へ問い合わせずに返る値を使う (設計書 7.4)。
+  const channelId =
+    data.node?.__typename === 'Service' ? (data.node.jikkyoChannelId ?? null) : null;
+  // channelName は、実況の欄に出すチャンネルの名前。NX-Jikkyo から名前を読めていなければ、サービスの名前を使う。
+  const channelName =
+    data.node?.__typename === 'Service' ? (data.node.jikkyo?.name ?? data.node.name) : '';
   const jikkyo = useLiveJikkyo(
-    jikkyoEnabled ? (channel?.id ?? null) : null,
+    jikkyoEnabled ? channelId : null,
     videoRef,
     visible,
     commentSettings,
@@ -720,7 +726,7 @@ function Live({
         }
       : {}),
     toggleCaptions: () => setCaptions(!captions),
-    ...(channel === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
+    ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     toggleMute: () => {
       const video = videoRef.current;
       if (video === null) {
@@ -1273,7 +1279,7 @@ function Live({
             <WatchPanel
               label={t('player.sidePanel')}
               tabs={[
-                ...(channel !== null && jikkyoEnabled
+                ...(channelId !== null && jikkyoEnabled
                   ? [
                       {
                         value: 'jikkyo',
@@ -1287,7 +1293,7 @@ function Live({
                         ),
                         footer: (
                           <JikkyoPanel
-                            channelName={channel.name}
+                            channelName={channelName}
                             status={jikkyo.status}
                             onPost={jikkyo.post}
                             force={jikkyo.force}

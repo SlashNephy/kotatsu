@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, rule_defaults, drcs_replacements, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -25,6 +25,7 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.MCPEnabled,
 		&i.DataBroadcastIPEnabled,
 		&i.AnimeLinkingEnabled,
+		&i.JikkyoEnabled,
 		&i.RuleDefaults,
 		&i.DrcsReplacements,
 		&i.UpdatedAt,
@@ -66,7 +67,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, rule_defaults, drcs_replacements, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -86,6 +87,7 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.MCPEnabled,
 		&i.DataBroadcastIPEnabled,
 		&i.AnimeLinkingEnabled,
+		&i.JikkyoEnabled,
 		&i.RuleDefaults,
 		&i.DrcsReplacements,
 		&i.UpdatedAt,
@@ -136,10 +138,10 @@ func (q *Queries) UpdateServiceDisplay(ctx context.Context, arg UpdateServiceDis
 const updateSystemSettings = `-- name: UpdateSystemSettings :one
 UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   notification_retention_days = $3, rule_defaults = $4, mcp_enabled = $5,
-  data_broadcast_ip_enabled = $6, anime_linking_enabled = $7,
-  drcs_replacements = $8, updated_at = $9
+  data_broadcast_ip_enabled = $6, anime_linking_enabled = $7, jikkyo_enabled = $8,
+  drcs_replacements = $9, updated_at = $10
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, rule_defaults, drcs_replacements, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, mcp_enabled, data_broadcast_ip_enabled, anime_linking_enabled, jikkyo_enabled, rule_defaults, drcs_replacements, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
@@ -150,6 +152,7 @@ type UpdateSystemSettingsParams struct {
 	MCPEnabled                bool
 	DataBroadcastIPEnabled    bool
 	AnimeLinkingEnabled       bool
+	JikkyoEnabled             bool
 	DrcsReplacements          []byte
 	Now                       time.Time
 }
@@ -163,6 +166,7 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.MCPEnabled,
 		arg.DataBroadcastIPEnabled,
 		arg.AnimeLinkingEnabled,
+		arg.JikkyoEnabled,
 		arg.DrcsReplacements,
 		arg.Now,
 	)
@@ -175,6 +179,7 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.MCPEnabled,
 		&i.DataBroadcastIPEnabled,
 		&i.AnimeLinkingEnabled,
+		&i.JikkyoEnabled,
 		&i.RuleDefaults,
 		&i.DrcsReplacements,
 		&i.UpdatedAt,

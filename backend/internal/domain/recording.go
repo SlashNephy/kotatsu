@@ -127,6 +127,19 @@ type WatchProgress struct {
 	UpdatedAt   time.Time
 }
 
+// JikkyoAccess は、実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。
+type JikkyoAccess struct {
+	// SystemEnabled は、管理者が全体の設定で実況を有効にしたかどうか。
+	SystemEnabled bool
+	// UserEnabled は、ユーザーが実況を有効にしたかどうか。
+	UserEnabled bool
+}
+
+// Allowed は、外部と通信してよいかどうかを返す。全体の設定とユーザーの設定の両方で有効なときだけ true にする。
+func (a JikkyoAccess) Allowed() bool {
+	return a.SystemEnabled && a.UserEnabled
+}
+
 // RecordingJikkyoSource は、録画の実況のコメントを引くための、録画したサービスと時刻。
 type RecordingJikkyoSource struct {
 	RecordedFrom  time.Time

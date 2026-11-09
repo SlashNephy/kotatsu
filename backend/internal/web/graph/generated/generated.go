@@ -1134,6 +1134,7 @@ type ComplexityRoot struct {
 		Hidden             func(childComplexity int) int
 		ID                 func(childComplexity int) int
 		Jikkyo             func(childComplexity int) int
+		JikkyoChannelID    func(childComplexity int) int
 		LogoURL            func(childComplexity int) int
 		Name               func(childComplexity int) int
 		NetworkID          func(childComplexity int) int
@@ -1215,6 +1216,7 @@ type ComplexityRoot struct {
 		ArchiveRetentionDays      func(childComplexity int) int
 		DataBroadcastIPEnabled    func(childComplexity int) int
 		DrcsReplacements          func(childComplexity int) int
+		JikkyoEnabled             func(childComplexity int) int
 		McpEnabled                func(childComplexity int) int
 		NotificationRetentionDays func(childComplexity int) int
 		RecordingDefaults         func(childComplexity int) int
@@ -1590,6 +1592,7 @@ type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
 
 	Jikkyo(ctx context.Context, obj *model.Service) (*model.JikkyoChannel, error)
+	JikkyoChannelID(ctx context.Context, obj *model.Service) (*string, error)
 	VideoFormat(ctx context.Context, obj *model.Service) (model.VideoFormat, error)
 	TimeshiftPrograms(ctx context.Context, obj *model.Service) ([]*model.TimeshiftProgram, error)
 	TimeshiftBuffer(ctx context.Context, obj *model.Service) (*model.TimeshiftBuffer, error)
@@ -6659,6 +6662,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Service.Jikkyo(childComplexity), true
+	case "Service.jikkyoChannelId":
+		if e.ComplexityRoot.Service.JikkyoChannelID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Service.JikkyoChannelID(childComplexity), true
 	case "Service.logoUrl":
 		if e.ComplexityRoot.Service.LogoURL == nil {
 			break
@@ -7002,6 +7011,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.DrcsReplacements(childComplexity), true
+	case "SystemSettings.jikkyoEnabled":
+		if e.ComplexityRoot.SystemSettings.JikkyoEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.JikkyoEnabled(childComplexity), true
 	case "SystemSettings.mcpEnabled":
 		if e.ComplexityRoot.SystemSettings.McpEnabled == nil {
 			break
@@ -8971,8 +8986,17 @@ type Service implements Node {
   streamUrl: String!
   "ロゴの画像の URL のパス。ログイン中のセッションで使う。放送がロゴを送っていなければ null。チューナーサーバーがまだ受信していなければ、URL は 404 を返す。"
   logoUrl: String
-  "ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。"
+  """
+  ニコニコ実況のチャンネル (設計書 7.4)。対応するチャンネルがないか、NX-Jikkyo が扱っていなければ null。
+  全体の設定か、読んだユーザーの設定で実況を切っていれば、外部へ問い合わせずに null を返す。
+  """
   jikkyo: JikkyoChannel
+  """
+  同梱の対応表で引いた、ニコニコ実況のチャンネルの ID (設計書 7.4)。外部へは問い合わせない。
+  全体の設定で実況を切っているか、対応するチャンネルがなければ null。
+  ユーザーが実況を切っている間も、プレイヤーの実況のボタンを出すのに使う。
+  """
+  jikkyoChannelId: String
   "放送中の番組の映像の種類 (#806)。番組の映像の解像度が分からなければ、チャンネル種別から決める。"
   videoFormat: VideoFormat!
 }
@@ -9561,7 +9585,7 @@ extend type Mutation {
 ログイン中のユーザーのプレイヤーの設定 (設計書 9.1)。端末をまたいで同期する。
 """
 type PlayerSettings {
-  "実況のコメントを出すかどうか。出さなければ、NX-Jikkyo に接続しない (設計書 7.4)。"
+  "実況のコメントを出すかどうか。既定は false。全体の設定と両方で有効なときだけ、外部へ問い合わせる (設計書 7.4)。"
   jikkyoEnabled: Boolean!
   "字幕と文字スーパーを出すかどうか。"
   captionsEnabled: Boolean!
@@ -10804,6 +10828,11 @@ type SystemSettings {
   dataBroadcastIpEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
+  """
+  ニコニコ実況を使うかどうか (設計書 7.4)。既定は false。
+  ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
+  """
+  jikkyoEnabled: Boolean!
   "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   "最後に変えた日時。一度も変えていなければ null。"
@@ -10825,6 +10854,8 @@ input SystemSettingsInput {
   dataBroadcastIpEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
+  "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  jikkyoEnabled: Boolean
   """
   字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
@@ -13340,6 +13371,8 @@ func (ec *executionContext) childFields_Service(ctx context.Context, field graph
 		return ec.fieldContext_Service_logoUrl(ctx, field)
 	case "jikkyo":
 		return ec.fieldContext_Service_jikkyo(ctx, field)
+	case "jikkyoChannelId":
+		return ec.fieldContext_Service_jikkyoChannelId(ctx, field)
 	case "videoFormat":
 		return ec.fieldContext_Service_videoFormat(ctx, field)
 	case "timeshiftPrograms":
@@ -13472,6 +13505,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_dataBroadcastIpEnabled(ctx, field)
 	case "animeLinkingEnabled":
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
+	case "jikkyoEnabled":
+		return ec.fieldContext_SystemSettings_jikkyoEnabled(ctx, field)
 	case "drcsReplacements":
 		return ec.fieldContext_SystemSettings_drcsReplacements(ctx, field)
 	case "updatedAt":
@@ -36535,6 +36570,29 @@ func (ec *executionContext) fieldContext_Service_jikkyo(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Service_jikkyoChannelId(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Service_jikkyoChannelId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Service().JikkyoChannelID(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Service_jikkyoChannelId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Service", field, true, true, "String")
+}
+
 func (ec *executionContext) _Service_videoFormat(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37796,6 +37854,29 @@ func (ec *executionContext) _SystemSettings_animeLinkingEnabled(ctx context.Cont
 	)
 }
 func (ec *executionContext) fieldContext_SystemSettings_animeLinkingEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_jikkyoEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_jikkyoEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JikkyoEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_jikkyoEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
@@ -43503,7 +43584,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "drcsReplacements"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "jikkyoEnabled", "drcsReplacements"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -43559,6 +43640,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.AnimeLinkingEnabled = data
+		case "jikkyoEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jikkyoEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.JikkyoEnabled = data
 		case "drcsReplacements":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("drcsReplacements"))
 			data, err := ec.unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx, v)
@@ -51325,6 +51413,12 @@ func (ec *executionContext) _Service(ctx context.Context, sel ast.SelectionSet, 
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Service_jikkyo(ctx, field, obj)
 				})
+		case "jikkyoChannelId":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Service_jikkyoChannelId(ctx, field, obj)
+				})
 		case "videoFormat":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
 				true, true,
@@ -51793,6 +51887,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "animeLinkingEnabled":
 			out.Values[i] = ec._SystemSettings_animeLinkingEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "jikkyoEnabled":
+			out.Values[i] = ec._SystemSettings_jikkyoEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

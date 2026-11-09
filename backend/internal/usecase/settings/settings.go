@@ -60,6 +60,8 @@ type System struct {
 	// AnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
 	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
 	AnimeLinkingEnabled bool
+	// JikkyoEnabled は、ニコニコ実況を使うかどうか (設計書 7.4)。外部へ問い合わせるので、既定は false (設計書 0.3)。
+	JikkyoEnabled bool
 	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換える表 (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
 	DRCSReplacements map[string]string
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
@@ -125,6 +127,7 @@ type Changes struct {
 	MCPEnabled                *bool
 	DataBroadcastIPEnabled    *bool
 	AnimeLinkingEnabled       *bool
+	JikkyoEnabled             *bool
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
 	DRCSReplacements map[string]*string
 }
@@ -231,6 +234,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled),
 			DataBroadcastIPEnabled: valueOr(changes.DataBroadcastIPEnabled, current.DataBroadcastIPEnabled),
 			AnimeLinkingEnabled:    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
+			JikkyoEnabled:          valueOr(changes.JikkyoEnabled, current.JikkyoEnabled),
 			DrcsReplacements:       replacementsEncoded, Now: now,
 		})
 		if err != nil {
@@ -253,6 +257,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"mcpEnabled":                change(current.MCPEnabled, updated.MCPEnabled),
 				"dataBroadcastIpEnabled":    change(current.DataBroadcastIPEnabled, updated.DataBroadcastIPEnabled),
 				"animeLinkingEnabled":       change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
+				"jikkyoEnabled":             change(current.JikkyoEnabled, updated.JikkyoEnabled),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
 				"drcsReplacements": drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 			},
@@ -396,6 +401,7 @@ func defaults() *System {
 		MCPEnabled:                false,
 		DataBroadcastIPEnabled:    false,
 		AnimeLinkingEnabled:       false,
+		JikkyoEnabled:             false,
 		DRCSReplacements:          map[string]string{},
 		UpdatedAt:                 nil,
 	}
@@ -426,6 +432,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		MCPEnabled:                row.MCPEnabled,
 		DataBroadcastIPEnabled:    row.DataBroadcastIPEnabled,
 		AnimeLinkingEnabled:       row.AnimeLinkingEnabled,
+		JikkyoEnabled:             row.JikkyoEnabled,
 		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
 }

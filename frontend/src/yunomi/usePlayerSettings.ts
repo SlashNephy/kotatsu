@@ -10,6 +10,9 @@ import type { CommentSettings, KeywordMuteMatch } from '../jikkyo/comments';
 
 const settingsQuery = graphql`
   query usePlayerSettingsQuery {
+    systemSettings {
+      jikkyoEnabled
+    }
     playerSettings {
       jikkyoEnabled
       captionsEnabled
@@ -58,6 +61,8 @@ export type CaptionSettings = {
 // usePlayerSettings は、端末をまたいで同期するプレイヤーの設定を返す (設計書 9.1)。
 // ほかの端末で変えたら、viewerSettingsChanged で知らされて読み直す。
 export function usePlayerSettings(): Settings & {
+  // jikkyoAvailable は、管理者が実況を有効にしたかどうか。無効なら、実況の設定を出さない (設計書 7.4)。
+  jikkyoAvailable: boolean;
   setJikkyoEnabled: (enabled: boolean) => void;
   setCaptionsEnabled: (enabled: boolean) => void;
   comments: CommentSettings;
@@ -198,6 +203,7 @@ export function usePlayerSettings(): Settings & {
   };
 
   return {
+    jikkyoAvailable: data.systemSettings.jikkyoEnabled,
     jikkyoEnabled: settings.jikkyoEnabled,
     captionsEnabled: settings.captionsEnabled,
     setJikkyoEnabled: (enabled) => update({ jikkyoEnabled: enabled }),

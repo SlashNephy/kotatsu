@@ -26,11 +26,13 @@ const (
 	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
 	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
 	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
-	settingsQuery            = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
-		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled } }`
+	// fieldJikkyoEnabled は、ニコニコ実況を使うかどうかの項目 (設計書 7.4)。
+	fieldJikkyoEnabled = "jikkyoEnabled"
+	settingsQuery      = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
+		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
 	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
 		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled
-		dataBroadcastIpEnabled animeLinkingEnabled } }`
+		dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
 )
 
 type recordingSettings struct {
@@ -48,6 +50,7 @@ type systemSettings struct {
 	MCPEnabled                bool              `json:"mcpEnabled"`
 	DataBroadcastIPEnabled    bool              `json:"dataBroadcastIpEnabled"`
 	AnimeLinkingEnabled       bool              `json:"animeLinkingEnabled"`
+	JikkyoEnabled             bool              `json:"jikkyoEnabled"`
 }
 
 func defaultSystemSettings() systemSettings {
@@ -61,6 +64,7 @@ func defaultSystemSettings() systemSettings {
 		MCPEnabled:                false,
 		DataBroadcastIPEnabled:    false,
 		AnimeLinkingEnabled:       false,
+		JikkyoEnabled:             false,
 	}
 }
 
@@ -142,6 +146,12 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldAnimeLinkingEnabled: true}}, &partial))
 	want.AnimeLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
+	// ニコニコ実況も、外部と通信するので、既定では使わず、管理者が有効にする。実況の画面を出すかを決めるので、誰でも読める (設計書 7.4)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldJikkyoEnabled: true}}, &partial))
+	want.JikkyoEnabled = true
+	assert.Equal(t, want, partial.UpdateSystemSettings)
+	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
+	assert.True(t, got.SystemSettings.JikkyoEnabled, "viewers read whether jikkyo is enabled")
 
 	var stamped struct {
 		SystemSettings struct {
@@ -158,13 +168,14 @@ func TestSystemSettings(t *testing.T) {
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	require.Empty(t, admin.query(t, updateSettings, change, nil))
 	// しょぼいカレンダー、Annict、AniList との連携も、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。
-	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled} {
+	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled, fieldJikkyoEnabled} {
 		assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{field: false}}, nil), field)
 	}
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.AnimeLinkingEnabled, "rejected changes are not saved")
+	assert.True(t, got.SystemSettings.JikkyoEnabled, "rejected changes are not saved")
 }
 
 type drcsReplacement struct {
