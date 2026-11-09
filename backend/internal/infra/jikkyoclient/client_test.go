@@ -121,6 +121,31 @@ func TestClientChannelActivity(t *testing.T) {
 			threads: `[{"status":"PAST","jikkyo_force":3,"viewers":5}]`,
 			want:    nil,
 		},
+		{
+			name:    "見ている人とコメントがあれば、勢いが 0 でも返す",
+			threads: `[{"status":"ACTIVE","jikkyo_force":0,"viewers":3,"comments":12}]`,
+			want:    &jikkyoclient.Activity{Force: 0, Viewers: 3},
+		},
+		{
+			name:    "勢いも見ている人も 0 なら nil",
+			threads: `[{"status":"ACTIVE","jikkyo_force":0,"viewers":0,"comments":12}]`,
+			want:    nil,
+		},
+		{
+			name:    "勢いが 0 で、見ている人がいてもコメントがなければ nil",
+			threads: `[{"status":"ACTIVE","jikkyo_force":0,"viewers":3,"comments":0}]`,
+			want:    nil,
+		},
+		{
+			name:    "勢いがあれば、コメントの数によらず返す",
+			threads: `[{"status":"ACTIVE","jikkyo_force":2,"viewers":0,"comments":0}]`,
+			want:    &jikkyoclient.Activity{Force: 2, Viewers: 0},
+		},
+		{
+			name:    "勢いが null なら、0 と扱わず nil",
+			threads: `[{"status":"ACTIVE","jikkyo_force":null,"viewers":3,"comments":12}]`,
+			want:    nil,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
