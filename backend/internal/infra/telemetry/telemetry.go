@@ -66,7 +66,7 @@ func NewTracerProvider(ctx context.Context, cfg *config.Telemetry) (trace.Tracer
 	}
 
 	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+		sdktrace.WithBatcher(redactingExporter{SpanExporter: exporter}),
 		sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", serviceName))),
 	)
 

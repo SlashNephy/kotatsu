@@ -2111,6 +2111,11 @@ EPGStationのように、秘密情報を平文の設定ファイルに書く必�
   | `kotatsu_tenban_database_fallbacks_total{kind}` | このインスタンスのtenbanが、DBに届かずに覚えた結果を使った回数（counter、[9.5](#95-セッションと防御)、#1084）。`session`はセッションの認証、`signed_url`は署名付きURLのユーザー、`kyusu_instances`はkyusuへの中継に使うインスタンスの登録簿です。覚えた結果に切り替えたときと、DBに届くようになって戻したときは、ログにも出します。 |
 
   録画、失敗の累計、予約、チューナー、保存先プール、ジョブのキュー、タイムシフトのバッファは、DBから読むので、どのインスタンスも同じ値を返します。集計するときは、インスタンスをまたいで足さずに、`max`などでまとめます。
+- トレースの送信先（`telemetry.otlp_endpoint`）を設定すると、HTTPのリクエストごとのspanを送ります。トレースも、メトリクスのラベルと同じく、視聴の傾向や視聴者が分かる情報を外に出しません（#1364）。
+  - 送りません：`client.address`、`client.port`、`network.peer.address`、`network.peer.port`、`user_agent.original`、`user_agent.synthetic.type`。手前にプロキシがなければ`network.peer.address`も視聴者のIPアドレスになるので、`client.address`と一緒に除きます。
+  - `url.path`は、先頭の2つのセグメントだけを残し、後ろのセグメントと数字を含むセグメントを`:id`にまとめて送ります。録画やサービスのID、ユーザー名から、何を再生したかや誰を見ているかが分からないようにするためです。
+  - 除くのは、送信の直前（Exporterの手前）です。調査のためにIPアドレスを送るオプションは設けません。
+  - パスに秘密の値を含む予約のiCalendarとIPTVは、これまでどおりトレースしません（[9.8](#98-api-トークン)）。
 - OTLPの送信先（`telemetry.otlp_metrics_endpoint`）を設定すると、`/metrics`と同じメトリクスを、OTLPで決まった間隔（既定は60秒）で送ります。MackerelのラベルつきメトリクスやOpenTelemetry Collectorのように、pushで受け取る監視先でも見られるようにするためです。
   - 定義はPrometheusのレジストリ1つだけで、OTLPには`go.opentelemetry.io/contrib/bridges/prometheus`で橋渡しします。名前とラベルは`/metrics`と同じです。カウンターは累積（cumulative）で送ります。
   - pushでは、インスタンスの数だけ同じ系列が送られます。そこで、値を次の2つの範囲に分け、範囲ごとに送り方を変えます。
