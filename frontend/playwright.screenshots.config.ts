@@ -10,6 +10,11 @@ export default defineConfig({
   // 画像は toHaveScreenshot の比べる先として置き、許容差を超えて変わったものと、まだないものだけを書き換える。
   snapshotPathTemplate: '../docs/screenshots/{arg}{ext}',
   updateSnapshots: 'changed',
+  // Social preview は README のスクリーンショットを素材にするので、撮り終えてから合成する。
+  projects: [
+    { name: 'readme', testMatch: 'readme.spec.ts' },
+    { name: 'social-preview', testMatch: 'social-preview.spec.ts', dependencies: ['readme'] },
+  ],
   use: {
     ...devices['Desktop Chrome'],
     baseURL: 'http://127.0.0.1:4174',
