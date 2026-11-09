@@ -36,6 +36,8 @@ func TestOrphanFiles(t *testing.T) {
 	// 書くか名前を変えてから時間が経ったファイルだけを、DB にないとみなす。
 	f.clock.Advance(time.Since(f.clock.Now()) + 2*time.Hour)
 	admin := f.as(t, adminName, auth.RoleAdmin)
+	// 時計を今まで進めるので、fixture が最初に作ったセッションは、無操作の期限を過ぎている。進めた後に作り直す。
+	member := f.as(t, "orphan-member", auth.RoleMember)
 
 	type orphanFile struct {
 		PoolID     *string `json:"poolId"`
@@ -72,6 +74,6 @@ func TestOrphanFiles(t *testing.T) {
 	assert.FileExists(t, filepath.Join(dir, remainingRecordingName+".m2ts"))
 
 	var ignored struct{}
-	assert.Equal(t, []string{codeForbidden}, f.query(t, orphanFilesQuery, nil, &ignored))
-	assert.Equal(t, []string{codeForbidden}, f.query(t, deleteOrphanMutation, map[string]any{varFiles: files[:1]}, &ignored))
+	assert.Equal(t, []string{codeForbidden}, member.query(t, orphanFilesQuery, nil, &ignored))
+	assert.Equal(t, []string{codeForbidden}, member.query(t, deleteOrphanMutation, map[string]any{varFiles: files[:1]}, &ignored))
 }
