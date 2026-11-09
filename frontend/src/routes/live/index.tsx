@@ -1,4 +1,4 @@
-import { Alert, Anchor, Group, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
+import { Alert, Anchor, SegmentedControl, SimpleGrid, Stack, Title } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { startTransition, Suspense, useCallback, useEffect, useState } from 'react';
@@ -18,6 +18,7 @@ import {
 } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
 import type { liveServicesQuery } from './__generated__/liveServicesQuery.graphql';
+import { rankByJikkyoForce } from '../../guide/jikkyoRanking';
 import { NowPlayingCard } from '../../guide/NowPlayingCard';
 import { PinnableCard } from '../../guide/PinnableCard';
 import { sharesWithListed } from '../../guide/sharedEvent';
@@ -76,6 +77,9 @@ const maxWaitMs = 10 * 60_000;
 // pinnedTab は、ピン留めしたサービスを出すタブの値。チャンネル種別とぶつからないよう、小文字にする。
 const pinnedTab = 'pinned';
 
+// forceTab は、種別をまたいで、実況の勢いが強い局から出すタブの値 (#490)。
+const forceTab = 'force';
+
 function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void }) {
   const { t } = useTranslation();
   const changes = useDataChanges(liveChannels);
@@ -98,6 +102,7 @@ function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void 
               type
             }
             jikkyo {
+              id
               force
             }
           }
@@ -132,64 +137,49 @@ function Services({ range, onExpire }: { range: LiveRange; onExpire: () => void 
   const pinnedSet = new Set(pinned);
   // ピン留めしたサービスがあれば、ピン留めのタブから出す。
   const [selectedType, setType] = useState(pinned.length > 0 ? pinnedTab : (types[0]?.type ?? ''));
+  const ranked = rankByJikkyoForce(data.guide);
   // ピン留めをすべて外したら、ピン留めのタブはなくなるので、最初の種別に戻す。後でまたピン留めしても、ピン留めのタブへは戻さない。
-  const fallBack = selectedType === pinnedTab && pinned.length === 0;
+  // 勢いのある局がなくなったときの勢いのタブも同じ。
+  const fallBack =
+    (selectedType === pinnedTab && pinned.length === 0) ||
+    (selectedType === forceTab && ranked.length === 0);
   useEffect(() => {
     if (fallBack) {
       setType(types[0]?.type ?? '');
     }
   }, [fallBack, types]);
   const type = fallBack ? (types[0]?.type ?? '') : selectedType;
-  // order は、並べる順。勢いの順では、実況の勢いが強い局から並べる (#490)。勢いの分からない局は後ろに回す。
-  const [order, setOrder] = useState<'guide' | 'force'>('guide');
   // サブチャンネルがメインチャンネルと同じ番組を流しているときは、メインチャンネルだけを出す (ホームの放送中の番組と同じ)。
   // ピン留めのタブでは、ピン留めしたサービスをそのまま出す。
   const listed = new Set(data.guide.map((row) => row.service.id));
-  const filtered =
+  const shown =
     type === pinnedTab
       ? pinned.flatMap((id) => data.guide.filter((row) => row.service.id === id))
-      : data.guide.filter(
-          (row) =>
-            row.service.channelType.type === type && !sharesWithListed(row.programs[0], listed),
-        );
-  const shown =
-    order === 'force'
-      ? [...filtered].sort(
-          (a, b) => (b.service.jikkyo?.force ?? -1) - (a.service.jikkyo?.force ?? -1),
-        )
-      : filtered;
+      : type === forceTab
+        ? ranked
+        : data.guide.filter(
+            (row) =>
+              row.service.channelType.type === type && !sharesWithListed(row.programs[0], listed),
+          );
 
   return (
     <Stack>
-      <Group justify="space-between" gap="xs">
-        {(types.length > 1 || pinned.length > 0) && (
-          <SegmentedControl
-            size="xs"
-            value={type}
-            onChange={setType}
-            data={[
-              ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
-              ...types.map((channelType) => ({
-                value: channelType.type,
-                label: channelType.displayName,
-              })),
-            ]}
-          />
-        )}
-        {/* 並べる局がなければ、並べる順も出さない。 */}
-        {types.length > 0 && (
-          <SegmentedControl
-            size="xs"
-            value={order}
-            onChange={(value) => setOrder(value === 'force' ? 'force' : 'guide')}
-            aria-label={t('live.order')}
-            data={[
-              { value: 'guide', label: t('live.orderGuide') },
-              { value: 'force', label: t('live.orderForce') },
-            ]}
-          />
-        )}
-      </Group>
+      {(types.length > 1 || pinned.length > 0 || ranked.length > 0) && (
+        <SegmentedControl
+          size="xs"
+          value={type}
+          onChange={setType}
+          style={{ alignSelf: 'flex-start' }}
+          data={[
+            ...(pinned.length > 0 ? [{ value: pinnedTab, label: t('pin.tab') }] : []),
+            ...(ranked.length > 0 ? [{ value: forceTab, label: t('live.forceTab') }] : []),
+            ...types.map((channelType) => ({
+              value: channelType.type,
+              label: channelType.displayName,
+            })),
+          ]}
+        />
+      )}
       {types.length === 0 && (
         <EmptyState icon={Tv} title={t('live.empty')} hint={t('live.emptyHint')} />
       )}

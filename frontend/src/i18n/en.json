@@ -1454,9 +1454,7 @@
     "kakologLoaded_other": "{{count}} past comments"
   },
   "live": {
-    "order": "Sort order",
-    "orderGuide": "Guide order",
-    "orderForce": "Live comment activity",
+    "forceTab": "Trending",
     "overlay": {
       "endUndecided": "End time undecided",
       "next": "Next › {{range}}"
