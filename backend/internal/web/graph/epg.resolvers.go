@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	pgx "github.com/jackc/pgx/v5"
+
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
-	"github.com/google/uuid"
-	pgx "github.com/jackc/pgx/v5"
 )
 
 // Service is the resolver for the service field.
