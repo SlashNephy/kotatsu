@@ -26,6 +26,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -115,17 +116,45 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	imageURL, err := h.queries.GetAnimeWishlistImageURL(r.Context(), principal.UserID, r.PathValue("destination"), int32(workID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		http.Error(w, "the work has no image", http.StatusNotFound)
+	h.serve(w, r, imageURL, err)
+}
+
+// FollowingAvatarPath は、記録先 destination のユーザー username のアバターを中継する URL のパスを返す (#1372)。
+// avatarURL は、記録先が示したアバターの URL で、変わったらブラウザに読み直させるため、その版をクエリに添える。
+func FollowingAvatarPath(destination, username, avatarURL string) string {
+	sum := sha256.Sum256([]byte(avatarURL))
+
+	return "/media/anime-following/" + url.PathEscape(destination) + "/" + url.PathEscape(username) + "/avatar?v=" + hex.EncodeToString(sum[:8])
+}
+
+// ServeFollowingAvatar は、フォロー中のユーザーのアバターを中継する (GET /media/anime-following/{destination}/{username}/avatar、#1372)。
+// ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけを、作品の画像と同じく、グローバルなアドレスから取る。
+func (h *Handler) ServeFollowingAvatar(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	principal := auth.PrincipalFrom(r.Context())
+	if principal == nil {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 
 		return
 	}
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "failed to get the image URL of the work", slog.Any("error", err))
+	imageURL, err := h.queries.GetAnimeFollowingAvatarURL(r.Context(), principal.UserID, r.PathValue("destination"), r.PathValue("username"), time.Now().Add(-animerecord.FollowingRetention))
+	h.serve(w, r, imageURL, err)
+}
+
+// serve は、引いた結果の URL の画像を取って返す。lookupErr は、URL を引いたときのエラー。
+func (h *Handler) serve(w http.ResponseWriter, r *http.Request, imageURL string, lookupErr error) {
+	if errors.Is(lookupErr, pgx.ErrNoRows) {
+		http.Error(w, "the image is not found", http.StatusNotFound)
+
+		return
+	}
+	if lookupErr != nil {
+		h.logger.ErrorContext(r.Context(), "failed to get the image URL", slog.Any("error", lookupErr))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
 	}
+	var err error
 	image, ok := h.cache.get(imageURL)
 	if !ok {
 		image, err = h.fetch(r.Context(), imageURL)

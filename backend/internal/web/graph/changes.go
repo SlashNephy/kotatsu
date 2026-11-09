@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
+	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
@@ -46,6 +47,7 @@ func dataChannels() []dataChannel {
 		{channel: model.DataChannelReservationConflicts, notify: assign.ConflictChannel, adminOnly: false},
 		{channel: model.DataChannelTuners, notify: tunerstate.NotifyChannel, adminOnly: false},
 		{channel: model.DataChannelRecordings, notify: notify.RecordingsChannel, adminOnly: false},
+		{channel: model.DataChannelAnimeFollowing, notify: animerecord.FollowingNotifyChannel, adminOnly: false},
 		{channel: model.DataChannelAdmin, notify: notify.AuditChannel, adminOnly: true},
 	}
 }

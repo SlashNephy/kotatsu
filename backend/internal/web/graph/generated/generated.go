@@ -72,6 +72,26 @@ type ComplexityRoot struct {
 		Works       func(childComplexity int) int
 	}
 
+	AnimeFollowingViewing struct {
+		AvatarURL     func(childComplexity int) int
+		Destination   func(childComplexity int) int
+		EpisodesCount func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Notes         func(childComplexity int) int
+		ProfileURL    func(childComplexity int) int
+		Progress      func(childComplexity int) int
+		Score         func(childComplexity int) int
+		Status        func(childComplexity int) int
+		Username      func(childComplexity int) int
+	}
+
+	AnimeFollowingViewings struct {
+		Enabled      func(childComplexity int) int
+		Failed       func(childComplexity int) int
+		NeedsRefresh func(childComplexity int) int
+		Viewings     func(childComplexity int) int
+	}
+
 	AnimeImport struct {
 		CheckedAt  func(childComplexity int) int
 		Error      func(childComplexity int) int
@@ -531,99 +551,100 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		ApproveOAuthAuthorization    func(childComplexity int, query string, scopes []string) int
-		BeginAnimeRecordConnection   func(childComplexity int, destination model.AnimeRecordDestination) int
-		BeginTotpEnrollment          func(childComplexity int) int
-		CancelJob                    func(childComplexity int, id string) int
-		ChangePassword               func(childComplexity int, password string) int
-		CleanUpMissingRecordings     func(childComplexity int, ids []string) int
-		ClearWatchPosition           func(childComplexity int, id string) int
-		ConfirmTotpEnrollment        func(childComplexity int, code string) int
-		CreateAPIToken               func(childComplexity int, name string) int
-		CreateAnimeWishlistRule      func(childComplexity int, tid int) int
-		CreateCalendarFeed           func(childComplexity int) int
-		CreateGuideView              func(childComplexity int, input model.GuideViewInput) int
-		CreateIptvFeed               func(childComplexity int) int
-		CreateProgramReservation     func(childComplexity int, input model.ProgramReservationInput) int
-		CreateRule                   func(childComplexity int, input model.RuleInput) int
-		CreateStreamURL              func(childComplexity int, target string) int
-		CreateTimeReservation        func(childComplexity int, input model.TimeReservationInput) int
-		CreateUser                   func(childComplexity int, input model.CreateUserInput) int
-		CreateWatchRule              func(childComplexity int, input model.WatchRuleInput) int
-		CreateWebhook                func(childComplexity int, input model.CreateWebhookInput) int
-		DeleteAPIToken               func(childComplexity int, id string) int
-		DeleteCalendarFeed           func(childComplexity int) int
-		DeleteCapture                func(childComplexity int, id string) int
-		DeleteGuideView              func(childComplexity int, id string) int
-		DeleteIptvFeed               func(childComplexity int) int
-		DeleteOAuthGrant             func(childComplexity int, id string) int
-		DeleteOrphanFiles            func(childComplexity int, files []*model.OrphanFileInput) int
-		DeletePasskey                func(childComplexity int, id string) int
-		DeleteRecording              func(childComplexity int, id string) int
-		DeleteRecordings             func(childComplexity int, ids []string) int
-		DeleteReservation            func(childComplexity int, id string) int
-		DeleteReservations           func(childComplexity int, ids []string) int
-		DeleteRule                   func(childComplexity int, id string) int
-		DeleteRules                  func(childComplexity int, ids []string) int
-		DeleteTotp                   func(childComplexity int) int
-		DeleteWatchRule              func(childComplexity int, id string) int
-		DeleteWebhook                func(childComplexity int, id string) int
-		DenyOAuthAuthorization       func(childComplexity int, query string) int
-		DetectRecordingCM            func(childComplexity int, id string) int
-		DisableUser                  func(childComplexity int, id string) int
-		DisconnectAnimeRecord        func(childComplexity int, destination model.AnimeRecordDestination) int
-		EnableUser                   func(childComplexity int, id string) int
-		InspectChannel               func(childComplexity int, channelType string, channel string) int
-		MarkAllNotificationsRead     func(childComplexity int) int
-		MarkNotificationsRead        func(childComplexity int, ids []string) int
-		PromoteTimeshiftProgram      func(childComplexity int, serviceID string, startAt time.Time) int
-		ReanalyzeRecording           func(childComplexity int, id string) int
-		RecordAnimeEpisodes          func(childComplexity int, input model.RecordAnimeEpisodesInput) int
-		RefreshAnimeWishlist         func(childComplexity int) int
-		RegenerateRecordingImages    func(childComplexity int, id string) int
-		RegenerateRecoveryCodes      func(childComplexity int) int
-		RegisterPlayer               func(childComplexity int, state model.PlayerStateInput) int
-		RemoveTimeshiftChannel       func(childComplexity int, serviceID string) int
-		RenamePasskey                func(childComplexity int, id string, name string) int
-		RenameRecordingFiles         func(childComplexity int, ids []string) int
-		ReportAnimePlayback          func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
-		ResetRecordingFailureCounts  func(childComplexity int, reasons []model.RecordingFailureReason) int
-		ResetUserPassword            func(childComplexity int, id string, password string) int
-		RetryJob                     func(childComplexity int, id string) int
-		RevokeOtherSessions          func(childComplexity int) int
-		RevokeSession                func(childComplexity int, id string) int
-		SaveWatchPosition            func(childComplexity int, id string, positionMs int64) int
-		SendPlayerCommand            func(childComplexity int, id string, command model.PlayerCommandInput) int
-		SetRecordingProtected        func(childComplexity int, id string, protected bool) int
-		SetRecordingTags             func(childComplexity int, id string, tags []string) int
-		SetReservationsEnabled       func(childComplexity int, ids []string, enabled bool) int
-		SetRuleEnabled               func(childComplexity int, id string, enabled bool) int
-		SetRulesEnabled              func(childComplexity int, ids []string, enabled bool) int
-		SetServicePinned             func(childComplexity int, id string, pinned bool) int
-		SetTimeshiftChannel          func(childComplexity int, serviceID string, retentionSeconds *int) int
-		SetWatchReservation          func(childComplexity int, program string, reserved bool) int
-		SetWatchRuleEnabled          func(childComplexity int, id string, enabled bool) int
-		SubscribeWebPush             func(childComplexity int, input model.WebPushSubscriptionInput) int
-		UnregisterPlayer             func(childComplexity int, id string) int
-		UnsubscribeWebPush           func(childComplexity int, endpoint string) int
-		UpdateAnimeChannel           func(childComplexity int, serviceID string, input model.AnimeChannelInput) int
-		UpdateAnimeImportToken       func(childComplexity int, annictToken string) int
-		UpdateAnimeRecordApp         func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
-		UpdateAnimeRecordSettings    func(childComplexity int, input model.AnimeRecordSettingsInput) int
-		UpdateChannelType            func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
-		UpdateGuideView              func(childComplexity int, id string, input model.GuideViewInput) int
-		UpdateNotificationPreference func(childComplexity int, input model.NotificationPreferenceInput) int
-		UpdatePlayer                 func(childComplexity int, id string, state model.PlayerStateInput, announce bool) int
-		UpdatePlayerSettings         func(childComplexity int, input model.PlayerSettingsInput) int
-		UpdateReservation            func(childComplexity int, id string, input model.ReservationUpdateInput) int
-		UpdateRule                   func(childComplexity int, id string, input model.RuleInput) int
-		UpdateService                func(childComplexity int, id string, input model.ServiceInput) int
-		UpdateStoragePool            func(childComplexity int, id string, input model.StoragePoolInput) int
-		UpdateSystemSettings         func(childComplexity int, input model.SystemSettingsInput) int
-		UpdateUser                   func(childComplexity int, id string, input model.UpdateUserInput) int
-		UpdateWatchReminderSettings  func(childComplexity int, minutesBefore int) int
-		UpdateWatchRule              func(childComplexity int, id string, input model.WatchRuleInput) int
-		UpdateWebhook                func(childComplexity int, id string, input model.UpdateWebhookInput) int
+		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
+		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
+		BeginTotpEnrollment           func(childComplexity int) int
+		CancelJob                     func(childComplexity int, id string) int
+		ChangePassword                func(childComplexity int, password string) int
+		CleanUpMissingRecordings      func(childComplexity int, ids []string) int
+		ClearWatchPosition            func(childComplexity int, id string) int
+		ConfirmTotpEnrollment         func(childComplexity int, code string) int
+		CreateAPIToken                func(childComplexity int, name string) int
+		CreateAnimeWishlistRule       func(childComplexity int, tid int) int
+		CreateCalendarFeed            func(childComplexity int) int
+		CreateGuideView               func(childComplexity int, input model.GuideViewInput) int
+		CreateIptvFeed                func(childComplexity int) int
+		CreateProgramReservation      func(childComplexity int, input model.ProgramReservationInput) int
+		CreateRule                    func(childComplexity int, input model.RuleInput) int
+		CreateStreamURL               func(childComplexity int, target string) int
+		CreateTimeReservation         func(childComplexity int, input model.TimeReservationInput) int
+		CreateUser                    func(childComplexity int, input model.CreateUserInput) int
+		CreateWatchRule               func(childComplexity int, input model.WatchRuleInput) int
+		CreateWebhook                 func(childComplexity int, input model.CreateWebhookInput) int
+		DeleteAPIToken                func(childComplexity int, id string) int
+		DeleteCalendarFeed            func(childComplexity int) int
+		DeleteCapture                 func(childComplexity int, id string) int
+		DeleteGuideView               func(childComplexity int, id string) int
+		DeleteIptvFeed                func(childComplexity int) int
+		DeleteOAuthGrant              func(childComplexity int, id string) int
+		DeleteOrphanFiles             func(childComplexity int, files []*model.OrphanFileInput) int
+		DeletePasskey                 func(childComplexity int, id string) int
+		DeleteRecording               func(childComplexity int, id string) int
+		DeleteRecordings              func(childComplexity int, ids []string) int
+		DeleteReservation             func(childComplexity int, id string) int
+		DeleteReservations            func(childComplexity int, ids []string) int
+		DeleteRule                    func(childComplexity int, id string) int
+		DeleteRules                   func(childComplexity int, ids []string) int
+		DeleteTotp                    func(childComplexity int) int
+		DeleteWatchRule               func(childComplexity int, id string) int
+		DeleteWebhook                 func(childComplexity int, id string) int
+		DenyOAuthAuthorization        func(childComplexity int, query string) int
+		DetectRecordingCM             func(childComplexity int, id string) int
+		DisableUser                   func(childComplexity int, id string) int
+		DisconnectAnimeRecord         func(childComplexity int, destination model.AnimeRecordDestination) int
+		EnableUser                    func(childComplexity int, id string) int
+		InspectChannel                func(childComplexity int, channelType string, channel string) int
+		MarkAllNotificationsRead      func(childComplexity int) int
+		MarkNotificationsRead         func(childComplexity int, ids []string) int
+		PromoteTimeshiftProgram       func(childComplexity int, serviceID string, startAt time.Time) int
+		ReanalyzeRecording            func(childComplexity int, id string) int
+		RecordAnimeEpisodes           func(childComplexity int, input model.RecordAnimeEpisodesInput) int
+		RefreshAnimeFollowingViewings func(childComplexity int, tid int) int
+		RefreshAnimeWishlist          func(childComplexity int) int
+		RegenerateRecordingImages     func(childComplexity int, id string) int
+		RegenerateRecoveryCodes       func(childComplexity int) int
+		RegisterPlayer                func(childComplexity int, state model.PlayerStateInput) int
+		RemoveTimeshiftChannel        func(childComplexity int, serviceID string) int
+		RenamePasskey                 func(childComplexity int, id string, name string) int
+		RenameRecordingFiles          func(childComplexity int, ids []string) int
+		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
+		ResetRecordingFailureCounts   func(childComplexity int, reasons []model.RecordingFailureReason) int
+		ResetUserPassword             func(childComplexity int, id string, password string) int
+		RetryJob                      func(childComplexity int, id string) int
+		RevokeOtherSessions           func(childComplexity int) int
+		RevokeSession                 func(childComplexity int, id string) int
+		SaveWatchPosition             func(childComplexity int, id string, positionMs int64) int
+		SendPlayerCommand             func(childComplexity int, id string, command model.PlayerCommandInput) int
+		SetRecordingProtected         func(childComplexity int, id string, protected bool) int
+		SetRecordingTags              func(childComplexity int, id string, tags []string) int
+		SetReservationsEnabled        func(childComplexity int, ids []string, enabled bool) int
+		SetRuleEnabled                func(childComplexity int, id string, enabled bool) int
+		SetRulesEnabled               func(childComplexity int, ids []string, enabled bool) int
+		SetServicePinned              func(childComplexity int, id string, pinned bool) int
+		SetTimeshiftChannel           func(childComplexity int, serviceID string, retentionSeconds *int) int
+		SetWatchReservation           func(childComplexity int, program string, reserved bool) int
+		SetWatchRuleEnabled           func(childComplexity int, id string, enabled bool) int
+		SubscribeWebPush              func(childComplexity int, input model.WebPushSubscriptionInput) int
+		UnregisterPlayer              func(childComplexity int, id string) int
+		UnsubscribeWebPush            func(childComplexity int, endpoint string) int
+		UpdateAnimeChannel            func(childComplexity int, serviceID string, input model.AnimeChannelInput) int
+		UpdateAnimeImportToken        func(childComplexity int, annictToken string) int
+		UpdateAnimeRecordApp          func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
+		UpdateAnimeRecordSettings     func(childComplexity int, input model.AnimeRecordSettingsInput) int
+		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
+		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
+		UpdateNotificationPreference  func(childComplexity int, input model.NotificationPreferenceInput) int
+		UpdatePlayer                  func(childComplexity int, id string, state model.PlayerStateInput, announce bool) int
+		UpdatePlayerSettings          func(childComplexity int, input model.PlayerSettingsInput) int
+		UpdateReservation             func(childComplexity int, id string, input model.ReservationUpdateInput) int
+		UpdateRule                    func(childComplexity int, id string, input model.RuleInput) int
+		UpdateService                 func(childComplexity int, id string, input model.ServiceInput) int
+		UpdateStoragePool             func(childComplexity int, id string, input model.StoragePoolInput) int
+		UpdateSystemSettings          func(childComplexity int, input model.SystemSettingsInput) int
+		UpdateUser                    func(childComplexity int, id string, input model.UpdateUserInput) int
+		UpdateWatchReminderSettings   func(childComplexity int, minutesBefore int) int
+		UpdateWatchRule               func(childComplexity int, id string, input model.WatchRuleInput) int
+		UpdateWebhook                 func(childComplexity int, id string, input model.UpdateWebhookInput) int
 	}
 
 	MutedKeyword struct {
@@ -823,6 +844,7 @@ type ComplexityRoot struct {
 	Query struct {
 		APITokens               func(childComplexity int) int
 		AnimeChannels           func(childComplexity int) int
+		AnimeFollowingViewings  func(childComplexity int, tid int) int
 		AnimeImportToken        func(childComplexity int) int
 		AnimeImports            func(childComplexity int) int
 		AnimeLibrary            func(childComplexity int) int
@@ -1366,6 +1388,7 @@ type MutationResolver interface {
 	ResetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error)
 	UpdateAnimeChannel(ctx context.Context, serviceID string, input model.AnimeChannelInput) (*model.AnimeChannel, error)
 	UpdateAnimeImportToken(ctx context.Context, annictToken string) (*model.AnimeImportToken, error)
+	RefreshAnimeFollowingViewings(ctx context.Context, tid int) (bool, error)
 	UpdateAnimeRecordApp(ctx context.Context, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) (*model.AnimeRecordApp, error)
 	BeginAnimeRecordConnection(ctx context.Context, destination model.AnimeRecordDestination) (string, error)
 	DisconnectAnimeRecord(ctx context.Context, destination model.AnimeRecordDestination) (*model.AnimeRecordSettings, error)
@@ -1480,6 +1503,7 @@ type QueryResolver interface {
 	AnimeChannels(ctx context.Context) ([]*model.AnimeChannel, error)
 	AnimeImports(ctx context.Context) ([]*model.AnimeImport, error)
 	AnimeImportToken(ctx context.Context) (*model.AnimeImportToken, error)
+	AnimeFollowingViewings(ctx context.Context, tid int) (*model.AnimeFollowingViewings, error)
 	AnimeLibrary(ctx context.Context) (*model.AnimeLibrary, error)
 	AnimeRecordApps(ctx context.Context) ([]*model.AnimeRecordApp, error)
 	AnimeRecordSettings(ctx context.Context) (*model.AnimeRecordSettings, error)
@@ -1717,6 +1741,92 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AnimeEpisode.Works(childComplexity), true
+
+	case "AnimeFollowingViewing.avatarUrl":
+		if e.ComplexityRoot.AnimeFollowingViewing.AvatarURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.AvatarURL(childComplexity), true
+	case "AnimeFollowingViewing.destination":
+		if e.ComplexityRoot.AnimeFollowingViewing.Destination == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Destination(childComplexity), true
+	case "AnimeFollowingViewing.episodesCount":
+		if e.ComplexityRoot.AnimeFollowingViewing.EpisodesCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.EpisodesCount(childComplexity), true
+	case "AnimeFollowingViewing.name":
+		if e.ComplexityRoot.AnimeFollowingViewing.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Name(childComplexity), true
+	case "AnimeFollowingViewing.notes":
+		if e.ComplexityRoot.AnimeFollowingViewing.Notes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Notes(childComplexity), true
+	case "AnimeFollowingViewing.profileUrl":
+		if e.ComplexityRoot.AnimeFollowingViewing.ProfileURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.ProfileURL(childComplexity), true
+	case "AnimeFollowingViewing.progress":
+		if e.ComplexityRoot.AnimeFollowingViewing.Progress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Progress(childComplexity), true
+	case "AnimeFollowingViewing.score":
+		if e.ComplexityRoot.AnimeFollowingViewing.Score == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Score(childComplexity), true
+	case "AnimeFollowingViewing.status":
+		if e.ComplexityRoot.AnimeFollowingViewing.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Status(childComplexity), true
+	case "AnimeFollowingViewing.username":
+		if e.ComplexityRoot.AnimeFollowingViewing.Username == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewing.Username(childComplexity), true
+
+	case "AnimeFollowingViewings.enabled":
+		if e.ComplexityRoot.AnimeFollowingViewings.Enabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewings.Enabled(childComplexity), true
+	case "AnimeFollowingViewings.failed":
+		if e.ComplexityRoot.AnimeFollowingViewings.Failed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewings.Failed(childComplexity), true
+	case "AnimeFollowingViewings.needsRefresh":
+		if e.ComplexityRoot.AnimeFollowingViewings.NeedsRefresh == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewings.NeedsRefresh(childComplexity), true
+	case "AnimeFollowingViewings.viewings":
+		if e.ComplexityRoot.AnimeFollowingViewings.Viewings == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AnimeFollowingViewings.Viewings(childComplexity), true
 
 	case "AnimeImport.checkedAt":
 		if e.ComplexityRoot.AnimeImport.CheckedAt == nil {
@@ -3854,6 +3964,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RecordAnimeEpisodes(childComplexity, args["input"].(model.RecordAnimeEpisodesInput)), true
+	case "Mutation.refreshAnimeFollowingViewings":
+		if e.ComplexityRoot.Mutation.RefreshAnimeFollowingViewings == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_refreshAnimeFollowingViewings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RefreshAnimeFollowingViewings(childComplexity, args["tid"].(int)), true
 	case "Mutation.refreshAnimeWishlist":
 		if e.ComplexityRoot.Mutation.RefreshAnimeWishlist == nil {
 			break
@@ -5137,6 +5258,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.AnimeChannels(childComplexity), true
+	case "Query.animeFollowingViewings":
+		if e.ComplexityRoot.Query.AnimeFollowingViewings == nil {
+			break
+		}
+
+		args, err := ec.field_Query_animeFollowingViewings_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AnimeFollowingViewings(childComplexity, args["tid"].(int)), true
 	case "Query.animeImportToken":
 		if e.ComplexityRoot.Query.AnimeImportToken == nil {
 			break
@@ -7996,6 +8128,69 @@ extend type Mutation {
   updateAnimeImportToken(annictToken: String!): AnimeImportToken!
 }
 `, BuiltIn: false},
+	{Name: "../schema/anime_following.graphqls", Input: `"フォロー中のユーザーの、作品の状態 (#1372)。"
+enum AnimeFollowingStatus {
+  "見た (AniList の COMPLETED)"
+  WATCHED
+  "見てる (AniList の CURRENT)"
+  WATCHING
+  "見直している (AniList の REPEATING)。Annict にはない"
+  REPEATING
+  "一時中断 (AniList の PAUSED)"
+  ON_HOLD
+  "視聴停止 (AniList の DROPPED)"
+  STOP_WATCHING
+  "見たい (AniList の PLANNING)"
+  WANNA_WATCH
+}
+
+"Annict か AniList でフォローしているユーザーの、作品の視聴状況 (#1372、設計書 3.8)。"
+type AnimeFollowingViewing {
+  destination: AnimeRecordDestination!
+  "記録先でのユーザー名。記録先の中で一意。"
+  username: String!
+  "画面に出す名前。"
+  name: String!
+  "アバターを tenban が中継する URL のパス。アバターがなければ null。"
+  avatarUrl: String
+  "記録先のユーザーのページ。"
+  profileUrl: String!
+  status: AnimeFollowingStatus!
+  "見終えた話数。AniList だけが持つ。"
+  progress: Int
+  "作品の全話数。分からなければ null。"
+  episodesCount: Int
+  "10 点満点のスコア。AniList だけが持つ。付けていなければ null。"
+  score: Float
+  "ユーザーのメモ。AniList だけが持つ。"
+  notes: String
+}
+
+"作品のフォロー中のユーザーの視聴状況 (#1372、設計書 3.8)。結果は本人にだけ見せる。"
+type AnimeFollowingViewings {
+  "出せるかどうか。管理者が連携を無効にしているか、この作品を引ける記録先と連携していなければ false で、ほかの項目は空。"
+  enabled: Boolean!
+  "問い合わせる時期が来ているかどうか。true なら refreshAnimeFollowingViewings で取得を頼む。"
+  needsRefresh: Boolean!
+  "最後の問い合わせが、どれかの記録先で失敗したかどうか。"
+  failed: Boolean!
+  "状態の順 (見た、見てる、…) に、続けて名前の順に並べる。"
+  viewings: [AnimeFollowingViewing!]!
+}
+
+extend type Query {
+  "ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況を返す (#1372)。視聴者も使える。"
+  animeFollowingViewings(tid: Int!): AnimeFollowingViewings!
+}
+
+extend type Mutation {
+  """
+  ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況の取得を頼む (#1372)。取得はジョブで行うので、終わるのを待たない。
+  終わったら DataChannel の ANIME_FOLLOWING で知らせる。問い合わせる時期が来ていなければ、何もせずに false を返す。視聴者も使える。
+  """
+  refreshAnimeFollowingViewings(tid: Int!): Boolean!
+}
+`, BuiltIn: false},
 	{Name: "../schema/anime_library.graphqls", Input: `"""
 作品の放送の時期 (#1230)。Annict の AUTUMN と AniList の FALL は、どちらも AUTUMN にする。
 """
@@ -8550,6 +8745,8 @@ enum DataChannel {
   TUNERS
   "録画 (#868)"
   RECORDINGS
+  "フォロー中のユーザーの視聴状況を問い合わせ終えた (#1372)"
+  ANIME_FOLLOWING
   "管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)"
   ADMIN
 }
@@ -11337,6 +11534,46 @@ func (ec *executionContext) childFields_AnimeEpisode(ctx context.Context, field 
 		return ec.fieldContext_AnimeEpisode_works(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type AnimeEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeFollowingViewing(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "destination":
+		return ec.fieldContext_AnimeFollowingViewing_destination(ctx, field)
+	case "username":
+		return ec.fieldContext_AnimeFollowingViewing_username(ctx, field)
+	case "name":
+		return ec.fieldContext_AnimeFollowingViewing_name(ctx, field)
+	case "avatarUrl":
+		return ec.fieldContext_AnimeFollowingViewing_avatarUrl(ctx, field)
+	case "profileUrl":
+		return ec.fieldContext_AnimeFollowingViewing_profileUrl(ctx, field)
+	case "status":
+		return ec.fieldContext_AnimeFollowingViewing_status(ctx, field)
+	case "progress":
+		return ec.fieldContext_AnimeFollowingViewing_progress(ctx, field)
+	case "episodesCount":
+		return ec.fieldContext_AnimeFollowingViewing_episodesCount(ctx, field)
+	case "score":
+		return ec.fieldContext_AnimeFollowingViewing_score(ctx, field)
+	case "notes":
+		return ec.fieldContext_AnimeFollowingViewing_notes(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeFollowingViewing", field.Name)
+}
+
+func (ec *executionContext) childFields_AnimeFollowingViewings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "enabled":
+		return ec.fieldContext_AnimeFollowingViewings_enabled(ctx, field)
+	case "needsRefresh":
+		return ec.fieldContext_AnimeFollowingViewings_needsRefresh(ctx, field)
+	case "failed":
+		return ec.fieldContext_AnimeFollowingViewings_failed(ctx, field)
+	case "viewings":
+		return ec.fieldContext_AnimeFollowingViewings_viewings(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AnimeFollowingViewings", field.Name)
 }
 
 func (ec *executionContext) childFields_AnimeImport(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14259,6 +14496,20 @@ func (ec *executionContext) field_Mutation_recordAnimeEpisodes_args(ctx context.
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_refreshAnimeFollowingViewings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "tid",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["tid"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_regenerateRecordingImages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15082,6 +15333,20 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_animeFollowingViewings_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "tid",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["tid"] = arg0
 	return args, nil
 }
 
@@ -16053,6 +16318,337 @@ func (ec *executionContext) fieldContext_AnimeEpisode_works(_ context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeWork(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_destination(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_destination(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Destination, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AnimeRecordDestination) graphql.Marshaler {
+			return ec.marshalNAnimeRecordDestination2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeRecordDestination(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_destination(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "AnimeRecordDestination")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_username(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_username(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Username, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_name(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_avatarUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_avatarUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AvatarURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_avatarUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_profileUrl(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_profileUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProfileURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_profileUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_status(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.AnimeFollowingStatus) graphql.Marshaler {
+			return ec.marshalNAnimeFollowingStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "AnimeFollowingStatus")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_progress(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_progress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Progress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "Int")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_episodesCount(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_episodesCount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodesCount, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_episodesCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "Int")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_score(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_score(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Score, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_score(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "Float")
+}
+
+func (ec *executionContext) _AnimeFollowingViewing_notes(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewing_notes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Notes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewing_notes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewing", field, false, false, "String")
+}
+
+func (ec *executionContext) _AnimeFollowingViewings_enabled(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewings_enabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Enabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewings_enabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeFollowingViewings_needsRefresh(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewings_needsRefresh(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NeedsRefresh, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewings_needsRefresh(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeFollowingViewings_failed(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewings_failed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewings_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AnimeFollowingViewings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _AnimeFollowingViewings_viewings(ctx context.Context, field graphql.CollectedField, obj *model.AnimeFollowingViewings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AnimeFollowingViewings_viewings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Viewings, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.AnimeFollowingViewing) graphql.Marshaler {
+			return ec.marshalNAnimeFollowingViewing2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingViewingᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AnimeFollowingViewings_viewings(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AnimeFollowingViewings",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeFollowingViewing(ctx, field)
 		},
 	}
 	return fc, nil
@@ -22779,6 +23375,50 @@ func (ec *executionContext) fieldContext_Mutation_updateAnimeImportToken(ctx con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updateAnimeImportToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshAnimeFollowingViewings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshAnimeFollowingViewings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefreshAnimeFollowingViewings(ctx, fc.Args["tid"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshAnimeFollowingViewings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refreshAnimeFollowingViewings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -29936,6 +30576,50 @@ func (ec *executionContext) fieldContext_Query_animeImportToken(_ context.Contex
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeImportToken(ctx, field)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_animeFollowingViewings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_animeFollowingViewings(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AnimeFollowingViewings(ctx, fc.Args["tid"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AnimeFollowingViewings) graphql.Marshaler {
+			return ec.marshalNAnimeFollowingViewings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingViewings(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_animeFollowingViewings(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AnimeFollowingViewings(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_animeFollowingViewings_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -43487,6 +44171,132 @@ func (ec *executionContext) _AnimeEpisode(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var animeFollowingViewingImplementors = []string{"AnimeFollowingViewing"}
+
+func (ec *executionContext) _AnimeFollowingViewing(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeFollowingViewing) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeFollowingViewingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeFollowingViewing")
+		case "destination":
+			out.Values[i] = ec._AnimeFollowingViewing_destination(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "username":
+			out.Values[i] = ec._AnimeFollowingViewing_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AnimeFollowingViewing_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "avatarUrl":
+			out.Values[i] = ec._AnimeFollowingViewing_avatarUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "profileUrl":
+			out.Values[i] = ec._AnimeFollowingViewing_profileUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "status":
+			out.Values[i] = ec._AnimeFollowingViewing_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progress":
+			out.Values[i] = ec._AnimeFollowingViewing_progress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodesCount":
+			out.Values[i] = ec._AnimeFollowingViewing_episodesCount(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "score":
+			out.Values[i] = ec._AnimeFollowingViewing_score(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "notes":
+			out.Values[i] = ec._AnimeFollowingViewing_notes(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var animeFollowingViewingsImplementors = []string{"AnimeFollowingViewings"}
+
+func (ec *executionContext) _AnimeFollowingViewings(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeFollowingViewings) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, animeFollowingViewingsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AnimeFollowingViewings")
+		case "enabled":
+			out.Values[i] = ec._AnimeFollowingViewings_enabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "needsRefresh":
+			out.Values[i] = ec._AnimeFollowingViewings_needsRefresh(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._AnimeFollowingViewings_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "viewings":
+			out.Values[i] = ec._AnimeFollowingViewings_viewings(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var animeImportImplementors = []string{"AnimeImport"}
 
 func (ec *executionContext) _AnimeImport(ctx context.Context, sel ast.SelectionSet, obj *model.AnimeImport) graphql.Marshaler {
@@ -46684,6 +47494,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "refreshAnimeFollowingViewings":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshAnimeFollowingViewings(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateAnimeRecordApp":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateAnimeRecordApp(ctx, field)
@@ -48653,6 +49470,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_animeImportToken(ctx, field)
+				})
+		case "animeFollowingViewings":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_animeFollowingViewings(ctx, field)
 				})
 		case "animeLibrary":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -52428,6 +53251,48 @@ func (ec *executionContext) unmarshalNAnimeEpisodeSource2githubᚗcomᚋSlashNep
 
 func (ec *executionContext) marshalNAnimeEpisodeSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeEpisodeSource(ctx context.Context, sel ast.SelectionSet, v model.AnimeEpisodeSource) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNAnimeFollowingStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingStatus(ctx context.Context, v any) (model.AnimeFollowingStatus, error) {
+	var res model.AnimeFollowingStatus
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAnimeFollowingStatus2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingStatus(ctx context.Context, sel ast.SelectionSet, v model.AnimeFollowingStatus) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNAnimeFollowingViewing2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingViewingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeFollowingViewing) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAnimeFollowingViewing2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingViewing(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAnimeFollowingViewing2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingViewing(ctx context.Context, sel ast.SelectionSet, v *model.AnimeFollowingViewing) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AnimeFollowingViewing!")
+		return graphql.Null
+	}
+	return ec._AnimeFollowingViewing(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAnimeFollowingViewings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeFollowingViewings(ctx context.Context, sel ast.SelectionSet, v *model.AnimeFollowingViewings) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AnimeFollowingViewings!")
+		return graphql.Null
+	}
+	return ec._AnimeFollowingViewings(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNAnimeImport2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAnimeImportᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.AnimeImport) graphql.Marshaler {

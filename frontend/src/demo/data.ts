@@ -400,6 +400,13 @@ export function createRootValue(
     animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
     animeWishlist: () => demoAnimeWishlist(),
     animeLibrary: () => demoAnimeLibrary(),
+    // デモは外部へ問い合わせないので、連携していないものとして出さない。
+    animeFollowingViewings: () => ({
+      enabled: false,
+      needsRefresh: false,
+      failed: false,
+      viewings: [],
+    }),
     storagePoolNames: () => ['default'],
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({

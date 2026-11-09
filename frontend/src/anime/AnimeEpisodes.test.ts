@@ -19,6 +19,7 @@ describe('episodeLabel', () => {
 describe('episodeLinks', () => {
   test('作品のページを Annict、AniList、MyAnimeList、しょぼいカレンダーの順に並べ、同じページは重ねない', () => {
     const links = episodeLinks(t, {
+      syobocalTid: 1,
       syobocalUrl: 'https://cal.syoboi.jp/tid/1',
       countStart: 1,
       countEnd: 1,

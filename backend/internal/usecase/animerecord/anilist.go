@@ -20,6 +20,8 @@ const (
 	aniListGraphQLURL = "https://graphql.anilist.co"
 	// aniListCurrent は、AniList のリストの状態の「見てる」。
 	aniListCurrent = "CURRENT"
+	// aniListCompleted は、AniList のリストの状態の「見た」。
+	aniListCompleted = "COMPLETED"
 )
 
 // AniList は、AniList への記録先。エピソードごとではなく、何話まで見たか (progress) を持つ。
@@ -138,7 +140,7 @@ func (a *AniList) RecordEpisode(ctx context.Context, token string, workIDs []int
 	if next, ok := NextStatus(rules, episode.First, episode.Last, status); ok {
 		variables["status"] = aniListCurrent
 		if next == WorkStatusWatched {
-			variables["status"] = "COMPLETED"
+			variables["status"] = aniListCompleted
 		}
 	}
 	// 進めた話数と状態は 1 回の SaveMediaListEntry で送る。話数は今より大きいときだけ進めるので、送り直しても二重にならない。
@@ -279,6 +281,127 @@ func aniListTitle(title *aniListMediaTitle) string {
 	return ""
 }
 
+// aniListFollowingPage は、フォロー中のユーザーのリストの項目を 1 回に引く数。AniList の 1 ページの上限。
+const aniListFollowingPage = 50
+
+// aniListFollowingStatus は、AniList の状態を、FollowingWatched などにする。知らない状態なら空を返す。
+func aniListFollowingStatus(status string) string {
+	switch status {
+	case aniListCurrent:
+		return FollowingWatching
+	case "PLANNING":
+		return FollowingWannaWatch
+	case aniListCompleted:
+		return FollowingWatched
+	case "DROPPED":
+		return FollowingStopWatching
+	case "PAUSED":
+		return FollowingOnHold
+	case "REPEATING":
+		return FollowingRepeating
+	default:
+		return ""
+	}
+}
+
+// aniListFollowingEntry は、フォロー中のユーザーのリストの項目。
+type aniListFollowingEntry struct {
+	Status   string   `json:"status"`
+	Progress *int32   `json:"progress"`
+	Notes    *string  `json:"notes"`
+	Score    *float64 `json:"score"`
+	User     *struct {
+		Name   string `json:"name"`
+		Avatar *struct {
+			Large *string `json:"large"`
+		} `json:"avatar"`
+	} `json:"user"`
+	Media *struct {
+		Episodes *int32 `json:"episodes"`
+	} `json:"media"`
+}
+
+// viewing は、項目を視聴状況にする。ユーザーがいないか、知らない状態なら nil を返す。
+func (e *aniListFollowingEntry) viewing() *FollowingViewing {
+	if e == nil || e.User == nil {
+		return nil
+	}
+	status := aniListFollowingStatus(e.Status)
+	if status == "" {
+		return nil
+	}
+	viewing := &FollowingViewing{
+		Destination: DestinationAniList, Username: e.User.Name, Name: e.User.Name, AvatarURL: "", Status: status,
+		Progress: positive(e.Progress), EpisodesCount: nil, Score: nil, Notes: "",
+	}
+	if e.User.Avatar != nil && e.User.Avatar.Large != nil {
+		viewing.AvatarURL = strings.TrimSpace(*e.User.Avatar.Large)
+	}
+	if e.Media != nil {
+		viewing.EpisodesCount = positive(e.Media.Episodes)
+	}
+	if e.Score != nil && *e.Score > 0 {
+		viewing.Score = e.Score
+	}
+	if e.Notes != nil {
+		viewing.Notes = strings.TrimSpace(*e.Notes)
+	}
+
+	return viewing
+}
+
+// FollowingViewings は、トークンの持ち主がフォローしている人のリストのうち、作品 workIDs の項目の 1 ページを返す。
+// 作品を 1 つずつ引くので、cursor は「作品の添字:ページの番号」にする。
+func (a *AniList) FollowingViewings(ctx context.Context, token string, workIDs []int32, cursor string) (*FollowingPage, error) {
+	page := &FollowingPage{Viewings: []*FollowingViewing{}, Next: ""}
+	if len(workIDs) == 0 {
+		return page, nil
+	}
+	work, number, err := parseFollowingCursor(cursor, len(workIDs))
+	if err != nil {
+		return nil, err
+	}
+	const query = `query ($mediaId: Int!, $page: Int!, $perPage: Int!) {
+  Page(page: $page, perPage: $perPage) {
+    mediaList(type: ANIME, mediaId: $mediaId, isFollowing: true) {
+      status progress notes score(format: POINT_10_DECIMAL)
+      user { name avatar { large } }
+      media { episodes }
+    }
+    pageInfo { hasNextPage }
+  }
+}`
+	var data struct {
+		Page *struct {
+			MediaList []*aniListFollowingEntry `json:"mediaList"`
+			PageInfo  struct {
+				HasNextPage bool `json:"hasNextPage"`
+			} `json:"pageInfo"`
+		} `json:"Page"`
+	}
+	variables := map[string]any{"mediaId": workIDs[work], "page": number, "perPage": aniListFollowingPage}
+	if err := postGraphQL(ctx, a.client, a.endpoints.GraphQLURL, token, query, variables, &data); err != nil {
+		return nil, err
+	}
+	hasNext := false
+	if data.Page != nil {
+		hasNext = data.Page.PageInfo.HasNextPage
+		for _, entry := range data.Page.MediaList {
+			if viewing := entry.viewing(); viewing != nil {
+				page.Viewings = append(page.Viewings, viewing)
+			}
+		}
+	}
+	switch {
+	case hasNext:
+		page.Next = strconv.Itoa(work) + ":" + strconv.Itoa(number+1)
+	case work+1 < len(workIDs):
+		page.Next = strconv.Itoa(work+1) + ":1"
+	}
+
+	return page, nil
+}
+
 // wishlistCursor は、見たいリストの cursor から、ユーザー ID とチャンクの番号を返す。最初のページなら、トークンの持ち主の ID を引く。
 func (a *AniList) wishlistCursor(ctx context.Context, token, cursor string) (int64, int, error) {
 	if cursor == "" {
@@ -357,7 +480,7 @@ func aniListStatus(status *string) WorkStatus {
 	switch *status {
 	case aniListCurrent, "REPEATING":
 		return WorkStatusWatching
-	case "COMPLETED":
+	case aniListCompleted:
 		return WorkStatusWatched
 	default:
 		return WorkStatusNone

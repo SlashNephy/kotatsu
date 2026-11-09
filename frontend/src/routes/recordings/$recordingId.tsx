@@ -191,6 +191,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             }
             # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
             animeEpisodes {
+              syobocalTid
               syobocalUrl
               countStart
               countEnd

@@ -367,6 +367,9 @@ func (w *PruneWorker) Work(ctx context.Context, _ *river.Job[PruneArgs]) error {
 	if _, err := q.DeleteExpiredAnimeRecordAuthorizations(ctx, now); err != nil {
 		return fmt.Errorf("failed to delete expired anime record authorizations: %w", err)
 	}
+	if _, err := q.PruneAnimeFollowingFetches(ctx, now.Add(-FollowingRetention)); err != nil {
+		return fmt.Errorf("failed to prune the following viewings: %w", err)
+	}
 
 	return nil
 }

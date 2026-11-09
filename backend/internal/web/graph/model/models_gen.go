@@ -68,6 +68,40 @@ type AnimeEpisode struct {
 	Works []*AnimeWork `json:"works"`
 }
 
+// Annict か AniList でフォローしているユーザーの、作品の視聴状況 (#1372、設計書 3.8)。
+type AnimeFollowingViewing struct {
+	Destination AnimeRecordDestination `json:"destination"`
+	// 記録先でのユーザー名。記録先の中で一意。
+	Username string `json:"username"`
+	// 画面に出す名前。
+	Name string `json:"name"`
+	// アバターを tenban が中継する URL のパス。アバターがなければ null。
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+	// 記録先のユーザーのページ。
+	ProfileURL string               `json:"profileUrl"`
+	Status     AnimeFollowingStatus `json:"status"`
+	// 見終えた話数。AniList だけが持つ。
+	Progress *int `json:"progress,omitempty"`
+	// 作品の全話数。分からなければ null。
+	EpisodesCount *int `json:"episodesCount,omitempty"`
+	// 10 点満点のスコア。AniList だけが持つ。付けていなければ null。
+	Score *float64 `json:"score,omitempty"`
+	// ユーザーのメモ。AniList だけが持つ。
+	Notes *string `json:"notes,omitempty"`
+}
+
+// 作品のフォロー中のユーザーの視聴状況 (#1372、設計書 3.8)。結果は本人にだけ見せる。
+type AnimeFollowingViewings struct {
+	// 出せるかどうか。管理者が連携を無効にしているか、この作品を引ける記録先と連携していなければ false で、ほかの項目は空。
+	Enabled bool `json:"enabled"`
+	// 問い合わせる時期が来ているかどうか。true なら refreshAnimeFollowingViewings で取得を頼む。
+	NeedsRefresh bool `json:"needsRefresh"`
+	// 最後の問い合わせが、どれかの記録先で失敗したかどうか。
+	Failed bool `json:"failed"`
+	// 状態の順 (見た、見てる、…) に、続けて名前の順に並べる。
+	Viewings []*AnimeFollowingViewing `json:"viewings"`
+}
+
 // 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
 type AnimeImport struct {
 	Source AnimeImportSource `json:"source"`
@@ -1905,6 +1939,76 @@ func (e AnimeEpisodeSource) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// フォロー中のユーザーの、作品の状態 (#1372)。
+type AnimeFollowingStatus string
+
+const (
+	// 見た (AniList の COMPLETED)
+	AnimeFollowingStatusWatched AnimeFollowingStatus = "WATCHED"
+	// 見てる (AniList の CURRENT)
+	AnimeFollowingStatusWatching AnimeFollowingStatus = "WATCHING"
+	// 見直している (AniList の REPEATING)。Annict にはない
+	AnimeFollowingStatusRepeating AnimeFollowingStatus = "REPEATING"
+	// 一時中断 (AniList の PAUSED)
+	AnimeFollowingStatusOnHold AnimeFollowingStatus = "ON_HOLD"
+	// 視聴停止 (AniList の DROPPED)
+	AnimeFollowingStatusStopWatching AnimeFollowingStatus = "STOP_WATCHING"
+	// 見たい (AniList の PLANNING)
+	AnimeFollowingStatusWannaWatch AnimeFollowingStatus = "WANNA_WATCH"
+)
+
+var AllAnimeFollowingStatus = []AnimeFollowingStatus{
+	AnimeFollowingStatusWatched,
+	AnimeFollowingStatusWatching,
+	AnimeFollowingStatusRepeating,
+	AnimeFollowingStatusOnHold,
+	AnimeFollowingStatusStopWatching,
+	AnimeFollowingStatusWannaWatch,
+}
+
+func (e AnimeFollowingStatus) IsValid() bool {
+	switch e {
+	case AnimeFollowingStatusWatched, AnimeFollowingStatusWatching, AnimeFollowingStatusRepeating, AnimeFollowingStatusOnHold, AnimeFollowingStatusStopWatching, AnimeFollowingStatusWannaWatch:
+		return true
+	}
+	return false
+}
+
+func (e AnimeFollowingStatus) String() string {
+	return string(e)
+}
+
+func (e *AnimeFollowingStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = AnimeFollowingStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid AnimeFollowingStatus", str)
+	}
+	return nil
+}
+
+func (e AnimeFollowingStatus) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *AnimeFollowingStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e AnimeFollowingStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // 連携先の情報の取り込み元 (設計書 3.8)。
 type AnimeImportSource string
 
@@ -2225,6 +2329,8 @@ const (
 	DataChannelTuners DataChannel = "TUNERS"
 	// 録画 (#868)
 	DataChannelRecordings DataChannel = "RECORDINGS"
+	// フォロー中のユーザーの視聴状況を問い合わせ終えた (#1372)
+	DataChannelAnimeFollowing DataChannel = "ANIME_FOLLOWING"
 	// 管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)
 	DataChannelAdmin DataChannel = "ADMIN"
 )
@@ -2237,12 +2343,13 @@ var AllDataChannel = []DataChannel{
 	DataChannelReservationConflicts,
 	DataChannelTuners,
 	DataChannelRecordings,
+	DataChannelAnimeFollowing,
 	DataChannelAdmin,
 }
 
 func (e DataChannel) IsValid() bool {
 	switch e {
-	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings, DataChannelAdmin:
+	case DataChannelEpg, DataChannelRules, DataChannelReservations, DataChannelAssignments, DataChannelReservationConflicts, DataChannelTuners, DataChannelRecordings, DataChannelAnimeFollowing, DataChannelAdmin:
 		return true
 	}
 	return false

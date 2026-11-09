@@ -1953,6 +1953,21 @@
     "last": "終",
     "annict": "Annict",
     "anilist": "AniList",
+    "following": {
+      "title": "フォロー中の視聴状況",
+      "loading": "フォロー中の視聴状況を読み込んでいます",
+      "failed": "フォロー中の視聴状況を取得できませんでした",
+      "progress": "{{count}}話まで見た",
+      "score": "{{score}} / 10",
+      "status": {
+        "WATCHED": "見た",
+        "WATCHING": "見てる",
+        "REPEATING": "見直している",
+        "ON_HOLD": "一時中断",
+        "STOP_WATCHING": "視聴停止",
+        "WANNA_WATCH": "見たい"
+      }
+    },
     "myAnimeList": "MyAnimeList",
     "syobocal": "しょぼいカレンダー",
     "title": "アニメ",

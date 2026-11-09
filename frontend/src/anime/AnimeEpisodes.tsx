@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import type { RecordAnimeEpisodesInput } from './__generated__/RecordAnimeButtonMutation.graphql';
+import { AnimeFollowingViewings } from './AnimeFollowingViewings';
 import { RecordAnimeButton } from './RecordAnimeButton';
 
 // AnimeWorkItem は、TID に対応する作品のページ。
@@ -14,6 +15,7 @@ export type AnimeWorkItem = {
 
 // AnimeEpisodeItem は、番組や録画に結びついた話 (設計書 3.8)。
 export type AnimeEpisodeItem = {
+  readonly syobocalTid: number | null | undefined;
   readonly syobocalUrl: string | null | undefined;
   readonly countStart: number | null | undefined;
   readonly countEnd: number | null | undefined;
@@ -77,6 +79,8 @@ export function AnimeEpisodes({
   }
   const recordable =
     record !== undefined && episodes.some((episode) => episode.syobocalUrl != null);
+  // 2 話連続の放送は、同じ作品の話が並ぶので、作品ごとに 1 つ出す。
+  const tids = [...new Set(episodes.flatMap((episode) => episode.syobocalTid ?? []))];
 
   return (
     <Stack gap={4} data-testid="anime-episodes">
@@ -130,6 +134,9 @@ export function AnimeEpisodes({
           <RecordAnimeButton input={record} label={t('anime.record.button')} />
         </Group>
       )}
+      {tids.map((tid) => (
+        <AnimeFollowingViewings key={tid} tid={tid} />
+      ))}
     </Stack>
   );
 }

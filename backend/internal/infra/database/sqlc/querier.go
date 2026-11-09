@@ -86,6 +86,7 @@ type Querier interface {
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
 	DeleteAnimeChannelDefinitions(ctx context.Context) error
 	DeleteAnimeChannelOverride(ctx context.Context, serviceID int64) error
+	DeleteAnimeFollowingViewings(ctx context.Context, arg DeleteAnimeFollowingViewingsParams) error
 	DeleteAnimeImportToken(ctx context.Context) (int64, error)
 	DeleteAnimeRecordApp(ctx context.Context, destination string) (int64, error)
 	DeleteAnimeRecordConnection(ctx context.Context, arg DeleteAnimeRecordConnectionParams) (AnimeRecordConnection, error)
@@ -215,6 +216,9 @@ type Querier interface {
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
+	// ユーザーが取り込んだ、フォロー中のユーザーのアバターの URL を返す。保持する期間を過ぎたものは返さない。
+	// 同じ人が複数の作品に出るので、最も新しく取り込んだ URL を使う。
+	GetAnimeFollowingAvatarURL(ctx context.Context, arg GetAnimeFollowingAvatarURLParams) (*string, error)
 	GetAnimeImport(ctx context.Context, source string) (AnimeImport, error)
 	GetAnimeImportToken(ctx context.Context) (AnimeImportToken, error)
 	GetAnimeMatchCursor(ctx context.Context) (int64, error)
@@ -342,6 +346,8 @@ type Querier interface {
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
 	// 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeChannelDefinitions(ctx context.Context, arg InsertAnimeChannelDefinitionsParams) error
+	// 配列は NULL を持てないので、分からない数は -1 で、分からない文字列は空で渡す。
+	InsertAnimeFollowingViewings(ctx context.Context, arg InsertAnimeFollowingViewingsParams) error
 	// 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
 	// 番組によらず手で記録した話 (service_id が 0。#1232) と同じ話は、記録できなかったもののほかにあれば、番組を見ても記録しない。
 	// 手で記録するときも、同じ話の記録があれば記録しない。
@@ -448,6 +454,11 @@ type Querier interface {
 	// サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
 	// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
 	ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error)
+	// ユーザーが連携した記録先ごとに、作品 (TID) のフォロー中のユーザーの視聴状況を問い合わせた様子を返す (#1372)。
+	// まだ問い合わせていなければ、checked_at などは NULL。
+	ListAnimeFollowingFetches(ctx context.Context, arg ListAnimeFollowingFetchesParams) ([]ListAnimeFollowingFetchesRow, error)
+	// ユーザーの、作品 (TID) のフォロー中のユーザーの視聴状況を返す。保持する期間を過ぎたものは、消す前でも返さない。
+	ListAnimeFollowingViewings(ctx context.Context, arg ListAnimeFollowingViewingsParams) ([]AnimeFollowingViewing, error)
 	ListAnimeImports(ctx context.Context) ([]AnimeImport, error)
 	// 視聴管理の画面 (#1231) の、TID に結びついた番組のうち、until より前に始まり、now より後に終わる番組を返す。放送中の番組も次の放送とする。
 	// 2 話連続の放送のように、1 つの番組が同じ TID の話に何度も結びついたら、話数の範囲をまとめて 1 行にする。
@@ -764,6 +775,8 @@ type Querier interface {
 	// ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
 	// 一致したルールとの関連は残す。
 	PromoteRuleReservation(ctx context.Context, arg PromoteRuleReservationParams) (int64, error)
+	// 最後に取り込めてから (一度も取り込めていなければ、問い合わせてから) before より前のものを消す。視聴状況も一緒に消える。
+	PruneAnimeFollowingFetches(ctx context.Context, before time.Time) (int64, error)
 	PruneAnimeWatchProgress(ctx context.Context, before time.Time) (int64, error)
 	PruneEPGChanges(ctx context.Context, before time.Time) (int64, error)
 	// 番組表からも過去の番組からもなくなった番組の結びつきを消す。照合したばかりの結びつきは、番組を書く途中かもしれないので残す。
@@ -821,6 +834,9 @@ type Querier interface {
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	// 問い合わせた結果を残す。取り込めたら (error が NULL)、取り込めた日時を進める。取り込めなければ、前に取り込めた日時を残す。
+	// 連携を外した後なら、何も書かない。
+	SaveAnimeFollowingFetch(ctx context.Context, arg SaveAnimeFollowingFetchParams) (int64, error)
 	SaveAnimeMatchCursor(ctx context.Context, arg SaveAnimeMatchCursorParams) error
 	// 監査ログを、新しい順に返す。条件の NULL の項目は絞り込まない。
 	// before_at と before_id より前 (古い) の記録だけを返し、ページを送る。

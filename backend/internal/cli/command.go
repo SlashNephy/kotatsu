@@ -233,6 +233,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
 	// ユーザーが Annict と AniList で「見たい」「見てる」にした作品を、記録の連携のトークンで取り込む (#928)。
 	river.AddWorker(workers, animerecord.NewWishlistWorker(animeRecords, deps.DB))
+	// フォロー中のユーザーの視聴状況を、画面を開いたときに、記録の連携のトークンで取得する (#1372)。
+	river.AddWorker(workers, animerecord.NewFollowingWorker(animeRecords, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
@@ -1013,8 +1015,11 @@ func handleMedia(
 	mux.Handle("GET /media/users/{id}/avatar",
 		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")))))
 	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
-	mux.Handle("GET /media/anime-works/{destination}/{workId}/image",
-		authorizer.Middleware(animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")))))
+	animeImages := animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")))
+	mux.Handle("GET /media/anime-works/{destination}/{workId}/image", authorizer.Middleware(animeImages))
+	// フォロー中のユーザーのアバターも、記録先が示した URL から取って中継する (#1372)。
+	mux.Handle("GET /media/anime-following/{destination}/{username}/avatar",
+		authorizer.Middleware(http.HandlerFunc(animeImages.ServeFollowingAvatar)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	mux.Handle("GET /media/recordings/{id}/{file}",
 		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))

@@ -73,6 +73,8 @@ type fakeInserter struct {
 	jobs []animerecord.RecordArgs
 	// wishlists は、入れた、見たいリストを取り込むジョブ (#928)。
 	wishlists []animerecord.WishlistArgs
+	// followings は、入れた、視聴状況を取得するジョブ (#1372)。
+	followings []animerecord.FollowingArgs
 }
 
 func (f *fakeInserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
@@ -84,6 +86,8 @@ func (f *fakeInserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.
 			f.jobs = append(f.jobs, args)
 		case animerecord.WishlistArgs:
 			f.wishlists = append(f.wishlists, args)
+		case animerecord.FollowingArgs:
+			f.followings = append(f.followings, args)
 		default:
 			return nil, errors.New("unexpected job")
 		}
