@@ -1668,6 +1668,7 @@
       "deletedUser": "消したユーザー",
       "details": "詳細",
       "userAgent": "User-Agent: {{userAgent}}",
+      "clientInfoAbsent": "IP アドレスと User-Agent の記録はありません。保持期間を過ぎると消えます。",
       "more": "さらに読み込む",
       "moreError": "続きを読み込めませんでした。時間をおいてやり直してください"
     },

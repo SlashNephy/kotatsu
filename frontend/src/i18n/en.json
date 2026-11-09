@@ -1742,6 +1742,7 @@
       "deletedUser": "Deleted user",
       "details": "Details",
       "userAgent": "User-Agent: {{userAgent}}",
+      "clientInfoAbsent": "No IP address or User-Agent on record. They are removed after their retention period.",
       "more": "Load more",
       "moreError": "Could not load more. Please try again later."
     },

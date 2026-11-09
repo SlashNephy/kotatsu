@@ -147,6 +147,20 @@ func (t *Telemetry) OTLPMetricsHeaderMap() (map[string]string, error) {
 type Audit struct {
 	// RetentionDays は監査ログの保持期間 (日)。これを過ぎた記録は定期的に消す。
 	RetentionDays int `yaml:"retention_days"`
+	// ClientInfoRetentionDays は、IP アドレスと User-Agent の保持期間 (日)。これを過ぎた記録は、操作の記録を残してこの 2 つだけ空にする (#1367)。
+	ClientInfoRetentionDays int `yaml:"client_info_retention_days"`
+}
+
+func (a *Audit) validate() []error {
+	var errs []error
+	if a.RetentionDays < 1 {
+		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
+	}
+	if a.ClientInfoRetentionDays < 1 {
+		errs = append(errs, fieldError("audit.client_info_retention_days", errors.New("must be at least 1")))
+	}
+
+	return errs
 }
 
 // Storage は保存先プール (kago) の設定 (設計書 5.6)。
@@ -351,7 +365,8 @@ func Default() *Config {
 		},
 		Audit: Audit{
 			// 設計書の付録 A の初期値。
-			RetentionDays: 365,
+			RetentionDays:           365,
+			ClientInfoRetentionDays: 90,
 		},
 		Storage: Storage{
 			Pools:        map[string]string{},
@@ -443,9 +458,7 @@ func (c *Config) validate() error {
 	if !slices.Contains([]string{EncoderX264, EncoderVAAPI, EncoderQSV, EncoderNVENC}, c.Kyusu.Encoder) {
 		errs = append(errs, fieldError("kyusu.encoder", errors.New("must be one of x264, vaapi, qsv, nvenc")))
 	}
-	if c.Audit.RetentionDays < 1 {
-		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
-	}
+	errs = append(errs, c.Audit.validate()...)
 	for _, id := range slices.Sorted(maps.Keys(c.Storage.Pools)) {
 		if err := validatePool(id, c.Storage.Pools[id]); err != nil {
 			errs = append(errs, fieldError("storage.pools", err))

@@ -775,7 +775,7 @@ type AuditEvent {
   """
   summary: String!
   """
-  送信元。システムの操作では null。
+  送信元。システムの操作と、保持期間を過ぎた記録では null。
   """
   sourceIp: String
   userAgent: String

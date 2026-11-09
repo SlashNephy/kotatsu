@@ -45,8 +45,9 @@ const (
 	defaultServerListen  = ":8080"
 	defaultMetricsListen = ":9090"
 	// 設計書の付録 A の初期値。
-	defaultAuditRetentionDays         = 365
-	defaultOTLPMetricsIntervalSeconds = 60
+	defaultAuditRetentionDays           = 365
+	defaultAuditClientInfoRetentionDays = 90
+	defaultOTLPMetricsIntervalSeconds   = 60
 
 	testIssuer    = "https://idp.example.com"
 	envOIDCIssuer = "KOTATSU_AUTH_OIDC_ISSUER"
@@ -158,7 +159,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 			},
@@ -175,7 +176,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:   config.Metrics{Listen: defaultMetricsListen},
 				Database:  config.Database{URL: envURL, Pooler: false},
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
-				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:   noPools(),
 				Tuner:     config.Tuner{URL: ""},
 			},
@@ -191,7 +192,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: "127.0.0.1:3000", AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: ":9100"},
 				Database: config.Database{URL: envURL, Pooler: true},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 			},
@@ -203,7 +204,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 			},
@@ -216,7 +217,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 				Auth:     config.Auth{HIBP: config.HIBP{Enabled: true, URL: "https://hibp.example.com"}},
@@ -233,7 +234,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 				Auth: config.Auth{OIDC: config.OIDC{
@@ -247,13 +248,13 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 		},
 		{
 			name: "audit retention",
-			yaml: "audit:\n  retention_days: 30\n",
+			yaml: "audit:\n  retention_days: 30\n  client_info_retention_days: 7\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: &config.Config{
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: 30},
+				Audit:    config.Audit{RetentionDays: 30, ClientInfoRetentionDays: 7},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 			},
@@ -274,7 +275,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 			},
@@ -290,7 +291,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: "http://mirakurun:40772/"},
 			},
@@ -306,7 +307,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays},
+				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    config.Tuner{URL: ""},
 			},

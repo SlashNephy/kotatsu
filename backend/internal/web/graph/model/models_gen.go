@@ -415,7 +415,7 @@ type AuditEvent struct {
 	TargetID   *string `json:"targetId,omitempty"`
 	// 変更の要約。JSON の文字列。
 	Summary string `json:"summary"`
-	// 送信元。システムの操作では null。
+	// 送信元。システムの操作と、保持期間を過ぎた記録では null。
 	SourceIP  *string `json:"sourceIp,omitempty"`
 	UserAgent *string `json:"userAgent,omitempty"`
 	// MCP のクライアントを経由した操作なら、クライアントの ID (クライアントのメタデータの URL)。ほかの操作では null。

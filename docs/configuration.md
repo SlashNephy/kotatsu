@@ -157,8 +157,10 @@ Helm Chartは、この値に自動でPodのIPを入れます。
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `audit.retention_days` | `KOTATSU_AUDIT_RETENTION_DAYS` | `365` | 監査ログの保持期間（日） |
+| `audit.client_info_retention_days` | `KOTATSU_AUDIT_CLIENT_INFO_RETENTION_DAYS` | `90` | 監査ログのIPアドレスとUser-Agentの保持期間（日） |
 
 保持期間を過ぎた監査ログは、定期的に消します。
+`audit.client_info_retention_days`を過ぎた記録は、IPアドレスとUser-Agentだけを空にし、操作の記録は残します。
 
 ### storage
 

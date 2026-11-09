@@ -266,6 +266,48 @@ func TestPruneDeletesInBatches(t *testing.T) {
 	assert.Equal(t, []string{recentAction}, actions(t, pool))
 }
 
+// TestPruneClientInfoKeepsTheRecord は、保持期間を過ぎた記録の IP アドレスと User-Agent だけを空にし、操作の記録は残すことを確かめる (#1367)。
+func TestPruneClientInfoKeepsTheRecord(t *testing.T) {
+	t.Parallel()
+
+	const retention = 90 * 24 * time.Hour
+	tests := []struct {
+		name        string
+		age         time.Duration
+		wantCleared int64
+		wantIP      *string
+		wantAgent   *string
+	}{
+		{name: "past retention", age: retention + time.Hour, wantCleared: 1, wantIP: nil, wantAgent: nil},
+		{name: "within retention", age: retention - time.Hour, wantCleared: 0, wantIP: new("192.0.2.1/32"), wantAgent: new("viewer-device/1.0")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			pool := migratedPool(t)
+			_, err := pool.Exec(t.Context(), `INSERT INTO audit_events (id, occurred_at, actor_type, actor_user_id, actor_role, action, target_type, target_id, summary, source_ip, user_agent)
+				VALUES (gen_random_uuid(), $1, 'system', NULL, 'neko', 'login', 'test', '', '{}'::jsonb, '192.0.2.1', 'viewer-device/1.0')`, testNow().Add(-tt.age))
+			require.NoError(t, err)
+
+			cleared, err := audit.PruneClientInfo(t.Context(), pool, clocktest.NewFake(testNow()), retention)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantCleared, cleared)
+
+			var ip, agent *string
+			require.NoError(t, pool.QueryRow(t.Context(), `SELECT source_ip::text, user_agent FROM audit_events`).Scan(&ip, &agent))
+			assert.Equal(t, tt.wantIP, ip)
+			assert.Equal(t, tt.wantAgent, agent)
+			assert.Equal(t, []string{"login"}, actions(t, pool), "操作の記録は残す")
+
+			// もう一度走らせても、空にした行を数え直さない。
+			again, err := audit.PruneClientInfo(t.Context(), pool, clocktest.NewFake(testNow()), retention)
+			require.NoError(t, err)
+			assert.Zero(t, again)
+		})
+	}
+}
+
 func TestPruneWorkerRunsPeriodically(t *testing.T) {
 	t.Parallel()
 
@@ -276,7 +318,7 @@ func TestPruneWorkerRunsPeriodically(t *testing.T) {
 	record(t, pool, now, "recent")
 
 	workers := river.NewWorkers()
-	river.AddWorker(workers, audit.NewPruneWorker(pool, clocktest.NewFake(now), retention))
+	river.AddWorker(workers, audit.NewPruneWorker(pool, clocktest.NewFake(now), retention, retention))
 	client, err := jobs.NewClient(pool, slog.New(slog.DiscardHandler), &jobs.Options{
 		PollOnly:     false,
 		Workers:      workers,

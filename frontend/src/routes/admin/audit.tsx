@@ -263,6 +263,13 @@ function AuditLog() {
                                 {t('admin.audit.userAgent', { userAgent: event.userAgent })}
                               </Text>
                             )}
+                            {event.actor.type !== 'system' &&
+                              event.sourceIp == null &&
+                              (event.userAgent == null || event.userAgent === '') && (
+                                <Text size="xs" c="dimmed">
+                                  {t('admin.audit.clientInfoAbsent')}
+                                </Text>
+                              )}
                           </Stack>
                         </Table.Td>
                       </Table.Tr>

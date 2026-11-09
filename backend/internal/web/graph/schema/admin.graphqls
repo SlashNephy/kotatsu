@@ -13,7 +13,7 @@ type AuditEvent {
   targetId: String
   "変更の要約。JSON の文字列。"
   summary: String!
-  "送信元。システムの操作では null。"
+  "送信元。システムの操作と、保持期間を過ぎた記録では null。"
   sourceIp: String
   userAgent: String
   "MCP のクライアントを経由した操作なら、クライアントの ID (クライアントのメタデータの URL)。ほかの操作では null。"

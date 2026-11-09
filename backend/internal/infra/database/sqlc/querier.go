@@ -40,6 +40,8 @@ type Querier interface {
 	BumpChangeVersion(ctx context.Context, arg BumpChangeVersionParams) (int64, error)
 	BumpPlayerVersion(ctx context.Context, arg BumpPlayerVersionParams) error
 	BumpUserSettingsVersion(ctx context.Context, arg BumpUserSettingsVersionParams) (int64, error)
+	// before より前の記録の IP アドレスと User-Agent を、古い順に max_count 件まで空にする。操作の記録は残す (#1367)。
+	ClearAuditEventClientInfoBefore(ctx context.Context, arg ClearAuditEventClientInfoBeforeParams) (int64, error)
 	// 無効にした予約の割り当ての結果を消す。
 	ClearDisabledAssignments(ctx context.Context) (int64, error)
 	// 割り込みから予約した番組に戻ったので、記録した放送の終了を取り消す (#636)。

@@ -139,7 +139,8 @@ func DefaultOptions(logger *slog.Logger) *Options {
 func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
 	workers := river.NewWorkers()
 	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
-	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention))
+	clientInfoRetention := time.Duration(deps.Config.Audit.ClientInfoRetentionDays) * 24 * time.Hour
+	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention, clientInfoRetention))
 	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
 	// MCP のクライアントに発行した、期限を過ぎた認可コードとトークンを消す (#963)。
 	river.AddWorker(workers, oauth.NewPruneWorker(deps.DB, deps.Clock))

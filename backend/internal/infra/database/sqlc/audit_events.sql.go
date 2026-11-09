@@ -13,6 +13,28 @@ import (
 	"github.com/google/uuid"
 )
 
+const clearAuditEventClientInfoBefore = `-- name: ClearAuditEventClientInfoBefore :execrows
+UPDATE audit_events SET source_ip = NULL, user_agent = NULL WHERE id IN (
+  SELECT e.id FROM audit_events e
+  WHERE e.occurred_at < $1 AND (e.source_ip IS NOT NULL OR e.user_agent IS NOT NULL)
+  ORDER BY e.occurred_at LIMIT $2
+)
+`
+
+type ClearAuditEventClientInfoBeforeParams struct {
+	Before   time.Time
+	MaxCount int32
+}
+
+// before より前の記録の IP アドレスと User-Agent を、古い順に max_count 件まで空にする。操作の記録は残す (#1367)。
+func (q *Queries) ClearAuditEventClientInfoBefore(ctx context.Context, arg ClearAuditEventClientInfoBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearAuditEventClientInfoBefore, arg.Before, arg.MaxCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteAuditEventsBefore = `-- name: DeleteAuditEventsBefore :execrows
 DELETE FROM audit_events WHERE id IN (
   SELECT e.id FROM audit_events e WHERE e.occurred_at < $1 ORDER BY e.occurred_at LIMIT $2
