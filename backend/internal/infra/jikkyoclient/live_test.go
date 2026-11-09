@@ -123,34 +123,17 @@ func TestLiveSessionToleratesKeepInterval(t *testing.T) {
 	}
 }
 
-func TestLiveSessionRefusesForeignMessageServer(t *testing.T) {
+// TestLiveSessionIgnoresAdvertisedMessageServer は、NX-Jikkyo が知らせた接続先を使わず、自分で組み立てた接続先につなぐことを確かめる。
+func TestLiveSessionIgnoresAdvertisedMessageServer(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		uri  string
-	}{
-		{name: "別のホスト", uri: "ws://example.invalid/api/v1/channels/jk1/ws/comment"},
-		{name: "別のパス", uri: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	nx := nxjikkyotest.New(t)
+	nx.SetMessageServer("ws://example.invalid/api/v1/channels/jk1/ws/comment")
+	recorder := new(liveRecorder)
+	openLive(t, nx, recorder.options(true, ""))
 
-			nx := nxjikkyotest.New(t)
-			uri := tt.uri
-			if uri == "" {
-				uri = "ws://" + nx.URL[len("http://"):] + "/other"
-			}
-			nx.SetMessageServer(uri)
-			recorder := new(liveRecorder)
-			openLive(t, nx, recorder.options(true, ""))
-
-			require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveDisconnected) > 0 }, liveTimeout, liveTick)
-			assert.Equal(t, 0, recorder.count(jikkyoclient.LiveConnected))
-			assert.Equal(t, 0, nx.CommentSessions())
-		})
-	}
+	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveConnected) == 1 }, liveTimeout, liveTick)
+	assert.Equal(t, 1, nx.CommentSessions())
 }
 
 func TestLiveSessionReconnects(t *testing.T) {

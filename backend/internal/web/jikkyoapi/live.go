@@ -30,7 +30,7 @@ const (
 
 	// maxPostRunes は、投稿できるコメントの長さの上限。画面の入力の上限と同じにする。
 	maxPostRunes = 75
-	// minPostInterval は、1 つの接続から続けて投稿するときの間隔の下限。
+	// minPostInterval は、1 人のユーザーが続けて投稿するときの間隔の下限。
 	// NX-Jikkyo は 0.5 秒以内の連投を黙って捨て、続くと接続が切れるまで投稿を受け付けなくなるので、ここで止める。
 	minPostInterval = time.Second
 	// maxClientMessageBytes は、画面から受け取るメッセージの大きさの上限。
@@ -69,6 +69,10 @@ type LiveOptions struct {
 type LiveHandler struct {
 	opts    LiveOptions
 	queries *query.Queries
+
+	mu sync.Mutex
+	// lastPosts は、ユーザーごとの最後の投稿の時刻。接続を増やしても、投稿の間隔は縮められない。
+	lastPosts map[uuid.UUID]time.Time
 }
 
 var _ http.Handler = new(LiveHandler)
@@ -80,7 +84,7 @@ func NewLiveHandler(opts *LiveOptions) *LiveHandler {
 		o.RevalidateInterval = defaultRevalidateInterval
 	}
 
-	return &LiveHandler{opts: o, queries: query.New(o.Pool)}
+	return &LiveHandler{opts: o, queries: query.New(o.Pool), mu: sync.Mutex{}, lastPosts: map[uuid.UUID]time.Time{}}
 }
 
 type clientMessage struct {
@@ -141,9 +145,27 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	viewer := &liveViewer{
 		handler: h, conn: conn, principal: principal, channelID: channelID,
-		poster: nil, ownUserID: atomic.Pointer[string]{}, lastPost: time.Time{}, posting: atomic.Bool{}, routines: sync.WaitGroup{},
+		poster: nil, ownUserID: atomic.Pointer[string]{}, posting: atomic.Bool{}, routines: sync.WaitGroup{},
 	}
 	viewer.serve(r.Context())
+}
+
+// reservePost は、ユーザーが今投稿してよいかを返し、よければ投稿の時刻を記録する。
+func (h *LiveHandler) reservePost(userID uuid.UUID, now time.Time) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if last, ok := h.lastPosts[userID]; ok && now.Sub(last) < minPostInterval {
+		return false
+	}
+	// 間隔を過ぎた行は、もう判定に使わないので捨てる。
+	for user, last := range h.lastPosts {
+		if now.Sub(last) >= minPostInterval {
+			delete(h.lastPosts, user)
+		}
+	}
+	h.lastPosts[userID] = now
+
+	return true
 }
 
 // liveViewer は、1 つの WebSocket の接続。
@@ -157,7 +179,6 @@ type liveViewer struct {
 	poster *jikkyoclient.LiveSession
 	// ownUserID は、この接続の投稿者の、NX-Jikkyo での ID。自分の投稿は画面が先に流すので、届いても返さない。
 	ownUserID atomic.Pointer[string]
-	lastPost  time.Time
 	posting   atomic.Bool
 	routines  sync.WaitGroup
 }
@@ -278,13 +299,17 @@ func (v *liveViewer) post(ctx context.Context, message *clientMessage) {
 
 		return
 	}
-	now := v.handler.opts.Clock.Now()
-	if now.Sub(v.lastPost) < minPostInterval || !v.posting.CompareAndSwap(false, true) {
+	if !v.posting.CompareAndSwap(false, true) {
 		v.writePostResult(ctx, message.ID, postErrorTooFast)
 
 		return
 	}
-	v.lastPost = now
+	if !v.handler.reservePost(v.principal.UserID, v.handler.opts.Clock.Now()) {
+		v.posting.Store(false)
+		v.writePostResult(ctx, message.ID, postErrorTooFast)
+
+		return
+	}
 	v.routines.Go(func() {
 		defer v.posting.Store(false)
 		v.writePostResult(ctx, message.ID, v.send(ctx, text))

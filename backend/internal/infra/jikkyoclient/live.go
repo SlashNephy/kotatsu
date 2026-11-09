@@ -34,11 +34,10 @@ const (
 	liveFieldContent = "content"
 	liveMessagePing  = "ping"
 
-	reasonConnectionFailed     = "CONNECTION_FAILED"
-	reasonConnectionClosed     = "CONNECTION_CLOSED"
-	reasonInvalidMessageServer = "INVALID_MESSAGE_SERVER"
-	reasonError                = "ERROR"
-	reasonDisconnected         = "DISCONNECTED"
+	reasonConnectionFailed = "CONNECTION_FAILED"
+	reasonConnectionClosed = "CONNECTION_CLOSED"
+	reasonError            = "ERROR"
+	reasonDisconnected     = "DISCONNECTED"
 )
 
 // defaultLiveRetryDelays は、NX-Jikkyo との接続が切れてからつなぎ直すまでの間隔を返す。続けて切れるほど延ばす。
@@ -276,14 +275,11 @@ type liveWatchMessage struct {
 	Type string `json:"type"`
 	Data struct {
 		KeepIntervalSec *float64 `json:"keepIntervalSec"`
-		MessageServer   struct {
-			URI string `json:"uri"`
-		} `json:"messageServer"`
-		ThreadID     string `json:"threadId"`
-		YourPostKey  string `json:"yourPostKey"`
-		VposBaseTime string `json:"vposBaseTime"`
-		Code         string `json:"code"`
-		Reason       string `json:"reason"`
+		ThreadID        string   `json:"threadId"`
+		YourPostKey     string   `json:"yourPostKey"`
+		VposBaseTime    string   `json:"vposBaseTime"`
+		Code            string   `json:"code"`
+		Reason          string   `json:"reason"`
 	} `json:"data"`
 }
 
@@ -365,14 +361,10 @@ func (c *liveConnection) handleRoom(parent context.Context, message *liveWatchMe
 	if c.cancelComment != nil {
 		c.cancelComment()
 	}
-	// コメントセッションの接続先は視聴セッションから届く。NX-Jikkyo 以外を指していたら、接続しない。
-	if !c.session.client.isLiveURL(message.Data.MessageServer.URI) {
-		return reasonInvalidMessageServer
-	}
 	ctx, cancel := context.WithCancel(parent)
 	c.cancelComment = cancel
 	c.routines.Go(func() {
-		c.runComment(ctx, message.Data.MessageServer.URI, message.Data.ThreadID, message.Data.YourPostKey)
+		c.runComment(ctx, message.Data.ThreadID, message.Data.YourPostKey)
 	})
 
 	return ""
@@ -430,14 +422,15 @@ type liveCommentMessage struct {
 }
 
 // runComment は、コメントセッションを保ち、届いたコメントを渡す。切れたら、接続全体をやめて、つなぎ直しに任せる。
-func (c *liveConnection) runComment(ctx context.Context, uri, threadID, threadKey string) {
+func (c *liveConnection) runComment(ctx context.Context, threadID, threadKey string) {
 	lost := func() {
 		// room が届き直して閉じたのなら、新しいコメントセッションが引き継ぐ。
 		if ctx.Err() == nil {
 			c.cancel(liveFailureError(reasonConnectionClosed))
 		}
 	}
-	comment, err := c.session.dial(ctx, uri)
+	// 接続先は、視聴セッションで知らされた URI を使わず、自分で組み立てる。外部から届く値で接続先を決めないためである。
+	comment, err := c.session.dial(ctx, c.session.client.liveURL(c.session.opts.ChannelID, "comment"))
 	if err != nil {
 		lost()
 
@@ -603,15 +596,4 @@ func (c *Client) liveBase() *url.URL {
 
 func (c *Client) liveURL(channelID, kind string) string {
 	return c.liveBase().JoinPath("api", "v1", "channels", channelID, "ws", kind).String()
-}
-
-// isLiveURL は、uri が NX-Jikkyo の WebSocket の接続先かどうかを返す。
-func (c *Client) isLiveURL(uri string) bool {
-	parsed, err := url.Parse(uri)
-	if err != nil {
-		return false
-	}
-	base := c.liveBase()
-
-	return parsed.Scheme == base.Scheme && parsed.Host == base.Host && strings.HasPrefix(parsed.Path, "/api/v1/channels/")
 }

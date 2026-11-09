@@ -288,6 +288,23 @@ func TestLiveHandlerRefusesRapidPosts(t *testing.T) {
 	assert.Len(t, f.nx.Posts(), 1, "NX-Jikkyo の連投の制限に当たらないよう、ここで止める")
 }
 
+// TestLiveHandlerRefusesRapidPostsAcrossConnections は、接続を増やしても投稿の間隔を縮められないことを確かめる。
+func TestLiveHandlerRefusesRapidPostsAcrossConnections(t *testing.T) {
+	t.Parallel()
+
+	f := newLiveFixture(t)
+	first := f.dial(t, f.alice)
+	waitLiveConnected(t, first)
+	second := f.dial(t, f.alice)
+	waitLiveConnected(t, second)
+	other := f.dial(t, f.bob)
+	waitLiveConnected(t, other)
+
+	require.Empty(t, post(t, first, 1, "一度目").Error)
+	assert.Equal(t, "COMMENT_TOO_FAST", post(t, second, 2, "別の接続から").Error)
+	assert.Empty(t, post(t, other, 3, "ほかの人").Error, "制限はユーザーごとなので、ほかの人は投稿できる")
+}
+
 func TestLiveHandlerClosesWhenDisabled(t *testing.T) {
 	t.Parallel()
 
