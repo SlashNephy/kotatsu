@@ -155,6 +155,10 @@
     "password": "Password",
     "submit": "Next",
     "logout": "Log out",
+    "logoutOfflineTitle": "Also delete recordings saved on this device?",
+    "logoutOfflineDescription": "{{count}} recordings are saved on this device. If you keep them, anyone using this device can watch them after you log out.",
+    "logoutKeepOffline": "Keep and log out",
+    "logoutRemoveOffline": "Delete and log out",
     "errors": {
       "INVALID_CREDENTIALS": "Incorrect username or password",
       "TOO_MANY_ATTEMPTS": "Too many attempts. Wait about {{seconds}} seconds and try again.",

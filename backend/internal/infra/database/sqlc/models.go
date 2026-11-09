@@ -960,6 +960,7 @@ type WebPushSubscription struct {
 	UserAgent string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	SessionID *uuid.UUID
 }
 
 type WebauthnCeremony struct {

@@ -193,6 +193,11 @@ type Querier interface {
 	// ユーザーの視聴ルールが作った視聴予約のうち、番組の放送が始まっていないものを消す。視聴ルールを消すときに使う (#1268)。
 	DeleteWatchRuleReservations(ctx context.Context, arg DeleteWatchRuleReservationsParams) (int64, error)
 	DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPushSubscriptionParams) (int64, error)
+	// ユーザーの keep_id のほかのセッションで購読した購読を消す (#1365)。
+	// keep_id が NULL なら、ユーザーのセッションに結びついた購読をすべて消す。
+	DeleteWebPushSubscriptionsOfOtherSessions(ctx context.Context, arg DeleteWebPushSubscriptionsOfOtherSessionsParams) error
+	// 失効させたセッションで購読した購読を消す (#1365)。
+	DeleteWebPushSubscriptionsOfSession(ctx context.Context, sessionID *uuid.UUID) error
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)

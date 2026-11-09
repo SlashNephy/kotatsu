@@ -85,7 +85,7 @@ func newBrowser(t *testing.T) *browser {
 
 func (b *browser) subscription(endpoint string) *webpush.Subscription {
 	return &webpush.Subscription{
-		ID: uuid.Nil, Endpoint: endpoint, P256DH: b.private.PublicKey().Bytes(), Auth: b.auth, UserAgent: "Mozilla/5.0",
+		ID: uuid.Nil, Endpoint: endpoint, P256DH: b.private.PublicKey().Bytes(), Auth: b.auth, UserAgent: "Mozilla/5.0", SessionID: nil,
 		CreatedAt: time.Time{}, UpdatedAt: time.Time{},
 	}
 }

@@ -338,6 +338,10 @@ func (s *Sessions) Revoke(ctx context.Context, db Database, userID, sessionID uu
 		if n == 0 {
 			return ErrSessionNotFound
 		}
+		// ログアウトした端末に通知が届き続けないよう、このセッションで購読した Web Push も消す (#1365)。
+		if err := sqlc.New(tx).DeleteWebPushSubscriptionsOfSession(ctx, &sessionID); err != nil {
+			return fmt.Errorf("failed to delete the web push subscriptions of a session: %w", err)
+		}
 		s.fallback.ForgetIf(func(session *authenticatedSession) bool { return session.principal.SessionID == sessionID })
 
 		return usersettings.Touch(ctx, tx, s.clock, userID)
@@ -354,6 +358,9 @@ func (s *Sessions) RevokeOthers(ctx context.Context, db Database, userID, keepID
 			return fmt.Errorf("failed to revoke the other sessions: %w", err)
 		}
 		revoked = n
+		if err := sqlc.New(tx).DeleteWebPushSubscriptionsOfOtherSessions(ctx, sqlc.DeleteWebPushSubscriptionsOfOtherSessionsParams{UserID: userID, KeepID: &keepID}); err != nil {
+			return fmt.Errorf("failed to delete the web push subscriptions of the other sessions: %w", err)
+		}
 		s.fallback.ForgetIf(func(session *authenticatedSession) bool {
 			return session.principal.UserID == userID && session.principal.SessionID != keepID
 		})

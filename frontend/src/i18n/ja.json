@@ -153,6 +153,10 @@
     "password": "パスワード",
     "submit": "次へ",
     "logout": "ログアウト",
+    "logoutOfflineTitle": "端末に保存した録画も消しますか？",
+    "logoutOfflineDescription": "この端末に{{count}}件の録画が保存されています。残すと、ログアウトした後も、この端末を使う人が見られます",
+    "logoutKeepOffline": "残してログアウト",
+    "logoutRemoveOffline": "消してログアウト",
     "errors": {
       "INVALID_CREDENTIALS": "ユーザー名かパスワードが違います",
       "TOO_MANY_ATTEMPTS": "試行が多すぎます。{{seconds}}秒ほど待ってからやり直してください",

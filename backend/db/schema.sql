@@ -484,10 +484,13 @@ CREATE TABLE web_push_subscriptions (
   -- 購読した端末を、ユーザーが見分けるための User-Agent。
   user_agent text NOT NULL,
   created_at timestamptz NOT NULL,
-  updated_at timestamptz NOT NULL
+  updated_at timestamptz NOT NULL,
+  -- 購読したセッション。セッションを失効させたら、この購読も消す (#1365)。セッションの行が消えても、購読は残す。
+  session_id uuid REFERENCES sessions (id) ON DELETE SET NULL
 );
 
 CREATE INDEX web_push_subscriptions_user_id_idx ON web_push_subscriptions (user_id);
+CREATE INDEX web_push_subscriptions_session_id_idx ON web_push_subscriptions (session_id);
 
 -- Web Push の送り手を示す VAPID の鍵 (設計書 6.2、RFC 8292)。行は 1 つだけ持ち、初めて使うときに作る。
 CREATE TABLE vapid_keys (

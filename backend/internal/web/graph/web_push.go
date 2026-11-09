@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -73,7 +74,7 @@ func (r *Resolver) subscribeWebPush(ctx context.Context, input *model.WebPushSub
 	}
 	userAgent, _ := ctx.Value(userAgentKey{}).(string)
 	subscription := &webpush.Subscription{
-		ID: uuid.Nil, Endpoint: input.Endpoint, P256DH: p256dh, Auth: authSecret, UserAgent: userAgent, CreatedAt: r.clock.Now(), UpdatedAt: r.clock.Now(),
+		ID: uuid.Nil, Endpoint: input.Endpoint, P256DH: p256dh, Auth: authSecret, UserAgent: userAgent, SessionID: sessionIDOf(principal), CreatedAt: r.clock.Now(), UpdatedAt: r.clock.Now(),
 	}
 	if err := r.webPush.Subscribe(ctx, r.db, principal.UserID, subscription); err != nil {
 		if errors.Is(err, webpush.ErrInvalidSubscription) {
@@ -93,6 +94,15 @@ func (r *Resolver) subscribeWebPush(ctx context.Context, input *model.WebPushSub
 	}
 
 	return nil, errors.New("the saved web push subscription was not found")
+}
+
+// sessionIDOf は、購読に結びつけるセッションの ID を返す。API トークンなどセッションのない認証では nil を返す。
+func sessionIDOf(principal *auth.Principal) *uuid.UUID {
+	if principal.SessionID == uuid.Nil {
+		return nil
+	}
+
+	return &principal.SessionID
 }
 
 // unsubscribeWebPush は、ログイン中のユーザーの購読を解除する。

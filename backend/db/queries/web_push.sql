@@ -1,13 +1,23 @@
 -- name: UpsertWebPushSubscription :exec
 -- 購読を保存する。同じ端末 (endpoint) を別のユーザーが購読し直したら、そのユーザーの購読に移す。
-INSERT INTO web_push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at)
-VALUES (@id, @user_id, @endpoint, @p256dh, @auth, @user_agent, @now, @now)
+INSERT INTO web_push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, created_at, updated_at)
+VALUES (@id, @user_id, @endpoint, @p256dh, @auth, @user_agent, sqlc.narg(session_id), @now, @now)
 ON CONFLICT (endpoint) DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, updated_at = EXCLUDED.updated_at;
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, updated_at = EXCLUDED.updated_at;
 
 -- name: DeleteWebPushSubscription :execrows
 DELETE FROM web_push_subscriptions WHERE user_id = @user_id AND endpoint = @endpoint;
+
+-- name: DeleteWebPushSubscriptionsOfSession :exec
+-- 失効させたセッションで購読した購読を消す (#1365)。
+DELETE FROM web_push_subscriptions WHERE session_id = @session_id;
+
+-- name: DeleteWebPushSubscriptionsOfOtherSessions :exec
+-- ユーザーの keep_id のほかのセッションで購読した購読を消す (#1365)。
+-- keep_id が NULL なら、ユーザーのセッションに結びついた購読をすべて消す。
+DELETE FROM web_push_subscriptions
+WHERE user_id = @user_id AND session_id IS NOT NULL AND (sqlc.narg(keep_id)::uuid IS NULL OR session_id <> sqlc.narg(keep_id)::uuid);
 
 -- name: DeleteExpiredWebPushSubscription :exec
 -- プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。

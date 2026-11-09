@@ -371,6 +371,11 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+// savedOfflineRecordings は、今わかっている保存した録画を返す。refreshOfflineRecordings の後に読むと、最新になる。
+export function savedOfflineRecordings(): readonly OfflineMeta[] {
+  return snapshot.saved ?? [];
+}
+
 // useOfflineRecordings は、保存した録画の一覧と、保存している録画の進み具合を返す。
 // 画面を移っても保存は続くので、状態はモジュールに持つ。タブを閉じると、保存は止まる。
 export function useOfflineRecordings(): Snapshot {
