@@ -3,19 +3,24 @@ name: Label a pull request
 # PR のタイトル (Conventional Commits) の種類から、リリースノートで分けるためのラベルを付ける (.github/release.yml)。
 # タイトルを変えたら、付け直す。Renovate と Dependabot の PR は、それぞれが付けるラベルで分けるので、付けない。
 on:
-  # フォークからの PR にもラベルを付けられるよう、pull_request_target で動かす。
-  # PR のコードはチェックアウトせず、タイトルだけを読む。
-  pull_request_target:
+  # 公開リポジトリの pull_request_target は既定で止められるので、pull_request で動かす。
+  # フォークからの PR ではトークンが読み取り専用になってラベルを付けられないので、ジョブを飛ばす。手で付ける。
+  # 衝突している PR では pull_request が動かないので、衝突を解消した push (synchronize) でも付け直す。
+  pull_request:
     types:
       - opened
       - edited
       - reopened
+      - synchronize
 
 permissions: {}
 
 jobs:
   label:
-    if: github.event.pull_request.user.login != 'renovate[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'renovate[bot]' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
