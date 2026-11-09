@@ -1908,7 +1908,7 @@
       "title": "Caption DRCS glyphs",
       "summary": "Change the table that replaces caption DRCS glyphs (characters made by broadcasters) with text",
       "drcs": "DRCS glyph replacements",
-      "drcsHelp": "DRCS glyphs that appear in captions are looked up by the MD5 of their image and replaced with text. The replacement text is used in the caption history, copying, and captions overlaid on video. Administrators can also register unregistered DRCS glyphs on the spot from the caption history.",
+      "drcsHelp": "DRCS glyphs that appear in captions are looked up by the MD5 of their image and replaced with text. The replacement text is used in the caption history, copying, and captions overlaid on video. Administrators can also register unregistered DRCS glyphs on the spot from the caption history. Common glyphs are replaced using the bundled table (libaribcaption). Text registered here takes priority.",
       "empty": "Nothing registered yet",
       "md5": "MD5",
       "text": "Replacement text",

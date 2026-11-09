@@ -23,6 +23,8 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --froze
 COPY frontend/ ./
 # 字幕を描くフォントは npm にないので、frontend/vendor/caption-font/SOURCE で固定したリリースから取得する。
 RUN node scripts/fetch-caption-font.mjs
+# 字幕の外字の既定の表は、frontend/vendor/libaribcaption/SOURCE で固定した commit の定義から作る。
+RUN node scripts/fetch-libaribcaption-drcs.mjs
 RUN pnpm exec vp build
 
 # Go のバイナリは、ビルドするマシンのアーキテクチャのまま、対象のアーキテクチャへクロスコンパイルする。

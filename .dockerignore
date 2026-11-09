@@ -9,3 +9,5 @@ backend/internal/web/webui/dist/app
 frontend/dist
 # 字幕を描くフォントは、イメージのビルドで取得し直す。
 frontend/vendor/caption-font/*.ttf
+# 字幕の外字の既定の表も、イメージのビルドで作り直す。
+frontend/vendor/libaribcaption/drcs.json

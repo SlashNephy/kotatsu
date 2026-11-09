@@ -1,0 +1,6 @@
+# 字幕の外字を文字に置き換える既定の表 (設計書 7.4、付録 B)。libaribcaption の定義を、どの commit から作るか。
+# 表は scripts/fetch-libaribcaption-drcs.mjs がこの commit の file から作る。作った表は、リポジトリに置かない。
+repository=xqq/libaribcaption
+file=src/decoder/b24_drcs_conv.cpp
+# renovate: datasource=git-refs depName=https://github.com/xqq/libaribcaption currentValue=master
+commit=f0037120f652ec6047b2eac697a0631b56287263

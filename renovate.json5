@@ -79,6 +79,17 @@
       autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}} currentValue={{{currentValue}}}\ncommit={{{newDigest}}}',
     },
     {
+      // 字幕の外字の既定の表を作る libaribcaption の commit (設計書 7.4)。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^frontend/vendor/libaribcaption/SOURCE$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)\\ncommit=(?<currentDigest>[0-9a-f]{40})',
+      ],
+      autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}} currentValue={{{currentValue}}}\ncommit={{{newDigest}}}',
+    },
+    {
       // atlas.hcl の開発用 DB のイメージ。
       customType: 'regex',
       managerFilePatterns: [

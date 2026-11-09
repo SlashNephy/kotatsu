@@ -7,6 +7,8 @@ run = [
   "pnpm install --frozen-lockfile",
   # 字幕を描くフォントは npm にないので、vendor/caption-font/SOURCE で固定したリリースから取得する。
   "node scripts/fetch-caption-font.mjs",
+  # 字幕の外字の既定の表は、vendor/libaribcaption/SOURCE で固定した commit の定義から作る。
+  "node scripts/fetch-libaribcaption-drcs.mjs",
 ]
 
 # ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、vendor/mpeg2toh264/SOURCE の commit からビルドし直す (設計書 7.2)。

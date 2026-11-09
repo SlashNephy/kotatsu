@@ -34,6 +34,22 @@ describe('drcsPixels', () => {
   });
 });
 
+describe('default replacements', () => {
+  // libaribcaption の定義に、U+82A6 (芦) として載っている外字。
+  const bundled = '012665f146f9c4dfbfe65c41c8b30c19';
+
+  test('replaces glyphs from the bundled table before anything is registered', () => {
+    expect(drcsReplacements.get(bundled)).toBe('芦');
+  });
+
+  test('prefers a registered replacement and returns to the bundled one when it is removed', () => {
+    act(() => setDRCSReplacements([{ md5: bundled, text: '「' }]));
+    expect(drcsReplacements.get(bundled)).toBe('「');
+    act(() => setDRCSReplacements([]));
+    expect(drcsReplacements.get(bundled)).toBe('芦');
+  });
+});
+
 describe('recordDRCS', () => {
   test('lists glyphs missing from the table, newest first', () => {
     const { result } = renderHook(() => useUnknownDRCS());
