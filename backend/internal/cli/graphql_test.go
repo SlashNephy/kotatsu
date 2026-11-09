@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -83,7 +84,7 @@ func TestTenbanServesGraphQL(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Cookie", auth.CookieName+"="+token)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer func() {
 				_ = resp.Body.Close()

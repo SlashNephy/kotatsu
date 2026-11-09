@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/cli"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 )
 
 // TestUnreachableTunerServerDoesNotAffectReadiness は、チューナーサーバーに接続できなくても、
@@ -72,7 +73,7 @@ func TestUnreachableTunerServerDoesNotAffectReadiness(t *testing.T) {
 	for _, path := range []string{"/healthz", "/readyz"} {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+address+path, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpclienttest.New(t).Do(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode, path)

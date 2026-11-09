@@ -15,6 +15,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -95,7 +96,7 @@ func TestOtherFileHandler(t *testing.T) {
 			if tt.rangeValue != "" {
 				req.Header.Set("Range", tt.rangeValue)
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer res.Body.Close()
 			body, err := io.ReadAll(res.Body)

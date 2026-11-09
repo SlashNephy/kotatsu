@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
@@ -103,7 +104,7 @@ func fetch(t *testing.T, rawURL string) *relayed {
 
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, rawURL, nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)

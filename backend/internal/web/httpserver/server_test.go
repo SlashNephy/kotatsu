@@ -16,6 +16,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -143,7 +144,7 @@ func TestServeWaitsForInFlightRequests(t *testing.T) {
 
 			return
 		}
-		res, err := http.DefaultClient.Do(req)
+		res, err := httpclienttest.New(t).Do(req)
 		if err != nil {
 			responded <- response{err: err}
 
@@ -215,7 +216,7 @@ func TestServeStopsStreamsOnShutdown(t *testing.T) {
 
 			return
 		}
-		res, err := http.DefaultClient.Do(req)
+		res, err := httpclienttest.New(t).Do(req)
 		if err != nil {
 			read <- err
 

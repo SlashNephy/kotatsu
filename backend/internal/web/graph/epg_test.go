@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -80,7 +81,7 @@ func (f *fixture) query(tb testing.TB, query string, variables any, v any) []str
 	req.Header.Set("Content-Type", contentTypeJSON)
 	req.Header.Set("Cookie", auth.CookieName+"="+f.token)
 	req.Header.Set("User-Agent", testUserAgent)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(tb).Do(req)
 	require.NoError(tb, err)
 	defer func() {
 		_ = resp.Body.Close()

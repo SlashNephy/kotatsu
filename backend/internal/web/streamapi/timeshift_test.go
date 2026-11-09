@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -112,7 +113,7 @@ func (f *timeshiftFixture) get(t *testing.T, from time.Time, query string) *fetc
 	url := f.server.URL + "/streams/timeshift/" + serviceID + "?from=" + from.Format(time.RFC3339Nano) + query
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusOK {
@@ -238,7 +239,7 @@ func TestTimeshiftHandlerFollowsChunks(t *testing.T) {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.server.URL+"/streams/timeshift/"+serviceID+"?from="+f.origin.Format(time.RFC3339Nano), nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -301,7 +302,7 @@ func TestTimeshiftHandlerRejects(t *testing.T) {
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/timeshift/"+tt.path, nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			assert.Equal(t, tt.want, resp.StatusCode)

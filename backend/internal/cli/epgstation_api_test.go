@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -97,7 +98,7 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 			if tt.bearer {
 				req.Header.Set("Authorization", "Bearer "+token)
 			}
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
 			_ = resp.Body.Close()
 			assert.Equal(t, tt.want, resp.StatusCode)

@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/passwordtest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -213,7 +214,7 @@ func (f *fixture) do(t *testing.T, req request) (int, string) {
 	if req.loggedIn {
 		r.Header.Set("Cookie", auth.CookieName+"="+f.token)
 	}
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpclienttest.New(t).Do(r)
 	require.NoError(t, err)
 	defer func() {
 		_ = resp.Body.Close()
@@ -374,7 +375,7 @@ func TestSubscriptionOverSSE(t *testing.T) {
 	r.Header.Set("Content-Type", contentTypeJSON)
 	r.Header.Set("Accept", "text/event-stream")
 	r.Header.Set("Cookie", auth.CookieName+"="+f.token)
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpclienttest.New(t).Do(r)
 	require.NoError(t, err)
 	defer func() {
 		_ = resp.Body.Close()
@@ -406,7 +407,7 @@ func TestSubscriptionEndsWhenSessionIsRevoked(t *testing.T) {
 	r.Header.Set("Content-Type", contentTypeJSON)
 	r.Header.Set("Accept", "text/event-stream")
 	r.Header.Set("Cookie", auth.CookieName+"="+f.token)
-	resp, err := http.DefaultClient.Do(r)
+	resp, err := httpclienttest.New(t).Do(r)
 	require.NoError(t, err)
 	defer func() {
 		_ = resp.Body.Close()

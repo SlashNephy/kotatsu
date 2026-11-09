@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/oidctest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -67,7 +68,7 @@ func newOIDCFixture(t *testing.T, autoCreate auth.OIDCAutoCreate) *oidcFixture {
 				AutoCreate: autoCreate,
 			},
 			Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler),
-			Sessions: auth.NewSessions(&auth.SessionsOptions{Clock: clk}), HTTPClient: nil,
+			Sessions: auth.NewSessions(&auth.SessionsOptions{Clock: clk}), HTTPClient: httpclienttest.New(t),
 		}),
 		users:  auth.NewUsers(clk),
 		client: &auth.ClientInfo{UserAgent: browserUA, SourceIP: netip.MustParseAddr("192.168.1.10"), Host: testHost, Secure: true},
