@@ -51,6 +51,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -154,6 +155,16 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		return system.NotificationRetention(), nil
 	}))
 
+	// 録画の再生位置は、画面から変えられる保持期間を過ぎたら消す (#1366)。
+	river.AddWorker(workers, library.NewPruneProgressWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
+		system, err := settings.Load(ctx, deps.DB)
+		if err != nil {
+			return 0, err
+		}
+
+		return system.WatchProgressRetention(), nil
+	}))
+
 	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
 	inserter, err := jobs.NewClient(deps.DB, logger, &jobs.Options{PollOnly: deps.Config.Database.Pooler, Workers: nil, PeriodicJobs: nil})
@@ -239,7 +250,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, animerecord.NewFollowingWorker(animeRecords, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
-		audit.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
+		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
 		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),

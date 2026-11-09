@@ -285,6 +285,65 @@ func TestClearProgress(t *testing.T) {
 	}
 }
 
+// TestClearAllProgress は、自分の再生位置だけをすべて消すことを確かめる (#1366)。
+func TestClearAllProgress(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	first, second := f.recording(t, completed, false), id.New()
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
+		state, protected, recorded_from, created_at, updated_at)
+		VALUES ($1, NULL, $2, NULL, 'second', '', $3, $3, $4, false, $3, $3, $3)`, second, serviceID, f.clock.Now(), completed)
+	require.NoError(t, err)
+	otherID := id.New()
+	require.NoError(t, sqlc.New(f.pool).InsertUser(t.Context(), sqlc.InsertUserParams{
+		ID: otherID, Username: "guest", DisplayName: "guest", Role: "member", PasswordHash: nil, CreatedAt: f.clock.Now(),
+	}))
+	require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, first, time.Minute))
+	require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, second, time.Minute))
+	require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, otherID, first, time.Minute))
+
+	deleted, err := f.library.ClearAllProgress(t.Context(), f.pool, f.userID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), deleted)
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM watch_progress WHERE user_id = '"+f.userID.String()+"'"))
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM watch_progress WHERE user_id = '"+otherID.String()+"'"), "ほかのユーザーの再生位置は残す")
+	assert.Empty(t, f.actions(t, first), "再生位置は個人のものなので、監査ログに残さない")
+}
+
+// TestPruneProgress は、最後に更新してから保持期間を過ぎた再生位置だけを消し、無期限なら消さないことを確かめる (#1366)。
+func TestPruneProgress(t *testing.T) {
+	t.Parallel()
+
+	const retention = 365 * 24 * time.Hour
+	tests := []struct {
+		name      string
+		age       time.Duration
+		retention time.Duration
+		want      int64
+	}{
+		{name: "保持期間を過ぎた", age: retention + time.Hour, retention: retention, want: 1},
+		{name: "保持期間の内", age: retention - time.Hour, retention: retention, want: 0},
+		{name: "無期限", age: 10 * retention, retention: -1, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, completed, false)
+			require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, recordingID, time.Minute))
+			_, err := f.pool.Exec(t.Context(), "UPDATE watch_progress SET updated_at = $1", f.clock.Now().Add(-tt.age))
+			require.NoError(t, err)
+
+			deleted, err := library.PruneProgress(t.Context(), f.pool, f.clock, tt.retention)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, deleted)
+			assert.Equal(t, 1-int(tt.want), f.count(t, "SELECT count(*) FROM watch_progress"))
+		})
+	}
+}
+
 // TestSaveProgress は、ユーザーごとに再生位置を保存し、上書きすることを確かめる。
 func TestSaveProgress(t *testing.T) {
 	t.Parallel()

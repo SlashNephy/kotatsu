@@ -339,6 +339,8 @@ CREATE TABLE system_settings (
   archive_retention_days integer NOT NULL CHECK (archive_retention_days >= 0),
   -- 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限 (#551)。
   notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
+  -- 録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限 (#1366)。
+  watch_progress_retention_days integer NOT NULL DEFAULT 365 CHECK (watch_progress_retention_days >= 0),
   -- MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定では使わせない。
   mcp_enabled boolean NOT NULL DEFAULT false,
   -- データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定では中継しない。
@@ -990,6 +992,8 @@ CREATE TABLE watch_progress (
 
 -- 録画を消すときに、その録画の再生位置を消すのに使う。
 CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
+-- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
+CREATE INDEX watch_progress_updated_at_idx ON watch_progress (updated_at);
 
 -- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (

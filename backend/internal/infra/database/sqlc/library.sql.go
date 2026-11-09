@@ -12,6 +12,19 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteAllWatchProgress = `-- name: DeleteAllWatchProgress :execrows
+DELETE FROM watch_progress WHERE user_id = $1
+`
+
+// ユーザーの再生位置をすべて消す (#1366)。
+func (q *Queries) DeleteAllWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllWatchProgress, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteRecordingTags = `-- name: DeleteRecordingTags :exec
 DELETE FROM recording_tags WHERE recording_id = $1
 `
@@ -34,6 +47,26 @@ type DeleteWatchProgressParams struct {
 func (q *Queries) DeleteWatchProgress(ctx context.Context, arg DeleteWatchProgressParams) error {
 	_, err := q.db.Exec(ctx, deleteWatchProgress, arg.UserID, arg.RecordingID)
 	return err
+}
+
+const deleteWatchProgressBefore = `-- name: DeleteWatchProgressBefore :execrows
+DELETE FROM watch_progress WHERE (user_id, recording_id) IN (
+  SELECT w.user_id, w.recording_id FROM watch_progress w WHERE w.updated_at < $1 ORDER BY w.updated_at LIMIT $2
+)
+`
+
+type DeleteWatchProgressBeforeParams struct {
+	Before   time.Time
+	MaxCount int32
+}
+
+// 最後に更新してから before より経った再生位置を、古い順に max_count 件まで消す (#1366)。
+func (q *Queries) DeleteWatchProgressBefore(ctx context.Context, arg DeleteWatchProgressBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWatchProgressBefore, arg.Before, arg.MaxCount)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const insertRecordingTag = `-- name: InsertRecordingTag :exec

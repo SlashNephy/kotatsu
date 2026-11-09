@@ -557,6 +557,7 @@ type ComplexityRoot struct {
 		CancelJob                     func(childComplexity int, id string) int
 		ChangePassword                func(childComplexity int, password string) int
 		CleanUpMissingRecordings      func(childComplexity int, ids []string) int
+		ClearAllWatchPositions        func(childComplexity int) int
 		ClearWatchPosition            func(childComplexity int, id string) int
 		ConfirmTotpEnrollment         func(childComplexity int, code string) int
 		CreateAPIToken                func(childComplexity int, name string) int
@@ -1212,16 +1213,17 @@ type ComplexityRoot struct {
 	}
 
 	SystemSettings struct {
-		AnimeLinkingEnabled       func(childComplexity int) int
-		ArchiveRetentionDays      func(childComplexity int) int
-		DataBroadcastIPEnabled    func(childComplexity int) int
-		DrcsReplacements          func(childComplexity int) int
-		JikkyoEnabled             func(childComplexity int) int
-		McpEnabled                func(childComplexity int) int
-		NotificationRetentionDays func(childComplexity int) int
-		RecordingDefaults         func(childComplexity int) int
-		RuleDefaults              func(childComplexity int) int
-		UpdatedAt                 func(childComplexity int) int
+		AnimeLinkingEnabled        func(childComplexity int) int
+		ArchiveRetentionDays       func(childComplexity int) int
+		DataBroadcastIPEnabled     func(childComplexity int) int
+		DrcsReplacements           func(childComplexity int) int
+		JikkyoEnabled              func(childComplexity int) int
+		McpEnabled                 func(childComplexity int) int
+		NotificationRetentionDays  func(childComplexity int) int
+		RecordingDefaults          func(childComplexity int) int
+		RuleDefaults               func(childComplexity int) int
+		UpdatedAt                  func(childComplexity int) int
+		WatchProgressRetentionDays func(childComplexity int) int
 	}
 
 	SystemStatus struct {
@@ -1432,6 +1434,7 @@ type MutationResolver interface {
 	SetRecordingTags(ctx context.Context, id string, tags []string) (*model.Recording, error)
 	SaveWatchPosition(ctx context.Context, id string, positionMs int64) (*model.Recording, error)
 	ClearWatchPosition(ctx context.Context, id string) (*model.Recording, error)
+	ClearAllWatchPositions(ctx context.Context) (int, error)
 	RegenerateRecordingImages(ctx context.Context, id string) (bool, error)
 	ReanalyzeRecording(ctx context.Context, id string) (bool, error)
 	DetectRecordingCM(ctx context.Context, id string) (bool, error)
@@ -3535,6 +3538,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CleanUpMissingRecordings(childComplexity, args["ids"].([]string)), true
+	case "Mutation.clearAllWatchPositions":
+		if e.ComplexityRoot.Mutation.ClearAllWatchPositions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.ClearAllWatchPositions(childComplexity), true
 	case "Mutation.clearWatchPosition":
 		if e.ComplexityRoot.Mutation.ClearWatchPosition == nil {
 			break
@@ -7047,6 +7056,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.UpdatedAt(childComplexity), true
+	case "SystemSettings.watchProgressRetentionDays":
+		if e.ComplexityRoot.SystemSettings.WatchProgressRetentionDays == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.WatchProgressRetentionDays(childComplexity), true
 
 	case "SystemStatus.instances":
 		if e.ComplexityRoot.SystemStatus.Instances == nil {
@@ -10161,6 +10176,8 @@ extend type Mutation {
   saveWatchPosition(id: ID!, positionMs: Int64!): Recording!
   "ログイン中のユーザーの再生位置を消し、続きから見るの一覧から外す (#1074)。誰でも使える。"
   clearWatchPosition(id: ID!): Recording!
+  "ログイン中のユーザーの再生位置をすべて消し、消した件数を返す (#1366)。誰でも使える。"
+  clearAllWatchPositions: Int!
   """
   録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
@@ -10817,6 +10834,8 @@ type SystemSettings {
   archiveRetentionDays: Int!
   "配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
   notificationRetentionDays: Int!
+  "録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。"
+  watchProgressRetentionDays: Int!
   "ルールを作るときの既定値。"
   ruleDefaults: RuleDefaults!
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
@@ -10847,6 +10866,7 @@ input SystemSettingsInput {
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
   notificationRetentionDays: Int
+  watchProgressRetentionDays: Int
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
   mcpEnabled: Boolean
@@ -13497,6 +13517,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_archiveRetentionDays(ctx, field)
 	case "notificationRetentionDays":
 		return ec.fieldContext_SystemSettings_notificationRetentionDays(ctx, field)
+	case "watchProgressRetentionDays":
+		return ec.fieldContext_SystemSettings_watchProgressRetentionDays(ctx, field)
 	case "ruleDefaults":
 		return ec.fieldContext_SystemSettings_ruleDefaults(ctx, field)
 	case "mcpEnabled":
@@ -25154,6 +25176,29 @@ func (ec *executionContext) fieldContext_Mutation_clearWatchPosition(ctx context
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_clearAllWatchPositions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_clearAllWatchPositions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().ClearAllWatchPositions(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_clearAllWatchPositions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Int")
 }
 
 func (ec *executionContext) _Mutation_regenerateRecordingImages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -37756,6 +37801,29 @@ func (ec *executionContext) fieldContext_SystemSettings_notificationRetentionDay
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
 }
 
+func (ec *executionContext) _SystemSettings_watchProgressRetentionDays(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_watchProgressRetentionDays(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WatchProgressRetentionDays, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_watchProgressRetentionDays(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
 func (ec *executionContext) _SystemSettings_ruleDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -43584,7 +43652,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "jikkyoEnabled", "drcsReplacements"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "jikkyoEnabled", "drcsReplacements"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -43612,6 +43680,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.NotificationRetentionDays = data
+		case "watchProgressRetentionDays":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("watchProgressRetentionDays"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.WatchProgressRetentionDays = data
 		case "ruleDefaults":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("ruleDefaults"))
 			data, err := ec.unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleDefaultsInput(ctx, v)
@@ -47876,6 +47951,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "clearAllWatchPositions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_clearAllWatchPositions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "regenerateRecordingImages":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_regenerateRecordingImages(ctx, field)
@@ -51867,6 +51949,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "notificationRetentionDays":
 			out.Values[i] = ec._SystemSettings_notificationRetentionDays(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "watchProgressRetentionDays":
+			out.Values[i] = ec._SystemSettings_watchProgressRetentionDays(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

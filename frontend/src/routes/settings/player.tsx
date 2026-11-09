@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { CommentSettingsCard } from '../../jikkyo/CommentSettingsCard';
 import { ShortcutKeysCard } from '../../settings/ShortcutKeysCard';
+import { WatchPositionsClear } from '../../settings/WatchPositionsClear';
 import { isUnauthenticated } from '../../relay/environment';
 import {
   autoPictureInPictureSupported,
@@ -248,6 +249,8 @@ function PlayerSettings() {
       <ShortcutKeysCard />
 
       {player.jikkyoAvailable && <CommentSettingsCard />}
+
+      <WatchPositionsClear />
     </Stack>
   );
 }

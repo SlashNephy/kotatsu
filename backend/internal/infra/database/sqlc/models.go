@@ -753,17 +753,18 @@ type SyobocalTitle struct {
 }
 
 type SystemSetting struct {
-	ID                        int16
-	RecordingDefaults         []byte
-	ArchiveRetentionDays      int32
-	NotificationRetentionDays int32
-	MCPEnabled                bool
-	DataBroadcastIPEnabled    bool
-	AnimeLinkingEnabled       bool
-	JikkyoEnabled             bool
-	RuleDefaults              []byte
-	DrcsReplacements          []byte
-	UpdatedAt                 time.Time
+	ID                         int16
+	RecordingDefaults          []byte
+	ArchiveRetentionDays       int32
+	NotificationRetentionDays  int32
+	WatchProgressRetentionDays int32
+	MCPEnabled                 bool
+	DataBroadcastIPEnabled     bool
+	AnimeLinkingEnabled        bool
+	JikkyoEnabled              bool
+	RuleDefaults               []byte
+	DrcsReplacements           []byte
+	UpdatedAt                  time.Time
 }
 
 type Tag struct {

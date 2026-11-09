@@ -46,9 +46,10 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 	}
 
 	return &model.SystemSettings{
-		RecordingDefaults:         recording,
-		ArchiveRetentionDays:      system.ArchiveRetentionDays,
-		NotificationRetentionDays: system.NotificationRetentionDays,
+		RecordingDefaults:          recording,
+		ArchiveRetentionDays:       system.ArchiveRetentionDays,
+		NotificationRetentionDays:  system.NotificationRetentionDays,
+		WatchProgressRetentionDays: system.WatchProgressRetentionDays,
 		RuleDefaults: &model.RuleDefaults{
 			AvoidDuplicates:     system.Rule.AvoidDuplicates,
 			DuplicateWindowDays: system.Rule.DuplicateWindowDays,

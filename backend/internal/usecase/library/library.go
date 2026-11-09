@@ -217,6 +217,16 @@ func (l *Library) ClearProgress(ctx context.Context, db sqlc.DBTX, userID, recor
 	return nil
 }
 
+// ClearAllProgress は、ユーザーの再生位置をすべて消し、消した数を返す (#1366)。再生位置は個人のものなので、監査ログには残さない。
+func (l *Library) ClearAllProgress(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (int64, error) {
+	deleted, err := sqlc.New(db).DeleteAllWatchProgress(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to clear the watch progress: %w", err)
+	}
+
+	return deleted, nil
+}
+
 // foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。録画がないときに返る。
 const foreignKeyViolation = "23503"
 

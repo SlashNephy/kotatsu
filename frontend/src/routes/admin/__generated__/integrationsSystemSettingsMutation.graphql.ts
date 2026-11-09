@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5044f5916a2e75672b1aa6d6c22925ac>>
+ * @generated SignedSource<<c2bcff1ca3a82146a39c166db59cddf0>>
  * @lightSyntaxTransform
  */
 
@@ -18,6 +18,7 @@ export type SystemSettingsInput = {
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
+  watchProgressRetentionDays?: number | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
   detectCm?: boolean | null | undefined;

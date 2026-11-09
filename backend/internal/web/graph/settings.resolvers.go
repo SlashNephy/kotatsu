@@ -24,15 +24,16 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		}
 	}
 	updated, err := r.settings.Update(ctx, r.db, actor, &settings.Changes{
-		Recording:                 toOverrides(input.RecordingDefaults),
-		ArchiveRetentionDays:      input.ArchiveRetentionDays,
-		NotificationRetentionDays: input.NotificationRetentionDays,
-		Rule:                      toRuleChanges(input.RuleDefaults),
-		MCPEnabled:                input.McpEnabled,
-		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
-		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
-		JikkyoEnabled:             input.JikkyoEnabled,
-		DRCSReplacements:          replacements,
+		Recording:                  toOverrides(input.RecordingDefaults),
+		ArchiveRetentionDays:       input.ArchiveRetentionDays,
+		NotificationRetentionDays:  input.NotificationRetentionDays,
+		WatchProgressRetentionDays: input.WatchProgressRetentionDays,
+		Rule:                       toRuleChanges(input.RuleDefaults),
+		MCPEnabled:                 input.McpEnabled,
+		DataBroadcastIPEnabled:     input.DataBroadcastIPEnabled,
+		AnimeLinkingEnabled:        input.AnimeLinkingEnabled,
+		JikkyoEnabled:              input.JikkyoEnabled,
+		DRCSReplacements:           replacements,
 	})
 	if err != nil {
 		return nil, settingsError(err)

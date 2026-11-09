@@ -1855,6 +1855,10 @@ type Mutation {
   """
   clearWatchPosition(id: ID!): Recording!
   """
+  ログイン中のユーザーの再生位置をすべて消し、消した件数を返す (#1366)。誰でも使える。
+  """
+  clearAllWatchPositions: Int!
+  """
   録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
@@ -4040,6 +4044,10 @@ type SystemSettings {
   """
   notificationRetentionDays: Int!
   """
+  録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。
+  """
+  watchProgressRetentionDays: Int!
+  """
   ルールを作るときの既定値。
   """
   ruleDefaults: RuleDefaults!
@@ -4080,6 +4088,7 @@ input SystemSettingsInput {
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
   notificationRetentionDays: Int
+  watchProgressRetentionDays: Int
   """
   ルールを作るときの既定値の変える項目。省いた項目は変えない。
   """

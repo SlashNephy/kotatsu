@@ -18,7 +18,7 @@ export const Route = createFileRoute('/admin/retention')({
   component: RetentionPage,
 });
 
-// RetentionPage は、過去の番組と画面内の通知を残す日数を変える、管理者向けの画面 (設計書 10.3、11.2)。
+// RetentionPage は、過去の番組と画面内の通知と録画の再生位置を残す日数を変える、管理者向けの画面 (設計書 10.3、11.2)。
 function RetentionPage() {
   const { t } = useTranslation();
 
@@ -34,6 +34,7 @@ const query = graphql`
     systemSettings {
       archiveRetentionDays
       notificationRetentionDays
+      watchProgressRetentionDays
       updatedAt
     }
   }
@@ -58,7 +59,13 @@ function RetentionSettings() {
   const [notificationDays, setNotificationDays] = useState<number | string>(
     settings.notificationRetentionDays,
   );
-  const valid = typeof archiveDays === 'number' && typeof notificationDays === 'number';
+  const [watchProgressDays, setWatchProgressDays] = useState<number | string>(
+    settings.watchProgressRetentionDays,
+  );
+  const valid =
+    typeof archiveDays === 'number' &&
+    typeof notificationDays === 'number' &&
+    typeof watchProgressDays === 'number';
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -79,6 +86,7 @@ function RetentionSettings() {
             input: {
               archiveRetentionDays: Number(archiveDays),
               notificationRetentionDays: Number(notificationDays),
+              watchProgressRetentionDays: Number(watchProgressDays),
             },
           },
         );
@@ -135,6 +143,24 @@ function RetentionSettings() {
               allowDecimal={false}
               value={notificationDays}
               onChange={setNotificationDays}
+            />
+          </Stack>
+        </Card>
+
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.watchProgress')}
+            </Title>
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.watchProgressRetentionDays')}
+              description={t('admin.settings.watchProgressRetentionHelp')}
+              min={0}
+              allowDecimal={false}
+              value={watchProgressDays}
+              onChange={setWatchProgressDays}
             />
           </Stack>
         </Card>

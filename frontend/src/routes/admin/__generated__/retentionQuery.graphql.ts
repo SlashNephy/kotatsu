@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b56e63c0b717e57bfac95c642c7e6813>>
+ * @generated SignedSource<<718a8dbc57e587b2899187ccc5154583>>
  * @lightSyntaxTransform
  */
 
@@ -14,6 +14,7 @@ export type retentionQuery$data = {
     readonly archiveRetentionDays: number;
     readonly notificationRetentionDays: number;
     readonly updatedAt: string | null | undefined;
+    readonly watchProgressRetentionDays: number;
   };
 };
 export type retentionQuery = {
@@ -49,6 +50,13 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "watchProgressRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -74,16 +82,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "246ea2ac935d0c7e3eecdbe3cfc10fda",
+    "cacheID": "4ebe23fd8e9e0f8063dcd4d35cc393f6",
     "id": null,
     "metadata": {},
     "name": "retentionQuery",
     "operationKind": "query",
-    "text": "query retentionQuery {\n  systemSettings {\n    archiveRetentionDays\n    notificationRetentionDays\n    updatedAt\n  }\n}\n"
+    "text": "query retentionQuery {\n  systemSettings {\n    archiveRetentionDays\n    notificationRetentionDays\n    watchProgressRetentionDays\n    updatedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c7aaa39b10a726d953c5a80b8dd2ed49";
+(node as any).hash = "3dc68dc8777ad86911f10a833464db9f";
 
 export default node;

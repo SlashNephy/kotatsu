@@ -1613,6 +1613,8 @@ type SystemSettings struct {
 	ArchiveRetentionDays int `json:"archiveRetentionDays"`
 	// 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。
 	NotificationRetentionDays int `json:"notificationRetentionDays"`
+	// 録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。
+	WatchProgressRetentionDays int `json:"watchProgressRetentionDays"`
 	// ルールを作るときの既定値。
 	RuleDefaults *RuleDefaults `json:"ruleDefaults"`
 	// MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。
@@ -1634,9 +1636,10 @@ type SystemSettings struct {
 // 全体の設定の変える項目。省いた項目は変えない。
 type SystemSettingsInput struct {
 	// 録画設定の既定値の変える項目。省いた項目は変えない。
-	RecordingDefaults         *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
-	ArchiveRetentionDays      *int                             `json:"archiveRetentionDays,omitempty"`
-	NotificationRetentionDays *int                             `json:"notificationRetentionDays,omitempty"`
+	RecordingDefaults          *RecordingSettingsOverridesInput `json:"recordingDefaults,omitempty"`
+	ArchiveRetentionDays       *int                             `json:"archiveRetentionDays,omitempty"`
+	NotificationRetentionDays  *int                             `json:"notificationRetentionDays,omitempty"`
+	WatchProgressRetentionDays *int                             `json:"watchProgressRetentionDays,omitempty"`
 	// ルールを作るときの既定値の変える項目。省いた項目は変えない。
 	RuleDefaults *RuleDefaultsInput `json:"ruleDefaults,omitempty"`
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`

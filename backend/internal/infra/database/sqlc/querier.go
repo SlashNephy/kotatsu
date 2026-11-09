@@ -86,6 +86,8 @@ type Querier interface {
 	CreatePlayerCommand(ctx context.Context, arg CreatePlayerCommandParams) (int64, error)
 	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
+	// ユーザーの再生位置をすべて消す (#1366)。
+	DeleteAllWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAnimeChannelDefinitions(ctx context.Context) error
 	DeleteAnimeChannelOverride(ctx context.Context, serviceID int64) error
 	DeleteAnimeFollowingViewings(ctx context.Context, arg DeleteAnimeFollowingViewingsParams) error
@@ -181,6 +183,8 @@ type Querier interface {
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
 	// ユーザーの録画の再生位置を消す。続きから見るの一覧から外すのに使う (#1074)。
 	DeleteWatchProgress(ctx context.Context, arg DeleteWatchProgressParams) error
+	// 最後に更新してから before より経った再生位置を、古い順に max_count 件まで消す (#1366)。
+	DeleteWatchProgressBefore(ctx context.Context, arg DeleteWatchProgressBeforeParams) (int64, error)
 	DeleteWatchReservation(ctx context.Context, arg DeleteWatchReservationParams) (int64, error)
 	// 作った視聴予約のうち、放送が始まった番組のものは、watch_rule_id を NULL にして残す (設計書 4.8)。
 	// 放送の前のものは、先に DeleteWatchRuleReservations で消しておく。
