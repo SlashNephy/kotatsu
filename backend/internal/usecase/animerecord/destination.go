@@ -134,6 +134,9 @@ type Destination interface {
 	// Wishlist は、トークンの持ち主が「見たい」「見てる」にした作品の 1 ページを返す (#928)。cursor が空なら、最初のページを返す。
 	// 続きがなければ、WishlistPage.Next は空。問い合わせの間隔は、呼ぶ側で空ける。
 	Wishlist(ctx context.Context, token, cursor string) (*WishlistPage, error)
+	// FollowingViewings は、トークンの持ち主がフォローしている人のうち、作品 workIDs に状態を付けた人の 1 ページを返す (#1372)。
+	// cursor が空なら、最初のページを返す。続きがなければ、FollowingPage.Next は空。問い合わせの間隔は、呼ぶ側で空ける。
+	FollowingViewings(ctx context.Context, token string, workIDs []int32, cursor string) (*FollowingPage, error)
 }
 
 // 見たいリストの作品の状態 (anime_wishlist_entries の status)。

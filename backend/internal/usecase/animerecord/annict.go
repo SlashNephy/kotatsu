@@ -313,6 +313,114 @@ func positive(value *int32) *int32 {
 	return value
 }
 
+// annictFollowingWorks は、フォロー中のユーザーが、ある状態にした作品。
+type annictFollowingWorks struct {
+	Nodes []*struct {
+		AnnictID int32 `json:"annictId"`
+	} `json:"nodes"`
+}
+
+// annictFollowingUser は、フォロー中のユーザー。
+type annictFollowingUser struct {
+	Name         *string               `json:"name"`
+	Username     string                `json:"username"`
+	AvatarURL    *string               `json:"avatarUrl"`
+	Watched      *annictFollowingWorks `json:"watched"`
+	Watching     *annictFollowingWorks `json:"watching"`
+	OnHold       *annictFollowingWorks `json:"onHold"`
+	StopWatching *annictFollowingWorks `json:"stopWatching"`
+	WannaWatch   *annictFollowingWorks `json:"wannaWatch"`
+}
+
+// status は、作品に付けた状態を、順の早いものから選ぶ。どの状態でもなければ空を返す。
+func (u *annictFollowingUser) status() string {
+	states := []struct {
+		works  *annictFollowingWorks
+		status string
+	}{
+		{u.Watched, FollowingWatched},
+		{u.Watching, FollowingWatching},
+		{u.OnHold, FollowingOnHold},
+		{u.StopWatching, FollowingStopWatching},
+		{u.WannaWatch, FollowingWannaWatch},
+	}
+	for _, state := range states {
+		if state.works != nil && len(state.works.Nodes) > 0 {
+			return state.status
+		}
+	}
+
+	return ""
+}
+
+// FollowingViewings は、トークンの持ち主がフォローしている人のうち、作品 workIDs に状態を付けた人の 1 ページを返す。
+// libraryEntries は作品 ID で絞れないので、works を状態ごとに引く。1 人ごとに状態別に引くので、1 回に引く人数は見たいリストより少なくする。
+// 作品に状態を付けていない人は返さない。
+func (a *Annict) FollowingViewings(ctx context.Context, token string, workIDs []int32, cursor string) (*FollowingPage, error) {
+	const query = `query ($workIds: [Int!]!, $cursor: String) {
+  viewer { following(first: 50, after: $cursor) {
+    nodes {
+      name username avatarUrl
+      watched: works(annictIds: $workIds, state: WATCHED) { nodes { annictId } }
+      watching: works(annictIds: $workIds, state: WATCHING) { nodes { annictId } }
+      onHold: works(annictIds: $workIds, state: ON_HOLD) { nodes { annictId } }
+      stopWatching: works(annictIds: $workIds, state: STOP_WATCHING) { nodes { annictId } }
+      wannaWatch: works(annictIds: $workIds, state: WANNA_WATCH) { nodes { annictId } }
+    }
+    pageInfo { hasNextPage endCursor }
+  } }
+}`
+	var data struct {
+		Viewer *struct {
+			Following *struct {
+				Nodes    []*annictFollowingUser `json:"nodes"`
+				PageInfo struct {
+					HasNextPage bool    `json:"hasNextPage"`
+					EndCursor   *string `json:"endCursor"`
+				} `json:"pageInfo"`
+			} `json:"following"`
+		} `json:"viewer"`
+	}
+	var startAt any
+	if cursor != "" {
+		startAt = cursor
+	}
+	variables := map[string]any{"workIds": workIDs, "cursor": startAt}
+	if err := postGraphQL(ctx, a.client, a.endpoints.GraphQLURL, token, query, variables, &data); err != nil {
+		return nil, err
+	}
+	page := &FollowingPage{Viewings: []*FollowingViewing{}, Next: ""}
+	if data.Viewer == nil || data.Viewer.Following == nil {
+		return page, nil
+	}
+	for _, user := range data.Viewer.Following.Nodes {
+		if user == nil {
+			continue
+		}
+		status := user.status()
+		if status == "" {
+			continue
+		}
+		viewing := &FollowingViewing{
+			Destination: DestinationAnnict, Username: user.Username, Name: user.Username, AvatarURL: "", Status: status,
+			Progress: nil, EpisodesCount: nil, Score: nil, Notes: "",
+		}
+		if user.Name != nil && strings.TrimSpace(*user.Name) != "" {
+			viewing.Name = *user.Name
+		}
+		if user.AvatarURL != nil {
+			viewing.AvatarURL = strings.TrimSpace(*user.AvatarURL)
+		}
+		page.Viewings = append(page.Viewings, viewing)
+	}
+	info := data.Viewer.Following.PageInfo
+	if info.HasNextPage && info.EndCursor != nil {
+		page.Next = *info.EndCursor
+	}
+
+	return page, nil
+}
+
 // works は、Annict の作品を、ids の順に引く。Annict にない作品は返さない。
 func (a *Annict) works(ctx context.Context, token string, ids []int32) ([]*annictWork, error) {
 	var data struct {

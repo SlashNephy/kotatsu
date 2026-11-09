@@ -2027,6 +2027,21 @@
     "last": "Final",
     "annict": "Annict",
     "anilist": "AniList",
+    "following": {
+      "title": "Following",
+      "loading": "Loading what the people you follow are watching",
+      "failed": "Could not load what the people you follow are watching",
+      "progress": "Watched up to episode {{count}}",
+      "score": "{{score}} / 10",
+      "status": {
+        "WATCHED": "Watched",
+        "WATCHING": "Watching",
+        "REPEATING": "Rewatching",
+        "ON_HOLD": "On hold",
+        "STOP_WATCHING": "Dropped",
+        "WANNA_WATCH": "Want to watch"
+      }
+    },
     "myAnimeList": "MyAnimeList",
     "syobocal": "Syobocal",
     "title": "Anime",

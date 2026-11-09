@@ -88,6 +88,8 @@ type Service struct {
 	wishlistMu       sync.Mutex
 	wishlistLast     map[string]time.Time
 	wishlistInterval time.Duration
+	// followingLimited は、記録先ごとの、視聴状況を問い合わせない期限 (#1372)。429 を返されたら進める。wishlistMu で守る。
+	followingLimited map[string]time.Time
 	// artworks は、見たいリストの作品の高画質の画像を引く先 (#1315)。nil なら引かない。
 	artworks ArtworkSource
 }
@@ -133,7 +135,7 @@ func NewService(opts *Options) (*Service, error) {
 		clock: opts.Clock, recorder: opts.Recorder, appBox: appBox, tokenBox: tokenBox, importBox: importBox,
 		destinations: destinations, order: order, logger: opts.Logger, inserter: opts.Inserter,
 		wishlistMu: sync.Mutex{}, wishlistLast: map[string]time.Time{}, wishlistInterval: opts.WishlistInterval,
-		artworks: opts.Artworks,
+		followingLimited: map[string]time.Time{}, artworks: opts.Artworks,
 	}, nil
 }
 

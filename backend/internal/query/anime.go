@@ -24,3 +24,19 @@ func (q *Queries) GetAnimeWishlistImageURL(ctx context.Context, userID uuid.UUID
 
 	return *result, nil
 }
+
+// GetAnimeFollowingAvatarURL は、ユーザー userID が取り込んだ視聴状況にある、記録先 destination のユーザー username のアバターの
+// URL を返す (#1372)。なければ pgx.ErrNoRows を返す。
+func (q *Queries) GetAnimeFollowingAvatarURL(ctx context.Context, userID uuid.UUID, destination, username string) (string, error) {
+	result, err := sqlc.New(q.pool).GetAnimeFollowingAvatarURL(ctx, sqlc.GetAnimeFollowingAvatarURLParams{
+		UserID: userID, Destination: destination, Username: username,
+	})
+	if err != nil {
+		return "", err
+	}
+	if result == nil {
+		return "", pgx.ErrNoRows
+	}
+
+	return *result, nil
+}

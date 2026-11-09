@@ -34,6 +34,30 @@ type AnimeChannelOverride struct {
 	UpdatedAt         time.Time
 }
 
+type AnimeFollowingFetch struct {
+	UserID      uuid.UUID
+	Destination string
+	SyobocalTid int32
+	CheckedAt   time.Time
+	FetchedAt   *time.Time
+	Error       *string
+	RetryAt     *time.Time
+}
+
+type AnimeFollowingViewing struct {
+	UserID        uuid.UUID
+	Destination   string
+	SyobocalTid   int32
+	Username      string
+	Name          string
+	AvatarUrl     *string
+	Status        string
+	Progress      *int32
+	EpisodesCount *int32
+	Score         *float64
+	Notes         *string
+}
+
 type AnimeImport struct {
 	Source     string
 	Etag       *string

@@ -1531,3 +1531,40 @@ CREATE TABLE anime_wishlist_entries (
   PRIMARY KEY (user_id, destination, work_id),
   FOREIGN KEY (user_id, destination) REFERENCES anime_record_connections (user_id, destination) ON DELETE CASCADE
 );
+
+-- ユーザーがフォローしている人の、作品 (TID) の視聴状況を、記録先に問い合わせた様子 (#1372)。
+-- 画面を開いたときに問い合わせ、短い間だけ持つ。連携を外すと一緒に消える。
+CREATE TABLE anime_following_fetches (
+  user_id uuid NOT NULL,
+  destination text NOT NULL,
+  syobocal_tid integer NOT NULL,
+  -- 最後に問い合わせた日時と、最後に取り込めた日時。一度も取り込めていなければ、fetched_at は NULL。
+  checked_at timestamptz NOT NULL,
+  fetched_at timestamptz,
+  -- 最後の問い合わせが失敗した理由と、問い合わせ直す日時。取り込めたら NULL に戻す。
+  error text,
+  retry_at timestamptz,
+  PRIMARY KEY (user_id, destination, syobocal_tid),
+  FOREIGN KEY (user_id, destination) REFERENCES anime_record_connections (user_id, destination) ON DELETE CASCADE
+);
+
+-- ユーザーがフォローしている人の、作品 (TID) の視聴状況 (#1372)。問い合わせるたびに入れ替える。
+CREATE TABLE anime_following_viewings (
+  user_id uuid NOT NULL,
+  destination text NOT NULL,
+  syobocal_tid integer NOT NULL,
+  -- 記録先でのユーザー名。記録先の中で一意。
+  username text NOT NULL,
+  -- 画面に出す名前。
+  name text NOT NULL,
+  -- 記録先が示したアバターの URL。tenban が中継する。
+  avatar_url text,
+  status text NOT NULL CHECK (status IN ('watched', 'watching', 'repeating', 'on_hold', 'stop_watching', 'wanna_watch')),
+  -- 見終えた話数、全話数、10 点満点のスコア、メモ。AniList だけが持つ。
+  progress integer,
+  episodes_count integer,
+  score double precision,
+  notes text,
+  PRIMARY KEY (user_id, destination, syobocal_tid, username),
+  FOREIGN KEY (user_id, destination, syobocal_tid) REFERENCES anime_following_fetches (user_id, destination, syobocal_tid) ON DELETE CASCADE
+);

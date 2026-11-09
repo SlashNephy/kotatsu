@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a4a48dc048f0fe274c2cce2bea8504b1>>
+ * @generated SignedSource<<c1aad5c5a37510514f0722d1fe6e8efe>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type ProgramDetailQuery$data = {
       readonly last: boolean;
       readonly rerun: boolean;
       readonly subtitle: string | null | undefined;
+      readonly syobocalTid: number | null | undefined;
       readonly syobocalUrl: string | null | undefined;
       readonly works: ReadonlyArray<{
         readonly anilistUrl: string | null | undefined;
@@ -267,6 +268,13 @@ v17 = {
   "name": "animeEpisodes",
   "plural": true,
   "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "syobocalTid",
+      "storageKey": null
+    },
     {
       "alias": null,
       "args": null,
@@ -571,16 +579,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "978e633c46d5fe00d21c60e3fb412953",
+    "cacheID": "0286300df0b904a4f86c14015a937466",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "82628f6160f57d59185b21504bfb88c9";
+(node as any).hash = "4dde7fda63cbfc851a967391fee584e8";
 
 export default node;

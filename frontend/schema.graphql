@@ -105,6 +105,95 @@ enum AnimeEpisodeSource {
   TITLE
 }
 """
+フォロー中のユーザーの、作品の状態 (#1372)。
+"""
+enum AnimeFollowingStatus {
+  """
+  見た (AniList の COMPLETED)
+  """
+  WATCHED
+  """
+  見てる (AniList の CURRENT)
+  """
+  WATCHING
+  """
+  見直している (AniList の REPEATING)。Annict にはない
+  """
+  REPEATING
+  """
+  一時中断 (AniList の PAUSED)
+  """
+  ON_HOLD
+  """
+  視聴停止 (AniList の DROPPED)
+  """
+  STOP_WATCHING
+  """
+  見たい (AniList の PLANNING)
+  """
+  WANNA_WATCH
+}
+"""
+Annict か AniList でフォローしているユーザーの、作品の視聴状況 (#1372、設計書 3.8)。
+"""
+type AnimeFollowingViewing {
+  destination: AnimeRecordDestination!
+  """
+  記録先でのユーザー名。記録先の中で一意。
+  """
+  username: String!
+  """
+  画面に出す名前。
+  """
+  name: String!
+  """
+  アバターを tenban が中継する URL のパス。アバターがなければ null。
+  """
+  avatarUrl: String
+  """
+  記録先のユーザーのページ。
+  """
+  profileUrl: String!
+  status: AnimeFollowingStatus!
+  """
+  見終えた話数。AniList だけが持つ。
+  """
+  progress: Int
+  """
+  作品の全話数。分からなければ null。
+  """
+  episodesCount: Int
+  """
+  10 点満点のスコア。AniList だけが持つ。付けていなければ null。
+  """
+  score: Float
+  """
+  ユーザーのメモ。AniList だけが持つ。
+  """
+  notes: String
+}
+"""
+作品のフォロー中のユーザーの視聴状況 (#1372、設計書 3.8)。結果は本人にだけ見せる。
+"""
+type AnimeFollowingViewings {
+  """
+  出せるかどうか。管理者が連携を無効にしているか、この作品を引ける記録先と連携していなければ false で、ほかの項目は空。
+  """
+  enabled: Boolean!
+  """
+  問い合わせる時期が来ているかどうか。true なら refreshAnimeFollowingViewings で取得を頼む。
+  """
+  needsRefresh: Boolean!
+  """
+  最後の問い合わせが、どれかの記録先で失敗したかどうか。
+  """
+  failed: Boolean!
+  """
+  状態の順 (見た、見てる、…) に、続けて名前の順に並べる。
+  """
+  viewings: [AnimeFollowingViewing!]!
+}
+"""
 連携先の情報を取り込んだ様子。取り込み元ごとに 1 つ。1 度も問い合わせていない取り込み元は返さない。
 """
 type AnimeImport {
@@ -1041,6 +1130,10 @@ enum DataChannel {
   """
   RECORDINGS
   """
+  フォロー中のユーザーの視聴状況を問い合わせ終えた (#1372)
+  """
+  ANIME_FOLLOWING
+  """
   管理のデータ。監査ログに残る操作で変わる。管理者にだけ届く (#869)
   """
   ADMIN
@@ -1564,6 +1657,11 @@ type Mutation {
   サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。256 文字を超えれば BAD_USER_INPUT を返す。
   """
   updateAnimeImportToken(annictToken: String!): AnimeImportToken!
+  """
+  ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況の取得を頼む (#1372)。取得はジョブで行うので、終わるのを待たない。
+  終わったら DataChannel の ANIME_FOLLOWING で知らせる。問い合わせる時期が来ていなければ、何もせずに false を返す。視聴者も使える。
+  """
+  refreshAnimeFollowingViewings(tid: Int!): Boolean!
   """
   記録先 destination に登録したアプリを変える (#927)。管理者だけが使える。
   利用者を記録先へ送り出すアプリを決める操作なので、直近の再認証を求める (設計書 9.5)。
@@ -2650,6 +2748,10 @@ type Query {
   作品 ID の対応を作るための Annict のトークンの様子 (#1223)。管理者だけが使える。
   """
   animeImportToken: AnimeImportToken!
+  """
+  ログイン中のユーザーがフォローしている人の、作品 tid の視聴状況を返す (#1372)。視聴者も使える。
+  """
+  animeFollowingViewings(tid: Int!): AnimeFollowingViewings!
   """
   ログイン中のユーザーの見たいリストの作品を、次の話と次の放送と録画と並べて返す (#1231)。ほかのユーザーの見たいリストは見えない。視聴者も使える。
   """

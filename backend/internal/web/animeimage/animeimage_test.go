@@ -128,6 +128,62 @@ func TestHandler(t *testing.T) {
 	}
 }
 
+// TestServeFollowingAvatar は、ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけを中継することを確かめる (#1372)。
+func TestServeFollowingAvatar(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		username   string
+		signedIn   bool
+		wantStatus int
+	}{
+		{name: "取り込んだ人のアバターを中継する", username: "someone", signedIn: true, wantStatus: http.StatusOK},
+		{name: "取り込んでいない人のアバターは返さない", username: "stranger", signedIn: true, wantStatus: http.StatusNotFound},
+		{name: "ログインしていなければ返さない", username: "someone", signedIn: false, wantStatus: http.StatusUnauthorized},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write(pngImage(t))
+			}))
+			t.Cleanup(upstream.Close)
+			pool, err := database.Open(t.Context(), databasetest.New(t))
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+			require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+			user, err := auth.NewUsers(clocktest.NewFake(time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
+				Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
+			})
+			require.NoError(t, err)
+			for _, statement := range []string{
+				`INSERT INTO anime_record_connections (user_id, destination, access_token_encrypted, account_name, connected_at) VALUES ($1, 'annict', '\x00', 'user', now())`,
+				`INSERT INTO anime_following_fetches (user_id, destination, syobocal_tid, checked_at, fetched_at) VALUES ($1, 'annict', 1, now(), now())`,
+			} {
+				_, err = pool.Exec(t.Context(), statement, user.ID)
+				require.NoError(t, err)
+			}
+			_, err = pool.Exec(t.Context(), `INSERT INTO anime_following_viewings (user_id, destination, syobocal_tid, username, name, avatar_url, status)
+				VALUES ($1, 'annict', 1, 'someone', '人', $2, 'watching')`, user.ID, upstream.URL+imagePath)
+			require.NoError(t, err)
+			handler := animeimage.NewHandlerWithClient(pool, slog.New(slog.DiscardHandler), upstream.Client())
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /media/anime-following/{destination}/{username}/avatar", handler.ServeFollowingAvatar)
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/anime-following/annict/"+tt.username+"/avatar", http.NoBody)
+			if tt.signedIn {
+				req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
+					UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: "",
+				}))
+			}
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code)
+		})
+	}
+}
+
 // TestPath は、画像の URL が変わったら、中継の URL も変わることを確かめる。
 func TestPath(t *testing.T) {
 	t.Parallel()

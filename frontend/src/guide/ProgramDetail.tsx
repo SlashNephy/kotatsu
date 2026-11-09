@@ -137,6 +137,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             }
             # しょぼいカレンダーで結びつけた話 (設計書 3.8)。詳細でだけ引く。
             animeEpisodes {
+              syobocalTid
               syobocalUrl
               countStart
               countEnd
