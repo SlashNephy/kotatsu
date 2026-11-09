@@ -2,7 +2,6 @@ package auth_test
 
 import (
 	"net/http"
-	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
@@ -366,18 +365,17 @@ func TestMiddlewareClearsInvalidCookie(t *testing.T) {
 
 	f := newSessionFixture(t, newDB(t))
 	server := newCookieServer(t, f, false)
-	jar, err := cookiejar.New(nil)
-	require.NoError(t, err)
 	client := server.Client()
-	client.Jar = jar
 
 	login := do(t, client, http.MethodPost, server.URL+"/login", nil)
 	require.Equal(t, http.StatusOK, login.status)
-	assert.Equal(t, http.StatusOK, do(t, client, http.MethodGet, server.URL+"/watch", nil).status)
+	// cookiejar は実時間で Expires を判定し、固定の時計で発行した Cookie を捨てるので、Cookie は手で送る。
+	cookie := sessionCookie(t, login)
+	assert.Equal(t, http.StatusOK, do(t, client, http.MethodGet, server.URL+"/watch", cookie).status)
 
 	// 無操作の期限を過ぎたら 401 になり、Cookie も消える。
 	f.clock.Advance(30 * day)
-	resp := do(t, client, http.MethodGet, server.URL+"/watch", nil)
+	resp := do(t, client, http.MethodGet, server.URL+"/watch", cookie)
 	assert.Equal(t, http.StatusUnauthorized, resp.status)
 	cleared := sessionCookie(t, resp)
 	assert.Empty(t, cleared.Value)
