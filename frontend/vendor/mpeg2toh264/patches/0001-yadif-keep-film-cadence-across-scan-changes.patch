@@ -1,0 +1,231 @@
+diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
+index 35d0118..bbe4c94 100644
+--- a/packages/yadif/src/deinterlace.ts
++++ b/packages/yadif/src/deinterlace.ts
+@@ -86,6 +86,18 @@ const PRESENT_HYSTERESIS_MS = 1;
+ /** Broadcast frames in a pulldown cycle, and the film frames they hold. */
+ const PULLDOWN_FRAMES = 5;
+ const FILM_FRAMES = 4;
++/** How long a broadcast frame lasts at the only rate pulldown is carried at, in seconds. */
++const BROADCAST_FRAME_SECONDS = 1001 / 30000;
++/**
++ * Frames after progressive pictures whose phase comes from the cycle seen
++ * before them: until then the comparisons reach back past the last of those
++ * pictures, which are not fields of the pulldown.
++ */
++const CADENCE_SEED_FRAMES = 3;
++/** How long a cycle is trusted for without being seen. */
++const CADENCE_MAX_SECONDS = 60;
++/** A phase whose frame is shown whole. The frame after a progressive one is. */
++const WHOLE_PHASE = 3;
+ 
+ /**
+  * How long after its frame arrives a film frame of each phase is shown, in
+@@ -398,6 +410,15 @@ export class Deinterlacer {
+   /** The phase of the frame being filtered: #known advanced by #knownAge. */
+   #phase: Phase = NO_PHASE;
+   #filmLocked = false;
++  /**
++   * Where the cycle was when a frame was last seen locked to it. A broadcast
++   * can cut between soft pulldown, which is progressive pictures with repeat
++   * flags, and the same film laid down as interlaced frames, every few seconds
++   * and without losing its place in the cycle, so this outlives those cuts.
++   */
++  #cadence: { mediaTime: number; phase: number } | null = null;
++  /** How many of the coming frames take their phase from `#cadence`. */
++  #seedFrames = 0;
+   #debugRenderState: DebugRenderState | null = null;
+   #debugText = "";
+   /** Debug only: frames given each phase (0 for none), and repeats dropped. */
+@@ -528,6 +549,7 @@ export class Deinterlacer {
+     if (!film) {
+       this.#filmLocked = false;
+       this.#phase = NO_PHASE;
++      this.#forgetCadence();
+       this.#resetFieldMetrics();
+     }
+     this.#applyScheduling();
+@@ -674,6 +696,37 @@ export class Deinterlacer {
+     );
+   }
+ 
++  #forgetCadence(): void {
++    this.#cadence = null;
++    this.#seedFrames = 0;
++  }
++
++  /**
++   * Give the frame being filtered its phase from the cycle seen before the
++   * progressive pictures, if it is one of those that needs it.
++   */
++  #continueCadence(mediaTime: number): void {
++    if (this.#seedFrames === 0 || this.#cadence === null) return;
++    const elapsed = mediaTime - this.#cadence.mediaTime;
++    if (elapsed < 0 || elapsed > CADENCE_MAX_SECONDS) {
++      this.#forgetCadence();
++      return;
++    }
++    // The first frame filtered is still the last progressive picture.
++    const phase =
++      this.#seedFrames === CADENCE_SEED_FRAMES
++        ? WHOLE_PHASE
++        : ((this.#cadence.phase -
++            1 +
++            Math.round(elapsed / BROADCAST_FRAME_SECONDS)) %
++            PULLDOWN_FRAMES) +
++          1;
++    this.#known = this.#phase = { phase, run: FILM_LOCK_FRAMES };
++    this.#knownAge = 0;
++    this.#detector.seed(phase, FILM_LOCK_FRAMES);
++    this.#seedFrames--;
++  }
++
+   #resetFieldMetrics(): void {
+     this.#phase = NO_PHASE;
+     this.#known = NO_PHASE;
+@@ -737,6 +790,13 @@ export class Deinterlacer {
+     );
+   }
+ 
++  /** Whether this frame is not the one that follows the last one seen. */
++  #isStale(metadata: FrameMetadata): boolean {
++    if (metadata.mozTiming) return metadata.mozTiming.discontinuity;
++    const elapsed = metadata.mediaTime - this.#lastMediaTime;
++    return elapsed < 0 || elapsed > CONTINUOUS_SECONDS;
++  }
++
+   #onFrame = (now: DOMHighResTimeStamp, metadata: FrameMetadata): void => {
+     if (!this.#running || this.#lost) return;
+     this.#selectVideoState(metadata.mediaTime);
+@@ -746,6 +806,12 @@ export class Deinterlacer {
+       if (this.#width === 0 || this.#height === 0)
+         this.#resize(metadata.width, metadata.height);
+       if (this.#scan && !this.#scan.interlaced) {
++        // Time is still kept here: a progressive stretch is not a jump, and a
++        // seek inside one has to end the cycle all the same.
++        const jumped = this.#isStale(metadata);
++        if (jumped) this.#forgetCadence();
++        this.#count(metadata.presentedFrames, jumped);
++        this.#lastMediaTime = metadata.mediaTime;
+         this.#showVideo();
+         this.#request();
+         return;
+@@ -756,10 +822,9 @@ export class Deinterlacer {
+       // the neighbours are then further apart than they should be, which is
+       // worth less than filtering nothing at all.
+       const elapsed = metadata.mediaTime - this.#lastMediaTime;
+-      const stale = metadata.mozTiming
+-        ? metadata.mozTiming.discontinuity
+-        : elapsed < 0 || elapsed > CONTINUOUS_SECONDS;
++      const stale = this.#isStale(metadata);
+       if (stale) {
++        this.#forgetCadence();
+         this.#frames = 0;
+         this.#stats.discontinuities++;
+         // The fields still waiting stand for moments the element has left
+@@ -817,6 +882,7 @@ export class Deinterlacer {
+         if (this.#frames === HISTORY && missed === 0) {
+           this.#collectPhase();
+           this.#detect();
++          this.#continueCadence(metadata.mediaTime);
+         } else {
+           this.#resetFieldMetrics();
+         }
+@@ -824,6 +890,11 @@ export class Deinterlacer {
+           (this.#phaseCounts[this.#phase.phase] ?? 0) + 1;
+         this.#filmLocked =
+           this.#phase.phase !== 0 && this.#phase.run >= FILM_LOCK_FRAMES;
++        if (this.#filmLocked && this.#seedFrames === 0)
++          this.#cadence = {
++            mediaTime: metadata.mediaTime,
++            phase: this.#phase.phase,
++          };
+         if (this.#debug)
+           this.#debugText = this.#describePhase(metadata.presentedFrames);
+       }
+@@ -897,11 +968,14 @@ export class Deinterlacer {
+         this.#scan.topFieldFirst === scan.topFieldFirst)
+     )
+       return;
++    const fromProgressive = this.#scan?.interlaced === false;
+     this.#scan = scan;
+-    this.#frames = 0;
++    if (this.#cadence === null) this.#frames = 0;
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
+     this.#resetFieldMetrics();
++    if (scan.interlaced && fromProgressive && this.#cadence !== null)
++      this.#seedFrames = CADENCE_SEED_FRAMES;
+     if (scan.interlaced) {
+       if (this.#scheduled) this.#startLoop();
+     } else {
+@@ -1138,8 +1212,9 @@ export class Deinterlacer {
+     this.#push();
+     const texture = this.#textures[this.#head];
+     if (texture) this.#showTexture(texture, true);
+-    // Progressive frames are not neighbours of the next interlaced frame.
+-    this.#frames = 0;
++    // Progressive frames are not neighbours of the next interlaced frame,
++    // unless they are the same film and the cycle says how they fit.
++    if (this.#cadence === null) this.#frames = 0;
+   }
+ 
+   #showTexture(texture: WebGLTexture, flip = false): void {
+@@ -1499,6 +1574,7 @@ export class Deinterlacer {
+     this.#lastMediaTime = 0;
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
++    this.#forgetCadence();
+     this.#resetFieldMetrics();
+     this.#periodMs = 0;
+     // The counts belong to the stream that has just gone; the next one starts
+@@ -1539,6 +1615,7 @@ export class Deinterlacer {
+    * the one the first field was taken at.
+    */
+   #onFlush = (): void => {
++    this.#forgetCadence();
+     // The fields still queued stand for moments after this one and nothing is
+     // coming to make sense of them, so the picture goes straight to the canvas
+     // rather than through a schedule that has nothing left to keep to.
+diff --git a/packages/yadif/src/film-detect.ts b/packages/yadif/src/film-detect.ts
+index 8500fb8..1276498 100644
+--- a/packages/yadif/src/film-detect.ts
++++ b/packages/yadif/src/film-detect.ts
+@@ -215,6 +215,37 @@ export class FilmDetector {
+     gl.flush();
+   }
+ 
++  /**
++   * Overwrite the phase of the newest frame, for one whose comparisons cannot
++   * be trusted but whose place in the cycle is known some other way. The
++   * readback is taken again so that it says the same.
++   */
++  seed(phase: number, run: number): void {
++    const gl = this.#gl;
++    const newest = this.#metrics?.[this.#head];
++    if (!newest) return;
++    gl.bindTexture(gl.TEXTURE_2D, newest.textures[0] ?? null);
++    gl.texSubImage2D(
++      gl.TEXTURE_2D,
++      0,
++      FIELD_METRICS.phase,
++      0,
++      1,
++      1,
++      gl.RGBA,
++      gl.FLOAT,
++      new Float32Array([phase, run, 0, 0]),
++    );
++    gl.deleteSync(this.#fence);
++    gl.bindFramebuffer(gl.FRAMEBUFFER, newest.framebuffer);
++    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.#pixelBuffer);
++    gl.readPixels(0, 0, FIELD_METRICS_SIZE, 1, gl.RGBA, gl.FLOAT, 0);
++    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
++    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
++    this.#fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
++    gl.flush();
++  }
++
+   /**
+    * The phase of the last frame measured, once the GPU has handed it back,
+    * and null while it is still on its way. It is handed back once.
