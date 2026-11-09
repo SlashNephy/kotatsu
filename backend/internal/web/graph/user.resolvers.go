@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	pgx "github.com/jackc/pgx/v5"
+
 	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
-	pgx "github.com/jackc/pgx/v5"
 )
 
 // AvatarURL is the resolver for the avatarUrl field.
