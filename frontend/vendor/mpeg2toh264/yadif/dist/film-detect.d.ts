@@ -38,6 +38,12 @@ export declare class FilmDetector {
      */
     detect(cur: WebGLTexture, next: WebGLTexture, first: number): void;
     /**
+     * Overwrite the phase of the newest frame, for one whose comparisons cannot
+     * be trusted but whose place in the cycle is known some other way. The
+     * readback is taken again so that it says the same.
+     */
+    seed(phase: number, run: number): void;
+    /**
      * The phase of the last frame measured, once the GPU has handed it back,
      * and null while it is still on its way. It is handed back once.
      */
