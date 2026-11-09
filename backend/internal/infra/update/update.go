@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"golang.org/x/mod/semver"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -55,7 +57,7 @@ type Checker struct {
 type Options struct {
 	// Current は、動いている版 (buildinfo の Version)。
 	Current string
-	// URL と Interval は、空か 0 なら既定値を使う。HTTPClient が nil なら、http.DefaultClient を使う。
+	// URL と Interval は、空か 0 なら既定値を使う。HTTPClient が nil なら、記録しない既定のクライアントを使う。
 	URL        string
 	Interval   time.Duration
 	HTTPClient *http.Client
@@ -66,7 +68,7 @@ type Options struct {
 func NewChecker(opts *Options) *Checker {
 	c := &Checker{client: opts.HTTPClient, url: opts.URL, current: opts.Current, interval: opts.Interval, logger: opts.Logger, mu: sync.RWMutex{}, latest: nil}
 	if c.client == nil {
-		c.client = http.DefaultClient
+		c.client = netactivity.NewClient(nil, netactivity.PurposeUpdateCheck, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil})
 	}
 	if c.url == "" {
 		c.url = DefaultURL

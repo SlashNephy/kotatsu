@@ -13,6 +13,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -22,17 +23,17 @@ import (
 var errPasswordRequired = errors.New("the password must be given on the standard input")
 
 // hibpOf は、設定で有効にしたときだけ、Have I Been Pwned への照会を返す。
-func hibpOf(cfg *config.Config) *password.HIBP {
+func hibpOf(cfg *config.Config, recorder *netactivity.Recorder) *password.HIBP {
 	if !cfg.Auth.HIBP.Enabled {
 		return nil
 	}
 
-	return password.NewHIBP(cfg.Auth.HIBP.URL)
+	return password.NewHIBP(cfg.Auth.HIBP.URL, recorder)
 }
 
 // newPasswordPolicy は、設定に従って、パスワードの規定を作る。
-func newPasswordPolicy(opts *Options, cfg *config.Config) (*password.Policy, error) {
-	return password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(cfg), StrengthTimeout: opts.PasswordStrengthTimeout, Estimator: nil, Logger: opts.Logger})
+func newPasswordPolicy(opts *Options, cfg *config.Config, recorder *netactivity.Recorder) (*password.Policy, error) {
+	return password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(cfg, recorder), StrengthTimeout: opts.PasswordStrengthTimeout, Estimator: nil, Logger: opts.Logger})
 }
 
 // newUserCommand は kotatsu user を作る。初回セットアップ (#31) の画面ができるまで、管理者がパスワードを設定するのにも使う。
@@ -63,7 +64,7 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 				return err
 			}
 			defer closePool(pool)
-			policy, err := newPasswordPolicy(opts, cfg)
+			policy, err := newPasswordPolicy(opts, cfg, nil)
 			if err != nil {
 				return err
 			}
@@ -95,7 +96,7 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 				return err
 			}
 			defer closePool(pool)
-			oidc := newOIDC(opts.Clock, opts.Logger, cfg, nil)
+			oidc := newOIDC(opts.Clock, opts.Logger, cfg, nil, nil)
 			if err := oidc.Link(cmd.Context(), pool, audit.System("cli"), args[0], args[1]); err != nil {
 				return err
 			}
@@ -109,7 +110,7 @@ func newUserCommand(opts *Options, connect func(ctx context.Context) (*config.Co
 }
 
 // newOIDC は、設定から OIDC を作る。sessions は、ログインのセッションを作るときだけ要る。
-func newOIDC(clk clock.Clock, logger *slog.Logger, cfg *config.Config, sessions *auth.Sessions) *auth.OIDC {
+func newOIDC(clk clock.Clock, logger *slog.Logger, cfg *config.Config, sessions *auth.Sessions, recorder *netactivity.Recorder) *auth.OIDC {
 	c := cfg.Auth.OIDC
 
 	return auth.NewOIDC(&auth.OIDCOptions{
@@ -125,7 +126,7 @@ func newOIDC(clk clock.Clock, logger *slog.Logger, cfg *config.Config, sessions 
 		Recorder:   audit.NewRecorder(clk),
 		Logger:     logger.With(slog.String("component", "oidc")),
 		Sessions:   sessions,
-		HTTPClient: nil,
+		HTTPClient: auth.NewOIDCHTTPClient(recorder),
 	})
 }
 

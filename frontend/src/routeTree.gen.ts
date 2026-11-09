@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnimeRouteImport } from './routes/anime'
 import { Route as AuthorizeRouteImport } from './routes/authorize'
 import { Route as CapturesRouteImport } from './routes/captures'
+import { Route as NetworkActivityRouteImport } from './routes/network-activity'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as RemoteRouteImport } from './routes/remote'
 import { Route as ReservationsRouteImport } from './routes/reservations'
@@ -73,6 +74,11 @@ const AuthorizeRoute = AuthorizeRouteImport.update({
 const CapturesRoute = CapturesRouteImport.update({
   id: '/captures',
   path: '/captures',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NetworkActivityRoute = NetworkActivityRouteImport.update({
+  id: '/network-activity',
+  path: '/network-activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NotificationsRoute = NotificationsRouteImport.update({
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
+  '/network-activity': typeof NetworkActivityRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
   '/reservations': typeof ReservationsRoute
@@ -334,6 +341,7 @@ export interface FileRoutesByTo {
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
+  '/network-activity': typeof NetworkActivityRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
   '/reservations': typeof ReservationsRoute
@@ -382,6 +390,7 @@ export interface FileRoutesById {
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
+  '/network-activity': typeof NetworkActivityRoute
   '/notifications': typeof NotificationsRoute
   '/remote': typeof RemoteRoute
   '/reservations': typeof ReservationsRoute
@@ -431,6 +440,7 @@ export interface FileRouteTypes {
     | '/anime'
     | '/authorize'
     | '/captures'
+    | '/network-activity'
     | '/notifications'
     | '/remote'
     | '/reservations'
@@ -478,6 +488,7 @@ export interface FileRouteTypes {
     | '/anime'
     | '/authorize'
     | '/captures'
+    | '/network-activity'
     | '/notifications'
     | '/remote'
     | '/reservations'
@@ -525,6 +536,7 @@ export interface FileRouteTypes {
     | '/anime'
     | '/authorize'
     | '/captures'
+    | '/network-activity'
     | '/notifications'
     | '/remote'
     | '/reservations'
@@ -573,6 +585,7 @@ export interface RootRouteChildren {
   AnimeRoute: typeof AnimeRoute
   AuthorizeRoute: typeof AuthorizeRoute
   CapturesRoute: typeof CapturesRoute
+  NetworkActivityRoute: typeof NetworkActivityRoute
   NotificationsRoute: typeof NotificationsRoute
   RemoteRoute: typeof RemoteRoute
   ReservationsRoute: typeof ReservationsRoute
@@ -644,6 +657,13 @@ declare module '@tanstack/react-router' {
       path: '/captures'
       fullPath: '/captures'
       preLoaderRoute: typeof CapturesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/network-activity': {
+      id: '/network-activity'
+      path: '/network-activity'
+      fullPath: '/network-activity'
+      preLoaderRoute: typeof NetworkActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/notifications': {
@@ -941,6 +961,7 @@ const rootRouteChildren: RootRouteChildren = {
   AnimeRoute: AnimeRoute,
   AuthorizeRoute: AuthorizeRoute,
   CapturesRoute: CapturesRoute,
+  NetworkActivityRoute: NetworkActivityRoute,
   NotificationsRoute: NotificationsRoute,
   RemoteRoute: RemoteRoute,
   ReservationsRoute: ReservationsRoute,

@@ -291,7 +291,7 @@ func TestNewMeterProviders(t *testing.T) {
 			}
 			shutdown, err := telemetry.NewMeterProviders(t.Context(), cfg, &telemetry.MeterOptions{
 				Instance: instance, Cluster: cluster, IsLeader: tt.isLeader,
-				InstanceID: id.New(), Roles: []string{"neko", "tenban"}, Version: "v1.2.3", Logger: slog.New(slog.DiscardHandler),
+				InstanceID: id.New(), Roles: []string{"neko", "tenban"}, Version: "v1.2.3", Logger: slog.New(slog.DiscardHandler), Recorder: nil,
 			})
 			require.NoError(t, err)
 			// 止めるときに、溜まっている値を送り切る。
@@ -312,7 +312,7 @@ func TestNewMeterProvidersDisabled(t *testing.T) {
 		OTLPMetricsIntervalSeconds: 60, OTLPMetricsExclude: []string{},
 	}, &telemetry.MeterOptions{
 		Instance: instance, Cluster: cluster, IsLeader: func(context.Context) (bool, error) { return true, nil },
-		InstanceID: id.New(), Roles: []string{}, Version: "", Logger: slog.New(slog.DiscardHandler),
+		InstanceID: id.New(), Roles: []string{}, Version: "", Logger: slog.New(slog.DiscardHandler), Recorder: nil,
 	})
 	require.NoError(t, err)
 	require.NoError(t, shutdown(t.Context()))
@@ -359,7 +359,7 @@ func TestNewMeterProvidersWithoutReceiver(t *testing.T) {
 				OTLPMetricsIntervalSeconds: 60, OTLPMetricsExclude: []string{},
 			}, &telemetry.MeterOptions{
 				Instance: instance, Cluster: cluster, IsLeader: func(context.Context) (bool, error) { return true, nil },
-				InstanceID: id.New(), Roles: []string{}, Version: "", Logger: slog.New(slog.DiscardHandler),
+				InstanceID: id.New(), Roles: []string{}, Version: "", Logger: slog.New(slog.DiscardHandler), Recorder: nil,
 			})
 			require.NoError(t, err)
 			// 止めるときの送り残しは送れないので、エラーになる。呼び出し側はログに出すだけにする。

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -505,6 +506,62 @@ func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
+		})
+	}
+}
+
+// TestRevokeDeletesWebPushSubscriptions は、セッションを失効させると、そのセッションで購読した Web Push だけを消すことを確かめる (#1365)。
+func TestRevokeDeletesWebPushSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		revoke func(t *testing.T, f *sessionFixture, target, keep uuid.UUID)
+		want   []string
+	}{
+		{
+			name: "1 つのセッションを失効させる",
+			revoke: func(t *testing.T, f *sessionFixture, target, _ uuid.UUID) {
+				t.Helper()
+				require.NoError(t, f.sessions.Revoke(t.Context(), f.db, f.userID, target))
+			},
+			want: []string{"https://push.example/keep", "https://push.example/legacy"},
+		},
+		{
+			name: "ほかのセッションをまとめて失効させる",
+			revoke: func(t *testing.T, f *sessionFixture, _, keep uuid.UUID) {
+				t.Helper()
+				_, err := f.sessions.RevokeOthers(t.Context(), f.db, f.userID, keep)
+				require.NoError(t, err)
+			},
+			want: []string{"https://push.example/keep", "https://push.example/legacy"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newSessionFixture(t, newDB(t))
+			_, target := f.login(t)
+			_, keep := f.login(t)
+			insert := func(endpoint string, sessionID *uuid.UUID) {
+				require.NoError(t, sqlc.New(f.db).UpsertWebPushSubscription(t.Context(), sqlc.UpsertWebPushSubscriptionParams{
+					ID: id.New(), UserID: f.userID, Endpoint: endpoint, P256DH: []byte("key"), Auth: []byte("auth"), UserAgent: "ua", SessionID: sessionID, Now: f.clock.Now(),
+				}))
+			}
+			insert("https://push.example/target", &target.ID)
+			insert("https://push.example/keep", &keep.ID)
+			insert("https://push.example/legacy", nil)
+
+			tt.revoke(t, f, target.ID, keep.ID)
+
+			rows, err := sqlc.New(f.db).ListWebPushSubscriptions(t.Context(), f.userID)
+			require.NoError(t, err)
+			endpoints := make([]string, 0, len(rows))
+			for _, row := range rows {
+				endpoints = append(endpoints, row.Endpoint)
+			}
+			assert.ElementsMatch(t, tt.want, endpoints)
 		})
 	}
 }

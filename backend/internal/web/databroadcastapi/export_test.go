@@ -16,7 +16,7 @@ const (
 // NewWith は、接続の前に確かめる control と、接続を確かめるときのポートを決めた Relay を返す。
 // httptest のサーバーは 127.0.0.1 で待ち受けるので、それをインターネットのサーバーに見立てるのに使う。
 func NewWith(enabled func(context.Context) (bool, error), control Control, confirmPort string) *Relay {
-	relay := newRelay(enabled, control, clock.Real{}, slog.New(slog.DiscardHandler))
+	relay := newRelay(enabled, control, clock.Real{}, slog.New(slog.DiscardHandler), nil)
 	relay.confirmPort = confirmPort
 
 	return relay
@@ -24,5 +24,5 @@ func NewWith(enabled func(context.Context) (bool, error), control Control, confi
 
 // NewWithLogger は、ログを logger に書く Relay を返す。ログに残す中身を確かめるのに使う。
 func NewWithLogger(enabled func(context.Context) (bool, error), control Control, logger *slog.Logger) *Relay {
-	return newRelay(enabled, control, clock.Real{}, logger)
+	return newRelay(enabled, control, clock.Real{}, logger, nil)
 }

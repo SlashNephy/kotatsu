@@ -245,3 +245,29 @@ func TestUpdateRuleDefaults(t *testing.T) {
 		})
 	}
 }
+
+// TestUpdateNetworkActivity は、外部との通信の記録を有効にした日時を残し、無効に戻すと記録を消すことを確かめる (#1369)。
+func TestUpdateNetworkActivity(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	on, off := true, false
+
+	enabled, err := store.Update(t.Context(), db, audit.System("test"), &settings.Changes{NetworkActivityEnabled: &on})
+	require.NoError(t, err)
+	assert.True(t, enabled.NetworkActivityEnabled)
+	require.NotNil(t, enabled.NetworkActivityEnabledAt)
+	assert.Equal(t, testNow(), enabled.NetworkActivityEnabledAt.UTC())
+	_, err = db.Exec(t.Context(), `INSERT INTO network_activity (hour, purpose, host, initiator, success, count, sent_bytes, received_bytes)
+		VALUES (now(), 'UPDATE_CHECK', '', 'SCHEDULED', true, 1, 0, 0)`)
+	require.NoError(t, err)
+
+	disabled, err := store.Update(t.Context(), db, audit.System("test"), &settings.Changes{NetworkActivityEnabled: &off})
+	require.NoError(t, err)
+	assert.False(t, disabled.NetworkActivityEnabled)
+	assert.Nil(t, disabled.NetworkActivityEnabledAt)
+	var count int
+	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM network_activity`).Scan(&count))
+	assert.Zero(t, count, "無効に戻したら、それまでの記録を消す")
+}

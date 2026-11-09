@@ -44,6 +44,8 @@ type Subscription struct {
 	// Auth は、認証用の秘密 (16 バイト)。
 	Auth      []byte
 	UserAgent string
+	// SessionID は、購読したセッション。セッションを失効させたら、購読も消す (#1365)。セッションのない認証や、結びつける前の購読では nil。
+	SessionID *uuid.UUID
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -112,7 +114,7 @@ func (s *Service) Subscribe(ctx context.Context, db sqlc.DBTX, userID uuid.UUID,
 	}
 	err := sqlc.New(db).UpsertWebPushSubscription(ctx, sqlc.UpsertWebPushSubscriptionParams{
 		ID: id.New(), UserID: userID, Endpoint: subscription.Endpoint, P256DH: subscription.P256DH, Auth: subscription.Auth,
-		UserAgent: userAgent, Now: s.clock.Now(),
+		UserAgent: userAgent, SessionID: subscription.SessionID, Now: s.clock.Now(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save the web push subscription: %w", err)
@@ -168,7 +170,7 @@ func (s *Service) create(ctx context.Context, q *sqlc.Queries) error {
 
 func subscriptionOf(row *sqlc.WebPushSubscription) *Subscription {
 	return &Subscription{
-		ID: row.ID, Endpoint: row.Endpoint, P256DH: row.P256DH, Auth: row.Auth, UserAgent: row.UserAgent,
+		ID: row.ID, Endpoint: row.Endpoint, P256DH: row.P256DH, Auth: row.Auth, UserAgent: row.UserAgent, SessionID: row.SessionID,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }

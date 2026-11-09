@@ -56,6 +56,16 @@ WHERE w.user_id = @user_id AND w.position_ms >= @min_position_ms::bigint
 ORDER BY w.updated_at DESC, r.id DESC
 LIMIT @max_count;
 
+-- name: DeleteAllWatchProgress :execrows
+-- ユーザーの再生位置をすべて消す (#1366)。
+DELETE FROM watch_progress WHERE user_id = @user_id;
+
+-- name: DeleteWatchProgressBefore :execrows
+-- 最後に更新してから before より経った再生位置を、古い順に max_count 件まで消す (#1366)。
+DELETE FROM watch_progress WHERE (user_id, recording_id) IN (
+  SELECT w.user_id, w.recording_id FROM watch_progress w WHERE w.updated_at < @before ORDER BY w.updated_at LIMIT @max_count
+);
+
 -- name: ListWatchProgress :many
 SELECT * FROM watch_progress WHERE user_id = @user_id AND recording_id = ANY(@recording_ids::uuid[]);
 

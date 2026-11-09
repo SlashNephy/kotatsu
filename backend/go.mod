@@ -17,6 +17,7 @@ require (
 	github.com/pressly/goose/v3 v3.29.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/riverqueue/river v0.51.0
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.0
 	github.com/riverqueue/river/rivertype v0.51.0

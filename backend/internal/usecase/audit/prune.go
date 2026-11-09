@@ -34,6 +34,23 @@ func Prune(ctx context.Context, db sqlc.DBTX, clk clock.Clock, retention time.Du
 	}
 }
 
+// PruneClientInfo は、保持期間 retention を過ぎた記録の IP アドレスと User-Agent を、pruneBatchSize 件ずつ区切って空にし、空にした数を返す。
+// 操作の記録そのものは Prune の保持期間まで残す (#1367)。
+func PruneClientInfo(ctx context.Context, db sqlc.DBTX, clk clock.Clock, retention time.Duration) (int64, error) {
+	before := clk.Now().Add(-retention)
+	var total int64
+	for {
+		cleared, err := sqlc.New(db).ClearAuditEventClientInfoBefore(ctx, sqlc.ClearAuditEventClientInfoBeforeParams{Before: before, MaxCount: pruneBatchSize})
+		if err != nil {
+			return total, fmt.Errorf("failed to clear the client info of audit events: %w", err)
+		}
+		total += cleared
+		if cleared < pruneBatchSize {
+			return total, nil
+		}
+	}
+}
+
 // PruneArgs は、保持期間を過ぎた記録を消すジョブの引数。
 type PruneArgs struct{}
 
@@ -45,16 +62,17 @@ func (PruneArgs) Kind() string { return "audit_prune" }
 type PruneWorker struct {
 	river.WorkerDefaults[PruneArgs]
 
-	db        sqlc.DBTX
-	clock     clock.Clock
-	retention time.Duration
+	db                  sqlc.DBTX
+	clock               clock.Clock
+	retention           time.Duration
+	clientInfoRetention time.Duration
 }
 
 var _ river.Worker[PruneArgs] = new(PruneWorker)
 
 // NewPruneWorker は PruneWorker を作る。
-func NewPruneWorker(db sqlc.DBTX, clk clock.Clock, retention time.Duration) *PruneWorker {
-	return &PruneWorker{WorkerDefaults: river.WorkerDefaults[PruneArgs]{}, db: db, clock: clk, retention: retention}
+func NewPruneWorker(db sqlc.DBTX, clk clock.Clock, retention, clientInfoRetention time.Duration) *PruneWorker {
+	return &PruneWorker{WorkerDefaults: river.WorkerDefaults[PruneArgs]{}, db: db, clock: clk, retention: retention, clientInfoRetention: clientInfoRetention}
 }
 
 func (w *PruneWorker) Work(ctx context.Context, _ *river.Job[PruneArgs]) error {
@@ -62,8 +80,12 @@ func (w *PruneWorker) Work(ctx context.Context, _ *river.Job[PruneArgs]) error {
 	if err != nil {
 		return err
 	}
+	cleared, err := PruneClientInfo(ctx, w.db, w.clock, w.clientInfoRetention)
+	if err != nil {
+		return err
+	}
 	// 消した数を、River のジョブの記録に残す。
-	if err := river.RecordOutput(ctx, map[string]int64{"deleted": deleted}); err != nil {
+	if err := river.RecordOutput(ctx, map[string]int64{"deleted": deleted, "client_info_cleared": cleared}); err != nil {
 		return fmt.Errorf("failed to record the job output: %w", err)
 	}
 

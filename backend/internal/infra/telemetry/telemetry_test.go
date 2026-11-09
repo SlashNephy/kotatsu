@@ -73,7 +73,7 @@ func TestTracerProviderSendsTracesOnlyWhenConfigured(t *testing.T) {
 				cfg.OTLPEndpoint = collector.URL
 			}
 
-			provider, shutdown, err := telemetry.NewTracerProvider(t.Context(), cfg)
+			provider, shutdown, err := telemetry.NewTracerProvider(t.Context(), cfg, nil)
 			require.NoError(t, err)
 
 			_, span := provider.Tracer("test").Start(t.Context(), "operation")

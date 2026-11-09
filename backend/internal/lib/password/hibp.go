@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -31,12 +33,12 @@ type HIBP struct {
 }
 
 // NewHIBP は、url の Pwned Passwords に照会する HIBP を返す。url が空なら DefaultHIBPURL にする。
-func NewHIBP(url string) *HIBP {
+func NewHIBP(url string, recorder *netactivity.Recorder) *HIBP {
 	if url == "" {
 		url = DefaultHIBPURL
 	}
 
-	return &HIBP{url: strings.TrimSuffix(url, "/"), client: &http.Client{Timeout: hibpTimeout}}
+	return &HIBP{url: strings.TrimSuffix(url, "/"), client: netactivity.NewClient(recorder, netactivity.PurposeHIBP, netactivity.ClientOptions{Transport: nil, Timeout: hibpTimeout, CheckRedirect: nil})}
 }
 
 // ErrHIBPUnavailable は、Have I Been Pwned に照会できなかったことを表す。

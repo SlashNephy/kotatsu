@@ -74,6 +74,7 @@ Kotatsu はテレビ番組を予約、録画、視聴できる Web アプリケ�
 - [セットアップ](docs/setup.md)：Docker ComposeとHelmでの起動、EPGStationからの移行
 - [設定](docs/configuration.md)：設定項目の一覧
 - [運用](docs/operations.md)：バックアップ、更新、監視
+- [プライバシー](docs/privacy.md)：外部との通信と、保存する個人情報の一覧
 
 ## 開発
 

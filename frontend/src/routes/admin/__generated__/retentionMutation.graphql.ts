@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<edf5f6d03026afd9d852999980b5248a>>
+ * @generated SignedSource<<2edb22b44c87b9bbba6b21f223f14d0c>>
  * @lightSyntaxTransform
  */
 
@@ -15,9 +15,12 @@ export type SystemSettingsInput = {
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   jikkyoEnabled?: boolean | null | undefined;
   mcpEnabled?: boolean | null | undefined;
+  networkActivityEnabled?: boolean | null | undefined;
+  networkActivityRetentionDays?: number | null | undefined;
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
+  watchProgressRetentionDays?: number | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
   detectCm?: boolean | null | undefined;

@@ -153,6 +153,10 @@
     "password": "パスワード",
     "submit": "次へ",
     "logout": "ログアウト",
+    "logoutOfflineTitle": "端末に保存した録画も消しますか？",
+    "logoutOfflineDescription": "この端末に{{count}}件の録画が保存されています。残すと、ログアウトした後も、この端末を使う人が見られます",
+    "logoutKeepOffline": "残してログアウト",
+    "logoutRemoveOffline": "消してログアウト",
     "errors": {
       "INVALID_CREDENTIALS": "ユーザー名かパスワードが違います",
       "TOO_MANY_ATTEMPTS": "試行が多すぎます。{{seconds}}秒ほど待ってからやり直してください",
@@ -332,6 +336,10 @@
       "account": {
         "title": "アカウントの連携",
         "summary": "見たアニメを記録するAnnictとAniListのアカウントと連携します"
+      },
+      "networkActivity": {
+        "title": "外部との通信",
+        "summary": "サーバーが実際に行った外部との通信を確かめる"
       }
     },
     "reauth": {
@@ -359,6 +367,12 @@
       "dataBroadcastZipcode": "データ放送の郵便番号",
       "dataBroadcastZipcodeHelp": "天気やニュースなど、郵便番号で地域を選ぶデータ放送に渡します。7桁の数字で入れてください。空にすると渡しません",
       "dataBroadcastZipcodeInvalid": "郵便番号は7桁の数字で入れてください",
+      "watchPositions": "録画の再生位置",
+      "watchPositionsHelp": "自分の再生位置をすべて消します。「続きから見る」の一覧が空になり、どの録画も始まりから再生します。消した再生位置は元に戻せません",
+      "watchPositionsClear": "再生位置をすべて消す",
+      "watchPositionsClearTitle": "再生位置をすべて消しますか？",
+      "watchPositionsCleared": "{{count}}件の再生位置を消しました",
+      "watchPositionsClearFailed": "再生位置を消せませんでした",
       "dataBroadcastStorage": "データ放送の保存データ",
       "dataBroadcastStorageHelp": "データ放送の番組がこの端末に保存したデータを消します。表示がおかしいままになったときに試してください。郵便番号は残ります",
       "dataBroadcastStorageClear": "保存データを消す",
@@ -1668,6 +1682,7 @@
       "deletedUser": "消したユーザー",
       "details": "詳細",
       "userAgent": "User-Agent: {{userAgent}}",
+      "clientInfoAbsent": "IP アドレスと User-Agent の記録はありません。保持期間を過ぎると消えます。",
       "more": "さらに読み込む",
       "moreError": "続きを読み込めませんでした。時間をおいてやり直してください"
     },
@@ -1747,6 +1762,9 @@
       "archiveRetentionDays": "保持期間（日）",
       "archiveRetentionHelp": "放送が終わった番組を、番組表と検索に残す日数です。0なら無期限に残します",
       "notifications": "通知",
+      "watchProgress": "録画の再生位置",
+      "watchProgressRetentionDays": "保持期間（日）",
+      "watchProgressRetentionHelp": "再生位置を残す日数です。最後に見てからこれより経った再生位置は1日ごとに消し、「続きから見る」の一覧からも外れます。0なら無期限に残します",
       "notificationRetentionDays": "保持期間（日）",
       "notificationRetentionHelp": "画面内の通知を残す日数です。既読か未読かにかかわらず、これより古い通知は1日ごとに消します。0なら無期限に残します",
       "mcp": "MCPのクライアント",
@@ -1776,7 +1794,10 @@
       "animeTokenConfigured": "設定済み",
       "animeTokenNotConfigured": "未設定",
       "animeTokenKept": "設定済み（変えるときだけ入れる）",
-      "animeTokenDelete": "消す"
+      "animeTokenDelete": "消す",
+      "networkActivity": "外部との通信の記録",
+      "networkActivityRetentionDays": "保持期間（日）",
+      "networkActivityRetentionHelp": "記録を残す日数です。これより古い記録は1日ごとに消します"
     },
     "recording": {
       "title": "録画の既定値",
@@ -2093,5 +2114,128 @@
     "notifyTitle": "見たいリストの放送の通知",
     "notifyWishlist": "見たいリストの作品の放送を通知する",
     "notifyWishlistHelp": "見たいリストの作品の、まだ見ていない話の本放送に、話ごとに最も早い放送へ視聴予約を付けます。再放送には付けません。作品が見たいリストから外れたら外します。"
+  },
+  "networkActivity": {
+    "title": "外部との通信",
+    "description": "サーバーが実際に行った外部との通信を、1時間ごとにまとめて見られます。",
+    "adminLabel": "外部との通信を記録する",
+    "adminHelp": "管理者が有効にすると、この画面に記録が出ます。無効に戻すと、それまでの記録を消します",
+    "disabled": "記録は無効です。管理者が有効にすると、その時点からの通信が記録されます",
+    "empty": "まだ記録がありません",
+    "totalsTitle": "直近{{days}}日の合計",
+    "totalCount": "通信の回数",
+    "totalSent": "送信量",
+    "totalReceived": "受信量",
+    "notesTitle": "この記録について",
+    "noteLocal": "この記録は外部に送りません",
+    "noteSince": "{{date}}に有効にしてからの記録です。有効にしてから記録が始まるまで、1分ほどかかります",
+    "noteAbstract": "URLのパスやヘッダー、本文、ユーザー、番組は記録しません。時間帯は1時間単位です",
+    "noteExcluded": "利用者が押した外部へのリンクによる移動は、ブラウザの通信なので記録の対象外です",
+    "noteLost": "サーバーが異常終了すると、書き込む前の直近1分ほどの集計は失われます",
+    "initiator": {
+      "SCHEDULED": "定期処理",
+      "USER": "画面の操作"
+    },
+    "failed": "失敗",
+    "times": "{{count}}回",
+    "categories": {
+      "jikkyo": "実況",
+      "anime": "アニメ",
+      "auth": "認証",
+      "operation": "運用",
+      "notification": "通知",
+      "other": "その他"
+    },
+    "purposes": {
+      "JIKKYO_CHANNELS": {
+        "title": "実況のチャンネル一覧",
+        "body": "実況を使える局を確かめるため、チャンネルの一覧を取得しました"
+      },
+      "JIKKYO_COMMENTS": {
+        "title": "実況のコメント",
+        "body": "ライブの実況のコメントを受け取るか投稿しました"
+      },
+      "JIKKYO_KAKOLOG": {
+        "title": "実況の過去ログ",
+        "body": "録画の実況のコメントを取得しました"
+      },
+      "ANIME_PROGRAM_SYNC": {
+        "title": "番組情報の照合",
+        "body": "アニメの番組と作品を結びつけるため、放送の情報を照合しました"
+      },
+      "ANIME_MAPPINGS": {
+        "title": "作品とチャンネルの対応表",
+        "body": "作品IDとチャンネルの対応表を取得しました"
+      },
+      "ANIME_WORK_IDS": {
+        "title": "作品IDの照合",
+        "body": "連携先の作品IDを問い合わせました"
+      },
+      "ANIME_ARTWORKS": {
+        "title": "作品の画像の情報",
+        "body": "作品の高画質の画像の場所を問い合わせました"
+      },
+      "ANIME_RECORD": {
+        "title": "見たアニメの記録",
+        "body": "見たアニメの記録や見たいリストを、連携先とやり取りしました"
+      },
+      "ANIME_LINK": {
+        "title": "連携の操作",
+        "body": "アニメの記録先との連携を手続きしました"
+      },
+      "ANIME_IMAGE": {
+        "title": "作品の画像",
+        "body": "画面に出す作品の画像を取得しました",
+        "hostLabel": "画像の配信元"
+      },
+      "USER_AVATAR": {
+        "title": "ユーザーのアイコン",
+        "body": "画面に出すアイコンを取得しました",
+        "hostLabel": "アイコンの配信元"
+      },
+      "OIDC": {
+        "title": "IdPとの通信",
+        "body": "ログインのために、IdPとやり取りしました",
+        "hostLabel": "設定した送信先"
+      },
+      "HIBP": {
+        "title": "パスワードの漏洩の照会",
+        "body": "パスワードが漏洩していないかを照会しました"
+      },
+      "MCP_CLIENT_METADATA": {
+        "title": "MCPのクライアントの確認",
+        "body": "連携するクライアントの情報を取得しました",
+        "hostLabel": "連携するクライアント"
+      },
+      "UPDATE_CHECK": {
+        "title": "更新の確認",
+        "body": "新しいリリースが出たかを確かめました"
+      },
+      "TELEMETRY_TRACES": {
+        "title": "トレースの送信",
+        "body": "設定した送信先にトレースを送りました",
+        "hostLabel": "設定した送信先"
+      },
+      "TELEMETRY_METRICS": {
+        "title": "メトリクスの送信",
+        "body": "設定した送信先にメトリクスを送りました",
+        "hostLabel": "設定した送信先"
+      },
+      "WEB_PUSH": {
+        "title": "Web Pushの通知",
+        "body": "購読している端末に、暗号化した通知を送りました"
+      },
+      "WEBHOOK": {
+        "title": "Webhookの通知",
+        "body": "設定した送信先に通知を送りました",
+        "hostLabel": "設定した送信先"
+      },
+      "DATA_BROADCAST": {
+        "title": "データ放送の通信",
+        "body": "データ放送の文書が指定した通信を中継しました",
+        "hostLabel": "データ放送"
+      }
+    },
+    "hostHidden": "非公開の接続先"
   }
 }

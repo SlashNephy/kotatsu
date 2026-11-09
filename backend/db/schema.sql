@@ -339,6 +339,14 @@ CREATE TABLE system_settings (
   archive_retention_days integer NOT NULL CHECK (archive_retention_days >= 0),
   -- 配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限 (#551)。
   notification_retention_days integer NOT NULL DEFAULT 90 CHECK (notification_retention_days >= 0),
+  -- 録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限 (#1366)。
+  watch_progress_retention_days integer NOT NULL DEFAULT 365 CHECK (watch_progress_retention_days >= 0),
+  -- 外部との通信を記録するかどうか (#1369)。既定では記録しない。
+  network_activity_enabled boolean NOT NULL DEFAULT false,
+  -- 外部との通信の記録を有効にした日時。無効の間は NULL。
+  network_activity_enabled_at timestamptz,
+  -- 外部との通信の記録の保持期間 (日)。
+  network_activity_retention_days integer NOT NULL DEFAULT 30 CHECK (network_activity_retention_days >= 1),
   -- MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定では使わせない。
   mcp_enabled boolean NOT NULL DEFAULT false,
   -- データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定では中継しない。
@@ -482,10 +490,13 @@ CREATE TABLE web_push_subscriptions (
   -- 購読した端末を、ユーザーが見分けるための User-Agent。
   user_agent text NOT NULL,
   created_at timestamptz NOT NULL,
-  updated_at timestamptz NOT NULL
+  updated_at timestamptz NOT NULL,
+  -- 購読したセッション。セッションを失効させたら、この購読も消す (#1365)。セッションの行が消えても、購読は残す。
+  session_id uuid REFERENCES sessions (id) ON DELETE SET NULL
 );
 
 CREATE INDEX web_push_subscriptions_user_id_idx ON web_push_subscriptions (user_id);
+CREATE INDEX web_push_subscriptions_session_id_idx ON web_push_subscriptions (session_id);
 
 -- Web Push の送り手を示す VAPID の鍵 (設計書 6.2、RFC 8292)。行は 1 つだけ持ち、初めて使うときに作る。
 CREATE TABLE vapid_keys (
@@ -990,6 +1001,8 @@ CREATE TABLE watch_progress (
 
 -- 録画を消すときに、その録画の再生位置を消すのに使う。
 CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
+-- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
+CREATE INDEX watch_progress_updated_at_idx ON watch_progress (updated_at);
 
 -- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
@@ -1569,4 +1582,21 @@ CREATE TABLE anime_following_viewings (
   notes text,
   PRIMARY KEY (user_id, destination, syobocal_tid, username),
   FOREIGN KEY (user_id, destination, syobocal_tid) REFERENCES anime_following_fetches (user_id, destination, syobocal_tid) ON DELETE CASCADE
+);
+
+-- 外部との通信の、1 時間ごとの集計 (#1369、設計書 11.6)。URL のパスやヘッダー、ユーザー、番組は持たない。
+CREATE TABLE network_activity (
+  -- 通信した時間帯の始まり。
+  hour timestamptz NOT NULL,
+  -- 通信の目的。固定の種類 (netactivity.Purpose)。
+  purpose text NOT NULL,
+  -- 接続先のホスト名。視聴の内容や設定の中身が分かるものは空にする。
+  host text NOT NULL,
+  -- きっかけ (SCHEDULED か USER)。
+  initiator text NOT NULL,
+  success boolean NOT NULL,
+  count bigint NOT NULL,
+  sent_bytes bigint NOT NULL,
+  received_bytes bigint NOT NULL,
+  PRIMARY KEY (hour, purpose, host, initiator, success)
 );

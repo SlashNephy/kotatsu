@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -70,7 +71,7 @@ type Client struct {
 
 // NewClient は Client を返す。opts が nil なら、既定値を使う。
 func NewClient(opts *Options) *Client {
-	c := &Client{http: http.DefaultClient, sayaDefinitionsURL: DefaultSayaDefinitionsURL, armURL: DefaultArmURL}
+	c := &Client{http: netactivity.NewClient(nil, netactivity.PurposeAnimeMappings, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}), sayaDefinitionsURL: DefaultSayaDefinitionsURL, armURL: DefaultArmURL}
 	if opts == nil {
 		return c
 	}

@@ -12,6 +12,14 @@ DELETE FROM audit_events WHERE id IN (
   SELECT e.id FROM audit_events e WHERE e.occurred_at < @before ORDER BY e.occurred_at LIMIT @max_count
 );
 
+-- name: ClearAuditEventClientInfoBefore :execrows
+-- before より前の記録の IP アドレスと User-Agent を、古い順に max_count 件まで空にする。操作の記録は残す (#1367)。
+UPDATE audit_events SET source_ip = NULL, user_agent = NULL WHERE id IN (
+  SELECT e.id FROM audit_events e
+  WHERE e.occurred_at < @before AND (e.source_ip IS NOT NULL OR e.user_agent IS NOT NULL)
+  ORDER BY e.occurred_at LIMIT @max_count
+);
+
 -- name: ListAuditEvents :many
 SELECT * FROM audit_events ORDER BY occurred_at DESC, id DESC LIMIT @max_count;
 

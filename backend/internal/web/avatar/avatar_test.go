@@ -97,7 +97,7 @@ func TestAvatarHandler(t *testing.T) {
 
 			pool, userID := newPool(t, tt.picture)
 			mux := http.NewServeMux()
-			mux.Handle("GET /media/users/{id}/avatar", avatar.NewHandler(pool, tt.issuer, slog.New(slog.DiscardHandler)))
+			mux.Handle("GET /media/users/{id}/avatar", avatar.NewHandler(pool, tt.issuer, slog.New(slog.DiscardHandler), nil))
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/users/"+userID.String()+"/avatar", http.NoBody))
 			assert.Equal(t, tt.want, rec.Code)

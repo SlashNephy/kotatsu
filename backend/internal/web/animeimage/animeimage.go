@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/buildinfo"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
@@ -73,14 +74,14 @@ type Handler struct {
 var _ http.Handler = new(Handler)
 
 // NewHandler は Handler を返す。
-func NewHandler(pool *pgxpool.Pool, logger *slog.Logger) *Handler {
+func NewHandler(pool *pgxpool.Pool, logger *slog.Logger, recorder *netactivity.Recorder) *Handler {
 	dialer := &net.Dialer{Timeout: fetchTimeout, Control: publicnet.Control}
 
-	return newHandler(pool, logger, &http.Client{
+	return newHandler(pool, logger, netactivity.NewClient(recorder, netactivity.PurposeAnimeImage, netactivity.ClientOptions{
 		Transport:     &http.Transport{Proxy: nil, DialContext: dialer.DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: fetchTimeout},
 		Timeout:       fetchTimeout,
 		CheckRedirect: checkRedirect,
-	})
+	}))
 }
 
 // maxRedirects は、画像を取るときにたどるリダイレクトの数の上限。古い公式サイトは、http から https へ向け直すことが多い。

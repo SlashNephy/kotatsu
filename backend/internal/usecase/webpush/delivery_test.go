@@ -289,7 +289,7 @@ func TestDeliverWorkerCancelsNonPublicEndpoint(t *testing.T) {
 	eventID := f.emit(t, domain.NotificationKindRecordingStarted, nil)
 
 	var cancel *rivertype.JobCancelError
-	err := f.deliver(t, webpush.NewHTTPClient(), subscriptionID, eventID)
+	err := f.deliver(t, webpush.NewHTTPClient(nil), subscriptionID, eventID)
 	require.ErrorAs(t, err, &cancel)
 	assert.Empty(t, requests)
 	// 送り先は capability URL なので、エラーにはホストまでしか残さない (#1016)。
@@ -306,7 +306,7 @@ func TestNewHTTPClientRefusesNonPublicAddresses(t *testing.T) {
 	t.Cleanup(server.Close)
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
-	resp, err := webpush.NewHTTPClient().Do(req)
+	resp, err := webpush.NewHTTPClient(nil).Do(req)
 	if resp != nil {
 		resp.Body.Close()
 	}

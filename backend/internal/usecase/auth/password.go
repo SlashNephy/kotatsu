@@ -103,6 +103,9 @@ func revokeUserSessions(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, kee
 	if _, err := q.RevokeUserSessions(ctx, sqlc.RevokeUserSessionsParams{Now: now, UserID: userID, KeepID: keep}); err != nil {
 		return fmt.Errorf("failed to revoke the sessions of the user: %w", err)
 	}
+	if err := q.DeleteWebPushSubscriptionsOfOtherSessions(ctx, sqlc.DeleteWebPushSubscriptionsOfOtherSessionsParams{UserID: userID, KeepID: keep}); err != nil {
+		return fmt.Errorf("failed to delete the web push subscriptions of the user: %w", err)
+	}
 	if err := q.DeleteUserLoginChallenges(ctx, userID); err != nil {
 		return fmt.Errorf("failed to delete the login challenges of the user: %w", err)
 	}

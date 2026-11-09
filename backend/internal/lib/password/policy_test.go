@@ -57,7 +57,7 @@ func TestPolicy(t *testing.T) {
 			var hibp *password.HIBP
 			if tt.hibpStatus != 0 {
 				server, _ := hibpServer(t, tt.hibpStatus, sha1Suffix(strongPhrase))
-				hibp = password.NewHIBP(server.URL)
+				hibp = password.NewHIBP(server.URL, nil)
 			}
 			policy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibp, StrengthTimeout: testStrengthTimeout, Logger: slog.New(slog.DiscardHandler)})
 			require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestHIBPSendsOnlyThePrefix(t *testing.T) {
 	t.Parallel()
 
 	server, requests := hibpServer(t, http.StatusOK, "0000000000000000000000000000000000A")
-	breached, err := password.NewHIBP(server.URL).Breached(context.Background(), strongPhrase)
+	breached, err := password.NewHIBP(server.URL, nil).Breached(context.Background(), strongPhrase)
 	require.NoError(t, err)
 	assert.False(t, breached)
 	require.Len(t, *requests, 1)

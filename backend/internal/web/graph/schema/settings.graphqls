@@ -52,6 +52,12 @@ type SystemSettings {
   archiveRetentionDays: Int!
   "配り終えた通知の保持期間 (日)。既読か未読かにかかわらず、これより古い通知を消す。0 なら無期限。"
   notificationRetentionDays: Int!
+  "録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。"
+  watchProgressRetentionDays: Int!
+  "外部との通信を記録するかどうか (#1369)。"
+  networkActivityEnabled: Boolean!
+  "外部との通信の記録の保持期間 (日)。"
+  networkActivityRetentionDays: Int!
   "ルールを作るときの既定値。"
   ruleDefaults: RuleDefaults!
   "MCP のクライアントに、認可サーバーと MCP サーバーを使わせるかどうか (#963)。既定は false。"
@@ -82,6 +88,9 @@ input SystemSettingsInput {
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
   notificationRetentionDays: Int
+  watchProgressRetentionDays: Int
+  networkActivityEnabled: Boolean
+  networkActivityRetentionDays: Int
   "ルールを作るときの既定値の変える項目。省いた項目は変えない。"
   ruleDefaults: RuleDefaultsInput
   mcpEnabled: Boolean

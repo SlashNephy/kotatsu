@@ -340,7 +340,7 @@ func TestFetcherRejectsNonPublicAddress(t *testing.T) {
 	t.Parallel()
 
 	srv, requests := metadataServer(t, "", claudeCodeDocument)
-	fetcher := oauth.NewFetcher(clocktest.NewFake(time.Now()))
+	fetcher := oauth.NewFetcher(clocktest.NewFake(time.Now()), nil)
 
 	_, err := fetcher.Fetch(t.Context(), srv.URL+metadataPath)
 	require.ErrorIs(t, err, oauth.ErrClientMetadataUnavailable)

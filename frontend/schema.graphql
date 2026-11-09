@@ -775,7 +775,7 @@ type AuditEvent {
   """
   summary: String!
   """
-  送信元。システムの操作では null。
+  送信元。システムの操作と、保持期間を過ぎた記録では null。
   """
   sourceIp: String
   userAgent: String
@@ -1855,6 +1855,10 @@ type Mutation {
   """
   clearWatchPosition(id: ID!): Recording!
   """
+  ログイン中のユーザーの再生位置をすべて消し、消した件数を返す (#1366)。誰でも使える。
+  """
+  clearAllWatchPositions: Int!
+  """
   録画の代表画像とプレビュー画像を作り直すジョブを入れる (設計書 6.1)。視聴者は使えない。
   作り直すまでは、今の画像を出す。同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
@@ -2088,6 +2092,78 @@ type MutedKeyword {
 input MutedKeywordInput {
   text: String!
   match: KeywordMuteMatch!
+}
+"""
+外部との通信の記録 (#1369)。
+"""
+type NetworkActivity {
+  enabled: Boolean!
+  """
+  記録を有効にした日時。無効の間は null。
+  """
+  enabledAt: Time
+  retentionDays: Int!
+  """
+  保持期間の中の、通信の回数の合計。
+  """
+  totalCount: Int64!
+  totalSentBytes: Int64!
+  totalReceivedBytes: Int64!
+  """
+  新しい時間帯からの集計。
+  """
+  entries: [NetworkActivityEntry!]!
+}
+"""
+外部との通信の 1 時間ごとの集計の 1 行。
+"""
+type NetworkActivityEntry {
+  """
+  時間帯の始まり。
+  """
+  hour: Time!
+  purpose: NetworkActivityPurpose!
+  """
+  接続先のホスト名。視聴の内容や設定の中身が分かるものは null。
+  """
+  host: String
+  initiator: NetworkActivityInitiator!
+  success: Boolean!
+  count: Int64!
+  sentBytes: Int64!
+  receivedBytes: Int64!
+}
+"""
+外部との通信のきっかけ。
+"""
+enum NetworkActivityInitiator {
+  SCHEDULED
+  USER
+}
+"""
+外部との通信の目的。固定の種類で、画面の題名と一文を決める。
+"""
+enum NetworkActivityPurpose {
+  JIKKYO_CHANNELS
+  JIKKYO_COMMENTS
+  JIKKYO_KAKOLOG
+  ANIME_PROGRAM_SYNC
+  ANIME_MAPPINGS
+  ANIME_WORK_IDS
+  ANIME_ARTWORKS
+  ANIME_RECORD
+  ANIME_LINK
+  ANIME_IMAGE
+  USER_AVATAR
+  OIDC
+  HIBP
+  MCP_CLIENT_METADATA
+  UPDATE_CHECK
+  TELEMETRY_TRACES
+  TELEMETRY_METRICS
+  WEB_PUSH
+  WEBHOOK
+  DATA_BROADCAST
 }
 """
 ID で引けるもの (Relay の Global Object Identification)。
@@ -2844,6 +2920,10 @@ type Query {
   このインスタンスにマウントしたプールのファイルだけを調べ、マウントしていないプールのファイルは見つからないとはみなさない。
   """
   missingRecordings: [MissingRecording!]!
+  """
+  外部との通信の記録。ログイン中のユーザーなら誰でも見られる。
+  """
+  networkActivity: NetworkActivity!
   """
   ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。
   """
@@ -4040,6 +4120,18 @@ type SystemSettings {
   """
   notificationRetentionDays: Int!
   """
+  録画の再生位置の保持期間 (日)。最後に更新してからこれより経った再生位置を消す。0 なら無期限。
+  """
+  watchProgressRetentionDays: Int!
+  """
+  外部との通信を記録するかどうか (#1369)。
+  """
+  networkActivityEnabled: Boolean!
+  """
+  外部との通信の記録の保持期間 (日)。
+  """
+  networkActivityRetentionDays: Int!
+  """
   ルールを作るときの既定値。
   """
   ruleDefaults: RuleDefaults!
@@ -4080,6 +4172,9 @@ input SystemSettingsInput {
   recordingDefaults: RecordingSettingsOverridesInput
   archiveRetentionDays: Int
   notificationRetentionDays: Int
+  watchProgressRetentionDays: Int
+  networkActivityEnabled: Boolean
+  networkActivityRetentionDays: Int
   """
   ルールを作るときの既定値の変える項目。省いた項目は変えない。
   """

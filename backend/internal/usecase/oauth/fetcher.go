@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 )
 
@@ -65,19 +66,19 @@ type cachedMetadata struct {
 }
 
 // NewFetcher は、グローバルなアドレスにだけ接続する Fetcher を返す。
-func NewFetcher(clk clock.Clock) *Fetcher {
+func NewFetcher(clk clock.Clock, recorder *netactivity.Recorder) *Fetcher {
 	dialer := &net.Dialer{Timeout: fetchTimeout, Control: publicnet.Control}
 	transport := &http.Transport{
 		Proxy: nil, DialContext: dialer.DialContext, ForceAttemptHTTP2: true, TLSHandshakeTimeout: fetchTimeout,
 		ResponseHeaderTimeout: fetchTimeout,
 	}
 
-	return newFetcher(clk, transport)
+	return newFetcher(clk, transport, recorder)
 }
 
-func newFetcher(clk clock.Clock, transport http.RoundTripper) *Fetcher {
+func newFetcher(clk clock.Clock, transport http.RoundTripper, recorder *netactivity.Recorder) *Fetcher {
 	return &Fetcher{
-		client: &http.Client{Transport: transport, Timeout: fetchTimeout, CheckRedirect: checkRedirect, Jar: nil},
+		client: netactivity.NewClient(recorder, netactivity.PurposeMCPClientMetadata, netactivity.ClientOptions{Transport: transport, Timeout: fetchTimeout, CheckRedirect: checkRedirect}),
 		clock:  clk, group: singleflight.Group{}, mu: sync.Mutex{}, cache: make(map[string]*cachedMetadata),
 	}
 }

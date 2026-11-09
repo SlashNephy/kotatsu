@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
@@ -33,7 +34,7 @@ func TestCallbackHandler(t *testing.T) {
 	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
 	service, err := animerecord.NewService(&animerecord.Options{
 		Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: strings.Repeat("k", 32),
-		Destinations: []animerecord.Destination{animerecord.NewAnnict(animerecord.NewHTTPClient(), "http://127.0.0.1:9")},
+		Destinations: []animerecord.Destination{animerecord.NewAnnict(animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeLink), "http://127.0.0.1:9")},
 		Logger:       slog.New(slog.DiscardHandler),
 	})
 	require.NoError(t, err)

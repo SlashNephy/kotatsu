@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const (
@@ -103,6 +104,11 @@ type Client struct {
 	fetchErr    error
 }
 
+// NewHTTPClient は、実況の通信を recorder に記録する HTTP クライアントを返す。
+func NewHTTPClient(recorder *netactivity.Recorder) *http.Client {
+	return netactivity.NewClient(recorder, netactivity.PurposeJikkyoChannels, netactivity.ClientOptions{Transport: nil, Timeout: requestTimeout, CheckRedirect: nil})
+}
+
 // NewClient は Client を返す。
 func NewClient(opts *ClientOptions) *Client {
 	var o ClientOptions
@@ -116,7 +122,7 @@ func NewClient(opts *ClientOptions) *Client {
 		o.KakologURL = DefaultKakologURL
 	}
 	if o.HTTPClient == nil {
-		o.HTTPClient = &http.Client{Timeout: requestTimeout}
+		o.HTTPClient = NewHTTPClient(nil)
 	}
 	if o.Clock == nil {
 		o.Clock = new(clock.Real)
@@ -211,7 +217,7 @@ func (c *Client) Comments(ctx context.Context, id string, from, to time.Time) ([
 			} `json:"chat"`
 		} `json:"packet"`
 	}
-	if err := c.getJSON(ctx, c.kakologURL+"/api/kakolog/"+url.PathEscape(id)+"?"+query.Encode(), &body); err != nil {
+	if err := c.getJSON(netactivity.WithPurpose(ctx, netactivity.PurposeJikkyoKakolog), c.kakologURL+"/api/kakolog/"+url.PathEscape(id)+"?"+query.Encode(), &body); err != nil {
 		return nil, fmt.Errorf("failed to fetch the jikkyo comments: %w", err)
 	}
 	// 過去ログ API は、取得できない理由を 200 で返す。

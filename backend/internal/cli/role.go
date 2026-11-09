@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
@@ -39,6 +40,8 @@ type Deps struct {
 	// /metrics では Metrics と合わせて返す。OTLP では、neko のリースを持つインスタンスだけが送る (#962)。
 	ClusterMetrics *prometheus.Registry
 	Clock          clock.Clock
+	// Network は、外部との通信の記録 (#1369)。
+	Network *netactivity.Recorder
 	// InstanceID は、このプロセスのインスタンスの ID。リースの持ち主や、インスタンスの登録簿に使う。
 	InstanceID uuid.UUID
 	// Jobs は River のクライアント。ジョブはドメインの書き込みと同じトランザクションで InsertTx で投入する。

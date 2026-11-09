@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 const serviceName = "kotatsu"
@@ -48,7 +49,7 @@ func NewMetricsHandler(gatherer prometheus.Gatherer, registry *prometheus.Regist
 // NewTracerProvider は、OTLP/HTTP でトレースを送る TracerProvider を返す。
 // 送信先が設定されていなければ、何も送らない TracerProvider を返す。
 // 返す shutdown は、溜まっているトレースを送り切ってから止める。
-func NewTracerProvider(ctx context.Context, cfg *config.Telemetry) (trace.TracerProvider, func(context.Context) error, error) {
+func NewTracerProvider(ctx context.Context, cfg *config.Telemetry, recorder *netactivity.Recorder) (trace.TracerProvider, func(context.Context) error, error) {
 	if cfg.OTLPEndpoint == "" {
 		return noop.NewTracerProvider(), func(context.Context) error { return nil }, nil
 	}
@@ -66,7 +67,7 @@ func NewTracerProvider(ctx context.Context, cfg *config.Telemetry) (trace.Tracer
 	}
 
 	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+		sdktrace.WithBatcher(redactingExporter{SpanExporter: exporter, recorder: recorder}),
 		sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", serviceName))),
 	)
 

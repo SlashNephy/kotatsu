@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
@@ -135,7 +136,7 @@ func newRecordFixture(t *testing.T) *recordFixture {
 		pool: pool, clock: clk, annict: newFakeService(t), anilist: newFakeService(t), inserter: new(fakeInserter),
 		client: &auth.ClientInfo{UserAgent: "kotatsu-test/1.0", SourceIP: netip.MustParseAddr("192.168.1.10"), Host: "kotatsu.test", Secure: false},
 	}
-	httpClient := animerecord.NewHTTPClient()
+	httpClient := animerecord.NewHTTPClient(nil, netactivity.PurposeAnimeRecord)
 	f.service, err = animerecord.NewService(&animerecord.Options{
 		Clock: clk, Recorder: audit.NewRecorder(clk), AppSecret: strings.Repeat("k", 32),
 		Destinations: []animerecord.Destination{

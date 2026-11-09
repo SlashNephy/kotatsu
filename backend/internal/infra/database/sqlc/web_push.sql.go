@@ -45,6 +45,33 @@ func (q *Queries) DeleteWebPushSubscription(ctx context.Context, arg DeleteWebPu
 	return result.RowsAffected(), nil
 }
 
+const deleteWebPushSubscriptionsOfOtherSessions = `-- name: DeleteWebPushSubscriptionsOfOtherSessions :exec
+DELETE FROM web_push_subscriptions
+WHERE user_id = $1 AND session_id IS NOT NULL AND ($2::uuid IS NULL OR session_id <> $2::uuid)
+`
+
+type DeleteWebPushSubscriptionsOfOtherSessionsParams struct {
+	UserID uuid.UUID
+	KeepID *uuid.UUID
+}
+
+// ユーザーの keep_id のほかのセッションで購読した購読を消す (#1365)。
+// keep_id が NULL なら、ユーザーのセッションに結びついた購読をすべて消す。
+func (q *Queries) DeleteWebPushSubscriptionsOfOtherSessions(ctx context.Context, arg DeleteWebPushSubscriptionsOfOtherSessionsParams) error {
+	_, err := q.db.Exec(ctx, deleteWebPushSubscriptionsOfOtherSessions, arg.UserID, arg.KeepID)
+	return err
+}
+
+const deleteWebPushSubscriptionsOfSession = `-- name: DeleteWebPushSubscriptionsOfSession :exec
+DELETE FROM web_push_subscriptions WHERE session_id = $1
+`
+
+// 失効させたセッションで購読した購読を消す (#1365)。
+func (q *Queries) DeleteWebPushSubscriptionsOfSession(ctx context.Context, sessionID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWebPushSubscriptionsOfSession, sessionID)
+	return err
+}
+
 const getVAPIDKeys = `-- name: GetVAPIDKeys :one
 SELECT id, public_key, private_key_ciphertext, created_at FROM vapid_keys WHERE id
 `
@@ -62,7 +89,7 @@ func (q *Queries) GetVAPIDKeys(ctx context.Context) (VAPIDKey, error) {
 }
 
 const getWebPushSubscription = `-- name: GetWebPushSubscription :one
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at FROM web_push_subscriptions WHERE id = $1
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at, session_id FROM web_push_subscriptions WHERE id = $1
 `
 
 func (q *Queries) GetWebPushSubscription(ctx context.Context, id uuid.UUID) (WebPushSubscription, error) {
@@ -77,6 +104,7 @@ func (q *Queries) GetWebPushSubscription(ctx context.Context, id uuid.UUID) (Web
 		&i.UserAgent,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SessionID,
 	)
 	return i, err
 }
@@ -100,7 +128,7 @@ func (q *Queries) InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams
 }
 
 const listWebPushSubscriptions = `-- name: ListWebPushSubscriptions :many
-SELECT id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at FROM web_push_subscriptions WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at, session_id FROM web_push_subscriptions WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error) {
@@ -121,6 +149,7 @@ func (q *Queries) ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID
 			&i.UserAgent,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -171,11 +200,11 @@ func (q *Queries) ListWebPushSubscriptionsForKind(ctx context.Context, arg ListW
 }
 
 const upsertWebPushSubscription = `-- name: UpsertWebPushSubscription :exec
-INSERT INTO web_push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+INSERT INTO web_push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, session_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
 ON CONFLICT (endpoint) DO UPDATE SET
   user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-  user_agent = EXCLUDED.user_agent, updated_at = EXCLUDED.updated_at
+  user_agent = EXCLUDED.user_agent, session_id = EXCLUDED.session_id, updated_at = EXCLUDED.updated_at
 `
 
 type UpsertWebPushSubscriptionParams struct {
@@ -185,6 +214,7 @@ type UpsertWebPushSubscriptionParams struct {
 	P256DH    []byte
 	Auth      []byte
 	UserAgent string
+	SessionID *uuid.UUID
 	Now       time.Time
 }
 
@@ -197,6 +227,7 @@ func (q *Queries) UpsertWebPushSubscription(ctx context.Context, arg UpsertWebPu
 		arg.P256DH,
 		arg.Auth,
 		arg.UserAgent,
+		arg.SessionID,
 		arg.Now,
 	)
 	return err

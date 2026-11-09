@@ -75,6 +75,12 @@ function SettingsPage() {
       title: t('settings.pages.sessions.title'),
       body: t('settings.pages.sessions.summary'),
     },
+    {
+      to: '/network-activity',
+      icon: Activity,
+      title: t('settings.pages.networkActivity.title'),
+      body: t('settings.pages.networkActivity.summary'),
+    },
   ];
 
   return (

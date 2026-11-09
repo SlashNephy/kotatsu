@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b56e63c0b717e57bfac95c642c7e6813>>
+ * @generated SignedSource<<2c7b3448f2414c7abbad13a80cb60db6>>
  * @lightSyntaxTransform
  */
 
@@ -12,8 +12,10 @@ export type retentionQuery$variables = Record<PropertyKey, never>;
 export type retentionQuery$data = {
   readonly systemSettings: {
     readonly archiveRetentionDays: number;
+    readonly networkActivityRetentionDays: number;
     readonly notificationRetentionDays: number;
     readonly updatedAt: string | null | undefined;
+    readonly watchProgressRetentionDays: number;
   };
 };
 export type retentionQuery = {
@@ -49,6 +51,20 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "watchProgressRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "networkActivityRetentionDays",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -74,16 +90,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "246ea2ac935d0c7e3eecdbe3cfc10fda",
+    "cacheID": "1910bdbec0574d2215fe27b71b1a70de",
     "id": null,
     "metadata": {},
     "name": "retentionQuery",
     "operationKind": "query",
-    "text": "query retentionQuery {\n  systemSettings {\n    archiveRetentionDays\n    notificationRetentionDays\n    updatedAt\n  }\n}\n"
+    "text": "query retentionQuery {\n  systemSettings {\n    archiveRetentionDays\n    notificationRetentionDays\n    watchProgressRetentionDays\n    networkActivityRetentionDays\n    updatedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c7aaa39b10a726d953c5a80b8dd2ed49";
+(node as any).hash = "73653ff84b65eb55285026abd75b1794";
 
 export default node;
