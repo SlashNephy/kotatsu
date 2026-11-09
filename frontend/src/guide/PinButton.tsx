@@ -1,11 +1,13 @@
 import { ActionIcon, Tooltip } from '@mantine/core';
-import { Pin, PinOff } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 
 import { toHalfWidth } from '../futon';
 
 import type { PinButtonMutation } from './__generated__/PinButtonMutation.graphql';
+
+const starColor = 'var(--mantine-color-amber-6)';
 
 type Props = {
   serviceId: string;
@@ -14,7 +16,8 @@ type Props = {
   size?: 'xs' | 'sm' | 'md';
 };
 
-// PinButton は、サービスをピン留めするか外すボタン (#485)。ピン留めはユーザーごとに覚え、端末をまたいで同期する。
+// PinButton は、サービスをお気に入りに追加するか外す、星のボタン (#485)。画面では「お気に入り」と呼び、コードと API では pinned と呼ぶ。
+// お気に入りはユーザーごとに覚え、端末をまたいで同期する。
 // 押した後は、ピン留めしたサービスの一覧 (pinnedServices) を、返ってきたものに置き換える。
 export function PinButton({ serviceId, serviceName, pinned, size = 'sm' }: Props) {
   const { t } = useTranslation();
@@ -30,8 +33,8 @@ export function PinButton({ serviceId, serviceName, pinned, size = 'sm' }: Props
   return (
     <Tooltip label={label}>
       <ActionIcon
-        variant={pinned ? 'light' : 'subtle'}
-        color={pinned ? undefined : 'gray'}
+        variant="subtle"
+        color={pinned ? 'amber' : 'gray'}
         size={size}
         aria-label={label}
         aria-pressed={pinned}
@@ -48,7 +51,12 @@ export function PinButton({ serviceId, serviceName, pinned, size = 'sm' }: Props
           })
         }
       >
-        {pinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}
+        {/* ボタンの color に任せると、テーマによって茶色や白に寄るので、星の色は両テーマで同じ黄色にする。 */}
+        {pinned ? (
+          <Star size={14} color={starColor} fill={starColor} aria-hidden />
+        ) : (
+          <Star size={14} aria-hidden />
+        )}
       </ActionIcon>
     </Tooltip>
   );
