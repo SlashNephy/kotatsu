@@ -21,7 +21,8 @@ export function bubbleLeft(offset: number, width: number, bubble: number): numbe
 
 // SeekBand は、シークバーに示す区間 (#479)。from と to は、録画の始まりからの秒。同じなら、その位置の印にする。
 // label は、カーソルを乗せたときに、吹き出しに添える文。kind が cm なら、CM とみなした区間として、ほかの区間と違う色で示す。
-export type SeekBand = { from: number; to: number; label: string; kind?: 'cm' };
+// kind が part なら、実況のコメントから見つけた番組の区切りの印 (#1358) として、押すとその位置へ移る。
+export type SeekBand = { from: number; to: number; label: string; kind?: 'cm' | 'part' };
 
 // bandAt は、seconds の位置にある区間を返す。印 (長さのない区間) は、前後 tolerance 秒の内なら当たったとみなす。なければ null。
 export function bandAt(
@@ -37,4 +38,25 @@ export function bandAt(
       return seconds >= band.from - margin && seconds <= band.to + margin;
     }) ?? null
   );
+}
+
+// partAt は、seconds から tolerance 秒の内で、いちばん近い番組の区切りの印を返す。なければ null。CM の区間の中でも、印を優先する。
+export function partAt(
+  bands: readonly SeekBand[],
+  seconds: number,
+  tolerance: number,
+): SeekBand | null {
+  let nearest: SeekBand | null = null;
+  for (const band of bands) {
+    const distance = Math.abs(band.from - seconds);
+    if (
+      band.kind === 'part' &&
+      distance <= tolerance &&
+      (nearest === null || distance < Math.abs(nearest.from - seconds))
+    ) {
+      nearest = band;
+    }
+  }
+
+  return nearest;
 }

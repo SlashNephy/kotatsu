@@ -35,6 +35,7 @@ import {
 } from '../../yunomi/captionHistory';
 import { countUntil, listedUntil } from '../../jikkyo/commentList';
 import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
+import { findPartMarkers } from '../../jikkyo/partMarkers';
 import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
@@ -457,6 +458,22 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       };
     });
   }, [jikkyo.comments, jikkyo.offset, listedCount, recording, commentLabels]);
+  // partBands は、実況のコメントから見つけた番組の区切りの印 (#1358)。コメントの位置をずらしたら、印も同じだけ動かす。
+  const partBands = useMemo(
+    () =>
+      findPartMarkers(jikkyo.comments ?? []).map((marker) => {
+        const at = Math.max(marker.time + jikkyo.offset, 0);
+        const part = t(`player.partMarker.${marker.part}`);
+
+        return {
+          from: at,
+          to: at,
+          label: marker.noCmBefore ? t('player.partMarkerNoCm', { part }) : part,
+          kind: 'part' as const,
+        };
+      }),
+    [jikkyo.comments, jikkyo.offset, t],
+  );
   // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
   const jikkyoLabel =
     jikkyo.state === null
@@ -884,7 +901,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       visible={controls.visible}
       seek={
         <SeekBar
-          bands={[...cmBands, ...gapMarks]}
+          bands={[...cmBands, ...gapMarks, ...partBands]}
           duration={duration}
           value={shown}
           previewUrl={recording.previewUrl}

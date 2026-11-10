@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { bandAt, bubbleLeft, hoverSeconds } from './seekHover';
+import { bandAt, bubbleLeft, hoverSeconds, partAt } from './seekHover';
 
 describe('hoverSeconds', () => {
   test.each([
@@ -42,5 +42,25 @@ describe('bandAt', () => {
     { name: '区間の外は、近くても当たらない', seconds: 197, want: null },
   ])('$name', ({ seconds, want }) => {
     expect(bandAt(bands, seconds, 5)?.label ?? null).toBe(want);
+  });
+});
+
+describe('partAt', () => {
+  const part = (from: number) => ({ from, to: from, label: 'A', kind: 'part' as const });
+  const cm = { from: 90, to: 130, label: 'CM', kind: 'cm' as const };
+
+  test.each([
+    { name: '許容の範囲の印を返す', bands: [part(100)], seconds: 104, want: 100 },
+    { name: '範囲の外なら null', bands: [part(100)], seconds: 106, want: null },
+    { name: '近いほうの印を返す', bands: [part(100), part(106)], seconds: 104, want: 106 },
+    { name: 'CM の区間の中でも印を返す', bands: [cm, part(100)], seconds: 101, want: 100 },
+    {
+      name: '区切りでない印は返さない',
+      bands: [{ from: 100, to: 100, label: 'gap' }],
+      seconds: 100,
+      want: null,
+    },
+  ])('$name', ({ bands, seconds, want }) => {
+    expect(partAt(bands, seconds, 5)?.from ?? null).toBe(want);
   });
 });
