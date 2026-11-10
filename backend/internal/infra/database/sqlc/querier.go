@@ -306,6 +306,7 @@ type Querier interface {
 	// 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
 	// since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
 	GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiveStatsParams) (RecordingLiveStat, error)
+	GetRecordingNicologPath(ctx context.Context, recordingID uuid.UUID) (*string, error)
 	GetRecordingProgram(ctx context.Context, id uuid.UUID) (GetRecordingProgramRow, error)
 	// 録画したサービスの、放送のサービス ID。TS の中から、録画したサービスのストリームを選ぶのに使う (#479)。
 	GetRecordingSID(ctx context.Context, id uuid.UUID) (int64, error)
@@ -638,6 +639,8 @@ type Querier interface {
 	// 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
 	ListRecordingTags(ctx context.Context, recordingIds []uuid.UUID) ([]ListRecordingTagsRow, error)
 	ListRecordingsByIDs(ctx context.Context, ids []uuid.UUID) ([]Recording, error)
+	// NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ調べ直す。
+	ListRecordingsForNicolog(ctx context.Context, arg ListRecordingsForNicologParams) ([]ListRecordingsForNicologRow, error)
 	// ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
 	// 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
 	ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) ([]ListRecordingsForRenameRow, error)
@@ -1022,6 +1025,7 @@ type Querier interface {
 	UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error
 	// 録画中の録画の、書いているセグメントの様子を書く (#829)。
 	UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error
+	UpsertRecordingNicologFile(ctx context.Context, arg UpsertRecordingNicologFileParams) error
 	// 上流から来る項目だけを更新する。非表示の印と並び順の上書きは、管理者のものなので触らない。
 	UpsertService(ctx context.Context, arg UpsertServiceParams) error
 	// 版か画像が変わったときだけ書き換える (#1308)。

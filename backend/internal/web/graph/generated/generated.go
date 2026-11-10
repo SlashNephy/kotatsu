@@ -938,44 +938,45 @@ type ComplexityRoot struct {
 	}
 
 	Recording struct {
-		AnimeEpisodes          func(childComplexity int) int
-		Audios                 func(childComplexity int) int
-		BroadcastEndedAt       func(childComplexity int) int
-		BroadcastStartedAt     func(childComplexity int) int
-		CMSections             func(childComplexity int) int
-		Description            func(childComplexity int) int
-		Drops                  func(childComplexity int) int
-		EndAt                  func(childComplexity int) int
-		Errors                 func(childComplexity int) int
-		EventID                func(childComplexity int) int
-		FailureReason          func(childComplexity int) int
-		Files                  func(childComplexity int) int
-		Gaps                   func(childComplexity int) int
-		Genres                 func(childComplexity int) int
-		ID                     func(childComplexity int) int
-		JikkyoCommentsURL      func(childComplexity int) int
-		JikkyoOtherCommentsURL func(childComplexity int) int
-		LiveStats              func(childComplexity int) int
-		Name                   func(childComplexity int) int
-		NotBroadcast           func(childComplexity int) int
-		PreviewURL             func(childComplexity int) int
-		ProgramLost            func(childComplexity int) int
-		Protected              func(childComplexity int) int
-		RecordedFrom           func(childComplexity int) int
-		RecordedUntil          func(childComplexity int) int
-		Rule                   func(childComplexity int) int
-		RuleName               func(childComplexity int) int
-		Scrambled              func(childComplexity int) int
-		Service                func(childComplexity int) int
-		StartAt                func(childComplexity int) int
-		State                  func(childComplexity int) int
-		StreamQuality          func(childComplexity int) int
-		StreamURL              func(childComplexity int) int
-		Tags                   func(childComplexity int) int
-		ThumbnailURL           func(childComplexity int) int
-		VideoFormat            func(childComplexity int) int
-		WatchFrame             func(childComplexity int) int
-		WatchPositionMs        func(childComplexity int) int
+		AnimeEpisodes            func(childComplexity int) int
+		Audios                   func(childComplexity int) int
+		BroadcastEndedAt         func(childComplexity int) int
+		BroadcastStartedAt       func(childComplexity int) int
+		CMSections               func(childComplexity int) int
+		Description              func(childComplexity int) int
+		Drops                    func(childComplexity int) int
+		EndAt                    func(childComplexity int) int
+		Errors                   func(childComplexity int) int
+		EventID                  func(childComplexity int) int
+		FailureReason            func(childComplexity int) int
+		Files                    func(childComplexity int) int
+		Gaps                     func(childComplexity int) int
+		Genres                   func(childComplexity int) int
+		ID                       func(childComplexity int) int
+		JikkyoCommentsURL        func(childComplexity int) int
+		JikkyoNicologCommentsURL func(childComplexity int) int
+		JikkyoOtherCommentsURL   func(childComplexity int) int
+		LiveStats                func(childComplexity int) int
+		Name                     func(childComplexity int) int
+		NotBroadcast             func(childComplexity int) int
+		PreviewURL               func(childComplexity int) int
+		ProgramLost              func(childComplexity int) int
+		Protected                func(childComplexity int) int
+		RecordedFrom             func(childComplexity int) int
+		RecordedUntil            func(childComplexity int) int
+		Rule                     func(childComplexity int) int
+		RuleName                 func(childComplexity int) int
+		Scrambled                func(childComplexity int) int
+		Service                  func(childComplexity int) int
+		StartAt                  func(childComplexity int) int
+		State                    func(childComplexity int) int
+		StreamQuality            func(childComplexity int) int
+		StreamURL                func(childComplexity int) int
+		Tags                     func(childComplexity int) int
+		ThumbnailURL             func(childComplexity int) int
+		VideoFormat              func(childComplexity int) int
+		WatchFrame               func(childComplexity int) int
+		WatchPositionMs          func(childComplexity int) int
 	}
 
 	RecordingCMSection struct {
@@ -5989,6 +5990,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.JikkyoCommentsURL(childComplexity), true
+	case "Recording.jikkyoNicologCommentsUrl":
+		if e.ComplexityRoot.Recording.JikkyoNicologCommentsURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.JikkyoNicologCommentsURL(childComplexity), true
 	case "Recording.jikkyoOtherCommentsUrl":
 		if e.ComplexityRoot.Recording.JikkyoOtherCommentsURL == nil {
 			break
@@ -9513,6 +9520,7 @@ enum NetworkActivityPurpose {
   JIKKYO_CHANNELS
   JIKKYO_COMMENTS
   JIKKYO_KAKOLOG
+  NICOLOG_COMMENTS
   ANIME_PROGRAM_SYNC
   ANIME_MAPPINGS
   ANIME_WORK_IDS
@@ -10337,6 +10345,8 @@ type Recording implements Node {
   jikkyoCommentsUrl: String!
   "同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。"
   jikkyoOtherCommentsUrl: String!
+  "上映会のコメント (NICOLOG) を読む URL のパス (#1363)。"
+  jikkyoNicologCommentsUrl: String!
   """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
@@ -11228,6 +11238,8 @@ extend type Mutation {
 enum CommentSource {
   "NX-Jikkyo のライブのコメントと、過去ログ API の過去ログ"
   NX_JIKKYO
+  "NICOLOG のニコニコ生放送の上映会のコメント"
+  NICOLOG
 }
 `, BuiltIn: false},
 	{Name: "../schema/skipped_duplicates.graphqls", Input: `"""
@@ -13314,6 +13326,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
 	case "jikkyoOtherCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoOtherCommentsUrl(ctx, field)
+	case "jikkyoNicologCommentsUrl":
+		return ec.fieldContext_Recording_jikkyoNicologCommentsUrl(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Recording_streamUrl(ctx, field)
 	case "animeEpisodes":
@@ -34397,6 +34411,29 @@ func (ec *executionContext) fieldContext_Recording_jikkyoOtherCommentsUrl(_ cont
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
 }
 
+func (ec *executionContext) _Recording_jikkyoNicologCommentsUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_jikkyoNicologCommentsUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.JikkyoNicologCommentsURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_jikkyoNicologCommentsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
+}
+
 func (ec *executionContext) _Recording_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -51260,6 +51297,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "jikkyoOtherCommentsUrl":
 			out.Values[i] = ec._Recording_jikkyoOtherCommentsUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "jikkyoNicologCommentsUrl":
+			out.Values[i] = ec._Recording_jikkyoNicologCommentsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

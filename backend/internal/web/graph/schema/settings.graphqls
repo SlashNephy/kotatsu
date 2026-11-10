@@ -199,4 +199,6 @@ extend type Mutation {
 enum CommentSource {
   "NX-Jikkyo のライブのコメントと、過去ログ API の過去ログ"
   NX_JIKKYO
+  "NICOLOG のニコニコ生放送の上映会のコメント"
+  NICOLOG
 }

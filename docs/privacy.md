@@ -13,6 +13,7 @@ Kotatsuは何も設定しなければ外部と通信しません。テレメト�
 | --- | --- | --- | --- | --- |
 | NX-Jikkyo（`nx-jikkyo.tsukumijima.net`）のチャンネル一覧とコメント | サーバー（tenban） | 見ているチャンネル、投稿したコメント、ユーザーごとに作った別のID（`NX-User-ID`）。ブラウザは直接つなぎません | 管理者が`/admin/integrations`でNX-Jikkyoのソースを有効にし、ユーザーも同じソースを有効にする（#1405） | 無効 |
 | ニコニコ実況 過去ログ API（`jikkyo.tsukumijima.net`） | サーバー（tenban） | 録画のチャンネルと時間帯。ユーザーが別の放送を混ぜる設定を有効にしていれば、同じ話の別の放送のチャンネルと時間帯も（#1361） | 同上 | 無効 |
+| NICOLOG（`nicolog.oyasumi.today`） | サーバー（tenban と nekonote） | 作品名と話数から決まるファイルの問い合わせ（#1363） | 管理者が`/admin/integrations`でNICOLOGのソースを有効にし、ユーザーも同じソースを有効にする（nekonote の照合は管理者の有効化だけで動く） | 無効 |
 
 詳しくは[7.4](spec.v1.md#74-字幕データ放送実況)を見てください。
 

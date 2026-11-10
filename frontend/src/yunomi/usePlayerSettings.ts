@@ -42,7 +42,7 @@ const settingsQuery = graphql`
 `;
 
 // CommentSource は、実況のコメントのソース (#1405)。
-export type CommentSource = 'NX_JIKKYO';
+export type CommentSource = 'NX_JIKKYO' | 'NICOLOG';
 
 type Settings = {
   jikkyoEnabled: boolean;

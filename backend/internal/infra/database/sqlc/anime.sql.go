@@ -233,6 +233,17 @@ func (q *Queries) GetEPGChangeVersion(ctx context.Context) (int64, error) {
 	return version, err
 }
 
+const getRecordingNicologPath = `-- name: GetRecordingNicologPath :one
+SELECT path FROM recording_nicolog_files WHERE recording_id = $1 AND path IS NOT NULL
+`
+
+func (q *Queries) GetRecordingNicologPath(ctx context.Context, recordingID uuid.UUID) (*string, error) {
+	row := q.db.QueryRow(ctx, getRecordingNicologPath, recordingID)
+	var path *string
+	err := row.Scan(&path)
+	return path, err
+}
+
 const getSyobocalTitlesLastUpdate = `-- name: GetSyobocalTitlesLastUpdate :one
 SELECT last_update FROM syobocal_titles WHERE last_update IS NOT NULL ORDER BY last_update DESC LIMIT 1
 `
@@ -966,6 +977,53 @@ func (q *Queries) ListRecordingEpisodesForBroadcasts(ctx context.Context, record
 	return items, nil
 }
 
+const listRecordingsForNicolog = `-- name: ListRecordingsForNicolog :many
+SELECT r.id, t.title, e.count_start::double precision AS episode_count
+FROM recordings r
+JOIN recording_anime_episodes e ON e.recording_id = r.id
+JOIN syobocal_titles t ON t.tid = e.syobocal_tid
+LEFT JOIN recording_nicolog_files f ON f.recording_id = r.id
+WHERE r.recorded_until IS NOT NULL AND e.count_start = e.count_end
+  AND (SELECT count(*) FROM recording_anime_episodes o WHERE o.recording_id = r.id) = 1
+  AND EXISTS (SELECT 1 FROM recording_cm_sections c WHERE c.recording_id = r.id)
+  AND (f.recording_id IS NULL OR (f.path IS NULL AND f.checked_at < $1 AND r.recorded_until > $2::timestamptz))
+ORDER BY r.recorded_until DESC
+LIMIT $3
+`
+
+type ListRecordingsForNicologParams struct {
+	CheckedBefore time.Time
+	RecordedSince time.Time
+	MaxRecordings int32
+}
+
+type ListRecordingsForNicologRow struct {
+	ID           uuid.UUID
+	Title        string
+	EpisodeCount float64
+}
+
+// NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ調べ直す。
+func (q *Queries) ListRecordingsForNicolog(ctx context.Context, arg ListRecordingsForNicologParams) ([]ListRecordingsForNicologRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingsForNicolog, arg.CheckedBefore, arg.RecordedSince, arg.MaxRecordings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingsForNicologRow{}
+	for rows.Next() {
+		var i ListRecordingsForNicologRow
+		if err := rows.Scan(&i.ID, &i.Title, &i.EpisodeCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSyobocalLookups = `-- name: ListSyobocalLookups :many
 SELECT channel_id, day_start, fetched_at FROM syobocal_lookups
 WHERE channel_id = ANY($1::integer[]) AND day_start >= $2 AND day_start < $3
@@ -1420,6 +1478,22 @@ type UpsertRecordingAnimeMatchParams struct {
 
 func (q *Queries) UpsertRecordingAnimeMatch(ctx context.Context, arg UpsertRecordingAnimeMatchParams) error {
 	_, err := q.db.Exec(ctx, upsertRecordingAnimeMatch, arg.RecordingID, arg.Now)
+	return err
+}
+
+const upsertRecordingNicologFile = `-- name: UpsertRecordingNicologFile :exec
+INSERT INTO recording_nicolog_files (recording_id, path, checked_at) VALUES ($1, $2, $3)
+ON CONFLICT (recording_id) DO UPDATE SET path = excluded.path, checked_at = excluded.checked_at
+`
+
+type UpsertRecordingNicologFileParams struct {
+	RecordingID uuid.UUID
+	Path        *string
+	Now         time.Time
+}
+
+func (q *Queries) UpsertRecordingNicologFile(ctx context.Context, arg UpsertRecordingNicologFileParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingNicologFile, arg.RecordingID, arg.Path, arg.Now)
 	return err
 }
 

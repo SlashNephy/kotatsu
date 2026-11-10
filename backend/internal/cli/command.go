@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/nicolog"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
@@ -257,6 +258,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	})
 	river.AddWorker(workers, anime.NewImportWorker(importer))
 	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
+	river.AddWorker(workers, anime.NewNicologWorker(anime.NewNicologMatcher(deps.DB, deps.Clock,
+		nicolog.NewClient(&nicolog.Options{HTTPClient: nicolog.NewHTTPClient(deps.Network), URL: ""}), anime.DefaultNicologRequestInterval, animeLogger)))
 	river.AddWorker(workers, animerecord.NewRecordWorker(animeRecords, deps.DB))
 	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
 	// ユーザーが Annict と AniList で「見たい」「見てる」にした作品を、記録の連携のトークンで取り込む (#928)。
@@ -267,7 +270,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
-		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), animerecord.PrunePeriodicJob(),
+		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), anime.NicologPeriodicJob(), animerecord.PrunePeriodicJob(),
 		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
 	}, anime.MatchPeriodicJobs()...), nil
 }
@@ -1066,6 +1069,9 @@ func handleMedia(
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(jikkyoComments))
 	// 同じ話の別の放送の過去ログも、過去ログ API から取って中継する (#1361)。
+	// 上映会のコメント (NICOLOG) も、tenban が取得して中継する (#1363)。
+	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, authorizer.Middleware(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,
+		nicolog.NewClient(&nicolog.Options{HTTPClient: nicolog.NewHTTPClient(deps.Network), URL: ""}))))
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, authorizer.Middleware(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
 	// ライブの実況のコメントは、tenban が NX-Jikkyo との間を中継する (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
 	mux.Handle("GET "+jikkyoapi.LivePath, httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{

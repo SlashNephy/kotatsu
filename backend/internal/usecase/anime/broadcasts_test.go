@@ -14,8 +14,8 @@ import (
 
 const broadcastTID = 5000
 
-// linkRecording は、録画を作品 tid の話に結びつけ、終えた録画にする。
-func linkRecording(t *testing.T, db *pgxpool.Pool, recordingID uuid.UUID, tid int32, until time.Time) {
+// linkRecording は、録画を作品 broadcastTID の話に結びつけ、終えた録画にする。
+func linkRecording(t *testing.T, db *pgxpool.Pool, recordingID uuid.UUID, until time.Time) {
 	t.Helper()
 
 	_, err := db.Exec(t.Context(), `UPDATE recordings SET recorded_until = $2 WHERE id = $1`, recordingID, until)
@@ -23,7 +23,7 @@ func linkRecording(t *testing.T, db *pgxpool.Pool, recordingID uuid.UUID, tid in
 	_, err = db.Exec(t.Context(), `INSERT INTO recording_anime_matches (recording_id, matched_at) VALUES ($1, now())`, recordingID)
 	require.NoError(t, err)
 	_, err = db.Exec(t.Context(), `INSERT INTO recording_anime_episodes (recording_id, position, source, syobocal_tid, count_start, count_end, is_first, is_last)
-		VALUES ($1, 0, 'syobocal', $2, 6, 6, false, false)`, recordingID, tid)
+		VALUES ($1, 0, 'syobocal', $2, 6, 6, false, false)`, recordingID, broadcastTID)
 	require.NoError(t, err)
 }
 
@@ -52,7 +52,7 @@ func TestCollectBroadcasts(t *testing.T) {
 
 	db, clk, client, matcher := newMatchFixture(t)
 	recordingID := insertRecording(t, db, grService, jst(1, 0, 0), jst(1, 0, 30), false)
-	linkRecording(t, db, recordingID, broadcastTID, jst(1, 0, 30))
+	linkRecording(t, db, recordingID, jst(1, 0, 30))
 	program := func(pid int32, count string, deleted bool) *syobocal.Program {
 		return &syobocal.Program{PID: pid, TID: broadcastTID, ChannelID: 19, StartAt: jst(1, 0, 0), EndAt: jst(1, 0, 30), Count: count, Deleted: deleted}
 	}
@@ -82,7 +82,7 @@ func TestCollectBroadcastsDisabled(t *testing.T) {
 
 	db, _, client, matcher := newMatchFixture(t)
 	recordingID := insertRecording(t, db, grService, jst(1, 0, 0), jst(1, 0, 30), false)
-	linkRecording(t, db, recordingID, broadcastTID, jst(1, 0, 30))
+	linkRecording(t, db, recordingID, jst(1, 0, 30))
 	_, err := db.Exec(t.Context(), `UPDATE system_settings SET anime_linking_enabled = false`)
 	require.NoError(t, err)
 
@@ -98,7 +98,7 @@ func TestCollectBroadcastsFailure(t *testing.T) {
 
 	db, _, client, matcher := newMatchFixture(t)
 	recordingID := insertRecording(t, db, grService, jst(1, 0, 0), jst(1, 0, 30), false)
-	linkRecording(t, db, recordingID, broadcastTID, jst(1, 0, 30))
+	linkRecording(t, db, recordingID, jst(1, 0, 30))
 	client.fail = true
 
 	_, err := matcher.CollectBroadcasts(t.Context())

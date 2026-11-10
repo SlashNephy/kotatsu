@@ -145,6 +145,9 @@ func (a JikkyoAccess) Allowed() bool {
 // CommentSourceNXJikkyo は、NX-Jikkyo (ライブのコメントと過去ログ) のコメントのソース (#1405、設計書 7.4)。
 const CommentSourceNXJikkyo = "nx_jikkyo"
 
+// CommentSourceNicolog は、NICOLOG (ニコニコ生放送の上映会のコメント) のソース (#1363、設計書 7.4)。
+const CommentSourceNicolog = "nicolog"
+
 // CommentSourceAccess は、コメントのソースごとに、使えるかどうかを決める全体の設定とユーザーの設定 (#1405)。
 type CommentSourceAccess struct {
 	// System は、管理者が全体の設定でオプトインしたソース。

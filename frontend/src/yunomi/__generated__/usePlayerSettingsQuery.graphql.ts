@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4a2db0b492a071c411d5c7fba5aff6ff>>
+ * @generated SignedSource<<d46a96046b8e1ef76f1134d74dc38a7f>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type CommentSource = "NX_JIKKYO" | "%future added value";
+export type CommentSource = "NICOLOG" | "NX_JIKKYO" | "%future added value";
 export type KeywordMuteMatch = "EXACT" | "PARTIAL" | "PREFIX" | "REGEX" | "SUFFIX" | "%future added value";
 export type usePlayerSettingsQuery$variables = Record<PropertyKey, never>;
 export type usePlayerSettingsQuery$data = {

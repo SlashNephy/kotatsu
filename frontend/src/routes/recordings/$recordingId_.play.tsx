@@ -201,6 +201,7 @@ const playQuery = graphql`
         }
         jikkyoCommentsUrl
         jikkyoOtherCommentsUrl
+        jikkyoNicologCommentsUrl
         rule {
           id
           name
@@ -288,6 +289,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     captionsEnabled: captions,
     setCaptionsEnabled: setCaptions,
     jikkyoEnabled,
+    commentSources,
     setJikkyoEnabled,
     comments: commentSettings,
     muteUser,
@@ -419,6 +421,17 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       ? null
       : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
   );
+  // nicologCmSections は、上映会のコメント (NICOLOG) を合わせる、録画の CM の区間 (#1363)。CM の区間がなければ null にする。
+  const nicologCmSections = useMemo(() => {
+    if (recording === null || recording.cmSections.length === 0) {
+      return null;
+    }
+
+    return recording.cmSections.map((section) => ({
+      from: recordingPosition(recording.recordedFrom, recording.gaps, Date.parse(section.from)),
+      to: recordingPosition(recording.recordedFrom, recording.gaps, Date.parse(section.to)),
+    }));
+  }, [recording]);
   const jikkyo = useRecordedJikkyo(
     channelId !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
@@ -430,6 +443,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     commentSettings,
     channelId !== null && jikkyoEnabled && recording !== null
       ? recording.jikkyoOtherCommentsUrl
+      : null,
+    // 録画自身の過去ログの `OP` で合わせるので、それが読めるときだけ取得する。
+    channelId !== null &&
+      jikkyoEnabled &&
+      nicologCmSections !== null &&
+      recording !== null &&
+      commentSources.includes('NICOLOG')
+      ? { url: recording.jikkyoNicologCommentsUrl, cmSections: nicologCmSections }
       : null,
   );
   // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、

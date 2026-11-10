@@ -322,3 +322,16 @@ func (q *Queries) ListOtherAnimeBroadcasts(ctx context.Context, recordingID uuid
 
 	return broadcasts, nil
 }
+
+// GetRecordingNicologPath は、録画に対応する NICOLOG のファイルのパスを返す (#1363)。なければ pgx.ErrNoRows を返す。
+func (q *Queries) GetRecordingNicologPath(ctx context.Context, recordingID uuid.UUID) (string, error) {
+	path, err := sqlc.New(q.pool).GetRecordingNicologPath(ctx, recordingID)
+	if err != nil {
+		return "", err
+	}
+	if path == nil {
+		return "", pgx.ErrNoRows
+	}
+
+	return *path, nil
+}

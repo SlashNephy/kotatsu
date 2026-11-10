@@ -184,6 +184,7 @@ export function createRecordings(options: {
       // 実況の過去ログは、src/demo/index.ts が架空のコメントを返す (src/demo/jikkyo.ts)。
       jikkyoCommentsUrl: demoCommentsPath,
       jikkyoOtherCommentsUrl: `${demoCommentsPath}.others`,
+      jikkyoNicologCommentsUrl: `${demoCommentsPath}.nicolog`,
       streamUrl: demoStreamURL,
     };
   };

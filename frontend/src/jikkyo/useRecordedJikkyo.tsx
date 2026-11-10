@@ -8,7 +8,9 @@ import {
   type JikkyoComment,
 } from './comments';
 import { useCommentOffset } from './commentOffset';
+import { alignNicolog, type CmSection } from './alignNicolog';
 import { mixBroadcast } from './mixBroadcasts';
+import { findPartMarkers } from './partMarkers';
 import { recordingPosition, type Gap } from '../yunomi/position';
 import { JikkyoSession } from './session';
 
@@ -59,6 +61,8 @@ export function useRecordedJikkyo(
   settings: CommentSettings = defaultCommentSettings,
   // othersUrl は、同じ話の別の放送の過去ログの URL (#1361)。設定で有効にしていて、録画を終えているときだけ読む。
   othersUrl: string | null = null,
+  // nicolog は、上映会のコメント (NICOLOG) の URL と、録画の CM の区間 (#1363)。ソースをオプトインしていれば渡す。
+  nicolog: { url: string; cmSections: readonly CmSection[] } | null = null,
 ): {
   overlay: ReactNode;
   state: RecordedJikkyoState | null;
@@ -117,14 +121,67 @@ export function useRecordedJikkyo(
         : others.logs.flatMap((log) => mixBroadcast(comments, log)),
     [comments, others, othersTarget],
   );
-  const mixedRef = useRef(mixed);
-  mixedRef.current = mixed;
+  // nicologCache は、取った上映会のコメント。切り替えても取り直さない。
+  const nicologCache = useRef(new Map<string, JikkyoComment[]>());
+  const [nicologLog, setNicologLog] = useState<{ url: string; comments: JikkyoComment[] } | null>(
+    null,
+  );
+  const nicologUrl = live === null && nicolog !== null ? nicolog.url : null;
+  useEffect(() => {
+    if (nicologUrl === null) {
+      return;
+    }
+    const cached = nicologCache.current.get(nicologUrl);
+    if (cached !== undefined) {
+      setNicologLog({ url: nicologUrl, comments: cached });
+
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(nicologUrl, { signal: controller.signal, credentials: 'same-origin' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`unexpected status ${response.status}`);
+        }
+
+        return (await response.json()) as { comments: JikkyoComment[] };
+      })
+      .then((body) => {
+        nicologCache.current.set(nicologUrl, body.comments);
+        setNicologLog({ url: nicologUrl, comments: body.comments });
+      })
+      .catch(() => {
+        // 取れなければ、ほかのコメントだけを流す。
+      });
+
+    return () => controller.abort();
+  }, [nicologUrl]);
+  // aligned は、録画の位置に合わせた上映会のコメント。録画自身の過去ログの `OP` で合わせるので、それがなければ混ぜない。
+  const nicologSections = nicolog?.cmSections;
+  const aligned = useMemo(
+    () =>
+      comments === null ||
+      nicologLog === null ||
+      nicologLog.url !== nicologUrl ||
+      nicologSections === undefined
+        ? []
+        : alignNicolog(
+            nicologLog.comments,
+            findPartMarkers(nicologLog.comments),
+            findPartMarkers(comments),
+            nicologSections,
+          ),
+    [comments, nicologLog, nicologUrl, nicologSections],
+  );
+  const extra = useMemo(() => [...mixed, ...aligned], [mixed, aligned]);
+  const mixedRef = useRef(extra);
+  mixedRef.current = extra;
   const merged = useMemo(
     () =>
-      comments === null || mixed.length === 0
+      comments === null || extra.length === 0
         ? comments
-        : [...comments, ...mixed].sort((a, b) => a.time - b.time),
-    [comments, mixed],
+        : [...comments, ...extra].sort((a, b) => a.time - b.time),
+    [comments, extra],
   );
   const offset = offsetMs / 1_000;
 
@@ -250,7 +307,7 @@ export function useRecordedJikkyo(
       url === null ? undefined : (
         <CommentCanvas
           // 混ぜ始めたら描き直す。canvas を作り直すと、attach が混ぜたコメントも渡す。
-          key={`${url}:${String(mixed.length > 0)}`}
+          key={`${url}:${String(extra.length > 0)}`}
           ref={attach}
           clock={() => clock() - offset}
           drawing={drawing}
