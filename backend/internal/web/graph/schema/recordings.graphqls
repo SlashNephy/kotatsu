@@ -185,6 +185,8 @@ type Recording implements Node {
   jikkyoCommentsUrl: String!
   "同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。"
   jikkyoOtherCommentsUrl: String!
+  "上映会のコメント (NICOLOG) を読む URL のパス (#1363)。"
+  jikkyoNicologCommentsUrl: String!
   """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。

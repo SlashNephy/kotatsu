@@ -185,7 +185,7 @@ func (h *OtherCommentsHandler) writeOthers(w http.ResponseWriter, r *http.Reques
 	if finished {
 		w.Header().Set("Cache-Control", finishedCacheControl)
 	} else {
-		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Cache-Control", noStoreCacheControl)
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		h.logger.WarnContext(r.Context(), "failed to write the jikkyo comments of the other broadcasts", slog.Any("error", err))

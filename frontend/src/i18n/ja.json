@@ -355,7 +355,8 @@
     },
     "account": {
       "commentSource": {
-        "NX_JIKKYO": "ニコニコ実況のコメントを出す"
+        "NX_JIKKYO": "ニコニコ実況のコメントを出す",
+        "NICOLOG": "上映会のコメントを出す (NICOLOG)"
       },
       "captions": "字幕を出す",
       "dataBroadcastPreload": "データ放送をプリロードする",
@@ -1803,6 +1804,11 @@
           "title": "ニコニコ実況",
           "label": "ニコニコ実況を使う",
           "help": "ライブ視聴と録画の再生で、実況のコメントを流せるようにします。KotatsuのサーバーがNX-Jikkyoと過去ログ APIに接続します。利用者も、それぞれプレイヤーの設定で有効にすると使えます"
+        },
+        "NICOLOG": {
+          "title": "NICOLOG",
+          "label": "NICOLOG のコメントを使う",
+          "help": "録画の再生で、ニコニコ生放送の上映会のコメントを流せるようにします。Kotatsu のサーバーが NICOLOG に接続します。CM の区間がある録画で使えます。利用者も、それぞれプレイヤーの設定で有効にすると使えます"
         }
       },
       "updatedAt": "最終更新 {{at}}",
@@ -2183,6 +2189,10 @@
       "JIKKYO_COMMENTS": {
         "title": "実況のコメント",
         "body": "ライブの実況のコメントを受け取るか投稿しました"
+      },
+      "NICOLOG_COMMENTS": {
+        "title": "上映会のコメント",
+        "body": "録画に合わせる上映会のコメントを取得しました"
       },
       "JIKKYO_KAKOLOG": {
         "title": "実況の過去ログ",

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<160b54e947fc9008f79d7f78adb8bfa1>>
+ * @generated SignedSource<<1d3233eef44763ac0354035687b4f249>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type CommentSource = "NX_JIKKYO" | "%future added value";
+export type CommentSource = "NICOLOG" | "NX_JIKKYO" | "%future added value";
 export type SystemSettingsInput = {
   animeLinkingEnabled?: boolean | null | undefined;
   archiveRetentionDays?: number | null | undefined;

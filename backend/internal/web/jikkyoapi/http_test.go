@@ -37,11 +37,12 @@ func recordedFrom() time.Time {
 }
 
 type commentsFixture struct {
-	pool    *pgxpool.Pool
-	handler http.Handler
-	mux     http.Handler
-	fake    *fakeJikkyo
-	userID  uuid.UUID
+	pool     *pgxpool.Pool
+	handler  http.Handler
+	mux      http.Handler
+	fake     *fakeJikkyo
+	userID   uuid.UUID
+	comments *jikkyoapi.CommentsHandler
 }
 
 // setJikkyo は、全体の設定とユーザーの設定で、実況を使うかどうかを決める。
@@ -80,7 +81,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	mux := http.NewServeMux()
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, handler)
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, jikkyoapi.NewOtherCommentsHandler(handler))
-	f := &commentsFixture{pool: pool, fake: fake, userID: id.New(), mux: mux, handler: nil}
+	f := &commentsFixture{pool: pool, fake: fake, userID: id.New(), mux: mux, handler: nil, comments: handler}
 	_, err = pool.Exec(t.Context(), `INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'member', 'member', 'member', $2, $2)`,
 		f.userID, recordedFrom())
 	require.NoError(t, err)

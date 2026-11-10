@@ -434,7 +434,7 @@ function Integrations() {
 // SwitchSetting は、全体の設定のうち、入れるか切るかの項目を変える。MCP のクライアントに使わせるか (#965) と、
 // データ放送の通信を中継するか (#501) に使う。
 // commentSources は、実況のコメントのソースの一覧 (#1405)。ソースを足したら、ここと翻訳に足す。
-const commentSources = ['NX_JIKKYO'] as const;
+const commentSources = ['NX_JIKKYO', 'NICOLOG'] as const;
 
 function SwitchSetting({
   title,

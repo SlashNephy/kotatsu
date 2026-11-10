@@ -357,7 +357,8 @@
     },
     "account": {
       "commentSource": {
-        "NX_JIKKYO": "Show Niconico Jikkyo comments"
+        "NX_JIKKYO": "Show Niconico Jikkyo comments",
+        "NICOLOG": "Show screening comments (NICOLOG)"
       },
       "captions": "Show captions",
       "dataBroadcastPreload": "Preload data broadcasting",
@@ -1877,6 +1878,11 @@
           "title": "Niconico Jikkyo",
           "label": "Use Niconico Jikkyo",
           "help": "Lets viewers overlay live comments on live TV and recordings. Kotatsu's server connects to NX-Jikkyo and the past comment API. Each viewer also has to turn it on in their player settings."
+        },
+        "NICOLOG": {
+          "title": "NICOLOG",
+          "label": "Use NICOLOG comments",
+          "help": "Lets recordings show comments from Niconico Live screenings. The Kotatsu server connects to NICOLOG. Available for recordings with commercial sections. Users also need to enable it in their player settings."
         }
       },
       "updatedAt": "Last updated {{at}}",
@@ -2257,6 +2263,10 @@
       "JIKKYO_COMMENTS": {
         "title": "Jikkyo live comments",
         "body": "Received or posted live comments"
+      },
+      "NICOLOG_COMMENTS": {
+        "title": "Screening comments",
+        "body": "Fetched screening comments for a recording"
       },
       "JIKKYO_KAKOLOG": {
         "title": "Jikkyo past comments",

@@ -398,11 +398,12 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
-		StreamURL:              "/streams/recordings/" + row.ID.String(),
-		JikkyoCommentsURL:      "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.CommentsFileName,
-		JikkyoOtherCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.OtherCommentsFileName,
-		ServiceKey:             row.ServiceID,
-		VideoResolution:        row.VideoResolution,
+		StreamURL:                "/streams/recordings/" + row.ID.String(),
+		JikkyoCommentsURL:        "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.CommentsFileName,
+		JikkyoOtherCommentsURL:   "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.OtherCommentsFileName,
+		JikkyoNicologCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.NicologCommentsFileName,
+		ServiceKey:               row.ServiceID,
+		VideoResolution:          row.VideoResolution,
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))

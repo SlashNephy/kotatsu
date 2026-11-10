@@ -36,6 +36,7 @@ const purposeCategories = {
   JIKKYO_CHANNELS: 'jikkyo',
   JIKKYO_COMMENTS: 'jikkyo',
   JIKKYO_KAKOLOG: 'jikkyo',
+  NICOLOG_COMMENTS: 'jikkyo',
   ANIME_PROGRAM_SYNC: 'anime',
   ANIME_MAPPINGS: 'anime',
   ANIME_WORK_IDS: 'anime',

@@ -637,6 +637,12 @@ type RecordingLiveStat struct {
 	UpdatedAt   time.Time
 }
 
+type RecordingNicologFile struct {
+	RecordingID uuid.UUID
+	Path        *string
+	CheckedAt   time.Time
+}
+
 type RecordingTag struct {
 	RecordingID uuid.UUID
 	TagID       uuid.UUID

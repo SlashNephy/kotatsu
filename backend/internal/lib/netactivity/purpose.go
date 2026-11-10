@@ -16,6 +16,7 @@ const (
 	PurposeJikkyoChannels    Purpose = "JIKKYO_CHANNELS"
 	PurposeJikkyoComments    Purpose = "JIKKYO_COMMENTS"
 	PurposeJikkyoKakolog     Purpose = "JIKKYO_KAKOLOG"
+	PurposeNicologComments   Purpose = "NICOLOG_COMMENTS"
 	PurposeAnimeProgramSync  Purpose = "ANIME_PROGRAM_SYNC"
 	PurposeAnimeMappings     Purpose = "ANIME_MAPPINGS"
 	PurposeAnimeWorkIDs      Purpose = "ANIME_WORK_IDS"
@@ -51,7 +52,7 @@ func initiatorOf(p Purpose) Initiator {
 	case PurposeAnimeProgramSync, PurposeAnimeMappings, PurposeAnimeWorkIDs, PurposeAnimeArtworks, PurposeAnimeRecord,
 		PurposeUpdateCheck, PurposeTelemetryTraces, PurposeTelemetryMetrics, PurposeWebPush, PurposeWebhook:
 		return InitiatorScheduled
-	case PurposeJikkyoChannels, PurposeJikkyoComments, PurposeJikkyoKakolog, PurposeAnimeLink, PurposeAnimeImage,
+	case PurposeJikkyoChannels, PurposeJikkyoComments, PurposeJikkyoKakolog, PurposeNicologComments, PurposeAnimeLink, PurposeAnimeImage,
 		PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast:
 		return InitiatorUser
 	default:
@@ -87,6 +88,8 @@ func knownHosts(p Purpose) ([]string, bool) {
 		return []string{nxJikkyo}, false
 	case PurposeJikkyoKakolog:
 		return []string{"jikkyo.tsukumijima.net"}, false
+	case PurposeNicologComments:
+		return []string{"nicolog.oyasumi.today"}, false
 	case PurposeAnimeProgramSync:
 		return []string{"cal.syoboi.jp"}, false
 	case PurposeAnimeMappings:

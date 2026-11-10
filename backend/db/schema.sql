@@ -1306,6 +1306,13 @@ CREATE TABLE anime_episode_broadcasts (
 );
 CREATE INDEX anime_episode_broadcasts_tid_episode_count_idx ON anime_episode_broadcasts (tid, episode_count);
 
+-- 録画に対応する NICOLOG のコメントのファイル (#1363、設計書 7.4)。見つからなければ path を NULL にして、調べた日時を残す。
+CREATE TABLE recording_nicolog_files (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  path text,
+  checked_at timestamptz NOT NULL
+);
+
 -- TID ごとに、最後にほかの放送を引いた日時 (#1361)。
 CREATE TABLE anime_title_broadcast_lookups (
   tid integer PRIMARY KEY,

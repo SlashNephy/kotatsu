@@ -2373,15 +2373,18 @@ type CommentSource string
 const (
 	// NX-Jikkyo のライブのコメントと、過去ログ API の過去ログ
 	CommentSourceNxJikkyo CommentSource = "NX_JIKKYO"
+	// NICOLOG のニコニコ生放送の上映会のコメント
+	CommentSourceNicolog CommentSource = "NICOLOG"
 )
 
 var AllCommentSource = []CommentSource{
 	CommentSourceNxJikkyo,
+	CommentSourceNicolog,
 }
 
 func (e CommentSource) IsValid() bool {
 	switch e {
-	case CommentSourceNxJikkyo:
+	case CommentSourceNxJikkyo, CommentSourceNicolog:
 		return true
 	}
 	return false
@@ -2818,6 +2821,7 @@ const (
 	NetworkActivityPurposeJikkyoChannels    NetworkActivityPurpose = "JIKKYO_CHANNELS"
 	NetworkActivityPurposeJikkyoComments    NetworkActivityPurpose = "JIKKYO_COMMENTS"
 	NetworkActivityPurposeJikkyoKakolog     NetworkActivityPurpose = "JIKKYO_KAKOLOG"
+	NetworkActivityPurposeNicologComments   NetworkActivityPurpose = "NICOLOG_COMMENTS"
 	NetworkActivityPurposeAnimeProgramSync  NetworkActivityPurpose = "ANIME_PROGRAM_SYNC"
 	NetworkActivityPurposeAnimeMappings     NetworkActivityPurpose = "ANIME_MAPPINGS"
 	NetworkActivityPurposeAnimeWorkIDS      NetworkActivityPurpose = "ANIME_WORK_IDS"
@@ -2841,6 +2845,7 @@ var AllNetworkActivityPurpose = []NetworkActivityPurpose{
 	NetworkActivityPurposeJikkyoChannels,
 	NetworkActivityPurposeJikkyoComments,
 	NetworkActivityPurposeJikkyoKakolog,
+	NetworkActivityPurposeNicologComments,
 	NetworkActivityPurposeAnimeProgramSync,
 	NetworkActivityPurposeAnimeMappings,
 	NetworkActivityPurposeAnimeWorkIDS,
@@ -2862,7 +2867,7 @@ var AllNetworkActivityPurpose = []NetworkActivityPurpose{
 
 func (e NetworkActivityPurpose) IsValid() bool {
 	switch e {
-	case NetworkActivityPurposeJikkyoChannels, NetworkActivityPurposeJikkyoComments, NetworkActivityPurposeJikkyoKakolog, NetworkActivityPurposeAnimeProgramSync, NetworkActivityPurposeAnimeMappings, NetworkActivityPurposeAnimeWorkIDS, NetworkActivityPurposeAnimeArtworks, NetworkActivityPurposeAnimeRecord, NetworkActivityPurposeAnimeLink, NetworkActivityPurposeAnimeImage, NetworkActivityPurposeUserAvatar, NetworkActivityPurposeOidc, NetworkActivityPurposeHibp, NetworkActivityPurposeMcpClientMetadata, NetworkActivityPurposeUpdateCheck, NetworkActivityPurposeTelemetryTraces, NetworkActivityPurposeTelemetryMetrics, NetworkActivityPurposeWebPush, NetworkActivityPurposeWebhook, NetworkActivityPurposeDataBroadcast:
+	case NetworkActivityPurposeJikkyoChannels, NetworkActivityPurposeJikkyoComments, NetworkActivityPurposeJikkyoKakolog, NetworkActivityPurposeNicologComments, NetworkActivityPurposeAnimeProgramSync, NetworkActivityPurposeAnimeMappings, NetworkActivityPurposeAnimeWorkIDS, NetworkActivityPurposeAnimeArtworks, NetworkActivityPurposeAnimeRecord, NetworkActivityPurposeAnimeLink, NetworkActivityPurposeAnimeImage, NetworkActivityPurposeUserAvatar, NetworkActivityPurposeOidc, NetworkActivityPurposeHibp, NetworkActivityPurposeMcpClientMetadata, NetworkActivityPurposeUpdateCheck, NetworkActivityPurposeTelemetryTraces, NetworkActivityPurposeTelemetryMetrics, NetworkActivityPurposeWebPush, NetworkActivityPurposeWebhook, NetworkActivityPurposeDataBroadcast:
 		return true
 	}
 	return false

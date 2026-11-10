@@ -354,3 +354,24 @@ JOIN (
 WHERE b.tid = @tid AND b.episode_count = @episode_count
   AND b.end_at + make_interval(secs => b.offset_seconds) <= @now
 ORDER BY b.start_at + make_interval(secs => b.offset_seconds), b.pid, j.jikkyo_channel_id;
+
+-- name: ListRecordingsForNicolog :many
+-- NICOLOG のファイルを探す録画 (#1363)。1 話だけに結びつき、CM の区間のある録画を対象にする。見つからなかった録画は、終えて間もない間だけ調べ直す。
+SELECT r.id, t.title, e.count_start::double precision AS episode_count
+FROM recordings r
+JOIN recording_anime_episodes e ON e.recording_id = r.id
+JOIN syobocal_titles t ON t.tid = e.syobocal_tid
+LEFT JOIN recording_nicolog_files f ON f.recording_id = r.id
+WHERE r.recorded_until IS NOT NULL AND e.count_start = e.count_end
+  AND (SELECT count(*) FROM recording_anime_episodes o WHERE o.recording_id = r.id) = 1
+  AND EXISTS (SELECT 1 FROM recording_cm_sections c WHERE c.recording_id = r.id)
+  AND (f.recording_id IS NULL OR (f.path IS NULL AND f.checked_at < @checked_before AND r.recorded_until > @recorded_since::timestamptz))
+ORDER BY r.recorded_until DESC
+LIMIT @max_recordings;
+
+-- name: UpsertRecordingNicologFile :exec
+INSERT INTO recording_nicolog_files (recording_id, path, checked_at) VALUES (@recording_id, sqlc.narg(path), @now)
+ON CONFLICT (recording_id) DO UPDATE SET path = excluded.path, checked_at = excluded.checked_at;
+
+-- name: GetRecordingNicologPath :one
+SELECT path FROM recording_nicolog_files WHERE recording_id = @recording_id AND path IS NOT NULL;
