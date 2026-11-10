@@ -265,6 +265,10 @@
       "remove": "{{name}} を外す",
       "mutedUsers": "ミュートするユーザー",
       "mutedUsersHelp": "実況と過去ログのユーザー ID で、コメントを流さず、一覧にも出しません",
+      "mutedCommands": "ミュートするコマンド",
+      "mutedCommandsHelp": "big や ue、色などのコマンドで、コメントを流さず、一覧にも出しません",
+      "mutedCommandsPlaceholder": "コマンドを入力して Enter",
+      "muteFixed": "上下に固定するコメントをまとめてミュートする",
       "userId": "ユーザー ID"
     },
     "shortcutKeys": {

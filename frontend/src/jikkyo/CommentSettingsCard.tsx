@@ -9,6 +9,7 @@ import {
   Slider,
   Stack,
   Switch,
+  TagsInput,
   Text,
   TextInput,
   Title,
@@ -21,9 +22,29 @@ import { usePlayerSettings, type CommentSettingsInput } from '../yunomi/usePlaye
 import {
   isKeywordMuteMatch as isMatch,
   keywordMuteMatches as matches,
+  maxMutedCommands,
+  normalizeMutedCommands,
   type KeywordMuteMatch,
 } from './comments';
 import { CommentOffsetSetting } from './CommentOffsetSetting';
+
+// fixedCommands は、固定のコメントのコマンド。suggestedCommands は、ミュートの入力の候補に出すコマンド。
+const fixedCommands = ['ue', 'shita'];
+const suggestedCommands = [
+  'big',
+  'small',
+  'ue',
+  'shita',
+  'red',
+  'pink',
+  'orange',
+  'yellow',
+  'green',
+  'cyan',
+  'blue',
+  'purple',
+  'black',
+];
 
 // validRegExp は、正規表現として読めるかを返す。読めないものはミュートに使われないので、足す前に知らせる。
 const validRegExp = (pattern: string) => {
@@ -69,6 +90,7 @@ export function CommentSettingsCard() {
       isMatch(k.match) ? [{ text: k.text, match: k.match }] : [],
     ),
     mutedUsers: [...comments.mutedUsers],
+    mutedCommands: [...comments.mutedCommands],
   });
   const save = (change: Partial<CommentSettingsInput>) => {
     setFailed(false);
@@ -215,6 +237,38 @@ export function CommentSettingsCard() {
               </Badge>
             ))}
           </Group>
+        </Stack>
+
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>
+            {t('settings.comments.mutedCommands')}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {t('settings.comments.mutedCommandsHelp')}
+          </Text>
+          <Switch
+            label={t('settings.comments.muteFixed')}
+            checked={fixedCommands.every((command) => comments.mutedCommands.includes(command))}
+            onChange={(event) => {
+              const others = comments.mutedCommands.filter(
+                (command) => !fixedCommands.includes(command),
+              );
+              save({
+                mutedCommands: normalizeMutedCommands(
+                  event.currentTarget.checked ? [...others, ...fixedCommands] : others,
+                ),
+              });
+            }}
+          />
+          <TagsInput
+            aria-label={t('settings.comments.mutedCommands')}
+            placeholder={t('settings.comments.mutedCommandsPlaceholder')}
+            data={suggestedCommands}
+            value={[...comments.mutedCommands]}
+            maxTags={maxMutedCommands}
+            splitChars={[' ', ',']}
+            onChange={(value) => save({ mutedCommands: normalizeMutedCommands(value) })}
+          />
         </Stack>
 
         <Stack gap={4}>

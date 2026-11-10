@@ -78,9 +78,10 @@ type commentSettings struct {
 	ShowAll       bool           `json:"showAll"`
 	MutedKeywords []mutedKeyword `json:"mutedKeywords"`
 	MutedUsers    []string       `json:"mutedUsers"`
+	MutedCommands []string       `json:"mutedCommands"`
 }
 
-const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers }`
+const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers mutedCommands }`
 
 // TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確かめる (#488)。
 func TestCommentSettings(t *testing.T) {
@@ -108,10 +109,11 @@ func TestCommentSettings(t *testing.T) {
 		Opacity: 0.5, Speed: 1.5, Scale: 1.2, ShowAll: false,
 		MutedKeywords: []mutedKeyword{{Text: "ネタバレ", Match: "PARTIAL"}, {Text: "^w+$", Match: "REGEX"}},
 		MutedUsers:    []string{"a:x"},
+		MutedCommands: []string{"big", "ue"},
 	}
 
 	// 一度も変えていなければ、既定値を返す。
-	assert.Equal(t, commentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []mutedKeyword{}, MutedUsers: []string{}}, get())
+	assert.Equal(t, commentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []mutedKeyword{}, MutedUsers: []string{}, MutedCommands: []string{}}, get())
 
 	var got updated
 	require.Empty(t, f.query(t, mutation, map[string]any{varInput: map[string]any{"comments": valid}}, &got))
@@ -134,6 +136,10 @@ func TestCommentSettings(t *testing.T) {
 		{name: "大きさが範囲の外", change: func(s *commentSettings) { s.Scale = 0.1 }},
 		{name: "空のキーワード", change: func(s *commentSettings) { s.MutedKeywords = []mutedKeyword{{Text: "", Match: "EXACT"}} }},
 		{name: "長すぎるユーザー ID", change: func(s *commentSettings) { s.MutedUsers = []string{strings.Repeat("a", 65)} }},
+		{name: "空のコマンド", change: func(s *commentSettings) { s.MutedCommands = []string{""} }},
+		{name: "空白を含むコマンド", change: func(s *commentSettings) { s.MutedCommands = []string{"ue shita"} }},
+		{name: "長すぎるコマンド", change: func(s *commentSettings) { s.MutedCommands = []string{strings.Repeat("a", 33)} }},
+		{name: "多すぎるコマンド", change: func(s *commentSettings) { s.MutedCommands = make([]string, 51) }},
 	}
 	// 同じユーザーの設定を順に変えるので、並行に動かさない。
 	for _, tt := range tests {

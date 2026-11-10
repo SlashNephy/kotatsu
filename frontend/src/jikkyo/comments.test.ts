@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import {
   compileMute,
   defaultCommentSettings,
+  maxMutedCommands,
+  normalizeMutedCommands,
   shouldDraw,
   toFormatted,
   type CommentSettings,
@@ -136,5 +138,52 @@ describe('compileMute', () => {
     expect(muted({ time: 0, content: 'わこつ', mail: '', userId: 'a:x' })).toBe(true);
     expect(muted({ time: 0, content: 'わこつ', mail: '', userId: 'a:y' })).toBe(false);
     expect(muted({ time: 0, content: 'わこつ', mail: '' })).toBe(false);
+  });
+});
+
+describe('compileMute のコマンド', () => {
+  const settings = (mutedCommands: string[]): CommentSettings => ({
+    ...defaultCommentSettings,
+    mutedCommands,
+  });
+
+  test.each([
+    {
+      name: '指定したコマンドのコメントをミュートする',
+      muted: ['big'],
+      mail: '184 big',
+      want: true,
+    },
+    { name: 'ほかのコマンドならミュートしない', muted: ['big'], mail: '184 small', want: false },
+    { name: 'コマンドがなければミュートしない', muted: ['big'], mail: '', want: false },
+    { name: '大文字と小文字は区別しない', muted: ['big'], mail: 'BIG', want: true },
+    { name: '色をミュートする', muted: ['red'], mail: 'ue red', want: true },
+    { name: '上の固定をミュートする', muted: ['ue', 'shita'], mail: 'ue', want: true },
+    { name: '下の固定をミュートする', muted: ['ue', 'shita'], mail: '184 SHITA', want: true },
+    { name: '流れるコメントはミュートしない', muted: ['ue', 'shita'], mail: '184', want: false },
+    { name: '効かない位置の指定ではミュートしない', muted: ['ue'], mail: 'naka ue', want: false },
+    { name: '最初の位置の指定でミュートする', muted: ['ue'], mail: 'ue naka', want: true },
+    { name: '何も指定しなければミュートしない', muted: [], mail: 'big', want: false },
+  ])('$name', ({ muted, mail, want }) => {
+    expect(compileMute(settings(muted))({ time: 0, content: 'わこつ', mail })).toBe(want);
+  });
+});
+
+describe('normalizeMutedCommands', () => {
+  test.each([
+    { name: '小文字にそろえる', input: ['BIG', 'Red'], want: ['big', 'red'] },
+    { name: '前後の空白を除く', input: [' ue '], want: ['ue'] },
+    { name: '空のものを除く', input: ['', '  ', 'big'], want: ['big'] },
+    { name: '空白を含むものを除く', input: ['ue shita', 'big'], want: ['big'] },
+    { name: '重複を除く', input: ['big', 'BIG'], want: ['big'] },
+    { name: '長すぎるものを除く', input: ['x'.repeat(33), 'x'.repeat(32)], want: ['x'.repeat(32)] },
+  ])('$name', ({ input, want }) => {
+    expect(normalizeMutedCommands(input)).toEqual(want);
+  });
+
+  test('上限で切る', () => {
+    const many = Array.from({ length: 60 }, (_, index) => `c${index}`);
+
+    expect(normalizeMutedCommands(many)).toHaveLength(maxMutedCommands);
   });
 });

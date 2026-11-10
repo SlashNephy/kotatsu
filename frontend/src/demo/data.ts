@@ -123,7 +123,15 @@ export function createRootValue(
   let playerSettings = {
     jikkyoEnabled: false,
     captionsEnabled: true,
-    comments: { opacity: 1, speed: 1, scale: 1, showAll: false, mutedKeywords: [], mutedUsers: [] },
+    comments: {
+      opacity: 1,
+      speed: 1,
+      scale: 1,
+      showAll: false,
+      mutedKeywords: [],
+      mutedUsers: [],
+      mutedCommands: [],
+    },
     captions: {
       superimposeLive: true,
       superimposeRecorded: true,

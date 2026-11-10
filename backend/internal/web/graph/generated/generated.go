@@ -343,6 +343,7 @@ type ComplexityRoot struct {
 	}
 
 	CommentSettings struct {
+		MutedCommands func(childComplexity int) int
 		MutedKeywords func(childComplexity int) int
 		MutedUsers    func(childComplexity int) int
 		Opacity       func(childComplexity int) int
@@ -2781,6 +2782,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CleanUpMissingRecordingsPayload.Skipped(childComplexity), true
 
+	case "CommentSettings.mutedCommands":
+		if e.ComplexityRoot.CommentSettings.MutedCommands == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.MutedCommands(childComplexity), true
 	case "CommentSettings.mutedKeywords":
 		if e.ComplexityRoot.CommentSettings.MutedKeywords == nil {
 			break
@@ -9838,6 +9845,8 @@ type CommentSettings {
   mutedKeywords: [MutedKeyword!]!
   "ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。"
   mutedUsers: [String!]!
+  "ミュートするコマンド (big、ue、色など。#1359)。"
+  mutedCommands: [String!]!
 }
 
 """
@@ -9894,6 +9903,8 @@ input CommentSettingsInput {
   mutedKeywords: [MutedKeywordInput!]!
   "500 件まで。1 つ 64 文字まで"
   mutedUsers: [String!]!
+  "50 件まで。1 つ 32 文字まで"
+  mutedCommands: [String!]!
 }
 
 input MutedKeywordInput {
@@ -12345,6 +12356,8 @@ func (ec *executionContext) childFields_CommentSettings(ctx context.Context, fie
 		return ec.fieldContext_CommentSettings_mutedKeywords(ctx, field)
 	case "mutedUsers":
 		return ec.fieldContext_CommentSettings_mutedUsers(ctx, field)
+	case "mutedCommands":
+		return ec.fieldContext_CommentSettings_mutedCommands(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CommentSettings", field.Name)
 }
@@ -20761,6 +20774,29 @@ func (ec *executionContext) _CommentSettings_mutedUsers(ctx context.Context, fie
 	)
 }
 func (ec *executionContext) fieldContext_CommentSettings_mutedUsers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, "String")
+}
+
+func (ec *executionContext) _CommentSettings_mutedCommands(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_mutedCommands(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MutedCommands, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_mutedCommands(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, "String")
 }
 
@@ -42502,7 +42538,7 @@ func (ec *executionContext) unmarshalInputCommentSettingsInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"opacity", "speed", "scale", "showAll", "mutedKeywords", "mutedUsers"}
+	fieldsInOrder := [...]string{"opacity", "speed", "scale", "showAll", "mutedKeywords", "mutedUsers", "mutedCommands"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -42551,6 +42587,13 @@ func (ec *executionContext) unmarshalInputCommentSettingsInput(ctx context.Conte
 				return it, err
 			}
 			it.MutedUsers = data
+		case "mutedCommands":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mutedCommands"))
+			data, err := ec.unmarshalNString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MutedCommands = data
 		}
 	}
 	return it, nil
@@ -46886,6 +46929,11 @@ func (ec *executionContext) _CommentSettings(ctx context.Context, sel ast.Select
 			}
 		case "mutedUsers":
 			out.Values[i] = ec._CommentSettings_mutedUsers(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mutedCommands":
+			out.Values[i] = ec._CommentSettings_mutedCommands(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
