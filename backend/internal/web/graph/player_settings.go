@@ -35,7 +35,7 @@ func defaultCaptionSettings() *model.CaptionSettings {
 
 // defaultCommentSettings は、コメントの設定の既定値 (設計書 付録 A)。
 func defaultCommentSettings() *model.CommentSettings {
-	return &model.CommentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []*model.MutedKeyword{}, MutedUsers: []string{}, MutedCommands: []string{}}
+	return &model.CommentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []*model.MutedKeyword{}, MutedUsers: []string{}, MutedCommands: []string{}, MixOtherBroadcasts: false}
 }
 
 // playerSettings は、ログイン中のユーザーのプレイヤーの設定を返す。
@@ -117,7 +117,7 @@ func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	settings := &model.CommentSettings{
 		Opacity: input.Opacity, Speed: input.Speed, Scale: input.Scale, ShowAll: input.ShowAll,
 		MutedKeywords: make([]*model.MutedKeyword, 0, len(input.MutedKeywords)), MutedUsers: make([]string, 0, len(input.MutedUsers)),
-		MutedCommands: mutedCommands,
+		MutedCommands: mutedCommands, MixOtherBroadcasts: input.MixOtherBroadcasts,
 	}
 	for _, keyword := range input.MutedKeywords {
 		if keyword.Text == "" || utf8.RuneCountInString(keyword.Text) > maxMutedKeywordLength || !keyword.Match.IsValid() {

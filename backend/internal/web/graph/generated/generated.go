@@ -343,13 +343,14 @@ type ComplexityRoot struct {
 	}
 
 	CommentSettings struct {
-		MutedCommands func(childComplexity int) int
-		MutedKeywords func(childComplexity int) int
-		MutedUsers    func(childComplexity int) int
-		Opacity       func(childComplexity int) int
-		Scale         func(childComplexity int) int
-		ShowAll       func(childComplexity int) int
-		Speed         func(childComplexity int) int
+		MixOtherBroadcasts func(childComplexity int) int
+		MutedCommands      func(childComplexity int) int
+		MutedKeywords      func(childComplexity int) int
+		MutedUsers         func(childComplexity int) int
+		Opacity            func(childComplexity int) int
+		Scale              func(childComplexity int) int
+		ShowAll            func(childComplexity int) int
+		Speed              func(childComplexity int) int
 	}
 
 	CreateWebhookPayload struct {
@@ -2782,6 +2783,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CleanUpMissingRecordingsPayload.Skipped(childComplexity), true
 
+	case "CommentSettings.mixOtherBroadcasts":
+		if e.ComplexityRoot.CommentSettings.MixOtherBroadcasts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CommentSettings.MixOtherBroadcasts(childComplexity), true
 	case "CommentSettings.mutedCommands":
 		if e.ComplexityRoot.CommentSettings.MutedCommands == nil {
 			break
@@ -9847,6 +9854,8 @@ type CommentSettings {
   mutedUsers: [String!]!
   "ミュートするコマンド (big、ue、色など。#1359)。"
   mutedCommands: [String!]!
+  "録画の再生で、同じ話の別の放送の過去ログも混ぜるかどうか (#1361)。"
+  mixOtherBroadcasts: Boolean!
 }
 
 """
@@ -9905,6 +9914,7 @@ input CommentSettingsInput {
   mutedUsers: [String!]!
   "50 件まで。1 つ 32 文字まで"
   mutedCommands: [String!]!
+  mixOtherBroadcasts: Boolean!
 }
 
 input MutedKeywordInput {
@@ -12358,6 +12368,8 @@ func (ec *executionContext) childFields_CommentSettings(ctx context.Context, fie
 		return ec.fieldContext_CommentSettings_mutedUsers(ctx, field)
 	case "mutedCommands":
 		return ec.fieldContext_CommentSettings_mutedCommands(ctx, field)
+	case "mixOtherBroadcasts":
+		return ec.fieldContext_CommentSettings_mixOtherBroadcasts(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type CommentSettings", field.Name)
 }
@@ -20798,6 +20810,29 @@ func (ec *executionContext) _CommentSettings_mutedCommands(ctx context.Context, 
 }
 func (ec *executionContext) fieldContext_CommentSettings_mutedCommands(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, "String")
+}
+
+func (ec *executionContext) _CommentSettings_mixOtherBroadcasts(ctx context.Context, field graphql.CollectedField, obj *model.CommentSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CommentSettings_mixOtherBroadcasts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MixOtherBroadcasts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CommentSettings_mixOtherBroadcasts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CommentSettings", field, false, false, "Boolean")
 }
 
 func (ec *executionContext) _CreateWebhookPayload_webhook(ctx context.Context, field graphql.CollectedField, obj *model.CreateWebhookPayload) (ret graphql.Marshaler) {
@@ -42538,7 +42573,7 @@ func (ec *executionContext) unmarshalInputCommentSettingsInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"opacity", "speed", "scale", "showAll", "mutedKeywords", "mutedUsers", "mutedCommands"}
+	fieldsInOrder := [...]string{"opacity", "speed", "scale", "showAll", "mutedKeywords", "mutedUsers", "mutedCommands", "mixOtherBroadcasts"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -42594,6 +42629,13 @@ func (ec *executionContext) unmarshalInputCommentSettingsInput(ctx context.Conte
 				return it, err
 			}
 			it.MutedCommands = data
+		case "mixOtherBroadcasts":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mixOtherBroadcasts"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MixOtherBroadcasts = data
 		}
 	}
 	return it, nil
@@ -46934,6 +46976,11 @@ func (ec *executionContext) _CommentSettings(ctx context.Context, sel ast.Select
 			}
 		case "mutedCommands":
 			out.Values[i] = ec._CommentSettings_mutedCommands(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "mixOtherBroadcasts":
+			out.Values[i] = ec._CommentSettings_mixOtherBroadcasts(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

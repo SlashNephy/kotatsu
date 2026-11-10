@@ -567,6 +567,8 @@ type CommentSettings struct {
 	MutedUsers []string `json:"mutedUsers"`
 	// ミュートするコマンド (big、ue、色など。#1359)。
 	MutedCommands []string `json:"mutedCommands"`
+	// 録画の再生で、同じ話の別の放送の過去ログも混ぜるかどうか (#1361)。
+	MixOtherBroadcasts bool `json:"mixOtherBroadcasts"`
 }
 
 type CommentSettingsInput struct {
@@ -579,7 +581,8 @@ type CommentSettingsInput struct {
 	// 500 件まで。1 つ 64 文字まで
 	MutedUsers []string `json:"mutedUsers"`
 	// 50 件まで。1 つ 32 文字まで
-	MutedCommands []string `json:"mutedCommands"`
+	MutedCommands      []string `json:"mutedCommands"`
+	MixOtherBroadcasts bool     `json:"mixOtherBroadcasts"`
 }
 
 // 管理者が作るユーザー。

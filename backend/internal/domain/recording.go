@@ -147,3 +147,12 @@ type RecordingJikkyoSource struct {
 	NetworkID     int64
 	Sid           int64
 }
+
+// OtherAnimeBroadcast は、録画と同じ話の、別の放送 (#1361)。StartAt と EndAt を OffsetSeconds だけずらしたものが、実際の放送の時間帯。
+type OtherAnimeBroadcast struct {
+	PID             int32
+	StartAt         time.Time
+	EndAt           time.Time
+	OffsetSeconds   int32
+	JikkyoChannelID int32
+}

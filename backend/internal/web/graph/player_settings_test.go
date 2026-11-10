@@ -72,16 +72,17 @@ type mutedKeyword struct {
 }
 
 type commentSettings struct {
-	Opacity       float64        `json:"opacity"`
-	Speed         float64        `json:"speed"`
-	Scale         float64        `json:"scale"`
-	ShowAll       bool           `json:"showAll"`
-	MutedKeywords []mutedKeyword `json:"mutedKeywords"`
-	MutedUsers    []string       `json:"mutedUsers"`
-	MutedCommands []string       `json:"mutedCommands"`
+	Opacity            float64        `json:"opacity"`
+	Speed              float64        `json:"speed"`
+	Scale              float64        `json:"scale"`
+	ShowAll            bool           `json:"showAll"`
+	MutedKeywords      []mutedKeyword `json:"mutedKeywords"`
+	MutedUsers         []string       `json:"mutedUsers"`
+	MutedCommands      []string       `json:"mutedCommands"`
+	MixOtherBroadcasts bool           `json:"mixOtherBroadcasts"`
 }
 
-const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers mutedCommands }`
+const commentSettingsFields = `comments { opacity speed scale showAll mutedKeywords { text match } mutedUsers mutedCommands mixOtherBroadcasts }`
 
 // TestCommentSettings は、実況のコメントの設定を、既定値から置き換えられ、ほかの項目を変えず、範囲の外は断ることを確かめる (#488)。
 func TestCommentSettings(t *testing.T) {
@@ -109,7 +110,7 @@ func TestCommentSettings(t *testing.T) {
 		Opacity: 0.5, Speed: 1.5, Scale: 1.2, ShowAll: false,
 		MutedKeywords: []mutedKeyword{{Text: "ネタバレ", Match: "PARTIAL"}, {Text: "^w+$", Match: "REGEX"}},
 		MutedUsers:    []string{"a:x"},
-		MutedCommands: []string{"big", "ue"},
+		MutedCommands: []string{"big", "ue"}, MixOtherBroadcasts: true,
 	}
 
 	// 一度も変えていなければ、既定値を返す。

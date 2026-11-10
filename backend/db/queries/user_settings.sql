@@ -55,3 +55,7 @@ ON CONFLICT DO NOTHING;
 
 -- name: UnpinService :exec
 DELETE FROM pinned_services WHERE user_id = @user_id AND service_id = @service_id;
+
+-- name: GetCommentSettings :one
+-- 実況のコメントの設定の JSON。行がないか、設定を変えていなければ NULL。
+SELECT comment_settings FROM user_settings WHERE user_id = @user_id;

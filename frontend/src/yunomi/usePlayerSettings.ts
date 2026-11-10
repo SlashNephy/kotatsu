@@ -27,6 +27,7 @@ const settingsQuery = graphql`
         }
         mutedUsers
         mutedCommands
+        mixOtherBroadcasts
       }
       captions {
         superimposeLive
@@ -49,6 +50,7 @@ export type CommentSettingsInput = {
   mutedKeywords: { text: string; match: KeywordMuteMatch }[];
   mutedUsers: string[];
   mutedCommands: string[];
+  mixOtherBroadcasts: boolean;
 };
 
 // CaptionSettings は、字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。
@@ -98,6 +100,7 @@ export function usePlayerSettings(): Settings & {
           }
           mutedUsers
           mutedCommands
+          mixOtherBroadcasts
         }
         captions {
           superimposeLive
@@ -203,6 +206,7 @@ export function usePlayerSettings(): Settings & {
       ),
       mutedUsers: [...comments.mutedUsers, userId],
       mutedCommands: [...comments.mutedCommands],
+      mixOtherBroadcasts: comments.mixOtherBroadcasts,
     });
   };
 

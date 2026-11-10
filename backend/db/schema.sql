@@ -1223,6 +1223,8 @@ CREATE TABLE anime_channel_definitions (
   name text NOT NULL,
   syobocal_channel_id integer,
   annict_channel_id integer,
+  -- ニコニコ実況のチャンネルの番号 (nicojkId)。別の放送の過去ログを引くのに使う (#1361)。対応がなければ NULL。
+  jikkyo_channel_id integer,
   PRIMARY KEY (channel_type, network_id, sid)
 );
 
@@ -1289,6 +1291,26 @@ CREATE TABLE syobocal_programs (
 );
 CREATE INDEX syobocal_programs_channel_id_start_at_idx ON syobocal_programs (channel_id, start_at);
 CREATE INDEX syobocal_programs_end_at_idx ON syobocal_programs (end_at);
+
+-- 録画に結びついた作品の、ほかの放送の放送時間データ (#1361、設計書 3.8)。別の放送の実況の過去ログを引くのに使う。
+-- syobocal_programs は放送の 2 日後に消すが、録画は何か月後にも再生するので、別に持つ。話数のない放送は持たない。
+CREATE TABLE anime_episode_broadcasts (
+  pid integer PRIMARY KEY,
+  tid integer NOT NULL,
+  channel_id integer NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  -- StOffset (秒)。実際の放送は、start_at と end_at をこれだけずらしたもの。
+  offset_seconds integer NOT NULL,
+  episode_count double precision NOT NULL
+);
+CREATE INDEX anime_episode_broadcasts_tid_episode_count_idx ON anime_episode_broadcasts (tid, episode_count);
+
+-- TID ごとに、最後にほかの放送を引いた日時 (#1361)。
+CREATE TABLE anime_title_broadcast_lookups (
+  tid integer PRIMARY KEY,
+  fetched_at timestamptz NOT NULL
+);
 
 -- ChID と日 (日本時間) ごとに、最後にしょぼいカレンダーの放送時間データを引いた日時 (設計書 3.8)。キャッシュが古いかを決めるのに使う。
 CREATE TABLE syobocal_lookups (

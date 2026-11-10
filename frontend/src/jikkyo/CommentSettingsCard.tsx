@@ -91,6 +91,7 @@ export function CommentSettingsCard() {
     ),
     mutedUsers: [...comments.mutedUsers],
     mutedCommands: [...comments.mutedCommands],
+    mixOtherBroadcasts: comments.mixOtherBroadcasts,
   });
   const save = (change: Partial<CommentSettingsInput>) => {
     setFailed(false);

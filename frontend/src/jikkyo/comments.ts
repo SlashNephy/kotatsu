@@ -40,6 +40,8 @@ export type CommentSettings = {
   readonly mutedUsers: readonly string[];
   // mutedCommands は、ミュートするコマンド (big、ue、色など。#1359)。小文字で持つ。
   readonly mutedCommands: readonly string[];
+  // mixOtherBroadcasts は、録画の再生で、同じ話の別の放送の過去ログも混ぜるかどうか (#1361)。
+  readonly mixOtherBroadcasts: boolean;
 };
 
 export const defaultCommentSettings: CommentSettings = {
@@ -50,6 +52,7 @@ export const defaultCommentSettings: CommentSettings = {
   mutedKeywords: [],
   mutedUsers: [],
   mutedCommands: [],
+  mixOtherBroadcasts: false,
 };
 
 // defaultCommentSeconds は、niconicomments が流れるコメントを出しておく秒数。速さの倍率は、これを縮めて変える。

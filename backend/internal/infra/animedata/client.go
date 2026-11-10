@@ -45,6 +45,8 @@ type Channel struct {
 	SyobocalID *int32 `json:"syobocalId"`
 	// AnnictID は、Annict のチャンネルの ID。対応がなければ nil。
 	AnnictID *int32 `json:"annictId"`
+	// NicojkID は、ニコニコ実況のチャンネルの番号。対応がなければ nil。
+	NicojkID *int32 `json:"nicojkId"`
 }
 
 // Work は、arm の作品 1 つ。どの ID も、対応がなければ nil。

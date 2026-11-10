@@ -52,6 +52,7 @@ var multipleEpisodes = regexp.MustCompile(`^#([0-9]+(?:\.[0-9]+)?)[～〜~\-]#([
 // SyobocalClient は、しょぼいカレンダーに問い合わせる。*syobocal.Client が満たす。
 type SyobocalClient interface {
 	ProgLookup(ctx context.Context, channelIDs []int32, from, to time.Time) ([]*syobocal.Program, error)
+	ProgLookupByTID(ctx context.Context, tid int32) ([]*syobocal.Program, error)
 }
 
 var _ SyobocalClient = new(syobocal.Client)

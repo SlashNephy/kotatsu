@@ -24,6 +24,8 @@ import (
 const (
 	// DefaultURL は、しょぼいカレンダーの db.php。
 	DefaultURL = "https://cal.syoboi.jp/db.php"
+	// paramCommand は、db.php の問い合わせの種類を指定するパラメーターの名前。
+	paramCommand = "Command"
 	// DefaultInterval は、問い合わせの間隔の下限 (付録 A)。
 	DefaultInterval = 2 * time.Second
 	// requestTimeout は、1 回の問い合わせの時間の上限。
@@ -157,46 +159,22 @@ func (c *Client) ProgLookup(ctx context.Context, channelIDs []int32, from, to ti
 		ids = append(ids, strconv.FormatInt(int64(id), 10))
 	}
 	query := url.Values{
-		"Command": {"ProgLookup"},
-		"ChID":    {strings.Join(ids, ",")},
-		"Range":   {from.In(Tokyo()).Format(rangeLayout) + "-" + to.In(Tokyo()).Format(rangeLayout)},
-		"JOIN":    {"SubTitles"},
-	}
-	var body progLookupResponse
-	if err := c.get(ctx, query, &body); err != nil {
-		return nil, err
-	}
-	if body.Result.Code == resultNotFound {
-		return []*Program{}, nil
-	}
-	if body.Result.Code != http.StatusOK {
-		return nil, fmt.Errorf("%w: ProgLookup returned %d %s", ErrUnexpectedResponse, body.Result.Code, body.Result.Message)
+		paramCommand: {"ProgLookup"},
+		"ChID":       {strings.Join(ids, ",")},
+		"Range":      {from.In(Tokyo()).Format(rangeLayout) + "-" + to.In(Tokyo()).Format(rangeLayout)},
+		"JOIN":       {"SubTitles"},
 	}
 
-	programs := make([]*Program, 0, len(body.Items))
-	for _, item := range body.Items {
-		start, err := parseTime(item.StTime)
-		if err != nil {
-			return nil, err
-		}
-		end, err := parseTime(item.EdTime)
-		if err != nil {
-			return nil, err
-		}
-		// LastUpdate は、照合には使わない。読めなければ空にする。
-		lastUpdate, err := parseTime(item.LastUpdate)
-		if err != nil {
-			lastUpdate = time.Time{}
-		}
-		programs = append(programs, &Program{
-			PID: item.PID, TID: item.TID, ChannelID: item.ChID, StartAt: start, EndAt: end,
-			OffsetSeconds: item.StOffset, Count: strings.TrimSpace(item.Count),
-			SubTitle: strings.TrimSpace(item.SubTitle), STSubTitle: strings.TrimSpace(item.STSubTitle),
-			Flag: item.Flag, Deleted: item.Deleted != 0, LastUpdate: lastUpdate,
-		})
-	}
+	return c.progLookup(ctx, query)
+}
 
-	return programs, nil
+// ProgLookupByTID は、作品 tid のすべての放送時間データを返す (#1361)。削除された放送時間データも返すので、呼ぶ側で Deleted を見る。
+func (c *Client) ProgLookupByTID(ctx context.Context, tid int32) ([]*Program, error) {
+	return c.progLookup(ctx, url.Values{
+		paramCommand: {"ProgLookup"},
+		"TID":        {strconv.FormatInt(int64(tid), 10)},
+		"JOIN":       {"SubTitles"},
+	})
 }
 
 // titleLookupResponse は、TitleLookup の応答。
@@ -215,9 +193,9 @@ type titleLookupResponse struct {
 // TitleLookup は、since より後に更新されたタイトルの、TID とタイトル名を返す。since が零値なら、すべてのタイトルを返す。
 func (c *Client) TitleLookup(ctx context.Context, since time.Time) ([]*Title, error) {
 	query := url.Values{
-		"Command": {"TitleLookup"},
-		"TID":     {"*"},
-		"Fields":  {"TID,Title,LastUpdate"},
+		paramCommand: {"TitleLookup"},
+		"TID":        {"*"},
+		"Fields":     {"TID,Title,LastUpdate"},
 	}
 	if !since.IsZero() {
 		query.Set("LastUpdate", since.In(Tokyo()).Format(rangeLayout)+"-")
@@ -297,4 +275,43 @@ func parseTime(value string) (time.Time, error) {
 	}
 
 	return parsed, nil
+}
+
+// progLookup は、ProgLookup を問い合わせて、放送時間データを返す。
+func (c *Client) progLookup(ctx context.Context, query url.Values) ([]*Program, error) {
+	var body progLookupResponse
+	if err := c.get(ctx, query, &body); err != nil {
+		return nil, err
+	}
+	if body.Result.Code == resultNotFound {
+		return []*Program{}, nil
+	}
+	if body.Result.Code != http.StatusOK {
+		return nil, fmt.Errorf("%w: ProgLookup returned %d %s", ErrUnexpectedResponse, body.Result.Code, body.Result.Message)
+	}
+
+	programs := make([]*Program, 0, len(body.Items))
+	for _, item := range body.Items {
+		start, err := parseTime(item.StTime)
+		if err != nil {
+			return nil, err
+		}
+		end, err := parseTime(item.EdTime)
+		if err != nil {
+			return nil, err
+		}
+		// LastUpdate は、照合には使わない。読めなければ空にする。
+		lastUpdate, err := parseTime(item.LastUpdate)
+		if err != nil {
+			lastUpdate = time.Time{}
+		}
+		programs = append(programs, &Program{
+			PID: item.PID, TID: item.TID, ChannelID: item.ChID, StartAt: start, EndAt: end,
+			OffsetSeconds: item.StOffset, Count: strings.TrimSpace(item.Count),
+			SubTitle: strings.TrimSpace(item.SubTitle), STSubTitle: strings.TrimSpace(item.STSubTitle),
+			Flag: item.Flag, Deleted: item.Deleted != 0, LastUpdate: lastUpdate,
+		})
+	}
+
+	return programs, nil
 }

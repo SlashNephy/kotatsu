@@ -32,6 +32,18 @@ func (q *Queries) BumpUserSettingsVersion(ctx context.Context, arg BumpUserSetti
 	return version, err
 }
 
+const getCommentSettings = `-- name: GetCommentSettings :one
+SELECT comment_settings FROM user_settings WHERE user_id = $1
+`
+
+// 実況のコメントの設定の JSON。行がないか、設定を変えていなければ NULL。
+func (q *Queries) GetCommentSettings(ctx context.Context, userID uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, getCommentSettings, userID)
+	var comment_settings []byte
+	err := row.Scan(&comment_settings)
+	return comment_settings, err
+}
+
 const getJikkyoAccess = `-- name: GetJikkyoAccess :one
 SELECT
   coalesce((SELECT jikkyo_enabled FROM system_settings WHERE id = 1), false)::boolean AS system_enabled,

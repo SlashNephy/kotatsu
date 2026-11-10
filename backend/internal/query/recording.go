@@ -2,9 +2,11 @@ package query
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -281,4 +283,42 @@ func (q *Queries) GetRecordingLiveStats(ctx context.Context, recordingID uuid.UU
 	}
 
 	return domain.RecordingLiveStats(result), nil
+}
+
+// GetCommentSettingsJSON は、ユーザーの実況のコメントの設定の JSON を返す。設定を変えていなければ nil を返す。
+func (q *Queries) GetCommentSettingsJSON(ctx context.Context, userID uuid.UUID) ([]byte, error) {
+	raw, err := sqlc.New(q.pool).GetCommentSettings(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+
+	return raw, err
+}
+
+// ListOtherAnimeBroadcasts は、録画と同じ話の、now までに終わった別の放送を返す (#1361)。放送の古い順に並べる。
+// 1 話だけに結びついた録画だけを対象にする。ほかの録画では空を返す。
+func (q *Queries) ListOtherAnimeBroadcasts(ctx context.Context, recordingID uuid.UUID, now time.Time) ([]*domain.OtherAnimeBroadcast, error) {
+	queries := sqlc.New(q.pool)
+	episodes, err := queries.ListRecordingEpisodesForBroadcasts(ctx, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	broadcasts := []*domain.OtherAnimeBroadcast{}
+	if len(episodes) != 1 || episodes[0].SyobocalTid == nil || episodes[0].CountStart == nil || episodes[0].CountEnd == nil ||
+		*episodes[0].CountStart != *episodes[0].CountEnd {
+		return broadcasts, nil
+	}
+	rows, err := queries.ListOtherAnimeBroadcasts(ctx, sqlc.ListOtherAnimeBroadcastsParams{
+		Tid: *episodes[0].SyobocalTid, EpisodeCount: *episodes[0].CountStart, Now: now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		broadcasts = append(broadcasts, &domain.OtherAnimeBroadcast{
+			PID: row.Pid, StartAt: row.StartAt, EndAt: row.EndAt, OffsetSeconds: row.OffsetSeconds, JikkyoChannelID: row.JikkyoChannelID,
+		})
+	}
+
+	return broadcasts, nil
 }

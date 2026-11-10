@@ -66,6 +66,15 @@ func (q *Queries) DeleteAnimeChannelOverride(ctx context.Context, serviceID int6
 	return err
 }
 
+const deleteAnimeEpisodeBroadcasts = `-- name: DeleteAnimeEpisodeBroadcasts :exec
+DELETE FROM anime_episode_broadcasts WHERE tid = $1
+`
+
+func (q *Queries) DeleteAnimeEpisodeBroadcasts(ctx context.Context, tid int32) error {
+	_, err := q.db.Exec(ctx, deleteAnimeEpisodeBroadcasts, tid)
+	return err
+}
+
 const deleteAnimeImportToken = `-- name: DeleteAnimeImportToken :execrows
 DELETE FROM anime_import_tokens WHERE id = 1
 `
@@ -237,12 +246,13 @@ func (q *Queries) GetSyobocalTitlesLastUpdate(ctx context.Context) (*time.Time, 
 }
 
 const insertAnimeChannelDefinitions = `-- name: InsertAnimeChannelDefinitions :exec
-INSERT INTO anime_channel_definitions (channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id)
-SELECT t.channel_type, t.network_id, t.sid, t.name, NULLIF(t.syobocal_channel_id, 0), NULLIF(t.annict_channel_id, 0)
+INSERT INTO anime_channel_definitions (channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id, jikkyo_channel_id)
+SELECT t.channel_type, t.network_id, t.sid, t.name, NULLIF(t.syobocal_channel_id, 0), NULLIF(t.annict_channel_id, 0), NULLIF(t.jikkyo_channel_id, 0)
 FROM (
   SELECT unnest($1::text[]) AS channel_type, unnest($2::bigint[]) AS network_id,
     unnest($3::bigint[]) AS sid, unnest($4::text[]) AS name,
-    unnest($5::integer[]) AS syobocal_channel_id, unnest($6::integer[]) AS annict_channel_id
+    unnest($5::integer[]) AS syobocal_channel_id, unnest($6::integer[]) AS annict_channel_id,
+    unnest($7::integer[]) AS jikkyo_channel_id
 ) AS t
 `
 
@@ -253,6 +263,7 @@ type InsertAnimeChannelDefinitionsParams struct {
 	Names              []string
 	SyobocalChannelIds []int32
 	AnnictChannelIds   []int32
+	JikkyoChannelIds   []int32
 }
 
 // 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
@@ -264,6 +275,35 @@ func (q *Queries) InsertAnimeChannelDefinitions(ctx context.Context, arg InsertA
 		arg.Names,
 		arg.SyobocalChannelIds,
 		arg.AnnictChannelIds,
+		arg.JikkyoChannelIds,
+	)
+	return err
+}
+
+const insertAnimeEpisodeBroadcast = `-- name: InsertAnimeEpisodeBroadcast :exec
+INSERT INTO anime_episode_broadcasts (pid, tid, channel_id, start_at, end_at, offset_seconds, episode_count)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type InsertAnimeEpisodeBroadcastParams struct {
+	Pid           int32
+	Tid           int32
+	ChannelID     int32
+	StartAt       time.Time
+	EndAt         time.Time
+	OffsetSeconds int32
+	EpisodeCount  float64
+}
+
+func (q *Queries) InsertAnimeEpisodeBroadcast(ctx context.Context, arg InsertAnimeEpisodeBroadcastParams) error {
+	_, err := q.db.Exec(ctx, insertAnimeEpisodeBroadcast,
+		arg.Pid,
+		arg.Tid,
+		arg.ChannelID,
+		arg.StartAt,
+		arg.EndAt,
+		arg.OffsetSeconds,
+		arg.EpisodeCount,
 	)
 	return err
 }
@@ -728,6 +768,59 @@ func (q *Queries) ListImportedRecordingsToMatch(ctx context.Context, maxCount in
 	return items, nil
 }
 
+const listOtherAnimeBroadcasts = `-- name: ListOtherAnimeBroadcasts :many
+SELECT b.pid, b.start_at, b.end_at, b.offset_seconds, j.jikkyo_channel_id::integer AS jikkyo_channel_id
+FROM anime_episode_broadcasts b
+JOIN (
+  SELECT DISTINCT syobocal_channel_id, jikkyo_channel_id FROM anime_channel_definitions
+  WHERE syobocal_channel_id IS NOT NULL AND jikkyo_channel_id IS NOT NULL
+) j ON j.syobocal_channel_id = b.channel_id
+WHERE b.tid = $1 AND b.episode_count = $2
+  AND b.end_at + make_interval(secs => b.offset_seconds) <= $3
+ORDER BY b.start_at + make_interval(secs => b.offset_seconds), b.pid, j.jikkyo_channel_id
+`
+
+type ListOtherAnimeBroadcastsParams struct {
+	Tid          int32
+	EpisodeCount float64
+	Now          time.Time
+}
+
+type ListOtherAnimeBroadcastsRow struct {
+	Pid             int32
+	StartAt         time.Time
+	EndAt           time.Time
+	OffsetSeconds   int32
+	JikkyoChannelID int32
+}
+
+// 同じ話の、放送が終わった放送を、実況のチャンネルがあるものだけ、古い順に返す (#1361)。
+func (q *Queries) ListOtherAnimeBroadcasts(ctx context.Context, arg ListOtherAnimeBroadcastsParams) ([]ListOtherAnimeBroadcastsRow, error) {
+	rows, err := q.db.Query(ctx, listOtherAnimeBroadcasts, arg.Tid, arg.EpisodeCount, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOtherAnimeBroadcastsRow{}
+	for rows.Next() {
+		var i ListOtherAnimeBroadcastsRow
+		if err := rows.Scan(
+			&i.Pid,
+			&i.StartAt,
+			&i.EndAt,
+			&i.OffsetSeconds,
+			&i.JikkyoChannelID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProgramAnimeEpisodes = `-- name: ListProgramAnimeEpisodes :many
 SELECT e.service_id, e.start_at, e.position, e.source, e.syobocal_tid, e.syobocal_pid, e.count_start, e.count_end, e.subtitle, e.is_first, e.is_last, e.is_rerun FROM program_anime_episodes e
 WHERE (e.service_id, e.start_at) IN (SELECT unnest($1::bigint[]), unnest($2::timestamptz[]))
@@ -841,6 +934,38 @@ func (q *Queries) ListRecordingAnimeEpisodes(ctx context.Context, recordingID uu
 	return items, nil
 }
 
+const listRecordingEpisodesForBroadcasts = `-- name: ListRecordingEpisodesForBroadcasts :many
+SELECT syobocal_tid, count_start, count_end FROM recording_anime_episodes
+WHERE recording_id = $1 ORDER BY position
+`
+
+type ListRecordingEpisodesForBroadcastsRow struct {
+	SyobocalTid *int32
+	CountStart  *float64
+	CountEnd    *float64
+}
+
+// 録画に結びついた話 (#1361)。TID と話数のない話も返す。呼ぶ側で、1 話だけの録画に絞る。
+func (q *Queries) ListRecordingEpisodesForBroadcasts(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingEpisodesForBroadcastsRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingEpisodesForBroadcasts, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingEpisodesForBroadcastsRow{}
+	for rows.Next() {
+		var i ListRecordingEpisodesForBroadcastsRow
+		if err := rows.Scan(&i.SyobocalTid, &i.CountStart, &i.CountEnd); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSyobocalLookups = `-- name: ListSyobocalLookups :many
 SELECT channel_id, day_start, fetched_at FROM syobocal_lookups
 WHERE channel_id = ANY($1::integer[]) AND day_start >= $2 AND day_start < $3
@@ -939,6 +1064,45 @@ func (q *Queries) ListSyobocalTitlesByKey(ctx context.Context, titleKey string) 
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTitlesForBroadcastLookup = `-- name: ListTitlesForBroadcastLookup :many
+SELECT e.syobocal_tid::integer AS tid
+FROM recording_anime_episodes e
+JOIN recordings r ON r.id = e.recording_id
+LEFT JOIN anime_title_broadcast_lookups l ON l.tid = e.syobocal_tid
+WHERE e.syobocal_tid IS NOT NULL AND r.recorded_until IS NOT NULL
+  AND (l.tid IS NULL OR (l.fetched_at < $1 AND r.recorded_until > $2::timestamptz))
+GROUP BY e.syobocal_tid, l.fetched_at
+ORDER BY l.fetched_at NULLS FIRST, e.syobocal_tid
+LIMIT $3
+`
+
+type ListTitlesForBroadcastLookupParams struct {
+	FetchedBefore time.Time
+	RecordedSince time.Time
+	MaxTitles     int32
+}
+
+// ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
+func (q *Queries) ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitlesForBroadcastLookupParams) ([]int32, error) {
+	rows, err := q.db.Query(ctx, listTitlesForBroadcastLookup, arg.FetchedBefore, arg.RecordedSince, arg.MaxTitles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var tid int32
+		if err := rows.Scan(&tid); err != nil {
+			return nil, err
+		}
+		items = append(items, tid)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1165,6 +1329,21 @@ type UpsertAnimeImportTokenParams struct {
 
 func (q *Queries) UpsertAnimeImportToken(ctx context.Context, arg UpsertAnimeImportTokenParams) error {
 	_, err := q.db.Exec(ctx, upsertAnimeImportToken, arg.AnnictTokenEncrypted, arg.Now)
+	return err
+}
+
+const upsertAnimeTitleBroadcastLookup = `-- name: UpsertAnimeTitleBroadcastLookup :exec
+INSERT INTO anime_title_broadcast_lookups (tid, fetched_at) VALUES ($1, $2)
+ON CONFLICT (tid) DO UPDATE SET fetched_at = excluded.fetched_at
+`
+
+type UpsertAnimeTitleBroadcastLookupParams struct {
+	Tid int32
+	Now time.Time
+}
+
+func (q *Queries) UpsertAnimeTitleBroadcastLookup(ctx context.Context, arg UpsertAnimeTitleBroadcastLookupParams) error {
+	_, err := q.db.Exec(ctx, upsertAnimeTitleBroadcastLookup, arg.Tid, arg.Now)
 	return err
 }
 
