@@ -1219,6 +1219,11 @@
       "description": "Delays only the audio to match the video. This cannot correct audio that lags behind the video.",
       "resetOnChannelChange": "Reset audio sync when changing channels"
     },
+    "commentOffset": {
+      "label": "Comment timing",
+      "description": "Shifts live comments during recording playback. If comments appear later than the video, use a negative value to show them earlier.",
+      "suffix": " s"
+    },
     "sleepTimer": {
       "label": "Sleep timer",
       "off": "Off",
@@ -1312,6 +1317,9 @@
       "audioDelayIncrease": "Delay audio (audio sync)",
       "audioDelayDecrease": "Reduce audio delay (audio sync)",
       "audioDelayReset": "Reset audio sync",
+      "commentOffsetEarlier": "Show comments earlier",
+      "commentOffsetLater": "Show comments later",
+      "commentOffsetReset": "Reset comment timing",
       "showShortcuts": "Show this list",
       "stop": "Stop playback"
     },
@@ -1339,6 +1347,7 @@
       "captured": "Image saved",
       "restarted": "Player reloaded",
       "audioDelay": "Audio sync {{ms}} ms",
+      "commentOffset": "Comment timing {{seconds}} s",
       "cmSkipped": "Skipped commercials"
     },
     "backToRecording": "Back to recording details",

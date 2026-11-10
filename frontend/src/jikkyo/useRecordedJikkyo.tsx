@@ -7,6 +7,7 @@ import {
   type CommentSettings,
   type JikkyoComment,
 } from './comments';
+import { useCommentOffset } from './commentOffset';
 import { recordingPosition, type Gap } from '../yunomi/position';
 import { JikkyoSession } from './session';
 
@@ -60,12 +61,16 @@ export function useRecordedJikkyo(
   state: RecordedJikkyoState | null;
   // comments は、取った過去ログ (流す時刻の順)。取れていなければ null (#489)。
   comments: readonly JikkyoComment[] | null;
+  // offset は、コメントを流す位置をずらす秒数 (#1357)。正の値で遅らせる。一覧も、この分をずらして出す。
+  offset: number;
 } {
   // cache は、取った過去ログ。画質を変えて描く canvas が作り直されても、実況を切って入れ直しても、取り直さずに渡す。
   const cache = useRef(new Map<string, JikkyoComment[]>());
   const canvas = useRef<CommentCanvasHandle | null>(null);
   const [state, setState] = useState<RecordedJikkyoState | null>(null);
   const [comments, setComments] = useState<readonly JikkyoComment[] | null>(null);
+  const [offsetMs] = useCommentOffset();
+  const offset = offsetMs / 1_000;
 
   // canvas ができるたびに、取ってある過去ログを渡す。
   const attach = useCallback(
@@ -178,9 +183,16 @@ export function useRecordedJikkyo(
   return {
     overlay:
       url === null ? undefined : (
-        <CommentCanvas key={url} ref={attach} clock={clock} drawing={drawing} settings={settings} />
+        <CommentCanvas
+          key={url}
+          ref={attach}
+          clock={() => clock() - offset}
+          drawing={drawing}
+          settings={settings}
+        />
       ),
     state,
     comments: listed,
+    offset,
   };
 }

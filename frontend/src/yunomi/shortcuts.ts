@@ -36,6 +36,9 @@ export const defaultKeymap: Keymap = {
   // ] で音を遅らせ、[ で戻す (#818)。
   audioDelayIncrease: [']'],
   audioDelayDecrease: ['['],
+  // , でコメントを早め、. で遅らせる (#1357)。
+  commentOffsetEarlier: [','],
+  commentOffsetLater: ['.'],
   showShortcuts: ['?'],
 };
 

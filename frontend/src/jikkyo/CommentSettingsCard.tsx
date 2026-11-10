@@ -23,6 +23,7 @@ import {
   keywordMuteMatches as matches,
   type KeywordMuteMatch,
 } from './comments';
+import { CommentOffsetSetting } from './CommentOffsetSetting';
 
 // validRegExp は、正規表現として読めるかを返す。読めないものはミュートに使われないので、足す前に知らせる。
 const validRegExp = (pattern: string) => {
@@ -139,6 +140,7 @@ export function CommentSettingsCard() {
         {slider('opacity', 0.1, 1, (v) => `${Math.round(v * 100)}%`)}
         {slider('speed', 0.5, 2, (v) => `×${v.toFixed(2)}`)}
         {slider('scale', 0.5, 1.5, (v) => `×${v.toFixed(2)}`)}
+        <CommentOffsetSetting />
         <Switch
           label={t('settings.comments.showAll')}
           description={t('settings.comments.showAllHelp')}
