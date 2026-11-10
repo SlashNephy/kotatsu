@@ -38,6 +38,10 @@ export type PlayerCommandArgs = {
   audioDelayIncrease: [];
   audioDelayDecrease: [];
   audioDelayReset: [];
+  // commentOffsetEarlier と commentOffsetLater は、録画の実況のコメントを流す位置 (#1357) を 1 刻み変える。
+  commentOffsetEarlier: [];
+  commentOffsetLater: [];
+  commentOffsetReset: [];
   showShortcuts: [];
   // stop は、再生をやめ、プレイヤーを閉じる。
   stop: [];
@@ -90,6 +94,9 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   audioDelayIncrease: { repeatable: true },
   audioDelayDecrease: { repeatable: true },
   audioDelayReset: { repeatable: false },
+  commentOffsetEarlier: { repeatable: true },
+  commentOffsetLater: { repeatable: true },
+  commentOffsetReset: { repeatable: false },
   showShortcuts: { repeatable: false },
   stop: { repeatable: false },
 };

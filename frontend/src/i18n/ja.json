@@ -1161,6 +1161,11 @@
       "description": "音だけを遅らせて、映像に合わせます。音が映像より遅いときは補正できません",
       "resetOnChannelChange": "選局したら音ずれ補正を元に戻す"
     },
+    "commentOffset": {
+      "label": "コメントの位置",
+      "description": "録画の再生で、実況のコメントを流す位置をずらします。コメントが映像より遅れて見えるときは、マイナスにして早めます",
+      "suffix": " 秒"
+    },
     "sleepTimer": {
       "label": "スリープタイマー",
       "off": "切る",
@@ -1254,6 +1259,9 @@
       "audioDelayIncrease": "音を遅らせる（音ずれ補正）",
       "audioDelayDecrease": "音の遅れを戻す（音ずれ補正）",
       "audioDelayReset": "音ずれ補正を元に戻す",
+      "commentOffsetEarlier": "実況のコメントを早める",
+      "commentOffsetLater": "実況のコメントを遅らせる",
+      "commentOffsetReset": "実況のコメントの位置を元に戻す",
       "showShortcuts": "この一覧を出す",
       "stop": "再生をやめる"
     },
@@ -1281,6 +1289,7 @@
       "captured": "画像を保存しました",
       "restarted": "プレイヤーを読み直しました",
       "audioDelay": "音ずれ補正 {{ms}} ms",
+      "commentOffset": "コメントの位置 {{seconds}} 秒",
       "cmSkipped": "CMをスキップしました"
     },
     "backToRecording": "録画の詳細に戻る",

@@ -34,6 +34,8 @@ import {
   type CaptionEntry,
 } from '../../yunomi/captionHistory';
 import { countUntil, listedUntil } from '../../jikkyo/commentList';
+import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
+import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
@@ -427,8 +429,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   );
   // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、
   // 流れたコメントの数が変わったときだけ作り直し、時刻の文字は、コメントごとに一度だけ作る。
-  const listedCount = jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position);
-  const commentLabels = useMemo(() => new Map<number, string>(), [jikkyo.comments, recording]);
+  const listedCount =
+    jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position - jikkyo.offset);
+  const commentLabels = useMemo(
+    () => new Map<number, string>(),
+    [jikkyo.comments, recording, jikkyo.offset],
+  );
   const recordedRows = useMemo(() => {
     if (jikkyo.comments === null || recording === null) {
       return [];
@@ -437,7 +443,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     return listedUntil(jikkyo.comments, listedCount).map(({ index, comment }) => {
       let label = commentLabels.get(index);
       if (label === undefined) {
-        label = formatClock(broadcastTime(recording.recordedFrom, recording.gaps, comment.time));
+        label = formatClock(
+          broadcastTime(recording.recordedFrom, recording.gaps, comment.time + jikkyo.offset),
+        );
         commentLabels.set(index, label);
       }
 
@@ -448,7 +456,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
         ...(comment.userId === undefined ? {} : { userId: comment.userId }),
       };
     });
-  }, [jikkyo.comments, listedCount, recording, commentLabels]);
+  }, [jikkyo.comments, jikkyo.offset, listedCount, recording, commentLabels]);
   // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
   const jikkyoLabel =
     jikkyo.state === null
@@ -610,8 +618,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const audioDelayCommands = useAudioDelayCommands((ms) =>
     showFlash(t('player.flash.audioDelay', { ms })),
   );
+  // commentOffsetCommands は、実況のコメントの位置 (#1357) の操作。変えたら、ずらした量を映像の上に短く出す。
+  const commentOffsetCommands = useCommentOffsetCommands((ms) =>
+    showFlash(t('player.flash.commentOffset', { seconds: formatCommentOffset(ms) })),
+  );
   const commands: PlayerCommands = {
     ...audioDelayCommands,
+    ...(channelId === null || !jikkyoEnabled ? {} : commentOffsetCommands),
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay,
@@ -915,6 +928,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
+            {channelId !== null && jikkyoEnabled && <CommentOffsetSetting />}
             <SleepTimerSelect timer={sleep} />
             {surroundAvailable && <VirtualSurroundToggle />}
           </SettingsButton>

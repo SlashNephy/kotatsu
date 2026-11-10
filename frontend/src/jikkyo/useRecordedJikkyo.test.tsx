@@ -6,6 +6,8 @@ import { insertByTime, useRecordedJikkyo } from './useRecordedJikkyo';
 
 // added は、偽の CommentCanvas に渡った過去ログ。canvas を作るたびに、別の配列にする。
 const added: JikkyoComment[][] = [];
+// canvasClock は、偽の CommentCanvas に渡った時計。
+const canvasClock = vi.hoisted(() => ({ current: (): number => Number.NaN }));
 
 vi.mock('./CommentCanvas', async () => {
   const { useImperativeHandle } = await import('react');
@@ -13,9 +15,12 @@ vi.mock('./CommentCanvas', async () => {
   return {
     CommentCanvas: ({
       ref,
+      clock,
     }: {
       ref: (handle: { add: (comments: JikkyoComment[]) => void } | null) => void;
+      clock: () => number;
     }) => {
+      canvasClock.current = clock;
       useImperativeHandle(ref, () => {
         const mine: JikkyoComment[] = [];
         added.push(mine);
@@ -199,5 +204,30 @@ describe('insertByTime', () => {
     expect(insertByTime(list, { time, content: 'x', mail: '' }).map((c) => c.content)).toEqual(
       want,
     );
+  });
+});
+
+describe('useRecordedJikkyo のコメントの位置', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  test.each([
+    { name: 'ずらさなければ、再生位置のまま', stored: null, offset: 0, want: 10 },
+    { name: '早めると、時計を進めて描く', stored: '-2000', offset: -2, want: 12 },
+    { name: '遅らせると、時計を戻して描く', stored: '1500', offset: 1.5, want: 8.5 },
+  ])('$name', ({ stored, offset, want }) => {
+    if (stored !== null) {
+      window.localStorage.setItem('kotatsu.player.commentOffsetMs', stored);
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    const { result } = renderHook(() => useRecordedJikkyo('/jikkyo.json', () => 10, true));
+    render(<>{result.current.overlay}</>);
+
+    expect(result.current.offset).toBe(offset);
+    expect(canvasClock.current()).toBe(want);
   });
 });
