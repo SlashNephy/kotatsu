@@ -73,3 +73,14 @@
   border-radius: 1px;
   box-shadow: 0 0 0 1px rgb(0 0 0 / 0.6);
 }
+
+/* 実況のコメントから見つけた番組の区切りの印 (#1358)。CM の帯の上でも見えるよう、白い線にする。 */
+.part {
+  position: absolute;
+  width: 3px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  background: #fff;
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.5);
+}

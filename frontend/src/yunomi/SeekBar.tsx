@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { frameBefore, previewFrame, type PreviewManifest } from '../recordings/previewFrame';
 import { loadManifest } from '../recordings/usePreviewSlideshow';
 import classes from './SeekBar.module.css';
-import { bandAt, bubbleLeft, hoverSeconds, type SeekBand } from './seekHover';
+import { bandAt, bubbleLeft, hoverSeconds, partAt, type SeekBand } from './seekHover';
 
 // bubbleWidth は、吹き出しの幅 (px)。プレビュー画像の 1 コマ (16:9) をこの幅で見せる。
 const bubbleWidth = 160;
@@ -24,6 +24,9 @@ type Props = {
   // bands は、シークバーに示す区間と印 (#479)。録画が途切れた位置などを示す。
   bands?: readonly SeekBand[];
 };
+
+// pressMoveLimit は、押してから動かしたとみなす距離 (px)。
+const pressMoveLimit = 4;
 
 // SeekBar は、録画のシークバー。カーソルを乗せるか、つまみを動かしている間、その位置の時刻を、
 // プレビュー画像があればそのコマと一緒に、吹き出しで出す (#755)。
@@ -44,6 +47,8 @@ export function SeekBar({
   );
   // dragging は、つまみを動かしている間かどうか。その間は、カーソルがバーから外れても吹き出しを出し続ける。
   const dragging = useRef(false);
+  // pressX は、押した位置の x。動かさずに離したときだけ、番組の区切りの印へ移るのに使う。動かしたり、キーボードで操作したりすると null。
+  const pressX = useRef<number | null>(null);
   // loaded は、読んだ preview.json と、その録画のプレビュー画像の URL。録画が変わったら、前の録画のコマの並びを使わない。
   const [loaded, setLoaded] = useState<{ url: string; manifest: PreviewManifest | null } | null>(
     null,
@@ -79,6 +84,9 @@ export function SeekBar({
     if (rect === undefined) {
       return;
     }
+    if (pressX.current !== null && Math.abs(event.clientX - pressX.current) > pressMoveLimit) {
+      pressX.current = null;
+    }
     show(hoverSeconds(event.clientX, rect.left, rect.width, max));
   };
   // マウスでは、バーから出たら消す。タッチでは、指を離したら消す。つまみを動かしている間は消さない。
@@ -92,7 +100,11 @@ export function SeekBar({
   };
 
   // 印には、バーの幅の 1% (少なくとも 2 秒) 以内に乗せれば当たったとみなす。細くて、ちょうどには乗せにくいため。
-  const band = hover === null ? null : bandAt(bands, hover.seconds, Math.max(max * 0.01, 2));
+  const tolerance = Math.max(max * 0.01, 2);
+  const band =
+    hover === null
+      ? null
+      : (partAt(bands, hover.seconds, tolerance) ?? bandAt(bands, hover.seconds, tolerance));
   const index =
     hover === null || manifest === null ? null : frameBefore(manifest.times, hover.seconds);
   const frame = manifest === null || index === null ? null : previewFrame(manifest, index);
@@ -104,12 +116,14 @@ export function SeekBar({
       onPointerMove={track}
       onPointerDown={(event) => {
         dragging.current = true;
+        pressX.current = event.clientX;
         track(event);
       }}
       onPointerUp={leave}
       onPointerLeave={leave}
       onPointerCancel={() => {
         dragging.current = false;
+        pressX.current = null;
         setHover(null);
       }}
     >
@@ -140,7 +154,13 @@ export function SeekBar({
             // 同じ位置に印が重なることもあるので (冒頭の欠けと、始まってすぐの途切れなど)、並びの番号で見分ける。
             key={index}
             className={
-              item.to > item.from ? (item.kind === 'cm' ? classes.cm : classes.band) : classes.mark
+              item.to > item.from
+                ? item.kind === 'cm'
+                  ? classes.cm
+                  : classes.band
+                : item.kind === 'part'
+                  ? classes.part
+                  : classes.mark
             }
             style={{
               left: `${(Math.min(item.from, max) / max) * 100}%`,
@@ -173,7 +193,10 @@ export function SeekBar({
           // 動かし終えたら消す。カーソルがまだバーの上にあれば、次に動かしたときに出し直す。
           dragging.current = false;
           setHover(null);
-          onChangeEnd(seconds);
+          // 動かさずに押した位置に番組の区切りの印があれば、その位置へ移る。
+          const pressed = pressX.current !== null;
+          pressX.current = null;
+          onChangeEnd((pressed ? partAt(bands, seconds, tolerance)?.from : undefined) ?? seconds);
         }}
       />
     </div>

@@ -1177,6 +1177,14 @@
     "virtualSurround": "5.1chをヘッドホン向けのサラウンドで聞く",
     "gapMark": "ここで {{duration}} 途切れています",
     "cmSection": "CM ({{duration}})",
+    "partMarker": {
+      "OP": "OP",
+      "A": "Aパート",
+      "B": "Bパート",
+      "ED": "ED",
+      "C": "Cパート"
+    },
+    "partMarkerNoCm": "{{part}}（前にCMなし）",
     "skipCm": "CMをスキップ",
     "crop": {
       "mode": "表示の比率",

@@ -1235,6 +1235,14 @@
     "virtualSurround": "Play 5.1ch as headphone surround",
     "gapMark": "{{duration}} gap here",
     "cmSection": "Commercials ({{duration}})",
+    "partMarker": {
+      "OP": "Opening",
+      "A": "Part A",
+      "B": "Part B",
+      "ED": "Ending",
+      "C": "Part C"
+    },
+    "partMarkerNoCm": "{{part}} (no commercials before)",
     "skipCm": "Skip commercials",
     "crop": {
       "mode": "Aspect ratio",
