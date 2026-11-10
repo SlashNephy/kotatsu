@@ -10,28 +10,38 @@ SELECT coalesce((SELECT version FROM user_setting_versions WHERE user_id = @user
 -- name: GetPlayerSettings :one
 -- プレイヤーの設定。一度も変えていなければ、既定値を返す。
 SELECT
-  coalesce(s.jikkyo_enabled, false)::boolean AS jikkyo_enabled,
+  coalesce('nx_jikkyo' = ANY(s.comment_sources), false)::boolean AS jikkyo_enabled,
+  coalesce(s.comment_sources, '{}')::text[] AS comment_sources,
   coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
   s.comment_settings,
   s.caption_settings
 FROM (SELECT @user_id::uuid AS id) AS u
 LEFT JOIN user_settings s ON s.user_id = u.id;
 
--- name: GetJikkyoAccess :one
--- 実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。どちらも、行がなければ無効とする。
+-- name: GetCommentSourceAccess :one
+-- 実況のコメントのソースを使えるかどうかを決める、全体の設定とユーザーの設定 (#1405、設計書 7.4)。行がなければ空とする。
 SELECT
-  coalesce((SELECT jikkyo_enabled FROM system_settings WHERE id = 1), false)::boolean AS system_enabled,
-  coalesce((SELECT jikkyo_enabled FROM user_settings WHERE user_id = @user_id), false)::boolean AS user_enabled;
+  coalesce((SELECT comment_sources FROM system_settings WHERE id = 1), '{}')::text[] AS system_sources,
+  coalesce((SELECT comment_sources FROM user_settings WHERE user_id = @user_id), '{}')::text[] AS user_sources;
 
 -- name: UpsertPlayerSettings :one
--- プレイヤーの設定を変える。null の項目は変えない。
-INSERT INTO user_settings (user_id, jikkyo_enabled, captions_enabled, updated_at)
-VALUES (@user_id, coalesce(sqlc.narg(jikkyo_enabled)::boolean, false), coalesce(sqlc.narg(captions_enabled)::boolean, true), @now)
+-- プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
+INSERT INTO user_settings (user_id, comment_sources, captions_enabled, updated_at)
+VALUES (
+  @user_id,
+  coalesce(sqlc.narg(comment_sources)::text[], CASE WHEN sqlc.narg(jikkyo_enabled)::boolean THEN ARRAY['nx_jikkyo']::text[] ELSE '{}'::text[] END),
+  coalesce(sqlc.narg(captions_enabled)::boolean, true), @now
+)
 ON CONFLICT (user_id) DO UPDATE SET
-  jikkyo_enabled = coalesce(sqlc.narg(jikkyo_enabled)::boolean, user_settings.jikkyo_enabled),
+  comment_sources = CASE
+    WHEN sqlc.narg(comment_sources)::text[] IS NOT NULL THEN sqlc.narg(comment_sources)::text[]
+    WHEN sqlc.narg(jikkyo_enabled)::boolean AND NOT 'nx_jikkyo' = ANY(user_settings.comment_sources) THEN array_append(user_settings.comment_sources, 'nx_jikkyo')
+    WHEN NOT sqlc.narg(jikkyo_enabled)::boolean THEN array_remove(user_settings.comment_sources, 'nx_jikkyo')
+    ELSE user_settings.comment_sources
+  END,
   captions_enabled = coalesce(sqlc.narg(captions_enabled)::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
-RETURNING jikkyo_enabled, captions_enabled, comment_settings, caption_settings;
+RETURNING ('nx_jikkyo' = ANY(comment_sources))::boolean AS jikkyo_enabled, comment_sources, captions_enabled, comment_settings, caption_settings;
 
 -- name: SetCommentSettings :exec
 -- 実況のコメントの表示とミュートの設定を、まるごと置き換える (#488)。

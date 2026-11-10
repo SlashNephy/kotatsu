@@ -85,7 +85,7 @@ func TestServiceJikkyo(t *testing.T) {
 func enableJikkyo(t *testing.T, f *fixture) {
 	t.Helper()
 
-	require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
+	require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {commentSources: [NX_JIKKYO]}) { jikkyoEnabled } }`, nil, nil))
 	require.Empty(t, f.query(t, `mutation { updatePlayerSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
 }
 
@@ -123,7 +123,7 @@ func TestServiceJikkyoOptIn(t *testing.T) {
 			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})
 			f.syncEPG(t)
 			if tt.system {
-				require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
+				require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {commentSources: [NX_JIKKYO]}) { jikkyoEnabled } }`, nil, nil))
 			}
 			if tt.user {
 				require.Empty(t, f.query(t, `mutation { updatePlayerSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))

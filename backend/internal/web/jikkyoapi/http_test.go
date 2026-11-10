@@ -48,11 +48,11 @@ type commentsFixture struct {
 func (f *commentsFixture) setJikkyo(t *testing.T, system, user bool) {
 	t.Helper()
 
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, jikkyo_enabled, updated_at)
-		VALUES (1, '{}', 30, $1, $2) ON CONFLICT (id) DO UPDATE SET jikkyo_enabled = EXCLUDED.jikkyo_enabled`, system, recordedFrom())
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, comment_sources, updated_at)
+		VALUES (1, '{}', 30, CASE WHEN $1::boolean THEN ARRAY['nx_jikkyo'] ELSE '{}'::text[] END, $2) ON CONFLICT (id) DO UPDATE SET comment_sources = EXCLUDED.comment_sources`, system, recordedFrom())
 	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `INSERT INTO user_settings (user_id, jikkyo_enabled, updated_at) VALUES ($1, $2, $3)
-		ON CONFLICT (user_id) DO UPDATE SET jikkyo_enabled = EXCLUDED.jikkyo_enabled`, f.userID, user, recordedFrom())
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO user_settings (user_id, comment_sources, updated_at) VALUES ($1, CASE WHEN $2::boolean THEN ARRAY['nx_jikkyo'] ELSE '{}'::text[] END, $3)
+		ON CONFLICT (user_id) DO UPDATE SET comment_sources = EXCLUDED.comment_sources`, f.userID, user, recordedFrom())
 	require.NoError(t, err)
 }
 

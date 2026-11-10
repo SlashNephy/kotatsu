@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
@@ -19,7 +20,7 @@ import (
 // 直近 10 分以内の再認証を求める。録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
 func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {
 	const message = "only administrators can change the system settings"
-	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.AnimeLinkingEnabled != nil || input.JikkyoEnabled != nil {
+	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.AnimeLinkingEnabled != nil || input.CommentSources != nil {
 		return r.recentAdministrator(ctx, message)
 	}
 
@@ -59,7 +60,8 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		McpEnabled:             system.MCPEnabled,
 		DataBroadcastIPEnabled: system.DataBroadcastIPEnabled,
 		AnimeLinkingEnabled:    system.AnimeLinkingEnabled,
-		JikkyoEnabled:          system.JikkyoEnabled,
+		JikkyoEnabled:          slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),
+		CommentSources:         commentSourcesOf(system.CommentSources),
 		DrcsReplacements:       drcsReplacementsOf(system.DRCSReplacements),
 		UpdatedAt:              system.UpdatedAt,
 	}
@@ -117,4 +119,41 @@ func settingsError(err error) error {
 	}
 
 	return err
+}
+
+// commentSourcesOf は、DB の実況のコメントのソースを GraphQL の形にする。知らないソースは除く。
+func commentSourcesOf(sources []string) []model.CommentSource {
+	converted := make([]model.CommentSource, 0, len(sources))
+	for _, source := range sources {
+		if value := model.CommentSource(strings.ToUpper(source)); value.IsValid() {
+			converted = append(converted, value)
+		}
+	}
+
+	return converted
+}
+
+// commentSourcesInput は、GraphQL の実況のコメントのソースを DB の形にする。重複は除く。省いた項目 (nil) は nil のままにする。
+func commentSourcesInput(sources []model.CommentSource) []string {
+	if sources == nil {
+		return nil
+	}
+	converted := make([]string, 0, len(sources))
+	for _, source := range sources {
+		if value := strings.ToLower(string(source)); !slices.Contains(converted, value) {
+			converted = append(converted, value)
+		}
+	}
+
+	return converted
+}
+
+// optionalCommentSources は、全体の設定の変更の形にする。省いた項目 (nil) は変えない。
+func optionalCommentSources(sources []model.CommentSource) *[]string {
+	converted := commentSourcesInput(sources)
+	if converted == nil {
+		return nil
+	}
+
+	return &converted
 }

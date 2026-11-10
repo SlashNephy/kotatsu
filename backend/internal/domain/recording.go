@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -109,6 +110,7 @@ type APIRecording struct {
 // PlayerSettings は、ユーザーのプレイヤーの設定。コメントと字幕の設定は JSON のまま持つ。
 type PlayerSettings struct {
 	JikkyoEnabled   bool
+	CommentSources  []string
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
@@ -138,6 +140,22 @@ type JikkyoAccess struct {
 // Allowed は、外部と通信してよいかどうかを返す。全体の設定とユーザーの設定の両方で有効なときだけ true にする。
 func (a JikkyoAccess) Allowed() bool {
 	return a.SystemEnabled && a.UserEnabled
+}
+
+// CommentSourceNXJikkyo は、NX-Jikkyo (ライブのコメントと過去ログ) のコメントのソース (#1405、設計書 7.4)。
+const CommentSourceNXJikkyo = "nx_jikkyo"
+
+// CommentSourceAccess は、コメントのソースごとに、使えるかどうかを決める全体の設定とユーザーの設定 (#1405)。
+type CommentSourceAccess struct {
+	// System は、管理者が全体の設定でオプトインしたソース。
+	System []string
+	// User は、ユーザーがオプトインしたソース。
+	User []string
+}
+
+// For は、ソース source を使えるかどうかを返す。
+func (a CommentSourceAccess) For(source string) JikkyoAccess {
+	return JikkyoAccess{SystemEnabled: slices.Contains(a.System, source), UserEnabled: slices.Contains(a.User, source)}
 }
 
 // RecordingJikkyoSource は、録画の実況のコメントを引くための、録画したサービスと時刻。

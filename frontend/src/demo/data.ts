@@ -122,6 +122,7 @@ export function createRootValue(
   });
   let playerSettings = {
     jikkyoEnabled: false,
+    commentSources: [] as string[],
     captionsEnabled: true,
     comments: {
       opacity: 1,
@@ -402,6 +403,7 @@ export function createRootValue(
       animeLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
       jikkyoEnabled: true,
+      commentSources: ['NX_JIKKYO'],
       updatedAt: null,
     }),
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
@@ -511,13 +513,29 @@ export function createRootValue(
     }: {
       input: {
         jikkyoEnabled?: boolean | null;
+        commentSources?: string[] | null;
         captionsEnabled?: boolean | null;
         comments?: Record<string, unknown> | null;
         captions?: Record<string, unknown> | null;
       };
     }) => {
+      const nextSources = () => {
+        if (input.commentSources != null) {
+          return input.commentSources;
+        }
+        if (input.jikkyoEnabled == null) {
+          return playerSettings.commentSources;
+        }
+
+        return input.jikkyoEnabled ? ['NX_JIKKYO'] : [];
+      };
       playerSettings = {
-        jikkyoEnabled: input.jikkyoEnabled ?? playerSettings.jikkyoEnabled,
+        jikkyoEnabled: (() => {
+          const next = nextSources();
+
+          return next.includes('NX_JIKKYO');
+        })(),
+        commentSources: nextSources(),
         captionsEnabled: input.captionsEnabled ?? playerSettings.captionsEnabled,
         comments: { ...playerSettings.comments, ...input.comments },
         captions: { ...playerSettings.captions, ...input.captions },

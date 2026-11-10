@@ -89,13 +89,21 @@ function PlayerSettings() {
     <Stack gap="md">
       <Card withBorder>
         <Stack gap="xs">
-          {player.jikkyoAvailable && (
+          {/* 管理者がオプトインしたソースごとに、ユーザーもオプトインする (#1405、設計書 7.4)。 */}
+          {player.availableCommentSources.map((source) => (
             <Switch
-              label={t('settings.account.jikkyo')}
-              checked={player.jikkyoEnabled}
-              onChange={(event) => player.setJikkyoEnabled(event.currentTarget.checked)}
+              key={source}
+              label={t(`settings.account.commentSource.${source}`)}
+              checked={player.commentSources.includes(source)}
+              onChange={(event) =>
+                player.setCommentSources(
+                  event.currentTarget.checked
+                    ? [...player.commentSources, source]
+                    : player.commentSources.filter((enabled) => enabled !== source),
+                )
+              }
             />
-          )}
+          ))}
           <Switch
             label={t('settings.account.captions')}
             checked={player.captionsEnabled}

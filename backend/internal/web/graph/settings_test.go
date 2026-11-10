@@ -26,9 +26,11 @@ const (
 	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
 	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
 	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
-	// fieldJikkyoEnabled は、ニコニコ実況を使うかどうかの項目 (設計書 7.4)。
-	fieldJikkyoEnabled = "jikkyoEnabled"
-	settingsQuery      = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
+	// fieldCommentSources は、オプトインする実況のコメントのソースの項目 (#1405、設計書 7.4)。
+	fieldCommentSources = "commentSources"
+	// commentSourceNXJikkyo は、GraphQL の NX-Jikkyo のソース。
+	commentSourceNXJikkyo = "NX_JIKKYO"
+	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
 		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
 	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
 		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled
@@ -147,7 +149,7 @@ func TestSystemSettings(t *testing.T) {
 	want.AnimeLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 	// ニコニコ実況も、外部と通信するので、既定では使わず、管理者が有効にする。実況の画面を出すかを決めるので、誰でも読める (設計書 7.4)。
-	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldJikkyoEnabled: true}}, &partial))
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldCommentSources: []string{commentSourceNXJikkyo}}}, &partial))
 	want.JikkyoEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
 	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
@@ -168,9 +170,10 @@ func TestSystemSettings(t *testing.T) {
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	require.Empty(t, admin.query(t, updateSettings, change, nil))
 	// しょぼいカレンダー、Annict、AniList との連携も、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。
-	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled, fieldJikkyoEnabled} {
+	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled} {
 		assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{field: false}}, nil), field)
 	}
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldCommentSources: []string{}}}, nil), fieldCommentSources)
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "rejected changes are not saved")

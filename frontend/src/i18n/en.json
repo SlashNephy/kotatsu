@@ -356,7 +356,9 @@
       "sudoDescription": "This page contains sensitive actions, so your identity is verified again before it is shown."
     },
     "account": {
-      "jikkyo": "Show live comments",
+      "commentSource": {
+        "NX_JIKKYO": "Show Niconico Jikkyo comments"
+      },
       "captions": "Show captions",
       "dataBroadcastPreload": "Preload data broadcasting",
       "captureFileName": "Capture file name",
@@ -1870,9 +1872,13 @@
       "dataBroadcastIp": "Data broadcast communication",
       "dataBroadcastIpEnabled": "Relay interactive data broadcast communication",
       "dataBroadcastIpHelp": "Kotatsu's server relays the requests that data broadcast documents send to the internet, such as polls and prize entries. They may include receiver information such as the postal code. Requests to addresses inside your LAN are refused.",
-      "jikkyo": "Niconico Jikkyo",
-      "jikkyoEnabled": "Use Niconico Jikkyo",
-      "jikkyoHelp": "Lets viewers overlay live comments on live TV and recordings. Kotatsu's server connects to NX-Jikkyo and the past comment API. Each viewer also has to turn it on in their player settings.",
+      "commentSource": {
+        "NX_JIKKYO": {
+          "title": "Niconico Jikkyo",
+          "label": "Use Niconico Jikkyo",
+          "help": "Lets viewers overlay live comments on live TV and recordings. Kotatsu's server connects to NX-Jikkyo and the past comment API. Each viewer also has to turn it on in their player settings."
+        }
+      },
       "updatedAt": "Last updated {{at}}",
       "neverUpdated": "Not changed yet",
       "anime": "Syobocal, Annict, and AniList",

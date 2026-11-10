@@ -89,7 +89,7 @@ const query = graphql`
       dataBroadcastIpEnabled
       networkActivityEnabled
       animeLinkingEnabled
-      jikkyoEnabled
+      commentSources
     }
     animeRecordApps {
       destination
@@ -237,16 +237,28 @@ function Integrations() {
           onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
         />
 
-        {/* ニコニコ実況を使うか。外部と通信し始めるので、ここで再認証を求める (設計書 0.3、7.4)。 */}
-        <SwitchSetting
-          key={`jikkyo/${String(data.systemSettings.jikkyoEnabled)}`}
-          title={t('admin.settings.jikkyo')}
-          label={t('admin.settings.jikkyoEnabled')}
-          help={t('admin.settings.jikkyoHelp')}
-          enabled={data.systemSettings.jikkyoEnabled}
-          busy={gate.busy}
-          onSave={(jikkyoEnabled) => saveSettings({ jikkyoEnabled })}
-        />
+        {/* 実況のコメントのソースごとのオプトイン (#1405)。外部と通信し始めるので、ここで再認証を求める (設計書 0.3、7.4)。 */}
+        {commentSources.map((source) => {
+          const enabled = data.systemSettings.commentSources.includes(source);
+
+          return (
+            <SwitchSetting
+              key={`commentSource/${source}/${String(enabled)}`}
+              title={t(`admin.settings.commentSource.${source}.title`)}
+              label={t(`admin.settings.commentSource.${source}.label`)}
+              help={t(`admin.settings.commentSource.${source}.help`)}
+              enabled={enabled}
+              busy={gate.busy}
+              onSave={(next) =>
+                saveSettings({
+                  commentSources: next
+                    ? [...data.systemSettings.commentSources, source]
+                    : data.systemSettings.commentSources.filter((value) => value !== source),
+                })
+              }
+            />
+          );
+        })}
 
         <AnimeLinkingSettings
           key={`anime/${String(data.systemSettings.animeLinkingEnabled)}`}
@@ -421,6 +433,9 @@ function Integrations() {
 
 // SwitchSetting は、全体の設定のうち、入れるか切るかの項目を変える。MCP のクライアントに使わせるか (#965) と、
 // データ放送の通信を中継するか (#501) に使う。
+// commentSources は、実況のコメントのソースの一覧 (#1405)。ソースを足したら、ここと翻訳に足す。
+const commentSources = ['NX_JIKKYO'] as const;
+
 function SwitchSetting({
   title,
   label,

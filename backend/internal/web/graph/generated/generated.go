@@ -779,6 +779,7 @@ type ComplexityRoot struct {
 	PlayerSettings struct {
 		Captions        func(childComplexity int) int
 		CaptionsEnabled func(childComplexity int) int
+		CommentSources  func(childComplexity int) int
 		Comments        func(childComplexity int) int
 		JikkyoEnabled   func(childComplexity int) int
 	}
@@ -1240,6 +1241,7 @@ type ComplexityRoot struct {
 	SystemSettings struct {
 		AnimeLinkingEnabled          func(childComplexity int) int
 		ArchiveRetentionDays         func(childComplexity int) int
+		CommentSources               func(childComplexity int) int
 		DataBroadcastIPEnabled       func(childComplexity int) int
 		DrcsReplacements             func(childComplexity int) int
 		JikkyoEnabled                func(childComplexity int) int
@@ -5004,6 +5006,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.PlayerSettings.CaptionsEnabled(childComplexity), true
+	case "PlayerSettings.commentSources":
+		if e.ComplexityRoot.PlayerSettings.CommentSources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PlayerSettings.CommentSources(childComplexity), true
 	case "PlayerSettings.comments":
 		if e.ComplexityRoot.PlayerSettings.Comments == nil {
 			break
@@ -7152,6 +7160,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.commentSources":
+		if e.ComplexityRoot.SystemSettings.CommentSources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.CommentSources(childComplexity), true
 	case "SystemSettings.dataBroadcastIpEnabled":
 		if e.ComplexityRoot.SystemSettings.DataBroadcastIPEnabled == nil {
 			break
@@ -9821,6 +9835,8 @@ extend type Mutation {
 type PlayerSettings {
   "実況のコメントを出すかどうか。既定は false。全体の設定と両方で有効なときだけ、外部へ問い合わせる (設計書 7.4)。"
   jikkyoEnabled: Boolean!
+  "ユーザーがオプトインした実況のコメントのソース (#1405)。全体の設定でも有効なソースだけが使われる。"
+  commentSources: [CommentSource!]!
   "字幕と文字スーパーを出すかどうか。"
   captionsEnabled: Boolean!
   "実況のコメントの表示とミュートの設定 (#488)。"
@@ -9894,7 +9910,10 @@ enum KeywordMuteMatch {
 プレイヤーの設定の変更。省いた項目は変えない。
 """
 input PlayerSettingsInput {
+  "NX-Jikkyo のソースを足すか外す。commentSources を渡したら、そちらを使う。"
   jikkyoEnabled: Boolean
+  "渡したら、オプトインするソースを置き換える。"
+  commentSources: [CommentSource!]
   captionsEnabled: Boolean
   "渡したら、コメントの設定をまるごと置き換える。"
   comments: CommentSettingsInput
@@ -11080,10 +11099,12 @@ type SystemSettings {
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
-  ニコニコ実況を使うかどうか (設計書 7.4)。既定は false。
+  NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
   ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
   """
   jikkyoEnabled: Boolean!
+  "管理者がオプトインした実況のコメントのソース (#1405)。既定は空。ログインしていれば誰でも読める。"
+  commentSources: [CommentSource!]!
   "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   "最後に変えた日時。一度も変えていなければ null。"
@@ -11108,8 +11129,8 @@ input SystemSettingsInput {
   dataBroadcastIpEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
-  "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
-  jikkyoEnabled: Boolean
+  "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  commentSources: [CommentSource!]
   """
   字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
@@ -11201,6 +11222,12 @@ extend type Mutation {
   このインスタンスにマウントされていないプールなら NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateStoragePool(id: String!, input: StoragePoolInput!): StoragePool!
+}
+
+"実況のコメントのソース (#1405)。"
+enum CommentSource {
+  "NX-Jikkyo のライブのコメントと、過去ログ API の過去ログ"
+  NX_JIKKYO
 }
 `, BuiltIn: false},
 	{Name: "../schema/skipped_duplicates.graphqls", Input: `"""
@@ -13037,6 +13064,8 @@ func (ec *executionContext) childFields_PlayerSettings(ctx context.Context, fiel
 	switch field.Name {
 	case "jikkyoEnabled":
 		return ec.fieldContext_PlayerSettings_jikkyoEnabled(ctx, field)
+	case "commentSources":
+		return ec.fieldContext_PlayerSettings_commentSources(ctx, field)
 	case "captionsEnabled":
 		return ec.fieldContext_PlayerSettings_captionsEnabled(ctx, field)
 	case "comments":
@@ -13815,6 +13844,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
 	case "jikkyoEnabled":
 		return ec.fieldContext_SystemSettings_jikkyoEnabled(ctx, field)
+	case "commentSources":
+		return ec.fieldContext_SystemSettings_commentSources(ctx, field)
 	case "drcsReplacements":
 		return ec.fieldContext_SystemSettings_drcsReplacements(ctx, field)
 	case "updatedAt":
@@ -29371,6 +29402,29 @@ func (ec *executionContext) fieldContext_PlayerSettings_jikkyoEnabled(_ context.
 	return graphql.NewScalarFieldContext("PlayerSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _PlayerSettings_commentSources(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PlayerSettings_commentSources(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CommentSources, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.CommentSource) graphql.Marshaler {
+			return ec.marshalNCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PlayerSettings_commentSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PlayerSettings", field, false, false, "CommentSource")
+}
+
 func (ec *executionContext) _PlayerSettings_captionsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.PlayerSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38735,6 +38789,29 @@ func (ec *executionContext) fieldContext_SystemSettings_jikkyoEnabled(_ context.
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _SystemSettings_commentSources(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_commentSources(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CommentSources, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []model.CommentSource) graphql.Marshaler {
+			return ec.marshalNCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_commentSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "CommentSource")
+}
+
 func (ec *executionContext) _SystemSettings_drcsReplacements(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -43451,7 +43528,7 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"jikkyoEnabled", "captionsEnabled", "comments", "captions"}
+	fieldsInOrder := [...]string{"jikkyoEnabled", "commentSources", "captionsEnabled", "comments", "captions"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -43465,6 +43542,13 @@ func (ec *executionContext) unmarshalInputPlayerSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.JikkyoEnabled = data
+		case "commentSources":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("commentSources"))
+			data, err := ec.unmarshalOCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CommentSources = data
 		case "captionsEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("captionsEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -44453,7 +44537,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "jikkyoEnabled", "drcsReplacements"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -44530,13 +44614,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.AnimeLinkingEnabled = data
-		case "jikkyoEnabled":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("jikkyoEnabled"))
-			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+		case "commentSources":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("commentSources"))
+			data, err := ec.unmarshalOCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.JikkyoEnabled = data
+			it.CommentSources = data
 		case "drcsReplacements":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("drcsReplacements"))
 			data, err := ec.unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx, v)
@@ -49976,6 +50060,11 @@ func (ec *executionContext) _PlayerSettings(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "commentSources":
+			out.Values[i] = ec._PlayerSettings_commentSources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "captionsEnabled":
 			out.Values[i] = ec._PlayerSettings_captionsEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -52959,6 +53048,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "commentSources":
+			out.Values[i] = ec._SystemSettings_commentSources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "drcsReplacements":
 			out.Values[i] = ec._SystemSettings_drcsReplacements(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -55061,6 +55155,46 @@ func (ec *executionContext) marshalNCommentSettings2ᚖgithubᚗcomᚋSlashNephy
 		return graphql.Null
 	}
 	return ec._CommentSettings(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCommentSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSource(ctx context.Context, v any) (model.CommentSource, error) {
+	var res model.CommentSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCommentSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSource(ctx context.Context, sel ast.SelectionSet, v model.CommentSource) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx context.Context, v any) ([]model.CommentSource, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.CommentSource, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNCommentSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSource(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []model.CommentSource) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCommentSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSource(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNCreateUserInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCreateUserInput(ctx context.Context, v any) (model.CreateUserInput, error) {
@@ -57731,6 +57865,42 @@ func (ec *executionContext) unmarshalOCommentSettingsInput2ᚖgithubᚗcomᚋSla
 	}
 	res, err := ec.unmarshalInputCommentSettingsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx context.Context, v any) ([]model.CommentSource, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]model.CommentSource, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNCommentSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSource(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []model.CommentSource) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCommentSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSource(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDataChange(ctx context.Context, sel ast.SelectionSet, v *model.DataChange) graphql.Marshaler {

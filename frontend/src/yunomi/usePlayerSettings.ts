@@ -12,9 +12,11 @@ const settingsQuery = graphql`
   query usePlayerSettingsQuery {
     systemSettings {
       jikkyoEnabled
+      commentSources
     }
     playerSettings {
       jikkyoEnabled
+      commentSources
       captionsEnabled
       comments {
         opacity
@@ -39,7 +41,14 @@ const settingsQuery = graphql`
   }
 `;
 
-type Settings = { jikkyoEnabled: boolean; captionsEnabled: boolean };
+// CommentSource は、実況のコメントのソース (#1405)。
+export type CommentSource = 'NX_JIKKYO';
+
+type Settings = {
+  jikkyoEnabled: boolean;
+  commentSources: readonly CommentSource[];
+  captionsEnabled: boolean;
+};
 
 // CommentSettingsInput は、実況のコメントの設定の変更。まるごと置き換える (#488)。
 export type CommentSettingsInput = {
@@ -67,7 +76,11 @@ export type CaptionSettings = {
 export function usePlayerSettings(): Settings & {
   // jikkyoAvailable は、管理者が実況を有効にしたかどうか。無効なら、実況の設定を出さない (設計書 7.4)。
   jikkyoAvailable: boolean;
+  // availableCommentSources は、管理者がオプトインした実況のコメントのソース (#1405)。
+  availableCommentSources: readonly CommentSource[];
   setJikkyoEnabled: (enabled: boolean) => void;
+  // setCommentSources は、ユーザーがオプトインするソースを置き換える。
+  setCommentSources: (sources: readonly CommentSource[]) => void;
   setCaptionsEnabled: (enabled: boolean) => void;
   comments: CommentSettings;
   // setComments は、実況のコメントの設定を置き換える。失敗したら onError を呼ぶ。
@@ -88,6 +101,7 @@ export function usePlayerSettings(): Settings & {
     mutation usePlayerSettingsMutation($input: PlayerSettingsInput!) {
       updatePlayerSettings(input: $input) {
         jikkyoEnabled
+        commentSources
         captionsEnabled
         comments {
           opacity
@@ -147,6 +161,10 @@ export function usePlayerSettings(): Settings & {
         const record = store.getRoot().getLinkedRecord('playerSettings');
         if (input.jikkyoEnabled !== undefined) {
           record?.setValue(input.jikkyoEnabled, 'jikkyoEnabled');
+        }
+        if (input.commentSources !== undefined) {
+          record?.setValue([...input.commentSources], 'commentSources');
+          record?.setValue(input.commentSources.includes('NX_JIKKYO'), 'jikkyoEnabled');
         }
         if (input.captionsEnabled !== undefined) {
           record?.setValue(input.captionsEnabled, 'captionsEnabled');
@@ -212,6 +230,9 @@ export function usePlayerSettings(): Settings & {
 
   return {
     jikkyoAvailable: data.systemSettings.jikkyoEnabled,
+    availableCommentSources: data.systemSettings.commentSources as readonly CommentSource[],
+    commentSources: settings.commentSources as readonly CommentSource[],
+    setCommentSources: (sources) => update({ commentSources: sources }),
     jikkyoEnabled: settings.jikkyoEnabled,
     captionsEnabled: settings.captionsEnabled,
     setJikkyoEnabled: (enabled) => update({ jikkyoEnabled: enabled }),
