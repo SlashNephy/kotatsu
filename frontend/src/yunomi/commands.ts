@@ -33,6 +33,8 @@ export type PlayerCommandArgs = {
   lastChannel: [];
   pictureInPicture: [];
   capture: [];
+  // copyPositionUrl は、今の再生位置から始まる URL をクリップボードに入れる。
+  copyPositionUrl: [];
   restart: [];
   // audioDelayIncrease と audioDelayDecrease は、音ずれ補正 (#818) で、音を遅らせる長さを 1 刻み変える。
   audioDelayIncrease: [];
@@ -88,6 +90,7 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   lastChannel: { repeatable: false },
   pictureInPicture: { repeatable: false },
   capture: { repeatable: false },
+  copyPositionUrl: { repeatable: false },
   toggleDataBroadcast: { repeatable: false },
   pressKey: { repeatable: false },
   restart: { repeatable: false },

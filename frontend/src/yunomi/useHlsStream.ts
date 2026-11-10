@@ -18,12 +18,16 @@ export type HlsStream = {
   currentPosition: () => number;
 };
 
-// useHlsStream は、仮想 HLS の再生位置を追う。enabled が false の間は、位置を動かさない。
+// useHlsStream は、仮想 HLS の再生位置を追う。initial は、最初に読み始める位置。enabled が false の間は、位置を動かさない。
 // 読み始める位置へ移るまで、video の時刻は 0 のことがあるので、再生を始めてから位置を動かす。
-export function useHlsStream(video: HTMLVideoElement | null, enabled: boolean): HlsStream {
-  const [load, setLoad] = useState({ start: 0, loads: 0 });
-  const [position, setPosition] = useState(0);
-  const positionRef = useRef(0);
+export function useHlsStream(
+  video: HTMLVideoElement | null,
+  enabled: boolean,
+  initial = 0,
+): HlsStream {
+  const [load, setLoad] = useState({ start: initial, loads: 0 });
+  const [position, setPosition] = useState(initial);
+  const positionRef = useRef(initial);
   const playing = useRef(false);
   useEffect(() => {
     if (video === null || !enabled) {

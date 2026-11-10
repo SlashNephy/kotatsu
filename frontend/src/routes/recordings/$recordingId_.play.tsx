@@ -1,7 +1,7 @@
 import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Captions, Keyboard, MessageSquareText } from 'lucide-react';
+import { Captions, Keyboard, MessageSquareText, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
+import { rememberReturnTo } from '../../auth/returnTo';
 import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -116,22 +117,23 @@ import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPi
 import { useStreamsDrains } from '../../changes/DataChanges';
 import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
+import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
 
-// PlaySearch は、再生の画面の URL のクエリ。t は、再生を始める位置 (録画の始まりからの秒)。キャプチャの履歴から、撮った場面を開くのに使う (#457)。
+// PlaySearch は、再生の画面の URL のクエリ。t は、再生を始める位置 (録画の始まりからの秒)。キャプチャの履歴から撮った場面を開くのと、今の位置の URL の共有に使う (#457)。
 type PlaySearch = { t?: number };
 
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
   // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
-    const t = typeof search.t === 'number' ? search.t : Number(search.t);
+    const t = parseStartSeconds(search.t);
 
-    return Number.isFinite(t) && t >= 0 ? { t } : {};
+    return t === undefined ? {} : { t };
   },
   component: PlayPage,
 });
@@ -156,7 +158,12 @@ function PlayPage() {
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">
-              <Anchor component={Link} to="/login">
+              <Anchor
+                component={Link}
+                to="/login"
+                // 共有された URL をログインしていない端末で開いても、ログインの後に同じ位置から再生する。
+                onClick={() => rememberReturnTo(window.location.pathname + window.location.search)}
+              >
                 {t('guide.signedOut')}
               </Anchor>
             </Alert>
@@ -384,7 +391,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
   // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
-  const lastSeek = useRef<number | null>(null);
+  // URL で位置を渡されて開いたときも、その場面を見たいものとして扱う。
+  const lastSeek = useRef<number | null>(start === undefined ? null : resumeAt);
   const [cmAutoSkip] = useCmAutoSkip();
   const [error, setError] = useState<string | null>(null);
   // lastAutoRetry は、切れたときに、知らせを出さずに今の位置から読み直した時刻 (#1083)。
@@ -700,6 +708,12 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     volumeUp: () => changeVolume(volumeStep),
     volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
+    copyPositionUrl: () => {
+      copyPositionUrl(currentPosition(), playerBoxRef.current).then(
+        () => showFlash(t('player.flash.urlCopied')),
+        () => showFlash(t('player.flash.urlCopyFailed')),
+      );
+    },
     // r で、今の位置から読み直す。映像が止まったり乱れたりしたときに、ページを読み直さずに直す (#499)。
     restart: () => {
       retry();
@@ -1109,6 +1123,16 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             serviceName={recording.service.name}
             serviceLogoUrl={recording.service.logoUrl}
             time={recording}
+            actions={
+              <Button
+                variant="default"
+                size="compact-sm"
+                leftSection={<Share2 size={14} aria-hidden />}
+                onClick={commands.copyPositionUrl}
+              >
+                {t('player.share')}
+              </Button>
+            }
           />
           <WatchDescription text={recording.description} />
           {error !== null && (
