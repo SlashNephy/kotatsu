@@ -34,6 +34,10 @@ LIMIT @max_count;
 -- user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
 DELETE FROM captures WHERE id = @id AND user_id = @user_id RETURNING *;
 
+-- name: ListCaptureIDsOfUser :many
+-- ユーザーのキャプチャの ID。ユーザーを消すときに、画像の場所を知るのに使う (#1382)。
+SELECT id FROM captures WHERE user_id = @user_id;
+
 -- name: ListCaptureLocations :many
 -- すべてのキャプチャの持ち主と ID。データディレクトリの、DB にないファイルを探すときに、画像を使っているものとみなすのに使う。
 SELECT id, user_id FROM captures;

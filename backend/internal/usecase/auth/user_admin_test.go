@@ -1,10 +1,12 @@
 package auth_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -306,4 +308,183 @@ func TestUserAdminDisableRevokesSessions(t *testing.T) {
 
 	_, err = sessions.Authenticate(t.Context(), f.db, token)
 	require.ErrorIs(t, err, auth.ErrSessionInvalid)
+}
+
+// recordingEraser は、呼ばれた様子を記録する、テストの UserDataEraser。
+type recordingEraser struct {
+	db *pgxpool.Pool
+	// prepareErr は、PrepareUserErasure が返すエラー。
+	prepareErr error
+	// finished は、コミットの後の関数が呼ばれたかどうか。
+	finished bool
+	// usersAtFinish は、コミットの後の関数を呼んだときに残っていた、消すユーザーの行の数。
+	usersAtFinish int
+}
+
+var _ auth.UserDataEraser = new(recordingEraser)
+
+func (e *recordingEraser) PrepareUserErasure(_ context.Context, _ pgx.Tx, userID uuid.UUID) (func(context.Context), error) {
+	if e.prepareErr != nil {
+		return nil, e.prepareErr
+	}
+
+	return func(ctx context.Context) {
+		e.finished = true
+		_ = e.db.QueryRow(ctx, "SELECT count(*) FROM users WHERE id = $1", userID).Scan(&e.usersAtFinish)
+	}, nil
+}
+
+// TestUserAdminDeleteRemovesPersonalData は、ユーザーを消すと、個人のデータが消え、監査ログと、ほかのユーザーのデータは残ることを確かめる (#1382)。
+func TestUserAdminDeleteRemovesPersonalData(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		delete func(t *testing.T, f *userAdminFixture, target *auth.User, eraser auth.UserDataEraser) error
+		// actor は、記録されるはずの操作者。
+		actor func(f *userAdminFixture, target *auth.User) uuid.UUID
+	}{
+		{
+			name: "by an administrator",
+			delete: func(t *testing.T, f *userAdminFixture, target *auth.User, eraser auth.UserDataEraser) error {
+				t.Helper()
+
+				return f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, target.ID, eraser)
+			},
+			actor: func(f *userAdminFixture, _ *auth.User) uuid.UUID { return f.root.ID },
+		},
+		{
+			name: "by the user",
+			delete: func(t *testing.T, f *userAdminFixture, target *auth.User, eraser auth.UserDataEraser) error {
+				t.Helper()
+
+				return f.admin.DeleteSelf(t.Context(), f.db, audit.User(target.ID), target.ID, eraser)
+			},
+			actor: func(_ *userAdminFixture, target *auth.User) uuid.UUID { return target.ID },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newUserAdminFixture(t)
+			target := f.create(t, "leaving", auth.RoleViewer)
+			other := f.create(t, "staying", auth.RoleViewer)
+			now := f.clock.Now()
+			for _, userID := range []uuid.UUID{target.ID, other.ID} {
+				_, err := f.db.Exec(t.Context(), `INSERT INTO user_settings (user_id, updated_at) VALUES ($1, $2)`, userID, now)
+				require.NoError(t, err)
+			}
+			_, err := f.db.Exec(t.Context(), `INSERT INTO notification_events (id, kind, occurred_at, payload, audience) VALUES ($1, 'recording_failed', $2, '{}', $3)`,
+				uuid.New(), now, []uuid.UUID{target.ID, other.ID})
+			require.NoError(t, err)
+			eraser := &recordingEraser{db: f.db, prepareErr: nil, finished: false, usersAtFinish: -1}
+
+			require.NoError(t, tt.delete(t, f, target, eraser))
+
+			assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM users WHERE id = $1", target.ID))
+			assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM user_settings WHERE user_id = $1", target.ID))
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM user_settings WHERE user_id = $1", other.ID))
+			assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM notification_events WHERE $1 = ANY(audience)", target.ID))
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM notification_events WHERE $1 = ANY(audience)", other.ID))
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.deleted' AND target_id = $1 AND actor_user_id = $2",
+				target.ID.String(), tt.actor(f, target)))
+			assert.True(t, eraser.finished)
+			assert.Equal(t, 0, eraser.usersAtFinish, "the cleanup runs after the commit")
+		})
+	}
+}
+
+// TestUserAdminDeleteRefuses は、消せないユーザーを断り、何も消さないことを確かめる (#1382)。
+func TestUserAdminDeleteRefuses(t *testing.T) {
+	t.Parallel()
+
+	eraserFailure := errors.New("the eraser failed")
+	tests := []struct {
+		name string
+		op   func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error)
+		fail error
+		want error
+	}{
+		{
+			name: "yourself from the user management",
+			op: func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error) {
+				t.Helper()
+
+				return f.root.ID, f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, f.root.ID, eraser)
+			},
+			fail: nil,
+			want: auth.ErrCannotDeleteSelf,
+		},
+		{
+			name: "the last enabled administrator by themselves",
+			op: func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error) {
+				t.Helper()
+
+				return f.root.ID, f.admin.DeleteSelf(t.Context(), f.db, f.actor(), f.root.ID, eraser)
+			},
+			fail: nil,
+			want: auth.ErrLastAdmin,
+		},
+		{
+			name: "the last enabled administrator when the other is disabled",
+			op: func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error) {
+				t.Helper()
+				disabled := f.create(t, "disabled-admin", auth.RoleAdmin)
+				require.NoError(t, f.admin.Disable(t.Context(), f.db, f.actor(), f.root.ID, disabled.ID))
+
+				return f.root.ID, f.admin.DeleteSelf(t.Context(), f.db, f.actor(), f.root.ID, eraser)
+			},
+			fail: nil,
+			want: auth.ErrLastAdmin,
+		},
+		{
+			name: "when an eraser fails",
+			op: func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error) {
+				t.Helper()
+				target := f.create(t, "kept-on-failure", auth.RoleViewer)
+
+				return target.ID, f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, target.ID, eraser)
+			},
+			fail: eraserFailure,
+			want: eraserFailure,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newUserAdminFixture(t)
+			eraser := &recordingEraser{db: f.db, prepareErr: tt.fail, finished: false, usersAtFinish: -1}
+
+			target, err := tt.op(t, f, eraser)
+
+			require.ErrorIs(t, err, tt.want)
+			assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM users WHERE id = $1", target))
+			assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM audit_events WHERE action = 'user.deleted'"))
+			assert.False(t, eraser.finished)
+		})
+	}
+}
+
+// TestUserAdminDeleteAllowsDisabledAdministrator は、有効な管理者が残るなら、無効にした管理者を消せることを確かめる (#1382)。
+func TestUserAdminDeleteAllowsDisabledAdministrator(t *testing.T) {
+	t.Parallel()
+
+	f := newUserAdminFixture(t)
+	disabled := f.create(t, "disabled-admin", auth.RoleAdmin)
+	require.NoError(t, f.admin.Disable(t.Context(), f.db, f.actor(), f.root.ID, disabled.ID))
+
+	require.NoError(t, f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, disabled.ID))
+
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM users WHERE id = $1", disabled.ID))
+}
+
+// TestUserAdminDeleteUnknownUser は、いないユーザーを消そうとすると、ErrUserNotFound を返すことを確かめる (#1382)。
+func TestUserAdminDeleteUnknownUser(t *testing.T) {
+	t.Parallel()
+
+	f := newUserAdminFixture(t)
+
+	require.ErrorIs(t, f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, uuid.New()), auth.ErrUserNotFound)
 }

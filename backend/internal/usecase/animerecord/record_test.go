@@ -594,6 +594,24 @@ func TestRecordGivesUp(t *testing.T) {
 	assert.Equal(t, []string{annictThirdRecorded, "annict:4:failed"}, pendingRecords(t, f, f.alice.UserID))
 }
 
+// TestPrepareUserErasureRevokesTokens は、ユーザーを消すときに、連携のトークンを記録先で取り消すことを確かめる (#1382)。
+func TestPrepareUserErasureRevokesTokens(t *testing.T) {
+	t.Parallel()
+
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	tx, err := f.pool.Begin(t.Context())
+	require.NoError(t, err)
+	finish, err := f.service.PrepareUserErasure(t.Context(), tx, f.alice.UserID)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(t.Context()))
+	assert.Empty(t, f.annict.revoked, "nothing is revoked before the user is deleted")
+
+	finish(t.Context())
+
+	assert.Equal(t, []string{"token-annict-" + f.alice.UserID.String()}, f.annict.revoked)
+}
+
 // reportAndTakeJob は、alice が 12:00 からの番組を 10 分見たことを報告し、入ったジョブを 1 つ返す。
 func reportAndTakeJob(t *testing.T, f *recordFixture) *animerecord.RecordArgs {
 	t.Helper()

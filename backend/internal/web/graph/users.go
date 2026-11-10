@@ -107,6 +107,19 @@ func parseTypedID(globalID, typeName, message string) (uuid.UUID, error) {
 	return parsed, nil
 }
 
+// userDataErasers は、ユーザーを消すときに、DB の外のものも片付ける usecase を返す (#1382)。
+func (r *Resolver) userDataErasers() []auth.UserDataEraser {
+	erasers := make([]auth.UserDataEraser, 0, 2)
+	if r.captures != nil {
+		erasers = append(erasers, r.captures)
+	}
+	if r.animeRecords != nil {
+		erasers = append(erasers, r.animeRecords)
+	}
+
+	return erasers
+}
+
 // userByID は、ユーザーの管理の操作の後に、変わったユーザーを DB から引き直して返す。
 func (r *Resolver) userByID(ctx context.Context, userID uuid.UUID) (*model.User, error) {
 	row, err := r.queries.GetUser(ctx, userID)

@@ -84,6 +84,45 @@ func (r *mutationResolver) EnableUser(ctx context.Context, id string) (*model.Us
 	return r.userByID(ctx, userID)
 }
 
+// DeleteUser is the resolver for the deleteUser field.
+func (r *mutationResolver) DeleteUser(ctx context.Context, id string) (string, error) {
+	principal, actor, err := r.administrator(ctx)
+	if err != nil {
+		return "", err
+	}
+	userID, err := parseUserID(id)
+	if err != nil {
+		return "", err
+	}
+	if err := r.userAdmin.Delete(ctx, r.db, actor, principal.UserID, userID, r.userDataErasers()...); err != nil {
+		return "", err
+	}
+	r.forgetAuthorizations(userID, nil)
+
+	return GlobalID(userType, userID.String()), nil
+}
+
+// DeleteAccount is the resolver for the deleteAccount field.
+func (r *mutationResolver) DeleteAccount(ctx context.Context) (bool, error) {
+	if r.userAdmin == nil {
+		return false, errUsersUnavailable
+	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return false, err
+	}
+	// API トークンと OAuth のトークンには認証の日時がないので、ここで断られる。
+	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
+		return false, err
+	}
+	if err := r.userAdmin.DeleteSelf(ctx, r.db, actorOf(ctx, principal), principal.UserID, r.userDataErasers()...); err != nil {
+		return false, err
+	}
+	r.forgetAuthorizations(principal.UserID, nil)
+
+	return true, nil
+}
+
 // ResetUserPassword is the resolver for the resetUserPassword field.
 func (r *mutationResolver) ResetUserPassword(ctx context.Context, id string, password string) (*model.User, error) {
 	_, actor, err := r.administrator(ctx)

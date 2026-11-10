@@ -24,7 +24,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
+
+var _ auth.UserDataEraser = new(Captures)
 
 const (
 	// DefaultMaxImageBytes は、受け付ける画像の大きさの上限の既定値。画面は 1920x1080 の PNG を送り、1 枚は数百 KB から数 MB ほど。
@@ -168,6 +171,31 @@ func (c *Captures) Delete(ctx context.Context, db sqlc.DBTX, userID, captureID u
 	}
 
 	return nil
+}
+
+// PrepareUserErasure は、消すユーザーのキャプチャの画像の場所を読み、ユーザーを消した後に画像を消す関数を返す (#1382)。
+// 行は外部キーで消える。画像を消せなくても、ユーザーの削除は戻さない。残った画像は、DB にないファイルとして、管理者が保存先の画面から消せる (設計書 5.6)。
+func (c *Captures) PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (func(context.Context), error) {
+	captureIDs, err := sqlc.New(tx).ListCaptureIDsOfUser(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the captures of the user: %w", err)
+	}
+
+	return func(ctx context.Context) {
+		if !c.Available() {
+			if len(captureIDs) > 0 {
+				c.logger.WarnContext(ctx, "cannot remove the capture images because the data directory is not configured", slog.Int("count", len(captureIDs)))
+			}
+
+			return
+		}
+		for _, captureID := range captureIDs {
+			location := kago.CaptureLocation(userID, captureID)
+			if err := c.store.Remove(location.PoolID, location.Path, uuid.Nil); err != nil {
+				c.logger.WarnContext(ctx, "failed to remove the capture image", slog.String("path", location.Path), slog.Any("error", err))
+			}
+		}
+	}, nil
 }
 
 // validate は、残すキャプチャの情報と画像を確かめる。

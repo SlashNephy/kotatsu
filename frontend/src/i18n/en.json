@@ -384,6 +384,11 @@
       "watchPositionsClearTitle": "Delete all watch positions?",
       "watchPositionsCleared": "Deleted {{count}} watch positions",
       "watchPositionsClearFailed": "Could not delete the watch positions",
+      "deleteAccount": "Delete account",
+      "deleteAccountHelp": "Deletes your account and personal data such as watch positions, captures, notifications, and linked accounts, along with recordings saved on this device. Recordings, reservations, and rules are shared with the household and are kept. Audit logs are kept until their retention period ends. This cannot be undone. The last administrator cannot be deleted.",
+      "deleteAccountAction": "Delete account",
+      "deleteAccountTitle": "Delete your account?",
+      "deleteAccountConfirm": "To confirm, enter your username ({{username}})",
       "dataBroadcastStorage": "Data broadcasting saved data",
       "dataBroadcastStorageHelp": "Deletes data that data broadcasting programs have saved on this device. Try this if the display stays broken. The postal code is kept.",
       "dataBroadcastStorageClear": "Delete saved data",
@@ -1713,7 +1718,7 @@
     },
     "users": {
       "title": "Users",
-      "summary": "Create users, change their roles, and disable them",
+      "summary": "Create users, change their roles, disable them, and delete them",
       "roles": {
         "ADMIN": "Administrator",
         "MEMBER": "Member",
@@ -1736,7 +1741,11 @@
       "enable": "Re-enable",
       "resetPassword": "Reset password",
       "newPassword": "New password",
-      "passwordReset": "Reset the password for {{username}}"
+      "passwordReset": "Reset the password for {{username}}",
+      "delete": "Delete",
+      "deleteHelp": "Deletes the account and personal data of {{username}}. Recordings, reservations, rules, and audit logs are kept. This cannot be undone.",
+      "deleteConfirm": "To confirm, enter the username ({{username}})",
+      "deleted": "Deleted {{username}}"
     },
     "webhooks": {
       "title": "Webhooks",

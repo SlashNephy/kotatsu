@@ -99,3 +99,7 @@ WHERE id IN (
   ORDER BY e.occurred_at
   LIMIT @max_count
 );
+
+-- name: RemoveUserFromNotificationAudiences :exec
+-- 通知を受け取るユーザーの一覧から、消すユーザーを外す (#1382)。外部キーがないので、カスケードでは消えない。
+UPDATE notification_events SET audience = array_remove(audience, @user_id::uuid) WHERE @user_id::uuid = ANY(audience);

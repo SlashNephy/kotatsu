@@ -71,6 +71,8 @@ var (
 	ErrNotConnected = errors.New("the destination is not connected")
 )
 
+var _ auth.UserDataEraser = new(Service)
+
 // Service は、記録先のアプリと、ユーザーごとの連携と設定を扱う。
 type Service struct {
 	clock        clock.Clock
@@ -470,6 +472,53 @@ func (s *Service) Disconnect(ctx context.Context, db Database, actor *audit.Acto
 	}
 
 	return nil
+}
+
+// PrepareUserErasure は、消すユーザーの連携のトークンを読み、ユーザーを消した後に記録先で取り消す関数を返す (#1382)。
+// 連携の行は外部キーで消える。Disconnect と同じく、トークンは消したので、取り消せなくてもユーザーの削除は戻さない。
+func (s *Service) PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (func(context.Context), error) {
+	rows, err := sqlc.New(tx).ListAnimeRecordConnections(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the anime record connections: %w", err)
+	}
+	revocations := make([]func(context.Context) error, 0, len(rows))
+	for i := range rows {
+		name := rows[i].Destination
+		destination, err := s.destination(name)
+		if err != nil {
+			s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+
+			continue
+		}
+		plain, err := s.tokenBox.Open(rows[i].AccessTokenEncrypted)
+		if err != nil {
+			s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+
+			continue
+		}
+		// 連携を無効にしているか、アプリを消した後は、取り消せない。
+		app, err := s.app(ctx, tx, name)
+		if err != nil {
+			s.logger.WarnContext(ctx, "failed to revoke the token", slog.String("destination", name), slog.Any("error", err))
+
+			continue
+		}
+		revocations = append(revocations, func(ctx context.Context) error {
+			if err := destination.Revoke(ctx, app, string(plain)); err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
+
+			return nil
+		})
+	}
+
+	return func(ctx context.Context) {
+		for _, revoke := range revocations {
+			if err := revoke(ctx); err != nil {
+				s.logger.WarnContext(ctx, "failed to revoke the token", slog.Any("error", err))
+			}
+		}
+	}, nil
 }
 
 // UserSettings は、ユーザーごとの記録の設定。

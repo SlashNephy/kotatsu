@@ -21,7 +21,17 @@ var (
 	ErrLastAdmin = errors.New("at least one enabled administrator is required")
 	// ErrCannotDisableSelf は、自分を無効にしようとしたことを表す。
 	ErrCannotDisableSelf = errors.New("you cannot disable yourself")
+	// ErrCannotDeleteSelf は、管理者の操作で自分を消そうとしたことを表す。自分のアカウントは、本人の操作 (DeleteSelf) で消す。
+	ErrCannotDeleteSelf = errors.New("you cannot delete yourself from the user management")
 )
+
+// UserDataEraser は、users の行の ON DELETE CASCADE だけでは消えない、ユーザーのデータを消す (#1382)。
+type UserDataEraser interface {
+	// PrepareUserErasure は、ユーザーの行を消すトランザクションの中で、行を消す前に呼ばれ、行と一緒に消える情報を読み取る。
+	// 返す関数は、コミットの後に呼ばれ、DB の外のもの (ファイル、外部のサービスのトークン) を片付ける。
+	// 片付けに失敗してもユーザーの削除は戻さないので、返す関数はエラーを返さず、失敗を自分でログに残す。
+	PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (func(context.Context), error)
+}
 
 // UserAdmin は、管理者によるユーザーの管理を扱う (設計書 9.7)。どの操作も監査ログに残す。
 type UserAdmin struct {
@@ -221,6 +231,61 @@ func (a *UserAdmin) Enable(ctx context.Context, db Database, actor *audit.Actor,
 // ResetPassword は、管理者がユーザーのパスワードを設定し直す。規定を満たさなければ、*password.RejectedError を返す。
 func (a *UserAdmin) ResetPassword(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, secret string) error {
 	return a.passwords.Set(ctx, db, actor, userID, secret, nil)
+}
+
+// Delete は、管理者の操作でユーザーを消し、個人のデータも消す (#1382)。自分自身と、最後の有効な管理者は消せない。by は、操作するユーザー。
+func (a *UserAdmin) Delete(ctx context.Context, db Database, actor *audit.Actor, by, userID uuid.UUID, erasers ...UserDataEraser) error {
+	if by == userID {
+		return ErrCannotDeleteSelf
+	}
+
+	return a.erase(ctx, db, actor, userID, erasers)
+}
+
+// DeleteSelf は、本人の操作で自分のアカウントを消し、個人のデータも消す (#1382)。最後の有効な管理者は消せない。
+func (a *UserAdmin) DeleteSelf(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, erasers ...UserDataEraser) error {
+	return a.erase(ctx, db, actor, userID, erasers)
+}
+
+// erase は、ユーザーの行を消す。個人のデータは外部キーの ON DELETE CASCADE で一緒に消え、監査ログは残す (設計書 8.5)。
+func (a *UserAdmin) erase(ctx context.Context, db Database, actor *audit.Actor, userID uuid.UUID, erasers []UserDataEraser) error {
+	finishers := make([]func(context.Context), 0, len(erasers))
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		// ユーザーの行をロックしてから読むので、キャプチャの追加のように行を参照する書き込みは、消し終わるまで待つ。
+		row, admins, err := a.lockUser(ctx, tx, userID)
+		if err != nil {
+			return err
+		}
+		if row.Role == string(RoleAdmin) && row.DisabledAt == nil && admins <= 1 {
+			return ErrLastAdmin
+		}
+		for _, eraser := range erasers {
+			finish, err := eraser.PrepareUserErasure(ctx, tx, userID)
+			if err != nil {
+				return err
+			}
+			finishers = append(finishers, finish)
+		}
+		q := sqlc.New(tx)
+		if err := q.RemoveUserFromNotificationAudiences(ctx, userID); err != nil {
+			return fmt.Errorf("failed to remove the user from the notification audiences: %w", err)
+		}
+		if _, err := q.DeleteUser(ctx, userID); err != nil {
+			return fmt.Errorf("failed to delete the user: %w", err)
+		}
+
+		return a.record(ctx, tx, actor, "user.deleted", userID, map[string]any{summaryUsername: row.Username})
+	})
+	if err != nil {
+		return err
+	}
+	// 本人の操作では、セッションごと消えてリクエストが切れることがあるので、切られない context で片付ける。
+	cleanup := context.WithoutCancel(ctx)
+	for _, finish := range finishers {
+		finish(cleanup)
+	}
+
+	return nil
 }
 
 // lockUser は、有効な管理者の行と、対象のユーザーの行をロックし、対象のユーザーと、有効な管理者の数を返す。
