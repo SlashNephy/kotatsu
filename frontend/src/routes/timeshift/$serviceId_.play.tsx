@@ -1,7 +1,7 @@
 import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { Captions, Keyboard } from 'lucide-react';
+import { Captions, Keyboard, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
+import { rememberReturnTo } from '../../auth/returnTo';
 import { ErrorBoundary, PageLoader, ProgramTitle, useDocumentTitle } from '../../futon';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { WatchPanel } from '../../yunomi/WatchPanel';
@@ -91,20 +92,31 @@ import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useStreamsDrains } from '../../changes/DataChanges';
 import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../yunomi/reconnect';
+import {
+  copyPositionUrl,
+  parseStartSeconds,
+  timeshiftShareSeconds,
+  timeshiftStartPosition,
+} from '../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
 
-// PlaySearch は、再生の画面の URL のクエリ。program は、再生する番組の始まりの時刻 (RFC 3339)。
-type PlaySearch = { program: string };
+// PlaySearch は、再生の画面の URL のクエリ。program は、再生する番組の始まりの時刻 (RFC 3339)。t は、再生を始める位置 (番組の始まりからの放送の秒)。
+type PlaySearch = { program: string; t?: number };
 
 export const Route = createFileRoute('/timeshift/$serviceId_/play')({
   // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
-  validateSearch: (search: Record<string, unknown>): PlaySearch => ({
-    program: typeof search.program === 'string' ? search.program : '',
-  }),
+  validateSearch: (search: Record<string, unknown>): PlaySearch => {
+    const t = parseStartSeconds(search.t);
+
+    return {
+      program: typeof search.program === 'string' ? search.program : '',
+      ...(t === undefined ? {} : { t }),
+    };
+  },
   component: PlayPage,
 });
 
@@ -113,7 +125,7 @@ export const Route = createFileRoute('/timeshift/$serviceId_/play')({
 function PlayPage() {
   const { t } = useTranslation();
   const { serviceId } = Route.useParams();
-  const { program } = Route.useSearch();
+  const { program, t: start } = Route.useSearch();
 
   return (
     <Stack gap="sm">
@@ -127,7 +139,12 @@ function PlayPage() {
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">
-              <Anchor component={Link} to="/login">
+              <Anchor
+                component={Link}
+                to="/login"
+                // 共有された URL をログインしていない端末で開いても、ログインの後に同じ位置から再生する。
+                onClick={() => rememberReturnTo(window.location.pathname + window.location.search)}
+              >
                 {t('guide.signedOut')}
               </Anchor>
             </Alert>
@@ -141,7 +158,12 @@ function PlayPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Player key={`${serviceId}:${program}`} serviceId={serviceId} startAt={program} />
+          <Player
+            key={`${serviceId}:${program}`}
+            serviceId={serviceId}
+            startAt={program}
+            start={start}
+          />
         </Suspense>
       </ErrorBoundary>
     </Stack>
@@ -182,7 +204,15 @@ const playQuery = graphql`
 // refreshMs は、放送中の番組を再生している間に、番組を読み直す間隔。終わった時刻が分かったら、長さを伸ばすのをやめる。
 const refreshMs = 30_000;
 
-function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) {
+function Player({
+  serviceId,
+  startAt,
+  start,
+}: {
+  serviceId: string;
+  startAt: string;
+  start: number | undefined;
+}) {
   const { t } = useTranslation();
   const variables = { serviceId, startAt };
   const { timeshiftProgram: program, transcoding } = useLazyLoadQuery<ServiceIdPlayTimeshiftQuery>(
@@ -237,9 +267,13 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     program.gaps,
     program.endAt == null ? Date.now() : Date.parse(program.endAt),
   );
+  // initialPosition は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ再生できる範囲の始まりから。
+  const [initialPosition] = useState(() =>
+    start === undefined ? 0 : Math.min(timeshiftStartPosition(program, start), duration),
+  );
   // stream は、再生できる範囲の始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
-  const stream = useSeekableStream(program.streamUrl, video, 0, !hls);
-  const hlsStream = useHlsStream(video, hls);
+  const stream = useSeekableStream(program.streamUrl, video, initialPosition, !hls);
+  const hlsStream = useHlsStream(video, hls, initialPosition);
   const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -404,6 +438,12 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
     volumeUp: () => changeVolume(volumeStep),
     volumeDown: () => changeVolume(-volumeStep),
     capture: () => void saveCapture(),
+    copyPositionUrl: () => {
+      copyPositionUrl(timeshiftShareSeconds(program, currentPosition()), playerBoxRef.current).then(
+        () => showFlash(t('player.flash.urlCopied')),
+        () => showFlash(t('player.flash.urlCopyFailed')),
+      );
+    },
     restart: () => {
       retry();
       showFlash(t('player.flash.restarted'));
@@ -681,6 +721,16 @@ function Player({ serviceId, startAt }: { serviceId: string; startAt: string }) 
               endAt: program.endAt ?? program.startAt,
               endUndecided: program.endAt == null,
             }}
+            actions={
+              <Button
+                variant="default"
+                size="compact-sm"
+                leftSection={<Share2 size={14} aria-hidden />}
+                onClick={commands.copyPositionUrl}
+              >
+                {t('player.share')}
+              </Button>
+            }
           />
           {error !== null && (
             <Alert color="red" role="alert">
