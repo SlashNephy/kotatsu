@@ -131,6 +131,7 @@ export function createRootValue(
       mutedKeywords: [],
       mutedUsers: [],
       mutedCommands: [],
+      mixOtherBroadcasts: false,
     },
     captions: {
       superimposeLive: true,

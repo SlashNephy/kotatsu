@@ -91,6 +91,7 @@ export function CommentSettingsCard() {
     ),
     mutedUsers: [...comments.mutedUsers],
     mutedCommands: [...comments.mutedCommands],
+    mixOtherBroadcasts: comments.mixOtherBroadcasts,
   });
   const save = (change: Partial<CommentSettingsInput>) => {
     setFailed(false);
@@ -168,6 +169,13 @@ export function CommentSettingsCard() {
           description={t('settings.comments.showAllHelp')}
           checked={comments.showAll}
           onChange={(event) => save({ showAll: event.currentTarget.checked })}
+        />
+
+        <Switch
+          label={t('settings.comments.mixOtherBroadcasts')}
+          description={t('settings.comments.mixOtherBroadcastsHelp')}
+          checked={comments.mixOtherBroadcasts}
+          onChange={(event) => save({ mixOtherBroadcasts: event.currentTarget.checked })}
         />
 
         <Stack gap={4}>

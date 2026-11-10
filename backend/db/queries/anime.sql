@@ -28,12 +28,13 @@ DELETE FROM anime_channel_definitions;
 
 -- name: InsertAnimeChannelDefinitions :exec
 -- 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
-INSERT INTO anime_channel_definitions (channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id)
-SELECT t.channel_type, t.network_id, t.sid, t.name, NULLIF(t.syobocal_channel_id, 0), NULLIF(t.annict_channel_id, 0)
+INSERT INTO anime_channel_definitions (channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id, jikkyo_channel_id)
+SELECT t.channel_type, t.network_id, t.sid, t.name, NULLIF(t.syobocal_channel_id, 0), NULLIF(t.annict_channel_id, 0), NULLIF(t.jikkyo_channel_id, 0)
 FROM (
   SELECT unnest(@channel_types::text[]) AS channel_type, unnest(@network_ids::bigint[]) AS network_id,
     unnest(@sids::bigint[]) AS sid, unnest(@names::text[]) AS name,
-    unnest(@syobocal_channel_ids::integer[]) AS syobocal_channel_id, unnest(@annict_channel_ids::integer[]) AS annict_channel_id
+    unnest(@syobocal_channel_ids::integer[]) AS syobocal_channel_id, unnest(@annict_channel_ids::integer[]) AS annict_channel_id,
+    unnest(@jikkyo_channel_ids::integer[]) AS jikkyo_channel_id
 ) AS t;
 
 -- name: DeleteAnimeWorks :exec
@@ -313,3 +314,43 @@ SELECT 'annict', w.syobocal_tid, (row_number() OVER (PARTITION BY w.syobocal_tid
   w.annict_id, w.anilist_id, w.mal_anime_id
 FROM annict_works w
 WHERE w.syobocal_tid IS NOT NULL;
+
+-- name: ListTitlesForBroadcastLookup :many
+-- ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
+SELECT e.syobocal_tid::integer AS tid
+FROM recording_anime_episodes e
+JOIN recordings r ON r.id = e.recording_id
+LEFT JOIN anime_title_broadcast_lookups l ON l.tid = e.syobocal_tid
+WHERE e.syobocal_tid IS NOT NULL AND r.recorded_until IS NOT NULL
+  AND (l.tid IS NULL OR (l.fetched_at < @fetched_before AND r.recorded_until > @recorded_since::timestamptz))
+GROUP BY e.syobocal_tid, l.fetched_at
+ORDER BY l.fetched_at NULLS FIRST, e.syobocal_tid
+LIMIT @max_titles;
+
+-- name: DeleteAnimeEpisodeBroadcasts :exec
+DELETE FROM anime_episode_broadcasts WHERE tid = @tid;
+
+-- name: InsertAnimeEpisodeBroadcast :exec
+INSERT INTO anime_episode_broadcasts (pid, tid, channel_id, start_at, end_at, offset_seconds, episode_count)
+VALUES (@pid, @tid, @channel_id, @start_at, @end_at, @offset_seconds, @episode_count);
+
+-- name: UpsertAnimeTitleBroadcastLookup :exec
+INSERT INTO anime_title_broadcast_lookups (tid, fetched_at) VALUES (@tid, @now)
+ON CONFLICT (tid) DO UPDATE SET fetched_at = excluded.fetched_at;
+
+-- name: ListRecordingEpisodesForBroadcasts :many
+-- 録画に結びついた話 (#1361)。TID と話数のない話も返す。呼ぶ側で、1 話だけの録画に絞る。
+SELECT syobocal_tid, count_start, count_end FROM recording_anime_episodes
+WHERE recording_id = @recording_id ORDER BY position;
+
+-- name: ListOtherAnimeBroadcasts :many
+-- 同じ話の、放送が終わった放送を、実況のチャンネルがあるものだけ、古い順に返す (#1361)。
+SELECT b.pid, b.start_at, b.end_at, b.offset_seconds, j.jikkyo_channel_id::integer AS jikkyo_channel_id
+FROM anime_episode_broadcasts b
+JOIN (
+  SELECT DISTINCT syobocal_channel_id, jikkyo_channel_id FROM anime_channel_definitions
+  WHERE syobocal_channel_id IS NOT NULL AND jikkyo_channel_id IS NOT NULL
+) j ON j.syobocal_channel_id = b.channel_id
+WHERE b.tid = @tid AND b.episode_count = @episode_count
+  AND b.end_at + make_interval(secs => b.offset_seconds) <= @now
+ORDER BY b.start_at + make_interval(secs => b.offset_seconds), b.pid, j.jikkyo_channel_id;

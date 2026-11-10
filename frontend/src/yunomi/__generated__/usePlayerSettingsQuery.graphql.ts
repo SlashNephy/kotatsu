@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0df74e2b3a8df6b1a0f21fa5d91f8f1e>>
+ * @generated SignedSource<<4f2514c3653194c2f9c622f3dd0bae6e>>
  * @lightSyntaxTransform
  */
 
@@ -20,6 +20,7 @@ export type usePlayerSettingsQuery$data = {
     };
     readonly captionsEnabled: boolean;
     readonly comments: {
+      readonly mixOtherBroadcasts: boolean;
       readonly mutedCommands: ReadonlyArray<string>;
       readonly mutedKeywords: ReadonlyArray<{
         readonly match: KeywordMuteMatch;
@@ -153,6 +154,13 @@ v1 = [
             "kind": "ScalarField",
             "name": "mutedCommands",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "mixOtherBroadcasts",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -218,16 +226,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "600f5a7ae5e5a843fbce67b4363559d9",
+    "cacheID": "de085398e0df2aedee8f59887e91873b",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsQuery",
     "operationKind": "query",
-    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n  }\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
+    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n  }\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n      mixOtherBroadcasts\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "70bb8f3c652423ca0a9aa7dc3de239a8";
+(node as any).hash = "19fe5f5d2c63b4a14302fbecc2b40f3e";
 
 export default node;

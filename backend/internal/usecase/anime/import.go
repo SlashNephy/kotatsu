@@ -257,7 +257,7 @@ type channelKey struct {
 func channelDefinitionsOf(channels []*animedata.Channel) *sqlc.InsertAnimeChannelDefinitionsParams {
 	params := &sqlc.InsertAnimeChannelDefinitionsParams{
 		ChannelTypes: []string{}, NetworkIds: []int64{}, Sids: []int64{}, Names: []string{},
-		SyobocalChannelIds: []int32{}, AnnictChannelIds: []int32{},
+		SyobocalChannelIds: []int32{}, AnnictChannelIds: []int32{}, JikkyoChannelIds: []int32{},
 	}
 	seen := map[channelKey]bool{}
 	for _, channel := range channels {
@@ -280,6 +280,7 @@ func channelDefinitionsOf(channels []*animedata.Channel) *sqlc.InsertAnimeChanne
 			params.Names = append(params.Names, channel.Name)
 			params.SyobocalChannelIds = append(params.SyobocalChannelIds, positiveOrZero(channel.SyobocalID))
 			params.AnnictChannelIds = append(params.AnnictChannelIds, positiveOrZero(channel.AnnictID))
+			params.JikkyoChannelIds = append(params.JikkyoChannelIds, positiveOrZero(channel.NicojkID))
 		}
 	}
 

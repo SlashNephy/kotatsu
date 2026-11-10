@@ -252,6 +252,8 @@
       "scale": "Text size",
       "showAll": "Show all comments even if they overlap",
       "showAllHelp": "When off, up to 40 comments are shown on screen at once, and older ones are hidden",
+      "mixOtherBroadcasts": "Also show past comments from other broadcasts of the same episode",
+      "mixOtherBroadcastsHelp": "For recordings linked to an episode, comments from other stations are aligned using program part markers. Broadcasts without enough markers are not mixed.",
       "mutedKeywords": "Muted keywords",
       "keyword": "Keyword",
       "match": "Match type",

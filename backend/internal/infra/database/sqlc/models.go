@@ -25,6 +25,7 @@ type AnimeChannelDefinition struct {
 	Name              string
 	SyobocalChannelID *int32
 	AnnictChannelID   *int32
+	JikkyoChannelID   *int32
 }
 
 type AnimeChannelOverride struct {
@@ -32,6 +33,16 @@ type AnimeChannelOverride struct {
 	SyobocalChannelID *int32
 	AnnictChannelID   *int32
 	UpdatedAt         time.Time
+}
+
+type AnimeEpisodeBroadcast struct {
+	Pid           int32
+	Tid           int32
+	ChannelID     int32
+	StartAt       time.Time
+	EndAt         time.Time
+	OffsetSeconds int32
+	EpisodeCount  float64
 }
 
 type AnimeFollowingFetch struct {
@@ -137,6 +148,11 @@ type AnimeRecordSetting struct {
 	WatchedOnLast     bool
 	NotifyWishlist    bool
 	UpdatedAt         time.Time
+}
+
+type AnimeTitleBroadcastLookup struct {
+	Tid       int32
+	FetchedAt time.Time
 }
 
 type AnimeWatchProgress struct {

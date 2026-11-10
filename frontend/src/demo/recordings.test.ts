@@ -154,6 +154,7 @@ describe('demo executor answers the queries of the recording and player screens'
             mutedKeywords: [],
             mutedUsers: [],
             mutedCommands: [],
+            mixOtherBroadcasts: false,
           },
         },
       }),

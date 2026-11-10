@@ -44,6 +44,8 @@ type CommentSettings {
   mutedUsers: [String!]!
   "ミュートするコマンド (big、ue、色など。#1359)。"
   mutedCommands: [String!]!
+  "録画の再生で、同じ話の別の放送の過去ログも混ぜるかどうか (#1361)。"
+  mixOtherBroadcasts: Boolean!
 }
 
 """
@@ -102,6 +104,7 @@ input CommentSettingsInput {
   mutedUsers: [String!]!
   "50 件まで。1 つ 32 文字まで"
   mutedCommands: [String!]!
+  mixOtherBroadcasts: Boolean!
 }
 
 input MutedKeywordInput {

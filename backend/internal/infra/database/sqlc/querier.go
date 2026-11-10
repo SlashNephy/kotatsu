@@ -93,6 +93,7 @@ type Querier interface {
 	DeleteAllWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAnimeChannelDefinitions(ctx context.Context) error
 	DeleteAnimeChannelOverride(ctx context.Context, serviceID int64) error
+	DeleteAnimeEpisodeBroadcasts(ctx context.Context, tid int32) error
 	DeleteAnimeFollowingViewings(ctx context.Context, arg DeleteAnimeFollowingViewingsParams) error
 	DeleteAnimeImportToken(ctx context.Context) (int64, error)
 	DeleteAnimeRecordApp(ctx context.Context, destination string) (int64, error)
@@ -251,6 +252,8 @@ type Querier interface {
 	GetCalendarFeedUser(ctx context.Context, arg GetCalendarFeedUserParams) (GetCalendarFeedUserRow, error)
 	// user_id のユーザーのキャプチャ id を返す。ほかのユーザーのものは返さない。
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
+	// 実況のコメントの設定の JSON。行がないか、設定を変えていなければ NULL。
+	GetCommentSettings(ctx context.Context, userID uuid.UUID) ([]byte, error)
 	// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
 	GetDatabaseNow(ctx context.Context) (time.Time, error)
 	// EPG の変更の通知の、今の版数を返す。一度も通知していなければ 0。
@@ -363,6 +366,7 @@ type Querier interface {
 	IncrementLoginChallengeFailures(ctx context.Context, id uuid.UUID) (int32, error)
 	// 同じサービスは 1 度だけ渡す (先に出てきたものを使うのは、呼ぶ側で決める)。配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	InsertAnimeChannelDefinitions(ctx context.Context, arg InsertAnimeChannelDefinitionsParams) error
+	InsertAnimeEpisodeBroadcast(ctx context.Context, arg InsertAnimeEpisodeBroadcastParams) error
 	// 配列は NULL を持てないので、分からない数は -1 で、分からない文字列は空で渡す。
 	InsertAnimeFollowingViewings(ctx context.Context, arg InsertAnimeFollowingViewingsParams) error
 	// 同じユーザー、番組、話、記録先の組は、1 回だけ記録する。既にあれば何もしない。
@@ -593,6 +597,8 @@ type Querier interface {
 	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
 	// ファイルの大きさと最後に書いた時刻で閉じる。
 	ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error)
+	// 同じ話の、放送が終わった放送を、実況のチャンネルがあるものだけ、古い順に返す (#1361)。
+	ListOtherAnimeBroadcasts(ctx context.Context, arg ListOtherAnimeBroadcastsParams) ([]ListOtherAnimeBroadcastsRow, error)
 	ListPendingAnimeRecords(ctx context.Context, arg ListPendingAnimeRecordsParams) ([]AnimeRecord, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
@@ -619,6 +625,8 @@ type Querier interface {
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	// 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
 	ListRecordingCMSections(ctx context.Context, arg ListRecordingCMSectionsParams) ([]ListRecordingCMSectionsRow, error)
+	// 録画に結びついた話 (#1361)。TID と話数のない話も返す。呼ぶ側で、1 話だけの録画に絞る。
+	ListRecordingEpisodesForBroadcasts(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingEpisodesForBroadcastsRow, error)
 	// /metrics に出す、失敗の理由ごとの、録画の失敗の累計と最後に失敗した日時 (#960)。録画を消しても減らない。
 	ListRecordingFailureCounts(ctx context.Context) ([]RecordingFailureCount, error)
 	// すべての録画ファイルの ID と置き場所を返す。録画中のものも含む。DB にないファイルを探すのに使う。
@@ -689,6 +697,8 @@ type Querier interface {
 	ListTimeshiftPrograms(ctx context.Context, serviceID int64) ([]TimeshiftProgram, error)
 	// サービスの、録画に昇格している途中の番組と、そのイベント ID。番組の一覧に、書き出している途中であることを出すのに使う。
 	ListTimeshiftPromotions(ctx context.Context, serviceID int64) ([]ListTimeshiftPromotionsRow, error)
+	// ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
+	ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitlesForBroadcastLookupParams) ([]int32, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)
@@ -994,6 +1004,7 @@ type Querier interface {
 	UpsertAnimeRecordApp(ctx context.Context, arg UpsertAnimeRecordAppParams) error
 	UpsertAnimeRecordConnection(ctx context.Context, arg UpsertAnimeRecordConnectionParams) error
 	UpsertAnimeRecordSettings(ctx context.Context, arg UpsertAnimeRecordSettingsParams) (AnimeRecordSetting, error)
+	UpsertAnimeTitleBroadcastLookup(ctx context.Context, arg UpsertAnimeTitleBroadcastLookupParams) error
 	// Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	UpsertAnnictWorks(ctx context.Context, arg UpsertAnnictWorksParams) error

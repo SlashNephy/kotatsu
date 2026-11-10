@@ -44,10 +44,29 @@ type fakeSyobocal struct {
 	mu       sync.Mutex
 	programs []*syobocal.Program
 	calls    []lookupCall
+	tidCalls []int32
 	fail     bool
 }
 
 var _ anime.SyobocalClient = new(fakeSyobocal)
+
+// ProgLookupByTID は、作品 tid の放送時間データを返す。
+func (f *fakeSyobocal) ProgLookupByTID(_ context.Context, tid int32) ([]*syobocal.Program, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tidCalls = append(f.tidCalls, tid)
+	if f.fail {
+		return nil, errors.New("syobocal is down")
+	}
+	found := []*syobocal.Program{}
+	for _, program := range f.programs {
+		if program.TID == tid {
+			found = append(found, program)
+		}
+	}
+
+	return found, nil
+}
 
 func (f *fakeSyobocal) ProgLookup(_ context.Context, channelIDs []int32, from, to time.Time) ([]*syobocal.Program, error) {
 	f.mu.Lock()

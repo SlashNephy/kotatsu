@@ -79,6 +79,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	handler := jikkyoapi.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, handler)
+	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, jikkyoapi.NewOtherCommentsHandler(handler))
 	f := &commentsFixture{pool: pool, fake: fake, userID: id.New(), mux: mux, handler: nil}
 	_, err = pool.Exec(t.Context(), `INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'member', 'member', 'member', $2, $2)`,
 		f.userID, recordedFrom())

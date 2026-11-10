@@ -8,6 +8,7 @@ import {
   type JikkyoComment,
 } from './comments';
 import { useCommentOffset } from './commentOffset';
+import { mixBroadcast } from './mixBroadcasts';
 import { recordingPosition, type Gap } from '../yunomi/position';
 import { JikkyoSession } from './session';
 
@@ -56,11 +57,15 @@ export function useRecordedJikkyo(
   drawing: boolean,
   live: RecordedJikkyoLive | null = null,
   settings: CommentSettings = defaultCommentSettings,
+  // othersUrl は、同じ話の別の放送の過去ログの URL (#1361)。設定で有効にしていて、録画を終えているときだけ読む。
+  othersUrl: string | null = null,
 ): {
   overlay: ReactNode;
   state: RecordedJikkyoState | null;
-  // comments は、取った過去ログ (流す時刻の順)。取れていなければ null (#489)。
+  // comments は、取った過去ログ (流す時刻の順)。別の放送の過去ログを混ぜていれば、それも含む。取れていなければ null (#489)。
   comments: readonly JikkyoComment[] | null;
+  // ownComments は、録画自身の過去ログ。番組の区切りを見つけるのに使う。
+  ownComments: readonly JikkyoComment[] | null;
   // offset は、コメントを流す位置をずらす秒数 (#1357)。正の値で遅らせる。一覧も、この分をずらして出す。
   offset: number;
 } {
@@ -70,6 +75,57 @@ export function useRecordedJikkyo(
   const [state, setState] = useState<RecordedJikkyoState | null>(null);
   const [comments, setComments] = useState<readonly JikkyoComment[] | null>(null);
   const [offsetMs] = useCommentOffset();
+  // othersCache は、取った別の放送の過去ログ。切り替えても取り直さない。
+  const othersCache = useRef(new Map<string, JikkyoComment[][]>());
+  const [others, setOthers] = useState<{ url: string; logs: JikkyoComment[][] } | null>(null);
+  const othersTarget = settings.mixOtherBroadcasts && live === null ? othersUrl : null;
+  useEffect(() => {
+    if (othersTarget === null) {
+      return;
+    }
+    const cached = othersCache.current.get(othersTarget);
+    if (cached !== undefined) {
+      setOthers({ url: othersTarget, logs: cached });
+
+      return;
+    }
+    const controller = new AbortController();
+    void fetch(othersTarget, { signal: controller.signal, credentials: 'same-origin' })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`unexpected status ${response.status}`);
+        }
+
+        return (await response.json()) as { broadcasts: { comments: JikkyoComment[] }[] };
+      })
+      .then((body) => {
+        const logs = body.broadcasts.map((broadcast) => broadcast.comments);
+        othersCache.current.set(othersTarget, logs);
+        setOthers({ url: othersTarget, logs });
+      })
+      .catch(() => {
+        // 取れなければ、録画自身の過去ログだけを流す。
+      });
+
+    return () => controller.abort();
+  }, [othersTarget]);
+  // mixed は、録画の位置に合わせた別の放送のコメント。区切りが足りない放送は混ぜない。
+  const mixed = useMemo(
+    () =>
+      comments === null || others === null || others.url !== othersTarget
+        ? []
+        : others.logs.flatMap((log) => mixBroadcast(comments, log)),
+    [comments, others, othersTarget],
+  );
+  const mixedRef = useRef(mixed);
+  mixedRef.current = mixed;
+  const merged = useMemo(
+    () =>
+      comments === null || mixed.length === 0
+        ? comments
+        : [...comments, ...mixed].sort((a, b) => a.time - b.time),
+    [comments, mixed],
+  );
   const offset = offsetMs / 1_000;
 
   // canvas ができるたびに、取ってある過去ログを渡す。
@@ -78,7 +134,7 @@ export function useRecordedJikkyo(
       canvas.current = handle;
       const comments = url === null ? undefined : cache.current.get(url);
       if (handle !== null && comments !== undefined) {
-        handle.add(comments);
+        handle.add([...comments, ...mixedRef.current]);
       }
     },
     [url],
@@ -186,14 +242,15 @@ export function useRecordedJikkyo(
       mutedCommands: commands,
     });
 
-    return comments?.filter((comment) => !muted(comment)) ?? null;
-  }, [comments, muteKey]);
+    return merged?.filter((comment) => !muted(comment)) ?? null;
+  }, [merged, muteKey]);
 
   return {
     overlay:
       url === null ? undefined : (
         <CommentCanvas
-          key={url}
+          // 混ぜ始めたら描き直す。canvas を作り直すと、attach が混ぜたコメントも渡す。
+          key={`${url}:${String(mixed.length > 0)}`}
           ref={attach}
           clock={() => clock() - offset}
           drawing={drawing}
@@ -202,6 +259,7 @@ export function useRecordedJikkyo(
       ),
     state,
     comments: listed,
+    ownComments: comments,
     offset,
   };
 }

@@ -1007,6 +1007,10 @@ type CommentSettings {
   ミュートするコマンド (big、ue、色など。#1359)。
   """
   mutedCommands: [String!]!
+  """
+  録画の再生で、同じ話の別の放送の過去ログも混ぜるかどうか (#1361)。
+  """
+  mixOtherBroadcasts: Boolean!
 }
 input CommentSettingsInput {
   opacity: Float!
@@ -1025,6 +1029,7 @@ input CommentSettingsInput {
   50 件まで。1 つ 32 文字まで
   """
   mutedCommands: [String!]!
+  mixOtherBroadcasts: Boolean!
 }
 """
 管理者が作るユーザー。
@@ -3242,6 +3247,10 @@ type Recording implements Node {
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
   jikkyoCommentsUrl: String!
+  """
+  同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。
+  """
+  jikkyoOtherCommentsUrl: String!
   """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。

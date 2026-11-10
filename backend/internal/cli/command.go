@@ -1063,8 +1063,10 @@ func handleMedia(
 	mux.Handle("GET /media/recordings/{id}/{file}",
 		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(
-		jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))))
+	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
+	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(jikkyoComments))
+	// 同じ話の別の放送の過去ログも、過去ログ API から取って中継する (#1361)。
+	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, authorizer.Middleware(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
 	// ライブの実況のコメントは、tenban が NX-Jikkyo との間を中継する (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
 	mux.Handle("GET "+jikkyoapi.LivePath, httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{
 		Pool: deps.DB, Table: jikkyoTable, Client: jikkyoClient, Relay: jikkyo.NewRelay(jikkyoClient),

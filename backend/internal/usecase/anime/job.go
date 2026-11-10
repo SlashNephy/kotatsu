@@ -102,6 +102,8 @@ const (
 	MatchModeHorizon = "horizon"
 	// MatchModeFinalize は、放送が終わった番組を照合し直し、結びつきを確定させる。
 	MatchModeFinalize = "finalize"
+	// MatchModeBroadcasts は、録画に結びついた作品の、ほかの放送を引く (#1361)。
+	MatchModeBroadcasts = "broadcasts"
 	// MatchModeImported は、EPGStation から取り込んだ録画を照合する。
 	MatchModeImported = "imported"
 )
@@ -113,6 +115,8 @@ const (
 	matchHorizonInterval = 6 * time.Hour
 	// finalizeInterval は、放送が終わった番組の結びつきを確定させる間隔 (付録 A)。アーカイブへ移すまでの猶予 (24 時間) の間に、何度も機会がある。
 	finalizeInterval = time.Hour
+	// collectBroadcastsInterval は、録画に結びついた作品の、ほかの放送を引く間隔 (付録 A)。
+	collectBroadcastsInterval = time.Hour
 	// matchImportedInterval は、EPGStation から取り込んだ録画を照合する間隔 (付録 A)。少しずつ照合し、しょぼいカレンダーへの問い合わせを散らす。
 	matchImportedInterval = 10 * time.Minute
 )
@@ -162,6 +166,8 @@ func (w *MatchWorker) Work(ctx context.Context, job *river.Job[MatchArgs]) error
 		result, err = w.matcher.Finalize(ctx)
 	case MatchModeImported:
 		result, err = w.matcher.MatchImported(ctx)
+	case MatchModeBroadcasts:
+		result, err = w.matcher.CollectBroadcasts(ctx)
 	default:
 		return river.JobCancel(fmt.Errorf("unknown anime match mode %q", job.Args.Mode))
 	}
@@ -194,6 +200,7 @@ func MatchPeriodicJobs() []*river.PeriodicJob {
 		periodic(MatchModeHorizon, matchHorizonInterval),
 		periodic(MatchModeFinalize, finalizeInterval),
 		periodic(MatchModeImported, matchImportedInterval),
+		periodic(MatchModeBroadcasts, collectBroadcastsInterval),
 	}
 }
 
