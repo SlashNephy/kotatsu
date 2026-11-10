@@ -126,7 +126,7 @@ func domainError(err error, target **Error) bool {
 	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, domain.ErrInvalidReservation),
 		errors.Is(err, reserve.ErrInvalidSettings), errors.Is(err, match.ErrInvalidConditions),
 		errors.Is(err, auth.ErrInvalidUser), errors.Is(err, auth.ErrUsernameTaken), errors.Is(err, auth.ErrInvalidRole),
-		errors.Is(err, auth.ErrLastAdmin), errors.Is(err, auth.ErrCannotDisableSelf):
+		errors.Is(err, auth.ErrLastAdmin), errors.Is(err, auth.ErrCannotDisableSelf), errors.Is(err, auth.ErrCannotDeleteSelf):
 		code = CodeBadUserInput
 	default:
 		return false

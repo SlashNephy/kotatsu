@@ -12,6 +12,19 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteUser = `-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = $1
+`
+
+// ユーザーを消す (#1382)。個人のデータは外部キーの ON DELETE CASCADE で消え、予約やルールの作成者は NULL になる。
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const disableUser = `-- name: DisableUser :execrows
 UPDATE users SET disabled_at = $1, updated_at = $1 WHERE id = $2 AND disabled_at IS NULL
 `

@@ -229,6 +229,26 @@ func TestDelete(t *testing.T) {
 	require.ErrorIs(t, f.captures.Delete(t.Context(), f.pool, f.users["alice"], saved.ID), capture.ErrNotFound)
 }
 
+// TestPrepareUserErasure は、ユーザーを消すときに、そのユーザーのキャプチャの画像だけを消すことを確かめる (#1382)。
+func TestPrepareUserErasure(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	_, err := f.captures.Save(t.Context(), f.pool, f.users["alice"], f.upload())
+	require.NoError(t, err)
+	kept, err := f.captures.Save(t.Context(), f.pool, f.users["bob"], f.upload())
+	require.NoError(t, err)
+	tx, err := f.pool.Begin(t.Context())
+	require.NoError(t, err)
+	finish, err := f.captures.PrepareUserErasure(t.Context(), tx, f.users["alice"])
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(t.Context()))
+
+	finish(t.Context())
+
+	assert.Equal(t, []string{kago.CaptureLocation(f.users["bob"], kept.ID).Path}, f.files(t))
+}
+
 // TestRecordingDeletionKeepsCapture は、録画を消しても、キャプチャと画像は残し、録画の参照だけを外すことを確かめる。
 func TestRecordingDeletionKeepsCapture(t *testing.T) {
 	t.Parallel()

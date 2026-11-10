@@ -382,6 +382,11 @@
       "watchPositionsClearTitle": "再生位置をすべて消しますか？",
       "watchPositionsCleared": "{{count}}件の再生位置を消しました",
       "watchPositionsClearFailed": "再生位置を消せませんでした",
+      "deleteAccount": "アカウントの削除",
+      "deleteAccountHelp": "アカウントと、再生位置、キャプチャ、通知、連携などの個人のデータを消し、この端末に保存した録画も消します。録画、予約、ルールは家族で共有しているので残ります。監査ログは保持期間が過ぎるまで残ります。消したアカウントは元に戻せません。最後の管理者は消せません",
+      "deleteAccountAction": "アカウントを削除",
+      "deleteAccountTitle": "アカウントを削除しますか？",
+      "deleteAccountConfirm": "確認のため、ユーザー名（{{username}}）を入力してください",
       "dataBroadcastStorage": "データ放送の保存データ",
       "dataBroadcastStorageHelp": "データ放送の番組がこの端末に保存したデータを消します。表示がおかしいままになったときに試してください。郵便番号は残ります",
       "dataBroadcastStorageClear": "保存データを消す",
@@ -1639,7 +1644,7 @@
     },
     "users": {
       "title": "ユーザー",
-      "summary": "ユーザーを作り、ロールを変え、無効にします",
+      "summary": "ユーザーを作り、ロールを変え、無効にし、削除します",
       "roles": {
         "ADMIN": "管理者",
         "MEMBER": "メンバー",
@@ -1662,7 +1667,11 @@
       "enable": "有効に戻す",
       "resetPassword": "パスワードを設定し直す",
       "newPassword": "新しいパスワード",
-      "passwordReset": "{{username}}のパスワードを設定し直しました"
+      "passwordReset": "{{username}}のパスワードを設定し直しました",
+      "delete": "削除",
+      "deleteHelp": "{{username}}のアカウントと個人のデータを消します。録画、予約、ルールと監査ログは残ります。元に戻せません",
+      "deleteConfirm": "確認のため、ユーザー名（{{username}}）を入力",
+      "deleted": "{{username}}を削除しました"
     },
     "webhooks": {
       "title": "Webhook",

@@ -32,6 +32,7 @@ import { isUnauthenticated } from '../../relay/environment';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
+import { DeleteAccount } from '../../settings/DeleteAccount';
 import type { securityBeginTotpMutation } from './__generated__/securityBeginTotpMutation.graphql';
 import type { securityConfirmTotpMutation } from './__generated__/securityConfirmTotpMutation.graphql';
 import type { securityDeletePasskeyMutation } from './__generated__/securityDeletePasskeyMutation.graphql';
@@ -103,6 +104,9 @@ function SecurityPage() {
 
 const query = graphql`
   query securityQuery {
+    viewer {
+      username
+    }
     secondFactors {
       totp
       remainingRecoveryCodes
@@ -237,6 +241,8 @@ function Security() {
             )}
           </Stack>
         </Fieldset>
+
+        <DeleteAccount username={data.viewer.username} run={run} fail={fail} />
       </SudoGate>
     </Stack>
   );

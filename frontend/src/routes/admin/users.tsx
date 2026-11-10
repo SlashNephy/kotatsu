@@ -26,6 +26,7 @@ import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
 import { SudoGate } from '../../settings/SudoGate';
 import type { Role, usersCreateMutation } from './__generated__/usersCreateMutation.graphql';
+import type { usersDeleteMutation } from './__generated__/usersDeleteMutation.graphql';
 import type { usersDisableMutation } from './__generated__/usersDisableMutation.graphql';
 import type { usersEnableMutation } from './__generated__/usersEnableMutation.graphql';
 import type { usersQuery } from './__generated__/usersQuery.graphql';
@@ -183,6 +184,21 @@ function Users() {
                     succeed(t('admin.saved'));
                   }, fail)
                 }
+                onDelete={(onDone) =>
+                  gate.run(async () => {
+                    await mutate<usersDeleteMutation>(
+                      environment,
+                      graphql`
+                        mutation usersDeleteMutation($id: ID!) {
+                          deleteUser(id: $id)
+                        }
+                      `,
+                      { id: user.id },
+                    );
+                    onDone();
+                    succeed(t('admin.users.deleted', { username: user.username }));
+                  }, fail)
+                }
                 onResetPassword={(password, onDone) =>
                   gate.run(async () => {
                     await mutate<usersResetPasswordMutation>(
@@ -245,32 +261,36 @@ function useRoleOptions() {
   return roles.map((role) => ({ value: role, label: t(`admin.users.roles.${role}`) }));
 }
 
-// UserRow は、ユーザー 1 人の行。表示名とロールの変更、無効と有効の切り替え、パスワードの設定し直しができる。
-// 自分自身は、無効にできないので、ボタンを出さない。
+// UserRow は、ユーザー 1 人の行。表示名とロールの変更、無効と有効の切り替え、パスワードの設定し直し、削除ができる。
+// 自分自身は、無効にも削除にもできないので、ボタンを出さない。自分のアカウントは、セキュリティの設定から消す。
 function UserRow({
   user,
   self,
   onUpdate,
   onToggle,
+  onDelete,
   onResetPassword,
 }: {
   user: UserItem;
   self: boolean;
   onUpdate: (input: { displayName: string; role: Role }, onDone: () => void) => void;
   onToggle: () => void;
+  onDelete: (onDone: () => void) => void;
   onResetPassword: (password: string, onDone: () => void) => void;
 }) {
   const { t } = useTranslation();
   const roleOptions = useRoleOptions();
-  const [mode, setMode] = useState<'view' | 'edit' | 'password'>('view');
+  const [mode, setMode] = useState<'view' | 'edit' | 'password' | 'delete'>('view');
   const [displayName, setDisplayName] = useState(user.displayName);
   const [role, setRole] = useState<Role>(user.role);
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
   // close は、入力を捨てて、行を閉じる。やめたときと、保存したときに使う。
   const close = () => {
     setDisplayName(user.displayName);
     setRole(user.role);
     setPassword('');
+    setConfirmation('');
     setMode('view');
   };
   // サーバーが新しいロールを足したときは、名前をそのまま出す。
@@ -323,6 +343,16 @@ function UserRow({
                 {user.disabled ? t('admin.users.enable') : t('admin.users.disable')}
               </Button>
             )}
+            {!self && (
+              <Button
+                size="compact-sm"
+                variant="default"
+                color="red"
+                onClick={() => setMode('delete')}
+              >
+                {t('admin.users.delete')}
+              </Button>
+            )}
           </Group>
         )}
       </Group>
@@ -354,6 +384,32 @@ function UserRow({
             {t('admin.users.cancel')}
           </Button>
         </Group>
+      )}
+      {mode === 'delete' && (
+        <Stack gap={4}>
+          <Text size="sm">{t('admin.users.deleteHelp', { username: user.username })}</Text>
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              size="xs"
+              w={240}
+              label={t('admin.users.deleteConfirm', { username: user.username })}
+              autoComplete="off"
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.currentTarget.value)}
+            />
+            <Button
+              size="compact-sm"
+              color="red"
+              disabled={confirmation !== user.username}
+              onClick={() => onDelete(close)}
+            >
+              {t('admin.users.delete')}
+            </Button>
+            <Button size="compact-sm" variant="subtle" onClick={close}>
+              {t('admin.users.cancel')}
+            </Button>
+          </Group>
+        </Stack>
       )}
       {mode === 'password' && (
         <Stack gap={4}>

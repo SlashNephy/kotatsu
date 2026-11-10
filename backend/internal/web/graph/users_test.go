@@ -22,25 +22,28 @@ const (
 	updateUserQuery = `mutation($id: ID!, $input: UpdateUserInput!) { updateUser(id: $id, input: $input) { id displayName role } }`
 	disableQuery    = `mutation($id: ID!) { disableUser(id: $id) { id disabled } }`
 	enableQuery     = `mutation($id: ID!) { enableUser(id: $id) { id disabled } }`
+	deleteUserQuery = `mutation($id: ID!) { deleteUser(id: $id) }`
+	deleteAccount   = `mutation { deleteAccount }`
 	resetQuery      = `mutation($id: ID!, $value: String!) { resetUserPassword(id: $id, password: $value) { id } }`
 	changeQuery     = `mutation($value: String!) { changePassword(password: $value) }`
 	sessionsQuery   = `{ sessions { id current userAgent sourceIp } }`
 	revokeQuery     = `mutation($id: ID!) { revokeSession(id: $id) }`
 	revokeOthers    = `mutation { revokeOtherSessions }`
 
-	adminName    = "admin"
-	weakValue    = "kotatsukotatsu"
-	roleMember   = "MEMBER"
-	roleViewer   = "VIEWER"
-	fieldSecret  = "password"
-	fieldDisplay = "displayName"
-	mikanUser    = "mikan"
-	fieldRole    = "role"
-	fieldUser    = "username"
-	mikanLabel   = "みかん"
-	strongPhrase = "yuki-ga-furu-yoru-2026"
-	tooWeak      = "BAD_USER_INPUT:too_weak"
-	varValue     = "value"
+	adminName           = "admin"
+	weakValue           = "kotatsukotatsu"
+	roleMember          = "MEMBER"
+	roleViewer          = "VIEWER"
+	fieldSecret         = "password"
+	fieldDisplay        = "displayName"
+	mikanUser           = "mikan"
+	fieldRole           = "role"
+	fieldUser           = "username"
+	mikanLabel          = "みかん"
+	strongPhrase        = "yuki-ga-furu-yoru-2026"
+	tooWeak             = "BAD_USER_INPUT:too_weak"
+	varValue            = "value"
+	codeUnauthenticated = "UNAUTHENTICATED"
 )
 
 type userResult struct {
@@ -68,6 +71,7 @@ func TestUserManagementNeedsAnAdministrator(t *testing.T) {
 		{name: "disable", query: disableQuery, variables: map[string]any{varID: target}},
 		{name: "enable", query: enableQuery, variables: map[string]any{varID: target}},
 		{name: "reset password", query: resetQuery, variables: map[string]any{varID: target, varValue: strongPhrase}},
+		{name: "delete user", query: deleteUserQuery, variables: map[string]any{varID: target}},
 	}
 	for _, role := range []auth.Role{auth.RoleMember, auth.RoleViewer} {
 		actor := f.as(t, "as-"+string(role), role)
@@ -249,7 +253,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 	require.Len(t, listed.Sessions, 1)
 	assert.True(t, listed.Sessions[0].Current, "the current session is kept")
 	for _, other := range others {
-		assert.Equal(t, []string{"UNAUTHENTICATED"}, other.query(t, sessionsQuery, nil, nil))
+		assert.Equal(t, []string{codeUnauthenticated}, other.query(t, sessionsQuery, nil, nil))
 	}
 	assert.Empty(t, mikan.query(t, sessionsQuery, nil, nil), "the sessions of other users are kept")
 	// まとめて失効させたことを、件数とともに監査ログに残す。
@@ -287,4 +291,58 @@ func (f *fixture) messages(t *testing.T, query string, variables any) []string {
 	}
 
 	return messages
+}
+
+// TestDeleteUser は、管理者がほかのユーザーを消せ、消したユーザーのセッションが使えなくなることを確かめる (#1382)。
+func TestDeleteUser(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	admin := f.as(t, adminName, auth.RoleAdmin)
+	target := graph.GlobalID("User", f.userID.String())
+
+	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, deleteUserQuery, map[string]any{varID: graph.GlobalID("User", admin.userID.String())}, nil), "yourself")
+
+	var deleted struct {
+		DeleteUser string `json:"deleteUser"`
+	}
+	require.Empty(t, admin.query(t, deleteUserQuery, map[string]any{varID: target}, &deleted))
+	assert.Equal(t, target, deleted.DeleteUser)
+	assert.Equal(t, []string{codeUnauthenticated}, f.query(t, sessionsQuery, nil, nil), "the session of the deleted user is gone")
+	assert.Equal(t, []string{codeNotFound}, admin.query(t, deleteUserQuery, map[string]any{varID: target}, nil), "already deleted")
+
+	admin.clock.Advance(auth.RecentAuthenticationWindow * 2)
+	other := admin.as(t, mikanUser, auth.RoleViewer)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, deleteUserQuery, map[string]any{varID: graph.GlobalID("User", other.userID.String())}, nil))
+}
+
+// TestDeleteAccount は、本人が自分のアカウントを消せ、直近の認証を求めることを確かめる (#1382)。
+func TestDeleteAccount(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	viewer := f.as(t, mikanUser, auth.RoleViewer)
+
+	var deleted struct {
+		DeleteAccount bool `json:"deleteAccount"`
+	}
+	require.Empty(t, viewer.query(t, deleteAccount, nil, &deleted))
+	assert.True(t, deleted.DeleteAccount)
+	var users int
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM users WHERE id = $1", viewer.userID).Scan(&users))
+	assert.Equal(t, 0, users)
+	assert.Equal(t, []string{codeUnauthenticated}, viewer.query(t, sessionsQuery, nil, nil))
+
+	f.clock.Advance(auth.RecentAuthenticationWindow * 2)
+	assert.Equal(t, []string{codeReauthRequired}, f.query(t, deleteAccount, nil, nil))
+}
+
+// TestDeleteAccountRefusesLastAdministrator は、最後の有効な管理者は、自分のアカウントを消せないことを確かめる (#1382)。
+func TestDeleteAccountRefusesLastAdministrator(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	admin := f.as(t, adminName, auth.RoleAdmin)
+
+	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, deleteAccount, nil, nil))
 }

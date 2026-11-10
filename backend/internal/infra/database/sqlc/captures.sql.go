@@ -139,6 +139,31 @@ func (q *Queries) InsertCapture(ctx context.Context, arg InsertCaptureParams) (C
 	return i, err
 }
 
+const listCaptureIDsOfUser = `-- name: ListCaptureIDsOfUser :many
+SELECT id FROM captures WHERE user_id = $1
+`
+
+// ユーザーのキャプチャの ID。ユーザーを消すときに、画像の場所を知るのに使う (#1382)。
+func (q *Queries) ListCaptureIDsOfUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listCaptureIDsOfUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCaptureLocations = `-- name: ListCaptureLocations :many
 SELECT id, user_id FROM captures
 `

@@ -8,6 +8,10 @@ SELECT * FROM users WHERE id = @id;
 -- name: DisableUser :execrows
 UPDATE users SET disabled_at = @disabled_at, updated_at = @disabled_at WHERE id = @id AND disabled_at IS NULL;
 
+-- name: DeleteUser :execrows
+-- ユーザーを消す (#1382)。個人のデータは外部キーの ON DELETE CASCADE で消え、予約やルールの作成者は NULL になる。
+DELETE FROM users WHERE id = @id;
+
 -- name: ListUsersByIDs :many
 SELECT * FROM users WHERE id = ANY(@ids::uuid[]);
 

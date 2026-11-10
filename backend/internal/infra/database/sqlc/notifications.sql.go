@@ -422,6 +422,16 @@ func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificatio
 	return result.RowsAffected(), nil
 }
 
+const removeUserFromNotificationAudiences = `-- name: RemoveUserFromNotificationAudiences :exec
+UPDATE notification_events SET audience = array_remove(audience, $1::uuid) WHERE $1::uuid = ANY(audience)
+`
+
+// 通知を受け取るユーザーの一覧から、消すユーザーを外す (#1382)。外部キーがないので、カスケードでは消えない。
+func (q *Queries) RemoveUserFromNotificationAudiences(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, removeUserFromNotificationAudiences, userID)
+	return err
+}
+
 const upsertNotificationPreference = `-- name: UpsertNotificationPreference :exec
 INSERT INTO notification_preferences (user_id, kind, in_app, web_push, rule_reservations, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)

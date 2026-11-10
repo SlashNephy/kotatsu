@@ -575,6 +575,7 @@ type ComplexityRoot struct {
 		CreateWatchRule               func(childComplexity int, input model.WatchRuleInput) int
 		CreateWebhook                 func(childComplexity int, input model.CreateWebhookInput) int
 		DeleteAPIToken                func(childComplexity int, id string) int
+		DeleteAccount                 func(childComplexity int) int
 		DeleteCalendarFeed            func(childComplexity int) int
 		DeleteCapture                 func(childComplexity int, id string) int
 		DeleteGuideView               func(childComplexity int, id string) int
@@ -589,6 +590,7 @@ type ComplexityRoot struct {
 		DeleteRule                    func(childComplexity int, id string) int
 		DeleteRules                   func(childComplexity int, ids []string) int
 		DeleteTotp                    func(childComplexity int) int
+		DeleteUser                    func(childComplexity int, id string) int
 		DeleteWatchRule               func(childComplexity int, id string) int
 		DeleteWebhook                 func(childComplexity int, id string) int
 		DenyOAuthAuthorization        func(childComplexity int, query string) int
@@ -1498,6 +1500,8 @@ type MutationResolver interface {
 	UpdateUser(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error)
 	DisableUser(ctx context.Context, id string) (*model.User, error)
 	EnableUser(ctx context.Context, id string) (*model.User, error)
+	DeleteUser(ctx context.Context, id string) (string, error)
+	DeleteAccount(ctx context.Context) (bool, error)
 	ResetUserPassword(ctx context.Context, id string, password string) (*model.User, error)
 	ChangePassword(ctx context.Context, password string) (bool, error)
 	RevokeSession(ctx context.Context, id string) (string, error)
@@ -3744,6 +3748,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteAPIToken(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteAccount":
+		if e.ComplexityRoot.Mutation.DeleteAccount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteAccount(childComplexity), true
 	case "Mutation.deleteCalendarFeed":
 		if e.ComplexityRoot.Mutation.DeleteCalendarFeed == nil {
 			break
@@ -3883,6 +3893,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteTotp(childComplexity), true
+	case "Mutation.deleteUser":
+		if e.ComplexityRoot.Mutation.DeleteUser == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteUser_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteUser(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteWatchRule":
 		if e.ComplexityRoot.Mutation.DeleteWatchRule == nil {
 			break
@@ -11613,6 +11634,16 @@ extend type Mutation {
   disableUser(id: ID!): User!
   "無効にしたユーザーを有効に戻す。管理者だけが使え、直近 10 分以内の認証が要る。"
   enableUser(id: ID!): User!
+  """
+  ユーザーを消し、そのユーザーの個人のデータも消して、消したユーザーの ID を返す (設計書 9.7)。管理者だけが使え、直近 10 分以内の認証が要る。
+  自分自身と、最後の有効な管理者は消せない (BAD_USER_INPUT)。自分のアカウントは deleteAccount で消す。
+  """
+  deleteUser(id: ID!): ID!
+  """
+  ログイン中のユーザーのアカウントを消し、個人のデータも消す (設計書 9.7)。直近 10 分以内の認証が要る。
+  最後の有効な管理者は消せない (BAD_USER_INPUT)。
+  """
+  deleteAccount: Boolean!
   "ユーザーのパスワードを設定し直す。管理者だけが使え、直近 10 分以内の認証が要る。"
   resetUserPassword(id: ID!, password: String!): User!
   """
@@ -14727,6 +14758,20 @@ func (ec *executionContext) field_Mutation_deleteRules_args(ctx context.Context,
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -26934,6 +26979,73 @@ func (ec *executionContext) fieldContext_Mutation_enableUser(ctx context.Context
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteUser(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteUser(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteUser_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteAccount(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteAccount(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().DeleteAccount(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteAccount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Boolean")
 }
 
 func (ec *executionContext) _Mutation_resetUserPassword(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -49207,6 +49319,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "enableUser":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_enableUser(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteUser":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteUser(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteAccount":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteAccount(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

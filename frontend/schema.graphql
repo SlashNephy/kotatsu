@@ -2037,6 +2037,16 @@ type Mutation {
   """
   enableUser(id: ID!): User!
   """
+  ユーザーを消し、そのユーザーの個人のデータも消して、消したユーザーの ID を返す (設計書 9.7)。管理者だけが使え、直近 10 分以内の認証が要る。
+  自分自身と、最後の有効な管理者は消せない (BAD_USER_INPUT)。自分のアカウントは deleteAccount で消す。
+  """
+  deleteUser(id: ID!): ID!
+  """
+  ログイン中のユーザーのアカウントを消し、個人のデータも消す (設計書 9.7)。直近 10 分以内の認証が要る。
+  最後の有効な管理者は消せない (BAD_USER_INPUT)。
+  """
+  deleteAccount: Boolean!
+  """
   ユーザーのパスワードを設定し直す。管理者だけが使え、直近 10 分以内の認証が要る。
   """
   resetUserPassword(id: ID!, password: String!): User!

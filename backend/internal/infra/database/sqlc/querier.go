@@ -184,6 +184,8 @@ type Querier interface {
 	DeleteUnrecordedRecordingAssignment(ctx context.Context, arg DeleteUnrecordedRecordingAssignmentParams) (int64, error)
 	// 視聴が終わって残す時間も過ぎたか、設定が切れたサービスの、視聴している間だけ録るチャンネルを消す。録ったチャンクは、破棄のジョブが消す。
 	DeleteUnwatchedTimeshiftChannels(ctx context.Context, keptAfter time.Time) error
+	// ユーザーを消す (#1382)。個人のデータは外部キーの ON DELETE CASCADE で消え、予約やルールの作成者は NULL になる。
+	DeleteUser(ctx context.Context, id uuid.UUID) (int64, error)
 	// ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
 	DeleteUserLoginChallenges(ctx context.Context, userID uuid.UUID) error
 	// ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
@@ -520,6 +522,8 @@ type Querier interface {
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
+	// ユーザーのキャプチャの ID。ユーザーを消すときに、画像の場所を知るのに使う (#1382)。
+	ListCaptureIDsOfUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	// すべてのキャプチャの持ち主と ID。データディレクトリの、DB にないファイルを探すときに、画像を使っているものとみなすのに使う。
 	ListCaptureLocations(ctx context.Context) ([]ListCaptureLocationsRow, error)
 	// user_id のユーザーのキャプチャを、記録した新しい順に返す。
@@ -854,6 +858,8 @@ type Querier interface {
 	ReleaseUnrecordableRecordingAssignment(ctx context.Context, arg ReleaseUnrecordableRecordingAssignmentParams) error
 	// 録れない理由がこの mikan にあるので、割り振りを手放し、まだ取っていない状態に戻す。ほかの mikan が取る。
 	ReleaseUnrecordableTimeshiftAssignment(ctx context.Context, arg ReleaseUnrecordableTimeshiftAssignmentParams) error
+	// 通知を受け取るユーザーの一覧から、消すユーザーを外す (#1382)。外部キーがないので、カスケードでは消えない。
+	RemoveUserFromNotificationAudiences(ctx context.Context, userID uuid.UUID) error
 	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
