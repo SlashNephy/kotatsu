@@ -171,6 +171,13 @@ export function CommentSettingsCard() {
           onChange={(event) => save({ showAll: event.currentTarget.checked })}
         />
 
+        <Switch
+          label={t('settings.comments.mixOtherBroadcasts')}
+          description={t('settings.comments.mixOtherBroadcastsHelp')}
+          checked={comments.mixOtherBroadcasts}
+          onChange={(event) => save({ mixOtherBroadcasts: event.currentTarget.checked })}
+        />
+
         <Stack gap={4}>
           <Text size="sm" fw={500}>
             {t('settings.comments.mutedKeywords')}

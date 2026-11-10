@@ -183,6 +183,7 @@ export function createRecordings(options: {
       watchFrame: null,
       // 実況の過去ログは、src/demo/index.ts が架空のコメントを返す (src/demo/jikkyo.ts)。
       jikkyoCommentsUrl: demoCommentsPath,
+      jikkyoOtherCommentsUrl: `${demoCommentsPath}.others`,
       streamUrl: demoStreamURL,
     };
   };

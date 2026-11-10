@@ -200,6 +200,7 @@ const playQuery = graphql`
           to
         }
         jikkyoCommentsUrl
+        jikkyoOtherCommentsUrl
         rule {
           id
           name
@@ -427,6 +428,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       ? { channelId, recordedFrom: recording.recordedFrom, gaps: recording.gaps }
       : null,
     commentSettings,
+    channelId !== null && jikkyoEnabled && recording !== null
+      ? recording.jikkyoOtherCommentsUrl
+      : null,
   );
   // recordedRows は、コメントの一覧に出す、再生位置までに流れた過去ログ (#489)。再生位置は 1 秒に何度も変わるので、
   // 流れたコメントの数が変わったときだけ作り直し、時刻の文字は、コメントごとに一度だけ作る。
@@ -461,7 +465,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // partBands は、実況のコメントから見つけた番組の区切りの印 (#1358)。コメントの位置をずらしたら、印も同じだけ動かす。
   const partBands = useMemo(
     () =>
-      findPartMarkers(jikkyo.comments ?? []).map((marker) => {
+      findPartMarkers(jikkyo.ownComments ?? []).map((marker) => {
         const at = Math.max(marker.time + jikkyo.offset, 0);
         const part = t(`player.partMarker.${marker.part}`);
 
@@ -472,7 +476,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           kind: 'part' as const,
         };
       }),
-    [jikkyo.comments, jikkyo.offset, t],
+    [jikkyo.ownComments, jikkyo.offset, t],
   );
   // 実況の過去ログの読み込み具合は、実況のボタンのツールチップで示す。
   const jikkyoLabel =
