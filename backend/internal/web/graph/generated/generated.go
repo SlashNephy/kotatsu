@@ -1240,20 +1240,22 @@ type ComplexityRoot struct {
 	}
 
 	SystemSettings struct {
-		AnimeLinkingEnabled          func(childComplexity int) int
-		ArchiveRetentionDays         func(childComplexity int) int
-		CommentSources               func(childComplexity int) int
-		DataBroadcastIPEnabled       func(childComplexity int) int
-		DrcsReplacements             func(childComplexity int) int
-		JikkyoEnabled                func(childComplexity int) int
-		McpEnabled                   func(childComplexity int) int
-		NetworkActivityEnabled       func(childComplexity int) int
-		NetworkActivityRetentionDays func(childComplexity int) int
-		NotificationRetentionDays    func(childComplexity int) int
-		RecordingDefaults            func(childComplexity int) int
-		RuleDefaults                 func(childComplexity int) int
-		UpdatedAt                    func(childComplexity int) int
-		WatchProgressRetentionDays   func(childComplexity int) int
+		AnimeLinkingEnabled                    func(childComplexity int) int
+		ArchiveRetentionDays                   func(childComplexity int) int
+		CommentSources                         func(childComplexity int) int
+		DataBroadcastIPEnabled                 func(childComplexity int) int
+		DrcsReplacements                       func(childComplexity int) int
+		JikkyoEnabled                          func(childComplexity int) int
+		McpEnabled                             func(childComplexity int) int
+		NetworkActivityEnabled                 func(childComplexity int) int
+		NetworkActivityRetentionDays           func(childComplexity int) int
+		NotificationRetentionDays              func(childComplexity int) int
+		RecordingDefaults                      func(childComplexity int) int
+		RuleDefaults                           func(childComplexity int) int
+		TimeshiftWhileWatching                 func(childComplexity int) int
+		TimeshiftWhileWatchingRetentionSeconds func(childComplexity int) int
+		UpdatedAt                              func(childComplexity int) int
+		WatchProgressRetentionDays             func(childComplexity int) int
 	}
 
 	SystemStatus struct {
@@ -7227,6 +7229,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.RuleDefaults(childComplexity), true
+	case "SystemSettings.timeshiftWhileWatching":
+		if e.ComplexityRoot.SystemSettings.TimeshiftWhileWatching == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.TimeshiftWhileWatching(childComplexity), true
+	case "SystemSettings.timeshiftWhileWatchingRetentionSeconds":
+		if e.ComplexityRoot.SystemSettings.TimeshiftWhileWatchingRetentionSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.TimeshiftWhileWatchingRetentionSeconds(childComplexity), true
 	case "SystemSettings.updatedAt":
 		if e.ComplexityRoot.SystemSettings.UpdatedAt == nil {
 			break
@@ -11117,6 +11131,13 @@ type SystemSettings {
   commentSources: [CommentSource!]!
   "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
+  """
+  ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。既定は false。
+  ログインしていれば誰でも読め、ライブ視聴の画面が、バッファを読み直すかを決めるのに使う。
+  """
+  timeshiftWhileWatching: Boolean!
+  "視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。"
+  timeshiftWhileWatchingRetentionSeconds: Int!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -11146,6 +11167,10 @@ input SystemSettingsInput {
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
   """
   drcsReplacements: [DrcsReplacementInput!]
+  "有効にするには、この tenban にタイムシフトのディレクトリが要る。なければ CONFLICT を返す。"
+  timeshiftWhileWatching: Boolean
+  "600〜86400 秒。"
+  timeshiftWhileWatchingRetentionSeconds: Int
 }
 
 """
@@ -11406,13 +11431,14 @@ extend type Query {
 extend type Mutation {
   """
   サービス serviceId をタイムシフトで録るチャンネルにし、保持時間を retentionSeconds (600〜86400 秒) にする。既に録っていれば、保持時間だけを変える。
-  管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  管理者だけが使える (設計書 9.7)。第三者に影響しない操作なので、再認証は求めない (設計書 9.5)。
+  視聴している間だけ録っていたサービスに使うと、管理者の設定したチャンネルになる。
   保持時間が範囲外なら BAD_USER_INPUT を、サービスがなければ NOT_FOUND を、タイムシフトを使えない tenban (timeshiftAvailable が false) なら CONFLICT を返す。
   """
   setTimeshiftChannel(serviceId: ID!, retentionSeconds: Int = 7200): TimeshiftChannel!
   """
   サービス serviceId を、タイムシフトで録るチャンネルから外し、外したサービスの ID を返す。録ったチャンクは、破棄のジョブが消す。
-  管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
+  管理者だけが使える。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
   """
@@ -13862,6 +13888,10 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_commentSources(ctx, field)
 	case "drcsReplacements":
 		return ec.fieldContext_SystemSettings_drcsReplacements(ctx, field)
+	case "timeshiftWhileWatching":
+		return ec.fieldContext_SystemSettings_timeshiftWhileWatching(ctx, field)
+	case "timeshiftWhileWatchingRetentionSeconds":
+		return ec.fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field)
 	case "updatedAt":
 		return ec.fieldContext_SystemSettings_updatedAt(ctx, field)
 	}
@@ -38881,6 +38911,52 @@ func (ec *executionContext) fieldContext_SystemSettings_drcsReplacements(_ conte
 	return fc, nil
 }
 
+func (ec *executionContext) _SystemSettings_timeshiftWhileWatching(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_timeshiftWhileWatching(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TimeshiftWhileWatching, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_timeshiftWhileWatching(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TimeshiftWhileWatchingRetentionSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_timeshiftWhileWatchingRetentionSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Int")
+}
+
 func (ec *executionContext) _SystemSettings_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -44574,7 +44650,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -44665,6 +44741,20 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.DrcsReplacements = data
+		case "timeshiftWhileWatching":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timeshiftWhileWatching"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TimeshiftWhileWatching = data
+		case "timeshiftWhileWatchingRetentionSeconds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("timeshiftWhileWatchingRetentionSeconds"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TimeshiftWhileWatchingRetentionSeconds = data
 		}
 	}
 	return it, nil
@@ -53097,6 +53187,16 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "drcsReplacements":
 			out.Values[i] = ec._SystemSettings_drcsReplacements(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timeshiftWhileWatching":
+			out.Values[i] = ec._SystemSettings_timeshiftWhileWatching(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "timeshiftWhileWatchingRetentionSeconds":
+			out.Values[i] = ec._SystemSettings_timeshiftWhileWatchingRetentionSeconds(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -26,13 +26,14 @@ extend type Query {
 extend type Mutation {
   """
   サービス serviceId をタイムシフトで録るチャンネルにし、保持時間を retentionSeconds (600〜86400 秒) にする。既に録っていれば、保持時間だけを変える。
-  管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  管理者だけが使える (設計書 9.7)。第三者に影響しない操作なので、再認証は求めない (設計書 9.5)。
+  視聴している間だけ録っていたサービスに使うと、管理者の設定したチャンネルになる。
   保持時間が範囲外なら BAD_USER_INPUT を、サービスがなければ NOT_FOUND を、タイムシフトを使えない tenban (timeshiftAvailable が false) なら CONFLICT を返す。
   """
   setTimeshiftChannel(serviceId: ID!, retentionSeconds: Int = 7200): TimeshiftChannel!
   """
   サービス serviceId を、タイムシフトで録るチャンネルから外し、外したサービスの ID を返す。録ったチャンクは、破棄のジョブが消す。
-  管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
+  管理者だけが使える。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
   """

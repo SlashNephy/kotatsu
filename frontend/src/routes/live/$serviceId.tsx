@@ -332,6 +332,8 @@ function Live({
         # データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。
         systemSettings {
           dataBroadcastIpEnabled
+          # 視聴している間だけ録るなら、バッファができるのを待って読み直す (#1408)。
+          timeshiftWhileWatching
         }
         # OS のメディア操作の前と次で移る局と、データ放送の選局で移る先を引く、番組表と同じ並びのサービス (#493、#440)。
         services {
@@ -578,15 +580,20 @@ function Live({
   });
   // バッファの範囲は、伸びたり、古いチャンクを破棄して縮んだりするので、1 分ごとに読み直す。
   // バッファを再生している間も、シークや読み直しのときに、起点を最新のバッファに移すので読み直す。
+  // 視聴している間だけ録る設定なら、視聴を始めてからチャンクができるまでバッファがないので、短い間隔で読み直して待つ (設計書 5.7)。
   const timeshiftAvailable = timeshift.available;
+  const waitingForBuffer =
+    data.systemSettings.timeshiftWhileWatching &&
+    data.node?.__typename === 'Service' &&
+    data.node.timeshiftBuffer == null;
   useEffect(() => {
-    if (!timeshiftAvailable) {
+    if (!timeshiftAvailable && !waitingForBuffer) {
       return;
     }
-    const timer = setInterval(onProgramEnd, 60_000);
+    const timer = setInterval(onProgramEnd, waitingForBuffer ? 10_000 : 60_000);
 
     return () => clearInterval(timer);
-  }, [timeshiftAvailable, onProgramEnd]);
+  }, [timeshiftAvailable, waitingForBuffer, onProgramEnd]);
   // 時間帯に重なる番組のうち、読み直した時刻に放送中のものと、その次のもの。
   const programs = data.guide[0]?.programs ?? [];
   const program =

@@ -109,6 +109,18 @@ func (q *Queries) DeleteStaleTimeshiftPrograms(ctx context.Context, now time.Tim
 	return result.RowsAffected(), nil
 }
 
+const deleteStaleTimeshiftWatches = `-- name: DeleteStaleTimeshiftWatches :exec
+DELETE FROM timeshift_watches
+WHERE watching_until <= $1::timestamptz
+  OR NOT coalesce((SELECT st.timeshift_while_watching FROM system_settings st WHERE st.id = 1), false)
+`
+
+// 残す時間を過ぎた視聴の記録を消す。設定が切れていれば、すべて消す。
+func (q *Queries) DeleteStaleTimeshiftWatches(ctx context.Context, keptAfter time.Time) error {
+	_, err := q.db.Exec(ctx, deleteStaleTimeshiftWatches, keptAfter)
+	return err
+}
+
 const deleteTimeshiftAssignment = `-- name: DeleteTimeshiftAssignment :execrows
 DELETE FROM timeshift_assignments WHERE service_id = $1
 `
@@ -177,6 +189,21 @@ func (q *Queries) DeleteTimeshiftPromotion(ctx context.Context, recordingID uuid
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteUnwatchedTimeshiftChannels = `-- name: DeleteUnwatchedTimeshiftChannels :exec
+DELETE FROM timeshift_channels t
+WHERE t.while_watching AND NOT EXISTS (
+  SELECT 1 FROM timeshift_watches w
+  JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+  WHERE w.service_id = t.service_id AND w.watching_until > $1::timestamptz
+)
+`
+
+// 視聴が終わって残す時間も過ぎたか、設定が切れたサービスの、視聴している間だけ録るチャンネルを消す。録ったチャンクは、破棄のジョブが消す。
+func (q *Queries) DeleteUnwatchedTimeshiftChannels(ctx context.Context, keptAfter time.Time) error {
+	_, err := q.db.Exec(ctx, deleteUnwatchedTimeshiftChannels, keptAfter)
+	return err
 }
 
 const endTimeshiftProgram = `-- name: EndTimeshiftProgram :execrows
@@ -718,7 +745,7 @@ SELECT c.service_id,
   min(c.started_at)::timestamptz AS buffered_from,
   max(coalesce(c.ended_at, $1::timestamptz))::timestamptz AS buffered_until
 FROM timeshift_chunks c
-JOIN timeshift_channels t ON t.service_id = c.service_id
+JOIN timeshift_channels t ON t.service_id = c.service_id AND NOT t.while_watching
 GROUP BY c.service_id
 ORDER BY c.service_id
 `
@@ -761,6 +788,7 @@ SELECT t.service_id, t.retention_seconds,
 FROM timeshift_channels t
 JOIN services s ON s.id = t.service_id
 JOIN channel_types ct ON ct.type = s.channel_type
+WHERE NOT t.while_watching
 ORDER BY ct.sort_order, t.service_id
 `
 
@@ -797,6 +825,7 @@ SELECT t.service_id, t.retention_seconds, t.created_at, t.updated_at, t.updated_
 FROM timeshift_channels t
 JOIN services s ON s.id = t.service_id
 JOIN channel_types ct ON ct.type = s.channel_type
+WHERE NOT t.while_watching
 ORDER BY ct.sort_order, t.service_id
 `
 
@@ -984,6 +1013,42 @@ func (q *Queries) ListTimeshiftPromotions(ctx context.Context, serviceID int64) 
 	return items, nil
 }
 
+const listWatchedTimeshiftChannels = `-- name: ListWatchedTimeshiftChannels :many
+SELECT s.id AS service_id, s.channel_type, s.channel
+FROM timeshift_watches w
+JOIN services s ON s.id = w.service_id
+JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+WHERE w.watching_until > $1::timestamptz
+ORDER BY s.id
+`
+
+type ListWatchedTimeshiftChannelsRow struct {
+	ServiceID   int64
+	ChannelType string
+	Channel     string
+}
+
+// 視聴が続いているサービス。視聴のチューナーに相乗りするので、割り振りではチューナーを数えない。
+func (q *Queries) ListWatchedTimeshiftChannels(ctx context.Context, now time.Time) ([]ListWatchedTimeshiftChannelsRow, error) {
+	rows, err := q.db.Query(ctx, listWatchedTimeshiftChannels, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWatchedTimeshiftChannelsRow{}
+	for rows.Next() {
+		var i ListWatchedTimeshiftChannelsRow
+		if err := rows.Scan(&i.ServiceID, &i.ChannelType, &i.Channel); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockTimeshiftAssignmentGeneration = `-- name: LockTimeshiftAssignmentGeneration :one
 SELECT generation FROM timeshift_assignments WHERE id = $1 FOR UPDATE
 `
@@ -1150,6 +1215,22 @@ func (q *Queries) StartTimeshiftProgram(ctx context.Context, arg StartTimeshiftP
 	return err
 }
 
+const syncWatchedTimeshiftChannels = `-- name: SyncWatchedTimeshiftChannels :exec
+INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at, updated_by, while_watching)
+SELECT w.service_id, st.timeshift_while_watching_retention_seconds, $1, $1, NULL, true
+FROM timeshift_watches w
+JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+WHERE w.watching_until > $1::timestamptz
+ON CONFLICT (service_id) DO UPDATE SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.updated_at
+WHERE timeshift_channels.while_watching AND timeshift_channels.retention_seconds <> EXCLUDED.retention_seconds
+`
+
+// 視聴が続いているサービスを、視聴している間だけ録るチャンネルとして足す。管理者が設定したチャンネルは変えない。
+func (q *Queries) SyncWatchedTimeshiftChannels(ctx context.Context, now time.Time) error {
+	_, err := q.db.Exec(ctx, syncWatchedTimeshiftChannels, now)
+	return err
+}
+
 const timeshiftAssignmentExists = `-- name: TimeshiftAssignmentExists :one
 SELECT EXISTS (SELECT 1 FROM timeshift_assignments WHERE id = $1)
 `
@@ -1174,11 +1255,41 @@ func (q *Queries) TimeshiftChannelExists(ctx context.Context, serviceID int64) (
 	return exists, err
 }
 
+const touchTimeshiftWatch = `-- name: TouchTimeshiftWatch :one
+WITH previous AS (
+  SELECT w.watching_until FROM timeshift_watches w WHERE w.service_id = $2
+), touched AS (
+  INSERT INTO timeshift_watches (service_id, watching_until)
+  SELECT s.id, $3::timestamptz
+  FROM services s
+  JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+  WHERE s.id = $2
+  ON CONFLICT (service_id) DO UPDATE SET watching_until = GREATEST(timeshift_watches.watching_until, EXCLUDED.watching_until)
+  RETURNING service_id
+)
+SELECT NOT EXISTS (SELECT 1 FROM previous p WHERE p.watching_until > $1::timestamptz) AS started FROM touched
+`
+
+type TouchTimeshiftWatchParams struct {
+	Now           time.Time
+	ServiceID     int64
+	WatchingUntil time.Time
+}
+
+// ライブ視聴が続いていることを記録する。視聴している間だけ録る設定が切れていれば、何も書かず、行を返さない。
+// 視聴が新しく始まったかどうかを返す。始まったら、neko に知らせて、次の見直しを待たずに録り始める。
+func (q *Queries) TouchTimeshiftWatch(ctx context.Context, arg TouchTimeshiftWatchParams) (bool, error) {
+	row := q.db.QueryRow(ctx, touchTimeshiftWatch, arg.Now, arg.ServiceID, arg.WatchingUntil)
+	var started bool
+	err := row.Scan(&started)
+	return started, err
+}
+
 const upsertTimeshiftChannel = `-- name: UpsertTimeshiftChannel :exec
 INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at, updated_by)
 VALUES ($1, $2, $3, $3, $4)
 ON CONFLICT (service_id) DO UPDATE
-SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by
+SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by, while_watching = false
 `
 
 type UpsertTimeshiftChannelParams struct {

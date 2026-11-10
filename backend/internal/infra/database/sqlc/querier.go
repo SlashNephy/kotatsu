@@ -164,6 +164,8 @@ type Querier interface {
 	// 範囲の外は、サービスの残っているチャンクの最も早い始まりより前。チャンクが 1 つも残っていなければ、今より前。
 	// タイムシフトから外し、チャンクのなくなったサービスの行も残さない。
 	DeleteStaleTimeshiftPrograms(ctx context.Context, now time.Time) (int64, error)
+	// 残す時間を過ぎた視聴の記録を消す。設定が切れていれば、すべて消す。
+	DeleteStaleTimeshiftWatches(ctx context.Context, keptAfter time.Time) error
 	// 見たいリストの通知 (#1234) が付けた、放送の前の視聴予約のうち、(service_ids[i], event_ids[i]) の組にないものを消す。
 	// 作品が見たいリストから外れた、見終えた、通知をやめたときに消すため。手で付けたものと、視聴ルールが付けたものは消さない。
 	DeleteStaleWishlistWatchReservations(ctx context.Context, arg DeleteStaleWishlistWatchReservationsParams) (int64, error)
@@ -180,6 +182,8 @@ type Querier interface {
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
 	DeleteUnrecordedRecordingAssignment(ctx context.Context, arg DeleteUnrecordedRecordingAssignmentParams) (int64, error)
+	// 視聴が終わって残す時間も過ぎたか、設定が切れたサービスの、視聴している間だけ録るチャンネルを消す。録ったチャンクは、破棄のジョブが消す。
+	DeleteUnwatchedTimeshiftChannels(ctx context.Context, keptAfter time.Time) error
 	// ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
 	DeleteUserLoginChallenges(ctx context.Context, userID uuid.UUID) error
 	// ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
@@ -714,6 +718,8 @@ type Querier interface {
 	// user_id のユーザーが視聴予約した番組のうち、(service_ids[i], event_ids[i]) の組にあるもの。
 	ListWatchReservedPrograms(ctx context.Context, arg ListWatchReservedProgramsParams) ([]ListWatchReservedProgramsRow, error)
 	ListWatchRules(ctx context.Context, userID uuid.UUID) ([]WatchRule, error)
+	// 視聴が続いているサービス。視聴のチューナーに相乗りするので、割り振りではチューナーを数えない。
+	ListWatchedTimeshiftChannels(ctx context.Context, now time.Time) ([]ListWatchedTimeshiftChannelsRow, error)
 	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
 	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
 	// audience と by_rule の扱いは、ListNotificationRecipients と同じ。
@@ -952,6 +958,8 @@ type Querier interface {
 	// /metrics に出す、録画中の録画のドロップ、エラー、スクランブルの合計。閉じたセグメントの数に、書いているセグメントの数 (#829) を足す。
 	SumActiveRecordingPackets(ctx context.Context) (SumActiveRecordingPacketsRow, error)
 	SumNetworkActivity(ctx context.Context, since time.Time) (SumNetworkActivityRow, error)
+	// 視聴が続いているサービスを、視聴している間だけ録るチャンネルとして足す。管理者が設定したチャンネルは変えない。
+	SyncWatchedTimeshiftChannels(ctx context.Context, now time.Time) error
 	// 認可の途中の状態は 1 回しか使わせないので、引くと同時に消す。
 	TakeAnimeRecordAuthorization(ctx context.Context, arg TakeAnimeRecordAuthorizationParams) (AnimeRecordAuthorization, error)
 	// 通知を送る時刻 (放送の開始からユーザーの設定の分だけ前) を過ぎ、放送が終わっていない視聴予約を消して返す。
@@ -972,6 +980,9 @@ type Querier interface {
 	TouchOAuthGrant(ctx context.Context, arg TouchOAuthGrantParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	// ライブ視聴が続いていることを記録する。視聴している間だけ録る設定が切れていれば、何も書かず、行を返さない。
+	// 視聴が新しく始まったかどうかを返す。始まったら、neko に知らせて、次の見直しを待たずに録り始める。
+	TouchTimeshiftWatch(ctx context.Context, arg TouchTimeshiftWatchParams) (bool, error)
 	// 試行回数の制限のキーを、トランザクションの終わりまでロックする。ほかの試行がロックしていれば、待たずに false を返す。
 	// 同じアカウントか IP の試行を 1 つずつ確かめ、同時に送った試行が、前の失敗を見ずに待ち時間を素通りしないようにする。
 	TryLockLoginKey(ctx context.Context, key string) (bool, error)

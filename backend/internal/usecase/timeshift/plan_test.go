@@ -52,11 +52,31 @@ func TestPlan(t *testing.T) {
 	tests := []struct {
 		name        string
 		channels    []*timeshift.Channel
+		watched     []*timeshift.Channel
 		multiplexes []*timeshift.Multiplex
 		tuners      []*assign.Tuner
 		busy        []*timeshift.Busy
 		want        []int64
 	}{
+		{
+			name:        "視聴しているサービスは、空きチューナーがなくても録り、設定されたチャンネルのチューナーを使わない",
+			channels:    grChannels(1),
+			watched:     []*timeshift.Channel{{ServiceID: 10, ChannelType: "BS", Channel: bs01}},
+			multiplexes: append(grMultiplexes(1), &timeshift.Multiplex{ChannelType: "BS", Channel: bs01}),
+			tuners:      tuners(1, "GR"),
+			busy:        []*timeshift.Busy{},
+			want:        []int64{1, 10},
+		},
+		{
+			name:     "設定されたチャンネルを視聴していれば、チューナーを使わずに録り、結果に 2 度出さない",
+			channels: grChannels(2),
+			watched:  []*timeshift.Channel{{ServiceID: 1, ChannelType: "GR", Channel: gr1}},
+			// GR_1 は視聴のチューナーに相乗りするので、1 本のチューナーを GR_2 に使える。
+			multiplexes: grMultiplexes(2),
+			tuners:      tuners(1, "GR"),
+			busy:        []*timeshift.Busy{},
+			want:        []int64{1, 2},
+		},
 		{
 			name:        "チューナーがすべて空いていれば、8 つとも録る",
 			channels:    grChannels(8),
@@ -212,7 +232,7 @@ func TestPlan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.multiplexes, tt.tuners, tt.busy))
+			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.watched, tt.multiplexes, tt.tuners, tt.busy))
 		})
 	}
 }

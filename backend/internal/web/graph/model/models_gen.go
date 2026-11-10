@@ -1675,6 +1675,11 @@ type SystemSettings struct {
 	CommentSources []CommentSource `json:"commentSources"`
 	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
 	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
+	// ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。既定は false。
+	// ログインしていれば誰でも読め、ライブ視聴の画面が、バッファを読み直すかを決めるのに使う。
+	TimeshiftWhileWatching bool `json:"timeshiftWhileWatching"`
+	// 視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。
+	TimeshiftWhileWatchingRetentionSeconds int `json:"timeshiftWhileWatchingRetentionSeconds"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -1700,6 +1705,10 @@ type SystemSettingsInput struct {
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
 	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
 	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`
+	// 有効にするには、この tenban にタイムシフトのディレクトリが要る。なければ CONFLICT を返す。
+	TimeshiftWhileWatching *bool `json:"timeshiftWhileWatching,omitempty"`
+	// 600〜86400 秒。
+	TimeshiftWhileWatchingRetentionSeconds *int `json:"timeshiftWhileWatchingRetentionSeconds,omitempty"`
 }
 
 // システムの状態。

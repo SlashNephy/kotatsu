@@ -786,21 +786,23 @@ type SyobocalTitle struct {
 }
 
 type SystemSetting struct {
-	ID                           int16
-	RecordingDefaults            []byte
-	ArchiveRetentionDays         int32
-	NotificationRetentionDays    int32
-	WatchProgressRetentionDays   int32
-	NetworkActivityEnabled       bool
-	NetworkActivityEnabledAt     *time.Time
-	NetworkActivityRetentionDays int32
-	MCPEnabled                   bool
-	DataBroadcastIPEnabled       bool
-	AnimeLinkingEnabled          bool
-	CommentSources               []string
-	RuleDefaults                 []byte
-	DrcsReplacements             []byte
-	UpdatedAt                    time.Time
+	ID                                     int16
+	RecordingDefaults                      []byte
+	ArchiveRetentionDays                   int32
+	NotificationRetentionDays              int32
+	WatchProgressRetentionDays             int32
+	NetworkActivityEnabled                 bool
+	NetworkActivityEnabledAt               *time.Time
+	NetworkActivityRetentionDays           int32
+	MCPEnabled                             bool
+	DataBroadcastIPEnabled                 bool
+	AnimeLinkingEnabled                    bool
+	CommentSources                         []string
+	RuleDefaults                           []byte
+	DrcsReplacements                       []byte
+	TimeshiftWhileWatching                 bool
+	TimeshiftWhileWatchingRetentionSeconds int32
+	UpdatedAt                              time.Time
 }
 
 type Tag struct {
@@ -828,6 +830,7 @@ type TimeshiftChannel struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	UpdatedBy        *uuid.UUID
+	WhileWatching    bool
 }
 
 type TimeshiftChunk struct {
@@ -855,6 +858,11 @@ type TimeshiftPromotion struct {
 	ToAt        time.Time
 	CreatedBy   *uuid.UUID
 	CreatedAt   time.Time
+}
+
+type TimeshiftWatch struct {
+	ServiceID     int64
+	WatchingUntil time.Time
 }
 
 type TotpEnrollment struct {

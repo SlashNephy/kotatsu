@@ -5,7 +5,58 @@ SELECT t.service_id, t.retention_seconds, t.created_at, t.updated_at, t.updated_
 FROM timeshift_channels t
 JOIN services s ON s.id = t.service_id
 JOIN channel_types ct ON ct.type = s.channel_type
+WHERE NOT t.while_watching
 ORDER BY ct.sort_order, t.service_id;
+
+-- name: TouchTimeshiftWatch :one
+-- ライブ視聴が続いていることを記録する。視聴している間だけ録る設定が切れていれば、何も書かず、行を返さない。
+-- 視聴が新しく始まったかどうかを返す。始まったら、neko に知らせて、次の見直しを待たずに録り始める。
+WITH previous AS (
+  SELECT w.watching_until FROM timeshift_watches w WHERE w.service_id = @service_id
+), touched AS (
+  INSERT INTO timeshift_watches (service_id, watching_until)
+  SELECT s.id, @watching_until::timestamptz
+  FROM services s
+  JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+  WHERE s.id = @service_id
+  ON CONFLICT (service_id) DO UPDATE SET watching_until = GREATEST(timeshift_watches.watching_until, EXCLUDED.watching_until)
+  RETURNING service_id
+)
+SELECT NOT EXISTS (SELECT 1 FROM previous p WHERE p.watching_until > @now::timestamptz) AS started FROM touched;
+
+-- name: SyncWatchedTimeshiftChannels :exec
+-- 視聴が続いているサービスを、視聴している間だけ録るチャンネルとして足す。管理者が設定したチャンネルは変えない。
+INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at, updated_by, while_watching)
+SELECT w.service_id, st.timeshift_while_watching_retention_seconds, @now, @now, NULL, true
+FROM timeshift_watches w
+JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+WHERE w.watching_until > @now::timestamptz
+ON CONFLICT (service_id) DO UPDATE SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.updated_at
+WHERE timeshift_channels.while_watching AND timeshift_channels.retention_seconds <> EXCLUDED.retention_seconds;
+
+-- name: DeleteUnwatchedTimeshiftChannels :exec
+-- 視聴が終わって残す時間も過ぎたか、設定が切れたサービスの、視聴している間だけ録るチャンネルを消す。録ったチャンクは、破棄のジョブが消す。
+DELETE FROM timeshift_channels t
+WHERE t.while_watching AND NOT EXISTS (
+  SELECT 1 FROM timeshift_watches w
+  JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+  WHERE w.service_id = t.service_id AND w.watching_until > @kept_after::timestamptz
+);
+
+-- name: DeleteStaleTimeshiftWatches :exec
+-- 残す時間を過ぎた視聴の記録を消す。設定が切れていれば、すべて消す。
+DELETE FROM timeshift_watches
+WHERE watching_until <= @kept_after::timestamptz
+  OR NOT coalesce((SELECT st.timeshift_while_watching FROM system_settings st WHERE st.id = 1), false);
+
+-- name: ListWatchedTimeshiftChannels :many
+-- 視聴が続いているサービス。視聴のチューナーに相乗りするので、割り振りではチューナーを数えない。
+SELECT s.id AS service_id, s.channel_type, s.channel
+FROM timeshift_watches w
+JOIN services s ON s.id = w.service_id
+JOIN system_settings st ON st.id = 1 AND st.timeshift_while_watching
+WHERE w.watching_until > @now::timestamptz
+ORDER BY s.id;
 
 -- name: ListServiceChannels :many
 -- サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
@@ -16,7 +67,7 @@ SELECT DISTINCT channel_type, channel FROM services ORDER BY channel_type, chann
 INSERT INTO timeshift_channels (service_id, retention_seconds, created_at, updated_at, updated_by)
 VALUES (@service_id, @retention_seconds, @now, @now, @updated_by)
 ON CONFLICT (service_id) DO UPDATE
-SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
+SET retention_seconds = EXCLUDED.retention_seconds, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by, while_watching = false;
 
 -- name: DeleteTimeshiftChannel :execrows
 DELETE FROM timeshift_channels WHERE service_id = @service_id;
@@ -277,6 +328,7 @@ SELECT t.service_id, t.retention_seconds,
 FROM timeshift_channels t
 JOIN services s ON s.id = t.service_id
 JOIN channel_types ct ON ct.type = s.channel_type
+WHERE NOT t.while_watching
 ORDER BY ct.sort_order, t.service_id;
 
 -- name: ListTimeshiftBufferRanges :many
@@ -286,6 +338,6 @@ SELECT c.service_id,
   min(c.started_at)::timestamptz AS buffered_from,
   max(coalesce(c.ended_at, @now::timestamptz))::timestamptz AS buffered_until
 FROM timeshift_chunks c
-JOIN timeshift_channels t ON t.service_id = c.service_id
+JOIN timeshift_channels t ON t.service_id = c.service_id AND NOT t.while_watching
 GROUP BY c.service_id
 ORDER BY c.service_id;

@@ -33,6 +33,11 @@ const (
 	DefaultWatchProgressRetentionDays = 365
 	// DefaultNetworkActivityRetentionDays は、外部との通信の記録の保持期間の既定値 (付録 A、#1369)。
 	DefaultNetworkActivityRetentionDays = 30
+	// DefaultTimeshiftWhileWatchingRetentionSeconds は、視聴している間だけ録るタイムシフトの保持時間の既定値 (付録 A、#1408)。
+	DefaultTimeshiftWhileWatchingRetentionSeconds = 3600
+	// minTimeshiftRetentionSeconds と maxTimeshiftRetentionSeconds は、タイムシフトの保持時間の下限と上限。DB の制約と同じ。
+	minTimeshiftRetentionSeconds = 600
+	maxTimeshiftRetentionSeconds = 86400
 	// maxArchiveRetentionDays は、過去の番組と通知の保持期間の上限。無期限にするなら 0 にする。
 	maxArchiveRetentionDays = 3650
 	// auditTarget は、設定の監査ログの対象の種類。
@@ -76,6 +81,10 @@ type System struct {
 	CommentSources []string
 	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換える表 (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
 	DRCSReplacements map[string]string
+	// TimeshiftWhileWatching は、ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (#1408)。ディスクを使うので、既定は false。
+	TimeshiftWhileWatching bool
+	// TimeshiftWhileWatchingRetentionSeconds は、視聴している間だけ録るサービスの保持時間 (秒)。
+	TimeshiftWhileWatchingRetentionSeconds int
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -153,7 +162,9 @@ type Changes struct {
 	AnimeLinkingEnabled          *bool
 	CommentSources               *[]string
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
-	DRCSReplacements map[string]*string
+	DRCSReplacements                       map[string]*string
+	TimeshiftWhileWatching                 *bool
+	TimeshiftWhileWatchingRetentionSeconds *int
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -211,6 +222,8 @@ func networkActivityEnabledAt(current *System, enabled bool, now time.Time) *tim
 // resolvedRetention は、保存する保持期間 (日)。
 type resolvedRetention struct {
 	archive, notification, watchProgress, networkActivity int32
+	// timeshiftWhileWatching は、視聴している間だけ録るタイムシフトの保持時間 (秒)。
+	timeshiftWhileWatching int32
 }
 
 // resolveRetention は、変える項目を今の値に重ねた保持期間を返す。
@@ -227,6 +240,9 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 		return result, err
 	}
 	if result.networkActivity, err = retentionDays("networkActivityRetentionDays", valueOr(changes.NetworkActivityRetentionDays, current.NetworkActivityRetentionDays)); err != nil {
+		return result, err
+	}
+	if result.timeshiftWhileWatching, err = timeshiftRetentionSeconds(valueOr(changes.TimeshiftWhileWatchingRetentionSeconds, current.TimeshiftWhileWatchingRetentionSeconds)); err != nil {
 		return result, err
 	}
 
@@ -252,6 +268,11 @@ func validateRetentionChanges(changes *Changes) error {
 	}
 	if days := changes.NetworkActivityRetentionDays; days != nil && *days < 1 {
 		return fmt.Errorf("%w: networkActivityRetentionDays must be at least 1", ErrInvalidSettings)
+	}
+	if seconds := changes.TimeshiftWhileWatchingRetentionSeconds; seconds != nil {
+		if _, err := timeshiftRetentionSeconds(*seconds); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -314,10 +335,13 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			RecordingDefaults: encoded, ArchiveRetentionDays: retention.archive, NotificationRetentionDays: retention.notification, WatchProgressRetentionDays: retention.watchProgress,
 			NetworkActivityEnabled: networkEnabled, NetworkActivityEnabledAt: networkEnabledAt, NetworkActivityRetentionDays: retention.networkActivity,
 			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled),
-			DataBroadcastIPEnabled: valueOr(changes.DataBroadcastIPEnabled, current.DataBroadcastIPEnabled),
-			AnimeLinkingEnabled:    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
-			CommentSources:         valueOr(changes.CommentSources, current.CommentSources),
-			DrcsReplacements:       replacementsEncoded, Now: now,
+			DataBroadcastIPEnabled:                 valueOr(changes.DataBroadcastIPEnabled, current.DataBroadcastIPEnabled),
+			AnimeLinkingEnabled:                    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
+			CommentSources:                         valueOr(changes.CommentSources, current.CommentSources),
+			DrcsReplacements:                       replacementsEncoded,
+			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
+			TimeshiftWhileWatchingRetentionSeconds: retention.timeshiftWhileWatching,
+			Now:                                    now,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the system settings: %w", err)
@@ -344,7 +368,9 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
-				"drcsReplacements": drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
+				"drcsReplacements":                       drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
+				"timeshiftWhileWatching":                 change(current.TimeshiftWhileWatching, updated.TimeshiftWhileWatching),
+				"timeshiftWhileWatchingRetentionSeconds": change(current.TimeshiftWhileWatchingRetentionSeconds, updated.TimeshiftWhileWatchingRetentionSeconds),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -364,6 +390,15 @@ func change(from, to any) map[string]any {
 }
 
 // retentionDays は、保持期間 name の日数が範囲にあるかを確かめ、DB に保存する形にする。
+// timeshiftRetentionSeconds は、視聴している間だけ録るタイムシフトの保持時間 (秒) を確かめ、DB に書く値にする。
+func timeshiftRetentionSeconds(seconds int) (int32, error) {
+	if seconds < minTimeshiftRetentionSeconds || seconds > maxTimeshiftRetentionSeconds {
+		return 0, fmt.Errorf("%w: timeshiftWhileWatchingRetentionSeconds must be between %d and %d", ErrInvalidSettings, minTimeshiftRetentionSeconds, maxTimeshiftRetentionSeconds)
+	}
+
+	return int32(seconds), nil
+}
+
 func retentionDays(name string, days int) (int32, error) {
 	if days < 0 || days > maxArchiveRetentionDays {
 		return 0, fmt.Errorf("%w: %s must be between 0 and %d", ErrInvalidSettings, name, maxArchiveRetentionDays)
@@ -490,7 +525,8 @@ func defaults() *System {
 		AnimeLinkingEnabled:    false,
 		CommentSources:         []string{},
 		DRCSReplacements:       map[string]string{},
-		UpdatedAt:              nil,
+		TimeshiftWhileWatching: false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
+		UpdatedAt: nil,
 	}
 }
 
@@ -522,7 +558,8 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		DataBroadcastIPEnabled: row.DataBroadcastIPEnabled,
 		AnimeLinkingEnabled:    row.AnimeLinkingEnabled,
 		CommentSources:         row.CommentSources,
-		UpdatedAt:              &row.UpdatedAt,
+		TimeshiftWhileWatching: row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
+		UpdatedAt: &row.UpdatedAt,
 	}, nil
 }
 

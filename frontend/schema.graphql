@@ -2000,13 +2000,14 @@ type Mutation {
   createStreamURL(target: ID!): StreamURL!
   """
   サービス serviceId をタイムシフトで録るチャンネルにし、保持時間を retentionSeconds (600〜86400 秒) にする。既に録っていれば、保持時間だけを変える。
-  管理者だけが使え、直近 10 分以内の認証が要る (設計書 9.5、9.7)。
+  管理者だけが使える (設計書 9.7)。第三者に影響しない操作なので、再認証は求めない (設計書 9.5)。
+  視聴している間だけ録っていたサービスに使うと、管理者の設定したチャンネルになる。
   保持時間が範囲外なら BAD_USER_INPUT を、サービスがなければ NOT_FOUND を、タイムシフトを使えない tenban (timeshiftAvailable が false) なら CONFLICT を返す。
   """
   setTimeshiftChannel(serviceId: ID!, retentionSeconds: Int = 7200): TimeshiftChannel!
   """
   サービス serviceId を、タイムシフトで録るチャンネルから外し、外したサービスの ID を返す。録ったチャンクは、破棄のジョブが消す。
-  管理者だけが使え、直近 10 分以内の認証が要る。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
+  管理者だけが使える。タイムシフトを使えない tenban でも外せる。録るチャンネルになければ NOT_FOUND を返す。
   """
   removeTimeshiftChannel(serviceId: ID!): ID!
   """
@@ -4208,6 +4209,15 @@ type SystemSettings {
   """
   drcsReplacements: [DrcsReplacement!]!
   """
+  ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。既定は false。
+  ログインしていれば誰でも読め、ライブ視聴の画面が、バッファを読み直すかを決めるのに使う。
+  """
+  timeshiftWhileWatching: Boolean!
+  """
+  視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。
+  """
+  timeshiftWhileWatchingRetentionSeconds: Int!
+  """
   最後に変えた日時。一度も変えていなければ null。
   """
   updatedAt: Time
@@ -4247,6 +4257,14 @@ input SystemSettingsInput {
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
   """
   drcsReplacements: [DrcsReplacementInput!]
+  """
+  有効にするには、この tenban にタイムシフトのディレクトリが要る。なければ CONFLICT を返す。
+  """
+  timeshiftWhileWatching: Boolean
+  """
+  600〜86400 秒。
+  """
+  timeshiftWhileWatchingRetentionSeconds: Int
 }
 """
 システムの状態。

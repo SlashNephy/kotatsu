@@ -16,6 +16,10 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 	if err != nil {
 		return nil, err
 	}
+	// neko は、この設定のままサービスを割り振るので、設定していない構成で、録れない割り振りを作らないようにする。
+	if input.TimeshiftWhileWatching != nil && *input.TimeshiftWhileWatching && !r.store.HasTimeshiftDir() {
+		return nil, NewError(CodeConflict, "timeshift is not configured on this instance; set storage.timeshift_dir")
+	}
 	// nil のままなら、外字の置き換えの表は変えない。
 	var replacements map[string]*string
 	if input.DrcsReplacements != nil {
@@ -35,6 +39,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		AnimeLinkingEnabled:    input.AnimeLinkingEnabled,
 		CommentSources:         optionalCommentSources(input.CommentSources),
 		DRCSReplacements:       replacements,
+		TimeshiftWhileWatching: input.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: input.TimeshiftWhileWatchingRetentionSeconds,
 	})
 	if err != nil {
 		return nil, settingsError(err)
