@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3d64bfccb1c20752b95be495caf8bd8f>>
+ * @generated SignedSource<<3f901cf4e1ca68aaa53b60f600d29906>>
  * @lightSyntaxTransform
  */
 
@@ -19,6 +19,10 @@ export type timeshiftQuery$data = {
     readonly name: string;
     readonly serviceId: number;
   }>;
+  readonly systemSettings: {
+    readonly timeshiftWhileWatching: boolean;
+    readonly timeshiftWhileWatchingRetentionSeconds: number;
+  };
   readonly timeshiftAvailable: boolean;
   readonly timeshiftChannels: ReadonlyArray<{
     readonly bufferedFrom: string | null | undefined;
@@ -113,6 +117,31 @@ v4 = [
   {
     "alias": null,
     "args": null,
+    "concreteType": "SystemSettings",
+    "kind": "LinkedField",
+    "name": "systemSettings",
+    "plural": false,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "timeshiftWhileWatching",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "timeshiftWhileWatchingRetentionSeconds",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
     "concreteType": "TimeshiftChannel",
     "kind": "LinkedField",
     "name": "timeshiftChannels",
@@ -183,16 +212,16 @@ return {
     "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "c6c418816e5eefdb2392af12ffd512d7",
+    "cacheID": "840d327f4941bdf992fc751921622c27",
     "id": null,
     "metadata": {},
     "name": "timeshiftQuery",
     "operationKind": "query",
-    "text": "query timeshiftQuery {\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  timeshiftAvailable\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
+    "text": "query timeshiftQuery {\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  timeshiftAvailable\n  systemSettings {\n    timeshiftWhileWatching\n    timeshiftWhileWatchingRetentionSeconds\n  }\n  timeshiftChannels {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        displayName\n      }\n    }\n    retentionSeconds\n    bufferedFrom\n    bufferedUntil\n    recording\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "aace4434466f70ec8d609edd305d306f";
+(node as any).hash = "2625826897206ea5f38faa6452380bb5";
 
 export default node;

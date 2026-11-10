@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -84,7 +85,7 @@ func LeadFor(recordingLead, interval time.Duration) time.Duration {
 // Run は、ctx が終わるまで、始めたとき、予約か割り当てが変わったとき、Interval ごとに割り振りを見直す。
 func (s *Scheduler) Run(ctx context.Context) error {
 	return notify.Loop(ctx, s.pool, s.logger, &notify.LoopOptions{
-		Channels: []string{reserve.NotifyChannel, assign.NotifyChannel},
+		Channels: []string{reserve.NotifyChannel, assign.NotifyChannel, WatchNotifyChannel},
 		Debounce: time.Second,
 		Interval: s.opts.Interval,
 		Watcher:  notify.WatcherOptions{UseListen: !s.opts.PollOnly, PollInterval: s.opts.PollInterval},
@@ -138,11 +139,15 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 
 // plan は、今の設定とチューナーと予約から、タイムシフトで録るサービスの ID の集合と、設定されたチャンネルを返す。
 func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (map[int64]bool, []*Channel, error) {
+	watched, err := syncWatched(ctx, q, now)
+	if err != nil {
+		return nil, nil, err
+	}
 	channelRows, err := q.ListTimeshiftChannels(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list timeshift channels: %w", err)
 	}
-	channels := make([]*Channel, 0, len(channelRows))
+	channels := make([]*Channel, 0, len(channelRows)+len(watched))
 	for _, row := range channelRows {
 		channels = append(channels, &Channel{ServiceID: row.ServiceID, ChannelType: row.ChannelType, Channel: row.Channel})
 	}
@@ -173,8 +178,14 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	}
 
 	want := map[int64]bool{}
-	for _, serviceID := range Plan(channels, multiplexes, tuners, busy) {
+	for _, serviceID := range Plan(channels, watched, multiplexes, tuners, busy) {
 		want[serviceID] = true
+	}
+	// 視聴しているサービスの割り振りも書く。設定されたチャンネルを視聴しているなら、割り振りを 2 度書かない。
+	for _, c := range watched {
+		if !slices.ContainsFunc(channels, func(channel *Channel) bool { return channel.ServiceID == c.ServiceID }) {
+			channels = append(channels, c)
+		}
 	}
 
 	return want, channels, nil

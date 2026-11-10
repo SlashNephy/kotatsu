@@ -63,7 +63,8 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		JikkyoEnabled:          slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),
 		CommentSources:         commentSourcesOf(system.CommentSources),
 		DrcsReplacements:       drcsReplacementsOf(system.DRCSReplacements),
-		UpdatedAt:              system.UpdatedAt,
+		TimeshiftWhileWatching: system.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: system.TimeshiftWhileWatchingRetentionSeconds,
+		UpdatedAt: system.UpdatedAt,
 	}
 }
 

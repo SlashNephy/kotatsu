@@ -1,4 +1,14 @@
-import { Alert, Badge, Button, Group, NumberInput, Select, Stack, Text } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Group,
+  NumberInput,
+  Select,
+  Stack,
+  Switch,
+  Text,
+} from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
 import { startTransition, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +24,7 @@ import { mutate } from '../../settings/mutate';
 import type { timeshiftQuery } from './__generated__/timeshiftQuery.graphql';
 import type { timeshiftRemoveMutation } from './__generated__/timeshiftRemoveMutation.graphql';
 import type { timeshiftSetMutation } from './__generated__/timeshiftSetMutation.graphql';
+import type { timeshiftWhileWatchingMutation } from './__generated__/timeshiftWhileWatchingMutation.graphql';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { renderServiceOption, serviceGroups } from '../../guide/serviceOption';
 import { zonedFormat } from '../../futon';
@@ -61,6 +72,10 @@ const query = graphql`
       }
     }
     timeshiftAvailable
+    systemSettings {
+      timeshiftWhileWatching
+      timeshiftWhileWatchingRetentionSeconds
+    }
     timeshiftChannels {
       service {
         id
@@ -178,7 +193,86 @@ function TimeshiftSettings() {
           }
         />
       </Section>
+
+      <TimeshiftWhileWatching
+        key={`${String(data.systemSettings.timeshiftWhileWatching)}/${data.systemSettings.timeshiftWhileWatchingRetentionSeconds}`}
+        enabled={data.systemSettings.timeshiftWhileWatching}
+        retentionSeconds={data.systemSettings.timeshiftWhileWatchingRetentionSeconds}
+        busy={action.busy}
+        onSave={(enabled, retentionSeconds) =>
+          action.run(async () => {
+            await mutate<timeshiftWhileWatchingMutation>(
+              environment,
+              graphql`
+                mutation timeshiftWhileWatchingMutation($input: SystemSettingsInput!) {
+                  updateSystemSettings(input: $input) {
+                    timeshiftWhileWatching
+                    timeshiftWhileWatchingRetentionSeconds
+                  }
+                }
+              `,
+              {
+                input: {
+                  timeshiftWhileWatching: enabled,
+                  timeshiftWhileWatchingRetentionSeconds: retentionSeconds,
+                },
+              },
+            );
+            done();
+          }, fail)
+        }
+      />
     </Stack>
+  );
+}
+
+// TimeshiftWhileWatching は、ライブ視聴しているサービスを、視聴している間だけ録るかどうかと、その保持時間を変える (設計書 5.7、#1408)。
+function TimeshiftWhileWatching({
+  enabled,
+  retentionSeconds,
+  busy,
+  onSave,
+}: {
+  enabled: boolean;
+  retentionSeconds: number;
+  busy: boolean;
+  onSave: (enabled: boolean, retentionSeconds: number) => void;
+}) {
+  const { t } = useTranslation();
+  const [checked, setChecked] = useState(enabled);
+  const [hours, setHours] = useState<number | string>(retentionHours(retentionSeconds));
+
+  return (
+    <Section title={t('admin.timeshift.whileWatching')}>
+      <Switch
+        size="sm"
+        label={t('admin.timeshift.whileWatchingLabel')}
+        description={t('admin.timeshift.whileWatchingHelp')}
+        checked={checked}
+        onChange={(event) => setChecked(event.currentTarget.checked)}
+        maw={560}
+      />
+      <Group gap="xs" align="flex-end">
+        <NumberInput
+          size="xs"
+          w={140}
+          label={t('admin.timeshift.retention')}
+          min={1}
+          max={maxRetentionHours}
+          allowDecimal={false}
+          value={hours}
+          onChange={setHours}
+        />
+        <Button
+          size="compact-sm"
+          mb={2}
+          disabled={typeof hours !== 'number' || hours < 1 || hours > maxRetentionHours || busy}
+          onClick={() => onSave(checked, Number(hours) * secondsPerHour)}
+        >
+          {t('admin.save')}
+        </Button>
+      </Group>
+    </Section>
   );
 }
 

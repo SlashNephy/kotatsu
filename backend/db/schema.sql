@@ -360,6 +360,10 @@ CREATE TABLE system_settings (
   rule_defaults jsonb NOT NULL DEFAULT '{}',
   -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。
   drcs_replacements jsonb NOT NULL DEFAULT '{}',
+  -- ライブ視聴しているサービスを、視聴している間だけタイムシフトで録るかどうか (設計書 5.7、#1408)。ディスクを使うので、既定では録らない。
+  timeshift_while_watching boolean NOT NULL DEFAULT false,
+  -- 視聴している間だけ録るサービスの保持時間 (秒)。範囲は timeshift_channels の保持時間と同じ。
+  timeshift_while_watching_retention_seconds integer NOT NULL DEFAULT 3600 CHECK (timeshift_while_watching_retention_seconds BETWEEN 600 AND 86400),
   updated_at timestamptz NOT NULL
 );
 
@@ -1137,7 +1141,15 @@ CREATE TABLE timeshift_channels (
   retention_seconds integer NOT NULL CHECK (retention_seconds BETWEEN 600 AND 86400),
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
-  updated_by uuid REFERENCES users (id) ON DELETE SET NULL
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  -- ライブ視聴している間だけ、neko が足した行かどうか (#1408)。管理の画面には出さず、視聴が終わったら neko が消す。
+  while_watching boolean NOT NULL DEFAULT false
+);
+
+-- ライブ視聴しているサービスと、視聴が続いているとみなす期限 (設計書 5.7、#1408)。tenban が視聴の間に延ばし、neko が読む。誰が見ているかは持たない。
+CREATE TABLE timeshift_watches (
+  service_id bigint PRIMARY KEY REFERENCES services (id) ON DELETE CASCADE,
+  watching_until timestamptz NOT NULL
 );
 
 -- タイムシフトの mikan への割り振り (設計書 5.7)。recording_assignments と同じ仕組みで、neko がチューナーの空きを見て書き、mikan が行をロックして取り、リースを延長しながら録る。

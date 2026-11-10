@@ -123,6 +123,8 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{name: "nil", changes: nil, wantErr: settings.ErrInvalidSettings},
 		{name: "negative retention", changes: &settings.Changes{Recording: nil, ArchiveRetentionDays: &negative}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long retention", changes: &settings.Changes{Recording: nil, ArchiveRetentionDays: &tooLong}, wantErr: settings.ErrInvalidSettings},
+		{name: "too short timeshift retention", changes: &settings.Changes{TimeshiftWhileWatchingRetentionSeconds: new(599)}, wantErr: settings.ErrInvalidSettings},
+		{name: "too long timeshift retention", changes: &settings.Changes{TimeshiftWhileWatchingRetentionSeconds: new(86401)}, wantErr: settings.ErrInvalidSettings},
 		{
 			name: "negative margin", wantErr: reserve.ErrInvalidSettings,
 			changes: &settings.Changes{

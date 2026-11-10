@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1003,8 +1004,20 @@ func handleStreams(
 ) (*kyusu.LastKnownInstances, error) {
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
 	// 配信は、認可を通ったものだけを数える。
+	// ライブ視聴とバッファの再生の間は、視聴している間だけ録るタイムシフトのために、サービスの視聴が続いていることを記録する (設計書 5.7)。
+	watches := timeshift.NewWatches(deps.DB, deps.Clock, streamLogger)
+	liveWatch := func(id string) (int64, bool) {
+		serviceID, err := strconv.ParseInt(id, 10, 64)
+
+		return serviceID, err == nil
+	}
+	bufferWatch := func(id string) (int64, bool) {
+		serviceID, _, ok := kyusu.ParseTimeshiftID(id)
+
+		return serviceID, ok
+	}
 	mux.Handle("GET /streams/services/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
-		streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger)))))
+		watches.Track(liveWatch, streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger))))))
 	mux.Handle("GET /streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
@@ -1015,17 +1028,17 @@ func handleStreams(
 	// DB に届かない間は、最後に引けた登録簿で中継を続ける (#1084)。
 	instances := kyusu.NewLastKnownInstances(registry.New(deps.DB, deps.Clock, deps.InstanceID), deps.Clock, streamLogger)
 	mux.Handle("GET /streams/services/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(kyusu.NewRelay(instances, kyusuToken, streamLogger)))
+		authorizer.Middleware(watches.Track(liveWatch, kyusu.NewRelay(instances, kyusuToken, streamLogger))))
 	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
 		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	mux.Handle("GET /streams/timeshift/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger)))
+		authorizer.Middleware(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	mux.Handle("GET /streams/timeshift/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
-		streams.Count(streamapi.StreamTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+		watches.Track(liveWatch, streams.Count(streamapi.StreamTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))

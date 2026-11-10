@@ -48,7 +48,10 @@ type channelKey struct {
 // 録っているチャンネルの番組表は、チューナーサーバーが同じチャンネルのチューナーに相乗りして取れる。
 // 種別ごとに受信できる空きチューナーが 1 本残ればよく、いくつもの種別を受信できるチューナーは、どの種別にも数える。
 // 受信できる空きチューナーが初めからない種別は、残しようがないので見ない。
-func Plan(channels []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner, busy []*Busy) []int64 {
+//
+// watched は、ライブ視聴しているサービス (#1408)。視聴のチューナーに相乗りするので、空きチューナーを使わずに録り、結果の後ろに足す。
+// neko は視聴のチューナーを知らないが、空きチューナーを当てると、設定されたチャンネルのチューナーや、番組表の取得に残すチューナーを、視聴が奪ってしまう。
+func Plan(channels, watched []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner, busy []*Busy) []int64 {
 	// チューナーごとに、先回りの時間に予約が使うチャンネルを集める。
 	// 予約が続いて別のチャンネルに替わるチューナーは、どのチャンネルにも留まらないので、タイムシフトと共有しない。
 	busyChannels := map[int]map[channelKey]bool{}
@@ -67,6 +70,9 @@ func Plan(channels []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner,
 				covered[key] = true
 			}
 		}
+	}
+	for _, c := range watched {
+		covered[channelKey{channelType: c.ChannelType, channel: c.Channel}] = true
 	}
 
 	// 種別ごとに、予約にもタイムシフトにも録られず、番組表の取得にチューナーが要るチャンネルの数を数える。
@@ -102,7 +108,7 @@ func Plan(channels []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner,
 		return a.Index - b.Index
 	})
 
-	recorded := make([]int64, 0, len(channels))
+	recorded := make([]int64, 0, len(channels)+len(watched))
 	for _, c := range channels {
 		key := channelKey{channelType: c.ChannelType, channel: c.Channel}
 		if !covered[key] {
@@ -117,6 +123,11 @@ func Plan(channels []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner,
 			uncovered[c.ChannelType]--
 		}
 		recorded = append(recorded, c.ServiceID)
+	}
+	for _, c := range watched {
+		if !slices.Contains(recorded, c.ServiceID) {
+			recorded = append(recorded, c.ServiceID)
+		}
 	}
 
 	return recorded

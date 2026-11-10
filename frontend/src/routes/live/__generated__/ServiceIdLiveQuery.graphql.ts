@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2c9ae7e93771cba63fc74523a93c6a73>>
+ * @generated SignedSource<<f25d61532c3794fe725e1f866fbf3944>>
  * @lightSyntaxTransform
  */
 
@@ -70,6 +70,7 @@ export type ServiceIdLiveQuery$data = {
   }>;
   readonly systemSettings: {
     readonly dataBroadcastIpEnabled: boolean;
+    readonly timeshiftWhileWatching: boolean;
   };
   readonly transcoding: {
     readonly available: boolean;
@@ -402,6 +403,13 @@ v13 = {
       "kind": "ScalarField",
       "name": "dataBroadcastIpEnabled",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "timeshiftWhileWatching",
+      "storageKey": null
     }
   ],
   "storageKey": null
@@ -514,16 +522,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "35c0c32007cca6c0fd5b7875e60bbadd",
+    "cacheID": "5b23403f671f0d94a93c6ed9260f7b75",
     "id": null,
     "metadata": {},
     "name": "ServiceIdLiveQuery",
     "operationKind": "query",
-    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyoChannelId\n      jikkyo {\n        id\n        name\n      }\n      timeshiftPrograms {\n        startAt\n      }\n      timeshiftBuffer {\n        from\n        gaps {\n          from\n          to\n        }\n        streamUrl\n        hlsUrl\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  systemSettings {\n    dataBroadcastIpEnabled\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n    }\n  }\n}\n"
+    "text": "query ServiceIdLiveQuery(\n  $id: ID!\n  $from: Time!\n  $to: Time!\n) {\n  node(id: $id) {\n    __typename\n    ... on Service {\n      name\n      logoUrl\n      streamUrl\n      videoFormat\n      jikkyoChannelId\n      jikkyo {\n        id\n        name\n      }\n      timeshiftPrograms {\n        startAt\n      }\n      timeshiftBuffer {\n        from\n        gaps {\n          from\n          to\n        }\n        streamUrl\n        hlsUrl\n      }\n    }\n    id\n  }\n  guide(from: $from, to: $to, services: [$id]) {\n    programs {\n      id\n      name\n      description\n      startAt\n      endAt\n      endUndecided\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n  systemSettings {\n    dataBroadcastIpEnabled\n    timeshiftWhileWatching\n  }\n  services {\n    id\n    name\n    networkId\n    serviceId\n    channelType {\n      type\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "1d32a42f22bdcf127dd0dace737c8000";
+(node as any).hash = "770f0d8acfdeb66b60cd65dcf074440c";
 
 export default node;

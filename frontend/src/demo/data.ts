@@ -404,6 +404,9 @@ export function createRootValue(
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
       jikkyoEnabled: true,
       commentSources: ['NX_JIKKYO'],
+      // デモにはタイムシフトのディレクトリがない。
+      timeshiftWhileWatching: false,
+      timeshiftWhileWatchingRetentionSeconds: 3600,
       updatedAt: null,
     }),
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。

@@ -1933,7 +1933,10 @@
       "add": "Add",
       "remove": "Remove",
       "cancel": "Cancel",
-      "confirmRemove": "Remove {{name}} from time shift. The recorded buffer will be deleted."
+      "confirmRemove": "Remove {{name}} from time shift. The recorded buffer will be deleted.",
+      "whileWatching": "Services being watched",
+      "whileWatchingLabel": "Record only while watching live",
+      "whileWatchingHelp": "Lets viewers seek back through what was received since they started watching, even on services not selected above. Recording stops when viewing ends, and the buffer is deleted 5 minutes later. While recording, this uses the time shift directory (about 7.5 GB per hour for terrestrial)."
     },
     "storage": {
       "title": "Storage",
