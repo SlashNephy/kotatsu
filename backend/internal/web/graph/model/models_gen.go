@@ -565,6 +565,8 @@ type CommentSettings struct {
 	MutedKeywords []*MutedKeyword `json:"mutedKeywords"`
 	// ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。
 	MutedUsers []string `json:"mutedUsers"`
+	// ミュートするコマンド (big、ue、色など。#1359)。
+	MutedCommands []string `json:"mutedCommands"`
 }
 
 type CommentSettingsInput struct {
@@ -576,6 +578,8 @@ type CommentSettingsInput struct {
 	MutedKeywords []*MutedKeywordInput `json:"mutedKeywords"`
 	// 500 件まで。1 つ 64 文字まで
 	MutedUsers []string `json:"mutedUsers"`
+	// 50 件まで。1 つ 32 文字まで
+	MutedCommands []string `json:"mutedCommands"`
 }
 
 // 管理者が作るユーザー。

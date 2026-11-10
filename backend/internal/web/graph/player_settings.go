@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
@@ -22,6 +24,8 @@ const (
 	maxMutedKeywordLength = 100
 	maxMutedUsers         = 500
 	maxMutedUserLength    = 64
+	maxMutedCommands      = 50
+	maxMutedCommandLength = 32
 )
 
 // defaultCaptionSettings は、字幕の設定の既定値 (設計書 付録 A)。文字スーパーは、速報を見落とさないよう、ライブでも録画でも出す。
@@ -31,7 +35,7 @@ func defaultCaptionSettings() *model.CaptionSettings {
 
 // defaultCommentSettings は、コメントの設定の既定値 (設計書 付録 A)。
 func defaultCommentSettings() *model.CommentSettings {
-	return &model.CommentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []*model.MutedKeyword{}, MutedUsers: []string{}}
+	return &model.CommentSettings{Opacity: 1, Speed: 1, Scale: 1, ShowAll: true, MutedKeywords: []*model.MutedKeyword{}, MutedUsers: []string{}, MutedCommands: []string{}}
 }
 
 // playerSettings は、ログイン中のユーザーのプレイヤーの設定を返す。
@@ -106,9 +110,14 @@ func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	case len(input.MutedUsers) > maxMutedUsers:
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("mutedUsers must be at most %d", maxMutedUsers))
 	}
+	mutedCommands, err := validateMutedCommands(input.MutedCommands)
+	if err != nil {
+		return nil, err
+	}
 	settings := &model.CommentSettings{
 		Opacity: input.Opacity, Speed: input.Speed, Scale: input.Scale, ShowAll: input.ShowAll,
 		MutedKeywords: make([]*model.MutedKeyword, 0, len(input.MutedKeywords)), MutedUsers: make([]string, 0, len(input.MutedUsers)),
+		MutedCommands: mutedCommands,
 	}
 	for _, keyword := range input.MutedKeywords {
 		if keyword.Text == "" || utf8.RuneCountInString(keyword.Text) > maxMutedKeywordLength || !keyword.Match.IsValid() {
@@ -128,6 +137,22 @@ func encodeCommentSettings(input *model.CommentSettingsInput) ([]byte, error) {
 	}
 
 	return encoded, nil
+}
+
+// validateMutedCommands は、ミュートするコマンドの数と長さを確かめて返す。
+func validateMutedCommands(commands []string) ([]string, error) {
+	if len(commands) > maxMutedCommands {
+		return nil, NewError(CodeBadUserInput, fmt.Sprintf("mutedCommands must be at most %d", maxMutedCommands))
+	}
+	validated := make([]string, 0, len(commands))
+	for _, command := range commands {
+		if command == "" || utf8.RuneCountInString(command) > maxMutedCommandLength || strings.ContainsFunc(command, unicode.IsSpace) {
+			return nil, NewError(CodeBadUserInput, fmt.Sprintf("each muted command must be 1 to %d characters without spaces", maxMutedCommandLength))
+		}
+		validated = append(validated, command)
+	}
+
+	return validated, nil
 }
 
 // decodeCommentSettings は、DB の JSON をコメントの設定にする。NULL なら既定値を返す。

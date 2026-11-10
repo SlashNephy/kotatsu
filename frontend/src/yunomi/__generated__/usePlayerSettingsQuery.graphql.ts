@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1634bdb01990d5f4ea1c56746b9f2a62>>
+ * @generated SignedSource<<0df74e2b3a8df6b1a0f21fa5d91f8f1e>>
  * @lightSyntaxTransform
  */
 
@@ -20,6 +20,7 @@ export type usePlayerSettingsQuery$data = {
     };
     readonly captionsEnabled: boolean;
     readonly comments: {
+      readonly mutedCommands: ReadonlyArray<string>;
       readonly mutedKeywords: ReadonlyArray<{
         readonly match: KeywordMuteMatch;
         readonly text: string;
@@ -145,6 +146,13 @@ v1 = [
             "kind": "ScalarField",
             "name": "mutedUsers",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "mutedCommands",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -210,16 +218,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "298e69905d591bc93dfd1dfa7fcb0693",
+    "cacheID": "600f5a7ae5e5a843fbce67b4363559d9",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsQuery",
     "operationKind": "query",
-    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n  }\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
+    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n  }\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "68f1b8c0be8286f18e499d5a5542b68d";
+(node as any).hash = "70bb8f3c652423ca0a9aa7dc3de239a8";
 
 export default node;

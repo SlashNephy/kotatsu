@@ -18,8 +18,8 @@ describe('appendComment', () => {
 
     // ユーザー ID は、行からミュートできるよう残す (#767)。
     expect(list).toEqual([
-      { key: 0, at: 1000, content: 'わこつ' },
-      { key: 1, at: 2000, content: 'きたー', userId: 'u1' },
+      { key: 0, at: 1000, content: 'わこつ', mail: '184' },
+      { key: 1, at: 2000, content: 'きたー', mail: '', userId: 'u1' },
     ]);
   });
 
@@ -37,11 +37,12 @@ describe('appendComment', () => {
     }
 
     expect(list).toHaveLength(maxListed);
-    expect(list[0]).toEqual({ key: 3, at: 3, content: 'c3' });
+    expect(list[0]).toEqual({ key: 3, at: 3, content: 'c3', mail: '' });
     expect(list.at(-1)).toEqual({
       key: maxListed + 2,
       at: maxListed + 2,
       content: `c${maxListed + 2}`,
+      mail: '',
     });
   });
 });

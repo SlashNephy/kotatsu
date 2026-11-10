@@ -52,16 +52,25 @@ export function CommentCanvas({
   clockRef.current = clock;
   // 描画を作り直すのは、描き方とミュートが変わったときだけにする。不透明度は canvas の style で変える。
   // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
-  const { speed, scale, showAll, mutedKeywords, mutedUsers } = settings;
-  const muteKey = JSON.stringify([mutedKeywords, mutedUsers]);
+  const { speed, scale, showAll, mutedKeywords, mutedUsers, mutedCommands } = settings;
+  const muteKey = JSON.stringify([mutedKeywords, mutedUsers, mutedCommands]);
   const view = useMemo(() => {
-    const [keywords, users] = JSON.parse(muteKey) as [CommentSettings['mutedKeywords'], string[]];
+    const [keywords, users, commands] = JSON.parse(muteKey) as [
+      CommentSettings['mutedKeywords'],
+      string[],
+      string[],
+    ];
 
     return {
       speed,
       scale,
       showAll,
-      muted: compileMute({ ...defaultCommentSettings, mutedKeywords: keywords, mutedUsers: users }),
+      muted: compileMute({
+        ...defaultCommentSettings,
+        mutedKeywords: keywords,
+        mutedUsers: users,
+        mutedCommands: commands,
+      }),
     };
   }, [speed, scale, showAll, muteKey]);
   const viewRef = useRef(view);

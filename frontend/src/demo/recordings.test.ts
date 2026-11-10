@@ -153,6 +153,7 @@ describe('demo executor answers the queries of the recording and player screens'
             showAll: false,
             mutedKeywords: [],
             mutedUsers: [],
+            mutedCommands: [],
           },
         },
       }),

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5a6394dd8377f29de10066034a848611>>
+ * @generated SignedSource<<1c3654cdf01d5c34f5b7070953afac3f>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type PlayerSettingsInput = {
   jikkyoEnabled?: boolean | null | undefined;
 };
 export type CommentSettingsInput = {
+  mutedCommands: ReadonlyArray<string>;
   mutedKeywords: ReadonlyArray<MutedKeywordInput>;
   mutedUsers: ReadonlyArray<string>;
   opacity: number;
@@ -46,6 +47,7 @@ export type usePlayerSettingsMutation$data = {
     };
     readonly captionsEnabled: boolean;
     readonly comments: {
+      readonly mutedCommands: ReadonlyArray<string>;
       readonly mutedKeywords: ReadonlyArray<{
         readonly match: KeywordMuteMatch;
         readonly text: string;
@@ -168,6 +170,13 @@ v1 = [
             "kind": "ScalarField",
             "name": "mutedUsers",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "mutedCommands",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -233,16 +242,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "efdf1cedafd9046ff7e120cf5a9d1c44",
+    "cacheID": "47a4cbf9547062ac33c2b8860ef6672e",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsMutation",
     "operationKind": "mutation",
-    "text": "mutation usePlayerSettingsMutation(\n  $input: PlayerSettingsInput!\n) {\n  updatePlayerSettings(input: $input) {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
+    "text": "mutation usePlayerSettingsMutation(\n  $input: PlayerSettingsInput!\n) {\n  updatePlayerSettings(input: $input) {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e05a3b1da7b4d580657e505f53c86383";
+(node as any).hash = "6c8fcd3c43cfa0b51410e883d0e8553f";
 
 export default node;

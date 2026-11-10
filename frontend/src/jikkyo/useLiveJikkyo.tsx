@@ -117,16 +117,25 @@ export function useLiveJikkyo(
 
   // 届いた後にミュートしたユーザーやキーワードのコメントも、一覧から外す (#767)。
   // ミュートの一覧は、ほかの設定を変えただけでも新しい配列で届くので、中身で比べる。
-  const muteKey = JSON.stringify([settings.mutedKeywords, settings.mutedUsers]);
+  const muteKey = JSON.stringify([
+    settings.mutedKeywords,
+    settings.mutedUsers,
+    settings.mutedCommands,
+  ]);
   const listed = useMemo(() => {
-    const [keywords, users] = JSON.parse(muteKey) as [CommentSettings['mutedKeywords'], string[]];
+    const [keywords, users, commands] = JSON.parse(muteKey) as [
+      CommentSettings['mutedKeywords'],
+      string[],
+      string[],
+    ];
     const isMuted = compileMute({
       ...defaultCommentSettings,
       mutedKeywords: keywords,
       mutedUsers: users,
+      mutedCommands: commands,
     });
 
-    return comments.filter((comment) => !isMuted({ time: 0, mail: '', ...comment }));
+    return comments.filter((comment) => !isMuted({ time: 0, ...comment }));
   }, [comments, muteKey]);
 
   return {

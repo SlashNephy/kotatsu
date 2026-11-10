@@ -7,7 +7,14 @@ export const maxListed = 500;
 
 // ListedComment は、一覧の 1 行。at は、コメントの時刻 (Unix ミリ秒)。key は、一覧の中で行を見分ける番号。
 // userId は、投稿したユーザーの匿名の ID。行からミュートするのに使う。分からなければ省く。
-export type ListedComment = { key: number; at: number; content: string; userId?: string };
+export type ListedComment = {
+  key: number;
+  at: number;
+  content: string;
+  // mail は、コメントのコマンド。コマンドでのミュートに使う (#1359)。
+  mail: string;
+  userId?: string;
+};
 
 // appendComment は、ライブで届いたコメントを一覧の末尾に足す。流さないコメントは足さない。上限を超えたら、古いものから捨てる。
 export function appendComment(
@@ -24,6 +31,7 @@ export function appendComment(
       key,
       at: comment.at,
       content: comment.content,
+      mail: comment.mail,
       ...(comment.userId === undefined ? {} : { userId: comment.userId }),
     },
   ];

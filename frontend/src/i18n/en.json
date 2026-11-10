@@ -267,6 +267,10 @@
       "remove": "Remove {{name}}",
       "mutedUsers": "Muted users",
       "mutedUsersHelp": "Comments from these user IDs in live comments and past logs are not shown on screen or in the list",
+      "mutedCommands": "Muted commands",
+      "mutedCommandsHelp": "Comments using commands such as big, ue, or a color are not shown on screen or in the list.",
+      "mutedCommandsPlaceholder": "Type a command and press Enter",
+      "muteFixed": "Mute all comments fixed to the top or bottom",
       "userId": "User ID"
     },
     "shortcutKeys": {

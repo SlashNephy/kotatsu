@@ -1003,6 +1003,10 @@ type CommentSettings {
   ミュートするユーザーの ID (NX-Jikkyo と過去ログの user_id)。
   """
   mutedUsers: [String!]!
+  """
+  ミュートするコマンド (big、ue、色など。#1359)。
+  """
+  mutedCommands: [String!]!
 }
 input CommentSettingsInput {
   opacity: Float!
@@ -1017,6 +1021,10 @@ input CommentSettingsInput {
   500 件まで。1 つ 64 文字まで
   """
   mutedUsers: [String!]!
+  """
+  50 件まで。1 つ 32 文字まで
+  """
+  mutedCommands: [String!]!
 }
 """
 管理者が作るユーザー。

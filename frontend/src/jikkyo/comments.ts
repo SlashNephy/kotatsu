@@ -38,6 +38,8 @@ export type CommentSettings = {
   readonly showAll: boolean;
   readonly mutedKeywords: readonly { readonly text: string; readonly match: string }[];
   readonly mutedUsers: readonly string[];
+  // mutedCommands は、ミュートするコマンド (big、ue、色など。#1359)。小文字で持つ。
+  readonly mutedCommands: readonly string[];
 };
 
 export const defaultCommentSettings: CommentSettings = {
@@ -47,6 +49,7 @@ export const defaultCommentSettings: CommentSettings = {
   showAll: true,
   mutedKeywords: [],
   mutedUsers: [],
+  mutedCommands: [],
 };
 
 // defaultCommentSeconds は、niconicomments が流れるコメントを出しておく秒数。速さの倍率は、これを縮めて変える。
@@ -54,12 +57,17 @@ const defaultCommentSeconds = 3;
 // limitedComments は、すべては出さないときに、画面に同時に出すコメントの数の上限。
 export const limitedComments = 40;
 
+// maxMutedCommands は、ミュートするコマンドの上限。maxMutedCommandLength は、1 つのコマンドの長さの上限。tenban の検査と同じ値。
+export const maxMutedCommands = 50;
+const maxMutedCommandLength = 32;
+
 // normalizeForMute は、キーワードと照らすために、全角と半角、大文字と小文字をそろえる。
 const normalizeForMute = (text: string) => text.normalize('NFKC').toLowerCase();
 
 // compileMute は、ミュートの設定から、コメントをミュートするかどうかを返す関数を作る。正しくない正規表現は無視する。
 export function compileMute(settings: CommentSettings): (comment: JikkyoComment) => boolean {
   const users = new Set(settings.mutedUsers);
+  const commands = new Set(settings.mutedCommands.map((command) => command.toLowerCase()));
   const matchers: ((content: string, normalized: string) => boolean)[] = [];
   for (const keyword of settings.mutedKeywords) {
     if (keyword.match === 'REGEX') {
@@ -94,6 +102,9 @@ export function compileMute(settings: CommentSettings): (comment: JikkyoComment)
     if (comment.userId !== undefined && users.has(comment.userId)) {
       return true;
     }
+    if (commands.size > 0 && hasMutedCommand(comment.mail, commands)) {
+      return true;
+    }
     if (matchers.length === 0) {
       return false;
     }
@@ -111,13 +122,44 @@ export function shouldDraw(comment: JikkyoComment): boolean {
   return content !== '' && !content.startsWith('/');
 }
 
-// isFixed は、コメントが上下に固定されるかどうかを返す。niconicomments と同じく、大文字と小文字を区別せず、最初に指定した位置に従う。
+// isLocation は、コマンドが位置の指定かどうかを返す。
+const isLocation = (command: string) =>
+  command === 'ue' || command === 'naka' || command === 'shita';
+
+// locationOf は、コメントの位置を返す。niconicomments と同じく、大文字と小文字を区別せず、最初に指定した位置に従う。
+function locationOf(mail: readonly string[]): string | undefined {
+  return mail.map((command) => command.toLowerCase()).find(isLocation);
+}
+
+// isFixed は、コメントが上下に固定されるかどうかを返す。
 function isFixed(mail: readonly string[]): boolean {
-  const location = mail
-    .map((command) => command.toLowerCase())
-    .find((command) => command === 'ue' || command === 'naka' || command === 'shita');
+  const location = locationOf(mail);
 
   return location === 'ue' || location === 'shita';
+}
+
+// hasMutedCommand は、コメントのコマンド mail に、ミュートするコマンドがあるかを返す。位置は、実際に効く最初の指定だけを見る。
+function hasMutedCommand(mail: string, muted: ReadonlySet<string>): boolean {
+  const commands = mail
+    .split(/\s+/)
+    .filter((command) => command !== '')
+    .map((command) => command.toLowerCase());
+  const location = locationOf(commands);
+
+  return commands.some(
+    (command) => muted.has(command) && (!isLocation(command) || command === location),
+  );
+}
+
+// normalizeMutedCommands は、入力したコマンドの一覧を、保存する形にする。小文字にそろえ、空のものと重複を除き、上限で切る。
+export function normalizeMutedCommands(commands: readonly string[]): string[] {
+  const normalized = commands
+    .map((command) => command.trim().toLowerCase())
+    .filter(
+      (command) => command !== '' && !/\s/.test(command) && command.length <= maxMutedCommandLength,
+    );
+
+  return [...new Set(normalized)].slice(0, maxMutedCommands);
 }
 
 // toFormatted は、コメントを niconicomments の形にする。vpos は 1/100 秒の単位。
