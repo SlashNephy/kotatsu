@@ -111,11 +111,21 @@ export function shouldDraw(comment: JikkyoComment): boolean {
   return content !== '' && !content.startsWith('/');
 }
 
+// isFixed は、コメントが上下に固定されるかどうかを返す。niconicomments と同じく、大文字と小文字を区別せず、最初に指定した位置に従う。
+function isFixed(mail: readonly string[]): boolean {
+  const location = mail
+    .map((command) => command.toLowerCase())
+    .find((command) => command === 'ue' || command === 'naka' || command === 'shita');
+
+  return location === 'ue' || location === 'shita';
+}
+
 // toFormatted は、コメントを niconicomments の形にする。vpos は 1/100 秒の単位。
-// 速さの倍率 speed が 1 でなければ、出しておく秒数のコマンド (@秒) を足す。コメント自身が秒数を指定していれば、それに従う。
+// 速さの倍率 speed が 1 でなければ、流れるコメントに、出しておく秒数のコマンド (@秒) を足す。
+// 固定のコメントの表示時間は変えない。コメント自身が秒数を指定していれば、それに従う。
 export function toFormatted(comment: JikkyoComment, id: number, speed = 1): FormattedCommentInput {
   const mail = comment.mail.split(/\s+/).filter((command) => command !== '');
-  if (speed !== 1 && !mail.some((command) => /^[@＠][0-9.]/.test(command))) {
+  if (speed !== 1 && !isFixed(mail) && !mail.some((command) => /^[@＠][0-9.]/.test(command))) {
     mail.push(`@${(defaultCommentSeconds / speed).toFixed(2)}`);
   }
 

@@ -40,6 +40,27 @@ describe('toFormatted の速さ', () => {
       speed: 2,
       want: ['184', '@5'],
     },
+    { name: '上に固定するコメントには、秒数を足さない', mail: 'ue', speed: 2, want: ['ue'] },
+    {
+      name: '下に固定するコメントには、秒数を足さない',
+      mail: '184 shita',
+      speed: 0.5,
+      want: ['184', 'shita'],
+    },
+    { name: '位置は大文字でも固定と分かる', mail: 'UE', speed: 2, want: ['UE'] },
+    { name: 'naka は流れるコメント', mail: 'naka', speed: 2, want: ['naka', '@1.50'] },
+    {
+      name: '位置を複数指定すると、最初の naka に従って流す',
+      mail: 'naka ue',
+      speed: 2,
+      want: ['naka', 'ue', '@1.50'],
+    },
+    {
+      name: '位置を複数指定すると、最初の ue に従って固定する',
+      mail: 'ue naka',
+      speed: 2,
+      want: ['ue', 'naka'],
+    },
   ])('$name', ({ mail, speed, want }) => {
     expect(toFormatted({ time: 0, content: 'わこつ', mail }, 0, speed).mail).toEqual(want);
   });
