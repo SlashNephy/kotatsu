@@ -791,7 +791,7 @@ type SystemSetting struct {
 	MCPEnabled                   bool
 	DataBroadcastIPEnabled       bool
 	AnimeLinkingEnabled          bool
-	JikkyoEnabled                bool
+	CommentSources               []string
 	RuleDefaults                 []byte
 	DrcsReplacements             []byte
 	UpdatedAt                    time.Time
@@ -920,7 +920,7 @@ type UserRecoveryCode struct {
 
 type UserSetting struct {
 	UserID               uuid.UUID
-	JikkyoEnabled        bool
+	CommentSources       []string
 	CaptionsEnabled      bool
 	WatchReminderMinutes int32
 	CommentSettings      []byte

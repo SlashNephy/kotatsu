@@ -254,6 +254,8 @@ type Querier interface {
 	GetCapture(ctx context.Context, arg GetCaptureParams) (Capture, error)
 	// 実況のコメントの設定の JSON。行がないか、設定を変えていなければ NULL。
 	GetCommentSettings(ctx context.Context, userID uuid.UUID) ([]byte, error)
+	// 実況のコメントのソースを使えるかどうかを決める、全体の設定とユーザーの設定 (#1405、設計書 7.4)。行がなければ空とする。
+	GetCommentSourceAccess(ctx context.Context, userID uuid.UUID) (GetCommentSourceAccessRow, error)
 	// DB の今の時刻。mikan の時計がずれていても、割り振りのリースの期限を同じ時刻で比べるのに使う (#526)。
 	GetDatabaseNow(ctx context.Context) (time.Time, error)
 	// EPG の変更の通知の、今の版数を返す。一度も通知していなければ 0。
@@ -262,8 +264,6 @@ type Querier interface {
 	GetGuideView(ctx context.Context, arg GetGuideViewParams) (GuideView, error)
 	// 取り込み元のデータを、既に取り込んだかどうか。取り込んでいれば、作った行の ID を返す。
 	GetImportedTarget(ctx context.Context, arg GetImportedTargetParams) (uuid.UUID, error)
-	// 実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。どちらも、行がなければ無効とする。
-	GetJikkyoAccess(ctx context.Context, userID uuid.UUID) (GetJikkyoAccessRow, error)
 	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
 	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
@@ -1012,7 +1012,7 @@ type Querier interface {
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
-	// プレイヤーの設定を変える。null の項目は変えない。
+	// プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
 	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)
 	// 照合したことを記録する。確定させた日時は、一度書いたら消さない。
 	UpsertProgramAnimeMatch(ctx context.Context, arg UpsertProgramAnimeMatchParams) error

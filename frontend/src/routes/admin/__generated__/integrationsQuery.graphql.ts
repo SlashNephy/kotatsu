@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5bdc9220c562fca730eef3fd7764b4df>>
+ * @generated SignedSource<<b519369dbbcfb892c13766c58aa446fd>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type AnimeImportSource = "ANNICT_WORKS" | "ARM" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
 export type AnimeRecordDestination = "ANILIST" | "ANNICT" | "%future added value";
+export type CommentSource = "NX_JIKKYO" | "%future added value";
 export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
@@ -39,8 +40,8 @@ export type integrationsQuery$data = {
   };
   readonly systemSettings: {
     readonly animeLinkingEnabled: boolean;
+    readonly commentSources: ReadonlyArray<CommentSource>;
     readonly dataBroadcastIpEnabled: boolean;
-    readonly jikkyoEnabled: boolean;
     readonly mcpEnabled: boolean;
     readonly networkActivityEnabled: boolean;
   };
@@ -114,7 +115,7 @@ v2 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
-        "name": "jikkyoEnabled",
+        "name": "commentSources",
         "storageKey": null
       }
     ],
@@ -314,16 +315,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "fa3039139b18120a342f24df7df73262",
+    "cacheID": "7c24d03447678a9eec0535a07cd23173",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    jikkyoEnabled\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "dd6b0ddab3c63fbebc66787ab566f7b6";
+(node as any).hash = "8a651db1239a3d1f8d813a8c0839ec64";
 
 export default node;

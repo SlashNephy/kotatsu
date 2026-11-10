@@ -101,16 +101,16 @@ func newLiveFixture(t *testing.T) *liveFixture {
 func (f *liveFixture) setSystem(t *testing.T, enabled bool) {
 	t.Helper()
 
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, jikkyo_enabled, updated_at)
-		VALUES (1, '{}', 30, $1, now()) ON CONFLICT (id) DO UPDATE SET jikkyo_enabled = EXCLUDED.jikkyo_enabled`, enabled)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO system_settings (id, recording_defaults, archive_retention_days, comment_sources, updated_at)
+		VALUES (1, '{}', 30, CASE WHEN $1::boolean THEN ARRAY['nx_jikkyo'] ELSE '{}'::text[] END, now()) ON CONFLICT (id) DO UPDATE SET comment_sources = EXCLUDED.comment_sources`, enabled)
 	require.NoError(t, err)
 }
 
 func (f *liveFixture) setUser(t *testing.T, user uuid.UUID, enabled bool) {
 	t.Helper()
 
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO user_settings (user_id, jikkyo_enabled, updated_at) VALUES ($1, $2, now())
-		ON CONFLICT (user_id) DO UPDATE SET jikkyo_enabled = EXCLUDED.jikkyo_enabled`, user, enabled)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO user_settings (user_id, comment_sources, updated_at) VALUES ($1, CASE WHEN $2::boolean THEN ARRAY['nx_jikkyo'] ELSE '{}'::text[] END, now())
+		ON CONFLICT (user_id) DO UPDATE SET comment_sources = EXCLUDED.comment_sources`, user, enabled)
 	require.NoError(t, err)
 }
 

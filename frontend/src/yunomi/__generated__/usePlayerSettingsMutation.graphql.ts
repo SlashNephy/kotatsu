@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<303c306a1213334560c33a0ba9514ae4>>
+ * @generated SignedSource<<83f447a4248af708421ef8ab8b50cac8>>
  * @lightSyntaxTransform
  */
 
@@ -8,10 +8,12 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CommentSource = "NX_JIKKYO" | "%future added value";
 export type KeywordMuteMatch = "EXACT" | "PARTIAL" | "PREFIX" | "REGEX" | "SUFFIX" | "%future added value";
 export type PlayerSettingsInput = {
   captions?: CaptionSettingsInput | null | undefined;
   captionsEnabled?: boolean | null | undefined;
+  commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   comments?: CommentSettingsInput | null | undefined;
   jikkyoEnabled?: boolean | null | undefined;
 };
@@ -47,6 +49,7 @@ export type usePlayerSettingsMutation$data = {
       readonly superimposeRecorded: boolean;
     };
     readonly captionsEnabled: boolean;
+    readonly commentSources: ReadonlyArray<CommentSource>;
     readonly comments: {
       readonly mixOtherBroadcasts: boolean;
       readonly mutedCommands: ReadonlyArray<string>;
@@ -96,6 +99,13 @@ v1 = [
         "args": null,
         "kind": "ScalarField",
         "name": "jikkyoEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "commentSources",
         "storageKey": null
       },
       {
@@ -251,16 +261,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "2f6797d5c7e2c05c189b3d3160cfc3d3",
+    "cacheID": "971205b8c4417c5dc9f5e1bd192b9435",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsMutation",
     "operationKind": "mutation",
-    "text": "mutation usePlayerSettingsMutation(\n  $input: PlayerSettingsInput!\n) {\n  updatePlayerSettings(input: $input) {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n      mixOtherBroadcasts\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
+    "text": "mutation usePlayerSettingsMutation(\n  $input: PlayerSettingsInput!\n) {\n  updatePlayerSettings(input: $input) {\n    jikkyoEnabled\n    commentSources\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n      mixOtherBroadcasts\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4defee2cb8012bfe63469aee664fb020";
+(node as any).hash = "aef7caa6c219fa60a901b96c29a25e25";
 
 export default node;

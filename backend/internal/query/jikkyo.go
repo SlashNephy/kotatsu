@@ -10,12 +10,22 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
-// GetJikkyoAccess は、ユーザーが実況を使えるかどうかを決める、全体の設定とユーザーの設定を返す (設計書 7.4)。
-func (q *Queries) GetJikkyoAccess(ctx context.Context, userID uuid.UUID) (domain.JikkyoAccess, error) {
-	row, err := sqlc.New(q.pool).GetJikkyoAccess(ctx, userID)
+// GetCommentSourceAccess は、コメントのソースごとに、使えるかどうかを決める全体の設定とユーザーの設定を返す (#1405、設計書 7.4)。
+func (q *Queries) GetCommentSourceAccess(ctx context.Context, userID uuid.UUID) (domain.CommentSourceAccess, error) {
+	row, err := sqlc.New(q.pool).GetCommentSourceAccess(ctx, userID)
 	if err != nil {
-		return domain.JikkyoAccess{}, fmt.Errorf("failed to read the jikkyo settings: %w", err)
+		return domain.CommentSourceAccess{}, fmt.Errorf("failed to read the comment source settings: %w", err)
 	}
 
-	return domain.JikkyoAccess{SystemEnabled: row.SystemEnabled, UserEnabled: row.UserEnabled}, nil
+	return domain.CommentSourceAccess{System: row.SystemSources, User: row.UserSources}, nil
+}
+
+// GetJikkyoAccess は、ユーザーが NX-Jikkyo のソースを使えるかどうかを決める、全体の設定とユーザーの設定を返す (設計書 7.4)。
+func (q *Queries) GetJikkyoAccess(ctx context.Context, userID uuid.UUID) (domain.JikkyoAccess, error) {
+	access, err := q.GetCommentSourceAccess(ctx, userID)
+	if err != nil {
+		return domain.JikkyoAccess{}, err
+	}
+
+	return access.For(domain.CommentSourceNXJikkyo), nil
 }

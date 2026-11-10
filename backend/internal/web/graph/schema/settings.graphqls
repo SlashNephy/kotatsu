@@ -70,10 +70,12 @@ type SystemSettings {
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
-  ニコニコ実況を使うかどうか (設計書 7.4)。既定は false。
+  NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
   ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
   """
   jikkyoEnabled: Boolean!
+  "管理者がオプトインした実況のコメントのソース (#1405)。既定は空。ログインしていれば誰でも読める。"
+  commentSources: [CommentSource!]!
   "字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。"
   drcsReplacements: [DrcsReplacement!]!
   "最後に変えた日時。一度も変えていなければ null。"
@@ -98,8 +100,8 @@ input SystemSettingsInput {
   dataBroadcastIpEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
-  "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
-  jikkyoEnabled: Boolean
+  "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  commentSources: [CommentSource!]
   """
   字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
   表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
@@ -191,4 +193,10 @@ extend type Mutation {
   このインスタンスにマウントされていないプールなら NOT_FOUND を、正しくない値なら BAD_USER_INPUT を返す。
   """
   updateStoragePool(id: String!, input: StoragePoolInput!): StoragePool!
+}
+
+"実況のコメントのソース (#1405)。"
+enum CommentSource {
+  "NX-Jikkyo のライブのコメントと、過去ログ API の過去ログ"
+  NX_JIKKYO
 }

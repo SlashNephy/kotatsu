@@ -1134,6 +1134,8 @@ type PlayerCommandInput struct {
 type PlayerSettings struct {
 	// 実況のコメントを出すかどうか。既定は false。全体の設定と両方で有効なときだけ、外部へ問い合わせる (設計書 7.4)。
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
+	// ユーザーがオプトインした実況のコメントのソース (#1405)。全体の設定でも有効なソースだけが使われる。
+	CommentSources []CommentSource `json:"commentSources"`
 	// 字幕と文字スーパーを出すかどうか。
 	CaptionsEnabled bool `json:"captionsEnabled"`
 	// 実況のコメントの表示とミュートの設定 (#488)。
@@ -1144,8 +1146,11 @@ type PlayerSettings struct {
 
 // プレイヤーの設定の変更。省いた項目は変えない。
 type PlayerSettingsInput struct {
-	JikkyoEnabled   *bool `json:"jikkyoEnabled,omitempty"`
-	CaptionsEnabled *bool `json:"captionsEnabled,omitempty"`
+	// NX-Jikkyo のソースを足すか外す。commentSources を渡したら、そちらを使う。
+	JikkyoEnabled *bool `json:"jikkyoEnabled,omitempty"`
+	// 渡したら、オプトインするソースを置き換える。
+	CommentSources  []CommentSource `json:"commentSources,omitempty"`
+	CaptionsEnabled *bool           `json:"captionsEnabled,omitempty"`
 	// 渡したら、コメントの設定をまるごと置き換える。
 	Comments *CommentSettingsInput `json:"comments,omitempty"`
 	// 渡したら、字幕の設定をまるごと置き換える。
@@ -1663,9 +1668,11 @@ type SystemSettings struct {
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
-	// ニコニコ実況を使うかどうか (設計書 7.4)。既定は false。
+	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
 	// ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
+	// 管理者がオプトインした実況のコメントのソース (#1405)。既定は空。ログインしていれば誰でも読める。
+	CommentSources []CommentSource `json:"commentSources"`
 	// 字幕の外字 (DRCS) を文字に置き換える表 (#825)。MD5 の順に並べる。
 	DrcsReplacements []*DrcsReplacement `json:"drcsReplacements"`
 	// 最後に変えた日時。一度も変えていなければ null。
@@ -1688,8 +1695,8 @@ type SystemSettingsInput struct {
 	DataBroadcastIPEnabled *bool `json:"dataBroadcastIpEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
-	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
-	JikkyoEnabled *bool `json:"jikkyoEnabled,omitempty"`
+	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	CommentSources []CommentSource `json:"commentSources,omitempty"`
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
 	// 表を丸ごと送らせないのは、別の画面や管理者が同時に登録したものを、古い表で上書きして消さないためである。
 	DrcsReplacements []*DrcsReplacementInput `json:"drcsReplacements,omitempty"`
@@ -2355,6 +2362,61 @@ func (e *AssignmentState) UnmarshalJSON(b []byte) error {
 }
 
 func (e AssignmentState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 実況のコメントのソース (#1405)。
+type CommentSource string
+
+const (
+	// NX-Jikkyo のライブのコメントと、過去ログ API の過去ログ
+	CommentSourceNxJikkyo CommentSource = "NX_JIKKYO"
+)
+
+var AllCommentSource = []CommentSource{
+	CommentSourceNxJikkyo,
+}
+
+func (e CommentSource) IsValid() bool {
+	switch e {
+	case CommentSourceNxJikkyo:
+		return true
+	}
+	return false
+}
+
+func (e CommentSource) String() string {
+	return string(e)
+}
+
+func (e *CommentSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CommentSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CommentSource", str)
+	}
+	return nil
+}
+
+func (e CommentSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CommentSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CommentSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

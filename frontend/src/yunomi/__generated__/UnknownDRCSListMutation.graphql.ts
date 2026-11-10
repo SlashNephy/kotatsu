@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<96d7d3d2620081df8ac9a3acc20e0b75>>
+ * @generated SignedSource<<0dec30b3b202a88724e9c3fb5c937101>>
  * @lightSyntaxTransform
  */
 
@@ -8,12 +8,13 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CommentSource = "NX_JIKKYO" | "%future added value";
 export type SystemSettingsInput = {
   animeLinkingEnabled?: boolean | null | undefined;
   archiveRetentionDays?: number | null | undefined;
+  commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
-  jikkyoEnabled?: boolean | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   networkActivityEnabled?: boolean | null | undefined;
   networkActivityRetentionDays?: number | null | undefined;

@@ -4,6 +4,8 @@
 type PlayerSettings {
   "実況のコメントを出すかどうか。既定は false。全体の設定と両方で有効なときだけ、外部へ問い合わせる (設計書 7.4)。"
   jikkyoEnabled: Boolean!
+  "ユーザーがオプトインした実況のコメントのソース (#1405)。全体の設定でも有効なソースだけが使われる。"
+  commentSources: [CommentSource!]!
   "字幕と文字スーパーを出すかどうか。"
   captionsEnabled: Boolean!
   "実況のコメントの表示とミュートの設定 (#488)。"
@@ -77,7 +79,10 @@ enum KeywordMuteMatch {
 プレイヤーの設定の変更。省いた項目は変えない。
 """
 input PlayerSettingsInput {
+  "NX-Jikkyo のソースを足すか外す。commentSources を渡したら、そちらを使う。"
   jikkyoEnabled: Boolean
+  "渡したら、オプトインするソースを置き換える。"
+  commentSources: [CommentSource!]
   captionsEnabled: Boolean
   "渡したら、コメントの設定をまるごと置き換える。"
   comments: CommentSettingsInput

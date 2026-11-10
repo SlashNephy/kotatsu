@@ -17,6 +17,7 @@ import (
 // CommentSettings と CaptionSettings は、コメントと字幕の設定を JSON にしたもの。
 type PlayerSettingsChange struct {
 	JikkyoEnabled   *bool
+	CommentSources  []string
 	CaptionsEnabled *bool
 	CommentSettings []byte
 	CaptionSettings []byte
@@ -40,7 +41,7 @@ func UpdatePlayerSettings(ctx context.Context, db Beginner, clk clock.Clock, use
 			}
 		}
 		row, err := q.UpsertPlayerSettings(ctx, sqlc.UpsertPlayerSettingsParams{
-			UserID: userID, JikkyoEnabled: optionalBool(change.JikkyoEnabled), CaptionsEnabled: optionalBool(change.CaptionsEnabled),
+			UserID: userID, JikkyoEnabled: optionalBool(change.JikkyoEnabled), CommentSources: change.CommentSources, CaptionsEnabled: optionalBool(change.CaptionsEnabled),
 			Now: clk.Now(),
 		})
 		if err != nil {

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<4f2514c3653194c2f9c622f3dd0bae6e>>
+ * @generated SignedSource<<4a2db0b492a071c411d5c7fba5aff6ff>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CommentSource = "NX_JIKKYO" | "%future added value";
 export type KeywordMuteMatch = "EXACT" | "PARTIAL" | "PREFIX" | "REGEX" | "SUFFIX" | "%future added value";
 export type usePlayerSettingsQuery$variables = Record<PropertyKey, never>;
 export type usePlayerSettingsQuery$data = {
@@ -19,6 +20,7 @@ export type usePlayerSettingsQuery$data = {
       readonly superimposeRecorded: boolean;
     };
     readonly captionsEnabled: boolean;
+    readonly commentSources: ReadonlyArray<CommentSource>;
     readonly comments: {
       readonly mixOtherBroadcasts: boolean;
       readonly mutedCommands: ReadonlyArray<string>;
@@ -35,6 +37,7 @@ export type usePlayerSettingsQuery$data = {
     readonly jikkyoEnabled: boolean;
   };
   readonly systemSettings: {
+    readonly commentSources: ReadonlyArray<CommentSource>;
     readonly jikkyoEnabled: boolean;
   };
 };
@@ -51,7 +54,14 @@ var v0 = {
   "name": "jikkyoEnabled",
   "storageKey": null
 },
-v1 = [
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "commentSources",
+  "storageKey": null
+},
+v2 = [
   {
     "alias": null,
     "args": null,
@@ -60,7 +70,8 @@ v1 = [
     "name": "systemSettings",
     "plural": false,
     "selections": [
-      (v0/*:: as any*/)
+      (v0/*:: as any*/),
+      (v1/*:: as any*/)
     ],
     "storageKey": null
   },
@@ -73,6 +84,7 @@ v1 = [
     "plural": false,
     "selections": [
       (v0/*:: as any*/),
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -214,7 +226,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "usePlayerSettingsQuery",
-    "selections": (v1/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "type": "Query",
     "abstractKey": null
   },
@@ -223,19 +235,19 @@ return {
     "argumentDefinitions": [],
     "kind": "Operation",
     "name": "usePlayerSettingsQuery",
-    "selections": (v1/*:: as any*/)
+    "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "de085398e0df2aedee8f59887e91873b",
+    "cacheID": "c31f1a1d71033e1fa7ec87eaba9d7d4f",
     "id": null,
     "metadata": {},
     "name": "usePlayerSettingsQuery",
     "operationKind": "query",
-    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n  }\n  playerSettings {\n    jikkyoEnabled\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n      mixOtherBroadcasts\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
+    "text": "query usePlayerSettingsQuery {\n  systemSettings {\n    jikkyoEnabled\n    commentSources\n  }\n  playerSettings {\n    jikkyoEnabled\n    commentSources\n    captionsEnabled\n    comments {\n      opacity\n      speed\n      scale\n      showAll\n      mutedKeywords {\n        text\n        match\n      }\n      mutedUsers\n      mutedCommands\n      mixOtherBroadcasts\n    }\n    captions {\n      superimposeLive\n      superimposeRecorded\n      stroke\n      backgroundOpacity\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "19fe5f5d2c63b4a14302fbecc2b40f3e";
+(node as any).hash = "f18c924ab7a89f695bbdc3fbf561622c";
 
 export default node;

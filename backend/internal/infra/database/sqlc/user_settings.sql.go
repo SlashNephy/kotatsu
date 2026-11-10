@@ -44,28 +44,29 @@ func (q *Queries) GetCommentSettings(ctx context.Context, userID uuid.UUID) ([]b
 	return comment_settings, err
 }
 
-const getJikkyoAccess = `-- name: GetJikkyoAccess :one
+const getCommentSourceAccess = `-- name: GetCommentSourceAccess :one
 SELECT
-  coalesce((SELECT jikkyo_enabled FROM system_settings WHERE id = 1), false)::boolean AS system_enabled,
-  coalesce((SELECT jikkyo_enabled FROM user_settings WHERE user_id = $1), false)::boolean AS user_enabled
+  coalesce((SELECT comment_sources FROM system_settings WHERE id = 1), '{}')::text[] AS system_sources,
+  coalesce((SELECT comment_sources FROM user_settings WHERE user_id = $1), '{}')::text[] AS user_sources
 `
 
-type GetJikkyoAccessRow struct {
-	SystemEnabled bool
-	UserEnabled   bool
+type GetCommentSourceAccessRow struct {
+	SystemSources []string
+	UserSources   []string
 }
 
-// 実況を使えるかどうかを決める、全体の設定とユーザーの設定 (設計書 7.4)。どちらも、行がなければ無効とする。
-func (q *Queries) GetJikkyoAccess(ctx context.Context, userID uuid.UUID) (GetJikkyoAccessRow, error) {
-	row := q.db.QueryRow(ctx, getJikkyoAccess, userID)
-	var i GetJikkyoAccessRow
-	err := row.Scan(&i.SystemEnabled, &i.UserEnabled)
+// 実況のコメントのソースを使えるかどうかを決める、全体の設定とユーザーの設定 (#1405、設計書 7.4)。行がなければ空とする。
+func (q *Queries) GetCommentSourceAccess(ctx context.Context, userID uuid.UUID) (GetCommentSourceAccessRow, error) {
+	row := q.db.QueryRow(ctx, getCommentSourceAccess, userID)
+	var i GetCommentSourceAccessRow
+	err := row.Scan(&i.SystemSources, &i.UserSources)
 	return i, err
 }
 
 const getPlayerSettings = `-- name: GetPlayerSettings :one
 SELECT
-  coalesce(s.jikkyo_enabled, false)::boolean AS jikkyo_enabled,
+  coalesce('nx_jikkyo' = ANY(s.comment_sources), false)::boolean AS jikkyo_enabled,
+  coalesce(s.comment_sources, '{}')::text[] AS comment_sources,
   coalesce(s.captions_enabled, true)::boolean AS captions_enabled,
   s.comment_settings,
   s.caption_settings
@@ -75,6 +76,7 @@ LEFT JOIN user_settings s ON s.user_id = u.id
 
 type GetPlayerSettingsRow struct {
 	JikkyoEnabled   bool
+	CommentSources  []string
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
@@ -86,6 +88,7 @@ func (q *Queries) GetPlayerSettings(ctx context.Context, userID uuid.UUID) (GetP
 	var i GetPlayerSettingsRow
 	err := row.Scan(
 		&i.JikkyoEnabled,
+		&i.CommentSources,
 		&i.CaptionsEnabled,
 		&i.CommentSettings,
 		&i.CaptionSettings,
@@ -196,17 +199,27 @@ func (q *Queries) UnpinService(ctx context.Context, arg UnpinServiceParams) erro
 }
 
 const upsertPlayerSettings = `-- name: UpsertPlayerSettings :one
-INSERT INTO user_settings (user_id, jikkyo_enabled, captions_enabled, updated_at)
-VALUES ($1, coalesce($2::boolean, false), coalesce($3::boolean, true), $4)
+INSERT INTO user_settings (user_id, comment_sources, captions_enabled, updated_at)
+VALUES (
+  $1,
+  coalesce($2::text[], CASE WHEN $3::boolean THEN ARRAY['nx_jikkyo']::text[] ELSE '{}'::text[] END),
+  coalesce($4::boolean, true), $5
+)
 ON CONFLICT (user_id) DO UPDATE SET
-  jikkyo_enabled = coalesce($2::boolean, user_settings.jikkyo_enabled),
-  captions_enabled = coalesce($3::boolean, user_settings.captions_enabled),
+  comment_sources = CASE
+    WHEN $2::text[] IS NOT NULL THEN $2::text[]
+    WHEN $3::boolean AND NOT 'nx_jikkyo' = ANY(user_settings.comment_sources) THEN array_append(user_settings.comment_sources, 'nx_jikkyo')
+    WHEN NOT $3::boolean THEN array_remove(user_settings.comment_sources, 'nx_jikkyo')
+    ELSE user_settings.comment_sources
+  END,
+  captions_enabled = coalesce($4::boolean, user_settings.captions_enabled),
   updated_at = EXCLUDED.updated_at
-RETURNING jikkyo_enabled, captions_enabled, comment_settings, caption_settings
+RETURNING ('nx_jikkyo' = ANY(comment_sources))::boolean AS jikkyo_enabled, comment_sources, captions_enabled, comment_settings, caption_settings
 `
 
 type UpsertPlayerSettingsParams struct {
 	UserID          uuid.UUID
+	CommentSources  []string
 	JikkyoEnabled   pgtype.Bool
 	CaptionsEnabled pgtype.Bool
 	Now             time.Time
@@ -214,15 +227,17 @@ type UpsertPlayerSettingsParams struct {
 
 type UpsertPlayerSettingsRow struct {
 	JikkyoEnabled   bool
+	CommentSources  []string
 	CaptionsEnabled bool
 	CommentSettings []byte
 	CaptionSettings []byte
 }
 
-// プレイヤーの設定を変える。null の項目は変えない。
+// プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
 func (q *Queries) UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error) {
 	row := q.db.QueryRow(ctx, upsertPlayerSettings,
 		arg.UserID,
+		arg.CommentSources,
 		arg.JikkyoEnabled,
 		arg.CaptionsEnabled,
 		arg.Now,
@@ -230,6 +245,7 @@ func (q *Queries) UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSett
 	var i UpsertPlayerSettingsRow
 	err := row.Scan(
 		&i.JikkyoEnabled,
+		&i.CommentSources,
 		&i.CaptionsEnabled,
 		&i.CommentSettings,
 		&i.CaptionSettings,
