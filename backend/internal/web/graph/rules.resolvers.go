@@ -124,7 +124,7 @@ func (r *queryResolver) PreviewRule(ctx context.Context, input model.RuleInput, 
 
 // UpcomingReservationCount is the resolver for the upcomingReservationCount field.
 func (r *ruleResolver) UpcomingReservationCount(ctx context.Context, obj *model.Rule) (int, error) {
-	return loadersFrom(ctx).UpcomingReservationCounts.Load(ctx, obj.Key)
+	return loadersFrom(ctx).UpcomingReservationCounts.Load(ctx, obj.Key)()
 }
 
 // ProgramConditions returns generated.ProgramConditionsResolver implementation.

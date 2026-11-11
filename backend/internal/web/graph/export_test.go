@@ -1,6 +1,9 @@
 package graph
 
 import (
+	"context"
+
+	"github.com/graph-gophers/dataloader/v7"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -14,4 +17,9 @@ func NewLoaders(pool *pgxpool.Pool) *Loaders {
 	clk := new(clock.Real)
 
 	return newLoaders(pool, query.New(pool), clk, rule.NewRules(clk, audit.NewRecorder(clk)))
+}
+
+// LoadAll は loadAll をテストから呼ぶ。
+func LoadAll[K comparable, V any](ctx context.Context, loader *dataloader.Loader[K, V], keys []K) ([]V, error) {
+	return loadAll(ctx, loader, keys)
 }

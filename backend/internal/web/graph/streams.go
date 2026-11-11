@@ -136,7 +136,7 @@ func (r *Resolver) serviceVideoFormat(ctx context.Context, obj *model.Service) (
 
 // recordingVideoFormat は、録画の映像の種類を、録画を始めたときの番組の解像度と、サービスのチャンネル種別から返す。
 func (r *Resolver) recordingVideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
-	service, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	service, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
 		return "", err
 	}

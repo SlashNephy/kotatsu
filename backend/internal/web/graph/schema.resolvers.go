@@ -16,7 +16,7 @@ func (r *queryResolver) Viewer(ctx context.Context) (*model.User, error) {
 	if principal == nil {
 		return nil, NewError(CodeUnauthenticated, "login required")
 	}
-	user, err := loadersFrom(ctx).Users.Load(ctx, principal.UserID)
+	user, err := loadersFrom(ctx).Users.Load(ctx, principal.UserID)()
 	if err != nil {
 		return nil, err
 	}

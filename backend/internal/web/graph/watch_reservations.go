@@ -60,7 +60,7 @@ func (r *Resolver) watchReserved(ctx context.Context, obj *model.Program) (bool,
 
 	return loadersFrom(ctx).WatchReserved.Load(ctx, watchReservedKey{
 		UserID: principal.UserID, Program: domain.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)},
-	})
+	})()
 }
 
 // listWatchReservations は、ログイン中のユーザーの視聴予約を、放送の早い順に返す。

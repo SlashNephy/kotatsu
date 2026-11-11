@@ -63,7 +63,7 @@ func (r *serviceResolver) TimeshiftBuffer(ctx context.Context, obj *model.Servic
 
 // Service is the resolver for the service field.
 func (r *timeshiftChannelResolver) Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error) {
-	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (r *timeshiftChannelResolver) Service(ctx context.Context, obj *model.Times
 
 // Service is the resolver for the service field.
 func (r *timeshiftProgramResolver) Service(ctx context.Context, obj *model.TimeshiftProgram) (*model.Service, error) {
-	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/uuid v1.6.0
+	github.com/graph-gophers/dataloader/v7 v7.2.0
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pressly/goose/v3 v3.29.0
@@ -24,7 +25,6 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/vektah/gqlparser/v2 v2.5.64
-	github.com/vikstrous/dataloadgen v0.0.10
 	go.opentelemetry.io/contrib/bridges/prometheus v0.72.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	go.opentelemetry.io/otel v1.47.0

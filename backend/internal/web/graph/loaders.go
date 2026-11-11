@@ -2,13 +2,14 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/graph-gophers/dataloader/v7"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -22,22 +23,22 @@ const loaderWait = time.Millisecond
 // Loaders は、1 つのリクエストの中で、同じ種類のデータをまとめて引く dataloader (設計書 9.1)。
 // N+1 問題を防ぐため、リゾルバは DB を直接引かずに、ここから引く。リクエストごとに作り直す。
 type Loaders struct {
-	Users        *dataloadgen.Loader[uuid.UUID, *domain.User]
-	Services     *dataloadgen.Loader[int64, *domain.Service]
-	ChannelTypes *dataloadgen.Loader[string, *domain.ChannelType]
-	Rules        *dataloadgen.Loader[uuid.UUID, *rule.Rule]
+	Users        *dataloader.Loader[uuid.UUID, *domain.User]
+	Services     *dataloader.Loader[int64, *domain.Service]
+	ChannelTypes *dataloader.Loader[string, *domain.ChannelType]
+	Rules        *dataloader.Loader[uuid.UUID, *rule.Rule]
 	// RuleIDs は、予約に一致したルールの ID。ルールに一致していない予約では空にする。
-	RuleIDs *dataloadgen.Loader[uuid.UUID, []uuid.UUID]
+	RuleIDs *dataloader.Loader[uuid.UUID, []uuid.UUID]
 	// UpcomingReservationCounts は、ルールに一致した予約のうち、終わっていないものの件数。
-	UpcomingReservationCounts *dataloadgen.Loader[uuid.UUID, int]
+	UpcomingReservationCounts *dataloader.Loader[uuid.UUID, int]
 	// ProgramReservations は、番組の予約。予約のない番組では nil にする。
-	ProgramReservations *dataloadgen.Loader[domain.ProgramKey, *domain.Reservation]
+	ProgramReservations *dataloader.Loader[domain.ProgramKey, *domain.Reservation]
 	// WatchReserved は、ユーザーが番組を視聴予約しているかどうか。
-	WatchReserved *dataloadgen.Loader[watchReservedKey, bool]
+	WatchReserved *dataloader.Loader[watchReservedKey, bool]
 	// ProgramRecorded は、番組の録画があるかどうか (#1278)。番組表の番組ごとに引かず、まとめて引く。
-	ProgramRecorded *dataloadgen.Loader[query.ProgramSpan, bool]
+	ProgramRecorded *dataloader.Loader[query.ProgramSpan, bool]
 	// JikkyoAccess は、ユーザーが実況を使えるかどうか (設計書 7.4)。一覧のサービスごとに引かず、リクエストにつき 1 度だけ読む。
-	JikkyoAccess *dataloadgen.Loader[uuid.UUID, domain.JikkyoAccess]
+	JikkyoAccess *dataloader.Loader[uuid.UUID, domain.JikkyoAccess]
 }
 
 // watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
@@ -51,7 +52,7 @@ type loadersKey struct{}
 // newLoaders は、db から引く Loaders を作る。
 func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule.Rules) *Loaders {
 	return &Loaders{
-		Users: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*domain.User, []error) {
+		Users: newLoader(func(ctx context.Context, ids []uuid.UUID) ([]*domain.User, []error) {
 			rows, err := q.ListUsersByIDs(ctx, ids)
 			if err != nil {
 				return failAll[*domain.User](len(ids), fmt.Errorf("failed to load users: %w", err))
@@ -62,8 +63,8 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return orderBy(ids, byID, "user")
-		}, dataloadgen.WithWait(loaderWait)),
-		Services: dataloadgen.NewLoader(func(ctx context.Context, ids []int64) ([]*domain.Service, []error) {
+		}),
+		Services: newLoader(func(ctx context.Context, ids []int64) ([]*domain.Service, []error) {
 			rows, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: ids})
 			if err != nil {
 				return failAll[*domain.Service](len(ids), fmt.Errorf("failed to load services: %w", err))
@@ -74,8 +75,8 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return orderBy(ids, byID, "service")
-		}, dataloadgen.WithWait(loaderWait)),
-		ChannelTypes: dataloadgen.NewLoader(func(ctx context.Context, types []string) ([]*domain.ChannelType, []error) {
+		}),
+		ChannelTypes: newLoader(func(ctx context.Context, types []string) ([]*domain.ChannelType, []error) {
 			rows, err := q.ListChannelTypesByTypes(ctx, types)
 			if err != nil {
 				return failAll[*domain.ChannelType](len(types), fmt.Errorf("failed to load channel types: %w", err))
@@ -86,16 +87,16 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return orderBy(types, byType, "channel type")
-		}, dataloadgen.WithWait(loaderWait)),
-		Rules: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]*rule.Rule, []error) {
+		}),
+		Rules: newLoader(func(ctx context.Context, ids []uuid.UUID) ([]*rule.Rule, []error) {
 			byID, err := rules.ListByIDs(ctx, db, ids)
 			if err != nil {
 				return failAll[*rule.Rule](len(ids), err)
 			}
 
 			return orderBy(ids, byID, "rule")
-		}, dataloadgen.WithWait(loaderWait)),
-		RuleIDs: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([][]uuid.UUID, []error) {
+		}),
+		RuleIDs: newLoader(func(ctx context.Context, ids []uuid.UUID) ([][]uuid.UUID, []error) {
 			byID, err := q.ReservationRuleIDs(ctx, ids)
 			if err != nil {
 				return failAll[[]uuid.UUID](len(ids), err)
@@ -106,8 +107,8 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return ruleIDs, make([]error, len(ids))
-		}, dataloadgen.WithWait(loaderWait)),
-		UpcomingReservationCounts: dataloadgen.NewLoader(func(ctx context.Context, ids []uuid.UUID) ([]int, []error) {
+		}),
+		UpcomingReservationCounts: newLoader(func(ctx context.Context, ids []uuid.UUID) ([]int, []error) {
 			byID, err := q.CountUpcomingReservationsByRules(ctx, ids, clk.Now())
 			if err != nil {
 				return failAll[int](len(ids), err)
@@ -119,8 +120,8 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return counts, make([]error, len(ids))
-		}, dataloadgen.WithWait(loaderWait)),
-		ProgramReservations: dataloadgen.NewLoader(func(ctx context.Context, keys []domain.ProgramKey) ([]*domain.Reservation, []error) {
+		}),
+		ProgramReservations: newLoader(func(ctx context.Context, keys []domain.ProgramKey) ([]*domain.Reservation, []error) {
 			byKey, err := q.ListReservationsByPrograms(ctx, keys)
 			if err != nil {
 				return failAll[*domain.Reservation](len(keys), err)
@@ -131,16 +132,16 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return found, make([]error, len(keys))
-		}, dataloadgen.WithWait(loaderWait)),
-		WatchReserved: dataloadgen.NewLoader(func(ctx context.Context, keys []watchReservedKey) ([]bool, []error) {
+		}),
+		WatchReserved: newLoader(func(ctx context.Context, keys []watchReservedKey) ([]bool, []error) {
 			return loadWatchReserved(ctx, q, keys)
-		}, dataloadgen.WithWait(loaderWait)),
-		ProgramRecorded: dataloadgen.NewLoader(func(ctx context.Context, keys []query.ProgramSpan) ([]bool, []error) {
+		}),
+		ProgramRecorded: newLoader(func(ctx context.Context, keys []query.ProgramSpan) ([]bool, []error) {
 			return loadProgramRecorded(ctx, q, keys)
-		}, dataloadgen.WithWait(loaderWait)),
-		JikkyoAccess: dataloadgen.NewLoader(func(ctx context.Context, userIDs []uuid.UUID) ([]domain.JikkyoAccess, []error) {
+		}),
+		JikkyoAccess: newLoader(func(ctx context.Context, userIDs []uuid.UUID) ([]domain.JikkyoAccess, []error) {
 			return loadJikkyoAccess(ctx, q, userIDs)
-		}, dataloadgen.WithWait(loaderWait)),
+		}),
 	}
 }
 
@@ -194,6 +195,27 @@ func loadWatchReserved(ctx context.Context, q *query.Queries, keys []watchReserv
 	}
 
 	return found, make([]error, len(keys))
+}
+
+// newLoader は、fetch でまとめて引く dataloader を作る。fetch は、値とエラーをキーの順に、キーと同じ数だけ返す。
+func newLoader[K comparable, V any](fetch func(ctx context.Context, keys []K) ([]V, []error)) *dataloader.Loader[K, V] {
+	return dataloader.NewBatchedLoader(func(ctx context.Context, keys []K) []*dataloader.Result[V] {
+		values, errs := fetch(ctx, keys)
+		results := make([]*dataloader.Result[V], len(keys))
+		for i := range keys {
+			results[i] = &dataloader.Result[V]{Data: values[i], Error: errs[i]}
+		}
+
+		return results
+	}, dataloader.WithWait[K, V](loaderWait))
+}
+
+// loadAll は、keys の値をまとめて引く。引けなかったキーがあれば、キーごとのエラーを 1 つにまとめて返す。
+// 値は、エラーがあってもキーの順にキーと同じ数だけ返す。
+func loadAll[K comparable, V any](ctx context.Context, loader *dataloader.Loader[K, V], keys []K) ([]V, error) {
+	values, errs := loader.LoadMany(ctx, keys)()
+
+	return values, errors.Join(errs...)
 }
 
 // failAll は、まとめて引いたすべてのキーに、同じエラーを返す。
