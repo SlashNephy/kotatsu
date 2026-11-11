@@ -58,6 +58,11 @@ release:
   github:
     owner: SlashNephy
     name: kotatsu
+  # リリースノートから、更新の前に読む破壊的変更をたどれるようにする (#1438)。
+  footer: |
+    ## 破壊的変更
+
+    更新する前に、[破壊的変更](https://github.com/SlashNephy/kotatsu/blob/{{ .Tag }}/docs/breaking-changes.md)で、今の版より後の版の対処を確かめてください。
   # Helm Chart も、公開と同時に添付する。公開した後のリリースには添付できない (immutable releases)。
   # Chart は、release.yml が GoReleaser の前に KOTATSU_CHART_DIR に作る。
   extra_files:
