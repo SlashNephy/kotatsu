@@ -36,6 +36,9 @@ const (
 	paramGrantType     = "grant_type"
 	errorInvalidGrant  = "invalid_grant"
 	errorInvalidTarget = "invalid_target"
+	errorInvalidScope  = "invalid_scope"
+	// scopeReadWrite は、読むと書くの両方のスコープ。
+	scopeReadWrite = "mcp:read mcp:write"
 )
 
 func testNow() time.Time {
@@ -154,6 +157,56 @@ func (f *fixture) refresh(t *testing.T, refreshToken string) (int, map[string]an
 	})
 }
 
+func (f *fixture) refreshWithScope(t *testing.T, refreshToken, scope string) (int, map[string]any) {
+	t.Helper()
+
+	return post(t, f.server.TokenHandler(slog.New(slog.DiscardHandler)), oauth.ExchangePath, url.Values{
+		paramGrantType: {grantRefreshToken}, grantRefreshToken: {refreshToken}, paramClientID: {f.clientID}, paramResource: {testResource},
+		"scope": {scope},
+	})
+}
+
+// TestRefreshScope は、トークンの更新で求められた scope を、スコープの包含関係で確かめることを確かめる (#1415)。
+// 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求めても断らない。広げることはできない。
+func TestRefreshScope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		granted   []string
+		scope     string
+		wantError string
+		wantScope string
+	}{
+		{name: "書くだけの連携を、読むスコープに狭める", granted: []string{oauth.ScopeWrite}, scope: oauth.ScopeRead, wantScope: scopeReadWrite},
+		{name: "書くだけの連携に、連携のスコープを求める", granted: []string{oauth.ScopeWrite}, scope: oauth.ScopeWrite, wantScope: scopeReadWrite},
+		{name: "読むだけの連携を、書くスコープに広げる", granted: []string{oauth.ScopeRead}, scope: oauth.ScopeWrite, wantError: errorInvalidScope},
+		{name: "読むだけの連携を、読むと書くに広げる", granted: []string{oauth.ScopeRead}, scope: scopeReadWrite, wantError: errorInvalidScope},
+		{name: "読むだけの連携に、連携のスコープを求める", granted: []string{oauth.ScopeRead}, scope: oauth.ScopeRead, wantScope: oauth.ScopeRead},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			_, body := f.exchange(t, f.approve(t, f.member, tt.granted))
+			refresh, _ := body[grantRefreshToken].(string)
+
+			status, body := f.refreshWithScope(t, refresh, tt.scope)
+
+			if tt.wantError != "" {
+				assert.Equal(t, http.StatusBadRequest, status, body)
+				assert.Equal(t, tt.wantError, body["error"])
+
+				return
+			}
+			require.Equal(t, http.StatusOK, status, body)
+			// 狭めて求められても、連携のスコープのまま発行する。
+			assert.Equal(t, tt.wantScope, body["scope"])
+		})
+	}
+}
+
 // TestAuthorizationCodeFlow は、同意から、トークンの発行、入れ替え、使い回しを見つけて取り消すまでを確かめる。
 func TestAuthorizationCodeFlow(t *testing.T) {
 	t.Parallel()
@@ -170,7 +223,7 @@ func TestAuthorizationCodeFlow(t *testing.T) {
 	require.Equal(t, http.StatusOK, status, body)
 	assert.Equal(t, "Bearer", body["token_type"])
 	assert.InDelta(t, 3600, body["expires_in"], 0)
-	assert.Equal(t, "mcp:read mcp:write", body["scope"])
+	assert.Equal(t, scopeReadWrite, body["scope"])
 	access, _ := body["access_token"].(string)
 	refresh, _ := body[grantRefreshToken].(string)
 	assert.True(t, strings.HasPrefix(access, "kotatsu_at_"))
@@ -315,7 +368,7 @@ func TestPrepareErrors(t *testing.T) {
 		{name: "plain PKCE", edit: func(q url.Values) { q.Set("code_challenge_method", "plain") }, wantCode: "invalid_request"},
 		{name: "no resource", edit: func(q url.Values) { q.Del(paramResource) }, wantCode: errorInvalidTarget},
 		{name: "other resource", edit: func(q url.Values) { q.Set(paramResource, "https://other.example/mcp") }, wantCode: errorInvalidTarget},
-		{name: "no supported scope", edit: func(q url.Values) { q.Set("scope", "openid profile") }, wantCode: "invalid_scope"},
+		{name: "no supported scope", edit: func(q url.Values) { q.Set("scope", "openid profile") }, wantCode: errorInvalidScope},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

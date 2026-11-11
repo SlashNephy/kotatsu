@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -169,8 +168,9 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 			return &tokenError{code: errorInvalidTarget, description: "resource does not match the grant"}
 		}
 		// スコープを狭めて求められても、連携のスコープのまま発行する。広げることはできない。
+		// 書くスコープでは読むツールも使えるので、書くだけの連携に読むスコープを求められても断らない (#1415)。
 		for scope := range strings.FieldsSeq(form.Get("scope")) {
-			if !slices.Contains(row.Scopes, scope) {
+			if !HasScope(row.Scopes, scope) {
 				return &tokenError{code: errorInvalidScope, description: "scope exceeds the grant"}
 			}
 		}
