@@ -4,7 +4,7 @@
 // 映像が終わると切れたものとして扱われ、画面のつなぎ直しで、また初めから流れる。
 
 // durationSeconds は、映像の長さ (frontend/scripts/build-demo-stream.sh で作る長さ)。
-const durationSeconds = 20;
+const durationSeconds = 64.064;
 // leadSeconds は、初めに一気に渡す分。プレイヤーが再生を始めるのに足りるだけ先に渡す。
 const leadSeconds = 2;
 // chunkBytes は、1 回に渡す大きさ。TS のパケット (188 バイト) の倍数にする。

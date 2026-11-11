@@ -6,7 +6,8 @@
 // 座標は 1920x1080 で書き、ffmpeg で 1440x1080 (放送と同じ、横に縮めた 16:9) にする。
 // ASS の色は &HBBGGRR& の順で、透明度は &H00& (不透明) から &HFF& (透明) で書く。
 
-const duration = 20;
+// duration は、映像の長さ (秒)。scripts/build-demo-stream.sh で作る長さ。映像は繰り返して流すので、終わりから頭へ絵がつながるようにする。
+const duration = 64.064;
 const font = 'Rounded M+ 1m WadaLab mix';
 
 // color は、#RRGGBB を ASS の &HBBGGRR& にする。
@@ -113,11 +114,14 @@ shape({
 });
 shape({ layer: 0, path: circle(1480, 250, 78), fill: color('#fff3b8'), tags: '\\blur3' });
 
-// 雲。円を重ねて形を作り、20 秒かけてゆっくり右へ流す。
+// 雲。円を重ねて形を作り、ゆっくり右へ流す。
+// 映像を繰り返したときに雲が跳ばないよう、雲ごとに、映像の長さを 1 巡として、現れ、dx だけ流れ、消える。
+// 巡りの始まり (phase) を雲ごとにずらし、一度に全部が消えないようにする。巡りの途中で映像の頭に戻るので、2 つの行に分けて描く。
+const cloudFade = 5;
 const clouds = [
-  { x: 260, y: 210, s: 1.0, dx: 160 },
-  { x: 900, y: 140, s: 0.7, dx: 110 },
-  { x: 1180, y: 330, s: 0.85, dx: 140 },
+  { x: 180, y: 210, s: 1.0, dx: 420, phase: 0.35 },
+  { x: 820, y: 140, s: 0.7, dx: 300, phase: 0.6 },
+  { x: 1080, y: 330, s: 0.85, dx: 360, phase: 0.85 },
 ];
 for (const cloud of clouds) {
   const s = cloud.s;
@@ -127,11 +131,24 @@ for (const cloud of clouds) {
     circle(170 * s, 0, 70 * s),
     circle(90 * s, 30 * s, 60 * s),
   ].join(' ');
+  // x は、巡りの中の位置 (0 から 1) での、雲の左端。
+  const x = (progress) => Math.round(cloud.x + cloud.dx * progress);
+  const split = duration * (1 - cloud.phase);
+  // 映像の頭から巡りの終わりまで。終わりに消える。
   shape({
     layer: 1,
     path,
     fill: color('#ffffff'),
-    tags: `\\blur4\\move(${cloud.x},${cloud.y},${cloud.x + cloud.dx},${cloud.y},0,${duration * 1000})`,
+    tags: `\\blur4\\move(${x(cloud.phase)},${cloud.y},${x(1)},${cloud.y},0,${Math.round(split * 1000)})\\fad(0,${cloudFade * 1000})`,
+    to: split,
+  });
+  // 巡りの始まりから映像の終わりまで。始まりに現れる。
+  shape({
+    layer: 1,
+    path,
+    fill: color('#ffffff'),
+    tags: `\\blur4\\move(${x(0)},${cloud.y},${x(cloud.phase)},${cloud.y},0,${Math.round((duration - split) * 1000)})\\fad(${cloudFade * 1000},0)`,
+    from: split,
   });
 }
 
@@ -283,9 +300,12 @@ text({
 });
 
 // テロップ (画面の下)。左から差し込み、入れ替える。字幕は、テロップに重ならないよう、この上に出す。
+// 曲 (scripts/demo-stream-music.mjs) の A、B、A' の区切り (約 21.4 秒ごと) とは揃えず、16 秒ずつで入れ替える。
 const telops = [
-  { from: 1, to: 9.6, tag: 'こたつ山のふもと', main: 'けさは冷え込み　霜が降りました' },
-  { from: 10.4, to: 19.4, tag: 'きょうの天気', main: '晴れ　日中は　ぽかぽか陽気に' },
+  { from: 1, to: 15.4, tag: 'こたつ山のふもと', main: 'けさは冷え込み　霜が降りました' },
+  { from: 16.4, to: 31.4, tag: 'きょうの天気', main: '晴れ　日中は　ぽかぽか陽気に' },
+  { from: 32.4, to: 47.4, tag: 'こたつ市の最高気温', main: '１４℃　きのうより３℃高く' },
+  { from: 48.4, to: 63.0, tag: '週末の天気', main: '土曜も晴れ　紅葉が見ごろに' },
 ];
 for (const telop of telops) {
   const slide = (x, y) => `\\move(${x - 60},${y},${x},${y},0,300)\\fad(300,300)`;

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# 静的なデモ (#832) で、ライブ視聴と録画の再生に流す、20 秒の映像を作る (#1050)。
+# 静的なデモ (#832) で、ライブ視聴と録画の再生に流す、64.064 秒の映像を作る (#1050)。
+# 映像は、demo/stream-sw.js が繰り返して流すので、つなぎ目で絵も音も途切れないように作る。
 #
 #   MISE_ENV=demo-stream mise run //frontend:demo-stream
 #
@@ -33,17 +34,30 @@ mkdir "${work}/fonts"
 cp "${font}" "${work}/fonts/"
 node scripts/demo-stream-scene.mjs >"${work}/scene.ass"
 
-node scripts/demo-stream-music.mjs "${work}/music.wav"
+# 長さは、映像の 1920 フレーム (29.97 fps) と AAC の 3003 フレーム (1024 標本) がちょうど収まる 64.064 秒にする。
+# 繰り返すときに、映像と音声の時刻を、どちらも同じ長さだけずらせば済む。
 
-# つなぎ目で音が途切れて聞こえないよう、頭と終わりを絞る。
+# 音声は、繰り返しの前後に AAC の 1 フレーム分ずつ続きを付けた WAV を、先に AAC (ADTS) にする。
+# 符号化器は、頭に遅延の分の 1 フレームを足すので、それを除いた 3003 フレームを取り出し、映像の頭より 1 フレーム前から並べる。
+# 取り出した頭のフレームは、前の繰り返しの終わりとのつながりを符号化したものなので、繰り返しても音が途切れない。
+node scripts/demo-stream-music.mjs "${work}/music.wav"
 ffmpeg -hide_banner -loglevel error -y \
-  -f lavfi -i 'gradients=size=1920x1080:rate=30000/1001:duration=20:c0=0x3b82c4:c1=0xd6ecff:x0=960:y0=0:x1=960:y1=760:speed=0' \
   -i "${work}/music.wav" \
-  -filter_complex "[0:v]ass=${work}/scene.ass:fontsdir=${work}/fonts,scale=1440:1080,setsar=4/3,format=yuv420p[v];[1:a]afade=t=in:d=0.5,afade=t=out:st=19.5:d=0.5[a]" \
-  -map '[v]' -map '[a]' \
-  -c:v mpeg2video -q:v 6 -g 90 -bf 2 -aspect 16:9 \
-  -c:a aac -b:a 128k -ac 2 \
-  -fflags +bitexact -flags:v +bitexact -flags:a +bitexact \
+  -c:a aac -b:a 128k -ac 2 -fflags +bitexact -flags:a +bitexact \
+  -f adts "${work}/music.aac"
+ffmpeg -hide_banner -loglevel error -y \
+  -i "${work}/music.aac" -ss 0.0213333 -t 64.064 -c copy -f adts "${work}/loop.aac"
+
+# GOP は閉じ (+cgop)、途中の I フレームから流し始めても、前の GOP なしに復号できるようにする。
+# 閉じた GOP は場面の切り替わりの検出と併せられないので、検出を止め (-sc_threshold)、I フレームを 90 フレームごとに揃える。
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i 'gradients=size=1920x1080:rate=30000/1001:duration=64.064:c0=0x3b82c4:c1=0xd6ecff:x0=960:y0=0:x1=960:y1=760:speed=0' \
+  -itsoffset -0.0213333 -i "${work}/loop.aac" \
+  -filter_complex "[0:v]ass=${work}/scene.ass:fontsdir=${work}/fonts,scale=1440:1080,setsar=4/3,format=yuv420p[v]" \
+  -map '[v]' -map 1:a \
+  -c:v mpeg2video -q:v 6 -g 90 -bf 2 -sc_threshold 1000000000 -aspect 16:9 -frames:v 1920 \
+  -c:a copy \
+  -fflags +bitexact -flags:v +bitexact+cgop \
   -f mpegts -mpegts_m2ts_mode 0 "${work}/video.ts"
 
 node scripts/demo-stream-captions.mjs "${work}/video.ts" demo/stream.m2ts

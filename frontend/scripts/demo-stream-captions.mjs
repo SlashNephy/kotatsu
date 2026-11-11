@@ -28,10 +28,20 @@ import {
 const captions = [
   { from: 1.0, to: 4.8, lines: ['こたつ山のふもとから', 'けさの様子をお伝えします'] },
   { from: 5.2, to: 9.4, lines: ['空気は冷たく', '畑には霜が降りました'] },
-  { from: 10.6, to: 14.6, lines: ['きょうは一日', 'よく晴れる見込みです'] },
-  { from: 15.0, to: 19.0, lines: ['こたつでぬくぬくしながら', 'お出かけの準備をどうぞ'] },
+  { from: 10.0, to: 14.6, lines: ['吐く息も白くなる', '冷え込みとなりました'] },
+  { from: 16.6, to: 20.6, lines: ['きょうは一日', 'よく晴れる見込みです'] },
+  { from: 21.0, to: 25.4, lines: ['日差しがたっぷり届き', '昼間はぽかぽか陽気です'] },
+  { from: 26.0, to: 30.6, lines: ['洗濯物も', 'よく乾きそうです'] },
+  { from: 32.6, to: 36.6, lines: ['こたつ市の最高気温は', '１４℃の予想です'] },
+  { from: 37.0, to: 41.4, lines: ['きのうより３℃高く', '過ごしやすくなります'] },
+  { from: 42.0, to: 46.6, lines: ['ただ朝晩は冷えるので', '上着があると安心です'] },
+  { from: 48.6, to: 52.6, lines: ['週末も', '晴れる日が続きます'] },
+  { from: 53.0, to: 57.4, lines: ['山の紅葉は', 'ちょうど見ごろです'] },
+  { from: 58.0, to: 62.6, lines: ['こたつでぬくぬくしながら', 'お出かけの準備をどうぞ'] },
 ];
 
+// duration は、映像の長さ (秒)。scripts/build-demo-stream.sh で作る長さ。
+const duration = 64.064;
 const packetSize = 188;
 const captionPID = 0x0130;
 // leadSeconds は、字幕の PES を、表示する時刻 (PTS) のどれだけ前に差し込むか。PCR を基準に数える。
@@ -284,7 +294,7 @@ if (firstVideoPTS === undefined) {
 
 // 差し込む PES。字幕管理データは、途中から見始めても字幕が出るよう、5 秒ごとに送る。
 const units = [];
-for (let at = 0; at < 20; at += 5) {
+for (let at = 0; at < duration; at += 5) {
   units.push({ at, data: management() });
 }
 for (const caption of captions) {
