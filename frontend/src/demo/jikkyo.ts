@@ -46,8 +46,8 @@ export function demoCommentGap(n: number): number {
   return 0.6 + ((n * 7) % 5) * 0.2;
 }
 
-// demoRecordedComments は、録画の再生で流す過去ログ。録画は、どれもデモの映像 (20 秒) を流すので、その間に並べる。
-export function demoRecordedComments(seconds = 20): JikkyoComment[] {
+// demoRecordedComments は、録画の再生で流す過去ログ。録画は、どれもデモの映像 (64 秒) を流すので、その間に並べる。
+export function demoRecordedComments(seconds = 64): JikkyoComment[] {
   const comments: JikkyoComment[] = [];
   let time = 0.5;
   for (let n = 0; time < seconds; n++) {

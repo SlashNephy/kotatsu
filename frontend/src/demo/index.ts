@@ -101,7 +101,8 @@ function createNetwork(executor: Executor) {
   return Network.create(fetchQuery, subscribe);
 }
 
-// registerStreamWorker は、ライブ視聴の映像を実時間の速さで流す Service Worker (demo/stream-sw.js) を登録する。
+// registerStreamWorker は、ライブ視聴と録画の再生で、デモの映像を繰り返して流す Service Worker (demo/stream-sw.js) を登録する。
+// Service Worker は、ES モジュール (demo/stream-loop.js) を読むので、モジュールとして登録する。
 // 登録を待たずに画面を出す。Service Worker は登録した直後のページも受け持つので、ライブ視聴を開くまでには間に合う。
 function registerStreamWorker(): void {
   if (!('serviceWorker' in navigator)) {
@@ -110,7 +111,7 @@ function registerStreamWorker(): void {
   const base = import.meta.env.BASE_URL;
   // 登録できなくても、ライブ視聴が映らないだけなので、画面はそのまま出す。
   navigator.serviceWorker
-    .register(`${base}stream-sw.js`, { scope: base })
+    .register(`${base}stream-sw.js`, { scope: base, type: 'module' })
     .catch((error: unknown) => {
       console.warn('failed to register the demo stream worker', error);
     });
