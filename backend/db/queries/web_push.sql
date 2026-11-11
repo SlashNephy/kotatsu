@@ -30,15 +30,27 @@ SELECT * FROM web_push_subscriptions WHERE id = @id;
 SELECT * FROM web_push_subscriptions WHERE user_id = @user_id ORDER BY created_at, id;
 
 -- name: ListWebPushSubscriptionsForKind :many
--- イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
+-- イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID と、その持ち主を返す。設定がなければ受け取る。
 -- audience と by_rule の扱いは、ListNotificationRecipients と同じ。
-SELECT s.id FROM web_push_subscriptions s
+SELECT s.id, s.user_id FROM web_push_subscriptions s
 JOIN users ON users.id = s.user_id
 LEFT JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = @kind
 WHERE users.disabled_at IS NULL AND COALESCE(p.web_push, true)
   AND (sqlc.narg(audience)::uuid[] IS NULL OR users.id = ANY(sqlc.narg(audience)::uuid[]))
   AND (NOT @by_rule::boolean OR COALESCE(p.rule_reservations, true))
 ORDER BY s.id;
+
+-- name: WebPushSubscriptionReceives :one
+-- 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確かめる。
+-- 配信のジョブを積んでから送るまでの間に、ユーザーを無効にしたり、設定を変えたりしたら、送らないために使う (#1435)。
+SELECT EXISTS (
+  SELECT 1 FROM web_push_subscriptions s
+  JOIN users ON users.id = s.user_id
+  LEFT JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = @kind
+  WHERE s.id = @id AND users.disabled_at IS NULL AND COALESCE(p.web_push, true)
+    AND (sqlc.narg(audience)::uuid[] IS NULL OR users.id = ANY(sqlc.narg(audience)::uuid[]))
+    AND (NOT @by_rule::boolean OR COALESCE(p.rule_reservations, true))
+);
 
 -- name: InsertVAPIDKeys :exec
 -- VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。

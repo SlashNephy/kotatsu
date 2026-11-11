@@ -79,12 +79,29 @@ func (f *fixture) emit(t *testing.T, kind domain.NotificationKind, payload map[s
 func (f *fixture) deliver(t *testing.T, client *http.Client, subscriptionID, eventID uuid.UUID) error {
 	t.Helper()
 
+	return f.deliverTo(t, client, webpush.DeliverArgs{SubscriptionID: subscriptionID, EventID: eventID, UserID: uuid.Nil})
+}
+
+// deliverTo は、args の配信のジョブを動かす。
+func (f *fixture) deliverTo(t *testing.T, client *http.Client, args webpush.DeliverArgs) error {
+	t.Helper()
+
 	location, err := time.LoadLocation("Asia/Tokyo")
 	require.NoError(t, err)
 	worker := webpush.NewDeliverWorker(f.pool, f.service, f.clock, subject, location, client)
-	job := &river.Job[webpush.DeliverArgs]{JobRow: new(rivertype.JobRow), Args: webpush.DeliverArgs{SubscriptionID: subscriptionID, EventID: eventID}}
+	job := &river.Job[webpush.DeliverArgs]{JobRow: new(rivertype.JobRow), Args: args}
 
 	return worker.Work(t.Context(), job)
+}
+
+// ownerOf は、購読の持ち主を返す。
+func (f *fixture) ownerOf(t *testing.T, subscriptionID uuid.UUID) uuid.UUID {
+	t.Helper()
+
+	var userID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT user_id FROM web_push_subscriptions WHERE id = $1", subscriptionID).Scan(&userID))
+
+	return userID
 }
 
 func (f *fixture) subscriptionExists(t *testing.T, subscriptionID uuid.UUID) bool {
@@ -124,16 +141,18 @@ func TestEnqueuerQueuesDeliveries(t *testing.T) {
 	assert.Equal(t, 1, n)
 
 	rows, err := f.pool.Query(t.Context(),
-		"SELECT (args->>'subscriptionId')::uuid, (args->>'eventId')::uuid, max_attempts FROM river_job WHERE kind = 'web_push_deliver'")
+		"SELECT (args->>'subscriptionId')::uuid, (args->>'eventId')::uuid, (args->>'userId')::uuid, max_attempts FROM river_job WHERE kind = 'web_push_deliver'")
 	require.NoError(t, err)
 	type queued struct {
 		SubscriptionID uuid.UUID
 		EventID        uuid.UUID
+		UserID         uuid.UUID
 		MaxAttempts    int
 	}
 	got, err := pgx.CollectRows(rows, pgx.RowToStructByPos[queued])
 	require.NoError(t, err)
-	assert.Equal(t, []queued{{SubscriptionID: target, EventID: eventID, MaxAttempts: 5}}, got)
+	// 積んだときの購読の持ち主も持たせ、送るときに替わっていないかを確かめる (#1435)。
+	assert.Equal(t, []queued{{SubscriptionID: target, EventID: eventID, UserID: f.ownerOf(t, target), MaxAttempts: 5}}, got)
 }
 
 // TestDeliverWorkerSendsEncryptedNotification は、通知の文を購読の鍵で暗号化し、VAPID で署名して送り、
@@ -262,6 +281,71 @@ func TestDeliverWorkerKeepsResubscription(t *testing.T) {
 	var cancel *rivertype.JobCancelError
 	require.ErrorAs(t, f.deliver(t, server.Client(), subscriptionID, eventID), &cancel)
 	assert.True(t, f.subscriptionExists(t, subscriptionID))
+}
+
+// TestDeliverWorkerRechecksRecipient は、配信のジョブを積んでから送るまでの間に宛先の条件が変わったら、
+// 送らずに取りやめることを確かめる (#1435)。
+func TestDeliverWorkerRechecksRecipient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// change は、ジョブを積んだ後に起きたこと。
+		change   func(t *testing.T, f *fixture, endpoint string)
+		wantSent bool
+	}{
+		{name: "変わっていなければ送る", change: func(*testing.T, *fixture, string) {}, wantSent: true},
+		{
+			name: "持ち主のユーザーを無効にした",
+			change: func(t *testing.T, f *fixture, _ string) {
+				t.Helper()
+				_, err := f.pool.Exec(t.Context(), "UPDATE users SET disabled_at = now() WHERE username = 'mikan'")
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "別のユーザーが同じ endpoint で購読し直し、持ち主が替わった",
+			change: func(t *testing.T, f *fixture, endpoint string) {
+				t.Helper()
+				require.NoError(t, f.service.Subscribe(t.Context(), f.pool, f.user(t, "yuzu"), newBrowser(t).subscription(endpoint)))
+			},
+		},
+		{
+			name: "持ち主が、その種類を Web Push で受け取らない設定にした",
+			change: func(t *testing.T, f *fixture, _ string) {
+				t.Helper()
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO notification_preferences (user_id, kind, in_app, web_push, updated_at)
+					SELECT id, 'recording_started', true, false, now() FROM users WHERE username = 'mikan'`)
+				require.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			server, requests := pushService(t, func() int { return http.StatusCreated })
+			endpoint := server.URL + "/send/mikan"
+			subscriptionID := f.subscribe(t, "mikan", endpoint, newBrowser(t))
+			args := webpush.DeliverArgs{
+				SubscriptionID: subscriptionID, EventID: f.emit(t, domain.NotificationKindRecordingStarted, nil), UserID: f.ownerOf(t, subscriptionID),
+			}
+
+			tt.change(t, f, endpoint)
+			err := f.deliverTo(t, server.Client(), args)
+
+			if tt.wantSent {
+				require.NoError(t, err)
+				assert.Len(t, requests, 1)
+
+				return
+			}
+			var cancel *rivertype.JobCancelError
+			require.ErrorAs(t, err, &cancel)
+			assert.Empty(t, requests)
+		})
+	}
 }
 
 // TestDeliverWorkerCancelsWithoutTarget は、購読かイベントが消えていたら、送らずに取りやめることを確かめる。

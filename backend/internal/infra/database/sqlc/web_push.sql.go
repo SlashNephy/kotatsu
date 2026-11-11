@@ -162,7 +162,7 @@ func (q *Queries) ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID
 }
 
 const listWebPushSubscriptionsForKind = `-- name: ListWebPushSubscriptionsForKind :many
-SELECT s.id FROM web_push_subscriptions s
+SELECT s.id, s.user_id FROM web_push_subscriptions s
 JOIN users ON users.id = s.user_id
 LEFT JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = $1
 WHERE users.disabled_at IS NULL AND COALESCE(p.web_push, true)
@@ -177,21 +177,26 @@ type ListWebPushSubscriptionsForKindParams struct {
 	ByRule   bool
 }
 
-// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
+type ListWebPushSubscriptionsForKindRow struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID と、その持ち主を返す。設定がなければ受け取る。
 // audience と by_rule の扱いは、ListNotificationRecipients と同じ。
-func (q *Queries) ListWebPushSubscriptionsForKind(ctx context.Context, arg ListWebPushSubscriptionsForKindParams) ([]uuid.UUID, error) {
+func (q *Queries) ListWebPushSubscriptionsForKind(ctx context.Context, arg ListWebPushSubscriptionsForKindParams) ([]ListWebPushSubscriptionsForKindRow, error) {
 	rows, err := q.db.Query(ctx, listWebPushSubscriptionsForKind, arg.Kind, arg.Audience, arg.ByRule)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []uuid.UUID{}
+	items := []ListWebPushSubscriptionsForKindRow{}
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i ListWebPushSubscriptionsForKindRow
+		if err := rows.Scan(&i.ID, &i.UserID); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -231,4 +236,36 @@ func (q *Queries) UpsertWebPushSubscription(ctx context.Context, arg UpsertWebPu
 		arg.Now,
 	)
 	return err
+}
+
+const webPushSubscriptionReceives = `-- name: WebPushSubscriptionReceives :one
+SELECT EXISTS (
+  SELECT 1 FROM web_push_subscriptions s
+  JOIN users ON users.id = s.user_id
+  LEFT JOIN notification_preferences p ON p.user_id = s.user_id AND p.kind = $1
+  WHERE s.id = $2 AND users.disabled_at IS NULL AND COALESCE(p.web_push, true)
+    AND ($3::uuid[] IS NULL OR users.id = ANY($3::uuid[]))
+    AND (NOT $4::boolean OR COALESCE(p.rule_reservations, true))
+)
+`
+
+type WebPushSubscriptionReceivesParams struct {
+	Kind     string
+	ID       uuid.UUID
+	Audience []uuid.UUID
+	ByRule   bool
+}
+
+// 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確かめる。
+// 配信のジョブを積んでから送るまでの間に、ユーザーを無効にしたり、設定を変えたりしたら、送らないために使う (#1435)。
+func (q *Queries) WebPushSubscriptionReceives(ctx context.Context, arg WebPushSubscriptionReceivesParams) (bool, error) {
+	row := q.db.QueryRow(ctx, webPushSubscriptionReceives,
+		arg.Kind,
+		arg.ID,
+		arg.Audience,
+		arg.ByRule,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

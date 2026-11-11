@@ -725,9 +725,9 @@ type Querier interface {
 	// 視聴が続いているサービス。視聴のチューナーに相乗りするので、割り振りではチューナーを数えない。
 	ListWatchedTimeshiftChannels(ctx context.Context, now time.Time) ([]ListWatchedTimeshiftChannelsRow, error)
 	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
-	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID を返す。設定がなければ受け取る。
+	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID と、その持ち主を返す。設定がなければ受け取る。
 	// audience と by_rule の扱いは、ListNotificationRecipients と同じ。
-	ListWebPushSubscriptionsForKind(ctx context.Context, arg ListWebPushSubscriptionsForKindParams) ([]uuid.UUID, error)
+	ListWebPushSubscriptionsForKind(ctx context.Context, arg ListWebPushSubscriptionsForKindParams) ([]ListWebPushSubscriptionsForKindRow, error)
 	ListWebhooks(ctx context.Context) ([]Webhook, error)
 	// イベントの種類 kind を送る、有効な Webhook の ID を返す。
 	ListWebhooksForKind(ctx context.Context, kind string) ([]uuid.UUID, error)
@@ -1065,6 +1065,9 @@ type Querier interface {
 	// 購読を保存する。同じ端末 (endpoint) を別のユーザーが購読し直したら、そのユーザーの購読に移す。
 	UpsertWebPushSubscription(ctx context.Context, arg UpsertWebPushSubscriptionParams) error
 	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
+	// 購読 id が、今もイベントの種類 kind を Web Push で受け取るかを返す。ListWebPushSubscriptionsForKind と同じ条件で確かめる。
+	// 配信のジョブを積んでから送るまでの間に、ユーザーを無効にしたり、設定を変えたりしたら、送らないために使う (#1435)。
+	WebPushSubscriptionReceives(ctx context.Context, arg WebPushSubscriptionReceivesParams) (bool, error)
 }
 
 var _ Querier = (*Queries)(nil)
