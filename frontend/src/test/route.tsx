@@ -27,27 +27,38 @@ import { createEventHub } from '../demo/events';
 import { createExecutor } from '../demo/executor';
 
 // Respond は、画面が送った GraphQL の操作に応える。undefined を返すと、応答を返さず待たせる。
+// Promise を返すと、それが決まったときに応える。応答の順序を入れ替えるテストに使う。
 export type Respond = (
   request: RequestParameters,
   variables: Variables,
-) => GraphQLResponse | Error | undefined;
+) => GraphQLResponse | Error | Promise<GraphQLResponse | Error> | undefined;
 
 // createTestEnvironment は、respond で応える Relay の環境を作る。
 export function createTestEnvironment(respond: Respond): Environment {
   return new Environment({
     network: Network.create((request, variables) =>
       Observable.create((sink) => {
+        const reply = (result: GraphQLResponse | Error) => {
+          if (result instanceof Error) {
+            sink.error(result);
+
+            return;
+          }
+          sink.next(result);
+          sink.complete();
+        };
         const result = respond(request, variables);
         if (result === undefined) {
           return;
         }
-        if (result instanceof Error) {
-          sink.error(result);
+        if (result instanceof Promise) {
+          void result.then(reply, (error: unknown) =>
+            reply(error instanceof Error ? error : new Error(String(error))),
+          );
 
           return;
         }
-        sink.next(result);
-        sink.complete();
+        reply(result);
       }),
     ),
     store: new Store(new RecordSource()),
