@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"unicode/utf8"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
@@ -30,11 +29,11 @@ var errPlayersUnavailable = errors.New("players are not configured")
 func parsePlayerID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != playerType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid player ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid player ID")
 	}
 	playerID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid player ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid player ID")
 	}
 
 	return playerID, nil

@@ -8,8 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // lostAndFound は、ext4 などがファイルシステムの直下に作るディレクトリ。プールの中身ではないので調べない。
@@ -154,7 +153,7 @@ func IsSegmentDir(poolID, rel string) bool {
 func SegmentDirOwner(poolID, dir string) (uuid.UUID, error) {
 	id, err := uuid.Parse(dir)
 	if poolID != DataPoolID || err != nil || id.String() != dir {
-		return uuid.Nil, fmt.Errorf("%w: %q is not a segment directory", ErrInvalidPath, dir)
+		return uuid.Nil(), fmt.Errorf("%w: %q is not a segment directory", ErrInvalidPath, dir)
 	}
 
 	return id, nil
@@ -167,7 +166,7 @@ func (s *Store) RemoveEntry(poolID, rel string, segmentDir bool) error {
 		return err
 	}
 	if !segmentDir {
-		return s.Remove(poolID, rel, uuid.Nil)
+		return s.Remove(poolID, rel, uuid.Nil())
 	}
 	if !IsSegmentDir(poolID, rel) {
 		return fmt.Errorf("%w: %q is not a segment directory", ErrInvalidPath, rel)

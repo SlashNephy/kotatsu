@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -17,11 +16,11 @@ const watchRuleType = "WatchRule"
 func parseWatchRuleID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != watchRuleType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid watch rule ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid watch rule ID")
 	}
 	ruleID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid watch rule ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid watch rule ID")
 	}
 
 	return ruleID, nil

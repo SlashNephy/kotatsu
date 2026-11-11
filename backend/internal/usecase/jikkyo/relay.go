@@ -7,8 +7,7 @@ import (
 	"encoding/hex"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 )

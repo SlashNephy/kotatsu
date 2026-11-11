@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -92,7 +92,7 @@ func TestManagePasskeys(t *testing.T) {
 func TestManagePasskeysRejects(t *testing.T) {
 	t.Parallel()
 
-	unknownID := graph.GlobalID("Passkey", uuid.NewString())
+	unknownID := graph.GlobalID("Passkey", uuid.New().String())
 	tests := []struct {
 		name string
 		// prepare は、ログイン中のユーザーのパスキーの ID を受け取り、操作する fixture と、送るクエリと変数を返す。

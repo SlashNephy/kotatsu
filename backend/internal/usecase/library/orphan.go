@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/text/unicode/norm"
 
@@ -158,7 +158,7 @@ func (u *usedFiles) add(id uuid.UUID, poolID, path string) {
 	u.locations[location] = struct{}{}
 	key := kago.Location{PoolID: poolID, Path: foldPath(path)}
 	u.folded[key] = append(u.folded[key], location)
-	if id != uuid.Nil {
+	if id != uuid.Nil() {
 		u.ids[id] = struct{}{}
 	}
 }
@@ -213,7 +213,7 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	}
 	for _, c := range captures {
 		location := kago.CaptureLocation(c.UserID, c.ID)
-		used.add(uuid.Nil, location.PoolID, location.Path)
+		used.add(uuid.Nil(), location.PoolID, location.Path)
 	}
 	// つないだ後は、DB の記録はつないだファイルに置き換わるが、つなぐ元のファイルは、置き換えるジョブが消すまで残る。
 	// ジョブは、マウントが戻るまで何日もやり直すことがあるので、終わっていないジョブのファイルは使っているとみなす。
@@ -232,7 +232,7 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 		if err := json.Unmarshal(raw, &args); err != nil {
 			return nil, fmt.Errorf("failed to decode a join job: %w", err)
 		}
-		used.add(uuid.Nil, args.PoolID, args.Path)
+		used.add(uuid.Nil(), args.PoolID, args.Path)
 		for _, removed := range args.Removed {
 			used.add(removed.ID, removed.PoolID, removed.Path)
 		}

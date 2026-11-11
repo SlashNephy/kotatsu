@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -361,7 +361,7 @@ func (r *Resolver) readManifest(owner uuid.UUID) (*thumbnail.Manifest, error) {
 // 画像はブラウザにしばらく使い回させるので、作り直したら URL が変わるよう、ファイルの更新日時を添える (#476)。配信する側は、クエリを見ない。
 // 画像は、GET /media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
 func (r *Resolver) imageURL(recordingID, owner uuid.UUID, name string) *string {
-	if owner == uuid.Nil {
+	if owner == uuid.Nil() {
 		return nil
 	}
 	location := kago.DataLocation(owner, name)
@@ -399,7 +399,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
 		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
-		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID, ImageSegmentID: uuid.Nil,
+		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID, ImageSegmentID: uuid.Nil(),
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,

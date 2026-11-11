@@ -14,9 +14,9 @@ import (
 	"slices"
 	"sync"
 	"time"
+	"uuid"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/oauth2"
 

@@ -9,8 +9,8 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -146,7 +146,7 @@ func (c *Feeds) Authenticate(ctx context.Context, token string) (*Principal, err
 		}
 	}
 
-	return &Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
+	return &Principal{UserID: row.UserID, Role: role, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 }
 
 // target は、監査ログの対象の種類。action は、操作の名前 (calendar_feed.create など)。

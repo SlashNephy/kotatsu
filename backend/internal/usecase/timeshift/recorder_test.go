@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -257,7 +257,7 @@ func (e *recorderEnv) assign(t *testing.T, handedOver bool) *recording.Assignmen
 	}))
 
 	return &recording.Assignment{
-		ID: assignmentID, ReservationID: uuid.Nil, ServiceID: grService(0), Priority: timeshift.Priority, Generation: 0,
+		ID: assignmentID, ReservationID: uuid.Nil(), ServiceID: grService(0), Priority: timeshift.Priority, Generation: 0,
 		HandedOver: handedOver, PreviousLeaseExpiresAt: nil,
 	}
 }

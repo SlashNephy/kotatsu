@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -36,7 +36,7 @@ func (f *fakeAuthenticator) Authenticate(_ context.Context, token string) (*auth
 		return nil, auth.ErrUnauthenticated
 	}
 
-	return &auth.Principal{UserID: uuid.New(), Role: f.role, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
+	return &auth.Principal{UserID: uuid.New(), Role: f.role, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 }
 
 // fakeQueries は、決まった予約とサービスを返し、引いた条件を覚える。

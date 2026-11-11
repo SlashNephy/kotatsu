@@ -11,8 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

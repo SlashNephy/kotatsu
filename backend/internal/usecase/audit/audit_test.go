@@ -8,8 +8,8 @@ import (
 	"net/netip"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -133,7 +133,7 @@ func TestRecordStoresUserAndSystemActors(t *testing.T) {
 			require.Len(t, events, 1)
 			got := events[0]
 
-			assert.NotEqual(t, uuid.Nil, got.ID)
+			assert.NotEqual(t, uuid.Nil(), got.ID)
 			assert.True(t, testNow().Equal(got.OccurredAt))
 			assert.Equal(t, tt.want.ActorType, got.ActorType)
 			assert.Equal(t, tt.want.ActorUserID, got.ActorUserID)
@@ -157,7 +157,7 @@ func TestRecordRejectsInvalidEvents(t *testing.T) {
 	}{
 		{name: "no event", event: nil},
 		{name: "no actor", event: &audit.Event{Action: actionRuleCreate, TargetType: targetRule}},
-		{name: "user without ID", event: &audit.Event{Actor: audit.User(uuid.Nil), Action: actionRuleCreate, TargetType: targetRule}},
+		{name: "user without ID", event: &audit.Event{Actor: audit.User(uuid.Nil()), Action: actionRuleCreate, TargetType: targetRule}},
 		{name: "system without role", event: &audit.Event{Actor: audit.System(""), Action: actionRuleCreate, TargetType: targetRule}},
 		{name: "unknown actor type", event: &audit.Event{Actor: &audit.Actor{Type: "robot", Role: "neko"}, Action: actionRuleCreate, TargetType: targetRule}},
 		{name: "no action", event: &audit.Event{Actor: audit.System("neko"), TargetType: targetRule}},

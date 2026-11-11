@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -115,11 +115,11 @@ func toGenreConditions(genres []*match.Genre) []*model.GenreCondition {
 func parseGuideViewID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != guideViewType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid guide view ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid guide view ID")
 	}
 	viewID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid guide view ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid guide view ID")
 	}
 
 	return viewID, nil

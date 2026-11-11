@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
