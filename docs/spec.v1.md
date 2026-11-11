@@ -1926,9 +1926,10 @@ GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対し�
 アプリの外枠のService Worker（PWA）は作らず、登録もしません。
 代わりに、ライブ視聴の映像を実時間の速さで流すだけのService Workerを、`base`に範囲を絞って登録します。静的なファイルは一気に届き終わり、ライブ視聴の画面が再生を始める前に切れたものとして扱うためです。
 映像は、自前で作った20秒の映像（`frontend/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
-放送の映像や、権利のはっきりしない素材は使わず、架空の局の朝の中継を描きます（#1050）。山のふもとの景色、局のロゴ、テロップを図形と文字で描き、純正律の和音の音声（唸って濁らないよう、平均律にしない。#1394）と、ARIB字幕のストリームを入れます。
+放送の映像や、権利のはっきりしない素材は使わず、架空の局の朝の中継を描きます（#1050）。山のふもとの景色、局のロゴ、テロップを図形と文字で描き、朝の番組らしいBGMと小鳥のさえずりの音声と、ARIB字幕のストリームを入れます。
 放送と同じく、1440x1080のMPEG-2の映像とAACの音声をMPEG-TSに入れます。
 作り方は`frontend/scripts/build-demo-stream.sh`に残し、作り直すときは`MISE_ENV=demo-stream mise run //frontend:demo-stream`で動かします。FFmpegは、`frontend/mise.demo-stream.toml`で版を固定したconda-forgeのものを使い、同じ版からは同じファイルができます。
+音声は、音源のファイルを使わず、式だけで合成します（`frontend/scripts/demo-stream-music.mjs`、#1394）。エレクトリックピアノの和音、ベース、旋律、シェイカーの8小節（96 BPM、20秒）に、薄いリバーブを掛け、音量は放送の基準（-24 LKFS）に合わせます。乱数は種を固定し、同じ版のNode.jsからは同じ音声ができます。
 場面は、ASSの図形と文字で描き（`frontend/scripts/demo-stream-scene.mjs`）、文字には字幕と同じフォント（`frontend/vendor/caption-font`）を使います。
 FFmpegはARIB字幕を書けないので、字幕のPESをaribb24.jsの符号化器で作り、TSに差し込みます（`frontend/scripts/demo-stream-captions.mjs`）。PMTには、component_tagが0x30のストリームとして足します。
 実況は、外部のNX-Jikkyoにはつながず、架空のコメントを流します（`frontend/src/demo/jikkyo.ts`）。ライブ視聴では、tenbanの実況の中継のWebSocketを、同じ手順で応える偽物に差し替えます。録画の再生では、実況の過去ログの応答を、fetchの横取りで返します。デモでは全体の設定で実況を有効にしてあり、ユーザーの設定は切ってあるので、プレイヤーの実況のボタンで流せます。
