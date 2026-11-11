@@ -8,7 +8,7 @@ import {
   type AnyRoute,
 } from '@tanstack/react-router';
 import { act, render } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { RelayEnvironmentProvider } from 'react-relay';
 import {
   Environment,
@@ -89,8 +89,11 @@ export function createDemoEnvironment(
 }
 
 // renderWithRouter は、ルーターの中で使う部品 (Link や useNavigate を使うもの) を、本物のルーターの / に描く。
+// 読み込み中の部品は、Suspense で「読み込み中」を出して待つ。
 export async function renderWithRouter(node: ReactNode, environment: Environment) {
-  const root = createRootRoute({ component: () => node });
+  const root = createRootRoute({
+    component: () => <Suspense fallback={<p>読み込み中</p>}>{node}</Suspense>,
+  });
 
   return mount(root, '/', environment);
 }
