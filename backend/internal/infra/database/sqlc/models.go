@@ -528,6 +528,7 @@ type Recording struct {
 	EndAt                 time.Time
 	State                 string
 	FailureReason         *string
+	FailureDetail         *string
 	Protected             bool
 	Drops                 int64
 	Errors                int64
@@ -614,6 +615,8 @@ type RecordingFile struct {
 	EndedAt     *time.Time
 	PIDStats    []byte
 	Video       []byte
+	TunerIndex  *int64
+	TunerName   *string
 	CreatedAt   time.Time
 }
 

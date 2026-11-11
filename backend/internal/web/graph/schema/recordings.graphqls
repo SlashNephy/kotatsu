@@ -67,6 +67,20 @@ type RecordingFile {
   url: String
   "セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。"
   video: SegmentVideoFormat
+  """
+  セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなかったセグメントと、その他のファイルでは null。
+  名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
+  """
+  tuner: RecordingFileTuner
+}
+
+"""
+セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときの写しで、今のチューナーの構成とは違うことがある。
+"""
+type RecordingFileTuner {
+  "チューナーサーバーでのチューナーの番号。リモートのチューナーは負の数になることがある。"
+  index: Int!
+  name: String!
 }
 
 """
@@ -125,6 +139,11 @@ type Recording implements Node {
   state: RecordingState!
   "失敗した理由。失敗していなければ null。"
   failureReason: RecordingFailureReason
+  """
+  失敗した理由に至った、最後のエラーの本文 (#1467)。失敗していないか、本文がなければ null。
+  上流のチューナーのホスト名などを含むので、管理者にだけ返す。ほかのユーザーには null を返す。
+  """
+  failureDetail: String
   "保護の印。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。"
   protected: Boolean!
   "全 PID のドロップ、エラー、スクランブルの数。"

@@ -170,9 +170,15 @@ func insertSegment(seg *segment) pendingWrite {
 
 // segmentParams は、セグメント seg を、録画 recordingID のファイルとして記録する引数を返す。
 func segmentParams(seg *segment, recordingID uuid.UUID) sqlc.InsertRecordingFileParams {
-	return sqlc.InsertRecordingFileParams{
-		ID: seg.fileID, RecordingID: recordingID, Kind: fileKindSegment, PoolID: seg.poolID, Path: seg.path, StartedAt: seg.startedAt, Now: seg.startedAt,
+	params := sqlc.InsertRecordingFileParams{
+		ID: seg.fileID, RecordingID: recordingID, Kind: fileKindSegment, PoolID: seg.poolID, Path: seg.path, StartedAt: seg.startedAt,
+		TunerIndex: nil, TunerName: nil, Now: seg.startedAt,
 	}
+	if seg.tuner != nil {
+		params.TunerIndex, params.TunerName = &seg.tuner.index, &seg.tuner.name
+	}
+
+	return params
 }
 
 // provisionalRecording は、DB に届かずに記録できていない録画を、予約から仮に作る。記録したら、DB の行で置き換える。
@@ -181,7 +187,7 @@ func provisionalRecording(reservation *sqlc.GetReservationForRecordingRow, start
 		ID: id.New(), APIID: 0, ReservationID: &reservation.ID, ServiceID: reservation.ServiceID, EventID: reservation.EventID,
 		Name: reservation.Name, Description: reservation.Description,
 		NameNormalized: new(domain.Normalize(reservation.Name)), DescriptionNormalized: new(domain.Normalize(reservation.Description)),
-		StartAt: reservation.StartAt, EndAt: reservation.EndAt, State: string(StateRecording), FailureReason: nil, Protected: false, Drops: 0, Errors: 0, Scrambled: 0,
+		StartAt: reservation.StartAt, EndAt: reservation.EndAt, State: string(StateRecording), FailureReason: nil, FailureDetail: nil, Protected: false, Drops: 0, Errors: 0, Scrambled: 0,
 		Gaps: []byte("[]"), Audios: []byte("[]"), VideoResolution: nil, Genres: []byte("[]"), RuleID: nil, RuleName: nil,
 		ProgramLost: false, BroadcastStartedAt: nil, BroadcastEndedAt: nil, WaitedForBroadcast: false, NotBroadcast: false, AiredEventID: nil,
 		RecordedFrom: maxTime(startedAt, *reservation.PlannedStartAt), RecordedUntil: nil, CreatedAt: startedAt, UpdatedAt: startedAt,

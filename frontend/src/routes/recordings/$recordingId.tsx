@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   Card,
+  Code,
   Grid,
   Group,
   Modal,
@@ -15,6 +16,7 @@ import {
   Title,
 } from '@mantine/core';
 import { distinctVideoLabels } from '../../recordings/videoFormat';
+import { distinctTunerNames } from '../../recordings/tuners';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Download,
@@ -165,6 +167,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             endAt
             state
             failureReason
+            failureDetail
             protected
             drops
             errors
@@ -239,6 +242,10 @@ function Recording({ recordingId }: { recordingId: string }) {
                 height
                 interlaced
                 frameRate
+              }
+              tuner {
+                index
+                name
               }
             }
           }
@@ -521,7 +528,22 @@ function Recording({ recordingId }: { recordingId: string }) {
               </Text>
             ))}
           {recording.failureReason != null && (
-            <Alert color="red">{t(failureKey(recording.failureReason))}</Alert>
+            <Alert color="red">
+              <Stack gap={6}>
+                <Text size="sm">{t(failureKey(recording.failureReason))}</Text>
+                {/* エラーの本文は、管理者にだけ返る (#1467)。 */}
+                {recording.failureDetail != null && (
+                  <Stack gap={2}>
+                    <Text size="xs" c="dimmed">
+                      {t('recordings.failureDetail')}
+                    </Text>
+                    <Code block style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                      {recording.failureDetail}
+                    </Code>
+                  </Stack>
+                )}
+              </Stack>
+            </Alert>
           )}
           {recording.description !== '' && (
             <Text size="sm">
@@ -572,6 +594,14 @@ function Recording({ recordingId }: { recordingId: string }) {
                 <Text size="sm" c="dimmed">
                   {t('recordings.videoFormat', {
                     format: distinctVideoLabels(segments.map((file) => file.video)).join(' → '),
+                  })}
+                </Text>
+              )}
+              {/* 受信していたチューナーは、管理者にだけ返る (#1467)。途中で移った録画では、移った順に並べる。 */}
+              {distinctTunerNames(segments.map((file) => file.tuner)).length > 0 && (
+                <Text size="sm" c="dimmed">
+                  {t('recordings.tuners', {
+                    names: distinctTunerNames(segments.map((file) => file.tuner)).join(' → '),
                   })}
                 </Text>
               )}

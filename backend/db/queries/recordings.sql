@@ -20,13 +20,14 @@ LEFT JOIN LATERAL (
   ORDER BY ru.created_at, ru.id
   LIMIT 1
 ) AS m ON true
-ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
+ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, failure_detail = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
 RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 
 -- name: InsertRecordingFile :exec
 -- DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now)
+-- チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, tuner_index, tuner_name, created_at)
+VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, sqlc.narg(tuner_index), sqlc.narg(tuner_name), @now)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseRecordingFile :exec
@@ -39,12 +40,13 @@ UPDATE recordings SET drops = drops + @drops, errors = errors + @errors, scrambl
 WHERE id = @id;
 
 -- name: FinishRecording :exec
--- 録画を state で終える。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
+-- 録画を state で終える。失敗のエラーの本文 (#1467) は、失敗でなければ NULL を渡して消す。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
 -- prev には FOR UPDATE を付けない。付けると、同じ文の UPDATE がその行を飛ばす。同じ録画を同時に終えないことは、呼び出し側が割り振りの世代のロックで守る。
 WITH prev AS (
   SELECT p.state FROM recordings p WHERE p.id = @id
 ), finished AS (
-  UPDATE recordings r SET state = @state, failure_reason = sqlc.narg(failure_reason), recorded_until = @now, updated_at = @now
+  UPDATE recordings r SET state = @state, failure_reason = sqlc.narg(failure_reason), failure_detail = sqlc.narg(failure_detail),
+    recorded_until = @now, updated_at = @now
   WHERE r.id = @id
   RETURNING r.state, r.failure_reason
 )
@@ -231,7 +233,7 @@ SELECT coalesce((SELECT min_free_bytes FROM storage_pools WHERE id = @id), 0)::b
 WITH failed AS (
   UPDATE recordings r SET
     state = 'failed',
-    -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。
+    -- 録画できずに割り振りを手放した mikan が理由を残していれば、それを使う (#524)。エラーの本文 (#1467) も、残したものをそのまま使う。
     failure_reason = coalesce(r.failure_reason, 'stream_interrupted'),
     recorded_until = coalesce(
       (SELECT max(coalesce(f.ended_at, f.started_at)) FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment'),
@@ -273,8 +275,8 @@ FROM inserted
 WHERE c.reason = inserted.failure_reason;
 
 -- name: SetRecordingFailureHint :exec
--- 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
-UPDATE recordings SET failure_reason = @failure_reason, updated_at = @now WHERE id = @id AND state = 'recording';
+-- 録画中の録画に、録画できなかった理由とエラーの本文 (#1467) を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
+UPDATE recordings SET failure_reason = @failure_reason, failure_detail = sqlc.narg(failure_detail), updated_at = @now WHERE id = @id AND state = 'recording';
 
 -- name: UpsertRecordingLiveStats :exec
 -- 録画中の録画の、書いているセグメントの様子を書く (#829)。

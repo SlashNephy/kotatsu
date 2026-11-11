@@ -1321,6 +1321,9 @@ type RecordingFile struct {
 	URL *string `json:"url,omitempty"`
 	// セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。
 	Video *SegmentVideoFormat `json:"video,omitempty"`
+	// セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなかったセグメントと、その他のファイルでは null。
+	// 名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
+	Tuner *RecordingFileTuner `json:"tuner,omitempty"`
 }
 
 type RecordingFileRename struct {
@@ -1328,6 +1331,13 @@ type RecordingFileRename struct {
 	From string `json:"from"`
 	// 付け直した後のプール内の相対パス。移す先に同じ名前があれば、移すときに連番を付ける。
 	To string `json:"to"`
+}
+
+// セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときの写しで、今のチューナーの構成とは違うことがある。
+type RecordingFileTuner struct {
+	// チューナーサーバーでのチューナーの番号。リモートのチューナーは負の数になることがある。
+	Index int    `json:"index"`
+	Name  string `json:"name"`
 }
 
 // 録画の絞り込み。省いた条件は絞り込まない。

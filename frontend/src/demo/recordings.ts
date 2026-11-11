@@ -134,6 +134,7 @@ export function createRecordings(options: {
       endAt: program.endAt,
       state: recording.state,
       failureReason: null,
+      failureDetail: null,
       protected: recording.protected,
       drops: recording.drops,
       errors: 0,

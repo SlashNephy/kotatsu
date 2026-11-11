@@ -82,6 +82,11 @@ func (r *recordingResolver) Service(ctx context.Context, obj *model.Recording) (
 	return toService(row), nil
 }
 
+// FailureDetail is the resolver for the failureDetail field.
+func (r *recordingResolver) FailureDetail(ctx context.Context, obj *model.Recording) (*string, error) {
+	return r.failureDetail(ctx, obj), nil
+}
+
 // StreamQuality is the resolver for the streamQuality field.
 func (r *recordingResolver) StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error) {
 	return r.streamQuality(ctx, obj)

@@ -388,7 +388,9 @@ func (r *Recorder) completePromoted(
 		state = StateCompletedWithErrors
 	}
 	// 録画した時間の終わりは、書いたセグメントの終わりにする (設計書 5.5)。
-	err = q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(state), FailureReason: nil, Now: &recordedUntil, ID: recordingID})
+	err = q.FinishRecording(ctx, sqlc.FinishRecordingParams{
+		State: string(state), FailureReason: nil, FailureDetail: nil, Now: &recordedUntil, ID: recordingID,
+	})
 	if err != nil {
 		return "", fmt.Errorf("failed to finish the recording: %w", err)
 	}
@@ -423,7 +425,8 @@ func (r *Recorder) failPromotion(ctx context.Context, recordingID uuid.UUID, rea
 		}
 		now := r.clock.Now()
 		failure := string(reason)
-		if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(StateFailed), FailureReason: &failure, Now: &now, ID: recordingID}); err != nil {
+		params := sqlc.FinishRecordingParams{State: string(StateFailed), FailureReason: &failure, FailureDetail: nil, Now: &now, ID: recordingID}
+		if err := q.FinishRecording(ctx, params); err != nil {
 			return fmt.Errorf("failed to finish the recording: %w", err)
 		}
 		createdBy := row.TimeshiftPromotion.CreatedBy

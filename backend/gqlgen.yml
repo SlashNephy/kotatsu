@@ -111,6 +111,8 @@ models:
         resolver: true
       cmSections:
         resolver: true
+      failureDetail:
+        resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Reservation
     fields:

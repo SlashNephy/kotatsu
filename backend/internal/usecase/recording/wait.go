@@ -87,7 +87,9 @@ func (p *preroll) bytes() []byte {
 // waitOutcome は、waitBeforeWriting の結果。
 type waitOutcome struct {
 	// stream と startedAt は、書くストリーム (溜めた分を先に読ませる) と、その最初のデータを読んだ時刻。
-	stream    io.ReadCloser
+	stream io.ReadCloser
+	// tuner は、ストリームを受信しているチューナー (#1467)。見つけられなければ nil。
+	tuner     *usedTuner
 	startedAt time.Time
 	// reopen は、ストリームが切れたので、開き直すこと。
 	reopen bool
@@ -102,7 +104,7 @@ func (r *Recorder) waitBeforeWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
 	stream io.ReadCloser, created int,
 ) waitOutcome {
-	outcome := waitOutcome{stream: stream, startedAt: r.clock.Now(), reopen: false, done: false, err: nil}
+	outcome := waitOutcome{stream: stream, tuner: nil, startedAt: r.clock.Now(), reopen: false, done: false, err: nil}
 	if !tracker.mustWait(created, outcome.startedAt) {
 		return outcome
 	}
@@ -116,7 +118,7 @@ func (r *Recorder) waitBeforeWriting(
 			return outcome
 		}
 		logger.WarnContext(ctx, "the stream was interrupted while waiting for the program; reconnecting", slog.Any("error", err))
-		result.lastFailure = FailureStreamInterrupted
+		result.failed(FailureStreamInterrupted, err)
 		outcome.done, outcome.err = r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
 		outcome.reopen = !outcome.done
 
@@ -125,7 +127,7 @@ func (r *Recorder) waitBeforeWriting(
 		_ = stream.Close()
 		if end == endPlanned {
 			// 予定の終わり (延長の上限) まで、予約した番組が放送中にならなかった。前の番組の TS は残さない。
-			result.lastFailure = FailureProgramNotFound
+			result.failed(FailureProgramNotFound, nil)
 		}
 		outcome.done, outcome.err = true, r.finish(ctx, logger, assignment, recording, end, result, false, r.clock.Now(), tracker)
 

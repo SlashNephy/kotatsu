@@ -252,6 +252,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
 	files := map[uuid.UUID][]*model.RecordingFile{}
+	admin := principal.Role.Can(auth.PermissionAdminister)
 	// 画像は、書いたものがある最初のセグメントのディレクトリに置く (thumbnail.ImageSegment)。行は始まりの順に並ぶ。
 	imageSegments := map[uuid.UUID]uuid.UUID{}
 	for i := range fileRows {
@@ -262,7 +263,11 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 		}
 		file := &model.RecordingFile{
 			Kind: model.RecordingFileKind(strings.ToUpper(row.Kind)), PoolID: row.PoolID, Path: row.Path, Size: row.Size,
-			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil, Video: segmentVideoOf(row.Video),
+			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil, Video: segmentVideoOf(row.Video), Tuner: nil,
+		}
+		// チューナーの名前は上流のホスト名を含むことがあるので、管理者にだけ返す (#1467)。
+		if admin && row.TunerIndex != nil && row.TunerName != nil {
+			file.Tuner = &model.RecordingFileTuner{Index: int(*row.TunerIndex), Name: *row.TunerName}
 		}
 		if file.Kind == model.RecordingFileKindOther {
 			file.URL = new(streamapi.OtherFileURL(row.RecordingID, row.ID))
@@ -404,6 +409,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		JikkyoNicologCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.NicologCommentsFileName,
 		ServiceKey:               row.ServiceID,
 		VideoResolution:          row.VideoResolution,
+		FailureDetailText:        row.FailureDetail,
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))
@@ -757,4 +763,15 @@ func segmentVideoOf(raw []byte) *model.SegmentVideoFormat {
 	}
 
 	return video
+}
+
+// failureDetail は、失敗した理由に至ったエラーの本文を、管理者にだけ返す (#1467)。
+// 上流のチューナーのホスト名などを含むので、システムの状態 (lastError) と同じく、ほかのユーザーには返さない。
+// フィールドを読めないことをエラーにすると、録画の詳細の画面全体が読めなくなるので、null を返す。
+func (r *Resolver) failureDetail(ctx context.Context, obj *model.Recording) *string {
+	if administer(ctx) != nil {
+		return nil
+	}
+
+	return obj.FailureDetailText
 }

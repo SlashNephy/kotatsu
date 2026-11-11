@@ -24,19 +24,21 @@ type Recording struct {
 	EndAt                 time.Time
 	State                 string
 	FailureReason         *string
-	Protected             bool
-	Drops                 int64
-	Errors                int64
-	Scrambled             int64
-	Gaps                  []byte
-	Audios                []byte
-	VideoResolution       *string
-	Genres                []byte
-	RuleID                *uuid.UUID
-	RuleName              *string
-	ProgramLost           bool
-	BroadcastStartedAt    *time.Time
-	BroadcastEndedAt      *time.Time
+	// FailureDetail は、失敗した理由に至った、最後のエラーの本文 (#1467)。管理者にだけ見せる。
+	FailureDetail      *string
+	Protected          bool
+	Drops              int64
+	Errors             int64
+	Scrambled          int64
+	Gaps               []byte
+	Audios             []byte
+	VideoResolution    *string
+	Genres             []byte
+	RuleID             *uuid.UUID
+	RuleName           *string
+	ProgramLost        bool
+	BroadcastStartedAt *time.Time
+	BroadcastEndedAt   *time.Time
 	// WaitedForBroadcast は、番組が遅れて始まったので、前の番組の TS を消し、放送中になるまで待ってから書き始めたかどうか (#1046)。
 	WaitedForBroadcast bool
 	NotBroadcast       bool
@@ -71,8 +73,11 @@ type RecordingFile struct {
 	EndedAt     *time.Time
 	PIDStats    []byte
 	// Video は、セグメントの映像から読んだ映像の形式の JSON (#1310)。読めなければ nil。
-	Video     []byte
-	CreatedAt time.Time
+	Video []byte
+	// TunerIndex と TunerName は、セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなければ nil。
+	TunerIndex *int64
+	TunerName  *string
+	CreatedAt  time.Time
 }
 
 // RecordingTag は、録画に付いたタグ。Recordings は、タグの付いた録画の数。

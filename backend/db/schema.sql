@@ -851,6 +851,9 @@ CREATE TABLE recordings (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
     'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable'
   )),
+  -- 失敗の理由に至った、最後のエラーの本文 (設計書 5.5、#1467)。上流のチューナーのホスト名などを含むので、管理者にだけ見せる。
+  -- 失敗していないか、本文がなければ NULL。
+  failure_detail text,
   -- 保護の印。容量の管理で消さない (設計書 6.1)。
   protected boolean NOT NULL DEFAULT false,
   -- ドロップ、エラー、スクランブルの集計 (設計書 5.3)。全 PID の合計。
@@ -926,6 +929,11 @@ CREATE TABLE recording_files (
   -- セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。{codec, width, height, interlaced, frameRate} の形で、
   -- セグメントを閉じるときと、録画を解析したときに書く。読めなかったセグメントと、セグメント以外は NULL。
   video jsonb,
+  -- セグメントを書いたストリームを受信していたチューナーの、チューナーサーバーでの番号と名前 (#1467)。ストリームを開いたときに、
+  -- 応答の X-Mirakurun-Tuner-User-ID を /api/tuners の利用者と突き合わせて見つける。tuners の行は書き換わるので、写しを持つ。
+  -- 見つけられなかったセグメントと、セグメント以外は NULL。名前は上流のホスト名を含むことがあるので、管理者にだけ見せる。
+  tuner_index bigint,
+  tuner_name text,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

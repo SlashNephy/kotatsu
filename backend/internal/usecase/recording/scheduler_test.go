@@ -434,20 +434,22 @@ func TestSchedulerFailsReleasedRecordingsWithTheirReason(t *testing.T) {
 	reservationID := f.reserve(t, 0)
 	f.clock.Advance(programStart().Add(-time.Minute).Sub(f.clock.Now()))
 	require.Equal(t, 1, f.schedule(t).Created)
-	// mikan が録画の行を作り、プールがないので理由を残して手放した。
+	// mikan が録画の行を作り、プールがないので理由とエラーの本文 (#1467) を残して手放した。
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, start_at, end_at,
-		state, failure_reason, recorded_from, protected, created_at, updated_at)
-		VALUES ($1, $2, $3, 6, '録画', '', $4, $5, 'recording', 'storage_unavailable', $4, false, $4, $4)`,
+		state, failure_reason, failure_detail, recorded_from, protected, created_at, updated_at)
+		VALUES ($1, $2, $3, 6, '録画', '', $4, $5, 'recording', 'storage_unavailable', 'the pool is not mounted', $4, false, $4, $4)`,
 		id.New(), reservationID, grService(0), programStart(), programStart().Add(30*time.Minute))
 	require.NoError(t, err)
 
 	f.clock.Advance(time.Hour)
 	f.schedule(t)
 	assert.Zero(t, f.count(t, "SELECT count(*) FROM recording_assignments WHERE reservation_id = $1", reservationID))
-	var state, reason string
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason FROM recordings WHERE reservation_id = $1", reservationID).Scan(&state, &reason))
+	var state, reason, detail string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason, failure_detail FROM recordings WHERE reservation_id = $1", reservationID).
+		Scan(&state, &reason, &detail))
 	assert.Equal(t, "failed", state)
 	assert.Equal(t, "storage_unavailable", reason)
+	assert.Equal(t, "the pool is not mounted", detail)
 	// 失敗の累計は、手放した mikan が残した理由で足す (#960)。
 	count, _ := f.failures(t, recording.FailureStorageUnavailable)
 	assert.Equal(t, 1, count)

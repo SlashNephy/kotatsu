@@ -111,6 +111,30 @@ type StreamOpener interface {
 
 var _ StreamOpener = new(mirakurun.Client)
 
+// TunerLister は、チューナーサーバーのチューナーの一覧を返す。StreamOpener が満たしていれば、
+// ストリームを受信しているチューナーを見つけ、セグメントに記録する (#1467)。
+type TunerLister interface {
+	Tuners(ctx context.Context) ([]*mirakurun.Tuner, error)
+}
+
+var _ TunerLister = new(mirakurun.Client)
+
+// tunerUserIdentifier は、チューナーサーバーが返した、ストリームのチューナーの利用者の ID を持つストリーム (mirakurun.Stream)。
+type tunerUserIdentifier interface {
+	TunerUserID() string
+}
+
+var _ tunerUserIdentifier = new(mirakurun.Stream)
+
+// tunerLookupTimeout は、ストリームを受信しているチューナーを探すのを待つ上限。録画を遅らせないよう、短くする。
+const tunerLookupTimeout = 2 * time.Second
+
+// usedTuner は、ストリームを受信していたチューナーの、チューナーサーバーでの番号と名前 (#1467)。
+type usedTuner struct {
+	index int64
+	name  string
+}
+
 // RecorderOptions は Recorder の設定。0 の項目は既定値にする。
 type RecorderOptions struct {
 	TuningTime    time.Duration
@@ -239,7 +263,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 	if !pendingStart {
 		tracker.savedRecordingID.Store(new(recording.ID))
 	}
-	result := &sessionResult{lastFailure: ""}
+	result := &sessionResult{lastFailure: "", lastError: ""}
 	// unreachableSince は、チューナーサーバーにつながらなくなった時刻。つながればゼロ値に戻す。
 	var unreachableSince time.Time
 	for {
@@ -252,7 +276,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		}
 		stream := opened.stream
 
-		segment, reason, err := r.createSegment(ctx, tracker, &reservation, opened.startedAt)
+		segment, reason, err := r.createSegment(ctx, tracker, &reservation, opened.startedAt, opened.tuner)
 		if err != nil {
 			_ = stream.Close()
 			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, created, reason, err); done {
@@ -294,7 +318,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		case closeErr != nil || copyErr != nil:
 			// ストリームが切れたら、開き直して、新しいセグメントに書く (設計書 5.2)。
 			// 書き込みのエラー (ディスクが一杯、I/O エラー) でも、録画全体を失敗にせず、新しいセグメントに書き直す (#519)。
-			result.lastFailure = interruption(ctx, logger, closeErr, copyErr)
+			result.failed(interruption(ctx, logger, closeErr, copyErr), errors.Join(copyErr, closeErr))
 			// 開いてすぐに切れ続けると、セグメントを作り続けるので、開き直すのは RetryInterval に 1 回までにする。
 			// 長く録れていたなら、待たずに開き直し、途切れる区間を短くする。
 			wait := r.opts.RetryInterval - r.clock.Now().Sub(openedAt)
@@ -319,11 +343,13 @@ var errInterruptedBeforeStart = errors.New("the stream was interrupted before th
 // チューニングのために早く開いたストリームを読み捨て、開始前のマージンを設定どおりにする (#847)。
 func (r *Recorder) openStream(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, reservation *sqlc.GetReservationForRecordingRow,
-) (io.ReadCloser, error) {
+) (io.ReadCloser, *usedTuner, error) {
 	stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	// ストリームを開いている間に、受信しているチューナーを探す。予定の開始まで読み捨てる前に探し、チューナーを手放した後にしない。
+	tuner := r.findTuner(ctx, logger, stream)
 	// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
 	markCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
@@ -336,10 +362,39 @@ func (r *Recorder) openStream(
 	if err := skipUntil(r.clock, stream, *reservation.PlannedStartAt); err != nil {
 		_ = stream.Close()
 
-		return nil, fmt.Errorf("%w: %w", errInterruptedBeforeStart, err)
+		return nil, nil, fmt.Errorf("%w: %w", errInterruptedBeforeStart, err)
 	}
 
-	return stream, nil
+	return stream, tuner, nil
+}
+
+// findTuner は、ストリームを受信しているチューナーを返す (#1467)。チューナーサーバーが返した利用者の ID を、チューナーの一覧の
+// 利用者と突き合わせる。見つけられなければ nil を返す。録画には要らないので、見つけられなくても録画は続ける。
+func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io.ReadCloser) *usedTuner {
+	identified, ok := stream.(tunerUserIdentifier)
+	if !ok || identified.TunerUserID() == "" {
+		return nil
+	}
+	lister, ok := r.tuner.(TunerLister)
+	if !ok {
+		return nil
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, tunerLookupTimeout)
+	defer cancel()
+	tuners, err := lister.Tuners(lookupCtx)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to list the tuners to find the one in use", slog.Any("error", err))
+
+		return nil
+	}
+	tuner := mirakurun.TunerOf(tuners, identified.TunerUserID())
+	if tuner == nil {
+		logger.WarnContext(ctx, "could not find the tuner of the stream", slog.String("tuner_user_id", identified.TunerUserID()))
+
+		return nil
+	}
+
+	return &usedTuner{index: int64(tuner.Index), name: tuner.Name}
 }
 
 // openForWriting は、ストリームを開き、書き始めるストリームと、その最初のデータを読んだ時刻を返す。
@@ -349,15 +404,17 @@ func (r *Recorder) openForWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
 	tracker *endTracker, result *sessionResult, created int, unreachableSince *time.Time,
 ) waitOutcome {
-	stream, err := r.openStream(ctx, logger, assignment, reservation)
+	stream, tuner, err := r.openStream(ctx, logger, assignment, reservation)
 	if err != nil {
 		done, err := r.retryOpen(ctx, logger, assignment, recording, tracker, result, created, unreachableSince, err)
 
-		return waitOutcome{stream: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
+		return waitOutcome{stream: nil, tuner: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
 	}
 	*unreachableSince = time.Time{}
+	outcome := r.waitBeforeWriting(ctx, logger, assignment, recording, tracker, result, stream, created)
+	outcome.tuner = tuner
 
-	return r.waitBeforeWriting(ctx, logger, assignment, recording, tracker, result, stream, created)
+	return outcome
 }
 
 // retryOpen は、ストリームを開けなかったときに、開き直すか、録画を終えるか、割り振りを手放すかを決める。録画を終えたか手放したら true を返す。
@@ -370,11 +427,11 @@ func (r *Recorder) retryOpen(
 	if ctx.Err() != nil {
 		return true, context.Cause(ctx)
 	}
-	result.lastFailure = streamFailure(err)
+	result.failed(streamFailure(err), err)
 	if r.unreachableTooLong(ctx, result.lastFailure, created, unreachableSince) {
 		logger.WarnContext(ctx, "the tuner server has been unreachable; releasing the assignment", slog.Any("error", err))
 
-		return true, r.release(ctx, recording, result.lastFailure)
+		return true, r.release(ctx, recording, result.lastFailure, result.lastError)
 	}
 	logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))
 
@@ -401,7 +458,7 @@ func (r *Recorder) retryCreate(
 					return err
 				}
 
-				return r.release(ctx, recording, reason)
+				return r.release(ctx, recording, reason, failureDetail(err))
 			})
 		}
 		logger.WarnContext(ctx, "failed to create a recording file", slog.Any("error", err))
@@ -413,11 +470,11 @@ func (r *Recorder) retryCreate(
 				return err
 			}
 
-			return r.fail(ctx, assignment, recording, reason, at)
+			return r.fail(ctx, assignment, recording, reason, failureDetail(err), at)
 		})
 	}
 	logger.WarnContext(ctx, "failed to create a recording file; retrying", slog.Any("error", err))
-	result.lastFailure = reason
+	result.failed(reason, err)
 
 	return r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
 }
@@ -457,8 +514,10 @@ func (r *Recorder) unreachableTooLong(ctx context.Context, reason FailureReason,
 
 // release は、録画できなかった理由を録画の行に残し、割り振りを手放させるために ErrRecorderUnavailable を返す (#524)。
 // ほかの mikan も録れなければ、neko がこの理由で録画を失敗にする。
-func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reason FailureReason) error {
-	err := sqlc.New(r.pool).SetRecordingFailureHint(ctx, sqlc.SetRecordingFailureHintParams{FailureReason: new(string(reason)), Now: r.clock.Now(), ID: recording.ID})
+func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reason FailureReason, detail string) error {
+	err := sqlc.New(r.pool).SetRecordingFailureHint(ctx, sqlc.SetRecordingFailureHintParams{
+		FailureReason: new(string(reason)), FailureDetail: nonEmpty(detail), Now: r.clock.Now(), ID: recording.ID,
+	})
 	if err != nil {
 		return errors.Join(fmt.Errorf("%w: %s", ErrRecorderUnavailable, reason), fmt.Errorf("failed to record the failure reason: %w", err))
 	}
@@ -572,6 +631,31 @@ func (r *Recorder) waitToReopen(
 type sessionResult struct {
 	// lastFailure は、最後にストリームを開けなかったか、切れた理由。
 	lastFailure FailureReason
+	// lastError は、lastFailure に至ったエラーの本文 (#1467)。録画を失敗にするときに、理由と一緒に残す。
+	lastError string
+}
+
+// failed は、録画できなかった理由と、そのエラーを覚える。err が nil なら、本文は空にする。
+func (s *sessionResult) failed(reason FailureReason, err error) {
+	s.lastFailure = reason
+	s.lastError = failureDetail(err)
+}
+
+// MaxFailureDetail は、録画に残すエラーの本文の、最大の文字数。チューナーサーバーが返す本文は長いことがあるので、切り詰める。
+// 切り詰めたことを示す省略記号も、この文字数に含める。
+const MaxFailureDetail = 1000
+
+// failureDetail は、録画に残すエラーの本文を返す (#1467)。err が nil なら空にする。
+func failureDetail(err error) string {
+	if err == nil {
+		return ""
+	}
+	detail := []rune(err.Error())
+	if len(detail) > MaxFailureDetail {
+		return string(detail[:MaxFailureDetail-1]) + "…"
+	}
+
+	return string(detail)
 }
 
 // closeStaleFiles は、録画の書きかけのファイルのうち、staleBefore より前から書き込みのないものを、落ちた mikan が残したものとして、
@@ -632,7 +716,7 @@ func (r *Recorder) finishOnce(
 	if end == endCancelled {
 		logger.InfoContext(ctx, "the reservation was disabled or deleted while recording")
 
-		return r.fail(ctx, assignment, recording, FailureCancelled, now)
+		return r.fail(ctx, assignment, recording, FailureCancelled, "", now)
 	}
 	// 落ちた mikan が残した書きかけのファイルを閉じる。止まる mikan は、ストリームを開いたのを見てから、RenewInterval ごとに確かめて止まるので、
 	// それより長く書き込みのないファイルは、落ちた mikan のものとする。
@@ -653,13 +737,13 @@ func (r *Recorder) finishOnce(
 	}
 	gaps, recorded := gapsOf(files, expectedStart, now, disconnected)
 	if !recorded {
-		reason := result.lastFailure
+		reason, detail := result.lastFailure, result.lastError
 		if reason == "" {
-			reason = FailureStreamInterrupted
+			reason, detail = FailureStreamInterrupted, ""
 		}
 		logger.WarnContext(ctx, "nothing was recorded", slog.String("reason", string(reason)))
 
-		return r.fail(ctx, assignment, recording, reason, now)
+		return r.fail(ctx, assignment, recording, reason, detail, now)
 	}
 	encoded, err := json.Marshal(gaps)
 	if err != nil {
@@ -681,7 +765,7 @@ func (r *Recorder) finishOnce(
 	case finished.Drops > 0:
 		finalState = StateCompletedWithErrors
 	}
-	if err := r.complete(ctx, assignment, recording.ID, finalState, "", now); err != nil {
+	if err := r.complete(ctx, assignment, recording.ID, finalState, "", "", now); err != nil {
 		return err
 	}
 	logger.InfoContext(ctx, "finished recording", slog.String("state", string(finalState)))
@@ -823,9 +907,11 @@ func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (s
 
 // segment は、書いている録画ファイルと、その索引。
 type segment struct {
-	poolID    string
-	path      string
-	fileID    uuid.UUID
+	poolID string
+	path   string
+	fileID uuid.UUID
+	// tuner は、セグメントを書くストリームを受信していたチューナー (#1467)。見つけられなければ nil。
+	tuner     *usedTuner
 	file      *os.File
 	indexFile *os.File
 	buffer    *bufio.Writer
@@ -839,7 +925,7 @@ type segment struct {
 // createSegment は、保存先を選んで録画ファイルと索引を作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
 // startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、溜めた分を読み始めた時刻になる (#1046)。
 func (r *Recorder) createSegment(
-	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time,
+	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, tuner *usedTuner,
 ) (*segment, FailureReason, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
@@ -862,6 +948,7 @@ func (r *Recorder) createSegment(
 	if err != nil {
 		return nil, reason, err
 	}
+	seg.tuner = tuner
 
 	// DB に届かなければ、ファイルは残して書き続け、記録は DB に届くようになってからにする (#1073)。
 	// 先に記録できていないものがあれば、順を守るため、これも後にする。
@@ -913,7 +1000,7 @@ func (r *Recorder) newSegment(
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
 	seg := &segment{
-		poolID: pool.ID, path: rel, fileID: fileID, file: file, indexFile: indexFile,
+		poolID: pool.ID, path: rel, fileID: fileID, tuner: nil, file: file, indexFile: indexFile,
 		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: startedAt,
 		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
 	}
@@ -1641,9 +1728,18 @@ func addSegmentStats(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID
 	return nil
 }
 
-// fail は、録画を失敗にし、理由を記録する。割り振りは終わったことにするので、nil を返す。at は、録画を止めた時刻。
-func (r *Recorder) fail(ctx context.Context, assignment *Assignment, recording *sqlc.Recording, reason FailureReason, at time.Time) error {
-	return r.complete(ctx, assignment, recording.ID, StateFailed, reason, at)
+// fail は、録画を失敗にし、理由とエラーの本文 (#1467) を記録する。割り振りは終わったことにするので、nil を返す。at は、録画を止めた時刻。
+func (r *Recorder) fail(ctx context.Context, assignment *Assignment, recording *sqlc.Recording, reason FailureReason, detail string, at time.Time) error {
+	return r.complete(ctx, assignment, recording.ID, StateFailed, reason, detail, at)
+}
+
+// nonEmpty は、空でない文字列へのポインタを返す。空なら nil にして、DB に NULL を書く。
+func nonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+
+	return &s
 }
 
 // start は、予約の録画を始め、新しく始めたときは、録画の開始を通知する (設計書 6.2)。引き継ぎや再開で続きを録るときは通知しない。
@@ -1733,7 +1829,7 @@ func (r *Recorder) finishLeftOver(ctx context.Context, assignment *Assignment, r
 	tracker := newEndTracker(r, &recording, reservation, 0, 0)
 	tracker.pending.recording = &recording
 
-	return r.finish(ctx, logger, assignment, &recording, endPlanned, &sessionResult{lastFailure: ""}, true, *reservation.PlannedEndAt, tracker)
+	return r.finish(ctx, logger, assignment, &recording, endPlanned, &sessionResult{lastFailure: "", lastError: ""}, true, *reservation.PlannedEndAt, tracker)
 }
 
 // startOrDefer は、録画を始めたことを記録する。DB に届かなければ、仮の録画を返し、記録できていないことを true で知らせる (#1073)。
@@ -1762,7 +1858,9 @@ func recordingPayload(recordingID uuid.UUID, name, serviceName string, startAt, 
 // complete は、録画を state で終え、正常に終わってドロップが閾値以下なら録画履歴に記録し (設計書 4.4)、
 // 録画の完了か失敗を通知する (設計書 6.2)。完了の通知には、Webhook のためにセグメントのプール内のパスを載せる。
 // at は、録画を止めた時刻。DB に届かずに記録が遅れても、録画の終わりはこの時刻にする。
-func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason, at time.Time) error {
+func (r *Recorder) complete(
+	ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason, detail string, at time.Time,
+) error {
 	// 録画設定は、トランザクションの外で先に読む。トランザクションの中でプールから別の接続を借りると、接続が足りないときに詰まる。
 	settings := r.completionSettings(ctx, assignment)
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
@@ -1782,7 +1880,8 @@ func (r *Recorder) complete(ctx context.Context, assignment *Assignment, recordi
 		if reason != "" {
 			failure = new(string(reason))
 		}
-		if err := q.FinishRecording(ctx, sqlc.FinishRecordingParams{State: string(state), FailureReason: failure, Now: &now, ID: recordingID}); err != nil {
+		params := sqlc.FinishRecordingParams{State: string(state), FailureReason: failure, FailureDetail: nonEmpty(detail), Now: &now, ID: recordingID}
+		if err := q.FinishRecording(ctx, params); err != nil {
 			return fmt.Errorf("failed to finish the recording: %w", err)
 		}
 		if _, err := notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel); err != nil {
