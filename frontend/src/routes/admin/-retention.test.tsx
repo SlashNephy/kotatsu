@@ -67,7 +67,7 @@ describe('保持期間 (#1452)', () => {
     expect(field(0)).toHaveProperty('value', '30');
   });
 
-  test('読み直した後に保存すると、触っていない項目は読み直した値を送る', async () => {
+  test('触っていないフォームを読み直した後に保存すると、読み直した値を送る', async () => {
     const sent: unknown[] = [];
     const environment = createTestEnvironment((request, variables) => {
       if (request.name === 'retentionMutation') {
@@ -89,6 +89,34 @@ describe('保持期間 (#1452)', () => {
       {
         archiveRetentionDays: 60,
         notificationRetentionDays: 90,
+        watchProgressRetentionDays: 365,
+        networkActivityRetentionDays: 7,
+      },
+    ]);
+  });
+
+  test('触ったフォームで保存すると、入力した値を送る', async () => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'retentionMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/retention', '/admin/retention', environment);
+    await screen.findAllByRole('textbox', { name: '保持期間（日）' });
+    fireEvent.change(field(1), { target: { value: '120' } });
+
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([
+      {
+        archiveRetentionDays: 30,
+        notificationRetentionDays: 120,
         watchProgressRetentionDays: 365,
         networkActivityRetentionDays: 7,
       },
