@@ -44,7 +44,7 @@
     "@playwright/test": "1.65.0",
     "@rolldown/plugin-babel": "0.3.0",
     "@storybook/react-vite": "10.6.6",
-    "@tanstack/router-plugin": "1.168.48",
+    "@tanstack/router-plugin": "1.169.0",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",
     "@types/node": "26.6.6",
