@@ -19,9 +19,11 @@ const (
 	// maxStderrBytes は、失敗したときに、エラーに含める FFmpeg の標準エラー出力の長さの上限。
 	maxStderrBytes = 1024
 
-	// 画素の縦横比 (SAR) を戻してから、決めた大きさに収めて縮め、余白は黒で埋める。4:3 や 3:2 の映像でも歪まない。
-	thumbnailFilter = "scale=iw*sar:ih,scale=480:270:force_original_aspect_ratio=decrease,pad=480:270:(ow-iw)/2:(oh-ih)/2,setsar=1"
-	tileFilter      = "scale=iw*sar:ih,scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1"
+	// インターレースを解除し、画素の縦横比 (SAR) を戻してから、決めた大きさに収めて縮め、余白は黒で埋める。4:3 や 3:2 の映像でも歪まない。
+	// 解除しないまま縮めると、時刻の違う 2 つのフィールドが混ざり、動きのある場面が二重写しになる。
+	// yadif は、kyusu と同じく、インターレースの印のあるフレームだけを解除するので、プログレッシブの映像 (BS4K など) はそのまま通す。
+	thumbnailFilter = "yadif=0:-1:1,scale=iw*sar:ih,scale=480:270:force_original_aspect_ratio=decrease,pad=480:270:(ow-iw)/2:(oh-ih)/2,setsar=1"
+	tileFilter      = "yadif=0:-1:1,scale=iw*sar:ih,scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2,setsar=1"
 )
 
 // ErrFFmpegNotFound は、FFmpeg が PATH に見つからないことを表す。FFmpeg の入ったイメージ (-ffmpeg) を使うか、FFmpeg を入れる。
