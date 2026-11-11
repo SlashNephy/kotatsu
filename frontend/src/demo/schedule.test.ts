@@ -80,6 +80,40 @@ describe('demo rules', () => {
     expect(after.find((item) => item.id === target.id)?.enabled).toBe(false);
   });
 
+  it('turns a cancelled rule reservation into an enabled program reservation when the program is reserved again (#1432)', async () => {
+    const { executor } = newExecutor();
+    const listed = await executor.execute(
+      `query ($from: Time!, $to: Time!) {
+        reservations(from: $from, to: $to, first: 100) { edges { node { id kind eventId service { id } } } }
+      }`,
+      { from: at(0), to: at(8 * 24 * hour) },
+    );
+    const target = (
+      listed.data as {
+        reservations: {
+          edges: { node: { id: string; kind: string; eventId: number; service: { id: string } } }[];
+        };
+      }
+    ).reservations.edges
+      .map((edge) => edge.node)
+      .find((item) => item.kind === 'RULE')!;
+    const program = generatePrograms(now).find(
+      (item) => item.service.id === target.service.id && item.eventId === target.eventId,
+    )!;
+    await executor.execute('mutation ($id: ID!) { deleteReservation(id: $id) { id } }', {
+      id: target.id,
+    });
+
+    const result = await executor.execute(
+      'mutation ($program: ID!) { createProgramReservation(input: { program: $program }) { id kind enabled } }',
+      { program: program.id },
+    );
+
+    expect(result.data).toEqual({
+      createProgramReservation: { id: target.id, kind: 'PROGRAM', enabled: true },
+    });
+  });
+
   it('previews only programs that have not started', async () => {
     const { executor } = newExecutor();
 
