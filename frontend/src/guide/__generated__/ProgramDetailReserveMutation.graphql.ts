@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bb934231f8c00dedbfc157b2d834e8ae>>
+ * @generated SignedSource<<d3ee8c6dcffcc012670f4162a273e730>>
  * @lightSyntaxTransform
  */
 
@@ -23,6 +23,10 @@ export type ProgramDetailReserveMutation$data = {
     readonly enabled: boolean;
     readonly id: string;
     readonly kind: ReservationKind;
+    readonly rules: ReadonlyArray<{
+      readonly id: string;
+      readonly name: string;
+    }>;
   };
 };
 export type ProgramDetailReserveMutation = {
@@ -38,7 +42,14 @@ var v0 = [
     "name": "program"
   }
 ],
-v1 = [
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
+},
+v2 = [
   {
     "alias": null,
     "args": [
@@ -59,13 +70,7 @@ v1 = [
     "name": "createProgramReservation",
     "plural": false,
     "selections": [
-      {
-        "alias": null,
-        "args": null,
-        "kind": "ScalarField",
-        "name": "id",
-        "storageKey": null
-      },
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -111,6 +116,25 @@ v1 = [
           }
         ],
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "Rule",
+        "kind": "LinkedField",
+        "name": "rules",
+        "plural": true,
+        "selections": [
+          (v1/*:: as any*/),
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "name",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -122,7 +146,7 @@ return {
     "kind": "Fragment",
     "metadata": null,
     "name": "ProgramDetailReserveMutation",
-    "selections": (v1/*:: as any*/),
+    "selections": (v2/*:: as any*/),
     "type": "Mutation",
     "abstractKey": null
   },
@@ -131,19 +155,19 @@ return {
     "argumentDefinitions": (v0/*:: as any*/),
     "kind": "Operation",
     "name": "ProgramDetailReserveMutation",
-    "selections": (v1/*:: as any*/)
+    "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "89d18b36a8c7c97cfe9714e09c1c7076",
+    "cacheID": "c9e36555e4a0d75c4386f392c78b3871",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailReserveMutation",
     "operationKind": "mutation",
-    "text": "mutation ProgramDetailReserveMutation(\n  $program: ID!\n) {\n  createProgramReservation(input: {program: $program}) {\n    id\n    enabled\n    kind\n    assignment {\n      state\n      plannedStartAt\n      plannedEndAt\n    }\n  }\n}\n"
+    "text": "mutation ProgramDetailReserveMutation(\n  $program: ID!\n) {\n  createProgramReservation(input: {program: $program}) {\n    id\n    enabled\n    kind\n    assignment {\n      state\n      plannedStartAt\n      plannedEndAt\n    }\n    rules {\n      id\n      name\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2e45091f890faa5692443dbe2252d4bd";
+(node as any).hash = "57014fd6735a4307f9c03f274a095c5a";
 
 export default node;

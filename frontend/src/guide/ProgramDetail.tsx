@@ -189,6 +189,10 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           plannedStartAt
           plannedEndAt
         }
+        rules {
+          id
+          name
+        }
       }
     }
   `);
