@@ -26,6 +26,9 @@ export type PlayedInterval = { from: number; to: number };
 // 一時停止している間は進まず、シークで飛んだ分は区間を切るので、最後までシークしただけでは数えない。
 export class PlaybackTracker {
   private closed: PlayedInterval[] = [];
+  // first は、closed の先頭の区間の通し番号。閉じた区間に、閉じた順に 0 から番号を振る。
+  // 上限を超えて古い区間を捨てても、送った区間がどこまでかを番号で分かるようにする (#1418)。
+  private first = 0;
   private current: PlayedInterval | null = null;
   private last: { wall: number; at: number; media: number } | null = null;
 
@@ -55,19 +58,22 @@ export class PlaybackTracker {
   }
 
   // pending は、まだ送り届けていない区間と、続いている区間を返す。サーバーは区間を重ねずにまとめるので、送り直してもよい。
-  // 1 秒に満たない区間は送らない。
+  // 1 秒に満たない区間は送らない。closed は、送る閉じた区間の、最後の次の通し番号。送り届けたら acknowledge に渡す。
   pending(): { intervals: PlayedInterval[]; closed: number } {
     const intervals = [...this.closed];
     if (this.current !== null && this.current.to - this.current.from >= minIntervalMs) {
       intervals.push({ ...this.current });
     }
 
-    return { intervals, closed: this.closed.length };
+    return { intervals, closed: this.first + this.closed.length };
   }
 
-  // acknowledge は、送り届けた区間のうち、閉じた先頭の closed 個を捨てる。続いている区間は、伸び続けるので残す。
+  // acknowledge は、送り届けた閉じた区間 (通し番号が closed より前のもの) を捨てる。続いている区間は、伸び続けるので残す。
+  // 送っている間に上限を超えて古い区間を捨てていても、その後に閉じた区間は捨てない。
   acknowledge(closed: number): void {
-    this.closed = this.closed.slice(Math.min(closed, this.closed.length));
+    const count = Math.min(Math.max(closed - this.first, 0), this.closed.length);
+    this.closed = this.closed.slice(count);
+    this.first += count;
   }
 
   private close(): void {
@@ -75,6 +81,7 @@ export class PlaybackTracker {
       this.closed.push(this.current);
       // 送れない間に溜まりすぎたら、古いものから捨てる。
       if (this.closed.length > maxPending) {
+        this.first += this.closed.length - maxPending;
         this.closed = this.closed.slice(-maxPending);
       }
     }
