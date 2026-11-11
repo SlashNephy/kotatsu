@@ -21,7 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-jose/go-jose/v4"
+	"github.com/lestrrat-go/jwx/v4/jwa"
+	"github.com/lestrrat-go/jwx/v4/jwk"
+	"github.com/lestrrat-go/jwx/v4/jws"
 )
 
 const (
@@ -168,9 +170,34 @@ func (p *Provider) discovery(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (p *Provider) keys(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, jose.JSONWebKeySet{Keys: []jose.JSONWebKey{
-		{Key: &p.key.PublicKey, KeyID: keyID, Algorithm: string(jose.RS256), Use: "sig"},
-	}})
+	key, err := signingKey(&p.key.PublicKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+	set := jwk.NewSet()
+	if err := set.AddKey(key); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+	writeJSON(w, http.StatusOK, set)
+}
+
+// signingKey は、ID トークンに署名する鍵 (公開鍵か秘密鍵) を、鍵の ID、アルゴリズム、用途を付けた JWK にする。
+func signingKey(raw any) (jwk.Key, error) {
+	key, err := jwk.Import[jwk.Key](raw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to import the key: %w", err)
+	}
+	for name, value := range map[string]any{jwk.KeyIDKey: keyID, jwk.AlgorithmKey: jwa.RS256(), jwk.KeyUsageKey: "sig"} {
+		if err := key.Set(name, value); err != nil {
+			return nil, fmt.Errorf("failed to set %s of the key: %w", name, err)
+		}
+	}
+
+	return key, nil
 }
 
 func (p *Provider) token(w http.ResponseWriter, r *http.Request) {
@@ -258,19 +285,21 @@ func (p *Provider) idToken(nonce string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to encode the claims: %w", err)
 	}
-	signer, err := jose.NewSigner(
-		jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: p.key, KeyID: keyID, Algorithm: string(jose.RS256), Use: "sig"}},
-		(&jose.SignerOptions{}).WithType("JWT"),
-	)
+	key, err := signingKey(p.key)
 	if err != nil {
-		return "", fmt.Errorf("failed to create a signer: %w", err)
+		return "", err
 	}
-	signed, err := signer.Sign(payload)
+	headers := jws.NewHeaders()
+	if err := headers.Set(jws.TypeKey, "JWT"); err != nil {
+		return "", fmt.Errorf("failed to set the type of the ID token: %w", err)
+	}
+	// 鍵の ID (kid) は、JWK に付けた ID がヘッダーに入る。
+	signed, err := jws.Sign(payload, jws.WithKey(jwa.RS256(), key, jws.WithProtectedHeaders(headers)))
 	if err != nil {
 		return "", fmt.Errorf("failed to sign the ID token: %w", err)
 	}
 
-	return signed.CompactSerialize()
+	return string(signed), nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
