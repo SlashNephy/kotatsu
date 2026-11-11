@@ -4,6 +4,7 @@ import { startTransition, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
+import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
@@ -86,6 +87,11 @@ type Form = {
   ruleFollowEventRelay: boolean;
 };
 
+// sameForm は、2 つのフォームの値が同じかどうかを返す。
+function sameForm(a: Form, b: Form): boolean {
+  return (Object.keys(a) as (keyof Form)[]).every((key) => a[key] === b[key]);
+}
+
 function RecordingSettings() {
   const { t } = useTranslation();
   const transcodePresets = useTranscodePresets();
@@ -103,7 +109,8 @@ function RecordingSettings() {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
   const defaults = settings.recordingDefaults;
-  const [form, setForm] = useState<Form>({
+  // 触っていないフォームは、読み直した値 (ほかの管理者が保存したものなど) に合わせる。触ったフォームの入力は捨てない (#1420)。
+  const initial: Form = {
     poolId: defaults.poolId ?? autoPool,
     fileNameTemplate: defaults.fileNameTemplate,
     startMarginSeconds: defaults.startMarginSeconds,
@@ -115,14 +122,20 @@ function RecordingSettings() {
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
-  });
-  const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
+  };
+  const { form, set } = useSyncedForm(initial, sameForm);
   const numbers = [form.startMarginSeconds, form.endMarginSeconds, form.priority];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setMessage(null);
+    // 送るのは前後の空白を除いたテンプレートなので、入力もそろえる。そろえないと、読み直した値と入力が食い違い、
+    // 保存の後も触ったままになって、それからの読み直しに追従しない。
+    const fileNameTemplate = form.fileNameTemplate.trim();
+    if (fileNameTemplate !== form.fileNameTemplate) {
+      set({ fileNameTemplate });
+    }
     action.run(
       async () => {
         // この画面の項目だけを送る。省いた項目 (保持期間や MCP) は、サーバーが変えない。
@@ -139,7 +152,7 @@ function RecordingSettings() {
             input: {
               recordingDefaults: {
                 poolId: form.poolId,
-                fileNameTemplate: form.fileNameTemplate.trim(),
+                fileNameTemplate,
                 startMarginSeconds: Number(form.startMarginSeconds),
                 endMarginSeconds: Number(form.endMarginSeconds),
                 priority: Number(form.priority),
