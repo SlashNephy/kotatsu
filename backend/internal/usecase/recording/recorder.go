@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"path"
 	"slices"
@@ -1923,12 +1922,10 @@ func streamFailure(err error) FailureReason {
 	if errors.Is(err, mirakurun.ErrStreamOpenTimeout) {
 		return FailureTunerUnavailable
 	}
-	if apiErr, ok := errors.AsType[*mirakurun.APIError](err); ok {
-		if apiErr.StatusCode == http.StatusServiceUnavailable {
-			return FailureTunerUnavailable
-		}
-
-		return FailureStreamInterrupted
+	// チューナーサーバーが応答したが、ストリームを渡さなかった。503 のほか、上流のチューナーにつなげない 500 などもある。
+	// まだ一度も開いていないので、中断とはせず、チューナーを確保できなかったとみなす。
+	if _, ok := errors.AsType[*mirakurun.APIError](err); ok {
+		return FailureTunerUnavailable
 	}
 
 	return FailureTunerServerUnreachable
