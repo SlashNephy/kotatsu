@@ -153,8 +153,9 @@ type recordOutcome struct {
 func (s *Service) send(
 	ctx context.Context, db Database, destination Destination, args *RecordArgs, rows []sqlc.AnimeRecord, last bool, outcome *recordOutcome,
 ) error {
-	token, err := s.prepare(ctx, db, args)
-	if err != nil {
+	// giveUp は、送る前に失敗したとき、諦めるべき失敗か最後の試行なら、どの話も記録できなかったことにする。
+	// そうでなければ、再試行に回す。最後の試行で諦めないと、記録が pending のまま残り、見直しでも救われない (#1416)。
+	giveUp := func(err error) error {
 		if !errors.Is(err, ErrPermanent) && !last {
 			return err
 		}
@@ -166,9 +167,13 @@ func (s *Service) send(
 
 		return nil
 	}
+	token, err := s.prepare(ctx, db, args)
+	if err != nil {
+		return giveUp(err)
+	}
 	userSettings, err := LoadSettings(ctx, db, args.UserID)
 	if err != nil {
-		return err
+		return giveUp(err)
 	}
 	tids := make([]int32, 0, len(rows))
 	for i := range rows {
@@ -176,7 +181,7 @@ func (s *Service) send(
 	}
 	works, err := anime.ListWorks(ctx, db, tids)
 	if err != nil {
-		return err
+		return giveUp(err)
 	}
 	var retry error
 	for i := range rows {
