@@ -584,8 +584,9 @@ func (s *sessionResult) failed(reason FailureReason, err error) {
 	s.lastError = failureDetail(err)
 }
 
-// maxFailureDetail は、録画に残すエラーの本文の、最大の文字数。チューナーサーバーが返す本文は長いことがあるので、切り詰める。
-const maxFailureDetail = 1000
+// MaxFailureDetail は、録画に残すエラーの本文の、最大の文字数。チューナーサーバーが返す本文は長いことがあるので、切り詰める。
+// 切り詰めたことを示す省略記号も、この文字数に含める。
+const MaxFailureDetail = 1000
 
 // failureDetail は、録画に残すエラーの本文を返す (#1467)。err が nil なら空にする。
 func failureDetail(err error) string {
@@ -593,8 +594,8 @@ func failureDetail(err error) string {
 		return ""
 	}
 	detail := []rune(err.Error())
-	if len(detail) > maxFailureDetail {
-		return string(detail[:maxFailureDetail]) + "…"
+	if len(detail) > MaxFailureDetail {
+		return string(detail[:MaxFailureDetail-1]) + "…"
 	}
 
 	return string(detail)

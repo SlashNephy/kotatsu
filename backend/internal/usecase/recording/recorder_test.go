@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -792,6 +793,47 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			assert.Equal(t, 1, count)
 			require.NotNil(t, last)
 			assert.True(t, last.Equal(f.clock.Now()))
+		})
+	}
+}
+
+// TestRecorderTruncatesFailureDetail は、録画に残すエラーの本文を、省略記号を含めて MaxFailureDetail 文字までに切り詰めることを確かめる (#1467)。
+func TestRecorderTruncatesFailureDetail(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		reason string
+		want   string
+	}{
+		{name: "上限ちょうどなら切り詰めない", reason: strings.Repeat("あ", recording.MaxFailureDetail), want: ""},
+		{name: "上限を超えたら、省略記号を含めて上限まで", reason: strings.Repeat("あ", recording.MaxFailureDetail+1), want: "…"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			// 本文がそのまま残るよう、ほかの文字を付けないエラーにする。
+			stream := newAttemptedStream(failingStream{err: errors.New(tt.reason)})
+			recorder, _ := f.newRecorder(t, stream, nil)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			stream.wait(t)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			detail := f.failureDetail(t, reservationID)
+			require.NotNil(t, detail)
+			runes := []rune(*detail)
+			assert.LessOrEqual(t, len(runes), recording.MaxFailureDetail)
+			if tt.want == "" {
+				assert.Equal(t, tt.reason, *detail)
+			} else {
+				assert.Len(t, runes, recording.MaxFailureDetail)
+				assert.True(t, strings.HasSuffix(*detail, tt.want))
+			}
 		})
 	}
 }
