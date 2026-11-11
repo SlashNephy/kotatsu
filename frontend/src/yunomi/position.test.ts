@@ -80,8 +80,29 @@ describe('broadcastTime', () => {
       seconds: 20 * 60,
       want: '2026-10-14T12:23:00Z',
     },
+    {
+      // 5 分遅れて録り始めた録画 (#1427)。サーバーは、予定の始まりから最初のセグメントまでを途切れた区間にする。
+      // 録画を始めた時刻 (recordedFrom) より前の部分は、位置の基準の前なので足さない。
+      name: '録画を始めた時刻より前の、冒頭の欠けは足さない',
+      gaps: [{ from: '2026-10-14T11:55:00Z', to: '2026-10-14T12:00:00Z' }],
+      seconds: 0,
+      want: '2026-10-14T12:00:00Z',
+    },
+    {
+      name: '冒頭の欠けの後に途切れた区間があれば、その長さだけを足す',
+      gaps: [{ from: '2026-10-14T11:55:00Z', to: '2026-10-14T12:00:00Z' }, gap],
+      seconds: 11 * 60,
+      want: '2026-10-14T12:13:00Z',
+    },
   ])('$name', ({ gaps, seconds, want }) => {
     expect(broadcastTime(from, gaps, seconds)).toBe(Date.parse(want));
+  });
+
+  test('遅れて録り始めた録画で、位置を放送時刻にして戻すと、元の位置になる (#1427)', () => {
+    const gaps = [{ from: '2026-10-14T11:55:00Z', to: '2026-10-14T12:00:00Z' }, gap];
+    for (const seconds of [0, 60, 9 * 60, 11 * 60, 30 * 60]) {
+      expect(recordingPosition(from, gaps, broadcastTime(from, gaps, seconds))).toBe(seconds);
+    }
   });
 });
 
