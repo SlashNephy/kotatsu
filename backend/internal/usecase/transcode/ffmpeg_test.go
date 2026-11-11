@@ -44,10 +44,10 @@ func TestFFmpegArgs(t *testing.T) {
 		notWant []string
 		wantVF  string
 	}{
-		{name: "x264", encoder: "", preset: "720p", want: []string{"libx264", x264Preset}, notWant: []string{hwaccel, "hvc1"}, wantVF: "yadif=0:-1:1,scale=-2:720,format=yuv420p"},
-		{name: "x265", encoder: "", preset: "1080p-hevc", want: []string{"libx265", "hvc1"}, notWant: []string{hwaccel}, wantVF: "yadif=0:-1:1,scale=-2:1080,format=yuv420p"},
-		{name: "nvenc", encoder: config.EncoderNVENC, preset: "540p", want: []string{"h264_nvenc", hwaccel, "cuda"}, notWant: []string{x264Preset}, wantVF: "yadif=0:-1:1,scale=-2:540,format=yuv420p"},
-		{name: "vaapi", encoder: config.EncoderVAAPI, preset: "360p", want: []string{"h264_vaapi", "/dev/dri/renderD128"}, notWant: []string{x264Preset}, wantVF: "yadif=0:-1:1,format=nv12,hwupload,scale_vaapi=w=-2:h=360"},
+		{name: "x264", encoder: "", preset: "720p", want: []string{"libx264", x264Preset}, notWant: []string{hwaccel, "hvc1"}, wantVF: "bwdif=0:-1:1,scale=-2:720,format=yuv420p"},
+		{name: "x265", encoder: "", preset: "1080p-hevc", want: []string{"libx265", "hvc1"}, notWant: []string{hwaccel}, wantVF: "bwdif=0:-1:1,scale=-2:1080,format=yuv420p"},
+		{name: "nvenc", encoder: config.EncoderNVENC, preset: "540p", want: []string{"h264_nvenc", hwaccel, "cuda"}, notWant: []string{x264Preset}, wantVF: "bwdif=0:-1:1,scale=-2:540,format=yuv420p"},
+		{name: "vaapi", encoder: config.EncoderVAAPI, preset: "360p", want: []string{"h264_vaapi", "/dev/dri/renderD128"}, notWant: []string{x264Preset}, wantVF: "bwdif=0:-1:1,format=nv12,hwupload,scale_vaapi=w=-2:h=360"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

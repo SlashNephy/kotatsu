@@ -63,23 +63,23 @@ func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu
 }
 
 // FFmpegArgs は、標準入力の TS を、preset の画質の MP4 にして out に書く FFmpeg の引数を返す。
-// 映像は、kyusu と同じく、CPU の yadif でインターレースを解除してから縮め、8 ビットにする (設計書 7.3)。
+// 映像は、kyusu と同じく、CPU の bwdif でインターレースを解除してから縮め、8 ビットにする (設計書 7.3)。
 // 音声は、最初の音声を AAC にする。MP4 は、先頭に索引を置き (faststart)、読み込み終える前から再生できるようにする。
 func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, out string) []string {
 	height := strconv.Itoa(preset.Height)
-	yadif := "yadif=0:-1:1"
-	filter := yadif + ",scale=-2:" + height + ",format=yuv420p"
+	deinterlace := "bwdif=0:-1:1"
+	filter := deinterlace + ",scale=-2:" + height + ",format=yuv420p"
 	device := []string{}
 	options := []string{}
 	var encoder string
 	switch cfg.Encoder {
 	case config.EncoderVAAPI:
 		device = []string{"-vaapi_device", cfg.VAAPIDevice}
-		filter = yadif + ",format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
+		filter = deinterlace + ",format=nv12,hwupload,scale_vaapi=w=-2:h=" + height
 		encoder = map[kyusu.Codec]string{kyusu.CodecH264: "h264_vaapi", kyusu.CodecHEVC: "hevc_vaapi"}[preset.Codec]
 	case config.EncoderQSV:
 		device = []string{"-init_hw_device", "qsv=hw", "-filter_hw_device", "hw"}
-		filter = yadif + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=" + height
+		filter = deinterlace + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=" + height
 		encoder = map[kyusu.Codec]string{kyusu.CodecH264: "h264_qsv", kyusu.CodecHEVC: "hevc_qsv"}[preset.Codec]
 	case config.EncoderNVENC:
 		device = []string{"-hwaccel", "cuda"}
