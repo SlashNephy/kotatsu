@@ -96,7 +96,7 @@ func (r *mutationResolver) DeleteReservations(ctx context.Context, ids []string)
 
 // Reservation is the resolver for the reservation field.
 func (r *programResolver) Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error) {
-	found, err := loadersFrom(ctx).ProgramReservations.Load(ctx, domain.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)})
+	found, err := loadersFrom(ctx).ProgramReservations.Load(ctx, domain.ProgramKey{ServiceID: obj.ServiceKey, EventID: int64(obj.EventID)})()
 	// アーカイブの番組には、eventId を再利用した別の番組の予約を出さない。
 	if err != nil || found == nil || obj.Archived {
 		return nil, err
@@ -112,7 +112,7 @@ func (r *queryResolver) Reservations(ctx context.Context, from time.Time, to tim
 
 // Service is the resolver for the service field.
 func (r *reservationResolver) Service(ctx context.Context, obj *model.Reservation) (*model.Service, error) {
-	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
 		return nil, err
 	}
@@ -122,11 +122,11 @@ func (r *reservationResolver) Service(ctx context.Context, obj *model.Reservatio
 
 // Rules is the resolver for the rules field.
 func (r *reservationResolver) Rules(ctx context.Context, obj *model.Reservation) ([]*model.Rule, error) {
-	ruleIDs, err := loadersFrom(ctx).RuleIDs.Load(ctx, obj.Key)
+	ruleIDs, err := loadersFrom(ctx).RuleIDs.Load(ctx, obj.Key)()
 	if err != nil {
 		return nil, err
 	}
-	found, err := loadersFrom(ctx).Rules.LoadAll(ctx, ruleIDs)
+	found, err := loadAll(ctx, loadersFrom(ctx).Rules, ruleIDs)
 	if err != nil {
 		return nil, err
 	}

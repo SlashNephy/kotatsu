@@ -34,7 +34,7 @@ func users(ctx context.Context, ids ...*uuid.UUID) (map[uuid.UUID]*model.User, e
 			keys = append(keys, *userID)
 		}
 	}
-	found, err := loadersFrom(ctx).Users.LoadAll(ctx, keys)
+	found, err := loadAll(ctx, loadersFrom(ctx).Users, keys)
 	if err != nil {
 		return nil, err
 	}

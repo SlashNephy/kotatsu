@@ -17,7 +17,7 @@ import (
 
 // Service is the resolver for the service field.
 func (r *programResolver) Service(ctx context.Context, obj *model.Program) (*model.Service, error) {
-	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (r *programResolver) SharedFrom(ctx context.Context, obj *model.Program) (*
 	var row *domain.Service
 	var err error
 	if obj.SharedFromKey != 0 {
-		row, err = loadersFrom(ctx).Services.Load(ctx, obj.SharedFromKey)
+		row, err = loadersFrom(ctx).Services.Load(ctx, obj.SharedFromKey)()
 	}
 	// 元のサービスがまだ同期されていなければ、共有していないものとして扱う。
 	if e, ok := errors.AsType[*Error](err); ok && e.Code == CodeNotFound {
@@ -66,7 +66,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		if err != nil {
 			return nil, NewError(CodeBadUserInput, "invalid user ID")
 		}
-		user, err := loadersFrom(ctx).Users.Load(ctx, userID)
+		user, err := loadersFrom(ctx).Users.Load(ctx, userID)()
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +84,7 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		if err != nil {
 			return nil, err
 		}
-		row, err := loadersFrom(ctx).Services.Load(ctx, serviceID)
+		row, err := loadersFrom(ctx).Services.Load(ctx, serviceID)()
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +239,7 @@ func (r *queryResolver) OldestArchivedProgramAt(ctx context.Context) (*time.Time
 
 // ChannelType is the resolver for the channelType field.
 func (r *serviceResolver) ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error) {
-	row, err := loadersFrom(ctx).ChannelTypes.Load(ctx, obj.ChannelTypeKey)
+	row, err := loadersFrom(ctx).ChannelTypes.Load(ctx, obj.ChannelTypeKey)()
 	if err != nil {
 		return nil, err
 	}

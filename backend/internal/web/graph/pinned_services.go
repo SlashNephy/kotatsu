@@ -29,7 +29,7 @@ func (r *Resolver) setServicePinned(ctx context.Context, globalID string, pinned
 	if err != nil {
 		return nil, err
 	}
-	if _, err := loadersFrom(ctx).Services.Load(ctx, serviceID); err != nil {
+	if _, err := loadersFrom(ctx).Services.Load(ctx, serviceID)(); err != nil {
 		return nil, NewError(CodeNotFound, "service not found")
 	}
 	if err := usersettings.SetServicePinned(ctx, r.db, r.clock, principal.UserID, serviceID, pinned); err != nil {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	pgx "github.com/jackc/pgx/v5"
-	"github.com/vikstrous/dataloadgen"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -182,14 +181,11 @@ func toProgramAudios(raw []byte) ([]*model.ProgramAudio, error) {
 
 // loadServices は、サービスを keys の順に引く。消えたサービスは飛ばす。
 func (r *Resolver) loadServices(ctx context.Context, keys []int64) ([]*model.Service, error) {
-	rows, err := loadersFrom(ctx).Services.LoadAll(ctx, keys)
-	var errs dataloadgen.ErrorSlice
-	if err != nil && !errors.As(err, &errs) {
-		return nil, err
-	}
+	// errs は、どのキーも引けたときは nil で、1 つでも失敗したときはキーの順にエラーを並べる。
+	rows, errs := loadersFrom(ctx).Services.LoadMany(ctx, keys)()
 	services := make([]*model.Service, 0, len(rows))
 	for i, row := range rows {
-		if row == nil || (i < len(errs) && errs[i] != nil) {
+		if row == nil || (errs != nil && errs[i] != nil) {
 			continue
 		}
 		services = append(services, toService(row))
@@ -267,7 +263,7 @@ func (r *Resolver) programRecordings(ctx context.Context, program *model.Program
 func (r *Resolver) programRecorded(ctx context.Context, program *model.Program) (bool, error) {
 	recorded, err := loadersFrom(ctx).ProgramRecorded.Load(ctx, query.ProgramSpan{
 		ServiceID: program.ServiceKey, EventID: int64(program.EventID), StartAt: program.StartAt.UTC(), EndAt: program.EndAt.UTC(),
-	})
+	})()
 	if err != nil {
 		return false, fmt.Errorf("failed to check the recordings of the program: %w", err)
 	}

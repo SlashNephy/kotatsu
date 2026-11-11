@@ -57,7 +57,7 @@ func (r *Resolver) jikkyoAccess(ctx context.Context) domain.JikkyoAccess {
 	if err != nil {
 		return domain.JikkyoAccess{SystemEnabled: false, UserEnabled: false}
 	}
-	access, err := loadersFrom(ctx).JikkyoAccess.Load(ctx, principal.UserID)
+	access, err := loadersFrom(ctx).JikkyoAccess.Load(ctx, principal.UserID)()
 	if err != nil {
 		r.logger.WarnContext(ctx, "failed to read whether jikkyo is enabled", slog.Any("error", err))
 

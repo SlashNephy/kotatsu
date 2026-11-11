@@ -23,7 +23,7 @@ func TestLoaderFailsEveryKeyWhenTheQueryFails(t *testing.T) {
 	// 閉じたプールでは、クエリが失敗する。
 	pool.Close()
 
-	users, err := graph.NewLoaders(pool).Users.LoadAll(t.Context(), []uuid.UUID{uuid.New(), uuid.New(), uuid.New()})
+	users, err := graph.LoadAll(t.Context(), graph.NewLoaders(pool).Users, []uuid.UUID{uuid.New(), uuid.New(), uuid.New()})
 	require.Error(t, err)
 	assert.Len(t, users, 3)
 }

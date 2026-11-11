@@ -12,7 +12,7 @@ func (r *mutationResolver) BeginTotpEnrollment(ctx context.Context) (*model.TOTP
 	if err != nil {
 		return nil, err
 	}
-	user, err := loadersFrom(ctx).Users.Load(ctx, principal.UserID)
+	user, err := loadersFrom(ctx).Users.Load(ctx, principal.UserID)()
 	if err != nil {
 		return nil, err
 	}

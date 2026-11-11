@@ -74,7 +74,7 @@ func (r *queryResolver) Tags(ctx context.Context) ([]*model.Tag, error) {
 
 // Service is the resolver for the service field.
 func (r *recordingResolver) Service(ctx context.Context, obj *model.Recording) (*model.Service, error) {
-	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)
+	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
 		return nil, err
 	}
