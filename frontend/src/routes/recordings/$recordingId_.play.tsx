@@ -1163,6 +1163,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                       content: (
                         <CommentList
                           rows={recordedRows}
+                          // 全画面の間は一覧が見えないので、コメントが届いても描き直さない。
+                          frozen={fullscreen.active}
                           onMuteUser={muteUser}
                           height={watchCommentsHeight}
                         />
