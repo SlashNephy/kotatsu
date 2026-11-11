@@ -327,6 +327,43 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	assert.NotEmpty(t, entries)
 }
 
+// TestRecorderRecordsWithoutTuner は、受信しているチューナーを探せなくても、録画を続け、
+// セグメントにはチューナーを記録しないことを確かめる (#1467)。チューナーの一覧は、録画には要らない。
+func TestRecorderRecordsWithoutTuner(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	recorder, _ := f.newRecorder(t, unlistableTuner{StreamOpener: f.tuner}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool { return len(f.files(t, reservationID)) == 1 }, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+
+	// ドロップの有無は、偽のチューナーサーバーが TS を繰り返すつなぎ目次第なので、失敗していないことだけを見る。
+	got, _ := f.recording(t, reservationID)
+	assert.NotEqual(t, string(recording.StateFailed), got.state)
+	assert.Nil(t, got.failureReason)
+	var tunerIndex *int64
+	var tunerName *string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT tuner_index, tuner_name FROM recording_files WHERE id = $1", f.files(t, reservationID)[0].id).
+		Scan(&tunerIndex, &tunerName))
+	assert.Nil(t, tunerIndex)
+	assert.Nil(t, tunerName)
+}
+
+// unlistableTuner は、ストリームは開けるが、チューナーの一覧を返せないチューナーサーバー。
+type unlistableTuner struct {
+	recording.StreamOpener
+}
+
+var _ recording.TunerLister = new(unlistableTuner)
+
+func (unlistableTuner) Tuners(context.Context) ([]*mirakurun.Tuner, error) {
+	return nil, errors.New("tuner server responded 500 to GET /api/tuners")
+}
+
 // TestRecorderFinishesWhileDatabaseIsUnreachable は、予定の終わりに DB に届かなくても、録り直さずに録画を止め、
 // DB が戻ってから、録画を止めた時刻で完了にすることを確かめる (#1073)。DB への問い合わせが詰まっても、予定の終わりで止める。
 func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {

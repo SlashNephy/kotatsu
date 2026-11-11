@@ -231,6 +231,7 @@ func TestTunerOf(t *testing.T) {
 	tuners := []*mirakurun.Tuner{
 		{Index: 0, Name: "GR0", Users: []*mirakurun.TunerUser{{ID: "a", Priority: 0, Agent: ""}}},
 		{Index: -1, Name: "remote / T0", Users: []*mirakurun.TunerUser{{ID: "b", Priority: 0, Agent: ""}, {ID: "c", Priority: 0, Agent: ""}}},
+		nil,
 		{Index: 2, Name: "GR2", Users: []*mirakurun.TunerUser{}},
 	}
 	tests := []struct {
@@ -241,6 +242,7 @@ func TestTunerOf(t *testing.T) {
 		{name: "ローカルのチューナー", userID: "a", want: tuners[0]},
 		{name: "相乗りしているリモートのチューナー", userID: "c", want: tuners[1]},
 		{name: "使っていない", userID: "d", want: nil},
+		{name: "一覧に null が混じっていても飛ばす", userID: "e", want: nil},
 		{name: "ID を返さないチューナーサーバー", userID: "", want: nil},
 	}
 	for _, tt := range tests {

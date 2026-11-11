@@ -413,6 +413,9 @@ func TunerOf(tuners []*Tuner, userID string) *Tuner {
 		return nil
 	}
 	for _, tuner := range tuners {
+		if tuner == nil {
+			continue
+		}
 		for _, user := range tuner.Users {
 			if user != nil && user.ID == userID {
 				return tuner
