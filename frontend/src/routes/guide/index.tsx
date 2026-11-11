@@ -56,6 +56,17 @@ type GuideSearch = {
 };
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+// isCalendarDate は、YYYY-MM-DD の形で、暦にある日付かどうかを返す。
+// Date.parse は 2 月 30 日を 3 月 1 日に繰り越し、13 月は NaN にするので、作り直した日付と比べる (#1430)。
+function isCalendarDate(date: string): boolean {
+  if (!datePattern.test(date)) {
+    return false;
+  }
+  const time = Date.parse(`${date}T00:00:00Z`);
+
+  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === date;
+}
 const day = 24 * 60 * 60_000;
 // pinnedTab は、ピン留めしたサービスを出すタブの値 (#485)。チャンネル種別とぶつからないよう、小文字にする。
 const pinnedTab = 'pinned';
@@ -80,7 +91,8 @@ export const Route = createFileRoute('/guide/')({
     const reservation = text('reservation');
 
     return {
-      ...(date !== undefined && datePattern.test(date) ? { date } : {}),
+      // 形が違う値と、暦にない日付 (URL の手入力や壊れたリンク) は捨てる。
+      ...(date !== undefined && isCalendarDate(date) ? { date } : {}),
       ...(type !== undefined ? { type } : {}),
       ...(program !== undefined ? { program } : {}),
       ...(view !== undefined ? { view } : {}),
@@ -91,10 +103,11 @@ export const Route = createFileRoute('/guide/')({
   staticData: { fluid: true },
 });
 
-// dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。
+// dayFrom は、URL の日付 (なければ今日) の放送日の始まりを返す。暦にない日付も、今日にする。
+// validateSearch で捨てても、Route.useSearch() には、親のルートが検証せずに渡した URL の値が残るので、ここでも確かめる (#1430)。
 function dayFrom(date: string | undefined, todayFrom: number): number {
   // その日の正午 (表示のタイムゾーン) を含む放送日にする。
-  return date === undefined
+  return date === undefined || !isCalendarDate(date)
     ? todayFrom
     : broadcastDay(fromWallClock(Date.parse(`${date}T12:00:00Z`))).from;
 }
