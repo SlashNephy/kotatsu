@@ -1,3 +1,5 @@
+import { configure } from '@testing-library/react';
+
 // jsdom にない、Mantine が使うブラウザの API を補う (Mantine の Vitest の手順)。
 
 // matchMedia は、どのメディアクエリにも一致しない (OS のテーマはライト) として振る舞う。
@@ -32,3 +34,6 @@ if (!('scrollIntoView' in Element.prototype)) {
     value: () => undefined,
   });
 }
+
+// findBy と waitFor の待ち時間。本物のルーターとデモのデータで画面を描くテストは、並べて走らせて重いと、既定の 1 秒を超えることがある。
+configure({ asyncUtilTimeout: 5_000 });
