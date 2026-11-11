@@ -14,7 +14,7 @@ overrides:
   # web-bml は、css を GitHub の tarball で指定している。tarball の依存は pnpm が拒み、Renovate も追えないうえ、
   # css は更新が止まっている (#1471)。API と AST が同じ fork の @adobe/css-tools に差し替え、tarball の fork が足した
   # パーサーの修正 (宣言の前の ; を読み飛ばす) だけをパッチで当てる。
-  css: npm:@adobe/css-tools@4.5.0
+  css: npm:@adobe/css-tools@5.0.0
   vite: npm:@voidzero-dev/vite-plus-core@1.5.0
   vitest: 5.1.0
 
