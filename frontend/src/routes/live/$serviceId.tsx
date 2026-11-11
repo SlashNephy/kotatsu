@@ -189,7 +189,9 @@ function LiveServicePage() {
       <Anchor component={Link} to="/live" size="sm">
         {t('live.back')}
       </Anchor>
+      {/* 同じルートのまま別のサービスへ移ったときは、前のサービスのエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
+        resetKey={serviceId}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">

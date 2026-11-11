@@ -135,7 +135,9 @@ function PlayPage() {
       >
         {t('timeshift.backToLive')}
       </Anchor>
+      {/* 同じルートのまま別のサービスや番組へ移ったときは、前の番組のエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
+        resetKey={`${serviceId}:${program}`}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">

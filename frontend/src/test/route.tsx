@@ -146,3 +146,17 @@ async function mount(routeTree: AnyRoute, url: string, environment: Environment)
 
   return { router, ...result };
 }
+
+// createFailingEnvironment は、変数に failing を含む操作を失敗させ、ほかの操作は応答を返さず待たせる Relay の環境を作る。
+// エラーの後に別の対象へ移ったとき、エラーの表示を消して読み直すかを確かめるのに使う。requested は、送られた操作の変数 (JSON)。
+export function createFailingEnvironment(failing: string) {
+  const requested: string[] = [];
+  const environment = createTestEnvironment((_, variables) => {
+    const text = JSON.stringify(variables);
+    requested.push(text);
+
+    return text.includes(failing) ? new Error('failed') : undefined;
+  });
+
+  return { environment, requested };
+}

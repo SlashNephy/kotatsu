@@ -50,7 +50,9 @@ function RulePage() {
       <Title order={2}>
         {ruleId === newRuleId ? t('rules.createTitle') : t('rules.editTitle')}
       </Title>
+      {/* 同じルートのまま別のルールへ移ったときは、前のルールのエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
+        resetKey={ruleId}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">
