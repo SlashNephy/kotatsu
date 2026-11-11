@@ -284,3 +284,48 @@ func TestMatchImported(t *testing.T) {
 	assert.Zero(t, result.Programs, "matched recordings are not matched again")
 	assert.Empty(t, client.takeCalls())
 }
+
+// TestMatchImportedLongRecording は、それだけで問い合わせの上限 (14 の ChID と日の組) を超える、15 日以上にまたがる取り込み録画が
+// 古い順の先頭にあっても、後の録画の照合を続けることを確かめる (#1417)。そのような録画は、しょぼいカレンダーに問い合わせず、
+// 番組名の解析で照合する。終わりが遠い未来の録画でも、問い合わせる日を並べない。
+func TestMatchImportedLongRecording(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		end  time.Time
+	}{
+		{name: "20 日にまたがる録画", end: time.Date(2024, 3, 21, 13, 0, 0, 0, time.UTC)},
+		{name: "終わりが遠い未来の録画", end: time.Date(9999, 12, 31, 0, 0, 0, 0, time.UTC)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, clk, client, matcher := newMatchFixture(t)
+			_, err := matcher.MatchHorizon(t.Context())
+			require.NoError(t, err)
+			client.takeCalls()
+
+			long := insertRecording(t, db, bsService, time.Date(2024, 3, 1, 13, 0, 0, 0, time.UTC), tt.end, true)
+			later := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), true)
+			client.set([]*syobocal.Program{
+				syobocalProgram(300, 40, bsChannel, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), "8", "", "", 0),
+			}, false)
+			clk.Advance(time.Minute)
+
+			result, err := matcher.MatchImported(t.Context())
+			require.NoError(t, err)
+
+			assert.Equal(t, 2, result.Programs, "both recordings are matched")
+			calls := client.takeCalls()
+			require.Len(t, calls, 1, "only the later recording is looked up")
+			assert.Equal(t, []int32{bsChannel}, calls[0].channelIDs)
+			assert.Equal(t, []float64{8}, recordingEpisodes(t, db, later))
+			assert.NotNil(t, recordingEpisodes(t, db, long), "the long recording is matched by its title")
+			result, err = matcher.MatchImported(t.Context())
+			require.NoError(t, err)
+			assert.Zero(t, result.Programs, "the long recording is not matched again")
+		})
+	}
+}
