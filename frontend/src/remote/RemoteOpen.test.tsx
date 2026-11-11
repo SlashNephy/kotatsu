@@ -84,4 +84,33 @@ describe('RemoteOpen の録画の検索 (#1423)', () => {
     expect(screen.getByText('B の録画')).toBeTruthy();
     expect(screen.queryByText('A の録画')).toBeNull();
   });
+
+  test('前の検索が後から失敗しても、最後の検索の結果を出し、エラーを出さない', async () => {
+    const pending = new Map<
+      string,
+      { resolve: (response: GraphQLResponse) => void; reject: (error: Error) => void }
+    >();
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'RemoteOpenServicesQuery') {
+        return { data: { services: [] } };
+      }
+
+      return new Promise((resolve, reject) =>
+        pending.set(String(variables.keyword), { resolve, reject }),
+      );
+    });
+    await renderWithRouter(<RemoteOpen onOpen={vi.fn()} />, environment);
+    fireEvent.click(await screen.findByText('録画'));
+    const input = await screen.findByRole('textbox', { name: '番組名で録画を探す' });
+    fireEvent.change(input, { target: { value: 'A' } });
+    fireEvent.submit(input.closest('form')!);
+    fireEvent.change(input, { target: { value: 'B' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await act(async () => pending.get('B')!.resolve(recordings('B の録画')));
+    await act(async () => pending.get('A')!.reject(new Error('failed')));
+
+    expect(screen.getByText('B の録画')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

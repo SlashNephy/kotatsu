@@ -52,7 +52,9 @@ export function createTestEnvironment(respond: Respond): Environment {
           return;
         }
         if (result instanceof Promise) {
-          void result.then(reply);
+          void result.then(reply, (error: unknown) =>
+            reply(error instanceof Error ? error : new Error(String(error))),
+          );
 
           return;
         }
