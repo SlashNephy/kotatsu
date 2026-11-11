@@ -13,7 +13,7 @@ const workImage = 'https://example.com/work.jpg';
 const thumbnail = '/media/thumbnails/1.jpg';
 
 // library は、作品の画像 imageUrl と、録画の代表画像を 1 つ持つ作品だけのライブラリ。
-function library(imageUrl: string | null) {
+function library(imageUrl: string | null, recorded = true) {
   return {
     enabled: true,
     imports: [
@@ -34,24 +34,26 @@ function library(imageUrl: string | null) {
         nextEpisode: null,
         broadcasts: [],
         recentBroadcasts: [],
-        recordedEpisodes: [
-          {
-            countStart: 1,
-            countEnd: 1,
-            subtitle: null,
-            recordingCount: 1,
-            watched: false,
-            recording: { __typename: 'Recording', id: 'Recording:1', thumbnailUrl: thumbnail },
-          },
-        ],
+        recordedEpisodes: recorded
+          ? [
+              {
+                countStart: 1,
+                countEnd: 1,
+                subtitle: null,
+                recordingCount: 1,
+                watched: false,
+                recording: { __typename: 'Recording', id: 'Recording:1', thumbnailUrl: thumbnail },
+              },
+            ]
+          : [],
       },
     ],
   };
 }
 
-async function renderLibrary(imageUrl: string | null) {
+async function renderLibrary(imageUrl: string | null, recorded = true) {
   const environment = createDemoEnvironment({
-    animeLibrary: () => library(imageUrl),
+    animeLibrary: () => library(imageUrl, recorded),
     animeWishlist: () => ({ works: [] }),
   });
   const { container } = await renderWithRouter(
@@ -95,6 +97,13 @@ describe('AnimeLibrary の作品の画像 (#1433)', () => {
   test('作品の画像がなく、録画の代表画像も読めなければ、画像の枠を消す', async () => {
     const container = await renderLibrary(null);
     expect(container.querySelector('section img')?.getAttribute('src')).toBe(thumbnail);
+
+    expect(await failImage(container)).toBeNull();
+  });
+
+  test('録画がなく、作品の画像が読めなければ、画像の枠を消す', async () => {
+    const container = await renderLibrary(workImage, false);
+    expect(container.querySelector('section img')?.getAttribute('src')).toBe(workImage);
 
     expect(await failImage(container)).toBeNull();
   });
