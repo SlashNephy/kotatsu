@@ -24,7 +24,8 @@ type PlayableProgram struct {
 	EndedAt   *time.Time
 	// PlayableFrom は、再生できる範囲の始まり。番組の頭のチャンクを破棄したか、録れていなかったら、StartedAt より後になる。
 	PlayableFrom time.Time
-	// Gaps は、PlayableFrom から番組の終わりまでの、途切れた区間。始まりの順に並ぶ。
+	// Gaps は、PlayableFrom から番組の終わり (放送中なら今) までの、途切れた区間。始まりの順に並ぶ。
+	// チャンクの間の穴と、最後のチャンクの終わりから番組の終わりまでの録れていない部分を含む。
 	Gaps []Gap
 	// FromStart は、番組の頭から録れていて、頭から再生できるかどうか。
 	FromStart bool
@@ -180,6 +181,11 @@ func playable(programs []sqlc.TimeshiftProgram, spans []span, now time.Time) []*
 		}
 		if p.PlayableFrom.IsZero() {
 			continue
+		}
+		// 最後のチャンクの終わりから番組の終わりまで録れていなければ、そこも途切れた区間にする (#1414)。
+		// 放送中の番組で、ストリームが切れている間は、今までが途切れた区間になる。書いている途中のチャンクは今まで録れているので、穴にならない。
+		if end.After(covered) {
+			p.Gaps = append(p.Gaps, Gap{From: covered, To: end})
 		}
 		p.FromStart = i > 0 && programs[i-1].EndedAt != nil && programs[i-1].EndedAt.Equal(program.StartedAt) &&
 			p.PlayableFrom.Equal(program.StartedAt)

@@ -214,6 +214,9 @@ type Querier interface {
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)
 	// 終わっていない番組を閉じる。
 	EndTimeshiftProgram(ctx context.Context, arg EndTimeshiftProgramParams) (int64, error)
+	// 終わっていない番組を、サービスのチャンクの最も遅い終わりで閉じる。番組の始まりより前にはしない。
+	// チャンクを書かないまま割り振りが消えた mikan が、録れていない時間を番組に含めないよう、録れていた最後の時刻で閉じるのに使う (#1414)。
+	EndTimeshiftProgramAtLastChunk(ctx context.Context, serviceID int64) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
 	// 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。

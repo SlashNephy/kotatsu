@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -50,7 +51,13 @@ type fakeTuner struct {
 	chunks chan *streamChunk
 	// reads は、Recorder がストリームを読もうとした回数。読もうとしたなら、それまでに渡したデータを処理し終えている。
 	reads atomic.Int64
+	// down は、チューナーサーバーに届かず、ストリームを開けないかどうか。cutCh は、down にしたときに閉じ、開いているストリームを切る。
+	down  atomic.Bool
+	cutCh chan struct{}
 }
+
+// errTunerDown は、チューナーサーバーに届かないときの、ストリームを開くエラー。
+var errTunerDown = errors.New("the tuner server is unreachable")
 
 // streamChunk は、next で流すデータ。読んだストリームは、何回目の読み込みで読んだかを taken に返す。
 type streamChunk struct {
@@ -61,7 +68,7 @@ type streamChunk struct {
 func newFakeTuner(clk *clocktest.Fake, cutAtOnce bool) *fakeTuner {
 	return &fakeTuner{
 		clk: clk, cutAtOnce: cutAtOnce, mu: sync.Mutex{}, opens: []time.Time{}, opts: []mirakurun.StreamOptions{},
-		chunks: make(chan *streamChunk), reads: atomic.Int64{},
+		chunks: make(chan *streamChunk), reads: atomic.Int64{}, down: atomic.Bool{}, cutCh: make(chan struct{}),
 	}
 }
 
@@ -72,11 +79,20 @@ func (f *fakeTuner) OpenServiceStream(ctx context.Context, _ int64, opts *miraku
 	f.opens = append(f.opens, f.clk.Now())
 	f.opts = append(f.opts, *opts)
 	f.mu.Unlock()
+	if f.down.Load() {
+		return nil, errTunerDown
+	}
 	if f.cutAtOnce {
 		return io.NopCloser(strings.NewReader("")), nil
 	}
 
 	return &fakeStream{tuner: f, ctxDone: ctx.Done(), closed: make(chan struct{}), once: sync.Once{}}, nil
+}
+
+// cut は、開いているストリームを切り、それからはストリームを開けなくする。
+func (f *fakeTuner) cut() {
+	f.down.Store(true)
+	close(f.cutCh)
 }
 
 // openTimes は、ストリームを開いた時計の時刻を返す。
@@ -120,6 +136,8 @@ func (s *fakeStream) Read(p []byte) (int, error) {
 		return copy(p, chunk.data), nil
 	case <-s.closed:
 		return 0, io.ErrClosedPipe
+	case <-s.tuner.cutCh:
+		return 0, io.EOF
 	case <-s.ctxDone:
 		return 0, context.Canceled
 	}
@@ -672,6 +690,68 @@ func TestTimeshiftRecorderStopsWhenAssignmentDeleted(t *testing.T) {
 	require.Len(t, gotPrograms, 1)
 	require.NotNil(t, gotPrograms[0].endedAt)
 	assert.True(t, start.Add(time.Minute).Equal(*gotPrograms[0].endedAt))
+}
+
+// TestTimeshiftRecorderStopsWhenAssignmentDeletedWhileCut は、ストリームが切れて開き直せない間に割り振りが消えたら、
+// 放送中の番組を、今ではなく、録れていた最後の時刻 (最後のチャンクの終わり) で閉じることを確かめる (#1414)。
+// 今で閉じると、録れていない時間まで番組に含め、再生の長さが延びる。
+func TestTimeshiftRecorderStopsWhenAssignmentDeletedWhileCut(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	tuner := newFakeTuner(e.clk, false)
+	start := e.clk.Now()
+	_, done := session(t, e.newRecorder(tuner), e.assign(t, false))
+	cc := byte(0)
+	tuner.next(t, eitPFPackets(&cc, 3, 4))
+	e.clk.Advance(time.Minute)
+	tuner.cut()
+	require.Eventually(t, func() bool {
+		got := chunks(t, e)
+
+		return len(got) == 1 && got[0].endedAt != nil
+	}, waitTimeout, time.Millisecond)
+	// 開き直せないまま、10 分経つ。
+	e.clk.Advance(10 * time.Minute)
+
+	_, err := e.q.DeleteTimeshiftAssignment(t.Context(), grService(0))
+	require.NoError(t, err)
+	require.NoError(t, wait(t, done))
+
+	gotPrograms := programs(t, e)
+	require.Len(t, gotPrograms, 1)
+	require.NotNil(t, gotPrograms[0].endedAt)
+	assert.True(t, start.Add(time.Minute).Equal(*gotPrograms[0].endedAt), "the program ended at %s", *gotPrograms[0].endedAt)
+}
+
+// TestTimeshiftRecorderStopsWithoutChunks は、引き継いでからチャンクを書かないまま割り振りが消えたら、
+// 放送中の番組を、サービスのチャンクの最後の終わりで閉じることを確かめる (#1414)。
+func TestTimeshiftRecorderStopsWithoutChunks(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	// 前の mikan が、10 分前から 2 分前まで録り、番組を 9 分前から放送中のまま残した。
+	now := e.clk.Now()
+	chunkID := id.New()
+	require.NoError(t, e.q.InsertTimeshiftChunk(t.Context(), sqlc.InsertTimeshiftChunkParams{
+		ID: chunkID, ServiceID: grService(0), Path: "chunk.m2ts", Size: 0, StartedAt: now.Add(-10 * time.Minute), Now: now.Add(-10 * time.Minute),
+	}))
+	_, err := e.q.CloseTimeshiftChunk(t.Context(), sqlc.CloseTimeshiftChunkParams{ID: chunkID, Size: 0, EndedAt: new(now.Add(-2 * time.Minute))})
+	require.NoError(t, err)
+	require.NoError(t, e.q.StartTimeshiftProgram(t.Context(), sqlc.StartTimeshiftProgramParams{
+		ServiceID: grService(0), StartedAt: now.Add(-9 * time.Minute), EventID: 3, Name: "番組",
+	}))
+	// 引き継いだので、後始末をせず、ストリームはすぐに切れる。
+	_, done := session(t, e.newRecorder(newFakeTuner(e.clk, true)), e.assign(t, true))
+
+	_, err = e.q.DeleteTimeshiftAssignment(t.Context(), grService(0))
+	require.NoError(t, err)
+	require.NoError(t, wait(t, done))
+
+	gotPrograms := programs(t, e)
+	require.Len(t, gotPrograms, 1)
+	require.NotNil(t, gotPrograms[0].endedAt)
+	assert.True(t, now.Add(-2*time.Minute).Equal(*gotPrograms[0].endedAt), "the program ended at %s", *gotPrograms[0].endedAt)
 }
 
 // TestTimeshiftRecorderClosesStaleChunks は、割り振りを取ったときに、落ちた mikan が残した書きかけのチャンクを、ファイルの大きさと
