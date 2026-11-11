@@ -1,6 +1,6 @@
 import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { Captions, Keyboard, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -214,6 +214,7 @@ function Player({
   start: number | undefined;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const variables = { serviceId, startAt };
   const { timeshiftProgram: program, transcoding } = useLazyLoadQuery<ServiceIdPlayTimeshiftQuery>(
     playQuery,
@@ -451,6 +452,8 @@ function Player({
     seekTo: seek,
     showShortcuts: () => setShortcutsOpen(true),
     setVolume: videoState.setVolume,
+    // スリープタイマーと「再生をやめる」のキーは、プレイヤーを閉じて、上の「ライブ視聴に戻る」と同じ画面へ移る (#1426)。
+    stop: () => void navigate({ to: '/live/$serviceId', params: { serviceId } }),
     ...(pip.supported
       ? {
           pictureInPicture: () => {
