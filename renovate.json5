@@ -53,6 +53,22 @@
       ],
       enabled: false,
     },
+    {
+      // get-nonce は、Mantine の Modal と Drawer が使う react-remove-scroll の依存で、CSP の nonce を渡すために直に呼ぶ。
+      // 12 行で完結したモジュールなので、更新が止まっていても困らない。Mantine が依存を外したら、直の依存もやめる (#1471)。
+      matchPackageNames: [
+        'get-nonce',
+      ],
+      abandonmentThreshold: null,
+    },
+    {
+      // go-ruleguard の dsl は、golangci-lint のルール (backend/lint/) を書くためだけに使い、配布物には入らない。
+      // ルールが動いている限り、更新が止まっていても困らない (#1471)。
+      matchPackageNames: [
+        'github.com/quasilyte/go-ruleguard/dsl',
+      ],
+      abandonmentThreshold: null,
+    },
   ],
   customManagers: [
     {
