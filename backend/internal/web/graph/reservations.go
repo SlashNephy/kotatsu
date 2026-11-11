@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -33,11 +32,11 @@ type reservationCursor struct {
 func parseReservationID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != reservationType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid reservation ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid reservation ID")
 	}
 	reservationID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid reservation ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid reservation ID")
 	}
 
 	return reservationID, nil

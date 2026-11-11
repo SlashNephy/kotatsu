@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/graph-gophers/dataloader/v7"
 	"github.com/jackc/pgx/v5/pgxpool"
 

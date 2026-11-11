@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"

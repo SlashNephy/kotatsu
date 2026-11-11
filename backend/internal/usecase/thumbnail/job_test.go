@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -72,7 +72,7 @@ func newJobFixture(t *testing.T) *jobFixture {
 
 	return &jobFixture{
 		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, store: kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataRoot),
-		segmentID: uuid.Nil,
+		segmentID: uuid.Nil(),
 	}
 }
 

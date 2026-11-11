@@ -10,7 +10,7 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const deleteStaleSessions = `-- name: DeleteStaleSessions :execrows

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,8 +14,9 @@ func TestNewIsVersion7(t *testing.T) {
 	t.Parallel()
 
 	got := id.New()
-	assert.Equal(t, uuid.Version(7), got.Version())
-	assert.Equal(t, uuid.RFC4122, got.Variant())
+	// 版は 7 番目のバイトの上位 4 ビット、変種は 9 番目のバイトの上位 2 ビットにある (RFC 9562 4.1、4.2)。
+	assert.Equal(t, byte(7), got[6]>>4)
+	assert.Equal(t, byte(0b10), got[8]>>6)
 }
 
 func TestNewIsOrderedByGeneration(t *testing.T) {

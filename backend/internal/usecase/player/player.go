@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -80,7 +80,7 @@ func (s *Service) Register(ctx context.Context, userID, sessionID uuid.UUID, sta
 		return s.changed(ctx, tx, userID)
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil(), err
 	}
 
 	return playerID, nil

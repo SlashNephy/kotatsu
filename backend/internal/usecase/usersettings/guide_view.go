@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -68,13 +68,13 @@ func SaveGuideView(ctx context.Context, db Beginner, clk clock.Clock, userID uui
 		return Touch(ctx, tx, clk, userID)
 	})
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgUniqueViolation {
-		return uuid.Nil, ErrDuplicateGuideViewName
+		return uuid.Nil(), ErrDuplicateGuideViewName
 	}
 	if errors.Is(err, ErrGuideViewNotFound) {
-		return uuid.Nil, err
+		return uuid.Nil(), err
 	}
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to save the guide view: %w", err)
+		return uuid.Nil(), fmt.Errorf("failed to save the guide view: %w", err)
 	}
 
 	return saved, nil

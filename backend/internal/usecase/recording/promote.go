@@ -8,8 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -223,7 +223,7 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 
 	// ファイル名は、予約の録画と同じく、番組の情報から付ける。
 	program := &sqlc.GetReservationForRecordingRow{
-		ID: uuid.Nil, Kind: "", ServiceID: recording.ServiceID, EventID: recording.EventID, Name: recording.Name, Description: recording.Description,
+		ID: uuid.Nil(), Kind: "", ServiceID: recording.ServiceID, EventID: recording.EventID, Name: recording.Name, Description: recording.Description,
 		StartAt: recording.StartAt, EndAt: recording.EndAt, Enabled: true, PlannedStartAt: nil, PlannedEndAt: nil, Settings: nil,
 		ServiceName: row.ServiceName, ChannelType: row.ChannelType, Channel: row.Channel,
 	}

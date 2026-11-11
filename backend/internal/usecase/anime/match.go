@@ -11,8 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -100,7 +100,7 @@ type target struct {
 	channelID int32
 	// fetchedAfter は、この番組を照合する放送時間データを、いつより後に引いたものにするか。
 	fetchedAfter time.Time
-	// recordingID は、EPGStation から取り込んだ録画を照合するときの録画。番組を照合するときは uuid.Nil。
+	// recordingID は、EPGStation から取り込んだ録画を照合するときの録画。番組を照合するときは uuid.Nil()。
 	recordingID uuid.UUID
 }
 
@@ -255,7 +255,7 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	for _, row := range rows {
 		targets = append(targets, &target{
 			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
-			series: seriesOf(row.SeriesEpisode, row.SeriesRepeat), channelID: channels[row.ServiceID], fetchedAfter: row.EndAt, recordingID: uuid.Nil,
+			series: seriesOf(row.SeriesEpisode, row.SeriesRepeat), channelID: channels[row.ServiceID], fetchedAfter: row.EndAt, recordingID: uuid.Nil(),
 		})
 	}
 	if err := m.match(ctx, targets, true, result); err != nil {
@@ -396,7 +396,7 @@ func (m *Matcher) programs(
 		}
 		targets = append(targets, &target{
 			serviceID: row.ServiceID, eventID: row.EventID, startAt: row.StartAt, endAt: row.EndAt, name: row.Name,
-			series: seriesOf(row.SeriesEpisode, row.SeriesRepeat), channelID: channels[row.ServiceID], fetchedAfter: fetchedAfter, recordingID: uuid.Nil,
+			series: seriesOf(row.SeriesEpisode, row.SeriesRepeat), channelID: channels[row.ServiceID], fetchedAfter: fetchedAfter, recordingID: uuid.Nil(),
 		})
 	}
 
@@ -451,7 +451,7 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 		if err != nil {
 			return err
 		}
-		if t.recordingID != uuid.Nil {
+		if t.recordingID != uuid.Nil() {
 			err = m.writeRecording(ctx, t.recordingID, episodes, now)
 		} else {
 			err = m.write(ctx, t, episodes, finalize, now)
@@ -463,7 +463,7 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 		if len(episodes) > 0 {
 			result.Linked++
 		}
-		if finalize && t.recordingID == uuid.Nil {
+		if finalize && t.recordingID == uuid.Nil() {
 			result.Finalized++
 		}
 	}

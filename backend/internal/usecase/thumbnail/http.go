@@ -5,8 +5,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"

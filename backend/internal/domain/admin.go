@@ -3,8 +3,7 @@ package domain
 import (
 	"net/netip"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // User は、ユーザー。

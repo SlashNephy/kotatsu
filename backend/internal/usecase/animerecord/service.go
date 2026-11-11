@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf8"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/oauth2"
 
@@ -311,7 +311,7 @@ type Database interface {
 // 戻ってきたときに、始めたセッションのまま戻ってきたことを確かめるので、ブラウザーのセッションでだけ始められる。
 // origin は、接続したオリジン。リダイレクト URI にする。
 func (s *Service) Begin(ctx context.Context, db Database, principal *auth.Principal, name, origin string) (string, error) {
-	if principal.SessionID == uuid.Nil {
+	if principal.SessionID == uuid.Nil() {
 		return "", ErrSessionRequired
 	}
 	destination, err := s.destination(name)

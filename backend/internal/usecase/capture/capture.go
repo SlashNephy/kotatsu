@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -139,7 +139,7 @@ func (c *Captures) Save(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, upl
 		RecordingID:           upload.RecordingID,
 	})
 	if err != nil {
-		if removeErr := c.store.Remove(location.PoolID, location.Path, uuid.Nil); removeErr != nil {
+		if removeErr := c.store.Remove(location.PoolID, location.Path, uuid.Nil()); removeErr != nil {
 			c.logger.WarnContext(ctx, "failed to remove the capture image after the insert failed",
 				slog.String("path", location.Path), slog.Any("error", removeErr))
 		}
@@ -166,7 +166,7 @@ func (c *Captures) Delete(ctx context.Context, db sqlc.DBTX, userID, captureID u
 		return fmt.Errorf("failed to delete the capture: %w", err)
 	}
 	location := kago.CaptureLocation(row.UserID, row.ID)
-	if err := c.store.Remove(location.PoolID, location.Path, uuid.Nil); err != nil {
+	if err := c.store.Remove(location.PoolID, location.Path, uuid.Nil()); err != nil {
 		c.logger.WarnContext(ctx, "failed to remove the capture image", slog.String("path", location.Path), slog.Any("error", err))
 	}
 
@@ -191,7 +191,7 @@ func (c *Captures) PrepareUserErasure(ctx context.Context, tx pgx.Tx, userID uui
 		}
 		for _, captureID := range captureIDs {
 			location := kago.CaptureLocation(userID, captureID)
-			if err := c.store.Remove(location.PoolID, location.Path, uuid.Nil); err != nil {
+			if err := c.store.Remove(location.PoolID, location.Path, uuid.Nil()); err != nil {
 				c.logger.WarnContext(ctx, "failed to remove the capture image", slog.String("path", location.Path), slog.Any("error", err))
 			}
 		}

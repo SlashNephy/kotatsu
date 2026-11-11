@@ -9,8 +9,8 @@ import (
 	"os"
 	"path"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -198,7 +198,7 @@ func ImageSegment(files []sqlc.RecordingFile) (uuid.UUID, bool) {
 		}
 	}
 
-	return uuid.Nil, false
+	return uuid.Nil(), false
 }
 
 // HasContent は、録画のファイルが、書いたもののある TS のセグメントかどうかを返す。閉じたセグメントは大きさで、

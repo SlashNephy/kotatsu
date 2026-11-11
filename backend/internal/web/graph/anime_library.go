@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"

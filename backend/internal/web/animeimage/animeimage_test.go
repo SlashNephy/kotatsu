@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -110,7 +110,7 @@ func TestHandler(t *testing.T) {
 				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/anime-works/anilist/"+tt.workID+"/image", http.NoBody)
 				if tt.signedIn {
 					req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
-						UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: "",
+						UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
 					}))
 				}
 				rec := httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/anime-following/annict/"+tt.username+"/avatar", http.NoBody)
 			if tt.signedIn {
 				req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
-					UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: "",
+					UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
 				}))
 			}
 			rec := httptest.NewRecorder()

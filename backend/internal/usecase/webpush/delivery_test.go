@@ -9,8 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -79,7 +79,7 @@ func (f *fixture) emit(t *testing.T, kind domain.NotificationKind, payload map[s
 func (f *fixture) deliver(t *testing.T, client *http.Client, subscriptionID, eventID uuid.UUID) error {
 	t.Helper()
 
-	return f.deliverTo(t, client, webpush.DeliverArgs{SubscriptionID: subscriptionID, EventID: eventID, UserID: uuid.Nil})
+	return f.deliverTo(t, client, webpush.DeliverArgs{SubscriptionID: subscriptionID, EventID: eventID, UserID: uuid.Nil()})
 }
 
 // deliverTo は、args の配信のジョブを動かす。

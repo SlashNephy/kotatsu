@@ -8,8 +8,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,7 +86,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 		f.userID, recordedFrom())
 	require.NoError(t, err)
 	f.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: uuid.Nil, AuthenticatedAt: recordedFrom(), OAuthClientID: ""})))
+		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: recordedFrom(), OAuthClientID: ""})))
 	})
 	f.setJikkyo(t, true, true)
 

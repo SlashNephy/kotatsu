@@ -14,8 +14,7 @@ import (
 	"net/url"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 const (
@@ -89,18 +88,18 @@ func (s *Signer) Sign(resource string, userID uuid.UUID, expiresAt time.Time) *S
 func (s *Signer) Verify(resource string, query url.Values, now time.Time) (uuid.UUID, error) {
 	userID, err := uuid.Parse(query.Get(userParam))
 	if err != nil {
-		return uuid.Nil, ErrInvalidSignature
+		return uuid.Nil(), ErrInvalidSignature
 	}
 	expires, err := strconv.ParseInt(query.Get(expiresParam), 10, 64)
 	if err != nil {
-		return uuid.Nil, ErrInvalidSignature
+		return uuid.Nil(), ErrInvalidSignature
 	}
 	want := s.signature(resource, userID, expires)
 	if !hmac.Equal([]byte(want), []byte(query.Get(sigParam))) {
-		return uuid.Nil, ErrInvalidSignature
+		return uuid.Nil(), ErrInvalidSignature
 	}
 	if !now.Before(time.Unix(expires, 0)) {
-		return uuid.Nil, ErrInvalidSignature
+		return uuid.Nil(), ErrInvalidSignature
 	}
 
 	return userID, nil

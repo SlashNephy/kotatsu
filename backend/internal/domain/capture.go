@@ -2,8 +2,7 @@ package domain
 
 import (
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Capture は、視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけのもの。

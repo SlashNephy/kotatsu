@@ -8,8 +8,8 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"uuid"
 )
 
 type AnimeArtwork struct {

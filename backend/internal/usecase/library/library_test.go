@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +69,7 @@ func newFixture(t *testing.T) *fixture {
 
 	return &fixture{
 		pool: pool, clock: clk, dir: dir, dataRoot: dataRoot, timeshiftRoot: timeshiftRoot,
-		library: library.New(clk, audit.NewRecorder(clk), store, slog.New(slog.DiscardHandler)), userID: userID, segmentID: uuid.Nil,
+		library: library.New(clk, audit.NewRecorder(clk), store, slog.New(slog.DiscardHandler)), userID: userID, segmentID: uuid.Nil(),
 	}
 }
 
