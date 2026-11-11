@@ -8,8 +8,8 @@ import (
 	"testing"
 	"text/template"
 	"unicode/utf8"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -336,13 +336,13 @@ func TestRemoveDeletesEmptyDirectories(t *testing.T) {
 	removed := create("GR/2026-10")
 	kept := create("GR/2026-11")
 
-	require.NoError(t, store.Remove(poolMain, removed, uuid.Nil))
+	require.NoError(t, store.Remove(poolMain, removed, uuid.Nil()))
 	_, err := os.Stat(filepath.Join(mount, "GR/2026-10"))
 	require.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(filepath.Join(mount, kept))
 	require.NoError(t, err)
 
-	require.NoError(t, store.Remove(poolMain, kept, uuid.Nil))
+	require.NoError(t, store.Remove(poolMain, kept, uuid.Nil()))
 	entries, err := os.ReadDir(mount)
 	require.NoError(t, err)
 	assert.Empty(t, entries)

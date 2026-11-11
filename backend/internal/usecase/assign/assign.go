@@ -8,8 +8,7 @@ import (
 	"cmp"
 	"slices"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // State は、予約の割り当ての結果 (設計書 4.5)。

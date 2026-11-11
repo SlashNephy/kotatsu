@@ -12,8 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -360,7 +360,7 @@ func TestBeginRequiresSessionAndApp(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
 
-	token := &auth.Principal{UserID: f.alice.UserID, Role: auth.RoleViewer, SessionID: uuid.Nil, AuthenticatedAt: time.Time{}, OAuthClientID: "mcp"}
+	token := &auth.Principal{UserID: f.alice.UserID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "mcp"}
 	_, err := f.service.Begin(t.Context(), f.pool, token, animerecord.DestinationAnnict, origin)
 	require.ErrorIs(t, err, animerecord.ErrSessionRequired)
 

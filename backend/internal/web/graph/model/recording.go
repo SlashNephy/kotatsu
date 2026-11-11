@@ -2,8 +2,7 @@ package model
 
 import (
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Recording は録画 (設計書 5.5、8.2)。サービスは、リゾルバで dataloader から引く。
@@ -43,7 +42,7 @@ type Recording struct {
 	ServiceKey int64 `json:"-"`
 	// VideoResolution は、録画を始めたときの番組の映像の解像度。分からなければ nil。スキーマには出さず、videoFormat のリゾルバーで使う。
 	VideoResolution *string `json:"-"`
-	// ImageSegmentID は、代表画像とプレビュー画像を置くセグメントのファイルの ID (thumbnail.ImageSegment)。なければ uuid.Nil。
+	// ImageSegmentID は、代表画像とプレビュー画像を置くセグメントのファイルの ID (thumbnail.ImageSegment)。なければ uuid.Nil()。
 	// スキーマには出さず、watchFrame のリゾルバーで preview.json を読むのに使う。
 	ImageSegmentID uuid.UUID `json:"-"`
 	// RuleKey は、録画を始めたときに一致していたルールの ID。スキーマには出さず、rule のリゾルバーで引く。

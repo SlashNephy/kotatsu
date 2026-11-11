@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -280,7 +280,7 @@ func waitElected(t *testing.T, elected <-chan uuid.UUID) uuid.UUID {
 	case <-time.After(10 * time.Second):
 		t.Fatal("no elector became the leader")
 
-		return uuid.Nil
+		return uuid.Nil()
 	}
 }
 

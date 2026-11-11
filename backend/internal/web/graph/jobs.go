@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -246,7 +246,7 @@ func jobRecordingID(row *rivertype.JobRow) (uuid.UUID, bool) {
 		RecordingID *uuid.UUID `json:"recordingId"`
 	}
 	if err := json.Unmarshal(row.EncodedArgs, &args); err != nil || args.RecordingID == nil {
-		return uuid.Nil, false
+		return uuid.Nil(), false
 	}
 
 	return *args.RecordingID, true

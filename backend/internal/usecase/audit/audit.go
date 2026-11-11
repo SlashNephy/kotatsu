@@ -11,8 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -56,7 +55,7 @@ func UserFrom(userID uuid.UUID, sourceIP netip.Addr, userAgent string) *Actor {
 
 // System は、システムのロールの操作者を返す。
 func System(role string) *Actor {
-	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil, Role: role, SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
+	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil(), Role: role, SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
 }
 
 // Event は、記録する操作。
@@ -143,7 +142,7 @@ func (r *DBRecorder) params(event *Event) (sqlc.InsertAuditEventParams, error) {
 
 	switch event.Actor.Type {
 	case ActorTypeUser:
-		if event.Actor.UserID == uuid.Nil {
+		if event.Actor.UserID == uuid.Nil() {
 			return params, fmt.Errorf("%w: the user ID of the actor is required", ErrInvalidEvent)
 		}
 		params.ActorUserID = &event.Actor.UserID

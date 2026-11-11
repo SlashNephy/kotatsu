@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -44,7 +44,7 @@ type DeliverArgs struct {
 	SubscriptionID uuid.UUID `json:"subscriptionId"`
 	EventID        uuid.UUID `json:"eventId"`
 	// UserID は、ジョブを積んだときの購読の持ち主。送るまでに持ち主が替わっていたら送らない (#1435)。
-	// これを持つ前に積んだジョブでは、uuid.Nil になる。
+	// これを持つ前に積んだジョブでは、uuid.Nil() になる。
 	UserID uuid.UUID `json:"userId,omitzero"`
 }
 
@@ -154,7 +154,7 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 	}
 	// 宛先を確かめるのは積むときだけなので、送るまでの間に状況が変わったら送らない (#1435)。
 	// ログアウトせずに別のユーザーが同じ endpoint で購読し直すと、upsert で行の持ち主が替わる。前の持ち主あての文を、新しいユーザーに見せない。
-	if job.Args.UserID != uuid.Nil && subscription.UserID != job.Args.UserID {
+	if job.Args.UserID != uuid.Nil() && subscription.UserID != job.Args.UserID {
 		return river.JobCancel(errRecipientChanged)
 	}
 	// ユーザーを無効にしたときと、受け取る設定を切ったときも送らない。

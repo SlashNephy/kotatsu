@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 	"time"
+	"uuid"
 
 	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/google/uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 )

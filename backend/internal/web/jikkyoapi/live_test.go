@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/coder/websocket"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +84,7 @@ func newLiveFixture(t *testing.T) *liveFixture {
 			return
 		}
 		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{
-			UserID: user, Role: auth.RoleMember, SessionID: uuid.Nil, AuthenticatedAt: time.Now(), OAuthClientID: "",
+			UserID: user, Role: auth.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: time.Now(), OAuthClientID: "",
 		})))
 	}))
 	t.Cleanup(func() {

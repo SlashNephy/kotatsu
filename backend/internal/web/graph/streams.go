@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
@@ -83,7 +83,7 @@ func (r *Resolver) transcoding(ctx context.Context) (*model.Transcoding, error) 
 		return nil, err
 	}
 	// 登録簿を読むだけなので、このインスタンスの ID は使わない。
-	instances, err := registry.New(r.db, r.clock, uuid.Nil).ListAlive(ctx, kyusu.Role)
+	instances, err := registry.New(r.db, r.clock, uuid.Nil()).ListAlive(ctx, kyusu.Role)
 	if err != nil {
 		return nil, err
 	}

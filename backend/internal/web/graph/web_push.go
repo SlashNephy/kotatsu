@@ -5,8 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"strings"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
@@ -74,7 +73,7 @@ func (r *Resolver) subscribeWebPush(ctx context.Context, input *model.WebPushSub
 	}
 	userAgent, _ := ctx.Value(userAgentKey{}).(string)
 	subscription := &webpush.Subscription{
-		ID: uuid.Nil, Endpoint: input.Endpoint, P256DH: p256dh, Auth: authSecret, UserAgent: userAgent, SessionID: sessionIDOf(principal), CreatedAt: r.clock.Now(), UpdatedAt: r.clock.Now(),
+		ID: uuid.Nil(), Endpoint: input.Endpoint, P256DH: p256dh, Auth: authSecret, UserAgent: userAgent, SessionID: sessionIDOf(principal), CreatedAt: r.clock.Now(), UpdatedAt: r.clock.Now(),
 	}
 	if err := r.webPush.Subscribe(ctx, r.db, principal.UserID, subscription); err != nil {
 		if errors.Is(err, webpush.ErrInvalidSubscription) {
@@ -98,7 +97,7 @@ func (r *Resolver) subscribeWebPush(ctx context.Context, input *model.WebPushSub
 
 // sessionIDOf は、購読に結びつけるセッションの ID を返す。API トークンなどセッションのない認証では nil を返す。
 func sessionIDOf(principal *auth.Principal) *uuid.UUID {
-	if principal.SessionID == uuid.Nil {
+	if principal.SessionID == uuid.Nil() {
 		return nil
 	}
 

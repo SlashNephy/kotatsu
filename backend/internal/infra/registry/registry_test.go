@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,7 +123,7 @@ func addresses(t *testing.T, r *registry.Registry, role string) []string {
 	require.NoError(t, err)
 	result := make([]string, 0, len(instances))
 	for _, instance := range instances {
-		assert.NotEqual(t, uuid.Nil, instance.ID)
+		assert.NotEqual(t, uuid.Nil(), instance.ID)
 		result = append(result, instance.Address)
 	}
 

@@ -7,8 +7,7 @@ import (
 	"math"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
@@ -55,11 +54,11 @@ func actorOf(ctx context.Context, principal *auth.Principal) *audit.Actor {
 func parseRuleID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != ruleType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid rule ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid rule ID")
 	}
 	ruleID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid rule ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid rule ID")
 	}
 
 	return ruleID, nil

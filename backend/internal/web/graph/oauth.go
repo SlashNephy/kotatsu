@@ -7,8 +7,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -85,11 +84,11 @@ func oauthGrantOf(grant *oauth.GrantRecord) *model.OAuthGrant {
 func parseOAuthGrantID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != oauthGrantType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid OAuth grant ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid OAuth grant ID")
 	}
 	grantID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid OAuth grant ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid OAuth grant ID")
 	}
 
 	return grantID, nil

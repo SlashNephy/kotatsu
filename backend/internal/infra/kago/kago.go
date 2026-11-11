@@ -13,8 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Pool は保存先プールの設定。
@@ -393,7 +392,7 @@ func (s *Store) PoolTotalSpace(poolID string) (uint64, error) {
 }
 
 // Remove は、プールの録画ファイル rel と、そのファイル fileID (recording_files.id) の生成物のディレクトリを消す。
-// どちらもなければ、何もしない。fileID が uuid.Nil なら、生成物のディレクトリは消さない。
+// どちらもなければ、何もしない。fileID が uuid.Nil() なら、生成物のディレクトリは消さない。
 func (s *Store) Remove(poolID, rel string, fileID uuid.UUID) error {
 	path, err := s.Path(poolID, rel)
 	if err != nil {
@@ -402,7 +401,7 @@ func (s *Store) Remove(poolID, rel string, fileID uuid.UUID) error {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("failed to remove a file in pool %s: %w", poolID, err)
 	}
-	if _, mounted := s.mounts[DataPoolID]; mounted && fileID != uuid.Nil {
+	if _, mounted := s.mounts[DataPoolID]; mounted && fileID != uuid.Nil() {
 		if err := s.RemoveSegmentDir(fileID); err != nil {
 			return err
 		}

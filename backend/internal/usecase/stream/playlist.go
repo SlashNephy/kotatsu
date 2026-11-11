@@ -2,8 +2,7 @@ package stream
 
 import (
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )

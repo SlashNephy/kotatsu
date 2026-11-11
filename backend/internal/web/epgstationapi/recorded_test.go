@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +49,7 @@ func addRecording(
 	for i := range segments {
 		segmentID := uuid.New()
 		exec(t, pool, `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, created_at)
-			VALUES ($1, $2, 'segment', 'default', $3, 1000, $4, $4)`, segmentID, id, uuid.NewString(), recordedFrom.Add(time.Duration(i)*time.Minute))
+			VALUES ($1, $2, 'segment', 'default', $3, 1000, $4, $4)`, segmentID, id, uuid.New().String(), recordedFrom.Add(time.Duration(i)*time.Minute))
 		if thumbnail && i == 0 {
 			image := kago.DataLocation(segmentID, "thumbnail.jpg")
 			require.NoError(t, os.MkdirAll(filepath.Join(dataRoot, filepath.Dir(image.Path)), 0o755))

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
@@ -255,7 +255,7 @@ func (a *applier) poolOf(directory string) (*string, bool) {
 func (a *applier) rule(ctx context.Context, tx pgx.Tx, r *Rule) (uuid.UUID, error) {
 	created, err := a.importer.rules.Create(ctx, tx, a.actor, a.ruleInput(r))
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil(), err
 	}
 
 	return created.ID, nil
@@ -443,26 +443,26 @@ func memo(kind string, sourceID int64, notes []string) string {
 // reserve は、EPGStation の手動予約から Kotatsu の予約を作る。開始済みの予約は取り込まない。
 func (a *applier) reserve(ctx context.Context, tx pgx.Tx, r *Reserve) (uuid.UUID, error) {
 	if !r.StartAt.After(a.importer.clock.Now()) {
-		return uuid.Nil, skip("the reservation has already started")
+		return uuid.Nil(), skip("the reservation has already started")
 	}
 	if !a.services[r.ChannelID] {
-		return uuid.Nil, skip("service %d is not in Kotatsu", r.ChannelID)
+		return uuid.Nil(), skip("service %d is not in Kotatsu", r.ChannelID)
 	}
 	poolID, ok := a.poolOf(r.ParentDirectoryName)
 	if !ok {
-		return uuid.Nil, skip("directory %q is not mapped to a pool", r.ParentDirectoryName)
+		return uuid.Nil(), skip("directory %q is not mapped to a pool", r.ParentDirectoryName)
 	}
 	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, TranscodePreset: nil}
 
 	created, err := a.createReservation(ctx, tx, r, overrides)
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil(), err
 	}
 	if r.IsSkip {
 		if _, err := a.importer.reservations.Update(ctx, tx, a.actor, created.ID, &reserve.Update{
 			Enabled: new(false), FollowEventRelay: nil, Overrides: nil, StartAt: nil, EndAt: nil, Name: nil,
 		}); err != nil {
-			return uuid.Nil, err
+			return uuid.Nil(), err
 		}
 	}
 
@@ -496,11 +496,11 @@ func (a *applier) createReservation(ctx context.Context, tx pgx.Tx, r *Reserve, 
 // recordingAndPublish は、録画を取り込み、録画の変更を知らせる (#868)。
 func (a *applier) recordingAndPublish(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.UUID, error) {
 	recordingID, err := a.recording(ctx, tx, r)
-	if err != nil || recordingID == uuid.Nil {
+	if err != nil || recordingID == uuid.Nil() {
 		return recordingID, err
 	}
 	if _, err := notify.Publish(ctx, tx, a.importer.clock, notify.RecordingsChannel); err != nil {
-		return uuid.Nil, err
+		return uuid.Nil(), err
 	}
 
 	return recordingID, nil
@@ -510,10 +510,10 @@ func (a *applier) recordingAndPublish(ctx context.Context, tx pgx.Tx, r *Recordi
 // 録画中の番組と、プールを対応付けたディレクトリにファイルがない録画は取り込まない。
 func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.UUID, error) {
 	if r.IsRecording {
-		return uuid.Nil, skip("the program is still being recorded")
+		return uuid.Nil(), skip("the program is still being recorded")
 	}
 	if !a.services[r.ChannelID] {
-		return uuid.Nil, skip("service %d is not in Kotatsu", r.ChannelID)
+		return uuid.Nil(), skip("service %d is not in Kotatsu", r.ChannelID)
 	}
 	type mappedFile struct {
 		poolID string
@@ -526,7 +526,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		}
 	}
 	if len(files) == 0 {
-		return uuid.Nil, skip("no file is in a directory mapped to a pool")
+		return uuid.Nil(), skip("no file is in a directory mapped to a pool")
 	}
 
 	q := sqlc.New(tx)
@@ -553,7 +553,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		Drops: drop.DropCount, Errors: drop.ErrorCount, Scrambled: drop.ScramblingCount, Now: now,
 	})
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to insert the recording: %w", err)
+		return uuid.Nil(), fmt.Errorf("failed to insert the recording: %w", err)
 	}
 	for _, f := range files {
 		kind := "other"
@@ -565,7 +565,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 			StartedAt: startAt, EndedAt: &endAt, Now: now,
 		})
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("failed to insert the file %s/%s: %w", f.poolID, f.file.FilePath, err)
+			return uuid.Nil(), fmt.Errorf("failed to insert the file %s/%s: %w", f.poolID, f.file.FilePath, err)
 		}
 	}
 	for _, tagID := range r.TagIDs {
@@ -575,10 +575,10 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		}
 		kotatsuTagID, err := q.UpsertTag(ctx, sqlc.UpsertTagParams{ID: id.New(), Name: strings.TrimSpace(name), Now: now})
 		if err != nil {
-			return uuid.Nil, fmt.Errorf("failed to create the tag %q: %w", name, err)
+			return uuid.Nil(), fmt.Errorf("failed to create the tag %q: %w", name, err)
 		}
 		if err := q.InsertRecordingTag(ctx, sqlc.InsertRecordingTagParams{RecordingID: recordingID, TagID: kotatsuTagID}); err != nil {
-			return uuid.Nil, fmt.Errorf("failed to tag the recording: %w", err)
+			return uuid.Nil(), fmt.Errorf("failed to tag the recording: %w", err)
 		}
 	}
 
@@ -587,7 +587,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 	if slices.ContainsFunc(files, func(f *mappedFile) bool { return f.file.Type == VideoFileTypeTS }) {
 		params := []river.InsertManyParams{{Args: analysis.AnalyzeArgs{RecordingID: recordingID}, InsertOpts: nil}}
 		if _, err := a.importer.inserter.InsertManyTx(ctx, tx, params); err != nil {
-			return uuid.Nil, fmt.Errorf("failed to enqueue the analysis: %w", err)
+			return uuid.Nil(), fmt.Errorf("failed to enqueue the analysis: %w", err)
 		}
 	}
 
@@ -598,7 +598,7 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 // EPGStation の録画履歴には終わりの時刻しかないので、始まりも終わりの時刻にする。
 func (a *applier) history(ctx context.Context, tx pgx.Tx, h *RecordedHistory) (uuid.UUID, error) {
 	if !a.services[h.ChannelID] {
-		return uuid.Nil, skip("service %d is not in Kotatsu", h.ChannelID)
+		return uuid.Nil(), skip("service %d is not in Kotatsu", h.ChannelID)
 	}
 	historyID := id.New()
 	endAt := h.EndAt.UTC()
@@ -607,7 +607,7 @@ func (a *applier) history(ctx context.Context, tx pgx.Tx, h *RecordedHistory) (u
 		StartAt: endAt, EndAt: endAt, Now: a.importer.clock.Now(),
 	})
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to insert the recording history: %w", err)
+		return uuid.Nil(), fmt.Errorf("failed to insert the recording history: %w", err)
 	}
 
 	return historyID, nil

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -97,11 +97,11 @@ func (r *Resolver) revokeOtherSessions(ctx context.Context, principal *auth.Prin
 func parseTypedID(globalID, typeName, message string) (uuid.UUID, error) {
 	got, raw, err := ParseGlobalID(globalID)
 	if err != nil || got != typeName {
-		return uuid.Nil, NewError(CodeBadUserInput, message)
+		return uuid.Nil(), NewError(CodeBadUserInput, message)
 	}
 	parsed, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, message)
+		return uuid.Nil(), NewError(CodeBadUserInput, message)
 	}
 
 	return parsed, nil

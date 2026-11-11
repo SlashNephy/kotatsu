@@ -2,8 +2,7 @@ package graph
 
 import (
 	"errors"
-
-	"github.com/google/uuid"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -28,11 +27,11 @@ func passkeyOf(passkey *auth.Passkey) *model.Passkey {
 func parsePasskeyID(globalID string) (uuid.UUID, error) {
 	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != passkeyType {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid passkey ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid passkey ID")
 	}
 	passkeyID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, NewError(CodeBadUserInput, "invalid passkey ID")
+		return uuid.Nil(), NewError(CodeBadUserInput, "invalid passkey ID")
 	}
 
 	return passkeyID, nil

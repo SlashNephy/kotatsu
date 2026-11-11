@@ -6,8 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // NotificationKind は、通知するイベントの種類 (設計書 6.2)。

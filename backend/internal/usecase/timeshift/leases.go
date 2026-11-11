@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -47,7 +47,7 @@ func (l *leases) Acquire(ctx context.Context, holder uuid.UUID, now, expiresAt t
 	handedOver := row.PreviousState == string(recording.AssignmentHandover) && row.PreviousLeaseExpiresAt != nil && row.PreviousLeaseExpiresAt.After(now)
 
 	return &recording.Assignment{
-		ID: row.ID, ReservationID: uuid.Nil, ServiceID: row.ServiceID, Priority: int(row.Priority), Generation: row.Generation,
+		ID: row.ID, ReservationID: uuid.Nil(), ServiceID: row.ServiceID, Priority: int(row.Priority), Generation: row.Generation,
 		HandedOver: handedOver, PreviousLeaseExpiresAt: row.PreviousLeaseExpiresAt,
 	}, true, nil
 }

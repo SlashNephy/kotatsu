@@ -3,8 +3,7 @@ package domain
 import (
 	"slices"
 	"time"
-
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Recording は、録画。

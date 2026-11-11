@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -155,7 +155,7 @@ func (h *Handler) WithRecording(next http.Handler, file string) http.Handler {
 
 // hasThumbnail は、セグメントのファイル owner のディレクトリに、代表画像があるかを返す。
 func (h *Handler) hasThumbnail(owner uuid.UUID) bool {
-	if owner == uuid.Nil {
+	if owner == uuid.Nil() {
 		return false
 	}
 	image := kago.DataLocation(owner, thumbnail.ThumbnailFileName)

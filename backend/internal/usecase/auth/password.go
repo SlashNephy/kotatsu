@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/netip"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
@@ -86,10 +86,10 @@ func (p *Passwords) Set(ctx context.Context, db Database, actor *audit.Actor, us
 func UserIDByUsername(ctx context.Context, db sqlc.DBTX, username string) (uuid.UUID, error) {
 	user, err := sqlc.New(db).GetUserByUsername(ctx, username)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, fmt.Errorf("%w: %s", ErrUserNotFound, username)
+		return uuid.Nil(), fmt.Errorf("%w: %s", ErrUserNotFound, username)
 	}
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to get the user: %w", err)
+		return uuid.Nil(), fmt.Errorf("failed to get the user: %w", err)
 	}
 
 	return user.ID, nil

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -68,7 +68,7 @@ func (q *Queries) ListReservations(ctx context.Context, query *ReservationListQu
 		states = append(states, string(state))
 	}
 	// 位置を指定しなければ、どの予約よりも前の位置から読む。
-	afterStartAt, afterID := time.Time{}, uuid.Nil
+	afterStartAt, afterID := time.Time{}, uuid.Nil()
 	if query.AfterStartAt != nil {
 		afterStartAt, afterID = *query.AfterStartAt, *query.AfterID
 	}

@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
+	"uuid"
 
 	"github.com/coder/websocket"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
