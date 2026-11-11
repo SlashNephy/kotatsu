@@ -110,7 +110,9 @@ function RecordingPage() {
       <Anchor component={Link} to="/recordings" size="sm">
         {t('recordings.back')}
       </Anchor>
+      {/* 履歴を飛ばして別の録画へ移ったときは、前の録画のエラーを残さず読み直す (#1422)。 */}
       <ErrorBoundary
+        resetKey={recordingId}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">
