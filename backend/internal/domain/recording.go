@@ -73,8 +73,11 @@ type RecordingFile struct {
 	EndedAt     *time.Time
 	PIDStats    []byte
 	// Video は、セグメントの映像から読んだ映像の形式の JSON (#1310)。読めなければ nil。
-	Video     []byte
-	CreatedAt time.Time
+	Video []byte
+	// TunerIndex と TunerName は、セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなければ nil。
+	TunerIndex *int64
+	TunerName  *string
+	CreatedAt  time.Time
 }
 
 // RecordingTag は、録画に付いたタグ。Recordings は、タグの付いた録画の数。

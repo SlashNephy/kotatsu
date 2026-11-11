@@ -615,6 +615,8 @@ type RecordingFile struct {
 	EndedAt     *time.Time
 	PIDStats    []byte
 	Video       []byte
+	TunerIndex  *int64
+	TunerName   *string
 	CreatedAt   time.Time
 }
 

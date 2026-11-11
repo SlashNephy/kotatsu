@@ -1170,6 +1170,7 @@
     "recordedRange": "Recorded {{from}} – {{until}}",
     "size": "{{size}} ({{count}} files)",
     "videoFormat": "Video {{format}}",
+    "tuners": "Tuner {{names}}",
     "gap": "{{from}} – {{to}} is missing",
     "programLost": "The program disappeared from the guide during recording",
     "broadcastRange": "Actual broadcast: {{from}} – {{until}}",

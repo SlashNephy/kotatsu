@@ -506,6 +506,8 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, id int64) {
 	defer release()
 
 	w.Header().Set("Content-Type", "video/MP2T")
+	// Mirakurun と同じく、/api/tuners の利用者の ID を返す (#1467)。
+	w.Header().Set("X-Mirakurun-Tuner-User-ID", user.user.ID)
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 

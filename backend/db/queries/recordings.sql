@@ -25,8 +25,9 @@ RETURNING sqlc.embed(recordings), (xmax = 0)::boolean AS inserted;
 
 -- name: InsertRecordingFile :exec
 -- DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, @now)
+-- チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, tuner_index, tuner_name, created_at)
+VALUES (@id, @recording_id, @kind, @pool_id, @path, 0, @started_at, NULL, sqlc.narg(tuner_index), sqlc.narg(tuner_name), @now)
 ON CONFLICT (id) DO NOTHING;
 
 -- name: CloseRecordingFile :exec

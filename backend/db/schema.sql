@@ -929,6 +929,11 @@ CREATE TABLE recording_files (
   -- セグメントの映像のシーケンスヘッダーか SPS から読んだ映像の形式 (#1310)。{codec, width, height, interlaced, frameRate} の形で、
   -- セグメントを閉じるときと、録画を解析したときに書く。読めなかったセグメントと、セグメント以外は NULL。
   video jsonb,
+  -- セグメントを書いたストリームを受信していたチューナーの、チューナーサーバーでの番号と名前 (#1467)。ストリームを開いたときに、
+  -- 応答の X-Mirakurun-Tuner-User-ID を /api/tuners の利用者と突き合わせて見つける。tuners の行は書き換わるので、写しを持つ。
+  -- 見つけられなかったセグメントと、セグメント以外は NULL。名前は上流のホスト名を含むことがあるので、管理者にだけ見せる。
+  tuner_index bigint,
+  tuner_name text,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

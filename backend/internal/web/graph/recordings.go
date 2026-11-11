@@ -252,6 +252,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
 	files := map[uuid.UUID][]*model.RecordingFile{}
+	admin := principal.Role.Can(auth.PermissionAdminister)
 	// 画像は、書いたものがある最初のセグメントのディレクトリに置く (thumbnail.ImageSegment)。行は始まりの順に並ぶ。
 	imageSegments := map[uuid.UUID]uuid.UUID{}
 	for i := range fileRows {
@@ -262,7 +263,11 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 		}
 		file := &model.RecordingFile{
 			Kind: model.RecordingFileKind(strings.ToUpper(row.Kind)), PoolID: row.PoolID, Path: row.Path, Size: row.Size,
-			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil, Video: segmentVideoOf(row.Video),
+			StartedAt: row.StartedAt, EndedAt: row.EndedAt, URL: nil, Video: segmentVideoOf(row.Video), Tuner: nil,
+		}
+		// チューナーの名前は上流のホスト名を含むことがあるので、管理者にだけ返す (#1467)。
+		if admin && row.TunerIndex != nil && row.TunerName != nil {
+			file.Tuner = &model.RecordingFileTuner{Index: int(*row.TunerIndex), Name: *row.TunerName}
 		}
 		if file.Kind == model.RecordingFileKindOther {
 			file.URL = new(streamapi.OtherFileURL(row.RecordingID, row.ID))

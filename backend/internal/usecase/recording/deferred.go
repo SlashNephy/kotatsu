@@ -170,9 +170,15 @@ func insertSegment(seg *segment) pendingWrite {
 
 // segmentParams は、セグメント seg を、録画 recordingID のファイルとして記録する引数を返す。
 func segmentParams(seg *segment, recordingID uuid.UUID) sqlc.InsertRecordingFileParams {
-	return sqlc.InsertRecordingFileParams{
-		ID: seg.fileID, RecordingID: recordingID, Kind: fileKindSegment, PoolID: seg.poolID, Path: seg.path, StartedAt: seg.startedAt, Now: seg.startedAt,
+	params := sqlc.InsertRecordingFileParams{
+		ID: seg.fileID, RecordingID: recordingID, Kind: fileKindSegment, PoolID: seg.poolID, Path: seg.path, StartedAt: seg.startedAt,
+		TunerIndex: nil, TunerName: nil, Now: seg.startedAt,
 	}
+	if seg.tuner != nil {
+		params.TunerIndex, params.TunerName = &seg.tuner.index, &seg.tuner.name
+	}
+
+	return params
 }
 
 // provisionalRecording は、DB に届かずに記録できていない録画を、予約から仮に作る。記録したら、DB の行で置き換える。

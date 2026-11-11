@@ -1011,6 +1011,7 @@ type ComplexityRoot struct {
 		PoolID    func(childComplexity int) int
 		Size      func(childComplexity int) int
 		StartedAt func(childComplexity int) int
+		Tuner     func(childComplexity int) int
 		URL       func(childComplexity int) int
 		Video     func(childComplexity int) int
 	}
@@ -1018,6 +1019,11 @@ type ComplexityRoot struct {
 	RecordingFileRename struct {
 		From func(childComplexity int) int
 		To   func(childComplexity int) int
+	}
+
+	RecordingFileTuner struct {
+		Index func(childComplexity int) int
+		Name  func(childComplexity int) int
 	}
 
 	RecordingGap struct {
@@ -6261,6 +6267,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingFile.StartedAt(childComplexity), true
+	case "RecordingFile.tuner":
+		if e.ComplexityRoot.RecordingFile.Tuner == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFile.Tuner(childComplexity), true
 	case "RecordingFile.url":
 		if e.ComplexityRoot.RecordingFile.URL == nil {
 			break
@@ -6286,6 +6298,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingFileRename.To(childComplexity), true
+
+	case "RecordingFileTuner.index":
+		if e.ComplexityRoot.RecordingFileTuner.Index == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFileTuner.Index(childComplexity), true
+	case "RecordingFileTuner.name":
+		if e.ComplexityRoot.RecordingFileTuner.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFileTuner.Name(childComplexity), true
 
 	case "RecordingGap.from":
 		if e.ComplexityRoot.RecordingGap.From == nil {
@@ -10271,6 +10296,20 @@ type RecordingFile {
   url: String
   "セグメントの映像から読んだ映像の形式 (#1310)。読めなかったセグメントと、その他のファイルでは null。"
   video: SegmentVideoFormat
+  """
+  セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなかったセグメントと、その他のファイルでは null。
+  名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
+  """
+  tuner: RecordingFileTuner
+}
+
+"""
+セグメントを書いたストリームを受信していたチューナー (#1467)。録画したときの写しで、今のチューナーの構成とは違うことがある。
+"""
+type RecordingFileTuner {
+  "チューナーサーバーでのチューナーの番号。リモートのチューナーは負の数になることがある。"
+  index: Int!
+  name: String!
 }
 
 """
@@ -13471,6 +13510,8 @@ func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field
 		return ec.fieldContext_RecordingFile_url(ctx, field)
 	case "video":
 		return ec.fieldContext_RecordingFile_video(ctx, field)
+	case "tuner":
+		return ec.fieldContext_RecordingFile_tuner(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFile", field.Name)
 }
@@ -13483,6 +13524,16 @@ func (ec *executionContext) childFields_RecordingFileRename(ctx context.Context,
 		return ec.fieldContext_RecordingFileRename_to(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFileRename", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingFileTuner(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "index":
+		return ec.fieldContext_RecordingFileTuner_index(ctx, field)
+	case "name":
+		return ec.fieldContext_RecordingFileTuner_name(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingFileTuner", field.Name)
 }
 
 func (ec *executionContext) childFields_RecordingGap(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -35120,6 +35171,38 @@ func (ec *executionContext) fieldContext_RecordingFile_video(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _RecordingFile_tuner(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFile_tuner(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Tuner, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingFileTuner) graphql.Marshaler {
+			return ec.marshalORecordingFileTuner2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFileTuner(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFile_tuner(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingFileTuner(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RecordingFileRename_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileRename) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35164,6 +35247,52 @@ func (ec *executionContext) _RecordingFileRename_to(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_RecordingFileRename_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingFileRename", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingFileTuner_index(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileTuner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFileTuner_index(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Index, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFileTuner_index(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFileTuner", field, false, false, "Int")
+}
+
+func (ec *executionContext) _RecordingFileTuner_name(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileTuner) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFileTuner_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFileTuner_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFileTuner", field, false, false, "String")
 }
 
 func (ec *executionContext) _RecordingGap_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingGap) (ret graphql.Marshaler) {
@@ -51807,6 +51936,11 @@ func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "tuner":
+			out.Values[i] = ec._RecordingFile_tuner(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -51842,6 +51976,44 @@ func (ec *executionContext) _RecordingFileRename(ctx context.Context, sel ast.Se
 			}
 		case "to":
 			out.Values[i] = ec._RecordingFileRename_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var recordingFileTunerImplementors = []string{"RecordingFileTuner"}
+
+func (ec *executionContext) _RecordingFileTuner(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingFileTuner) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingFileTunerImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingFileTuner")
+		case "index":
+			out.Values[i] = ec._RecordingFileTuner_index(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._RecordingFileTuner_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -58507,6 +58679,13 @@ func (ec *executionContext) marshalORecordingFailureReason2ᚖgithubᚗcomᚋSla
 		return graphql.Null
 	}
 	return v
+}
+
+func (ec *executionContext) marshalORecordingFileTuner2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFileTuner(ctx context.Context, sel ast.SelectionSet, v *model.RecordingFileTuner) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._RecordingFileTuner(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalORecordingFilter2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFilter(ctx context.Context, v any) (*model.RecordingFilter, error) {

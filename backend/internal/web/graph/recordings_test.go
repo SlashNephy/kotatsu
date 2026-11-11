@@ -724,16 +724,15 @@ func TestRecordingFailureDetail(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name string
 		role auth.Role
 		want *string
 	}{
-		{name: "管理者", role: auth.RoleAdmin, want: new(detail)},
-		{name: "メンバー", role: auth.RoleMember, want: nil},
-		{name: "視聴者", role: auth.RoleViewer, want: nil},
+		{role: auth.RoleAdmin, want: new(detail)},
+		{role: auth.RoleMember, want: nil},
+		{role: auth.RoleViewer, want: nil},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(string(tt.role), func(t *testing.T) {
 			t.Parallel()
 
 			var page struct {
@@ -749,6 +748,52 @@ func TestRecordingFailureDetail(t *testing.T) {
 				query(t, `query { recordings(first: 1) { edges { node { failureDetail } } } }`, nil, &page))
 			require.Len(t, page.Recordings.Edges, 1)
 			assert.Equal(t, tt.want, page.Recordings.Edges[0].Node.FailureDetail)
+		})
+	}
+}
+
+// TestRecordingFileTuner は、セグメントを書いたストリームを受信していたチューナーを、管理者にだけ返し、
+// ほかのユーザーには null を返すことを確かめる (#1467)。名前は上流のチューナーのホスト名を含むことがある。
+func TestRecordingFileTuner(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	f.addRecording(t, dir, episode1, "completed", time.Hour)
+	_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET tuner_index = -7, tuner_name = 'tuner.example / T0' WHERE path = $1`, episode1+".m2ts")
+	require.NoError(t, err)
+
+	type tuner struct {
+		Index int    `json:"index"`
+		Name  string `json:"name"`
+	}
+	tests := []struct {
+		role auth.Role
+		want *tuner
+	}{
+		{role: auth.RoleAdmin, want: &tuner{Index: -7, Name: "tuner.example / T0"}},
+		{role: auth.RoleMember, want: nil},
+		{role: auth.RoleViewer, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.role), func(t *testing.T) {
+			t.Parallel()
+
+			var page struct {
+				Recordings struct {
+					Edges []struct {
+						Node struct {
+							Files []struct {
+								Tuner *tuner `json:"tuner"`
+							} `json:"files"`
+						} `json:"node"`
+					} `json:"edges"`
+				} `json:"recordings"`
+			}
+			require.Empty(t, f.as(t, "user-"+string(tt.role), tt.role).
+				query(t, `query { recordings(first: 1) { edges { node { files { tuner { index name } } } } } }`, nil, &page))
+			require.Len(t, page.Recordings.Edges, 1)
+			require.Len(t, page.Recordings.Edges[0].Node.Files, 1)
+			assert.Equal(t, tt.want, page.Recordings.Edges[0].Node.Files[0].Tuner)
 		})
 	}
 }

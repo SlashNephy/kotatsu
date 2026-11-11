@@ -111,6 +111,30 @@ type StreamOpener interface {
 
 var _ StreamOpener = new(mirakurun.Client)
 
+// TunerLister は、チューナーサーバーのチューナーの一覧を返す。StreamOpener が満たしていれば、
+// ストリームを受信しているチューナーを見つけ、セグメントに記録する (#1467)。
+type TunerLister interface {
+	Tuners(ctx context.Context) ([]*mirakurun.Tuner, error)
+}
+
+var _ TunerLister = new(mirakurun.Client)
+
+// tunerUserIdentifier は、チューナーサーバーが返した、ストリームのチューナーの利用者の ID を持つストリーム (mirakurun.Stream)。
+type tunerUserIdentifier interface {
+	TunerUserID() string
+}
+
+var _ tunerUserIdentifier = new(mirakurun.Stream)
+
+// tunerLookupTimeout は、ストリームを受信しているチューナーを探すのを待つ上限。録画を遅らせないよう、短くする。
+const tunerLookupTimeout = 2 * time.Second
+
+// usedTuner は、ストリームを受信していたチューナーの、チューナーサーバーでの番号と名前 (#1467)。
+type usedTuner struct {
+	index int64
+	name  string
+}
+
 // RecorderOptions は Recorder の設定。0 の項目は既定値にする。
 type RecorderOptions struct {
 	TuningTime    time.Duration
@@ -252,7 +276,7 @@ func (r *Recorder) record(ctx context.Context, assignment *Assignment) error {
 		}
 		stream := opened.stream
 
-		segment, reason, err := r.createSegment(ctx, tracker, &reservation, opened.startedAt)
+		segment, reason, err := r.createSegment(ctx, tracker, &reservation, opened.startedAt, opened.tuner)
 		if err != nil {
 			_ = stream.Close()
 			if done, err := r.retryCreate(ctx, logger, assignment, &recording, tracker, result, created, reason, err); done {
@@ -319,11 +343,13 @@ var errInterruptedBeforeStart = errors.New("the stream was interrupted before th
 // チューニングのために早く開いたストリームを読み捨て、開始前のマージンを設定どおりにする (#847)。
 func (r *Recorder) openStream(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, reservation *sqlc.GetReservationForRecordingRow,
-) (io.ReadCloser, error) {
+) (io.ReadCloser, *usedTuner, error) {
 	stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	// ストリームを開いている間に、受信しているチューナーを探す。予定の開始まで読み捨てる前に探し、チューナーを手放した後にしない。
+	tuner := r.findTuner(ctx, logger, stream)
 	// 引き継ぎ待ちの古い mikan は、ストリームを開いたことを見て、自分のストリームを閉じる (設計書 5.4)。
 	markCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
@@ -336,10 +362,39 @@ func (r *Recorder) openStream(
 	if err := skipUntil(r.clock, stream, *reservation.PlannedStartAt); err != nil {
 		_ = stream.Close()
 
-		return nil, fmt.Errorf("%w: %w", errInterruptedBeforeStart, err)
+		return nil, nil, fmt.Errorf("%w: %w", errInterruptedBeforeStart, err)
 	}
 
-	return stream, nil
+	return stream, tuner, nil
+}
+
+// findTuner は、ストリームを受信しているチューナーを返す (#1467)。チューナーサーバーが返した利用者の ID を、チューナーの一覧の
+// 利用者と突き合わせる。見つけられなければ nil を返す。録画には要らないので、見つけられなくても録画は続ける。
+func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io.ReadCloser) *usedTuner {
+	identified, ok := stream.(tunerUserIdentifier)
+	if !ok || identified.TunerUserID() == "" {
+		return nil
+	}
+	lister, ok := r.tuner.(TunerLister)
+	if !ok {
+		return nil
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, tunerLookupTimeout)
+	defer cancel()
+	tuners, err := lister.Tuners(lookupCtx)
+	if err != nil {
+		logger.WarnContext(ctx, "failed to list the tuners to find the one in use", slog.Any("error", err))
+
+		return nil
+	}
+	tuner := mirakurun.TunerOf(tuners, identified.TunerUserID())
+	if tuner == nil {
+		logger.WarnContext(ctx, "could not find the tuner of the stream", slog.String("tuner_user_id", identified.TunerUserID()))
+
+		return nil
+	}
+
+	return &usedTuner{index: int64(tuner.Index), name: tuner.Name}
 }
 
 // openForWriting は、ストリームを開き、書き始めるストリームと、その最初のデータを読んだ時刻を返す。
@@ -349,15 +404,17 @@ func (r *Recorder) openForWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, reservation *sqlc.GetReservationForRecordingRow,
 	tracker *endTracker, result *sessionResult, created int, unreachableSince *time.Time,
 ) waitOutcome {
-	stream, err := r.openStream(ctx, logger, assignment, reservation)
+	stream, tuner, err := r.openStream(ctx, logger, assignment, reservation)
 	if err != nil {
 		done, err := r.retryOpen(ctx, logger, assignment, recording, tracker, result, created, unreachableSince, err)
 
-		return waitOutcome{stream: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
+		return waitOutcome{stream: nil, tuner: nil, startedAt: time.Time{}, reopen: !done, done: done, err: err}
 	}
 	*unreachableSince = time.Time{}
+	outcome := r.waitBeforeWriting(ctx, logger, assignment, recording, tracker, result, stream, created)
+	outcome.tuner = tuner
 
-	return r.waitBeforeWriting(ctx, logger, assignment, recording, tracker, result, stream, created)
+	return outcome
 }
 
 // retryOpen は、ストリームを開けなかったときに、開き直すか、録画を終えるか、割り振りを手放すかを決める。録画を終えたか手放したら true を返す。
@@ -850,9 +907,11 @@ func (r *Recorder) waitUntilOpen(ctx context.Context, assignment *Assignment) (s
 
 // segment は、書いている録画ファイルと、その索引。
 type segment struct {
-	poolID    string
-	path      string
-	fileID    uuid.UUID
+	poolID string
+	path   string
+	fileID uuid.UUID
+	// tuner は、セグメントを書くストリームを受信していたチューナー (#1467)。見つけられなければ nil。
+	tuner     *usedTuner
 	file      *os.File
 	indexFile *os.File
 	buffer    *bufio.Writer
@@ -866,7 +925,7 @@ type segment struct {
 // createSegment は、保存先を選んで録画ファイルと索引を作り、DB に記録する。失敗したら、録画の失敗の理由も返す。
 // startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、溜めた分を読み始めた時刻になる (#1046)。
 func (r *Recorder) createSegment(
-	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time,
+	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, tuner *usedTuner,
 ) (*segment, FailureReason, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
@@ -889,6 +948,7 @@ func (r *Recorder) createSegment(
 	if err != nil {
 		return nil, reason, err
 	}
+	seg.tuner = tuner
 
 	// DB に届かなければ、ファイルは残して書き続け、記録は DB に届くようになってからにする (#1073)。
 	// 先に記録できていないものがあれば、順を守るため、これも後にする。
@@ -940,7 +1000,7 @@ func (r *Recorder) newSegment(
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
 	seg := &segment{
-		poolID: pool.ID, path: rel, fileID: fileID, file: file, indexFile: indexFile,
+		poolID: pool.ID, path: rel, fileID: fileID, tuner: nil, file: file, indexFile: indexFile,
 		buffer: bufio.NewWriterSize(file, writeBufferSize), analyzer: analyzer, startedAt: startedAt,
 		samples: qualitySamples{mu: sync.Mutex{}, samples: []qualitySample{}}, excluded: qualityCounts{Drops: 0, Errors: 0, Scrambled: 0},
 	}

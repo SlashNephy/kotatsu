@@ -726,8 +726,8 @@ func (q *Queries) InsertRecordingCMSection(ctx context.Context, arg InsertRecord
 }
 
 const insertRecordingFile = `-- name: InsertRecordingFile :exec
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES ($1, $2, $3, $4, $5, 0, $6, NULL, $7)
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, tuner_index, tuner_name, created_at)
+VALUES ($1, $2, $3, $4, $5, 0, $6, NULL, $7, $8, $9)
 ON CONFLICT (id) DO NOTHING
 `
 
@@ -738,10 +738,13 @@ type InsertRecordingFileParams struct {
 	PoolID      string
 	Path        string
 	StartedAt   time.Time
+	TunerIndex  *int64
+	TunerName   *string
 	Now         time.Time
 }
 
 // DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
+// チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
 func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingFile,
 		arg.ID,
@@ -750,6 +753,8 @@ func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFi
 		arg.PoolID,
 		arg.Path,
 		arg.StartedAt,
+		arg.TunerIndex,
+		arg.TunerName,
 		arg.Now,
 	)
 	return err
@@ -884,7 +889,7 @@ func (q *Queries) ListLiveThumbnailRecordings(ctx context.Context, startedBefore
 }
 
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `
 
 // 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
@@ -908,6 +913,8 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.EndedAt,
 			&i.PIDStats,
 			&i.Video,
+			&i.TunerIndex,
+			&i.TunerName,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -989,7 +996,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 }
 
 const listRecordingFiles = `-- name: ListRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
@@ -1012,6 +1019,8 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.EndedAt,
 			&i.PIDStats,
 			&i.Video,
+			&i.TunerIndex,
+			&i.TunerName,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

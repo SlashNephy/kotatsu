@@ -16,6 +16,7 @@ import {
   Title,
 } from '@mantine/core';
 import { distinctVideoLabels } from '../../recordings/videoFormat';
+import { distinctTunerNames } from '../../recordings/tuners';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Download,
@@ -241,6 +242,10 @@ function Recording({ recordingId }: { recordingId: string }) {
                 height
                 interlaced
                 frameRate
+              }
+              tuner {
+                index
+                name
               }
             }
           }
@@ -589,6 +594,14 @@ function Recording({ recordingId }: { recordingId: string }) {
                 <Text size="sm" c="dimmed">
                   {t('recordings.videoFormat', {
                     format: distinctVideoLabels(segments.map((file) => file.video)).join(' → '),
+                  })}
+                </Text>
+              )}
+              {/* 受信していたチューナーは、管理者にだけ返る (#1467)。途中で移った録画では、移った順に並べる。 */}
+              {distinctTunerNames(segments.map((file) => file.tuner)).length > 0 && (
+                <Text size="sm" c="dimmed">
+                  {t('recordings.tuners', {
+                    names: distinctTunerNames(segments.map((file) => file.tuner)).join(' → '),
                   })}
                 </Text>
               )}

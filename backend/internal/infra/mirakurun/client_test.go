@@ -208,10 +208,46 @@ func TestClientOpenServiceStream(t *testing.T) {
 			users := fake.Tuners()[0].Users
 			require.Len(t, users, 1)
 			assert.Equal(t, tt.wantPriority, strconv.Itoa(users[0].Priority))
+			// 応答のヘッダーの利用者の ID から、ストリームを受信しているチューナーを見つけられる (#1467)。
+			tuners, err := client.Tuners(t.Context())
+			require.NoError(t, err)
+			opened, ok := stream.(*mirakurun.Stream)
+			require.True(t, ok)
+			used := mirakurun.TunerOf(tuners, opened.TunerUserID())
+			require.NotNil(t, used)
+			assert.Equal(t, "GR0", used.Name)
 
 			require.NoError(t, stream.Close())
 			// 閉じたら、チューナーが解放される。
 			assert.Eventually(t, func() bool { return len(fake.Tuners()[0].Users) == 0 }, 5*time.Second, 10*time.Millisecond)
+		})
+	}
+}
+
+// TestTunerOf は、利用者の ID から、その利用者が使っているチューナーを見つけることを確かめる (#1467)。
+func TestTunerOf(t *testing.T) {
+	t.Parallel()
+
+	tuners := []*mirakurun.Tuner{
+		{Index: 0, Name: "GR0", Users: []*mirakurun.TunerUser{{ID: "a", Priority: 0, Agent: ""}}},
+		{Index: -1, Name: "remote / T0", Users: []*mirakurun.TunerUser{{ID: "b", Priority: 0, Agent: ""}, {ID: "c", Priority: 0, Agent: ""}}},
+		{Index: 2, Name: "GR2", Users: []*mirakurun.TunerUser{}},
+	}
+	tests := []struct {
+		name   string
+		userID string
+		want   *mirakurun.Tuner
+	}{
+		{name: "ローカルのチューナー", userID: "a", want: tuners[0]},
+		{name: "相乗りしているリモートのチューナー", userID: "c", want: tuners[1]},
+		{name: "使っていない", userID: "d", want: nil},
+		{name: "ID を返さないチューナーサーバー", userID: "", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Same(t, tt.want, mirakurun.TunerOf(tuners, tt.userID))
 		})
 	}
 }

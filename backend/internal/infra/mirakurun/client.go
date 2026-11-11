@@ -20,6 +20,9 @@ import (
 const (
 	// PriorityHeader は、Mirakurun と mirakc がチューナーの優先度を受け取るヘッダー。
 	PriorityHeader = "X-Mirakurun-Priority"
+	// TunerUserIDHeader は、Mirakurun、mirakc、Mahiron が、ストリームの応答で、チューナーの利用者の ID を返すヘッダー。
+	// /api/tuners の users[].id と同じ値になる (#1467)。
+	TunerUserIDHeader = "X-Mirakurun-Tuner-User-ID"
 
 	defaultUserAgent      = "kotatsu"
 	defaultRequestTimeout = 30 * time.Second
@@ -382,11 +385,42 @@ func (c *Client) openStream(req *http.Request, idleTimeout time.Duration) (io.Re
 		return nil, err
 	}
 
+	userID := resp.Header.Get(TunerUserIDHeader)
 	if idleTimeout == 0 {
-		return &releasingBody{ReadCloser: resp.Body, release: func() { cancel(nil) }}, nil
+		return &Stream{ReadCloser: &releasingBody{ReadCloser: resp.Body, release: func() { cancel(nil) }}, userID: userID}, nil
 	}
 
-	return newIdleReader(resp.Body, idleTimeout, func() { cancel(nil) }), nil
+	return &Stream{ReadCloser: newIdleReader(resp.Body, idleTimeout, func() { cancel(nil) }), userID: userID}, nil
+}
+
+// Stream は、開いたストリームの本文。チューナーサーバーが返した、チューナーの利用者の ID も持つ。
+type Stream struct {
+	io.ReadCloser
+
+	userID string
+}
+
+var _ io.ReadCloser = new(Stream)
+
+// TunerUserID は、このストリームのチューナーの利用者の ID を返す。チューナーサーバーが返さなければ空 (#1467)。
+func (s *Stream) TunerUserID() string {
+	return s.userID
+}
+
+// TunerOf は、利用者の ID が userID のチューナーを返す。見つからなければ nil (#1467)。
+func TunerOf(tuners []*Tuner, userID string) *Tuner {
+	if userID == "" {
+		return nil
+	}
+	for _, tuner := range tuners {
+		for _, user := range tuner.Users {
+			if user != nil && user.ID == userID {
+				return tuner
+			}
+		}
+	}
+
+	return nil
 }
 
 // releasingBody は、閉じたときに、ストリームの要求の context を手放す本文。

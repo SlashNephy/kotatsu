@@ -298,6 +298,12 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT s.name, r.name FROM reservations r JOIN services s ON s.id = r.service_id WHERE r.id = $1",
 		reservationID).Scan(&serviceName, &programName))
 	assert.Equal(t, "2026-10-10 2230 "+serviceName+" "+programName+".m2ts", segment.path)
+	// セグメントには、ストリームを受信していたチューナー (空いていた最初の GR のチューナー) を残す (#1467)。
+	var tunerIndex *int64
+	var tunerName *string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT tuner_index, tuner_name FROM recording_files WHERE id = $1", segment.id).Scan(&tunerIndex, &tunerName))
+	assert.Equal(t, new(int64(0)), tunerIndex)
+	assert.Equal(t, new("GR0"), tunerName)
 	for _, file := range files {
 		assert.True(t, file.closed, file.path)
 		info, err := os.Stat(filepath.Join(dir, file.path))

@@ -87,7 +87,9 @@ func (p *preroll) bytes() []byte {
 // waitOutcome は、waitBeforeWriting の結果。
 type waitOutcome struct {
 	// stream と startedAt は、書くストリーム (溜めた分を先に読ませる) と、その最初のデータを読んだ時刻。
-	stream    io.ReadCloser
+	stream io.ReadCloser
+	// tuner は、ストリームを受信しているチューナー (#1467)。見つけられなければ nil。
+	tuner     *usedTuner
 	startedAt time.Time
 	// reopen は、ストリームが切れたので、開き直すこと。
 	reopen bool
@@ -102,7 +104,7 @@ func (r *Recorder) waitBeforeWriting(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
 	stream io.ReadCloser, created int,
 ) waitOutcome {
-	outcome := waitOutcome{stream: stream, startedAt: r.clock.Now(), reopen: false, done: false, err: nil}
+	outcome := waitOutcome{stream: stream, tuner: nil, startedAt: r.clock.Now(), reopen: false, done: false, err: nil}
 	if !tracker.mustWait(created, outcome.startedAt) {
 		return outcome
 	}

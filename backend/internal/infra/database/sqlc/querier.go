@@ -422,6 +422,7 @@ type Querier interface {
 	InsertRecordingAssignment(ctx context.Context, arg InsertRecordingAssignmentParams) error
 	InsertRecordingCMSection(ctx context.Context, arg InsertRecordingCMSectionParams) error
 	// DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
+	// チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
 	// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
