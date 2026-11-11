@@ -1982,7 +1982,7 @@ FFmpegはARIB字幕を書けないので、字幕のPESをaribb24.jsの符号化
 | URL | 画面 | クエリ |
 |---|---|---|
 | `/` | ホーム | |
-| `/guide` | 番組表 | `date`は放送日（`YYYY-MM-DD`）、`type`は種別のタブ（お気に入りは`pinned`）、`view`は番組表ビュー、`program`は開く番組の詳細。ホームと予約の一覧からは`reservation`で予約を渡し、番組表がその番組を探して`program`に置き換えます |
+| `/guide` | 番組表 | `date`は放送日（`YYYY-MM-DD`。暦にない日付と形が違う値は無視し、今日の番組表を出します）、`type`は種別のタブ（お気に入りは`pinned`）、`view`は番組表ビュー、`program`は開く番組の詳細。ホームと予約の一覧からは`reservation`で予約を渡し、番組表がその番組を探して`program`に置き換えます |
 | `/guide/channel/<サービス>` | サービスごとの番組表 | `program`は開く番組の詳細 |
 | `/search` | 番組検索 | |
 | `/live` | ライブ視聴の一覧 | |
