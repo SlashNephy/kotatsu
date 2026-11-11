@@ -226,7 +226,8 @@ type graphQLResponse struct {
 }
 
 // post は、GraphQL の query を送り、data を out に読み込む。token が空でなければ、Bearer で付ける。
-// エラーには、トークンも応答の本文も入れない。
+// エラーには、トークンも応答の本文全体も入れない。上流が返した GraphQL のエラーは、原因を切り分けられるよう、
+// 最初のものの message だけを入れる。エラーはログと、管理者が読む取り込みの結果 (AnimeImport.error) に残る (#1429)。
 func (c *Client) post(ctx context.Context, endpoint, token, query string, variables map[string]any, out any) error {
 	body, err := json.Marshal(map[string]any{"query": query, "variables": variables})
 	if err != nil {
