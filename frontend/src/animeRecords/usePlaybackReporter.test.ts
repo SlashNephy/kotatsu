@@ -71,4 +71,30 @@ describe('PlaybackTracker', () => {
     tracker.acknowledge(closed);
     expect(tracker.pending().intervals).toEqual([{ from: 2_000_000, to: 2_003_000 }]);
   });
+
+  test('送っている間に上限を超えて古い区間を捨てても、送っていない区間は捨てない (#1418)', () => {
+    const tracker = new PlaybackTracker();
+    // 届かない間に、上限の 50 区間まで溜める。区間は 10 秒ごとに 3 秒ずつ再生し、間をシークで切る。
+    const interval = (n: number) => {
+      tracker.sample(n * 10_000, n * 100_000, n * 100, true, 1);
+      play(tracker, n * 10_000, n * 100_000, n * 100, 3);
+    };
+    for (let n = 0; n < 50; n++) {
+      interval(n);
+    }
+    interval(50);
+    // ここで、閉じた 50 区間と、続いている 1 区間を送り始める。
+    const sent = tracker.pending();
+    expect(sent.intervals).toHaveLength(51);
+    // 送っている間に 2 区間が閉じ、上限を超えた古い 2 区間を捨てる。
+    interval(51);
+    interval(52);
+
+    tracker.acknowledge(sent.closed);
+
+    // 送っていない、送り始めた後に閉じた区間は残る。
+    expect(tracker.pending().intervals.map((item) => item.from)).toEqual([
+      5_000_000, 5_100_000, 5_200_000,
+    ]);
+  });
 });
