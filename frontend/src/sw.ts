@@ -4,6 +4,7 @@ import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkOnly } from 'workbox-strategies';
 
 import { notificationPath } from './notifications/link';
+import { openNotificationTarget } from './notifications/openTarget';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -91,19 +92,7 @@ self.addEventListener('notificationclick', (event) => {
   const data = event.notification.data as { url?: unknown } | null;
   const target =
     notificationPath(typeof data?.url === 'string' ? data.url : null) ?? '/notifications';
-  event.waitUntil(
-    (async () => {
-      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      const opened = windows[0];
-      if (opened !== undefined) {
-        await opened.focus();
-        await opened.navigate(target);
-
-        return;
-      }
-      await self.clients.openWindow(target);
-    })(),
-  );
+  event.waitUntil(openNotificationTarget(self.clients, target));
 });
 
 // parsePush は、Web Push の本文を読む。壊れた本文なら null を返す。
