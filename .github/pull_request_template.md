@@ -13,3 +13,4 @@
 
 - [ ] `mise run //backend:generate`の生成物の差分をコミットした
 - [ ] 振る舞い、仕様、既定値を変えたときは、設計書 (`docs/spec.v1.md`) も直した
+- [ ] 更新した利用者に対処が要るときは、破壊的変更 (`docs/breaking-changes.md`) に書いた

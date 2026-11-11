@@ -108,6 +108,16 @@ proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-Host $host;
 ```
 
+ライブ視聴の実況のコメントは、WebSocket（`/media/jikkyo/{channel}/ws`）で届きます。
+nginxでは、WebSocketの接続も通るように設定してください。
+`$connection_upgrade`は、`http`のブロックの`map $http_upgrade $connection_upgrade { default upgrade; '' close; }`で定義します。
+
+```nginx
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection $connection_upgrade;
+```
+
 プロキシが`X-Real-IP`だけを設定するなら、`server.client_ip_header`を`X-Real-IP`にします。
 このときは`X-Forwarded-For`を読まず、`X-Real-IP`の値を送信元にします。
 
