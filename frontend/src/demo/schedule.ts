@@ -285,6 +285,15 @@ export function createScheduler(options: {
       throw new Error('the program is not found');
     }
     const existing = reservationOf(programId);
+    // ルール予約は、本物のサーバー (PromoteRuleReservation) と同じく、手動の番組予約に切り替え、
+    // 無効にしてあっても有効に戻す (#1432)。番組予約は、そのまま返す。
+    if (existing?.kind === 'RULE') {
+      existing.kind = 'PROGRAM';
+      existing.enabled = true;
+      existing.followEventRelay = followEventRelay;
+      existing.settings = settings;
+      existing.updatedAt = now;
+    }
     if (existing !== undefined) {
       return existing;
     }

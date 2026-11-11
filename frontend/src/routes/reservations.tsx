@@ -303,12 +303,8 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   const { t } = useTranslation();
   const navigate = Route.useNavigate();
   const { problems = false, rule } = Route.useSearch();
-  // patches は、この画面で変えた予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
-  const [patches, setPatches] = useState<Record<string, { enabled?: boolean; removed?: boolean }>>(
-    {},
-  );
-  const patch = (id: string, change: { enabled?: boolean; removed?: boolean }) =>
-    setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }));
+  // removed は、この画面で消した予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const variables = {
     from: range.from,
     to: range.to,
@@ -344,6 +340,18 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     startTransition(() => setFetchKey((key) => key + 1));
   };
   const extra = more?.key === filterKey ? more : null;
+  // setEnabled は、この画面で有効かどうかを切り替えた予約を、一覧に反映する。最初のページの予約は、切り替えの応答で
+  // Relay のストアが変わるので、そのまま出る。続きで読んだ予約は、ストアから読まないので、ここで書き換える。
+  // 読み直した値より古い値を上から重ねないよう、別に覚えておかない (#1425)。
+  const setEnabled = (id: string, enabled: boolean) =>
+    setMore((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            nodes: current.nodes.map((node) => (node.id === id ? { ...node, enabled } : node)),
+          },
+    );
   const next = extra !== null ? extra.next : (data.reservations.pageInfo.endCursor ?? null);
   const hasMore = extra !== null ? extra.next !== null : data.reservations.pageInfo.hasNextPage;
   const loadMore = async () => {
@@ -448,10 +456,9 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     ...data.reservations.edges.map((edge) => edge.node),
     ...(extra?.nodes ?? []),
   ]
-    .filter((node) => patches[node.id]?.removed !== true)
+    .filter((node) => !removed.has(node.id))
     .map((node) => ({
       ...node,
-      enabled: patches[node.id]?.enabled ?? node.enabled,
       startMs: Date.parse(node.startAt),
       endMs: Date.parse(node.endAt),
     }));
@@ -467,7 +474,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
       reservation={reservation}
       onAir={reservation.startMs <= range.now}
       canEdit={canEdit}
-      onChanged={(enabled) => patch(reservation.id, { enabled })}
+      onChanged={(enabled) => setEnabled(reservation.id, enabled)}
       onRescheduled={reload}
       onDelete={() => setDeleting(reservation)}
       selection={
@@ -663,7 +670,7 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
           reservation={deleting}
           onClose={() => setDeleting(null)}
           onDeleted={() => {
-            patch(deleting.id, { removed: true });
+            setRemoved((current) => new Set(current).add(deleting.id));
             setDeleting(null);
           }}
         />

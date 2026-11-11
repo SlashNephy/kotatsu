@@ -9,7 +9,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { Search } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
@@ -109,7 +109,11 @@ function RecordingPicker({ onOpen }: { onOpen: (target: RemoteOpenTarget) => voi
   const [results, setResults] = useState<Recordings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  // latest は、最後に送った検索の番号。読み込み中も Enter で送れるので、前の検索の応答が遅れて届いたら捨てる (#1423)。
+  const latest = useRef(0);
   const search = () => {
+    const id = ++latest.current;
+    const current = () => id === latest.current;
     setLoading(true);
     setError(false);
     fetchQuery<RemoteOpenRecordingsQuery>(
@@ -135,14 +139,25 @@ function RecordingPicker({ onOpen }: { onOpen: (target: RemoteOpenTarget) => voi
     )
       .toPromise()
       .then(
-        (data) => setResults(data?.recordings.edges ?? []),
+        (data) => {
+          if (current()) {
+            setResults(data?.recordings.edges ?? []);
+          }
+        },
         () => {
+          if (!current()) {
+            return;
+          }
           // 前に探した結果を、今の言葉の結果と取り違えないよう消す。
           setResults(null);
           setError(true);
         },
       )
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (current()) {
+          setLoading(false);
+        }
+      });
   };
 
   return (
