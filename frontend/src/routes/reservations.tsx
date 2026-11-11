@@ -303,12 +303,6 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
   const { t } = useTranslation();
   const navigate = Route.useNavigate();
   const { problems = false, rule } = Route.useSearch();
-  // patches は、この画面で変えた予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
-  const [patches, setPatches] = useState<Record<string, { enabled?: boolean; removed?: boolean }>>(
-    {},
-  );
-  const patch = (id: string, change: { enabled?: boolean; removed?: boolean }) =>
-    setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }));
   const variables = {
     from: range.from,
     to: range.to,
@@ -330,6 +324,34 @@ function Reservations({ range }: { range: { now: number; from: string; to: strin
     { ...variables, first: pageSize, after: null },
     { fetchKey: `${fetchKey}:${changes}`, fetchPolicy: 'store-and-network' },
   );
+  // patches は、この画面で変えた予約。一覧を取り直さずに反映し、読み込んだ続きを捨てない。
+  // 一覧を読み直したら、そこに入った予約の、有効かどうかの patch は捨てる。読み直した値のほうが新しく、
+  // まとめて切り替えた後に、古い patch が勝たないようにする (#1425)。続きで読んだ予約は、読み直さないので残す。
+  const [patchState, setPatchState] = useState<{
+    data: typeof data;
+    patches: Record<string, { enabled?: boolean; removed?: boolean }>;
+  }>({ data, patches: {} });
+  if (patchState.data !== data) {
+    const reloaded = new Set(data.reservations.edges.map((edge) => edge.node.id));
+    setPatchState({
+      data,
+      patches: Object.fromEntries(
+        Object.entries(patchState.patches).flatMap(([id, change]) => {
+          if (!reloaded.has(id)) {
+            return [[id, change]];
+          }
+
+          return change.removed === true ? [[id, { removed: true }]] : [];
+        }),
+      ),
+    });
+  }
+  const patches = patchState.patches;
+  const patch = (id: string, change: { enabled?: boolean; removed?: boolean }) =>
+    setPatchState((prev) => ({
+      ...prev,
+      patches: { ...prev.patches, [id]: { ...prev.patches[id], ...change } },
+    }));
   const environment = useRelayEnvironment();
   // more は、続きの読み込みで足した予約と、その次のカーソル。絞り込みを変えたら捨てる。
   const [more, setMore] = useState<{ key: string; nodes: Node[]; next: string | null } | null>(
