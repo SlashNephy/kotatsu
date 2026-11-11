@@ -143,6 +143,8 @@ func TestAnalyzerPrograms(t *testing.T) {
 		build       func(cc map[uint16]*byte) [][]byte
 		wantStreams []ts.StreamKind
 		wantVersion uint8
+		// wantPID は、PMT の PID。0 なら pmtPID。
+		wantPID uint16
 	}{
 		{
 			name: "PAT and PMT",
@@ -159,6 +161,18 @@ func TestAnalyzerPrograms(t *testing.T) {
 			},
 			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamOther},
 			wantVersion: 1,
+		},
+		{
+			// PAT で PMT の PID が移り、移った先の PMT の version_number が前と同じでも、移った先の PMT を読む (#1428)。
+			name: "PMT moved to another PID with the same version",
+			build: func(cc map[uint16]*byte) [][]byte {
+				pkts := append(psiPackets(0, cc[0], patSection(0, pat)), psiPackets(pmtPID, cc[pmtPID], pmtSection(0, video, audio))...)
+				pkts = append(pkts, psiPackets(0, cc[0], patSection(1, map[uint16]uint16{programNum: 0x01F1}))...)
+
+				return append(pkts, psiPackets(0x01F1, cc[0x01F1], pmtSection(0, video, audio, caption))...)
+			},
+			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamOther},
+			wantPID:     0x01F1,
 		},
 		{
 			name: "PMT spanning several packets",
@@ -240,7 +254,11 @@ func TestAnalyzerPrograms(t *testing.T) {
 			}
 			require.Len(t, programs, 1)
 			assert.Equal(t, uint16(programNum), programs[0].Number)
-			assert.Equal(t, uint16(pmtPID), programs[0].PMTPID)
+			wantPID := tt.wantPID
+			if wantPID == 0 {
+				wantPID = pmtPID
+			}
+			assert.Equal(t, wantPID, programs[0].PMTPID)
 			assert.Equal(t, tt.wantVersion, programs[0].Version)
 			kinds := []ts.StreamKind{}
 			for _, s := range programs[0].Streams {

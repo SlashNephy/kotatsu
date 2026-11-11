@@ -156,7 +156,8 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 	if t.pmtPIDs[number] != pid {
 		return
 	}
-	if current := t.programs[number]; current != nil && current.Version == header.version {
+	// 同じ PID の同じ版は読み飛ばす。PAT で PID が移ったら、版が同じでも中身が違いうるので読む (#1428)。
+	if current := t.programs[number]; current != nil && current.Version == header.version && current.PMTPID == pid {
 		return
 	}
 
