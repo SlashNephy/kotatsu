@@ -48,6 +48,8 @@ type Recording struct {
 	ImageSegmentID uuid.UUID `json:"-"`
 	// RuleKey は、録画を始めたときに一致していたルールの ID。スキーマには出さず、rule のリゾルバーで引く。
 	RuleKey *uuid.UUID `json:"-"`
+	// FailureDetailText は、失敗した理由に至ったエラーの本文 (#1467)。failureDetail のリゾルバーが、管理者にだけ返す。
+	FailureDetailText *string `json:"-"`
 }
 
 var _ Node = new(Recording)

@@ -155,6 +155,19 @@ func (f *fixture) recording(t *testing.T, reservationID uuid.UUID) (recorded, bo
 	return r, true
 }
 
+// connectionRefused は、チューナーサーバーにつながらないときのエラーの本文。録画に残す本文 (#1467) と比べる。
+const connectionRefused = "connection refused"
+
+// failureDetail は、録画に残した、失敗した理由に至ったエラーの本文を返す (#1467)。
+func (f *fixture) failureDetail(t *testing.T, reservationID uuid.UUID) *string {
+	t.Helper()
+
+	var detail *string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT failure_detail FROM recordings WHERE reservation_id = $1", reservationID).Scan(&detail))
+
+	return detail
+}
+
 // failures は、理由 reason の失敗の累計と、最後に失敗した時刻を返す (#960)。失敗したことがなければ、時刻は nil。
 func (f *fixture) failures(t *testing.T, reason recording.FailureReason) (int, *time.Time) {
 	t.Helper()
@@ -695,6 +708,8 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		tuner     func(f *fixture) recording.StreamOpener
 		freeSpace kago.FreeSpaceFunc
 		want      recording.FailureReason
+		// wantDetail は、録画に残すエラーの本文に含まれるはずの文字列 (#1467)。
+		wantDetail string
 		// retries は、予定の終わりまで開き直すかどうか。開き直すなら、開こうとしてから予定の終わりまで進める。
 		// 保存先がなければ、その場で失敗にする。時計を進めると、残りの時間の推定サイズが 0 になって入ってしまう。
 		retries bool
@@ -702,21 +717,23 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		{
 			name: "チューナーを確保できない",
 			tuner: func(*fixture) recording.StreamOpener {
-				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusServiceUnavailable}}
+				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusServiceUnavailable, Reason: "no available tuners"}}
 			},
-			freeSpace: nil,
-			want:      recording.FailureTunerUnavailable,
-			retries:   true,
+			freeSpace:  nil,
+			want:       recording.FailureTunerUnavailable,
+			wantDetail: "tuner server responded 503",
+			retries:    true,
 		},
 		{
 			// チューナーサーバーが上流のチューナーにつなげず、500 を返した。ストリームは一度も開いていないので、中断ではない。
 			name: "チューナーサーバーがエラーを返す",
 			tuner: func(*fixture) recording.StreamOpener {
-				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusInternalServerError}}
+				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusInternalServerError, Reason: "upstream: context deadline exceeded"}}
 			},
-			freeSpace: nil,
-			want:      recording.FailureTunerUnavailable,
-			retries:   true,
+			freeSpace:  nil,
+			want:       recording.FailureTunerUnavailable,
+			wantDetail: "upstream: context deadline exceeded",
+			retries:    true,
 		},
 		{
 			// チューナーの空きを待って応答しないまま、開く時間の上限が過ぎた (#412)。
@@ -724,23 +741,26 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			tuner: func(*fixture) recording.StreamOpener {
 				return failingStream{err: fmt.Errorf("failed to request: %w", mirakurun.ErrStreamOpenTimeout)}
 			},
-			freeSpace: nil,
-			want:      recording.FailureTunerUnavailable,
-			retries:   true,
+			freeSpace:  nil,
+			want:       recording.FailureTunerUnavailable,
+			wantDetail: "failed to request",
+			retries:    true,
 		},
 		{
-			name:      "チューナーサーバーに接続できない",
-			tuner:     func(*fixture) recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
-			freeSpace: nil,
-			want:      recording.FailureTunerServerUnreachable,
-			retries:   true,
+			name:       "チューナーサーバーに接続できない",
+			tuner:      func(*fixture) recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
+			freeSpace:  nil,
+			want:       recording.FailureTunerServerUnreachable,
+			wantDetail: connectionRefused,
+			retries:    true,
 		},
 		{
-			name:      "保存先の容量が足りない",
-			tuner:     func(f *fixture) recording.StreamOpener { return f.tuner },
-			freeSpace: func(string) (uint64, error) { return 1 << 20, nil },
-			want:      recording.FailureStorageFull,
-			retries:   false,
+			name:       "保存先の容量が足りない",
+			tuner:      func(f *fixture) recording.StreamOpener { return f.tuner },
+			freeSpace:  func(string) (uint64, error) { return 1 << 20, nil },
+			want:       recording.FailureStorageFull,
+			wantDetail: kago.ErrNoPoolFits.Error(),
+			retries:    false,
 		},
 	}
 	for _, tt := range tests {
@@ -763,6 +783,10 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			got, ok := f.recording(t, reservationID)
 			require.True(t, ok)
 			assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(tt.want)), drops: 0}, got)
+			// 理由に至ったエラーの本文も残す (#1467)。
+			detail := f.failureDetail(t, reservationID)
+			require.NotNil(t, detail)
+			assert.Contains(t, *detail, tt.wantDetail)
 			// 失敗の累計にも足す (#960)。
 			count, last := f.failures(t, tt.want)
 			assert.Equal(t, 1, count)
@@ -1314,6 +1338,8 @@ func TestRecorderReconnects(t *testing.T) {
 	assert.Equal(t, int32(2), opened.Load())
 	got, _ := f.recording(t, reservationID)
 	assert.Equal(t, string(recording.StatePartial), got.state)
+	// 途中で切れたエラーは、録画が失敗しなかったので残さない (#1467)。
+	assert.Nil(t, f.failureDetail(t, reservationID))
 	assert.Equal(t, gapsAndLost{gaps: 1, programLost: false}, f.gapsAndLost(t, reservationID))
 	for _, file := range f.files(t, reservationID) {
 		assert.True(t, file.closed, file.path)
@@ -2287,6 +2313,8 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 		// prepare は、録画できない状態にし、Recorder と、録画が開こうとするのを待つストリームを作る。
 		prepare func(t *testing.T, f *fixture, reservationID uuid.UUID) (*recording.Recorder, *attemptedStream)
 		reason  recording.FailureReason
+		// detail は、理由と一緒に残すエラーの本文に含まれるはずの文字列 (#1467)。
+		detail string
 		// advance は、録画が開こうとしてから進める時間。
 		advance time.Duration
 	}{
@@ -2299,7 +2327,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 			recorder, _ := f.newRecorderWithPeers(t, stream, nil, onePeer)
 
 			return recorder, stream
-		}, reason: recording.FailureStorageUnavailable, advance: 0},
+		}, reason: recording.FailureStorageUnavailable, detail: kago.ErrPoolNotMounted.Error(), advance: 0},
 		{name: "チューナーサーバーにつながらないまま 30 秒が過ぎた", prepare: func(t *testing.T, f *fixture, _ uuid.UUID) (*recording.Recorder, *attemptedStream) {
 			t.Helper()
 
@@ -2307,7 +2335,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 			recorder, _ := f.newRecorderWithPeers(t, stream, nil, onePeer)
 
 			return recorder, stream
-		}, reason: recording.FailureTunerServerUnreachable, advance: 31 * time.Second},
+		}, reason: recording.FailureTunerServerUnreachable, detail: connectionRefused, advance: 31 * time.Second},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2329,6 +2357,9 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 			require.ErrorIs(t, wait(t, done), recording.ErrRecorderUnavailable)
 			got, _ := f.recording(t, reservationID)
 			assert.Equal(t, recorded{state: string(recording.StateRecording), failureReason: new(string(tt.reason)), drops: 0}, got)
+			detail := f.failureDetail(t, reservationID)
+			require.NotNil(t, detail)
+			assert.Contains(t, *detail, tt.detail)
 		})
 	}
 }

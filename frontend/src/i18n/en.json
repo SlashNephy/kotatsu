@@ -1201,6 +1201,7 @@
     "ruleFilterClear": "Clear rule filter",
     "deletedRule": "Deleted rule",
     "recordedByRule": "Recorded by rule \"{{name}}\"",
+    "failureDetail": "Error details (shown only to administrators)",
     "recordedByDeletedRule": "Recorded by deleted rule \"{{name}}\"",
     "regenerateQueued": "Regeneration started. The images will be replaced when it finishes",
     "regenerateWaiting": "Waiting for the previously requested regeneration",

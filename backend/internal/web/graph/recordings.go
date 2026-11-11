@@ -404,6 +404,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		JikkyoNicologCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.NicologCommentsFileName,
 		ServiceKey:               row.ServiceID,
 		VideoResolution:          row.VideoResolution,
+		FailureDetailText:        row.FailureDetail,
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))
@@ -757,4 +758,15 @@ func segmentVideoOf(raw []byte) *model.SegmentVideoFormat {
 	}
 
 	return video
+}
+
+// failureDetail は、失敗した理由に至ったエラーの本文を、管理者にだけ返す (#1467)。
+// 上流のチューナーのホスト名などを含むので、システムの状態 (lastError) と同じく、ほかのユーザーには返さない。
+// フィールドを読めないことをエラーにすると、録画の詳細の画面全体が読めなくなるので、null を返す。
+func (r *Resolver) failureDetail(ctx context.Context, obj *model.Recording) *string {
+	if administer(ctx) != nil {
+		return nil
+	}
+
+	return obj.FailureDetailText
 }

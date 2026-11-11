@@ -712,6 +712,47 @@ func TestRecordingCMSections(t *testing.T) {
 	assert.True(t, recordedFrom.Add(690500*time.Millisecond).Equal(got[1].To))
 }
 
+// TestRecordingFailureDetail は、失敗した理由に至ったエラーの本文を、管理者にだけ返し、
+// ほかのユーザーには null を返すことを確かめる (#1467)。本文は上流のチューナーのホスト名などを含む。
+func TestRecordingFailureDetail(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	f.addRecording(t, dir, episode1, "failed", time.Hour)
+	const detail = `tuner server responded 500 to GET http://tuner.example/api/services/1/stream?decode=1: upstream: context deadline exceeded`
+	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET failure_reason = 'tuner_unavailable', failure_detail = $2 WHERE name = $1`, episode1, detail)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		role auth.Role
+		want *string
+	}{
+		{name: "管理者", role: auth.RoleAdmin, want: new(detail)},
+		{name: "メンバー", role: auth.RoleMember, want: nil},
+		{name: "視聴者", role: auth.RoleViewer, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var page struct {
+				Recordings struct {
+					Edges []struct {
+						Node struct {
+							FailureDetail *string `json:"failureDetail"`
+						} `json:"node"`
+					} `json:"edges"`
+				} `json:"recordings"`
+			}
+			require.Empty(t, f.as(t, "user-"+string(tt.role), tt.role).
+				query(t, `query { recordings(first: 1) { edges { node { failureDetail } } } }`, nil, &page))
+			require.Len(t, page.Recordings.Edges, 1)
+			assert.Equal(t, tt.want, page.Recordings.Edges[0].Node.FailureDetail)
+		})
+	}
+}
+
 // TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478、#1301)。
 func TestContinueWatching(t *testing.T) {
 	t.Parallel()

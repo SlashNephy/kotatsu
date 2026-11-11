@@ -3194,6 +3194,11 @@ type Recording implements Node {
   """
   failureReason: RecordingFailureReason
   """
+  失敗した理由に至った、最後のエラーの本文 (#1467)。失敗していないか、本文がなければ null。
+  上流のチューナーのホスト名などを含むので、管理者にだけ返す。ほかのユーザーには null を返す。
+  """
+  failureDetail: String
+  """
   保護の印。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。
   """
   protected: Boolean!

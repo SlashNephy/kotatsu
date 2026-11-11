@@ -950,6 +950,7 @@ type ComplexityRoot struct {
 		EndAt                    func(childComplexity int) int
 		Errors                   func(childComplexity int) int
 		EventID                  func(childComplexity int) int
+		FailureDetail            func(childComplexity int) int
 		FailureReason            func(childComplexity int) int
 		Files                    func(childComplexity int) int
 		Gaps                     func(childComplexity int) int
@@ -1605,6 +1606,8 @@ type QueryResolver interface {
 }
 type RecordingResolver interface {
 	Service(ctx context.Context, obj *model.Recording) (*model.Service, error)
+
+	FailureDetail(ctx context.Context, obj *model.Recording) (*string, error)
 
 	StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error)
 
@@ -5977,6 +5980,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.EventID(childComplexity), true
+	case "Recording.failureDetail":
+		if e.ComplexityRoot.Recording.FailureDetail == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.FailureDetail(childComplexity), true
 	case "Recording.failureReason":
 		if e.ComplexityRoot.Recording.FailureReason == nil {
 			break
@@ -10320,6 +10329,11 @@ type Recording implements Node {
   state: RecordingState!
   "失敗した理由。失敗していなければ null。"
   failureReason: RecordingFailureReason
+  """
+  失敗した理由に至った、最後のエラーの本文 (#1467)。失敗していないか、本文がなければ null。
+  上流のチューナーのホスト名などを含むので、管理者にだけ返す。ほかのユーザーには null を返す。
+  """
+  failureDetail: String
   "保護の印。保護した録画は、容量の管理でも、ユーザーの操作でも消さない。"
   protected: Boolean!
   "全 PID のドロップ、エラー、スクランブルの数。"
@@ -13329,6 +13343,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_state(ctx, field)
 	case "failureReason":
 		return ec.fieldContext_Recording_failureReason(ctx, field)
+	case "failureDetail":
+		return ec.fieldContext_Recording_failureDetail(ctx, field)
 	case "protected":
 		return ec.fieldContext_Recording_protected(ctx, field)
 	case "drops":
@@ -33842,6 +33858,29 @@ func (ec *executionContext) fieldContext_Recording_failureReason(_ context.Conte
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "RecordingFailureReason")
 }
 
+func (ec *executionContext) _Recording_failureDetail(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_failureDetail(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().FailureDetail(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_failureDetail(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, true, "String")
+}
+
 func (ec *executionContext) _Recording_protected(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -51375,6 +51414,12 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "failureDetail":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_failureDetail(ctx, field, obj)
+				})
 		case "protected":
 			out.Values[i] = ec._Recording_protected(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

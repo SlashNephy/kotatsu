@@ -528,6 +528,7 @@ type Recording struct {
 	EndAt                 time.Time
 	State                 string
 	FailureReason         *string
+	FailureDetail         *string
 	Protected             bool
 	Drops                 int64
 	Errors                int64

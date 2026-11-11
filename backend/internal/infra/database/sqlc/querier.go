@@ -228,7 +228,7 @@ type Querier interface {
 	// 取り込めなければ、問い合わせ直す日時 (retry_at) を残す。
 	// 連携を外した後なら、何も書かない。
 	FinishAnimeWishlistImport(ctx context.Context, arg FinishAnimeWishlistImportParams) (int64, error)
-	// 録画を state で終える。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
+	// 録画を state で終える。失敗のエラーの本文 (#1467) は、失敗でなければ NULL を渡して消す。失敗に変わったときは、同じ文で失敗の累計に足す (#960)。すでに失敗の録画を、もう一度失敗で終えても足さない。
 	// prev には FOR UPDATE を付けない。付けると、同じ文の UPDATE がその行を飛ばす。同じ録画を同時に終えないことは、呼び出し側が割り振りの世代のロックで守る。
 	FinishRecording(ctx context.Context, arg FinishRecordingParams) error
 	// 録画を終えた割り振りを、終わったことにする。世代番号が進んでいたら、何もしない。引き継ぎ待ちの間に予定の終わりが来ても終える。
@@ -924,7 +924,7 @@ type Querier interface {
 	SetRecordingBroadcastEnded(ctx context.Context, arg SetRecordingBroadcastEndedParams) error
 	// 予約した番組が放送中になった日時を、最初の一度だけ記録する。
 	SetRecordingBroadcastStarted(ctx context.Context, arg SetRecordingBroadcastStartedParams) error
-	// 録画中の録画に、録画できなかった理由を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
+	// 録画中の録画に、録画できなかった理由とエラーの本文 (#1467) を残す。割り振りを手放した後、ほかの mikan も録れなければ、この理由で失敗にする (#524)。
 	SetRecordingFailureHint(ctx context.Context, arg SetRecordingFailureHintParams) error
 	// セグメントの PID ごとの品質の集計を書く (#473)。
 	SetRecordingFilePIDStats(ctx context.Context, arg SetRecordingFilePIDStatsParams) error
