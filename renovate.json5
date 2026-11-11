@@ -69,6 +69,17 @@
       ],
       abandonmentThreshold: null,
     },
+    {
+      // mise の conda バックエンドは、channel を書かなければ conda-forge から入れる (frontend/mise.demo-stream.toml)。
+      // Renovate は channel のないまま Anaconda.org を引いて見つけられないので、conda-forge の名前で引かせる。
+      matchDatasources: [
+        'conda',
+      ],
+      matchPackageNames: [
+        'ffmpeg',
+      ],
+      overridePackageName: 'conda-forge/ffmpeg',
+    },
   ],
   customManagers: [
     {
