@@ -43,6 +43,9 @@ const (
 type DeliverArgs struct {
 	SubscriptionID uuid.UUID `json:"subscriptionId"`
 	EventID        uuid.UUID `json:"eventId"`
+	// UserID は、ジョブを積んだときの購読の持ち主。送るまでに持ち主が替わっていたら送らない (#1435)。
+	// これを持つ前に積んだジョブでは、uuid.Nil になる。
+	UserID uuid.UUID `json:"userId,omitzero"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(DeliverArgs)
@@ -71,18 +74,19 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 }
 
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
-	subscriptionIDs, err := sqlc.New(tx).ListWebPushSubscriptionsForKind(ctx, sqlc.ListWebPushSubscriptionsForKindParams{
+	subscriptions, err := sqlc.New(tx).ListWebPushSubscriptionsForKind(ctx, sqlc.ListWebPushSubscriptionsForKindParams{
 		Kind: string(event.Kind), Audience: event.Audience.UserIDs, ByRule: event.Audience.ByRule,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list web push subscriptions: %w", err)
 	}
-	if len(subscriptionIDs) == 0 {
+	if len(subscriptions) == 0 {
 		return nil
 	}
-	params := make([]river.InsertManyParams, 0, len(subscriptionIDs))
-	for _, subscriptionID := range subscriptionIDs {
-		params = append(params, river.InsertManyParams{Args: DeliverArgs{SubscriptionID: subscriptionID, EventID: event.ID}, InsertOpts: nil})
+	params := make([]river.InsertManyParams, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		args := DeliverArgs{SubscriptionID: subscription.ID, EventID: event.ID, UserID: subscription.UserID}
+		params = append(params, river.InsertManyParams{Args: args, InsertOpts: nil})
 	}
 	if _, err := e.inserter.InsertManyTx(ctx, tx, params); err != nil {
 		return fmt.Errorf("failed to enqueue web push deliveries: %w", err)
@@ -147,6 +151,21 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 	}
 	if err != nil {
 		return fmt.Errorf("failed to get the notification event: %w", err)
+	}
+	// 宛先を確かめるのは積むときだけなので、送るまでの間に状況が変わったら送らない (#1435)。
+	// ログアウトせずに別のユーザーが同じ endpoint で購読し直すと、upsert で行の持ち主が替わる。前の持ち主あての文を、新しいユーザーに見せない。
+	if job.Args.UserID != uuid.Nil && subscription.UserID != job.Args.UserID {
+		return river.JobCancel(errRecipientChanged)
+	}
+	// ユーザーを無効にしたときと、受け取る設定を切ったときも送らない。
+	receives, err := q.WebPushSubscriptionReceives(ctx, sqlc.WebPushSubscriptionReceivesParams{
+		Kind: event.Kind, ID: subscription.ID, Audience: event.Audience, ByRule: event.ByRule,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to check the web push recipient: %w", err)
+	}
+	if !receives {
+		return river.JobCancel(errRecipientChanged)
 	}
 	plaintext, err := w.payload(&event)
 	if err != nil {
@@ -254,6 +273,7 @@ func urgency(kind domain.NotificationKind) string {
 var (
 	errSubscriptionNotFound = errors.New("the web push subscription no longer exists")
 	errEventNotFound        = errors.New("the notification event no longer exists")
+	errRecipientChanged     = errors.New("the web push subscription no longer receives the notification")
 	errExpired              = errors.New("the web push subscription has expired")
 	errUnexpectedStatus     = errors.New("the push service returned an unexpected status")
 	errNonPublicAddress     = publicnet.ErrNonPublicAddress
