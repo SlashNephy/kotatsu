@@ -381,7 +381,13 @@ function WorkCard({
             fit="cover"
             alt=""
             loading="lazy"
-            onError={thumbnail == null ? () => setImageFailed(true) : undefined}
+            // 作品の画像が読めなければ、Image が代わりの代表画像に替える。代表画像 (作品の画像がなくて最初から出したものを含む) も
+            // 読めなければ、壊れた画像の枠を残さないよう、枠を消す (#1433)。
+            onError={(event) => {
+              if (thumbnail == null || event.currentTarget.getAttribute('src') === thumbnail) {
+                setImageFailed(true);
+              }
+            }}
           />
         </Card.Section>
       )}
