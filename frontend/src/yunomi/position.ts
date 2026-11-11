@@ -47,11 +47,13 @@ export type Gap = { from: string; to: string };
 
 // broadcastTime は、録画の始まりからの再生位置 (秒) に当たる放送時刻 (Unix ミリ秒) を返す。
 // ファイルには途切れた区間の分の映像がないので、その位置より前に始まった区間の長さを足す。
+// recordedFrom より前の部分 (遅れて録り始めたときの、冒頭の欠け) は、位置の基準の前なので足さない。recordingPosition とそろえる (#1427)。
 export function broadcastTime(recordedFrom: string, gaps: readonly Gap[], seconds: number): number {
-  let at = Date.parse(recordedFrom) + Math.max(seconds, 0) * 1000;
+  const start = Date.parse(recordedFrom);
+  let at = start + Math.max(seconds, 0) * 1000;
   const sorted = [...gaps].sort((a, b) => Date.parse(a.from) - Date.parse(b.from));
   for (const gap of sorted) {
-    const from = Date.parse(gap.from);
+    const from = Math.max(Date.parse(gap.from), start);
     if (from > at) {
       break;
     }
