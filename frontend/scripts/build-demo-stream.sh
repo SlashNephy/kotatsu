@@ -34,7 +34,9 @@ cp "${font}" "${work}/fonts/"
 node scripts/demo-stream-scene.mjs >"${work}/scene.ass"
 
 # 和音 (ハ長調の I、ド・ミ・ソ) を、ゆっくり揺らして鳴らす。つなぎ目で音が途切れて聞こえないよう、頭と終わりを絞る。
-chord='(0.10*sin(2*PI*261.63*t)+0.07*sin(2*PI*329.63*t)+0.06*sin(2*PI*392.00*t)+0.03*sin(2*PI*523.25*t))*(0.8+0.2*sin(2*PI*0.25*t))'
+# 平均律の高さ (ミ 329.63 Hz、ソ 392.00 Hz) だと、ずれが唸りになり、スピーカーで鳴らすと濁って聞こえる (#1394)。
+# 純正律 (ド:ミ:ソ:ド = 4:5:6:8) にして、ドの 261.63 Hz の整数比で鳴らす。
+chord='(0.10*sin(2*PI*261.63*t)+0.07*sin(2*PI*261.63*5/4*t)+0.06*sin(2*PI*261.63*3/2*t)+0.03*sin(2*PI*261.63*2*t))*(0.8+0.2*sin(2*PI*0.25*t))'
 
 ffmpeg -hide_banner -loglevel error -y \
   -f lavfi -i 'gradients=size=1920x1080:rate=30000/1001:duration=20:c0=0x3b82c4:c1=0xd6ecff:x0=960:y0=0:x1=960:y1=760:speed=0' \

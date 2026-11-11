@@ -1926,7 +1926,7 @@ GraphQLは、graphql-jsで`schema.graphql`をメモリ上のデータに対し�
 アプリの外枠のService Worker（PWA）は作らず、登録もしません。
 代わりに、ライブ視聴の映像を実時間の速さで流すだけのService Workerを、`base`に範囲を絞って登録します。静的なファイルは一気に届き終わり、ライブ視聴の画面が再生を始める前に切れたものとして扱うためです。
 映像は、自前で作った20秒の映像（`frontend/demo/stream.m2ts`）で、どの局と録画もこれを流します。ライブ視聴は、映像が終わると切れたものとして扱い、つなぎ直して繰り返します。
-放送の映像や、権利のはっきりしない素材は使わず、架空の局の朝の中継を描きます（#1050）。山のふもとの景色、局のロゴ、テロップを図形と文字で描き、和音の音声と、ARIB字幕のストリームを入れます。
+放送の映像や、権利のはっきりしない素材は使わず、架空の局の朝の中継を描きます（#1050）。山のふもとの景色、局のロゴ、テロップを図形と文字で描き、純正律の和音の音声（唸って濁らないよう、平均律にしない。#1394）と、ARIB字幕のストリームを入れます。
 放送と同じく、1440x1080のMPEG-2の映像とAACの音声をMPEG-TSに入れます。
 作り方は`frontend/scripts/build-demo-stream.sh`に残し、作り直すときは`MISE_ENV=demo-stream mise run //frontend:demo-stream`で動かします。FFmpegは、`frontend/mise.demo-stream.toml`で版を固定したconda-forgeのものを使い、同じ版からは同じファイルができます。
 場面は、ASSの図形と文字で描き（`frontend/scripts/demo-stream-scene.mjs`）、文字には字幕と同じフォント（`frontend/vendor/caption-font`）を使います。
