@@ -4,6 +4,7 @@ import { startTransition, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
+import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
@@ -41,6 +42,19 @@ const query = graphql`
   }
 `;
 
+// Form は、保持期間のフォームの値。空の入力は '' になる。
+type Form = {
+  archiveDays: number | string;
+  notificationDays: number | string;
+  watchProgressDays: number | string;
+  networkActivityDays: number | string;
+};
+
+// sameForm は、2 つのフォームの値が同じかどうかを返す。
+function sameForm(a: Form, b: Form): boolean {
+  return (Object.keys(a) as (keyof Form)[]).every((key) => a[key] === b[key]);
+}
+
 function RetentionSettings() {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
@@ -56,16 +70,15 @@ function RetentionSettings() {
   const action = useAction();
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
-  const [archiveDays, setArchiveDays] = useState<number | string>(settings.archiveRetentionDays);
-  const [notificationDays, setNotificationDays] = useState<number | string>(
-    settings.notificationRetentionDays,
-  );
-  const [watchProgressDays, setWatchProgressDays] = useState<number | string>(
-    settings.watchProgressRetentionDays,
-  );
-  const [networkActivityDays, setNetworkActivityDays] = useState<number | string>(
-    settings.networkActivityRetentionDays,
-  );
+  // 触っていないフォームは、読み直した値 (ほかの管理者が保存したものなど) に合わせる。触ったフォームの入力は捨てない (#1452)。
+  const initial: Form = {
+    archiveDays: settings.archiveRetentionDays,
+    notificationDays: settings.notificationRetentionDays,
+    watchProgressDays: settings.watchProgressRetentionDays,
+    networkActivityDays: settings.networkActivityRetentionDays,
+  };
+  const { form, set } = useSyncedForm(initial, sameForm);
+  const { archiveDays, notificationDays, watchProgressDays, networkActivityDays } = form;
   const valid =
     typeof networkActivityDays === 'number' &&
     typeof archiveDays === 'number' &&
@@ -130,7 +143,7 @@ function RetentionSettings() {
               min={0}
               allowDecimal={false}
               value={archiveDays}
-              onChange={setArchiveDays}
+              onChange={(value) => set({ archiveDays: value })}
             />
           </Stack>
         </Card>
@@ -148,7 +161,7 @@ function RetentionSettings() {
               min={0}
               allowDecimal={false}
               value={notificationDays}
-              onChange={setNotificationDays}
+              onChange={(value) => set({ notificationDays: value })}
             />
           </Stack>
         </Card>
@@ -166,7 +179,7 @@ function RetentionSettings() {
               min={0}
               allowDecimal={false}
               value={watchProgressDays}
-              onChange={setWatchProgressDays}
+              onChange={(value) => set({ watchProgressDays: value })}
             />
           </Stack>
         </Card>
@@ -184,7 +197,7 @@ function RetentionSettings() {
               min={1}
               allowDecimal={false}
               value={networkActivityDays}
-              onChange={setNetworkActivityDays}
+              onChange={(value) => set({ networkActivityDays: value })}
             />
           </Stack>
         </Card>
