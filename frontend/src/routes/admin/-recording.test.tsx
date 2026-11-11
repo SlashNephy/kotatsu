@@ -72,4 +72,31 @@ describe('録画の既定値 (#1420)', () => {
     );
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '0');
   });
+
+  test('前後に空白のあるテンプレートを保存しても、保存の後は読み直しに追従する', async () => {
+    // template は、サーバーが持つファイル名のテンプレート。保存すると、送った値にする。
+    let template = '{{.Name}}';
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        template = (variables.input as { recordingDefaults: { fileNameTemplate: string } })
+          .recordingDefaults.fileNameTemplate;
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+      const response = settingsResponse();
+      response.data.systemSettings.recordingDefaults.fileNameTemplate = template;
+
+      return response;
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'ファイル名のテンプレート' }), {
+      target: { value: '{{.Name}}_{{.Service}} ' },
+    });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await screen.findByRole('status');
+
+    readAgain(environment, 5);
+
+    expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '5');
+  });
 });

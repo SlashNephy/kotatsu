@@ -130,6 +130,12 @@ function RecordingSettings() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setMessage(null);
+    // 送るのは前後の空白を除いたテンプレートなので、入力もそろえる。そろえないと、読み直した値と入力が食い違い、
+    // 保存の後も触ったままになって、それからの読み直しに追従しない。
+    const fileNameTemplate = form.fileNameTemplate.trim();
+    if (fileNameTemplate !== form.fileNameTemplate) {
+      set({ fileNameTemplate });
+    }
     action.run(
       async () => {
         // この画面の項目だけを送る。省いた項目 (保持期間や MCP) は、サーバーが変えない。
@@ -146,7 +152,7 @@ function RecordingSettings() {
             input: {
               recordingDefaults: {
                 poolId: form.poolId,
-                fileNameTemplate: form.fileNameTemplate.trim(),
+                fileNameTemplate,
                 startMarginSeconds: Number(form.startMarginSeconds),
                 endMarginSeconds: Number(form.endMarginSeconds),
                 priority: Number(form.priority),
