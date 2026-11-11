@@ -709,6 +709,16 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			retries:   true,
 		},
 		{
+			// チューナーサーバーが上流のチューナーにつなげず、500 を返した。ストリームは一度も開いていないので、中断ではない。
+			name: "チューナーサーバーがエラーを返す",
+			tuner: func(*fixture) recording.StreamOpener {
+				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusInternalServerError}}
+			},
+			freeSpace: nil,
+			want:      recording.FailureTunerUnavailable,
+			retries:   true,
+		},
+		{
 			// チューナーの空きを待って応答しないまま、開く時間の上限が過ぎた (#412)。
 			name: "チューナーサーバーが応答を返さない",
 			tuner: func(*fixture) recording.StreamOpener {
