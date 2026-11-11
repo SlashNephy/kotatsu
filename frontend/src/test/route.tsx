@@ -77,6 +77,7 @@ export async function renderRoute(
   environment: Environment,
 ) {
   const root = createRootRoute({ component: Outlet });
+  // ルートのモジュールの Route をそのまま書き換える。テストのファイルはそれぞれ別にモジュールを読むので、ほかのテストには残らない。
   route.update({
     id,
     path: id.replace(/_(?=\/|$)/g, ''),
