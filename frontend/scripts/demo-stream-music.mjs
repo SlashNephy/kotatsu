@@ -11,6 +11,12 @@
 // 乱数は種を固定した擬似乱数を使い、同じ版の Node.js からは同じ WAV ができるようにする。
 import { writeFile } from 'node:fs/promises';
 
+const [, , output] = process.argv;
+if (output === undefined) {
+  console.error('usage: node scripts/demo-stream-music.mjs <output.wav>');
+  process.exit(1);
+}
+
 const sampleRate = 48000;
 const duration = 20;
 const length = sampleRate * duration;
@@ -309,9 +315,4 @@ header.writeUInt16LE(32, 34);
 header.write('data', 36);
 header.writeUInt32LE(data.length, 40);
 
-const [, , output] = process.argv;
-if (output === undefined) {
-  console.error('usage: node scripts/demo-stream-music.mjs <output.wav>');
-  process.exit(1);
-}
 await writeFile(output, Buffer.concat([header, data]));
