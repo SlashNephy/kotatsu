@@ -179,13 +179,21 @@ func toProgramAudios(raw []byte) ([]*model.ProgramAudio, error) {
 	return audios, nil
 }
 
-// loadServices は、サービスを keys の順に引く。消えたサービスは飛ばす。
+// loadServices は、サービスを keys の順に引く。消えたサービス (NOT_FOUND) は飛ばす。
+// クエリの失敗など、ほかのエラーは飛ばさずに返す (#1474)。
 func (r *Resolver) loadServices(ctx context.Context, keys []int64) ([]*model.Service, error) {
 	// errs は、どのキーも引けたときは nil で、1 つでも失敗したときはキーの順にエラーを並べる。
 	rows, errs := loadersFrom(ctx).Services.LoadMany(ctx, keys)()
 	services := make([]*model.Service, 0, len(rows))
 	for i, row := range rows {
-		if row == nil || (errs != nil && errs[i] != nil) {
+		if errs != nil && errs[i] != nil {
+			if e, ok := errors.AsType[*Error](errs[i]); ok && e.Code == CodeNotFound {
+				continue
+			}
+
+			return nil, errs[i]
+		}
+		if row == nil {
 			continue
 		}
 		services = append(services, toService(row))
