@@ -91,6 +91,7 @@ tenbanのHTTPサーバーの設定です。
 `server.allowed_hosts`には、ブラウザでKotatsuを開くときのホスト名を、ポートを付けずに書きます（例：`tv.example.com,kotatsu.local`）。
 DNSリバインディングで、外部のサイトのホスト名から届いたリクエストを拒みます。
 IPアドレスと`localhost`は、書かなくてもいつも受け付けます。
+信頼済みのプロキシが`X-Forwarded-Host`に値を追記する構成（Apacheのmod_proxyの既定など）では、並んだホスト名をすべて確かめます。プロキシを2段重ねて、それぞれが追記するときは、どの段が追記するホスト名も書いてください。
 空なら、どのホスト名も受け付けます。
 
 `server.trusted_proxies`に含まれない送信元から`X-Forwarded-For`が届くと、Kotatsuはエラーを返します。

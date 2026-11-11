@@ -102,11 +102,22 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if !p.hostAllowed(client.Host) {
-			p.logger.WarnContext(r.Context(), "rejected a request for a disallowed host", slog.String("host", client.Host))
+		// 信頼済みのプロキシが X-Forwarded-Host に値を追記する構成 (Apache の mod_proxy の既定など) では、最左の値は送信元が書いた値になる。
+		// 送信元が許可済みのホスト名を書いても通らないよう、並んだ値をすべて確かめる (#1434)。オリジンには、これまでどおり最左の値を使う。
+		hosts := []string{client.Host}
+		if p.isTrusted(peer) {
+			if forwarded := allValues(r.Header.Values("X-Forwarded-Host")); len(forwarded) > 0 {
+				hosts = forwarded
+			}
+		}
+		for _, host := range hosts {
+			if p.hostAllowed(host) {
+				continue
+			}
+			p.logger.WarnContext(r.Context(), "rejected a request for a disallowed host", slog.String("host", host))
 			http.Error(w, fmt.Sprintf(
 				"the host %s is not allowed. To allow it, add it to server.allowed_hosts (KOTATSU_SERVER_ALLOWED_HOSTS).",
-				client.Host), http.StatusForbidden)
+				host), http.StatusForbidden)
 
 			return
 		}
@@ -226,6 +237,20 @@ func parseHop(hop string) (netip.Addr, error) {
 	}
 
 	return addr.Unmap(), nil
+}
+
+// allValues は、カンマで並んだ値と、複数の行に分かれた値を、すべて並べて返す。空の値は除く。
+func allValues(lines []string) []string {
+	values := []string{}
+	for _, line := range lines {
+		for value := range strings.SplitSeq(line, ",") {
+			if value = strings.TrimSpace(value); value != "" {
+				values = append(values, value)
+			}
+		}
+	}
+
+	return values
 }
 
 func firstValue(value string) string {

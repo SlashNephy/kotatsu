@@ -209,6 +209,15 @@ func TestAccessPolicyAllowedHosts(t *testing.T) {
 			name: "rebound forwarded host is rejected", allowedHosts: []string{proxiedHost}, host: proxiedHost, remoteAddr: trustedProxy,
 			headers: map[string]string{headerXFF: lanAddr, headerXFH: reboundHost}, wantStatus: http.StatusForbidden,
 		},
+		{
+			// 値を追記するプロキシ (Apache の mod_proxy の既定) では、最左の値は送信元が書いた値になる (#1434)。
+			name: "a sender-written allowed host before an appended rebound host is rejected", allowedHosts: []string{proxiedHost}, host: proxiedHost,
+			remoteAddr: trustedProxy, headers: map[string]string{headerXFF: lanAddr, headerXFH: proxiedHost + ", " + reboundHost}, wantStatus: http.StatusForbidden,
+		},
+		{
+			name: "allowed hosts appended by two proxies are accepted", allowedHosts: []string{proxiedHost, allowedHost}, host: proxiedHost,
+			remoteAddr: trustedProxy, headers: map[string]string{headerXFF: lanAddr, headerXFH: proxiedHost + ", " + hostName}, wantStatus: http.StatusOK,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
