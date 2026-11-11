@@ -1,4 +1,4 @@
-// 通知を押したときに、目的の画面を開く (設計書 8.4)。Service Worker (sw.ts) から呼ぶ。
+// 通知を押したときに、目的の画面を開く (設計書 6.2)。Service Worker (sw.ts) から呼ぶ。
 
 // NotificationWindow は、Service Worker から見たブラウザのタブ (WindowClient) のうち、ここで使うもの。
 export type NotificationWindow = {
@@ -25,15 +25,18 @@ export async function openNotificationTarget(
 ): Promise<void> {
   const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
   for (const window of windows) {
+    let navigated: NotificationWindow | null;
     try {
-      const navigated = await window.navigate(target);
-      if (navigated !== null) {
-        await navigated.focus();
-
-        return;
-      }
+      navigated = await window.navigate(target);
     } catch {
       // 制御下にないタブ。次のタブを試す。
+      continue;
+    }
+    if (navigated !== null) {
+      // 移れたら、前に出せなくても、ほかのタブでは開き直さない。
+      await navigated.focus().catch(() => {});
+
+      return;
     }
   }
   await clients.openWindow(target);

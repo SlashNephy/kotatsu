@@ -64,4 +64,28 @@ describe('openNotificationTarget', () => {
 
     expect(clients.openWindow).toHaveBeenCalledWith('/notifications');
   });
+
+  test('先頭のタブで移れたら、ほかのタブでは移らない', async () => {
+    const first = controlled();
+    const second = controlled();
+    const clients = clientsOf([first, second]);
+
+    await openNotificationTarget(clients, '/live/Service:1');
+
+    expect(first.navigate).toHaveBeenCalledOnce();
+    expect(second.navigate).not.toHaveBeenCalled();
+    expect(clients.openWindow).not.toHaveBeenCalled();
+  });
+
+  test('移れた後に前に出せなくても、ほかのタブや新しいタブでは開き直さない', async () => {
+    const first = controlled();
+    first.focus.mockRejectedValue(new Error('Not allowed to focus a window.'));
+    const second = controlled();
+    const clients = clientsOf([first, second]);
+
+    await openNotificationTarget(clients, '/live/Service:1');
+
+    expect(second.navigate).not.toHaveBeenCalled();
+    expect(clients.openWindow).not.toHaveBeenCalled();
+  });
 });
