@@ -53,6 +53,9 @@ const (
 	// annictThirdRecorded と annictFourthRecorded は、Annict に第 3 話と第 4 話を送れた記録。
 	annictThirdRecorded  = "annict:3:recorded"
 	annictFourthRecorded = "annict:4:recorded"
+	// annictThirdFailed と annictFourthFailed は、Annict に第 3 話と第 4 話を記録できなかった記録。
+	annictThirdFailed  = "annict:3:failed"
+	annictFourthFailed = "annict:4:failed"
 )
 
 // testNow は、偽チューナーの EPG を取り込む時刻。番組は 11:00 から 30 分ごとで、12:00 から 12:30 の番組に話を結びつける。
@@ -580,7 +583,7 @@ func TestRecordGivesUp(t *testing.T) {
 	require.Len(t, jobs, 1)
 
 	require.NoError(t, f.service.Record(t.Context(), f.pool, &jobs[0], false), "a missing episode is not retried")
-	assert.Equal(t, []string{annictThirdRecorded, "annict:4:failed"}, pendingRecords(t, f, f.alice.UserID))
+	assert.Equal(t, []string{annictThirdRecorded, annictFourthFailed}, pendingRecords(t, f, f.alice.UserID))
 	var message string
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT payload->>'reason' FROM notification_events WHERE kind = 'anime_record_failed'`).Scan(&message))
 	assert.Contains(t, message, "not on Annict")
@@ -591,7 +594,80 @@ func TestRecordGivesUp(t *testing.T) {
 	require.NoError(t, f.service.Disconnect(t.Context(), f.pool, audit.User(f.alice.UserID), f.alice.UserID, animerecord.DestinationAnnict))
 	assert.Equal(t, []string{"token-annict-" + f.alice.UserID.String()}, f.annict.revoked, "the Annict token is revoked")
 	require.NoError(t, f.service.Record(t.Context(), f.pool, &jobs[0], false))
-	assert.Equal(t, []string{annictThirdRecorded, "annict:4:failed"}, pendingRecords(t, f, f.alice.UserID))
+	assert.Equal(t, []string{annictThirdRecorded, annictFourthFailed}, pendingRecords(t, f, f.alice.UserID))
+}
+
+// failingDB は、名前が query のクエリだけを失敗させる DB。ほかのクエリは pool に流す。
+type failingDB struct {
+	*pgxpool.Pool
+
+	query string
+}
+
+var errInjected = errors.New("injected database error")
+
+func (d *failingDB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	if d.fails(sql) {
+		return nil, errInjected
+	}
+
+	return d.Pool.Query(ctx, sql, args...)
+}
+
+func (d *failingDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if d.fails(sql) {
+		return failedRow{}
+	}
+
+	return d.Pool.QueryRow(ctx, sql, args...)
+}
+
+func (d *failingDB) fails(sql string) bool {
+	return strings.Contains(sql, "-- name: "+d.query+" ")
+}
+
+type failedRow struct{}
+
+func (failedRow) Scan(...any) error { return errInjected }
+
+// TestRecordLastAttemptDatabaseError は、最後の試行で、利用者の設定か作品の読み込みだけが DB エラーになったら、
+// 送れなかった話を記録できなかったことにすることを確かめる (#1416)。最後でなければ、再試行に回す。
+func TestRecordLastAttemptDatabaseError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		query string
+		last  bool
+		want  []string
+	}{
+		{name: "最後の試行で、利用者の設定を読めない", query: "GetAnimeRecordSettings", last: true, want: []string{annictThirdFailed, annictFourthFailed}},
+		{name: "最後の試行で、作品を読めない", query: "ListAnimeWorks", last: true, want: []string{annictThirdFailed, annictFourthFailed}},
+		{name: "最後でない試行で、利用者の設定を読めない", query: "GetAnimeRecordSettings", last: false, want: []string{annictThirdPending, annictFourthPending}},
+		{name: "最後でない試行で、作品を読めない", query: "ListAnimeWorks", last: false, want: []string{annictThirdPending, annictFourthPending}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newRecordFixture(t)
+			f.connect(t, f.alice, animerecord.DestinationAnnict)
+			_, err := f.service.Report(t.Context(), f.pool, f.inserter, f.alice.UserID, &animerecord.Target{ServiceID: new(serviceID()), RecordingID: nil},
+				[]*animerecord.Interval{interval(12, 0, 12, 10)})
+			require.NoError(t, err)
+			jobs := f.inserter.taken()
+			require.Len(t, jobs, 1)
+
+			err = f.service.Record(t.Context(), &failingDB{Pool: f.pool, query: tt.query}, &jobs[0], tt.last)
+
+			if tt.last {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, errInjected, "the job is retried")
+			}
+			assert.Equal(t, tt.want, pendingRecords(t, f, f.alice.UserID))
+		})
+	}
 }
 
 // TestPrepareUserErasureRevokesTokens は、ユーザーを消すときに、連携のトークンを記録先で取り消すことを確かめる (#1382)。
