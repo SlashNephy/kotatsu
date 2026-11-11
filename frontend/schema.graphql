@@ -4450,7 +4450,7 @@ type TimeshiftProgram {
   """
   promoting: Boolean!
   """
-  playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。
+  playableFrom から番組の終わり (放送中なら今) までの、途切れた区間。チャンクの間の穴と、最後のチャンクの終わりから番組の終わりまでの録れていない部分で、再生の時間に含めない。
   """
   gaps: [RecordingGap!]!
   """

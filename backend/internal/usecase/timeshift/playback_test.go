@@ -61,7 +61,26 @@ func TestPlayablePrograms(t *testing.T) {
 			name: "チャンクと重ならない番組は除く", configured: true,
 			chunks:   []period{{20 * time.Minute, 25 * time.Minute}},
 			programs: []period{{0, 10 * time.Minute}, {10 * time.Minute, 30 * time.Minute}},
-			want:     []want{{start: 10 * time.Minute, playableFrom: 20 * time.Minute, gaps: []period{}}},
+			want:     []want{{start: 10 * time.Minute, playableFrom: 20 * time.Minute, gaps: []period{{25 * time.Minute, 30 * time.Minute}}}},
+		},
+		{
+			// 録れなかった終わりの部分も、途切れた区間にする (#1414)。
+			name: "最後のチャンクの終わりから番組の終わりまでは、途切れた区間にする", configured: true,
+			chunks:   []period{{0, 10 * time.Minute}},
+			programs: []period{{0, 20 * time.Minute}},
+			want:     []want{{start: 0, playableFrom: 0, gaps: []period{{10 * time.Minute, 20 * time.Minute}}}},
+		},
+		{
+			name: "放送中の番組で、ストリームが切れている間は、今までを途切れた区間にする", configured: true,
+			chunks:   []period{{0, 10 * time.Minute}},
+			programs: []period{{0, 0}},
+			want:     []want{{start: 0, playableFrom: 0, gaps: []period{{10 * time.Minute, time.Hour}}}},
+		},
+		{
+			name: "番組の終わりとチャンクの終わりが同じなら、終わりは途切れない", configured: true,
+			chunks:   []period{{0, 10 * time.Minute}},
+			programs: []period{{0, 10 * time.Minute}},
+			want:     []want{{start: 0, playableFrom: 0, gaps: []period{}}},
 		},
 		{
 			name: "前の番組の終わりに始まった番組だけを、頭から録れたものとする", configured: true,

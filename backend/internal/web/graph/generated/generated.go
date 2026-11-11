@@ -11503,7 +11503,7 @@ type TimeshiftProgram {
   fromStart: Boolean!
   "番組を録画に昇格して、バッファから書き出している途中かどうか。"
   promoting: Boolean!
-  "playableFrom から番組の終わりまでの、途切れた区間。チャンクの間の穴で、再生の時間に含めない。"
+  "playableFrom から番組の終わり (放送中なら今) までの、途切れた区間。チャンクの間の穴と、最後のチャンクの終わりから番組の終わりまでの録れていない部分で、再生の時間に含めない。"
   gaps: [RecordingGap!]!
   "バッファの TS を、playableFrom を起点に流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。"
   streamUrl: String!

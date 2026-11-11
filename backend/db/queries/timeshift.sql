@@ -255,6 +255,14 @@ LIMIT 1;
 UPDATE timeshift_programs SET ended_at = @ended_at
 WHERE service_id = @service_id AND ended_at IS NULL;
 
+-- name: EndTimeshiftProgramAtLastChunk :execrows
+-- 終わっていない番組を、サービスのチャンクの最も遅い終わりで閉じる。番組の始まりより前にはしない。
+-- チャンクを書かないまま割り振りが消えた mikan が、録れていない時間を番組に含めないよう、録れていた最後の時刻で閉じるのに使う (#1414)。
+UPDATE timeshift_programs p SET ended_at = GREATEST(p.started_at, COALESCE(
+  (SELECT max(c.ended_at) FROM timeshift_chunks c WHERE c.service_id = @service_id), p.started_at
+))
+WHERE p.service_id = @service_id AND p.ended_at IS NULL;
+
 -- name: GetTimeshiftPromotionProgram :one
 -- タイムシフトのバッファから録画に昇格する番組の、番組表の情報。終わった番組は program_archives に移っていることがあるので、両方から引く。
 -- 同じイベント ID が繰り返し使われることがあるので、mikan が番組の始まりに気づいた時刻 at に最も近い始まりのものを選ぶ。

@@ -131,7 +131,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 	if err != nil {
 		return err
 	}
-	state := &sessionState{serviceID: assignment.ServiceID, programs: programs, created: 0, pending: pending}
+	state := &sessionState{serviceID: assignment.ServiceID, programs: programs, created: 0, pending: pending, lastChunkEnd: time.Time{}}
 	// 録るのをやめるときも、DB に届かずに記録できなかった分を、1 度は書いてみる。
 	defer r.flushPending(context.WithoutCancel(ctx), logger, pending)
 
@@ -143,7 +143,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 			return context.Cause(ctx)
 		}
 		if deleted {
-			return r.stopDeleted(ctx, logger, programs)
+			return r.stopDeleted(ctx, logger, state)
 		}
 		if r.unavailable(ctx, state, streamErr) {
 			logger.WarnContext(ctx, "unable to write timeshift chunks on this mikan; releasing the assignment", slog.Any("error", streamErr))
@@ -160,7 +160,7 @@ func (r *Recorder) record(ctx context.Context, assignment *recording.Assignment)
 			return err
 		}
 		if deleted {
-			return r.stopDeleted(ctx, logger, programs)
+			return r.stopDeleted(ctx, logger, state)
 		}
 	}
 }
@@ -173,6 +173,8 @@ type sessionState struct {
 	created int
 	// pending は、DB に届かずに記録できなかったチャンクと番組の書き込み (#1073)。
 	pending *pendingWrites
+	// lastChunkEnd は、この Session で最後に閉じたチャンクの終わり。まだ閉じていなければ zero。
+	lastChunkEnd time.Time
 }
 
 // unavailable は、チャンクのファイルを作れなかった理由がこの mikan にあり、ほかの mikan に回すべきかを返す (#524)。
@@ -240,10 +242,17 @@ func closeStale(ctx context.Context, q *sqlc.Queries, store *kago.Store, service
 	return nil
 }
 
-// stopDeleted は、neko が割り振りを消したので、放送中の番組を閉じて録るのをやめる。録る mikan がいなくなるので、番組の終わりは今にする。
-func (r *Recorder) stopDeleted(ctx context.Context, logger *slog.Logger, programs *programTracker) error {
+// stopDeleted は、neko が割り振りを消したので、放送中の番組を閉じて録るのをやめる。録る mikan がいなくなる。
+// 番組は、録れていた最後の時刻 (最後に閉じたチャンクの終わり) で閉じる。ストリームが切れて開き直せない間に消えたとき、
+// 今で閉じると、録れていない時間まで番組に含め、再生の長さが延びるためである (#1414)。書いていたチャンクは、ここに来る前に、
+// 今で閉じてある。この Session でチャンクを書いていなければ、落ちた mikan の後始末と同じく、サービスのチャンクの最後の終わりで閉じる。
+func (r *Recorder) stopDeleted(ctx context.Context, logger *slog.Logger, state *sessionState) error {
 	logger.InfoContext(ctx, "the timeshift assignment was deleted; stopping")
-	programs.end(ctx, r.clock.Now())
+	if state.lastChunkEnd.IsZero() {
+		state.programs.endAtLastChunk(ctx)
+	} else {
+		state.programs.end(ctx, state.lastChunkEnd)
+	}
 
 	return nil
 }
@@ -379,7 +388,9 @@ func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, stream i
 	var current *chunk
 	defer func() {
 		if current != nil {
-			r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, r.clock.Now())
+			endedAt := r.clock.Now()
+			r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, endedAt)
+			state.lastChunkEnd = endedAt
 		}
 	}()
 	buf := make([]byte, readPackets*ts.PacketSize)
@@ -411,6 +422,7 @@ func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, state 
 	if current != nil && now.Sub(current.startedAt) >= r.opts.ChunkDuration {
 		// ctx が終わっても、書き終えたチャンクを閉じずに残さない。
 		r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, now)
+		state.lastChunkEnd = now
 		current = nil
 	}
 	if current == nil {
@@ -593,6 +605,18 @@ func (t *programTracker) observe(ctx context.Context, analyzer *ts.Analyzer, now
 	})
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to record the timeshift program", slog.Any("error", err))
+	}
+}
+
+// endAtLastChunk は、放送中として記録している番組を、サービスのチャンクの最後の終わりで閉じる。DB に届かなければ、後から書く。
+func (t *programTracker) endAtLastChunk(ctx context.Context) {
+	err := t.recorder.writeOrDefer(ctx, t.logger, t.pending, func(ctx context.Context, q *sqlc.Queries) error {
+		_, err := q.EndTimeshiftProgramAtLastChunk(ctx, t.serviceID)
+
+		return err
+	})
+	if err != nil {
+		t.logger.WarnContext(ctx, "failed to end the timeshift program", slog.Any("error", err))
 	}
 }
 

@@ -225,6 +225,23 @@ func (q *Queries) EndTimeshiftProgram(ctx context.Context, arg EndTimeshiftProgr
 	return result.RowsAffected(), nil
 }
 
+const endTimeshiftProgramAtLastChunk = `-- name: EndTimeshiftProgramAtLastChunk :execrows
+UPDATE timeshift_programs p SET ended_at = GREATEST(p.started_at, COALESCE(
+  (SELECT max(c.ended_at) FROM timeshift_chunks c WHERE c.service_id = $1), p.started_at
+))
+WHERE p.service_id = $1 AND p.ended_at IS NULL
+`
+
+// 終わっていない番組を、サービスのチャンクの最も遅い終わりで閉じる。番組の始まりより前にはしない。
+// チャンクを書かないまま割り振りが消えた mikan が、録れていない時間を番組に含めないよう、録れていた最後の時刻で閉じるのに使う (#1414)。
+func (q *Queries) EndTimeshiftProgramAtLastChunk(ctx context.Context, serviceID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, endTimeshiftProgramAtLastChunk, serviceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const finishTimeshiftAssignment = `-- name: FinishTimeshiftAssignment :execrows
 UPDATE timeshift_assignments SET state = 'finished', holder = NULL, lease_expires_at = NULL, updated_at = $1
 WHERE id = $2 AND generation = $3 AND holder = $4 AND state IN ('recording', 'handover')
