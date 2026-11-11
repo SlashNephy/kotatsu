@@ -4,6 +4,7 @@ import { startTransition, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
+import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
@@ -86,6 +87,11 @@ type Form = {
   ruleFollowEventRelay: boolean;
 };
 
+// sameForm は、2 つのフォームの値が同じかどうかを返す。
+function sameForm(a: Form, b: Form): boolean {
+  return (Object.keys(a) as (keyof Form)[]).every((key) => a[key] === b[key]);
+}
+
 function RecordingSettings() {
   const { t } = useTranslation();
   const transcodePresets = useTranscodePresets();
@@ -103,7 +109,8 @@ function RecordingSettings() {
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const settings = data.systemSettings;
   const defaults = settings.recordingDefaults;
-  const [form, setForm] = useState<Form>({
+  // 触っていないフォームは、読み直した値 (ほかの管理者が保存したものなど) に合わせる。触ったフォームの入力は捨てない (#1420)。
+  const initial: Form = {
     poolId: defaults.poolId ?? autoPool,
     fileNameTemplate: defaults.fileNameTemplate,
     startMarginSeconds: defaults.startMarginSeconds,
@@ -115,8 +122,8 @@ function RecordingSettings() {
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
-  });
-  const set = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
+  };
+  const { form, set } = useSyncedForm(initial, sameForm);
   const numbers = [form.startMarginSeconds, form.endMarginSeconds, form.priority];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
