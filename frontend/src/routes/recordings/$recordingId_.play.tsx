@@ -154,7 +154,9 @@ function PlayPage() {
       >
         {t('player.backToRecording')}
       </Anchor>
+      {/* 同じルートのまま別の録画へ移ったときは、前の録画のエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
+        resetKey={recordingId}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">

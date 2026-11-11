@@ -44,7 +44,9 @@ function WatchRulePage() {
       <Title order={2}>
         {watchRuleId === newWatchRuleId ? t('watchRules.createTitle') : t('watchRules.editTitle')}
       </Title>
+      {/* 同じルートのまま別の視聴ルールへ移ったときは、前の視聴ルールのエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
+        resetKey={watchRuleId}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">

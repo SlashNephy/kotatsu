@@ -47,13 +47,16 @@ const dayFormat = zonedFormat({ month: 'numeric', day: 'numeric', weekday: 'shor
 // ChannelGuidePage は、1 つのチャンネルの 8 日分を、日付を列にして並べる番組表 (#482、設計書 10.3)。
 function ChannelGuidePage() {
   const { t } = useTranslation();
+  const { serviceId } = Route.useParams();
 
   return (
     <Stack gap="sm">
       <Anchor component={Link} to="/guide" size="sm">
         {t('guide.channel.back')}
       </Anchor>
+      {/* 同じルートのまま別のチャンネルへ移ったときは、前のチャンネルのエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
+        resetKey={serviceId}
         fallback={(error) =>
           isUnauthenticated(error) ? (
             <Alert color="amber">
