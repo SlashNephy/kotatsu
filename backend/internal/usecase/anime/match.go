@@ -301,6 +301,13 @@ func (m *Matcher) MatchImported(ctx context.Context) (*MatchResult, error) {
 			continue
 		}
 		channelID := channels[row.ServiceID]
+		// それだけで問い合わせの上限を超える録画は、終わりの時刻が壊れているとみて、しょぼいカレンダーに問い合わせず、
+		// 番組名の解析で照合する。上限で打ち切ると、古い順の先頭にあるとき、毎回そこで止まり、後の録画を照合できない (#1417)。
+		if channelID != 0 && dayCount(row.StartAt, row.EndAt) > maxImportedDays {
+			m.logger.WarnContext(ctx, "an imported recording spans too many days to look up; matching it by its title",
+				slog.String("recording_id", row.ID.String()), slog.Time("start_at", row.StartAt), slog.Time("end_at", row.EndAt))
+			channelID = 0
+		}
 		if channelID != 0 {
 			added := 0
 			for _, d := range daysOf(row.StartAt, row.EndAt) {
@@ -434,7 +441,8 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 
 	now := m.clock.Now()
 	for _, t := range targets {
-		if finalize && slices.ContainsFunc(daysOf(t.startAt, t.endAt), func(d time.Time) bool {
+		// しょぼいカレンダーに問い合わせない番組は、問い合わせに失敗しようがない。終わりが遠い未来でも、日を並べない。
+		if finalize && t.channelID != 0 && slices.ContainsFunc(daysOf(t.startAt, t.endAt), func(d time.Time) bool {
 			return failed[channelDay{channelID: t.channelID, day: d}]
 		}) {
 			continue
@@ -860,6 +868,22 @@ func daysOf(start, end time.Time) []time.Time {
 	days := []time.Time{first}
 	for d := first.AddDate(0, 0, 1); d.Before(end); d = d.AddDate(0, 0, 1) {
 		days = append(days, d)
+	}
+
+	return days
+}
+
+// dayCount は、daysOf(start, end) が返す日の数を、日を並べずに求める。終わりが遠い未来でも、すぐに返す。
+// 日本時間の日は 24 時間なので、最初の日の始まりからの長さで数える。
+func dayCount(start, end time.Time) int {
+	// Sub は、遠い未来の終わりでは time.Duration の上限で止まる。足すとあふれるので、割ってから端数を数える。
+	span := end.Sub(startOfDay(start))
+	if span <= 24*time.Hour {
+		return 1
+	}
+	days := int(span / (24 * time.Hour))
+	if span%(24*time.Hour) != 0 {
+		days++
 	}
 
 	return days
