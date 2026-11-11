@@ -76,9 +76,16 @@ function DRCSReplacements() {
   // 表を丸ごと送らないのは、ほかの画面 (字幕の履歴) や管理者が登録したものを、古い表で上書きして消さないためである。
   const [base, setBase] = useState(settings.drcsReplacements);
   const [rows, setRows] = useState(() => settings.drcsReplacements.map((row) => ({ ...row })));
+  // stale は、保存したときに出ていた、保存前のサーバーの表。保存の後は、これより新しい表を読み直すまで、表を合わせない。
+  const [stale, setStale] = useState<typeof base | null>(null);
   const changes = diffDRCS(base, rows);
   // 読み直した表が変わっていて、まだ何も編集していなければ、読み直した表に合わせる。
-  if (settings.drcsReplacements !== base && changes.length === 0) {
+  if (
+    settings.drcsReplacements !== base &&
+    settings.drcsReplacements !== stale &&
+    changes.length === 0
+  ) {
+    setStale(null);
     setBase(settings.drcsReplacements);
     setRows(settings.drcsReplacements.map((row) => ({ ...row })));
   }
@@ -101,6 +108,9 @@ function DRCSReplacements() {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setMessage(null);
+    // saved は、送った時点の表。保存できたら、これを base にして、送った差分を編集の差分から外す (#1419)。
+    // 保存の間に編集したものは、差分に残る。差分がなくなれば、読み直した表が届いたときに、その表に合わせる。
+    const saved = rows;
     action.run(
       async () => {
         await mutate<captionsMutation>(
@@ -114,6 +124,8 @@ function DRCSReplacements() {
           `,
           { input: { drcsReplacements: changes } },
         );
+        setStale(settings.drcsReplacements);
+        setBase(saved);
         setMessage({ ok: true, text: t('admin.saved') });
         startTransition(() => setFetchKey((key) => key + 1));
       },
