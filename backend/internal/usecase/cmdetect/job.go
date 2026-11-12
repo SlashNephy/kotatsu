@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
@@ -181,8 +182,9 @@ type DetectWorker struct {
 var _ river.Worker[DetectArgs] = new(DetectWorker)
 
 // NewDetectWorker は DetectWorker を返す。store は、このインスタンスにマウントされたプール。
-func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock) *DetectWorker {
-	return newDetectWorker(db, store, clk, func() (Detector, error) { return NewFFmpegDetector() })
+// lowerer は、FFmpeg を最低の優先度で動かす (#1511)。
+func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer) *DetectWorker {
+	return newDetectWorker(db, store, clk, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
 }
 
 func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, newDetector func() (Detector, error)) *DetectWorker {

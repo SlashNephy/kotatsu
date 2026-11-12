@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
@@ -33,19 +34,22 @@ type Encoder interface {
 }
 
 // FFmpegEncoder は、FFmpeg で変換する。映像のエンコーダーは、kyusu と同じ設定 (config.Kyusu の encoder) を使う。
+// 録画の後処理なので、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
 type FFmpegEncoder struct {
-	cfg *config.Kyusu
+	cfg     *config.Kyusu
+	lowerer *procprio.Lowerer
 }
 
 var _ Encoder = new(FFmpegEncoder)
 
 // NewFFmpegEncoder は FFmpegEncoder を返す。FFmpeg がなければ ErrFFmpegNotFound を返す。
-func NewFFmpegEncoder(cfg *config.Kyusu) (*FFmpegEncoder, error) {
+// lowerer は、FFmpeg を最低の優先度で動かす。nil なら、優先度を変えない。
+func NewFFmpegEncoder(cfg *config.Kyusu, lowerer *procprio.Lowerer) (*FFmpegEncoder, error) {
 	if _, err := exec.LookPath(ffmpegCommand); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFFmpegNotFound, err)
 	}
 
-	return &FFmpegEncoder{cfg: cfg}, nil
+	return &FFmpegEncoder{cfg: cfg, lowerer: lowerer}, nil
 }
 
 // Encode は、src の TS を、preset の画質の MP4 にして out に書く。
@@ -55,7 +59,7 @@ func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu
 	cmd.Stdin = src
 	var stderr bytes.Buffer
 	cmd.Stderr = &limitedWriter{buf: &stderr, limit: stderrLimit}
-	if err := cmd.Run(); err != nil {
+	if err := e.lowerer.Run(cmd); err != nil {
 		return fmt.Errorf("failed to transcode the recording: %w: %s", err, stderr.String())
 	}
 
