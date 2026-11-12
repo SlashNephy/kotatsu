@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -23,9 +22,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -360,7 +359,7 @@ type unlistableTuner struct {
 
 var _ recording.TunerLister = new(unlistableTuner)
 
-func (unlistableTuner) Tuners(context.Context) ([]*mirakurun.Tuner, error) {
+func (unlistableTuner) Tuners(context.Context) ([]*tunerserver.Tuner, error) {
 	return nil, errors.New("tuner server responded 500 to GET /api/tuners")
 }
 
@@ -709,7 +708,7 @@ func TestRecorderSkipsDisabledReservations(t *testing.T) {
 // failingStream は、ストリームを開くと err を返す。
 type failingStream struct{ err error }
 
-func (s failingStream) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s failingStream) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	return nil, s.err
 }
 
@@ -725,7 +724,7 @@ func newAttemptedStream(stream recording.StreamOpener) *attemptedStream {
 	return &attemptedStream{StreamOpener: stream, attempted: make(chan struct{}, 1)}
 }
 
-func (s *attemptedStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *attemptedStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	select {
 	case s.attempted <- struct{}{}:
 	default:
@@ -765,18 +764,18 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		{
 			name: "チューナーを確保できない",
 			tuner: func(*fixture) recording.StreamOpener {
-				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusServiceUnavailable, Reason: "no available tuners"}}
+				return failingStream{err: fmt.Errorf("no available tuners: %w", tunerserver.ErrTunerUnavailable)}
 			},
 			freeSpace:  nil,
 			want:       recording.FailureTunerUnavailable,
-			wantDetail: "tuner server responded 503",
+			wantDetail: "no available tuners",
 			retries:    true,
 		},
 		{
 			// チューナーサーバーが上流のチューナーにつなげず、500 を返した。ストリームは一度も開いていないので、中断ではない。
 			name: "チューナーサーバーがエラーを返す",
 			tuner: func(*fixture) recording.StreamOpener {
-				return failingStream{err: &mirakurun.APIError{StatusCode: http.StatusInternalServerError, Reason: "upstream: context deadline exceeded"}}
+				return failingStream{err: fmt.Errorf("upstream: context deadline exceeded: %w", tunerserver.ErrRefused)}
 			},
 			freeSpace:  nil,
 			want:       recording.FailureTunerUnavailable,
@@ -787,7 +786,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			// チューナーの空きを待って応答しないまま、開く時間の上限が過ぎた (#412)。
 			name: "チューナーサーバーが応答を返さない",
 			tuner: func(*fixture) recording.StreamOpener {
-				return failingStream{err: fmt.Errorf("failed to request: %w", mirakurun.ErrStreamOpenTimeout)}
+				return failingStream{err: fmt.Errorf("failed to request: %w", tunerserver.ErrStreamOpenTimeout)}
 			},
 			freeSpace:  nil,
 			want:       recording.FailureTunerUnavailable,
@@ -936,7 +935,7 @@ func newDrainedStream(data []byte) *drainedStream {
 	return &drainedStream{data: data, drained: make(chan struct{}, 4)}
 }
 
-func (s *drainedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *drainedStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	reader, writer := io.Pipe()
 	go func() {
 		// io.Pipe の Write は、読む側がすべて読むまで戻らない。
@@ -963,7 +962,7 @@ func (s *drainedStream) wait(t *testing.T) {
 
 var _ recording.StreamOpener = new(drainedStream)
 
-func (s onceStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s onceStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	reader, writer := io.Pipe()
 	go func() {
 		_, _ = writer.Write(s.data)
@@ -1103,7 +1102,7 @@ type flakyStream struct {
 	reopen func()
 }
 
-func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s flakyStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if s.opened.Add(1) == 1 {
 		return io.NopCloser(bytes.NewReader(s.head)), nil
 	}
@@ -1120,7 +1119,7 @@ type shortStream struct {
 
 var _ recording.StreamOpener = new(shortStream)
 
-func (s *shortStream) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *shortStream) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	s.opened.Add(1)
 
 	return io.NopCloser(bytes.NewReader(s.data)), nil
@@ -1135,7 +1134,7 @@ type endingStream struct {
 
 var _ recording.StreamOpener = new(endingStream)
 
-func (s *endingStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *endingStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	s.opened.Add(1)
 	reader, writer := io.Pipe()
 	go func() {
@@ -1348,7 +1347,7 @@ type interruptedStream struct {
 
 var _ recording.StreamOpener = new(interruptedStream)
 
-func (s *interruptedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *interruptedStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if s.opened.Add(1) == 1 {
 		return &tickingReader{done: ctx.Done(), closed: make(chan struct{}), once: sync.Once{}, rest: s.first, chunk: s.chunk, tick: s.tick, cut: true}, nil
 	}
@@ -1365,7 +1364,7 @@ type tickingStream struct {
 
 var _ recording.StreamOpener = new(tickingStream)
 
-func (s *tickingStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *tickingStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	return &tickingReader{done: ctx.Done(), closed: make(chan struct{}), once: sync.Once{}, rest: s.data, chunk: s.chunk, tick: s.tick, cut: false}, nil
 }
 
@@ -1964,7 +1963,7 @@ type failOnceStream struct {
 	opened *atomic.Int32
 }
 
-func (s failOnceStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s failOnceStream) OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if s.opened.Add(1) == 1 {
 		return nil, errors.New("connection refused")
 	}
@@ -2204,7 +2203,7 @@ func TestRecorderRecordsTrailingGap(t *testing.T) {
 // cutThenFail は、最初は flaky の最初のストリームを返し、2 回目からは開けない。
 type cutThenFail struct{ flaky flakyStream }
 
-func (s cutThenFail) OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s cutThenFail) OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if s.flaky.opened.Load() == 0 {
 		return s.flaky.OpenServiceStream(ctx, serviceID, opts)
 	}

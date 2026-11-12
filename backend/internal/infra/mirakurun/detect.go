@@ -6,7 +6,8 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"net/url"
+
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
 // ServerKind はチューナーサーバーの種類。
@@ -141,32 +142,16 @@ func (c *Client) hasSSEEvents(ctx context.Context) (bool, error) {
 	return err == nil && mediaType == "text/event-stream", nil
 }
 
-// EventStream は、チューナーサーバーのイベントを順に読む。読み終えたら必ず Close を呼ぶ。
-type EventStream interface {
-	// Next は次のイベントを返す。ストリームが区切りで終わったら io.EOF を、途中で切れたら io.ErrUnexpectedEOF を返す。
-	Next() (*Event, error)
-	io.Closer
-}
-
-// EventsQuery は、Mirakurun 形式のイベントストリームの絞り込みの条件。空の項目では絞り込まない。
-// mirakc の /events には絞り込みの機能がないので、mirakc では使わない。
-type EventsQuery struct {
-	// Resource は program、service、tuner のどれか。
-	Resource string
-	// Type は create、update、remove のどれか。
-	Type string
-}
-
 // OpenEvents は、サーバーの種類に合ったイベントストリームを開く。
-// Mirakurun と Mahiron では /api/events/stream を、mirakc では /events を読む。
+// Mirakurun と Mahiron では /api/events/stream を、mirakc では /events を読み、tunerserver.Event に読み替えて返す。
 // 開けなかったときは判定の結果を捨てるので、次に開くときはサーバーの種類から判定し直す。
-func (c *Client) OpenEvents(ctx context.Context, query *EventsQuery) (EventStream, error) {
+func (c *Client) OpenEvents(ctx context.Context) (tunerserver.EventStream, error) {
 	server, err := c.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	stream, err := c.openEvents(ctx, server, query)
+	stream, err := c.openEvents(ctx, server)
 	if err != nil {
 		c.Invalidate()
 
@@ -176,62 +161,60 @@ func (c *Client) OpenEvents(ctx context.Context, query *EventsQuery) (EventStrea
 	return stream, nil
 }
 
-func (c *Client) openEvents(ctx context.Context, server *ServerInfo, query *EventsQuery) (EventStream, error) {
+func (c *Client) openEvents(ctx context.Context, server *ServerInfo) (tunerserver.EventStream, error) {
+	path := "api/events/stream"
 	if server.SSEEvents {
-		req, err := c.newRequest(ctx, "events", nil)
-		if err != nil {
-			return nil, err
-		}
+		path = "events"
+	}
+	req, err := c.newRequest(ctx, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	if server.SSEEvents {
 		req.Header.Set("Accept", "text/event-stream")
-		body, err := c.openStream(req, 0)
+	}
+	body, err := c.openStream(req, 0, nil)
+	if err != nil {
+		return nil, err
+	}
+	if server.SSEEvents {
+		return &eventStream{reader: NewSSEReader(body), body: body}, nil
+	}
+
+	return &eventStream{reader: NewEventReader(body), body: body}, nil
+}
+
+// rawEventReader は、イベントを解釈する前の形で読むもの。EventReader と SSEReader が満たす。
+type rawEventReader interface {
+	Next() (*RawEvent, error)
+}
+
+var (
+	_ rawEventReader = new(EventReader)
+	_ rawEventReader = new(SSEReader)
+)
+
+// eventStream は、読んだイベントを tunerserver.Event に読み替えるストリーム。
+type eventStream struct {
+	reader rawEventReader
+	body   io.ReadCloser
+}
+
+var _ tunerserver.EventStream = new(eventStream)
+
+// Next は、次の Kotatsu が使うイベントを返す。使わないイベントと、形の分からないイベントは読み飛ばす。
+func (s *eventStream) Next() (*tunerserver.Event, error) {
+	for {
+		raw, err := s.reader.Next()
 		if err != nil {
 			return nil, err
 		}
-
-		return &sseStream{SSEReader: NewSSEReader(body), body: body}, nil
-	}
-
-	values := url.Values{}
-	if query != nil {
-		if query.Resource != "" {
-			values.Set("resource", query.Resource)
-		}
-		if query.Type != "" {
-			values.Set("type", query.Type)
+		if event, ok := toEvent(raw); ok {
+			return event, nil
 		}
 	}
-	req, err := c.newRequest(ctx, "api/events/stream", values)
-	if err != nil {
-		return nil, err
-	}
-	body, err := c.openStream(req, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	return &mirakurunStream{EventReader: NewEventReader(body), body: body}, nil
 }
 
-type mirakurunStream struct {
-	*EventReader
-
-	body io.ReadCloser
-}
-
-var _ EventStream = new(mirakurunStream)
-
-func (s *mirakurunStream) Close() error {
-	return s.body.Close()
-}
-
-type sseStream struct {
-	*SSEReader
-
-	body io.ReadCloser
-}
-
-var _ EventStream = new(sseStream)
-
-func (s *sseStream) Close() error {
+func (s *eventStream) Close() error {
 	return s.body.Close()
 }

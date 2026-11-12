@@ -33,7 +33,7 @@ func TestSSEReader(t *testing.T) {
 				"event: epg.programs-updated\ndata: {\"serviceId\":3273601024}\n\n",
 			wantEvents: []event{
 				{Resource: resourceTuner, Type: typeStatusChanged, Data: `{"tunerIndex":0}`},
-				{Resource: "epg", Type: "programs-updated", Data: `{"serviceId":3273601024}`},
+				{Resource: resourceEPG, Type: typeProgramsUpdated, Data: `{"serviceId":3273601024}`},
 			},
 			wantErr: io.EOF,
 		},
@@ -55,7 +55,7 @@ func TestSSEReader(t *testing.T) {
 		{
 			name:       "unknown fields are ignored",
 			input:      "id: 1\nretry: 1000\nevent: epg.programs-updated\ndata:{\"serviceId\":2}\n\n",
-			wantEvents: []event{{Resource: "epg", Type: "programs-updated", Data: `{"serviceId":2}`}},
+			wantEvents: []event{{Resource: resourceEPG, Type: typeProgramsUpdated, Data: `{"serviceId":2}`}},
 			wantErr:    io.EOF,
 		},
 		{

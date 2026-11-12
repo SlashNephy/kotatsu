@@ -21,9 +21,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -47,7 +47,7 @@ type fakeTuner struct {
 
 	mu     sync.Mutex
 	opens  []time.Time
-	opts   []mirakurun.StreamOptions
+	opts   []tunerserver.StreamOptions
 	chunks chan *streamChunk
 	// reads は、Recorder がストリームを読もうとした回数。読もうとしたなら、それまでに渡したデータを処理し終えている。
 	reads atomic.Int64
@@ -67,14 +67,14 @@ type streamChunk struct {
 
 func newFakeTuner(clk *clocktest.Fake, cutAtOnce bool) *fakeTuner {
 	return &fakeTuner{
-		clk: clk, cutAtOnce: cutAtOnce, mu: sync.Mutex{}, opens: []time.Time{}, opts: []mirakurun.StreamOptions{},
+		clk: clk, cutAtOnce: cutAtOnce, mu: sync.Mutex{}, opens: []time.Time{}, opts: []tunerserver.StreamOptions{},
 		chunks: make(chan *streamChunk), reads: atomic.Int64{}, down: atomic.Bool{}, cutCh: make(chan struct{}),
 	}
 }
 
 var _ recording.StreamOpener = new(fakeTuner)
 
-func (f *fakeTuner) OpenServiceStream(ctx context.Context, _ int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (f *fakeTuner) OpenServiceStream(ctx context.Context, _ int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	f.mu.Lock()
 	f.opens = append(f.opens, f.clk.Now())
 	f.opts = append(f.opts, *opts)
@@ -386,7 +386,7 @@ func TestTimeshiftRecorderRotatesChunks(t *testing.T) {
 	}
 	// タイムシフトのストリームは、デコードして、予約の録画にもライブ視聴にも譲る優先度で開く。
 	tuner.mu.Lock()
-	assert.Equal(t, []mirakurun.StreamOptions{{Decode: true, Priority: -1}}, tuner.opts)
+	assert.Equal(t, []tunerserver.StreamOptions{{Decode: true, Priority: -1}}, tuner.opts)
 	tuner.mu.Unlock()
 
 	select {
@@ -889,7 +889,7 @@ type panicTuner struct {
 
 var _ recording.StreamOpener = new(panicTuner)
 
-func (p *panicTuner) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (p *panicTuner) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if p.atOpen {
 		panic("the tuner exploded on open")
 	}

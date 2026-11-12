@@ -3,7 +3,6 @@ package epg
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -11,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
@@ -30,12 +29,12 @@ const (
 	DefaultStableAfter = time.Minute
 )
 
-// EventSource は、イベントストリームを開くチューナーサーバーの API。*mirakurun.Client が満たす。
+// EventSource は、イベントストリームを開くチューナーサーバーの API。tunerserver.Client が満たす。
 type EventSource interface {
-	OpenEvents(ctx context.Context, query *mirakurun.EventsQuery) (mirakurun.EventStream, error)
+	OpenEvents(ctx context.Context) (tunerserver.EventStream, error)
 }
 
-var _ EventSource = new(mirakurun.Client)
+var _ EventSource = tunerserver.Client(nil)
 
 // SyncerOptions は Syncer の設定。0 の項目は既定値にする。
 type SyncerOptions struct {
@@ -134,7 +133,7 @@ func (s *Syncer) connect(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	stream, err := s.events.OpenEvents(ctx, nil)
+	stream, err := s.events.OpenEvents(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -171,11 +170,11 @@ func (s *Syncer) syncAll(ctx context.Context) error {
 }
 
 // consume は、ストリームのイベントを BatchWindow ごとにまとめて反映する。全量の突き合わせも定期的に行う。
-func (s *Syncer) consume(ctx context.Context, stream mirakurun.EventStream) error {
+func (s *Syncer) consume(ctx context.Context, stream tunerserver.EventStream) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	events := make(chan *mirakurun.Event)
+	events := make(chan *tunerserver.Event)
 	readErr := make(chan error, 1)
 	go func() {
 		readErr <- readEvents(ctx, stream, events)
@@ -248,7 +247,7 @@ func (s *Syncer) logResult(ctx context.Context, msg string, result *Result) {
 }
 
 // readEvents は、ストリームのイベントを events に送る。ストリームが終わったら、その理由を返す。
-func readEvents(ctx context.Context, stream mirakurun.EventStream, events chan<- *mirakurun.Event) error {
+func readEvents(ctx context.Context, stream tunerserver.EventStream, events chan<- *tunerserver.Event) error {
 	for {
 		event, err := stream.Next()
 		if err != nil {
@@ -281,39 +280,13 @@ func newEventBatch() *eventBatch {
 }
 
 // add は、イベントから変化のあったものを読み取る。
-// Mirakurun と Mahiron の program のイベントは、create と update では番組を、remove では番組の ID だけを送る。
-// mirakc の epg.programs-updated と onair.program-changed は、番組が変わったサービスの ID を送る。
-func (b *eventBatch) add(event *mirakurun.Event) {
-	switch {
-	case event.Resource == "program":
-		var data struct {
-			ID        int64 `json:"id"`
-			NetworkID int64 `json:"networkId"`
-			ServiceID int64 `json:"serviceId"`
-		}
-		if err := json.Unmarshal(event.Data, &data); err != nil {
-			// 形の分からないイベントは捨てる。取りこぼしは全量の突き合わせで埋まる。
-			return
-		}
-		// サービスの番号は networkId と組でしか一意にならないので、片方しか無ければ番組 ID から求める。
-		if data.NetworkID != 0 && data.ServiceID != 0 {
-			b.serviceIDs[data.NetworkID*serviceIDBase+data.ServiceID] = struct{}{}
-		} else if data.ID != 0 {
-			// 番組 ID は (networkId × 100000 + serviceId) × 100000 + eventId なので、下 5 桁を除くとサービス ID になる。
-			b.serviceIDs[data.ID/serviceIDBase] = struct{}{}
-		}
-	// mirakc の onair.program-changed は、放送中か次の番組 (EIT[p/f]) が変わったサービスの ID を送る (設計書 5.1)。
-	case event.Resource == "epg" && event.Type == "programs-updated",
-		event.Resource == "onair" && event.Type == "program-changed":
-		var data struct {
-			ServiceID int64 `json:"serviceId"`
-		}
-		if err := json.Unmarshal(event.Data, &data); err == nil && data.ServiceID != 0 {
-			b.serviceIDs[data.ServiceID] = struct{}{}
-		}
-	case event.Resource == "service":
+func (b *eventBatch) add(event *tunerserver.Event) {
+	switch event.Type {
+	case tunerserver.EventProgramCreated, tunerserver.EventProgramUpdated, tunerserver.EventProgramRemoved:
+		b.serviceIDs[event.ServiceID] = struct{}{}
+	case tunerserver.EventServiceChanged:
 		b.services = true
-	case event.Resource == "tuner":
+	case tunerserver.EventTunerChanged:
 		b.tuners = true
 	}
 }

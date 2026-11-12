@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
@@ -158,14 +159,13 @@ func TestServerRedetects(t *testing.T) {
 func TestOpenEventsByServerKind(t *testing.T) {
 	t.Parallel()
 
+	// Mirakurun と Mahiron の tuner.update も、mirakc の tuner.status-changed も、チューナーが変わったことと読む。
 	tests := []struct {
-		kind         mirakurun.ServerKind
-		wantResource string
-		wantType     string
+		kind mirakurun.ServerKind
 	}{
-		{kind: mirakurun.ServerMirakurun, wantResource: resourceTuner, wantType: typeUpdate},
-		{kind: mirakurun.ServerMahiron, wantResource: resourceTuner, wantType: typeUpdate},
-		{kind: mirakurun.ServerMirakc, wantResource: resourceTuner, wantType: typeStatusChanged},
+		{kind: mirakurun.ServerMirakurun},
+		{kind: mirakurun.ServerMahiron},
+		{kind: mirakurun.ServerMirakc},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {
@@ -175,14 +175,13 @@ func TestOpenEventsByServerKind(t *testing.T) {
 			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
 			require.NoError(t, err)
 
-			stream, err := client.OpenEvents(t.Context(), nil)
+			stream, err := client.OpenEvents(t.Context())
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = stream.Close() })
 
 			event, err := stream.Next()
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantResource, event.Resource)
-			assert.Equal(t, tt.wantType, event.Type)
+			assert.Equal(t, tunerserver.EventTunerChanged, event.Type)
 		})
 	}
 }
@@ -201,14 +200,16 @@ func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 
 	// mirakc から Mirakurun に入れ替わると /events が 404 になり、開くのに失敗する。
 	stub.kind.Store(mirakurun.ServerMirakurun)
-	_, err = client.OpenEvents(t.Context(), nil)
-	require.True(t, mirakurun.IsStatus(err, http.StatusNotFound))
+	_, err = client.OpenEvents(t.Context())
+	var apiErr *mirakurun.APIError
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusNotFound, apiErr.StatusCode)
 
 	// 失敗したら判定の結果を捨てるので、時計を進めなくても次は Mirakurun として開ける。
-	stream, err := client.OpenEvents(t.Context(), nil)
+	stream, err := client.OpenEvents(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = stream.Close() })
 	event, err := stream.Next()
 	require.NoError(t, err)
-	assert.Equal(t, typeUpdate, event.Type)
+	assert.Equal(t, tunerserver.EventTunerChanged, event.Type)
 }

@@ -15,9 +15,9 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/lease"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -44,7 +44,7 @@ type Options struct {
 	Clock      clock.Clock
 	InstanceID uuid.UUID
 	// Tuner はチューナーサーバーのクライアント。nil なら EPG を同期しない。
-	Tuner *mirakurun.Client
+	Tuner tunerserver.Client
 	// EPG は EPG の同期の設定。nil なら既定値を使う。
 	EPG *epg.SyncerOptions
 	// Archive は、放送が終わった番組のアーカイブの設定。nil なら既定値を使う。

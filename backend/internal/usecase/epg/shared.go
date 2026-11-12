@@ -5,8 +5,8 @@ import (
 	"slices"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
 // relatedShared は、同じイベントを複数のサービスで放送する関係 (イベント共有)。
@@ -24,7 +24,7 @@ type stream struct {
 type streams map[int64]stream
 
 // addUpstream は、上流のサービスを表に足す。チャンネルを持たないサービスは足さない。
-func (s streams) addUpstream(services []*mirakurun.Service) {
+func (s streams) addUpstream(services []*tunerserver.Service) {
 	for _, service := range services {
 		if service.Channel == nil {
 			continue
@@ -81,7 +81,7 @@ type sameEvent struct {
 // BS と CS は、1 つの TS に別の放送局のサービスが入り、「インフォメーション」のような番組名が重なるので、対象にしない。
 // 関連を足す番組は複製して返し、programs の要素は書き換えない。
 // 放送中と次の番組 (EIT[p/f]) の延長が片方のサービスにだけ先に届くと、その間は同じ番組とみなさず、届いたら戻る。
-func inferSharedEvents(programs []*mirakurun.Program, streams streams) []*mirakurun.Program {
+func inferSharedEvents(programs []*tunerserver.Program, streams streams) []*tunerserver.Program {
 	groups := map[sameEvent][]int{}
 	for i, p := range programs {
 		st, ok := streams[serviceKey(p)]
@@ -118,16 +118,16 @@ func inferSharedEvents(programs []*mirakurun.Program, streams streams) []*miraku
 	return result
 }
 
-func serviceKey(p *mirakurun.Program) int64 {
+func serviceKey(p *tunerserver.Program) int64 {
 	return int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID)
 }
 
-func hasShared(p *mirakurun.Program) bool {
+func hasShared(p *tunerserver.Program) bool {
 	return slices.ContainsFunc(p.RelatedItems, func(item *domain.RelatedItem) bool { return item.Type == relatedShared })
 }
 
 // hasDuplicateService は、同じサービスの番組が 2 つ以上あるかどうかを返す。同じサービスの中の番組は、共有とみなさない。
-func hasDuplicateService(programs []*mirakurun.Program, indexes []int) bool {
+func hasDuplicateService(programs []*tunerserver.Program, indexes []int) bool {
 	seen := map[int64]bool{}
 	for _, i := range indexes {
 		key := serviceKey(programs[i])

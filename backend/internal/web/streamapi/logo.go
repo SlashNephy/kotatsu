@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 )
 
@@ -20,13 +20,13 @@ import (
 // ログイン中のユーザーにだけ見せるので、共有のキャッシュには置かせない。
 const logoCacheControl = "private, max-age=86400"
 
-// LogoFetcher は、サービスのロゴの画像を取ってくる。*mirakurun.Client が満たす。
+// LogoFetcher は、サービスのロゴの画像を取ってくる。tunerserver.Client が満たす。
 type LogoFetcher interface {
 	ServiceLogo(ctx context.Context, serviceID int64) ([]byte, error)
 }
 
 var (
-	_ LogoFetcher = new(mirakurun.Client)
+	_ LogoFetcher = tunerserver.Client(nil)
 	_ LogoFetcher = new(servicelogo.Store)
 )
 
@@ -108,8 +108,8 @@ func (h *LogoHandler) fetch(ctx context.Context, serviceID int64) ([]byte, int, 
 		return nil, 0, ""
 	case h.tuner == nil:
 		return nil, http.StatusServiceUnavailable, "tuner server is not configured"
-	// Mirakurun は、ロゴをまだ受信していなければ 503 を返す。チューナーが足りないのとは違い、待っても当分は出ないので、ないものとして扱う。
-	case mirakurun.IsStatus(tunerErr, http.StatusNotFound), mirakurun.IsStatus(tunerErr, http.StatusServiceUnavailable):
+	// ロゴをまだ受信していないときは、チューナーが足りないのとは違い、待っても当分は出ないので、ないものとして扱う。
+	case errors.Is(tunerErr, tunerserver.ErrNotFound), errors.Is(tunerErr, tunerserver.ErrLogoUnavailable):
 		return nil, http.StatusNotFound, "the service has no logo"
 	default:
 		h.logger.ErrorContext(ctx, "failed to fetch the service logo", slog.Int64("service_id", serviceID), slog.Any("error", tunerErr))

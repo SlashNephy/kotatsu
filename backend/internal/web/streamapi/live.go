@@ -2,12 +2,13 @@ package streamapi
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -19,12 +20,12 @@ const (
 	livePriority = 0
 )
 
-// ServiceOpener は、サービスのストリームを開く。*mirakurun.Client が満たす。
+// ServiceOpener は、サービスのストリームを開く。tunerserver.Client が満たす。
 type ServiceOpener interface {
-	OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error)
+	OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error)
 }
 
-var _ ServiceOpener = new(mirakurun.Client)
+var _ ServiceOpener = tunerserver.Client(nil)
 
 // LiveHandler は、チューナーサーバーのサービスストリームを中継する (GET /streams/services/{id})。
 type LiveHandler struct {
@@ -80,13 +81,13 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	upstream, err := h.tuner.OpenServiceStream(r.Context(), serviceID, &mirakurun.StreamOptions{Decode: true, Priority: livePriority})
+	upstream, err := h.tuner.OpenServiceStream(r.Context(), serviceID, &tunerserver.StreamOptions{Decode: true, Priority: livePriority})
 	switch {
-	case mirakurun.IsStatus(err, http.StatusNotFound):
+	case errors.Is(err, tunerserver.ErrNotFound):
 		http.Error(w, "service not found", http.StatusNotFound)
 
 		return
-	case mirakurun.IsStatus(err, http.StatusServiceUnavailable):
+	case errors.Is(err, tunerserver.ErrTunerUnavailable):
 		http.Error(w, "no tuner is available", http.StatusServiceUnavailable)
 
 		return

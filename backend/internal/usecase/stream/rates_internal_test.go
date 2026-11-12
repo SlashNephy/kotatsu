@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
@@ -84,7 +84,7 @@ func TestLiveRates(t *testing.T) {
 // fakeOpener は、TS を渡し終えたら、ctx が終わるまで待つストリームを返す。チューナーサーバーの、終わらない配信の代わり。
 type fakeOpener struct {
 	data []byte
-	opts *mirakurun.StreamOptions
+	opts *tunerserver.StreamOptions
 }
 
 type blockingReader struct {
@@ -104,7 +104,7 @@ func (b *blockingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (f *fakeOpener) OpenServiceStream(ctx context.Context, _ int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (f *fakeOpener) OpenServiceStream(ctx context.Context, _ int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	f.opts = opts
 
 	return io.NopCloser(&blockingReader{r: bytes.NewReader(f.data), done: ctx.Done()}), nil
@@ -122,7 +122,7 @@ func TestLiveRatesWatcher(t *testing.T) {
 	rates, err := watcher.Watch(ctx, 3273601024)
 	require.NoError(t, err)
 	// チューナーを奪わない優先度で開く。
-	assert.Equal(t, &mirakurun.StreamOptions{Decode: true, Priority: ratesPriority}, opener.opts)
+	assert.Equal(t, &tunerserver.StreamOptions{Decode: true, Priority: ratesPriority}, opener.opts)
 	// 最初の間隔で、TS の全体を読み終えているとは限らないので、映像と音声が数えられるまで読む。
 	var seen *LiveRates
 	for r := range rates {

@@ -31,7 +31,7 @@ func NewSSEReader(r io.Reader) *SSEReader {
 
 // Next は次のイベントを返す。
 // ストリームがイベントの区切り (空行) で終わったら io.EOF を、イベントの途中で切れたら io.ErrUnexpectedEOF を返す。
-func (r *SSEReader) Next() (*Event, error) {
+func (r *SSEReader) Next() (*RawEvent, error) {
 	name := ""
 	data := []string{}
 	pending := false
@@ -77,7 +77,7 @@ func (r *SSEReader) Next() (*Event, error) {
 }
 
 // newSSEEvent は、mirakc のイベント名 (例: epg.programs-updated) を最初の "." で Resource と Type に分ける。
-func newSSEEvent(name string, data []string) *Event {
+func newSSEEvent(name string, data []string) *RawEvent {
 	if name == "" {
 		name = "message"
 	}
@@ -88,7 +88,7 @@ func newSSEEvent(name string, data []string) *Event {
 		raw = json.RawMessage(strings.Join(data, "\n"))
 	}
 
-	return &Event{Resource: resource, Type: eventType, Data: raw, Time: time.Time{}}
+	return &RawEvent{Resource: resource, Type: eventType, Data: raw, Time: time.Time{}}
 }
 
 // scanSSELines は、SSE の行の区切り (CRLF、LF、CR のどれか) で分ける。

@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
@@ -16,21 +17,21 @@ func TestOnAirPrograms(t *testing.T) {
 
 	tests := []struct {
 		kind mirakurun.ServerKind
-		want []*mirakurun.OnAirProgram
+		want []*tunerserver.OnAirProgram
 	}{
 		{
 			kind: mirakurun.ServerMirakc,
-			want: []*mirakurun.OnAirProgram{{
+			want: []*tunerserver.OnAirProgram{{
 				ServiceID: 3273601024,
-				Current: &mirakurun.Program{
+				Current: &tunerserver.Program{
 					ID: 327360102401405, EventID: 1405, ServiceID: 1024, NetworkID: 32736,
 					StartAt: 1791702600000, Duration: 1, IsFree: true, Name: "中継",
 				},
 				Next: nil,
 			}},
 		},
-		{kind: mirakurun.ServerMirakurun, want: []*mirakurun.OnAirProgram{}},
-		{kind: mirakurun.ServerMahiron, want: []*mirakurun.OnAirProgram{}},
+		{kind: mirakurun.ServerMirakurun, want: []*tunerserver.OnAirProgram{}},
+		{kind: mirakurun.ServerMahiron, want: []*tunerserver.OnAirProgram{}},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {

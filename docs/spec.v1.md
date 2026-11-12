@@ -336,7 +336,13 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
 EDCBは、チューナーサーバーとして使いません。
 
-Mirakurun互換のAPIを基本にし、サーバーごとの追加機能は接続時と定期的に判定します。
+Kotatsuは、チューナーサーバーを、サーバーの種類に依らない型とinterface（`backend/internal/domain/tunerserver`）で扱います。
+チャンネル、サービス、番組、チューナー、イベント、ストリームの開き方と、開けなかった理由（チューナーが足りない、サービスがないなど）は、この型で表します。
+サーバーのAPIの形、イベントの種類の文字列、HTTPのステータスの意味は、サーバーごとの実装が読み替えます。
+今ある実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）だけです。
+設定から実装を選ぶ所は、ロールを組み立てる`cli`の1か所にまとめます。
+
+Mirakurun互換の実装は、サーバーごとの追加機能を、接続時と定期的に判定します。
 起動時に一度だけ判定して使い続けることはしません。
 EPGStationはMirakurunのAPI定義を起動時に取得してキャッシュし続けたため、古い定義のまま固まり、再起動しないと復帰しないことがありました。
 
@@ -380,7 +386,7 @@ MirakurunとmirakcのサービスのストリームはCDTを残すので、ど�
 nekoは、次の手順でEPGを同期します。
 
 1. 接続したときと定期的に、チャンネル、サービス、番組の全量を取得し、DBと差分で突き合わせます。上流にあってDBにない番組は追加し、内容が変わった番組は更新し、上流から消えた未来の番組は削除します。ただし、上流がサービスの番組を1つも返さなかったときは、そのサービスの番組を消しません。チューナーサーバーが一時的に空の一覧を返すと、未来の番組と、そこから作ったルール予約が全部消えてしまうためです。全件を削除して入れ直す方式は取りません。EPGStationでは、全件の削除と挿入を1つのトランザクションで行う処理が多重に起動してロックを奪い合い、そのまま回復しなくなることがありました。全件を入れ替えると、テーブルの統計情報も崩れます。
-2. 全量の取得と次の取得の間は、イベントストリームを購読して差分を反映します。購読先は、MirakurunとMahironでは`/api/events/stream`、mirakcでは`/events`です。
+2. 全量の取得と次の取得の間は、イベントストリームを購読して差分を反映します。購読先は、MirakurunとMahironでは`/api/events/stream`、mirakcでは`/events`です。イベントは、Mirakurun互換の実装が「番組が作られた、変わった、消えた（そのサービス）」「サービスが変わった」「チューナーが変わった」のどれかに読み替えます。mirakcの`epg.programs-updated`と`onair.program-changed`は、番組が変わったことにします。
 3. Mirakurunのイベントストリームにはハートビートがなく、60分で切れます。変化がなければ何分でも黙るので、放送のストリームと違い、データが届かないことでは切れたとみなしません（#954）。番組の削除イベントも、時間の重なる番組に置き換えられたときにしか届きません。そのため、イベントは「変化があった」という合図として扱い、データの正しさは全量の突き合わせで保証します。
 4. 全量の突き合わせは、既定では30分ごとと、再接続したときに行います。実行の間隔には下限を設け、再接続が続くときはバックオフします。
 5. イベントは1〜2秒分をまとめ、1つのトランザクションで反映します。反映したら、変更のあったサービスと時間帯を添えて「EPGが変わった」と通知し、ルールの照合とチューナーの割り当てを走らせます。アニメの番組と作品の照合（[3.8](#38-アニメの番組と作品の結びつき)）も、この通知の記録を読みます。立て続けに来る変更は間引きます。
@@ -2243,8 +2249,8 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
 | `backend/internal/usecase/` | ビジネスロジック（`reserve/`、`rule/`、`assign/`、`epg/`、`auth/`など）と、各ロールの中心の処理（`neko/`のリーダー選出、`kyusu/`のトランスコード、`recording/`のmikanの録画、`stream/`のtenbanの配信の元） |
 | `backend/internal/query/` | トランザクションの外の読み取り。DBのプールだけを持ち、`domain`の型を返します |
-| `backend/internal/domain/` | DBに触れない型と規則（番組のジャンルや音声の型、EPGの正規化と囲み文字の表、`match/`のルールの条件の照合など） |
-| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のチューナーサーバーのクライアント、`jikkyoclient/`のニコニコ実況のクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
+| `backend/internal/domain/` | DBに触れない型と規則（番組のジャンルや音声の型、EPGの正規化と囲み文字の表、`match/`のルールの条件の照合、`tunerserver/`のチューナーサーバーの種類に依らない型とinterfaceなど） |
+| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のMirakurun互換のチューナーサーバーのクライアント（応答を`domain/tunerserver`の型に変換します）、`jikkyoclient/`のニコニコ実況のクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
 | `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`streamapi/`のtenbanの配信、`jikkyoapi/`の実況のコメント、`avatar/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
 | `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |
 | `backend/internal/testutil/` | テスト用の部品（`databasetest/`、`faketuner/`など） |

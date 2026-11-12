@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
@@ -329,7 +329,7 @@ func newSteppedStream() *steppedStream {
 	return &steppedStream{chunks: make(chan []byte), written: make(chan struct{}), cuts: make(chan struct{}), offline: atomic.Bool{}}
 }
 
-func (s *steppedStream) OpenServiceStream(ctx context.Context, _ int64, _ *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (s *steppedStream) OpenServiceStream(ctx context.Context, _ int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if s.offline.Load() {
 		return nil, errStreamOffline
 	}
