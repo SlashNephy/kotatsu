@@ -30,9 +30,9 @@ func Record(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recording, now
 	if !Eligible(recording) {
 		return nil
 	}
-	err := q.InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
-		ID: id.New(), ServiceID: recording.ServiceID, TitleKey: rule.TitleKey(recording.Name), Name: recording.Name,
-		StartAt: recording.StartAt, EndAt: recording.EndAt, Now: now, RecordingID: &recording.ID,
+	// 同じ回を束ねる (#1498) ときに回を読めるよう、録画の概要や、番組の記述子の話数なども写す。
+	err := q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
+		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Now: now, RecordingID: recording.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save the recording history: %w", err)

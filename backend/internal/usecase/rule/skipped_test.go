@@ -68,7 +68,9 @@ func TestFindSkippedDuplicates(t *testing.T) {
 				assert.Equal(t, serviceID(), skipped[0].ServiceID)
 				assert.Equal(t, int64(5), skipped[0].EventID)
 				assert.Equal(t, []*rule.SkippedRule{{ID: avoiding.ID, Name: avoiding.Name}}, skipped[0].Rules)
-				assert.WithinDuration(t, recordedEnd, skipped[0].LastRecordedAt, time.Second)
+				assert.Equal(t, rule.SkipReasonDuplicateTitle, skipped[0].Reason)
+				require.NotNil(t, skipped[0].LastRecordedAt)
+				assert.WithinDuration(t, recordedEnd, *skipped[0].LastRecordedAt, time.Second)
 			} else {
 				assert.Empty(t, skipped)
 			}

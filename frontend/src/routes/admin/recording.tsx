@@ -61,6 +61,7 @@ const query = graphql`
         avoidDuplicates
         duplicateWindowDays
         followEventRelay
+        bundleSameEpisodes
       }
       ruleUnmatchedGraceMinutes
       updatedAt
@@ -90,6 +91,7 @@ type Form = {
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
   ruleFollowEventRelay: boolean;
+  ruleBundleSameEpisodes: boolean;
   // ruleUnmatchedGraceMinutes は、ルールから外れた予約を、消さずに残す放送前の時間 (分。#1501)。
   ruleUnmatchedGraceMinutes: number | string;
 };
@@ -130,6 +132,7 @@ function RecordingSettings() {
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
+    ruleBundleSameEpisodes: settings.ruleDefaults.bundleSameEpisodes,
     ruleUnmatchedGraceMinutes: settings.ruleUnmatchedGraceMinutes,
   };
   const { form, set } = useSyncedForm(initial, sameForm);
@@ -181,6 +184,7 @@ function RecordingSettings() {
                   ? { duplicateWindowDays: form.ruleDuplicateWindowDays }
                   : { clearDuplicateWindowDays: true }),
                 followEventRelay: form.ruleFollowEventRelay,
+                bundleSameEpisodes: form.ruleBundleSameEpisodes,
               },
               ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
             },
@@ -341,6 +345,12 @@ function RecordingSettings() {
               label={t('rules.followEventRelay')}
               checked={form.ruleFollowEventRelay}
               onChange={(event) => set({ ruleFollowEventRelay: event.currentTarget.checked })}
+            />
+            <Switch
+              size="sm"
+              label={t('rules.bundleSameEpisodes')}
+              checked={form.ruleBundleSameEpisodes}
+              onChange={(event) => set({ ruleBundleSameEpisodes: event.currentTarget.checked })}
             />
           </Stack>
         </Card>

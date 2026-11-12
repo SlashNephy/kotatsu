@@ -30,6 +30,8 @@ type RuleDefaults {
   duplicateWindowDays: Int
   "イベントリレーで続く番組も予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
+  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  bundleSameEpisodes: Boolean!
 }
 
 """
@@ -42,6 +44,7 @@ input RuleDefaultsInput {
   "重複を避ける期間を区切らないようにする。duplicateWindowDays と一緒には使えない。"
   clearDuplicateWindowDays: Boolean! = false
   followEventRelay: Boolean
+  bundleSameEpisodes: Boolean
 }
 
 """

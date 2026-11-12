@@ -57,6 +57,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 			AvoidDuplicates:     system.Rule.AvoidDuplicates,
 			DuplicateWindowDays: system.Rule.DuplicateWindowDays,
 			FollowEventRelay:    system.Rule.FollowEventRelay,
+			BundleSameEpisodes:  system.Rule.BundleSameEpisodes,
 		},
 		McpEnabled:             system.MCPEnabled,
 		DataBroadcastIPEnabled: system.DataBroadcastIPEnabled,
@@ -106,6 +107,7 @@ func toRuleChanges(input *model.RuleDefaultsInput) *settings.RuleChanges {
 		DuplicateWindowDays:      input.DuplicateWindowDays,
 		ClearDuplicateWindowDays: input.ClearDuplicateWindowDays,
 		FollowEventRelay:         input.FollowEventRelay,
+		BundleSameEpisodes:       input.BundleSameEpisodes,
 	}
 }
 

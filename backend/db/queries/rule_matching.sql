@@ -4,7 +4,7 @@
 -- 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
 SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
   p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
-  p.genres, p.related_items, s.channel_type, s.channel
+  p.genres, p.related_items, p.series_episode, s.channel_type, s.channel
 FROM programs p
 JOIN services s ON s.id = p.service_id
 WHERE p.start_at > @now AND NOT p.end_undecided AND s.service_type = ANY(@media_service_types::bigint[])
@@ -26,6 +26,40 @@ SELECT title_key, service_id, max(end_at)::timestamptz AS last_end_at
 FROM recording_history
 WHERE title_key = ANY(@title_keys::text[])
 GROUP BY title_key, service_id;
+
+-- name: ListProgramAnimeEpisodesForBundling :many
+-- 局をまたいで同じ回を束ねる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
+-- 2 話連続の放送のように、複数の話に結びついた番組は返さない。
+SELECT e.service_id, e.start_at, min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count
+FROM program_anime_episodes e
+WHERE (e.service_id, e.start_at) IN (SELECT unnest(@service_ids::bigint[]), unnest(@start_ats::timestamptz[]))
+GROUP BY e.service_id, e.start_at
+HAVING count(*) = 1 AND min(e.syobocal_tid) IS NOT NULL AND min(e.count_start) IS NOT NULL AND min(e.count_start) = min(e.count_end);
+
+-- name: ListConflictingReservedPrograms :many
+-- 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回を束ねるときに、録れない見込みの放送として扱う (#1498)。
+SELECT service_id, event_id::bigint AS event_id
+FROM reservations
+WHERE assignment_state = 'conflict' AND event_id IS NOT NULL AND start_at > @now;
+
+-- name: ListRecordedEpisodes :many
+-- 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
+-- ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
+-- 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
+SELECT h.service_id, h.name, h.description, h.series_episode, h.syobocal_tid, h.anime_count, h.end_at
+FROM recording_history h
+WHERE h.imported OR h.start_at >= @since
+UNION ALL
+SELECT rec.service_id, rec.name, rec.description, p.series_episode, a.syobocal_tid, a.count_start AS anime_count, rec.end_at
+FROM recordings rec
+LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
+LEFT JOIN LATERAL (
+  SELECT min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count_start
+  FROM recording_anime_episodes e
+  WHERE e.recording_id = rec.id
+  HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
+) a ON true
+WHERE rec.state = 'recording';
 
 -- name: ListFutureProgramReservations :many
 -- 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。

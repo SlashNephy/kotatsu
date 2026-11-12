@@ -3,13 +3,29 @@ package graph
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
-// skippedDuplicates は、重複の回避で予約しなかった番組を返す。
+// skipReason は、予約しなかった理由を、スキーマの値にする。
+func skipReason(reason rule.SkipReason) model.SkipReason {
+	switch reason {
+	case rule.SkipReasonRecordedEpisode:
+		return model.SkipReasonRecordedEpisode
+	case rule.SkipReasonOtherBroadcast:
+		return model.SkipReasonOtherBroadcast
+	case rule.SkipReasonDuplicateTitle:
+		return model.SkipReasonDuplicateTitle
+	}
+
+	return model.SkipReasonDuplicateTitle
+}
+
+// skippedDuplicates は、重複の回避と同じ回の束ねで予約しなかった番組を返す。
 func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
@@ -18,17 +34,29 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 	if err != nil {
 		return nil, err
 	}
-	serviceIDs := make([]int64, 0, len(skipped))
-	eventIDs := make([]int64, 0, len(skipped))
+	type key struct{ serviceID, eventID int64 }
+	// 見送った番組と、代わりに録る放送を、まとめて引く。
+	keys := map[key]bool{}
+	recordedServices := map[int64]bool{}
 	for _, s := range skipped {
-		serviceIDs = append(serviceIDs, s.ServiceID)
-		eventIDs = append(eventIDs, s.EventID)
+		keys[key{serviceID: s.ServiceID, eventID: s.EventID}] = true
+		if s.Instead != nil {
+			keys[key{serviceID: s.Instead.ServiceID, eventID: s.Instead.EventID}] = true
+		}
+		if s.Recorded != nil {
+			recordedServices[s.Recorded.ServiceID] = true
+		}
+	}
+	serviceIDs := make([]int64, 0, len(keys))
+	eventIDs := make([]int64, 0, len(keys))
+	for k := range keys {
+		serviceIDs = append(serviceIDs, k.serviceID)
+		eventIDs = append(eventIDs, k.eventID)
 	}
 	rows, err := r.queries.ListGuideProgramsByKeys(ctx, query.ListGuideProgramsByKeysParams{ServiceIDs: serviceIDs, EventIDs: eventIDs})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the programs: %w", err)
 	}
-	type key struct{ serviceID, eventID int64 }
 	programs := make(map[key]*model.Program, len(rows))
 	for i := range rows {
 		program, err := toProgram(&rows[i])
@@ -37,6 +65,15 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 		}
 		programs[key{serviceID: rows[i].ServiceID, eventID: rows[i].EventID}] = program
 	}
+	loaded, err := r.loadServices(ctx, slices.Sorted(maps.Keys(recordedServices)))
+	if err != nil {
+		return nil, err
+	}
+	services := make(map[int64]*model.Service, len(loaded))
+	for _, s := range loaded {
+		services[s.MirakurunID()] = s
+	}
+
 	result := make([]*model.SkippedDuplicate, 0, len(skipped))
 	for _, s := range skipped {
 		program, ok := programs[key{serviceID: s.ServiceID, eventID: s.EventID}]
@@ -48,7 +85,16 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 		for _, skippedRule := range s.Rules {
 			rules = append(rules, &model.SkippedRule{ID: GlobalID(ruleType, skippedRule.ID.String()), Name: skippedRule.Name})
 		}
-		result = append(result, &model.SkippedDuplicate{Program: program, Rules: rules, LastRecordedAt: s.LastRecordedAt})
+		item := &model.SkippedDuplicate{
+			Program: program, Rules: rules, Reason: skipReason(s.Reason), LastRecordedAt: s.LastRecordedAt, Recorded: nil, Instead: nil,
+		}
+		if s.Recorded != nil {
+			item.Recorded = &model.SkippedRecording{Service: services[s.Recorded.ServiceID], Name: s.Recorded.Name, EndAt: s.Recorded.EndAt}
+		}
+		if s.Instead != nil {
+			item.Instead = programs[key{serviceID: s.Instead.ServiceID, eventID: s.Instead.EventID}]
+		}
+		result = append(result, item)
 	}
 
 	return result, nil

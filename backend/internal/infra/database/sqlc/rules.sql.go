@@ -25,7 +25,7 @@ func (q *Queries) DeleteRule(ctx context.Context, id uuid.UUID) (int64, error) {
 }
 
 const getRule = `-- name: GetRule :one
-SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, created_at, created_by, updated_at, updated_by FROM rules WHERE id = $1
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, created_at, created_by, updated_at, updated_by FROM rules WHERE id = $1
 `
 
 func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
@@ -43,6 +43,7 @@ func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
 		&i.AvoidDuplicates,
 		&i.DuplicateWindowDays,
 		&i.FollowEventRelay,
+		&i.BundleSameEpisodes,
 		&i.CreatedAt,
 		&i.CreatedBy,
 		&i.UpdatedAt,
@@ -54,11 +55,11 @@ func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
 const insertRule = `-- name: InsertRule :exec
 INSERT INTO rules (
   id, name, memo, enabled, conditions, settings, valid_from, valid_until,
-  avoid_duplicates, duplicate_window_days, follow_event_relay, created_at, created_by, updated_at, updated_by
+  avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, created_at, created_by, updated_at, updated_by
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8,
-  $9, $10, $11, $12, $13, $12, $13
+  $9, $10, $11, $12, $13, $14, $13, $14
 )
 `
 
@@ -74,6 +75,7 @@ type InsertRuleParams struct {
 	AvoidDuplicates     bool
 	DuplicateWindowDays *int32
 	FollowEventRelay    bool
+	BundleSameEpisodes  bool
 	Now                 time.Time
 	Actor               *uuid.UUID
 }
@@ -91,6 +93,7 @@ func (q *Queries) InsertRule(ctx context.Context, arg InsertRuleParams) error {
 		arg.AvoidDuplicates,
 		arg.DuplicateWindowDays,
 		arg.FollowEventRelay,
+		arg.BundleSameEpisodes,
 		arg.Now,
 		arg.Actor,
 	)
@@ -98,7 +101,7 @@ func (q *Queries) InsertRule(ctx context.Context, arg InsertRuleParams) error {
 }
 
 const listRules = `-- name: ListRules :many
-SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, created_at, created_by, updated_at, updated_by FROM rules ORDER BY created_at, id
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, created_at, created_by, updated_at, updated_by FROM rules ORDER BY created_at, id
 `
 
 func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
@@ -122,6 +125,7 @@ func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
 			&i.AvoidDuplicates,
 			&i.DuplicateWindowDays,
 			&i.FollowEventRelay,
+			&i.BundleSameEpisodes,
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.UpdatedAt,
@@ -138,7 +142,7 @@ func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
 }
 
 const listRulesByIDs = `-- name: ListRulesByIDs :many
-SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, created_at, created_by, updated_at, updated_by FROM rules WHERE id = ANY($1::uuid[])
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, created_at, created_by, updated_at, updated_by FROM rules WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error) {
@@ -162,6 +166,7 @@ func (q *Queries) ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, 
 			&i.AvoidDuplicates,
 			&i.DuplicateWindowDays,
 			&i.FollowEventRelay,
+			&i.BundleSameEpisodes,
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.UpdatedAt,
@@ -213,9 +218,10 @@ UPDATE rules SET
   avoid_duplicates = $8,
   duplicate_window_days = $9,
   follow_event_relay = $10,
-  updated_at = $11,
-  updated_by = $12
-WHERE id = $13
+  bundle_same_episodes = $11,
+  updated_at = $12,
+  updated_by = $13
+WHERE id = $14
 `
 
 type UpdateRuleParams struct {
@@ -229,6 +235,7 @@ type UpdateRuleParams struct {
 	AvoidDuplicates     bool
 	DuplicateWindowDays *int32
 	FollowEventRelay    bool
+	BundleSameEpisodes  bool
 	Now                 time.Time
 	Actor               *uuid.UUID
 	ID                  uuid.UUID
@@ -246,6 +253,7 @@ func (q *Queries) UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, 
 		arg.AvoidDuplicates,
 		arg.DuplicateWindowDays,
 		arg.FollowEventRelay,
+		arg.BundleSameEpisodes,
 		arg.Now,
 		arg.Actor,
 		arg.ID,

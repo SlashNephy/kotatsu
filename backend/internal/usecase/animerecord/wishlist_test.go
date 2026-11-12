@@ -212,7 +212,7 @@ func TestWishlistRuleInput(t *testing.T) {
 	t.Parallel()
 
 	start := time.Date(2026, 10, 11, 20, 0, 0, 0, time.UTC)
-	defaults := &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: new(7), FollowEventRelay: false}
+	defaults := &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: new(7), FollowEventRelay: false, BundleSameEpisodes: true}
 	program := func(serviceID int64, name string) *match.Program {
 		return match.NewProgram(&match.ProgramInput{
 			ServiceID: serviceID, SharedFrom: 0, ChannelType: "GR", Name: name, Description: "", Extended: map[string]string{}, Genres: []*match.Genre{},
@@ -260,6 +260,7 @@ func TestWishlistRuleInput(t *testing.T) {
 			assert.True(t, in.AvoidDuplicates, "the rule starts from the rule defaults")
 			assert.Equal(t, new(7), in.DuplicateWindowDays)
 			assert.False(t, in.FollowEventRelay)
+			assert.True(t, in.BundleSameEpisodes)
 			require.NoError(t, in.Conditions.Validate())
 			require.Len(t, in.Conditions.Keywords, 1)
 			assert.Equal(t, tt.wantKeyword, in.Conditions.Keywords[0].Text)

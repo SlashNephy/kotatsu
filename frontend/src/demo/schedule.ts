@@ -32,6 +32,7 @@ export type RuleInput = {
   avoidDuplicates?: boolean | null;
   duplicateWindowDays?: number | null;
   followEventRelay?: boolean | null;
+  bundleSameEpisodes?: boolean | null;
 };
 
 type Rule = { id: string; input: RuleInput; createdAt: number; updatedAt: number };
@@ -217,6 +218,7 @@ export function createScheduler(options: {
     avoidDuplicates: rule.input.avoidDuplicates ?? false,
     duplicateWindowDays: rule.input.duplicateWindowDays ?? null,
     followEventRelay: rule.input.followEventRelay !== false,
+    bundleSameEpisodes: rule.input.bundleSameEpisodes ?? false,
     createdAt: new Date(rule.createdAt).toISOString(),
     createdBy: user,
     updatedAt: new Date(rule.updatedAt).toISOString(),

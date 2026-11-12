@@ -303,6 +303,8 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		AvoidDuplicates:     r.AvoidDuplicate,
 		DuplicateWindowDays: window,
 		FollowEventRelay:    false,
+		// 「重複を避ける」を付けていたルールは、局をまたいだ同じ回も 1 本だけ録る (#1498)。
+		BundleSameEpisodes: r.AvoidDuplicate,
 	}
 }
 
@@ -611,7 +613,7 @@ func (a *applier) history(ctx context.Context, tx pgx.Tx, h *RecordedHistory) (u
 	endAt := h.EndAt.UTC()
 	err := sqlc.New(tx).InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
 		ID: historyID, ServiceID: h.ChannelID, TitleKey: rule.TitleKey(h.Name), Name: h.Name,
-		StartAt: endAt, EndAt: endAt, Now: a.importer.clock.Now(), RecordingID: nil,
+		StartAt: endAt, EndAt: endAt, Now: a.importer.clock.Now(),
 	})
 	if err != nil {
 		return uuid.Nil(), fmt.Errorf("failed to insert the recording history: %w", err)

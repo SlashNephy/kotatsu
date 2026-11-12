@@ -1515,6 +1515,8 @@ type RuleDefaults struct {
 	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
 	// イベントリレーで続く番組も予約するかどうか (設計書 4.6)。
 	FollowEventRelay bool `json:"followEventRelay"`
+	// 局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
+	BundleSameEpisodes bool `json:"bundleSameEpisodes"`
 }
 
 // ルールを作るときの既定値の変える項目。省いた項目は変えない。
@@ -1525,6 +1527,7 @@ type RuleDefaultsInput struct {
 	// 重複を避ける期間を区切らないようにする。duplicateWindowDays と一緒には使えない。
 	ClearDuplicateWindowDays bool  `json:"clearDuplicateWindowDays"`
 	FollowEventRelay         *bool `json:"followEventRelay,omitempty"`
+	BundleSameEpisodes       *bool `json:"bundleSameEpisodes,omitempty"`
 }
 
 // ルールの内容。
@@ -1542,6 +1545,7 @@ type RuleInput struct {
 	// 1〜3650
 	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
 	FollowEventRelay    bool `json:"followEventRelay"`
+	BundleSameEpisodes  bool `json:"bundleSameEpisodes"`
 }
 
 // ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
@@ -1594,13 +1598,31 @@ type Session struct {
 	SourceIP *string `json:"sourceIp,omitempty"`
 }
 
-// ルールに一致したが、同じ番組名を録画済みなので、重複の回避で予約しなかった番組 (設計書 4.4)。
+// ルールに一致したが、予約しなかった番組 (設計書 4.4)。同じ番組名を録画済みなので重複の回避で外したか、
+// 同じ回を録画済みか、同じ回を別の放送で録るので外した (#1498)。
 type SkippedDuplicate struct {
 	Program *Program `json:"program"`
-	// 一致したが、重複の回避で外したルール。
+	// 一致したが外したルール。
 	Rules []*SkippedRule `json:"rules"`
-	// 同じ番組名を、同じサービスで最後に録った録画の終わり。
-	LastRecordedAt time.Time `json:"lastRecordedAt"`
+	// 外した理由。
+	Reason SkipReason `json:"reason"`
+	// 前に録った録画の終わり。DUPLICATE_TITLE では、同じ番組名を同じサービスで最後に録った録画の終わり。
+	// OTHER_BROADCAST では null。
+	LastRecordedAt *time.Time `json:"lastRecordedAt,omitempty"`
+	// RECORDED_EPISODE のときの、同じ回を録った録画。ほかの理由では null。
+	Recorded *SkippedRecording `json:"recorded,omitempty"`
+	// OTHER_BROADCAST のときの、同じ回を代わりに録る放送。番組表から消えていれば null。
+	Instead *Program `json:"instead,omitempty"`
+}
+
+// 同じ回を録った録画 (録画履歴か、録画中の録画)。録画を消しても、履歴は残る。
+type SkippedRecording struct {
+	// 録った局。サービスが消えていれば null。
+	Service *Service `json:"service,omitempty"`
+	// 録った録画の番組名。
+	Name string `json:"name"`
+	// 録った録画の終わり。
+	EndAt time.Time `json:"endAt"`
 }
 
 // 重複の回避で外したルール。
@@ -3598,6 +3620,67 @@ func (e *RuleWarningKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e RuleWarningKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 予約しなかった理由。
+type SkipReason string
+
+const (
+	// 同じ番組名を期間内に録画済み (重複の回避)。
+	SkipReasonDuplicateTitle SkipReason = "DUPLICATE_TITLE"
+	// 同じ回を録画済み (録画中を含む)。
+	SkipReasonRecordedEpisode SkipReason = "RECORDED_EPISODE"
+	// 同じ回を別の放送で録る。
+	SkipReasonOtherBroadcast SkipReason = "OTHER_BROADCAST"
+)
+
+var AllSkipReason = []SkipReason{
+	SkipReasonDuplicateTitle,
+	SkipReasonRecordedEpisode,
+	SkipReasonOtherBroadcast,
+}
+
+func (e SkipReason) IsValid() bool {
+	switch e {
+	case SkipReasonDuplicateTitle, SkipReasonRecordedEpisode, SkipReasonOtherBroadcast:
+		return true
+	}
+	return false
+}
+
+func (e SkipReason) String() string {
+	return string(e)
+}
+
+func (e *SkipReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = SkipReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid SkipReason", str)
+	}
+	return nil
+}
+
+func (e SkipReason) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *SkipReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e SkipReason) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

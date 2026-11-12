@@ -41,6 +41,7 @@ const imported: RuleData = {
   avoidDuplicates: true,
   duplicateWindowDays: 30,
   followEventRelay: false,
+  bundleSameEpisodes: true,
 };
 
 describe('fromRule と toInput', () => {
@@ -83,6 +84,7 @@ describe('fromRule と toInput', () => {
       avoidDuplicates: true,
       duplicateWindowDays: 30,
       followEventRelay: false,
+      bundleSameEpisodes: true,
     });
   });
 });

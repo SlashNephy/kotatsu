@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<d0994df470ee8e2b5dce041f26253a50>>
+ * @generated SignedSource<<560e86df56133eecaa4bf3d146a52c73>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,7 @@ export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RuleWarningKind = "UNFILTERABLE_REGEXP" | "%future added value";
 export type RuleInput = {
   avoidDuplicates?: boolean;
+  bundleSameEpisodes?: boolean;
   conditions: ProgramConditionsInput;
   duplicateWindowDays?: number | null | undefined;
   enabled?: boolean;

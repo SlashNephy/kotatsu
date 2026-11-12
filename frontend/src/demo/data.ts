@@ -400,7 +400,12 @@ export function createRootValue(
       },
       archiveRetentionDays: 30,
       notificationRetentionDays: 30,
-      ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
+      ruleDefaults: {
+        avoidDuplicates: false,
+        duplicateWindowDays: null,
+        followEventRelay: true,
+        bundleSameEpisodes: true,
+      },
       // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
       dataBroadcastIpEnabled: false,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。

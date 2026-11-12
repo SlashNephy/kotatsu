@@ -135,6 +135,8 @@ type RuleDefaults struct {
 	DuplicateWindowDays *int
 	// FollowEventRelay は、イベントリレーで続く番組も予約するかどうか。既定は true。
 	FollowEventRelay bool
+	// BundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。既定は true。
+	BundleSameEpisodes bool
 }
 
 // ruleDefaultsJSON は、DB に保存する、ルールの既定値のうち変えた項目。変えていない項目は nil。
@@ -142,6 +144,7 @@ type ruleDefaultsJSON struct {
 	AvoidDuplicates     *bool `json:"avoidDuplicates,omitempty"`
 	DuplicateWindowDays *int  `json:"duplicateWindowDays,omitempty"`
 	FollowEventRelay    *bool `json:"followEventRelay,omitempty"`
+	BundleSameEpisodes  *bool `json:"bundleSameEpisodes,omitempty"`
 }
 
 // RuleChanges は、ルールの既定値の変える項目。nil の項目は変えない。
@@ -151,11 +154,14 @@ type RuleChanges struct {
 	DuplicateWindowDays      *int
 	ClearDuplicateWindowDays bool
 	FollowEventRelay         *bool
+	BundleSameEpisodes       *bool
 }
 
 // defaultRuleDefaults は、ルールの既定値の既定値。ルールの入力の既定値 (設計書 4.2) と同じ。
+// 同じ回を束ねるかどうかは、ルールの入力の既定値 (false) と違い、画面で新しく作るルールでは入にする (#1498)。
+// 入力の既定値を false にしておくのは、設定を足す前からある API の呼び出しの動きを変えないためである。
 func defaultRuleDefaults() *RuleDefaults {
-	return &RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true}
+	return &RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true, BundleSameEpisodes: true}
 }
 
 // Changes は、変える項目。nil の項目は変えない。
@@ -519,6 +525,9 @@ func mergeRule(base *ruleDefaultsJSON, changes *RuleChanges) *ruleDefaultsJSON {
 	if changes.FollowEventRelay != nil {
 		merged.FollowEventRelay = changes.FollowEventRelay
 	}
+	if changes.BundleSameEpisodes != nil {
+		merged.BundleSameEpisodes = changes.BundleSameEpisodes
+	}
 
 	return &merged
 }
@@ -542,6 +551,9 @@ func resolveRule(stored *ruleDefaultsJSON) *RuleDefaults {
 	resolved.DuplicateWindowDays = stored.DuplicateWindowDays
 	if stored.FollowEventRelay != nil {
 		resolved.FollowEventRelay = *stored.FollowEventRelay
+	}
+	if stored.BundleSameEpisodes != nil {
+		resolved.BundleSameEpisodes = *stored.BundleSameEpisodes
 	}
 
 	return resolved

@@ -637,14 +637,19 @@ type RecordingFile struct {
 }
 
 type RecordingHistory struct {
-	ID          uuid.UUID
-	ServiceID   int64
-	TitleKey    string
-	Name        string
-	StartAt     time.Time
-	EndAt       time.Time
-	CreatedAt   time.Time
-	RecordingID *uuid.UUID
+	ID            uuid.UUID
+	ServiceID     int64
+	TitleKey      string
+	Name          string
+	Description   string
+	SeriesEpisode *int32
+	SyobocalTid   *int32
+	AnimeCount    *float64
+	Imported      bool
+	StartAt       time.Time
+	EndAt         time.Time
+	CreatedAt     time.Time
+	RecordingID   *uuid.UUID
 }
 
 type RecordingLiveStat struct {
@@ -711,6 +716,7 @@ type Rule struct {
 	AvoidDuplicates     bool
 	DuplicateWindowDays *int32
 	FollowEventRelay    bool
+	BundleSameEpisodes  bool
 	CreatedAt           time.Time
 	CreatedBy           *uuid.UUID
 	UpdatedAt           time.Time

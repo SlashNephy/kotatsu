@@ -821,9 +821,13 @@
     },
     "skipped": {
       "tab": "Skipped as duplicates",
-      "description": "These programs matched a rule but were not reserved by duplicate avoidance, because a program with the same name has already been recorded. You can reserve a program manually if you want to record it again. Manual reservations are not subject to duplicate avoidance.",
+      "description": "These programs matched a rule but were not reserved, because a program with the same name or the same episode has already been recorded, or the same episode will be recorded from another broadcast. You can reserve a program manually if you want to record it again. Manual reservations are not subject to duplicate avoidance or episode bundling.",
       "empty": "No programs were skipped by duplicate avoidance",
       "reason": "Matched {{rules}}. Recorded on {{date}}",
+      "reasonRecordedEpisode": "Matched {{rules}}. The same episode was recorded on {{service}} on {{date}}",
+      "reasonOtherBroadcast": "Matched {{rules}}. The same episode will be recorded from {{service}} on {{date}}",
+      "reasonOtherBroadcastUnknown": "Matched {{rules}}. The same episode will be recorded from another broadcast",
+      "unknownService": "a removed channel",
       "reserve": "Reserve",
       "reserveError": "Could not reserve. Please try again later"
     },
@@ -1049,6 +1053,8 @@
     "duplicateWindowDaysPlaceholder": "No limit",
     "days": "days",
     "followEventRelay": "Also reserve programs continued by event relay",
+    "bundleSameEpisodes": "Bundle the same episode across channels and reserve only the first broadcast",
+    "bundleSameEpisodesDescription": "When the same episode airs several times (for example on terrestrial and BS), episodes already recorded and later broadcasts are not reserved",
     "priority": "Priority",
     "priorityDescription": "-10 to 10. When there are not enough tuners, higher-priority reservations are assigned first",
     "joinSegments": "Join split recording files into one",

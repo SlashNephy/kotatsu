@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e8a77b02c4fbc8e57fc6da2f398ec7e7>>
+ * @generated SignedSource<<7748796b17f2f328e3bf69ea6efda51a>>
  * @lightSyntaxTransform
  */
 
@@ -46,6 +46,7 @@ export type RuleIdQuery$data = {
     };
     readonly ruleDefaults: {
       readonly avoidDuplicates: boolean;
+      readonly bundleSameEpisodes: boolean;
       readonly duplicateWindowDays: number | null | undefined;
       readonly followEventRelay: boolean;
     };
@@ -143,6 +144,13 @@ v8 = {
 v9 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "bundleSameEpisodes",
+  "storageKey": null
+},
+v10 = {
+  "alias": null,
+  "args": null,
   "concreteType": "SystemSettings",
   "kind": "LinkedField",
   "name": "systemSettings",
@@ -170,28 +178,29 @@ v9 = {
       "selections": [
         (v6/*:: as any*/),
         (v7/*:: as any*/),
-        (v8/*:: as any*/)
+        (v8/*:: as any*/),
+        (v9/*:: as any*/)
       ],
       "storageKey": null
     }
   ],
   "storageKey": null
 },
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -199,8 +208,8 @@ v12 = {
   "name": "services",
   "plural": true,
   "selections": [
-    (v10/*:: as any*/),
     (v11/*:: as any*/),
+    (v12/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -230,25 +239,25 @@ v12 = {
   ],
   "storageKey": null
 },
-v13 = [
+v14 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "id"
   }
 ],
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v15 = [
-  (v2/*:: as any*/),
-  (v10/*:: as any*/)
-],
 v16 = [
+  (v2/*:: as any*/),
+  (v11/*:: as any*/)
+],
+v17 = [
   {
     "alias": null,
     "args": null,
@@ -278,10 +287,10 @@ v16 = [
     "storageKey": null
   }
 ],
-v17 = [
-  (v10/*:: as any*/)
-],
 v18 = [
+  (v11/*:: as any*/)
+],
+v19 = [
   {
     "alias": null,
     "args": null,
@@ -318,8 +327,8 @@ return {
       },
       (v3/*:: as any*/),
       (v4/*:: as any*/),
-      (v9/*:: as any*/),
-      (v12/*:: as any*/),
+      (v10/*:: as any*/),
+      (v13/*:: as any*/),
       {
         "condition": "skip",
         "kind": "Condition",
@@ -327,17 +336,17 @@ return {
         "selections": [
           {
             "alias": null,
-            "args": (v13/*:: as any*/),
+            "args": (v14/*:: as any*/),
             "concreteType": null,
             "kind": "LinkedField",
             "name": "node",
             "plural": false,
             "selections": [
-              (v14/*:: as any*/),
+              (v15/*:: as any*/),
               {
                 "kind": "InlineFragment",
                 "selections": [
-                  (v10/*:: as any*/),
+                  (v11/*:: as any*/),
                   {
                     "fragment": {
                       "kind": "InlineFragment",
@@ -382,14 +391,14 @@ return {
         "plural": false,
         "selections": [
           (v1/*:: as any*/),
-          (v10/*:: as any*/)
+          (v11/*:: as any*/)
         ],
         "storageKey": null
       },
       (v3/*:: as any*/),
       (v4/*:: as any*/),
-      (v9/*:: as any*/),
-      (v12/*:: as any*/),
+      (v10/*:: as any*/),
+      (v13/*:: as any*/),
       {
         "condition": "skip",
         "kind": "Condition",
@@ -397,14 +406,14 @@ return {
         "selections": [
           {
             "alias": null,
-            "args": (v13/*:: as any*/),
+            "args": (v14/*:: as any*/),
             "concreteType": null,
             "kind": "LinkedField",
             "name": "node",
             "plural": false,
             "selections": [
-              (v14/*:: as any*/),
-              (v10/*:: as any*/),
+              (v15/*:: as any*/),
+              (v11/*:: as any*/),
               {
                 "kind": "InlineFragment",
                 "selections": [
@@ -422,7 +431,7 @@ return {
                     "kind": "LinkedField",
                     "name": "createdBy",
                     "plural": false,
-                    "selections": (v15/*:: as any*/),
+                    "selections": (v16/*:: as any*/),
                     "storageKey": null
                   },
                   {
@@ -439,10 +448,10 @@ return {
                     "kind": "LinkedField",
                     "name": "updatedBy",
                     "plural": false,
-                    "selections": (v15/*:: as any*/),
+                    "selections": (v16/*:: as any*/),
                     "storageKey": null
                   },
-                  (v11/*:: as any*/),
+                  (v12/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -472,7 +481,7 @@ return {
                         "kind": "LinkedField",
                         "name": "keywords",
                         "plural": true,
-                        "selections": (v16/*:: as any*/),
+                        "selections": (v17/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -489,7 +498,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeKeywords",
                         "plural": true,
-                        "selections": (v16/*:: as any*/),
+                        "selections": (v17/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -506,7 +515,7 @@ return {
                         "kind": "LinkedField",
                         "name": "services",
                         "plural": true,
-                        "selections": (v17/*:: as any*/),
+                        "selections": (v18/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -516,7 +525,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeServices",
                         "plural": true,
-                        "selections": (v17/*:: as any*/),
+                        "selections": (v18/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -526,7 +535,7 @@ return {
                         "kind": "LinkedField",
                         "name": "genres",
                         "plural": true,
-                        "selections": (v18/*:: as any*/),
+                        "selections": (v19/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -536,7 +545,7 @@ return {
                         "kind": "LinkedField",
                         "name": "excludeGenres",
                         "plural": true,
-                        "selections": (v18/*:: as any*/),
+                        "selections": (v19/*:: as any*/),
                         "storageKey": null
                       },
                       {
@@ -693,7 +702,8 @@ return {
                   },
                   (v6/*:: as any*/),
                   (v7/*:: as any*/),
-                  (v8/*:: as any*/)
+                  (v8/*:: as any*/),
+                  (v9/*:: as any*/)
                 ],
                 "type": "Rule",
                 "abstractKey": null
@@ -706,16 +716,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "4167e55581c35bea4a882e4b0c26fdd1",
+    "cacheID": "6e2f306979c74894e111e3c3a5ff426d",
     "id": null,
     "metadata": {},
     "name": "RuleIdQuery",
     "operationKind": "query",
-    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  storagePoolNames\n  systemSettings {\n    recordingDefaults {\n      poolId\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      ...RuleEditor_rule\n    }\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n    detectCm\n    transcodePreset\n    transcodeFrameRate\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n}\n"
+    "text": "query RuleIdQuery(\n  $id: ID!\n  $skip: Boolean!\n) {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  storagePoolNames\n  systemSettings {\n    recordingDefaults {\n      poolId\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n  }\n  services {\n    id\n    name\n    logoUrl\n    serviceId\n    channelType {\n      displayName\n    }\n  }\n  node(id: $id) @skip(if: $skip) {\n    __typename\n    ... on Rule {\n      id\n      ...RuleEditor_rule\n    }\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n    detectCm\n    transcodePreset\n    transcodeFrameRate\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n  bundleSameEpisodes\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d35f99a86b7904f454b2938d70bd9929";
+(node as any).hash = "c5f1e236a820dc9d1ee40b6c98969e7e";
 
 export default node;

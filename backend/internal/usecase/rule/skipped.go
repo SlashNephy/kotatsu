@@ -14,21 +14,48 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
-// skippedProgram は、ルールに一致したが、重複の回避で予約しなかった番組。
+// skippedProgram は、ルールに一致したが、重複の回避か、同じ回を束ねたことで予約しなかった番組。
 type skippedProgram struct {
-	row          sqlc.ListMatchableProgramsRow
-	rules        []*compiledRule
-	lastRecorded time.Time
+	row    sqlc.ListMatchableProgramsRow
+	rules  []*compiledRule
+	reason SkipReason
+	// lastRecorded は、前に録った録画の終わり。別の放送で録るときは nil。
+	lastRecorded *time.Time
+	// recorded は、同じ回を録画済みのときの、その録画。
+	recorded *recordedEpisode
+	// instead は、同じ回を別の放送で録るときの、その放送。
+	instead *programKey
 }
 
-// SkippedDuplicate は、ルールに一致したが、同じ番組名を録画済みなので、重複の回避で予約しなかった番組 (設計書 4.4、#469)。
+// SkippedDuplicate は、ルールに一致したが、同じ番組名か同じ回を録画済みか、同じ回を別の放送で録るので予約しなかった番組
+// (設計書 4.4、#469、#1498)。
 type SkippedDuplicate struct {
 	ServiceID int64
 	EventID   int64
-	// Rules は、一致したが重複の回避で外したルールの ID と名前。
+	// Rules は、一致したが外したルールの ID と名前。
 	Rules []*SkippedRule
-	// LastRecordedAt は、同じ番組名を同じサービスで最後に録った録画の終わり。
-	LastRecordedAt time.Time
+	// Reason は、外した理由。
+	Reason SkipReason
+	// LastRecordedAt は、前に録った録画の終わり。同じ番組名で外したときは、同じサービスで最後に録った録画の終わり。
+	// 別の放送で録るので外したときは nil。
+	LastRecordedAt *time.Time
+	// Recorded は、同じ回を録画済みなので外したときの、その録画。ほかの理由では nil。
+	Recorded *SkippedRecording
+	// Instead は、同じ回を別の放送で録るので外したときの、その放送。ほかの理由では nil。
+	Instead *SkippedInstead
+}
+
+// SkippedRecording は、同じ回を録った録画 (録画履歴か、録画中の録画)。
+type SkippedRecording struct {
+	ServiceID int64
+	Name      string
+	EndAt     time.Time
+}
+
+// SkippedInstead は、同じ回を代わりに録る放送。
+type SkippedInstead struct {
+	ServiceID int64
+	EventID   int64
 }
 
 // SkippedRule は、重複の回避で外したルール。
@@ -37,7 +64,7 @@ type SkippedRule struct {
 	Name string
 }
 
-// FindSkippedDuplicates は、照合と同じ計算で、重複の回避で予約しなかった番組を、放送の早い順に返す。DB には書かない。
+// FindSkippedDuplicates は、照合と同じ計算で、重複の回避と同じ回の束ねで予約しなかった番組を、放送の早い順に返す。DB には書かない。
 // すでに予約のある番組 (利用者が手動で予約したものなど) は返さない。
 func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, location *time.Location) ([]*SkippedDuplicate, error) {
 	e := &Engine{pool: nil, clock: clk, location: location, guard: nil, reservations: nil}
@@ -71,7 +98,7 @@ func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, lo
 			for _, r := range s.rules {
 				rules = append(rules, &SkippedRule{ID: r.ID, Name: r.Name})
 			}
-			result = append(result, &SkippedDuplicate{ServiceID: key.serviceID, EventID: key.eventID, Rules: rules, LastRecordedAt: s.lastRecorded})
+			result = append(result, s.public(key, rules))
 		}
 
 		return nil
@@ -81,6 +108,22 @@ func FindSkippedDuplicates(ctx context.Context, db Beginner, clk clock.Clock, lo
 	}
 
 	return result, nil
+}
+
+// public は、見送った番組を、外に返す形にする。
+func (s *skippedProgram) public(key programKey, rules []*SkippedRule) *SkippedDuplicate {
+	skipped := &SkippedDuplicate{
+		ServiceID: key.serviceID, EventID: key.eventID, Rules: rules, Reason: s.reason, LastRecordedAt: s.lastRecorded,
+		Recorded: nil, Instead: nil,
+	}
+	if s.recorded != nil {
+		skipped.Recorded = &SkippedRecording{ServiceID: s.recorded.serviceID, Name: s.recorded.name, EndAt: s.recorded.endAt}
+	}
+	if s.instead != nil {
+		skipped.Instead = &SkippedInstead{ServiceID: s.instead.serviceID, EventID: s.instead.eventID}
+	}
+
+	return skipped
 }
 
 // reservedPrograms は、skipped の番組のうち、予約のあるものを返す。

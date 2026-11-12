@@ -61,10 +61,12 @@ type Rule struct {
 	// DuplicateWindowDays は、重複を避ける期間 (日)。nil なら期間を区切らない。
 	DuplicateWindowDays *int
 	FollowEventRelay    bool
-	CreatedAt           time.Time
-	CreatedBy           *uuid.UUID
-	UpdatedAt           time.Time
-	UpdatedBy           *uuid.UUID
+	// BundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
+	BundleSameEpisodes bool
+	CreatedAt          time.Time
+	CreatedBy          *uuid.UUID
+	UpdatedAt          time.Time
+	UpdatedBy          *uuid.UUID
 }
 
 // Input は、ルールを作るときと変えるときの内容。
@@ -79,6 +81,7 @@ type Input struct {
 	AvoidDuplicates     bool
 	DuplicateWindowDays *int
 	FollowEventRelay    bool
+	BundleSameEpisodes  bool
 }
 
 // encoded は、検証して保存する形にしたルール。
@@ -168,6 +171,7 @@ func (r *Rules) Create(ctx context.Context, db Beginner, actor *audit.Actor, in 
 			AvoidDuplicates:     in.AvoidDuplicates,
 			DuplicateWindowDays: e.window,
 			FollowEventRelay:    in.FollowEventRelay,
+			BundleSameEpisodes:  in.BundleSameEpisodes,
 			Now:                 r.clock.Now(),
 			Actor:               userOf(actor),
 		})
@@ -209,6 +213,7 @@ func (r *Rules) Update(ctx context.Context, db Beginner, actor *audit.Actor, rul
 			AvoidDuplicates:     in.AvoidDuplicates,
 			DuplicateWindowDays: e.window,
 			FollowEventRelay:    in.FollowEventRelay,
+			BundleSameEpisodes:  in.BundleSameEpisodes,
 			Now:                 r.clock.Now(),
 			Actor:               userOf(actor),
 		})
@@ -364,6 +369,7 @@ func fromRow(row sqlc.Rule) (*Rule, error) {
 		AvoidDuplicates:     row.AvoidDuplicates,
 		DuplicateWindowDays: window,
 		FollowEventRelay:    row.FollowEventRelay,
+		BundleSameEpisodes:  row.BundleSameEpisodes,
 		CreatedAt:           row.CreatedAt.UTC(),
 		CreatedBy:           row.CreatedBy,
 		UpdatedAt:           row.UpdatedAt.UTC(),
