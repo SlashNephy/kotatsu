@@ -15,6 +15,7 @@ import (
 )
 
 // TestTranscodePresets は、選べる画質が、kyusu のプリセットにあり、映像を変換して 30fps で書くものであることを確かめる (#1253)。
+// 60 コマで出すかは、画質ではなく、出すコマ数で選ぶ (#1509)。
 func TestTranscodePresets(t *testing.T) {
 	t.Parallel()
 

@@ -125,7 +125,8 @@ type RecordingSettings struct {
 }
 
 // TranscodePresets は、録画を終えた後の変換 (#1253) で選べる画質を返す。kyusu の画質のプリセットのうち、
-// 30fps の H.264 と HEVC に限る。映像を変換しないものと、フィールドごとに 1 フレームにするものは、ファイルに残す意味が薄いので除く。
+// 30fps の H.264 と HEVC に限る。映像を変換しないものは、ファイルに残す意味が薄いので除く。フィールドごとに 1 フレームにするもの
+// (1080p60、720p60) は、画質ではなく、出すコマ数 (TranscodeFrameRate、#1509) で選ぶので除く。
 func TranscodePresets() []string {
 	return []string{"1080p", "720p", "540p", "360p", "1080p-hevc", "720p-hevc", "540p-hevc", "360p-hevc"}
 }
