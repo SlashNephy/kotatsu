@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
@@ -145,10 +146,11 @@ type Database interface {
 type Worker struct {
 	river.WorkerDefaults[Args]
 
-	db     Database
-	store  *kago.Store
-	clock  clock.Clock
-	source *stream.RecordingSource
+	db       Database
+	store    *kago.Store
+	clock    clock.Clock
+	source   *stream.RecordingSource
+	inserter Inserter
 	// newEncoder は、変換に使う Encoder を作る。テストでは差し替える。
 	newEncoder func() (Encoder, error)
 }
@@ -156,10 +158,11 @@ type Worker struct {
 var _ river.Worker[Args] = new(Worker)
 
 // NewWorker は Worker を返す。store は、このインスタンスにマウントされたプール。
-func NewWorker(db Database, store *kago.Store, clk clock.Clock, newEncoder func() (Encoder, error)) *Worker {
+// inserter は、変換し終えたときに、チャプターを書くジョブ (ChaptersArgs) を投入する。
+func NewWorker(db Database, store *kago.Store, clk clock.Clock, inserter Inserter, newEncoder func() (Encoder, error)) *Worker {
 	return &Worker{
 		WorkerDefaults: river.WorkerDefaults[Args]{}, db: db, store: store, clock: clk,
-		source: stream.NewRecordingSource(db, store, 0), newEncoder: newEncoder,
+		source: stream.NewRecordingSource(db, store, 0), inserter: inserter, newEncoder: newEncoder,
 	}
 }
 
@@ -181,12 +184,21 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	if err != nil {
 		return err
 	}
-	conn, err := w.db.Acquire(ctx)
+
+	return withRecordingLock(ctx, w.db, job.Args.RecordingID, func() error {
+		return w.work(ctx, encoder, job.Args.RecordingID, preset)
+	})
+}
+
+// withRecordingLock は、録画 recordingID の advisory lock を取ってから fn を呼ぶ。セグメントをつなぐジョブと同じロックを使い、
+// 取れなければ (ほかの nekonote がファイルをつないだり消したり、変換したり CM の区間を書き換えたりしていれば)、後でやり直す。
+func withRecordingLock(ctx context.Context, db Database, recordingID uuid.UUID, fn func() error) error {
+	conn, err := db.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire a connection: %w", err)
 	}
 	defer conn.Release()
-	key := job.Args.RecordingID.String()
+	key := recordingID.String()
 	locked, err := sqlc.New(conn).TryLockRecordingJoin(ctx, key)
 	if err != nil {
 		return fmt.Errorf("failed to lock the recording: %w", err)
@@ -201,7 +213,7 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 		}
 	}()
 
-	return w.work(ctx, encoder, job.Args.RecordingID, preset)
+	return fn()
 }
 
 func (w *Worker) work(ctx context.Context, encoder Encoder, recordingID uuid.UUID, preset *kyusu.Preset) error {
@@ -257,9 +269,17 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, recordingID uuid.UUI
 	if err != nil {
 		return fmt.Errorf("failed to stat the transcoded file: %w", err)
 	}
-	upserted, err := q.UpsertTranscodedRecordingFile(ctx, sqlc.UpsertTranscodedRecordingFileParams{
-		ID: id.New(), RecordingID: recordingID, PoolID: poolID, Path: rel, Size: info.Size(),
-		StartedAt: recording.RecordedFrom, EndedAt: recording.RecordedUntil, Now: w.clock.Now(),
+	var upserted int64
+	err = pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
+		upserted, err = sqlc.New(tx).UpsertTranscodedRecordingFile(ctx, sqlc.UpsertTranscodedRecordingFileParams{
+			ID: id.New(), RecordingID: recordingID, PoolID: poolID, Path: rel, Size: info.Size(),
+			StartedAt: recording.RecordedFrom, EndedAt: recording.RecordedUntil, Now: w.clock.Now(),
+		})
+		if err != nil || upserted == 0 {
+			return err
+		}
+
+		return w.enqueueChapters(ctx, tx, recordingID)
 	})
 	if err != nil || upserted == 0 {
 		// 変換している間に録画が消されたり、ほかのファイルがそのパスを使い始めたりしたら、ここで置いたファイルだけを消す。
@@ -274,6 +294,18 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, recordingID uuid.UUI
 	}
 
 	return nil
+}
+
+// enqueueChapters は、録画の CM の区間を見分けてあれば、変換した MP4 にチャプターを書くジョブを投入する (#1510)。
+// 変換したての MP4 にはチャプターがないので、区間がなければ入れない。CM の区間を見分けるジョブとは別々に終わるので、
+// 見分ける方も、終えたときに変換した MP4 があれば投入する (ChaptersEnqueuer)。どちらも録画ごとのロックを持っている間に入れる。
+func (w *Worker) enqueueChapters(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	sections, err := cmdetect.RecordingSections(ctx, tx, recordingID)
+	if err != nil || len(sections) == 0 {
+		return err
+	}
+
+	return insertChapters(ctx, w.inserter, tx, recordingID)
 }
 
 // encode は、録画を始まりから流し、encoder で out に書く。

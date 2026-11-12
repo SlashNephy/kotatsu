@@ -1769,6 +1769,7 @@
         "notification_prune": "通知の片付け",
         "oauth_prune": "MCPのトークンの片付け",
         "recording_analyze": "録画の解析",
+        "recording_chapters": "変換した録画のCMのチャプター",
         "recording_cm_detect": "CMの区間",
         "recording_join": "セグメントをつなぐ",
         "recording_join_finalize": "セグメントをつないだ後の片付け",

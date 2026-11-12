@@ -11,6 +11,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -184,6 +185,57 @@ func TestDetectWorker(t *testing.T) {
 	var detections int
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_cm_detections WHERE recording_id = $1", recordingID).Scan(&detections))
 	assert.Equal(t, 1, detections)
+}
+
+// recordingHook は、見分け終えたことを受け取り、そのトランザクションから見えた区間の数を覚える DetectedHook。
+type recordingHook struct {
+	err error
+	// seen は、受け取った録画ごとの、トランザクションから見えた区間の数。
+	seen map[uuid.UUID]int
+}
+
+var _ cmdetect.DetectedHook = new(recordingHook)
+
+func (h *recordingHook) OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	var count int
+	if err := tx.QueryRow(ctx, "SELECT count(*) FROM recording_cm_sections WHERE recording_id = $1", recordingID).Scan(&count); err != nil {
+		return err
+	}
+	h.seen[recordingID] = count
+
+	return h.err
+}
+
+// TestDetectWorkerHook は、見分けた区間を書いたトランザクションの中で、見分け終えたことを渡すことを確かめる (#1510)。
+// 受け取った側が失敗したら、区間も書かない。
+func TestDetectWorkerHook(t *testing.T) {
+	t.Parallel()
+
+	errHook := errors.New("hook failed")
+	tests := []struct {
+		name         string
+		err          error
+		wantSections [][2]time.Duration
+	}{
+		{name: "detected", err: nil, wantSections: [][2]time.Duration{{time.Minute, 2 * time.Minute}}},
+		{name: "hook fails", err: errHook, wantSections: [][2]time.Duration{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: 0})
+			hook := &recordingHook{err: tt.err, seen: map[uuid.UUID]int{}}
+			detector := &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {{Start: time.Minute, End: 2 * time.Minute}}}}
+			worker := cmdetect.NewDetectWorkerWithHook(f.pool, f.store, f.clock, hook, func() (cmdetect.Detector, error) { return detector, nil })
+			err := worker.Work(t.Context(), &river.Job[cmdetect.DetectArgs]{JobRow: new(rivertype.JobRow), Args: cmdetect.DetectArgs{RecordingID: recordingID}})
+			require.ErrorIs(t, err, tt.err)
+			// 書いたばかりの区間が、受け取った側から見える。
+			assert.Equal(t, map[uuid.UUID]int{recordingID: 1}, hook.seen)
+			assert.Equal(t, tt.wantSections, f.sections(t, recordingID))
+		})
+	}
 }
 
 func TestDetectWorkerCancels(t *testing.T) {
