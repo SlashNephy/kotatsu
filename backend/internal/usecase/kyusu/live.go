@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 )
@@ -47,9 +47,9 @@ var (
 	errEnded      = errors.New("the encoder stopped")
 )
 
-// ServiceOpener は、サービスのストリームを開く。*mirakurun.Client が満たす。
+// ServiceOpener は、サービスのストリームを開く。tunerserver.Client が満たす。
 type ServiceOpener interface {
-	OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error)
+	OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error)
 }
 
 // Encoder は、TS を HLS にする。*Transcoder が満たす。
@@ -58,7 +58,7 @@ type Encoder interface {
 }
 
 var (
-	_ ServiceOpener = new(mirakurun.Client)
+	_ ServiceOpener = tunerserver.Client(nil)
 	_ Encoder       = new(Transcoder)
 )
 
@@ -248,7 +248,7 @@ func (l *Live) start(ctx context.Context, serviceID int64, preset *Preset, audio
 // encode は、サービスのストリームを開き、止められるか途切れるまでエンコードする。止まったら、セッションを外して、HLS を消す。
 func (l *Live) encode(ctx context.Context, s *session, preset *Preset) {
 	err := func() error {
-		upstream, err := l.opener.OpenServiceStream(ctx, s.key.serviceID, &mirakurun.StreamOptions{Decode: true, Priority: livePriority})
+		upstream, err := l.opener.OpenServiceStream(ctx, s.key.serviceID, &tunerserver.StreamOptions{Decode: true, Priority: livePriority})
 		if err != nil {
 			return err
 		}
@@ -371,9 +371,9 @@ func (l *Live) servePlaylist(w http.ResponseWriter, r *http.Request, serviceID i
 		w.Header().Set("Cache-Control", "no-store")
 		_, _ = w.Write(data)
 	case r.Context().Err() != nil:
-	case mirakurun.IsStatus(err, http.StatusNotFound):
+	case errors.Is(err, tunerserver.ErrNotFound):
 		http.Error(w, "service not found", http.StatusNotFound)
-	case mirakurun.IsStatus(err, http.StatusServiceUnavailable):
+	case errors.Is(err, tunerserver.ErrTunerUnavailable):
 		http.Error(w, "no tuner is available", http.StatusServiceUnavailable)
 	case errors.Is(err, errNoTuner), errors.Is(err, errNoEncoder), errors.Is(err, errNoPlaylist), errors.Is(err, errEnded):
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)

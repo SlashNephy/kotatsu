@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 )
 
@@ -70,7 +71,7 @@ func TestClientOpenServiceStreamIdle(t *testing.T) {
 
 			data, err := io.ReadAll(stream)
 
-			require.ErrorIs(t, err, mirakurun.ErrStreamStalled)
+			require.ErrorIs(t, err, tunerserver.ErrStreamStalled)
 			assert.Len(t, data, tt.wantBytes)
 			// 最後にデータが届いてから、上限の分だけ待って閉じる。最後のデータは、(chunks - 1) 回の間隔の後に届く。
 			lastData := time.Duration(max(tt.chunks-1, 0)) * tt.interval
@@ -116,7 +117,7 @@ func TestClientOpenServiceStreamOpenTimeout(t *testing.T) {
 	}{
 		{name: "responds in time", delay: 0, wantErr: nil},
 		// チューナーの空きを待つなどして、応答しないまま上限が過ぎた。
-		{name: "does not respond", delay: time.Hour, wantErr: mirakurun.ErrStreamOpenTimeout},
+		{name: "does not respond", delay: time.Hour, wantErr: tunerserver.ErrStreamOpenTimeout},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -212,11 +213,10 @@ func TestClientOpenEventsQuiet(t *testing.T) {
 	// イベントストリームは、変化がなければ何も送らないので、録画のストリームの上限より長く黙っても閉じない (#954)。
 	const idle = 200 * time.Millisecond
 	tests := []struct {
-		kind     mirakurun.ServerKind
-		wantType string
+		kind mirakurun.ServerKind
 	}{
-		{kind: mirakurun.ServerMirakurun, wantType: typeUpdate},
-		{kind: mirakurun.ServerMirakc, wantType: typeStatusChanged},
+		{kind: mirakurun.ServerMirakurun},
+		{kind: mirakurun.ServerMirakc},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {
@@ -225,14 +225,14 @@ func TestClientOpenEventsQuiet(t *testing.T) {
 			server := quietEventsServer(t, tt.kind, 3*idle)
 			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, StreamIdleTimeout: idle})
 			require.NoError(t, err)
-			stream, err := client.OpenEvents(t.Context(), nil)
+			stream, err := client.OpenEvents(t.Context())
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = stream.Close() })
 
 			event, err := stream.Next()
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantType, event.Type)
+			assert.Equal(t, tunerserver.EventTunerChanged, event.Type)
 		})
 	}
 }

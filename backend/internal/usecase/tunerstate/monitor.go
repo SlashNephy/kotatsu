@@ -19,8 +19,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -38,13 +38,13 @@ const (
 	maxErrorLength = 1000
 )
 
-// Upstream は、状態の把握に使うチューナーサーバーの API。*mirakurun.Client が満たす。
+// Upstream は、状態の把握に使うチューナーサーバーの API。tunerserver.Client が満たす。
 type Upstream interface {
-	Tuners(ctx context.Context) ([]*mirakurun.Tuner, error)
+	Tuners(ctx context.Context) ([]*tunerserver.Tuner, error)
 	ServerDate(ctx context.Context) (time.Time, error)
 }
 
-var _ Upstream = new(mirakurun.Client)
+var _ Upstream = tunerserver.Client(nil)
 
 // Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
 type Guard func(ctx context.Context, tx pgx.Tx) error
@@ -212,7 +212,7 @@ func (m *Monitor) warnSkew(ctx context.Context, skew time.Duration) {
 
 // replaceTuners は、チューナーの構成が変わっていれば DB の tuners を置き換え、変更を通知する。
 // チューナーは数本しかないので、変わったときは丸ごと入れ替える。
-func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries, tuners []*mirakurun.Tuner, now time.Time) error {
+func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries, tuners []*tunerserver.Tuner, now time.Time) error {
 	current, err := q.ListTuners(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list tuners: %w", err)

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
@@ -30,10 +31,12 @@ const (
 	// grServiceID は、偽チューナーの GR 27 のサービス (networkId 0x7FE0、serviceId 0x0400) の ID。
 	grServiceID = int64(32736_01024)
 
-	resourceProgram   = "program"
-	resourceTuner     = "tuner"
-	typeUpdate        = "update"
-	typeStatusChanged = "status-changed"
+	resourceProgram     = "program"
+	resourceTuner       = "tuner"
+	resourceEPG         = "epg"
+	typeUpdate          = "update"
+	typeStatusChanged   = "status-changed"
+	typeProgramsUpdated = "programs-updated"
 
 	pathVersion = "/api/version"
 	// pathSSEEvents は、mirakc のイベントストリーム (SSE)。
@@ -116,7 +119,7 @@ func TestClientGetters(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, services, 5)
 		assert.Equal(t, grServiceID, services[0].ID)
-		assert.Equal(t, &mirakurun.ChannelRef{Type: "GR", Channel: "27"}, services[0].Channel)
+		assert.Equal(t, &tunerserver.ChannelRef{Type: "GR", Channel: "27"}, services[0].Channel)
 	})
 
 	t.Run("tuners", func(t *testing.T) {
@@ -134,7 +137,7 @@ func TestClientPrograms(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		query     *mirakurun.ProgramsQuery
+		query     *tunerserver.ProgramsQuery
 		wantQuery url.Values
 		wantCount int
 	}{
@@ -146,13 +149,13 @@ func TestClientPrograms(t *testing.T) {
 		},
 		{
 			name:      "service",
-			query:     &mirakurun.ProgramsQuery{NetworkID: 0x7FE0, ServiceID: 0x0400},
+			query:     &tunerserver.ProgramsQuery{NetworkID: 0x7FE0, ServiceID: 0x0400},
 			wantQuery: url.Values{"networkId": {"32736"}, "serviceId": {"1024"}},
 			wantCount: 14,
 		},
 		{
 			name:      "event",
-			query:     &mirakurun.ProgramsQuery{NetworkID: 0x7FE0, ServiceID: 0x0400, EventID: 3},
+			query:     &tunerserver.ProgramsQuery{NetworkID: 0x7FE0, ServiceID: 0x0400, EventID: 3},
 			wantQuery: url.Values{"networkId": {"32736"}, "serviceId": {"1024"}, "eventId": {"3"}},
 			wantCount: 1,
 		},
@@ -178,12 +181,12 @@ func TestClientOpenServiceStream(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		opts         *mirakurun.StreamOptions
+		opts         *tunerserver.StreamOptions
 		wantDecode   string
 		wantPriority string
 	}{
-		{name: "decode", opts: &mirakurun.StreamOptions{Decode: true, Priority: 2}, wantDecode: "1", wantPriority: "2"},
-		{name: "raw", opts: &mirakurun.StreamOptions{Decode: false, Priority: -1}, wantDecode: "", wantPriority: "-1"},
+		{name: "decode", opts: &tunerserver.StreamOptions{Decode: true, Priority: 2}, wantDecode: "1", wantPriority: "2"},
+		{name: "raw", opts: &tunerserver.StreamOptions{Decode: false, Priority: -1}, wantDecode: "", wantPriority: "-1"},
 		{name: "default", opts: nil, wantDecode: "", wantPriority: "0"},
 	}
 	for _, tt := range tests {
@@ -213,43 +216,13 @@ func TestClientOpenServiceStream(t *testing.T) {
 			require.NoError(t, err)
 			opened, ok := stream.(*mirakurun.Stream)
 			require.True(t, ok)
-			used := mirakurun.TunerOf(tuners, opened.TunerUserID())
+			used := tunerserver.TunerOf(tuners, opened.TunerUserID())
 			require.NotNil(t, used)
 			assert.Equal(t, "GR0", used.Name)
 
 			require.NoError(t, stream.Close())
 			// 閉じたら、チューナーが解放される。
 			assert.Eventually(t, func() bool { return len(fake.Tuners()[0].Users) == 0 }, 5*time.Second, 10*time.Millisecond)
-		})
-	}
-}
-
-// TestTunerOf は、利用者の ID から、その利用者が使っているチューナーを見つけることを確かめる (#1467)。
-func TestTunerOf(t *testing.T) {
-	t.Parallel()
-
-	tuners := []*mirakurun.Tuner{
-		{Index: 0, Name: "GR0", Users: []*mirakurun.TunerUser{{ID: "a", Priority: 0, Agent: ""}}},
-		{Index: -1, Name: "remote / T0", Users: []*mirakurun.TunerUser{{ID: "b", Priority: 0, Agent: ""}, {ID: "c", Priority: 0, Agent: ""}}},
-		nil,
-		{Index: 2, Name: "GR2", Users: []*mirakurun.TunerUser{}},
-	}
-	tests := []struct {
-		name   string
-		userID string
-		want   *mirakurun.Tuner
-	}{
-		{name: "ローカルのチューナー", userID: "a", want: tuners[0]},
-		{name: "相乗りしているリモートのチューナー", userID: "c", want: tuners[1]},
-		{name: "使っていない", userID: "d", want: nil},
-		{name: "一覧に null が混じっていても飛ばす", userID: "e", want: nil},
-		{name: "ID を返さないチューナーサーバー", userID: "", want: nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assert.Same(t, tt.want, mirakurun.TunerOf(tuners, tt.userID))
 		})
 	}
 }
@@ -265,7 +238,7 @@ func TestClientOpenServiceStreamErrors(t *testing.T) {
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
 	require.NoError(t, err)
 
-	occupied, err := client.OpenServiceStream(t.Context(), grServiceID, &mirakurun.StreamOptions{Decode: true, Priority: 1})
+	occupied, err := client.OpenServiceStream(t.Context(), grServiceID, &tunerserver.StreamOptions{Decode: true, Priority: 1})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = occupied.Close() })
 
@@ -273,21 +246,26 @@ func TestClientOpenServiceStreamErrors(t *testing.T) {
 		name       string
 		serviceID  int64
 		wantStatus int
+		wantErr    error
 	}{
-		{name: "unknown service", serviceID: 1, wantStatus: http.StatusNotFound},
+		{name: "unknown service", serviceID: 1, wantStatus: http.StatusNotFound, wantErr: tunerserver.ErrNotFound},
 		// GR 26 のサービス。唯一のチューナーを、優先度の高い利用者が GR 27 で使っている。
-		{name: "no available tuner", serviceID: faketuner.ServiceItemID(0x7FE1, 0x0408), wantStatus: http.StatusServiceUnavailable},
+		{
+			name: "no available tuner", serviceID: faketuner.ServiceItemID(0x7FE1, 0x0408),
+			wantStatus: http.StatusServiceUnavailable, wantErr: tunerserver.ErrTunerUnavailable,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := client.OpenServiceStream(t.Context(), tt.serviceID, &mirakurun.StreamOptions{Decode: true, Priority: 0})
+			_, err := client.OpenServiceStream(t.Context(), tt.serviceID, &tunerserver.StreamOptions{Decode: true, Priority: 0})
 			var apiErr *mirakurun.APIError
 			require.ErrorAs(t, err, &apiErr)
 			assert.Equal(t, tt.wantStatus, apiErr.StatusCode)
 			assert.NotEmpty(t, apiErr.Reason)
-			assert.True(t, mirakurun.IsStatus(err, tt.wantStatus))
+			require.ErrorIs(t, err, tt.wantErr)
+			require.ErrorIs(t, err, tunerserver.ErrRefused)
 		})
 	}
 }
@@ -298,22 +276,23 @@ func TestClientServiceLogo(t *testing.T) {
 	_, rec, client := newFakeTuner(t)
 
 	tests := []struct {
-		name       string
-		serviceID  int64
-		wantStatus int
+		name      string
+		serviceID int64
+		wantErr   error
 	}{
-		{name: "logo", serviceID: grServiceID, wantStatus: http.StatusOK},
-		// GR 26 のサービスは、ロゴの番号はあるが、画像をまだ受信していない。
-		{name: "logo not received", serviceID: faketuner.ServiceItemID(0x7FE1, 0x0408), wantStatus: http.StatusServiceUnavailable},
-		{name: "unknown service", serviceID: 1, wantStatus: http.StatusNotFound},
+		{name: "logo", serviceID: grServiceID, wantErr: nil},
+		// GR 26 のサービスは、ロゴの番号はあるが、画像をまだ受信していない。ストリームとは違い、503 はチューナーが足りないことではない。
+		{name: "logo not received", serviceID: faketuner.ServiceItemID(0x7FE1, 0x0408), wantErr: tunerserver.ErrLogoUnavailable},
+		{name: "unknown service", serviceID: 1, wantErr: tunerserver.ErrNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			logo, err := client.ServiceLogo(t.Context(), tt.serviceID)
-			if tt.wantStatus != http.StatusOK {
-				assert.True(t, mirakurun.IsStatus(err, tt.wantStatus), "error: %v", err)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.NotErrorIs(t, err, tunerserver.ErrTunerUnavailable)
 				assert.Nil(t, logo)
 
 				return
@@ -388,8 +367,10 @@ func TestClientAPIErrorHidesCredentials(t *testing.T) {
 	client, err := mirakurun.New(&mirakurun.Options{URL: "http://user:secret@" + server.URL[len("http://"):]})
 	require.NoError(t, err)
 	_, err = client.Channels(t.Context())
-	require.Error(t, err)
-	assert.True(t, mirakurun.IsStatus(err, http.StatusInternalServerError))
+	var apiErr *mirakurun.APIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+	require.ErrorIs(t, err, tunerserver.ErrRefused)
 	assert.Contains(t, err.Error(), "boom")
 	assert.NotContains(t, err.Error(), "secret")
 }
@@ -399,7 +380,7 @@ func TestClientOpenChannelStream(t *testing.T) {
 	t.Parallel()
 
 	_, rec, client := newFakeTuner(t)
-	stream, err := client.OpenChannelStream(t.Context(), "GR", "27", &mirakurun.StreamOptions{Decode: true, Priority: -1})
+	stream, err := client.OpenChannelStream(t.Context(), "GR", "27", &tunerserver.StreamOptions{Decode: true, Priority: -1})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = stream.Close() })
 

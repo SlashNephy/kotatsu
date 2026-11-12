@@ -4,6 +4,7 @@
 // 追加機能は、接続時と定期的に判定し直す。イベントは、Mirakurun と Mahiron では /api/events/stream、
 // mirakc では /events (SSE) から読む。
 //
+// 応答は、チューナーサーバーの種類に依らない型 (domain/tunerserver) に変換して返す。
 // JSON の形は Mirakurun の api.d.ts に合わせている。Kotatsu が使わない項目は省いている。
 package mirakurun
 
@@ -12,41 +13,38 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
-// Channel は /api/channels の要素。
-type Channel struct {
-	// Type はチャンネル種別。GR、BS、CS、SKY のほか、Mahiron は BS4K や EXT1 のような任意の文字列を返すので、
-	// 列挙型にせず文字列のまま持つ (設計書 3.1)。
+// channel は /api/channels の要素。
+type channel struct {
 	Type     string     `json:"type"`
 	Channel  string     `json:"channel"`
 	Name     string     `json:"name"`
-	Services []*Service `json:"services,omitempty"`
+	Services []*service `json:"services,omitempty"`
 }
 
-// ChannelRef は、Service が属するチャンネル。
-type ChannelRef struct {
+// channelRef は、service が属するチャンネル。
+type channelRef struct {
 	Type    string `json:"type"`
 	Channel string `json:"channel"`
 }
 
-// Service は /api/services の要素。
-type Service struct {
-	// ID は Mirakurun のサービス ID (networkId × 100000 + serviceId)。Kotatsu はこの値でサービスを識別する (設計書 3.2)。
-	ID        int64  `json:"id"`
-	ServiceID int    `json:"serviceId"`
-	NetworkID int    `json:"networkId"`
-	Name      string `json:"name"`
-	Type      int    `json:"type"`
-	// LogoID と RemoteControlKeyID は、サーバーが返さなければ nil。
+// service は /api/services の要素。
+type service struct {
+	// ID は Mirakurun のサービス ID (networkId × 100000 + serviceId)。
+	ID                 int64       `json:"id"`
+	ServiceID          int         `json:"serviceId"`
+	NetworkID          int         `json:"networkId"`
+	Name               string      `json:"name"`
+	Type               int         `json:"type"`
 	LogoID             *int        `json:"logoId,omitempty"`
 	RemoteControlKeyID *int        `json:"remoteControlKeyId,omitempty"`
-	Channel            *ChannelRef `json:"channel,omitempty"`
+	Channel            *channelRef `json:"channel,omitempty"`
 }
 
-// Program は /api/programs の要素。
-type Program struct {
-	// ID は Mirakurun の番組 ID。EID は再利用されうるので、番組の同一性の判定には使わない (設計書 3.2)。
+// program は /api/programs の要素。
+type program struct {
 	ID        int64 `json:"id"`
 	EventID   int   `json:"eventId"`
 	ServiceID int   `json:"serviceId"`
@@ -54,52 +52,45 @@ type Program struct {
 	// StartAt は開始時刻 (UNIX 時間のミリ秒)。
 	StartAt int64 `json:"startAt"`
 	// Duration は長さ (ミリ秒)。終了時刻が未定のときは、Mirakurun では 1、Mahiron では 0 になる。
-	Duration    int64             `json:"duration"`
-	IsFree      bool              `json:"isFree"`
-	Name        string            `json:"name,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Genres      []*domain.Genre   `json:"genres,omitempty"`
-	Extended    map[string]string `json:"extended,omitempty"`
-	// RelatedItems は、イベント共有 (shared) とイベントリレー (relay) で関連づけられた番組 (設計書 4.4、4.6)。
+	Duration     int64                 `json:"duration"`
+	IsFree       bool                  `json:"isFree"`
+	Name         string                `json:"name,omitempty"`
+	Description  string                `json:"description,omitempty"`
+	Genres       []*domain.Genre       `json:"genres,omitempty"`
+	Extended     map[string]string     `json:"extended,omitempty"`
 	RelatedItems []*domain.RelatedItem `json:"relatedItems,omitempty"`
-	// Audios は、番組の音声の構成。音声コンポーネント記述子ごとに 1 つある。
-	Audios []*domain.Audio `json:"audios,omitempty"`
-	// Video は、番組の映像。EIT のコンポーネント記述子から作られる。上流が返さなければ nil。
-	Video *Video `json:"video,omitempty"`
-	// Series は、EIT のシリーズの記述子 (#1311)。上流が返さなければ nil。
-	Series *Series `json:"series,omitempty"`
+	Audios       []*domain.Audio       `json:"audios,omitempty"`
+	Video        *video                `json:"video,omitempty"`
+	Series       *series               `json:"series,omitempty"`
 }
 
-// Series は、番組のシリーズの記述子 (ARIB STD-B10 の series_descriptor)。Mirakurun と mirakc は同じ形で返す。
-type Series struct {
-	ID int `json:"id"`
-	// Repeat は、再放送の番号 (repeat_label)。0 なら初回の放送。
-	Repeat int `json:"repeat"`
-	// Episode は話数、LastEpisode は最終話の話数。分からなければ 0。
+// series は、番組のシリーズの記述子。Mirakurun と mirakc は同じ形で返す。
+type series struct {
+	ID          int    `json:"id"`
+	Repeat      int    `json:"repeat"`
 	Episode     int    `json:"episode"`
 	LastEpisode int    `json:"lastEpisode"`
 	Name        string `json:"name,omitempty"`
 }
 
-// Video は、番組の映像。
-type Video struct {
-	// Resolution は、映像の解像度 (480i、1080i、2160p、4320p など)。
-	// Mahiron は BS4K の番組の type を mpeg2 と返すので、映像の種類は Resolution で見分ける (#806)。
+// video は、番組の映像。
+type video struct {
 	Resolution string `json:"resolution,omitempty"`
 }
 
-// Start は開始時刻を返す。
-func (p *Program) Start() time.Time {
-	return time.UnixMilli(p.StartAt).UTC()
+// onAirProgram は、mirakc の /api/onair の要素。
+type onAirProgram struct {
+	ServiceID int64    `json:"serviceId"`
+	Current   *program `json:"current"`
+	Next      *program `json:"next"`
 }
 
-// Tuner は /api/tuners の要素。
-type Tuner struct {
-	Index int    `json:"index"`
-	Name  string `json:"name"`
-	// Types は、このチューナーが受信できるチャンネル種別。1 本で複数の種別を受信できる機器もある (設計書 3.6)。
+// tuner は /api/tuners の要素。
+type tuner struct {
+	Index       int          `json:"index"`
+	Name        string       `json:"name"`
 	Types       []string     `json:"types"`
-	Users       []*TunerUser `json:"users"`
+	Users       []*tunerUser `json:"users"`
 	IsAvailable bool         `json:"isAvailable"`
 	IsRemote    bool         `json:"isRemote"`
 	IsFree      bool         `json:"isFree"`
@@ -107,8 +98,8 @@ type Tuner struct {
 	IsFault     bool         `json:"isFault"`
 }
 
-// TunerUser は、チューナーを使っている利用者。
-type TunerUser struct {
+// tunerUser は、チューナーを使っている利用者。
+type tunerUser struct {
 	ID       string `json:"id"`
 	Priority int    `json:"priority"`
 	Agent    string `json:"agent,omitempty"`
@@ -122,18 +113,114 @@ type Version struct {
 	Server string `json:"server,omitempty"`
 }
 
-// Event は、チューナーサーバーから届いたイベント。
+// RawEvent は、チューナーサーバーから届いたイベントの、解釈する前の形。
 //
 // Mirakurun と Mahiron のイベントは、Resource が program、service、tuner のどれかで、
 // Type が create、update、remove のどれかになる。
 // mirakc のイベントは、SSE のイベント名 (例: epg.programs-updated) を最初の "." で分け、
 // Resource を epg、Type を programs-updated のようにする。mirakc のイベントには時刻がないので、Time はゼロ値になる。
-//
-// Mirakurun のイベントは取りこぼしや遅れがあるので、データの正しさは全量の取得で保証する (設計書 3.3)。
-type Event struct {
+type RawEvent struct {
 	Resource string
 	Type     string
 	// Data はイベントの中身。Resource と Type によって形が変わるので、受け取った JSON のまま持つ。
 	Data json.RawMessage
 	Time time.Time
+}
+
+func (c *channel) toTunerServer() *tunerserver.Channel {
+	return &tunerserver.Channel{Type: c.Type, Channel: c.Channel, Name: c.Name, Services: convert(c.Services, (*service).toTunerServer)}
+}
+
+func (s *service) toTunerServer() *tunerserver.Service {
+	var ref *tunerserver.ChannelRef
+	if s.Channel != nil {
+		ref = &tunerserver.ChannelRef{Type: s.Channel.Type, Channel: s.Channel.Channel}
+	}
+
+	return &tunerserver.Service{
+		ID:                 s.ID,
+		ServiceID:          s.ServiceID,
+		NetworkID:          s.NetworkID,
+		Name:               s.Name,
+		Type:               s.Type,
+		LogoID:             s.LogoID,
+		RemoteControlKeyID: s.RemoteControlKeyID,
+		Channel:            ref,
+	}
+}
+
+// toTunerServer は、番組を変換する。p が nil なら nil を返す。
+func (p *program) toTunerServer() *tunerserver.Program {
+	if p == nil {
+		return nil
+	}
+	var v *tunerserver.Video
+	if p.Video != nil {
+		v = &tunerserver.Video{Resolution: p.Video.Resolution}
+	}
+	var s *tunerserver.Series
+	if p.Series != nil {
+		s = &tunerserver.Series{
+			ID:          p.Series.ID,
+			Repeat:      p.Series.Repeat,
+			Episode:     p.Series.Episode,
+			LastEpisode: p.Series.LastEpisode,
+			Name:        p.Series.Name,
+		}
+	}
+
+	return &tunerserver.Program{
+		ID:           p.ID,
+		EventID:      p.EventID,
+		ServiceID:    p.ServiceID,
+		NetworkID:    p.NetworkID,
+		StartAt:      p.StartAt,
+		Duration:     p.Duration,
+		IsFree:       p.IsFree,
+		Name:         p.Name,
+		Description:  p.Description,
+		Genres:       p.Genres,
+		Extended:     p.Extended,
+		RelatedItems: p.RelatedItems,
+		Audios:       p.Audios,
+		Video:        v,
+		Series:       s,
+	}
+}
+
+func (o *onAirProgram) toTunerServer() *tunerserver.OnAirProgram {
+	return &tunerserver.OnAirProgram{ServiceID: o.ServiceID, Current: o.Current.toTunerServer(), Next: o.Next.toTunerServer()}
+}
+
+func (t *tuner) toTunerServer() *tunerserver.Tuner {
+	return &tunerserver.Tuner{
+		Index:       t.Index,
+		Name:        t.Name,
+		Types:       t.Types,
+		Users:       convert(t.Users, (*tunerUser).toTunerServer),
+		IsAvailable: t.IsAvailable,
+		IsRemote:    t.IsRemote,
+		IsFree:      t.IsFree,
+		IsUsing:     t.IsUsing,
+		IsFault:     t.IsFault,
+	}
+}
+
+func (u *tunerUser) toTunerServer() *tunerserver.TunerUser {
+	return &tunerserver.TunerUser{ID: u.ID, Priority: u.Priority, Agent: u.Agent}
+}
+
+// convert は、JSON の配列の要素を変換する。JSON の null の要素は、変換せずに nil のまま残す。
+func convert[T any, U any](items []*T, f func(*T) *U) []*U {
+	converted := make([]*U, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			converted = append(converted, nil)
+
+			continue
+		}
+		converted = append(converted, f(item))
+	}
+
+	return converted
 }

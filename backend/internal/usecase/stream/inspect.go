@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
@@ -22,12 +22,12 @@ const (
 // ErrInspectionInterrupted は、調べる長さより前に、チャンネルのストリームが終わったときのエラー。
 var ErrInspectionInterrupted = errors.New("the channel stream ended before the inspection finished")
 
-// ChannelOpener は、チャンネルのストリームを開く。*mirakurun.Client が満たす。
+// ChannelOpener は、チャンネルのストリームを開く。tunerserver.Client が満たす。
 type ChannelOpener interface {
-	OpenChannelStream(ctx context.Context, channelType, channel string, opts *mirakurun.StreamOptions) (io.ReadCloser, error)
+	OpenChannelStream(ctx context.Context, channelType, channel string, opts *tunerserver.StreamOptions) (io.ReadCloser, error)
 }
 
-var _ ChannelOpener = new(mirakurun.Client)
+var _ ChannelOpener = tunerserver.Client(nil)
 
 // InspectedStream は、調べた TS の、PID 1 つの様子。
 type InspectedStream struct {
@@ -79,7 +79,7 @@ func (i *ChannelInspector) Inspect(ctx context.Context, channelType, channel str
 	if i.opener == nil {
 		return nil, ErrNoTuner
 	}
-	upstream, err := i.opener.OpenChannelStream(ctx, channelType, channel, &mirakurun.StreamOptions{Decode: true, Priority: inspectPriority})
+	upstream, err := i.opener.OpenChannelStream(ctx, channelType, channel, &tunerserver.StreamOptions{Decode: true, Priority: inspectPriority})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the channel stream: %w", err)
 	}

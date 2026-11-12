@@ -3,7 +3,6 @@ package mirakurun
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 )
@@ -75,20 +75,62 @@ type Client struct {
 	detectedAt time.Time
 }
 
+var _ tunerserver.Client = new(Client)
+
 // APIError は、チューナーサーバーが 2xx 以外の状態を返したことを表す。
-// サービスストリームを開くときの 503 はチューナーを確保できなかったことを表すので、呼び出し側は再試行できる。
+// errors.Is で tunerserver.ErrRefused に当たる。呼び出した API と状態によっては、
+// tunerserver.ErrTunerUnavailable のような、状態の意味を表す sentinel にも当たる。
 type APIError struct {
 	Method     string
 	URL        string
 	StatusCode int
 	// Reason は、Mirakurun のエラー応答の reason。読めなければ本文の先頭をそのまま持つ。
 	Reason string
+	// cause は、状態の意味を表す tunerserver の sentinel。当たるものがなければ nil。
+	cause error
 }
 
 var _ error = new(APIError)
 
 func (e *APIError) Error() string {
 	return fmt.Sprintf("tuner server responded %d to %s %s: %s", e.StatusCode, e.Method, e.URL, e.Reason)
+}
+
+// Unwrap は、状態の意味を表す sentinel を返す。当たるものがなければ tunerserver.ErrRefused を返す。
+// tunerserver の sentinel は、どれも tunerserver.ErrRefused に当たる。
+func (e *APIError) Unwrap() error {
+	if e.cause == nil {
+		return tunerserver.ErrRefused
+	}
+
+	return e.cause
+}
+
+// causeOf は、API ごとに、状態を tunerserver の sentinel に読み替える。当たるものがなければ nil を返す。
+type causeOf func(status int) error
+
+// streamCause は、ストリームを開くときの状態の意味を返す。503 はチューナーを確保できなかったこと、404 はサービスかチャンネルがないこと。
+func streamCause(status int) error {
+	switch status {
+	case http.StatusServiceUnavailable:
+		return tunerserver.ErrTunerUnavailable
+	case http.StatusNotFound:
+		return tunerserver.ErrNotFound
+	default:
+		return nil
+	}
+}
+
+// logoCause は、ロゴを取るときの状態の意味を返す。Mirakurun は、ロゴをまだ受信していなければ 503 を返す。
+func logoCause(status int) error {
+	switch status {
+	case http.StatusServiceUnavailable:
+		return tunerserver.ErrLogoUnavailable
+	case http.StatusNotFound:
+		return tunerserver.ErrNotFound
+	default:
+		return nil
+	}
 }
 
 // New は Client を作る。
@@ -189,34 +231,27 @@ func (c *Client) ServerDate(ctx context.Context) (time.Time, error) {
 }
 
 // Channels は /api/channels を取得する。
-func (c *Client) Channels(ctx context.Context) ([]*Channel, error) {
-	channels := []*Channel{}
+func (c *Client) Channels(ctx context.Context) ([]*tunerserver.Channel, error) {
+	channels := []*channel{}
 	if err := c.getJSON(ctx, "api/channels", nil, &channels); err != nil {
 		return nil, err
 	}
 
-	return channels, nil
+	return convert(channels, (*channel).toTunerServer), nil
 }
 
 // Services は /api/services を取得する。
-func (c *Client) Services(ctx context.Context) ([]*Service, error) {
-	services := []*Service{}
+func (c *Client) Services(ctx context.Context) ([]*tunerserver.Service, error) {
+	services := []*service{}
 	if err := c.getJSON(ctx, "api/services", nil, &services); err != nil {
 		return nil, err
 	}
 
-	return services, nil
-}
-
-// ProgramsQuery は /api/programs の絞り込みの条件。0 の項目では絞り込まない。
-type ProgramsQuery struct {
-	NetworkID int
-	ServiceID int
-	EventID   int
+	return convert(services, (*service).toTunerServer), nil
 }
 
 // Programs は /api/programs を取得する。query が nil なら全件を取得する。
-func (c *Client) Programs(ctx context.Context, query *ProgramsQuery) ([]*Program, error) {
+func (c *Client) Programs(ctx context.Context, query *tunerserver.ProgramsQuery) ([]*tunerserver.Program, error) {
 	values := url.Values{}
 	if query != nil {
 		for key, v := range map[string]int{"networkId": query.NetworkID, "serviceId": query.ServiceID, "eventId": query.EventID} {
@@ -226,70 +261,52 @@ func (c *Client) Programs(ctx context.Context, query *ProgramsQuery) ([]*Program
 		}
 	}
 
-	programs := []*Program{}
+	programs := []*program{}
 	if err := c.getJSON(ctx, "api/programs", values, &programs); err != nil {
 		return nil, err
 	}
 
-	return programs, nil
-}
-
-// OnAirProgram は、mirakc の /api/onair が返す、サービスで放送中の番組と次の番組。
-// /api/programs と違い、EIT[schedule] ではなく EIT[p/f] から作るので、延長や繰り上げがすぐに反映される。
-type OnAirProgram struct {
-	// ServiceID は Mirakurun のサービス ID (networkId × 100000 + serviceId)。
-	ServiceID int64 `json:"serviceId"`
-	// Current は放送中の番組。放送していなければ nil。
-	Current *Program `json:"current"`
-	// Next は次の番組。なければ nil。
-	Next *Program `json:"next"`
+	return convert(programs, (*program).toTunerServer), nil
 }
 
 // OnAirPrograms は、mirakc の /api/onair を取得する (設計書 5.1)。
+// /api/programs と違い、EIT[schedule] ではなく EIT[p/f] から作るので、延長や繰り上げがすぐに反映される。
 // /api/onair を持たないサーバー (Mirakurun と Mahiron) では、取得せずに空のスライスを返す。
-func (c *Client) OnAirPrograms(ctx context.Context) ([]*OnAirProgram, error) {
+func (c *Client) OnAirPrograms(ctx context.Context) ([]*tunerserver.OnAirProgram, error) {
 	server, err := c.Server(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !server.OnAir {
-		return []*OnAirProgram{}, nil
+		return []*tunerserver.OnAirProgram{}, nil
 	}
 
-	programs := []*OnAirProgram{}
+	programs := []*onAirProgram{}
 	if err := c.getJSON(ctx, "api/onair", nil, &programs); err != nil {
 		return nil, err
 	}
 
-	return programs, nil
+	return convert(programs, (*onAirProgram).toTunerServer), nil
 }
 
 // Tuners は /api/tuners を取得する。
-func (c *Client) Tuners(ctx context.Context) ([]*Tuner, error) {
-	tuners := []*Tuner{}
+func (c *Client) Tuners(ctx context.Context) ([]*tunerserver.Tuner, error) {
+	tuners := []*tuner{}
 	if err := c.getJSON(ctx, "api/tuners", nil, &tuners); err != nil {
 		return nil, err
 	}
 
-	return tuners, nil
-}
-
-// StreamOptions は、サービスストリームを開くときの設定。
-type StreamOptions struct {
-	// Decode が true なら、チューナーサーバーにスクランブルを解除させる。
-	Decode bool
-	// Priority はチューナーの優先度。チューナーが足りないとき、優先度の低い利用者からチューナーを奪う。
-	// 負の値なら、他の利用者からチューナーを奪わない。
-	Priority int
+	return convert(tuners, (*tuner).toTunerServer), nil
 }
 
 // OpenServiceStream は、サービス ID (networkId × 100000 + serviceId) のストリームを開く。
 // 返す io.ReadCloser は、読み終えたら必ず閉じる。ctx が終わると、ストリームも閉じる。
 // opts が nil なら、スクランブルを解除せず、優先度 0 で開く。
-// チューナーを確保できなければ、StatusCode が 503 の *APIError を返す。
-func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *StreamOptions) (io.ReadCloser, error) {
+// チューナーを確保できなければ (503)、tunerserver.ErrTunerUnavailable に当たる *APIError を返す。
+// サービスがなければ (404)、tunerserver.ErrNotFound に当たる *APIError を返す。
+func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if opts == nil {
-		opts = &StreamOptions{Decode: false, Priority: 0}
+		opts = &tunerserver.StreamOptions{Decode: false, Priority: 0}
 	}
 	values := url.Values{}
 	if opts.Decode {
@@ -301,15 +318,15 @@ func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *S
 	}
 	req.Header.Set(PriorityHeader, strconv.Itoa(opts.Priority))
 
-	return c.openStream(req, c.idleTimeout)
+	return c.openStream(req, c.idleTimeout, streamCause)
 }
 
 // OpenChannelStream は、チャンネル種別 channelType (GR、BS など) のチャンネル channel のストリームを、
 // そのチャンネルのすべてのサービスを含んだまま開く (#830)。返す io.ReadCloser は、読み終えたら必ず閉じる。
-// opts が nil なら、スクランブルを解除せず、優先度 0 で開く。チューナーを確保できなければ、StatusCode が 503 の *APIError を返す。
-func (c *Client) OpenChannelStream(ctx context.Context, channelType, channel string, opts *StreamOptions) (io.ReadCloser, error) {
+// opts が nil なら、スクランブルを解除せず、優先度 0 で開く。エラーは OpenServiceStream と同じく返す。
+func (c *Client) OpenChannelStream(ctx context.Context, channelType, channel string, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if opts == nil {
-		opts = &StreamOptions{Decode: false, Priority: 0}
+		opts = &tunerserver.StreamOptions{Decode: false, Priority: 0}
 	}
 	values := url.Values{}
 	if opts.Decode {
@@ -321,11 +338,12 @@ func (c *Client) OpenChannelStream(ctx context.Context, channelType, channel str
 	}
 	req.Header.Set(PriorityHeader, strconv.Itoa(opts.Priority))
 
-	return c.openStream(req, c.idleTimeout)
+	return c.openStream(req, c.idleTimeout, streamCause)
 }
 
 // ServiceLogo は、サービス ID (networkId × 100000 + serviceId) のロゴの画像を返す。Mirakurun 互換のサーバーは PNG を返す。
-// サービスがなければ StatusCode が 404、ロゴをまだ受信していなければ 503 の *APIError を返す。
+// サービスがなければ (404) tunerserver.ErrNotFound に、ロゴをまだ受信していなければ (503) tunerserver.ErrLogoUnavailable に当たる
+// *APIError を返す。
 func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.requestTimeout)
 	defer cancel()
@@ -340,7 +358,7 @@ func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, erro
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, logoCause); err != nil {
 		return nil, err
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxLogoSize+1))
@@ -355,30 +373,31 @@ func (c *Client) ServiceLogo(ctx context.Context, serviceID int64) ([]byte, erro
 }
 
 // openStream は、ストリームのリクエストを送り、2xx なら本文を返す。
-// 本文は、データが idleTimeout の間届かなければ閉じ、ErrStreamStalled を返す。接続を保ったまま送らなくなったことに気づくため (#537)。
+// 本文は、データが idleTimeout の間届かなければ閉じ、tunerserver.ErrStreamStalled を返す。接続を保ったまま送らなくなったことに気づくため (#537)。
 // idleTimeout が 0 なら見張らない。イベントストリームは、変化がなければ何分でも黙るので、黙っても止まったとはみなせない (#954)。
-// 応答の頭が openTimeout までに届かなければ、要求をやめて ErrStreamOpenTimeout を返す (#412)。
+// 応答の頭が openTimeout までに届かなければ、要求をやめて tunerserver.ErrStreamOpenTimeout を返す (#412)。
 // ストリームは何時間も続くので、要求全体には期限を付けず、応答の頭を待つ間だけ見張る。
-func (c *Client) openStream(req *http.Request, idleTimeout time.Duration) (io.ReadCloser, error) {
+// 2xx 以外の応答は、cause で状態の意味を読み替えた *APIError にする。
+func (c *Client) openStream(req *http.Request, idleTimeout time.Duration, cause causeOf) (io.ReadCloser, error) {
 	ctx, cancel := context.WithCancelCause(req.Context())
-	timer := time.AfterFunc(c.openTimeout, func() { cancel(ErrStreamOpenTimeout) })
+	timer := time.AfterFunc(c.openTimeout, func() { cancel(tunerserver.ErrStreamOpenTimeout) })
 	resp, err := c.httpClient.Do(req.WithContext(ctx))
 	// Stop が false なら、上限が来て、要求をやめ始めている。やめる処理が走り終えるのを待たずに、時間切れとして扱う。
 	// 応答が届いた直後に上限が来たときも、ストリームは使えないので、届かなかったときと同じく扱う。
 	timedOut := !timer.Stop()
 	if timedOut && err == nil {
 		_ = resp.Body.Close()
-		err = ErrStreamOpenTimeout
+		err = tunerserver.ErrStreamOpenTimeout
 	}
 	if err != nil {
 		cancel(nil)
 		if timedOut {
-			return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), ErrStreamOpenTimeout)
+			return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), tunerserver.ErrStreamOpenTimeout)
 		}
 
 		return nil, fmt.Errorf("failed to request %s %s: %w", req.Method, req.URL.Redacted(), err)
 	}
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, cause); err != nil {
 		_ = resp.Body.Close()
 		cancel(nil)
 
@@ -400,30 +419,14 @@ type Stream struct {
 	userID string
 }
 
-var _ io.ReadCloser = new(Stream)
+var (
+	_ io.ReadCloser                   = new(Stream)
+	_ tunerserver.TunerUserIdentifier = new(Stream)
+)
 
 // TunerUserID は、このストリームのチューナーの利用者の ID を返す。チューナーサーバーが返さなければ空 (#1467)。
 func (s *Stream) TunerUserID() string {
 	return s.userID
-}
-
-// TunerOf は、利用者の ID が userID のチューナーを返す。見つからなければ nil (#1467)。
-func TunerOf(tuners []*Tuner, userID string) *Tuner {
-	if userID == "" {
-		return nil
-	}
-	for _, tuner := range tuners {
-		if tuner == nil {
-			continue
-		}
-		for _, user := range tuner.Users {
-			if user != nil && user.ID == userID {
-				return tuner
-			}
-		}
-	}
-
-	return nil
 }
 
 // releasingBody は、閉じたときに、ストリームの要求の context を手放す本文。
@@ -464,7 +467,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, v any) 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if err := checkResponse(resp); err != nil {
+	if err := checkResponse(resp, nil); err != nil {
 		return nil, err
 	}
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
@@ -490,8 +493,8 @@ func (c *Client) newRequest(ctx context.Context, path string, query url.Values) 
 	return req, nil
 }
 
-// checkResponse は、2xx 以外の応答を *APIError にする。
-func checkResponse(resp *http.Response) error {
+// checkResponse は、2xx 以外の応答を *APIError にする。状態の意味は cause で読み替える。cause は nil でもよい。
+func checkResponse(resp *http.Response, cause causeOf) error {
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
 	}
@@ -505,17 +508,16 @@ func checkResponse(resp *http.Response) error {
 		reason = payload.Reason
 	}
 
-	return &APIError{
+	apiErr := &APIError{
 		Method:     resp.Request.Method,
 		URL:        resp.Request.URL.Redacted(),
 		StatusCode: resp.StatusCode,
 		Reason:     reason,
+		cause:      nil,
 	}
-}
+	if cause != nil {
+		apiErr.cause = cause(resp.StatusCode)
+	}
 
-// IsStatus は、err が status の *APIError かどうかを返す。
-func IsStatus(err error, status int) bool {
-	var apiErr *APIError
-
-	return errors.As(err, &apiErr) && apiErr.StatusCode == status
+	return apiErr
 }

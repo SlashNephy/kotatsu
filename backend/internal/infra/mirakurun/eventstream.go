@@ -38,7 +38,7 @@ type mirakurunEvent struct {
 
 // Next は次のイベントを返す。
 // ストリームがイベントの区切りで終わったら io.EOF を、イベントの途中で切れたら io.ErrUnexpectedEOF を返す。
-func (r *EventReader) Next() (*Event, error) {
+func (r *EventReader) Next() (*RawEvent, error) {
 	if !r.started {
 		b, err := r.skipSpaces()
 		if err != nil {
@@ -79,7 +79,7 @@ func (r *EventReader) Next() (*Event, error) {
 		return nil, fmt.Errorf("failed to decode an event: %w", err)
 	}
 
-	return &Event{
+	return &RawEvent{
 		Resource: event.Resource,
 		Type:     event.Type,
 		Data:     event.Data,

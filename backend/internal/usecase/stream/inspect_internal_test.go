@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
@@ -20,12 +20,12 @@ import (
 type fakeChannelOpener struct {
 	data    []byte
 	channel string
-	opts    *mirakurun.StreamOptions
+	opts    *tunerserver.StreamOptions
 	// endEarly は、TS を渡し終えたら、長さを待たずに終えるかどうか。チューナーを奪われたときの代わり。
 	endEarly bool
 }
 
-func (f *fakeChannelOpener) OpenChannelStream(_ context.Context, channelType, channel string, opts *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (f *fakeChannelOpener) OpenChannelStream(_ context.Context, channelType, channel string, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	f.channel, f.opts = channelType+"/"+channel, opts
 	done := make(chan struct{})
 	if f.endEarly {
@@ -68,7 +68,7 @@ func TestChannelInspector(t *testing.T) {
 
 	// チューナーを奪わない優先度で、チャンネルのストリームを開く。
 	assert.Equal(t, "GR/27", opener.channel)
-	assert.Equal(t, &mirakurun.StreamOptions{Decode: true, Priority: inspectPriority}, opener.opts)
+	assert.Equal(t, &tunerserver.StreamOptions{Decode: true, Priority: inspectPriority}, opener.opts)
 	require.NotNil(t, got.TransportStreamID)
 	require.Len(t, got.Programs, 1)
 	kinds := make([]string, 0, len(got.Programs[0].Streams))

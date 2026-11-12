@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/lease"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -455,12 +456,12 @@ func TestSyncSkipsArchivablePrograms(t *testing.T) {
 type onAirUpstream struct {
 	*mirakurun.Client
 
-	onair []*mirakurun.OnAirProgram
+	onair []*tunerserver.OnAirProgram
 }
 
 var _ epg.Upstream = new(onAirUpstream)
 
-func (u *onAirUpstream) OnAirPrograms(context.Context) ([]*mirakurun.OnAirProgram, error) {
+func (u *onAirUpstream) OnAirPrograms(context.Context) ([]*tunerserver.OnAirProgram, error) {
 	return u.onair, nil
 }
 
@@ -470,18 +471,18 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 	t.Parallel()
 
 	// 放送中の eventId 3 が延長して終了時刻が未定になり、その後に、番組表にない eventId 900 が差し込まれた。
-	extended := &mirakurun.Program{
+	extended := &tunerserver.Program{
 		ID: programID(3), EventID: 3, ServiceID: grServiceID, NetworkID: grNetworkID,
 		StartAt: programStart(3).UnixMilli(), Duration: 1, IsFree: true, Name: "終了時刻が未定の中継",
 	}
-	inserted := &mirakurun.Program{
+	inserted := &tunerserver.Program{
 		ID: programID(900), EventID: 900, ServiceID: grServiceID, NetworkID: grNetworkID,
 		StartAt: programStart(4).UnixMilli(), Duration: int64(5 * time.Minute / time.Millisecond), IsFree: true, Name: "差し込まれた番組",
 	}
 	// 同期しないサービス (別のチャンネル) の放送中の番組は、SyncServices では反映しない。
 	// 同じチャンネルのサービスは、イベント共有を補うためにまとめて突き合わせるので、別のチャンネルにする (#1024)。
 	otherService := faketuner.ServiceItemID(grNetworkID+1, 0x0408)
-	other := &mirakurun.Program{
+	other := &tunerserver.Program{
 		ID: faketuner.ProgramID(grNetworkID+1, 0x0408, 901), EventID: 901, ServiceID: 0x0408, NetworkID: grNetworkID + 1,
 		StartAt: programStart(3).UnixMilli(), Duration: 1, IsFree: true, Name: "ほかのサービスの番組",
 	}
@@ -519,7 +520,7 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 			_, err := f.reconciler.SyncAll(t.Context())
 			require.NoError(t, err)
 
-			upstream := &onAirUpstream{Client: f.client, onair: []*mirakurun.OnAirProgram{
+			upstream := &onAirUpstream{Client: f.client, onair: []*tunerserver.OnAirProgram{
 				{ServiceID: serviceID(), Current: extended, Next: inserted},
 				{ServiceID: otherService, Current: other, Next: nil},
 			}}
@@ -536,12 +537,12 @@ func TestSyncReflectsOnAirPrograms(t *testing.T) {
 type dataServiceUpstream struct {
 	*mirakurun.Client
 
-	data *mirakurun.Service
+	data *tunerserver.Service
 }
 
 var _ epg.Upstream = new(dataServiceUpstream)
 
-func (u *dataServiceUpstream) Services(ctx context.Context) ([]*mirakurun.Service, error) {
+func (u *dataServiceUpstream) Services(ctx context.Context) ([]*tunerserver.Service, error) {
 	services, err := u.Client.Services(ctx)
 	if err != nil {
 		return nil, err
@@ -559,7 +560,7 @@ func TestSyncSkipsNonMediaServices(t *testing.T) {
 	services, err := f.client.Services(t.Context())
 	require.NoError(t, err)
 	dataServiceID := grServiceID + 0x40
-	data := &mirakurun.Service{
+	data := &tunerserver.Service{
 		ID: faketuner.ServiceItemID(grNetworkID, dataServiceID), ServiceID: dataServiceID, NetworkID: grNetworkID,
 		Name: "データ放送", Type: 0xC0, LogoID: nil, RemoteControlKeyID: nil, Channel: services[0].Channel,
 	}
@@ -773,12 +774,12 @@ func TestSyncDoesNotInferSharedEventsAcrossChannels(t *testing.T) {
 	f := newFixture(t, nil)
 	services, err := f.client.Services(t.Context())
 	require.NoError(t, err)
-	main := services[slices.IndexFunc(services, func(s *mirakurun.Service) bool { return s.ID == serviceID() })]
+	main := services[slices.IndexFunc(services, func(s *tunerserver.Service) bool { return s.ID == serviceID() })]
 	relayServiceID := grServiceID + 2
-	relay := &mirakurun.Service{
+	relay := &tunerserver.Service{
 		ID: faketuner.ServiceItemID(grNetworkID, relayServiceID), ServiceID: relayServiceID, NetworkID: grNetworkID,
 		Name: "中継局", Type: main.Type, LogoID: nil, RemoteControlKeyID: nil,
-		Channel: &mirakurun.ChannelRef{Type: main.Channel.Type, Channel: "28"},
+		Channel: &tunerserver.ChannelRef{Type: main.Channel.Type, Channel: "28"},
 	}
 	start := programStart(6).Add(10 * time.Minute)
 	for _, p := range []struct{ networkID, serviceID, eventID int }{
@@ -816,8 +817,8 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	f := newFixture(t, nil)
 	services, err := f.client.Services(t.Context())
 	require.NoError(t, err)
-	bs := services[slices.IndexFunc(services, func(s *mirakurun.Service) bool { return s.NetworkID == bsNetworkID })]
-	other := &mirakurun.Service{
+	bs := services[slices.IndexFunc(services, func(s *tunerserver.Service) bool { return s.NetworkID == bsNetworkID })]
+	other := &tunerserver.Service{
 		ID: faketuner.ServiceItemID(bsNetworkID, 102), ServiceID: 102, NetworkID: bsNetworkID,
 		Name: "別の放送局", Type: bs.Type, LogoID: nil, RemoteControlKeyID: nil, Channel: bs.Channel,
 	}

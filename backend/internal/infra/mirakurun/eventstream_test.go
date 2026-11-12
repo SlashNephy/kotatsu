@@ -11,13 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 )
 
 // readAll は、エラーが出るまでイベントを読み、読めたイベントと最後のエラーを返す。
-func readAll(next func() (*mirakurun.Event, error)) ([]*mirakurun.Event, error) {
-	events := []*mirakurun.Event{}
+func readAll(next func() (*mirakurun.RawEvent, error)) ([]*mirakurun.RawEvent, error) {
+	events := []*mirakurun.RawEvent{}
 	for {
 		event, err := next()
 		if err != nil {
@@ -172,10 +173,10 @@ func TestOpenEventsMirakurun(t *testing.T) {
 	t.Parallel()
 
 	fake, rec, client := newFakeTuner(t)
-	stream, err := client.OpenEvents(t.Context(), &mirakurun.EventsQuery{Resource: resourceProgram, Type: ""})
+	stream, err := client.OpenEvents(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = stream.Close() })
-	assert.Equal(t, resourceProgram, rec.last("/api/events/stream").URL.Query().Get("resource"))
+	require.NotNil(t, rec.last("/api/events/stream"))
 
 	program := &faketuner.Program{
 		ID:        faketuner.ProgramID(0x7FE0, 0x0400, 100),
@@ -188,14 +189,14 @@ func TestOpenEventsMirakurun(t *testing.T) {
 		Name:      "追加した番組",
 	}
 	// 購読の登録より前に送ったイベントは届かないので、届くまで送り直す。
-	events := make(chan *mirakurun.Event, 1)
+	events := make(chan *tunerserver.Event, 1)
 	go func() {
 		event, err := stream.Next()
 		if err == nil {
 			events <- event
 		}
 	}()
-	var event *mirakurun.Event
+	var event *tunerserver.Event
 	require.Eventually(t, func() bool {
 		fake.AddProgram(program)
 		select {
@@ -206,10 +207,89 @@ func TestOpenEventsMirakurun(t *testing.T) {
 		}
 	}, 5*time.Second, 10*time.Millisecond)
 
-	assert.Equal(t, resourceProgram, event.Resource)
-	assert.Equal(t, "create", event.Type)
-	var data mirakurun.Program
-	require.NoError(t, json.Unmarshal(event.Data, &data))
-	assert.Equal(t, "追加した番組", data.Name)
-	assert.Equal(t, program.ID, data.ID)
+	// program.create は、番組が作られたことと、番組のサービスに読み替える。
+	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventProgramCreated, ServiceID: faketuner.ServiceItemID(0x7FE0, 0x0400)}, event)
+}
+
+// TestToEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの知らせに読み替えることを確かめる。
+func TestToEvent(t *testing.T) {
+	t.Parallel()
+
+	const service = 32736*100_000 + 1024
+	tests := []struct {
+		name   string
+		raw    *mirakurun.RawEvent
+		want   *tunerserver.Event
+		wantOK bool
+	}{
+		{
+			name:   "program created on Mirakurun",
+			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: "create", Data: json.RawMessage(`{"id":327360102400005,"networkId":32736,"serviceId":1024,"eventId":5}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventProgramCreated, ServiceID: service},
+			wantOK: true,
+		},
+		{
+			name:   "program removed on Mirakurun has only its id",
+			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: "remove", Data: json.RawMessage(`{"id":327360102400005}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventProgramRemoved, ServiceID: service},
+			wantOK: true,
+		},
+		{
+			name:   "service number without network falls back to the program id",
+			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: typeUpdate, Data: json.RawMessage(`{"id":327360102400005,"serviceId":1024}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+			wantOK: true,
+		},
+		{
+			name:   "programs updated on mirakc",
+			raw:    &mirakurun.RawEvent{Resource: resourceEPG, Type: typeProgramsUpdated, Data: json.RawMessage(`{"serviceId":3273601024}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+			wantOK: true,
+		},
+		{
+			name:   "on-air program changed on mirakc",
+			raw:    &mirakurun.RawEvent{Resource: "onair", Type: "program-changed", Data: json.RawMessage(`{"serviceId":3273601024}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+			wantOK: true,
+		},
+		{
+			name:   "service changed",
+			raw:    &mirakurun.RawEvent{Resource: "service", Type: typeUpdate, Data: json.RawMessage(`{"id":3273601024}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventServiceChanged, ServiceID: 0},
+			wantOK: true,
+		},
+		{
+			name:   "tuner status changed on mirakc",
+			raw:    &mirakurun.RawEvent{Resource: resourceTuner, Type: typeStatusChanged, Data: json.RawMessage(`{"tunerIndex":0}`)},
+			want:   &tunerserver.Event{Type: tunerserver.EventTunerChanged, ServiceID: 0},
+			wantOK: true,
+		},
+		{
+			name:   "broken program data is ignored",
+			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: "create", Data: json.RawMessage(`[`)},
+			want:   nil,
+			wantOK: false,
+		},
+		{
+			name:   "program without service is ignored",
+			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: typeUpdate, Data: json.RawMessage(`{"serviceId":1024}`)},
+			want:   nil,
+			wantOK: false,
+		},
+		{
+			name:   "unused events are ignored",
+			raw:    &mirakurun.RawEvent{Resource: "recording", Type: "started", Data: json.RawMessage(`{}`)},
+			want:   nil,
+			wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			event, ok := mirakurun.ToEvent(tt.raw)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, event)
+		})
+	}
 }

@@ -1,10 +1,11 @@
 package mirakurun
 
 import (
-	"errors"
 	"io"
 	"sync/atomic"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
 // DefaultStreamIdleTimeout は、放送のストリームのデータが届かないまま待つ時間の上限 (#537)。
@@ -15,14 +16,8 @@ const DefaultStreamIdleTimeout = 10 * time.Second
 // チューナーサーバーは、チューナーの空きを待つ間、応答を返さないことがある。待ち続けると、予定の終わりを過ぎても録画を抜けない。
 const DefaultStreamOpenTimeout = 30 * time.Second
 
-// ErrStreamStalled は、ストリームが、接続を保ったまま、データを送らなくなったこと。
-var ErrStreamStalled = errors.New("the tuner server stopped sending the stream")
-
-// ErrStreamOpenTimeout は、ストリームを開くときに、チューナーサーバーが上限の時間までに応答しなかったこと。
-var ErrStreamOpenTimeout = errors.New("the tuner server did not respond to the stream request in time")
-
 // idleReader は、データが timeout の間届かなければ、ストリームを閉じる。
-// 閉じると、止まっている Read も抜け、ErrStreamStalled を返す。録画は、ほかの切断と同じく開き直す (設計書 5.2)。
+// 閉じると、止まっている Read も抜け、tunerserver.ErrStreamStalled を返す。録画は、ほかの切断と同じく開き直す (設計書 5.2)。
 type idleReader struct {
 	body    io.ReadCloser
 	timeout time.Duration
@@ -51,7 +46,7 @@ func (r *idleReader) Read(p []byte) (int, error) {
 	}
 	if err != nil {
 		if r.stalled.Load() {
-			return n, ErrStreamStalled
+			return n, tunerserver.ErrStreamStalled
 		}
 		// 読み終えたか、ほかの理由で切れたら、見張るのをやめる。閉じるのが遅れても、止まったことにしない。
 		r.timer.Stop()

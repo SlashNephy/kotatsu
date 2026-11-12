@@ -1,69 +1,43 @@
 package epg_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
-)
-
-// resourceProgram、typeUpdate、typeCreate は、Mirakurun のイベントのリソースと種類。
-const (
-	resourceProgram = "program"
-	typeUpdate      = "update"
-	typeCreate      = "create"
 )
 
 func TestBatchEvents(t *testing.T) {
 	t.Parallel()
 
 	const service = 32736*epg.ServiceIDBase + 1024
+	const other = 32736*epg.ServiceIDBase + 1032
 	tests := []struct {
 		name         string
-		events       []*mirakurun.Event
+		events       []*tunerserver.Event
 		wantServices map[int64]struct{}
 		wantAll      bool
 	}{
 		{
-			name:         "program created on Mirakurun",
-			events:       []*mirakurun.Event{{Resource: resourceProgram, Type: typeCreate, Data: json.RawMessage(`{"id":327360102400005,"networkId":32736,"serviceId":1024,"eventId":5}`)}},
-			wantServices: map[int64]struct{}{service: {}},
-		},
-		{
-			name:         "program removed on Mirakurun has only its id",
-			events:       []*mirakurun.Event{{Resource: resourceProgram, Type: "remove", Data: json.RawMessage(`{"id":327360102400005}`)}},
-			wantServices: map[int64]struct{}{service: {}},
-		},
-		{
-			name:         "service number without network falls back to the program id",
-			events:       []*mirakurun.Event{{Resource: resourceProgram, Type: typeUpdate, Data: json.RawMessage(`{"id":327360102400005,"serviceId":1024}`)}},
-			wantServices: map[int64]struct{}{service: {}},
-		},
-		{
-			name:         "programs updated on mirakc",
-			events:       []*mirakurun.Event{{Resource: "epg", Type: "programs-updated", Data: json.RawMessage(`{"serviceId":3273601024}`)}},
-			wantServices: map[int64]struct{}{service: {}},
-		},
-		{
-			name:         "on-air program changed on mirakc",
-			events:       []*mirakurun.Event{{Resource: "onair", Type: "program-changed", Data: json.RawMessage(`{"serviceId":3273601024}`)}},
-			wantServices: map[int64]struct{}{service: {}},
+			name: "program events collect their services",
+			events: []*tunerserver.Event{
+				{Type: tunerserver.EventProgramCreated, ServiceID: service},
+				{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+				{Type: tunerserver.EventProgramRemoved, ServiceID: other},
+			},
+			wantServices: map[int64]struct{}{service: {}, other: {}},
 		},
 		{
 			name:         "service changed",
-			events:       []*mirakurun.Event{{Resource: "service", Type: typeUpdate, Data: json.RawMessage(`{"id":3273601024}`)}},
+			events:       []*tunerserver.Event{{Type: tunerserver.EventServiceChanged, ServiceID: 0}},
 			wantServices: map[int64]struct{}{},
 			wantAll:      true,
 		},
 		{
-			name: "tuner events and broken data are ignored",
-			events: []*mirakurun.Event{
-				{Resource: "tuner", Type: typeUpdate, Data: json.RawMessage(`{"index":0}`)},
-				{Resource: resourceProgram, Type: typeCreate, Data: json.RawMessage(`[`)},
-			},
+			name:         "tuner events do not sync programs",
+			events:       []*tunerserver.Event{{Type: tunerserver.EventTunerChanged, ServiceID: 0}},
 			wantServices: map[int64]struct{}{},
 		},
 	}

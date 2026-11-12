@@ -21,10 +21,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -107,27 +107,20 @@ const (
 	StateFailed              State = "failed"
 )
 
-// StreamOpener は、サービスのストリームを開く。*mirakurun.Client が満たす。
+// StreamOpener は、サービスのストリームを開く。tunerserver.Client が満たす。
 type StreamOpener interface {
-	OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error)
+	OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error)
 }
 
-var _ StreamOpener = new(mirakurun.Client)
+var _ StreamOpener = tunerserver.Client(nil)
 
 // TunerLister は、チューナーサーバーのチューナーの一覧を返す。StreamOpener が満たしていれば、
 // ストリームを受信しているチューナーを見つけ、セグメントに記録する (#1467)。
 type TunerLister interface {
-	Tuners(ctx context.Context) ([]*mirakurun.Tuner, error)
+	Tuners(ctx context.Context) ([]*tunerserver.Tuner, error)
 }
 
-var _ TunerLister = new(mirakurun.Client)
-
-// tunerUserIdentifier は、チューナーサーバーが返した、ストリームのチューナーの利用者の ID を持つストリーム (mirakurun.Stream)。
-type tunerUserIdentifier interface {
-	TunerUserID() string
-}
-
-var _ tunerUserIdentifier = new(mirakurun.Stream)
+var _ TunerLister = tunerserver.Client(nil)
 
 // tunerLookupTimeout は、ストリームを受信しているチューナーを探すのを待つ上限。録画を遅らせないよう、短くする。
 const tunerLookupTimeout = 2 * time.Second
@@ -347,7 +340,7 @@ var errInterruptedBeforeStart = errors.New("the stream was interrupted before th
 func (r *Recorder) openStream(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, reservation *sqlc.GetReservationForRecordingRow,
 ) (io.ReadCloser, *usedTuner, error) {
-	stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: assignment.Priority})
+	stream, err := r.tuner.OpenServiceStream(ctx, reservation.ServiceID, &tunerserver.StreamOptions{Decode: true, Priority: assignment.Priority})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -374,7 +367,7 @@ func (r *Recorder) openStream(
 // findTuner は、ストリームを受信しているチューナーを返す (#1467)。チューナーサーバーが返した利用者の ID を、チューナーの一覧の
 // 利用者と突き合わせる。見つけられなければ nil を返す。録画には要らないので、見つけられなくても録画は続ける。
 func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io.ReadCloser) *usedTuner {
-	identified, ok := stream.(tunerUserIdentifier)
+	identified, ok := stream.(tunerserver.TunerUserIdentifier)
 	if !ok || identified.TunerUserID() == "" {
 		return nil
 	}
@@ -390,7 +383,7 @@ func (r *Recorder) findTuner(ctx context.Context, logger *slog.Logger, stream io
 
 		return nil
 	}
-	tuner := mirakurun.TunerOf(tuners, identified.TunerUserID())
+	tuner := tunerserver.TunerOf(tuners, identified.TunerUserID())
 	if tuner == nil {
 		logger.WarnContext(ctx, "could not find the tuner of the stream", slog.String("tuner_user_id", identified.TunerUserID()))
 
@@ -2023,12 +2016,12 @@ func streamFailure(err error) FailureReason {
 		return FailureStreamInterrupted
 	}
 	// チューナーサーバーは、チューナーの空きを待つ間、応答を返さないことがある。つながってはいるので、チューナーが空いていないとみなす。
-	if errors.Is(err, mirakurun.ErrStreamOpenTimeout) {
+	if errors.Is(err, tunerserver.ErrStreamOpenTimeout) {
 		return FailureTunerUnavailable
 	}
-	// チューナーサーバーが応答したが、ストリームを渡さなかった。503 のほか、上流のチューナーにつなげない 500 などもある。
+	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りないほか、上流のチューナーにつなげないこともある。
 	// まだ一度も開いていないので、中断とはせず、チューナーを確保できなかったとみなす。
-	if _, ok := errors.AsType[*mirakurun.APIError](err); ok {
+	if errors.Is(err, tunerserver.ErrRefused) {
 		return FailureTunerUnavailable
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
@@ -98,7 +99,7 @@ func (f *fixture) streaming(t *testing.T) bool {
 	tuners, err := f.tuner.Tuners(t.Context())
 	require.NoError(t, err)
 
-	return slices.ContainsFunc(tuners, func(tuner *mirakurun.Tuner) bool { return len(tuner.Users) > 0 })
+	return slices.ContainsFunc(tuners, func(tuner *tunerserver.Tuner) bool { return len(tuner.Users) > 0 })
 }
 
 // reserve は、地上波の i 番目のサービスの、13:30 に始まる番組を予約し、チューナーを割り当てる。

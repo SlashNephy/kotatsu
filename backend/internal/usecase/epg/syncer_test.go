@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
@@ -63,7 +63,7 @@ func TestSyncerAppliesEvents(t *testing.T) {
 		args   []any
 	}{
 		{
-			name: typeCreate,
+			name: "create",
 			change: func(t *testing.T) {
 				t.Helper()
 				f.fake.AddProgram(&faketuner.Program{
@@ -131,7 +131,7 @@ type countingUpstream struct {
 	fullFetches atomic.Int32
 }
 
-func (u *countingUpstream) Programs(ctx context.Context, query *mirakurun.ProgramsQuery) ([]*mirakurun.Program, error) {
+func (u *countingUpstream) Programs(ctx context.Context, query *tunerserver.ProgramsQuery) ([]*tunerserver.Program, error) {
 	if query == nil {
 		u.fullFetches.Add(1)
 	}
@@ -145,7 +145,7 @@ type failingEvents struct {
 	calls []time.Time
 }
 
-func (e *failingEvents) OpenEvents(context.Context, *mirakurun.EventsQuery) (mirakurun.EventStream, error) {
+func (e *failingEvents) OpenEvents(context.Context) (tunerserver.EventStream, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.calls = append(e.calls, time.Now())
@@ -223,12 +223,12 @@ type flakyEvents struct {
 	failures atomic.Int32
 }
 
-func (e *flakyEvents) OpenEvents(ctx context.Context, query *mirakurun.EventsQuery) (mirakurun.EventStream, error) {
+func (e *flakyEvents) OpenEvents(ctx context.Context) (tunerserver.EventStream, error) {
 	if e.failures.Add(-1) >= 0 {
 		return nil, errors.New("connection refused")
 	}
 
-	return e.EventSource.OpenEvents(ctx, query)
+	return e.EventSource.OpenEvents(ctx)
 }
 
 // TestSyncerSyncsAllAfterReconnect は、接続できない状態から戻ったら、全量の突き合わせからやり直すことを確かめる (設計書 3.7)。

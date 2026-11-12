@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -119,7 +120,8 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")
 
-	var tuner *mirakurun.Client
+	// 設定していなければ、interface のまま nil にする。neko は nil と比べて、EPG の同期を止める。
+	var tuner tunerserver.Client
 	if deps.Config.Tuner.URL.Value() != "" {
 		var err error
 		if tuner, err = newTunerClient(deps); err != nil {
@@ -235,9 +237,10 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 	return nil
 }
 
-// newTunerClient は、設定したチューナーサーバーのクライアントを返す。
-func newTunerClient(deps *Deps) (*mirakurun.Client, error) {
-	return mirakurun.New(&mirakurun.Options{
+// newTunerClient は、設定したチューナーサーバーのクライアントを返す。チューナーサーバーの実装は、ここで設定から選ぶ。
+// 今は Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) だけに対応する (設計書 3.1)。
+func newTunerClient(deps *Deps) (tunerserver.Client, error) {
+	client, err := mirakurun.New(&mirakurun.Options{
 		URL:               deps.Config.Tuner.URL.Value(),
 		Username:          "",
 		Password:          "",
@@ -249,6 +252,12 @@ func newTunerClient(deps *Deps) (*mirakurun.Client, error) {
 		StreamOpenTimeout: 0,
 		Clock:             deps.Clock,
 	})
+	if err != nil {
+		// nil の *mirakurun.Client を interface に入れると nil と比べられなくなるので、interface のまま nil を返す。
+		return nil, err
+	}
+
+	return client, nil
 }
 
 // runMikan は、ctx が終わるまで、割り振りを取って録画する (設計書 1.5、5 章)。

@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
@@ -20,12 +20,12 @@ const (
 	defaultRatesInterval = time.Second
 )
 
-// ServiceOpener は、サービスのストリームを開く。*mirakurun.Client が満たす。
+// ServiceOpener は、サービスのストリームを開く。tunerserver.Client が満たす。
 type ServiceOpener interface {
-	OpenServiceStream(ctx context.Context, serviceID int64, opts *mirakurun.StreamOptions) (io.ReadCloser, error)
+	OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error)
 }
 
-var _ ServiceOpener = new(mirakurun.Client)
+var _ ServiceOpener = tunerserver.Client(nil)
 
 // KindBytes は、PID の種類ごとのバイト数。
 type KindBytes struct {
@@ -130,7 +130,7 @@ func (w *LiveRatesWatcher) Watch(ctx context.Context, serviceID int64) (<-chan *
 	if w.opener == nil {
 		return nil, ErrNoTuner
 	}
-	upstream, err := w.opener.OpenServiceStream(ctx, serviceID, &mirakurun.StreamOptions{Decode: true, Priority: ratesPriority})
+	upstream, err := w.opener.OpenServiceStream(ctx, serviceID, &tunerserver.StreamOptions{Decode: true, Priority: ratesPriority})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the service stream: %w", err)
 	}

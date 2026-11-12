@@ -17,10 +17,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -310,7 +310,7 @@ func (r *Recorder) deleted(ctx context.Context, assignment *recording.Assignment
 // recordStream は、サービスストリームを開き、切れるまでチャンクに書く。割り振りが消えて止めたなら true を返す。
 // 書くのをやめた理由のエラーも返す。
 func (r *Recorder) recordStream(ctx context.Context, logger *slog.Logger, assignment *recording.Assignment, state *sessionState) (bool, error) {
-	stream, err := r.tuner.OpenServiceStream(ctx, assignment.ServiceID, &mirakurun.StreamOptions{Decode: true, Priority: Priority})
+	stream, err := r.tuner.OpenServiceStream(ctx, assignment.ServiceID, &tunerserver.StreamOptions{Decode: true, Priority: Priority})
 	if err != nil {
 		if ctx.Err() == nil {
 			logger.WarnContext(ctx, "failed to open the service stream; retrying", slog.Any("error", err))

@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
@@ -32,15 +32,15 @@ const (
 	serviceIDBase = 100_000
 )
 
-// Upstream は、同期に使うチューナーサーバーの API。*mirakurun.Client が満たす。
+// Upstream は、同期に使うチューナーサーバーの API。tunerserver.Client が満たす。
 type Upstream interface {
-	Services(ctx context.Context) ([]*mirakurun.Service, error)
-	Programs(ctx context.Context, query *mirakurun.ProgramsQuery) ([]*mirakurun.Program, error)
+	Services(ctx context.Context) ([]*tunerserver.Service, error)
+	Programs(ctx context.Context, query *tunerserver.ProgramsQuery) ([]*tunerserver.Program, error)
 	// OnAirPrograms は、放送中と次の番組 (EIT[p/f]) を返す。持たないサーバーでは空を返す。
-	OnAirPrograms(ctx context.Context) ([]*mirakurun.OnAirProgram, error)
+	OnAirPrograms(ctx context.Context) ([]*tunerserver.OnAirProgram, error)
 }
 
-var _ Upstream = new(mirakurun.Client)
+var _ Upstream = tunerserver.Client(nil)
 
 // Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
 // リーダーでなくなっていればエラーを返し、トランザクションを捨てさせる (設計書 1.4)。
@@ -126,7 +126,7 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 
 // keepSilentServices は、上流が番組を 1 つも返さなかったサービスの番組を、消すものから除く (#518)。
 // チューナーサーバーが一時的に空の一覧を返すと、未来の番組と、そこから作ったルール予約が全部消えてしまう。
-func keepSilentServices(deletes []*program, upstream []*mirakurun.Program) []*program {
+func keepSilentServices(deletes []*program, upstream []*tunerserver.Program) []*program {
 	returned := map[int64]bool{}
 	for _, p := range upstream {
 		returned[fromUpstream(p).key().serviceID] = true
@@ -139,7 +139,7 @@ func keepSilentServices(deletes []*program, upstream []*mirakurun.Program) []*pr
 // DB に無いサービスは飛ばす。サービス自体は、全量の突き合わせで足す。
 func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Result, error) {
 	q := sqlc.New(r.pool)
-	upstreamPrograms := []*mirakurun.Program{}
+	upstreamPrograms := []*tunerserver.Program{}
 	currentPrograms := []sqlc.ListProgramsRow{}
 	synced := map[int64]bool{}
 	// イベントをまとめると同じサービスが何度も出てくるので、1 回ずつにする。
@@ -163,7 +163,7 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 		}
 		synced[serviceID] = true
 
-		programs, err := r.upstream.Programs(ctx, &mirakurun.ProgramsQuery{
+		programs, err := r.upstream.Programs(ctx, &tunerserver.ProgramsQuery{
 			NetworkID: int(serviceID / serviceIDBase),
 			ServiceID: int(serviceID % serviceIDBase),
 			EventID:   0,
@@ -193,13 +193,13 @@ func (r *Reconciler) SyncServices(ctx context.Context, serviceIDs []int64) (*Res
 	}
 	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
 
-	return r.apply(ctx, &serviceDiff{upserts: []*mirakurun.Service{}}, programs)
+	return r.apply(ctx, &serviceDiff{upserts: []*tunerserver.Service{}}, programs)
 }
 
 // withOnAir は、上流の番組に、放送中と次の番組 (EIT[p/f]) の内容を重ねる (設計書 5.1)。
 // mirakc の /api/programs は EIT[schedule] から作るので、延長や繰り上げは、番組表を取り直すまで反映されない。
 // 重ねるのは、services に含まれるサービスの番組だけにする。番組表にない番組 (差し込まれた番組) は足す。
-func (r *Reconciler) withOnAir(ctx context.Context, programs []*mirakurun.Program, services map[int64]bool) ([]*mirakurun.Program, error) {
+func (r *Reconciler) withOnAir(ctx context.Context, programs []*tunerserver.Program, services map[int64]bool) ([]*tunerserver.Program, error) {
 	if len(services) == 0 {
 		return programs, nil
 	}
@@ -211,7 +211,7 @@ func (r *Reconciler) withOnAir(ctx context.Context, programs []*mirakurun.Progra
 		return programs, nil
 	}
 
-	key := func(p *mirakurun.Program) programKey {
+	key := func(p *tunerserver.Program) programKey {
 		return programKey{serviceID: int64(p.NetworkID)*serviceIDBase + int64(p.ServiceID), eventID: int64(p.EventID)}
 	}
 	merged := slices.Clone(programs)
@@ -223,7 +223,7 @@ func (r *Reconciler) withOnAir(ctx context.Context, programs []*mirakurun.Progra
 		if !services[service.ServiceID] {
 			continue
 		}
-		for _, p := range []*mirakurun.Program{service.Current, service.Next} {
+		for _, p := range []*tunerserver.Program{service.Current, service.Next} {
 			if p == nil {
 				continue
 			}
@@ -303,16 +303,16 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 
 // serviceDiff は、書き込むサービス。
 type serviceDiff struct {
-	upserts []*mirakurun.Service
+	upserts []*tunerserver.Service
 }
 
-func diffServices(upstream []*mirakurun.Service, current []sqlc.ListServicesRow) *serviceDiff {
+func diffServices(upstream []*tunerserver.Service, current []sqlc.ListServicesRow) *serviceDiff {
 	byID := map[int64]sqlc.ListServicesRow{}
 	for _, row := range current {
 		byID[row.ID] = row
 	}
 
-	diff := &serviceDiff{upserts: []*mirakurun.Service{}}
+	diff := &serviceDiff{upserts: []*tunerserver.Service{}}
 	for _, service := range upstream {
 		// 映像も音声も流さないサービスは、取り込まない。
 		if service.Channel == nil || !domain.IsMediaService(int64(service.Type)) {
@@ -330,7 +330,7 @@ func diffServices(upstream []*mirakurun.Service, current []sqlc.ListServicesRow)
 }
 
 // serviceRow は、上流のサービスを DB の行と比べられる形にする。
-func serviceRow(service *mirakurun.Service) sqlc.ListServicesRow {
+func serviceRow(service *tunerserver.Service) sqlc.ListServicesRow {
 	return sqlc.ListServicesRow{
 		ID:                 service.ID,
 		NetworkID:          int64(service.NetworkID),
@@ -344,7 +344,7 @@ func serviceRow(service *mirakurun.Service) sqlc.ListServicesRow {
 	}
 }
 
-func writeServices(ctx context.Context, q *sqlc.Queries, services []*mirakurun.Service, now time.Time) error {
+func writeServices(ctx context.Context, q *sqlc.Queries, services []*tunerserver.Service, now time.Time) error {
 	for _, service := range services {
 		channelType := service.Channel.Type
 		defaults := defaultChannelType(channelType)
@@ -413,7 +413,7 @@ func (p *program) key() programKey {
 
 // fromUpstream は、上流の番組を program にする。
 // 終了時刻が未定のとき、Mirakurun は長さを 1 ミリ秒に、Mahiron は 0 にして返す (#23 の実測)。
-func fromUpstream(p *mirakurun.Program) *program {
+func fromUpstream(p *tunerserver.Program) *program {
 	start := p.Start()
 	extended := p.Extended
 	if extended == nil {
@@ -468,7 +468,7 @@ func nullBool(value *bool) pgtype.Bool {
 
 // seriesOf は、シリーズの記述子から、話数と再放送かどうかを返す (#1311)。
 // 局によっては、記述子を送っても、どの値も 0 にしている (2026 年 11 月に確かめた地上波の 1 局)。話数が 0 なら、どちらも nil にする。
-func seriesOf(series *mirakurun.Series) (*int32, *bool) {
+func seriesOf(series *tunerserver.Series) (*int32, *bool) {
 	if series == nil || series.Episode <= 0 || series.Episode > math.MaxInt32 {
 		return nil, nil
 	}
@@ -540,7 +540,7 @@ func (p *program) archivable(cutoff time.Time) bool {
 // アーカイブへ移す時期を過ぎた番組 (cutoff より前に終わった番組) は、突き合わせない。
 // 上流 (Mahiron など) は終わった番組をしばらく返し続けるので、足すと、移したそばから programs に戻ってしまう。
 // DB に残っている番組も、消さずに Archiver に移させる。
-func diffPrograms(upstream []*mirakurun.Program, current []sqlc.ListProgramsRow, cutoff time.Time) (*programDiff, error) {
+func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRow, cutoff time.Time) (*programDiff, error) {
 	byKey := map[programKey]*program{}
 	for _, row := range current {
 		p, err := fromRow(row)
@@ -584,8 +584,8 @@ func compareKeys(a, b programKey) int {
 }
 
 // filterPrograms は、DB にも上流にも無いサービスの番組を除く。Mirakurun は、サービスの一覧に無いサービスの番組も返すことがある。
-func filterPrograms(programs []*mirakurun.Program, known map[int64]bool) []*mirakurun.Program {
-	return slices.DeleteFunc(slices.Clone(programs), func(p *mirakurun.Program) bool {
+func filterPrograms(programs []*tunerserver.Program, known map[int64]bool) []*tunerserver.Program {
+	return slices.DeleteFunc(slices.Clone(programs), func(p *tunerserver.Program) bool {
 		return !known[int64(p.NetworkID)*serviceIDBase+int64(p.ServiceID)]
 	})
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
@@ -89,7 +90,7 @@ type fakeOpener struct {
 	err error
 }
 
-func (o *fakeOpener) OpenServiceStream(context.Context, int64, *mirakurun.StreamOptions) (io.ReadCloser, error) {
+func (o *fakeOpener) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if o.err != nil {
 		return nil, o.err
 	}
@@ -317,7 +318,7 @@ func TestLiveErrors(t *testing.T) {
 		},
 		{
 			name: "チューナーが空いていない", encoder: new(fakeEncoder),
-			opener: &fakeOpener{err: &mirakurun.APIError{Method: http.MethodGet, URL: "", StatusCode: http.StatusServiceUnavailable, Reason: ""}},
+			opener: &fakeOpener{err: tunerserver.ErrTunerUnavailable},
 			path:   livePath + kyusu.PlaylistName, wantStatus: http.StatusServiceUnavailable, wantBody: "no tuner is available",
 		},
 	}
