@@ -22,7 +22,8 @@ work="$(mktemp -d)"
 
 pids=()
 cleanup() {
-  for pid in "${pids[@]}"; do
+  # macOS の /bin/bash (3.2) は、set -u のもとで空の配列を展開するとエラーにするので、空なら何も展開しない。
+  for pid in ${pids[@]+"${pids[@]}"}; do
     kill "$pid" 2>/dev/null || true
   done
   wait 2>/dev/null || true
