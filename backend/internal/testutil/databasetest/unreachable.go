@@ -25,13 +25,15 @@ type Switch struct {
 	// reached は、DB に届いた問い合わせの数。refused は、届かなかった問い合わせの数。
 	reached atomic.Int64
 	refused atomic.Int64
+	// hung は、詰まらせた問い合わせの数。
+	hung atomic.Int64
 }
 
 // NewSwitch は、pool と同じ DB につなぐ、届くかどうかを切り替えられるプールを作る。プールはテストの終了時に閉じる。
 func NewSwitch(tb testing.TB, pool *pgxpool.Pool) *Switch {
 	tb.Helper()
 
-	s := &Switch{Pool: nil, down: atomic.Bool{}, hang: atomic.Bool{}, reached: atomic.Int64{}, refused: atomic.Int64{}}
+	s := &Switch{Pool: nil, down: atomic.Bool{}, hang: atomic.Bool{}, reached: atomic.Int64{}, refused: atomic.Int64{}, hung: atomic.Int64{}}
 	cfg := pool.Config().Copy()
 	cfg.BeforeConnect = func(ctx context.Context, _ *pgx.ConnConfig) error {
 		return s.check(ctx)
@@ -73,6 +75,11 @@ func (s *Switch) Refused() int64 {
 	return s.refused.Load()
 }
 
+// Hung は、これまでに詰まらせた問い合わせの数を返す。DB を詰まらせた後、問い合わせる側が待ち始めたのを待つのに使う。
+func (s *Switch) Hung() int64 {
+	return s.hung.Load()
+}
+
 // Up は、DB に届くことにする。
 func (s *Switch) Up() {
 	s.down.Store(false)
@@ -82,6 +89,7 @@ func (s *Switch) Up() {
 // check は、届かないことにしていればエラーを返す。詰まったことにしていれば、ctx が終わるまで返らない。
 func (s *Switch) check(ctx context.Context) error {
 	if s.hang.Load() {
+		s.hung.Add(1)
 		<-ctx.Done()
 
 		return ctx.Err()

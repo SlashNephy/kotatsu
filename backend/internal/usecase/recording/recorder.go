@@ -1421,7 +1421,9 @@ func (t *endTracker) check(ctx context.Context) endReason {
 		if notBroadcast {
 			t.markNotBroadcast(ctx)
 		}
-		t.stoppedAt = stoppedAt
+		// 予定の終わりより前に DB を待ち始め、待つ間に終わりを過ぎたなら、止めたのは予定の終わりとする (#1549)。
+		// 待ち始めた時刻のままにすると、終わりより前に止めたことになり、録った時間が短く記録される。
+		t.stoppedAt = minTime(now, maxTime(stoppedAt, end))
 
 		return endPlanned
 	}
