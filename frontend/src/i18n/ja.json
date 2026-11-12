@@ -1233,6 +1233,7 @@
     },
     "partMarkerNoCm": "{{part}}（前にCMなし）",
     "skipCm": "CMをスキップ",
+    "seekForward15Hold": "15 秒進む（押し続けると早回し）",
     "crop": {
       "mode": "表示の比率",
       "modes": {
@@ -1293,6 +1294,8 @@
       "seekForward": "10 秒進む",
       "seekBackwardLong": "30 秒戻る",
       "seekForwardLong": "30 秒進む",
+      "seekBackward15": "15 秒戻る",
+      "seekForward15": "15 秒進む",
       "seekTo": "指定の位置へ移る",
       "toggleCaptions": "字幕の表示を切り替える",
       "toggleJikkyo": "実況の表示を切り替える",
@@ -1340,6 +1343,9 @@
       "seekForward": "+10 秒",
       "seekBackwardLong": "-30 秒",
       "seekForwardLong": "+30 秒",
+      "seekBackward15": "-15 秒",
+      "seekForward15": "+15 秒",
+      "fastForward": "早回し {{rate}}x",
       "dataBroadcastOn": "データ放送を表示",
       "dataBroadcastOff": "データ放送を隠す",
       "captured": "画像を保存しました",

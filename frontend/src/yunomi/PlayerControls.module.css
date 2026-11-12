@@ -74,6 +74,24 @@
   white-space: nowrap;
 }
 
+/* 録画とタイムシフトの再生位置。入りきらないときは、再生位置を残して、続きの長さと時刻のほうを省く。 */
+.positionStatus {
+  display: flex;
+  min-width: 0;
+}
+
+.position {
+  flex: none;
+}
+
+/* 先頭の空白を残すため、折り返さずに空白をそのまま描く。 */
+.positionRest {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+
 /* ライブの印。赤い点と「ライブ」の文字。 */
 .live {
   display: inline-flex;
@@ -111,6 +129,26 @@
 
 .button {
   color: #fff;
+}
+
+/* アイコンの真ん中に重ねる短い文字 (15 秒のシークの「15」)。回る矢印の輪の中に収める。 */
+.badge {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* 押し続けるボタンは、タッチの長押しで、文字の選択やブラウザの吹き出しを出さない。 */
+.holdable {
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
 }
 
 /* 入れている切り替え (字幕や実況) は、下線で示す。 */
@@ -163,6 +201,18 @@
 /* 狭い画面では、たどり着かなくても困らないものから外す。 */
 @container player (max-width: 420px) {
   .optional {
+    display: none;
+  }
+
+  /* 再生位置を出す幅を空けるため、真ん中の欄の左右の余白も詰める。 */
+  .status {
+    padding-inline: 4px;
+  }
+}
+
+/* さらに狭い画面 (幅 375px ほどのスマートフォン) では、再生位置を省かずに出せるよう、もう 1 つ外す。 */
+@container player (max-width: 380px) {
+  .compactOptional {
     display: none;
   }
 }

@@ -137,11 +137,21 @@ export function useCapture({
 
 // CaptureButton は、今の場面を画像に保存するか、コピーするメニュー (設計書 7.5)。
 // 別のウィンドウに移っても開けるよう、メニューと知らせはプレイヤーの中に描く。
+// optional は、狭い画面で外してよいかどうか。'compact' なら、さらに狭い画面 (幅 380px 以下のプレイヤー) でだけ外す。
+// 外しても、右クリック (Android では長押し) のメニューと s のキーで保存できる。
 export function CaptureButton({
   capture: { overlays, setOverlays, message, capture },
+  optional = false,
 }: {
   capture: Capture;
+  optional?: boolean | 'compact';
 }) {
+  const optionalClass =
+    optional === 'compact'
+      ? playerControlsClasses.compactOptional
+      : optional
+        ? playerControlsClasses.optional
+        : '';
   const { t } = useTranslation();
 
   return (
@@ -156,7 +166,7 @@ export function CaptureButton({
             variant="transparent"
             size="lg"
             aria-label={t('player.capture')}
-            className={playerControlsClasses.button}
+            className={`${playerControlsClasses.button} ${optionalClass}`}
           >
             <Camera size={20} aria-hidden />
           </ActionIcon>

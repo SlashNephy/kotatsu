@@ -97,6 +97,8 @@ import {
   FullscreenButton,
   PlayButton,
   PlayerControls,
+  PositionStatus,
+  SeekStepButtons,
   playerControlsClasses,
   SettingsButton,
   VolumeControl,
@@ -107,6 +109,7 @@ import {
 import { loadCmAutoSkip, useCmAutoSkip } from '../../yunomi/cmAutoSkip';
 import { CmAutoSkipper } from '../../yunomi/cmAutoSkipper';
 import { cmButtonSectionAt, cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
+import { useFastForward } from '../../yunomi/fastForward';
 import type { PlayerCover } from '../../yunomi/playerCover';
 import { useVideoFrames } from '../../yunomi/useVideoFrames';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
@@ -701,12 +704,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   );
   // 再生速度は、video の要素を作り直したときにも当て直す。
   const [rate, setRate] = useState(1);
+  // 早回し (#1572) の間は、選んだ速さより速く再生する。録画中の追っかけ再生では、録画の端の手前で元の速さに戻す。
+  const fastForward = useFastForward(rate, { growing: stillRecording, position, duration });
   useEffect(() => {
     if (video !== null) {
       video.defaultPlaybackRate = rate;
-      video.playbackRate = rate;
+      video.playbackRate = fastForward.playbackRate;
     }
-  }, [rate, video, loads]);
+  }, [rate, fastForward.playbackRate, video, loads]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -723,6 +728,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const skip = (seconds: number) => seek(currentPosition() + seconds);
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
+  // 早回しの間は、押している間ずっと、速さを映像の上に出しておく。
+  const shownFlash = fastForward.active
+    ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
+    : flash;
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
@@ -791,6 +800,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       skip(30);
       showFlash(t('player.flash.seekForwardLong'));
     },
+    seekBackward15: () => {
+      skip(-15);
+      showFlash(t('player.flash.seekBackward15'));
+    },
+    seekForward15: () => {
+      skip(15);
+      showFlash(t('player.flash.seekForward15'));
+    },
     toggleCaptions: () => setCaptions(!captions),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
     toggleMute: () => {
@@ -857,7 +874,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     paused,
     position,
     duration,
-    playbackRate: rate,
+    playbackRate: fastForward.playbackRate,
     volume: videoState.volume,
     muted: videoState.muted,
     audios: audio.remote.choices,
@@ -1094,10 +1111,17 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       start={
         <>
           <PlayButton video={videoState} commands={commands} />
-          <VolumeControl video={videoState} commands={commands} />
+          <SeekStepButtons commands={commands} onFastForward={fastForward.setHeld} />
+          {/* 狭い画面 (スマートフォン) では、再生位置を出す幅を空けるため、ミュートのボタンを外す。本体の音量キーで操作できる。 */}
+          <VolumeControl video={videoState} commands={commands} optional />
         </>
       }
-      status={`${formatDuration(shown)} / ${formatDuration(duration)} · ${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, shown))}`}
+      status={
+        <PositionStatus
+          position={formatDuration(shown)}
+          rest={` / ${formatDuration(duration)} · ${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, shown))}`}
+        />
+      }
       end={
         <>
           <CommandButton
@@ -1125,7 +1149,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <SleepTimerSelect timer={sleep} />
             {surroundAvailable && <VirtualSurroundToggle />}
           </SettingsButton>
-          <CaptureButton capture={capture} />
+          {/* 幅 375px ほどのスマートフォンでは、15 秒のシークのボタン (#1572) と再生位置を収めるため、キャプチャのボタンも外す。 */}
+          <CaptureButton capture={capture} optional="compact" />
           <CommandButton
             commands={commands}
             command="showShortcuts"
@@ -1195,7 +1220,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           overlay={
             <>
               {jikkyo.overlay}
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {skipButton}
@@ -1226,7 +1251,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           overlay={
             <>
               {jikkyo.overlay}
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {skipButton}
