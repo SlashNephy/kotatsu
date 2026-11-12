@@ -62,3 +62,33 @@ func TestLowerReportsExitedProcess(t *testing.T) {
 
 	assert.True(t, procprio.IsProcessGone(procprio.Lower(math.MaxInt32)))
 }
+
+// TestLowererRun は、Run が、コマンドの終わりを待ち、その終わり方を返すことを確かめる。
+func TestLowererRun(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{name: "成功して終わる", wantErr: false},
+		{name: "失敗して終わる", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := exec.CommandContext(t.Context(), "true")
+			if tt.wantErr {
+				cmd = exec.CommandContext(t.Context(), "false")
+			}
+			err := procprio.New(slog.New(slog.DiscardHandler)).Run(cmd)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.NotNil(t, cmd.ProcessState)
+		})
+	}
+}
