@@ -217,17 +217,18 @@ func TestUpdateRuleDefaults(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "変えていなければ、イベントリレーへの追従だけが有効",
+			name:    "変えていなければ、イベントリレーへの追従と同じ回の束ねだけが有効",
 			changes: nil,
-			want:    &settings.RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true},
+			want:    &settings.RuleDefaults{AvoidDuplicates: false, DuplicateWindowDays: nil, FollowEventRelay: true, BundleSameEpisodes: true},
 		},
 		{
 			name: "変えた項目だけを重ねる",
 			changes: []*settings.RuleChanges{
 				{AvoidDuplicates: new(true), DuplicateWindowDays: &days, ClearDuplicateWindowDays: false, FollowEventRelay: nil},
 				{AvoidDuplicates: nil, DuplicateWindowDays: nil, ClearDuplicateWindowDays: false, FollowEventRelay: new(false)},
+				{BundleSameEpisodes: new(false)},
 			},
-			want: &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: &days, FollowEventRelay: false},
+			want: &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: &days, FollowEventRelay: false, BundleSameEpisodes: false},
 		},
 		{
 			name: "期間を区切らないように戻せる",
@@ -235,7 +236,7 @@ func TestUpdateRuleDefaults(t *testing.T) {
 				{AvoidDuplicates: new(true), DuplicateWindowDays: &days, ClearDuplicateWindowDays: false, FollowEventRelay: nil},
 				{AvoidDuplicates: nil, DuplicateWindowDays: nil, ClearDuplicateWindowDays: true, FollowEventRelay: nil},
 			},
-			want: &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: nil, FollowEventRelay: true},
+			want: &settings.RuleDefaults{AvoidDuplicates: true, DuplicateWindowDays: nil, FollowEventRelay: true, BundleSameEpisodes: true},
 		},
 		{
 			name:    "期間は 1 日から",

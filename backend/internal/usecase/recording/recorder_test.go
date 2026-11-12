@@ -1698,6 +1698,39 @@ func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureTunerServerUnreachable)), drops: 0}, got)
 }
 
+// TestRecorderCopiesEpisodeToHistory は、録り終えた録画の録画履歴に、回を読むための概要と、番組のシリーズの記述子の話数を写すことを確かめる (#1498)。
+// 録画を消しても、同じ回を録ったことを、番組名だけでなく概要と話数から見分けられるようにするためである。
+func TestRecorderCopiesEpisodeToHistory(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	f := newFixture(t)
+	reservationID := f.reserve(t, 0)
+	_, err = f.pool.Exec(t.Context(), `UPDATE programs p SET series_episode = 7 FROM reservations r
+		WHERE r.id = $1 AND p.service_id = r.service_id AND p.event_id = r.event_id`, reservationID)
+	require.NoError(t, err)
+	recorder, _ := f.newRecorder(t, onceStream{data: data}, nil)
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+	require.Eventually(t, func() bool { return len(f.files(t, reservationID)) == 1 }, waitTimeout, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+	f.clock.Advance(time.Hour)
+	require.NoError(t, wait(t, done))
+
+	var (
+		description, wantDescription string
+		seriesEpisode                *int32
+		imported                     bool
+	)
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description FROM reservations WHERE id = $1", reservationID).Scan(&wantDescription))
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description, series_episode, imported FROM recording_history").
+		Scan(&description, &seriesEpisode, &imported))
+	assert.Equal(t, wantDescription, description)
+	assert.Equal(t, new(int32(7)), seriesEpisode)
+	assert.False(t, imported)
+}
+
 func (f *fixture) historyCount(t *testing.T) int {
 	t.Helper()
 

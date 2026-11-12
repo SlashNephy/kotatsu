@@ -761,8 +761,8 @@ func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFi
 }
 
 const insertRecordingHistory = `-- name: InsertRecordingHistory :exec
-INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO recording_history (id, service_id, title_key, name, imported, start_at, end_at, created_at)
+VALUES ($1, $2, $3, $4, true, $5, $6, $7)
 `
 
 type InsertRecordingHistoryParams struct {
@@ -775,7 +775,7 @@ type InsertRecordingHistoryParams struct {
 	Now       time.Time
 }
 
-// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
+// ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にする。
 func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistory,
 		arg.ID,
@@ -785,6 +785,46 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 		arg.StartAt,
 		arg.EndAt,
 		arg.Now,
+	)
+	return err
+}
+
+const insertRecordingHistoryFromRecording = `-- name: InsertRecordingHistoryFromRecording :exec
+INSERT INTO recording_history (
+  id, service_id, title_key, name, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at
+)
+SELECT $1, rec.service_id, $2, rec.name, rec.description,
+  coalesce(
+    (SELECT p.series_episode FROM programs p WHERE p.service_id = rec.service_id AND p.event_id = rec.event_id),
+    (SELECT pa.series_episode FROM program_archives pa
+      WHERE pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at)
+  ),
+  a.syobocal_tid, a.count_start, false, rec.start_at, rec.end_at, $3
+FROM recordings rec
+LEFT JOIN LATERAL (
+  SELECT min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count_start
+  FROM recording_anime_episodes e
+  WHERE e.recording_id = rec.id
+  HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
+) a ON true
+WHERE rec.id = $4
+`
+
+type InsertRecordingHistoryFromRecordingParams struct {
+	ID          uuid.UUID
+	TitleKey    string
+	Now         time.Time
+	RecordingID uuid.UUID
+}
+
+// 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
+// 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
+func (q *Queries) InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error {
+	_, err := q.db.Exec(ctx, insertRecordingHistoryFromRecording,
+		arg.ID,
+		arg.TitleKey,
+		arg.Now,
+		arg.RecordingID,
 	)
 	return err
 }

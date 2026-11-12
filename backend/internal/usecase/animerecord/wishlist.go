@@ -664,8 +664,8 @@ func RuleCandidate(wishlist *Wishlist, tid int32) (*WishlistWork, error) {
 // WishlistRuleInput は、候補の作品 work を録るルールの入力を作る (#928)。条件は、最初の放送から決める。
 //
 // ルールは作品 (TID) では照合できない (ルールの条件は番組の項目だけを見る。設計書 4.2) ので、最初の放送の番組名から読んだ作品名を
-// 番組名のキーワードにし、最初の放送のサービスに限る。重複の回避、その期間、イベントリレーへの追従は、ルールを作るときの既定値
-// (設計書 4.2) に従う。時間帯は、放送の延期や特番で外れると録り逃すので、条件に入れない。
+// 番組名のキーワードにし、最初の放送のサービスに限る。重複の回避、その期間、イベントリレーへの追従、同じ回を束ねるかどうかは、
+// ルールを作るときの既定値 (設計書 4.2) に従う。時間帯は、放送の延期や特番で外れると録り逃すので、条件に入れない。
 func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rule.Input {
 	first := work.Broadcasts[0]
 	conditions := &match.Conditions{
@@ -680,5 +680,6 @@ func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rul
 		Overrides: &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, TranscodePreset: nil},
 		ValidFrom: nil, ValidUntil: nil,
 		AvoidDuplicates: defaults.AvoidDuplicates, DuplicateWindowDays: defaults.DuplicateWindowDays, FollowEventRelay: defaults.FollowEventRelay,
+		BundleSameEpisodes: defaults.BundleSameEpisodes,
 	}
 }

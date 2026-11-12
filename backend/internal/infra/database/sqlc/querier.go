@@ -426,8 +426,11 @@ type Querier interface {
 	// DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 	// チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
-	// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
+	// ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にする。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
+	// 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
+	// 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
+	InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error
 	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
 	// イベントリレーの引き継ぎ先の番組予約を、番組情報をコピーして作る。引き継ぎ先の予約がすでにあれば何もせず、行を返さない。
@@ -543,6 +546,8 @@ type Querier interface {
 	ListChangeVersions(ctx context.Context, channels []string) ([]ListChangeVersionsRow, error)
 	ListChannelTypes(ctx context.Context) ([]ChannelType, error)
 	ListChannelTypesByTypes(ctx context.Context, types []string) ([]ChannelType, error)
+	// 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回を束ねるときに、録れない見込みの放送として扱う (#1498)。
+	ListConflictingReservedPrograms(ctx context.Context, now time.Time) ([]ListConflictingReservedProgramsRow, error)
 	// ユーザーが途中まで見た録画を、最後に見た新しい順に返す (続きから見る)。
 	// 少しだけ見た録画 (min_position_ms より前) は外す。終わりの end_margin_ms 以内まで見た録画と、
 	// 録画の長さの finished_ratio 以上を見た録画は、見終えたものとして外す (#1301)。
@@ -631,6 +636,9 @@ type Querier interface {
 	ListPlayers(ctx context.Context, arg ListPlayersParams) ([]ListPlayersRow, error)
 	// 番組 (サービスと開始時刻の組) に結びついた話を、番組ごとに並びの順で返す。
 	ListProgramAnimeEpisodes(ctx context.Context, arg ListProgramAnimeEpisodesParams) ([]ProgramAnimeEpisode, error)
+	// 局をまたいで同じ回を束ねる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
+	// 2 話連続の放送のように、複数の話に結びついた番組は返さない。
+	ListProgramAnimeEpisodesForBundling(ctx context.Context, arg ListProgramAnimeEpisodesForBundlingParams) ([]ListProgramAnimeEpisodesForBundlingRow, error)
 	// 番組 (サービスと開始時刻の組) を録った録画を返す。EPGStation から取り込んだ録画は、自分で照合するので除く。
 	ListProgramRecordingIDs(ctx context.Context, arg ListProgramRecordingIDsParams) ([]uuid.UUID, error)
 	// 番組 (サービス, eventId) の録画のうち、番組の放送時間に重なるもの (#1121)。eventId は使い回されるので、時間でも絞る。
@@ -639,6 +647,10 @@ type Querier interface {
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	// 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
+	// ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
+	// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
+	ListRecordedEpisodes(ctx context.Context, since time.Time) ([]ListRecordedEpisodesRow, error)
 	// 番組 (サービス, eventId, 放送時間) のうち、録画のあるものを返す (#1278)。失敗した録画は数えない。
 	// eventId は使い回されるので、ListProgramRecordings と同じく、放送時間に重なる録画だけを数える。
 	ListRecordedPrograms(ctx context.Context, arg ListRecordedProgramsParams) ([]ListRecordedProgramsRow, error)

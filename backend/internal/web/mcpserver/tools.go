@@ -31,7 +31,7 @@ const (
 		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm transcodePreset }
 		rules { id name }
 		createdAt updatedAt`
-	ruleFields = `id name memo enabled validFrom validUntil avoidDuplicates duplicateWindowDays followEventRelay upcomingReservationCount
+	ruleFields = `id name memo enabled validFrom validUntil avoidDuplicates duplicateWindowDays followEventRelay bundleSameEpisodes upcomingReservationCount
 		conditions {
 			keywords { text regexp caseSensitive fields }
 			keywordMatch

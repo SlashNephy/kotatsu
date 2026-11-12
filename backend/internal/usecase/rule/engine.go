@@ -134,7 +134,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		// 重複の回避で外した番組は、猶予の内でも残さない。外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501)。
+		// 重複の回避と、同じ回を録画済みで外した番組は、猶予の内でも残さない。外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501)。
 		duplicates := map[programKey]*skippedProgram{}
 		desired, err := e.narrow(ctx, tx, now, matched, duplicates)
 		if err != nil {
@@ -180,8 +180,8 @@ func (e *Engine) desired(
 	return e.narrow(ctx, tx, now, matched, skipped)
 }
 
-// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避とイベント共有で絞り込み、予約すべき番組にする。
-// skipped を渡せば、重複の回避で予約すべき集合から外した番組を、そこに入れる。
+// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ねで絞り込み、予約すべき番組にする。
+// skipped を渡せば、重複の回避と同じ回の束ねで予約すべき集合から外した番組を、そこに入れる。
 func (e *Engine) narrow(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
 ) (map[programKey]*desiredProgram, error) {
@@ -192,6 +192,10 @@ func (e *Engine) narrow(
 		return nil, err
 	}
 	pickSharedEvents(matched, func(d *desiredProgram) []byte { return d.row.RelatedItems })
+	// イベント共有で落とした側の放送を除いてから束ねる。
+	if err := bundleSameEpisodes(ctx, tx, now, matched, skipped); err != nil {
+		return nil, err
+	}
 
 	return matched, nil
 }
@@ -449,7 +453,9 @@ func (e *Engine) avoidDuplicates(
 		if len(d.rules) == 0 {
 			delete(matched, key)
 			if skipped != nil {
-				skipped[key] = &skippedProgram{row: d.row, rules: removed, lastRecorded: last}
+				skipped[key] = &skippedProgram{
+					row: d.row, rules: removed, reason: SkipReasonDuplicateTitle, lastRecorded: new(last), recorded: nil, instead: nil,
+				}
 			}
 		}
 	}
@@ -546,8 +552,15 @@ type keepPolicy struct {
 	graceUntil time.Time
 	// enabled は、照合した (有効で、条件を読めた) ルールの ID。無効にしたか消したルールは含まない。
 	enabled map[uuid.UUID]bool
-	// duplicates は、重複の回避で予約すべき集合から外した番組。
+	// duplicates は、重複の回避と同じ回の束ねで、予約すべき集合から外した番組。
 	duplicates map[programKey]*skippedProgram
+}
+
+// removesNow は、番組の予約を、録画済みで外れたので猶予の内でもすぐ消すかどうかを返す。
+func (k *keepPolicy) removesNow(key programKey) bool {
+	s := k.duplicates[key]
+
+	return s != nil && s.reason.immediate()
 }
 
 func newKeepPolicy(now time.Time, grace time.Duration, rules []*compiledRule, duplicates map[programKey]*skippedProgram) *keepPolicy {
@@ -715,8 +728,9 @@ func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UU
 	case !linksAny(have, keep.enabled):
 		// 結び付いたルールを、人が消したか無効にした。迷う理由がないので、猶予の内でも、番組名が空でも消す (#1501)。
 		return false
-	case keep.duplicates[programKey{serviceID: row.ServiceID, eventID: *row.EventID}] != nil:
-		// 同じ番組名を録り終え、重複の回避で外れた。番組表の書き換えで外れたのではないので、猶予の内でも消す (#1501)。
+	case keep.removesNow(programKey{serviceID: row.ServiceID, eventID: *row.EventID}):
+		// 同じ番組名か同じ回を録り終えて外れた。番組表の書き換えで外れたのではないので、猶予の内でも消す (#1501、#1498)。
+		// 同じ回を別の放送で録るので外れた予約は、番組表の変化で外れたものなので、ここでは消さず、猶予に従う。
 		return false
 	case row.StartAt.Before(keep.graceUntil):
 		// 放送の直前の書き換え ([新] が付く、副題が入る、誤字が直るなど) で外れたかもしれない。消すと録り逃す (#1501)。

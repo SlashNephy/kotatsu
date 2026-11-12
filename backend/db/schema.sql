@@ -356,7 +356,7 @@ CREATE TABLE system_settings (
   anime_linking_enabled boolean NOT NULL DEFAULT false,
   -- 管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定では空にする (設計書 0.3)。
   comment_sources text[] NOT NULL DEFAULT '{}',
-  -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従。#470)。変えた項目だけを持ち、Go の既定値に重ねる。
+  -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従、同じ回を束ねるか。#470、#1498)。変えた項目だけを持ち、Go の既定値に重ねる。
   rule_defaults jsonb NOT NULL DEFAULT '{}',
   -- 字幕の外字 (DRCS) を文字に置き換える表 (#825)。{"外字の画像の MD5 (小文字の 16 進)": "文字"} の形。
   drcs_replacements jsonb NOT NULL DEFAULT '{}',
@@ -785,6 +785,8 @@ CREATE TABLE rules (
   duplicate_window_days integer,
   -- ルール予約で、イベントリレーの引き継ぎ先も予約するかどうか (設計書 4.6)。
   follow_event_relay boolean NOT NULL,
+  -- 局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。この列を足す前からあるルールは false。
+  bundle_same_episodes boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
@@ -1022,7 +1024,7 @@ CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
 -- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
 CREATE INDEX watch_progress_updated_at_idx ON watch_progress (updated_at);
 
--- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
+-- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値以下だった録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,
   service_id bigint NOT NULL REFERENCES services (id),
@@ -1030,6 +1032,15 @@ CREATE TABLE recording_history (
   title_key text NOT NULL,
   -- 画面に出す、元の番組名。
   name text NOT NULL,
+  -- 局をまたいで同じ回を束ねる (#1498) ときに、回を読むのに使う、録画の概要と、番組のシリーズの記述子の話数。
+  -- 列を足す前の履歴と、ほかの録画ソフトから引き継いだ履歴は、概要が空で、話数が NULL。
+  description text NOT NULL DEFAULT '',
+  series_episode integer,
+  -- 録画が 1 つの話に結びついたときの、しょぼいカレンダーの TID と話数 (設計書 3.8)。なければ NULL。
+  syobocal_tid integer,
+  anime_count double precision,
+  -- ほかの録画ソフトから引き継いだ履歴かどうか。引き継いだ履歴は、録った回を見る期間で切らない (#1498)。
+  imported boolean NOT NULL DEFAULT false,
   start_at timestamptz NOT NULL,
   end_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL

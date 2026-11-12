@@ -88,6 +88,38 @@ func (q *Queries) ListCancelledBroadcasts(ctx context.Context, now time.Time) ([
 	return items, nil
 }
 
+const listConflictingReservedPrograms = `-- name: ListConflictingReservedPrograms :many
+SELECT service_id, event_id::bigint AS event_id
+FROM reservations
+WHERE assignment_state = 'conflict' AND event_id IS NOT NULL AND start_at > $1
+`
+
+type ListConflictingReservedProgramsRow struct {
+	ServiceID int64
+	EventID   int64
+}
+
+// 割り当ての結果が競合の、これから放送する番組の予約 (設計書 4.5)。同じ回を束ねるときに、録れない見込みの放送として扱う (#1498)。
+func (q *Queries) ListConflictingReservedPrograms(ctx context.Context, now time.Time) ([]ListConflictingReservedProgramsRow, error) {
+	rows, err := q.db.Query(ctx, listConflictingReservedPrograms, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConflictingReservedProgramsRow{}
+	for rows.Next() {
+		var i ListConflictingReservedProgramsRow
+		if err := rows.Scan(&i.ServiceID, &i.EventID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
 SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.enabled, r.follow_event_relay,
   EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording,
@@ -211,7 +243,7 @@ func (q *Queries) ListLatestRecordingHistory(ctx context.Context, titleKeys []st
 const listMatchablePrograms = `-- name: ListMatchablePrograms :many
 SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
   p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
-  p.genres, p.related_items, s.channel_type, s.channel
+  p.genres, p.related_items, p.series_episode, s.channel_type, s.channel
 FROM programs p
 JOIN services s ON s.id = p.service_id
 WHERE p.start_at > $1 AND NOT p.end_undecided AND s.service_type = ANY($2::bigint[])
@@ -236,6 +268,7 @@ type ListMatchableProgramsRow struct {
 	Extended              []byte
 	Genres                []byte
 	RelatedItems          []byte
+	SeriesEpisode         *int32
 	ChannelType           string
 	Channel               string
 }
@@ -265,8 +298,114 @@ func (q *Queries) ListMatchablePrograms(ctx context.Context, arg ListMatchablePr
 			&i.Extended,
 			&i.Genres,
 			&i.RelatedItems,
+			&i.SeriesEpisode,
 			&i.ChannelType,
 			&i.Channel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramAnimeEpisodesForBundling = `-- name: ListProgramAnimeEpisodesForBundling :many
+SELECT e.service_id, e.start_at, min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count
+FROM program_anime_episodes e
+WHERE (e.service_id, e.start_at) IN (SELECT unnest($1::bigint[]), unnest($2::timestamptz[]))
+GROUP BY e.service_id, e.start_at
+HAVING count(*) = 1 AND min(e.syobocal_tid) IS NOT NULL AND min(e.count_start) IS NOT NULL AND min(e.count_start) = min(e.count_end)
+`
+
+type ListProgramAnimeEpisodesForBundlingParams struct {
+	ServiceIds []int64
+	StartAts   []time.Time
+}
+
+type ListProgramAnimeEpisodesForBundlingRow struct {
+	ServiceID   int64
+	StartAt     time.Time
+	SyobocalTid int32
+	Count       float64
+}
+
+// 局をまたいで同じ回を束ねる (#1498) 番組のうち、1 つの話に結びついたものの、しょぼいカレンダーの TID と話数 (設計書 3.8)。
+// 2 話連続の放送のように、複数の話に結びついた番組は返さない。
+func (q *Queries) ListProgramAnimeEpisodesForBundling(ctx context.Context, arg ListProgramAnimeEpisodesForBundlingParams) ([]ListProgramAnimeEpisodesForBundlingRow, error) {
+	rows, err := q.db.Query(ctx, listProgramAnimeEpisodesForBundling, arg.ServiceIds, arg.StartAts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramAnimeEpisodesForBundlingRow{}
+	for rows.Next() {
+		var i ListProgramAnimeEpisodesForBundlingRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.StartAt,
+			&i.SyobocalTid,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordedEpisodes = `-- name: ListRecordedEpisodes :many
+SELECT h.service_id, h.name, h.description, h.series_episode, h.syobocal_tid, h.anime_count, h.end_at
+FROM recording_history h
+WHERE h.imported OR h.start_at >= $1
+UNION ALL
+SELECT rec.service_id, rec.name, rec.description, p.series_episode, a.syobocal_tid, a.count_start AS anime_count, rec.end_at
+FROM recordings rec
+LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
+LEFT JOIN LATERAL (
+  SELECT min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count_start
+  FROM recording_anime_episodes e
+  WHERE e.recording_id = rec.id
+  HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
+) a ON true
+WHERE rec.state = 'recording'
+`
+
+type ListRecordedEpisodesRow struct {
+	ServiceID     int64
+	Name          string
+	Description   string
+	SeriesEpisode *int32
+	SyobocalTid   *int32
+	AnimeCount    *float64
+	EndAt         time.Time
+}
+
+// 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
+// ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
+// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
+func (q *Queries) ListRecordedEpisodes(ctx context.Context, since time.Time) ([]ListRecordedEpisodesRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedEpisodes, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedEpisodesRow{}
+	for rows.Next() {
+		var i ListRecordedEpisodesRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.Name,
+			&i.Description,
+			&i.SeriesEpisode,
+			&i.SyobocalTid,
+			&i.AnimeCount,
+			&i.EndAt,
 		); err != nil {
 			return nil, err
 		}

@@ -3116,7 +3116,7 @@ type Query {
   """
   systemSettings: SystemSettings!
   """
-  重複の回避で予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
+  重複の回避と同じ回の束ねで予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
   予約のある番組 (手動で予約したものなど) は返さない。手動の予約は重複の回避の対象にならないので、手動で予約すれば録れる。
   """
   skippedDuplicates: [SkippedDuplicate!]!
@@ -3825,6 +3825,10 @@ type Rule implements Node {
   イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。
   """
   followEventRelay: Boolean!
+  """
+  局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
+  """
+  bundleSameEpisodes: Boolean!
   createdAt: Time!
   """
   作成者。ユーザーが消えていれば null。
@@ -3853,6 +3857,10 @@ type RuleDefaults {
   イベントリレーで続く番組も予約するかどうか (設計書 4.6)。
   """
   followEventRelay: Boolean!
+  """
+  局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
+  """
+  bundleSameEpisodes: Boolean!
 }
 """
 ルールを作るときの既定値の変える項目。省いた項目は変えない。
@@ -3868,6 +3876,7 @@ input RuleDefaultsInput {
   """
   clearDuplicateWindowDays: Boolean! = false
   followEventRelay: Boolean
+  bundleSameEpisodes: Boolean
 }
 """
 ルールの内容。
@@ -3892,6 +3901,7 @@ input RuleInput {
   """
   duplicateWindowDays: Int
   followEventRelay: Boolean! = true
+  bundleSameEpisodes: Boolean! = false
 }
 """
 ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
@@ -4039,18 +4049,66 @@ type Session {
   sourceIp: String
 }
 """
-ルールに一致したが、同じ番組名を録画済みなので、重複の回避で予約しなかった番組 (設計書 4.4)。
+予約しなかった理由。
+"""
+enum SkipReason {
+  """
+  同じ番組名を期間内に録画済み (重複の回避)。
+  """
+  DUPLICATE_TITLE
+  """
+  同じ回を録画済み (録画中を含む)。
+  """
+  RECORDED_EPISODE
+  """
+  同じ回を別の放送で録る。
+  """
+  OTHER_BROADCAST
+}
+"""
+ルールに一致したが、予約しなかった番組 (設計書 4.4)。同じ番組名を録画済みなので重複の回避で外したか、
+同じ回を録画済みか、同じ回を別の放送で録るので外した (#1498)。
 """
 type SkippedDuplicate {
   program: Program!
   """
-  一致したが、重複の回避で外したルール。
+  一致したが外したルール。
   """
   rules: [SkippedRule!]!
   """
-  同じ番組名を、同じサービスで最後に録った録画の終わり。
+  外した理由。
   """
-  lastRecordedAt: Time!
+  reason: SkipReason!
+  """
+  前に録った録画の終わり。DUPLICATE_TITLE では、同じ番組名を同じサービスで最後に録った録画の終わり。
+  OTHER_BROADCAST では null。
+  """
+  lastRecordedAt: Time
+  """
+  RECORDED_EPISODE のときの、同じ回を録った録画。ほかの理由では null。
+  """
+  recorded: SkippedRecording
+  """
+  OTHER_BROADCAST のときの、同じ回を代わりに録る放送。番組表から消えていれば null。
+  """
+  instead: Program
+}
+"""
+同じ回を録った録画 (録画履歴か、録画中の録画)。録画を消しても、履歴は残る。
+"""
+type SkippedRecording {
+  """
+  録った局。サービスが消えていれば null。
+  """
+  service: Service
+  """
+  録った録画の番組名。
+  """
+  name: String!
+  """
+  録った録画の終わり。
+  """
+  endAt: Time!
 }
 """
 重複の回避で外したルール。

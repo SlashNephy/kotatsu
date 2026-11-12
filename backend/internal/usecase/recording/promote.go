@@ -397,9 +397,8 @@ func (r *Recorder) completePromoted(
 	if state == StatePartial || recording.Drops > MaxHistoryDrops {
 		return state, nil
 	}
-	err = q.InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
-		ID: id.New(), ServiceID: recording.ServiceID, TitleKey: rule.TitleKey(recording.Name), Name: recording.Name,
-		StartAt: recording.StartAt, EndAt: recording.EndAt, Now: now,
+	err = q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
+		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Now: now, RecordingID: recordingID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to save the recording history: %w", err)

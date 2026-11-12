@@ -125,6 +125,7 @@ type importedRule struct {
 	ValidUntil          *time.Time
 	AvoidDuplicates     bool
 	DuplicateWindowDays *int
+	BundleSameEpisodes  bool
 }
 
 // baseRule は、チャンネル種別の地上波のほかは、どの項目も空の EPGStation のルール。
@@ -276,6 +277,7 @@ func TestApplyRules(t *testing.T) {
 			want: func(r *importedRule) {
 				r.AvoidDuplicates = true
 				r.DuplicateWindowDays = new(30)
+				r.BundleSameEpisodes = true
 			},
 		},
 		{
@@ -284,7 +286,10 @@ func TestApplyRules(t *testing.T) {
 				r.AvoidDuplicate = true
 				r.PeriodToAvoidDuplicate = new(0)
 			},
-			want: func(r *importedRule) { r.AvoidDuplicates = true },
+			want: func(r *importedRule) {
+				r.AvoidDuplicates = true
+				r.BundleSameEpisodes = true
+			},
 		},
 		{
 			name: "保存先のディレクトリは、対応付けたプールにする",
@@ -338,6 +343,7 @@ func TestApplyRules(t *testing.T) {
 				Name: created.Name, Memo: created.Memo, Enabled: created.Enabled, Conditions: created.Conditions, Overrides: created.Overrides,
 				ValidFrom: created.ValidFrom, ValidUntil: created.ValidUntil,
 				AvoidDuplicates: created.AvoidDuplicates, DuplicateWindowDays: created.DuplicateWindowDays,
+				BundleSameEpisodes: created.BundleSameEpisodes,
 			})
 			assert.Equal(t, &f.userID, created.CreatedBy)
 		})

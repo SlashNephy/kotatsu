@@ -68,9 +68,31 @@ UPDATE recordings SET program_lost = true, updated_at = @now WHERE id = @id AND 
 SELECT end_at, end_undecided FROM programs WHERE service_id = @service_id AND event_id = @event_id;
 
 -- name: InsertRecordingHistory :exec
--- 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
-INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
-VALUES (@id, @service_id, @title_key, @name, @start_at, @end_at, @now);
+-- ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にする。
+INSERT INTO recording_history (id, service_id, title_key, name, imported, start_at, end_at, created_at)
+VALUES (@id, @service_id, @title_key, @name, true, @start_at, @end_at, @now);
+
+-- name: InsertRecordingHistoryFromRecording :exec
+-- 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
+-- 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
+INSERT INTO recording_history (
+  id, service_id, title_key, name, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at
+)
+SELECT @id, rec.service_id, @title_key, rec.name, rec.description,
+  coalesce(
+    (SELECT p.series_episode FROM programs p WHERE p.service_id = rec.service_id AND p.event_id = rec.event_id),
+    (SELECT pa.series_episode FROM program_archives pa
+      WHERE pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at)
+  ),
+  a.syobocal_tid, a.count_start, false, rec.start_at, rec.end_at, @now
+FROM recordings rec
+LEFT JOIN LATERAL (
+  SELECT min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count_start
+  FROM recording_anime_episodes e
+  WHERE e.recording_id = rec.id
+  HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
+) a ON true
+WHERE rec.id = @recording_id;
 
 -- name: ListRecordingSegments :many
 -- 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。

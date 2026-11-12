@@ -1132,6 +1132,7 @@ type ComplexityRoot struct {
 
 	Rule struct {
 		AvoidDuplicates          func(childComplexity int) int
+		BundleSameEpisodes       func(childComplexity int) int
 		Conditions               func(childComplexity int) int
 		CreatedAt                func(childComplexity int) int
 		CreatedBy                func(childComplexity int) int
@@ -1151,6 +1152,7 @@ type ComplexityRoot struct {
 
 	RuleDefaults struct {
 		AvoidDuplicates     func(childComplexity int) int
+		BundleSameEpisodes  func(childComplexity int) int
 		DuplicateWindowDays func(childComplexity int) int
 		FollowEventRelay    func(childComplexity int) int
 	}
@@ -1203,9 +1205,18 @@ type ComplexityRoot struct {
 	}
 
 	SkippedDuplicate struct {
+		Instead        func(childComplexity int) int
 		LastRecordedAt func(childComplexity int) int
 		Program        func(childComplexity int) int
+		Reason         func(childComplexity int) int
+		Recorded       func(childComplexity int) int
 		Rules          func(childComplexity int) int
+	}
+
+	SkippedRecording struct {
+		EndAt   func(childComplexity int) int
+		Name    func(childComplexity int) int
+		Service func(childComplexity int) int
 	}
 
 	SkippedRule struct {
@@ -6728,6 +6739,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Rule.AvoidDuplicates(childComplexity), true
+	case "Rule.bundleSameEpisodes":
+		if e.ComplexityRoot.Rule.BundleSameEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rule.BundleSameEpisodes(childComplexity), true
 	case "Rule.conditions":
 		if e.ComplexityRoot.Rule.Conditions == nil {
 			break
@@ -6825,6 +6842,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RuleDefaults.AvoidDuplicates(childComplexity), true
+	case "RuleDefaults.bundleSameEpisodes":
+		if e.ComplexityRoot.RuleDefaults.BundleSameEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleDefaults.BundleSameEpisodes(childComplexity), true
 	case "RuleDefaults.duplicateWindowDays":
 		if e.ComplexityRoot.RuleDefaults.DuplicateWindowDays == nil {
 			break
@@ -7035,6 +7058,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Session.UserAgent(childComplexity), true
 
+	case "SkippedDuplicate.instead":
+		if e.ComplexityRoot.SkippedDuplicate.Instead == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SkippedDuplicate.Instead(childComplexity), true
 	case "SkippedDuplicate.lastRecordedAt":
 		if e.ComplexityRoot.SkippedDuplicate.LastRecordedAt == nil {
 			break
@@ -7047,12 +7076,43 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SkippedDuplicate.Program(childComplexity), true
+	case "SkippedDuplicate.reason":
+		if e.ComplexityRoot.SkippedDuplicate.Reason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SkippedDuplicate.Reason(childComplexity), true
+	case "SkippedDuplicate.recorded":
+		if e.ComplexityRoot.SkippedDuplicate.Recorded == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SkippedDuplicate.Recorded(childComplexity), true
 	case "SkippedDuplicate.rules":
 		if e.ComplexityRoot.SkippedDuplicate.Rules == nil {
 			break
 		}
 
 		return e.ComplexityRoot.SkippedDuplicate.Rules(childComplexity), true
+
+	case "SkippedRecording.endAt":
+		if e.ComplexityRoot.SkippedRecording.EndAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SkippedRecording.EndAt(childComplexity), true
+	case "SkippedRecording.name":
+		if e.ComplexityRoot.SkippedRecording.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SkippedRecording.Name(childComplexity), true
+	case "SkippedRecording.service":
+		if e.ComplexityRoot.SkippedRecording.Service == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SkippedRecording.Service(childComplexity), true
 
 	case "SkippedRule.id":
 		if e.ComplexityRoot.SkippedRule.ID == nil {
@@ -10932,6 +10992,8 @@ type Rule implements Node {
   duplicateWindowDays: Int
   "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
+  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  bundleSameEpisodes: Boolean!
   createdAt: Time!
   "作成者。ユーザーが消えていれば null。"
   createdBy: User
@@ -10958,6 +11020,7 @@ input RuleInput {
   "1〜3650"
   duplicateWindowDays: Int
   followEventRelay: Boolean! = true
+  bundleSameEpisodes: Boolean! = false
 }
 
 "ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。"
@@ -11226,6 +11289,8 @@ type RuleDefaults {
   duplicateWindowDays: Int
   "イベントリレーで続く番組も予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
+  "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
+  bundleSameEpisodes: Boolean!
 }
 
 """
@@ -11238,6 +11303,7 @@ input RuleDefaultsInput {
   "重複を避ける期間を区切らないようにする。duplicateWindowDays と一緒には使えない。"
   clearDuplicateWindowDays: Boolean! = false
   followEventRelay: Boolean
+  bundleSameEpisodes: Boolean
 }
 
 """
@@ -11420,14 +11486,48 @@ enum CommentSource {
 }
 `, BuiltIn: false},
 	{Name: "../schema/skipped_duplicates.graphqls", Input: `"""
-ルールに一致したが、同じ番組名を録画済みなので、重複の回避で予約しなかった番組 (設計書 4.4)。
+ルールに一致したが、予約しなかった番組 (設計書 4.4)。同じ番組名を録画済みなので重複の回避で外したか、
+同じ回を録画済みか、同じ回を別の放送で録るので外した (#1498)。
 """
 type SkippedDuplicate {
   program: Program!
-  "一致したが、重複の回避で外したルール。"
+  "一致したが外したルール。"
   rules: [SkippedRule!]!
-  "同じ番組名を、同じサービスで最後に録った録画の終わり。"
-  lastRecordedAt: Time!
+  "外した理由。"
+  reason: SkipReason!
+  """
+  前に録った録画の終わり。DUPLICATE_TITLE では、同じ番組名を同じサービスで最後に録った録画の終わり。
+  OTHER_BROADCAST では null。
+  """
+  lastRecordedAt: Time
+  "RECORDED_EPISODE のときの、同じ回を録った録画。ほかの理由では null。"
+  recorded: SkippedRecording
+  "OTHER_BROADCAST のときの、同じ回を代わりに録る放送。番組表から消えていれば null。"
+  instead: Program
+}
+
+"""
+予約しなかった理由。
+"""
+enum SkipReason {
+  "同じ番組名を期間内に録画済み (重複の回避)。"
+  DUPLICATE_TITLE
+  "同じ回を録画済み (録画中を含む)。"
+  RECORDED_EPISODE
+  "同じ回を別の放送で録る。"
+  OTHER_BROADCAST
+}
+
+"""
+同じ回を録った録画 (録画履歴か、録画中の録画)。録画を消しても、履歴は残る。
+"""
+type SkippedRecording {
+  "録った局。サービスが消えていれば null。"
+  service: Service
+  "録った録画の番組名。"
+  name: String!
+  "録った録画の終わり。"
+  endAt: Time!
 }
 
 """
@@ -11441,7 +11541,7 @@ type SkippedRule {
 
 extend type Query {
   """
-  重複の回避で予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
+  重複の回避と同じ回の束ねで予約しなかった、これから放送する番組を、放送の早い順に返す。照合と同じ計算で、その場で求める。
   予約のある番組 (手動で予約したものなど) は返さない。手動の予約は重複の回避の対象にならないので、手動で予約すれば録れる。
   """
   skippedDuplicates: [SkippedDuplicate!]!
@@ -13844,6 +13944,8 @@ func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.
 		return ec.fieldContext_Rule_duplicateWindowDays(ctx, field)
 	case "followEventRelay":
 		return ec.fieldContext_Rule_followEventRelay(ctx, field)
+	case "bundleSameEpisodes":
+		return ec.fieldContext_Rule_bundleSameEpisodes(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Rule_createdAt(ctx, field)
 	case "createdBy":
@@ -13866,6 +13968,8 @@ func (ec *executionContext) childFields_RuleDefaults(ctx context.Context, field 
 		return ec.fieldContext_RuleDefaults_duplicateWindowDays(ctx, field)
 	case "followEventRelay":
 		return ec.fieldContext_RuleDefaults_followEventRelay(ctx, field)
+	case "bundleSameEpisodes":
+		return ec.fieldContext_RuleDefaults_bundleSameEpisodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RuleDefaults", field.Name)
 }
@@ -13970,10 +14074,28 @@ func (ec *executionContext) childFields_SkippedDuplicate(ctx context.Context, fi
 		return ec.fieldContext_SkippedDuplicate_program(ctx, field)
 	case "rules":
 		return ec.fieldContext_SkippedDuplicate_rules(ctx, field)
+	case "reason":
+		return ec.fieldContext_SkippedDuplicate_reason(ctx, field)
 	case "lastRecordedAt":
 		return ec.fieldContext_SkippedDuplicate_lastRecordedAt(ctx, field)
+	case "recorded":
+		return ec.fieldContext_SkippedDuplicate_recorded(ctx, field)
+	case "instead":
+		return ec.fieldContext_SkippedDuplicate_instead(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SkippedDuplicate", field.Name)
+}
+
+func (ec *executionContext) childFields_SkippedRecording(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "service":
+		return ec.fieldContext_SkippedRecording_service(ctx, field)
+	case "name":
+		return ec.fieldContext_SkippedRecording_name(ctx, field)
+	case "endAt":
+		return ec.fieldContext_SkippedRecording_endAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SkippedRecording", field.Name)
 }
 
 func (ec *executionContext) childFields_SkippedRule(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -37260,6 +37382,29 @@ func (ec *executionContext) fieldContext_Rule_followEventRelay(_ context.Context
 	return graphql.NewScalarFieldContext("Rule", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _Rule_bundleSameEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.Rule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rule_bundleSameEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BundleSameEpisodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rule_bundleSameEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rule", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _Rule_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Rule) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37459,6 +37604,29 @@ func (ec *executionContext) _RuleDefaults_followEventRelay(ctx context.Context, 
 	)
 }
 func (ec *executionContext) fieldContext_RuleDefaults_followEventRelay(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _RuleDefaults_bundleSameEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.RuleDefaults) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleDefaults_bundleSameEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BundleSameEpisodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleDefaults_bundleSameEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, "Boolean")
 }
 
@@ -38298,6 +38466,29 @@ func (ec *executionContext) fieldContext_SkippedDuplicate_rules(_ context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _SkippedDuplicate_reason(ctx context.Context, field graphql.CollectedField, obj *model.SkippedDuplicate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SkippedDuplicate_reason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.SkipReason) graphql.Marshaler {
+			return ec.marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkipReason(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SkippedDuplicate_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SkippedDuplicate", field, false, false, "SkipReason")
+}
+
 func (ec *executionContext) _SkippedDuplicate_lastRecordedAt(ctx context.Context, field graphql.CollectedField, obj *model.SkippedDuplicate) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38310,6 +38501,148 @@ func (ec *executionContext) _SkippedDuplicate_lastRecordedAt(ctx context.Context
 			return obj.LastRecordedAt, nil
 		},
 		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SkippedDuplicate_lastRecordedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SkippedDuplicate", field, false, false, "Time")
+}
+
+func (ec *executionContext) _SkippedDuplicate_recorded(ctx context.Context, field graphql.CollectedField, obj *model.SkippedDuplicate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SkippedDuplicate_recorded(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recorded, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SkippedRecording) graphql.Marshaler {
+			return ec.marshalOSkippedRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkippedRecording(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SkippedDuplicate_recorded(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SkippedDuplicate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SkippedRecording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SkippedDuplicate_instead(ctx context.Context, field graphql.CollectedField, obj *model.SkippedDuplicate) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SkippedDuplicate_instead(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Instead, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalOProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SkippedDuplicate_instead(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SkippedDuplicate",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SkippedRecording_service(ctx context.Context, field graphql.CollectedField, obj *model.SkippedRecording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SkippedRecording_service(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Service, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SkippedRecording_service(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SkippedRecording",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SkippedRecording_name(ctx context.Context, field graphql.CollectedField, obj *model.SkippedRecording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SkippedRecording_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SkippedRecording_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SkippedRecording", field, false, false, "String")
+}
+
+func (ec *executionContext) _SkippedRecording_endAt(ctx context.Context, field graphql.CollectedField, obj *model.SkippedRecording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SkippedRecording_endAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndAt, nil
+		},
+		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
 			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
 		},
@@ -38317,8 +38650,8 @@ func (ec *executionContext) _SkippedDuplicate_lastRecordedAt(ctx context.Context
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_SkippedDuplicate_lastRecordedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SkippedDuplicate", field, false, false, "Time")
+func (ec *executionContext) fieldContext_SkippedRecording_endAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SkippedRecording", field, false, false, "Time")
 }
 
 func (ec *executionContext) _SkippedRule_id(ctx context.Context, field graphql.CollectedField, obj *model.SkippedRule) (ret graphql.Marshaler) {
@@ -44892,7 +45225,7 @@ func (ec *executionContext) unmarshalInputRuleDefaultsInput(ctx context.Context,
 		asMap["clearDuplicateWindowDays"] = false
 	}
 
-	fieldsInOrder := [...]string{"avoidDuplicates", "duplicateWindowDays", "clearDuplicateWindowDays", "followEventRelay"}
+	fieldsInOrder := [...]string{"avoidDuplicates", "duplicateWindowDays", "clearDuplicateWindowDays", "followEventRelay", "bundleSameEpisodes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -44927,6 +45260,13 @@ func (ec *executionContext) unmarshalInputRuleDefaultsInput(ctx context.Context,
 				return it, err
 			}
 			it.FollowEventRelay = data
+		case "bundleSameEpisodes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bundleSameEpisodes"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BundleSameEpisodes = data
 		}
 	}
 	return it, nil
@@ -44967,8 +45307,11 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 	if _, present := asMap["followEventRelay"]; !present {
 		asMap["followEventRelay"] = true
 	}
+	if _, present := asMap["bundleSameEpisodes"]; !present {
+		asMap["bundleSameEpisodes"] = false
+	}
 
-	fieldsInOrder := [...]string{"name", "memo", "enabled", "conditions", "settings", "validFrom", "validUntil", "avoidDuplicates", "duplicateWindowDays", "followEventRelay"}
+	fieldsInOrder := [...]string{"name", "memo", "enabled", "conditions", "settings", "validFrom", "validUntil", "avoidDuplicates", "duplicateWindowDays", "followEventRelay", "bundleSameEpisodes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -45045,6 +45388,13 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 				return it, err
 			}
 			it.FollowEventRelay = data
+		case "bundleSameEpisodes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bundleSameEpisodes"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BundleSameEpisodes = data
 		}
 	}
 	return it, nil
@@ -53046,6 +53396,11 @@ func (ec *executionContext) _Rule(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "bundleSameEpisodes":
+			out.Values[i] = ec._Rule_bundleSameEpisodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "createdAt":
 			out.Values[i] = ec._Rule_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -53112,6 +53467,11 @@ func (ec *executionContext) _RuleDefaults(ctx context.Context, sel ast.Selection
 			}
 		case "followEventRelay":
 			out.Values[i] = ec._RuleDefaults_followEventRelay(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "bundleSameEpisodes":
+			out.Values[i] = ec._RuleDefaults_bundleSameEpisodes(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -53459,8 +53819,66 @@ func (ec *executionContext) _SkippedDuplicate(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "reason":
+			out.Values[i] = ec._SkippedDuplicate_reason(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "lastRecordedAt":
 			out.Values[i] = ec._SkippedDuplicate_lastRecordedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "recorded":
+			out.Values[i] = ec._SkippedDuplicate_recorded(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "instead":
+			out.Values[i] = ec._SkippedDuplicate_instead(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var skippedRecordingImplementors = []string{"SkippedRecording"}
+
+func (ec *executionContext) _SkippedRecording(ctx context.Context, sel ast.SelectionSet, obj *model.SkippedRecording) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, skippedRecordingImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SkippedRecording")
+		case "service":
+			out.Values[i] = ec._SkippedRecording_service(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._SkippedRecording_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endAt":
+			out.Values[i] = ec._SkippedRecording_endAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -57815,6 +58233,16 @@ func (ec *executionContext) marshalNSession2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 	return ec._Session(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkipReason(ctx context.Context, v any) (model.SkipReason, error) {
+	var res model.SkipReason
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkipReason(ctx context.Context, sel ast.SelectionSet, v model.SkipReason) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNSkippedDuplicate2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkippedDuplicateᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SkippedDuplicate) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -58999,6 +59427,13 @@ func (ec *executionContext) marshalOPreviewFrame2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return ec._PreviewFrame(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx context.Context, sel ast.SelectionSet, v *model.Program) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Program(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalORecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx context.Context, sel ast.SelectionSet, v *model.Recording) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -59145,6 +59580,13 @@ func (ec *executionContext) marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 		return graphql.Null
 	}
 	return ec._Service(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSkippedRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkippedRecording(ctx context.Context, sel ast.SelectionSet, v *model.SkippedRecording) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SkippedRecording(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

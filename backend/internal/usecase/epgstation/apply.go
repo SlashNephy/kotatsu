@@ -303,6 +303,8 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		AvoidDuplicates:     r.AvoidDuplicate,
 		DuplicateWindowDays: window,
 		FollowEventRelay:    false,
+		// 「重複を避ける」を付けていたルールは、局をまたいだ同じ回も 1 本だけ録る (#1498)。
+		BundleSameEpisodes: r.AvoidDuplicate,
 	}
 }
 
