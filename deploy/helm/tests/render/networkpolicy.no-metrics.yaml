@@ -1,0 +1,4 @@
+# metrics を受ける相手がなければ、受ける規則のない neko、mikan、nekonote は、ingress を書かずにすべて断る。
+mode: split
+networkPolicy:
+  enabled: true

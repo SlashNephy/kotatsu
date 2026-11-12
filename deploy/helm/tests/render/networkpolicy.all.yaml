@@ -1,0 +1,4 @@
+# all の構成では、全ロールを動かす 1 つの Pod に、http をどこからでも受ける NetworkPolicy を 1 つ作る。
+mode: all
+networkPolicy:
+  enabled: true

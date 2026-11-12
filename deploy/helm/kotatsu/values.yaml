@@ -135,6 +135,35 @@ ingress:
   # コントローラーの Service を externalTrafficPolicy: Local にするなどして、送信元を保つ。
   trustedProxies: []
 
+# httpRoute は、Gateway API の HTTPRoute で公開する設定 (#1526)。Gateway API の CRD (gateway.networking.k8s.io/v1) が要る。
+# X-Forwarded-For を信頼させる必要があるので、ingress.trustedProxies (Gateway の Pod のネットワーク) も必須にする。
+httpRoute:
+  enabled: false
+  annotations: {}
+  # parentRefs は、ルートを付ける Gateway。必須。各項目の name は必須で、namespace、sectionName (リスナー名)、port は任意。
+  # group と kind は、省略すると gateway.networking.k8s.io と Gateway になる (書き出しは省略しない)。
+  # ホスト名の段数ごとにリスナーが分かれる構成では、sectionName ごとに項目を分けて書く。
+  # 例: [{name: shared-gateway, namespace: gateway, sectionName: https}]
+  parentRefs: []
+  # hostnames が空なら、ingress.host を使う。
+  hostnames: []
+  # timeouts は、ルールの timeouts (request、backendRequest)。空なら Gateway の実装の既定に任せる。
+  # ライブ視聴と SSE は長く続くので、短い上限を設ける実装では、長く取る。
+  timeouts: {}
+
+# networkPolicy は、Pod へ届く相手を絞る NetworkPolicy (#1526)。CNI が対応していないと効かないので、既定では作らない。
+# 作ると、Pod への Ingress を、許した相手からの、そのポートの TCP だけに絞る。Egress は絞らない。
+# all と tenban の http は httpFrom から、kyusu の http は tenban の Pod から、どのロールの metrics も metricsFrom から受ける。
+# neko、mikan、nekonote の http は誰からも受けない (kubelet のプローブは、ノードからの通信として通す CNI が多い)。
+networkPolicy:
+  enabled: false
+  # httpFrom は、all と tenban の http (8080 番) を受ける相手 (NetworkPolicyPeer の並び)。空ならどこからでも受ける。
+  # 例: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]
+  httpFrom: []
+  # metricsFrom は、metrics (9090 番) を受ける相手。空なら誰からも受けない。
+  # 例: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]
+  metricsFrom: []
+
 # metrics は、/metrics の scrape の設定 (設計書 11.3)。どのロールの Pod も、metrics のポート (9090 番) で待ち受ける。
 metrics:
   # podMonitor は、Prometheus Operator の PodMonitor。CRD (monitoring.coreos.com/v1) のないクラスターでは作れないので、既定では作らない。

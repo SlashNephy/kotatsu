@@ -68,7 +68,7 @@ valueFrom:
 
 {{/*
 trustedProxies は、KOTATSU_SERVER_TRUSTED_PROXIES の値 (ingress.trustedProxies をカンマでつないだもの)。
-Ingress を使うのに、信頼するプロキシをどこにも設定していなければ、全リクエストが 400 になるので、描画を止める。
+Ingress か HTTPRoute を使うのに、信頼するプロキシをどこにも設定していなければ、全リクエストが 400 になるので、描画を止める。
 config.SERVER_TRUSTED_PROXIES でも渡せるが、両方に書くと同じ環境変数が 2 つになるので、どちらか一方にさせる。
 */}}
 {{- define "kotatsu.trustedProxies" -}}
@@ -78,6 +78,9 @@ config.SERVER_TRUSTED_PROXIES でも渡せるが、両方に書くと同じ環�
 {{- end -}}
 {{- if and .Values.ingress.enabled (not .Values.ingress.trustedProxies) (not $fromConfig) -}}
 {{- fail "ingress.trustedProxies is required when ingress.enabled is true; set the CIDR of the ingress controller's Pods (e.g. the Pod network), or every request through the ingress is rejected with 400" -}}
+{{- end -}}
+{{- if and .Values.httpRoute.enabled (not .Values.ingress.trustedProxies) (not $fromConfig) -}}
+{{- fail "ingress.trustedProxies is required when httpRoute.enabled is true; set the CIDR of the Gateway's Pods (e.g. the Pod network), or every request through the Gateway is rejected with 400" -}}
 {{- end -}}
 {{- join "," .Values.ingress.trustedProxies -}}
 {{- end -}}

@@ -1,0 +1,6 @@
+# OTLP の送り先を、metrics.otlp と config の両方に書いた。
+metrics:
+  otlp:
+    endpoint: https://otlp.example.com
+config:
+  TELEMETRY_OTLP_METRICS_ENDPOINT: https://otlp.example.com
