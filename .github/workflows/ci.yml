@@ -356,7 +356,8 @@ jobs:
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 時間の上限は、測った時間 (アーカイブを作るのに 6 分ほど) にゆとりを足したもの。
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -395,7 +396,9 @@ jobs:
           - os: macos-latest
             archive: darwin_arm64.tar.gz
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # 時間の上限は、測った時間 (ジョブは 1 分半ほど、PostgreSQL の用意は 15 秒まで、起動の段は 20 秒ほど) にゆとりを足したもの。
+    # 固まった段で、ジョブ全体の上限を使い切らないよう、段ごとにも上限を設ける。
+    timeout-minutes: 20
     permissions:
       contents: read
     defaults:
@@ -426,7 +429,7 @@ jobs:
           echo "KOTATSU_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/kotatsu_smoke?sslmode=disable" >>"$GITHUB_ENV"
       - name: Start PostgreSQL (macOS)
         if: runner.os == 'macOS'
-        timeout-minutes: 10
+        timeout-minutes: 5
         run: |
           brew install postgresql@17
           brew services start postgresql@17
@@ -435,8 +438,10 @@ jobs:
           "$pg_bin/createdb" -h 127.0.0.1 kotatsu_smoke
           echo "KOTATSU_DATABASE_URL=postgres://$(whoami)@127.0.0.1:5432/kotatsu_smoke?sslmode=disable" >>"$GITHUB_ENV"
       - name: Start the archive
-        timeout-minutes: 15
+        timeout-minutes: 5
         env:
+          # 起動 (マイグレーションを含む) は、どちらのランナーでも 1 秒で済んだ。混んだランナーの揺れを見込んで、60 秒まで待つ。
+          KOTATSU_SMOKE_START_TIMEOUT: "60"
           ARCHIVES: ${{ runner.temp }}/archives
           ARCHIVE: ${{ matrix.archive }}
           EXPECTED_COMMIT: ${{ github.sha }}
