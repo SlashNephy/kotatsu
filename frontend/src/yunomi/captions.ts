@@ -1,6 +1,11 @@
 import type { CanvasMainThreadRenderer, Controller, MPEGTSFeeder, TextRenderer } from 'aribb24.js';
 
-import { broadcastFontUrl } from './broadcastFont';
+import {
+  broadcastExtendedFontUrl,
+  broadcastExtendedUnicodeRange,
+  broadcastFontUrl,
+  usesExtendedFont,
+} from './broadcastFont';
 import { defaultCaptionStyle, rendererColor, type CaptionStyle } from './captionStyle';
 import { drcsReplacements, recordDRCS } from './drcs';
 
@@ -73,21 +78,81 @@ const captionFont = `'${captionFontFamily}', 'Hiragino Maru Gothic Pro', 'BIZ UD
 let captionFontLoading: Promise<void> | null = null;
 
 // loadCaptionFont は、字幕のフォントを読み込む。canvas に描くので、描く前に読み終えておく。
-// 7 MB ほどあるので、字幕を描くときに初めて読み、ページの中では 1 回だけ読む。読めなくても失敗にはしない。
+// フォントは、基本の字と、JIS X 0213 で足された漢字の 2 つの面に分けてある (#1520)。どちらも同じファミリ名で宣言し、
+// 基本の面は、字幕を描くときに初めて読み、ページの中では 1 回だけ読む。後の面は unicodeRange を付けて宣言だけしておき、
+// その字が出たときに読む (loadExtendedCaptionFont)。読めなくても失敗にはしない。
 function loadCaptionFont(): Promise<void> {
   if (captionFontLoading === null) {
-    captionFontLoading =
-      typeof FontFace === 'undefined'
-        ? Promise.resolve()
-        : new FontFace(captionFontFamily, `url(${broadcastFontUrl})`).load().then(
-            (face) => {
-              document.fonts.add(face);
-            },
-            () => {},
-          );
+    if (typeof FontFace === 'undefined') {
+      captionFontLoading = Promise.resolve();
+    } else {
+      if (broadcastExtendedUnicodeRange !== null) {
+        document.fonts.add(
+          new FontFace(captionFontFamily, `url(${broadcastExtendedFontUrl})`, {
+            unicodeRange: broadcastExtendedUnicodeRange,
+            display: 'swap',
+          }),
+        );
+      }
+      captionFontLoading = new FontFace(captionFontFamily, `url(${broadcastFontUrl})`, {
+        display: 'swap',
+      })
+        .load()
+        .then(
+          (face) => {
+            document.fonts.add(face);
+          },
+          () => {},
+        );
+    }
   }
 
   return captionFontLoading;
+}
+
+// loadExtendedCaptionFont は、text を描くのに要る、後の面を読み終えるのを待つ。canvas は、描く前に読み込みを待たないので、
+// 待たずに描くと、その字をほかのフォントで描いてしまう。読めなくても失敗にはせず、ほかのフォントで描く。
+function loadExtendedCaptionFont(text: string): Promise<void> {
+  return document.fonts.load(`1em '${captionFontFamily}'`, text).then(
+    () => {},
+    () => {},
+  );
+}
+
+// fontAwareRenderer は、aribb24.js の CanvasMainThreadRenderer を広げ、JIS X 0213 で足された漢字のある字幕を、
+// 後の面を読み終えてから描く描画器を作る (#1520)。待つ間に次の字幕が来るか消えたら、古い字幕は描かない。
+function fontAwareRenderer(
+  Base: typeof CanvasMainThreadRenderer,
+  option: ConstructorParameters<typeof CanvasMainThreadRenderer>[0],
+): CanvasMainThreadRenderer {
+  class FontAware extends Base {
+    // generation は、render と clear のたびに進める。待った後に、まだ最新の字幕かを確かめるのに使う。
+    generation = 0;
+
+    override render(...args: Parameters<CanvasMainThreadRenderer['render']>): void {
+      const generation = ++this.generation;
+      const text = args[1]
+        .map((token) => (token.tag === 'Character' ? token.character : ''))
+        .join('');
+      if (!usesExtendedFont(text)) {
+        super.render(...args);
+
+        return;
+      }
+      void loadExtendedCaptionFont(text).then(() => {
+        if (generation === this.generation) {
+          super.render(...args);
+        }
+      });
+    }
+
+    override clear(): void {
+      this.generation++;
+      super.clear();
+    }
+  }
+
+  return new FontAware(option);
 }
 
 // createCaptions は、video の上に字幕を描く。描画用の canvas は container に置くので、container は position: relative にする。
@@ -160,7 +225,7 @@ export function createCaptions(
         const feeder = new FeederClass({ receive: { type } });
         // 描画の領域を、映像の枠に合わせる。HTML や SVG で描く方法は、CSP で禁じたインラインの style を使うので選ばない。
         // 外字は、共有の表で文字に置き換える (#825)。表は描くたびに読まれるので、入れ替えれば次の字幕から効く。
-        const renderer = new RendererClass({
+        const renderer = fontAwareRenderer(RendererClass, {
           font: { normal: captionFont },
           replace: { drcs: drcsReplacements },
           resize: { target: 'container', objectFit: 'contain' },

@@ -223,6 +223,7 @@ export function useDataBroadcast(
       // 文書は受信機の字幅を前提に作られているので、OS のフォントで描くと、はみ出したり折り返したりする (#443)。
       // 字幕と同じ等幅の丸ゴシックで描く。角ゴシックの字形は同梱しないので、角ゴシックも同じフォントで描き、字幅をそろえる。
       // FontFace は、文書が使うまで読み込まないので、データ放送を出すときにだけ読む。
+      // 文書は EUC-JP の字と追加記号だけで書かれるので、JIS X 0213 で足された漢字のない、基本のファイルだけを渡す (#1520)。
       fonts: {
         roundGothic: { source: `url(${broadcastFontUrl})` },
         squareGothic: { source: `url(${broadcastFontUrl})` },
