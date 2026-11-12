@@ -127,13 +127,14 @@ type importedRule struct {
 	DuplicateWindowDays *int
 }
 
-// baseRule は、どの項目も空の EPGStation のルール。
+// baseRule は、チャンネル種別の地上波のほかは、どの項目も空の EPGStation のルール。
+// 番組を選ぶ条件がないルールは取り込まない (#1501) ので、チャンネル種別だけを入れておく。
 func baseRule() *epgstation.Rule {
 	return &epgstation.Rule{
 		ID: 1, Enabled: true,
 		Keyword:       epgstation.KeywordOption{Keyword: "", CaseSensitive: false, Regexp: false, Name: true, Description: false, Extended: false},
 		IgnoreKeyword: epgstation.KeywordOption{Keyword: "", CaseSensitive: false, Regexp: false, Name: false, Description: false, Extended: false},
-		ChannelTypes:  []string{}, ChannelIDs: []int64{}, Genres: []*epgstation.Genre{}, Times: []*epgstation.SearchTime{},
+		ChannelTypes:  []string{"GR"}, ChannelIDs: []int64{}, Genres: []*epgstation.Genre{}, Times: []*epgstation.SearchTime{},
 		SearchPeriods: []*epgstation.Period{}, TagIDs: []int64{},
 	}
 }
@@ -141,7 +142,7 @@ func baseRule() *epgstation.Rule {
 // baseConditions は、baseRule を取り込んだときの条件。
 func baseConditions() *match.Conditions {
 	return &match.Conditions{
-		Keywords: []*match.Keyword{}, KeywordMatch: match.KeywordMatchAll, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{}, ServiceIDs: []int64{},
+		Keywords: []*match.Keyword{}, KeywordMatch: match.KeywordMatchAll, ExcludeKeywords: []*match.Keyword{}, ChannelTypes: []string{"GR"}, ServiceIDs: []int64{},
 		Genres: []*match.Genre{}, ExcludeGenres: []*match.Genre{}, TimeRanges: []*match.TimeRange{},
 		MinDurationSeconds: nil, MaxDurationSeconds: nil, FreeOnly: false,
 	}
@@ -198,7 +199,9 @@ func TestApplyRules(t *testing.T) {
 				r.ChannelTypes = []string{"GR", "BS"}
 				r.ChannelIDs = []int64{channelID}
 			},
-			want: func(r *importedRule) { r.Conditions.ServiceIDs = []int64{channelID} },
+			want: func(r *importedRule) {
+				r.Conditions.ChannelTypes, r.Conditions.ServiceIDs = []string{}, []int64{channelID}
+			},
 		},
 		{
 			name: "放送波の種類、ジャンル、長さ、無料放送を写す",
@@ -363,6 +366,31 @@ func TestApplyRuleSkipsInvalidRule(t *testing.T) {
 	var rules int
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM rules").Scan(&rules))
 	assert.Equal(t, 1, rules)
+}
+
+// TestApplyRuleSkipsUnconditionedRule は、時間帯と曜日だけのルールを、取り込まずに理由を残すことを確かめる (#1501)。
+// 取り込むと、その時間の全局を録ってディスクを埋める。チャンネル種別だけのルールは取り込む。
+func TestApplyRuleSkipsUnconditionedRule(t *testing.T) {
+	t.Parallel()
+
+	f := newApplyFixture(t)
+	timeOnly := baseRule()
+	timeOnly.ChannelTypes = []string{}
+	timeOnly.Times = []*epgstation.SearchTime{{Start: new(19), Range: new(1), Week: 0b0111110}}
+	typeOnly := baseRule()
+	typeOnly.ID = 2
+	snapshot := emptySnapshot()
+	snapshot.Rules = []*epgstation.Rule{timeOnly, typeOnly}
+
+	plan := epgstation.NewPlan(snapshot, &epgstation.PlanOptions{Now: time.Now(), Pools: map[string]string{}})
+	assert.Equal(t, 1, plan.Rules)
+	assert.Equal(t, 1, plan.UnconditionedRules)
+
+	result := f.apply(t, snapshot)
+	assert.Equal(t, map[epgstation.Kind]int{epgstation.KindRule: 1}, result.Imported)
+	require.Len(t, result.Skipped, 1)
+	assert.Equal(t, int64(1), result.Skipped[0].SourceID)
+	assert.Contains(t, result.Skipped[0].Reason, "conditions must include a keyword")
 }
 
 // TestApplyRuleIsMatched は、取り込んだルールが、Kotatsu のルールの照合で番組に一致し、ルール予約を作ることを確かめる。

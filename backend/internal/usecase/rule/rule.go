@@ -40,6 +40,9 @@ var (
 	ErrNotFound = errors.New("rule not found")
 	// ErrInvalidRule は、ルールの内容が正しくないことを表す。
 	ErrInvalidRule = errors.New("invalid rule")
+	// ErrUnconditioned は、ルールに番組を選ぶ条件がない (時間帯と曜日、長さ、除外の条件だけの) ことを表す (#1501)。
+	// そうしたルールは、その時間の全局を録ってディスクを埋めるので、保存させず、照合でも当てない。
+	ErrUnconditioned = fmt.Errorf("%w: conditions must include a keyword, channel type, service, genre, or mark", ErrInvalidRule)
 )
 
 // Rule はルール。
@@ -109,8 +112,11 @@ func (in *Input) encode() (*encoded, error) {
 		}
 	}
 	conditions, err := match.Encode(in.Conditions)
-	if err != nil {
+	switch {
+	case err != nil:
 		errs = append(errs, err)
+	case !in.Conditions.HasTarget():
+		errs = append(errs, ErrUnconditioned)
 	}
 	settings, err := reserve.EncodeOverrides(in.Overrides)
 	if err != nil {

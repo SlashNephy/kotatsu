@@ -21,9 +21,9 @@ func TestNewPlan(t *testing.T) {
 	}
 	snapshot := &epgstation.Snapshot{
 		Rules: []*epgstation.Rule{
-			{ID: 1, ParentDirectoryName: ""},
-			{ID: 2, ParentDirectoryName: animeDirectory},
-			{ID: 3, ParentDirectoryName: recordedDirectory},
+			{ID: 1, ChannelTypes: []string{"GR"}, ParentDirectoryName: ""},
+			{ID: 2, ChannelTypes: []string{"GR"}, ParentDirectoryName: animeDirectory},
+			{ID: 3, ChannelTypes: []string{"GR"}, ParentDirectoryName: recordedDirectory},
 		},
 		ManualReserves: []*epgstation.Reserve{
 			{ID: 1, IsTimeSpecified: false, StartAt: now.Add(time.Hour), ParentDirectoryName: animeDirectory},

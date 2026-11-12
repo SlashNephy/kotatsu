@@ -51,7 +51,7 @@ export const channelTypes = [
   { type: 'BS', displayName: 'BS', sortOrder: 1 },
 ];
 
-// demoStreamURL は、デモの映像 (20 秒の合成の映像) の URL。ライブ視聴と録画の再生で、どの局と録画もこれを流す。
+// demoStreamURL は、デモの映像 (64 秒の合成の映像) の URL。ライブ視聴と録画の再生で、どの局と録画もこれを流す。
 export const demoStreamURL = `${import.meta.env.BASE_URL}demo/stream.m2ts`;
 
 // logo は、局の頭文字を色の付いた四角に載せた、64×36 の SVG を data: URL で返す。

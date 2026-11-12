@@ -16,6 +16,7 @@ type PlanOptions struct {
 
 // Plan は取り込みの計画。dry run で表示する。
 type Plan struct {
+	// Rules は取り込むルールの数。条件なしのルールは含まない。
 	Rules           int
 	ProgramReserves int
 	TimeReserves    int
@@ -29,6 +30,9 @@ type Plan struct {
 	Histories  int
 	Tags       int
 
+	// UnconditionedRules は、番組を選ぶ条件がない (時間帯と曜日だけなど) ので取り込まないルールの数 (#1501)。
+	// 取り込むと、その時間の全局を録るので、Kotatsu はそうしたルールを保存させない。
+	UnconditionedRules int
 	// StartedReserves は、開始済みなので取り込まない手動予約の数。
 	StartedReserves int
 	// RecordingsInProgress は、録画中なので取り込まない録画の数。
@@ -51,7 +55,8 @@ func NewPlan(snapshot *Snapshot, opts *PlanOptions) *Plan {
 	p := &planner{
 		opts: opts,
 		plan: &Plan{
-			Rules:                len(snapshot.Rules),
+			Rules:                0,
+			UnconditionedRules:   0,
 			ProgramReserves:      0,
 			TimeReserves:         0,
 			Recordings:           0,
@@ -110,6 +115,13 @@ func (p *planner) lookup(name string) *UnmappedDirectory {
 // addRule はルールを数える。ルールと予約でディレクトリの名前が空なら、EPGStation の既定の保存先を使うので、
 // 対応付けを求めない。
 func (p *planner) addRule(rule *Rule) {
+	// 取り込みの適用 (ruleInput) と同じ変換で確かめ、dry run と実際の取り込みをそろえる。
+	if conditions, _ := ruleConditions(rule); !conditions.HasTarget() {
+		p.plan.UnconditionedRules++
+
+		return
+	}
+	p.plan.Rules++
 	if rule.ParentDirectoryName == "" {
 		return
 	}

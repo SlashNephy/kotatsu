@@ -407,6 +407,7 @@ export function createRootValue(
       // デモにはタイムシフトのディレクトリがない。
       timeshiftWhileWatching: false,
       timeshiftWhileWatchingRetentionSeconds: 3600,
+      ruleUnmatchedGraceMinutes: 180,
       updatedAt: null,
     }),
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。

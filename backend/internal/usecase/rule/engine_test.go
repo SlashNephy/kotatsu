@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 const (
@@ -50,6 +51,7 @@ type engineFixture struct {
 
 // newEngineFixture は、偽チューナーサーバーの EPG を 12:10 の時点で同期した DB を用意する。
 // こたつテスト1 の番組は、eventId 1 が 11:00 に始まり、30 分ごとに並ぶ。eventId 4 以降が、これから放送される番組である。
+// ルールから外れた予約を放送の直前に残す猶予 (#1501) は 0 にする。猶予を確かめるテストは、setGrace で変える。
 func newEngineFixture(tb testing.TB, extra ...*faketuner.Program) *engineFixture {
 	tb.Helper()
 
@@ -73,7 +75,7 @@ func newEngineFixture(tb testing.TB, extra ...*faketuner.Program) *engineFixture
 	recorder := audit.NewRecorder(clk)
 	reservations := reserve.NewReservations(clk, recorder)
 
-	return &engineFixture{
+	f := &engineFixture{
 		pool:         pool,
 		fake:         fake,
 		clock:        clk,
@@ -83,6 +85,18 @@ func newEngineFixture(tb testing.TB, extra ...*faketuner.Program) *engineFixture
 		engine:       rule.NewEngine(pool, clk, location, func(context.Context, pgx.Tx) error { return nil }, reservations),
 		user:         newUser(tb, pool),
 	}
+	f.setGrace(tb, 0)
+
+	return f
+}
+
+// setGrace は、ルールから外れた予約を放送の直前に残す猶予を、minutes 分にする (#1501)。
+func (f *engineFixture) setGrace(tb testing.TB, minutes int) {
+	tb.Helper()
+
+	store := settings.NewStore(f.clock, audit.NewRecorder(f.clock))
+	_, err := store.Update(tb.Context(), f.pool, audit.System("test"), &settings.Changes{RuleUnmatchedGraceMinutes: &minutes})
+	require.NoError(tb, err)
 }
 
 // createRule は、こたつテスト1 の番組名が pattern に一致する番組を予約するルールを作る。
@@ -724,5 +738,157 @@ func TestEngineMatchesMarksFromRawName(t *testing.T) {
 	})
 
 	f.run(t)
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+}
+
+// TestEngineKeepsUnmatchedReservationsWithinGrace は、どのルールにも一致しなくなったルール予約を、放送の直前 (猶予の内) なら残し、
+// 条件に戻れば、そのまま有効な予約として続けることを確かめる (#1501)。番組表の直前の書き換えで外れた予約を消して録り逃さないようにする。
+func TestEngineKeepsUnmatchedReservationsWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	// 12:10 から 1 時間の内に始まるのは eventId 5 (13:00〜) までで、eventId 6 (13:30〜) は外。
+	f.setGrace(t, 60)
+	r := f.createRule(t, `テスト番組 (5|6)$`, nil)
+	f.run(t)
+	kept := f.reservationOf(t, 5)
+
+	_, err := f.rules.Update(t.Context(), f.pool, f.user, r.ID, unmatchedInput(r))
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.run(t).Deleted, "only the reservation outside the grace is deleted")
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+	// 何度照合しても、残したまま。
+	assert.Zero(t, f.run(t).Deleted)
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+	assert.Equal(t, []uuid.UUID{r.ID}, f.linkedRules(t, 5), "the link to the rule is kept while the reservation is kept")
+
+	// 条件に戻ったら、残した予約をそのまま使い、外れた方を作り直す。
+	in := unmatchedInput(r)
+	in.Conditions.Keywords[0].Text = `テスト番組 (5|6)$`
+	in.Conditions.Keywords[0].Regexp = true
+	in.Conditions.ServiceIDs = []int64{serviceID()}
+	_, err = f.rules.Update(t.Context(), f.pool, f.user, r.ID, in)
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.run(t).Created)
+	assert.Equal(t, map[int64]bool{5: true, 6: true}, f.reserved(t))
+	assert.Equal(t, kept.ID, f.reservationOf(t, 5).ID)
+}
+
+// TestEngineDeletesReservationsOfStoppedRulesWithinGrace は、人がルールを消したか無効にしたら、猶予の内でも、
+// 番組名が空でも、そのルールの予約をすぐ消すことを確かめる (#1501)。人が押した結果なので、迷う理由がない。
+func TestEngineDeletesReservationsOfStoppedRulesWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		stop func(t *testing.T, f *engineFixture, r *rule.Rule)
+	}{
+		{name: "ルールを無効にした", stop: func(t *testing.T, f *engineFixture, r *rule.Rule) {
+			t.Helper()
+
+			_, err := f.rules.SetEnabled(t.Context(), f.pool, f.user, r.ID, false)
+			require.NoError(t, err)
+		}},
+		{name: "ルールを消した", stop: func(t *testing.T, f *engineFixture, r *rule.Rule) {
+			t.Helper()
+
+			require.NoError(t, f.rules.Delete(t.Context(), f.pool, f.user, r.ID))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t)
+			f.setGrace(t, 24*60)
+			r := f.createRule(t, `テスト番組 (5|6)$`, nil)
+			f.run(t)
+			// eventId 6 は番組名を空にし、まだ読めていない番組にする。
+			require.NoError(t, f.fake.RenameProgram(faketuner.ProgramID(grNetworkID, grServiceID, 6), ""))
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			tt.stop(t, f, r)
+			assert.Equal(t, 2, f.run(t).Deleted)
+			assert.Empty(t, f.reserved(t))
+		})
+	}
+}
+
+// TestEngineKeepsReservationsOfUnnamedPrograms は、番組表にあるのに番組名が空の番組のルール予約を、猶予の外でも消さないことを確かめる (#1501)。
+// 条件から外れたのか、まだ読めていないだけなのかを区別できないからである。番組名が入って条件に戻れば、そのまま続ける。
+func TestEngineKeepsReservationsOfUnnamedPrograms(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	f.createRule(t, `テスト番組 6$`, nil)
+	f.run(t)
+	reservation := f.reservationOf(t, 6)
+	programID := faketuner.ProgramID(grNetworkID, grServiceID, 6)
+
+	require.NoError(t, f.fake.RenameProgram(programID, ""))
+	_, err := f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Zero(t, f.run(t).Deleted)
+	assert.Equal(t, reservation.ID, f.reservationOf(t, 6).ID)
+
+	require.NoError(t, f.fake.RenameProgram(programID, "こたつテスト1 テスト番組 6"))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	result := f.run(t)
+	assert.Zero(t, result.Created)
+	assert.Zero(t, result.Deleted)
+	assert.Equal(t, reservation.ID, f.reservationOf(t, 6).ID)
+
+	// 番組名が入って条件から外れたなら、消す。
+	require.NoError(t, f.fake.RenameProgram(programID, "こたつテスト1 別の番組"))
+	_, err = f.reconciler.SyncAll(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.run(t).Deleted)
+	assert.Empty(t, f.reserved(t))
+}
+
+// TestEngineDeletesDuplicateReservationsWithinGrace は、予約した後に同じ番組名を録り終え、重複の回避で外れた予約を、
+// 猶予の内でも消すことを確かめる (#1501)。外れた理由は番組表の書き換えでなく録画の完了なので、迷う理由がない。
+func TestEngineDeletesDuplicateReservationsWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	f.setGrace(t, 24*60)
+	f.createRule(t, `テスト番組 5$`, func(in *rule.Input) { in.AvoidDuplicates = true })
+	f.run(t)
+	require.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+
+	// 同じ局で、同じ番組名を録り終えた。
+	_, err := f.pool.Exec(t.Context(),
+		"INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6)",
+		id.New(), serviceID(), rule.TitleKey("こたつテスト1 テスト番組 5"), "こたつテスト1 テスト番組 5",
+		testNow().Add(-time.Hour), testNow().Add(-30*time.Minute))
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, f.run(t).Deleted)
+	assert.Empty(t, f.reserved(t))
+}
+
+// TestEngineSkipsUnconditionedRules は、番組を選ぶ条件のないルール (更新の前に保存した、時間帯と曜日だけのルール) を照合で当てず、
+// そのルールで作り済みの予約は消さずに残すことを確かめる (#1501)。当てると、その時間の全局を録ってディスクを埋める。
+func TestEngineSkipsUnconditionedRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	r := f.createRule(t, `テスト番組 5$`, nil)
+	f.run(t)
+	require.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+
+	// 保存では断るので、DB を直接書き換え、これからの全番組を含む時間帯だけのルールにする。
+	_, err := f.pool.Exec(t.Context(), `UPDATE rules SET conditions = '{"version": 1, "conditions": {"keywords": [], "excludeKeywords": [],
+		"channelTypes": [], "serviceIds": [], "genres": [], "excludeGenres": [], "freeOnly": false,
+		"timeRanges": [{"weekdays": [0, 1, 2, 3, 4, 5, 6], "startMinute": 0, "durationMinutes": 1440}]}}' WHERE id = $1`, r.ID)
+	require.NoError(t, err)
+
+	result := f.run(t)
+	require.ErrorIs(t, result.Skipped[r.ID], rule.ErrUnconditioned)
+	assert.Zero(t, result.Created, "no program is reserved by the unconditioned rule")
+	assert.Zero(t, result.Deleted, "the reservation made before is kept")
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }

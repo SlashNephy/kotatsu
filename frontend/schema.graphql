@@ -1929,10 +1929,11 @@ type Mutation {
   deleteReservations(ids: [ID!]!): BulkOperationPayload!
   """
   ルールを作る。視聴者は使えない。
+  条件に、含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字のどれもなければ、BAD_USER_INPUT を返す (#1501)。
   """
   createRule(input: RuleInput!): Rule!
   """
-  ルールの内容を input で置き換える。視聴者は使えない。
+  ルールの内容を input で置き換える。視聴者は使えない。条件は createRule と同じく確かめる。
   """
   updateRule(id: ID!, input: RuleInput!): Rule!
   """
@@ -4248,6 +4249,11 @@ type SystemSettings {
   """
   timeshiftWhileWatchingRetentionSeconds: Int!
   """
+  どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
+  番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
+  """
+  ruleUnmatchedGraceMinutes: Int!
+  """
   最後に変えた日時。一度も変えていなければ null。
   """
   updatedAt: Time
@@ -4295,6 +4301,10 @@ input SystemSettingsInput {
   600〜86400 秒。
   """
   timeshiftWhileWatchingRetentionSeconds: Int
+  """
+  0〜1440 分。
+  """
+  ruleUnmatchedGraceMinutes: Int
 }
 """
 システムの状態。

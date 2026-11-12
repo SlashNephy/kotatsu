@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# 静的なデモ (#832) で、ライブ視聴と録画の再生に流す、20 秒の映像を作る (#1050)。
+# 静的なデモ (#832) で、ライブ視聴と録画の再生に流す、64.064 秒の映像を作る (#1050)。
+# 映像は、demo/stream-sw.js が繰り返して流すので、つなぎ目で絵も音も途切れないように作る。
 #
 #   MISE_ENV=demo-stream mise run //frontend:demo-stream
 #
 # 放送の映像や、権利のはっきりしない素材は載せられないので、すべて自前で作る。素材のファイルは使わない。
 # - 絵: 空は ffmpeg の gradients で塗り、山や家、雲、局のロゴ、テロップは scripts/demo-stream-scene.mjs が ASS の図形と文字で描く。
 #   局と地名は架空のもの。文字のフォントは、字幕を描くのと同じ Rounded M+ 1m WadaLab mix (vendor/caption-font、Unlicense)。
-# - 音: ffmpeg の aevalsrc で、和音を合成する。
+# - 音: 朝の番組の BGM と小鳥のさえずりを、scripts/demo-stream-music.mjs が式だけで合成する。
 # - 字幕: scripts/demo-stream-captions.mjs が、aribb24.js で ARIB 字幕の PES を作り、TS に差し込む。
 #
 # 放送と同じく、1440x1080 (横に縮めた 16:9) の MPEG-2 の映像と AAC の音声を MPEG-TS に入れる。
@@ -33,19 +34,30 @@ mkdir "${work}/fonts"
 cp "${font}" "${work}/fonts/"
 node scripts/demo-stream-scene.mjs >"${work}/scene.ass"
 
-# 和音 (ハ長調の I、ド・ミ・ソ) を、ゆっくり揺らして鳴らす。つなぎ目で音が途切れて聞こえないよう、頭と終わりを絞る。
-# 平均律の高さ (ミ 329.63 Hz、ソ 392.00 Hz) だと、ずれが唸りになり、スピーカーで鳴らすと濁って聞こえる (#1394)。
-# 純正律 (ド:ミ:ソ:ド = 4:5:6:8) にして、ドの 261.63 Hz の整数比で鳴らす。
-chord='(0.10*sin(2*PI*261.63*t)+0.07*sin(2*PI*261.63*5/4*t)+0.06*sin(2*PI*261.63*3/2*t)+0.03*sin(2*PI*261.63*2*t))*(0.8+0.2*sin(2*PI*0.25*t))'
+# 長さは、映像の 1920 フレーム (29.97 fps) と AAC の 3003 フレーム (1024 標本) がちょうど収まる 64.064 秒にする。
+# 繰り返すときに、映像と音声の時刻を、どちらも同じ長さだけずらせば済む。
 
+# 音声は、繰り返しの前後に AAC の 1 フレーム分ずつ続きを付けた WAV を、先に AAC (ADTS) にする。
+# 符号化器は、頭に遅延の分の 1 フレームを足すので、それを除いた 3003 フレームを取り出し、映像の頭より 1 フレーム前から並べる。
+# 取り出した頭のフレームは、前の繰り返しの終わりとのつながりを符号化したものなので、繰り返しても音が途切れない。
+node scripts/demo-stream-music.mjs "${work}/music.wav"
 ffmpeg -hide_banner -loglevel error -y \
-  -f lavfi -i 'gradients=size=1920x1080:rate=30000/1001:duration=20:c0=0x3b82c4:c1=0xd6ecff:x0=960:y0=0:x1=960:y1=760:speed=0' \
-  -f lavfi -i "aevalsrc=exprs=${chord}|${chord}:sample_rate=48000:duration=20" \
-  -filter_complex "[0:v]ass=${work}/scene.ass:fontsdir=${work}/fonts,scale=1440:1080,setsar=4/3,format=yuv420p[v];[1:a]afade=t=in:d=0.5,afade=t=out:st=19.5:d=0.5[a]" \
-  -map '[v]' -map '[a]' \
-  -c:v mpeg2video -q:v 6 -g 90 -bf 2 -aspect 16:9 \
-  -c:a aac -b:a 64k -ac 2 \
-  -fflags +bitexact -flags:v +bitexact -flags:a +bitexact \
+  -i "${work}/music.wav" \
+  -c:a aac -b:a 128k -ac 2 -fflags +bitexact -flags:a +bitexact \
+  -f adts "${work}/music.aac"
+ffmpeg -hide_banner -loglevel error -y \
+  -i "${work}/music.aac" -ss 0.0213333 -t 64.064 -c copy -f adts "${work}/loop.aac"
+
+# GOP は閉じ (+cgop)、途中の I フレームから流し始めても、前の GOP なしに復号できるようにする。
+# 閉じた GOP は場面の切り替わりの検出と併せられないので、検出を止め (-sc_threshold)、I フレームを 90 フレームごとに揃える。
+ffmpeg -hide_banner -loglevel error -y \
+  -f lavfi -i 'gradients=size=1920x1080:rate=30000/1001:duration=64.064:c0=0x3b82c4:c1=0xd6ecff:x0=960:y0=0:x1=960:y1=760:speed=0' \
+  -itsoffset -0.0213333 -i "${work}/loop.aac" \
+  -filter_complex "[0:v]ass=${work}/scene.ass:fontsdir=${work}/fonts,scale=1440:1080,setsar=4/3,format=yuv420p[v]" \
+  -map '[v]' -map 1:a \
+  -c:v mpeg2video -q:v 6 -g 90 -bf 2 -sc_threshold 1000000000 -aspect 16:9 -frames:v 1920 \
+  -c:a copy \
+  -fflags +bitexact -flags:v +bitexact+cgop \
   -f mpegts -mpegts_m2ts_mode 0 "${work}/video.ts"
 
 node scripts/demo-stream-captions.mjs "${work}/video.ts" demo/stream.m2ts

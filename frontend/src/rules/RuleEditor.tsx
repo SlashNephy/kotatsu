@@ -27,7 +27,7 @@ import classes from './RuleEditor.module.css';
 import type { RuleEditorCreateMutation } from './__generated__/RuleEditorCreateMutation.graphql';
 import type { RuleEditorDeleteMutation } from './__generated__/RuleEditorDeleteMutation.graphql';
 import type { RuleEditorUpdateMutation } from './__generated__/RuleEditorUpdateMutation.graphql';
-import { hasConditions } from '../conditions/form';
+import { hasConditions, hasRuleTargets } from '../conditions/form';
 import { Authorship } from '../futon';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
 import { toInput, type RuleForm } from './form';
@@ -176,7 +176,9 @@ export function RuleEditor({
     }
   `);
   const input = toInput(form);
-  const conditionsGiven = hasConditions(form);
+  // 録画のルールは、番組を選ぶ条件がなければ保存させない (#1501)。絞り込みの条件だけなら、プレビューに「条件なし」と示す。
+  const conditionsGiven = hasRuleTargets(form);
+  const onlyFilters = !conditionsGiven && hasConditions(form);
   // 有効期間は、開始が終了より前でなければ保存できない。tenban も同じ条件で拒む。
   const validityInvalid =
     form.validFrom !== null &&
@@ -445,7 +447,7 @@ export function RuleEditor({
                   />
                 </Stack>
               </Card>
-              {!conditionsGiven && <Alert color="amber">{t('rules.noConditions')}</Alert>}
+              {!conditionsGiven && <Alert color="amber">{t('rules.noTargets')}</Alert>}
               {outdated && (
                 <Alert color="amber" role="status">
                   <Group justify="space-between" gap="xs">
@@ -505,7 +507,12 @@ export function RuleEditor({
       <Grid.Col span={{ base: 12, md: 5 }}>
         {/* 広い画面では、条件を変えながら結果を見られるよう、プレビューをスクロールしても見える位置に留める。 */}
         <Box className={classes.preview}>
-          <RulePreview input={input} enabled={conditionsGiven} onPrograms={setPreviewPrograms} />
+          <RulePreview
+            input={input}
+            enabled={conditionsGiven}
+            disabledHint={onlyFilters ? t('rules.preview.unconditioned') : undefined}
+            onPrograms={setPreviewPrograms}
+          />
         </Box>
       </Grid.Col>
       {deleting && ruleId !== undefined && (

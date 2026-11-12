@@ -183,3 +183,34 @@ func TestConditionsRoundTripThroughJSONB(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fullConditions(), decoded)
 }
+
+// TestHasTarget は、番組を選ぶ条件 (含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字) だけを、条件として数えることを確かめる (#1501)。
+func TestHasTarget(t *testing.T) {
+	t.Parallel()
+
+	keyword := &match.Keyword{Text: "ニュース", Regexp: false, CaseSensitive: false, Fields: []match.Field{match.FieldName}}
+	tests := []struct {
+		name       string
+		conditions *match.Conditions
+		want       bool
+	}{
+		{name: "nil", conditions: nil, want: false},
+		{name: "empty", conditions: &match.Conditions{}, want: false},
+		{name: "keyword", conditions: &match.Conditions{Keywords: []*match.Keyword{keyword}}, want: true},
+		{name: "channel type", conditions: &match.Conditions{ChannelTypes: []string{"GR"}}, want: true},
+		{name: "service", conditions: &match.Conditions{ServiceIDs: []int64{3273601024}}, want: true},
+		{name: "genre", conditions: &match.Conditions{Genres: []*match.Genre{{Lv1: 7}}}, want: true},
+		{name: "mark", conditions: &match.Conditions{Marks: []string{"新"}}, want: true},
+		{name: "time range only", conditions: &match.Conditions{TimeRanges: []*match.TimeRange{{Weekdays: []int{1, 2, 3, 4, 5}, StartMinute: 19 * 60, DurationMinutes: 60}}}, want: false},
+		{name: "exclude keyword only", conditions: &match.Conditions{ExcludeKeywords: []*match.Keyword{keyword}}, want: false},
+		{name: "duration and free only", conditions: &match.Conditions{MinDurationSeconds: new(1800), FreeOnly: true}, want: false},
+		{name: "exclusions only", conditions: &match.Conditions{ExcludeServiceIDs: []int64{1}, ExcludeGenres: []*match.Genre{{Lv1: 7}}, ExcludeMarks: []string{"再"}}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, tt.conditions.HasTarget())
+		})
+	}
+}

@@ -38,6 +38,10 @@ const (
 	// minTimeshiftRetentionSeconds と maxTimeshiftRetentionSeconds は、タイムシフトの保持時間の下限と上限。DB の制約と同じ。
 	minTimeshiftRetentionSeconds = 600
 	maxTimeshiftRetentionSeconds = 86400
+	// DefaultRuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分) の既定値 (付録 A、#1501)。
+	DefaultRuleUnmatchedGraceMinutes = 180
+	// maxRuleUnmatchedGraceMinutes は、その時間の上限 (1 日)。DB の制約と同じ。
+	maxRuleUnmatchedGraceMinutes = 1440
 	// maxArchiveRetentionDays は、過去の番組と通知の保持期間の上限。無期限にするなら 0 にする。
 	maxArchiveRetentionDays = 3650
 	// auditTarget は、設定の監査ログの対象の種類。
@@ -85,6 +89,8 @@ type System struct {
 	TimeshiftWhileWatching bool
 	// TimeshiftWhileWatchingRetentionSeconds は、視聴している間だけ録るサービスの保持時間 (秒)。
 	TimeshiftWhileWatchingRetentionSeconds int
+	// RuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0 なら残さない。
+	RuleUnmatchedGraceMinutes int
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -114,6 +120,11 @@ func (s *System) NotificationRetention() time.Duration {
 	}
 
 	return time.Duration(s.NotificationRetentionDays) * 24 * time.Hour
+}
+
+// RuleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間を返す (#1501)。
+func (s *System) RuleUnmatchedGrace() time.Duration {
+	return time.Duration(s.RuleUnmatchedGraceMinutes) * time.Minute
 }
 
 // RuleDefaults は、ルールを作るときの既定値 (#470)。ルールは家族で共有するので、全体の設定に持つ。
@@ -165,6 +176,7 @@ type Changes struct {
 	DRCSReplacements                       map[string]*string
 	TimeshiftWhileWatching                 *bool
 	TimeshiftWhileWatchingRetentionSeconds *int
+	RuleUnmatchedGraceMinutes              *int
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -219,11 +231,13 @@ func networkActivityEnabledAt(current *System, enabled bool, now time.Time) *tim
 	}
 }
 
-// resolvedRetention は、保存する保持期間 (日)。
+// resolvedRetention は、保存する保持期間 (日) と、時間で表す設定。
 type resolvedRetention struct {
 	archive, notification, watchProgress, networkActivity int32
 	// timeshiftWhileWatching は、視聴している間だけ録るタイムシフトの保持時間 (秒)。
 	timeshiftWhileWatching int32
+	// ruleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を残す放送前の時間 (分)。
+	ruleUnmatchedGrace int32
 }
 
 // resolveRetention は、変える項目を今の値に重ねた保持期間を返す。
@@ -243,6 +257,9 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 		return result, err
 	}
 	if result.timeshiftWhileWatching, err = timeshiftRetentionSeconds(valueOr(changes.TimeshiftWhileWatchingRetentionSeconds, current.TimeshiftWhileWatchingRetentionSeconds)); err != nil {
+		return result, err
+	}
+	if result.ruleUnmatchedGrace, err = ruleUnmatchedGraceMinutes(valueOr(changes.RuleUnmatchedGraceMinutes, current.RuleUnmatchedGraceMinutes)); err != nil {
 		return result, err
 	}
 
@@ -271,6 +288,11 @@ func validateRetentionChanges(changes *Changes) error {
 	}
 	if seconds := changes.TimeshiftWhileWatchingRetentionSeconds; seconds != nil {
 		if _, err := timeshiftRetentionSeconds(*seconds); err != nil {
+			return err
+		}
+	}
+	if minutes := changes.RuleUnmatchedGraceMinutes; minutes != nil {
+		if _, err := ruleUnmatchedGraceMinutes(*minutes); err != nil {
 			return err
 		}
 	}
@@ -341,6 +363,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			DrcsReplacements:                       replacementsEncoded,
 			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
 			TimeshiftWhileWatchingRetentionSeconds: retention.timeshiftWhileWatching,
+			RuleUnmatchedGraceMinutes:              retention.ruleUnmatchedGrace,
 			Now:                                    now,
 		})
 		if err != nil {
@@ -371,6 +394,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"drcsReplacements":                       drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
 				"timeshiftWhileWatching":                 change(current.TimeshiftWhileWatching, updated.TimeshiftWhileWatching),
 				"timeshiftWhileWatchingRetentionSeconds": change(current.TimeshiftWhileWatchingRetentionSeconds, updated.TimeshiftWhileWatchingRetentionSeconds),
+				"ruleUnmatchedGraceMinutes":              change(current.RuleUnmatchedGraceMinutes, updated.RuleUnmatchedGraceMinutes),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -390,6 +414,15 @@ func change(from, to any) map[string]any {
 }
 
 // retentionDays は、保持期間 name の日数が範囲にあるかを確かめ、DB に保存する形にする。
+// ruleUnmatchedGraceMinutes は、ルールから外れた予約を残す放送前の時間 (分) を確かめ、DB に書く値にする。
+func ruleUnmatchedGraceMinutes(minutes int) (int32, error) {
+	if minutes < 0 || minutes > maxRuleUnmatchedGraceMinutes {
+		return 0, fmt.Errorf("%w: ruleUnmatchedGraceMinutes must be between 0 and %d", ErrInvalidSettings, maxRuleUnmatchedGraceMinutes)
+	}
+
+	return int32(minutes), nil
+}
+
 // timeshiftRetentionSeconds は、視聴している間だけ録るタイムシフトの保持時間 (秒) を確かめ、DB に書く値にする。
 func timeshiftRetentionSeconds(seconds int) (int32, error) {
 	if seconds < minTimeshiftRetentionSeconds || seconds > maxTimeshiftRetentionSeconds {
@@ -526,7 +559,8 @@ func defaults() *System {
 		CommentSources:         []string{},
 		DRCSReplacements:       map[string]string{},
 		TimeshiftWhileWatching: false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
-		UpdatedAt: nil,
+		RuleUnmatchedGraceMinutes: DefaultRuleUnmatchedGraceMinutes,
+		UpdatedAt:                 nil,
 	}
 }
 
@@ -559,7 +593,8 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		AnimeLinkingEnabled:    row.AnimeLinkingEnabled,
 		CommentSources:         row.CommentSources,
 		TimeshiftWhileWatching: row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
-		UpdatedAt: &row.UpdatedAt,
+		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),
+		UpdatedAt:                 &row.UpdatedAt,
 	}, nil
 }
 

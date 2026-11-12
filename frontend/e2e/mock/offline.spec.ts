@@ -6,7 +6,7 @@ import { expect, test } from '@playwright/test';
 // 保存の操作は tenban の録画を要るので、ここでは保存し終えた状態を OPFS に直に書き、
 // Service Worker がプリキャッシュした外枠と変換のプレイヤーだけで、オフラインで再生できることを確かめる。
 
-// stream は、静的なデモの合成の映像 (20 秒)。
+// stream は、静的なデモの合成の映像 (64.064 秒)。
 const stream = readFileSync(new URL('../../demo/stream.m2ts', import.meta.url));
 
 const meta = {
@@ -15,9 +15,9 @@ const meta = {
   name: 'オフラインの番組',
   serviceName: 'テスト局',
   startAt: '2026-10-31T12:00:00Z',
-  endAt: '2026-10-31T12:00:20Z',
+  endAt: '2026-10-31T12:01:04Z',
   recordedFrom: '2026-10-31T12:00:00Z',
-  recordedUntil: '2026-10-31T12:00:20Z',
+  recordedUntil: '2026-10-31T12:01:04Z',
   gaps: [],
   size: stream.byteLength,
   jikkyo: false,
@@ -63,5 +63,5 @@ test('端末に保存した録画を、オフラインで一覧して再生で�
   const video = page.locator('video');
   await expect
     .poll(() => video.evaluate((element: HTMLVideoElement) => element.duration))
-    .toBeCloseTo(20, 0);
+    .toBeCloseTo(64, 0);
 });

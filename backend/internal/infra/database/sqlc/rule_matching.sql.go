@@ -42,9 +42,10 @@ func (q *Queries) InsertReservationRule(ctx context.Context, arg InsertReservati
 }
 
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
-SELECT r.id, r.kind, r.service_id, r.event_id, r.enabled, r.follow_event_relay,
+SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.enabled, r.follow_event_relay,
   EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording,
-  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND NOT p.end_undecided) AS decided
+  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND NOT p.end_undecided) AS decided,
+  EXISTS (SELECT 1 FROM programs p WHERE p.service_id = r.service_id AND p.event_id = r.event_id AND p.name = '') AS unnamed
 FROM reservations r
 WHERE r.event_id IS NOT NULL AND r.start_at > $1
 ORDER BY r.id
@@ -55,16 +56,19 @@ type ListFutureProgramReservationsRow struct {
 	Kind             string
 	ServiceID        int64
 	EventID          *int64
+	StartAt          time.Time
 	Enabled          bool
 	FollowEventRelay bool
 	Recording        bool
 	Decided          bool
+	Unnamed          bool
 }
 
 // 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
 // 録画は開始マージンとチューニングの時間だけ前に始まるので、録画中かどうか (recording) も返す。録画中の予約は、照合で消さない (設計書 4.3)。
 // 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。番組が消えたか、未定になったのは一時的なことがあるので、
 // ルールに一致しなくなったとはみなさない (#518)。
+// 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
 func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error) {
 	rows, err := q.db.Query(ctx, listFutureProgramReservations, now)
 	if err != nil {
@@ -79,10 +83,12 @@ func (q *Queries) ListFutureProgramReservations(ctx context.Context, now time.Ti
 			&i.Kind,
 			&i.ServiceID,
 			&i.EventID,
+			&i.StartAt,
 			&i.Enabled,
 			&i.FollowEventRelay,
 			&i.Recording,
 			&i.Decided,
+			&i.Unnamed,
 		); err != nil {
 			return nil, err
 		}

@@ -187,6 +187,13 @@ func (s *Server) ChangeProgramSeries(id int64, series *Series) error {
 	})
 }
 
+// RenameProgram は番組名を変え、program の update イベントを送る。空にすると、番組名を返さなくなる。
+func (s *Server) RenameProgram(id int64, name string) error {
+	return s.updateProgram(id, func(p *Program) {
+		p.Name = name
+	})
+}
+
 // RemoveProgram は番組を消し、program の remove イベントを送る。
 func (s *Server) RemoveProgram(id int64) error {
 	s.mu.Lock()

@@ -125,6 +125,8 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{name: "too long retention", changes: &settings.Changes{Recording: nil, ArchiveRetentionDays: &tooLong}, wantErr: settings.ErrInvalidSettings},
 		{name: "too short timeshift retention", changes: &settings.Changes{TimeshiftWhileWatchingRetentionSeconds: new(599)}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long timeshift retention", changes: &settings.Changes{TimeshiftWhileWatchingRetentionSeconds: new(86401)}, wantErr: settings.ErrInvalidSettings},
+		{name: "negative rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(-1)}, wantErr: settings.ErrInvalidSettings},
+		{name: "too long rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(1441)}, wantErr: settings.ErrInvalidSettings},
 		{
 			name: "negative margin", wantErr: reserve.ErrInvalidSettings,
 			changes: &settings.Changes{
@@ -149,6 +151,33 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.DefaultRecordingSettings(), loaded.Recording)
 	assert.Equal(t, settings.DefaultArchiveRetentionDays, loaded.ArchiveRetentionDays)
+}
+
+// TestUpdateRuleUnmatchedGrace は、ルールから外れた予約を残す時間が、行を作ったときも既定値で、0 にも変えられることを確かめる (#1501)。
+func TestUpdateRuleUnmatchedGrace(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	actor := audit.System("test")
+
+	defaults, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, 3*time.Hour, defaults.RuleUnmatchedGrace())
+
+	// ほかの項目を変えて行を作っても、DB の既定値は Go の既定値と同じ。
+	_, err = store.Update(t.Context(), db, actor, &settings.Changes{MCPEnabled: new(true)})
+	require.NoError(t, err)
+	loaded, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultRuleUnmatchedGraceMinutes, loaded.RuleUnmatchedGraceMinutes)
+
+	_, err = store.Update(t.Context(), db, actor, &settings.Changes{RuleUnmatchedGraceMinutes: new(0)})
+	require.NoError(t, err)
+	loaded, err = settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, time.Duration(0), loaded.RuleUnmatchedGrace())
+	assert.True(t, loaded.MCPEnabled, "the other change is kept")
 }
 
 // TestUpdateConcurrently は、違う項目を同時に変えても、どちらの変更も失わないことを確かめる。

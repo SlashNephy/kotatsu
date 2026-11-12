@@ -186,7 +186,12 @@ export function createRecordings(options: {
       jikkyoCommentsUrl: demoCommentsPath,
       jikkyoOtherCommentsUrl: `${demoCommentsPath}.others`,
       jikkyoNicologCommentsUrl: `${demoCommentsPath}.nicolog`,
-      streamUrl: demoStreamURL,
+      // 録画の長さを、映像を繰り返して流す Service Worker (demo/stream-sw.js) に伝え、録画の終わりで流し終えさせる。
+      // 録画中の録画は、終わりが決まっていないので、終わらずに流す。
+      streamUrl:
+        recordedUntil === null
+          ? demoStreamURL
+          : `${demoStreamURL}?length=${(program.end - program.start) / 1000}`,
     };
   };
 

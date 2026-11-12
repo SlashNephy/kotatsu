@@ -158,9 +158,12 @@ extend type Query {
 }
 
 extend type Mutation {
-  "ルールを作る。視聴者は使えない。"
+  """
+  ルールを作る。視聴者は使えない。
+  条件に、含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字のどれもなければ、BAD_USER_INPUT を返す (#1501)。
+  """
   createRule(input: RuleInput!): Rule!
-  "ルールの内容を input で置き換える。視聴者は使えない。"
+  "ルールの内容を input で置き換える。視聴者は使えない。条件は createRule と同じく確かめる。"
   updateRule(id: ID!, input: RuleInput!): Rule!
   "ルールを有効または無効にする。視聴者は使えない。"
   setRuleEnabled(id: ID!, enabled: Boolean!): Rule!

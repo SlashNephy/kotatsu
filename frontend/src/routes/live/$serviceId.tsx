@@ -1296,6 +1296,8 @@ function Live({
                         content: (
                           <CommentList
                             rows={commentRows}
+                            // 全画面の間は一覧が見えないので、コメントが届いても描き直さない。
+                            frozen={fullscreen.active}
                             onMuteUser={muteUser}
                             height={watchCommentsHeight}
                           />

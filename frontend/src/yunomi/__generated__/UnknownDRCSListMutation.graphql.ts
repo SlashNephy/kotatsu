@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1bf2a584c767fff4c0a645be192c0514>>
+ * @generated SignedSource<<b67b7c1ef7099b4775bba508a955eea7>>
  * @lightSyntaxTransform
  */
 
@@ -21,6 +21,7 @@ export type SystemSettingsInput = {
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
+  ruleUnmatchedGraceMinutes?: number | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;
   timeshiftWhileWatchingRetentionSeconds?: number | null | undefined;
   watchProgressRetentionDays?: number | null | undefined;
