@@ -231,6 +231,65 @@ func TestMigrateFillsRecordingsNormalized(t *testing.T) {
 	}
 }
 
+// TestMigrateFillsRecordingHistorySeries は、kotatsu migrate が、シリーズ名の列がない録画履歴の列を、番組名から読んで埋め、
+// 埋まっている履歴は書き換えないことを確かめる (#1499)。
+func TestMigrateFillsRecordingHistorySeries(t *testing.T) {
+	t.Parallel()
+
+	// filled は、埋まっている履歴のシリーズ名。番組名から読める値と違うものにして、書き換えないことを確かめる。
+	const filled = "書き換えない"
+
+	pool := open(t, databasetest.New(t))
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	now := time.Now()
+	_, err := pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
+	require.NoError(t, err)
+	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+		VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $1, $1)`, now)
+	require.NoError(t, err)
+	// 1 回に埋める数より多い履歴も、すべて埋める。
+	_, err = pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
+		SELECT gen_random_uuid(), 3273601024, '', 'ＡＢＣ探偵 ＃' || i, $1, $1, $1 FROM generate_series(1, 501) AS i`, now)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		series *string
+		want   string
+	}{
+		{name: "[新]こたつ探偵 第２期 ＃１「消えた蜜柑」", series: nil, want: "こたつ探偵第2期"},
+		// 話数だけの番組名は、シリーズ名を読めないので空で埋め、次の migrate で読み直さない。
+		{name: "＃１", series: nil, want: ""},
+		{name: "埋まっている #1", series: new(filled), want: filled},
+	}
+	ids := make([]uuid.UUID, len(tests))
+	for i, tt := range tests {
+		ids[i] = id.New()
+		_, err := pool.Exec(t.Context(), `INSERT INTO recording_history (id, service_id, title_key, name, series, start_at, end_at, created_at)
+			VALUES ($1, 3273601024, '', $2, $3, $4, $4, $4)`, ids[i], tt.name, tt.series, now)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	var remaining int
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_history WHERE series IS NULL").Scan(&remaining))
+	assert.Zero(t, remaining)
+	var bulk string
+	require.NoError(t, pool.QueryRow(t.Context(), "SELECT series FROM recording_history WHERE name = 'ＡＢＣ探偵 ＃501'").Scan(&bulk))
+	assert.Equal(t, "abc探偵", bulk)
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got string
+			require.NoError(t, pool.QueryRow(t.Context(), "SELECT series FROM recording_history WHERE id = $1", ids[i]).Scan(&got))
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestOpenScansTimeInUTCAndRoundTripsID(t *testing.T) {
 	t.Parallel()
 

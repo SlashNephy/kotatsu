@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
@@ -1698,7 +1699,8 @@ func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureTunerServerUnreachable)), drops: 0}, got)
 }
 
-// TestRecorderCopiesEpisodeToHistory は、録り終えた録画の録画履歴に、回を読むための概要と、番組のシリーズの記述子の話数を写すことを確かめる (#1498)。
+// TestRecorderCopiesEpisodeToHistory は、録り終えた録画の録画履歴に、回を読むための概要と、番組のシリーズの記述子の話数と、
+// 番組名から読んだシリーズ名を写すことを確かめる (#1498、#1499)。
 // 録画を消しても、同じ回を録ったことを、番組名だけでなく概要と話数から見分けられるようにするためである。
 func TestRecorderCopiesEpisodeToHistory(t *testing.T) {
 	t.Parallel()
@@ -1720,13 +1722,18 @@ func TestRecorderCopiesEpisodeToHistory(t *testing.T) {
 
 	var (
 		description, wantDescription string
+		name                         string
+		series                       *string
 		seriesEpisode                *int32
 		imported                     bool
 	)
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description FROM reservations WHERE id = $1", reservationID).Scan(&wantDescription))
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description, series_episode, imported FROM recording_history").
-		Scan(&description, &seriesEpisode, &imported))
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT name, series, description, series_episode, imported FROM recording_history").
+		Scan(&name, &series, &description, &seriesEpisode, &imported))
 	assert.Equal(t, wantDescription, description)
+	// 前の回を録らない (#1499) ときにシリーズ名で引けるよう、番組名から読んだシリーズ名も書く。
+	assert.Equal(t, new(episode.SeriesOf(name)), series)
+	assert.NotEmpty(t, *series)
 	assert.Equal(t, new(int32(7)), seriesEpisode)
 	assert.False(t, imported)
 }

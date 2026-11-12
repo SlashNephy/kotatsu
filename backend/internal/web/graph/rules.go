@@ -83,6 +83,7 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 		DuplicateWindowDays: in.DuplicateWindowDays,
 		FollowEventRelay:    in.FollowEventRelay,
 		BundleSameEpisodes:  in.BundleSameEpisodes,
+		SkipEarlierEpisodes: in.SkipEarlierEpisodes,
 	}, nil
 }
 
@@ -169,6 +170,7 @@ func toRule(r *rule.Rule) *model.Rule {
 		DuplicateWindowDays: r.DuplicateWindowDays,
 		FollowEventRelay:    r.FollowEventRelay,
 		BundleSameEpisodes:  r.BundleSameEpisodes,
+		SkipEarlierEpisodes: r.SkipEarlierEpisodes,
 		CreatedAt:           r.CreatedAt,
 		CreatedBy:           nil,
 		UpdatedAt:           r.UpdatedAt,

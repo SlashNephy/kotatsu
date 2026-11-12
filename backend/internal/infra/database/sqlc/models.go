@@ -646,6 +646,7 @@ type RecordingHistory struct {
 	SyobocalTid   *int32
 	AnimeCount    *float64
 	Imported      bool
+	Series        *string
 	StartAt       time.Time
 	EndAt         time.Time
 	CreatedAt     time.Time
@@ -720,6 +721,7 @@ type Rule struct {
 	DuplicateWindowDays *int32
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
+	SkipEarlierEpisodes bool
 	CreatedAt           time.Time
 	CreatedBy           *uuid.UUID
 	UpdatedAt           time.Time

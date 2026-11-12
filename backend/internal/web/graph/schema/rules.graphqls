@@ -103,6 +103,10 @@ type Rule implements Node {
   followEventRelay: Boolean!
   "局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。"
   bundleSameEpisodes: Boolean!
+  """
+  追っているシリーズの前の回 (録った回、予約してある回、先に流れる放送より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
+  """
+  skipEarlierEpisodes: Boolean!
   createdAt: Time!
   "作成者。ユーザーが消えていれば null。"
   createdBy: User
@@ -130,6 +134,7 @@ input RuleInput {
   duplicateWindowDays: Int
   followEventRelay: Boolean! = true
   bundleSameEpisodes: Boolean! = false
+  skipEarlierEpisodes: Boolean! = false
 }
 
 "ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。"

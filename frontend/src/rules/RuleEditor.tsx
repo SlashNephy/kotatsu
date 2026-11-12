@@ -135,6 +135,7 @@ export const ruleEditorRuleFragment = graphql`
     duplicateWindowDays
     followEventRelay
     bundleSameEpisodes
+    skipEarlierEpisodes
   }
 `;
 
@@ -329,6 +330,12 @@ export function RuleEditor({
                     description={t('rules.bundleSameEpisodesDescription')}
                     checked={form.bundleSameEpisodes}
                     onChange={(e) => set({ bundleSameEpisodes: e.currentTarget.checked })}
+                  />
+                  <Switch
+                    label={t('rules.skipEarlierEpisodes')}
+                    description={t('rules.skipEarlierEpisodesDescription')}
+                    checked={form.skipEarlierEpisodes}
+                    onChange={(e) => set({ skipEarlierEpisodes: e.currentTarget.checked })}
                   />
                   <Switch
                     label={t('rules.followEventRelay')}

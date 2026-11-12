@@ -58,22 +58,18 @@ WHERE w.syobocal_tid = ANY(@syobocal_tids::integer[])
   AND (w.source = 'annict' OR NOT EXISTS (SELECT 1 FROM anime_works o WHERE o.syobocal_tid = w.syobocal_tid AND o.source = 'annict'))
 ORDER BY w.syobocal_tid, w.position;
 
--- name: ListAnimeChannels :many
--- サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
--- 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
-SELECT s.id AS service_id,
-  d.name AS definition_name,
-  d.syobocal_channel_id AS imported_syobocal_channel_id,
-  d.annict_channel_id AS imported_annict_channel_id,
+-- name: ListAnimeChannelServices :many
+-- サービスごとに、取り込んだ対応と照らし合わせるための ID と種別、管理者の上書きを返す (設計書 3.8)。
+-- 取り込んだ対応との照らし合わせは、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
+SELECT s.id AS service_id, s.network_id, s.sid, s.channel_type,
   o.syobocal_channel_id AS override_syobocal_channel_id,
-  o.annict_channel_id AS override_annict_channel_id,
-  COALESCE(o.syobocal_channel_id, d.syobocal_channel_id) AS syobocal_channel_id,
-  COALESCE(o.annict_channel_id, d.annict_channel_id) AS annict_channel_id
+  o.annict_channel_id AS override_annict_channel_id
 FROM services s
-LEFT JOIN anime_channel_definitions d ON d.sid = s.sid AND d.channel_type = s.channel_type
-  AND (d.network_id = s.network_id OR (d.channel_type = 'GR' AND d.network_id = 0))
 LEFT JOIN anime_channel_overrides o ON o.service_id = s.id
 ORDER BY s.id;
+
+-- name: ListAnimeChannelDefinitions :many
+SELECT channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id FROM anime_channel_definitions;
 
 -- name: LockAnimeChannelOverride :one
 -- 変える前の値を監査ログに残すため、上書きの行をロックして読む。サービスがなければ行を返さない。

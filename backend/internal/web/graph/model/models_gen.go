@@ -1555,6 +1555,7 @@ type RuleInput struct {
 	DuplicateWindowDays *int `json:"duplicateWindowDays,omitempty"`
 	FollowEventRelay    bool `json:"followEventRelay"`
 	BundleSameEpisodes  bool `json:"bundleSameEpisodes"`
+	SkipEarlierEpisodes bool `json:"skipEarlierEpisodes"`
 }
 
 // ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
@@ -1608,7 +1609,7 @@ type Session struct {
 }
 
 // ルールに一致したが、予約しなかった番組 (設計書 4.4)。同じ番組名を録画済みなので重複の回避で外したか、
-// 同じ回を録画済みか、同じ回を別の放送で録るので外した (#1498)。
+// 同じ回を録画済みか、同じ回を別の放送で録るので外した (#1498)。または、追っているシリーズの前の回なので外した (#1499)。
 type SkippedDuplicate struct {
 	Program *Program `json:"program"`
 	// 一致したが外したルール。
@@ -1622,6 +1623,9 @@ type SkippedDuplicate struct {
 	Recorded *SkippedRecording `json:"recorded,omitempty"`
 	// OTHER_BROADCAST のときの、同じ回を代わりに録る放送。番組表から消えていれば null。
 	Instead *Program `json:"instead,omitempty"`
+	// EARLIER_EPISODE のときの、録った回、予約してある回、先に流れる放送のうち、シリーズ名が一致し、この放送より前に始まるものの
+	// 一番大きい話数。ほかの理由では null。
+	LaterEpisode *int `json:"laterEpisode,omitempty"`
 }
 
 // 同じ回を録った録画 (録画履歴か、録画中の録画)。録画を消しても、履歴は残る。
@@ -3766,17 +3770,20 @@ const (
 	SkipReasonRecordedEpisode SkipReason = "RECORDED_EPISODE"
 	// 同じ回を別の放送で録る。
 	SkipReasonOtherBroadcast SkipReason = "OTHER_BROADCAST"
+	// 追っているシリーズの前の回 (録った回、予約してある回、先に流れる放送より話数が小さい)。
+	SkipReasonEarlierEpisode SkipReason = "EARLIER_EPISODE"
 )
 
 var AllSkipReason = []SkipReason{
 	SkipReasonDuplicateTitle,
 	SkipReasonRecordedEpisode,
 	SkipReasonOtherBroadcast,
+	SkipReasonEarlierEpisode,
 }
 
 func (e SkipReason) IsValid() bool {
 	switch e {
-	case SkipReasonDuplicateTitle, SkipReasonRecordedEpisode, SkipReasonOtherBroadcast:
+	case SkipReasonDuplicateTitle, SkipReasonRecordedEpisode, SkipReasonOtherBroadcast, SkipReasonEarlierEpisode:
 		return true
 	}
 	return false

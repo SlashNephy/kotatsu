@@ -453,53 +453,82 @@ func (q *Queries) InsertRecordingAnimeEpisode(ctx context.Context, arg InsertRec
 	return err
 }
 
-const listAnimeChannels = `-- name: ListAnimeChannels :many
-SELECT s.id AS service_id,
-  d.name AS definition_name,
-  d.syobocal_channel_id AS imported_syobocal_channel_id,
-  d.annict_channel_id AS imported_annict_channel_id,
-  o.syobocal_channel_id AS override_syobocal_channel_id,
-  o.annict_channel_id AS override_annict_channel_id,
-  COALESCE(o.syobocal_channel_id, d.syobocal_channel_id) AS syobocal_channel_id,
-  COALESCE(o.annict_channel_id, d.annict_channel_id) AS annict_channel_id
-FROM services s
-LEFT JOIN anime_channel_definitions d ON d.sid = s.sid AND d.channel_type = s.channel_type
-  AND (d.network_id = s.network_id OR (d.channel_type = 'GR' AND d.network_id = 0))
-LEFT JOIN anime_channel_overrides o ON o.service_id = s.id
-ORDER BY s.id
+const listAnimeChannelDefinitions = `-- name: ListAnimeChannelDefinitions :many
+SELECT channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id FROM anime_channel_definitions
 `
 
-type ListAnimeChannelsRow struct {
-	ServiceID                 int64
-	DefinitionName            *string
-	ImportedSyobocalChannelID *int32
-	ImportedAnnictChannelID   *int32
-	OverrideSyobocalChannelID *int32
-	OverrideAnnictChannelID   *int32
-	SyobocalChannelID         *int32
-	AnnictChannelID           *int32
+type ListAnimeChannelDefinitionsRow struct {
+	ChannelType       string
+	NetworkID         int64
+	Sid               int64
+	Name              string
+	SyobocalChannelID *int32
+	AnnictChannelID   *int32
 }
 
-// サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
-// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
-func (q *Queries) ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error) {
-	rows, err := q.db.Query(ctx, listAnimeChannels)
+func (q *Queries) ListAnimeChannelDefinitions(ctx context.Context) ([]ListAnimeChannelDefinitionsRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeChannelDefinitions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAnimeChannelsRow{}
+	items := []ListAnimeChannelDefinitionsRow{}
 	for rows.Next() {
-		var i ListAnimeChannelsRow
+		var i ListAnimeChannelDefinitionsRow
 		if err := rows.Scan(
-			&i.ServiceID,
-			&i.DefinitionName,
-			&i.ImportedSyobocalChannelID,
-			&i.ImportedAnnictChannelID,
-			&i.OverrideSyobocalChannelID,
-			&i.OverrideAnnictChannelID,
+			&i.ChannelType,
+			&i.NetworkID,
+			&i.Sid,
+			&i.Name,
 			&i.SyobocalChannelID,
 			&i.AnnictChannelID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAnimeChannelServices = `-- name: ListAnimeChannelServices :many
+SELECT s.id AS service_id, s.network_id, s.sid, s.channel_type,
+  o.syobocal_channel_id AS override_syobocal_channel_id,
+  o.annict_channel_id AS override_annict_channel_id
+FROM services s
+LEFT JOIN anime_channel_overrides o ON o.service_id = s.id
+ORDER BY s.id
+`
+
+type ListAnimeChannelServicesRow struct {
+	ServiceID                 int64
+	NetworkID                 int64
+	Sid                       int64
+	ChannelType               string
+	OverrideSyobocalChannelID *int32
+	OverrideAnnictChannelID   *int32
+}
+
+// サービスごとに、取り込んだ対応と照らし合わせるための ID と種別、管理者の上書きを返す (設計書 3.8)。
+// 取り込んだ対応との照らし合わせは、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
+func (q *Queries) ListAnimeChannelServices(ctx context.Context) ([]ListAnimeChannelServicesRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeChannelServices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeChannelServicesRow{}
+	for rows.Next() {
+		var i ListAnimeChannelServicesRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.NetworkID,
+			&i.Sid,
+			&i.ChannelType,
+			&i.OverrideSyobocalChannelID,
+			&i.OverrideAnnictChannelID,
 		); err != nil {
 			return nil, err
 		}

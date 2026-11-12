@@ -141,6 +141,7 @@ type Rule struct {
 	DuplicateWindowDays *int                        `json:"duplicateWindowDays,omitempty"`
 	FollowEventRelay    bool                        `json:"followEventRelay"`
 	BundleSameEpisodes  bool                        `json:"bundleSameEpisodes"`
+	SkipEarlierEpisodes bool                        `json:"skipEarlierEpisodes"`
 	CreatedAt           time.Time                   `json:"createdAt"`
 	CreatedBy           *User                       `json:"createdBy,omitempty"`
 	UpdatedAt           time.Time                   `json:"updatedAt"`

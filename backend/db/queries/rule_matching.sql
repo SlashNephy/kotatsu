@@ -61,6 +61,29 @@ LEFT JOIN LATERAL (
 ) a ON true
 WHERE rec.state = 'recording';
 
+-- name: ListRecordedEpisodesBySeries :many
+-- 前の回を録らない (#1499) ときの「録った回」。録画履歴のうち、シリーズ名が @series のどれかのものの全部 (期間で切らない) と、録画中の録画。
+-- 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4) ので、失敗した録画は含まない。消した録画も、履歴は残る。
+-- 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比べるので、ここでは候補を絞るだけに使う。
+-- シリーズ名がまだ埋まっていない (列を知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
+SELECT h.service_id, h.name, h.description, h.series_episode, h.start_at
+FROM recording_history h
+WHERE h.series = ANY(@series::text[]) OR h.series IS NULL
+UNION ALL
+SELECT rec.service_id, rec.name, rec.description, p.series_episode, rec.start_at
+FROM recordings rec
+LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
+WHERE rec.state = 'recording';
+
+-- name: ListReservedEpisodes :many
+-- 前の回を録らない (#1499) ときの「予約してある回」。録画しない状態 (無効) でも競合でもなく、まだ録り始めておらず、
+-- 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
+SELECT r.service_id, r.name, r.description, p.series_episode, r.start_at
+FROM reservations r
+LEFT JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
+WHERE r.enabled AND r.assignment_state <> 'conflict' AND r.end_at > @now
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id);
+
 -- name: ListFutureProgramReservations :many
 -- 放送が始まっていない、番組を指定した予約 (番組予約とルール予約)。照合の対象の番組 (ListMatchablePrograms) とそろえる。
 -- 録画は開始マージンとチューニングの時間だけ前に始まるので、録画中かどうか (recording) も返す。録画中の予約は、照合で消さない (設計書 4.3)。

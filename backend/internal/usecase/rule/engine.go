@@ -134,7 +134,8 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		// 重複の回避と、同じ回を録画済みで外した番組は、猶予の内でも残さない。外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501)。
+		// 重複の回避と、同じ回を録画済みで外した番組と、録画を理由に前の回として外した番組は、猶予の内でも残さない。
+		// 外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501、#1498、#1499)。
 		duplicates := map[programKey]*skippedProgram{}
 		desired, err := e.narrow(ctx, tx, now, matched, duplicates)
 		if err != nil {
@@ -180,8 +181,8 @@ func (e *Engine) desired(
 	return e.narrow(ctx, tx, now, matched, skipped)
 }
 
-// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ねで絞り込み、予約すべき番組にする。
-// skipped を渡せば、重複の回避と同じ回の束ねで予約すべき集合から外した番組を、そこに入れる。
+// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
+// 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回の束ね、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
 func (e *Engine) narrow(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
 ) (map[programKey]*desiredProgram, error) {
@@ -193,7 +194,12 @@ func (e *Engine) narrow(
 	}
 	pickSharedEvents(matched, func(d *desiredProgram) []byte { return d.row.RelatedItems })
 	// イベント共有で落とした側の放送を除いてから束ねる。
-	if err := bundleSameEpisodes(ctx, tx, now, matched, skipped); err != nil {
+	// 束ねた後に前の回を外す。両方に当たる放送は、束ねた理由 (別の放送で録る、録画済み) を優先して出す (#1499)。
+	bundled := map[programKey]*skippedProgram{}
+	if err := bundleSameEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
+		return nil, err
+	}
+	if err := skipEarlierEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
 		return nil, err
 	}
 
@@ -455,6 +461,7 @@ func (e *Engine) avoidDuplicates(
 			if skipped != nil {
 				skipped[key] = &skippedProgram{
 					row: d.row, rules: removed, reason: SkipReasonDuplicateTitle, lastRecorded: new(last), recorded: nil, instead: nil,
+					laterEpisode: 0, byRecording: false,
 				}
 			}
 		}
@@ -560,7 +567,7 @@ type keepPolicy struct {
 func (k *keepPolicy) removesNow(key programKey) bool {
 	s := k.duplicates[key]
 
-	return s != nil && s.reason.immediate()
+	return s != nil && s.immediate()
 }
 
 func newKeepPolicy(now time.Time, grace time.Duration, rules []*compiledRule, duplicates map[programKey]*skippedProgram) *keepPolicy {
