@@ -2,6 +2,7 @@ import type { ConcreteRequest } from 'relay-runtime';
 import { describe, expect, it } from 'vitest';
 
 import RecordingIdDeleteMutation from '../routes/recordings/__generated__/RecordingIdDeleteMutation.graphql';
+import RecordingIdDetectCmMutation from '../routes/recordings/__generated__/RecordingIdDetectCmMutation.graphql';
 import RecordingIdPlayQuery from '../routes/recordings/__generated__/RecordingIdPlayQuery.graphql';
 import RecordingIdProtectMutation from '../routes/recordings/__generated__/RecordingIdProtectMutation.graphql';
 import RecordingIdQuery from '../routes/recordings/__generated__/RecordingIdQuery.graphql';
@@ -103,6 +104,11 @@ describe('demo executor answers the queries of the recording and player screens'
       name: 'reanalyze',
       request: RecordingIdReanalyzeMutation,
       variables: ({ recording }) => ({ id: recording }),
+    },
+    {
+      name: 'detect CM',
+      request: RecordingIdDetectCmMutation,
+      variables: ({ removable }) => ({ id: removable }),
     },
     {
       name: 'regenerate',

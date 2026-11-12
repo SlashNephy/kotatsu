@@ -1297,6 +1297,15 @@ type RecordAnimeEpisodesInput struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
+type RecordingCMDetection struct {
+	State RecordingCMDetectionState `json:"state"`
+	// 最後に見分け終えた日時。見分けていなければ null。見分け直している間と、見分け直しに失敗した後は、前に見分けた日時を返す。
+	DetectedAt *time.Time `json:"detectedAt,omitempty"`
+	// 見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。
+	Progress *JobProgress `json:"progress,omitempty"`
+}
+
 // CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
 type RecordingCMSection struct {
 	// 区間の始まりと終わり。録画の時間軸の日時で、途切れた区間 (gaps) と同じく、再生の位置にするには途切れた分を詰める。
@@ -3156,6 +3165,73 @@ func (e *PlayerKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e PlayerKind) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。
+type RecordingCMDetectionState string
+
+const (
+	// 見分けていない。見分けるジョブもない。
+	RecordingCMDetectionStateNotDetected RecordingCMDetectionState = "NOT_DETECTED"
+	// 見分けるジョブが、動くのを待っている。試し直しを待っているときも含む。
+	RecordingCMDetectionStateQueued RecordingCMDetectionState = "QUEUED"
+	// 見分けている。
+	RecordingCMDetectionStateRunning RecordingCMDetectionState = "RUNNING"
+	// 見分け終えた。CM が見つからなくても、見分け終えたとする。
+	RecordingCMDetectionStateDetected RecordingCMDetectionState = "DETECTED"
+	// 最後に頼んだ見分けが、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に見分けた結果の状態に戻る。
+	RecordingCMDetectionStateFailed RecordingCMDetectionState = "FAILED"
+)
+
+var AllRecordingCMDetectionState = []RecordingCMDetectionState{
+	RecordingCMDetectionStateNotDetected,
+	RecordingCMDetectionStateQueued,
+	RecordingCMDetectionStateRunning,
+	RecordingCMDetectionStateDetected,
+	RecordingCMDetectionStateFailed,
+}
+
+func (e RecordingCMDetectionState) IsValid() bool {
+	switch e {
+	case RecordingCMDetectionStateNotDetected, RecordingCMDetectionStateQueued, RecordingCMDetectionStateRunning, RecordingCMDetectionStateDetected, RecordingCMDetectionStateFailed:
+		return true
+	}
+	return false
+}
+
+func (e RecordingCMDetectionState) String() string {
+	return string(e)
+}
+
+func (e *RecordingCMDetectionState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = RecordingCMDetectionState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid RecordingCMDetectionState", str)
+	}
+	return nil
+}
+
+func (e RecordingCMDetectionState) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *RecordingCMDetectionState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e RecordingCMDetectionState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

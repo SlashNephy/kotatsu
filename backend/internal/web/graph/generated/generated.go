@@ -957,6 +957,7 @@ type ComplexityRoot struct {
 		Audios                   func(childComplexity int) int
 		BroadcastEndedAt         func(childComplexity int) int
 		BroadcastStartedAt       func(childComplexity int) int
+		CMDetection              func(childComplexity int) int
 		CMSections               func(childComplexity int) int
 		Description              func(childComplexity int) int
 		Drops                    func(childComplexity int) int
@@ -995,6 +996,12 @@ type ComplexityRoot struct {
 		VideoFormat              func(childComplexity int) int
 		WatchFrame               func(childComplexity int) int
 		WatchPositionMs          func(childComplexity int) int
+	}
+
+	RecordingCMDetection struct {
+		DetectedAt func(childComplexity int) int
+		Progress   func(childComplexity int) int
+		State      func(childComplexity int) int
 	}
 
 	RecordingCMSection struct {
@@ -1636,6 +1643,7 @@ type RecordingResolver interface {
 	StreamQuality(ctx context.Context, obj *model.Recording) ([]*model.StreamQuality, error)
 
 	CMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error)
+	CMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error)
 
 	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
 
@@ -6009,6 +6017,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.BroadcastStartedAt(childComplexity), true
+	case "Recording.cmDetection":
+		if e.ComplexityRoot.Recording.CMDetection == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.CMDetection(childComplexity), true
 	case "Recording.cmSections":
 		if e.ComplexityRoot.Recording.CMSections == nil {
 			break
@@ -6237,6 +6251,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.WatchPositionMs(childComplexity), true
+
+	case "RecordingCMDetection.detectedAt":
+		if e.ComplexityRoot.RecordingCMDetection.DetectedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.DetectedAt(childComplexity), true
+	case "RecordingCMDetection.progress":
+		if e.ComplexityRoot.RecordingCMDetection.Progress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.Progress(childComplexity), true
+	case "RecordingCMDetection.state":
+		if e.ComplexityRoot.RecordingCMDetection.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.State(childComplexity), true
 
 	case "RecordingCMSection.from":
 		if e.ComplexityRoot.RecordingCMSection.From == nil {
@@ -10452,6 +10485,33 @@ type RecordingCMSection {
 }
 
 """
+録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。
+"""
+enum RecordingCMDetectionState {
+  "見分けていない。見分けるジョブもない。"
+  NOT_DETECTED
+  "見分けるジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  QUEUED
+  "見分けている。"
+  RUNNING
+  "見分け終えた。CM が見つからなくても、見分け終えたとする。"
+  DETECTED
+  "最後に頼んだ見分けが、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に見分けた結果の状態に戻る。"
+  FAILED
+}
+
+"""
+録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
+"""
+type RecordingCMDetection {
+  state: RecordingCMDetectionState!
+  "最後に見分け終えた日時。見分けていなければ null。見分け直している間と、見分け直しに失敗した後は、前に見分けた日時を返す。"
+  detectedAt: Time
+  "見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。"
+  progress: JobProgress
+}
+
+"""
 録画のタグ。
 """
 type Tag {
@@ -10503,6 +10563,8 @@ type Recording implements Node {
   gaps: [RecordingGap!]!
   "CM とみなした区間を、始まりの順に並べる (#479)。見分けていないか、見つからなければ空になる。"
   cmSections: [RecordingCMSection!]!
+  "CM の区間の見分けの状態 (#1571)。見分けを待っているか、見分けているか、見分け終えたか、失敗したかを返す。"
+  cmDetection: RecordingCMDetection!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -13568,6 +13630,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_gaps(ctx, field)
 	case "cmSections":
 		return ec.fieldContext_Recording_cmSections(ctx, field)
+	case "cmDetection":
+		return ec.fieldContext_Recording_cmDetection(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
 	case "videoFormat":
@@ -13616,6 +13680,18 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_animeEpisodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingCMDetection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "state":
+		return ec.fieldContext_RecordingCMDetection_state(ctx, field)
+	case "detectedAt":
+		return ec.fieldContext_RecordingCMDetection_detectedAt(ctx, field)
+	case "progress":
+		return ec.fieldContext_RecordingCMDetection_progress(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingCMDetection", field.Name)
 }
 
 func (ec *executionContext) childFields_RecordingCMSection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -34489,6 +34565,38 @@ func (ec *executionContext) fieldContext_Recording_cmSections(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Recording_cmDetection(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_cmDetection(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().CMDetection(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingCMDetection) graphql.Marshaler {
+			return ec.marshalNRecordingCMDetection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetection(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_cmDetection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingCMDetection(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_audios(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35085,6 +35193,84 @@ func (ec *executionContext) fieldContext_Recording_animeEpisodes(_ context.Conte
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RecordingCMDetection_state(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.RecordingCMDetectionState) graphql.Marshaler {
+			return ec.marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetectionState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMDetection", field, false, false, "RecordingCMDetectionState")
+}
+
+func (ec *executionContext) _RecordingCMDetection_detectedAt(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_detectedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DetectedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_detectedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMDetection", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RecordingCMDetection_progress(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_progress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Progress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.JobProgress) graphql.Marshaler {
+			return ec.marshalOJobProgress2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobProgress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingCMDetection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobProgress(ctx, field)
 		},
 	}
 	return fc, nil
@@ -52145,6 +52331,12 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_cmSections(ctx, field, obj)
 				})
+		case "cmDetection":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_cmDetection(ctx, field, obj)
+				})
 		case "audios":
 			out.Values[i] = ec._Recording_audios(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -52265,6 +52457,49 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_animeEpisodes(ctx, field, obj)
 				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var recordingCMDetectionImplementors = []string{"RecordingCMDetection"}
+
+func (ec *executionContext) _RecordingCMDetection(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingCMDetection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingCMDetectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingCMDetection")
+		case "state":
+			out.Values[i] = ec._RecordingCMDetection_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detectedAt":
+			out.Values[i] = ec._RecordingCMDetection_detectedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "progress":
+			out.Values[i] = ec._RecordingCMDetection_progress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -57571,6 +57806,24 @@ func (ec *executionContext) marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkot
 		return graphql.Null
 	}
 	return ec._Recording(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRecordingCMDetection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetection(ctx context.Context, sel ast.SelectionSet, v *model.RecordingCMDetection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RecordingCMDetection!")
+		return graphql.Null
+	}
+	return ec._RecordingCMDetection(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetectionState(ctx context.Context, v any) (model.RecordingCMDetectionState, error) {
+	var res model.RecordingCMDetectionState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetectionState(ctx context.Context, sel ast.SelectionSet, v model.RecordingCMDetectionState) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNRecordingCMSection2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingCMSection) graphql.Marshaler {

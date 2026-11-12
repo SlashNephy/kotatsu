@@ -22,7 +22,14 @@ type Recording = {
   watchPositionMs: number | null;
   watchedAt: number;
   rule: RecordingRule | undefined;
+  // cm は、CM の区間の見分け (#1571)。requestedAt は、見分けを頼んだ時刻。見分け終えたら null に戻し、detectedAt に終えた時刻を書く。
+  cm: { requestedAt: number | null; detectedAt: number | null };
 };
+
+// cmQueuedMs と cmRunningMs は、デモで CM の区間の見分けを待つ時間と、見分ける時間 (#1571)。
+// 本物は、30 分の録画で 1 分ほどかかる。デモでは、進み具合が動く様子を見られる程度に縮める。
+const cmQueuedMs = 3_000;
+const cmRunningMs = 15_000;
 
 export type RecordingFilter = {
   tagIds?: string[] | null;
@@ -60,8 +67,10 @@ export function createRecordings(options: {
   rules: RecordingRule[];
   // ruleView は、録画のルールを返す。ルールを消していれば null。
   ruleView: (id: string) => object | null;
+  // changed は、録画が変わったことを画面に知らせる。CM の区間を見分け終えたときに使う。
+  changed?: (channels: string[]) => void;
 }) {
-  const { programs, now, rules, ruleView } = options;
+  const { programs, now, rules, ruleView, changed } = options;
   const recordings = new Map<string, Recording>();
 
   const ruleOf = (program: DemoProgram) => rules.find((rule) => rule.matches(program));
@@ -78,6 +87,7 @@ export function createRecordings(options: {
       watchPositionMs: null,
       watchedAt: 0,
       rule,
+      cm: { requestedAt: null, detectedAt: null },
       ...fields,
     });
   };
@@ -116,6 +126,42 @@ export function createRecordings(options: {
   if (onAir !== undefined) {
     add(onAir);
   }
+
+  // cmDetection は、録画の CM の区間の見分けの状態を、頼んでからの時間で決める (#1571)。
+  const cmDetection = (recording: Recording) => {
+    const { requestedAt } = recording.cm;
+    if (requestedAt !== null) {
+      const elapsed = Date.now() - requestedAt;
+      const previous =
+        recording.cm.detectedAt === null ? null : new Date(recording.cm.detectedAt).toISOString();
+      if (elapsed < cmQueuedMs) {
+        return { state: 'QUEUED', detectedAt: previous, progress: null };
+      }
+      if (elapsed < cmQueuedMs + cmRunningMs) {
+        const running = elapsed - cmQueuedMs;
+
+        return {
+          state: 'RUNNING',
+          detectedAt: previous,
+          progress: {
+            ratio: Math.min(0.99, running / cmRunningMs),
+            // 始まってすぐは、本物と同じく、残り時間を計算しているところとする。
+            remainingSeconds: running < 2_000 ? null : Math.ceil((cmRunningMs - running) / 1000),
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      }
+      recording.cm = { requestedAt: null, detectedAt: requestedAt + cmQueuedMs + cmRunningMs };
+    }
+
+    return recording.cm.detectedAt === null
+      ? { state: 'NOT_DETECTED', detectedAt: null, progress: null }
+      : {
+          state: 'DETECTED',
+          detectedAt: new Date(recording.cm.detectedAt).toISOString(),
+          progress: null,
+        };
+  };
 
   const view = (recording: Recording) => {
     const { program } = recording;
@@ -156,6 +202,7 @@ export function createRecordings(options: {
       gaps: [],
       // デモの録画の映像は CM を含まないので、CM の区間はない。
       cmSections: [],
+      cmDetection: () => cmDetection(recording),
       audios: program.audios,
       videoFormat: program.service.videoFormat,
       genres: program.genres,
@@ -300,6 +347,22 @@ export function createRecordings(options: {
       }
 
       return { processed, skipped: ids.length - processed };
+    },
+    // detectCm は、CM の区間の見分けを頼む (#1571)。見分けを待っているか見分けている間は、重ねて頼まずに false を返す。
+    // 本物と同じく、頼んだときと見分け終えたときに、録画が変わったことを知らせる。
+    detectCm: (id: string) => {
+      const recording = recordingOrThrow(id);
+      if (recording.state === 'RECORDING') {
+        throw new Error('the recording is still being recorded');
+      }
+      if (cmDetection(recording).state === 'QUEUED' || cmDetection(recording).state === 'RUNNING') {
+        return false;
+      }
+      recording.cm = { ...recording.cm, requestedAt: Date.now() };
+      changed?.(['RECORDINGS']);
+      setTimeout(() => changed?.(['RECORDINGS']), cmQueuedMs + cmRunningMs);
+
+      return true;
     },
     saveWatchPosition: (id: string, positionMs: number) => {
       const recording = recordingOrThrow(id);

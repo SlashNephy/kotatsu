@@ -602,7 +602,7 @@ func (r *Resolver) detectRecordingCM(ctx context.Context, globalID string) (bool
 		return false, NewError(CodeConflict, "the recording has no TS segment to detect CM sections in")
 	}
 
-	return cmdetect.Enqueue(ctx, r.db, r.jobs, recordingID)
+	return cmdetect.Enqueue(ctx, r.db, r.jobs, r.clock, recordingID)
 }
 
 func (r *Resolver) setRecordingTags(ctx context.Context, globalID string, tags []string) (*model.Recording, error) {
@@ -745,6 +745,45 @@ func (r *Resolver) recordingCMSections(ctx context.Context, obj *model.Recording
 	}
 
 	return out, nil
+}
+
+// cmDetectionState は、CM の区間の見分けの状態を、GraphQL の形にする (#1571)。
+func cmDetectionState(state cmdetect.State) model.RecordingCMDetectionState {
+	switch state {
+	case cmdetect.StateQueued:
+		return model.RecordingCMDetectionStateQueued
+	case cmdetect.StateRunning:
+		return model.RecordingCMDetectionStateRunning
+	case cmdetect.StateDetected:
+		return model.RecordingCMDetectionStateDetected
+	case cmdetect.StateFailed:
+		return model.RecordingCMDetectionStateFailed
+	case cmdetect.StateNotDetected:
+		return model.RecordingCMDetectionStateNotDetected
+	default:
+		return model.RecordingCMDetectionStateNotDetected
+	}
+}
+
+// recordingCMDetection は、録画の CM の区間の見分けの状態を返す (#1571)。失敗の理由は、管理者がジョブの画面で確かめるので返さない。
+func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return nil, err
+	}
+	status, err := cmdetect.RecordingStatus(ctx, r.db, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	detection := &model.RecordingCMDetection{State: cmDetectionState(status.State), DetectedAt: status.DetectedAt, Progress: nil}
+	if p := status.Progress; p != nil {
+		detection.Progress = &model.JobProgress{Ratio: p.Ratio, RemainingSeconds: nil, UpdatedAt: p.UpdatedAt}
+		if p.Remaining != nil {
+			detection.Progress.RemainingSeconds = new(int(p.Remaining.Round(time.Second).Seconds()))
+		}
+	}
+
+	return detection, nil
 }
 
 // segmentVideoOf は、セグメントの映像の形式の JSON (#1310) を GraphQL の形にする。なければ nil を返す。

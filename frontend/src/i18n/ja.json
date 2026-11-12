@@ -1172,8 +1172,17 @@
     "reanalyzeQueued": "解析をやり直しています。終わるとドロップの集計と画像が入れ替わります",
     "reanalyzeWaiting": "前に頼んだ解析のやり直しを待っています",
     "detectCm": "CMを解析する",
-    "detectCmQueued": "CMの区間を解析しています。終わると、再生のシークバーの区間が入れ替わります",
-    "detectCmWaiting": "前に頼んだCMの解析を待っています",
+    "cm": {
+      "title": "CMの区間",
+      "notDetected": "まだ解析していません",
+      "queued": "解析を待っています",
+      "running": "解析しています",
+      "found": "{{count}}か所をCMとみなしました",
+      "none": "CMは見つかりませんでした",
+      "failed": "解析できませんでした。管理者は、ジョブの画面で理由を確かめられます",
+      "detectedAt": "{{at}}に解析しました",
+      "previous": "いまは、{{at}}に解析した結果（{{count}}か所）を使っています"
+    },
     "download": "ダウンロード",
     "unknownEnd": "不明",
     "play": "再生"

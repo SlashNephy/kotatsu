@@ -111,6 +111,8 @@ models:
         resolver: true
       cmSections:
         resolver: true
+      cmDetection:
+        resolver: true
       failureDetail:
         resolver: true
   ReservationAssignment:

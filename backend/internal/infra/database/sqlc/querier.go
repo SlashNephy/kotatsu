@@ -314,6 +314,8 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// 録画の CM の区間を、見分け方 detector で最後に見分け終えた日時を返す (#1571)。見分けていなければ行を返さない。
+	GetRecordingCMDetectedAt(ctx context.Context, arg GetRecordingCMDetectedAtParams) (time.Time, error)
 	// プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
 	GetRecordingFileOwner(ctx context.Context, arg GetRecordingFileOwnerParams) (GetRecordingFileOwnerRow, error)
 	GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.UUID, error)

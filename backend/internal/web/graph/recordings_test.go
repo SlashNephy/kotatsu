@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -553,6 +554,85 @@ func TestDetectRecordingCM(t *testing.T) {
 	require.Empty(t, f.query(t, detect, map[string]any{varID: recordingID}, &got))
 	assert.True(t, got.DetectRecordingCM)
 	assert.Len(t, queued(), 2)
+}
+
+// TestRecordingCMDetection は、録画の CM の区間の見分けの状態を、見分けを頼む前、待っている間、見分けている間、失敗した後で返すことを確かめる (#1571)。
+// 視聴者も読め、失敗の理由は返さない。
+func TestRecordingCMDetection(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
+	_, rawID, err := graph.ParseGlobalID(recordingID)
+	require.NoError(t, err)
+
+	type detection struct {
+		State      string     `json:"state"`
+		DetectedAt *time.Time `json:"detectedAt"`
+		Progress   *struct {
+			Ratio            float64 `json:"ratio"`
+			RemainingSeconds *int    `json:"remainingSeconds"`
+		} `json:"progress"`
+	}
+	read := func(t *testing.T, f *fixture) detection {
+		t.Helper()
+
+		var got struct {
+			Node struct {
+				CMDetection detection `json:"cmDetection"`
+			} `json:"node"`
+		}
+		require.Empty(t, f.query(t, `query($id: ID!) { node(id: $id) { ... on Recording { cmDetection { state detectedAt progress { ratio remainingSeconds } } } } }`,
+			map[string]any{varID: recordingID}, &got))
+		raw, err := json.Marshal(got)
+		require.NoError(t, err)
+		t.Logf("response: %s", raw)
+
+		return got.Node.CMDetection
+	}
+
+	assert.Equal(t, "NOT_DETECTED", read(t, f).State)
+
+	// 頼んだら、動くのを待っている。
+	require.Empty(t, f.query(t, `mutation($id: ID!) { detectRecordingCm(id: $id) }`, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, "QUEUED", read(t, f).State)
+
+	// 動いている間は、今の試行の進み具合を返す。視聴者も読める。
+	var jobID int64
+	require.NoError(t, f.pool.QueryRow(t.Context(), `UPDATE river_job SET state = 'running', attempt = 1, attempted_at = $1
+		WHERE kind = 'recording_cm_detect' RETURNING id`, testNow()).Scan(&jobID))
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO job_progress (job_id, attempt, ratio, remaining_ms, updated_at) VALUES ($1, 1, 0.25, 74600, $2)`, jobID, testNow())
+	require.NoError(t, err)
+	running := read(t, f.as(t, "viewer", auth.RoleViewer))
+	assert.Equal(t, "RUNNING", running.State)
+	require.NotNil(t, running.Progress)
+	assert.InDelta(t, 0.25, running.Progress.Ratio, 1e-9)
+	assert.Equal(t, new(75), running.Progress.RemainingSeconds)
+
+	// 試す回数を使い切ったら、失敗。
+	_, err = f.pool.Exec(t.Context(), `UPDATE river_job SET state = 'discarded', finalized_at = now() WHERE id = $1`, jobID)
+	require.NoError(t, err)
+	failed := read(t, f)
+	assert.Equal(t, "FAILED", failed.State)
+	assert.Nil(t, failed.Progress)
+
+	// 見分けた記録があり、ジョブを River が消した後は、見分け終えている。
+	_, err = f.pool.Exec(t.Context(), `DELETE FROM river_job WHERE id = $1`, jobID)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, 'ffmpeg', 1, $2)`,
+		rawID, testNow())
+	require.NoError(t, err)
+	detected := read(t, f)
+	assert.Equal(t, "DETECTED", detected.State)
+	require.NotNil(t, detected.DetectedAt)
+	assert.True(t, testNow().Equal(*detected.DetectedAt))
 }
 
 // TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確かめる (#471)。
