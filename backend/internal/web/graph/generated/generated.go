@@ -970,7 +970,9 @@ type ComplexityRoot struct {
 		RecordedUntil            func(childComplexity int) int
 		Rule                     func(childComplexity int) int
 		RuleName                 func(childComplexity int) int
+		ScrambleWarning          func(childComplexity int) int
 		Scrambled                func(childComplexity int) int
+		ScrambledRatio           func(childComplexity int) int
 		Service                  func(childComplexity int) int
 		StartAt                  func(childComplexity int) int
 		State                    func(childComplexity int) int
@@ -6106,12 +6108,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.RuleName(childComplexity), true
+	case "Recording.scrambleWarning":
+		if e.ComplexityRoot.Recording.ScrambleWarning == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.ScrambleWarning(childComplexity), true
 	case "Recording.scrambled":
 		if e.ComplexityRoot.Recording.Scrambled == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Recording.Scrambled(childComplexity), true
+	case "Recording.scrambledRatio":
+		if e.ComplexityRoot.Recording.ScrambledRatio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.ScrambledRatio(childComplexity), true
 	case "Recording.service":
 		if e.ComplexityRoot.Recording.Service == nil {
 			break
@@ -9688,6 +9702,8 @@ enum NotificationKind {
   ANIME_RECORDED
   "見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。"
   ANIME_RECORD_FAILED
+  "スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。"
+  SCRAMBLED_RECORDINGS
 }
 
 """
@@ -10397,6 +10413,13 @@ type Recording implements Node {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  """
+  スクランブルされたまま録れたという警告の印 (設計書 5.5、#1517)。録画全体か、どれかのセグメントで、
+  ES のパケットのうちスクランブルされていたものの割合が閾値を超えたら立つ。状態とは別の印で、失敗にはしない。
+  """
+  scrambleWarning: Boolean!
+  "ES の PID だけで出した、スクランブルされていたパケットの割合 (0〜1、#1517)。ES のパケットが少なくて判定しなかった録画では null。"
+  scrambledRatio: Float
   """
   PID ごとの、パケット、ドロップ、エラー、スクランブルの数 (#473)。セグメントを足し合わせ、PID の昇順に並べる。
   集計を記録する前に閉じたセグメントは含めない。引き継ぎで重なった区間は、drops などと違って二重に数える。
@@ -13426,6 +13449,10 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_errors(ctx, field)
 	case "scrambled":
 		return ec.fieldContext_Recording_scrambled(ctx, field)
+	case "scrambleWarning":
+		return ec.fieldContext_Recording_scrambleWarning(ctx, field)
+	case "scrambledRatio":
+		return ec.fieldContext_Recording_scrambledRatio(ctx, field)
 	case "streamQuality":
 		return ec.fieldContext_Recording_streamQuality(ctx, field)
 	case "gaps":
@@ -34062,6 +34089,52 @@ func (ec *executionContext) fieldContext_Recording_scrambled(_ context.Context, 
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "Int64")
 }
 
+func (ec *executionContext) _Recording_scrambleWarning(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_scrambleWarning(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScrambleWarning, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_scrambleWarning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _Recording_scrambledRatio(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_scrambledRatio(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScrambledRatio, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_scrambledRatio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, "Float")
+}
+
 func (ec *executionContext) _Recording_streamQuality(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -51667,6 +51740,16 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 		case "scrambled":
 			out.Values[i] = ec._Recording_scrambled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "scrambleWarning":
+			out.Values[i] = ec._Recording_scrambleWarning(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "scrambledRatio":
+			out.Values[i] = ec._Recording_scrambledRatio(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "streamQuality":

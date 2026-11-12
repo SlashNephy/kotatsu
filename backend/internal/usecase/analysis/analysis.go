@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
 )
@@ -337,6 +338,11 @@ func (w *AnalyzeWorker) record(
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the stats: %w", err)
+		}
+		// 解析し直した内訳で、スクランブルされたまま録れたかも決め直す (#1517)。録画を終えたときに知らせたので、通知は送らず、
+		// 管理者に知らせるための、続いた録画の数も進めない。
+		if _, err := scramble.Judge(ctx, q, recordingID, now); err != nil {
+			return err
 		}
 		// 録画の一覧にドロップの数を出すので、録画の変更として知らせる (#868)。
 		if _, err := notify.Publish(ctx, tx, w.clock, notify.RecordingsChannel); err != nil {

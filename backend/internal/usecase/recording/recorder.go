@@ -34,6 +34,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
@@ -1902,6 +1903,9 @@ func (r *Recorder) complete(
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingFailed, payload, target.Audience)
 		}
+		if err := r.judgeScramble(ctx, tx, &recording, row.ServiceName, payload, now); err != nil {
+			return err
+		}
 
 		if (state == StateCompleted || state == StateCompletedWithErrors) && recording.Drops <= MaxHistoryDrops {
 			err := q.InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
@@ -1938,6 +1942,21 @@ func (r *Recorder) complete(
 	}
 
 	return nil
+}
+
+// judgeScramble は、スクランブルされたまま録れたかを判定して録画に記録し、警告なら完了の通知の payload に添え、
+// 続けて起きたら管理者に知らせる (設計書 5.5、6.2、#1517)。スクランブルされたまま録れても、失敗にはしない。
+func (r *Recorder) judgeScramble(
+	ctx context.Context, tx pgx.Tx, recording *sqlc.Recording, serviceName string, payload map[string]any, now time.Time,
+) error {
+	scrambled, err := scramble.Judge(ctx, sqlc.New(tx), recording.ID, now)
+	if err != nil {
+		return err
+	}
+	scramble.AddToPayload(payload, scrambled)
+	alert := recordingPayload(recording.ID, recording.Name, serviceName, recording.StartAt, recording.EndAt)
+
+	return scramble.Alert(ctx, tx, r.clock, scrambled, alert)
 }
 
 // completionSettings は、録画を終えた後の処理 (分かれたセグメントをつなぐか (設計書 5.4)、CM の区間を見分けるか (設計書 6.1)) に使う録画設定を、

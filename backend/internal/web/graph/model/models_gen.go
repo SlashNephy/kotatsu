@@ -2944,6 +2944,8 @@ const (
 	NotificationKindAnimeRecorded NotificationKind = "ANIME_RECORDED"
 	// 見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
 	NotificationKindAnimeRecordFailed NotificationKind = "ANIME_RECORD_FAILED"
+	// スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。
+	NotificationKindScrambledRecordings NotificationKind = "SCRAMBLED_RECORDINGS"
 )
 
 var AllNotificationKind = []NotificationKind{
@@ -2956,11 +2958,12 @@ var AllNotificationKind = []NotificationKind{
 	NotificationKindWatchReminder,
 	NotificationKindAnimeRecorded,
 	NotificationKindAnimeRecordFailed,
+	NotificationKindScrambledRecordings,
 }
 
 func (e NotificationKind) IsValid() bool {
 	switch e {
-	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed:
+	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed, NotificationKindScrambledRecordings:
 		return true
 	}
 	return false

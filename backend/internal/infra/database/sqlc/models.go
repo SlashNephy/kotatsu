@@ -533,6 +533,8 @@ type Recording struct {
 	Drops                 int64
 	Errors                int64
 	Scrambled             int64
+	ScrambledRatio        *float64
+	ScrambleWarning       bool
 	Gaps                  []byte
 	Audios                []byte
 	VideoResolution       *string
@@ -704,6 +706,13 @@ type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64
 	UpdatedAt        time.Time
+}
+
+type ScrambleAlert struct {
+	ID          bool
+	Consecutive int64
+	NotifiedAt  *time.Time
+	UpdatedAt   time.Time
 }
 
 type Service struct {

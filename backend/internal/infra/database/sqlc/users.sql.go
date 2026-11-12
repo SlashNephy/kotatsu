@@ -125,6 +125,31 @@ func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) error {
 	return err
 }
 
+const listActiveAdminIDs = `-- name: ListActiveAdminIDs :many
+SELECT id FROM users WHERE role = 'admin' AND disabled_at IS NULL ORDER BY id
+`
+
+// 有効な管理者の ID を返す。管理者にだけ届ける通知の宛先に使う (#1517)。
+func (q *Queries) ListActiveAdminIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listActiveAdminIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, username, display_name, role, password_hash, disabled_at, created_at, updated_at FROM users ORDER BY created_at, id
 `

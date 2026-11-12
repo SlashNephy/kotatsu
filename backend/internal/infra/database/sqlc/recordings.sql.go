@@ -37,6 +37,34 @@ func (q *Queries) AddRecordingStats(ctx context.Context, arg AddRecordingStatsPa
 	return err
 }
 
+const advanceScrambleAlert = `-- name: AdvanceScrambleAlert :one
+INSERT INTO scramble_alerts (id, consecutive, notified_at, updated_at)
+VALUES (true, CASE WHEN $1::boolean THEN 1 ELSE 0 END, NULL, $2)
+ON CONFLICT (id) DO UPDATE SET
+  consecutive = CASE WHEN $1::boolean THEN scramble_alerts.consecutive + 1 ELSE 0 END,
+  updated_at = EXCLUDED.updated_at
+RETURNING consecutive, notified_at
+`
+
+type AdvanceScrambleAlertParams struct {
+	Scrambled bool
+	Now       time.Time
+}
+
+type AdvanceScrambleAlertRow struct {
+	Consecutive int64
+	NotifiedAt  *time.Time
+}
+
+// 録画を終えたときの判定を、続けてスクランブルされたままだった録画の数に足す (設計書 6.2、#1517)。
+// scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に知らせるかは、同じトランザクションの中で決める。
+func (q *Queries) AdvanceScrambleAlert(ctx context.Context, arg AdvanceScrambleAlertParams) (AdvanceScrambleAlertRow, error) {
+	row := q.db.QueryRow(ctx, advanceScrambleAlert, arg.Scrambled, arg.Now)
+	var i AdvanceScrambleAlertRow
+	err := row.Scan(&i.Consecutive, &i.NotifiedAt)
+	return i, err
+}
+
 const clearRecordingBroadcastEnded = `-- name: ClearRecordingBroadcastEnded :exec
 UPDATE recordings SET broadcast_ended_at = NULL, updated_at = $1 WHERE id = $2
 `
@@ -316,7 +344,7 @@ func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (G
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -341,6 +369,8 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.Drops,
 		&i.Errors,
 		&i.Scrambled,
+		&i.ScrambledRatio,
+		&i.ScrambleWarning,
 		&i.Gaps,
 		&i.Audios,
 		&i.VideoResolution,
@@ -384,7 +414,7 @@ func (q *Queries) GetRecordingFileOwner(ctx context.Context, arg GetRecordingFil
 }
 
 const getRecordingInProgressByReservation = `-- name: GetRecordingInProgressByReservation :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
 `
 
 // 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
@@ -410,6 +440,8 @@ func (q *Queries) GetRecordingInProgressByReservation(ctx context.Context, reser
 		&i.Drops,
 		&i.Errors,
 		&i.Scrambled,
+		&i.ScrambledRatio,
+		&i.ScrambleWarning,
 		&i.Gaps,
 		&i.Audios,
 		&i.VideoResolution,
@@ -497,7 +529,7 @@ func (q *Queries) GetRecordingSID(ctx context.Context, id uuid.UUID) (int64, err
 }
 
 const getRecordingWithService = `-- name: GetRecordingWithService :one
-SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.scrambled_ratio, recordings.scramble_warning, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = $1
@@ -531,6 +563,8 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 		&i.Recording.Drops,
 		&i.Recording.Errors,
 		&i.Recording.Scrambled,
+		&i.Recording.ScrambledRatio,
+		&i.Recording.ScrambleWarning,
 		&i.Recording.Gaps,
 		&i.Recording.Audios,
 		&i.Recording.VideoResolution,
@@ -624,7 +658,7 @@ INSERT INTO recordings (id, reservation_id, service_id, event_id, name, descript
 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7,
   $8, $9, 'recording', NULL,
   false, 0, 0, 0, $10, $11, $12, NULL, NULL, $13, NULL, $14, $14)
-RETURNING id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at
+RETURNING id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at
 `
 
 type InsertPromotedRecordingParams struct {
@@ -683,6 +717,8 @@ func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromote
 		&i.Drops,
 		&i.Errors,
 		&i.Scrambled,
+		&i.ScrambledRatio,
+		&i.ScrambleWarning,
 		&i.Gaps,
 		&i.Audios,
 		&i.VideoResolution,
@@ -1033,6 +1069,34 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 	return items, nil
 }
 
+const listRecordingSegmentPIDStats = `-- name: ListRecordingSegmentPIDStats :many
+SELECT pid_stats FROM recording_files
+WHERE recording_id = $1 AND kind = 'segment'
+ORDER BY started_at, id
+`
+
+// 録画のセグメントの PID ごとの品質の集計 (#473)。スクランブルされたまま録れたかを判定するのに使う (#1517)。
+// 集計を記録する前に閉じたセグメントの pid_stats は NULL。
+func (q *Queries) ListRecordingSegmentPIDStats(ctx context.Context, recordingID uuid.UUID) ([][]byte, error) {
+	rows, err := q.db.Query(ctx, listRecordingSegmentPIDStats, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]byte{}
+	for rows.Next() {
+		var pid_stats []byte
+		if err := rows.Scan(&pid_stats); err != nil {
+			return nil, err
+		}
+		items = append(items, pid_stats)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingSegments = `-- name: ListRecordingSegments :many
 SELECT pool_id, path FROM recording_files
 WHERE recording_id = $1 AND kind = 'segment' AND size > 0
@@ -1205,6 +1269,16 @@ func (q *Queries) MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkR
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const markScrambleAlertNotified = `-- name: MarkScrambleAlertNotified :exec
+UPDATE scramble_alerts SET notified_at = $1, updated_at = $1 WHERE id
+`
+
+// スクランブルされたまま録れた録画を、管理者に知らせた日時を記録する。
+func (q *Queries) MarkScrambleAlertNotified(ctx context.Context, now *time.Time) error {
+	_, err := q.db.Exec(ctx, markScrambleAlertNotified, now)
+	return err
 }
 
 const moveRecordingRecordedFromBack = `-- name: MoveRecordingRecordedFromBack :exec
@@ -1405,6 +1479,29 @@ func (q *Queries) SetRecordingRecordedFrom(ctx context.Context, arg SetRecording
 	return err
 }
 
+const setRecordingScramble = `-- name: SetRecordingScramble :exec
+UPDATE recordings SET scrambled_ratio = $1, scramble_warning = $2, updated_at = $3
+WHERE id = $4
+`
+
+type SetRecordingScrambleParams struct {
+	Ratio   *float64
+	Warning bool
+	Now     time.Time
+	ID      uuid.UUID
+}
+
+// スクランブルされたまま録れたかを判定した結果を記録する (設計書 5.5、#1517)。判定しなかったら、割合を NULL にする。
+func (q *Queries) SetRecordingScramble(ctx context.Context, arg SetRecordingScrambleParams) error {
+	_, err := q.db.Exec(ctx, setRecordingScramble,
+		arg.Ratio,
+		arg.Warning,
+		arg.Now,
+		arg.ID,
+	)
+	return err
+}
+
 const setRecordingStats = `-- name: SetRecordingStats :exec
 UPDATE recordings SET drops = $1, errors = $2, scrambled = $3,
   state = CASE WHEN state IN ('completed', 'completed_with_errors')
@@ -1475,7 +1572,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) AS m ON true
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, failure_detail = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
+RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.scrambled_ratio, recordings.scramble_warning, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
@@ -1537,6 +1634,8 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Recording.Drops,
 		&i.Recording.Errors,
 		&i.Recording.Scrambled,
+		&i.Recording.ScrambledRatio,
+		&i.Recording.ScrambleWarning,
 		&i.Recording.Gaps,
 		&i.Recording.Audios,
 		&i.Recording.VideoResolution,

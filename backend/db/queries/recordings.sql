@@ -370,3 +370,29 @@ WHERE r.id = @recording_id AND NOT EXISTS (
   SELECT 1 FROM recording_files f
   WHERE f.recording_id = r.id AND f.video IS NOT NULL AND f.started_at < @started_at
 );
+
+-- name: ListRecordingSegmentPIDStats :many
+-- 録画のセグメントの PID ごとの品質の集計 (#473)。スクランブルされたまま録れたかを判定するのに使う (#1517)。
+-- 集計を記録する前に閉じたセグメントの pid_stats は NULL。
+SELECT pid_stats FROM recording_files
+WHERE recording_id = @recording_id AND kind = 'segment'
+ORDER BY started_at, id;
+
+-- name: SetRecordingScramble :exec
+-- スクランブルされたまま録れたかを判定した結果を記録する (設計書 5.5、#1517)。判定しなかったら、割合を NULL にする。
+UPDATE recordings SET scrambled_ratio = sqlc.narg(ratio), scramble_warning = @warning, updated_at = @now
+WHERE id = @id;
+
+-- name: AdvanceScrambleAlert :one
+-- 録画を終えたときの判定を、続けてスクランブルされたままだった録画の数に足す (設計書 6.2、#1517)。
+-- scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に知らせるかは、同じトランザクションの中で決める。
+INSERT INTO scramble_alerts (id, consecutive, notified_at, updated_at)
+VALUES (true, CASE WHEN @scrambled::boolean THEN 1 ELSE 0 END, NULL, @now)
+ON CONFLICT (id) DO UPDATE SET
+  consecutive = CASE WHEN @scrambled::boolean THEN scramble_alerts.consecutive + 1 ELSE 0 END,
+  updated_at = EXCLUDED.updated_at
+RETURNING consecutive, notified_at;
+
+-- name: MarkScrambleAlertNotified :exec
+-- スクランブルされたまま録れた録画を、管理者に知らせた日時を記録する。
+UPDATE scramble_alerts SET notified_at = @now, updated_at = @now WHERE id;

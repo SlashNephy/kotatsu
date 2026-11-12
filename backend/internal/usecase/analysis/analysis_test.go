@@ -25,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 )
 
@@ -508,6 +509,44 @@ func TestAnalyzeWorkerQueuesThumbnailAtJobPriority(t *testing.T) {
 			var priority int
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT priority FROM river_job WHERE kind = 'thumbnail_generate'").Scan(&priority))
 			assert.Equal(t, tt.priority, priority)
+		})
+	}
+}
+
+// TestAnalyzeWorkerJudgesScramble は、解析し直した内訳で、スクランブルされたまま録れたかを決め直すことを確かめる (#1517)。
+// 録画を終えたときに知らせたので、解析し直しても通知は送らない。
+func TestAnalyzeWorkerJudgesScramble(t *testing.T) {
+	t.Parallel()
+
+	// 判定に要る ES のパケットの数に届くよう、繰り返す。
+	repeated := bytes.Repeat(loadTestTS(t), 8)
+	tests := []struct {
+		name        string
+		data        []byte
+		wantWarning bool
+		wantRatio   float64
+	}{
+		{name: "decrypted", data: repeated, wantWarning: false, wantRatio: 0},
+		{name: "still scrambled", data: faketuner.Scramble(repeated, videoPID, 0x0112), wantWarning: true, wantRatio: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed", tt.data)
+			require.NoError(t, f.analyze(t, recordingID))
+
+			var warning bool
+			var ratio *float64
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT scramble_warning, scrambled_ratio FROM recordings WHERE id = $1", recordingID).
+				Scan(&warning, &ratio))
+			assert.Equal(t, tt.wantWarning, warning)
+			require.NotNil(t, ratio)
+			assert.InDelta(t, tt.wantRatio, *ratio, 1e-9)
+			var events int
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM notification_events").Scan(&events))
+			assert.Zero(t, events)
 		})
 	}
 }
