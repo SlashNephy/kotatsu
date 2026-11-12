@@ -1,9 +1,10 @@
 import { MantineProvider } from '@mantine/core';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Captions } from 'lucide-react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { CommandButton } from './PlayerControls';
+import '../i18n';
+import { CommandButton, holdDelayMs, SeekStepButtons } from './PlayerControls';
 
 afterEach(() => {
   cleanup();
@@ -37,6 +38,118 @@ describe('CommandButton', () => {
           label="実況"
           icon={Captions}
         />
+      </MantineProvider>,
+    );
+
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+});
+
+describe('SeekStepButtons', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // jsdom の要素には、ポインターを捕まえる API がない。
+    Element.prototype.setPointerCapture = () => undefined;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const renderButtons = (onFastForward?: (held: boolean) => void) => {
+    const commands = { seekBackward15: vi.fn(), seekForward15: vi.fn() };
+    render(
+      <MantineProvider>
+        <SeekStepButtons
+          commands={commands}
+          {...(onFastForward === undefined ? {} : { onFastForward })}
+        />
+      </MantineProvider>,
+    );
+
+    return commands;
+  };
+  const forwardButton = () => screen.getByRole('button', { name: /15 秒進む/ });
+  // press は、ポインターで押して、ms だけ待ってから離す。ブラウザと同じく、離したらクリックも届く。
+  const press = (button: HTMLElement, ms: number) => {
+    fireEvent.pointerDown(button, { button: 0, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+    fireEvent.pointerUp(button, { button: 0, pointerId: 1 });
+    fireEvent.click(button);
+  };
+
+  test('押すと、15 秒戻るか進む', () => {
+    const commands = renderButtons(() => {});
+
+    fireEvent.click(screen.getByRole('button', { name: '15 秒戻る' }));
+    press(forwardButton(), 100);
+
+    expect(commands.seekBackward15).toHaveBeenCalledOnce();
+    expect(commands.seekForward15).toHaveBeenCalledOnce();
+  });
+
+  test('進むボタンを押し続けると、離すまで早回しにし、離しても 15 秒進まない', () => {
+    const onFastForward = vi.fn();
+    const commands = renderButtons(onFastForward);
+
+    fireEvent.pointerDown(forwardButton(), { button: 0, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(holdDelayMs);
+    });
+    expect(onFastForward).toHaveBeenLastCalledWith(true);
+
+    fireEvent.pointerUp(forwardButton(), { button: 0, pointerId: 1 });
+    fireEvent.click(forwardButton());
+    expect(onFastForward).toHaveBeenLastCalledWith(false);
+    expect(commands.seekForward15).not.toHaveBeenCalled();
+
+    // 押し続けた後でも、次に押したら、また 15 秒進む。
+    act(() => {
+      vi.runAllTimers();
+    });
+    fireEvent.click(forwardButton());
+    expect(commands.seekForward15).toHaveBeenCalledOnce();
+  });
+
+  test('押し続けている間にウィンドウを離れたら、早回しをやめる', () => {
+    const onFastForward = vi.fn();
+    renderButtons(onFastForward);
+
+    fireEvent.pointerDown(forwardButton(), { button: 0, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(holdDelayMs);
+    });
+    fireEvent.blur(window);
+
+    expect(onFastForward).toHaveBeenLastCalledWith(false);
+  });
+
+  test('指がずれて取り消されたら、早回しをやめる', () => {
+    const onFastForward = vi.fn();
+    renderButtons(onFastForward);
+
+    fireEvent.pointerDown(forwardButton(), { button: 0, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(holdDelayMs);
+    });
+    fireEvent.pointerCancel(forwardButton(), { pointerId: 1 });
+
+    expect(onFastForward).toHaveBeenLastCalledWith(false);
+  });
+
+  test('早回しを渡さなければ、押し続けても 15 秒進む', () => {
+    const commands = renderButtons();
+
+    press(forwardButton(), holdDelayMs * 2);
+
+    expect(commands.seekForward15).toHaveBeenCalledOnce();
+  });
+
+  test('シークできない画面では、出さない', () => {
+    render(
+      <MantineProvider>
+        <SeekStepButtons commands={{ togglePlay: () => {} }} onFastForward={() => {}} />
       </MantineProvider>,
     );
 

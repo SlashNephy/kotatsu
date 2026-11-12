@@ -4,13 +4,22 @@ import {
   Minimize,
   Pause,
   Play,
+  RotateCcw,
+  RotateCw,
   Settings,
   Volume1,
   Volume2,
   VolumeX,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { runCommand, type PlayerCommands, type SimpleCommandId } from './commands';
@@ -57,6 +66,10 @@ type ButtonProps = {
   optional?: boolean;
   // notice は、名前の代わりに、しばらく出しておく知らせ (失敗したことなど)。
   notice?: string | null;
+  // badge は、アイコンの真ん中に重ねる短い文字 (15 秒のシークの「15」など)。
+  badge?: string;
+  // pressProps は、押し続けを見分けるボタン (useHoldPress) が渡す、ポインターの知らせの受け口。onClick より優先する。
+  pressProps?: HoldPressProps;
 };
 
 // ControlButton は、操作バーのアイコンのボタン。名前は、ツールチップと読み上げで示す。
@@ -68,6 +81,8 @@ export function ControlButton({
   active,
   optional = false,
   notice = null,
+  badge,
+  pressProps,
 }: ButtonProps) {
   return (
     <Tooltip
@@ -81,10 +96,16 @@ export function ControlButton({
         aria-label={label}
         aria-pressed={active}
         data-active={active}
-        className={`${classes.button} ${optional ? classes.optional : ''}`}
+        className={`${classes.button} ${optional ? classes.optional : ''} ${pressProps === undefined ? '' : classes.holdable}`}
         onClick={onClick}
+        {...pressProps}
       >
         <Icon size={20} aria-hidden />
+        {badge !== undefined && (
+          <span className={classes.badge} aria-hidden>
+            {badge}
+          </span>
+        )}
       </ActionIcon>
     </Tooltip>
   );
@@ -103,6 +124,138 @@ export function CommandButton({ commands, command, ...props }: CommandButtonProp
   }
 
   return <ControlButton {...props} onClick={() => runCommand(commands, command)} />;
+}
+
+// holdDelayMs は、押し続けたとみなすまでの時間。これより早く離したら、ふつうに押したことにする。
+export const holdDelayMs = 500;
+
+export type HoldPressProps = {
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
+  onLostPointerCapture: () => void;
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void;
+};
+
+// useHoldPress は、押したら onPress を、holdDelayMs より長く押し続けたら、離すまで onHold(true) にするボタンの受け口を返す。
+// 押し続けたときは、離しても onPress を呼ばない。キーボード (Enter、Space) で押したときは、いつも onPress にする。
+// onHold がなければ、押し続けても、ふつうに押したことにする。
+export function useHoldPress(onPress: () => void, onHold: ((held: boolean) => void) | undefined) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holding = useRef(false);
+  // swallowClick は、押し続けた後に届くクリックを、押したことにしないための印。
+  const swallowClick = useRef(false);
+  const onHoldRef = useRef(onHold);
+  onHoldRef.current = onHold;
+  // release は、押し続けを終える。離したときのほか、指がずれて取り消されたときや、ウィンドウを離れたときにも呼ぶ。
+  // 速さが戻らないままにならないよう、どの終わり方でも、ここを通す。
+  const release = useRef(() => {
+    if (timer.current !== null) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    if (!holding.current) {
+      return;
+    }
+    holding.current = false;
+    onHoldRef.current?.(false);
+    // 離した直後のクリックだけを飲み込む。クリックが届かなかったときに、次のキーボードの操作まで飲み込まない。
+    setTimeout(() => {
+      swallowClick.current = false;
+    }, 0);
+  }).current;
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        release();
+      }
+    };
+    window.addEventListener('blur', release);
+    document.addEventListener('visibilitychange', onHidden);
+
+    return () => {
+      window.removeEventListener('blur', release);
+      document.removeEventListener('visibilitychange', onHidden);
+      // ボタンが消えたら (シークできなくなった、画面を離れた)、押し続けも終える。
+      release();
+    };
+  }, [release]);
+
+  const props: HoldPressProps = {
+    onClick: () => {
+      if (swallowClick.current) {
+        swallowClick.current = false;
+
+        return;
+      }
+      onPress();
+    },
+    onPointerDown: (event) => {
+      if (onHoldRef.current === undefined || event.button !== 0) {
+        return;
+      }
+      // 指やカーソルが少しずれても、離すまでこのボタンの知らせを受ける。
+      event.currentTarget.setPointerCapture(event.pointerId);
+      release();
+      swallowClick.current = false;
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        holding.current = true;
+        swallowClick.current = true;
+        onHoldRef.current?.(true);
+      }, holdDelayMs);
+    },
+    onPointerUp: release,
+    onPointerCancel: release,
+    onLostPointerCapture: release,
+    // タッチの長押しで、ブラウザのメニューを出さない (Android では、長押しが右クリックになる)。
+    onContextMenu: (event) => {
+      if (onHoldRef.current !== undefined) {
+        event.preventDefault();
+      }
+    },
+  };
+
+  return props;
+}
+
+// SeekStepButtons は、15 秒戻るボタンと進むボタン (#1572)。シークできる画面だけが、登録簿に操作を入れて渡す。
+// onFastForward を渡すと、進むボタンを押し続けている間を知らせる (早回し)。
+export function SeekStepButtons({
+  commands,
+  onFastForward,
+}: {
+  commands: PlayerCommands;
+  onFastForward?: (held: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const forward = useHoldPress(() => runCommand(commands, 'seekForward15'), onFastForward);
+  if (commands.seekBackward15 === undefined || commands.seekForward15 === undefined) {
+    return null;
+  }
+
+  return (
+    <>
+      <CommandButton
+        commands={commands}
+        command="seekBackward15"
+        label={t('player.commands.seekBackward15')}
+        icon={RotateCcw}
+        badge="15"
+      />
+      <ControlButton
+        label={
+          onFastForward === undefined
+            ? t('player.commands.seekForward15')
+            : t('player.seekForward15Hold')
+        }
+        icon={RotateCw}
+        badge="15"
+        pressProps={forward}
+      />
+    </>
+  );
 }
 
 // PlayButton は、再生と一時停止を切り替える。

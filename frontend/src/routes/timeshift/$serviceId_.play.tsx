@@ -34,6 +34,7 @@ import {
   formatDuration,
 } from '../../yunomi/position';
 import { useSeekableStream } from '../../yunomi/useSeekableStream';
+import { useFastForward } from '../../yunomi/fastForward';
 import {
   RateSelect,
   CropSelect,
@@ -73,6 +74,7 @@ import {
   FullscreenButton,
   PlayButton,
   PlayerControls,
+  SeekStepButtons,
   playerControlsClasses,
   SettingsButton,
   VolumeControl,
@@ -351,12 +353,14 @@ function Player({
   // 音声は、経路ごとのメニューで選ぶ。バッファの番組の音声の構成は分からないので、プレイヤーに任せる。
   const audio = usePlayerAudio(route, null, () => restartAt(positionRef.current));
   const [rate, setRate] = useState(1);
+  // 早回し (#1572) の間は、選んだ速さより速く再生する。放送中の番組では、バッファの端の手前で元の速さに戻す。
+  const fastForward = useFastForward(rate, { growing: onAir, position, duration });
   useEffect(() => {
     if (video !== null) {
       video.defaultPlaybackRate = rate;
-      video.playbackRate = rate;
+      video.playbackRate = fastForward.playbackRate;
     }
-  }, [rate, video, stream.url, hlsStream.loads]);
+  }, [rate, fastForward.playbackRate, video, stream.url, hlsStream.loads]);
 
   const togglePlay = () => {
     const video = videoRef.current;
@@ -371,6 +375,10 @@ function Player({
   };
   const skip = (seconds: number) => seek(currentPosition() + seconds);
   const [flash, showFlash] = usePlayerFlash();
+  // 早回しの間は、押している間ずっと、速さを映像の上に出しておく。
+  const shownFlash = fastForward.active
+    ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
+    : flash;
   const capture = useCapture({
     crop,
     frameRef: playerBoxRef,
@@ -427,6 +435,14 @@ function Player({
     seekForwardLong: () => {
       skip(30);
       showFlash(t('player.flash.seekForwardLong'));
+    },
+    seekBackward15: () => {
+      skip(-15);
+      showFlash(t('player.flash.seekBackward15'));
+    },
+    seekForward15: () => {
+      skip(15);
+      showFlash(t('player.flash.seekForward15'));
     },
     toggleCaptions: () => setCaptions(!captions),
     toggleMute: () => {
@@ -488,7 +504,7 @@ function Player({
     paused: videoState.paused,
     position,
     duration,
-    playbackRate: rate,
+    playbackRate: fastForward.playbackRate,
     volume: videoState.volume,
     muted: videoState.muted,
     audios: audio.remote.choices,
@@ -575,6 +591,7 @@ function Player({
       start={
         <>
           <PlayButton video={videoState} commands={commands} />
+          <SeekStepButtons commands={commands} onFastForward={fastForward.setHeld} />
           <VolumeControl video={videoState} commands={commands} />
         </>
       }
@@ -597,7 +614,8 @@ function Player({
             <AudioDelaySetting />
             <SleepTimerSelect timer={sleep} />
           </SettingsButton>
-          <CaptureButton capture={capture} />
+          {/* 狭い画面では、15 秒のシークのボタン (#1572) を収めるため、キャプチャのボタンを外す。 */}
+          <CaptureButton capture={capture} optional />
           <CommandButton
             commands={commands}
             command="showShortcuts"
@@ -666,7 +684,7 @@ function Player({
           audio={audio.convertAudio}
           overlay={
             <>
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
@@ -691,7 +709,7 @@ function Player({
           startPosition={hlsStream.start}
           overlay={
             <>
-              {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
