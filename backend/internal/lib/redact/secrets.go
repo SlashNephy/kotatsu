@@ -90,8 +90,15 @@ func (s *Secrets) Len() int {
 // Apply は、text の中の秘密の値を SecretMark にする。
 // 1 行の上限で切った行 (末尾が「…」) は、切り口にまたがった秘密の前半が末尾に残るので、それも伏せる。
 func (s *Secrets) Apply(text string) string {
-	for _, pattern := range s.patterns {
+	// 行の数 × 秘密の数だけ正規表現をかけると遅い (8000 行の 2 つの出どころと 50 個の秘密で約 1.8 秒) ので、
+	// 小文字にした行に値が含まれるときだけ置き換える。
+	lower := strings.ToLower(text)
+	for i, pattern := range s.patterns {
+		if !strings.Contains(lower, s.values[i]) {
+			continue
+		}
 		text = pattern.ReplaceAllLiteralString(text, SecretMark)
+		lower = strings.ToLower(text)
 	}
 	body, truncated := strings.CutSuffix(text, truncationMark)
 	if !truncated {

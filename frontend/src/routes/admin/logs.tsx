@@ -12,7 +12,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { startTransition, useDeferredValue, useMemo, useState } from 'react';
+import { memo, startTransition, useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
@@ -32,9 +32,10 @@ import {
   type ReportLine,
   type ReportSource,
 } from '../../admin/logs/report';
-import { filterLines, mergeLines, pageSize } from '../../admin/logs/view';
+import { filterLines, mergeLines, pageSize, type ViewLine } from '../../admin/logs/view';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import type { logsQuery, logsQuery$data } from './__generated__/logsQuery.graphql';
+import classes from './logs.module.css';
 
 export const Route = createFileRoute('/admin/logs')({
   component: LogsPage,
@@ -277,45 +278,17 @@ function Logs() {
             <ScrollArea.Autosize mah="70vh" type="auto">
               <Stack gap={0} data-testid="log-lines">
                 {filtered.slice(0, shown).map((line, index) => (
-                  <Group
+                  <LogRow
                     key={`${line.source}-${line.time}-${index}`}
-                    gap={6}
-                    wrap="nowrap"
-                    align="flex-start"
-                    py={2}
-                    style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
-                  >
-                    <Text size="xs" ff="monospace" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-                      {formatTime(line.time)}
-                    </Text>
-                    {report.sources.length > 1 && (
-                      <Badge size="xs" variant="outline" color="gray" style={{ flexShrink: 0 }}>
-                        {report.sources[line.source]?.kind === 'KOTATSU'
+                    line={line}
+                    source={
+                      report.sources.length > 1
+                        ? report.sources[line.source]?.kind === 'KOTATSU'
                           ? 'Kotatsu'
-                          : t('admin.logs.tunerShort')}
-                      </Badge>
-                    )}
-                    {line.level !== 'INFO' && (
-                      <Badge
-                        size="xs"
-                        variant={line.inferred ? 'outline' : 'filled'}
-                        color={line.level === 'ERROR' ? 'red' : 'amber'}
-                        title={line.inferred ? t('admin.logs.inferred') : undefined}
-                        style={{ flexShrink: 0 }}
-                      >
-                        {line.level === 'ERROR'
-                          ? t('admin.logs.levelError')
-                          : t('admin.logs.levelWarn')}
-                      </Badge>
-                    )}
-                    <Text
-                      size="xs"
-                      ff="monospace"
-                      style={{ wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}
-                    >
-                      {line.text}
-                    </Text>
-                  </Group>
+                          : t('admin.logs.tunerShort')
+                        : null
+                    }
+                  />
                 ))}
               </Stack>
             </ScrollArea.Autosize>
@@ -346,3 +319,31 @@ function Logs() {
     </Stack>
   );
 }
+
+// LogRow は、ログの 1 行。「もっと見る」で行を足したときに、描いてある行を描き直さないよう、memo にする。
+const LogRow = memo(function LogRow({ line, source }: { line: ViewLine; source: string | null }) {
+  const { t } = useTranslation();
+
+  return (
+    <div className={classes.row}>
+      <span className={classes.time}>{formatTime(line.time)}</span>
+      {source != null && (
+        <Badge size="xs" variant="outline" color="gray" className={classes.badge}>
+          {source}
+        </Badge>
+      )}
+      {line.level !== 'INFO' && (
+        <Badge
+          size="xs"
+          variant={line.inferred ? 'outline' : 'filled'}
+          color={line.level === 'ERROR' ? 'red' : 'amber'}
+          title={line.inferred ? t('admin.logs.inferred') : undefined}
+          className={classes.badge}
+        >
+          {line.level === 'ERROR' ? t('admin.logs.levelError') : t('admin.logs.levelWarn')}
+        </Badge>
+      )}
+      <span className={classes.text}>{line.text}</span>
+    </div>
+  );
+});

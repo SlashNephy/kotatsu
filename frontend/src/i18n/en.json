@@ -1925,6 +1925,7 @@
       "issue": {
         "title": "Bug report",
         "description": "Secrets, IP addresses, host names and the like are hidden. Check the contents before opening, and edit or delete anything you do not need. \"Open on GitHub\" only opens the issue form in this browser. Describe what happened and how to reproduce it on GitHub.",
+        "fullNote": "\"Copy\" and \"Download\" give the full report with every log line. Edits to the log field are not included, so check the contents after taking it.",
         "fieldTitle": "Title",
         "fieldVersion": "Version",
         "fieldEnvironment": "Environment",

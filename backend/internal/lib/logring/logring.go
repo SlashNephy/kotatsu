@@ -13,7 +13,7 @@ import (
 
 const (
 	// DefaultCapacity は、プロセスごとにメモリに持つログの行数 (保持行数、設計書 付録 A)。
-	DefaultCapacity = 5000
+	DefaultCapacity = 8000
 	// DefaultMaxLineLength は、溜めるときに 1 行を切る長さ (UTF-16 の単位、設計書 付録 A)。
 	DefaultMaxLineLength = 2000
 	// ellipsis は、切った行の末尾に付ける印。

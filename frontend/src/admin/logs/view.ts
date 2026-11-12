@@ -3,7 +3,7 @@
 import type { Level } from './report';
 
 // pageSize は、画面に一度に描く行数と、「もっと見る」で増やす行数 (1 回に描く行数、設計書 付録 A)。
-export const pageSize = 200;
+export const pageSize = 100;
 
 export type ViewLine = {
   // source は、出どころの番号 (sources の添え字)。

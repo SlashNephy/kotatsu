@@ -78,6 +78,9 @@ export function IssueDialog({
         <Text size="xs" c="dimmed">
           {t('admin.logs.issue.length', { length: url.length, limit: urlLimit })}
         </Text>
+        <Text size="xs" c="dimmed">
+          {t('admin.logs.issue.fullNote')}
+        </Text>
         {trimmed > 0 && (
           <Alert color="amber" p="xs">
             <Text size="sm">{t('admin.logs.issue.trimmed', { count: trimmed })}</Text>

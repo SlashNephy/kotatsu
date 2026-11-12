@@ -1,0 +1,25 @@
+/* ログの 1 行。行の数が多いので、Mantine の部品を使わず、軽い要素で描く (#1521)。 */
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  font-family: var(--mantine-font-family-monospace);
+  font-size: var(--mantine-font-size-xs);
+  line-height: 1.5;
+}
+
+.time {
+  white-space: nowrap;
+  color: var(--mantine-color-dimmed);
+}
+
+.text {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.badge {
+  flex-shrink: 0;
+}

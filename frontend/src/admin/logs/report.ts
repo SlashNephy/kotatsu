@@ -7,8 +7,10 @@ export const issueFormURL = 'https://github.com/SlashNephy/kotatsu/issues/new';
 export const issueTemplate = 'bug_report.yml';
 
 // 決めるパラメーター (設計書 付録 A)。
-// urlLimit は、フォームを開く URL の全体の字数の上限。GitHub は約 8KB を超える URL を断るので、それより下に置く。
-export const urlLimit = 8000;
+// urlLimit は、フォームを開く URL の全体の字数の上限。GitHub は 8192 字以上の URL を 414 で断る。
+// GitHub にログインしていないブラウザでは、ログインの画面へ送る応答が約 5740 字から 500 になるので、それより下に置く
+// (2026-11-12 に Chromium で確かめた。curl では約 6960 字。ブラウザが送るヘッダーの分だけ短くなる)。
+export const urlLimit = 5500;
 // reportLineLimit は、報告に入れるときに 1 行を切る字数。
 export const reportLineLimit = 400;
 // titleLimit と environmentLimit は、それぞれ字数の上限と、URL エンコード後の長さの上限。

@@ -24,8 +24,8 @@ func staticSecrets(values ...string) logreport.SecretSource {
 }
 
 // newTuner は、/api/log に handler で答えるチューナーサーバーの Client を作る。
-func newTuner(t *testing.T, logHandler http.HandlerFunc) *mirakurun.Client {
-	t.Helper()
+func newTuner(tb testing.TB, logHandler http.HandlerFunc) *mirakurun.Client {
+	tb.Helper()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/version", func(w http.ResponseWriter, _ *http.Request) {
@@ -36,9 +36,9 @@ func newTuner(t *testing.T, logHandler http.HandlerFunc) *mirakurun.Client {
 	})
 	mux.HandleFunc("/api/log", logHandler)
 	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
+	tb.Cleanup(server.Close)
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	return client
 }

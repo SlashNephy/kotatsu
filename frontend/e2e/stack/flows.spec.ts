@@ -89,3 +89,34 @@ test('ライブ視聴を始めると、偽のチューナーサーバーの映�
     })
     .toBeGreaterThan(1);
 });
+
+// ipv4 は、IPv4 アドレスの形。
+const ipv4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/;
+
+test('ログの画面で、IP アドレスを伏せた不具合の報告を作る (#1521)', async () => {
+  // 報告のフォームは開かない。誤って開いても GitHub に届かないよう、止めておく。
+  await page.route('https://github.com/**', (route) => route.abort());
+  await page.goto('/admin/logs');
+
+  // 画面では、ホスト名や IP アドレスをそのまま出す。偽のチューナーサーバーのログには、Kotatsu の 127.0.0.1 が入る。
+  await expect(page.getByTestId('log-lines')).toContainText('127.0.0.1');
+
+  await page.getByRole('button', { name: 'Issue にする' }).click();
+  const logs = page.getByTestId('issue-logs');
+  await expect(logs).toBeVisible();
+  const text = await logs.inputValue();
+  expect(text).toContain('[REDACTED_IP]');
+  expect(text).not.toMatch(ipv4);
+
+  // 開く URL の logs の欄にも、IP アドレスが残っていない。
+  const href = await page.getByTestId('issue-open').getAttribute('href');
+  const url = new URL(href!);
+  expect(url.origin + url.pathname).toBe('https://github.com/SlashNephy/kotatsu/issues/new');
+  expect(url.searchParams.get('template')).toBe('bug_report.yml');
+  const reported = url.searchParams.get('logs') ?? '';
+  expect(reported).toContain('[REDACTED_IP]');
+  expect(reported).not.toMatch(ipv4);
+  expect(href!.length).toBeLessThanOrEqual(5500);
+
+  await page.getByRole('button', { name: 'やめる' }).click();
+});

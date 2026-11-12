@@ -158,6 +158,12 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
       want: `card ${marks.card} or ${marks.card}`,
     },
     {
+      // Go の %v で出した 4 桁のサービス ID の並び。区切りの形は同じだが、Luhn の検査で外れる。
+      rule: '11 4 桁の数字を空白で並べただけのものは伏せない',
+      input: 'services [1024 1025 1032 1033] and 4111 1111 1111 1112',
+      want: 'services [1024 1025 1032 1033] and 4111 1111 1111 1112',
+    },
+    {
       rule: '11 区切りの無いカード番号を伏せる (Visa、Mastercard、JCB)',
       input: 'n=4111111111111111 m=5555555555554444 j=3530111333300000',
       want: `n=${marks.card} m=${marks.card} j=${marks.card}`,

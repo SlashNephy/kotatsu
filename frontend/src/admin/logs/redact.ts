@@ -155,7 +155,8 @@ const emailPattern =
   /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}(?![A-Za-z0-9-])/g;
 
 // 11. カード番号。
-// 4 桁ずつ空白かハイフンで区切ったもの (と、American Express などの 4-6-5、4-6-4) は、区切りの形でカード番号とみなす。
+// 4 桁ずつ空白かハイフンで区切ったもの (と、American Express などの 4-6-5、4-6-4) は、区切りの形と Luhn の検査で見分ける。
+// 4 桁の数字を空白で並べたもの (Go の %v で出したサービス ID の並びなど) の 9 割は、Luhn の検査で外れる。
 // UUID (8-4-4-4-12) の途中に当たらないよう、前後に英数字や「英数字-」が続くものは除く。
 const separatedCardPattern =
   /(?<![0-9A-Za-z.]|[0-9A-Za-z]-)\d{4}([ -])(?:\d{4}\1\d{4}\1\d{1,4}(?:\1\d{1,3})?|\d{6}\1\d{4,5})(?![0-9A-Za-z.]|-[0-9A-Za-z])/g;
@@ -239,9 +240,11 @@ export function isCardNumber(digits: string): boolean {
 
 function redactCards(text: string): string {
   text = text.replace(separatedCardPattern, (whole) => {
-    const count = whole.replace(/\D/g, '').length;
+    const digits = whole.replace(/\D/g, '');
 
-    return count >= cardDigits.min && count <= cardDigits.max ? marks.card : whole;
+    return digits.length >= cardDigits.min && digits.length <= cardDigits.max && luhn(digits)
+      ? marks.card
+      : whole;
   });
 
   return text.replace(plainCardPattern, (whole) => (isCardNumber(whole) ? marks.card : whole));
