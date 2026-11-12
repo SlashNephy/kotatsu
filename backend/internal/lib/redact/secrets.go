@@ -1,10 +1,13 @@
 package redact
 
 import (
+	"bytes"
 	"cmp"
+	"encoding/json"
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -14,12 +17,18 @@ const (
 	MinSecretLength = 8
 	// SecretMark は、伏せた秘密の値の代わりに置く印。画面で伏せるもの (frontend の admin/logs/redact.ts) と同じ印にする。
 	SecretMark = "[REDACTED_SECRET]"
+	// truncationMark は、1 行の上限で切った行の末尾の印 (logring.Truncate と同じ)。
+	truncationMark = "…"
+	// minTailPrefix は、切った行の末尾に残った秘密の前半を伏せる、最短の長さ。これより短い前半は、秘密の手がかりにならない。
+	minTailPrefix = 4
 )
 
 // Secrets は、秘密の値を伏せる。値は MinSecretLength 以上のものだけを使い、大文字と小文字を区別せずに当てる。
 // 短い秘密が長い秘密の一部だと、短い方を先に消したときに長い方が半端に残るので、長いものから順に置き換える。
 type Secrets struct {
 	patterns []*regexp.Regexp
+	// values は、伏せる値を小文字にして、長い順に並べたもの (エスケープした形を含む)。
+	values []string
 }
 
 // NewSecrets は、values を伏せる Secrets を作る。同じ値は 1 つにまとめる。
@@ -31,7 +40,10 @@ func NewSecrets(values []string) *Secrets {
 		if len(value) < MinSecretLength || strings.Contains(strings.ToLower(SecretMark), strings.ToLower(value)) {
 			continue
 		}
-		unique[strings.ToLower(value)] = struct{}{}
+		// ログの整形でエスケープされた形 (JSON、HTML をエスケープする JSON、logfmt の引用符) でも出るので、どの形も探す。
+		for _, form := range escapedForms(strings.ToLower(value)) {
+			unique[form] = struct{}{}
+		}
 	}
 	sorted := make([]string, 0, len(unique))
 	for value := range unique {
@@ -45,7 +57,29 @@ func NewSecrets(values []string) *Secrets {
 		patterns = append(patterns, regexp.MustCompile("(?i)"+regexp.QuoteMeta(value)))
 	}
 
-	return &Secrets{patterns: patterns}
+	return &Secrets{patterns: patterns, values: sorted}
+}
+
+// escapedForms は、value と、ログの整形でエスケープされた value の形を返す。
+// slog の JSON は " と \ と制御文字を、encoding/json はさらに < > & を \u003c の形に、logfmt は strconv.Quote の形にする。
+func escapedForms(value string) []string {
+	forms := []string{value}
+	var plain bytes.Buffer
+	encoder := json.NewEncoder(&plain)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err == nil {
+		forms = append(forms, unquote(strings.TrimSuffix(plain.String(), "\n")))
+	}
+	if html, err := json.Marshal(value); err == nil {
+		forms = append(forms, unquote(string(html)))
+	}
+
+	return append(forms, unquote(strconv.Quote(value)))
+}
+
+// unquote は、両端の引用符を除く。
+func unquote(quoted string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(quoted, `"`), `"`)
 }
 
 // Len は、伏せる値の数を返す。
@@ -54,9 +88,21 @@ func (s *Secrets) Len() int {
 }
 
 // Apply は、text の中の秘密の値を SecretMark にする。
+// 1 行の上限で切った行 (末尾が「…」) は、切り口にまたがった秘密の前半が末尾に残るので、それも伏せる。
 func (s *Secrets) Apply(text string) string {
 	for _, pattern := range s.patterns {
 		text = pattern.ReplaceAllLiteralString(text, SecretMark)
+	}
+	body, truncated := strings.CutSuffix(text, truncationMark)
+	if !truncated {
+		return text
+	}
+	for _, value := range s.values {
+		for length := len(value) - 1; length >= minTailPrefix; length-- {
+			if len(body) >= length && strings.EqualFold(body[len(body)-length:], value[:length]) {
+				return body[:len(body)-length] + SecretMark + truncationMark
+			}
+		}
 	}
 
 	return text
