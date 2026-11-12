@@ -69,18 +69,20 @@ SELECT end_at, end_undecided FROM programs WHERE service_id = @service_id AND ev
 
 -- name: InsertRecordingHistory :exec
 -- ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にし、録画は NULL にする。
-INSERT INTO recording_history (id, service_id, title_key, name, imported, start_at, end_at, created_at)
-VALUES (@id, @service_id, @title_key, @name, true, @start_at, @end_at, @now);
+-- series は、番組名から読んだシリーズ名 (#1499)。
+INSERT INTO recording_history (id, service_id, title_key, name, series, imported, start_at, end_at, created_at)
+VALUES (@id, @service_id, @title_key, @name, @series::text, true, @start_at, @end_at, @now);
 
 -- name: InsertRecordingHistoryFromRecording :exec
 -- 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
 -- 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 -- 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
+-- series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
 INSERT INTO recording_history (
-  id, service_id, title_key, name, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at,
+  id, service_id, title_key, name, series, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at,
   recording_id
 )
-SELECT @id, rec.service_id, @title_key, rec.name, rec.description,
+SELECT @id, rec.service_id, @title_key, rec.name, @series::text, rec.description,
   coalesce(
     (SELECT p.series_episode FROM programs p WHERE p.service_id = rec.service_id AND p.event_id = rec.event_id),
     (SELECT pa.series_episode FROM program_archives pa
@@ -345,6 +347,17 @@ SELECT id, name, description FROM recordings
 WHERE name_normalized IS NULL OR description_normalized IS NULL
 ORDER BY id
 LIMIT @max_count;
+
+-- name: ListRecordingHistoryWithoutSeries :many
+-- シリーズ名の列がまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
+SELECT id, name FROM recording_history
+WHERE series IS NULL
+ORDER BY id
+LIMIT @max_count;
+
+-- name: SetRecordingHistorySeries :batchexec
+-- 録画履歴のシリーズ名を書く (#1499)。
+UPDATE recording_history SET series = @series WHERE id = @id;
 
 -- name: SetRecordingNormalized :batchexec
 -- 録画の正規化した番組名と概要を書く (#1044)。

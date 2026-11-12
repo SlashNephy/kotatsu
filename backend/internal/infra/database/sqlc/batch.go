@@ -71,6 +71,56 @@ func (b *DeleteProgramsBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setRecordingHistorySeries = `-- name: SetRecordingHistorySeries :batchexec
+UPDATE recording_history SET series = $1 WHERE id = $2
+`
+
+type SetRecordingHistorySeriesBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetRecordingHistorySeriesParams struct {
+	Series *string
+	ID     uuid.UUID
+}
+
+// 録画履歴のシリーズ名を書く (#1499)。
+func (q *Queries) SetRecordingHistorySeries(ctx context.Context, arg []SetRecordingHistorySeriesParams) *SetRecordingHistorySeriesBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Series,
+			a.ID,
+		}
+		batch.Queue(setRecordingHistorySeries, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetRecordingHistorySeriesBatchResults{br, len(arg), false}
+}
+
+func (b *SetRecordingHistorySeriesBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetRecordingHistorySeriesBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setRecordingNormalized = `-- name: SetRecordingNormalized :batchexec
 UPDATE recordings SET name_normalized = $1, description_normalized = $2 WHERE id = $3
 `

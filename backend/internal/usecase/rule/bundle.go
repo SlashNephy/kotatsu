@@ -31,8 +31,11 @@ type recordedEpisode struct {
 // bundleSameEpisodes は、同じ回を束ねるルールに一致した放送を、局をまたいで同じ回で束ね、束ごとに 1 本だけを残す (設計書 4.4、#1498)。
 // 束から外した放送からは、同じ回を束ねるルールだけを外す。どのルールにも一致しなくなった放送は、予約すべき集合から除き、
 // skipped が nil でなければ、外したルールと理由と一緒に入れる。手動の予約は、比べる相手に入れない。
+// 別のルールが残った放送は、外したルールと理由を partial に入れる。後で前の回を録らない (#1499) 設定で外れたときに、
+// 束ねた理由を優先して出すためである。
 func bundleSameEpisodes(
-	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram,
+	skipped, partial map[programKey]*skippedProgram,
 ) error {
 	keys := []programKey{}
 	for key, d := range matched {
@@ -81,15 +84,10 @@ func bundleSameEpisodes(
 
 			return r.BundleSameEpisodes
 		})
-		if len(d.rules) > 0 {
-			// この設定を入れていない別のルールも一致していれば、そのルールが受け持って予約する。
-			continue
+		s := &skippedProgram{
+			row: d.row, rules: removed, reason: SkipReasonOtherBroadcast, lastRecorded: nil, recorded: nil, instead: nil,
+			laterEpisode: 0, byRecording: false,
 		}
-		delete(matched, key)
-		if skipped == nil {
-			continue
-		}
-		s := &skippedProgram{row: d.row, rules: removed, reason: SkipReasonOtherBroadcast, lastRecorded: nil, recorded: nil, instead: nil}
 		if decision.Recorded != nil {
 			s.reason = SkipReasonRecordedEpisode
 			s.recorded = refs[decision.Recorded]
@@ -97,7 +95,16 @@ func bundleSameEpisodes(
 		} else {
 			s.instead = new(index[decision.Instead])
 		}
-		skipped[key] = s
+		if len(d.rules) > 0 {
+			// この設定を入れていない別のルールも一致していれば、そのルールが受け持って予約する。
+			partial[key] = s
+
+			continue
+		}
+		delete(matched, key)
+		if skipped != nil {
+			skipped[key] = s
+		}
 	}
 
 	return nil
@@ -142,26 +149,16 @@ func listBundledBroadcasts(
 	for _, row := range animeRows {
 		anime[animeKey{serviceID: row.ServiceID, startAt: row.StartAt.UnixNano()}] = &episode.Anime{TID: row.SyobocalTid, Count: row.Count}
 	}
-	conflicts, err := q.ListConflictingReservedPrograms(ctx, now)
+	rejected, err := conflictingPrograms(ctx, tx, now)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the conflicting reservations: %w", err)
-	}
-	rejected := make(map[programKey]bool, len(conflicts))
-	for _, row := range conflicts {
-		rejected[programKey{serviceID: row.ServiceID, eventID: row.EventID}] = true
+		return nil, err
 	}
 
 	broadcasts := make([]*episode.Broadcast, 0, len(keys))
 	for _, key := range keys {
 		row := matched[key].row
-		extended := ""
-		if row.ExtendedNormalized != nil {
-			extended = *row.ExtendedNormalized
-		}
-		src := &episode.Source{
-			Name: row.Name, Description: row.DescriptionNormalized, Extended: extended, SeriesEpisode: row.SeriesEpisode,
-			Anime: anime[animeKey{serviceID: key.serviceID, startAt: row.StartAt.UnixNano()}],
-		}
+		src := programSource(&row)
+		src.Anime = anime[animeKey{serviceID: key.serviceID, startAt: row.StartAt.UnixNano()}]
 		broadcasts = append(broadcasts, &episode.Broadcast{
 			Episode:   episode.Parse(src),
 			ServiceID: key.serviceID,
@@ -175,6 +172,32 @@ func listBundledBroadcasts(
 	}
 
 	return broadcasts, nil
+}
+
+// programSource は、照合する番組から、回を読む元を作る。しょぼいカレンダーの話は入れない。
+func programSource(row *sqlc.ListMatchableProgramsRow) *episode.Source {
+	extended := ""
+	if row.ExtendedNormalized != nil {
+		extended = *row.ExtendedNormalized
+	}
+
+	return &episode.Source{
+		Name: row.Name, Description: row.DescriptionNormalized, Extended: extended, SeriesEpisode: row.SeriesEpisode, Anime: nil,
+	}
+}
+
+// conflictingPrograms は、割り当ての結果が競合の、これから放送する番組の予約を返す。録れない見込みの放送として扱う (#1498、#1499)。
+func conflictingPrograms(ctx context.Context, tx pgx.Tx, now time.Time) (map[programKey]bool, error) {
+	conflicts, err := sqlc.New(tx).ListConflictingReservedPrograms(ctx, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the conflicting reservations: %w", err)
+	}
+	rejected := make(map[programKey]bool, len(conflicts))
+	for _, row := range conflicts {
+		rejected[programKey{serviceID: row.ServiceID, eventID: row.EventID}] = true
+	}
+
+	return rejected, nil
 }
 
 // listRecordedEpisodes は、「録った回」を読む。録画履歴 (録った回を見る期間の内に始まったものと、引き継いだもの) と、録画中の録画。
@@ -209,11 +232,6 @@ const (
 	SkipReasonRecordedEpisode SkipReason = "recorded_episode"
 	// SkipReasonOtherBroadcast は、同じ回を別の放送で録るので外したこと (#1498)。
 	SkipReasonOtherBroadcast SkipReason = "other_broadcast"
+	// SkipReasonEarlierEpisode は、追っているシリーズの前の回なので外したこと (#1499)。
+	SkipReasonEarlierEpisode SkipReason = "earlier_episode"
 )
-
-// immediate は、外れた予約を、放送の直前の猶予の内でもすぐ消すかどうかを返す (#1501)。
-// 録画済みで外れた予約は、番組表の書き換えでなく録画の完了で外れたので、すぐ消す。
-// 別の放送で録るので外れた予約は、番組表の変化で外れたものなので、猶予の内なら残す。
-func (s SkipReason) immediate() bool {
-	return s != SkipReasonOtherBroadcast
-}

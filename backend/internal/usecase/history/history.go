@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
@@ -31,8 +32,9 @@ func Record(ctx context.Context, q *sqlc.Queries, recording *sqlc.Recording, now
 		return nil
 	}
 	// 同じ回を束ねる (#1498) ときに回を読めるよう、録画の概要や、番組の記述子の話数なども写す。
+	// 前の回を録らない (#1499) ときにシリーズ名で引けるよう、番組名から読んだシリーズ名も書く。
 	err := q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
-		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Now: now, RecordingID: recording.ID,
+		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Series: episode.SeriesOf(recording.Name), Now: now, RecordingID: recording.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to save the recording history: %w", err)

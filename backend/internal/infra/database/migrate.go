@@ -19,6 +19,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/db"
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
@@ -68,6 +69,9 @@ func Migrate(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error
 	}
 
 	if err := fillRecordingsNormalized(ctx, logger, migrationPool); err != nil {
+		return err
+	}
+	if err := fillRecordingHistorySeries(ctx, logger, migrationPool); err != nil {
 		return err
 	}
 
@@ -125,6 +129,43 @@ func fillRecordingsNormalized(ctx context.Context, logger *slog.Logger, pool *pg
 	}
 	if filled > 0 {
 		logger.InfoContext(ctx, "recordings normalized", slog.Int("count", filled))
+	}
+
+	return nil
+}
+
+// fillRecordingHistorySeries は、シリーズ名の列がない録画履歴の列を埋める (#1499、設計書 4.4)。
+// シリーズ名は Go の回の読み方 (episode.Parse) で読むので、SQL では書けず、Go で埋める。
+// 列を足す前の履歴と、列を知らない古いバイナリがローリング更新の間に書いた履歴を、次の kotatsu migrate で埋める。
+// シリーズ名を読めない番組名の履歴には空を書き、次の migrate で読み直さないようにする。
+func fillRecordingHistorySeries(ctx context.Context, logger *slog.Logger, pool *pgxpool.Pool) error {
+	q := sqlc.New(pool)
+	filled := 0
+	for {
+		rows, err := q.ListRecordingHistoryWithoutSeries(ctx, fillBatchSize)
+		if err != nil {
+			return fmt.Errorf("failed to list the recording history without series: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		params := make([]sqlc.SetRecordingHistorySeriesParams, 0, len(rows))
+		for _, row := range rows {
+			params = append(params, sqlc.SetRecordingHistorySeriesParams{ID: row.ID, Series: new(episode.SeriesOf(row.Name))})
+		}
+		errs := []error{}
+		q.SetRecordingHistorySeries(ctx, params).Exec(func(i int, err error) {
+			if err != nil {
+				errs = append(errs, fmt.Errorf("failed to set the series of recording history %s: %w", params[i].ID, err))
+			}
+		})
+		if err := errors.Join(errs...); err != nil {
+			return err
+		}
+		filled += len(rows)
+	}
+	if filled > 0 {
+		logger.InfoContext(ctx, "recording history series filled", slog.Int("count", filled))
 	}
 
 	return nil

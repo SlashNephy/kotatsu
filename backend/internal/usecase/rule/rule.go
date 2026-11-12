@@ -63,10 +63,13 @@ type Rule struct {
 	FollowEventRelay    bool
 	// BundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。
 	BundleSameEpisodes bool
-	CreatedAt          time.Time
-	CreatedBy          *uuid.UUID
-	UpdatedAt          time.Time
-	UpdatedBy          *uuid.UUID
+	// SkipEarlierEpisodes は、追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか
+	// (設計書 4.4、#1499)。
+	SkipEarlierEpisodes bool
+	CreatedAt           time.Time
+	CreatedBy           *uuid.UUID
+	UpdatedAt           time.Time
+	UpdatedBy           *uuid.UUID
 }
 
 // Input は、ルールを作るときと変えるときの内容。
@@ -82,6 +85,7 @@ type Input struct {
 	DuplicateWindowDays *int
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
+	SkipEarlierEpisodes bool
 }
 
 // encoded は、検証して保存する形にしたルール。
@@ -172,6 +176,7 @@ func (r *Rules) Create(ctx context.Context, db Beginner, actor *audit.Actor, in 
 			DuplicateWindowDays: e.window,
 			FollowEventRelay:    in.FollowEventRelay,
 			BundleSameEpisodes:  in.BundleSameEpisodes,
+			SkipEarlierEpisodes: in.SkipEarlierEpisodes,
 			Now:                 r.clock.Now(),
 			Actor:               userOf(actor),
 		})
@@ -214,6 +219,7 @@ func (r *Rules) Update(ctx context.Context, db Beginner, actor *audit.Actor, rul
 			DuplicateWindowDays: e.window,
 			FollowEventRelay:    in.FollowEventRelay,
 			BundleSameEpisodes:  in.BundleSameEpisodes,
+			SkipEarlierEpisodes: in.SkipEarlierEpisodes,
 			Now:                 r.clock.Now(),
 			Actor:               userOf(actor),
 		})
@@ -370,6 +376,7 @@ func fromRow(row sqlc.Rule) (*Rule, error) {
 		DuplicateWindowDays: window,
 		FollowEventRelay:    row.FollowEventRelay,
 		BundleSameEpisodes:  row.BundleSameEpisodes,
+		SkipEarlierEpisodes: row.SkipEarlierEpisodes,
 		CreatedAt:           row.CreatedAt.UTC(),
 		CreatedBy:           row.CreatedBy,
 		UpdatedAt:           row.UpdatedAt.UTC(),

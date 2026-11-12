@@ -42,6 +42,7 @@ const imported: RuleData = {
   duplicateWindowDays: 30,
   followEventRelay: false,
   bundleSameEpisodes: true,
+  skipEarlierEpisodes: true,
 };
 
 describe('fromRule と toInput', () => {
@@ -85,7 +86,14 @@ describe('fromRule と toInput', () => {
       duplicateWindowDays: 30,
       followEventRelay: false,
       bundleSameEpisodes: true,
+      skipEarlierEpisodes: true,
     });
+  });
+});
+
+describe('emptyRuleForm', () => {
+  test('前の回を録らない設定は、新しいルールでも切から始める (#1499)', () => {
+    expect(toInput(emptyRuleForm()).skipEarlierEpisodes).toBe(false);
   });
 });
 

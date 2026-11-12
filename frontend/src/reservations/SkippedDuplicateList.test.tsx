@@ -38,6 +38,7 @@ describe('重複で見送りの理由 (#1498)', () => {
             lastRecordedAt: '2026-11-18T13:00:00Z',
             recorded: null,
             instead: null,
+            laterEpisode: null,
           },
           {
             program: program('Program:2', '灯台の地図 #2', 'こたつテスト2', '2026-11-20T12:00:00Z'),
@@ -49,6 +50,7 @@ describe('重複で見送りの理由 (#1498)', () => {
               endAt: '2026-11-15T13:00:00Z',
             },
             instead: null,
+            laterEpisode: null,
           },
           {
             program: program('Program:3', '灯台の地図 #3', 'こたつ BS', '2026-11-21T12:00:00Z'),
@@ -61,6 +63,7 @@ describe('重複で見送りの理由 (#1498)', () => {
               startAt: '2026-11-20T12:00:00Z',
               service: { id: 'Service:GR', name: 'こたつテスト1' },
             },
+            laterEpisode: null,
           },
           {
             program: program('Program:5', '灯台の地図 #4', 'こたつ BS', '2026-11-22T12:00:00Z'),
@@ -69,6 +72,7 @@ describe('重複で見送りの理由 (#1498)', () => {
             lastRecordedAt: null,
             recorded: null,
             instead: null,
+            laterEpisode: null,
           },
         ],
       },
@@ -85,5 +89,30 @@ describe('重複で見送りの理由 (#1498)', () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText('灯台の地図 に一致。同じ回を別の放送で録ります')).toBeTruthy();
+  });
+});
+
+describe('前の回の理由 (#1499)', () => {
+  test('前の回として見送った番組に、一番大きい話数を出す', async () => {
+    const environment = createTestEnvironment(() => ({
+      data: {
+        skippedDuplicates: [
+          {
+            program: program('Program:6', '灯台の地図 #2', 'こたつテスト1', '2026-11-20T12:00:00Z'),
+            rules,
+            reason: 'EARLIER_EPISODE',
+            lastRecordedAt: null,
+            recorded: null,
+            instead: null,
+            laterEpisode: 7,
+          },
+        ],
+      },
+    }));
+    await renderWithRouter(<SkippedDuplicateList />, environment);
+
+    expect(
+      await screen.findByText('灯台の地図 に一致。第7話まで録画済みか予約済みなので、前の回です'),
+    ).toBeTruthy();
   });
 });
