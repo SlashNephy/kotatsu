@@ -128,6 +128,12 @@ func TestCreateRejectsInvalidRules(t *testing.T) {
 		{name: "invalid overrides", modify: func(in *rule.Input) { in.Overrides = &domain.RecordingOverrides{Priority: new(99)} }, wantErr: reserve.ErrInvalidSettings},
 		{name: "empty validity period", modify: func(in *rule.Input) { in.ValidFrom = in.ValidUntil }, wantErr: rule.ErrInvalidRule},
 		{name: "zero duplicate window", modify: func(in *rule.Input) { in.DuplicateWindowDays = new(0) }, wantErr: rule.ErrInvalidRule},
+		{name: "time range only", modify: func(in *rule.Input) {
+			in.Conditions = &match.Conditions{TimeRanges: []*match.TimeRange{{Weekdays: []int{1, 2, 3, 4, 5}, StartMinute: 19 * 60, DurationMinutes: 60}}}
+		}, wantErr: rule.ErrUnconditioned},
+		{name: "exclude keyword only", modify: func(in *rule.Input) {
+			in.Conditions = &match.Conditions{ExcludeKeywords: in.Conditions.Keywords}
+		}, wantErr: rule.ErrUnconditioned},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

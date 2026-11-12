@@ -165,6 +165,13 @@ func (c *Conditions) Validate() error {
 	return errors.Join(errs...)
 }
 
+// HasTarget は、番組を選ぶ条件 (含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字) があるかどうかを返す (#1501)。
+// 時間帯と曜日、番組の長さ、無料放送、除外の条件は、絞り込みとしてだけ効く。それだけの条件は、その時間の全局に一致する。
+// 番組の検索や視聴ルールでは、そうした条件も使えるので、Validate では断らない。録画のルールが、保存と照合のときに確かめる。
+func (c *Conditions) HasTarget() bool {
+	return len(c.Keywords) > 0 || len(c.ChannelTypes) > 0 || len(c.ServiceIDs) > 0 || len(c.Genres) > 0 || len(c.Marks) > 0
+}
+
 // invalid は、理由を添えた ErrInvalidConditions を作る。
 func invalid(format string, args ...any) error {
 	return fmt.Errorf("%w: "+format, append([]any{ErrInvalidConditions}, args...)...)

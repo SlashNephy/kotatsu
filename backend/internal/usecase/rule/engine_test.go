@@ -868,4 +868,26 @@ func TestEngineDeletesDuplicateReservationsWithinGrace(t *testing.T) {
 
 	assert.Equal(t, 1, f.run(t).Deleted)
 	assert.Empty(t, f.reserved(t))
+
+// TestEngineSkipsUnconditionedRules は、番組を選ぶ条件のないルール (更新の前に保存した、時間帯と曜日だけのルール) を照合で当てず、
+// そのルールで作り済みの予約は消さずに残すことを確かめる (#1501)。当てると、その時間の全局を録ってディスクを埋める。
+func TestEngineSkipsUnconditionedRules(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	r := f.createRule(t, `テスト番組 5$`, nil)
+	f.run(t)
+	require.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+
+	// 保存では断るので、DB を直接書き換え、これからの全番組を含む時間帯だけのルールにする。
+	_, err := f.pool.Exec(t.Context(), `UPDATE rules SET conditions = '{"version": 1, "conditions": {"keywords": [], "excludeKeywords": [],
+		"channelTypes": [], "serviceIds": [], "genres": [], "excludeGenres": [], "freeOnly": false,
+		"timeRanges": [{"weekdays": [0, 1, 2, 3, 4, 5, 6], "startMinute": 0, "durationMinutes": 1440}]}}' WHERE id = $1`, r.ID)
+	require.NoError(t, err)
+
+	result := f.run(t)
+	require.ErrorIs(t, result.Skipped[r.ID], rule.ErrUnconditioned)
+	assert.Zero(t, result.Created, "no program is reserved by the unconditioned rule")
+	assert.Zero(t, result.Deleted, "the reservation made before is kept")
+	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }

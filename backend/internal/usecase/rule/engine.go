@@ -334,6 +334,13 @@ func (e *Engine) enabledRules(ctx context.Context, tx pgx.Tx, result *Result) ([
 
 			continue
 		}
+		// 番組を選ぶ条件のないルール (時間帯と曜日だけなど) は、その時間の全局に一致するので当てない (#1501)。
+		// 読めないルールと同じく、そのルールで作り済みの予約は消さずに残す。
+		if !r.Conditions.HasTarget() {
+			result.Skipped[row.ID] = ErrUnconditioned
+
+			continue
+		}
 		matcher, err := match.Compile(r.Conditions, e.location)
 		if err != nil {
 			result.Skipped[row.ID] = err
