@@ -7,6 +7,8 @@ run = [
   "pnpm install --frozen-lockfile",
   # 字幕を描くフォントは npm にないので、vendor/caption-font/SOURCE で固定したリリースから取得する。
   "node scripts/fetch-caption-font.mjs",
+  # 字幕のフォントを、基本の字と JIS X 0213 で足された漢字の 2 つに分け、WOFF2 にする (#1520)。
+  "node scripts/split-caption-font.mjs",
   # 字幕の外字の既定の表は、vendor/libaribcaption/SOURCE で固定した commit の定義から作る。
   "node scripts/fetch-libaribcaption-drcs.mjs",
 ]

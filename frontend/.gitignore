@@ -5,6 +5,9 @@
 /playwright-report/
 /zxcvbn/dist/
 /vendor/caption-font/*.ttf
+/vendor/caption-font/*.woff2
+/vendor/caption-font/*.range.json
+/vendor/caption-font/split.stamp
 /vendor/caption-font/*.tmp
 /vendor/libaribcaption/drcs.json
 /vendor/libaribcaption/*.tmp

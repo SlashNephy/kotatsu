@@ -35,21 +35,24 @@ registerRoute(
   ),
 );
 
-// 字幕を描くフォント (7 MB ほど) は、大きいのでプリキャッシュせず、一度読んだら残す。端末に保存した録画 (#480) を
-// オフラインで再生するときも、字幕を描けるようにするためである。ファイル名は版ごとに変わるので、残すのは最後に読んだ 1 つだけにする。
+// 字幕を描くフォントは、基本の字 (1.6 MB ほど) と、JIS X 0213 で足された漢字 (1 MB ほど) の 2 つのファイルに分けてある (#1520)。
+// 大きいのでプリキャッシュせず、一度読んだら残す。端末に保存した録画 (#480) をオフラインで再生するときも、字幕を描けるようにするためである。
+// ファイル名は版ごとに変わるので、それぞれ最後に読んだ 1 つだけを残す。片方を読んだときに、もう片方は消さない。
 const broadcastFontCache = 'kotatsu-broadcast-font';
+const broadcastFontPattern = /\/assets\/rounded-mplus-1m-wadalab-mix-(base|jisx0213)-[^/]*\.woff2$/;
 registerRoute(
-  ({ url }) =>
-    url.origin === self.location.origin &&
-    /\/assets\/rounded-mplus-1m-wadalab-mix-[^/]*\.ttf$/.test(url.pathname),
+  ({ url }) => url.origin === self.location.origin && broadcastFontPattern.test(url.pathname),
   new CacheFirst({
     cacheName: broadcastFontCache,
     plugins: [
       {
         cacheDidUpdate: async ({ cacheName, request }) => {
+          const kind = broadcastFontPattern.exec(new URL(request.url).pathname)?.[1];
           const cache = await caches.open(cacheName);
           for (const key of await cache.keys()) {
-            if (key.url !== request.url) {
+            // 分ける前の 1 つの TTF も、同じキャッシュに残っていれば消す。
+            const keyKind = broadcastFontPattern.exec(new URL(key.url).pathname)?.[1];
+            if (key.url !== request.url && (keyKind === kind || keyKind === undefined)) {
               await cache.delete(key);
             }
           }
