@@ -38,6 +38,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		JoinSegments:       system.Recording.JoinSegments,
 		DetectCM:           system.Recording.DetectCM,
 		TranscodePreset:    nil,
+		TranscodeFrameRate: system.Recording.TranscodeFrameRate,
 	}
 	if system.Recording.PoolID != "" {
 		recording.PoolID = new(system.Recording.PoolID)

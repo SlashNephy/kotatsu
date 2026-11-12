@@ -23,6 +23,7 @@ function settingsResponse() {
           joinSegments: true,
           detectCm: false,
           transcodePreset: null,
+          transcodeFrameRate: 'auto',
         },
         ruleDefaults: {
           avoidDuplicates: false,
@@ -158,5 +159,31 @@ describe('ルールを作るときの既定値の同じ回の束ね (#1498)', ()
     await screen.findByRole('status');
 
     expect(sent).toBe(false);
+  });
+});
+
+describe('変換のコマ数 (#1509)', () => {
+  test('読んだ全体の既定値を出し、選んだコマ数を保存する', async () => {
+    let sent: unknown = null;
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent = (variables.input as { recordingDefaults: { transcodeFrameRate?: string } })
+          .recordingDefaults.transcodeFrameRate;
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const frameRate = await screen.findByRole('combobox', { name: '変換のコマ数' });
+    expect(frameRate).toHaveProperty('value', '自動（映像から30か60を選ぶ）');
+
+    fireEvent.click(frameRate);
+    fireEvent.click(await screen.findByRole('option', { name: '60コマ/秒' }));
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await screen.findByRole('status');
+
+    expect(sent).toBe('60');
   });
 });

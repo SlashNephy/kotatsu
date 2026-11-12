@@ -23,3 +23,15 @@ func BuildChapters(sections []cmdetect.Section, recordedFrom time.Time, gaps []G
 func FFMetadata(chapters []Chapter) []byte {
 	return ffmetadata(chapters)
 }
+
+// ParseFieldDiffs は、FFmpeg の標準エラー出力 stderr を、chunk バイトずつ fieldDiffParser に書き、読んだ差を返す。
+func ParseFieldDiffs(stderr string, chunk int) (*FieldDiffs, error) {
+	parser := new(fieldDiffParser)
+	for b := []byte(stderr); len(b) > 0; {
+		n := min(chunk, len(b))
+		_, _ = parser.Write(b[:n])
+		b = b[n:]
+	}
+
+	return parser.diffs()
+}

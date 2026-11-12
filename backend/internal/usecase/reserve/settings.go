@@ -92,6 +92,9 @@ func ValidateOverrides(o *domain.RecordingOverrides) error {
 	if o.TranscodePreset != nil && *o.TranscodePreset != "" && !slices.Contains(domain.TranscodePresets(), *o.TranscodePreset) {
 		errs = append(errs, fmt.Errorf("%w: transcodePreset must be one of %v or empty", ErrInvalidSettings, domain.TranscodePresets()))
 	}
+	if o.TranscodeFrameRate != nil && !slices.Contains(domain.TranscodeFrameRates(), *o.TranscodeFrameRate) {
+		errs = append(errs, fmt.Errorf("%w: transcodeFrameRate must be one of %v", ErrInvalidSettings, domain.TranscodeFrameRates()))
+	}
 
 	return errors.Join(errs...)
 }

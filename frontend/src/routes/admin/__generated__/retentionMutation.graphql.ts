@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<21655c4d82f2a6fe5385ef2e1954e5c6>>
+ * @generated SignedSource<<2eb2de57fe1e0788693b0ce97c19841c>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,7 @@ export type RecordingSettingsOverridesInput = {
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;
+  transcodeFrameRate?: string | null | undefined;
   transcodePreset?: string | null | undefined;
 };
 export type RuleDefaultsInput = {

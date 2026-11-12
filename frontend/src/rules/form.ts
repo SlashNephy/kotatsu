@@ -20,6 +20,8 @@ type Settings = {
   detectCm: boolean | null;
   // transcodePreset は、録画を終えた後に変換するときの画質 (#1253)。空なら変換しない。null なら全体の設定に従う。
   transcodePreset: string | null;
+  // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。null なら全体の設定に従う。
+  transcodeFrameRate: string | null;
 };
 
 // RuleForm は、ルールの編集の画面の入力。番組の条件と、ルールだけの項目を並べる。
@@ -52,6 +54,7 @@ export type RuleData = {
     readonly joinSegments?: boolean | null;
     readonly detectCm?: boolean | null;
     readonly transcodePreset?: string | null;
+    readonly transcodeFrameRate?: string | null;
   };
   readonly validFrom?: string | null;
   readonly validUntil?: string | null;
@@ -81,6 +84,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
       joinSegments: null,
       detectCm: null,
       transcodePreset: null,
+      transcodeFrameRate: null,
     },
     validFrom: null,
     validUntil: null,
@@ -107,6 +111,7 @@ export function fromRule(rule: RuleData): RuleForm {
       joinSegments: rule.settings.joinSegments ?? null,
       detectCm: rule.settings.detectCm ?? null,
       transcodePreset: rule.settings.transcodePreset ?? null,
+      transcodeFrameRate: rule.settings.transcodeFrameRate ?? null,
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,

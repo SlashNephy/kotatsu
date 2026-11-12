@@ -91,3 +91,54 @@ func TestRecorderResolvesDetectCM(t *testing.T) {
 		})
 	}
 }
+
+// TestRecorderResolvesTranscodeFrameRate は、録画の完了のイベントに載せる、変換で出すコマ数 (#1509) を、予約で選んでいればその値、
+// なければ録画を終えるときの全体の設定から求め、全体を変えていなければ既定値 (自動) にすることを確かめる。
+func TestRecorderResolvesTranscodeFrameRate(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name        string
+		global      *string
+		reservation *string
+		want        string
+	}{
+		{name: "全体を変えていなければ、自動", global: nil, reservation: nil, want: domain.TranscodeFrameRateAuto},
+		{name: "予約が全体に従う", global: new(domain.TranscodeFrameRate30), reservation: nil, want: domain.TranscodeFrameRate30},
+		{name: "予約の値を優先する", global: new(domain.TranscodeFrameRate30), reservation: new(domain.TranscodeFrameRate60), want: domain.TranscodeFrameRate60},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			overrides, err := json.Marshal(&domain.RecordingOverrides{TranscodeFrameRate: tt.reservation})
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET settings = $1 WHERE id = $2", overrides, reservationID)
+			require.NoError(t, err)
+			if tt.global != nil {
+				_, err := settings.NewStore(f.clock, audit.NewRecorder(f.clock)).Update(t.Context(), f.pool, audit.System("test"), &settings.Changes{
+					Recording: &domain.RecordingOverrides{TranscodeFrameRate: tt.global},
+				})
+				require.NoError(t, err)
+			}
+
+			stream := newDrainedStream(data)
+			recorder, _ := f.newRecorderWithDefaults(t, f.pool, stream, nil, nil, slog.New(slog.DiscardHandler), settings.RecordingDefaults)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			stream.wait(t)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			events := f.events(t)
+			require.NotEmpty(t, events)
+			last := events[len(events)-1]
+			require.Equal(t, string(domain.NotificationKindRecordingCompleted), last.Kind)
+			assert.Equal(t, tt.want, last.Payload["transcodeFrameRate"])
+		})
+	}
+}

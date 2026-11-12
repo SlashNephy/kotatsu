@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<cec0a79687b7799d4d6dbd653faafb07>>
+ * @generated SignedSource<<992a258d31a030c2e7ba238a47213d97>>
  * @lightSyntaxTransform
  */
 
@@ -24,6 +24,7 @@ export type RecordingSettingsOverridesInput = {
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;
+  transcodeFrameRate?: string | null | undefined;
   transcodePreset?: string | null | undefined;
 };
 export type TimeReservationDialogUpdateMutation$variables = {

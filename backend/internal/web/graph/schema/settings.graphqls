@@ -16,6 +16,8 @@ type RecordingSettings {
   detectCm: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
+  "録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
+  transcodeFrameRate: String!
 }
 
 """

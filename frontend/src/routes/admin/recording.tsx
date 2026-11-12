@@ -13,6 +13,7 @@ import { SaveRow } from '../../admin/SaveRow';
 import { settingsErrorMessage } from '../../settings/errors';
 import { FileNameTemplateField } from '../../reservations/FileNameTemplateField';
 import {
+  frameRateOptions,
   noTranscode,
   optionOfPreset,
   presetOfOption,
@@ -54,6 +55,7 @@ const query = graphql`
         joinSegments
         detectCm
         transcodePreset
+        transcodeFrameRate
       }
       ruleDefaults {
         avoidDuplicates
@@ -83,6 +85,8 @@ type Form = {
   detectCm: boolean;
   // transcodePreset は、録画が終わったら変換するときの画質 (#1253)。空なら変換しない (既定)。
   transcodePreset: string;
+  // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。既定は auto。
+  transcodeFrameRate: string;
   // ルールを作るときの既定値 (#470)。重複を避ける日数は、空なら期間を区切らない。
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
@@ -124,6 +128,7 @@ function RecordingSettings() {
     joinSegments: defaults.joinSegments,
     detectCm: defaults.detectCm,
     transcodePreset: defaults.transcodePreset ?? noTranscode,
+    transcodeFrameRate: defaults.transcodeFrameRate,
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
@@ -171,6 +176,7 @@ function RecordingSettings() {
                 joinSegments: form.joinSegments,
                 detectCm: form.detectCm,
                 transcodePreset: form.transcodePreset,
+                transcodeFrameRate: form.transcodeFrameRate,
               },
               ruleDefaults: {
                 avoidDuplicates: form.ruleAvoidDuplicates,
@@ -289,6 +295,16 @@ function RecordingSettings() {
               onChange={(value) =>
                 value !== null && set({ transcodePreset: presetOfOption(value) })
               }
+              allowDeselect={false}
+            />
+            <Select
+              size="sm"
+              label={t('rules.transcodeFrameRate')}
+              description={t('admin.settings.transcodeFrameRateHelp')}
+              maw={360}
+              data={frameRateOptions(t)}
+              value={form.transcodeFrameRate}
+              onChange={(value) => value !== null && set({ transcodeFrameRate: value })}
               allowDeselect={false}
             />
           </Stack>

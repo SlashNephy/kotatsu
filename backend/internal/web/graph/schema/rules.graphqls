@@ -61,6 +61,8 @@ type RecordingSettingsOverrides {
   detectCm: Boolean
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。"
   transcodePreset: String
+  "録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。"
+  transcodeFrameRate: String
 }
 
 """
@@ -76,6 +78,8 @@ input RecordingSettingsOverridesInput {
   detectCm: Boolean
   "変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。"
   transcodePreset: String
+  "変換で出すコマ数 (auto、30、60 のどれか)。"
+  transcodeFrameRate: String
 }
 
 """
