@@ -149,3 +149,17 @@ func (q *Queries) ListTuners(ctx context.Context) ([]domain.Tuner, error) {
 
 	return out, nil
 }
+
+// ListJobProgress は、jobIDs のジョブの進み具合を返す (#1511)。書いていないジョブは返さない。
+func (q *Queries) ListJobProgress(ctx context.Context, jobIDs []int64) ([]domain.JobProgress, error) {
+	result, err := sqlc.New(q.pool).ListJobProgress(ctx, jobIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.JobProgress, len(result))
+	for i := range result {
+		out[i] = domain.JobProgress(result[i])
+	}
+
+	return out, nil
+}

@@ -1686,3 +1686,17 @@ CREATE TABLE network_activity (
   received_bytes bigint NOT NULL,
   PRIMARY KEY (hour, purpose, host, initiator, success)
 );
+
+-- 動いている録画の後処理のジョブ (River の river_job.id) の進み具合 (#1511、設計書 6.1)。ジョブの画面 (/admin/jobs) に出す。
+-- River の表は River が作るので、外部キーは張らない。画面は、動いているジョブの、同じ試行の行だけを出す。
+-- 終えたジョブの行は、後のジョブが書き始めるときに、古くなったものをまとめて消す。
+CREATE TABLE job_progress (
+  job_id bigint PRIMARY KEY,
+  -- 書いた試行 (river_job.attempt)。試し直したら、0 から書き直す。
+  attempt integer NOT NULL,
+  -- 0 から 1 の割合。
+  ratio double precision NOT NULL CHECK (ratio >= 0 AND ratio <= 1),
+  -- 残り時間 (ミリ秒)。NULL なら不明。
+  remaining_ms bigint CHECK (remaining_ms >= 0),
+  updated_at timestamptz NOT NULL
+);

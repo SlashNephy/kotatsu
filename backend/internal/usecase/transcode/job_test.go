@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 	"uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -22,7 +25,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -99,20 +104,30 @@ func (f *fixture) recording(t *testing.T, content []byte) uuid.UUID {
 }
 
 // copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質を覚える。
+// 読み終えたら、progress を -progress の出力として書く。ProbeFrameRate は、rate を返す。
 type copyEncoder struct {
-	presets []string
+	presets  []string
+	progress string
+	rate     float64
 }
 
 var _ transcode.Encoder = new(copyEncoder)
 
-func (e *copyEncoder) Encode(_ context.Context, src io.Reader, preset *kyusu.Preset, out string) error {
+func (e *copyEncoder) Encode(_ context.Context, src io.Reader, preset *kyusu.Preset, out string, progress io.Writer) error {
 	e.presets = append(e.presets, preset.Name)
 	b, err := io.ReadAll(src)
 	if err != nil {
 		return err
 	}
+	if _, err := io.WriteString(progress, e.progress); err != nil {
+		return err
+	}
 
 	return os.WriteFile(out, b, 0o600)
+}
+
+func (e *copyEncoder) ProbeFrameRate(context.Context, string) (float64, error) {
+	return e.rate, nil
 }
 
 type otherFile struct {
@@ -140,9 +155,51 @@ func (f *fixture) otherFiles(t *testing.T, recordingID uuid.UUID) []otherFile {
 func work(t *testing.T, f *fixture, encoder transcode.Encoder, recordingID uuid.UUID, preset string) error {
 	t.Helper()
 
-	worker := transcode.NewWorker(f.pool, f.store, f.clock, f.inserter, func() (transcode.Encoder, error) { return encoder, nil })
+	return workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 1, Attempt: 1}, recordingID, preset)
+}
 
-	return worker.Work(t.Context(), &river.Job[transcode.Args]{JobRow: new(rivertype.JobRow), Args: transcode.Args{RecordingID: recordingID, Preset: preset}})
+func workJob(ctx context.Context, f *fixture, encoder transcode.Encoder, row *rivertype.JobRow, recordingID uuid.UUID, preset string) error {
+	worker := transcode.NewWorker(f.pool, f.store, f.clock, f.inserter, slog.New(slog.DiscardHandler), func() (transcode.Encoder, error) { return encoder, nil })
+
+	return worker.Work(ctx, &river.Job[transcode.Args]{JobRow: row, Args: transcode.Args{RecordingID: recordingID, Preset: preset}})
+}
+
+// index は、録画 recordingID のセグメントに、1 秒ごとの n 個の I フレームの索引と、フレームレートが rate の映像の形式を付ける。
+// 再生の時間は、最後の I フレームの後の 1 間隔を足して n 秒になるので、見込みのコマ数は n × rate。
+func (f *fixture) index(t *testing.T, recordingID uuid.UUID, n int64, rate float64) {
+	t.Helper()
+
+	var fileID uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1 AND kind = 'segment'", recordingID).Scan(&fileID))
+	location := kago.IndexLocation(fileID)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dataDir, filepath.Dir(location.Path)), 0o750))
+	file, err := os.Create(filepath.Join(f.dataDir, location.Path))
+	require.NoError(t, err)
+	defer file.Close()
+	w, err := ts.NewIndexWriter(file)
+	require.NoError(t, err)
+	for k := range n {
+		require.NoError(t, w.Append(ts.IndexEntry{Offset: k * 188, PTS: k * ts.PTSClock}))
+	}
+	video, err := json.Marshal(&ts.VideoFormat{Codec: "h264", Width: 1440, Height: 1080, Interlaced: true, FrameRate: rate})
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET video = $2 WHERE id = $1", fileID, video)
+	require.NoError(t, err)
+}
+
+// progressOf は、ジョブ jobID の進み具合の、試行と割合を返す。まだなければ、試行を 0 にする。
+func (f *fixture) progressOf(t *testing.T, jobID int64) (int, float64) {
+	t.Helper()
+
+	var attempt int
+	var ratio float64
+	err := f.pool.QueryRow(t.Context(), "SELECT attempt, ratio FROM job_progress WHERE job_id = $1", jobID).Scan(&attempt, &ratio)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, 0
+	}
+	require.NoError(t, err)
+
+	return attempt, ratio
 }
 
 // tsPackets は、n 個の TS のパケット (同期バイトのあとを 0 で埋めたもの) を返す。
@@ -305,4 +362,121 @@ func TestEnqueuer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// quarterBlock は、1000 コマの見込みの 4 分の 1 をエンコードしたときの -progress のまとまり。
+const quarterBlock = "frame=250\nprogress=continue\n"
+
+// TestWorkerProgress は、変換の進み具合を、見込みのコマ数か入力の読み位置で割り、ジョブの試行と一緒に DB に書くことを確かめる (#1511)。
+func TestWorkerProgress(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// keyframes は、索引の I フレームの数 (1 秒ごと)。0 なら索引を作らない。
+		keyframes int64
+		// video は、映像の形式のフレームレート。probe は、ffprobe で読むフレームレート。
+		video, probe float64
+		progress     string
+		want         float64
+	}{
+		{name: "frame rate of the video format", keyframes: 100, video: 10, probe: 0, progress: quarterBlock, want: 0.25},
+		// HEVC は、映像の形式にフレームレートがないので、ffprobe で補う。
+		{name: "frame rate from ffprobe", keyframes: 100, video: 0, probe: 10, progress: quarterBlock, want: 0.25},
+		{name: "end", keyframes: 100, video: 10, probe: 0, progress: quarterBlock + "frame=990\nprogress=end\n", want: 1},
+		// 索引がなければ、見込みのコマ数を出せないので、流したバイト数で割る。読み終えていても、progress=end までは頭打ちで止める。
+		{name: "read position without the index", keyframes: 0, video: 10, probe: 0, progress: quarterBlock, want: 0.99},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, tsPackets(100))
+			if tt.keyframes > 0 {
+				f.index(t, recordingID, tt.keyframes, tt.video)
+			}
+			encoder := &copyEncoder{presets: []string{}, progress: tt.progress, rate: tt.probe}
+			require.NoError(t, workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 42, Attempt: 2}, recordingID, preset720p))
+			attempt, ratio := f.progressOf(t, 42)
+			assert.Equal(t, 2, attempt)
+			assert.InDelta(t, tt.want, ratio, 1e-9)
+		})
+	}
+}
+
+// fakeFFmpeg は、-progress の出力を模す偽の FFmpeg のシェルのスクリプト。10% を出したら go のファイルを、20% を出したら
+// stop のファイルを待つ。stop の後に、読み損ねた少ないコマ数と progress=end を出して終わる。出力はシェルが書くので、
+// FFmpeg (このテストのバイナリ) を止められても、シェルが終わるまで出力が届き続ける (止められてから終わるまで少し待つ FFmpeg を模す)。
+const fakeFFmpeg = `
+printf 'frame=100\nprogress=continue\n'
+while [ ! -e "$FAKE_FFMPEG_DIR/go" ]; do sleep 0.05; done
+printf 'frame=200\nprogress=continue\n'
+while [ ! -e "$FAKE_FFMPEG_DIR/stop" ]; do sleep 0.05; done
+sleep 0.2
+printf 'frame=50\nprogress=continue\nframe=1000\nprogress=end\n'
+touch "$FAKE_FFMPEG_DIR/done"
+`
+
+// TestMain は、このテストのバイナリが ffmpeg の名前で起動されたら、偽の FFmpeg (fakeFFmpeg) として動く。
+func TestMain(m *testing.M) {
+	if filepath.Base(os.Args[0]) == "ffmpeg" {
+		cmd := exec.CommandContext(context.Background(), "sh", "-c", fakeFFmpeg)
+		cmd.Stdout = os.Stdout
+		if err := cmd.Start(); err != nil {
+			os.Exit(1)
+		}
+		_ = cmd.Wait()
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
+
+// TestWorkerStopKeepsProgress は、変換を止めてから FFmpeg が終わり、後片付けをするまでの間に、進み具合が戻らず、
+// 100% にもならないことを確かめる (#1511)。t.Setenv で PATH を変えるので、並べて走らせない。
+func TestWorkerStopKeepsProgress(t *testing.T) {
+	f := newFixture(t)
+	recordingID := f.recording(t, tsPackets(100))
+	// 見込みのコマ数は 100 秒 × 10fps = 1000 コマ。
+	f.index(t, recordingID, 100, 10)
+	// 偽の FFmpeg は、このテストのバイナリを ffmpeg の名前で起動したもの (TestMain)。
+	bin, marks := t.TempDir(), t.TempDir()
+	self, err := os.Executable()
+	require.NoError(t, err)
+	require.NoError(t, os.Symlink(self, filepath.Join(bin, "ffmpeg")))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_FFMPEG_DIR", marks)
+	encoder, err := transcode.NewFFmpegEncoder(&config.Kyusu{Encoder: "", VAAPIDevice: "", WorkDir: ""}, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- workJob(ctx, f, encoder, &rivertype.JobRow{ID: 7, Attempt: 1}, recordingID, preset720p)
+	}()
+	ratioOf := func() float64 {
+		_, ratio := f.progressOf(t, 7)
+
+		return ratio
+	}
+	require.Eventually(t, func() bool { return ratioOf() == 0.1 }, 10*time.Second, 10*time.Millisecond)
+	// 書き戻しの間隔を空けてから、20% を出させる。
+	f.clock.Advance(time.Minute)
+	require.NoError(t, os.WriteFile(filepath.Join(marks, "go"), nil, 0o600))
+	require.Eventually(t, func() bool { return ratioOf() == 0.2 }, 10*time.Second, 10*time.Millisecond)
+
+	// 止めた後に届く、少ないコマ数と progress=end では、表示を変えない。
+	cancel()
+	require.NoError(t, os.WriteFile(filepath.Join(marks, "stop"), nil, 0o600))
+	f.clock.Advance(time.Minute)
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(20 * time.Second):
+		t.Fatal("the worker did not return after it was stopped")
+	}
+	_, err = os.Stat(filepath.Join(marks, "done"))
+	require.NoError(t, err, "the fake FFmpeg wrote the progress after it was stopped")
+	assert.InDelta(t, 0.2, ratioOf(), 1e-9)
 }

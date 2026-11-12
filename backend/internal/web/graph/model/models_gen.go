@@ -821,6 +821,8 @@ type Job struct {
 	Retryable bool `json:"retryable"`
 	// 画面から取り消せるか。終えたジョブと、取り消すと録画を失いうるジョブ (タイムシフトの昇格、セグメントをつなぐジョブ) は取り消せない。
 	Cancellable bool `json:"cancellable"`
+	// 動いているジョブの進み具合 (#1511)。進み具合を書くジョブ (録画の変換、CM の区間の見分け) が動いていて、今の試行で書いたものがあるときだけ返す。
+	Progress *JobProgress `json:"progress,omitempty"`
 }
 
 type JobError struct {
@@ -834,6 +836,16 @@ type JobPage struct {
 	Nodes []*Job `json:"nodes"`
 	// 次のページのカーソル。続きがなければ null。
 	EndCursor *string `json:"endCursor,omitempty"`
+}
+
+// ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたコマ数から求める。
+type JobProgress struct {
+	// 0 から 1 の割合。FFmpeg が書き終えるまでは 0.99 で止める。
+	Ratio float64 `json:"ratio"`
+	// 残り時間 (秒)。直近の進み方から求める。始まってすぐや、進んでいないときは null。
+	RemainingSeconds *int `json:"remainingSeconds,omitempty"`
+	// 書いた時刻。書き戻しは 5 秒ごと。
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // 状態ごとのジョブの数。

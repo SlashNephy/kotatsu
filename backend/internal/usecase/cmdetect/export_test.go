@@ -2,6 +2,7 @@ package cmdetect
 
 import (
 	"io"
+	"log/slog"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -10,12 +11,12 @@ import (
 
 // NewDetectWorkerWith は、FFmpeg の代わりに newDetector の Detector を使う DetectWorker を返す。
 func NewDetectWorkerWith(db Database, store *kago.Store, clk clock.Clock, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, nil, newDetector)
+	return newDetectWorker(db, store, clk, nil, slog.New(slog.DiscardHandler), newDetector)
 }
 
 // NewDetectWorkerWithHook は、NewDetectWorkerWith に、見分け終えたことを受け取る hook を足したもの。
 func NewDetectWorkerWithHook(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, newDetector)
+	return newDetectWorker(db, store, clk, hook, slog.New(slog.DiscardHandler), newDetector)
 }
 
 // Signals は、テストから組み立てる手掛かり。時刻は秒で、Silences は無音の区間の [始まり, 終わり] の並び。
@@ -56,7 +57,7 @@ func ParseStdout(r io.Reader) []float64 {
 
 // ParseStderr は、テストから parseStderr を呼び、無音の区間と、残したログの行を返す。
 func ParseStderr(r io.Reader) ([][2]float64, []string) {
-	log := parseStderr(r)
+	log := parseStderr(r, nil)
 
 	return pairsOf(log.silences), log.tail
 }

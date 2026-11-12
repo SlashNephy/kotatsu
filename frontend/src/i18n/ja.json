@@ -1752,6 +1752,11 @@
       "retry": "すぐに試し直す",
       "cancel": "取り消す",
       "uncancellable": "このジョブは、取り消すと録画を失うおそれがあるので、画面からは取り消せません",
+      "progress": "進み具合",
+      "remainingUnknown": "残り時間を計算しています",
+      "remainingUnderMinute": "残り1分未満",
+      "remainingMinutes": "残り約{{minutes}}分",
+      "remainingHours": "残り約{{hours}}時間{{minutes}}分",
       "states": {
         "RUNNING": "動いている",
         "AVAILABLE": "待っている",
