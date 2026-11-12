@@ -4,7 +4,7 @@ import { isCardNumber, isProgramID, luhn, marks, redact } from './redact';
 
 const noOptions = { secrets: [], hosts: [] };
 
-// cases は、設計書の表の行ごとの、伏せるべき例と伏せてはいけない例。どの例も、2 回かけても変わらないことを確かめる。
+// cases は、設計書 11.3 の 2 段目の表の行ごとの、伏せるべき例と伏せてはいけない例。どの例も、2 回かけても変わらないことを確かめる。
 const cases: { rule: string; input: string; want: string; secrets?: string[]; hosts?: string[] }[] =
   [
     // 1. サーバーから渡された秘密の値

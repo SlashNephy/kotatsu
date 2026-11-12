@@ -264,7 +264,11 @@ export function fitURL(fields: IssueFields, limit = urlLimit): { url: string; tr
     }
   }
 
-  return { url: buildURL({ ...limited, logs: '' }), trimmed: lines.length };
+  // ログが空なら、削った行は無い (タイトルや版が長くて上限を超えても、ログのせいではない)。
+  return {
+    url: buildURL({ ...limited, logs: '' }),
+    trimmed: limited.logs === '' ? 0 : lines.length,
+  };
 }
 
 // fullReport は、ダウンロードとコピーに使う、全部入りの報告の本文。

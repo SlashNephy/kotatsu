@@ -200,6 +200,15 @@ describe('URL', () => {
     });
   });
 
+  test('ログが空なら、タイトルや環境が長くても、省いた行の数は 0 にする', () => {
+    const { url, trimmed } = fitURL(
+      { title: '', version: 'v'.repeat(urlLimit), environment: '', logs: '' },
+      urlLimit,
+    );
+    expect(trimmed).toBe(0);
+    expect(logsOf(url)).toBe('');
+  });
+
   test('先頭の 1 行も入らないときは、ログを空にする', () => {
     const { url } = fitURL({ ...fields, logs: 'x'.repeat(urlLimit) });
     expect(logsOf(url)).toBe('');
