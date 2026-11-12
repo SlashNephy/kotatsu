@@ -568,6 +568,7 @@ type Querier interface {
 	// 録画は開始マージンとチューニングの時間だけ前に始まるので、録画中かどうか (recording) も返す。録画中の予約は、照合で消さない (設計書 4.3)。
 	// 番組が EPG にあり、終了時刻が決まっているか (decided) も返す。番組が消えたか、未定になったのは一時的なことがあるので、
 	// ルールに一致しなくなったとはみなさない (#518)。
+	// 番組名が空か (unnamed) も返す。条件から外れたのか、まだ読めていないだけなのかを区別できないので、消さない (#1501)。
 	ListFutureProgramReservations(ctx context.Context, now time.Time) ([]ListFutureProgramReservationsRow, error)
 	ListFutureReservationRules(ctx context.Context, now time.Time) ([]ReservationRule, error)
 	// 番組 (サービス, eventId) をまとめて引く。GetGuideProgram と同じ列を返す。ない番組は返さない。

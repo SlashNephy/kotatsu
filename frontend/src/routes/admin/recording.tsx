@@ -60,6 +60,7 @@ const query = graphql`
         duplicateWindowDays
         followEventRelay
       }
+      ruleUnmatchedGraceMinutes
       updatedAt
     }
     systemStatus {
@@ -85,6 +86,8 @@ type Form = {
   ruleAvoidDuplicates: boolean;
   ruleDuplicateWindowDays: number | string;
   ruleFollowEventRelay: boolean;
+  // ruleUnmatchedGraceMinutes は、ルールから外れた予約を、消さずに残す放送前の時間 (分。#1501)。
+  ruleUnmatchedGraceMinutes: number | string;
 };
 
 // sameForm は、2 つのフォームの値が同じかどうかを返す。
@@ -122,9 +125,15 @@ function RecordingSettings() {
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
     ruleDuplicateWindowDays: settings.ruleDefaults.duplicateWindowDays ?? '',
     ruleFollowEventRelay: settings.ruleDefaults.followEventRelay,
+    ruleUnmatchedGraceMinutes: settings.ruleUnmatchedGraceMinutes,
   };
   const { form, set } = useSyncedForm(initial, sameForm);
-  const numbers = [form.startMarginSeconds, form.endMarginSeconds, form.priority];
+  const numbers = [
+    form.startMarginSeconds,
+    form.endMarginSeconds,
+    form.priority,
+    form.ruleUnmatchedGraceMinutes,
+  ];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
   const submit = (event: FormEvent) => {
@@ -167,6 +176,7 @@ function RecordingSettings() {
                   : { clearDuplicateWindowDays: true }),
                 followEventRelay: form.ruleFollowEventRelay,
               },
+              ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
             },
           },
         );
@@ -315,6 +325,26 @@ function RecordingSettings() {
               label={t('rules.followEventRelay')}
               checked={form.ruleFollowEventRelay}
               onChange={(event) => set({ ruleFollowEventRelay: event.currentTarget.checked })}
+            />
+          </Stack>
+        </Card>
+
+        <Card withBorder>
+          <Stack gap="xs">
+            <Title order={3} size="h5">
+              {t('admin.settings.ruleMatching')}
+            </Title>
+            <NumberInput
+              size="xs"
+              maw={480}
+              label={t('admin.settings.ruleUnmatchedGrace')}
+              description={t('admin.settings.ruleUnmatchedGraceHelp')}
+              min={0}
+              max={1440}
+              allowDecimal={false}
+              allowNegative={false}
+              value={form.ruleUnmatchedGraceMinutes}
+              onChange={(value) => set({ ruleUnmatchedGraceMinutes: value })}
             />
           </Stack>
         </Card>

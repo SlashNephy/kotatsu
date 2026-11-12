@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 const (
@@ -47,6 +48,7 @@ type Guard func(ctx context.Context, tx pgx.Tx) error
 //   - 集合にあって予約がない番組には、ルール予約を作る。
 //   - 予約はあるのに、どのルールにも一致しなくなった番組は、放送が始まっていなければルール予約を消す。
 //     無効にしたルール予約も、一致しなくなれば消す。一致している間は、無効のまま残すので作り直されない。
+//     ただし、放送の直前 (猶予の内) の予約と、番組名が空の番組の予約は、結び付いたルールが有効な間は残す (#1501)。
 //   - 手動の番組予約がある番組は、手動の設定を優先する。一致したルールの関係だけを残す。
 //
 // あわせて、ユーザーごとの視聴ルールも同じ番組に照合し、一致した番組に視聴予約を付ける (設計書 4.8)。
@@ -118,6 +120,12 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
+		// 猶予は画面から変えられる (設計書 11.2) ので、照合のたびに引く。
+		system, err := settings.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules)
 		watchRules, skippedUsers, err := e.enabledWatchRules(ctx, tx, result)
 		if err != nil {
 			return err
@@ -131,7 +139,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		if err := e.apply(ctx, tx, now, desired, result); err != nil {
+		if err := e.apply(ctx, tx, now, desired, keep, result); err != nil {
 			return err
 		}
 
@@ -467,8 +475,27 @@ func pickSharedEvents[V any](matched map[programKey]V, relatedItems func(V) []by
 	}
 }
 
+// keepPolicy は、どのルールにも一致しなくなったルール予約を、消さずに残す条件のうち、照合ごとに決まるもの (#1501)。
+type keepPolicy struct {
+	// graceUntil より前に始まる予約は、番組表の直前の書き換えで外れたかもしれないので残す。
+	graceUntil time.Time
+	// enabled は、照合した (有効で、条件を読めた) ルールの ID。無効にしたか消したルールは含まない。
+	enabled map[uuid.UUID]bool
+}
+
+func newKeepPolicy(now time.Time, grace time.Duration, rules []*compiledRule) *keepPolicy {
+	enabled := make(map[uuid.UUID]bool, len(rules))
+	for _, r := range rules {
+		enabled[r.ID] = true
+	}
+
+	return &keepPolicy{graceUntil: now.Add(grace), enabled: enabled}
+}
+
 // apply は、予約すべき集合と既存の予約を突き合わせる。
-func (e *Engine) apply(ctx context.Context, tx pgx.Tx, now time.Time, desired map[programKey]*desiredProgram, result *Result) error {
+func (e *Engine) apply(
+	ctx context.Context, tx pgx.Tx, now time.Time, desired map[programKey]*desiredProgram, keep *keepPolicy, result *Result,
+) error {
 	q := sqlc.New(tx)
 	existing, err := q.ListFutureProgramReservations(ctx, now)
 	if err != nil {
@@ -490,7 +517,7 @@ func (e *Engine) apply(ctx context.Context, tx pgx.Tx, now time.Time, desired ma
 	for _, row := range existing {
 		key := programKey{serviceID: row.ServiceID, eventID: *row.EventID}
 		reserved[key] = true
-		if err := e.reconcile(ctx, tx, now, row, desired[key], links[row.ID], result); err != nil {
+		if err := e.reconcile(ctx, tx, now, row, desired[key], links[row.ID], keep, result); err != nil {
 			return err
 		}
 	}
@@ -523,12 +550,13 @@ func (e *Engine) reconcile(
 	row sqlc.ListFutureProgramReservationsRow,
 	d *desiredProgram,
 	have map[uuid.UUID]bool,
+	keep *keepPolicy,
 	result *Result,
 ) error {
 	q := sqlc.New(tx)
 	isRule := domain.ReservationKind(row.Kind) == domain.ReservationKindRule
 	switch {
-	case d == nil && isRule && keepsUnmatched(&row, have, result):
+	case d == nil && isRule && keepsUnmatched(&row, have, keep, result):
 		return nil
 	case d == nil && isRule:
 		// どのルールにも一致しなくなった。
@@ -601,7 +629,7 @@ func linksAny[V any](have map[uuid.UUID]bool, ruleIDs map[uuid.UUID]V) bool {
 }
 
 // keepsUnmatched は、どのルールにも一致しなくなったルール予約を、消さずに残すかどうかを返す。
-func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UUID]bool, result *Result) bool {
+func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UUID]bool, keep *keepPolicy, result *Result) bool {
 	switch {
 	case row.Recording:
 		// 録画が始まった予約は、消すと録画を取り消してしまう (#304)。
@@ -616,6 +644,15 @@ func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UU
 	case !row.Enabled && len(have) > 0:
 		// ユーザーが無効にした予約は、ルールがある間は残す。消すと、また一致したときに有効な予約として作り直してしまう (#518)。
 		// ルールを消すと関係も消えるので、そのときは消す。
+		return true
+	case !linksAny(have, keep.enabled):
+		// 結び付いたルールを、人が消したか無効にした。迷う理由がないので、猶予の内でも、番組名が空でも消す (#1501)。
+		return false
+	case row.StartAt.Before(keep.graceUntil):
+		// 放送の直前の書き換え ([新] が付く、副題が入る、誤字が直るなど) で外れたかもしれない。消すと録り逃す (#1501)。
+		return true
+	case row.Unnamed:
+		// 番組名が空の番組は、条件から外れたのか、まだ読めていないだけなのかを区別できない (#1501)。
 		return true
 	default:
 		return false

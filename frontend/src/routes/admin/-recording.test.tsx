@@ -25,6 +25,7 @@ function settingsResponse() {
           transcodePreset: null,
         },
         ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
+        ruleUnmatchedGraceMinutes: 180,
         updatedAt: '2026-11-11T00:00:00Z',
       },
       systemStatus: { pools: [] },
@@ -98,5 +99,32 @@ describe('録画の既定値 (#1420)', () => {
     readAgain(environment, 5);
 
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '5');
+  });
+});
+
+describe('ルールから外れた予約を残す時間 (#1501)', () => {
+  test('入れた分を保存し、0 も送る', async () => {
+    let sent: unknown = null;
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent = (variables.input as { ruleUnmatchedGraceMinutes?: number })
+          .ruleUnmatchedGraceMinutes;
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const grace = await screen.findByRole('textbox', {
+      name: 'ルールから外れた予約を残す時間（放送前の分）',
+    });
+    expect(grace).toHaveProperty('value', '180');
+
+    fireEvent.change(grace, { target: { value: '0' } });
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await screen.findByRole('status');
+
+    expect(sent).toBe(0);
   });
 });

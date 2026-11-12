@@ -364,6 +364,9 @@ CREATE TABLE system_settings (
   timeshift_while_watching boolean NOT NULL DEFAULT false,
   -- 視聴している間だけ録るサービスの保持時間 (秒)。範囲は timeshift_channels の保持時間と同じ。
   timeshift_while_watching_retention_seconds integer NOT NULL DEFAULT 3600 CHECK (timeshift_while_watching_retention_seconds BETWEEN 600 AND 86400),
+  -- どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。
+  -- 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。0 なら残さない。
+  rule_unmatched_grace_minutes integer NOT NULL DEFAULT 180 CHECK (rule_unmatched_grace_minutes BETWEEN 0 AND 1440),
   updated_at timestamptz NOT NULL
 );
 
