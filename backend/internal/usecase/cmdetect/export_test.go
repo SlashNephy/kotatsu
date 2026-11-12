@@ -10,7 +10,12 @@ import (
 
 // NewDetectWorkerWith は、FFmpeg の代わりに newDetector の Detector を使う DetectWorker を返す。
 func NewDetectWorkerWith(db Database, store *kago.Store, clk clock.Clock, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, newDetector)
+	return newDetectWorker(db, store, clk, nil, newDetector)
+}
+
+// NewDetectWorkerWithHook は、NewDetectWorkerWith に、見分け終えたことを受け取る hook を足したもの。
+func NewDetectWorkerWithHook(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, newDetector func() (Detector, error)) *DetectWorker {
+	return newDetectWorker(db, store, clk, hook, newDetector)
 }
 
 // Signals は、テストから組み立てる手掛かり。時刻は秒で、Silences は無音の区間の [始まり, 終わり] の並び。

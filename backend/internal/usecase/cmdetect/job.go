@@ -168,6 +168,13 @@ type Database interface {
 	Acquire(ctx context.Context) (*pgxpool.Conn, error)
 }
 
+// DetectedHook は、CM の区間を書いたトランザクションの中で、見分け終えたことを受け取る。
+// 変換した MP4 にチャプターを書くジョブ (transcode.ChaptersEnqueuer、#1510) を、区間と一緒に投入するのに使う。
+// 区間を書くのは録画ごとのロックを持っている間なので、受け取った側も、そのロックの中にいる。
+type DetectedHook interface {
+	OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error
+}
+
 // DetectWorker は、録画のセグメントごとに CM の区間を見分け、録画を始めた日時からの時間にそろえて DB に書く。
 type DetectWorker struct {
 	river.WorkerDefaults[DetectArgs]
@@ -175,6 +182,8 @@ type DetectWorker struct {
 	db    Database
 	store *kago.Store
 	clock clock.Clock
+	// hook は、見分け終えたことを受け取る。nil なら呼ばない。
+	hook DetectedHook
 	// newDetector は、見分けに使う Detector を作る。テストでは差し替える。
 	newDetector func() (Detector, error)
 }
@@ -182,13 +191,15 @@ type DetectWorker struct {
 var _ river.Worker[DetectArgs] = new(DetectWorker)
 
 // NewDetectWorker は DetectWorker を返す。store は、このインスタンスにマウントされたプール。
-// lowerer は、FFmpeg を最低の優先度で動かす (#1511)。
-func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer) *DetectWorker {
-	return newDetectWorker(db, store, clk, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
+// lowerer は、FFmpeg を最低の優先度で動かす (#1511)。hook は、区間を書いたトランザクションの中で呼ぶ。nil なら呼ばない。
+func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, hook DetectedHook) *DetectWorker {
+	return newDetectWorker(db, store, clk, hook, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
 }
 
-func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, newDetector func() (Detector, error)) *DetectWorker {
-	return &DetectWorker{WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, newDetector: newDetector}
+func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, newDetector func() (Detector, error)) *DetectWorker {
+	return &DetectWorker{
+		WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, hook: hook, newDetector: newDetector,
+	}
 }
 
 func (w *DetectWorker) Timeout(*river.Job[DetectArgs]) time.Duration {
@@ -360,8 +371,11 @@ func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingI
 				return fmt.Errorf("failed to record a CM section: %w", err)
 			}
 		}
+		if w.hook == nil {
+			return nil
+		}
 
-		return nil
+		return w.hook.OnDetected(ctx, tx, recordingID)
 	})
 	if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == foreignKeyViolation {
 		return river.JobCancel(errRecordingNotFound)

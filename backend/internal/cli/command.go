@@ -232,10 +232,15 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// 録画を終えたら、CM の区間を見分ける (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	// 録画の後処理の FFmpeg は、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
 	lowerer := procprio.New(logger.With(slog.String("component", "procprio")))
-	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock, lowerer))
-	// 録画を終えた後の変換 (#1253)。映像のエンコーダーは、kyusu と同じ設定を使う。
-	river.AddWorker(workers, transcode.NewWorker(deps.DB, storeOf(deps.Config), deps.Clock, func() (transcode.Encoder, error) {
+	// CM の区間を見分け終えたら、変換した MP4 にチャプターを書くジョブを入れる (#1510)。
+	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock, lowerer, transcode.NewChaptersEnqueuer(inserter)))
+	// 録画を終えた後の変換 (#1253)。映像のエンコーダーは、kyusu と同じ設定を使う。CM の区間があれば、変換し終えたらチャプターを書くジョブを入れる。
+	river.AddWorker(workers, transcode.NewWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter, func() (transcode.Encoder, error) {
 		return transcode.NewFFmpegEncoder(&deps.Config.Kyusu, lowerer)
+	}))
+	// 変換した MP4 に、CM の区間の境目をチャプターとして書く (#1510)。
+	river.AddWorker(workers, transcode.NewChaptersWorker(deps.DB, storeOf(deps.Config), deps.Clock, func() (transcode.Chapterer, error) {
+		return transcode.NewFFmpegChapterer(lowerer)
 	}))
 	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))

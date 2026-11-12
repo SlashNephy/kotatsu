@@ -48,6 +48,7 @@ type fixture struct {
 	pool     *pgxpool.Pool
 	clock    *clocktest.Fake
 	dir      string
+	dataDir  string
 	store    *kago.Store
 	inserter *jobs.Client
 }
@@ -68,9 +69,12 @@ func newFixture(t *testing.T) *fixture {
 	_, err = pool.Exec(t.Context(), `INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
 		VALUES ($1, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', $2, $2)`, serviceID, clk.Now())
 	require.NoError(t, err)
-	dir := t.TempDir()
+	dir, dataDir := t.TempDir(), t.TempDir()
 
-	return &fixture{pool: pool, clock: clk, dir: dir, store: kago.New(map[string]string{poolID: dir}, nil).WithDataDir(t.TempDir()), inserter: inserter}
+	return &fixture{
+		pool: pool, clock: clk, dir: dir, dataDir: dataDir, store: kago.New(map[string]string{poolID: dir}, nil).WithDataDir(dataDir),
+		inserter: inserter,
+	}
 }
 
 // recording は、segmentName のセグメント (中身は content) を 1 つ持つ、録り終えた録画を作る。
@@ -136,7 +140,7 @@ func (f *fixture) otherFiles(t *testing.T, recordingID uuid.UUID) []otherFile {
 func work(t *testing.T, f *fixture, encoder transcode.Encoder, recordingID uuid.UUID, preset string) error {
 	t.Helper()
 
-	worker := transcode.NewWorker(f.pool, f.store, f.clock, func() (transcode.Encoder, error) { return encoder, nil })
+	worker := transcode.NewWorker(f.pool, f.store, f.clock, f.inserter, func() (transcode.Encoder, error) { return encoder, nil })
 
 	return worker.Work(t.Context(), &river.Job[transcode.Args]{JobRow: new(rivertype.JobRow), Args: transcode.Args{RecordingID: recordingID, Preset: preset}})
 }
