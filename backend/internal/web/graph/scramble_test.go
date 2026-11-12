@@ -89,6 +89,18 @@ func watchLive(t *testing.T, server *httptest.Server, clk *clocktest.Fake, servi
 	_, _ = io.Copy(io.Discard, resp.Body)
 }
 
+// subscribeScrambled は、viewerEvents を購読し、始めに届く今の版数の知らせを待ってから返す。
+// 応答の頭が届いても、購読がサービスごとに最後に決めた日時を控え終えたとは限らない。控える前に決めた判定は送らないので、
+// 待たずに決めると、テストの判定が、控えた日時に紛れて届かないことがある。
+func subscribeScrambled(t *testing.T, f *fixture) <-chan json.RawMessage {
+	t.Helper()
+
+	events := f.subscribe(t, scrambledQuery)
+	next(t, events)
+
+	return events
+}
+
 // scrambledServices は、viewerEvents の知らせのうち、スクランブルされたまま届くと決めた知らせのサービスを、within の間に届いた順に返す。
 func scrambledServices(t *testing.T, events <-chan json.RawMessage, within time.Duration) []string {
 	t.Helper()
@@ -124,7 +136,7 @@ func TestLiveStreamScrambled(t *testing.T) {
 	f := newFixtureWithChanges(t)
 	clk := clocktest.NewFake(time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC))
 	server := scrambleRelay(t, f, clk)
-	events := f.subscribe(t, scrambledQuery)
+	events := subscribeScrambled(t, f)
 
 	// 復号できている局は、閉じずに流し続け、知らせも届かない。
 	const watch = 2 * time.Second
@@ -148,7 +160,7 @@ func TestLiveStreamScrambledSkipsEarlierVerdicts(t *testing.T) {
 	clk := clocktest.NewFake(time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC))
 	reporter := scramble.NewReporter(f.pool, clk, slog.New(slog.DiscardHandler))
 	require.NoError(t, reporter.Report(t.Context(), 3273701032))
-	events := f.subscribe(t, scrambledQuery)
+	events := subscribeScrambled(t, f)
 	// ほかのサービスで決めると版数が上がるが、前に決めたサービスの判定は送らない。
 	require.NoError(t, reporter.Report(t.Context(), 3273601024))
 	assert.Equal(t, []string{graph.GlobalID("Service", clearService)}, scrambledServices(t, events, 1500*time.Millisecond))
@@ -166,7 +178,7 @@ func TestLiveStreamScrambledWithSkewedClocks(t *testing.T) {
 	ahead := clocktest.NewFake(time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC))
 	behind := clocktest.NewFake(ahead.Now().Add(-time.Minute))
 	require.NoError(t, scramble.NewReporter(f.pool, ahead, slog.New(slog.DiscardHandler)).Report(t.Context(), 3273701032))
-	events := f.subscribe(t, scrambledQuery)
+	events := subscribeScrambled(t, f)
 
 	require.NoError(t, scramble.NewReporter(f.pool, behind, slog.New(slog.DiscardHandler)).Report(t.Context(), 3273701032))
 	assert.Equal(t, []string{graph.GlobalID("Service", scrambledService)}, scrambledServices(t, events, 1500*time.Millisecond))
