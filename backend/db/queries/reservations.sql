@@ -90,6 +90,9 @@ LIMIT @row_limit;
 SELECT * FROM reservations
 WHERE (service_id, event_id) IN (SELECT unnest(@service_ids::bigint[]), unnest(@event_ids::bigint[]));
 
+-- name: ListReservationsByIDs :many
+SELECT * FROM reservations WHERE id = ANY(@ids::uuid[]);
+
 -- name: CountUpcomingReservationsByRules :many
 -- ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
 SELECT rr.rule_id, count(*) AS reservations

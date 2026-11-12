@@ -36,6 +36,7 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Recording() RecordingResolver
 	Reservation() ReservationResolver
+	ReservationAssignment() ReservationAssignmentResolver
 	Rule() RuleResolver
 	Service() ServiceResolver
 	Subscription() SubscriptionResolver
@@ -1105,6 +1106,7 @@ type ComplexityRoot struct {
 	}
 
 	ReservationAssignment struct {
+		Peers          func(childComplexity int) int
 		PlannedEndAt   func(childComplexity int) int
 		PlannedStartAt func(childComplexity int) int
 		State          func(childComplexity int) int
@@ -1634,6 +1636,9 @@ type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
 
 	Rules(ctx context.Context, obj *model.Reservation) ([]*model.Rule, error)
+}
+type ReservationAssignmentResolver interface {
+	Peers(ctx context.Context, obj *model.ReservationAssignment) ([]*model.Reservation, error)
 }
 type RuleResolver interface {
 	UpcomingReservationCount(ctx context.Context, obj *model.Rule) (int, error)
@@ -6628,6 +6633,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Reservation.UpdatedBy(childComplexity), true
 
+	case "ReservationAssignment.peers":
+		if e.ComplexityRoot.ReservationAssignment.Peers == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReservationAssignment.Peers(childComplexity), true
 	case "ReservationAssignment.plannedEndAt":
 		if e.ComplexityRoot.ReservationAssignment.PlannedEndAt == nil {
 			break
@@ -10641,6 +10652,12 @@ type ReservationAssignment {
   "マージンを削った後の、録画する予定の時刻。割り当てていなければ null。"
   plannedStartAt: Time
   plannedEndAt: Time
+  """
+  チューナーを取り合っている相手の予約 (#1502、設計書 4.5)。競合か一部のみの予約にだけ入り、正常な予約では空にする。
+  相手は、この予約の種別を受けられるチューナーに割り当てられ、区間 (マージン込み) が重なり、物理チャンネルが違う予約で、
+  録画する予定の始まりの早い順に並べる。neko が割り当てを計算し直すまでに消えた予約は含めない。
+  """
+  peers: [Reservation!]!
 }
 
 """
@@ -13719,6 +13736,8 @@ func (ec *executionContext) childFields_ReservationAssignment(ctx context.Contex
 		return ec.fieldContext_ReservationAssignment_plannedStartAt(ctx, field)
 	case "plannedEndAt":
 		return ec.fieldContext_ReservationAssignment_plannedEndAt(ctx, field)
+	case "peers":
+		return ec.fieldContext_ReservationAssignment_peers(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type ReservationAssignment", field.Name)
 }
@@ -36660,6 +36679,38 @@ func (ec *executionContext) fieldContext_ReservationAssignment_plannedEndAt(_ co
 	return graphql.NewScalarFieldContext("ReservationAssignment", field, false, false, "Time")
 }
 
+func (ec *executionContext) _ReservationAssignment_peers(ctx context.Context, field graphql.CollectedField, obj *model.ReservationAssignment) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ReservationAssignment_peers(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.ReservationAssignment().Peers(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Reservation) graphql.Marshaler {
+			return ec.marshalNReservation2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ReservationAssignment_peers(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReservationAssignment",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Reservation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ReservationConnection_edges(ctx context.Context, field graphql.CollectedField, obj *model.ReservationConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -52606,23 +52657,29 @@ func (ec *executionContext) _ReservationAssignment(ctx context.Context, sel ast.
 		case "state":
 			out.Values[i] = ec._ReservationAssignment_state(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "tuner":
 			out.Values[i] = ec._ReservationAssignment_tuner(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "plannedStartAt":
 			out.Values[i] = ec._ReservationAssignment_plannedStartAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "plannedEndAt":
 			out.Values[i] = ec._ReservationAssignment_plannedEndAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "peers":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._ReservationAssignment_peers(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -57328,6 +57385,22 @@ func (ec *executionContext) marshalNRenameRecordingFilesPayload2ᚖgithubᚗcom�
 		return graphql.Null
 	}
 	return ec._RenameRecordingFilesPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNReservation2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Reservation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNReservation2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservation(ctx context.Context, sel ast.SelectionSet, v *model.Reservation) graphql.Marshaler {

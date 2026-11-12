@@ -257,6 +257,8 @@ export function createScheduler(options: {
           ? new Date(reservation.start - startMargin * 1000).toISOString()
           : null,
         plannedEndAt: planned ? new Date(reservation.end + endMargin * 1000).toISOString() : null,
+        // デモの割り当ては、チューナーを取り合っている相手 (#1502) までは求めない。
+        peers: [],
       },
       rules: matchingRules(reservation).map(ruleView),
       createdAt: new Date(reservation.createdAt).toISOString(),

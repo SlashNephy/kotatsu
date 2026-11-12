@@ -1,7 +1,7 @@
 -- name: ListAssignableReservations :many
 -- 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 SELECT r.id, r.kind, r.start_at, r.end_at, r.settings, r.assignment_state, r.assigned_tuner,
-  r.planned_start_at, r.planned_end_at, s.channel_type, s.channel
+  r.planned_start_at, r.planned_end_at, r.assignment_peers, s.channel_type, s.channel
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.enabled AND coalesce(r.planned_end_at, r.end_at) > @now::timestamptz
@@ -23,10 +23,12 @@ UPDATE reservations SET
   assignment_state = @assignment_state,
   assigned_tuner = @assigned_tuner,
   planned_start_at = @planned_start_at,
-  planned_end_at = @planned_end_at
+  planned_end_at = @planned_end_at,
+  assignment_peers = @assignment_peers::uuid[]
 WHERE id = @id;
 
 -- name: ClearDisabledAssignments :execrows
 -- 無効にした予約の割り当ての結果を消す。
-UPDATE reservations SET assignment_state = 'pending', assigned_tuner = NULL, planned_start_at = NULL, planned_end_at = NULL
+UPDATE reservations SET assignment_state = 'pending', assigned_tuner = NULL, planned_start_at = NULL, planned_end_at = NULL,
+  assignment_peers = '{}'
 WHERE NOT enabled AND assignment_state <> 'pending';

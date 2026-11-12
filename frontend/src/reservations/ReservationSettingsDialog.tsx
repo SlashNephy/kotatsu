@@ -176,6 +176,7 @@ function Form({ id, onClose, onReserved }: Props) {
           state
           plannedStartAt
           plannedEndAt
+          ...ReservationPeers_assignment
         }
         rules {
           id

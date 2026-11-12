@@ -918,6 +918,9 @@
       "CONFLICT": "Conflict"
     },
     "planned": "Recording {{start}} – {{end}}",
+    "peers": "Competing for a tuner with: {{peers}}",
+    "peer": "{{name}} ({{service}})",
+    "peerSeparator": ", ",
     "disabled": "Disabled",
     "enable": "Enable",
     "disable": "Disable",

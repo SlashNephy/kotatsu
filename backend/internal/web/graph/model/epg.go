@@ -174,3 +174,16 @@ type Reservation struct {
 }
 
 func (Reservation) IsNode() {}
+
+// ReservationAssignment は、予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
+// チューナーを取り合っている相手の予約は、リゾルバが dataloader で引く。
+type ReservationAssignment struct {
+	State AssignmentState `json:"state"`
+	// 割り当てたチューナーの番号。割り当てていなければ null。
+	Tuner *int `json:"tuner,omitempty"`
+	// マージンを削った後の、録画する予定の時刻。割り当てていなければ null。
+	PlannedStartAt *time.Time `json:"plannedStartAt,omitempty"`
+	PlannedEndAt   *time.Time `json:"plannedEndAt,omitempty"`
+	// PeerKeys は、チューナーを取り合っている相手の予約の ID。スキーマには出さない。
+	PeerKeys []uuid.UUID `json:"-"`
+}

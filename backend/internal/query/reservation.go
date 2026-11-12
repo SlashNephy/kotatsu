@@ -118,6 +118,27 @@ func (q *Queries) ListReservationsByPrograms(ctx context.Context, keys []domain.
 	return byProgram, nil
 }
 
+// ListReservationsByIDs は、ID の予約を返す。見つからない予約は結果に含めない。
+func (q *Queries) ListReservationsByIDs(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*domain.Reservation, error) {
+	if len(ids) == 0 {
+		return map[uuid.UUID]*domain.Reservation{}, nil
+	}
+	rows, err := sqlc.New(q.pool).ListReservationsByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list reservations by ids: %w", err)
+	}
+	reservations, err := reservationsFromRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[uuid.UUID]*domain.Reservation, len(reservations))
+	for _, reservation := range reservations {
+		byID[reservation.ID] = reservation
+	}
+
+	return byID, nil
+}
+
 // CountUpcomingReservationsByRules は、ルールごとに、一致した予約のうち、now に終わっていないものの件数を返す。無効な予約も数える。
 // 予約のないルールは、結果に含めない。
 func (q *Queries) CountUpcomingReservationsByRules(ctx context.Context, ruleIDs []uuid.UUID, now time.Time) (map[uuid.UUID]int, error) {
@@ -196,12 +217,21 @@ func ReservationFromRow(row sqlc.Reservation) (*domain.Reservation, error) {
 			Tuner:          row.AssignedTuner,
 			PlannedStartAt: utc(row.PlannedStartAt),
 			PlannedEndAt:   utc(row.PlannedEndAt),
+			Peers:          nonNilIDs(row.AssignmentPeers),
 		},
 		CreatedAt: row.CreatedAt.UTC(),
 		CreatedBy: row.CreatedBy,
 		UpdatedAt: row.UpdatedAt.UTC(),
 		UpdatedBy: row.UpdatedBy,
 	}, nil
+}
+
+func nonNilIDs(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+
+	return ids
 }
 
 func utc(t *time.Time) *time.Time {

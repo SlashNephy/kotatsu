@@ -1456,16 +1456,6 @@ type RenameRecordingFilesPayload struct {
 	Failed int `json:"failed"`
 }
 
-// 予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
-type ReservationAssignment struct {
-	State AssignmentState `json:"state"`
-	// 割り当てたチューナーの番号。割り当てていなければ null。
-	Tuner *int `json:"tuner,omitempty"`
-	// マージンを削った後の、録画する予定の時刻。割り当てていなければ null。
-	PlannedStartAt *time.Time `json:"plannedStartAt,omitempty"`
-	PlannedEndAt   *time.Time `json:"plannedEndAt,omitempty"`
-}
-
 type ReservationConnection struct {
 	Edges    []*ReservationEdge `json:"edges"`
 	PageInfo *PageInfo          `json:"pageInfo"`

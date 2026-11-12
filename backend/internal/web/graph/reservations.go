@@ -111,6 +111,7 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 			Tuner:          tuner,
 			PlannedStartAt: r.Assignment.PlannedStartAt,
 			PlannedEndAt:   r.Assignment.PlannedEndAt,
+			PeerKeys:       r.Assignment.Peers,
 		},
 		CreatedAt:  r.CreatedAt,
 		CreatedBy:  nil,

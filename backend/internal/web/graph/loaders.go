@@ -31,6 +31,8 @@ type Loaders struct {
 	RuleIDs *dataloader.Loader[uuid.UUID, []uuid.UUID]
 	// UpcomingReservationCounts は、ルールに一致した予約のうち、終わっていないものの件数。
 	UpcomingReservationCounts *dataloader.Loader[uuid.UUID, int]
+	// Reservations は、ID の予約。見つからない予約では nil にする。
+	Reservations *dataloader.Loader[uuid.UUID, *domain.Reservation]
 	// ProgramReservations は、番組の予約。予約のない番組では nil にする。
 	ProgramReservations *dataloader.Loader[domain.ProgramKey, *domain.Reservation]
 	// WatchReserved は、ユーザーが番組を視聴予約しているかどうか。
@@ -120,6 +122,18 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 			}
 
 			return counts, make([]error, len(ids))
+		}),
+		Reservations: newLoader(func(ctx context.Context, ids []uuid.UUID) ([]*domain.Reservation, []error) {
+			byID, err := q.ListReservationsByIDs(ctx, ids)
+			if err != nil {
+				return failAll[*domain.Reservation](len(ids), err)
+			}
+			found := make([]*domain.Reservation, 0, len(ids))
+			for _, id := range ids {
+				found = append(found, byID[id])
+			}
+
+			return found, make([]error, len(ids))
 		}),
 		ProgramReservations: newLoader(func(ctx context.Context, keys []domain.ProgramKey) ([]*domain.Reservation, []error) {
 			byKey, err := q.ListReservationsByPrograms(ctx, keys)

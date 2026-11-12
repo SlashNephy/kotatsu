@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c1aad5c5a37510514f0722d1fe6e8efe>>
+ * @generated SignedSource<<9cc7f4214fb148f4f566ed4c0791fde6>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+import { FragmentRefs } from "relay-runtime";
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
@@ -56,6 +57,7 @@ export type ProgramDetailQuery$data = {
         readonly plannedEndAt: string | null | undefined;
         readonly plannedStartAt: string | null | undefined;
         readonly state: AssignmentState;
+        readonly " $fragmentSpreads": FragmentRefs<"ReservationPeers_assignment">;
       };
       readonly enabled: boolean;
       readonly id: string;
@@ -394,71 +396,48 @@ v19 = {
 v20 = {
   "alias": null,
   "args": null,
-  "concreteType": "Reservation",
+  "kind": "ScalarField",
+  "name": "enabled",
+  "storageKey": null
+},
+v21 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "kind",
+  "storageKey": null
+},
+v22 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "state",
+  "storageKey": null
+},
+v23 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "plannedStartAt",
+  "storageKey": null
+},
+v24 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "plannedEndAt",
+  "storageKey": null
+},
+v25 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Rule",
   "kind": "LinkedField",
-  "name": "reservation",
-  "plural": false,
+  "name": "rules",
+  "plural": true,
   "selections": [
     (v4/*:: as any*/),
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "enabled",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "kind",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "concreteType": "ReservationAssignment",
-      "kind": "LinkedField",
-      "name": "assignment",
-      "plural": false,
-      "selections": [
-        {
-          "alias": null,
-          "args": null,
-          "kind": "ScalarField",
-          "name": "state",
-          "storageKey": null
-        },
-        {
-          "alias": null,
-          "args": null,
-          "kind": "ScalarField",
-          "name": "plannedStartAt",
-          "storageKey": null
-        },
-        {
-          "alias": null,
-          "args": null,
-          "kind": "ScalarField",
-          "name": "plannedEndAt",
-          "storageKey": null
-        }
-      ],
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "concreteType": "Rule",
-      "kind": "LinkedField",
-      "name": "rules",
-      "plural": true,
-      "selections": [
-        (v4/*:: as any*/),
-        (v5/*:: as any*/)
-      ],
-      "storageKey": null
-    }
+    (v5/*:: as any*/)
   ],
   "storageKey": null
 };
@@ -509,7 +488,40 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
-              (v20/*:: as any*/)
+              {
+                "alias": null,
+                "args": null,
+                "concreteType": "Reservation",
+                "kind": "LinkedField",
+                "name": "reservation",
+                "plural": false,
+                "selections": [
+                  (v4/*:: as any*/),
+                  (v20/*:: as any*/),
+                  (v21/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "ReservationAssignment",
+                    "kind": "LinkedField",
+                    "name": "assignment",
+                    "plural": false,
+                    "selections": [
+                      (v22/*:: as any*/),
+                      (v23/*:: as any*/),
+                      (v24/*:: as any*/),
+                      {
+                        "args": null,
+                        "kind": "FragmentSpread",
+                        "name": "ReservationPeers_assignment"
+                      }
+                    ],
+                    "storageKey": null
+                  },
+                  (v25/*:: as any*/)
+                ],
+                "storageKey": null
+              }
             ],
             "type": "Program",
             "abstractKey": null
@@ -568,7 +580,61 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
-              (v20/*:: as any*/)
+              {
+                "alias": null,
+                "args": null,
+                "concreteType": "Reservation",
+                "kind": "LinkedField",
+                "name": "reservation",
+                "plural": false,
+                "selections": [
+                  (v4/*:: as any*/),
+                  (v20/*:: as any*/),
+                  (v21/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "ReservationAssignment",
+                    "kind": "LinkedField",
+                    "name": "assignment",
+                    "plural": false,
+                    "selections": [
+                      (v22/*:: as any*/),
+                      (v23/*:: as any*/),
+                      (v24/*:: as any*/),
+                      {
+                        "alias": null,
+                        "args": null,
+                        "concreteType": "Reservation",
+                        "kind": "LinkedField",
+                        "name": "peers",
+                        "plural": true,
+                        "selections": [
+                          (v4/*:: as any*/),
+                          (v5/*:: as any*/),
+                          {
+                            "alias": null,
+                            "args": null,
+                            "concreteType": "Service",
+                            "kind": "LinkedField",
+                            "name": "service",
+                            "plural": false,
+                            "selections": [
+                              (v5/*:: as any*/),
+                              (v4/*:: as any*/)
+                            ],
+                            "storageKey": null
+                          }
+                        ],
+                        "storageKey": null
+                      }
+                    ],
+                    "storageKey": null
+                  },
+                  (v25/*:: as any*/)
+                ],
+                "storageKey": null
+              }
             ],
             "type": "Program",
             "abstractKey": null
@@ -579,16 +645,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "0286300df0b904a4f86c14015a937466",
+    "cacheID": "a74aaa6b114ed5eddc74d784d576173a",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4dde7fda63cbfc851a967391fee584e8";
+(node as any).hash = "9b8d5972a9ab7bee91de94fda4f6a3e8";
 
 export default node;

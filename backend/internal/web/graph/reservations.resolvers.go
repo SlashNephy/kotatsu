@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -134,7 +135,27 @@ func (r *reservationResolver) Rules(ctx context.Context, obj *model.Reservation)
 	return toRules(ctx, found...)
 }
 
+// Peers is the resolver for the peers field.
+func (r *reservationAssignmentResolver) Peers(ctx context.Context, obj *model.ReservationAssignment) ([]*model.Reservation, error) {
+	found, err := loadAll(ctx, loadersFrom(ctx).Reservations, obj.PeerKeys)
+	if err != nil {
+		return nil, err
+	}
+	// 割り当てを計算し直すまでに消えた予約は、見つからないので外す。
+	found = slices.DeleteFunc(found, func(r *domain.Reservation) bool { return r == nil })
+
+	return toReservations(ctx, found...)
+}
+
 // Reservation returns generated.ReservationResolver implementation.
 func (r *Resolver) Reservation() generated.ReservationResolver { return &reservationResolver{r} }
 
-type reservationResolver struct{ *Resolver }
+// ReservationAssignment returns generated.ReservationAssignmentResolver implementation.
+func (r *Resolver) ReservationAssignment() generated.ReservationAssignmentResolver {
+	return &reservationAssignmentResolver{r}
+}
+
+type (
+	reservationResolver           struct{ *Resolver }
+	reservationAssignmentResolver struct{ *Resolver }
+)
