@@ -927,6 +927,10 @@
     "peer": "{{name}} ({{service}})",
     "peerSeparator": ", ",
     "disabled": "Disabled",
+    "disabledReason": {
+      "recordedEpisode": "Not recording: the same episode has already been recorded",
+      "recordedEpisodeOn": "Not recording: the same episode has already been recorded on {{service}}"
+    },
     "enable": "Enable",
     "disable": "Disable",
     "actions": "Reservation actions",

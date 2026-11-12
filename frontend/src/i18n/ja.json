@@ -909,6 +909,10 @@
     "peer": "{{name}}（{{service}}）",
     "peerSeparator": "、",
     "disabled": "無効",
+    "disabledReason": {
+      "recordedEpisode": "同じ回を録画済みなので録画しない",
+      "recordedEpisodeOn": "同じ回を{{service}}で録画済みなので録画しない"
+    },
     "enable": "有効にする",
     "disable": "無効にする",
     "actions": "予約の操作",

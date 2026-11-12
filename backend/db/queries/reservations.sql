@@ -33,11 +33,15 @@ SELECT * FROM reservations WHERE id = @id;
 SELECT * FROM reservations WHERE service_id = @service_id AND event_id = @event_id;
 
 -- name: UpdateReservation :execrows
+-- 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確かめ直さない (#1500)。
 UPDATE reservations SET
   start_at = @start_at,
   end_at = @end_at,
   name = @name,
   enabled = @enabled,
+  episode_recheck_waived = episode_recheck_waived OR (@enabled::boolean AND disabled_reason IS NOT NULL),
+  disabled_reason = CASE WHEN @enabled::boolean THEN NULL ELSE disabled_reason END,
+  disabled_service_id = CASE WHEN @enabled::boolean THEN NULL ELSE disabled_service_id END,
   follow_event_relay = @follow_event_relay,
   settings = @settings,
   updated_at = @now,
@@ -62,13 +66,21 @@ RETURNING id;
 
 -- name: PromoteRuleReservation :execrows
 -- ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
--- 一致したルールとの関連は残す。
+-- Kotatsu が無効にした理由も消す (#1500)。一致したルールとの関連は残す。
 UPDATE reservations
-SET kind = 'program', enabled = true, follow_event_relay = @follow_event_relay, settings = @settings, updated_at = @now, updated_by = @updated_by
+SET kind = 'program', enabled = true, disabled_reason = NULL, disabled_service_id = NULL,
+  follow_event_relay = @follow_event_relay, settings = @settings, updated_at = @now, updated_by = @updated_by
 WHERE service_id = @service_id AND event_id = @event_id AND kind = 'rule';
 
 -- name: SetReservationEnabled :execrows
-UPDATE reservations SET enabled = @enabled, updated_at = @now, updated_by = @updated_by WHERE id = @id;
+-- 有効に戻すときは、UpdateReservation と同じく、Kotatsu が無効にした理由を消す (#1500)。
+UPDATE reservations SET
+  enabled = @enabled,
+  episode_recheck_waived = episode_recheck_waived OR (@enabled::boolean AND disabled_reason IS NOT NULL),
+  disabled_reason = CASE WHEN @enabled::boolean THEN NULL ELSE disabled_reason END,
+  disabled_service_id = CASE WHEN @enabled::boolean THEN NULL ELSE disabled_service_id END,
+  updated_at = @now, updated_by = @updated_by
+WHERE id = @id;
 
 -- name: ListReservations :many
 -- 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。

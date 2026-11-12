@@ -162,6 +162,7 @@ type Reservation struct {
 	Description      string                      `json:"description"`
 	Genres           []*Genre                    `json:"genres"`
 	Enabled          bool                        `json:"enabled"`
+	DisabledReason   *ReservationDisabledReason  `json:"disabledReason,omitempty"`
 	FollowEventRelay bool                        `json:"followEventRelay"`
 	Settings         *RecordingSettingsOverrides `json:"settings"`
 	Assignment       *ReservationAssignment      `json:"assignment"`
@@ -172,6 +173,8 @@ type Reservation struct {
 	// Key と ServiceKey は、予約の ID と Mirakurun のサービス ID。スキーマには出さない。
 	Key        uuid.UUID `json:"-"`
 	ServiceKey int64     `json:"-"`
+	// DisabledServiceKey は、先に同じ回を録った局の Mirakurun のサービス ID (#1500)。分からなければ nil。スキーマには出さない。
+	DisabledServiceKey *int64 `json:"-"`
 }
 
 func (Reservation) IsNode() {}

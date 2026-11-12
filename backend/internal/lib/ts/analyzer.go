@@ -247,6 +247,20 @@ func (a *Analyzer) PresentFollowing(serviceID uint16) *PresentFollowing {
 	return a.eit.presentFollowing(serviceID)
 }
 
+// EventInfo は、これまでに読んだ EIT[p/f] (自 TS) で、サービス serviceID の放送中か次の番組として最後に読んだ、
+// 番組 eventID の情報を返す (#1500)。まだ読んでいなければ nil を返す。書き込みと並行して呼べる。
+func (a *Analyzer) EventInfo(serviceID, eventID uint16) *EventInfo {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	descriptors, ok := a.eit.descriptors[[2]uint16{serviceID, eventID}]
+	if !ok {
+		return nil
+	}
+
+	return parseEventInfo(descriptors)
+}
+
 // pidStats は、PID ごとの統計を、PID の昇順に写して返す。
 func (a *Analyzer) pidStats() []*PIDStats {
 	pids := make([]*PIDStats, 0, len(a.pids))

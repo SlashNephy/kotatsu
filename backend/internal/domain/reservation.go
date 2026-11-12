@@ -39,10 +39,14 @@ type Reservation struct {
 	Name        string
 	Description string
 	// Extended と Genres は、番組の詳細とジャンルを、EPG の JSON のまま持つ。
-	Extended         json.RawMessage
-	Genres           json.RawMessage
-	Enabled          bool
-	FollowEventRelay bool
+	Extended json.RawMessage
+	Genres   json.RawMessage
+	Enabled  bool
+	// DisabledReason は、Kotatsu が予約を無効にした理由 (#1500)。人が無効にした予約と、有効な予約では空。
+	DisabledReason ReservationDisabledReason
+	// DisabledServiceID は、DisabledReason が ReservationDisabledRecordedEpisode のときの、先に同じ回を録った録画のサービス。分からなければ nil。
+	DisabledServiceID *int64
+	FollowEventRelay  bool
 	// Overrides は、この予約の録画設定の上書き。
 	Overrides *RecordingOverrides
 	// RelayedFrom は、イベントリレーで引き継いだ予約の、引き継ぎ元の予約。引き継いだ予約でなければ nil。
@@ -54,6 +58,12 @@ type Reservation struct {
 	UpdatedAt  time.Time
 	UpdatedBy  *uuid.UUID
 }
+
+// ReservationDisabledReason は、Kotatsu が予約を無効にした理由 (#1500)。人が無効にした予約 (#1504) と見分ける。
+type ReservationDisabledReason string
+
+// ReservationDisabledRecordedEpisode は、ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画をやめたこと。
+const ReservationDisabledRecordedEpisode ReservationDisabledReason = "recorded_episode"
 
 // AssignmentState は、予約のチューナーの割り当ての状態。値は assign.State と同じで、まだ計算していない状態が加わる。
 type AssignmentState string

@@ -674,29 +674,32 @@ type RecordingTag struct {
 }
 
 type Reservation struct {
-	ID               uuid.UUID
-	Kind             string
-	ServiceID        int64
-	EventID          *int64
-	StartAt          time.Time
-	EndAt            time.Time
-	Name             string
-	Description      string
-	Extended         []byte
-	Genres           []byte
-	Enabled          bool
-	FollowEventRelay bool
-	Settings         []byte
-	CreatedAt        time.Time
-	CreatedBy        *uuid.UUID
-	UpdatedAt        time.Time
-	UpdatedBy        *uuid.UUID
-	AssignmentState  string
-	AssignedTuner    *int64
-	PlannedStartAt   *time.Time
-	PlannedEndAt     *time.Time
-	AssignmentPeers  []uuid.UUID
-	RelayedFrom      *uuid.UUID
+	ID                   uuid.UUID
+	Kind                 string
+	ServiceID            int64
+	EventID              *int64
+	StartAt              time.Time
+	EndAt                time.Time
+	Name                 string
+	Description          string
+	Extended             []byte
+	Genres               []byte
+	Enabled              bool
+	FollowEventRelay     bool
+	Settings             []byte
+	CreatedAt            time.Time
+	CreatedBy            *uuid.UUID
+	UpdatedAt            time.Time
+	UpdatedBy            *uuid.UUID
+	AssignmentState      string
+	AssignedTuner        *int64
+	PlannedStartAt       *time.Time
+	PlannedEndAt         *time.Time
+	AssignmentPeers      []uuid.UUID
+	RelayedFrom          *uuid.UUID
+	DisabledReason       *string
+	DisabledServiceID    *int64
+	EpisodeRecheckWaived bool
 }
 
 type ReservationRule struct {

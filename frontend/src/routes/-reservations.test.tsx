@@ -26,6 +26,21 @@ function firstRow(): HTMLElement {
 }
 
 describe('予約の一覧', () => {
+  test('Kotatsu が同じ回を録画済みと分かって無効にした予約は、理由と先に録った局を出し、有効に戻すと理由を消す (#1500)', async () => {
+    await renderRoute(Route, '/reservations', '/reservations', createDemoEnvironment());
+    // デモでは、地上波の「こたつ探偵」の予約を、BS の局で先に録った同じ回と分かったものとして置いている。
+    const reason = await screen.findByText(/^同じ回を.+で録画済みなので録画しない$/);
+    const row = rowOf(reason);
+    expect(row.dataset.disabled).toBe('true');
+    expect(within(row).getByText('無効')).toBeDefined();
+
+    fireEvent.click(within(row).getByRole('button', { name: '予約の操作' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '有効にする' }));
+
+    await waitFor(() => expect(row.dataset.disabled).toBeUndefined());
+    expect(screen.queryByText(/^同じ回を.+で録画済みなので録画しない$/)).toBeNull();
+  });
+
   test('行を個別に無効にした後に、まとめて有効にすると、その行も有効の表示になる (#1425)', async () => {
     await renderRoute(Route, '/reservations', '/reservations', createDemoEnvironment());
     const actions = await screen.findAllByRole('button', { name: '予約の操作' });

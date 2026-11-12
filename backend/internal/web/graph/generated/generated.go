@@ -1113,6 +1113,8 @@ type ComplexityRoot struct {
 		CreatedAt        func(childComplexity int) int
 		CreatedBy        func(childComplexity int) int
 		Description      func(childComplexity int) int
+		DisabledReason   func(childComplexity int) int
+		DisabledService  func(childComplexity int) int
 		Enabled          func(childComplexity int) int
 		EndAt            func(childComplexity int) int
 		EventID          func(childComplexity int) int
@@ -1671,6 +1673,8 @@ type RecordingResolver interface {
 }
 type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
+
+	DisabledService(ctx context.Context, obj *model.Reservation) (*model.Service, error)
 
 	Rules(ctx context.Context, obj *model.Reservation) ([]*model.Rule, error)
 }
@@ -6678,6 +6682,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Reservation.Description(childComplexity), true
+	case "Reservation.disabledReason":
+		if e.ComplexityRoot.Reservation.DisabledReason == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.DisabledReason(childComplexity), true
+	case "Reservation.disabledService":
+		if e.ComplexityRoot.Reservation.DisabledService == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Reservation.DisabledService(childComplexity), true
 	case "Reservation.enabled":
 		if e.ComplexityRoot.Reservation.Enabled == nil {
 			break
@@ -10875,6 +10891,14 @@ enum ReservationKind {
 }
 
 """
+Kotatsu が予約を無効にした理由 (#1500)。
+"""
+enum ReservationDisabledReason {
+  "ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画しない。"
+  RECORDED_EPISODE
+}
+
+"""
 予約のチューナーの割り当ての状態 (設計書 4.5)。
 """
 enum AssignmentState {
@@ -10921,6 +10945,10 @@ type Reservation implements Node {
   description: String!
   genres: [Genre!]!
   enabled: Boolean!
+  "Kotatsu が予約を無効にした理由 (#1500)。人が無効にした予約と、有効な予約では null。"
+  disabledReason: ReservationDisabledReason
+  "disabledReason が RECORDED_EPISODE のときの、先に同じ回を録った局。分からないか、サービスが消えていれば null。"
+  disabledService: Service
   "イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。"
   followEventRelay: Boolean!
   "この予約自体の録画設定の上書き。ルール予約では、一致したルールのうち最も古いものの上書きに、さらにこれを重ねる。"
@@ -14056,6 +14084,10 @@ func (ec *executionContext) childFields_Reservation(ctx context.Context, field g
 		return ec.fieldContext_Reservation_genres(ctx, field)
 	case "enabled":
 		return ec.fieldContext_Reservation_enabled(ctx, field)
+	case "disabledReason":
+		return ec.fieldContext_Reservation_disabledReason(ctx, field)
+	case "disabledService":
+		return ec.fieldContext_Reservation_disabledService(ctx, field)
 	case "followEventRelay":
 		return ec.fieldContext_Reservation_followEventRelay(ctx, field)
 	case "settings":
@@ -37104,6 +37136,61 @@ func (ec *executionContext) fieldContext_Reservation_enabled(_ context.Context, 
 	return graphql.NewScalarFieldContext("Reservation", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _Reservation_disabledReason(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_disabledReason(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DisabledReason, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationDisabledReason) graphql.Marshaler {
+			return ec.marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationDisabledReason(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_disabledReason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Reservation", field, false, false, "ReservationDisabledReason")
+}
+
+func (ec *executionContext) _Reservation_disabledService(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Reservation_disabledService(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Reservation().DisabledService(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Service) graphql.Marshaler {
+			return ec.marshalOService2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐService(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Reservation_disabledService(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Reservation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Service(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Reservation_followEventRelay(ctx context.Context, field graphql.CollectedField, obj *model.Reservation) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -53758,6 +53845,17 @@ func (ec *executionContext) _Reservation(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "disabledReason":
+			out.Values[i] = ec._Reservation_disabledReason(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "disabledService":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Reservation_disabledService(ctx, field, obj)
+				})
 		case "followEventRelay":
 			out.Values[i] = ec._Reservation_followEventRelay(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -60181,6 +60279,22 @@ func (ec *executionContext) marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋk
 		return graphql.Null
 	}
 	return ec._Reservation(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationDisabledReason(ctx context.Context, v any) (*model.ReservationDisabledReason, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.ReservationDisabledReason)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationDisabledReason(ctx context.Context, sel ast.SelectionSet, v *model.ReservationDisabledReason) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (*model.Role, error) {

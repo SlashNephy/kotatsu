@@ -60,7 +60,7 @@ type ListCancelledBroadcastsRow struct {
 
 // 人が取り消した (無効にした) 番組の予約のうち、まだ終わっていない、番組名のあるものの放送 (#1504、設計書 4.3)。
 // 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
-// 予約を無効にするのは、今は人の操作だけなので、無効の予約はすべて人が取り消したものとみなす。
+// 録り始めに同じ回と分かって Kotatsu が無効にした予約 (#1500) も、同じ放送をもう一度予約しないよう、人が取り消したものと同じに扱う。
 func (q *Queries) ListCancelledBroadcasts(ctx context.Context, now time.Time) ([]ListCancelledBroadcastsRow, error) {
 	rows, err := q.db.Query(ctx, listCancelledBroadcasts, now)
 	if err != nil {

@@ -46,6 +46,10 @@ type Reservation = {
   end: number;
   name: string;
   enabled: boolean;
+  // disabledReason と disabledService は、Kotatsu が予約を無効にした理由と、先に同じ回を録った局 (#1500)。
+  // 人が無効にした予約と、有効な予約では null。有効に戻すと消す。
+  disabledReason: 'RECORDED_EPISODE' | null;
+  disabledService: DemoService | null;
   followEventRelay: boolean;
   settings: SettingsInput;
   createdAt: number;
@@ -128,6 +132,8 @@ export function createScheduler(options: {
             end: item.end,
             name: item.name,
             enabled: true,
+            disabledReason: null,
+            disabledService: null,
             followEventRelay: rule.input.followEventRelay !== false,
             settings: {},
             createdAt: now,
@@ -252,6 +258,8 @@ export function createScheduler(options: {
       description: reservation.program?.description ?? '',
       genres: reservation.program?.genres ?? [],
       enabled: reservation.enabled,
+      disabledReason: reservation.disabledReason,
+      disabledService: reservation.disabledService,
       followEventRelay: reservation.followEventRelay,
       settings: settingsView(reservation.settings),
       assignment: {
@@ -270,6 +278,15 @@ export function createScheduler(options: {
       updatedAt: new Date(reservation.updatedAt).toISOString(),
       updatedBy: user,
     };
+  };
+
+  // setEnabled は、予約を有効にするか無効にする。有効に戻すときは、本物のサーバーと同じく、Kotatsu が無効にした理由を消す (#1500)。
+  const setEnabled = (reservation: Reservation, enabled: boolean) => {
+    reservation.enabled = enabled;
+    if (enabled) {
+      reservation.disabledReason = null;
+      reservation.disabledService = null;
+    }
   };
 
   const createRule = (input: RuleInput) => {
@@ -295,7 +312,7 @@ export function createScheduler(options: {
     // 無効にしてあっても有効に戻す (#1432)。番組予約は、そのまま返す。
     if (existing?.kind === 'RULE') {
       existing.kind = 'PROGRAM';
-      existing.enabled = true;
+      setEnabled(existing, true);
       existing.followEventRelay = followEventRelay;
       existing.settings = settings;
       existing.updatedAt = now;
@@ -313,6 +330,8 @@ export function createScheduler(options: {
       end: item.end,
       name: item.name,
       enabled: true,
+      disabledReason: null,
+      disabledService: null,
       followEventRelay,
       settings,
       createdAt: now,
@@ -338,6 +357,17 @@ export function createScheduler(options: {
       channelTypes: ['GR'],
     },
   });
+  // 地上波の「こたつ探偵」の 2 つ目の予約は、BS で先に録った同じ回と分かって、録り始めにやめたものとして見せる (#1500)。
+  // 一覧の先頭の行は、ほかの画面の確かめで無効にして使うので、避ける。
+  const recordedOn = services.find((service) => service.serviceId === 181) ?? null;
+  const stopped = [...reservations.values()]
+    .filter((item) => item.name.includes('こたつ探偵') && item.service.channelType.type === 'GR')
+    .toSorted((a, b) => a.start - b.start)[1];
+  if (stopped !== undefined) {
+    stopped.enabled = false;
+    stopped.disabledReason = 'RECORDED_EPISODE';
+    stopped.disabledService = recordedOn;
+  }
   const firstMovie = programs.find((item) => item.start > now && item.name.startsWith('映画'));
   if (firstMovie !== undefined) {
     createProgramReservation(firstMovie.id, true, {});
@@ -464,6 +494,8 @@ export function createScheduler(options: {
         end: Date.parse(input.endAt),
         name: input.name ?? '',
         enabled: true,
+        disabledReason: null,
+        disabledService: null,
         followEventRelay: false,
         settings: input.settings ?? {},
         createdAt: now,
@@ -487,7 +519,7 @@ export function createScheduler(options: {
     ) => {
       const reservation = reservationOrThrow(id);
       if (input.enabled != null) {
-        reservation.enabled = input.enabled;
+        setEnabled(reservation, input.enabled);
       }
       if (input.followEventRelay != null) {
         reservation.followEventRelay = input.followEventRelay;
@@ -530,7 +562,7 @@ export function createScheduler(options: {
       for (const id of ids) {
         const reservation = reservations.get(id);
         if (reservation !== undefined) {
-          reservation.enabled = enabled;
+          setEnabled(reservation, enabled);
           reservation.updatedAt = now;
           processed += 1;
         }

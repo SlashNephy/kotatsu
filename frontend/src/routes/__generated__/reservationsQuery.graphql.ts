@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<925db7f48b0483843e41df1b6a357f93>>
+ * @generated SignedSource<<ced11ff8259c15bc03832f1aa0f390bb>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 import { FragmentRefs } from "relay-runtime";
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
+export type ReservationDisabledReason = "RECORDED_EPISODE" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type reservationsQuery$variables = {
@@ -33,6 +34,10 @@ export type reservationsQuery$data = {
           readonly tuner: number | null | undefined;
           readonly " $fragmentSpreads": FragmentRefs<"ReservationPeers_assignment">;
         };
+        readonly disabledReason: ReservationDisabledReason | null | undefined;
+        readonly disabledService: {
+          readonly name: string;
+        } | null | undefined;
         readonly enabled: boolean;
         readonly endAt: string;
         readonly id: string;
@@ -139,15 +144,16 @@ v11 = {
   "name": "name",
   "storageKey": null
 },
-v12 = {
+v12 = [
+  (v11/*:: as any*/)
+],
+v13 = {
   "kind": "InlineFragment",
-  "selections": [
-    (v11/*:: as any*/)
-  ],
+  "selections": (v12/*:: as any*/),
   "type": "Rule",
   "abstractKey": null
 },
-v13 = [
+v14 = [
   {
     "kind": "Variable",
     "name": "after",
@@ -179,49 +185,56 @@ v13 = [
     "variableName": "to"
   }
 ],
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "kind",
   "storageKey": null
 },
-v16 = {
+v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "startAt",
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "endAt",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "enabled",
   "storageKey": null
 },
-v19 = {
+v20 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "disabledReason",
+  "storageKey": null
+},
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v20 = {
+v22 = {
   "alias": null,
   "args": null,
   "concreteType": "ChannelType",
@@ -239,35 +252,35 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v22 = {
+v24 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "tuner",
   "storageKey": null
 },
-v23 = {
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "plannedStartAt",
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "plannedEndAt",
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -291,7 +304,11 @@ v25 = {
     }
   ],
   "storageKey": null
-};
+},
+v28 = [
+  (v11/*:: as any*/),
+  (v15/*:: as any*/)
+];
 return {
   "fragment": {
     "argumentDefinitions": [
@@ -334,7 +351,7 @@ return {
             "plural": false,
             "selections": [
               (v10/*:: as any*/),
-              (v12/*:: as any*/)
+              (v13/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -342,7 +359,7 @@ return {
       },
       {
         "alias": null,
-        "args": (v13/*:: as any*/),
+        "args": (v14/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -364,12 +381,23 @@ return {
                 "name": "node",
                 "plural": false,
                 "selections": [
-                  (v14/*:: as any*/),
                   (v15/*:: as any*/),
-                  (v11/*:: as any*/),
                   (v16/*:: as any*/),
+                  (v11/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
+                  (v19/*:: as any*/),
+                  (v20/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "Service",
+                    "kind": "LinkedField",
+                    "name": "disabledService",
+                    "plural": false,
+                    "selections": (v12/*:: as any*/),
+                    "storageKey": null
+                  },
                   {
                     "alias": null,
                     "args": null,
@@ -379,8 +407,8 @@ return {
                     "plural": false,
                     "selections": [
                       (v11/*:: as any*/),
-                      (v19/*:: as any*/),
-                      (v20/*:: as any*/)
+                      (v21/*:: as any*/),
+                      (v22/*:: as any*/)
                     ],
                     "storageKey": null
                   },
@@ -392,10 +420,10 @@ return {
                     "name": "assignment",
                     "plural": false,
                     "selections": [
-                      (v21/*:: as any*/),
-                      (v22/*:: as any*/),
                       (v23/*:: as any*/),
                       (v24/*:: as any*/),
+                      (v25/*:: as any*/),
+                      (v26/*:: as any*/),
                       {
                         "args": null,
                         "kind": "FragmentSpread",
@@ -410,7 +438,7 @@ return {
             ],
             "storageKey": null
           },
-          (v25/*:: as any*/)
+          (v27/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -442,7 +470,7 @@ return {
         "plural": false,
         "selections": [
           (v8/*:: as any*/),
-          (v14/*:: as any*/)
+          (v15/*:: as any*/)
         ],
         "storageKey": null
       },
@@ -460,8 +488,8 @@ return {
             "plural": false,
             "selections": [
               (v10/*:: as any*/),
-              (v12/*:: as any*/),
-              (v14/*:: as any*/)
+              (v13/*:: as any*/),
+              (v15/*:: as any*/)
             ],
             "storageKey": null
           }
@@ -469,7 +497,7 @@ return {
       },
       {
         "alias": null,
-        "args": (v13/*:: as any*/),
+        "args": (v14/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -491,12 +519,23 @@ return {
                 "name": "node",
                 "plural": false,
                 "selections": [
-                  (v14/*:: as any*/),
                   (v15/*:: as any*/),
-                  (v11/*:: as any*/),
                   (v16/*:: as any*/),
+                  (v11/*:: as any*/),
                   (v17/*:: as any*/),
                   (v18/*:: as any*/),
+                  (v19/*:: as any*/),
+                  (v20/*:: as any*/),
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "Service",
+                    "kind": "LinkedField",
+                    "name": "disabledService",
+                    "plural": false,
+                    "selections": (v28/*:: as any*/),
+                    "storageKey": null
+                  },
                   {
                     "alias": null,
                     "args": null,
@@ -506,9 +545,9 @@ return {
                     "plural": false,
                     "selections": [
                       (v11/*:: as any*/),
-                      (v19/*:: as any*/),
-                      (v20/*:: as any*/),
-                      (v14/*:: as any*/)
+                      (v21/*:: as any*/),
+                      (v22/*:: as any*/),
+                      (v15/*:: as any*/)
                     ],
                     "storageKey": null
                   },
@@ -520,10 +559,10 @@ return {
                     "name": "assignment",
                     "plural": false,
                     "selections": [
-                      (v21/*:: as any*/),
-                      (v22/*:: as any*/),
                       (v23/*:: as any*/),
                       (v24/*:: as any*/),
+                      (v25/*:: as any*/),
+                      (v26/*:: as any*/),
                       {
                         "alias": null,
                         "args": null,
@@ -532,7 +571,7 @@ return {
                         "name": "peers",
                         "plural": true,
                         "selections": [
-                          (v14/*:: as any*/),
+                          (v15/*:: as any*/),
                           (v11/*:: as any*/),
                           {
                             "alias": null,
@@ -541,10 +580,7 @@ return {
                             "kind": "LinkedField",
                             "name": "service",
                             "plural": false,
-                            "selections": [
-                              (v11/*:: as any*/),
-                              (v14/*:: as any*/)
-                            ],
+                            "selections": (v28/*:: as any*/),
                             "storageKey": null
                           }
                         ],
@@ -559,23 +595,23 @@ return {
             ],
             "storageKey": null
           },
-          (v25/*:: as any*/)
+          (v27/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "381259c8bf8c36bba434243e6e7bce69",
+    "cacheID": "1a85a0325efce3fd70eb11e47c9d5b07",
     "id": null,
     "metadata": {},
     "name": "reservationsQuery",
     "operationKind": "query",
-    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $rule: ID\n  $ruleId: ID!\n  $withRule: Boolean!\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, rule: $rule, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $rule: ID\n  $ruleId: ID!\n  $withRule: Boolean!\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, rule: $rule, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        disabledReason\n        disabledService {\n          name\n          id\n        }\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0f447abdbbd13ee39bc49141bcbaff9f";
+(node as any).hash = "598cdad5ac6671827c570b80b2c2d941";
 
 export default node;

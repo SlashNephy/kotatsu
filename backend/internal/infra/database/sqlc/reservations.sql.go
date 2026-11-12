@@ -142,7 +142,7 @@ func (q *Queries) GetProgramForReservation(ctx context.Context, arg GetProgramFo
 }
 
 const getReservation = `-- name: GetReservation :one
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations WHERE id = $1
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from, disabled_reason, disabled_service_id, episode_recheck_waived FROM reservations WHERE id = $1
 `
 
 func (q *Queries) GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error) {
@@ -172,12 +172,15 @@ func (q *Queries) GetReservation(ctx context.Context, id uuid.UUID) (Reservation
 		&i.PlannedEndAt,
 		&i.AssignmentPeers,
 		&i.RelayedFrom,
+		&i.DisabledReason,
+		&i.DisabledServiceID,
+		&i.EpisodeRecheckWaived,
 	)
 	return i, err
 }
 
 const getReservationByProgram = `-- name: GetReservationByProgram :one
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations WHERE service_id = $1 AND event_id = $2
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from, disabled_reason, disabled_service_id, episode_recheck_waived FROM reservations WHERE service_id = $1 AND event_id = $2
 `
 
 type GetReservationByProgramParams struct {
@@ -212,6 +215,9 @@ func (q *Queries) GetReservationByProgram(ctx context.Context, arg GetReservatio
 		&i.PlannedEndAt,
 		&i.AssignmentPeers,
 		&i.RelayedFrom,
+		&i.DisabledReason,
+		&i.DisabledServiceID,
+		&i.EpisodeRecheckWaived,
 	)
 	return i, err
 }
@@ -380,7 +386,7 @@ func (q *Queries) ListReservationRules(ctx context.Context, reservationIds []uui
 }
 
 const listReservations = `-- name: ListReservations :many
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from, disabled_reason, disabled_service_id, episode_recheck_waived FROM reservations
 WHERE end_at > $1 AND start_at < $2
   AND (cardinality($3::text[]) = 0 OR assignment_state = ANY($3::text[]))
   AND ($4::boolean IS NULL OR enabled = $4::boolean)
@@ -448,6 +454,9 @@ func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsPara
 			&i.PlannedEndAt,
 			&i.AssignmentPeers,
 			&i.RelayedFrom,
+			&i.DisabledReason,
+			&i.DisabledServiceID,
+			&i.EpisodeRecheckWaived,
 		); err != nil {
 			return nil, err
 		}
@@ -460,7 +469,7 @@ func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsPara
 }
 
 const listReservationsByIDs = `-- name: ListReservationsByIDs :many
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations WHERE id = ANY($1::uuid[])
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from, disabled_reason, disabled_service_id, episode_recheck_waived FROM reservations WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListReservationsByIDs(ctx context.Context, ids []uuid.UUID) ([]Reservation, error) {
@@ -496,6 +505,9 @@ func (q *Queries) ListReservationsByIDs(ctx context.Context, ids []uuid.UUID) ([
 			&i.PlannedEndAt,
 			&i.AssignmentPeers,
 			&i.RelayedFrom,
+			&i.DisabledReason,
+			&i.DisabledServiceID,
+			&i.EpisodeRecheckWaived,
 		); err != nil {
 			return nil, err
 		}
@@ -508,7 +520,7 @@ func (q *Queries) ListReservationsByIDs(ctx context.Context, ids []uuid.UUID) ([
 }
 
 const listReservationsByPrograms = `-- name: ListReservationsByPrograms :many
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from, disabled_reason, disabled_service_id, episode_recheck_waived FROM reservations
 WHERE (service_id, event_id) IN (SELECT unnest($1::bigint[]), unnest($2::bigint[]))
 `
 
@@ -551,6 +563,9 @@ func (q *Queries) ListReservationsByPrograms(ctx context.Context, arg ListReserv
 			&i.PlannedEndAt,
 			&i.AssignmentPeers,
 			&i.RelayedFrom,
+			&i.DisabledReason,
+			&i.DisabledServiceID,
+			&i.EpisodeRecheckWaived,
 		); err != nil {
 			return nil, err
 		}
@@ -564,7 +579,8 @@ func (q *Queries) ListReservationsByPrograms(ctx context.Context, arg ListReserv
 
 const promoteRuleReservation = `-- name: PromoteRuleReservation :execrows
 UPDATE reservations
-SET kind = 'program', enabled = true, follow_event_relay = $1, settings = $2, updated_at = $3, updated_by = $4
+SET kind = 'program', enabled = true, disabled_reason = NULL, disabled_service_id = NULL,
+  follow_event_relay = $1, settings = $2, updated_at = $3, updated_by = $4
 WHERE service_id = $5 AND event_id = $6 AND kind = 'rule'
 `
 
@@ -578,7 +594,7 @@ type PromoteRuleReservationParams struct {
 }
 
 // ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
-// 一致したルールとの関連は残す。
+// Kotatsu が無効にした理由も消す (#1500)。一致したルールとの関連は残す。
 func (q *Queries) PromoteRuleReservation(ctx context.Context, arg PromoteRuleReservationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, promoteRuleReservation,
 		arg.FollowEventRelay,
@@ -595,7 +611,13 @@ func (q *Queries) PromoteRuleReservation(ctx context.Context, arg PromoteRuleRes
 }
 
 const setReservationEnabled = `-- name: SetReservationEnabled :execrows
-UPDATE reservations SET enabled = $1, updated_at = $2, updated_by = $3 WHERE id = $4
+UPDATE reservations SET
+  enabled = $1,
+  episode_recheck_waived = episode_recheck_waived OR ($1::boolean AND disabled_reason IS NOT NULL),
+  disabled_reason = CASE WHEN $1::boolean THEN NULL ELSE disabled_reason END,
+  disabled_service_id = CASE WHEN $1::boolean THEN NULL ELSE disabled_service_id END,
+  updated_at = $2, updated_by = $3
+WHERE id = $4
 `
 
 type SetReservationEnabledParams struct {
@@ -605,6 +627,7 @@ type SetReservationEnabledParams struct {
 	ID        uuid.UUID
 }
 
+// 有効に戻すときは、UpdateReservation と同じく、Kotatsu が無効にした理由を消す (#1500)。
 func (q *Queries) SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setReservationEnabled,
 		arg.Enabled,
@@ -624,6 +647,9 @@ UPDATE reservations SET
   end_at = $2,
   name = $3,
   enabled = $4,
+  episode_recheck_waived = episode_recheck_waived OR ($4::boolean AND disabled_reason IS NOT NULL),
+  disabled_reason = CASE WHEN $4::boolean THEN NULL ELSE disabled_reason END,
+  disabled_service_id = CASE WHEN $4::boolean THEN NULL ELSE disabled_service_id END,
   follow_event_relay = $5,
   settings = $6,
   updated_at = $7,
@@ -643,6 +669,7 @@ type UpdateReservationParams struct {
 	ID               uuid.UUID
 }
 
+// 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確かめ直さない (#1500)。
 func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateReservation,
 		arg.StartAt,
