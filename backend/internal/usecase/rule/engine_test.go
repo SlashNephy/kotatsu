@@ -892,3 +892,58 @@ func TestEngineSkipsUnconditionedRules(t *testing.T) {
 	assert.Zero(t, result.Deleted, "the reservation made before is kept")
 	assert.Equal(t, map[int64]bool{5: true}, f.reserved(t))
 }
+
+const resentName = "送り直しテスト"
+
+// resentProgram は、testNow から 5 時間と offset 後に始まる、serviceID のサービスの、送り直しテストの番組。
+func resentProgram(serviceID, eventID int, offset time.Duration) *faketuner.Program {
+	return &faketuner.Program{
+		ID: faketuner.ProgramID(grNetworkID, serviceID, eventID), EventID: eventID, ServiceID: serviceID, NetworkID: grNetworkID,
+		StartAt: testNow().Add(5*time.Hour + offset).UnixMilli(), Duration: time.Hour.Milliseconds(), IsFree: true, Name: resentName, Description: "",
+		RelatedItems: []*faketuner.RelatedItem{},
+	}
+}
+
+// TestEngineDoesNotReserveCancelledBroadcasts は、人が取り消した予約と同じ放送が、別のイベント ID で送り直されても、
+// 予約し直さないことを確かめる (#1504)。同じ放送とは、物理チャンネルが同じで、番組名が一致し、開始の差が許容幅の内の番組である。
+func TestEngineDoesNotReserveCancelledBroadcasts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// resent は、取り消した後に番組表に入る番組。
+		resent       *faketuner.Program
+		wantReserved bool
+	}{
+		{name: "局が別のイベント ID で送り直した", resent: resentProgram(grServiceID, 301, 0), wantReserved: false},
+		// 枝番の局の同じ放送は、同期のときにイベント共有を補う (設計書 3.3) ので、この判定の前にまとめられる。
+		{name: "枝番の局で同じ放送が届いた", resent: resentProgram(subServiceID, 301, 0), wantReserved: false},
+		{name: "開始の差が許容幅ちょうど", resent: resentProgram(grServiceID, 301, rule.CancelledBroadcastTolerance), wantReserved: false},
+		{name: "開始の差が許容幅を超える", resent: resentProgram(grServiceID, 301, rule.CancelledBroadcastTolerance+time.Minute), wantReserved: true},
+		{name: "同じ日の再放送", resent: resentProgram(grServiceID, 301, 3*time.Hour), wantReserved: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t, resentProgram(grServiceID, 300, 0))
+			f.createRule(t, resentName, func(in *rule.Input) {
+				in.Conditions.ServiceIDs = []int64{serviceID(), faketuner.ServiceItemID(grNetworkID, subServiceID)}
+			})
+			f.run(t)
+			require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 300).ID))
+
+			f.fake.AddProgram(tt.resent)
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+			f.run(t)
+
+			var reserved bool
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT EXISTS (SELECT 1 FROM reservations WHERE service_id = $1 AND event_id = $2 AND enabled)",
+				faketuner.ServiceItemID(grNetworkID, tt.resent.ServiceID), tt.resent.EventID).Scan(&reserved))
+			assert.Equal(t, tt.wantReserved, reserved)
+			// 取り消した予約は、無効のまま残る。
+			assert.False(t, f.reservationOf(t, 300).Enabled)
+		})
+	}
+}

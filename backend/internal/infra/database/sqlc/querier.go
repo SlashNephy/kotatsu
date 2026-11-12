@@ -526,6 +526,10 @@ type Querier interface {
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
+	// 人が取り消した (無効にした) 番組の予約のうち、まだ終わっていない、番組名のあるものの放送 (#1504、設計書 4.3)。
+	// 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
+	// 予約を無効にするのは、今は人の操作だけなので、無効の予約はすべて人が取り消したものとみなす。
+	ListCancelledBroadcasts(ctx context.Context, now time.Time) ([]ListCancelledBroadcastsRow, error)
 	// ユーザーのキャプチャの ID。ユーザーを消すときに、画像の場所を知るのに使う (#1382)。
 	ListCaptureIDsOfUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
 	// すべてのキャプチャの持ち主と ID。データディレクトリの、DB にないファイルを探すときに、画像を使っているものとみなすのに使う。

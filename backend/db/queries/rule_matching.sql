@@ -4,11 +4,21 @@
 -- 照合には正規化した列を使う。詳細の正規化した列がない (列を足す前に書いた) 番組だけ、上流の詳細を返す (#530)。
 SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
   p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
-  p.genres, p.related_items, s.channel_type
+  p.genres, p.related_items, s.channel_type, s.channel
 FROM programs p
 JOIN services s ON s.id = p.service_id
 WHERE p.start_at > @now AND NOT p.end_undecided AND s.service_type = ANY(@media_service_types::bigint[])
 ORDER BY p.service_id, p.event_id;
+
+-- name: ListCancelledBroadcasts :many
+-- 人が取り消した (無効にした) 番組の予約のうち、まだ終わっていない、番組名のあるものの放送 (#1504、設計書 4.3)。
+-- 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
+-- 予約を無効にするのは、今は人の操作だけなので、無効の予約はすべて人が取り消したものとみなす。
+SELECT r.service_id, r.event_id, r.name, r.start_at, s.channel_type, s.channel
+FROM reservations r
+JOIN services s ON s.id = r.service_id
+WHERE NOT r.enabled AND r.event_id IS NOT NULL AND r.end_at > @now AND r.name <> ''
+ORDER BY r.service_id, r.event_id;
 
 -- name: ListLatestRecordingHistory :many
 -- 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
