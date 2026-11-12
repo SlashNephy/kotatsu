@@ -1,0 +1,8 @@
+# 公開したコンテナイメージの脆弱性を定期的に確かめるときだけ使うツール (設計書 11.1、.github/workflows/scan.yml)。
+# ほかの作業で入れずに済むよう、MISE_ENV=scan のときだけ読む。
+#
+#   MISE_ENV=scan mise exec -- trivy image ghcr.io/slashnephy/kotatsu:edge
+[tools]
+# 2026 年 3 月に、Trivy の action と配布物が乗っ取られたことがある (CVE-2026-33634)。
+# action は使わず、CLI をここで版とチェックサム (mise.scan.lock) まで固定する。
+trivy = "0.76.2"

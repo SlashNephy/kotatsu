@@ -1,0 +1,100 @@
+name: Scan
+
+# 公開したコンテナイメージと Go の依存の脆弱性を、毎日確かめる (設計書 11.1)。
+# 結果は SARIF で Code scanning に送る。直った脆弱性のアラートは、次のスキャンで閉じる。
+# 見つかっても失敗にはしない。新しく公開された脆弱性で、関係のない PR や Renovate の自動マージを止めないため。
+on:
+  schedule:
+    # 毎日 6:23 (JST)。
+    - cron: '23 21 * * *'
+  pull_request:
+    # スキャンの設定と Go の依存を変えた PR では、スキャンが動くことと、その時点の結果を確かめる。
+    paths:
+      - .github/workflows/scan.yml
+      - mise.scan.toml
+      - mise.scan.lock
+      - backend/go.mod
+      - backend/go.sum
+  workflow_dispatch:
+
+concurrency:
+  # pull_request では github.ref が refs/pull/N/merge になるため head_ref でまとめる
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  # 利用者が pull する、公開済みのイメージを Trivy で確かめる。ここでビルドし直したものではなく、ghcr.io にあるものを見る。
+  # 見るのは、main のイメージ (edge) と最新のリリースの、それぞれ 2 種類 (設計書 2.4)。
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      MISE_ENV: scan
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.6
+        with:
+          install_args: trivy
+      - name: Scan images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          release=$(gh release view --repo "$REPOSITORY" --json tagName -q .tagName)
+          release=${release#v}
+          mkdir -p sarif
+          printf '%s\n' "edge edge" "edge-ffmpeg edge-ffmpeg" "release $release" "release-ffmpeg ${release}-ffmpeg" > sarif/targets
+          # Code scanning の category は、版を含めず、イメージの種類ごとに固定する。
+          # 版を含めると、次のリリースで別の category になり、前の版のアラートが閉じずに残る。
+          while read -r category tag; do
+            # 修正版のない脆弱性は、対処のしようがないので除く。-ffmpeg のイメージでは、Debian のパッケージの 900 件近くがそうである。
+            # アーキテクチャで入るパッケージは変わらないので、amd64 だけを見る。
+            trivy image --quiet --platform linux/amd64 --scanners vuln --ignore-unfixed \
+              --format sarif --output "sarif/$category.sarif" "ghcr.io/slashnephy/kotatsu:$tag"
+            # 1 回のアップロードで複数の SARIF を送るので、category を SARIF の中に書く。
+            jq --arg id "trivy/$category/" '.runs[].automationDetails.id = $id' "sarif/$category.sarif" > sarif/tmp
+            mv sarif/tmp "sarif/$category.sarif"
+            echo "$category ($tag): $(jq '[.runs[].results[]?] | length' "sarif/$category.sarif") results"
+          done < sarif/targets
+          rm sarif/targets
+      # フォークからの PR では、トークンが読み取り専用で送れない。
+      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: sarif
+
+  # Go の依存と標準ライブラリの脆弱性を govulncheck で確かめる。呼び出しまで追うので、使っていない脆弱なコードは note に下がる。
+  govulncheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.6
+        with:
+          working_directory: backend
+          install_args: go
+      - name: Run govulncheck
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          go tool govulncheck -format sarif ./... > ../govulncheck.sarif
+          # govulncheck は、モジュール (backend/) からのパスを書く。Code scanning はリポジトリのルートからのパスとして読むので、backend/ を付ける。
+          jq '(.. | objects | select(.uriBaseId? == "%SRCROOT%") | .uri) |= "backend/" + .' ../govulncheck.sarif > ../govulncheck.tmp
+          mv ../govulncheck.tmp ../govulncheck.sarif
+          echo "$(jq '[.runs[].results[]?] | length' ../govulncheck.sarif) results"
+      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
