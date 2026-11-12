@@ -168,7 +168,7 @@ overrides:
   vitest: 5.1.0
 
 patchedDependencies:
-  '@adobe/css-tools@4.5.0': 4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb
+  '@adobe/css-tools@5.0.0': ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a
   '@zxcvbn-ts/core@4.2.0': 695e13034eebf753282a23270d347e3d9fe96dc753d254507d41b27ffcd03cd9
   web-bml@1.0.1: 0a0e017dce273418311de4fbba65cad52b478ec7315d19c3835e2ea01f70b7af
 
@@ -4492,9 +4492,9 @@ packages:
 
 snapshots:
 
-  '@adobe/css-tools@4.5.0(patch_hash=4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb)': {}
+  '@adobe/css-tools@4.5.0': {}
 
-  '@adobe/css-tools@5.0.0':
+  '@adobe/css-tools@5.0.0(patch_hash=ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a)':
     dependencies:
       postcss: 8.5.32
       postcss-safe-parser: 7.1.0(postcss@8.5.32)
@@ -6016,7 +6016,7 @@ snapshots:
 
   '@testing-library/jest-dom@6.9.1':
     dependencies:
-      '@adobe/css-tools': 4.5.0(patch_hash=4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb)
+      '@adobe/css-tools': 4.5.0
       aria-query: 5.3.2
       css.escape: 1.5.1
       dom-accessibility-api: 0.6.3
@@ -8304,7 +8304,7 @@ snapshots:
     dependencies:
       arib-mmt-tlv-ts: 2.0.2
       crc-32: 1.2.2
-      css: '@adobe/css-tools@5.0.0'
+      css: '@adobe/css-tools@5.0.0(patch_hash=ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a)'
       fast-xml-parser: 4.5.7
       fflate: 0.8.3
 
