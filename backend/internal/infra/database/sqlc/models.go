@@ -805,6 +805,7 @@ type SystemSetting struct {
 	DrcsReplacements                       []byte
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
+	RuleUnmatchedGraceMinutes              int32
 	UpdatedAt                              time.Time
 }
 

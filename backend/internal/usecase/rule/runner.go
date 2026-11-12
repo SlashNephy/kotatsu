@@ -2,8 +2,10 @@ package rule
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
+	"uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -36,6 +38,9 @@ type Runner struct {
 	pool   *pgxpool.Pool
 	logger *slog.Logger
 	opts   RunnerOptions
+	// unconditioned は、条件なしとして照合から外したと、ログに出したルール (#1501)。
+	// 条件なしのルールは、人が直すまで外れ続けるので、照合のたびに警告を出さず、外れ始めたときに 1 回だけ出す。
+	unconditioned map[uuid.UUID]bool
 }
 
 // NewRunner は Runner を作る。opts は nil でもよい。
@@ -54,7 +59,7 @@ func NewRunner(engine *Engine, pool *pgxpool.Pool, logger *slog.Logger, opts *Ru
 		}
 	}
 
-	return &Runner{engine: engine, pool: pool, logger: logger, opts: o}
+	return &Runner{engine: engine, pool: pool, logger: logger, opts: o, unconditioned: map[uuid.UUID]bool{}}
 }
 
 // Run は、ctx が終わるまで、起動したとき、EPG、ルール、視聴ルールのどれかが変わったとき、Interval ごとに照合する。
@@ -77,10 +82,21 @@ func (r *Runner) runOnce(ctx context.Context) {
 
 		return
 	}
+	unconditioned := map[uuid.UUID]bool{}
 	for ruleID, err := range result.Skipped {
+		if errors.Is(err, ErrUnconditioned) {
+			unconditioned[ruleID] = true
+			if !r.unconditioned[ruleID] {
+				r.logger.WarnContext(ctx, "skipped a rule without a keyword, channel type, service, genre, or mark; its reservations are kept",
+					slog.String("rule_id", ruleID.String()))
+			}
+
+			continue
+		}
 		r.logger.WarnContext(ctx, "skipped a rule whose conditions could not be read; its reservations are kept",
 			slog.String("rule_id", ruleID.String()), slog.Any("error", err))
 	}
+	r.unconditioned = unconditioned
 	for ruleID, err := range result.WatchSkipped {
 		r.logger.WarnContext(ctx, "skipped a watch rule whose conditions could not be read; the watch reservations of its owner are kept",
 			slog.String("watch_rule_id", ruleID.String()), slog.Any("error", err))

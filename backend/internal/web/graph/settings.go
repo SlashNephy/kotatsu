@@ -64,7 +64,8 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		CommentSources:         commentSourcesOf(system.CommentSources),
 		DrcsReplacements:       drcsReplacementsOf(system.DRCSReplacements),
 		TimeshiftWhileWatching: system.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: system.TimeshiftWhileWatchingRetentionSeconds,
-		UpdatedAt: system.UpdatedAt,
+		RuleUnmatchedGraceMinutes: system.RuleUnmatchedGraceMinutes,
+		UpdatedAt:                 system.UpdatedAt,
 	}
 }
 

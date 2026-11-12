@@ -6,6 +6,7 @@ import {
   emptyConditions,
   fromConditions,
   hasConditions,
+  hasRuleTargets,
   toConditionsInput,
 } from './form';
 
@@ -63,6 +64,66 @@ describe('hasConditions', () => {
     },
   ])('$name', ({ form, want }) => {
     expect(hasConditions(form)).toBe(want);
+  });
+});
+
+describe('hasRuleTargets (#1501)', () => {
+  test.each([
+    { name: '何もない', form: emptyConditions(), want: false },
+    {
+      name: 'キーワード',
+      form: {
+        ...emptyConditions(),
+        keywords: [
+          { text: 'ニュース', regexp: false, caseSensitive: false, fields: ['NAME' as const] },
+        ],
+      },
+      want: true,
+    },
+    { name: 'チャンネル種別', form: { ...emptyConditions(), channelTypes: ['BS'] }, want: true },
+    { name: 'サービス', form: { ...emptyConditions(), services: ['U2VydmljZTox'] }, want: true },
+    {
+      name: 'ジャンル',
+      form: { ...emptyConditions(), genres: [{ lv1: 7, lv2: null }] },
+      want: true,
+    },
+    { name: '含める囲み文字', form: { ...emptyConditions(), marks: ['新'] }, want: true },
+    {
+      name: '平日 19 時台の時間帯だけ',
+      form: {
+        ...emptyConditions(),
+        timeRanges: [{ weekdays: [1, 2, 3, 4, 5], startMinute: 19 * 60, durationMinutes: 60 }],
+      },
+      want: false,
+    },
+    {
+      name: '最短の長さだけ',
+      form: { ...emptyConditions(), minDurationSeconds: 1800 },
+      want: false,
+    },
+    { name: '無料放送だけ', form: { ...emptyConditions(), freeOnly: true }, want: false },
+    {
+      name: '除外する囲み文字だけ',
+      form: { ...emptyConditions(), excludeMarks: ['再'] },
+      want: false,
+    },
+    {
+      name: '除外するサービスだけ',
+      form: { ...emptyConditions(), excludeServices: ['U2VydmljZTox'] },
+      want: false,
+    },
+    {
+      name: '除外するキーワードだけ',
+      form: {
+        ...emptyConditions(),
+        excludeKeywords: [
+          { text: '再放送', regexp: false, caseSensitive: false, fields: ['NAME' as const] },
+        ],
+      },
+      want: false,
+    },
+  ])('$name', ({ form, want }) => {
+    expect(hasRuleTargets(form)).toBe(want);
   });
 });
 

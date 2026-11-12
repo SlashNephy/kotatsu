@@ -85,6 +85,11 @@ type SystemSettings {
   timeshiftWhileWatching: Boolean!
   "視聴している間だけ録るサービスの保持時間 (秒)。600〜86400。既定は 3600。"
   timeshiftWhileWatchingRetentionSeconds: Int!
+  """
+  どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
+  番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
+  """
+  ruleUnmatchedGraceMinutes: Int!
   "最後に変えた日時。一度も変えていなければ null。"
   updatedAt: Time
 }
@@ -118,6 +123,8 @@ input SystemSettingsInput {
   timeshiftWhileWatching: Boolean
   "600〜86400 秒。"
   timeshiftWhileWatchingRetentionSeconds: Int
+  "0〜1440 分。"
+  ruleUnmatchedGraceMinutes: Int
 }
 
 """

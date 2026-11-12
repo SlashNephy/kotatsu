@@ -20,6 +20,8 @@ type Props = {
   input: RulePreviewQuery$variables['input'];
   // enabled は、プレビューを取るかどうか。条件がなければ、すべての番組に一致してしまうので取らない。
   enabled: boolean;
+  // disabledHint は、プレビューを取らないときに示す理由。省けば、条件を入れるよう促す。
+  disabledHint?: string;
   // onPrograms は、プレビューに出した番組を受け取る。ファイル名のテンプレートを当てはめる番組の候補に使う。
   onPrograms?: (programs: { id: string; name: string }[]) => void;
 };
@@ -72,7 +74,7 @@ type Warning = RulePreviewQuery$data['ruleWarnings'][number];
 type Warnings = { items: readonly Warning[]; input: Props['input'] };
 
 // RulePreview は、編集中のルールに一致するこれからの番組を、その場で示す (設計書 4.3)。
-export function RulePreview({ input, enabled, onPrograms }: Props) {
+export function RulePreview({ input, enabled, disabledHint, onPrograms }: Props) {
   const { t } = useTranslation();
   const environment = useRelayEnvironment();
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -153,7 +155,7 @@ export function RulePreview({ input, enabled, onPrograms }: Props) {
         </Group>
         {!enabled && (
           <Text size="sm" c="dimmed">
-            {t('rules.preview.noConditions')}
+            {disabledHint ?? t('rules.preview.noConditions')}
           </Text>
         )}
         {error && (

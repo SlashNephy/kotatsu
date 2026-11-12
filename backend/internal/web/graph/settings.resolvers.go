@@ -40,6 +40,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		CommentSources:         optionalCommentSources(input.CommentSources),
 		DRCSReplacements:       replacements,
 		TimeshiftWhileWatching: input.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: input.TimeshiftWhileWatchingRetentionSeconds,
+		RuleUnmatchedGraceMinutes: input.RuleUnmatchedGraceMinutes,
 	})
 	if err != nil {
 		return nil, settingsError(err)

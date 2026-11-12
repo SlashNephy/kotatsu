@@ -81,8 +81,9 @@ Recorded histories         1
 Tags                       1
 
 Skipped
-  Manual reserves already started  1
-  Recordings in progress           1
+  Rules without a keyword, channel, genre, or mark  0
+  Manual reserves already started                   1
+  Recordings in progress                            1
 
 Recorded directories without a storage pool (map them with --pool NAME=POOL_ID)
   NAME     FILES  RULES  RESERVES
@@ -107,8 +108,9 @@ Recorded histories         1
 Tags                       1
 
 Skipped
-  Manual reserves already started  1
-  Recordings in progress           1
+  Rules without a keyword, channel, genre, or mark  0
+  Manual reserves already started                   1
+  Recordings in progress                            1
 `,
 			wantErr: "",
 		},

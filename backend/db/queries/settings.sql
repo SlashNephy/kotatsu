@@ -14,7 +14,8 @@ UPDATE system_settings SET recording_defaults = @recording_defaults, archive_ret
   network_activity_enabled_at = @network_activity_enabled_at, network_activity_retention_days = @network_activity_retention_days, rule_defaults = @rule_defaults, mcp_enabled = @mcp_enabled,
   data_broadcast_ip_enabled = @data_broadcast_ip_enabled, anime_linking_enabled = @anime_linking_enabled, comment_sources = @comment_sources,
   drcs_replacements = @drcs_replacements, timeshift_while_watching = @timeshift_while_watching,
-  timeshift_while_watching_retention_seconds = @timeshift_while_watching_retention_seconds, updated_at = @now
+  timeshift_while_watching_retention_seconds = @timeshift_while_watching_retention_seconds,
+  rule_unmatched_grace_minutes = @rule_unmatched_grace_minutes, updated_at = @now
 WHERE id = 1
 RETURNING *;
 

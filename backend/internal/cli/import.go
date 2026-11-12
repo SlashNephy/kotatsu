@@ -224,6 +224,7 @@ func printImportPlan(w io.Writer, plan *epgstation.Plan) error {
 		fmt.Sprintf("Tags\t%d", plan.Tags),
 		"",
 		"Skipped",
+		fmt.Sprintf("  Rules without a keyword, channel, genre, or mark\t%d", plan.UnconditionedRules),
 		fmt.Sprintf("  Manual reserves already started\t%d", plan.StartedReserves),
 		fmt.Sprintf("  Recordings in progress\t%d", plan.RecordingsInProgress),
 	}

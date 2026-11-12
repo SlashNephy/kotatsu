@@ -264,44 +264,7 @@ func (a *applier) rule(ctx context.Context, tx pgx.Tx, r *Rule) (uuid.UUID, erro
 // ruleInput は、EPGStation のルールを Kotatsu のルールの内容に変換する。
 // Kotatsu で表せない項目は、捨てたことをメモに残す。
 func (a *applier) ruleInput(r *Rule) *rule.Input {
-	notes := []string{}
-	conditions := &match.Conditions{
-		Keywords:           keywords(&r.Keyword),
-		KeywordMatch:       match.KeywordMatchAll,
-		ExcludeKeywords:    keywords(&r.IgnoreKeyword),
-		ChannelTypes:       []string{},
-		ServiceIDs:         []int64{},
-		ExcludeServiceIDs:  []int64{},
-		Genres:             []*match.Genre{},
-		ExcludeGenres:      []*match.Genre{},
-		TimeRanges:         []*match.TimeRange{},
-		MinDurationSeconds: r.DurationMin,
-		MaxDurationSeconds: r.DurationMax,
-		FreeOnly:           r.FreeOnly,
-		Marks:              []string{},
-		ExcludeMarks:       []string{},
-	}
-	// EPGStation は、チャンネルを指定すると、放送波の種類を見ない。
-	if len(r.ChannelIDs) > 0 {
-		conditions.ServiceIDs = append(conditions.ServiceIDs, r.ChannelIDs...)
-	} else {
-		conditions.ChannelTypes = append(conditions.ChannelTypes, r.ChannelTypes...)
-	}
-	for _, genre := range r.Genres {
-		conditions.Genres = append(conditions.Genres, &match.Genre{Lv1: genre.Genre, Lv2: genre.SubGenre})
-	}
-	for _, t := range r.Times {
-		timeRange, ok := timeRangeOf(t, r.IsTimeSpecification)
-		if !ok {
-			notes = append(notes, "曜日のない時刻の条件")
-
-			continue
-		}
-		conditions.TimeRanges = append(conditions.TimeRanges, timeRange)
-	}
-	if r.IsTimeSpecification {
-		notes = append(notes, "時刻指定 (番組の時刻の条件として取り込んだ)")
-	}
+	conditions, notes := ruleConditions(r)
 
 	var validFrom, validUntil *time.Time
 	for _, period := range r.SearchPeriods {
@@ -341,6 +304,50 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		DuplicateWindowDays: window,
 		FollowEventRelay:    false,
 	}
+}
+
+// ruleConditions は、EPGStation のルールの条件を、Kotatsu のルールの条件に変換する。表せない項目は、捨てたことを notes に返す。
+func ruleConditions(r *Rule) (*match.Conditions, []string) {
+	notes := []string{}
+	conditions := &match.Conditions{
+		Keywords:           keywords(&r.Keyword),
+		KeywordMatch:       match.KeywordMatchAll,
+		ExcludeKeywords:    keywords(&r.IgnoreKeyword),
+		ChannelTypes:       []string{},
+		ServiceIDs:         []int64{},
+		ExcludeServiceIDs:  []int64{},
+		Genres:             []*match.Genre{},
+		ExcludeGenres:      []*match.Genre{},
+		TimeRanges:         []*match.TimeRange{},
+		MinDurationSeconds: r.DurationMin,
+		MaxDurationSeconds: r.DurationMax,
+		FreeOnly:           r.FreeOnly,
+		Marks:              []string{},
+		ExcludeMarks:       []string{},
+	}
+	// EPGStation は、チャンネルを指定すると、放送波の種類を見ない。
+	if len(r.ChannelIDs) > 0 {
+		conditions.ServiceIDs = append(conditions.ServiceIDs, r.ChannelIDs...)
+	} else {
+		conditions.ChannelTypes = append(conditions.ChannelTypes, r.ChannelTypes...)
+	}
+	for _, genre := range r.Genres {
+		conditions.Genres = append(conditions.Genres, &match.Genre{Lv1: genre.Genre, Lv2: genre.SubGenre})
+	}
+	for _, t := range r.Times {
+		timeRange, ok := timeRangeOf(t, r.IsTimeSpecification)
+		if !ok {
+			notes = append(notes, "曜日のない時刻の条件")
+
+			continue
+		}
+		conditions.TimeRanges = append(conditions.TimeRanges, timeRange)
+	}
+	if r.IsTimeSpecification {
+		notes = append(notes, "時刻指定 (番組の時刻の条件として取り込んだ)")
+	}
+
+	return conditions, notes
 }
 
 // keywords は、EPGStation のキーワードを Kotatsu のキーワードに変換する。

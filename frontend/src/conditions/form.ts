@@ -187,6 +187,21 @@ export function toConditionsInput(form: ConditionsForm) {
   };
 }
 
+// hasRuleTargets は、録画のルールとして番組を選ぶ条件 (含めるキーワード、チャンネル種別、サービス、ジャンル、含める囲み文字) があるかどうかを返す (#1501)。
+// 時間帯と曜日、長さ、無料放送、除外の条件は絞り込みとしてだけ効き、それだけのルールは、その時間の全局を録ってディスクを埋めるので、
+// 「条件なし」として保存させない。tenban も同じ条件で拒み、照合でも当てない。
+export function hasRuleTargets(form: ConditionsForm): boolean {
+  const c = toConditionsInput(form);
+
+  return (
+    c.keywords.length > 0 ||
+    c.channelTypes.length > 0 ||
+    c.services.length > 0 ||
+    c.genres.length > 0 ||
+    c.marks.length > 0
+  );
+}
+
 // hasConditions は、番組を絞り込む条件があるかどうかを返す。条件のないルールは、すべての番組を予約してしまう。
 export function hasConditions(form: ConditionsForm): boolean {
   const c = toConditionsInput(form);
