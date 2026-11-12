@@ -50,7 +50,7 @@ jobs:
           release=$(gh release view --repo "$REPOSITORY" --json tagName -q .tagName)
           release=${release#v}
           mkdir -p sarif
-          printf '%s\n' "edge edge" "edge-ffmpeg edge-ffmpeg" "release $release" "release-ffmpeg $release-ffmpeg" > sarif/targets
+          printf '%s\n' "edge edge" "edge-ffmpeg edge-ffmpeg" "release $release" "release-ffmpeg ${release}-ffmpeg" > sarif/targets
           # Code scanning の category は、版を含めず、イメージの種類ごとに固定する。
           # 版を含めると、次のリリースで別の category になり、前の版のアラートが閉じずに残る。
           while read -r category tag; do
@@ -61,7 +61,7 @@ jobs:
             # 1 回のアップロードで複数の SARIF を送るので、category を SARIF の中に書く。
             jq --arg id "trivy/$category/" '.runs[].automationDetails.id = $id' "sarif/$category.sarif" > sarif/tmp
             mv sarif/tmp "sarif/$category.sarif"
-            echo "$category ($tag): $(jq '[.runs[].results[]] | length' "sarif/$category.sarif") results"
+            echo "$category ($tag): $(jq '[.runs[].results[]?] | length' "sarif/$category.sarif") results"
           done < sarif/targets
           rm sarif/targets
       # フォークからの PR では、トークンが読み取り専用で送れない。
@@ -92,7 +92,7 @@ jobs:
           # govulncheck は、モジュール (backend/) からのパスを書く。Code scanning はリポジトリのルートからのパスとして読むので、backend/ を付ける。
           jq '(.. | objects | select(.uriBaseId? == "%SRCROOT%") | .uri) |= "backend/" + .' ../govulncheck.sarif > ../govulncheck.tmp
           mv ../govulncheck.tmp ../govulncheck.sarif
-          echo "$(jq '[.runs[].results[]] | length' ../govulncheck.sarif) results"
+          echo "$(jq '[.runs[].results[]?] | length' ../govulncheck.sarif) results"
       - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: github/codeql-action/upload-sarif@v4.39.3
         with:
