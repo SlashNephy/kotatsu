@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -49,6 +50,9 @@ type Provider struct {
 	WrongNonce bool
 	// WrongAudience なら、ほかのクライアントに向けた ID トークンを発行する。
 	WrongAudience bool
+	// AuthTimeNow なら、ID トークンに、発行した時刻を IdP で認証した時刻 (auth_time) として載せる。
+	// その場で資格情報を入れてログインした IdP をまねる。偽の IdP のプロセス (cmd/fakeidp) が使う。
+	AuthTimeNow bool
 	// Now は、ID トークンの発行と期限の時刻。nil なら time.Now。
 	Now func() time.Time
 	// LastAuthorization は、最後に受け取った認可のリクエストのパラメーター。
@@ -66,16 +70,22 @@ type grant struct {
 	redirectURI string
 }
 
-// New は、IdP を起動して返す。Close で止める。redirectURIs は、クライアントに登録したリダイレクト URI。
+// New は、IdP を空いているポートで起動して返す。Close で止める。redirectURIs は、クライアントに登録したリダイレクト URI。
 // 実際の IdP と同じく、登録したものにだけ戻す。
 func New(clientID, clientSecret string, redirectURIs ...string) (*Provider, error) {
+	return NewOn(nil, clientID, clientSecret, redirectURIs...)
+}
+
+// NewOn は、IdP を listener で起動して返す。listener が nil なら、空いているポートで起動する。
+// 別のプロセスとして立てる偽の IdP (cmd/fakeidp) が、決まったアドレスで待ち受けるのに使う。
+func NewOn(listener net.Listener, clientID, clientSecret string, redirectURIs ...string) (*Provider, error) {
 	key, err := rsa.GenerateKey(rand.Reader, rsaBits)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate a signing key: %w", err)
 	}
 	p := &Provider{
 		ClientID: clientID, ClientSecret: clientSecret, redirectURIs: redirectURIs, mu: sync.Mutex{},
-		Subject: "", Claims: map[string]any{}, WrongNonce: false, WrongAudience: false, Now: nil, LastAuthorization: nil,
+		Subject: "", Claims: map[string]any{}, AuthTimeNow: false, WrongNonce: false, WrongAudience: false, Now: nil, LastAuthorization: nil,
 		server: nil, key: key, grants: map[string]*grant{},
 	}
 	mux := http.NewServeMux()
@@ -83,9 +93,24 @@ func New(clientID, clientSecret string, redirectURIs ...string) (*Provider, erro
 	mux.HandleFunc("GET /keys", p.keys)
 	mux.HandleFunc("GET /authorize", p.authorizeHandler)
 	mux.HandleFunc("POST /token", p.token)
-	p.server = httptest.NewServer(mux)
+	p.server = httptest.NewUnstartedServer(mux)
+	if listener != nil {
+		_ = p.server.Listener.Close()
+		p.server.Listener = listener
+	}
+	p.server.Start()
 
 	return p, nil
+}
+
+// SetNext は、次に発行する ID トークンの sub と claim を変える。claims に groups がなければ、グループの claim を載せない。
+// 別のゴルーチンからトークンを発行しながら変えても、競合しない。
+func (p *Provider) SetNext(subject string, claims map[string]any) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.Subject = subject
+	p.Claims = maps.Clone(claims)
 }
 
 // Issuer は、IdP の issuer の URL を返す。
@@ -281,6 +306,9 @@ func (p *Provider) idToken(nonce string) (string, error) {
 	}
 	claims["iss"], claims["sub"], claims["aud"] = p.Issuer(), p.Subject, audience
 	claims["iat"], claims["exp"], claims["nonce"] = now.Unix(), now.Add(tokenTTL).Unix(), nonce
+	if p.AuthTimeNow {
+		claims["auth_time"] = now.Unix()
+	}
 	payload, err := json.Marshal(claims)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode the claims: %w", err)

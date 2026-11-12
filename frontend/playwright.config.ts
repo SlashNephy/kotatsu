@@ -29,6 +29,20 @@ export default defineConfig({
       // scripts/e2e-stack.sh から流す。初回セットアップから順に進めるので、1 つずつ順に流す。
       name: 'stack',
       testDir: './e2e/stack',
+      testMatch: 'flows.spec.ts',
+      fullyParallel: false,
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: { executablePath: process.env['KOTATSU_E2E_CHROMIUM'] },
+      },
+    },
+    {
+      // stack-oidc は、偽の IdP で OIDC のログインを通しで確かめるテスト (#1525)。
+      // 自動で作るユーザーが既存のユーザー名と重なる場面に、初回セットアップの管理者を使うので、stack の後に流す。
+      name: 'stack-oidc',
+      testDir: './e2e/stack',
+      testMatch: 'oidc.spec.ts',
+      dependencies: ['stack'],
       fullyParallel: false,
       use: {
         ...devices['Desktop Chrome'],
