@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/usecase/usersettings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -54,12 +55,12 @@ func dataChannels() []dataChannel {
 
 // WatchedChannels は、subscription で知らせるのに使う、変更の通知のチャンネルを返す。tenban は、これらを見張る。
 func WatchedChannels() []string {
-	channels := make([]string, 0, len(dataChannels())+3)
+	channels := make([]string, 0, len(dataChannels())+4)
 	for _, c := range dataChannels() {
 		channels = append(channels, c.notify)
 	}
 
-	return append(channels, notification.NotifyChannel, usersettings.NotifyChannel, player.NotifyChannel)
+	return append(channels, notification.NotifyChannel, usersettings.NotifyChannel, player.NotifyChannel, scramble.NotifyChannel)
 }
 
 // subscribeDataChanges は、購読を始めたときに今の版数を送り、その後は版数が上がったデータの種類を送る。

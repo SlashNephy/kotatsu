@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -186,6 +187,67 @@ func (r *Resolver) subscribeLiveStreamRates(ctx context.Context, service string)
 			}:
 			case <-ctx.Done():
 				return
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// errLiveScrambleUnavailable は、スクランブルの判定を受け取れないことを表す。
+var errLiveScrambleUnavailable = errors.New("scrambled live stream notifications are not configured")
+
+// subscribeLiveStreamScrambled は、ライブのサービス service が、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。
+// 購読を始めたときに最後に決めた日時を控え、それより後に決めたものだけを送る。前に見た人の判定で、今の視聴を止めないためである。
+func (r *Resolver) subscribeLiveStreamScrambled(ctx context.Context, service string) (<-chan *model.LiveStreamScrambled, error) {
+	if _, err := viewer(ctx); err != nil {
+		return nil, err
+	}
+	serviceID, err := parseServiceGlobalID(service)
+	if err != nil {
+		return nil, err
+	}
+	if r.changes == nil || r.db == nil {
+		return nil, errLiveScrambleUnavailable
+	}
+	// 決めた日時を読む前に購読し、読んだ後に決めたものを取りこぼさないようにする。
+	wake, unsubscribe := r.changes.Subscribe()
+	channelVersion := r.changes.Version(scramble.NotifyChannel)
+	last, _, err := r.liveScramble.DecidedAt(ctx, serviceID)
+	if err != nil {
+		unsubscribe()
+
+		return nil, err
+	}
+	out := make(chan *model.LiveStreamScrambled, 1)
+	go func() {
+		defer close(out)
+		defer unsubscribe()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-wake:
+			}
+			latest := r.changes.Version(scramble.NotifyChannel)
+			if latest <= channelVersion {
+				continue
+			}
+			channelVersion = latest
+			decidedAt, found, err := r.liveScramble.DecidedAt(ctx, serviceID)
+			if err != nil {
+				// 閉じれば、クライアントがつなぎ直す。
+				return
+			}
+			// ほかのサービスで決めても、版数は上がる。
+			if !found || !decidedAt.After(last) {
+				continue
+			}
+			last = decidedAt
+			select {
+			case <-ctx.Done():
+				return
+			case out <- &model.LiveStreamScrambled{DecidedAt: decidedAt}:
 			}
 		}
 	}()

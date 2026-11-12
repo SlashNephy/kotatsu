@@ -1474,6 +1474,7 @@
     "disconnected": "視聴が止まりました",
     "tunerTaken": "録画のためにチューナーを使っているので、視聴が止まりました。録画中: {{recordings}}",
     "streamEnded": "チューナーサーバーとの接続が切れました",
+    "scrambled": "この局の映像と音声がスクランブルされたまま届いています。チューナーサーバーの B-CAS カードか、この局の契約を確かめてください。",
     "retryIn": "{{seconds}}秒後につなぎ直します",
     "reconnectNow": "今すぐつなぎ直す",
     "programDetail": "この番組の詳細と録画予約"

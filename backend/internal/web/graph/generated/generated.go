@@ -547,6 +547,10 @@ type ComplexityRoot struct {
 		VideoBps   func(childComplexity int) int
 	}
 
+	LiveStreamScrambled struct {
+		DecidedAt func(childComplexity int) int
+	}
+
 	MissingRecording struct {
 		MissingSegments func(childComplexity int) int
 		Recording       func(childComplexity int) int
@@ -1245,6 +1249,7 @@ type ComplexityRoot struct {
 		DataChanged             func(childComplexity int) int
 		Heartbeat               func(childComplexity int) int
 		LiveStreamRates         func(childComplexity int, service string) int
+		LiveStreamScrambled     func(childComplexity int, service string) int
 		PlayerCommands          func(childComplexity int, id string, after *string) int
 		PlayersChanged          func(childComplexity int) int
 		UnreadNotificationCount func(childComplexity int) int
@@ -1663,6 +1668,7 @@ type SubscriptionResolver interface {
 	PlayersChanged(ctx context.Context) (<-chan int, error)
 	PlayerCommands(ctx context.Context, id string, after *string) (<-chan *model.PlayerCommand, error)
 	LiveStreamRates(ctx context.Context, service string) (<-chan *model.LiveStreamRates, error)
+	LiveStreamScrambled(ctx context.Context, service string) (<-chan *model.LiveStreamScrambled, error)
 }
 type TimeshiftChannelResolver interface {
 	Service(ctx context.Context, obj *model.TimeshiftChannel) (*model.Service, error)
@@ -3523,6 +3529,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LiveStreamRates.VideoBps(childComplexity), true
+
+	case "LiveStreamScrambled.decidedAt":
+		if e.ComplexityRoot.LiveStreamScrambled.DecidedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamScrambled.DecidedAt(childComplexity), true
 
 	case "MissingRecording.missingSegments":
 		if e.ComplexityRoot.MissingRecording.MissingSegments == nil {
@@ -7202,6 +7215,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Subscription.LiveStreamRates(childComplexity, args["service"].(string)), true
+	case "Subscription.liveStreamScrambled":
+		if e.ComplexityRoot.Subscription.LiveStreamScrambled == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_liveStreamScrambled_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Subscription.LiveStreamScrambled(childComplexity, args["service"].(string)), true
 	case "Subscription.playerCommands":
 		if e.ComplexityRoot.Subscription.PlayerCommands == nil {
 			break
@@ -11532,6 +11556,18 @@ extend type Subscription {
   ブラウザに届く TS ではなく、放送の内訳を送るので、kyusu の経路で見ていても使える。購読をやめると、ストリームを閉じる。
   """
   liveStreamRates(service: ID!): LiveStreamRates!
+  """
+  ライブのサービス service が、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
+  決めるのは、ブラウザ内での変換のストリームを中継する tenban と、kyusu で、決めたらストリームを閉じる。
+  どの tenban や kyusu で決めても届く。プレイヤーは、受け取ったら、つなぎ直すのをやめて、理由を出す。
+  """
+  liveStreamScrambled(service: ID!): LiveStreamScrambled!
+}
+
+"ライブのサービスが、スクランブルされたまま届くと決めたこと (#1517)。"
+type LiveStreamScrambled {
+  "決めた日時。"
+  decidedAt: Time!
 }
 `, BuiltIn: false},
 	{Name: "../schema/timeshift.graphqls", Input: `"""
@@ -12973,6 +13009,14 @@ func (ec *executionContext) childFields_LiveStreamRates(ctx context.Context, fie
 		return ec.fieldContext_LiveStreamRates_scrambled(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LiveStreamRates", field.Name)
+}
+
+func (ec *executionContext) childFields_LiveStreamScrambled(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "decidedAt":
+		return ec.fieldContext_LiveStreamScrambled_decidedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LiveStreamScrambled", field.Name)
 }
 
 func (ec *executionContext) childFields_MissingRecording(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -16386,6 +16430,20 @@ func (ec *executionContext) field_Query_timeshiftProgram_args(ctx context.Contex
 }
 
 func (ec *executionContext) field_Subscription_liveStreamRates_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "service",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["service"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Subscription_liveStreamScrambled_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "service",
@@ -23678,6 +23736,29 @@ func (ec *executionContext) _LiveStreamRates_scrambled(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_LiveStreamRates_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LiveStreamScrambled_decidedAt(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamScrambled) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamScrambled_decidedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DecidedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamScrambled_decidedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamScrambled", field, false, false, "Time")
 }
 
 func (ec *executionContext) _MissingRecording_recording(ctx context.Context, field graphql.CollectedField, obj *model.MissingRecording) (ret graphql.Marshaler) {
@@ -39008,6 +39089,50 @@ func (ec *executionContext) fieldContext_Subscription_liveStreamRates(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_liveStreamScrambled(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	return graphql.ResolveFieldStream(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Subscription_liveStreamScrambled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Subscription().LiveStreamScrambled(ctx, fc.Args["service"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LiveStreamScrambled) graphql.Marshaler {
+			return ec.marshalNLiveStreamScrambled2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLiveStreamScrambled(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Subscription_liveStreamScrambled(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LiveStreamScrambled(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_liveStreamScrambled_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SystemSettings_recordingDefaults(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -49042,6 +49167,39 @@ func (ec *executionContext) _LiveStreamRates(ctx context.Context, sel ast.Select
 	return out
 }
 
+var liveStreamScrambledImplementors = []string{"LiveStreamScrambled"}
+
+func (ec *executionContext) _LiveStreamScrambled(ctx context.Context, sel ast.SelectionSet, obj *model.LiveStreamScrambled) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, liveStreamScrambledImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LiveStreamScrambled")
+		case "decidedAt":
+			out.Values[i] = ec._LiveStreamScrambled_decidedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var missingRecordingImplementors = []string{"MissingRecording"}
 
 func (ec *executionContext) _MissingRecording(ctx context.Context, sel ast.SelectionSet, obj *model.MissingRecording) graphql.Marshaler {
@@ -53641,6 +53799,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_playerCommands(ctx, fields[0])
 	case "liveStreamRates":
 		return ec._Subscription_liveStreamRates(ctx, fields[0])
+	case "liveStreamScrambled":
+		return ec._Subscription_liveStreamScrambled(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -56578,6 +56738,14 @@ func (ec *executionContext) marshalNLiveStreamRates2ᚖgithubᚗcomᚋSlashNephy
 		return graphql.Null
 	}
 	return ec._LiveStreamRates(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLiveStreamScrambled2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLiveStreamScrambled(ctx context.Context, sel ast.SelectionSet, v *model.LiveStreamScrambled) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LiveStreamScrambled!")
+		return graphql.Null
+	}
+	return ec._LiveStreamScrambled(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNMissingRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐMissingRecordingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MissingRecording) graphql.Marshaler {

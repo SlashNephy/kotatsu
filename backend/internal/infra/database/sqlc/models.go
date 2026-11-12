@@ -310,6 +310,11 @@ type Lease struct {
 	ExpiresAt  time.Time
 }
 
+type LiveScrambleVerdict struct {
+	ServiceID int64
+	DecidedAt time.Time
+}
+
 type LoginChallenge struct {
 	ID              uuid.UUID
 	TokenHash       []byte

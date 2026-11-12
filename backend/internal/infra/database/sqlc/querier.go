@@ -279,6 +279,8 @@ type Querier interface {
 	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
 	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
+	// サービス service_id が、最後にスクランブルされたまま届くと決めた日時。決めたことがなければ行を返さない。
+	GetLiveScrambleVerdict(ctx context.Context, serviceID int64) (time.Time, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
@@ -1053,6 +1055,10 @@ type Querier interface {
 	// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
+	// ライブで、サービス service_id がスクランブルされたまま届くと決めたことを記録する (設計書 7.1、#1517)。
+	// 決める kyusu と tenban は別のホストのことがあり、時計がずれうる。後から決めたのに日時が戻ると、購読が新しい判定と見分けられないので、
+	// 前の日時より必ず進める。
+	UpsertLiveScrambleVerdict(ctx context.Context, arg UpsertLiveScrambleVerdictParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	// プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
 	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)

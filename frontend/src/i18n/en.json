@@ -1536,6 +1536,7 @@
     "disconnected": "Playback stopped",
     "tunerTaken": "Playback stopped because the tuner is needed for recording. Recording: {{recordings}}",
     "streamEnded": "Disconnected from the tuner server",
+    "scrambled": "The video and audio of this channel are arriving still scrambled. Check the B-CAS card of the tuner server or your subscription to this channel.",
     "retryIn": "Reconnecting in {{seconds}} s",
     "reconnectNow": "Reconnect now",
     "programDetail": "Program details and reservation"

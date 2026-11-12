@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -71,6 +72,8 @@ type Resolver struct {
 	streamSigner *stream.Signer
 	// liveRates は、ライブのサービスの内訳を数える (#812)。
 	liveRates *stream.LiveRatesWatcher
+	// liveScramble は、ライブでスクランブルされたまま届くと決めたサービスを読む (#1517)。
+	liveScramble *scramble.Reporter
 	// channelInspector は、物理チャンネルの TS を調べる (#830)。
 	channelInspector *stream.ChannelInspector
 	jikkyoTable      *jikkyo.Table

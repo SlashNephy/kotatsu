@@ -930,6 +930,14 @@ CREATE TABLE scramble_alerts (
   updated_at timestamptz NOT NULL
 );
 
+-- ライブで、スクランブルされたまま届くと決めたサービスと、決めた日時 (設計書 7.1、#1517)。サービスごとに最後に決めた 1 行だけを持つ。
+-- 決めた kyusu か tenban が書き、版数の通知で、プレイヤーの購読を受けている tenban に知らせる。
+-- 上流から消えたサービスも書けるよう、services は参照しない。
+CREATE TABLE live_scramble_verdicts (
+  service_id bigint PRIMARY KEY,
+  decided_at timestamptz NOT NULL
+);
+
 -- 録画のファイル (設計書 5.2、5.6、8.2)。セグメントは、ストリームを開き直すたびに作る。
 -- 索引、代表画像、プレビュー画像のような生成物は記録しない。データディレクトリの、セグメントのファイルの ID のディレクトリに置く。
 CREATE TABLE recording_files (

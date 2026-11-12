@@ -26,9 +26,17 @@ import (
 func (f *fixture) subscribe(t *testing.T, query string) <-chan json.RawMessage {
 	t.Helper()
 
+	return f.subscribeWith(t, query, nil)
+}
+
+// subscribeWith は、subscribe と同じく購読し、変数 variables を渡す。
+func (f *fixture) subscribeWith(t *testing.T, query string, variables map[string]any) <-chan json.RawMessage {
+	t.Helper()
+
 	body, err := json.Marshal(struct {
-		Query string `json:"query"`
-	}{Query: query})
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables,omitempty"`
+	}{Query: query, Variables: variables})
 	require.NoError(t, err)
 	r, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/graphql", strings.NewReader(string(body)))
 	require.NoError(t, err)

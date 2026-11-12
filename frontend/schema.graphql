@@ -1647,6 +1647,15 @@ type LiveStreamRates {
   scrambled: Int64!
 }
 """
+ライブのサービスが、スクランブルされたまま届くと決めたこと (#1517)。
+"""
+type LiveStreamScrambled {
+  """
+  決めた日時。
+  """
+  decidedAt: Time!
+}
+"""
 セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 """
 type MissingRecording {
@@ -4199,6 +4208,12 @@ type Subscription {
   ブラウザに届く TS ではなく、放送の内訳を送るので、kyusu の経路で見ていても使える。購読をやめると、ストリームを閉じる。
   """
   liveStreamRates(service: ID!): LiveStreamRates!
+  """
+  ライブのサービス service が、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
+  決めるのは、ブラウザ内での変換のストリームを中継する tenban と、kyusu で、決めたらストリームを閉じる。
+  どの tenban や kyusu で決めても届く。プレイヤーは、受け取ったら、つなぎ直すのをやめて、理由を出す。
+  """
+  liveStreamScrambled(service: ID!): LiveStreamScrambled!
 }
 """
 画面から変える、全体の設定 (設計書 11.2)。

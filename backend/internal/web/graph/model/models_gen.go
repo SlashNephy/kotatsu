@@ -892,6 +892,12 @@ type LiveStreamRates struct {
 	Scrambled int64 `json:"scrambled"`
 }
 
+// ライブのサービスが、スクランブルされたまま届くと決めたこと (#1517)。
+type LiveStreamScrambled struct {
+	// 決めた日時。
+	DecidedAt time.Time `json:"decidedAt"`
+}
+
 // セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 type MissingRecording struct {
 	Recording *Recording `json:"recording"`

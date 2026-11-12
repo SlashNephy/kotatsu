@@ -728,5 +728,7 @@ export function createRootValue(
     // Subscription。graphql-js は、流れた値を rootValue にして選択集合を解くので、フィールド名で包む。
     viewerEvents: () => events.listen((event) => ({ viewerEvents: event })),
     playerCommands: () => idle.listen(() => ({ playerCommands: null })),
+    // デモの局は、どれもスクランブルされずに届くので、何も流さない (#1517)。
+    liveStreamScrambled: () => idle.listen(() => ({ liveStreamScrambled: null })),
   };
 }
