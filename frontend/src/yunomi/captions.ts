@@ -113,6 +113,10 @@ function loadCaptionFont(): Promise<void> {
 // loadExtendedCaptionFont は、text を描くのに要る、後の面を読み終えるのを待つ。canvas は、描く前に読み込みを待たないので、
 // 待たずに描くと、その字をほかのフォントで描いてしまう。読めなくても失敗にはせず、ほかのフォントで描く。
 function loadExtendedCaptionFont(text: string): Promise<void> {
+  if (typeof document.fonts === 'undefined') {
+    return Promise.resolve();
+  }
+
   return document.fonts.load(`1em '${captionFontFamily}'`, text).then(
     () => {},
     () => {},
@@ -120,8 +124,9 @@ function loadExtendedCaptionFont(text: string): Promise<void> {
 }
 
 // fontAwareRenderer は、aribb24.js の CanvasMainThreadRenderer を広げ、JIS X 0213 で足された漢字のある字幕を、
-// 後の面を読み終えてから描く描画器を作る (#1520)。待つ間に次の字幕が来るか消えたら、古い字幕は描かない。
-function fontAwareRenderer(
+// 後の面を読み終えてから描く描画器を作る (#1520)。待つ間に次の字幕が来るか、消えるか、描画器を捨てたら、古い字幕は描かない。
+// 外字 (DRCS) を JIS X 0213 の漢字に置き換えたものは、ここでは見分けない。後の面を読むまでは、ほかのフォントで描く。
+export function fontAwareRenderer(
   Base: typeof CanvasMainThreadRenderer,
   option: ConstructorParameters<typeof CanvasMainThreadRenderer>[0],
 ): CanvasMainThreadRenderer {
@@ -131,7 +136,7 @@ function fontAwareRenderer(
 
     override render(...args: Parameters<CanvasMainThreadRenderer['render']>): void {
       const generation = ++this.generation;
-      const text = args[1]
+      const text = (args[1] ?? [])
         .map((token) => (token.tag === 'Character' ? token.character : ''))
         .join('');
       if (!usesExtendedFont(text)) {
@@ -149,6 +154,11 @@ function fontAwareRenderer(
     override clear(): void {
       this.generation++;
       super.clear();
+    }
+
+    override destroy(): void {
+      this.generation++;
+      super.destroy();
     }
   }
 
