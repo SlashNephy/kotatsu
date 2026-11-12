@@ -2808,23 +2808,25 @@ Kotatsu本体はApache License 2.0で公開します。
 
 ## 付録 C. 参考にしたプロジェクト
 
-| プロジェクト | 参考にした点 |
-|---|---|
-| [l3tnun/EPGStation](https://github.com/l3tnun/EPGStation) | 予約に番組情報のコピーを持たせる設計、録画履歴による重複の回避、優先度をMirakurunに渡す役割分担、空の変更通知でクライアントに取得し直させる方式。避けるべき設計（メモリ上だけにある状態、全件の入れ替え、チャンネル種別ごとの列）。v3ブランチの`.kiro/specs`（MIT）は、要件の洗い出しのチェックリストとして使えます。 |
-| [tsukumijima/KonomiTV](https://github.com/tsukumijima/KonomiTV) | tsreadexによる入力の正規化とID3による字幕の運搬、仮想HLSとオンデマンドのエンコード、機能ごとに分けたプレイヤーの構成、Document Picture-in-Picture |
-| [xtne6f/EDCB](https://github.com/xtne6f/EDCB) | 何度実行しても同じ結果になる自動予約の照合と無効化、毎回すべて計算し直すチューナー割り当て、一意な順序のキー、延長への追従と上限、失敗の理由の列挙。EDCBはOSSのライセンスではなく独自の条件で公開されています（`Document/Readme.txt`。フリーソフトへの組み込みと改変は認めていますが、許可のない商用・シェアウェアへの組み込みは認めていません）。考え方だけを参考にし、コードや表は写しません。 |
-| [tsukumijima/TVRemotePlus](https://github.com/tsukumijima/TVRemotePlus) | ライブ視聴、ファイル再生、実況コメントを1つのWebアプリにまとめる構成 |
-| [Chinachu/Mirakurun](https://github.com/Chinachu/Mirakurun) | チューナーサーバーのAPI、イベントストリーム、チューナーの選び方と優先度 |
-| [mirakc/mirakc](https://github.com/mirakc/mirakc) | SSEのイベント、onairのAPI、ARIBの処理を外部コマンドに任せる構成 |
-| [rokoucha/Mahiron](https://github.com/rokoucha/Mahiron) | 任意の文字列のチャンネル種別、データ放送のAPI |
-| [otya128/mpeg2toh264](https://github.com/otya128/mpeg2toh264) | ブラウザ内でのMPEG-2からH.264への変換 |
-| [tsukumijima/NX-Jikkyo](https://github.com/tsukumijima/NX-Jikkyo) | ニコニコ実況のコメントのWebSocket API |
-| [ci7lus/kiririn](https://github.com/ci7lus/kiririn) | プレイヤーの状態の見せ方（読み込み中、エラー、番組情報、操作の結果の知らせ）、データ放送の細かい扱い（dボタンの渡し方、効果音、選局、受信機の情報）、番組名やファイル名の細部（#432）。MPL-2.0なので、考え方だけを参考にし、コードや表は写しません。 |
-| [SlashNephy/annict-tracker](https://github.com/SlashNephy/annict-tracker) | 見たいリストの作品を、次の話と次の放送とともにカードで並べる視聴管理の画面（#1229）、作品の高画質の画像をAniListの`extraLarge`とJikanから引く選び方（#1315）、放送の時期のバッジと絞り込み、配信サービスで作品を探すリンクのURLの形 |
-| [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
-| [DBCTRADO/TVTest](https://github.com/DBCTRADO/TVTest) | プレイヤーの機能を、IDを持つコマンドとして1つにまとめ、キー、メニュー、外部からの操作で同じものを呼ぶ作り（#808、#809）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードや表は写しません。 |
-| [DBCTRADO/LibISDB](https://github.com/DBCTRADO/LibISDB) | 映像のシーケンスヘッダーとSPSから、大きさ、インターレースかどうか、フレームレートを読む作り（#1310）と、TOTで放送の時刻を読む作り（#1309）、EITのシリーズの記述子を読む作り（#1311）、CDTからロゴを集める作り（#1308）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードは写さず、ISO/IEC 13818-2、ITU-T H.264、H.265、ARIB STD-B10、STD-B21、STD-B24、TR-B15を見て実装しました。 |
-| [monyone/aribb24.js](https://github.com/monyone/aribb24.js) | 共通固定色の表（MIT）。ロゴのパレットを補う実装を、表と照らして確かめました（#1308）。表は写さず、規則から作っています。 |
-| [SlashNephy/TVTestAnnictRecorder](https://github.com/SlashNephy/TVTestAnnictRecorder) | アニメの番組と作品の照合の流れ（しょぼいカレンダー → arm → Annict）、話数とサブタイトルによるエピソードの特定、`[新]`と`[終]`による作品の状態の変更、番組名からの作品名と話数の解析（[3.8](#38-アニメの番組と作品の結びつき)） |
-| [SlashNephy/saya-definitions](https://github.com/SlashNephy/saya-definitions) | サービスと、しょぼいカレンダーのチャンネル、Annictのチャンネルの対応 |
-| [kawaiioverflow/arm](https://github.com/kawaiioverflow/arm) | しょぼいカレンダーのTIDと、Annict、AniList、MyAnimeListの作品IDの対応 |
+ライセンスとコミットは、表に足したときに確かめた既定のブランチのものです。
+
+| プロジェクト | ライセンス | コミット | 参考にした点 |
+|---|---|---|---|
+| [Chinachu/Mirakurun](https://github.com/Chinachu/Mirakurun) | Apache-2.0 | [`563a9e7`](https://github.com/Chinachu/Mirakurun/tree/563a9e7) | チューナーサーバーのAPI、イベントストリーム、チューナーの選び方と優先度 |
+| [ci7lus/kiririn](https://github.com/ci7lus/kiririn) | MPL-2.0 | [`9b7c84c`](https://github.com/ci7lus/kiririn/tree/9b7c84c) | プレイヤーの状態の見せ方（読み込み中、エラー、番組情報、操作の結果の知らせ）、データ放送の細かい扱い（dボタンの渡し方、効果音、選局、受信機の情報）、番組名やファイル名の細部（#432）。MPL-2.0なので、考え方だけを参考にし、コードや表は写しません。 |
+| [DBCTRADO/LibISDB](https://github.com/DBCTRADO/LibISDB) | GPL-2.0-or-later | [`605649d`](https://github.com/DBCTRADO/LibISDB/tree/605649d) | 映像のシーケンスヘッダーとSPSから、大きさ、インターレースかどうか、フレームレートを読む作り（#1310）と、TOTで放送の時刻を読む作り（#1309）、EITのシリーズの記述子を読む作り（#1311）、CDTからロゴを集める作り（#1308）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードは写さず、ISO/IEC 13818-2、ITU-T H.264、H.265、ARIB STD-B10、STD-B21、STD-B24、TR-B15を見て実装しました。 |
+| [DBCTRADO/TVTest](https://github.com/DBCTRADO/TVTest) | GPL-2.0-or-later | [`dce8b3e`](https://github.com/DBCTRADO/TVTest/tree/dce8b3e) | プレイヤーの機能を、IDを持つコマンドとして1つにまとめ、キー、メニュー、外部からの操作で同じものを呼ぶ作り（#808、#809）。GPL-2.0-or-laterなので、考え方だけを参考にし、コードや表は写しません。 |
+| [kawaiioverflow/arm](https://github.com/kawaiioverflow/arm) | MIT（`package.json`） | [`d045893`](https://github.com/kawaiioverflow/arm/tree/d045893) | しょぼいカレンダーのTIDと、Annict、AniList、MyAnimeListの作品IDの対応 |
+| [l3tnun/EPGStation](https://github.com/l3tnun/EPGStation) | MIT | [`8d6f211`](https://github.com/l3tnun/EPGStation/tree/8d6f211) | 予約に番組情報のコピーを持たせる設計、録画履歴による重複の回避、優先度をMirakurunに渡す役割分担、空の変更通知でクライアントに取得し直させる方式。避けるべき設計（メモリ上だけにある状態、全件の入れ替え、チャンネル種別ごとの列）。v3ブランチの`.kiro/specs`（MIT）は、要件の洗い出しのチェックリストとして使えます。 |
+| [mirakc/mirakc](https://github.com/mirakc/mirakc) | Apache-2.0またはMIT | [`50d8856`](https://github.com/mirakc/mirakc/tree/50d8856) | SSEのイベント、onairのAPI、ARIBの処理を外部コマンドに任せる構成 |
+| [monyone/aribb24.js](https://github.com/monyone/aribb24.js) | MIT | [`aacee00`](https://github.com/monyone/aribb24.js/tree/aacee00) | 共通固定色の表（MIT）。ロゴのパレットを補う実装を、表と照らして確かめました（#1308）。表は写さず、規則から作っています。 |
+| [otya128/mpeg2toh264](https://github.com/otya128/mpeg2toh264) | MIT | [`7b008c6`](https://github.com/otya128/mpeg2toh264/tree/7b008c6) | ブラウザ内でのMPEG-2からH.264への変換 |
+| [rokoucha/Mahiron](https://github.com/rokoucha/Mahiron) | Apache-2.0 | [`8a7fd39`](https://github.com/rokoucha/Mahiron/tree/8a7fd39) | 任意の文字列のチャンネル種別、データ放送のAPI |
+| [SlashNephy/annict-tracker](https://github.com/SlashNephy/annict-tracker) | MIT | [`ebe5075`](https://github.com/SlashNephy/annict-tracker/tree/ebe5075) | 見たいリストの作品を、次の話と次の放送とともにカードで並べる視聴管理の画面（#1229）、作品の高画質の画像をAniListの`extraLarge`とJikanから引く選び方（#1315）、放送の時期のバッジと絞り込み、配信サービスで作品を探すリンクのURLの形 |
+| [SlashNephy/saya-definitions](https://github.com/SlashNephy/saya-definitions) | MIT | [`00d8dab`](https://github.com/SlashNephy/saya-definitions/tree/00d8dab) | サービスと、しょぼいカレンダーのチャンネル、Annictのチャンネルの対応 |
+| [SlashNephy/TVTestAnnictRecorder](https://github.com/SlashNephy/TVTestAnnictRecorder) | MIT | [`e8c867b`](https://github.com/SlashNephy/TVTestAnnictRecorder/tree/e8c867b) | アニメの番組と作品の照合の流れ（しょぼいカレンダー → arm → Annict）、話数とサブタイトルによるエピソードの特定、`[新]`と`[終]`による作品の状態の変更、番組名からの作品名と話数の解析（[3.8](#38-アニメの番組と作品の結びつき)） |
+| [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | MIT | [`bca86ff`](https://github.com/tsukumijima/jikkyo-api/tree/bca86ff) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
+| [tsukumijima/KonomiTV](https://github.com/tsukumijima/KonomiTV) | MIT | [`0775594`](https://github.com/tsukumijima/KonomiTV/tree/0775594) | tsreadexによる入力の正規化とID3による字幕の運搬、仮想HLSとオンデマンドのエンコード、機能ごとに分けたプレイヤーの構成、Document Picture-in-Picture |
+| [tsukumijima/NX-Jikkyo](https://github.com/tsukumijima/NX-Jikkyo) | MIT | [`f1f8594`](https://github.com/tsukumijima/NX-Jikkyo/tree/f1f8594) | ニコニコ実況のコメントのWebSocket API |
+| [tsukumijima/TVRemotePlus](https://github.com/tsukumijima/TVRemotePlus) | MIT | [`57076a8`](https://github.com/tsukumijima/TVRemotePlus/tree/57076a8) | ライブ視聴、ファイル再生、実況コメントを1つのWebアプリにまとめる構成 |
+| [xtne6f/EDCB](https://github.com/xtne6f/EDCB) | 独自（`Document/Readme.txt`） | [`bb91ae7`](https://github.com/xtne6f/EDCB/tree/bb91ae7) | 何度実行しても同じ結果になる自動予約の照合と無効化、毎回すべて計算し直すチューナー割り当て、一意な順序のキー、延長への追従と上限、失敗の理由の列挙。EDCBはOSSのライセンスではなく独自の条件で公開されています（`Document/Readme.txt`。フリーソフトへの組み込みと改変は認めていますが、許可のない商用・シェアウェアへの組み込みは認めていません）。考え方だけを参考にし、コードや表は写しません。 |
