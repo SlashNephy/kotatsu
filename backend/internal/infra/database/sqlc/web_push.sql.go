@@ -127,6 +127,36 @@ func (q *Queries) InsertVAPIDKeys(ctx context.Context, arg InsertVAPIDKeysParams
 	return err
 }
 
+const listWebPushSecrets = `-- name: ListWebPushSecrets :many
+SELECT endpoint, auth FROM web_push_subscriptions ORDER BY id
+`
+
+type ListWebPushSecretsRow struct {
+	Endpoint string
+	Auth     []byte
+}
+
+// ログの報告から伏せるため、全ユーザーの購読の送り先と秘密を返す (#1521)。
+func (q *Queries) ListWebPushSecrets(ctx context.Context) ([]ListWebPushSecretsRow, error) {
+	rows, err := q.db.Query(ctx, listWebPushSecrets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWebPushSecretsRow{}
+	for rows.Next() {
+		var i ListWebPushSecretsRow
+		if err := rows.Scan(&i.Endpoint, &i.Auth); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWebPushSubscriptions = `-- name: ListWebPushSubscriptions :many
 SELECT id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at, session_id FROM web_push_subscriptions WHERE user_id = $1 ORDER BY created_at, id
 `

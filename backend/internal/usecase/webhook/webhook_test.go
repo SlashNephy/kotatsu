@@ -220,3 +220,18 @@ func TestNewStoreRequiresAppSecret(t *testing.T) {
 	_, err := webhook.NewStore(clocktest.NewFake(time.Time{}), audit.NewRecorder(clocktest.NewFake(time.Time{})), "")
 	require.ErrorIs(t, err, secretbox.ErrNoKey)
 }
+
+// TestLogSecrets は、ログの報告から伏せる値として、Webhook の URL と署名用の秘密キーを返すことを確かめる (#1521)。
+func TestLogSecrets(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	secrets, err := f.store.LogSecrets(t.Context(), f.pool)
+	require.NoError(t, err)
+	assert.Empty(t, secrets)
+
+	_, secret := f.create(t)
+	secrets, err = f.store.LogSecrets(t.Context(), f.pool)
+	require.NoError(t, err)
+	assert.Equal(t, []string{validInput().URL, secret}, secrets)
+}

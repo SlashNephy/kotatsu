@@ -533,6 +533,8 @@ type Querier interface {
 	ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsParams) ([]ListAnimeProgramsRow, error)
 	// 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
 	ListAnimeProgramsToFinalize(ctx context.Context, arg ListAnimeProgramsToFinalizeParams) ([]ListAnimeProgramsToFinalizeRow, error)
+	// ログの報告から伏せるため、全ユーザーの記録先のアクセストークンを返す (#1521)。
+	ListAnimeRecordAccessTokens(ctx context.Context) ([][]byte, error)
 	ListAnimeRecordApps(ctx context.Context) ([]AnimeRecordApp, error)
 	ListAnimeRecordConnections(ctx context.Context, userID uuid.UUID) ([]AnimeRecordConnection, error)
 	ListAnimeWishlistEntries(ctx context.Context, userID uuid.UUID) ([]AnimeWishlistEntry, error)
@@ -786,6 +788,8 @@ type Querier interface {
 	ListWatchRules(ctx context.Context, userID uuid.UUID) ([]WatchRule, error)
 	// 視聴が続いているサービス。視聴のチューナーに相乗りするので、割り振りではチューナーを数えない。
 	ListWatchedTimeshiftChannels(ctx context.Context, now time.Time) ([]ListWatchedTimeshiftChannelsRow, error)
+	// ログの報告から伏せるため、全ユーザーの購読の送り先と秘密を返す (#1521)。
+	ListWebPushSecrets(ctx context.Context) ([]ListWebPushSecretsRow, error)
 	ListWebPushSubscriptions(ctx context.Context, userID uuid.UUID) ([]WebPushSubscription, error)
 	// イベントの種類 kind を Web Push で受け取る、有効なユーザーの購読の ID と、その持ち主を返す。設定がなければ受け取る。
 	// audience と by_rule の扱いは、ListNotificationRecipients と同じ。

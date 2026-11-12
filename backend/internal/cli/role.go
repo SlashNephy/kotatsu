@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/logring"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
@@ -49,6 +50,12 @@ type Deps struct {
 	Jobs *jobs.Client
 	// JobWorkers は、Jobs で実行するジョブの Worker。nekonote を動かさないプロセスや、Worker がないときは nil。
 	JobWorkers *river.Workers
+	// Roles は、このプロセスで動かすロールの名前。ログの画面に、どのロールのログかを出すのに使う (#1521)。
+	Roles []string
+	// LookupEnv は、環境変数を引く。ログから伏せる、OTLP のヘッダーの環境変数を読むのに使う (#1521)。
+	LookupEnv config.LookupEnv
+	// Logs は、このプロセスのログのバッファ (#1521)。nil なら、ログの画面は空になる。
+	Logs *logring.Buffer
 }
 
 // tenbanRoleName は、API を受け持つロールの名前。

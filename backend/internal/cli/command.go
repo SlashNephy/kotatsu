@@ -42,6 +42,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/logring"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
@@ -57,6 +58,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networkactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -122,6 +124,8 @@ type Options struct {
 	// SleepSystem は、all の構成で、OS にスリープの抑止と起こす予約を伝える口を作る (#1522、設計書 11.7)。
 	// この OS でスリープを扱わなければ、power.ErrUnsupported を返す。
 	SleepSystem func(opts *power.Options) (SleepSystem, error)
+	// Logs は、管理の画面で読む、このプロセスのログのバッファ (#1521)。nil なら、空のバッファにする。
+	Logs *logring.Buffer
 	// PasswordStrengthTimeout は、パスワードの強度の判定の時間の上限。0 なら既定値にする。
 	// テストは、-race で遅くなるので長くする。
 	PasswordStrengthTimeout time.Duration
@@ -142,7 +146,9 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		WatchChanges: watchChanges,
 		SleepSystem:  newSleepSystem,
 
-		LogSetupToken:           logSetupToken,
+		LogSetupToken: logSetupToken,
+		// main で、ログを写すよう包んだ logger を渡す (#1521)。
+		Logs:                    logring.BufferOf(logger.Handler()),
 		PasswordStrengthTimeout: 0,
 	}
 }
@@ -498,6 +504,9 @@ func NewCommand(opts *Options) *cobra.Command {
 			InstanceID:     id.New(),
 			Jobs:           nil,
 			JobWorkers:     nil,
+			Roles:          roleNames(targets),
+			LookupEnv:      opts.LookupEnv,
+			Logs:           opts.Logs,
 		}
 		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
 		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。
@@ -943,6 +952,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		MaxComplexity:     0,
 		HeartbeatInterval: 0,
 		Updates:           graphUpdates,
+		Logs:              newLogReport(deps, sealed, location, tuner.logs),
 	})
 	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
 	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
@@ -1207,11 +1217,13 @@ type tunerUses struct {
 	logos    streamapi.LogoFetcher
 	rates    stream.ServiceOpener
 	channels stream.ChannelOpener
+	// logs は、チューナーサーバーのログと版を読む (#1521)。チューナーサーバーを設定していなければ nil。
+	logs logreport.TunerServer
 }
 
 // newTunerUses は、映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) と、ロゴに使うチューナーサーバーの口を返す。
 func newTunerUses(deps *Deps) (*tunerUses, error) {
-	uses := &tunerUses{opener: nil, logos: nil, rates: nil, channels: nil}
+	uses := &tunerUses{opener: nil, logos: nil, rates: nil, channels: nil, logs: nil}
 	if deps.Config.Tuner.URL.Value() == "" {
 		return uses, nil
 	}
@@ -1220,6 +1232,10 @@ func newTunerUses(deps *Deps) (*tunerUses, error) {
 		return nil, err
 	}
 	uses.opener, uses.logos, uses.rates, uses.channels = client, client, client, client
+	// ログの画面で、チューナーサーバーのログと版を読む (#1521)。
+	if logs, ok := client.(logreport.TunerServer); ok {
+		uses.logs = logs
+	}
 
 	return uses, nil
 }

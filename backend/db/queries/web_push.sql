@@ -60,3 +60,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- name: GetVAPIDKeys :one
 SELECT * FROM vapid_keys WHERE id;
+
+-- name: ListWebPushSecrets :many
+-- ログの報告から伏せるため、全ユーザーの購読の送り先と秘密を返す (#1521)。
+SELECT endpoint, auth FROM web_push_subscriptions ORDER BY id;

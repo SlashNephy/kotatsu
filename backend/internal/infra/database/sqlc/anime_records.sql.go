@@ -260,6 +260,31 @@ func (q *Queries) InsertAnimeRecordAuthorization(ctx context.Context, arg Insert
 	return err
 }
 
+const listAnimeRecordAccessTokens = `-- name: ListAnimeRecordAccessTokens :many
+SELECT access_token_encrypted FROM anime_record_connections ORDER BY user_id, destination
+`
+
+// ログの報告から伏せるため、全ユーザーの記録先のアクセストークンを返す (#1521)。
+func (q *Queries) ListAnimeRecordAccessTokens(ctx context.Context) ([][]byte, error) {
+	rows, err := q.db.Query(ctx, listAnimeRecordAccessTokens)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]byte{}
+	for rows.Next() {
+		var access_token_encrypted []byte
+		if err := rows.Scan(&access_token_encrypted); err != nil {
+			return nil, err
+		}
+		items = append(items, access_token_encrypted)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAnimeRecordApps = `-- name: ListAnimeRecordApps :many
 SELECT destination, client_id, client_secret_encrypted, updated_at FROM anime_record_apps ORDER BY destination
 `

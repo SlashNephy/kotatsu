@@ -880,3 +880,25 @@ FROM anime_wishlist_entries ORDER BY work_id`)
 
 	return result
 }
+
+// TestLogSecrets は、ログの報告から伏せる値として、アプリのシークレット、全ユーザーのトークン、取り込みのトークンを返すことを確かめる (#1521)。
+func TestLogSecrets(t *testing.T) {
+	t.Parallel()
+
+	f := newRecordFixture(t)
+	f.connect(t, f.alice, animerecord.DestinationAnnict)
+	f.connect(t, f.bob, animerecord.DestinationAniList)
+	require.NoError(t, f.service.UpdateImportToken(t.Context(), f.pool, audit.User(f.bob.UserID), "annict-import-token"))
+
+	secrets, err := f.service.LogSecrets(t.Context(), f.pool)
+	require.NoError(t, err)
+	// 2 つの記録先のアプリのシークレット、2 人のトークン、取り込みのトークン。
+	assert.Len(t, secrets, 5)
+	for _, want := range []string{
+		"token-" + animerecord.DestinationAnnict + "-" + f.alice.UserID.String(),
+		"token-" + animerecord.DestinationAniList + "-" + f.bob.UserID.String(),
+		"annict-import-token",
+	} {
+		assert.Contains(t, secrets, want)
+	}
+}

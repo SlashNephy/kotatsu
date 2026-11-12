@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
@@ -96,4 +97,6 @@ type Resolver struct {
 	// updates は、新しいリリースを確かめた結果。確かめない設定なら nil。
 	updates Updates
 	drain   Drain
+	// logs は、直近のログを集める (#1521)。nil なら、ログの画面を使えない。
+	logs *logreport.Service
 }

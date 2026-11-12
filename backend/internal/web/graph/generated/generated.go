@@ -559,6 +559,31 @@ type ComplexityRoot struct {
 		Service   func(childComplexity int) int
 	}
 
+	LogLine struct {
+		Inferred func(childComplexity int) int
+		Level    func(childComplexity int) int
+		Text     func(childComplexity int) int
+		Time     func(childComplexity int) int
+	}
+
+	LogReport struct {
+		InstanceID  func(childComplexity int) int
+		RedactHosts func(childComplexity int) int
+		Roles       func(childComplexity int) int
+		Sources     func(childComplexity int) int
+	}
+
+	LogSource struct {
+		Arch    func(childComplexity int) int
+		Failure func(childComplexity int) int
+		Kind    func(childComplexity int) int
+		Lines   func(childComplexity int) int
+		Os      func(childComplexity int) int
+		Runtime func(childComplexity int) int
+		Total   func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
 	MissingRecording struct {
 		MissingSegments func(childComplexity int) int
 		Recording       func(childComplexity int) int
@@ -904,6 +929,7 @@ type ComplexityRoot struct {
 		IptvFeed                func(childComplexity int) int
 		JobCounts               func(childComplexity int) int
 		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
+		LogReport               func(childComplexity int) int
 		MissingRecordings       func(childComplexity int) int
 		NetworkActivity         func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
@@ -1612,6 +1638,7 @@ type QueryResolver interface {
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
 	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
+	LogReport(ctx context.Context) (*model.LogReport, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
 	NetworkActivity(ctx context.Context) (*model.NetworkActivity, error)
 	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
@@ -3598,6 +3625,105 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LiveStreamScrambled.Service(childComplexity), true
+
+	case "LogLine.inferred":
+		if e.ComplexityRoot.LogLine.Inferred == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogLine.Inferred(childComplexity), true
+	case "LogLine.level":
+		if e.ComplexityRoot.LogLine.Level == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogLine.Level(childComplexity), true
+	case "LogLine.text":
+		if e.ComplexityRoot.LogLine.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogLine.Text(childComplexity), true
+	case "LogLine.time":
+		if e.ComplexityRoot.LogLine.Time == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogLine.Time(childComplexity), true
+
+	case "LogReport.instanceId":
+		if e.ComplexityRoot.LogReport.InstanceID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogReport.InstanceID(childComplexity), true
+	case "LogReport.redactHosts":
+		if e.ComplexityRoot.LogReport.RedactHosts == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogReport.RedactHosts(childComplexity), true
+	case "LogReport.roles":
+		if e.ComplexityRoot.LogReport.Roles == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogReport.Roles(childComplexity), true
+	case "LogReport.sources":
+		if e.ComplexityRoot.LogReport.Sources == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogReport.Sources(childComplexity), true
+
+	case "LogSource.arch":
+		if e.ComplexityRoot.LogSource.Arch == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Arch(childComplexity), true
+	case "LogSource.failure":
+		if e.ComplexityRoot.LogSource.Failure == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Failure(childComplexity), true
+	case "LogSource.kind":
+		if e.ComplexityRoot.LogSource.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Kind(childComplexity), true
+	case "LogSource.lines":
+		if e.ComplexityRoot.LogSource.Lines == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Lines(childComplexity), true
+	case "LogSource.os":
+		if e.ComplexityRoot.LogSource.Os == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Os(childComplexity), true
+	case "LogSource.runtime":
+		if e.ComplexityRoot.LogSource.Runtime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Runtime(childComplexity), true
+	case "LogSource.total":
+		if e.ComplexityRoot.LogSource.Total == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Total(childComplexity), true
+	case "LogSource.version":
+		if e.ComplexityRoot.LogSource.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LogSource.Version(childComplexity), true
 
 	case "MissingRecording.missingSegments":
 		if e.ComplexityRoot.MissingRecording.MissingSegments == nil {
@@ -5677,6 +5803,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Jobs(childComplexity, args["state"].(model.JobState), args["first"].(int), args["after"].(*string)), true
+	case "Query.logReport":
+		if e.ComplexityRoot.Query.LogReport == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.LogReport(childComplexity), true
 	case "Query.missingRecordings":
 		if e.ComplexityRoot.Query.MissingRecordings == nil {
 			break
@@ -9780,6 +9912,73 @@ extend type Mutation {
   cancelJob(id: ID!): Job!
 }
 `, BuiltIn: false},
+	{Name: "../schema/logs.graphqls", Input: `"ログの行の重さ。debug は INFO として扱う。"
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+"ログの出どころ (#1521)。"
+enum LogSourceKind {
+  "このリクエストに答えた Kotatsu のプロセス。"
+  KOTATSU
+  "チューナーサーバー (/api/log)。"
+  TUNER_SERVER
+}
+
+"ログを取れなかった理由。ホスト名や URL を含めないよう、決まった語だけにする。"
+enum LogSourceFailure {
+  TIMEOUT
+  UNREACHABLE
+  "チューナーサーバーがログの API を持たない (mirakc など)。"
+  UNSUPPORTED
+  HTTP_ERROR
+}
+
+"ログの 1 行。秘密の値は、サーバーが知っているものを伏せてある (1 段目)。"
+type LogLine {
+  "epoch ミリ秒の時刻。"
+  time: Int64!
+  level: LogLevel!
+  "重さを本文の言葉から推し量ったかどうか。推し量った重さは、絞り込みと報告に入れる順にだけ使う。"
+  inferred: Boolean!
+  text: String!
+}
+
+"1 つの出どころのログと環境。"
+type LogSource {
+  kind: LogSourceKind!
+  "古い順の行。"
+  lines: [LogLine!]!
+  "出どころが持っていた行の数。lines は、このうち最後の保持行数まで。"
+  total: Int!
+  "ログを取れなかった理由。取れたら null。"
+  failure: LogSourceFailure
+  "版。分からなければ空。"
+  version: String!
+  os: String!
+  arch: String!
+  "Kotatsu では Go の版、チューナーサーバーではサーバーの種類 (分かるときだけ)。"
+  runtime: String!
+}
+
+"直近のログと、不具合の報告に要るもの (#1521、設計書 11.3)。"
+type LogReport {
+  sources: [LogSource!]!
+  "不具合の報告を作るときに、ブラウザで伏せるホスト名 (2 段目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。"
+  redactHosts: [String!]!
+  "このリクエストに答えたインスタンスの ID。"
+  instanceId: String!
+  "このプロセスが動かしているロール。tenban だけなら、ロールを分けた構成で、ほかのロールのログは出せない。"
+  roles: [String!]!
+}
+
+extend type Query {
+  "直近のログ。ログにはユーザー名や番組名が入るので、管理者だけが使える (設計書 9.7)。"
+  logReport: LogReport!
+}
+`, BuiltIn: false},
 	{Name: "../schema/missing_recordings.graphqls", Input: `"""
 セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 """
@@ -13302,6 +13501,56 @@ func (ec *executionContext) childFields_LiveStreamScrambled(ctx context.Context,
 		return ec.fieldContext_LiveStreamScrambled_decidedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LiveStreamScrambled", field.Name)
+}
+
+func (ec *executionContext) childFields_LogLine(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "time":
+		return ec.fieldContext_LogLine_time(ctx, field)
+	case "level":
+		return ec.fieldContext_LogLine_level(ctx, field)
+	case "inferred":
+		return ec.fieldContext_LogLine_inferred(ctx, field)
+	case "text":
+		return ec.fieldContext_LogLine_text(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LogLine", field.Name)
+}
+
+func (ec *executionContext) childFields_LogReport(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "sources":
+		return ec.fieldContext_LogReport_sources(ctx, field)
+	case "redactHosts":
+		return ec.fieldContext_LogReport_redactHosts(ctx, field)
+	case "instanceId":
+		return ec.fieldContext_LogReport_instanceId(ctx, field)
+	case "roles":
+		return ec.fieldContext_LogReport_roles(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LogReport", field.Name)
+}
+
+func (ec *executionContext) childFields_LogSource(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_LogSource_kind(ctx, field)
+	case "lines":
+		return ec.fieldContext_LogSource_lines(ctx, field)
+	case "total":
+		return ec.fieldContext_LogSource_total(ctx, field)
+	case "failure":
+		return ec.fieldContext_LogSource_failure(ctx, field)
+	case "version":
+		return ec.fieldContext_LogSource_version(ctx, field)
+	case "os":
+		return ec.fieldContext_LogSource_os(ctx, field)
+	case "arch":
+		return ec.fieldContext_LogSource_arch(ctx, field)
+	case "runtime":
+		return ec.fieldContext_LogSource_runtime(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LogSource", field.Name)
 }
 
 func (ec *executionContext) childFields_MissingRecording(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -24204,6 +24453,392 @@ func (ec *executionContext) fieldContext_LiveStreamScrambled_decidedAt(_ context
 	return graphql.NewScalarFieldContext("LiveStreamScrambled", field, false, false, "Time")
 }
 
+func (ec *executionContext) _LogLine_time(ctx context.Context, field graphql.CollectedField, obj *model.LogLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogLine_time(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Time, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogLine_time(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogLine", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LogLine_level(ctx context.Context, field graphql.CollectedField, obj *model.LogLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogLine_level(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Level, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LogLevel) graphql.Marshaler {
+			return ec.marshalNLogLevel2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLevel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogLine_level(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogLine", field, false, false, "LogLevel")
+}
+
+func (ec *executionContext) _LogLine_inferred(ctx context.Context, field graphql.CollectedField, obj *model.LogLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogLine_inferred(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Inferred, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogLine_inferred(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogLine", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _LogLine_text(ctx context.Context, field graphql.CollectedField, obj *model.LogLine) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogLine_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogLine_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogLine", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogReport_sources(ctx context.Context, field graphql.CollectedField, obj *model.LogReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogReport_sources(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sources, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LogSource) graphql.Marshaler {
+			return ec.marshalNLogSource2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogReport_sources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LogReport",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LogSource(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LogReport_redactHosts(ctx context.Context, field graphql.CollectedField, obj *model.LogReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogReport_redactHosts(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RedactHosts, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogReport_redactHosts(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogReport", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogReport_instanceId(ctx context.Context, field graphql.CollectedField, obj *model.LogReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogReport_instanceId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InstanceID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogReport_instanceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogReport", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogReport_roles(ctx context.Context, field graphql.CollectedField, obj *model.LogReport) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogReport_roles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Roles, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogReport_roles(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogReport", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogSource_kind(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.LogSourceKind) graphql.Marshaler {
+			return ec.marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "LogSourceKind")
+}
+
+func (ec *executionContext) _LogSource_lines(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_lines(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Lines, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LogLine) graphql.Marshaler {
+			return ec.marshalNLogLine2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLineᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_lines(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LogSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LogLine(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LogSource_total(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_total(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Total, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_total(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "Int")
+}
+
+func (ec *executionContext) _LogSource_failure(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_failure(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Failure, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LogSourceFailure) graphql.Marshaler {
+			return ec.marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceFailure(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_failure(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "LogSourceFailure")
+}
+
+func (ec *executionContext) _LogSource_version(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogSource_os(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_os(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Os, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_os(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogSource_arch(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_arch(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Arch, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_arch(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "String")
+}
+
+func (ec *executionContext) _LogSource_runtime(ctx context.Context, field graphql.CollectedField, obj *model.LogSource) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LogSource_runtime(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Runtime, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LogSource_runtime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LogSource", field, false, false, "String")
+}
+
 func (ec *executionContext) _MissingRecording_recording(ctx context.Context, field graphql.CollectedField, obj *model.MissingRecording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -32913,6 +33548,38 @@ func (ec *executionContext) fieldContext_Query_jobCounts(_ context.Context, fiel
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_JobStateCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_logReport(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_logReport(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().LogReport(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.LogReport) graphql.Marshaler {
+			return ec.marshalNLogReport2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogReport(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_logReport(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LogReport(ctx, field)
 		},
 	}
 	return fc, nil
@@ -50154,6 +50821,170 @@ func (ec *executionContext) _LiveStreamScrambled(ctx context.Context, sel ast.Se
 	return out
 }
 
+var logLineImplementors = []string{"LogLine"}
+
+func (ec *executionContext) _LogLine(ctx context.Context, sel ast.SelectionSet, obj *model.LogLine) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, logLineImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LogLine")
+		case "time":
+			out.Values[i] = ec._LogLine_time(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "level":
+			out.Values[i] = ec._LogLine_level(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "inferred":
+			out.Values[i] = ec._LogLine_inferred(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._LogLine_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var logReportImplementors = []string{"LogReport"}
+
+func (ec *executionContext) _LogReport(ctx context.Context, sel ast.SelectionSet, obj *model.LogReport) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, logReportImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LogReport")
+		case "sources":
+			out.Values[i] = ec._LogReport_sources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "redactHosts":
+			out.Values[i] = ec._LogReport_redactHosts(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "instanceId":
+			out.Values[i] = ec._LogReport_instanceId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "roles":
+			out.Values[i] = ec._LogReport_roles(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var logSourceImplementors = []string{"LogSource"}
+
+func (ec *executionContext) _LogSource(ctx context.Context, sel ast.SelectionSet, obj *model.LogSource) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, logSourceImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LogSource")
+		case "kind":
+			out.Values[i] = ec._LogSource_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lines":
+			out.Values[i] = ec._LogSource_lines(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "total":
+			out.Values[i] = ec._LogSource_total(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failure":
+			out.Values[i] = ec._LogSource_failure(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._LogSource_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "os":
+			out.Values[i] = ec._LogSource_os(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "arch":
+			out.Values[i] = ec._LogSource_arch(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "runtime":
+			out.Values[i] = ec._LogSource_runtime(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var missingRecordingImplementors = []string{"MissingRecording"}
 
 func (ec *executionContext) _MissingRecording(ctx context.Context, sel ast.SelectionSet, obj *model.MissingRecording) graphql.Marshaler {
@@ -52511,6 +53342,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_jobCounts(ctx, field)
+				})
+		case "logReport":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_logReport(ctx, field)
 				})
 		case "missingRecordings":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -57839,6 +58676,82 @@ func (ec *executionContext) marshalNLiveStreamRates2ᚖgithubᚗcomᚋSlashNephy
 	return ec._LiveStreamRates(ctx, sel, v)
 }
 
+func (ec *executionContext) unmarshalNLogLevel2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLevel(ctx context.Context, v any) (model.LogLevel, error) {
+	var res model.LogLevel
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLogLevel2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLevel(ctx context.Context, sel ast.SelectionSet, v model.LogLevel) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNLogLine2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLineᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LogLine) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLogLine2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLine(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLogLine2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogLine(ctx context.Context, sel ast.SelectionSet, v *model.LogLine) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LogLine!")
+		return graphql.Null
+	}
+	return ec._LogLine(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLogReport2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogReport(ctx context.Context, sel ast.SelectionSet, v *model.LogReport) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LogReport!")
+		return graphql.Null
+	}
+	return ec._LogReport(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLogSource2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LogSource) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLogSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSource(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLogSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSource(ctx context.Context, sel ast.SelectionSet, v *model.LogSource) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LogSource!")
+		return graphql.Null
+	}
+	return ec._LogSource(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceKind(ctx context.Context, v any) (model.LogSourceKind, error) {
+	var res model.LogSourceKind
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceKind(ctx context.Context, sel ast.SelectionSet, v model.LogSourceKind) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) marshalNMissingRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐMissingRecordingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MissingRecording) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -60110,6 +61023,22 @@ func (ec *executionContext) marshalOLiveStreamScrambled2ᚖgithubᚗcomᚋSlashN
 		return graphql.Null
 	}
 	return ec._LiveStreamScrambled(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceFailure(ctx context.Context, v any) (*model.LogSourceFailure, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.LogSourceFailure)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceFailure(ctx context.Context, sel ast.SelectionSet, v *model.LogSourceFailure) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalONode2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNode(ctx context.Context, sel ast.SelectionSet, v model.Node) graphql.Marshaler {

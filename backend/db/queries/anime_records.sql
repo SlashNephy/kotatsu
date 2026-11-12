@@ -109,3 +109,7 @@ WHERE id = @id AND state = 'pending';
 -- 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
 -- 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
 SELECT pg_advisory_xact_lock(hashtext('kotatsu.anime_manual_record'), hashtext(@user_key::text));
+
+-- name: ListAnimeRecordAccessTokens :many
+-- ログの報告から伏せるため、全ユーザーの記録先のアクセストークンを返す (#1521)。
+SELECT access_token_encrypted FROM anime_record_connections ORDER BY user_id, destination;

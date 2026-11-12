@@ -241,6 +241,25 @@ func (s *Store) Secret(ctx context.Context, db sqlc.DBTX, webhookID uuid.UUID) (
 	return s.open(row.SecretCiphertext)
 }
 
+// LogSecrets は、ログの報告から伏せる値として、Webhook の URL と署名用の秘密キーを返す (#1521)。
+// URL は、パスやクエリがトークンになるので、全体を秘密として扱う。
+func (s *Store) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
+	rows, err := sqlc.New(db).ListWebhooks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list webhooks: %w", err)
+	}
+	secrets := []string{}
+	for i := range rows {
+		secret, err := s.open(rows[i].SecretCiphertext)
+		if err != nil {
+			return nil, err
+		}
+		secrets = append(secrets, rows[i].URL, secret)
+	}
+
+	return secrets, nil
+}
+
 // open は、暗号化した署名用の秘密キーを復号する。
 func (s *Store) open(sealed []byte) (string, error) {
 	secret, err := s.box.Open(sealed)

@@ -104,3 +104,38 @@ func (s *Service) UpdateImportToken(ctx context.Context, db Database, actor *aud
 		})
 	})
 }
+
+// LogSecrets は、ログの報告から伏せる値として、記録先のアプリのクライアントシークレット、ユーザーのアクセストークン、
+// 作品 ID を引くための Annict のトークンを返す (#1521)。連携を無効にしていても、保存してある値は返す。
+func (s *Service) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
+	q := sqlc.New(db)
+	secrets := []string{}
+	apps, err := q.ListAnimeRecordApps(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the anime record apps: %w", err)
+	}
+	for _, app := range apps {
+		secret, err := s.appBox.Open(app.ClientSecretEncrypted)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt the anime record app secret: %w", err)
+		}
+		secrets = append(secrets, string(secret))
+	}
+	tokens, err := q.ListAnimeRecordAccessTokens(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the anime record tokens: %w", err)
+	}
+	for _, sealed := range tokens {
+		token, err := s.tokenBox.Open(sealed)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt the anime record token: %w", err)
+		}
+		secrets = append(secrets, string(token))
+	}
+	importToken, err := s.AnnictImportToken(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(secrets, importToken), nil
+}

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,7 +54,12 @@ type Server struct {
 	programs    map[int64]*Program
 	tuners      []*tunerState
 	subscribers map[chan *Event]struct{}
+	// logs は、/api/log で返す、受けたリクエストの最後の maxLogLines 行 (Mirakurun と同じ形)。
+	logs []string
 }
+
+// maxLogLines は、/api/log で返す行の数の上限。Mirakurun の既定 (maxLogHistory) と同じにする。
+const maxLogLines = 1000
 
 var _ http.Handler = new(Server)
 
@@ -86,6 +92,7 @@ func New(opts *Options) *Server {
 		programs:    map[int64]*Program{},
 		tuners:      make([]*tunerState, 0, len(opts.Tuners)),
 		subscribers: map[chan *Event]struct{}{},
+		logs:        []string{},
 	}
 	// 呼び出し側が持つ値を書き換えないよう、複製して持つ。
 	for _, program := range opts.Programs {
@@ -108,6 +115,7 @@ func New(opts *Options) *Server {
 	s.mux.HandleFunc("GET /api/services/{id}/stream", s.handleServiceStream)
 	s.mux.HandleFunc("GET /api/channels/{type}/{channel}/stream", s.handleChannelStream)
 	s.mux.HandleFunc("GET /api/services/{id}/logo", s.handleServiceLogo)
+	s.mux.HandleFunc("GET /api/log", s.handleLog)
 
 	return s
 }
@@ -115,6 +123,9 @@ func New(opts *Options) *Server {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 時計のずれを再現できるよう、Date ヘッダーは偽チューナーサーバーの時計で返す。
 	w.Header().Set("Date", s.clock.Now().UTC().Format(http.TimeFormat))
+	if r.URL.Path != "/api/log" {
+		s.log(r)
+	}
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -291,6 +302,27 @@ func (s *Server) tunersLocked() []*Tuner {
 	}
 
 	return tuners
+}
+
+// log は、受けたリクエストを、Mirakurun のログと同じ形 (時刻 重さ: 本文) で残す。
+func (s *Server) log(r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.logs = append(s.logs, fmt.Sprintf("%s info: %s - %s %s", s.clock.Now().UTC().Format("2006-01-02T15:04:05.000Z07:00"), r.RemoteAddr, r.Method, r.URL.RequestURI()))
+	if over := len(s.logs) - maxLogLines; over > 0 {
+		s.logs = slices.Delete(s.logs, 0, over)
+	}
+}
+
+// handleLog は、Mirakurun の /api/log と同じく、残したログをテキストで返す。
+func (s *Server) handleLog(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	body := strings.Join(s.logs, "\n") + "\n"
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(body))
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
