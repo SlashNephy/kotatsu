@@ -21,6 +21,25 @@ export function skipJump(base: number, last: number, current: number): number {
   return Math.abs(delta) > maxVideoJump ? base + delta : base;
 }
 
+// advanceTarget は、読み直した配信の最初のコマが、求めた位置 (offset) より手前のとき、進める先の video の時刻を返す (#1512)。
+// 配信は、求めた位置の手前の I フレームから流れ、実際に流し始めた位置 (startedAt、X-Kotatsu-Start) を返す。
+// 位置は startedAt + (currentTime − base) なので、base + (offset − startedAt) へ進めれば、求めた位置になる。
+// 流し始めた位置が求めた位置より後ろなら (索引のないセグメントなど)、進めない。
+export function advanceTarget(base: number, startedAt: number, offset: number): number {
+  return base + Math.max(offset - startedAt, 0);
+}
+
+// isBuffered は、video の時刻 t が、読み込んである範囲 ranges の中かどうかを返す。
+export function isBuffered(ranges: TimeRanges, t: number): boolean {
+  for (let i = 0; i < ranges.length; i++) {
+    if (ranges.start(i) <= t && t < ranges.end(i)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // parseStreamStart は、録画の配信が返す、流し始めた位置のヘッダー (X-Kotatsu-Start、秒) を読む。読めなければ null。
 export function parseStreamStart(value: string | null): number | null {
   if (value === null || value.trim() === '') {

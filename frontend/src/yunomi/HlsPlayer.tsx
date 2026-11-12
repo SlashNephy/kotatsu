@@ -5,6 +5,7 @@ import { cropStyle, noCrop, type Crop } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
+import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
 import classes from './TsPlayer.module.css';
 
@@ -39,6 +40,8 @@ type Props = {
   onVideo?: (video: HTMLVideoElement | null) => void;
   // onSegment は、映像のセグメントを読み終えるたびに、その大きさと長さと画質を受け取る (#828)。
   onSegment?: (segment: HlsSegment) => void;
+  // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
+  coverRef?: RefObject<PlayerCover | null>;
 };
 
 // liveResumeLimitMs は、ライブを一時停止してから、続きから読めるとみなす時間。
@@ -80,6 +83,7 @@ export function HlsPlayer({
   controls,
   onVideo,
   onSegment,
+  coverRef,
 }: Props) {
   const hlsRef = useRef<Hls | null>(null);
   // lowLatencyRef は、hls.js を作るときに読む低遅延モードの設定。変えたら、作り直さずに、動いている hls.js の設定を変える。
@@ -108,6 +112,23 @@ export function HlsPlayer({
   superimposeRef.current = superimpose;
   const styleRef = useRef(captionStyle);
   styleRef.current = captionStyle;
+  // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
+  const covered = useRef(false);
+  const cover = usePlayerCover(videoRef, (shown) => {
+    covered.current = shown;
+    captionsRef.current?.setVisible(showCaptions.current && !shown);
+  });
+  useEffect(() => {
+    if (coverRef === undefined) {
+      return;
+    }
+    coverRef.current = cover.cover;
+
+    return () => {
+      cover.cover.hide();
+      coverRef.current = null;
+    };
+  }, [coverRef, cover.cover]);
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
 
@@ -126,7 +147,7 @@ export function HlsPlayer({
     handlers.current.onVideo?.(video);
     // 字幕は、aribb24.js を読み終えるまで溜めておくので、最初のセグメントの字幕も落とさない。
     const renderer = createCaptions(video, frame, (text) => captionText.current?.(text));
-    renderer.setVisible(showCaptions.current);
+    renderer.setVisible(showCaptions.current && !covered.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
     captionsRef.current = renderer;
@@ -250,7 +271,7 @@ export function HlsPlayer({
   }, [videoRef, url, live, generation]);
 
   useEffect(() => {
-    captionsRef.current?.setVisible(captions);
+    captionsRef.current?.setVisible(captions && !covered.current);
   }, [captions]);
 
   useEffect(() => {
@@ -267,6 +288,10 @@ export function HlsPlayer({
       {/* 切り抜き (#496) で拡大した映像と字幕を、枠の外に出さない。 */}
       <div className={classes.clip}>
         <div ref={frameRef} className={classes.media} style={cropStyle(crop)} />
+        {/* 蓋 (#1512) は、切り抜きの外に置き、映像が実際に出ている矩形に合わせて置く。 */}
+        <div ref={cover.ref} className={classes.cover} hidden>
+          <canvas />
+        </div>
       </div>
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
       {controls}

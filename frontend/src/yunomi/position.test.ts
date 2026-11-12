@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 
 import {
+  advanceTarget,
   broadcastTime,
   formatClock,
   formatDuration,
@@ -9,6 +10,32 @@ import {
   recordingPosition,
   skipJump,
 } from './position';
+
+describe('advanceTarget', () => {
+  test.each([
+    // 1200 秒を求め、手前の I フレーム (1199.6 秒) から流れた。最初のコマの video の時刻は 1.4 秒。
+    {
+      name: '手前の I フレームから流れた分だけ進める',
+      base: 1.4,
+      startedAt: 1199.6,
+      offset: 1200,
+      want: 1.8,
+    },
+    { name: '求めた位置から流れたら進めない', base: 1.4, startedAt: 1200, offset: 1200, want: 1.4 },
+    {
+      name: '求めた位置より後ろから流れたら戻さない',
+      base: 1.4,
+      startedAt: 1201,
+      offset: 1200,
+      want: 1.4,
+    },
+  ])('$name', ({ base, startedAt, offset, want }) => {
+    const target = advanceTarget(base, startedAt, offset);
+    expect(target).toBeCloseTo(want);
+    // 進めた先の再生位置は、求めた位置 (流し始めた位置が後ろなら、そこ) になる。
+    expect(playbackPosition(startedAt, base, target)).toBeCloseTo(Math.max(offset, startedAt));
+  });
+});
 
 describe('skipJump', () => {
   test.each([
