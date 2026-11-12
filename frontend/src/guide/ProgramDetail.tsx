@@ -39,6 +39,7 @@ import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
 import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetailReserveMutation.graphql';
+import { ReservationPeers } from '../reservations/ReservationPeers';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { AnimeEpisodes } from '../anime/AnimeEpisodes';
 import { ServiceLabel } from './ServiceLabel';
@@ -164,6 +165,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
                 state
                 plannedStartAt
                 plannedEndAt
+                ...ReservationPeers_assignment
               }
               rules {
                 id
@@ -188,6 +190,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           state
           plannedStartAt
           plannedEndAt
+          ...ReservationPeers_assignment
         }
         rules {
           id
@@ -462,6 +465,10 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             })}
           </Alert>
         )}
+      {/* 競合か一部のみの予約は、どの予約を外せば録れるかが分かるよう、チューナーを取り合っている相手を出す (#1502)。 */}
+      {reserved && program.reservation != null && (
+        <ReservationPeers assignment={program.reservation.assignment} />
+      )}
       {configuring && !reserved && (
         <ReservationSettingsDialog
           id={program.id}

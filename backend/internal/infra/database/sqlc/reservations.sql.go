@@ -142,7 +142,7 @@ func (q *Queries) GetProgramForReservation(ctx context.Context, arg GetProgramFo
 }
 
 const getReservation = `-- name: GetReservation :one
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations WHERE id = $1
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations WHERE id = $1
 `
 
 func (q *Queries) GetReservation(ctx context.Context, id uuid.UUID) (Reservation, error) {
@@ -170,13 +170,14 @@ func (q *Queries) GetReservation(ctx context.Context, id uuid.UUID) (Reservation
 		&i.AssignedTuner,
 		&i.PlannedStartAt,
 		&i.PlannedEndAt,
+		&i.AssignmentPeers,
 		&i.RelayedFrom,
 	)
 	return i, err
 }
 
 const getReservationByProgram = `-- name: GetReservationByProgram :one
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations WHERE service_id = $1 AND event_id = $2
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations WHERE service_id = $1 AND event_id = $2
 `
 
 type GetReservationByProgramParams struct {
@@ -209,6 +210,7 @@ func (q *Queries) GetReservationByProgram(ctx context.Context, arg GetReservatio
 		&i.AssignedTuner,
 		&i.PlannedStartAt,
 		&i.PlannedEndAt,
+		&i.AssignmentPeers,
 		&i.RelayedFrom,
 	)
 	return i, err
@@ -378,7 +380,7 @@ func (q *Queries) ListReservationRules(ctx context.Context, reservationIds []uui
 }
 
 const listReservations = `-- name: ListReservations :many
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations
 WHERE end_at > $1 AND start_at < $2
   AND (cardinality($3::text[]) = 0 OR assignment_state = ANY($3::text[]))
   AND ($4::boolean IS NULL OR enabled = $4::boolean)
@@ -444,6 +446,55 @@ func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsPara
 			&i.AssignedTuner,
 			&i.PlannedStartAt,
 			&i.PlannedEndAt,
+			&i.AssignmentPeers,
+			&i.RelayedFrom,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReservationsByIDs = `-- name: ListReservationsByIDs :many
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListReservationsByIDs(ctx context.Context, ids []uuid.UUID) ([]Reservation, error) {
+	rows, err := q.db.Query(ctx, listReservationsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Reservation{}
+	for rows.Next() {
+		var i Reservation
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.Genres,
+			&i.Enabled,
+			&i.FollowEventRelay,
+			&i.Settings,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+			&i.AssignmentState,
+			&i.AssignedTuner,
+			&i.PlannedStartAt,
+			&i.PlannedEndAt,
+			&i.AssignmentPeers,
 			&i.RelayedFrom,
 		); err != nil {
 			return nil, err
@@ -457,7 +508,7 @@ func (q *Queries) ListReservations(ctx context.Context, arg ListReservationsPara
 }
 
 const listReservationsByPrograms = `-- name: ListReservationsByPrograms :many
-SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, relayed_from FROM reservations
+SELECT id, kind, service_id, event_id, start_at, end_at, name, description, extended, genres, enabled, follow_event_relay, settings, created_at, created_by, updated_at, updated_by, assignment_state, assigned_tuner, planned_start_at, planned_end_at, assignment_peers, relayed_from FROM reservations
 WHERE (service_id, event_id) IN (SELECT unnest($1::bigint[]), unnest($2::bigint[]))
 `
 
@@ -498,6 +549,7 @@ func (q *Queries) ListReservationsByPrograms(ctx context.Context, arg ListReserv
 			&i.AssignedTuner,
 			&i.PlannedStartAt,
 			&i.PlannedEndAt,
+			&i.AssignmentPeers,
 			&i.RelayedFrom,
 		); err != nil {
 			return nil, err

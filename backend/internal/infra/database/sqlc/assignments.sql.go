@@ -13,7 +13,8 @@ import (
 )
 
 const clearDisabledAssignments = `-- name: ClearDisabledAssignments :execrows
-UPDATE reservations SET assignment_state = 'pending', assigned_tuner = NULL, planned_start_at = NULL, planned_end_at = NULL
+UPDATE reservations SET assignment_state = 'pending', assigned_tuner = NULL, planned_start_at = NULL, planned_end_at = NULL,
+  assignment_peers = '{}'
 WHERE NOT enabled AND assignment_state <> 'pending'
 `
 
@@ -28,7 +29,7 @@ func (q *Queries) ClearDisabledAssignments(ctx context.Context) (int64, error) {
 
 const listAssignableReservations = `-- name: ListAssignableReservations :many
 SELECT r.id, r.kind, r.start_at, r.end_at, r.settings, r.assignment_state, r.assigned_tuner,
-  r.planned_start_at, r.planned_end_at, s.channel_type, s.channel
+  r.planned_start_at, r.planned_end_at, r.assignment_peers, s.channel_type, s.channel
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.enabled AND coalesce(r.planned_end_at, r.end_at) > $1::timestamptz
@@ -45,6 +46,7 @@ type ListAssignableReservationsRow struct {
 	AssignedTuner   *int64
 	PlannedStartAt  *time.Time
 	PlannedEndAt    *time.Time
+	AssignmentPeers []uuid.UUID
 	ChannelType     string
 	Channel         string
 }
@@ -69,6 +71,7 @@ func (q *Queries) ListAssignableReservations(ctx context.Context, now time.Time)
 			&i.AssignedTuner,
 			&i.PlannedStartAt,
 			&i.PlannedEndAt,
+			&i.AssignmentPeers,
 			&i.ChannelType,
 			&i.Channel,
 		); err != nil {
@@ -150,8 +153,9 @@ UPDATE reservations SET
   assignment_state = $1,
   assigned_tuner = $2,
   planned_start_at = $3,
-  planned_end_at = $4
-WHERE id = $5
+  planned_end_at = $4,
+  assignment_peers = $5::uuid[]
+WHERE id = $6
 `
 
 type UpdateAssignmentParams struct {
@@ -159,6 +163,7 @@ type UpdateAssignmentParams struct {
 	AssignedTuner   *int64
 	PlannedStartAt  *time.Time
 	PlannedEndAt    *time.Time
+	AssignmentPeers []uuid.UUID
 	ID              uuid.UUID
 }
 
@@ -168,6 +173,7 @@ func (q *Queries) UpdateAssignment(ctx context.Context, arg UpdateAssignmentPara
 		arg.AssignedTuner,
 		arg.PlannedStartAt,
 		arg.PlannedEndAt,
+		arg.AssignmentPeers,
 		arg.ID,
 	)
 	return err

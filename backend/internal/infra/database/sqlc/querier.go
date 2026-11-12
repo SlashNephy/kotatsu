@@ -664,6 +664,7 @@ type Querier interface {
 	// 時間帯 [from, to) に重なる予約を、開始時刻の順に返す。(after_start_at, after_id) より後ろから limit 件読む。
 	// rule_id を指定すると、そのルールに一致した予約だけを返す。
 	ListReservations(ctx context.Context, arg ListReservationsParams) ([]Reservation, error)
+	ListReservationsByIDs(ctx context.Context, ids []uuid.UUID) ([]Reservation, error)
 	// 番組 (サービス, eventId) の予約。番組の予約は 1 件だけなので、番組ごとに高々 1 行になる。
 	ListReservationsByPrograms(ctx context.Context, arg ListReservationsByProgramsParams) ([]Reservation, error)
 	// 番組を指定した予約のうち、予約か番組の終わりがまだ来ていないものと、その番組の今の EPG。

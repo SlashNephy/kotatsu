@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -107,6 +108,16 @@ func (f *fixture) stored(t *testing.T, reservationID uuid.UUID) stored {
 	return s
 }
 
+func (f *fixture) peers(t *testing.T, reservationID uuid.UUID) []uuid.UUID {
+	t.Helper()
+
+	var peers []uuid.UUID
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT assignment_peers FROM reservations WHERE id = $1", reservationID).Scan(&peers))
+
+	return peers
+}
+
 func (f *fixture) version(t *testing.T, channel string) int64 {
 	t.Helper()
 
@@ -181,6 +192,28 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 	f.runOnce(t)
 	assert.Equal(t, string(assign.StateOK), f.stored(t, conflicted).state)
 	assert.Equal(t, stored{state: "pending", tuner: nil, plannedStart: nil}, f.stored(t, disabled))
+}
+
+// TestRunOnceStoresPeers は、競合した予約に、チューナーを取り合っている相手の予約を残し、
+// 競合が解ければ空に戻すことを確かめる (#1502)。
+func TestRunOnceStoresPeers(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	ids := []uuid.UUID{f.reserve(t, 0, nil), f.reserve(t, 1, nil), f.reserve(t, 2, nil)}
+	slices.SortFunc(ids, func(a, b uuid.UUID) int { return slices.Compare(a[:], b[:]) })
+	// 地上波のチューナーは 2 本なので、ID の最も大きい予約が競合し、残りの 2 件が相手になる。
+	conflicted := ids[2]
+	f.runOnce(t)
+	assert.Equal(t, ids[:2], f.peers(t, conflicted))
+	assert.Equal(t, []uuid.UUID{}, f.peers(t, ids[0]))
+
+	_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), ids[0], &reserve.Update{Enabled: new(false)})
+	require.NoError(t, err)
+	result := f.runOnce(t)
+	assert.Positive(t, result.Changed)
+	assert.Equal(t, []uuid.UUID{}, f.peers(t, conflicted))
+	assert.Equal(t, []uuid.UUID{}, f.peers(t, ids[0]))
 }
 
 // TestRunOnceNotifiesConflictOnce は、競合と競合でない状態を行き来しても、同じ予約の競合は 1 回だけ通知することを確かめる (#430)。

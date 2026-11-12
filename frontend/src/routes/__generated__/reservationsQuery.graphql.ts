@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<de5f6e16290a52c50ec679d60b7748f6>>
+ * @generated SignedSource<<925db7f48b0483843e41df1b6a357f93>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+import { FragmentRefs } from "relay-runtime";
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
@@ -30,6 +31,7 @@ export type reservationsQuery$data = {
           readonly plannedStartAt: string | null | undefined;
           readonly state: AssignmentState;
           readonly tuner: number | null | undefined;
+          readonly " $fragmentSpreads": FragmentRefs<"ReservationPeers_assignment">;
         };
         readonly enabled: boolean;
         readonly endAt: string;
@@ -240,43 +242,32 @@ v20 = {
 v21 = {
   "alias": null,
   "args": null,
-  "concreteType": "ReservationAssignment",
-  "kind": "LinkedField",
-  "name": "assignment",
-  "plural": false,
-  "selections": [
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "state",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "tuner",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "plannedStartAt",
-      "storageKey": null
-    },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "plannedEndAt",
-      "storageKey": null
-    }
-  ],
+  "kind": "ScalarField",
+  "name": "state",
   "storageKey": null
 },
 v22 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "tuner",
+  "storageKey": null
+},
+v23 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "plannedStartAt",
+  "storageKey": null
+},
+v24 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "plannedEndAt",
+  "storageKey": null
+},
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -393,14 +384,33 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v21/*:: as any*/)
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "ReservationAssignment",
+                    "kind": "LinkedField",
+                    "name": "assignment",
+                    "plural": false,
+                    "selections": [
+                      (v21/*:: as any*/),
+                      (v22/*:: as any*/),
+                      (v23/*:: as any*/),
+                      (v24/*:: as any*/),
+                      {
+                        "args": null,
+                        "kind": "FragmentSpread",
+                        "name": "ReservationPeers_assignment"
+                      }
+                    ],
+                    "storageKey": null
+                  }
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v22/*:: as any*/)
+          (v25/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -502,30 +512,70 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v21/*:: as any*/)
+                  {
+                    "alias": null,
+                    "args": null,
+                    "concreteType": "ReservationAssignment",
+                    "kind": "LinkedField",
+                    "name": "assignment",
+                    "plural": false,
+                    "selections": [
+                      (v21/*:: as any*/),
+                      (v22/*:: as any*/),
+                      (v23/*:: as any*/),
+                      (v24/*:: as any*/),
+                      {
+                        "alias": null,
+                        "args": null,
+                        "concreteType": "Reservation",
+                        "kind": "LinkedField",
+                        "name": "peers",
+                        "plural": true,
+                        "selections": [
+                          (v14/*:: as any*/),
+                          (v11/*:: as any*/),
+                          {
+                            "alias": null,
+                            "args": null,
+                            "concreteType": "Service",
+                            "kind": "LinkedField",
+                            "name": "service",
+                            "plural": false,
+                            "selections": [
+                              (v11/*:: as any*/),
+                              (v14/*:: as any*/)
+                            ],
+                            "storageKey": null
+                          }
+                        ],
+                        "storageKey": null
+                      }
+                    ],
+                    "storageKey": null
+                  }
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v22/*:: as any*/)
+          (v25/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "cee6b2a86a11f771255b89a6112cd8fe",
+    "cacheID": "381259c8bf8c36bba434243e6e7bce69",
     "id": null,
     "metadata": {},
     "name": "reservationsQuery",
     "operationKind": "query",
-    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $rule: ID\n  $ruleId: ID!\n  $withRule: Boolean!\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, rule: $rule, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n          plannedStartAt\n          plannedEndAt\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query reservationsQuery(\n  $from: Time!\n  $to: Time!\n  $states: [AssignmentState!]\n  $rule: ID\n  $ruleId: ID!\n  $withRule: Boolean!\n  $first: Int!\n  $after: String\n) {\n  viewer {\n    role\n    id\n  }\n  ruleFilter: node(id: $ruleId) @include(if: $withRule) {\n    __typename\n    ... on Rule {\n      name\n    }\n    id\n  }\n  reservations(from: $from, to: $to, states: $states, rule: $rule, first: $first, after: $after) {\n    edges {\n      node {\n        id\n        kind\n        name\n        startAt\n        endAt\n        enabled\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n          tuner\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "479304a41f794b80dab0724f1c480689";
+(node as any).hash = "0f447abdbbd13ee39bc49141bcbaff9f";
 
 export default node;

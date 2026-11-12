@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 	"uuid"
 
@@ -148,8 +149,10 @@ func (r *Runner) RunOnce(ctx context.Context) (*Result, error) {
 			return err
 		}
 
-		for i, a := range Assign(reservations, tuners) {
-			changed, conflicted, err := update(ctx, q, &rows[i], a)
+		assignments := Assign(reservations, tuners)
+		peers := Peers(reservations, tuners, assignments)
+		for i, a := range assignments {
+			changed, conflicted, err := update(ctx, q, &rows[i], a, peers[i])
 			if err != nil {
 				return err
 			}
@@ -299,15 +302,16 @@ func usableTuners(ctx context.Context, q *sqlc.Queries) ([]*Tuner, error) {
 	return tuners, nil
 }
 
-// update は、割り当ての結果が変わっていれば DB に書く。新たに競合になったかどうかも返す。
-func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReservationsRow, a *Assignment) (bool, bool, error) {
+// update は、割り当ての結果とチューナーを取り合っている相手 (peers) が変わっていれば DB に書く。新たに競合になったかどうかも返す。
+func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReservationsRow, a *Assignment, peers []uuid.UUID) (bool, bool, error) {
 	var tuner *int64
 	if a.Tuner != NoTuner {
 		tuner = new(int64(a.Tuner))
 	}
 	same := row.AssignmentState == string(a.State) && equalPtr(row.AssignedTuner, tuner) &&
 		row.PlannedStartAt != nil && row.PlannedStartAt.Equal(a.PlannedStart) &&
-		row.PlannedEndAt != nil && row.PlannedEndAt.Equal(a.PlannedEnd)
+		row.PlannedEndAt != nil && row.PlannedEndAt.Equal(a.PlannedEnd) &&
+		slices.Equal(row.AssignmentPeers, peers)
 	if same {
 		return false, false, nil
 	}
@@ -318,6 +322,7 @@ func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReserv
 		AssignedTuner:   tuner,
 		PlannedStartAt:  &a.PlannedStart,
 		PlannedEndAt:    &a.PlannedEnd,
+		AssignmentPeers: peers,
 	})
 	if err != nil {
 		return false, false, fmt.Errorf("failed to update the assignment of %s: %w", a.ReservationID, err)

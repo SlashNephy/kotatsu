@@ -113,6 +113,11 @@ models:
         resolver: true
       failureDetail:
         resolver: true
+  ReservationAssignment:
+    model: github.com/SlashNephy/kotatsu/internal/web/graph/model.ReservationAssignment
+    fields:
+      peers:
+        resolver: true
   Reservation:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Reservation
     fields:

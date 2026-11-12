@@ -77,6 +77,8 @@ type Assignment struct {
 	// PlannedStartAt と PlannedEndAt は、マージンを削った後の録画する予定の時刻。割り当てていなければ nil。
 	PlannedStartAt *time.Time
 	PlannedEndAt   *time.Time
+	// Peers は、チューナーを取り合っている相手の予約 (#1502、設計書 4.5)。競合か一部のみの予約にだけ入り、録画する予定の始まりの早い順に並ぶ。
+	Peers []uuid.UUID
 }
 
 // Settings は、全体の既定値 defaults に、この予約の上書きを重ねた録画設定を返す。

@@ -238,10 +238,15 @@ func TestRuleReservations(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO reservation_rules (reservation_id, rule_id) VALUES ($1, $2)`, reservation.ID, rawRuleID)
 	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET assignment_state = 'conflict' WHERE id = $1`, reservation.ID)
+	peer := f.createProgramReservation(t, 5)
+	_, rawPeerID, err := graph.ParseGlobalID(peer.ID)
+	require.NoError(t, err)
+	// 相手の予約のうち、割り当てを計算し直すまでに消えた予約 (missing) は返さない (#1502)。
+	missing := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET assignment_state = 'conflict', assignment_peers = $2 WHERE id = $1`,
+		reservation.ID, []uuid.UUID{uuid.MustParse(rawPeerID), missing})
 	require.NoError(t, err)
 	reservationID := graph.GlobalID("Reservation", reservation.ID.String())
-	f.createProgramReservation(t, 5)
 
 	// 競合している予約だけを引く。
 	var listed reservationList
@@ -255,6 +260,27 @@ func TestRuleReservations(t *testing.T) {
 	assert.Equal(t, "CONFLICT", got.Assignment.State)
 	assert.Equal(t, "テスト番組", got.Rules[0].Name)
 	assert.Nil(t, got.CreatedBy)
+
+	// チューナーを取り合っている相手の予約を、番組名と局名で引ける。
+	var peers struct {
+		Node struct {
+			Assignment struct {
+				Peers []struct {
+					ID      string `json:"id"`
+					Name    string `json:"name"`
+					Service struct {
+						Name string `json:"name"`
+					} `json:"service"`
+				} `json:"peers"`
+			} `json:"assignment"`
+		} `json:"node"`
+	}
+	require.Empty(t, f.query(t, `query($id: ID!) { node(id: $id) { ... on Reservation { assignment { peers { id name service { name } } } } } }`,
+		map[string]any{varID: reservationID}, &peers))
+	require.Len(t, peers.Node.Assignment.Peers, 1)
+	assert.Equal(t, peer.ID, peers.Node.Assignment.Peers[0].ID)
+	assert.Equal(t, programName(5), peers.Node.Assignment.Peers[0].Name)
+	assert.Equal(t, "こたつテスト1", peers.Node.Assignment.Peers[0].Service.Name)
 
 	// ルールで絞ると、番組予約を除いて、ルールに一致した予約だけを引く。
 	var byRule reservationList

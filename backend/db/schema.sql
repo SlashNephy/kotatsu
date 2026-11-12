@@ -701,6 +701,9 @@ CREATE TABLE reservations (
   assigned_tuner bigint,
   planned_start_at timestamptz,
   planned_end_at timestamptz,
+  -- チューナーを取り合っている相手の予約 (#1502、設計書 4.5)。競合か一部のみの予約にだけ入り、録画する予定の始まりの早い順に並べる。
+  -- 相手の予約が消えても、次に割り当てを計算し直すまで残るので、参照の制約は付けない。
+  assignment_peers uuid[] NOT NULL DEFAULT '{}',
   -- イベントリレーで引き継いだ予約の、引き継ぎ元の予約 (設計書 4.6)。
   relayed_from uuid REFERENCES reservations (id) ON DELETE SET NULL,
   CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),

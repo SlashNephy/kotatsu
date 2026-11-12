@@ -3711,6 +3711,12 @@ type ReservationAssignment {
   """
   plannedStartAt: Time
   plannedEndAt: Time
+  """
+  チューナーを取り合っている相手の予約 (#1502、設計書 4.5)。競合か一部のみの予約にだけ入り、正常な予約では空にする。
+  相手は、この予約の種別を受けられるチューナーに割り当てられ、区間 (マージン込み) が重なり、物理チャンネルが違う予約で、
+  録画する予定の始まりの早い順に並べる。neko が割り当てを計算し直すまでに消えた予約は含めない。
+  """
+  peers: [Reservation!]!
 }
 type ReservationConnection {
   edges: [ReservationEdge!]!

@@ -67,6 +67,7 @@ import { AnimeWishlistList } from '../reservations/AnimeWishlistList';
 import type { reservationsWishlistTabQuery } from './__generated__/reservationsWishlistTabQuery.graphql';
 import { TimeReservationDialog } from '../reservations/TimeReservationDialog';
 import classes from './reservations.module.css';
+import { ReservationPeers } from '../reservations/ReservationPeers';
 import { zonedFormat } from '../futon';
 
 // query は、時間帯に重なる予約を取る。続きは、同じ時間帯と状態で、カーソルから読む。
@@ -112,6 +113,7 @@ const query = graphql`
             tuner
             plannedStartAt
             plannedEndAt
+            ...ReservationPeers_assignment
           }
         }
       }
@@ -899,6 +901,10 @@ function ReservationRow({
           </Menu>
         )}
       </Box>
+      {/* 競合か一部のみの予約は、チューナーを取り合っている相手を、番組名の下に並べる (#1502)。 */}
+      {reservation.enabled && attention && (
+        <ReservationPeers assignment={reservation.assignment} className={classes.peers} />
+      )}
       {toggleError && (
         <Text size="xs" c="red" role="alert" className={classes.error}>
           {t('reservations.toggleError')}

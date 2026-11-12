@@ -900,6 +900,9 @@
       "CONFLICT": "競合"
     },
     "planned": "録画 {{start}} 〜 {{end}}",
+    "peers": "チューナーを取り合っている予約：{{peers}}",
+    "peer": "{{name}}（{{service}}）",
+    "peerSeparator": "、",
     "disabled": "無効",
     "enable": "有効にする",
     "disable": "無効にする",
