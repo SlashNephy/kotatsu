@@ -372,9 +372,12 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 	tests := []struct {
 		name   string
 		outage func(db *databasetest.Switch)
+		// noticed は、DB に届かないことに、録画が気づいたか (問い合わせが断られたか、詰まって待ち始めたか) を返す。
+		noticed func(db *databasetest.Switch) bool
 	}{
-		{name: "connection refused", outage: (*databasetest.Switch).Down},
-		{name: "queries hang", outage: (*databasetest.Switch).Hang},
+		{name: "connection refused", outage: (*databasetest.Switch).Down, noticed: func(db *databasetest.Switch) bool { return db.Refused() > 0 }},
+		// 予定の終わりより前に DB を待ち始めた問い合わせが、時計を進めた後に諦めても、予定の終わりで止めたことにする (#1549)。
+		{name: "queries hang", outage: (*databasetest.Switch).Hang, noticed: func(db *databasetest.Switch) bool { return db.Hung() > 0 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -391,6 +394,7 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 			}, waitTimeout, 10*time.Millisecond)
 
 			tt.outage(db)
+			require.Eventually(t, func() bool { return tt.noticed(db) }, waitTimeout, time.Millisecond)
 			plannedEnd := programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second)
 			f.clock.Advance(plannedEnd.Sub(f.clock.Now()))
 			// DB に届かない間も、予定の終わりで止め、新しいセグメントを作らない。止めたら、チューナーのストリームを閉じる。
