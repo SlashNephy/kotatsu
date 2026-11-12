@@ -3,6 +3,7 @@ package graph_test
 import (
 	"context"
 	"log/slog"
+	"strconv"
 	"testing"
 	"uuid"
 
@@ -145,4 +146,79 @@ func TestJobs(t *testing.T) {
 	var audited int
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events WHERE action IN ('job.cancel', 'job.retry')").Scan(&audited))
 	assert.Equal(t, 2, audited)
+}
+
+// jobStateRunning は、River の動いているジョブの状態。
+const jobStateRunning = "running"
+
+// TestJobProgress は、動いているジョブの進み具合を、今の試行で書いたものだけ返すことを確かめる (#1511)。
+// 試し直す前の試行の値や、終えたジョブに残った値は返さない。
+func TestJobProgress(t *testing.T) {
+	t.Parallel()
+
+	admin := &lateJobAdmin{client: nil}
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: t.TempDir()}, JobAdmin: admin})
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	admin.client = client
+
+	type progress struct {
+		Ratio            float64 `json:"ratio"`
+		RemainingSeconds *int    `json:"remainingSeconds"`
+	}
+	tests := []struct {
+		name  string
+		state string
+		// written は、進み具合を書いた試行。0 なら書いていない。
+		written     int
+		remainingMs *int64
+		want        *progress
+	}{
+		{name: jobStateRunning, state: jobStateRunning, written: 2, remainingMs: new(int64(61_500)), want: &progress{Ratio: 0.42, RemainingSeconds: new(62)}},
+		{name: "unknown remaining", state: jobStateRunning, written: 2, remainingMs: nil, want: &progress{Ratio: 0.42, RemainingSeconds: nil}},
+		{name: "previous attempt", state: jobStateRunning, written: 1, remainingMs: nil, want: nil},
+		{name: "not written yet", state: jobStateRunning, written: 0, remainingMs: nil, want: nil},
+		{name: "finished", state: "retryable", written: 2, remainingMs: nil, want: nil},
+	}
+	ids := map[string]int64{}
+	for _, tt := range tests {
+		inserted, err := client.Insert(t.Context(), promoteArgs{}, nil)
+		require.NoError(t, err)
+		id := inserted.Job.ID
+		ids[tt.name] = id
+		_, err = f.pool.Exec(t.Context(), "UPDATE river_job SET state = $2, attempt = 2, attempted_at = now() WHERE id = $1", id, tt.state)
+		require.NoError(t, err)
+		if tt.written > 0 {
+			_, err = f.pool.Exec(t.Context(), "INSERT INTO job_progress (job_id, attempt, ratio, remaining_ms, updated_at) VALUES ($1, $2, 0.42, $3, now())",
+				id, tt.written, tt.remainingMs)
+			require.NoError(t, err)
+		}
+	}
+	adminFixture := f.as(t, adminName, auth.RoleAdmin)
+	got := map[string]*progress{}
+	for _, state := range []string{"RUNNING", "RETRYABLE"} {
+		var page struct {
+			Jobs struct {
+				Nodes []struct {
+					ID       string    `json:"id"`
+					Progress *progress `json:"progress"`
+				} `json:"nodes"`
+			} `json:"jobs"`
+		}
+		require.Empty(t, adminFixture.query(t, `query($state: JobState!) { jobs(state: $state) { nodes { id progress { ratio remainingSeconds } } } }`,
+			map[string]any{varState: state}, &page))
+		for _, node := range page.Jobs.Nodes {
+			got[node.ID] = node.Progress
+		}
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			id := strconv.FormatInt(ids[tt.name], 10)
+			require.Contains(t, got, id)
+			assert.Equal(t, tt.want, got[id])
+		})
+	}
 }

@@ -1822,6 +1822,11 @@
       "retry": "Retry now",
       "cancel": "Cancel",
       "uncancellable": "This job cannot be cancelled here because cancelling it may lose a recording",
+      "progress": "Progress",
+      "remainingUnknown": "Estimating the remaining time",
+      "remainingUnderMinute": "Less than a minute left",
+      "remainingMinutes": "About {{minutes}} min left",
+      "remainingHours": "About {{hours}} h {{minutes}} min left",
       "states": {
         "RUNNING": "Running",
         "AVAILABLE": "Available",

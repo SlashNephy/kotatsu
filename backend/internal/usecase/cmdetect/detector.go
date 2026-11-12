@@ -8,6 +8,8 @@ package cmdetect
 import (
 	"context"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 )
 
 // Section は、CM とみなした区間。Start と End は、ファイルの最初の映像からの時間。
@@ -23,6 +25,9 @@ type Input struct {
 	// ServiceID は、録画したサービスの ID (program_number)。TS の PAT と PMT から、そのサービスの映像と音声の PID を引くのに使う。
 	// 録画は、代表画像と同じく、録画したサービスだけの TS であることを前提にする。
 	ServiceID uint16
+	// Progress は、FFmpeg の -progress のまとまり b と、それまでにファイルから FFmpeg に流したバイト数 read を受け取る (#1511)。
+	// nil なら受け取らない。
+	Progress func(b *ffprogress.Block, read int64)
 }
 
 // Detector は、録画のファイルから CM の区間を見分ける。

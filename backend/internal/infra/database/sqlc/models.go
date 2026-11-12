@@ -301,6 +301,14 @@ type Instance struct {
 	HeartbeatAt time.Time
 }
 
+type JobProgress struct {
+	JobID       int64
+	Attempt     int32
+	Ratio       float64
+	RemainingMs *int64
+	UpdatedAt   time.Time
+}
+
 type Lease struct {
 	Name       string
 	Holder     uuid.UUID

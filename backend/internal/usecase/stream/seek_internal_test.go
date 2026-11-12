@@ -43,3 +43,59 @@ func TestRecordingSeekBefore(t *testing.T) {
 		})
 	}
 }
+
+// TestRecordingDuration は、録画の再生の時間を、最後の I フレームの後に 1 間隔を足して求め、索引のないセグメントがあれば
+// 求めないことを確かめる。録画の変換の進み具合の見込みに使う (#1511)。
+func TestRecordingDuration(t *testing.T) {
+	t.Parallel()
+
+	keyframes := func(n, from int64) []ts.IndexEntry {
+		index := make([]ts.IndexEntry, 0, n)
+		for k := range n {
+			index = append(index, ts.IndexEntry{Offset: k * 1000, PTS: (from + k) * 45045})
+		}
+
+		return index
+	}
+	origin := time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name     string
+		segments []*segment
+		want     time.Duration
+		wantOK   bool
+	}{
+		{
+			// 0.5005 秒ごとの 10 個の I フレームは、最後の I フレーム (4.5045 秒) の後に 1 間隔続く。
+			name:     "one segment",
+			segments: []*segment{{startedAt: origin, endedAt: new(origin.Add(time.Minute)), index: keyframes(10, 0)}},
+			want:     5005 * time.Millisecond, wantOK: true,
+		},
+		{
+			// 時間の離れた 2 つのセグメントは、途切れた区間を詰めてつなぐ。
+			name: "gap between segments",
+			segments: []*segment{
+				{startedAt: origin, endedAt: new(origin.Add(time.Minute)), index: keyframes(10, 0)},
+				{startedAt: origin.Add(10 * time.Minute), endedAt: new(origin.Add(11 * time.Minute)), continues: true, index: keyframes(10, 10000)},
+			},
+			want: 10010 * time.Millisecond, wantOK: true,
+		},
+		{
+			name: "segment without the index",
+			segments: []*segment{
+				{startedAt: origin, endedAt: new(origin.Add(time.Minute)), index: keyframes(10, 0)},
+				{startedAt: origin.Add(time.Minute), endedAt: new(origin.Add(2 * time.Minute)), continues: true, index: []ts.IndexEntry{}},
+			},
+			want: 0, wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := &Recording{streamer: nil, timeline: nil, InProgress: false, segments: tt.segments, skip: 0}
+			got, ok := r.Duration()
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

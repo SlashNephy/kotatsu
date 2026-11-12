@@ -115,6 +115,8 @@ type Querier interface {
 	DeleteExpiredWebPushSubscription(ctx context.Context, arg DeleteExpiredWebPushSubscriptionParams) error
 	DeleteGuideView(ctx context.Context, arg DeleteGuideViewParams) (int64, error)
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
+	// 書き直されなくなった進み具合 (終えたジョブのもの) を消す。
+	DeleteJobProgressBefore(ctx context.Context, before time.Time) (int64, error)
 	DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error
 	// 引いた ChID と期間にあったのに、返ってこなかった放送時間データを消す。期間は db.php と同じく「from < 終了 AND 開始 < to」で決める。
 	DeleteMissingSyobocalPrograms(ctx context.Context, arg DeleteMissingSyobocalProgramsParams) error
@@ -586,6 +588,7 @@ type Querier interface {
 	ListImportedRecordingsToMatch(ctx context.Context, maxCount int32) ([]ListImportedRecordingsToMatchRow, error)
 	// 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
 	ListInstances(ctx context.Context) ([]Instance, error)
+	ListJobProgress(ctx context.Context, jobIds []int64) ([]JobProgress, error)
 	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
 	ListLeases(ctx context.Context) ([]Lease, error)
@@ -1041,6 +1044,8 @@ type Querier interface {
 	// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
+	// 動いているジョブの進み具合を書く (#1511)。試し直したら、前の試行の値を置き換える。
+	UpsertJobProgress(ctx context.Context, arg UpsertJobProgressParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	// プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
 	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)

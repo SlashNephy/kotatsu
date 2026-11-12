@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -212,6 +213,10 @@ func (r *Resolver) jobModels(ctx context.Context, rows []*rivertype.JobRow) ([]*
 			}
 		}
 	}
+	progress, err := r.jobProgress(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
 	jobs := make([]*model.Job, 0, len(rows))
 	for _, row := range rows {
 		job := jobModel(row)
@@ -219,10 +224,44 @@ func (r *Resolver) jobModels(ctx context.Context, rows []*rivertype.JobRow) ([]*
 			// 録画が消えていれば、null のままにする。
 			job.Recording = byID[id.String()]
 		}
+		job.Progress = progress[row.ID]
 		jobs = append(jobs, job)
 	}
 
 	return jobs, nil
+}
+
+// jobProgress は、動いているジョブの進み具合を、ジョブの ID ごとにまとめて引く (#1511)。
+// 前の試行の行 (試し直す前に書いたもの) と、終えたジョブの行は返さない。
+func (r *Resolver) jobProgress(ctx context.Context, rows []*rivertype.JobRow) (map[int64]*model.JobProgress, error) {
+	attempts := map[int64]int{}
+	ids := []int64{}
+	for _, row := range rows {
+		if row.State == rivertype.JobStateRunning {
+			attempts[row.ID] = row.Attempt
+			ids = append(ids, row.ID)
+		}
+	}
+	result := map[int64]*model.JobProgress{}
+	if len(ids) == 0 {
+		return result, nil
+	}
+	progress, err := r.queries.ListJobProgress(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the progress of the jobs: %w", err)
+	}
+	for _, p := range progress {
+		if int(p.Attempt) != attempts[p.JobID] {
+			continue
+		}
+		job := &model.JobProgress{Ratio: p.Ratio, RemainingSeconds: nil, UpdatedAt: p.UpdatedAt}
+		if p.RemainingMs != nil {
+			job.RemainingSeconds = new(int((time.Duration(*p.RemainingMs) * time.Millisecond).Round(time.Second).Seconds()))
+		}
+		result[p.JobID] = job
+	}
+
+	return result, nil
 }
 
 // jobModel は、River のジョブの、録画のほかの項目を GraphQL の形にする。
@@ -236,7 +275,7 @@ func jobModel(row *rivertype.JobRow) *model.Job {
 		ID: strconv.FormatInt(row.ID, 10), Kind: row.Kind, State: model.JobState(strings.ToUpper(string(row.State))),
 		Queue: row.Queue, Attempt: row.Attempt, MaxAttempts: row.MaxAttempts, CreatedAt: row.CreatedAt,
 		ScheduledAt: row.ScheduledAt, AttemptedAt: row.AttemptedAt, FinalizedAt: row.FinalizedAt, Errors: errs,
-		Recording: nil, Retryable: retryable(row), Cancellable: cancellable(row),
+		Recording: nil, Retryable: retryable(row), Cancellable: cancellable(row), Progress: nil,
 	}
 }
 

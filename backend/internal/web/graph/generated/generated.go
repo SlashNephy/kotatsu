@@ -496,6 +496,7 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 		Kind        func(childComplexity int) int
 		MaxAttempts func(childComplexity int) int
+		Progress    func(childComplexity int) int
 		Queue       func(childComplexity int) int
 		Recording   func(childComplexity int) int
 		Retryable   func(childComplexity int) int
@@ -512,6 +513,12 @@ type ComplexityRoot struct {
 	JobPage struct {
 		EndCursor func(childComplexity int) int
 		Nodes     func(childComplexity int) int
+	}
+
+	JobProgress struct {
+		Ratio            func(childComplexity int) int
+		RemainingSeconds func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
 	}
 
 	JobStateCount struct {
@@ -3329,6 +3336,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Job.MaxAttempts(childComplexity), true
+	case "Job.progress":
+		if e.ComplexityRoot.Job.Progress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Job.Progress(childComplexity), true
 	case "Job.queue":
 		if e.ComplexityRoot.Job.Queue == nil {
 			break
@@ -3391,6 +3404,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.JobPage.Nodes(childComplexity), true
+
+	case "JobProgress.ratio":
+		if e.ComplexityRoot.JobProgress.Ratio == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobProgress.Ratio(childComplexity), true
+	case "JobProgress.remainingSeconds":
+		if e.ComplexityRoot.JobProgress.RemainingSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobProgress.RemainingSeconds(childComplexity), true
+	case "JobProgress.updatedAt":
+		if e.ComplexityRoot.JobProgress.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.JobProgress.UpdatedAt(childComplexity), true
 
 	case "JobStateCount.count":
 		if e.ComplexityRoot.JobStateCount.Count == nil {
@@ -9528,6 +9560,18 @@ type Job {
   retryable: Boolean!
   "画面から取り消せるか。終えたジョブと、取り消すと録画を失いうるジョブ (タイムシフトの昇格、セグメントをつなぐジョブ) は取り消せない。"
   cancellable: Boolean!
+  "動いているジョブの進み具合 (#1511)。進み具合を書くジョブ (録画の変換、CM の区間の見分け) が動いていて、今の試行で書いたものがあるときだけ返す。"
+  progress: JobProgress
+}
+
+"ジョブの進み具合 (#1511、設計書 6.1)。FFmpeg がエンコードしたコマ数から求める。"
+type JobProgress {
+  "0 から 1 の割合。FFmpeg が書き終えるまでは 0.99 で止める。"
+  ratio: Float!
+  "残り時間 (秒)。直近の進み方から求める。始まってすぐや、進んでいないときは null。"
+  remainingSeconds: Int
+  "書いた時刻。書き戻しは 5 秒ごと。"
+  updatedAt: Time!
 }
 
 type JobError {
@@ -12860,6 +12904,8 @@ func (ec *executionContext) childFields_Job(ctx context.Context, field graphql.C
 		return ec.fieldContext_Job_retryable(ctx, field)
 	case "cancellable":
 		return ec.fieldContext_Job_cancellable(ctx, field)
+	case "progress":
+		return ec.fieldContext_Job_progress(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Job", field.Name)
 }
@@ -12884,6 +12930,18 @@ func (ec *executionContext) childFields_JobPage(ctx context.Context, field graph
 		return ec.fieldContext_JobPage_endCursor(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type JobPage", field.Name)
+}
+
+func (ec *executionContext) childFields_JobProgress(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "ratio":
+		return ec.fieldContext_JobProgress_ratio(ctx, field)
+	case "remainingSeconds":
+		return ec.fieldContext_JobProgress_remainingSeconds(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_JobProgress_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type JobProgress", field.Name)
 }
 
 func (ec *executionContext) childFields_JobStateCount(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -23046,6 +23104,38 @@ func (ec *executionContext) fieldContext_Job_cancellable(_ context.Context, fiel
 	return graphql.NewScalarFieldContext("Job", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _Job_progress(ctx context.Context, field graphql.CollectedField, obj *model.Job) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Job_progress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Progress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.JobProgress) graphql.Marshaler {
+			return ec.marshalOJobProgress2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobProgress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Job_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Job",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobProgress(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _JobError_at(ctx context.Context, field graphql.CollectedField, obj *model.JobError) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23168,6 +23258,75 @@ func (ec *executionContext) _JobPage_endCursor(ctx context.Context, field graphq
 }
 func (ec *executionContext) fieldContext_JobPage_endCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("JobPage", field, false, false, "String")
+}
+
+func (ec *executionContext) _JobProgress_ratio(ctx context.Context, field graphql.CollectedField, obj *model.JobProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobProgress_ratio(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Ratio, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobProgress_ratio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobProgress", field, false, false, "Float")
+}
+
+func (ec *executionContext) _JobProgress_remainingSeconds(ctx context.Context, field graphql.CollectedField, obj *model.JobProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobProgress_remainingSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RemainingSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_JobProgress_remainingSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobProgress", field, false, false, "Int")
+}
+
+func (ec *executionContext) _JobProgress_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.JobProgress) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_JobProgress_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_JobProgress_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("JobProgress", field, false, false, "Time")
 }
 
 func (ec *executionContext) _JobStateCount_state(ctx context.Context, field graphql.CollectedField, obj *model.JobStateCount) (ret graphql.Marshaler) {
@@ -48654,6 +48813,11 @@ func (ec *executionContext) _Job(ctx context.Context, sel ast.SelectionSet, obj 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "progress":
+			out.Values[i] = ec._Job_progress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -48733,6 +48897,49 @@ func (ec *executionContext) _JobPage(ctx context.Context, sel ast.SelectionSet, 
 		case "endCursor":
 			out.Values[i] = ec._JobPage_endCursor(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var jobProgressImplementors = []string{"JobProgress"}
+
+func (ec *executionContext) _JobProgress(ctx context.Context, sel ast.SelectionSet, obj *model.JobProgress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, jobProgressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("JobProgress")
+		case "ratio":
+			out.Values[i] = ec._JobProgress_ratio(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "remainingSeconds":
+			out.Values[i] = ec._JobProgress_remainingSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._JobProgress_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -58709,6 +58916,13 @@ func (ec *executionContext) marshalOJikkyoChannel2ᚖgithubᚗcomᚋSlashNephy�
 		return graphql.Null
 	}
 	return ec._JikkyoChannel(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOJobProgress2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobProgress(ctx context.Context, sel ast.SelectionSet, v *model.JobProgress) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._JobProgress(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOKeywordInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordInputᚄ(ctx context.Context, v any) ([]*model.KeywordInput, error) {

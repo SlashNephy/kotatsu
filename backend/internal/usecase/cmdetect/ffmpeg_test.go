@@ -32,8 +32,12 @@ func TestParseStderr(t *testing.T) {
 	t.Parallel()
 
 	// silencedetect フィルターが出すログの形。ほかの行は、失敗したときに出すため、末尾だけを残す。
+	// 混ぜて出させた -progress の行 (#1511) は、末尾に残さない。
 	silences, tail := cmdetect.ParseStderr(strings.NewReader(strings.Join([]string{
 		"Input #0, mpegts, from 'pipe:0':",
+		"frame=10",
+		"speed=  41x",
+		"progress=continue",
 		"[Parsed_silencedetect_4 @ 0x7f0cd4016cc0] silence_start: 49237.660875",
 		"[Parsed_silencedetect_4 @ 0x7f0cd4016cc0] silence_end: 49238.442292 | silence_duration: 0.781417",
 		// 終わりのない始まりは、次の始まりで置き換える。

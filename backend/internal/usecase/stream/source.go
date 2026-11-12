@@ -169,6 +169,22 @@ func (r *Recording) Indexed() bool {
 	return slices.ContainsFunc(r.segments, func(seg *segment) bool { return len(seg.index) > 0 })
 }
 
+// Duration は、最初の I フレームから流したときの、録画の再生の時間 (途切れた区間を含めない) を返す。
+// 最後の I フレームの後には、その前の I フレームの間隔だけコマが続くものとする。
+// 索引のないセグメントがあれば、そのセグメントの長さが分からないので、false を返す。録画の変換の進み具合の見込みに使う (#1511)。
+func (r *Recording) Duration() (time.Duration, bool) {
+	if slices.ContainsFunc(r.segments, func(seg *segment) bool { return len(seg.index) == 0 }) {
+		return 0, false
+	}
+	points := r.Keyframes()
+	if len(points) < 2 {
+		return 0, false
+	}
+	last := points[len(points)-1]
+
+	return last + (last - points[len(points)-2]), true
+}
+
 // Write は、pos から録画を w に流す。録画中なら、録画が終わるまで流し続ける。
 func (r *Recording) Write(ctx context.Context, w io.Writer, pos *Position) error {
 	return r.streamer.write(ctx, w, r.timeline, pos.pieces)

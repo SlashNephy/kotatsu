@@ -5,11 +5,14 @@ package transcode
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os/exec"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
@@ -23,6 +26,9 @@ const (
 	audioBitrate = 192
 	// stderrLimit は、失敗の説明に添える FFmpeg の標準エラー出力の長さ。
 	stderrLimit = 4096
+	// waitDelay は、FFmpeg を止めてから、標準出力を読み終えるまで待つ時間の上限。FFmpeg が作った子プロセスが出力を握ったままでも、
+	// ジョブを終えられるようにする。
+	waitDelay = 10 * time.Second
 )
 
 // ErrFFmpegNotFound は、FFmpeg が見つからないことを表す。
@@ -30,7 +36,11 @@ var ErrFFmpegNotFound = errors.New("FFmpeg is not found")
 
 // Encoder は、TS を読んで MP4 を書く。
 type Encoder interface {
-	Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string) error
+	// Encode は、src の TS を、preset の画質の MP4 にして out に書く。progress には、FFmpeg の -progress の出力を書く。
+	Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string, progress io.Writer) error
+	// ProbeFrameRate は、TS のファイル path の最初の映像のフレームレートを読む。読めなければ 0 を返す。
+	// 録画の映像の形式に、フレームレートがないとき (HEVC) に、進み具合の見込みのコマ数を求めるのに使う (#1511)。
+	ProbeFrameRate(ctx context.Context, path string) (float64, error)
 }
 
 // FFmpegEncoder は、FFmpeg で変換する。映像のエンコーダーは、kyusu と同じ設定 (config.Kyusu の encoder) を使う。
@@ -43,6 +53,7 @@ type FFmpegEncoder struct {
 var _ Encoder = new(FFmpegEncoder)
 
 // NewFFmpegEncoder は FFmpegEncoder を返す。FFmpeg がなければ ErrFFmpegNotFound を返す。
+// ffprobe は、進み具合の見込みにしか使わないので、なくても変換する。
 // lowerer は、FFmpeg を最低の優先度で動かす。nil なら、優先度を変えない。
 func NewFFmpegEncoder(cfg *config.Kyusu, lowerer *procprio.Lowerer) (*FFmpegEncoder, error) {
 	if _, err := exec.LookPath(ffmpegCommand); err != nil {
@@ -52,11 +63,13 @@ func NewFFmpegEncoder(cfg *config.Kyusu, lowerer *procprio.Lowerer) (*FFmpegEnco
 	return &FFmpegEncoder{cfg: cfg, lowerer: lowerer}, nil
 }
 
-// Encode は、src の TS を、preset の画質の MP4 にして out に書く。
-func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string) error {
+// Encode は、src の TS を、preset の画質の MP4 にして out に書く。-progress の出力は、標準出力から progress に書く。
+func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string, progress io.Writer) error {
 	// コマンドは定数で、引数は設定のエンコーダーと固定の表の画質、録画のセグメントから作った出力のパスから組み立てる。
 	cmd := exec.CommandContext(ctx, ffmpegCommand, FFmpegArgs(e.cfg, preset, out)...) //nolint:gosec // G204 の誤検知。理由は上のとおり。
 	cmd.Stdin = src
+	cmd.Stdout = progress
+	cmd.WaitDelay = waitDelay
 	var stderr bytes.Buffer
 	cmd.Stderr = &limitedWriter{buf: &stderr, limit: stderrLimit}
 	if err := e.lowerer.Run(cmd); err != nil {
@@ -64,6 +77,52 @@ func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu
 	}
 
 	return nil
+}
+
+func (e *FFmpegEncoder) ProbeFrameRate(ctx context.Context, path string) (float64, error) {
+	cmd := exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=avg_frame_rate,r_frame_rate", "-of", "json", path)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &limitedWriter{buf: &stderr, limit: stderrLimit}
+	if err := e.lowerer.Run(cmd); err != nil {
+		return 0, fmt.Errorf("failed to probe the frame rate: %w: %s", err, stderr.String())
+	}
+	var probed struct {
+		Streams []struct {
+			AvgFrameRate string `json:"avg_frame_rate"`
+			RFrameRate   string `json:"r_frame_rate"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &probed); err != nil {
+		return 0, fmt.Errorf("failed to decode the ffprobe output: %w", err)
+	}
+	if len(probed.Streams) == 0 {
+		return 0, nil
+	}
+	if rate := parseRate(probed.Streams[0].AvgFrameRate); rate > 0 {
+		return rate, nil
+	}
+
+	return parseRate(probed.Streams[0].RFrameRate), nil
+}
+
+// parseRate は、ffprobe が出す「30000/1001」の形のフレームレートを読む。読めないか 0/0 なら 0 を返す。
+func parseRate(s string) float64 {
+	num, den, ok := strings.Cut(s, "/")
+	if !ok {
+		return 0
+	}
+	n, err := strconv.ParseFloat(num, 64)
+	if err != nil {
+		return 0
+	}
+	d, err := strconv.ParseFloat(den, 64)
+	if err != nil || d == 0 {
+		return 0
+	}
+
+	return n / d
 }
 
 // FFmpegArgs は、標準入力の TS を、preset の画質の MP4 にして out に書く FFmpeg の引数を返す。
@@ -100,7 +159,8 @@ func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, out string) []string {
 	bitrate := preset.VideoBitrate
 
 	args := make([]string, 0, 48)
-	args = append(args, "-hide_banner", "-loglevel", "error", "-nostdin", "-y")
+	// 進み具合は、-progress のまとまりを標準出力に出させて読む (#1511)。標準エラー出力の統計の行は出さない。
+	args = append(args, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-nostats", "-progress", "pipe:1")
 	args = append(args, device...)
 	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:0?")
 	args = append(args, "-vf", filter, "-c:v", encoder)

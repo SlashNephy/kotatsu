@@ -6,6 +6,7 @@ import {
   Card,
   Code,
   Group,
+  Progress,
   ScrollArea,
   Stack,
   Table,
@@ -21,7 +22,13 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { AdminPage } from '../../admin/AdminPage';
 import { useAction } from '../../admin/useAction';
 import { EmptyState, zonedFormat } from '../../futon';
-import { jobKindLabel, jobStates, type JobStateName } from '../../admin/jobs';
+import {
+  jobKindLabel,
+  jobStates,
+  progressPercent,
+  remainingLabel,
+  type JobStateName,
+} from '../../admin/jobs';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
@@ -85,6 +92,10 @@ const query = graphql`
         recording {
           id
           name
+        }
+        progress {
+          ratio
+          remainingSeconds
         }
       }
     }
@@ -189,12 +200,13 @@ function Jobs() {
       ) : (
         <Card withBorder p={0}>
           <ScrollArea type="auto">
-            <Table highlightOnHover verticalSpacing="xs" miw={720}>
+            <Table highlightOnHover verticalSpacing="xs" miw={860}>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{t('admin.jobs.id')}</Table.Th>
                   <Table.Th>{t('admin.jobs.kind')}</Table.Th>
                   <Table.Th>{t('admin.jobs.target')}</Table.Th>
+                  <Table.Th>{t('admin.jobs.progress')}</Table.Th>
                   <Table.Th>{t('admin.jobs.attempts')}</Table.Th>
                   <Table.Th>{t('admin.jobs.time')}</Table.Th>
                 </Table.Tr>
@@ -245,6 +257,30 @@ function Jobs() {
                           )}
                         </Table.Td>
                         <Table.Td>
+                          {job.progress != null ? (
+                            <Stack gap={2} miw={140}>
+                              <Group gap="xs" wrap="nowrap">
+                                <Progress
+                                  value={progressPercent(job.progress.ratio)}
+                                  size="sm"
+                                  flex={1}
+                                  aria-label={t('admin.jobs.progress')}
+                                />
+                                <Text size="xs" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                                  {progressPercent(job.progress.ratio)}%
+                                </Text>
+                              </Group>
+                              <Text size="xs" c="dimmed">
+                                {remainingLabel(t, job.progress.remainingSeconds)}
+                              </Text>
+                            </Stack>
+                          ) : (
+                            <Text size="sm" c="dimmed">
+                              -
+                            </Text>
+                          )}
+                        </Table.Td>
+                        <Table.Td>
                           <Text size="sm">
                             {job.attempt} / {job.maxAttempts}
                           </Text>
@@ -260,7 +296,7 @@ function Jobs() {
                       </Table.Tr>
                       {opened === job.id && (
                         <Table.Tr>
-                          <Table.Td colSpan={5}>
+                          <Table.Td colSpan={6}>
                             <Stack gap="xs">
                               <Text size="xs" c="dimmed">
                                 {t('admin.jobs.times', {

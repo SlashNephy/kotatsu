@@ -11,8 +11,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -80,10 +82,13 @@ func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, e
 	scanner := ts.NewCueScanner(input.ServiceID)
 	// 時刻を PTS のまま出させ (-copyts)、ts.CueScanner の時刻と比べられるようにする。I フレームだけをデコードする。
 	// CM の境目の判断には、0.5 秒ごとの絵で足りる。シーンの切り替わりは標準出力に、無音の区間はログ (標準エラー出力) に出る。
-	cmd := exec.CommandContext(ctx, ffmpegCommand, "-nostdin", "-hide_banner", "-nostats", "-loglevel", "info",
+	// 進み具合 (#1511) の -progress のまとまりは、標準出力をシーンの切り替わりに使っているので、標準エラー出力に混ぜて出させ、
+	// 行の形で見分ける。fd 3 に出させる (ExtraFiles) 方法は、Windows で使えない。
+	cmd := exec.CommandContext(ctx, ffmpegCommand, "-nostdin", "-hide_banner", "-nostats", "-progress", "pipe:2", "-loglevel", "info",
 		"-threads", "1", "-filter_complex_threads", "1", "-skip_frame", "nokey", "-copyts", "-f", "mpegts", "-i", "pipe:0",
 		"-filter_complex", filterGraph, "-map", "[v]", "-map", "[a]", "-f", "null", "-")
-	cmd.Stdin = io.TeeReader(file, scanner)
+	src := &countingReader{r: file, n: atomic.Int64{}}
+	cmd.Stdin = io.TeeReader(src, scanner)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the FFmpeg stdout: %w", err)
@@ -99,7 +104,11 @@ func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, e
 	var out *ffmpegOutput
 	var log *ffmpegLog
 	wg.Go(func() { out = parseStdout(stdout) })
-	wg.Go(func() { log = parseStderr(stderr) })
+	var onBlock func(*ffprogress.Block)
+	if input.Progress != nil {
+		onBlock = func(b *ffprogress.Block) { input.Progress(b, src.n.Load()) }
+	}
+	wg.Go(func() { log = parseStderr(stderr, onBlock) })
 	wg.Wait()
 	if err := cmd.Wait(); err != nil {
 		return nil, fmt.Errorf("failed to detect CM sections with FFmpeg: %w: %s", err, strings.Join(log.tail, "; "))
@@ -147,18 +156,20 @@ type ffmpegLog struct {
 }
 
 // parseStderr は、silencedetect フィルターが出す silence_start と silence_end の行を読む。
-func parseStderr(r io.Reader) *ffmpegLog {
+// -progress のまとまりの行は、onBlock に渡し、ログの末尾には残さない。onBlock が nil なら捨てる。
+func parseStderr(r io.Reader, onBlock func(*ffprogress.Block)) *ffmpegLog {
 	log := &ffmpegLog{silences: []span{}, tail: []string{}}
 	start := math.NaN()
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Text()
+	if onBlock == nil {
+		onBlock = func(*ffprogress.Block) {}
+	}
+	parser := ffprogress.NewParser(onBlock, func(line string) {
 		if _, value, ok := strings.Cut(line, "silence_start: "); ok {
 			if t, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil {
 				start = t
 			}
 
-			continue
+			return
 		}
 		if _, value, ok := strings.Cut(line, "silence_end: "); ok {
 			value, _, _ = strings.Cut(value, " ")
@@ -167,16 +178,31 @@ func parseStderr(r io.Reader) *ffmpegLog {
 			}
 			start = math.NaN()
 
-			continue
+			return
 		}
 		log.tail = append(log.tail, line)
 		if len(log.tail) > maxStderrLines {
 			log.tail = log.tail[1:]
 		}
-	}
-	_, _ = io.Copy(io.Discard, r)
+	})
+	// 読み残すと FFmpeg が書き込みで止まるので、最後まで読む。
+	_, _ = io.Copy(parser, r)
+	parser.Flush()
 
 	return log
+}
+
+// countingReader は、読んだバイト数を数える。進み具合の読み位置に使う。
+type countingReader struct {
+	r io.Reader
+	n atomic.Int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n.Add(int64(n))
+
+	return n, err
 }
 
 // newSignals は、PTS のままの時刻を、ファイルの最初の映像からの秒にそろえる。PTS が一周していても、差が半周より短ければ正しく求まる。

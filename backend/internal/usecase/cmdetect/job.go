@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"slices"
+	"sync/atomic"
 	"time"
 	"uuid"
 
@@ -21,7 +23,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
+	"github.com/SlashNephy/kotatsu/internal/usecase/jobprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
@@ -183,7 +187,8 @@ type DetectWorker struct {
 	store *kago.Store
 	clock clock.Clock
 	// hook は、見分け終えたことを受け取る。nil なら呼ばない。
-	hook DetectedHook
+	hook   DetectedHook
+	logger *slog.Logger
 	// newDetector は、見分けに使う Detector を作る。テストでは差し替える。
 	newDetector func() (Detector, error)
 }
@@ -192,13 +197,14 @@ var _ river.Worker[DetectArgs] = new(DetectWorker)
 
 // NewDetectWorker は DetectWorker を返す。store は、このインスタンスにマウントされたプール。
 // lowerer は、FFmpeg を最低の優先度で動かす (#1511)。hook は、区間を書いたトランザクションの中で呼ぶ。nil なら呼ばない。
-func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, hook DetectedHook) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
+// logger には、見分けの進み具合を出す。
+func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, hook DetectedHook, logger *slog.Logger) *DetectWorker {
+	return newDetectWorker(db, store, clk, hook, logger, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
 }
 
-func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, newDetector func() (Detector, error)) *DetectWorker {
+func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func() (Detector, error)) *DetectWorker {
 	return &DetectWorker{
-		WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, hook: hook, newDetector: newDetector,
+		WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, hook: hook, logger: logger, newDetector: newDetector,
 	}
 }
 
@@ -236,10 +242,11 @@ func (w *DetectWorker) Work(ctx context.Context, job *river.Job[DetectArgs]) err
 		}
 	}()
 
-	return w.work(ctx, detector, job.Args.RecordingID)
+	return w.work(ctx, detector, job)
 }
 
-func (w *DetectWorker) work(ctx context.Context, detector Detector, recordingID uuid.UUID) error {
+func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.Job[DetectArgs]) error {
+	recordingID := job.Args.RecordingID
 	q := sqlc.New(w.db)
 	recording, err := q.GetRecording(ctx, recordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -264,9 +271,12 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, recordingID 
 		return err
 	}
 
+	progress := w.progress(ctx, job, segments)
+	// 最後の FFmpeg が終わったら、間を空けずに書き戻す。止めたり失敗したりした後も、止める前の値のまま書く。
+	defer progress.reporter.Finish(ctx)
 	sections := []Section{}
-	for _, segment := range segments {
-		found, err := detector.Detect(ctx, &Input{Path: segment.path, ServiceID: serviceID(sid)})
+	for i, segment := range segments {
+		found, err := detector.Detect(ctx, &Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i)})
 		if errors.Is(err, ErrNoVideo) {
 			// 映像のないセグメント (チューナーが絵を出す前に閉じたものなど) は、見分けるものがないので飛ばす。
 			continue
@@ -280,8 +290,48 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, recordingID 
 			sections = append(sections, Section{Start: max(base+s.Start, 0), End: max(base+s.End, 0)})
 		}
 	}
+	progress.reporter.Finish(ctx)
 
 	return w.record(ctx, detector, recordingID, mergeSections(sections))
+}
+
+// detectProgress は、セグメントを順に見分ける進み具合 (#1511)。
+// 見分けの FFmpeg は、シーンの切り替わったコマだけを出力するので、frame は、見込みの出せない数 (シーンの切り替わりの数) になる。
+// そこで、読んだバイト数を、セグメントの大きさの合計で割る。I フレームだけを 1 本のスレッドでデコードし、読むのがほぼ律速なので、
+// デマクサが先に読み進む分は、パイプとバッファの数十 KB にとどまる。
+type detectProgress struct {
+	reporter *ffprogress.Reporter
+	read     atomic.Int64
+}
+
+func (w *DetectWorker) progress(ctx context.Context, job *river.Job[DetectArgs], segments []segment) *detectProgress {
+	var total int64
+	for _, s := range segments {
+		total += s.size
+	}
+	logger := w.logger.With(slog.Int64("job_id", job.ID), slog.String("recording_id", job.Args.RecordingID.String()))
+	p := &detectProgress{reporter: nil, read: atomic.Int64{}}
+	p.reporter = ffprogress.NewReporter(ffprogress.DefaultConfig(), ffprogress.Estimate{Frames: 0, Bytes: total}, w.clock, p.read.Load,
+		jobprogress.Saver(ctx, w.db, w.clock, logger, job.ID, job.Attempt), logger)
+
+	return p
+}
+
+// observer は、segments の i 番目のセグメントの -progress のまとまりを、録画の全体の読み位置にして読む。
+// progress=end は、最後のセグメントのものだけを、終わりとみなす。
+func (p *detectProgress) observer(ctx context.Context, segments []segment, i int) func(b *ffprogress.Block, read int64) {
+	var base int64
+	for _, s := range segments[:i] {
+		base += s.size
+	}
+	last := i == len(segments)-1
+
+	return func(b *ffprogress.Block, read int64) {
+		block := *b
+		block.End = b.End && last
+		p.read.Store(base + read)
+		p.reporter.Observe(ctx, &block)
+	}
 }
 
 // serviceID は、DB のサービス ID (sid) を、TS の program_number にする。範囲の外なら 0 にし、
@@ -298,6 +348,8 @@ func serviceID(sid int64) uint16 {
 type segment struct {
 	path      string
 	startedAt time.Time
+	// size は、ファイルの大きさ (バイト)。進み具合に使う。
+	size int64
 }
 
 // segments は、録画のファイルから TS のセグメントを、始まりの順に選ぶ。
@@ -319,7 +371,7 @@ func (w *DetectWorker) segments(files []sqlc.RecordingFile) ([]segment, error) {
 		if err != nil {
 			return nil, err
 		}
-		segments = append(segments, segment{path: path, startedAt: file.StartedAt})
+		segments = append(segments, segment{path: path, startedAt: file.StartedAt, size: file.Size})
 	}
 	if len(segments) == 0 {
 		return nil, river.JobCancel(errNoSegment)
