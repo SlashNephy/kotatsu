@@ -194,6 +194,7 @@ func TestHasTarget(t *testing.T) {
 		conditions *match.Conditions
 		want       bool
 	}{
+		{name: "nil", conditions: nil, want: false},
 		{name: "empty", conditions: &match.Conditions{}, want: false},
 		{name: "keyword", conditions: &match.Conditions{Keywords: []*match.Keyword{keyword}}, want: true},
 		{name: "channel type", conditions: &match.Conditions{ChannelTypes: []string{"GR"}}, want: true},

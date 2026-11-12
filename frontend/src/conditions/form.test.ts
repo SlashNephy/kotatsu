@@ -81,6 +81,7 @@ describe('hasRuleTargets (#1501)', () => {
       want: true,
     },
     { name: 'チャンネル種別', form: { ...emptyConditions(), channelTypes: ['BS'] }, want: true },
+    { name: 'サービス', form: { ...emptyConditions(), services: ['U2VydmljZTox'] }, want: true },
     {
       name: 'ジャンル',
       form: { ...emptyConditions(), genres: [{ lv1: 7, lv2: null }] },
