@@ -30,6 +30,8 @@ export type RuleForm = ConditionsForm & {
   avoidDuplicates: boolean;
   duplicateWindowDays: number | null;
   followEventRelay: boolean;
+  // bundleSameEpisodes は、局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (#1498)。
+  bundleSameEpisodes: boolean;
   settings: Settings;
   validFrom: string | null;
   validUntil: string | null;
@@ -56,6 +58,7 @@ export type RuleData = {
   readonly avoidDuplicates: boolean;
   readonly duplicateWindowDays?: number | null;
   readonly followEventRelay: boolean;
+  readonly bundleSameEpisodes: boolean;
 };
 
 // emptyRuleForm は、新しいルールの入力の初期値。conditions を渡すと、その条件から始める (番組の検索から作るときなど)。
@@ -68,6 +71,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
     avoidDuplicates: false,
     duplicateWindowDays: null,
     followEventRelay: true,
+    bundleSameEpisodes: true,
     settings: {
       poolId: null,
       fileNameTemplate: null,
@@ -93,6 +97,7 @@ export function fromRule(rule: RuleData): RuleForm {
     avoidDuplicates: rule.avoidDuplicates,
     duplicateWindowDays: rule.duplicateWindowDays ?? null,
     followEventRelay: rule.followEventRelay,
+    bundleSameEpisodes: rule.bundleSameEpisodes,
     settings: {
       poolId: rule.settings.poolId ?? null,
       fileNameTemplate: rule.settings.fileNameTemplate ?? null,
@@ -121,5 +126,6 @@ export function toInput(form: RuleForm) {
     avoidDuplicates: form.avoidDuplicates,
     duplicateWindowDays: form.avoidDuplicates ? form.duplicateWindowDays : null,
     followEventRelay: form.followEventRelay,
+    bundleSameEpisodes: form.bundleSameEpisodes,
   };
 }

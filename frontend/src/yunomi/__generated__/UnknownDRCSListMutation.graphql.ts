@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b67b7c1ef7099b4775bba508a955eea7>>
+ * @generated SignedSource<<1cb412ef116ae9e2aa6b5025bd8e953f>>
  * @lightSyntaxTransform
  */
 
@@ -38,6 +38,7 @@ export type RecordingSettingsOverridesInput = {
 };
 export type RuleDefaultsInput = {
   avoidDuplicates?: boolean | null | undefined;
+  bundleSameEpisodes?: boolean | null | undefined;
   clearDuplicateWindowDays?: boolean;
   duplicateWindowDays?: number | null | undefined;
   followEventRelay?: boolean | null | undefined;

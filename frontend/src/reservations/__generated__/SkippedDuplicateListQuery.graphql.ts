@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<13738a04393cba509645dfdeb2a8a947>>
+ * @generated SignedSource<<12b23947a21eb70b1b9256a9d976bb16>>
  * @lightSyntaxTransform
  */
 
@@ -8,10 +8,17 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type SkipReason = "DUPLICATE_TITLE" | "OTHER_BROADCAST" | "RECORDED_EPISODE" | "%future added value";
 export type SkippedDuplicateListQuery$variables = Record<PropertyKey, never>;
 export type SkippedDuplicateListQuery$data = {
   readonly skippedDuplicates: ReadonlyArray<{
-    readonly lastRecordedAt: string;
+    readonly instead: {
+      readonly service: {
+        readonly name: string;
+      };
+      readonly startAt: string;
+    } | null | undefined;
+    readonly lastRecordedAt: string | null | undefined;
     readonly program: {
       readonly endAt: string;
       readonly id: string;
@@ -25,6 +32,13 @@ export type SkippedDuplicateListQuery$data = {
       };
       readonly startAt: string;
     };
+    readonly reason: SkipReason;
+    readonly recorded: {
+      readonly endAt: string;
+      readonly service: {
+        readonly name: string;
+      } | null | undefined;
+    } | null | undefined;
     readonly rules: ReadonlyArray<{
       readonly id: string;
       readonly name: string;
@@ -107,7 +121,39 @@ v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
+  "name": "reason",
+  "storageKey": null
+},
+v8 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
   "name": "lastRecordedAt",
+  "storageKey": null
+},
+v9 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "service",
+  "plural": false,
+  "selections": [
+    (v1/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v10 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "service",
+  "plural": false,
+  "selections": [
+    (v1/*:: as any*/),
+    (v0/*:: as any*/)
+  ],
   "storageKey": null
 };
 return {
@@ -155,7 +201,34 @@ return {
             "storageKey": null
           },
           (v6/*:: as any*/),
-          (v7/*:: as any*/)
+          (v7/*:: as any*/),
+          (v8/*:: as any*/),
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "SkippedRecording",
+            "kind": "LinkedField",
+            "name": "recorded",
+            "plural": false,
+            "selections": [
+              (v9/*:: as any*/),
+              (v3/*:: as any*/)
+            ],
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "Program",
+            "kind": "LinkedField",
+            "name": "instead",
+            "plural": false,
+            "selections": [
+              (v2/*:: as any*/),
+              (v9/*:: as any*/)
+            ],
+            "storageKey": null
+          }
         ],
         "storageKey": null
       }
@@ -208,23 +281,51 @@ return {
             "storageKey": null
           },
           (v6/*:: as any*/),
-          (v7/*:: as any*/)
+          (v7/*:: as any*/),
+          (v8/*:: as any*/),
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "SkippedRecording",
+            "kind": "LinkedField",
+            "name": "recorded",
+            "plural": false,
+            "selections": [
+              (v10/*:: as any*/),
+              (v3/*:: as any*/)
+            ],
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "Program",
+            "kind": "LinkedField",
+            "name": "instead",
+            "plural": false,
+            "selections": [
+              (v2/*:: as any*/),
+              (v10/*:: as any*/),
+              (v0/*:: as any*/)
+            ],
+            "storageKey": null
+          }
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "df5138a3cbe0d9ec7459a60e57104a26",
+    "cacheID": "0b8abc2480297c0b9c92789cb539e806",
     "id": null,
     "metadata": {},
     "name": "SkippedDuplicateListQuery",
     "operationKind": "query",
-    "text": "query SkippedDuplicateListQuery {\n  skippedDuplicates {\n    program {\n      id\n      name\n      startAt\n      endAt\n      service {\n        name\n        logoUrl\n        channelType {\n          type\n        }\n        id\n      }\n    }\n    rules {\n      id\n      name\n    }\n    lastRecordedAt\n  }\n}\n"
+    "text": "query SkippedDuplicateListQuery {\n  skippedDuplicates {\n    program {\n      id\n      name\n      startAt\n      endAt\n      service {\n        name\n        logoUrl\n        channelType {\n          type\n        }\n        id\n      }\n    }\n    rules {\n      id\n      name\n    }\n    reason\n    lastRecordedAt\n    recorded {\n      service {\n        name\n        id\n      }\n      endAt\n    }\n    instead {\n      startAt\n      service {\n        name\n        id\n      }\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "edfec17b45f68d73aa9deec97eda61ad";
+(node as any).hash = "f64c16305189acc9b646a68e7dacf3ab";
 
 export default node;

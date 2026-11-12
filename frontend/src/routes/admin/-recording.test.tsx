@@ -24,7 +24,12 @@ function settingsResponse() {
           detectCm: false,
           transcodePreset: null,
         },
-        ruleDefaults: { avoidDuplicates: false, duplicateWindowDays: null, followEventRelay: true },
+        ruleDefaults: {
+          avoidDuplicates: false,
+          duplicateWindowDays: null,
+          followEventRelay: true,
+          bundleSameEpisodes: true,
+        },
         ruleUnmatchedGraceMinutes: 180,
         updatedAt: '2026-11-11T00:00:00Z',
       },
@@ -126,5 +131,32 @@ describe('ルールから外れた予約を残す時間 (#1501)', () => {
     await screen.findByRole('status');
 
     expect(sent).toBe(0);
+  });
+});
+
+describe('ルールを作るときの既定値の同じ回の束ね (#1498)', () => {
+  test('読み込んだ値から始め、切ったら切ったことを保存する', async () => {
+    let sent: unknown = null;
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent = (variables.input as { ruleDefaults: { bundleSameEpisodes?: boolean } }).ruleDefaults
+          .bundleSameEpisodes;
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const bundle = await screen.findByRole('switch', {
+      name: '局をまたいで同じ回を束ね、最初の放送だけを予約する',
+    });
+    expect(bundle).toHaveProperty('checked', true);
+
+    fireEvent.click(bundle);
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await screen.findByRole('status');
+
+    expect(sent).toBe(false);
   });
 });

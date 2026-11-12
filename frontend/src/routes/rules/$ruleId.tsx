@@ -104,6 +104,7 @@ function Rule({ ruleId }: { ruleId: string }) {
             avoidDuplicates
             duplicateWindowDays
             followEventRelay
+            bundleSameEpisodes
           }
         }
         services {
@@ -175,6 +176,7 @@ function newRuleForm(
     readonly avoidDuplicates: boolean;
     readonly duplicateWindowDays?: number | null;
     readonly followEventRelay: boolean;
+    readonly bundleSameEpisodes: boolean;
   },
 ): RuleForm {
   const form = emptyRuleForm(conditions);
@@ -186,5 +188,6 @@ function newRuleForm(
     avoidDuplicates: defaults.avoidDuplicates,
     duplicateWindowDays: defaults.duplicateWindowDays ?? null,
     followEventRelay: defaults.followEventRelay,
+    bundleSameEpisodes: defaults.bundleSameEpisodes,
   };
 }

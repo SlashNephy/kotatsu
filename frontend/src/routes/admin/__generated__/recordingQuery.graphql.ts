@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<009ec000c7b97f9514024608638d5e38>>
+ * @generated SignedSource<<a96e439c0d4f586252a74a533f66e85f>>
  * @lightSyntaxTransform
  */
 
@@ -23,6 +23,7 @@ export type recordingQuery$data = {
     };
     readonly ruleDefaults: {
       readonly avoidDuplicates: boolean;
+      readonly bundleSameEpisodes: boolean;
       readonly duplicateWindowDays: number | null | undefined;
       readonly followEventRelay: boolean;
     };
@@ -145,6 +146,13 @@ var v0 = [
             "kind": "ScalarField",
             "name": "followEventRelay",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "bundleSameEpisodes",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -214,16 +222,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "c5007a46623e4f094ce22b95f5f7e203",
+    "cacheID": "516f1349af32cf6d4539602a4c19ca0f",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n    }\n    ruleUnmatchedGraceMinutes\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f701414719abacd55542af8658bfd60f";
+(node as any).hash = "302432d7af188f608e84aa7638404fc4";
 
 export default node;

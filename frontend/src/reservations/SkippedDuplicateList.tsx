@@ -28,8 +28,8 @@ const timeFormat = zonedFormat({
 });
 const dateFormat = zonedFormat({ year: 'numeric', month: 'numeric', day: 'numeric' });
 
-// SkippedDuplicateList は、ルールに一致したが、重複の回避で予約しなかった番組の一覧 (設計書 4.4、#469)。
-// 録り直したい番組は、ここから手動で予約する。手動の予約は、重複の回避の対象にならない。
+// SkippedDuplicateList は、ルールに一致したが、重複の回避か同じ回の束ねで予約しなかった番組の一覧 (設計書 4.4、#469、#1498)。
+// 録り直したい番組は、ここから手動で予約する。手動の予約は、重複の回避と同じ回の束ねの対象にならない。
 export function SkippedDuplicateList() {
   const { t } = useTranslation();
   // 予約やルールが変わったら、読み直す。
@@ -56,7 +56,20 @@ export function SkippedDuplicateList() {
             id
             name
           }
+          reason
           lastRecordedAt
+          recorded {
+            service {
+              name
+            }
+            endAt
+          }
+          instead {
+            startAt
+            service {
+              name
+            }
+          }
         }
       }
     `,
@@ -108,63 +121,88 @@ export function SkippedDuplicateList() {
       {data.skippedDuplicates.length === 0 ? (
         <EmptyState icon={CopyCheck} title={t('reservations.skipped.empty')} />
       ) : (
-        data.skippedDuplicates.map(({ program, rules, lastRecordedAt }) => {
-          const start = Date.parse(program.startAt);
+        data.skippedDuplicates.map(
+          ({ program, rules, reason, lastRecordedAt, recorded, instead }) => {
+            const start = Date.parse(program.startAt);
+            const ruleNames = rules.map((rule) => rule.name).join('、');
+            let reasonText: string;
+            if (reason === 'RECORDED_EPISODE' && recorded != null) {
+              reasonText = t('reservations.skipped.reasonRecordedEpisode', {
+                rules: ruleNames,
+                service: recorded.service?.name ?? t('reservations.skipped.unknownService'),
+                date: dateFormat.format(Date.parse(recorded.endAt)),
+              });
+            } else if (reason === 'OTHER_BROADCAST') {
+              reasonText =
+                instead == null
+                  ? t('reservations.skipped.reasonOtherBroadcastUnknown', { rules: ruleNames })
+                  : t('reservations.skipped.reasonOtherBroadcast', {
+                      rules: ruleNames,
+                      service: instead.service.name,
+                      date: dateTimeFormat.format(Date.parse(instead.startAt)),
+                    });
+            } else {
+              reasonText = t('reservations.skipped.reason', {
+                rules: ruleNames,
+                date: lastRecordedAt == null ? '' : dateFormat.format(Date.parse(lastRecordedAt)),
+              });
+            }
 
-          return (
-            <Card key={program.id} withBorder padding="xs">
-              <Group gap="sm" wrap="nowrap" justify="space-between">
-                <Stack gap={2} style={{ minWidth: 0 }}>
-                  <Text size="sm" truncate>
-                    <Anchor
-                      inherit
-                      renderRoot={(props) => (
-                        <Link
-                          {...props}
-                          to="/guide"
-                          search={{
-                            date: dateOf(broadcastDay(start).from),
-                            type: program.service.channelType.type,
-                            program: program.id,
-                          }}
+            return (
+              <Card key={program.id} withBorder padding="xs">
+                <Group gap="sm" wrap="nowrap" justify="space-between">
+                  <Stack gap={2} style={{ minWidth: 0 }}>
+                    <Text size="sm" truncate>
+                      <Anchor
+                        inherit
+                        renderRoot={(props) => (
+                          <Link
+                            {...props}
+                            to="/guide"
+                            search={{
+                              date: dateOf(broadcastDay(start).from),
+                              type: program.service.channelType.type,
+                              program: program.id,
+                            }}
+                          />
+                        )}
+                      >
+                        <ProgramTitle name={program.name} />
+                      </Anchor>
+                    </Text>
+                    <Group gap="xs">
+                      <Text size="xs" c="dimmed">
+                        {t('range', {
+                          from: dateTimeFormat.format(start),
+                          to: timeFormat.format(Date.parse(program.endAt)),
+                        })}
+                      </Text>
+                      <Text size="xs">
+                        <ServiceLabel
+                          name={program.service.name}
+                          logoUrl={program.service.logoUrl}
                         />
-                      )}
-                    >
-                      <ProgramTitle name={program.name} />
-                    </Anchor>
-                  </Text>
-                  <Group gap="xs">
+                      </Text>
+                    </Group>
                     <Text size="xs" c="dimmed">
-                      {t('range', {
-                        from: dateTimeFormat.format(start),
-                        to: timeFormat.format(Date.parse(program.endAt)),
-                      })}
+                      {reasonText}
                     </Text>
-                    <Text size="xs">
-                      <ServiceLabel name={program.service.name} logoUrl={program.service.logoUrl} />
-                    </Text>
-                  </Group>
-                  <Text size="xs" c="dimmed">
-                    {t('reservations.skipped.reason', {
-                      rules: rules.map((rule) => rule.name).join('、'),
-                      date: dateFormat.format(Date.parse(lastRecordedAt)),
-                    })}
-                  </Text>
-                </Stack>
-                <Button
-                  size="xs"
-                  variant="default"
-                  flex="none"
-                  loading={reserving && reservingId === program.id}
-                  disabled={reserving && reservingId !== program.id}
-                  onClick={() => onReserve(program.id)}
-                >
-                  {t('reservations.skipped.reserve')}
-                </Button>
-              </Group>
-            </Card>
-          );
-        })
+                  </Stack>
+                  <Button
+                    size="xs"
+                    variant="default"
+                    flex="none"
+                    loading={reserving && reservingId === program.id}
+                    disabled={reserving && reservingId !== program.id}
+                    onClick={() => onReserve(program.id)}
+                  >
+                    {t('reservations.skipped.reserve')}
+                  </Button>
+                </Group>
+              </Card>
+            );
+          },
+        )
       )}
     </Stack>
   );

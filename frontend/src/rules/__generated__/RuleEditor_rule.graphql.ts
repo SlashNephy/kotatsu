@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<267f6a4606fa8ff0386de22dbf7d9eb4>>
+ * @generated SignedSource<<31559f735e3fb74e4cd18bb3d071436f>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,7 @@ export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 import { FragmentRefs } from "relay-runtime";
 export type RuleEditor_rule$data = {
   readonly avoidDuplicates: boolean;
+  readonly bundleSameEpisodes: boolean;
   readonly conditions: {
     readonly channelTypes: ReadonlyArray<string>;
     readonly excludeGenres: ReadonlyArray<{
@@ -467,6 +468,13 @@ return {
       "kind": "ScalarField",
       "name": "followEventRelay",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "bundleSameEpisodes",
+      "storageKey": null
     }
   ],
   "type": "Rule",
@@ -474,6 +482,6 @@ return {
 };
 })();
 
-(node as any).hash = "a1727d5624997ecc950155c328abf720";
+(node as any).hash = "eba074759784476e532458ed3fa30484";
 
 export default node;

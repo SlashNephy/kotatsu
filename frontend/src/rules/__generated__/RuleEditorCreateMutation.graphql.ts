@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<faf756847cbb9bb9f302a2c32a235206>>
+ * @generated SignedSource<<b777a38e0b5f7a46655ac82376f90642>>
  * @lightSyntaxTransform
  */
 
@@ -12,6 +12,7 @@ export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added 
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RuleInput = {
   avoidDuplicates?: boolean;
+  bundleSameEpisodes?: boolean;
   conditions: ProgramConditionsInput;
   duplicateWindowDays?: number | null | undefined;
   enabled?: boolean;
