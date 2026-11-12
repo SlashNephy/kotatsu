@@ -345,6 +345,11 @@ type Querier interface {
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
 	// セッションが今も使えるか (失効させていない、期限の中、ユーザーが有効) を返す。接続中の subscription を確かめ直すのに使う。
 	GetSessionUsable(ctx context.Context, arg GetSessionUsableParams) (bool, error)
+	// OS をスリープさせないかの判定に使う、録っている割り振りと、録画する予定の時刻に入っている予約の数 (#1522、設計書 11.7)。
+	// 引き継ぎ待ちの割り振りも、古い mikan が録り続けているので、録っているとみなす。
+	// 予約は、録画の割り振りを書く対象 (ListDueReservations) と同じく、有効で割り当てを計算済みのものを、
+	// マージン込みで、開始マージンを前の録画に譲った後の、録画する予定の時刻で見る。
+	GetSleepActivity(ctx context.Context, now time.Time) (GetSleepActivityRow, error)
 	// プールの容量の閾値。設定していなければ 0 を返す。
 	GetStoragePoolThreshold(ctx context.Context, id string) (int64, error)
 	// 取り込んだタイトルの、最も新しい更新日時を返す。1 つも取り込んでいなければ、行を返さない。
@@ -621,6 +626,8 @@ type Querier interface {
 	ListMissedRecordingAssignments(ctx context.Context, now time.Time) ([]ListMissedRecordingAssignmentsRow, error)
 	// 新しい時間帯から、保持期間の中の集計を返す。
 	ListNetworkActivity(ctx context.Context, arg ListNetworkActivityParams) ([]NetworkActivity, error)
+	// now より後に始まる、次の予約の録画する予定の開始 (#1522、設計書 11.7)。対象は GetSleepActivity と同じ。なければ空。
+	ListNextReservationStart(ctx context.Context, now time.Time) ([]time.Time, error)
 	ListNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	// イベントの種類 kind を画面内の通知で受け取る、有効なユーザーを返す。設定がなければ受け取る。
 	// audience が NULL でなければ、その中のユーザーだけにする。by_rule なら、ルール予約の録画の通知を受け取らないユーザーを除く。
