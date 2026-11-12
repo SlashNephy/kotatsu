@@ -46,6 +46,15 @@ type Config struct {
 	AnimeRecords AnimeRecords `yaml:"anime_records"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
+	// Power は、Windows と macOS で、OS のスリープを扱う設定 (#1522)。
+	Power Power `yaml:"power"`
+}
+
+// Power は、OS のスリープを扱う設定 (設計書 11.7)。
+type Power struct {
+	// ManageSleep は、all の構成を Windows か macOS で動かすときに、録画、ライブ視聴、エンコードの間と次の録画の直前は
+	// OS をスリープさせず、次の録画の前にスリープから起こす予約を置くかどうか。Linux とコンテナでは、入れても何もしない。
+	ManageSleep bool `yaml:"manage_sleep"`
 }
 
 // UpdateCheck は、新しいリリースを確かめる設定 (設計書 11.1)。
@@ -362,6 +371,9 @@ func Default() *Config {
 		},
 		UpdateCheck: UpdateCheck{
 			Enabled: false,
+		},
+		Power: Power{
+			ManageSleep: true,
 		},
 		Audit: Audit{
 			// 設計書の付録 A の初期値。

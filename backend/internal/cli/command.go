@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/nicolog"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
+	"github.com/SlashNephy/kotatsu/internal/infra/power"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
@@ -118,6 +119,9 @@ type Options struct {
 	WatchChanges func(ctx context.Context, logger *slog.Logger, deps *Deps) (ChangeFeed, error)
 	// LogSetupToken は、all の起動時に、管理者がいなければセットアップトークンを発行してログに出す (設計書 9.2)。
 	LogSetupToken func(ctx context.Context, logger *slog.Logger, clk clock.Clock, pool *pgxpool.Pool) error
+	// SleepSystem は、all の構成で、OS にスリープの抑止と起こす予約を伝える口を作る (#1522、設計書 11.7)。
+	// この OS でスリープを扱わなければ、power.ErrUnsupported を返す。
+	SleepSystem func(opts *power.Options) (SleepSystem, error)
 	// PasswordStrengthTimeout は、パスワードの強度の判定の時間の上限。0 なら既定値にする。
 	// テストは、-race で遅くなるので長くする。
 	PasswordStrengthTimeout time.Duration
@@ -136,6 +140,7 @@ func DefaultOptions(logger *slog.Logger) *Options {
 		RunRegistry:  runRegistry,
 		JobWorkers:   jobWorkers,
 		WatchChanges: watchChanges,
+		SleepSystem:  newSleepSystem,
 
 		LogSetupToken:           logSetupToken,
 		PasswordStrengthTimeout: 0,
@@ -465,8 +470,9 @@ func NewCommand(opts *Options) *cobra.Command {
 		return cfg, pool, nil
 	}
 
-	// start は targets のロールを起動する。issueSetupToken なら、管理者がいないときに、セットアップトークンを発行してログに出す。
-	start := func(ctx context.Context, targets []*Role, issueSetupToken bool) error {
+	// start は targets のロールを起動する。all は、all の構成かどうか。
+	// all の構成では、管理者がいないときに、セットアップトークンを発行してログに出し (設計書 9.2)、OS のスリープを扱う (設計書 11.7)。
+	start := func(ctx context.Context, targets []*Role, all bool) error {
 		cfg, pool, err := connect(ctx)
 		if err != nil {
 			return err
@@ -476,7 +482,7 @@ func NewCommand(opts *Options) *cobra.Command {
 		if err := opts.CheckSchema(ctx, pool); err != nil {
 			return fmt.Errorf("refusing to start: %w", err)
 		}
-		if issueSetupToken {
+		if all {
 			if err := opts.LogSetupToken(ctx, opts.Logger, opts.Clock, pool); err != nil {
 				return err
 			}
@@ -520,7 +526,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			return err
 		}
 
-		return serve(ctx, opts, deps, targets)
+		return serve(ctx, opts, deps, targets, all)
 	}
 
 	for _, role := range opts.Roles {
@@ -610,7 +616,7 @@ func newMeterProviders(ctx context.Context, logger *slog.Logger, deps *Deps, rol
 //
 // HTTP サーバーは 2 つある。server.listen では /healthz と /readyz を、metrics.listen では /metrics を公開する。
 // どれかが失敗すると、残りも止める。ロールがすべて終わったときも、HTTP サーバーを止めて終わる。
-func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error {
+func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bool) error {
 	logger := opts.Logger
 	tracerProvider, shutdownTracing, err := telemetry.NewTracerProvider(ctx, &deps.Config.Telemetry, deps.Network)
 	if err != nil {
@@ -752,6 +758,11 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role) error 
 	eg.Go(func() error {
 		return httpserver.Serve(ctx, logger.With(slog.String("server", "metrics")), metricsListener, metricsHandler)
 	})
+	eg.Go(func() error {
+		runSleepControl(ctx, logger, opts, deps, all, api, live)
+
+		return nil
+	})
 
 	return eg.Wait()
 }
@@ -777,6 +788,8 @@ type apiHandler struct {
 	updates *update.Checker
 	// drainer は、tenban を止める前に、視聴者につなぎ直してもらう (#1085)。
 	drainer *streamapi.Drainer
+	// streams は、tenban が変換せずに流している配信を数える。
+	streams *streamapi.StreamCounter
 }
 
 var _ graph.Updates = new(update.Checker)
@@ -1004,7 +1017,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 
-	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates, drainer: drainer}, nil
+	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
 
 // handleStreams は、映像の配信 (/streams/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
