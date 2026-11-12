@@ -1,0 +1,3 @@
+# Ingress を使うのに、信頼するプロキシがない。
+ingress:
+  enabled: true

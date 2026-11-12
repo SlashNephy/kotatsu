@@ -36,6 +36,10 @@ run = [
   "helm template kotatsu deploy/helm/kotatsu -f deploy/kubernetes/values-split.yaml > deploy/kubernetes/split.yaml",
 ]
 
+# Helm Chart の fail の検査が描画を止めること、描いた HTTPRoute と NetworkPolicy が期待どおりであることを確かめる (#1526)。
+[tasks."deploy:test"]
+run = "./deploy/helm/test.sh"
+
 # SPA を埋め込んだバイナリを、公開せずに作る。作ったものは dist/ に置く。
 [tasks."release:snapshot"]
 depends = ["//frontend:build"]

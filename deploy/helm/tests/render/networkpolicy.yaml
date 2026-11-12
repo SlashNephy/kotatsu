@@ -1,0 +1,12 @@
+# NetworkPolicy は、ロールごとに、許すポートと相手を出す。
+mode: split
+networkPolicy:
+  enabled: true
+  httpFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  metricsFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring

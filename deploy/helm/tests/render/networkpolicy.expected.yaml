@@ -1,0 +1,171 @@
+---
+# Source: kotatsu/templates/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kotatsu-kyusu
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kotatsu
+    app.kubernetes.io/instance: kotatsu
+    app.kubernetes.io/version: "edge"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: kotatsu-0.0.0
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kotatsu
+      app.kubernetes.io/instance: kotatsu
+      app.kubernetes.io/component: kyusu
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: http
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kotatsu
+              app.kubernetes.io/instance: kotatsu
+              app.kubernetes.io/component: tenban
+    - ports:
+        - protocol: TCP
+          port: metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+
+---
+# Source: kotatsu/templates/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kotatsu-mikan
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kotatsu
+    app.kubernetes.io/instance: kotatsu
+    app.kubernetes.io/version: "edge"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: kotatsu-0.0.0
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kotatsu
+      app.kubernetes.io/instance: kotatsu
+      app.kubernetes.io/component: mikan
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+
+---
+# Source: kotatsu/templates/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kotatsu-neko
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kotatsu
+    app.kubernetes.io/instance: kotatsu
+    app.kubernetes.io/version: "edge"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: kotatsu-0.0.0
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kotatsu
+      app.kubernetes.io/instance: kotatsu
+      app.kubernetes.io/component: neko
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+
+---
+# Source: kotatsu/templates/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kotatsu-nekonote
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kotatsu
+    app.kubernetes.io/instance: kotatsu
+    app.kubernetes.io/version: "edge"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: kotatsu-0.0.0
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kotatsu
+      app.kubernetes.io/instance: kotatsu
+      app.kubernetes.io/component: nekonote
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+
+---
+# Source: kotatsu/templates/networkpolicy.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kotatsu-tenban
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kotatsu
+    app.kubernetes.io/instance: kotatsu
+    app.kubernetes.io/version: "edge"
+    app.kubernetes.io/managed-by: Helm
+    helm.sh/chart: kotatsu-0.0.0
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kotatsu
+      app.kubernetes.io/instance: kotatsu
+      app.kubernetes.io/component: tenban
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: http
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    - ports:
+        - protocol: TCP
+          port: metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+
+

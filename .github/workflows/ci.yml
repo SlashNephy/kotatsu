@@ -210,6 +210,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@v5.2.6
       - run: mise run deploy:manifests
+      - run: mise run deploy:test
       - run: git diff --exit-code deploy/
 
   # ブラウザ内での変換に使う mpeg2toh264 のプレイヤーを、固定した commit とツールチェーンでビルドし直し、

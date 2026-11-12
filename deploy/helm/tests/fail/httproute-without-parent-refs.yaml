@@ -1,0 +1,5 @@
+# HTTPRoute を使うのに、付ける Gateway がない。
+ingress:
+  trustedProxies: ["10.244.0.0/16"]
+httpRoute:
+  enabled: true

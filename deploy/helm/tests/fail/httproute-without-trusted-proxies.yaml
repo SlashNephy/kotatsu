@@ -1,0 +1,5 @@
+# HTTPRoute を使うのに、信頼するプロキシがない。
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: gateway

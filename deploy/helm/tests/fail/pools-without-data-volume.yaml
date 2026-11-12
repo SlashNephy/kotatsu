@@ -1,0 +1,6 @@
+# 録画のプールを渡したのに、データディレクトリのボリュームがない。
+storage:
+  pools:
+    - id: main
+      volume:
+        emptyDir: {}

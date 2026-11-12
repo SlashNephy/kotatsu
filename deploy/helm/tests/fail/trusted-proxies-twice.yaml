@@ -1,0 +1,5 @@
+# 信頼するプロキシを、ingress.trustedProxies と config の両方に書いた。
+ingress:
+  trustedProxies: ["10.244.0.0/16"]
+config:
+  SERVER_TRUSTED_PROXIES: 10.244.0.0/16
