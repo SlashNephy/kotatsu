@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
@@ -48,24 +49,28 @@ var ErrNoVideo = errors.New("the file has no video of the service")
 // FFmpegDetector は、FFmpeg を子プロセスとして動かし、無音の区間とシーンの切り替わりから CM の区間を見分ける。
 // 本体とはリンクしない (設計書 付録 B)。FFmpeg に流すのと同じ TS を ts.CueScanner にも読ませ、音声の構成の変化を手掛かりに足す。
 // 映像は I フレームだけをデコードし、縮めてから比べるので、30 分の録画で CPU を 30 秒ほどしか使わない。
-type FFmpegDetector struct{}
+// 録画の後処理なので、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
+type FFmpegDetector struct {
+	lowerer *procprio.Lowerer
+}
 
 var _ Detector = new(FFmpegDetector)
 
 // NewFFmpegDetector は、PATH にある FFmpeg を使う FFmpegDetector を返す。見つからなければ ErrFFmpegNotFound を返す。
-func NewFFmpegDetector() (*FFmpegDetector, error) {
+// lowerer は、FFmpeg を最低の優先度で動かす。nil なら、優先度を変えない。
+func NewFFmpegDetector(lowerer *procprio.Lowerer) (*FFmpegDetector, error) {
 	if _, err := exec.LookPath(ffmpegCommand); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFFmpegNotFound, err)
 	}
 
-	return &FFmpegDetector{}, nil
+	return &FFmpegDetector{lowerer: lowerer}, nil
 }
 
 func (*FFmpegDetector) Name() string { return FFmpegDetectorName }
 
 func (*FFmpegDetector) Version() int32 { return ffmpegDetectorVersion }
 
-func (*FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, error) {
+func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, error) {
 	file, err := sharedfile.Open(input.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the recording file: %w", err)
@@ -87,7 +92,7 @@ func (*FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the FFmpeg stderr: %w", err)
 	}
-	if err := cmd.Start(); err != nil {
+	if err := d.lowerer.Start(cmd); err != nil {
 		return nil, fmt.Errorf("failed to start FFmpeg: %w", err)
 	}
 	var wg sync.WaitGroup
