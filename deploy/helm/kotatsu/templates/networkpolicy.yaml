@@ -28,6 +28,8 @@ spec:
       {{- include "kotatsu.selectorLabels" (dict "root" $ "component" $component) | nindent 6 }}
   policyTypes:
     - Ingress
+  {{- /* 受ける規則がひとつもないロールでは、ingress を書かない (すべて断る)。空の ingress: は null になり、API に断られる。 */}}
+  {{- if or (has $component (list "all" "tenban" "kyusu")) $.Values.networkPolicy.metricsFrom }}
   ingress:
     {{- if has $component (list "all" "tenban") }}
     - ports:
@@ -53,5 +55,6 @@ spec:
       from:
         {{- toYaml . | nindent 8 }}
     {{- end }}
+  {{- end }}
 {{- end }}
 {{- end }}
