@@ -73,10 +73,10 @@ jobs:
       # 配るアーカイブと Chart に、このリポジトリのこの workflow で作ったことを示す証明 (Sigstore) を付ける (#1524、設計書 11.1)。
       # GoReleaser の OSS 版は、作る段と公開する段を分けられないので、公開の直後に付ける。証明はリリースの添付ではなく、
       # GitHub の attestation の API に置くので、immutable releases の後でも付けられる (推測)。
-      - uses: actions/attest-build-provenance@v4.2.2
+      - uses: actions/attest@v4.2.2
         with:
           subject-checksums: dist/checksums.txt
-      - uses: actions/attest-build-provenance@v4.2.2
+      - uses: actions/attest@v4.2.2
         with:
           subject-path: ${{ runner.temp }}/chart/*.tgz
 

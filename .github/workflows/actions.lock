@@ -10,7 +10,7 @@ workflows:
         - 'actions/upload-artifact@v7.0.2'
         - 'jdx/mise-action@v5.2.6'
     '.github/workflows/image.yml':
-        - 'actions/attest-build-provenance@v4.2.2'
+        - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
         - 'docker/build-push-action@v7.4.0'
         - 'docker/login-action@v4.7.0'
@@ -22,7 +22,7 @@ workflows:
         - 'actions/deploy-pages@v5.0.1'
         - 'actions/upload-pages-artifact@v5.0.0'
     '.github/workflows/release.yml':
-        - 'actions/attest-build-provenance@v4.2.2'
+        - 'actions/attest@v4.2.2'
         - 'actions/checkout@v7.0.1'
         - 'actions/create-github-app-token@v3.3.0'
         - 'jdx/mise-action@v5.2.6'
@@ -36,16 +36,9 @@ workflows:
     '.github/workflows/tag-release.yml':
         - 'actions/checkout@v7.0.1'
 dependencies:
-    'actions/attest-build-provenance@v4.2.2':
+    'actions/attest@v4.2.2':
         ref: 'v4.2.2'
-        commit: 'sha1-4d101475d8b20a2381f78447822ac1eab6504dd8'
-        owner_id: 44036562
-        repo_id: 760702757
-        uses:
-            - 'actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d'
-    'actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d':
-        ref: 'v4.2.1'
-        commit: 'sha1-508db95dd578ae2727ebd6217d5ba78e4fbda05d'
+        commit: 'sha1-1e69f48acb82d1966a394da916b4c1698aa569d6'
         owner_id: 44036562
         repo_id: 760701061
     'actions/cache@v6.1.0':
