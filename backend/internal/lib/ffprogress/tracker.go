@@ -143,5 +143,14 @@ func (t *Tracker) remaining(now time.Time) *time.Duration {
 		return nil
 	}
 
-	return new(time.Duration((1 - t.ratio) / gained * float64(width)))
+	// 増え方がごく小さいと、time.Duration に入りきらず負に回るので、maxRemaining を超える見込みは不明にする。
+	remaining := (1 - t.ratio) / gained * float64(width)
+	if remaining > float64(maxRemaining) {
+		return nil
+	}
+
+	return new(time.Duration(remaining))
 }
+
+// maxRemaining は、残り時間として出す見込みの上限。これより長い見込みは、増え方がごく小さいだけなので、不明とみなす。
+const maxRemaining = 7 * 24 * time.Hour

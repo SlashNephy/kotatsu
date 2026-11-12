@@ -89,6 +89,12 @@ func TestTracker(t *testing.T) {
 			want:  []result{{0, -1}, {0.06, 1000 - 60}, {0.36, 128}},
 		},
 		{
+			name: "too small progress means unknown remaining", est: ffprogress.Estimate{Frames: 0, Bytes: 1 << 50},
+			// 大きな入力で、窓の中でごくわずかしか進まないと、見込みが time.Duration に入りきらない。負に回さず、不明にする。
+			steps: []step{{at: 0, frame: "", read: 1}, {at: 60 * time.Second, frame: "", read: 2}},
+			want:  []result{{1.0 / (1 << 50), -1}, {2.0 / (1 << 50), -1}},
+		},
+		{
 			name: "no progress means unknown remaining", est: ffprogress.Estimate{Frames: 1000, Bytes: 0},
 			steps: []step{{at: 0, frame: "100"}, {at: 30 * time.Second, frame: "100"}},
 			want:  []result{{0.1, -1}, {0.1, -1}},
