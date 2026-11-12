@@ -24,6 +24,21 @@ CIでは、PostgreSQL 17で動作を確認しています。
 コンテナは、UID 65532の一般ユーザーで動きます。
 ルートファイルシステムを読み取り専用にしても動きます。
 
+### 配布物を確かめる
+
+配布物には、このリポジトリのGitHub Actionsで作ったことを示す出所の証明（Sigstoreの署名）を付けています。
+`checksums.txt`は壊れたファイルを見分けられますが、リリースごと差し替えられると、ハッシュも一緒に差し替えられてしまいます。
+入れる前に、[GitHub CLI](https://cli.github.com/)で確かめられます。
+
+```bash
+# コンテナイメージ
+gh attestation verify oci://ghcr.io/slashnephy/kotatsu:<バージョン> -R SlashNephy/kotatsu
+# リリースに添えたアーカイブとHelm Chart
+gh attestation verify kotatsu_<バージョン>_linux_amd64.tar.gz -R SlashNephy/kotatsu
+```
+
+コンテナイメージは`edge`と`v2026.11.4`以降の版から、アーカイブとHelm Chartは`v2026.11.4`以降のリリースから、証明を付けています。
+
 ## Docker Composeで動かす
 
 [deploy/compose/compose.yaml](../deploy/compose/compose.yaml)は、PostgreSQLとKotatsuを1台のマシンで動かす例です。

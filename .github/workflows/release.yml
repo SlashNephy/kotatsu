@@ -43,8 +43,11 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    # id-token と attestations は、配るアーカイブと Chart に出所の証明を付けるのに使う (#1524)。
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -67,6 +70,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KOTATSU_CHART_DIR: ${{ runner.temp }}/chart
+      # 配るアーカイブと Chart に、このリポジトリのこの workflow で作ったことを示す証明 (Sigstore) を付ける (#1524、設計書 11.1)。
+      # GoReleaser の OSS 版は、作る段と公開する段を分けられないので、公開の直後に付ける。証明はリリースの添付ではなく、
+      # GitHub の attestation の API に置くので、immutable releases の後でも付けられる (推測)。
+      - uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-checksums: dist/checksums.txt
+      - uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/chart/*.tgz
 
   # Helm Chart を、タグの版で GitHub Pages の Helm リポジトリ (https://slashnephy.github.io/kotatsu) に公開する (設計書 11.1)。
   # Chart の本体はリリースに添付してあり、gh-pages ブランチの index.yaml からそれを指す。

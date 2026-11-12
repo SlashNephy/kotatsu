@@ -2090,6 +2090,7 @@ Content Security Policyは厳しく設定します。
 | デモ | Cloudflare Pagesの`https://kotatsu-demo.pages.dev/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。Cloudflare PagesのGit連携で、mainにpushするたびに作り直します（`frontend`で`pnpm run build:demo`）。 |
 | Kubernetesのマニフェスト | Helm Chartから`helm template`で生成します。 |
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
+| 出所の証明 | コンテナイメージ（すべての種類）、リリースに添えるアーカイブ、Helm ChartのtgzにSigstoreの出所の証明（`actions/attest-build-provenance`）を付けます（#1524）。`checksums.txt`だけでは、リリースごとの差し替えを防げないからです。イメージは、タグが後で別のdigestを指しうるので、digestに付け、レジストリにも置きます。アーカイブとChartは、GoReleaserのOSS版が作る段と公開する段を分けられないので、公開の直後に付けます。そのため、証明の無いアーカイブがリリースに並ぶ時間が少しできます。利用者は`gh attestation verify`で確かめます（`docs/setup.md`）。 |
 
 GitHub Pagesは、GitHub Actionsから配信します（`.github/workflows/pages.yml`）。
 GitHub Pagesには、HelmリポジトリのChartの一覧（`index.yaml`）だけを置きます。
