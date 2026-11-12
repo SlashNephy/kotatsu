@@ -1,0 +1,8 @@
+# ブラウザ内で MPEG-2 をそのままデコードする方式を測るときだけ使うツールチェーン (#1516、bench/wasm-decode/README.md)。
+# ほかの作業で FFmpeg を入れずに済むよう、MISE_ENV=wasm-decode-bench のときだけ読む。
+# WASM を組む emscripten は、bench/wasm-decode/SOURCE で固定した Docker のイメージを使う。
+#
+#   MISE_ENV=wasm-decode-bench mise run //frontend:wasm-decode:build
+[tools]
+# 合成の映像を作り、mpeg2toh264 の出力の画質を測る。demo-stream と同じ conda-forge の FFmpeg を使う。
+"conda:ffmpeg" = "9.0.2"
