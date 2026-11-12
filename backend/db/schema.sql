@@ -706,6 +706,16 @@ CREATE TABLE reservations (
   assignment_peers uuid[] NOT NULL DEFAULT '{}',
   -- イベントリレーで引き継いだ予約の、引き継ぎ元の予約 (設計書 4.6)。
   relayed_from uuid REFERENCES reservations (id) ON DELETE SET NULL,
+  -- 予約を Kotatsu が無効にした理由 (#1500)。人が無効にした予約 (#1504) と見分けるのに使う。人が無効にした予約と、有効な予約は NULL。
+  -- 有効に戻すときに消す。この列を知らない古いバイナリが有効に戻すと残るので、理由は無効な予約でだけ読み、enabled との CHECK は付けない。
+  -- recorded_episode は、ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画をやめたこと。
+  disabled_reason text CHECK (disabled_reason IN ('recorded_episode')),
+  -- disabled_reason が recorded_episode のとき、先に録った同じ回の録画のサービス。画面に局名を出すのに使う。分からなければ NULL。
+  -- 録画履歴のサービスは消えていることがあるので、参照の制約は付けない。
+  disabled_service_id bigint,
+  -- 録り始めに同じ回かを確かめ直すのを、やめるかどうか (#1500)。同じ回と分かって無効にした予約を、人が有効に戻したら立てる。
+  -- 立てないと、録り始めにまた同じ回と分かって、録画をやめてしまう。
+  episode_recheck_waived boolean NOT NULL DEFAULT false,
   CONSTRAINT reservations_event_check CHECK ((kind = 'time') = (event_id IS NULL)),
   CONSTRAINT reservations_time_check CHECK (start_at < end_at)
 );

@@ -219,6 +219,9 @@ type Querier interface {
 	// 失効させたセッションで購読した購読を消す (#1365)。
 	DeleteWebPushSubscriptionsOfSession(ctx context.Context, sessionID *uuid.UUID) error
 	DeleteWebhook(ctx context.Context, id uuid.UUID) (int64, error)
+	// 録り始めに同じ回を録画済みと分かった予約を、理由を付けて無効にする (#1500)。有効なままのときだけ変える。
+	// 録画の行を消しても、予約を有効のまま残すと、スケジューラがまた録り始めるからである。
+	DisableReservationForRecordedEpisode(ctx context.Context, arg DisableReservationForRecordedEpisodeParams) (int64, error)
 	DisableUser(ctx context.Context, arg DisableUserParams) (int64, error)
 	EnableUser(ctx context.Context, arg EnableUserParams) (int64, error)
 	// 終わっていない番組を閉じる。
@@ -311,11 +314,16 @@ type Querier interface {
 	GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (GetProgramEndRow, error)
 	// ファイル名のテンプレートのプレビューに当てはめる、番組とサービスの情報。
 	GetProgramForFileName(ctx context.Context, arg GetProgramForFileNameParams) (GetProgramForFileNameRow, error)
+	// EIT[p/f] で書き直す前の、番組表の番組の正規化した番組名、概要、詳細と、シリーズの記述子の話数 (#1500)。
+	GetProgramForRecheck(ctx context.Context, arg GetProgramForRecheckParams) (GetProgramForRecheckRow, error)
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
 	// 録画の CM の区間を、見分け方 detector で最後に見分け終えた日時を返す (#1571)。見分けていなければ行を返さない。
 	GetRecordingCMDetectedAt(ctx context.Context, arg GetRecordingCMDetectedAtParams) (time.Time, error)
+	// 録画の回を読むための、番組のシリーズの記述子の話数と、録画が 1 つの話に結びついたときの TID と話数。
+	// 録画の話が 1 つだけで、1 話分のときに限る (ListRecordedEpisodes とそろえる)。
+	GetRecordingEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingEpisodeSourceRow, error)
 	// プールの中のパスを使っている録画のファイルの、録画と種類を引く。録画を変換した MP4 を書く前に、ほかのファイルを上書きしないか確かめる (#1253)。
 	GetRecordingFileOwner(ctx context.Context, arg GetRecordingFileOwnerParams) (GetRecordingFileOwnerRow, error)
 	GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.UUID, error)
@@ -486,6 +494,11 @@ type Querier interface {
 	// 見たいリストの作品の放送 (service_ids[i], event_ids[i]) に、見たいリストの通知 (#1234) が付けたものとして、ユーザーの視聴予約を付ける。
 	// 視聴ルールと同じく、付けてある番組と、手で外した番組と、通知を送る時刻を過ぎた番組には付けない。
 	InsertWishlistWatchReservations(ctx context.Context, arg InsertWishlistWatchReservationsParams) (int64, error)
+	// 録り始めに EIT[p/f] で同じ回かを確かめ直す (#1500、設計書 5.1)。
+	// 予約の録画を、録り始めに同じ回かを確かめ直す対象かどうか。同じ回を束ねる設定 (#1498) を入れた有効なルールが作ったルール予約で、
+	// 結び付いた有効なルールのどれもがその設定を入れているものだけを対象にする。設定を入れていない有効なルールも一致していれば、
+	// そのルールが受け持って録るので、見直さない。人が有効に戻した予約 (episode_recheck_waived) も見直さない。
+	IsEpisodeRecheckTarget(ctx context.Context, id uuid.UUID) (bool, error)
 	// 予約の録画が録画中かどうか。まとめて消すか無効にするとき、録画中の予約を飛ばすのに使う (#471)。
 	IsReservationRecording(ctx context.Context, reservationID *uuid.UUID) (bool, error)
 	LastPlayerCommandID(ctx context.Context, playerID uuid.UUID) (int64, error)
@@ -555,7 +568,7 @@ type Querier interface {
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
 	// 人が取り消した (無効にした) 番組の予約のうち、まだ終わっていない、番組名のあるものの放送 (#1504、設計書 4.3)。
 	// 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
-	// 予約を無効にするのは、今は人の操作だけなので、無効の予約はすべて人が取り消したものとみなす。
+	// 録り始めに同じ回と分かって Kotatsu が無効にした予約 (#1500) も、同じ放送をもう一度予約しないよう、人が取り消したものと同じに扱う。
 	ListCancelledBroadcasts(ctx context.Context, now time.Time) ([]ListCancelledBroadcastsRow, error)
 	// ユーザーのキャプチャの ID。ユーザーを消すときに、画像の場所を知るのに使う (#1382)。
 	ListCaptureIDsOfUser(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
@@ -584,6 +597,12 @@ type Querier interface {
 	// 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。
 	ListDueReservations(ctx context.Context, arg ListDueReservationsParams) ([]ListDueReservationsRow, error)
 	ListEPGChangesSince(ctx context.Context, version int64) ([]ListEPGChangesSinceRow, error)
+	// 録り始めた録画 (api_id) と比べる「録った回」(#1500)。録画履歴のうち @since より後に始まったものと、ほかの録画ソフトから
+	// 引き継いだもの (期間で切らない)、それに、この録画より先に作った録画中の録画。録画履歴は、正常に終了し、ドロップが閾値以下で、
+	// スクランブルの警告のない録画だけを持つ (設計書 4.4)。同じ番組の録画 (取り消して戻した続きなど) は除く。
+	// 先に作った録画に限るのは、同時に始まった同じ回の録画が、互いを録画済みとみなして両方やめないためである。api_id は録画を作るときに
+	// 振る番号で、EPGStation から取り込んだ録画は取り込み元の ID を引き継ぐが、取り込むのは録り終えた録画だけなので、録画中の録画では作った順になる。
+	ListEarlierRecordedEpisodes(ctx context.Context, arg ListEarlierRecordedEpisodesParams) ([]ListEarlierRecordedEpisodesRow, error)
 	// 照合に使う、すべてのユーザーの有効な視聴ルール。
 	ListEnabledWatchRules(ctx context.Context) ([]WatchRule, error)
 	// 破棄するチャンク。書いている途中のものは除く。チャンネルの設定がなくなったサービスのものは全部、設定があるものは保持時間を過ぎたもの。
@@ -883,7 +902,7 @@ type Querier interface {
 	PinService(ctx context.Context, arg PinServiceParams) error
 	ProgramAnimeMatchExists(ctx context.Context, arg ProgramAnimeMatchExistsParams) (bool, error)
 	// ルール予約を、手動の番組予約に切り替え、手動の設定を書き込む (設計書 4.1)。無効にしたルール予約も、有効に戻す。
-	// 一致したルールとの関連は残す。
+	// Kotatsu が無効にした理由も消す (#1500)。一致したルールとの関連は残す。
 	PromoteRuleReservation(ctx context.Context, arg PromoteRuleReservationParams) (int64, error)
 	// 最後に取り込めてから (一度も取り込めていなければ、問い合わせてから) before より前のものを消す。視聴状況も一緒に消える。
 	PruneAnimeFollowingFetches(ctx context.Context, before time.Time) (int64, error)
@@ -946,6 +965,11 @@ type Querier interface {
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
+	// 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
+	// EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
+	RewriteProgramInfo(ctx context.Context, arg RewriteProgramInfoParams) (int64, error)
+	// 録画の番組名と概要を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。
+	RewriteRecordingProgramInfo(ctx context.Context, arg RewriteRecordingProgramInfoParams) error
 	// 問い合わせた結果を残す。取り込めたら (error が NULL)、取り込めた日時を進める。取り込めなければ、前に取り込めた日時を残す。
 	// 連携を外した後なら、何も書かない。
 	SaveAnimeFollowingFetch(ctx context.Context, arg SaveAnimeFollowingFetchParams) (int64, error)
@@ -1014,6 +1038,7 @@ type Querier interface {
 	// 録画の映像の解像度を、映像から読んだ値にする (#1310)。EPG から写した値より、映像から読んだ値を優先する。
 	// 録画の最初の、映像の形式を読めたセグメントの値を使うので、それより前に読めたセグメントがあれば変えない。
 	SetRecordingVideoResolutionFromFile(ctx context.Context, arg SetRecordingVideoResolutionFromFileParams) error
+	// 有効に戻すときは、UpdateReservation と同じく、Kotatsu が無効にした理由を消す (#1500)。
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
@@ -1079,6 +1104,7 @@ type Querier interface {
 	UpdatePlayer(ctx context.Context, arg UpdatePlayerParams) (int64, error)
 	// 予約の録画の番組情報を、追従した予約に合わせる。録画を始めた後に繰り下げや延長が届いても、録画に古い時刻を残さない (#1045)。
 	UpdateRecordingProgram(ctx context.Context, arg UpdateRecordingProgramParams) (int64, error)
+	// 有効に戻すときは、Kotatsu が無効にした理由を消す。同じ回と分かって無効にした予約を戻したら、録り始めに確かめ直さない (#1500)。
 	UpdateReservation(ctx context.Context, arg UpdateReservationParams) (int64, error)
 	UpdateReservationProgram(ctx context.Context, arg UpdateReservationProgramParams) error
 	UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, error)

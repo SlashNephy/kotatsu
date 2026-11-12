@@ -128,7 +128,7 @@ func (p *pendingSave) writeOrDefer(ctx context.Context, r *Recorder, write pendi
 // save は、記録できていない録画とセグメントを記録する。失敗したら、残りを残して返す。
 func (p *pendingSave) save(ctx context.Context, r *Recorder, tracker *endTracker) error {
 	if p.start {
-		recording, err := r.start(ctx, &p.cache.reservation, p.startedAt)
+		recording, _, err := r.start(ctx, &p.cache.reservation, p.startedAt, false)
 		if err != nil {
 			return err
 		}

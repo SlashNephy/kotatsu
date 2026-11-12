@@ -1,6 +1,7 @@
 package ts
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 )
@@ -54,14 +55,17 @@ type PresentFollowing struct {
 	FollowingSeen bool
 }
 
-// eitTable は、EIT[p/f] の放送中の番組から、音声の構成を集め、サービスごとの放送中と次の番組を追う。
+// eitTable は、EIT[p/f] の放送中の番組から、音声の構成を集め、サービスごとの放送中と次の番組と、その番組の情報を追う。
 type eitTable struct {
 	events map[[2]uint16]*EventAudio
 	pf     map[uint16]*PresentFollowing
+	// descriptors は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の記述子の並び (#1500)。鍵はサービス ID と eventId。
+	// 文字列を読むのは重いので、EventInfo で引かれたときに読む。
+	descriptors map[[2]uint16][]byte
 }
 
 func newEITTable() *eitTable {
-	return &eitTable{events: map[[2]uint16]*EventAudio{}, pf: map[uint16]*PresentFollowing{}}
+	return &eitTable{events: map[[2]uint16]*EventAudio{}, pf: map[uint16]*PresentFollowing{}, descriptors: map[[2]uint16][]byte{}}
 }
 
 // handle は、EIT[p/f] (自 TS) のセクションを読む。放送中 (section_number 0) と次 (1) の番組を追い、放送中の番組の音声の構成を集める。
@@ -86,21 +90,23 @@ func (t *eitTable) handle(section []byte) {
 
 		return
 	}
-	if sectionNumber == 1 {
-		event := body[eitEventsOffset:]
-		pf.set(1, new(uint16(event[0])<<8|uint16(event[1])))
-
-		return
-	}
 	event := body[eitEventsOffset:]
 	eventID := uint16(event[0])<<8 | uint16(event[1])
-	pf.set(0, new(eventID))
+	pf.set(sectionNumber, new(eventID))
 	loopLength := int(event[10]&0x0F)<<8 | int(event[11])
 	if eitEventHeaderLength+loopLength > len(event) {
 		return
 	}
-	audios := audioComponents(event[eitEventHeaderLength : eitEventHeaderLength+loopLength])
+	descriptors := event[eitEventHeaderLength : eitEventHeaderLength+loopLength]
 	key := [2]uint16{header.tableIDExtension, eventID}
+	// 番組名や概要は、放送の直前の EIT[p/f] にだけ載ることがあるので、放送中と次の番組の両方で読む (#1500)。
+	if current, ok := t.descriptors[key]; !ok || !bytes.Equal(current, descriptors) {
+		t.descriptors[key] = bytes.Clone(descriptors)
+	}
+	if sectionNumber == 1 {
+		return
+	}
+	audios := audioComponents(descriptors)
 	if current := t.events[key]; current != nil {
 		current.Seen++
 		// 構成は、番組の途中で変わることがあるので、最後に読んだものにする。音声コンポーネント記述子のないセクションでは、前のものを残す。

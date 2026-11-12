@@ -3744,6 +3744,61 @@ func (e RecordingState) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// Kotatsu が予約を無効にした理由 (#1500)。
+type ReservationDisabledReason string
+
+const (
+	// ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画しない。
+	ReservationDisabledReasonRecordedEpisode ReservationDisabledReason = "RECORDED_EPISODE"
+)
+
+var AllReservationDisabledReason = []ReservationDisabledReason{
+	ReservationDisabledReasonRecordedEpisode,
+}
+
+func (e ReservationDisabledReason) IsValid() bool {
+	switch e {
+	case ReservationDisabledReasonRecordedEpisode:
+		return true
+	}
+	return false
+}
+
+func (e ReservationDisabledReason) String() string {
+	return string(e)
+}
+
+func (e *ReservationDisabledReason) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ReservationDisabledReason(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ReservationDisabledReason", str)
+	}
+	return nil
+}
+
+func (e ReservationDisabledReason) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ReservationDisabledReason) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ReservationDisabledReason) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 // 予約の種類 (設計書 4.1)。
 type ReservationKind string
 

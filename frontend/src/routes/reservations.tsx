@@ -101,6 +101,10 @@ const query = graphql`
           startAt
           endAt
           enabled
+          disabledReason
+          disabledService {
+            name
+          }
           service {
             name
             logoUrl
@@ -904,6 +908,16 @@ function ReservationRow({
       {/* 競合か一部のみの予約は、チューナーを取り合っている相手を、番組名の下に並べる (#1502)。 */}
       {reservation.enabled && attention && (
         <ReservationPeers assignment={reservation.assignment} className={classes.peers} />
+      )}
+      {/* 録り始めに同じ回を録画済みと分かって、Kotatsu が無効にした予約は、理由を番組名の下に出す (#1500)。 */}
+      {!reservation.enabled && reservation.disabledReason === 'RECORDED_EPISODE' && (
+        <Text size="xs" c="dimmed" className={classes.reason}>
+          {reservation.disabledService == null
+            ? t('reservations.disabledReason.recordedEpisode')
+            : t('reservations.disabledReason.recordedEpisodeOn', {
+                service: toHalfWidth(reservation.disabledService.name),
+              })}
+        </Text>
       )}
       {toggleError && (
         <Text size="xs" c="red" role="alert" className={classes.error}>

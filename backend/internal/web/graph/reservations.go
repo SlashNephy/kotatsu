@@ -104,6 +104,7 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 		Description:      r.Description,
 		Genres:           genres,
 		Enabled:          r.Enabled,
+		DisabledReason:   disabledReason(r),
 		FollowEventRelay: r.FollowEventRelay,
 		Settings:         toOverridesModel(r.Overrides),
 		Assignment: &model.ReservationAssignment{
@@ -113,13 +114,24 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 			PlannedEndAt:   r.Assignment.PlannedEndAt,
 			PeerKeys:       r.Assignment.Peers,
 		},
-		CreatedAt:  r.CreatedAt,
-		CreatedBy:  nil,
-		UpdatedAt:  r.UpdatedAt,
-		UpdatedBy:  nil,
-		Key:        r.ID,
-		ServiceKey: r.ServiceID,
+		CreatedAt:          r.CreatedAt,
+		CreatedBy:          nil,
+		UpdatedAt:          r.UpdatedAt,
+		UpdatedBy:          nil,
+		Key:                r.ID,
+		ServiceKey:         r.ServiceID,
+		DisabledServiceKey: r.DisabledServiceID,
 	}, nil
+}
+
+// disabledReason は、Kotatsu が予約を無効にした理由を、スキーマの値にする (#1500)。理由がないか、有効な予約なら nil。
+// この列を知らない古いバイナリが有効に戻すと理由が残るので、有効な予約では返さない。
+func disabledReason(r *domain.Reservation) *model.ReservationDisabledReason {
+	if r.Enabled || r.DisabledReason == "" {
+		return nil
+	}
+
+	return new(model.ReservationDisabledReason(strings.ToUpper(string(r.DisabledReason))))
 }
 
 // reservation は、予約を引く。

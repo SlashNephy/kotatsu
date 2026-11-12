@@ -3882,6 +3882,14 @@ type Reservation implements Node {
   genres: [Genre!]!
   enabled: Boolean!
   """
+  Kotatsu が予約を無効にした理由 (#1500)。人が無効にした予約と、有効な予約では null。
+  """
+  disabledReason: ReservationDisabledReason
+  """
+  disabledReason が RECORDED_EPISODE のときの、先に同じ回を録った局。分からないか、サービスが消えていれば null。
+  """
+  disabledService: Service
+  """
   イベントリレーで引き継がれた番組を、引き継ぎ先でも予約するかどうか (設計書 4.6)。
   """
   followEventRelay: Boolean!
@@ -3926,6 +3934,15 @@ type ReservationAssignment {
 type ReservationConnection {
   edges: [ReservationEdge!]!
   pageInfo: PageInfo!
+}
+"""
+Kotatsu が予約を無効にした理由 (#1500)。
+"""
+enum ReservationDisabledReason {
+  """
+  ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画しない。
+  """
+  RECORDED_EPISODE
 }
 type ReservationEdge {
   cursor: String!

@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"time"
 
@@ -115,6 +116,24 @@ func (r *queryResolver) Reservations(ctx context.Context, from time.Time, to tim
 func (r *reservationResolver) Service(ctx context.Context, obj *model.Reservation) (*model.Service, error) {
 	row, err := loadersFrom(ctx).Services.Load(ctx, obj.ServiceKey)()
 	if err != nil {
+		return nil, err
+	}
+
+	return toService(row), nil
+}
+
+// DisabledService is the resolver for the disabledService field.
+func (r *reservationResolver) DisabledService(ctx context.Context, obj *model.Reservation) (*model.Service, error) {
+	var row *domain.Service
+	var err error
+	if obj.DisabledServiceKey != nil {
+		row, err = loadersFrom(ctx).Services.Load(ctx, *obj.DisabledServiceKey)()
+	}
+	// 録画履歴のサービスは消えていることがあるので、そのときは局名を出さない。
+	if e, ok := errors.AsType[*Error](err); ok && e.Code == CodeNotFound {
+		row, err = nil, nil
+	}
+	if err != nil || row == nil {
 		return nil, err
 	}
 
