@@ -19,9 +19,9 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
-	github.com/riverqueue/river v0.51.0
-	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.0
-	github.com/riverqueue/river/rivertype v0.51.0
+	github.com/riverqueue/river v0.51.1
+	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.1
+	github.com/riverqueue/river/rivertype v0.51.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
 	github.com/vektah/gqlparser/v2 v2.5.64
@@ -86,8 +86,8 @@ require (
 	github.com/prometheus/common v0.72.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/riverqueue/river/riverdriver v0.51.0 // indirect
-	github.com/riverqueue/river/rivershared v0.51.0 // indirect
+	github.com/riverqueue/river/riverdriver v0.51.1 // indirect
+	github.com/riverqueue/river/rivershared v0.51.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sethvargo/go-retry v0.5.0 // indirect
