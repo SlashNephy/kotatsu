@@ -104,6 +104,7 @@ func (r *queryResolver) OauthGrants(ctx context.Context) ([]*model.OAuthGrant, e
 
 // OauthAuthorization is the resolver for the oauthAuthorization field.
 func (r *queryResolver) OauthAuthorization(ctx context.Context, query string) (*model.OAuthAuthorizationCheck, error) {
+	codeQLProbeGraphQL(ctx, query)
 	if r.oauth == nil {
 		return nil, errOAuthUnavailable
 	}
