@@ -377,7 +377,7 @@ CREATE TABLE notification_events (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder', 'anime_recorded', 'anime_record_failed'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings'
   )),
   occurred_at timestamptz NOT NULL,
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
@@ -417,7 +417,7 @@ CREATE TABLE notification_preferences (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder', 'anime_recorded', 'anime_record_failed'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings'
   )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,
@@ -868,6 +868,12 @@ CREATE TABLE recordings (
   drops bigint NOT NULL DEFAULT 0,
   errors bigint NOT NULL DEFAULT 0,
   scrambled bigint NOT NULL DEFAULT 0,
+  -- ES の PID だけで出した、スクランブルされていたパケットの割合 (設計書 5.3、5.5、#1517)。録画を終えたときと、解析し直したときに書く。
+  -- ES のパケットが少なくて判定しなかった録画と、判定する前の録画は NULL。
+  scrambled_ratio double precision,
+  -- スクランブルされたまま録れたという警告の印 (設計書 5.5)。録画全体か、どれかのセグメントの割合が閾値を超えたら立てる。
+  -- 失敗の理由にはせず、状態とは別に持つ。
+  scramble_warning boolean NOT NULL DEFAULT false,
   -- 途切れた区間 (設計書 5.2)。[{"from": ..., "to": ...}] の形で、ストリームを開き直すまでの間を記録する。
   gaps jsonb NOT NULL DEFAULT '[]',
   -- 録画を始めたときの番組の音声の構成 (programs.audios の写し)。時刻予約や、番組がないときは空にする。
@@ -913,6 +919,25 @@ CREATE TABLE recording_failure_counts (
   last_failed_at timestamptz,
   -- 管理者が累計を 0 に戻した日時 (#1035)。戻していなければ NULL。カウンターの作成の時刻にして、受け手にリセットを伝える。
   reset_at timestamptz
+);
+
+-- スクランブルされたまま録れた録画を、管理者に知らせる様子 (設計書 6.2、#1517)。行は 1 つだけ持ち、初めて判定したときに作る。
+-- 録画を終えるたびに、判定できた録画が続けて警告だったかを数える。同時に録画を終える mikan が数え間違えないよう、行を更新する文で数える。
+CREATE TABLE scramble_alerts (
+  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  -- 判定できた録画が、続けてスクランブルされたままだった数。スクランブルされていない録画を判定したら 0 に戻す。
+  consecutive bigint NOT NULL,
+  -- 最後に管理者に知らせた日時。まだ知らせていなければ NULL。
+  notified_at timestamptz,
+  updated_at timestamptz NOT NULL
+);
+
+-- ライブで、スクランブルされたまま届くと決めたサービスと、決めた日時 (設計書 7.1、#1517)。サービスごとに最後に決めた 1 行だけを持つ。
+-- 決めた kyusu か tenban が書き、版数の通知で、プレイヤーの購読を受けている tenban に知らせる。
+-- 上流から消えたサービスも書けるよう、services は参照しない。
+CREATE TABLE live_scramble_verdicts (
+  service_id bigint PRIMARY KEY,
+  decided_at timestamptz NOT NULL
 );
 
 -- 録画のファイル (設計書 5.2、5.6、8.2)。セグメントは、ストリームを開き直すたびに作る。
@@ -1024,7 +1049,7 @@ CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
 -- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
 CREATE INDEX watch_progress_updated_at_idx ON watch_progress (updated_at);
 
--- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値以下だった録画だけを記録し、録画を削除しても残す。
+-- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値以下で、スクランブルの警告のない録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,
   service_id bigint NOT NULL REFERENCES services (id),
@@ -1043,8 +1068,14 @@ CREATE TABLE recording_history (
   imported boolean NOT NULL DEFAULT false,
   start_at timestamptz NOT NULL,
   end_at timestamptz NOT NULL,
-  created_at timestamptz NOT NULL
+  created_at timestamptz NOT NULL,
+  -- 記録した Kotatsu の録画 (#1517)。解析し直して、スクランブルの警告が変わったときに、履歴を合わせて直すのに使う。
+  -- 録画を消しても履歴は残すので、NULL にする。EPGStation から取り込んだ履歴と、これを足す前に記録した履歴も NULL。
+  recording_id uuid REFERENCES recordings (id) ON DELETE SET NULL
 );
+
+-- 録画の履歴を、録画で引くのに使う (#1517)。録画を消すときの ON DELETE SET NULL でも引く。
+CREATE INDEX recording_history_recording_id_idx ON recording_history (recording_id);
 
 -- 重複の回避の照合で、(正規化した番組名, サービス) と期間で引く (設計書 4.4)。
 -- EPGStation では、このインデックスがないために照合が全件を走査し、利用者が手でインデックスを足していた。

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"time"
 	"uuid"
 
@@ -19,11 +20,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
-	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/history"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
-	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -305,13 +306,24 @@ func (r *Recorder) finishPromotion(
 		if err != nil {
 			return err
 		}
+		// 録画履歴に記録するかを決めるのに使うので、録画を終える前に判定する (設計書 4.4、#1517)。
+		scrambled, err := scramble.Judge(ctx, q, recording.ID, now)
+		if err != nil {
+			return err
+		}
 		state, err := r.completePromoted(ctx, q, recording.ID, promotion, recordedUntil, now)
 		if err != nil {
 			return err
 		}
 
 		return r.notifyPromotion(ctx, tx, recording.ID, func(payload map[string]any) error {
+			// スクランブルの警告は、予約の録画と同じく、完了の通知に添えて、管理者への知らせの数にも足す (#1517)。
+			alert := maps.Clone(payload)
 			payload["state"] = string(state)
+			scramble.AddToPayload(payload, scrambled)
+			if err := scramble.Alert(ctx, tx, r.clock, scrambled, alert); err != nil {
+				return err
+			}
 			segments, err := q.ListRecordingSegments(ctx, recording.ID)
 			if err != nil {
 				return fmt.Errorf("failed to list the recording files: %w", err)
@@ -394,14 +406,10 @@ func (r *Recorder) completePromoted(
 	if err != nil {
 		return "", fmt.Errorf("failed to finish the recording: %w", err)
 	}
-	if state == StatePartial || recording.Drops > MaxHistoryDrops {
-		return state, nil
-	}
-	err = q.InsertRecordingHistoryFromRecording(ctx, sqlc.InsertRecordingHistoryFromRecordingParams{
-		ID: id.New(), TitleKey: rule.TitleKey(recording.Name), Now: now, RecordingID: recordingID,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to save the recording history: %w", err)
+	// スクランブルの警告は、録画を終える前に判定して記録してある (#1517)。
+	recording.State = string(state)
+	if err := history.Record(ctx, q, &recording, now); err != nil {
+		return "", err
 	}
 
 	return state, nil

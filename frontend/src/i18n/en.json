@@ -90,7 +90,8 @@
       "TUNER_SERVER_UNREACHABLE": "Tuner server unreachable",
       "WATCH_REMINDER": "Watch reminder program starting",
       "ANIME_RECORDED": "An anime you watched was recorded",
-      "ANIME_RECORD_FAILED": "An anime you watched could not be recorded"
+      "ANIME_RECORD_FAILED": "An anime you watched could not be recorded",
+      "SCRAMBLED_RECORDINGS": "Recordings kept coming out scrambled"
     },
     "openExternal": "Open on the service"
   },
@@ -1184,6 +1185,8 @@
     "tuners": "Tuner {{names}}",
     "gap": "{{from}} – {{to}} is missing",
     "programLost": "The program disappeared from the guide during recording",
+    "scrambled": "Scrambled",
+    "scrambleWarning": "{{percent}} of the video and audio packets were recorded still scrambled. Check the B-CAS card of the tuner server or your subscription to this channel.",
     "broadcastRange": "Actual broadcast: {{from}} – {{until}}",
     "broadcastOngoing": "On air",
     "notBroadcast": "The reserved program was not broadcast at the scheduled time. The recorded video contains another program.",
@@ -1539,6 +1542,7 @@
     "disconnected": "Playback stopped",
     "tunerTaken": "Playback stopped because the tuner is needed for recording. Recording: {{recordings}}",
     "streamEnded": "Disconnected from the tuner server",
+    "scrambled": "The video and audio of this channel are arriving still scrambled. Check the B-CAS card of the tuner server or your subscription to this channel.",
     "retryIn": "Reconnecting in {{seconds}} s",
     "reconnectNow": "Reconnect now",
     "programDetail": "Program details and reservation"

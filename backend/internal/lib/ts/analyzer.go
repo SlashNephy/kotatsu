@@ -90,6 +90,11 @@ type PIDStats struct {
 	Errors int64
 	// Scrambled は、transport_scrambling_control が 0 以外だったパケットの数。
 	Scrambled int64
+	// Payloads は、ペイロードを持ち、transport_error_indicator が立っておらず、ヘッダーを読めたパケットの数 (#1517)。
+	// スクランブルされたままかを決める割合の分母にする。ペイロードのないパケットはスクランブルの対象にならず、誤りのあるパケットはヘッダーを信用できないからである。
+	Payloads int64
+	// ScrambledPayloads は、Payloads のうち、transport_scrambling_control が 0 以外だったパケットの数 (#1517)。
+	ScrambledPayloads int64
 }
 
 // Stats は、解析した TS 全体の統計。
@@ -263,7 +268,10 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 
 	state := a.pids[pkt.pid]
 	if state == nil {
-		state = &pidState{stats: PIDStats{PID: pkt.pid, Packets: 0, Drops: 0, Errors: 0, Scrambled: 0}, lastCC: -1, duplicated: false}
+		state = &pidState{
+			stats:  PIDStats{PID: pkt.pid, Packets: 0, Drops: 0, Errors: 0, Scrambled: 0, Payloads: 0, ScrambledPayloads: 0},
+			lastCC: -1, duplicated: false,
+		}
 		a.pids[pkt.pid] = state
 	}
 	state.stats.Packets++
@@ -283,6 +291,12 @@ func (a *Analyzer) handle(b []byte, offset int64) {
 		a.discardPayload(pkt.pid)
 
 		return
+	}
+	if pkt.hasPayload {
+		state.stats.Payloads++
+		if pkt.scrambling != 0 {
+			state.stats.ScrambledPayloads++
+		}
 	}
 	result := state.checkContinuity(&pkt)
 	if pkt.scrambling != 0 {

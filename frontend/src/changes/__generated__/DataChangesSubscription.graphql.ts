@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b2caf418223307405cf6c76d645de307>>
+ * @generated SignedSource<<a03435aca5c8ff950ad2cc4eeda735aa>>
  * @lightSyntaxTransform
  */
 
@@ -15,6 +15,10 @@ export type DataChangesSubscription$data = {
     readonly dataChange: {
       readonly channel: DataChannel;
       readonly version: number;
+    } | null | undefined;
+    readonly liveStreamScrambled: {
+      readonly decidedAt: string;
+      readonly service: string;
     } | null | undefined;
     readonly streamsDraining: boolean | null | undefined;
     readonly unreadNotificationCount: number | null | undefined;
@@ -81,6 +85,31 @@ var v0 = [
         "kind": "ScalarField",
         "name": "streamsDraining",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "LiveStreamScrambled",
+        "kind": "LinkedField",
+        "name": "liveStreamScrambled",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "service",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "decidedAt",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -104,16 +133,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "2740803792ebfc48b6d29e442e5ab728",
+    "cacheID": "8a8da5ed8e5d47185c70aefb0541a728",
     "id": null,
     "metadata": {},
     "name": "DataChangesSubscription",
     "operationKind": "subscription",
-    "text": "subscription DataChangesSubscription {\n  viewerEvents {\n    dataChange {\n      channel\n      version\n    }\n    viewerSettingsVersion\n    unreadNotificationCount\n    streamsDraining\n  }\n}\n"
+    "text": "subscription DataChangesSubscription {\n  viewerEvents {\n    dataChange {\n      channel\n      version\n    }\n    viewerSettingsVersion\n    unreadNotificationCount\n    streamsDraining\n    liveStreamScrambled {\n      service\n      decidedAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "84fb8348c394cd96f949cefb7ef0412d";
+(node as any).hash = "4228e2725fddd985b91f08d4f7d40ae4";
 
 export default node;

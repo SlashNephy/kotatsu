@@ -32,6 +32,9 @@ type Querier interface {
 	// kotatsu が記録先に話を記録できたら、次に取り込むまでの間も画面が古くならないよう、見たいリストの進み具合を進める (#1230)。
 	// 進み具合は戻さない。記録した話数以下の「次に見る話」は、もう次ではないので消し、次に取り込むときに引き直す。
 	AdvanceAnimeWishlistProgress(ctx context.Context, arg AdvanceAnimeWishlistProgressParams) error
+	// 録画を終えたときの判定を、続けてスクランブルされたままだった録画の数に足す (設計書 6.2、#1517)。
+	// scrambled なら 1 足し、そうでなければ 0 に戻す。行をロックするので、管理者に知らせるかは、同じトランザクションの中で決める。
+	AdvanceScrambleAlert(ctx context.Context, arg AdvanceScrambleAlertParams) (AdvanceScrambleAlertRow, error)
 	// 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
 	// 1 つの作品に作品 ID の対応が複数あれば、取り込むとき (InsertAnimeWishlistEntries) と同じ順で 1 つを選ぶ。
 	ApplyAnimeArtworks(ctx context.Context) error
@@ -64,6 +67,8 @@ type Querier interface {
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
 	// /metrics に出す、失敗の理由ごとの録画の数。
 	CountRecordingFailures(ctx context.Context) ([]CountRecordingFailuresRow, error)
+	// 録画 recording_id から記録した録画履歴の数 (#1517)。
+	CountRecordingHistoryByRecording(ctx context.Context, recordingID *uuid.UUID) (int64, error)
 	// 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
 	CountRecordingSegments(ctx context.Context, arg CountRecordingSegmentsParams) (CountRecordingSegmentsRow, error)
 	// /metrics に出す、状態ごとの録画の数 (設計書 11.3)。
@@ -141,6 +146,8 @@ type Querier interface {
 	DeleteRecordingCMSections(ctx context.Context, arg DeleteRecordingCMSectionsParams) error
 	// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
 	DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error
+	// 録画 recording_id から記録した録画履歴を消す (#1517)。スクランブルの警告が付いたら、録画済みとみなさない。
+	DeleteRecordingHistoryByRecording(ctx context.Context, recordingID *uuid.UUID) (int64, error)
 	// 録画のセグメントの記録を消し、消したファイルを返す (#1046)。ファイルは、呼ぶ側が消す。
 	DeleteRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]DeleteRecordingSegmentsRow, error)
 	DeleteRecordingTags(ctx context.Context, recordingID uuid.UUID) error
@@ -426,10 +433,11 @@ type Querier interface {
 	// DB に届かずに後から記録し直すとき、同じファイルを二重に記録しない (#1073)。
 	// チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
-	// ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にする。
+	// ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にし、録画は NULL にする。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
 	// 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
 	// 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
+	// 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
 	InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error
 	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
@@ -481,6 +489,8 @@ type Querier interface {
 	// mikan が強制終了した直後に外すと、閉じる mikan がいなくなるので、破棄のジョブが閉じる。
 	// 割り振りが残っていれば、mikan がまだ書いているかもしれないので、含めない。neko が割り振りを消せば、mikan が自分で閉じる。
 	ListAbandonedTimeshiftServices(ctx context.Context) ([]int64, error)
+	// 有効な管理者の ID を返す。管理者にだけ届ける通知の宛先に使う (#1517)。
+	ListActiveAdminIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListActiveSessions(ctx context.Context, arg ListActiveSessionsParams) ([]Session, error)
 	ListAliveInstances(ctx context.Context, arg ListAliveInstancesParams) ([]Instance, error)
 	// 録画中でない録画の、書いたもののあるセグメントを、録画を始めた日時の新しい順、セグメントの始まりの順に返す。
@@ -599,6 +609,8 @@ type Querier interface {
 	ListLeases(ctx context.Context) ([]Lease, error)
 	// サービス service_id で、from から to までに重なる番組を、開始時刻の順に返す。終了時刻が未定の番組は、長さが分からないので返さない。
 	ListLiveProgramsInRange(ctx context.Context, arg ListLiveProgramsInRangeParams) ([]ListLiveProgramsInRangeRow, error)
+	// スクランブルされたまま届くと決めたサービスと、最後に決めた日時 (#1517)。サービスごとに 1 行なので、サービスの数より増えない。
+	ListLiveScrambleVerdicts(ctx context.Context) ([]LiveScrambleVerdict, error)
 	// 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
 	ListLiveThumbnailRecordings(ctx context.Context, startedBefore time.Time) ([]uuid.UUID, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
@@ -666,6 +678,9 @@ type Querier interface {
 	ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
 	ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error)
+	// 録画のセグメントの PID ごとの品質の集計 (#473)。スクランブルされたまま録れたかを判定するのに使う (#1517)。
+	// 集計を記録する前に閉じたセグメントの pid_stats は NULL。
+	ListRecordingSegmentPIDStats(ctx context.Context, recordingID uuid.UUID) ([][]byte, error)
 	// 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。
 	ListRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]ListRecordingSegmentsRow, error)
 	// 録画 recording_ids のタグを、録画ごとに名前の順で、タグが付いている録画の数と一緒に返す。
@@ -827,6 +842,8 @@ type Querier interface {
 	// 番組が遅れて始まるので、それまでに書いたセグメントを消して待つことを記録する (#1046)。消すセグメントのドロップなどは数え直す。
 	// 予約した番組がすでに放送中になっていれば、セグメントに番組が入っているので、何もせず 0 を返す。
 	MarkRecordingWaitedForBroadcast(ctx context.Context, arg MarkRecordingWaitedForBroadcastParams) (int64, error)
+	// スクランブルされたまま録れた録画を、管理者に知らせた日時を記録する。
+	MarkScrambleAlertNotified(ctx context.Context, now *time.Time) error
 	// 空き容量が閾値を下回ったままになったことを記録する。すでに記録していれば何もしない (0 行)。
 	MarkStoragePoolLow(ctx context.Context, arg MarkStoragePoolLowParams) (int64, error)
 	// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
@@ -961,6 +978,8 @@ type Querier interface {
 	// 待った後に書き始めた日時を、実際に録画を始めた日時にする (#1046)。すでにセグメントがあれば (引き継いだ mikan が待ち直したときなど)、
 	// 最初のセグメントから録り始めているので、変えない。
 	SetRecordingRecordedFrom(ctx context.Context, arg SetRecordingRecordedFromParams) error
+	// スクランブルされたまま録れたかを判定した結果を記録する (設計書 5.5、#1517)。判定しなかったら、割合を NULL にする。
+	SetRecordingScramble(ctx context.Context, arg SetRecordingScrambleParams) error
 	// 録画を終えた後に解析したドロップ、エラー、スクランブルで、録画の集計を置き換える。
 	// 完了した録画は、ドロップの有無で、完了とエラーありの完了を決め直す。
 	SetRecordingStats(ctx context.Context, arg SetRecordingStatsParams) error
@@ -1058,6 +1077,10 @@ type Querier interface {
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	// 動いているジョブの進み具合を書く (#1511)。試し直したら、前の試行の値を置き換える。
 	UpsertJobProgress(ctx context.Context, arg UpsertJobProgressParams) error
+	// ライブで、サービス service_id がスクランブルされたまま届くと決めたことを記録する (設計書 7.1、#1517)。
+	// 決める kyusu と tenban は別のホストのことがあり、時計がずれうる。後から決めたのに日時が戻ると、購読が新しい判定と見分けられないので、
+	// 前の日時より必ず進める。
+	UpsertLiveScrambleVerdict(ctx context.Context, arg UpsertLiveScrambleVerdictParams) error
 	UpsertNotificationPreference(ctx context.Context, arg UpsertNotificationPreferenceParams) error
 	// プレイヤーの設定を変える。null の項目は変えない。jikkyo_enabled は、NX-Jikkyo のソースを足すか外す。comment_sources を渡せば、そちらを使う。
 	UpsertPlayerSettings(ctx context.Context, arg UpsertPlayerSettingsParams) (UpsertPlayerSettingsRow, error)

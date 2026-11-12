@@ -25,6 +25,10 @@ SELECT * FROM users WHERE id = @id FOR UPDATE;
 -- 有効な管理者の行をロックする。最後の管理者を外したり無効にしたりする操作を、同時に行わせない。
 SELECT id FROM users WHERE role = 'admin' AND disabled_at IS NULL ORDER BY id FOR UPDATE;
 
+-- name: ListActiveAdminIDs :many
+-- 有効な管理者の ID を返す。管理者にだけ届ける通知の宛先に使う (#1517)。
+SELECT id FROM users WHERE role = 'admin' AND disabled_at IS NULL ORDER BY id;
+
 -- name: UpdateUserProfile :one
 UPDATE users SET display_name = @display_name, role = @role, updated_at = @now WHERE id = @id RETURNING *;
 

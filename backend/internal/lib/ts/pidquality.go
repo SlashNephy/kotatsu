@@ -17,6 +17,9 @@ type PIDQuality struct {
 	Drops     int64  `json:"drops"`
 	Errors    int64  `json:"errors"`
 	Scrambled int64  `json:"scrambled"`
+	// Payloads と ScrambledPayloads は、PIDStats の同じ名前の数 (#1517)。記録する前に録ったセグメントでは nil。
+	Payloads          *int64 `json:"payloads,omitempty"`
+	ScrambledPayloads *int64 `json:"scrambledPayloads,omitempty"`
 	// StreamType は、PMT の stream_type (#827)。PMT に載っていない PID と、記録する前に録ったセグメントでは nil。
 	StreamType *uint8 `json:"streamType,omitempty"`
 	// ComponentTag は、ストリーム識別記述子の component_tag (#827)。記述子がなければ nil。
@@ -59,6 +62,7 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 		}
 		quality := PIDQuality{
 			PID: pid.PID, Kind: kind, Packets: pid.Packets, Drops: pid.Drops, Errors: pid.Errors, Scrambled: pid.Scrambled,
+			Payloads: new(pid.Payloads), ScrambledPayloads: new(pid.ScrambledPayloads),
 			StreamType: streamType, ComponentTag: componentTag,
 		}
 		result = append(result, quality)

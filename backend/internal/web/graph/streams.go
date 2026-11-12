@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
+	"strconv"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -12,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -186,6 +190,61 @@ func (r *Resolver) subscribeLiveStreamRates(ctx context.Context, service string)
 			}:
 			case <-ctx.Done():
 				return
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+// subscribeLiveStreamScrambled は、ライブのサービスが、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。viewerEvents に載せる。
+// 購読を始めたときにサービスごとに最後に決めた日時を控え、それより後に決めたものだけを送る。前に見た人の判定で、今の視聴を止めないためである。
+// 変更の通知が設定されていなければ、何も送らない。
+func (r *Resolver) subscribeLiveStreamScrambled(ctx context.Context) (<-chan *model.LiveStreamScrambled, error) {
+	out := make(chan *model.LiveStreamScrambled, 1)
+	if r.changes == nil || r.db == nil {
+		return out, nil
+	}
+	// 決めた日時を読む前に購読し、読んだ後に決めたものを取りこぼさないようにする。
+	wake, unsubscribe := r.changes.Subscribe()
+	channelVersion := r.changes.Version(scramble.NotifyChannel)
+	last, err := r.liveScramble.Verdicts(ctx)
+	if err != nil {
+		unsubscribe()
+
+		return nil, err
+	}
+	go func() {
+		defer close(out)
+		defer unsubscribe()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-wake:
+			}
+			latest := r.changes.Version(scramble.NotifyChannel)
+			if latest <= channelVersion {
+				continue
+			}
+			channelVersion = latest
+			verdicts, err := r.liveScramble.Verdicts(ctx)
+			if err != nil {
+				// 閉じれば、クライアントがつなぎ直す。
+				return
+			}
+			for _, serviceID := range slices.Sorted(maps.Keys(verdicts)) {
+				decidedAt := verdicts[serviceID]
+				if previous, ok := last[serviceID]; ok && !decidedAt.After(previous) {
+					continue
+				}
+				last[serviceID] = decidedAt
+				event := &model.LiveStreamScrambled{Service: GlobalID(serviceType, strconv.FormatInt(serviceID, 10)), DecidedAt: decidedAt}
+				select {
+				case <-ctx.Done():
+					return
+				case out <- event:
+				}
 			}
 		}
 	}()

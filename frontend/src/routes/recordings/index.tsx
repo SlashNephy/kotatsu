@@ -93,6 +93,7 @@ const query = graphql`
           drops
           errors
           scrambled
+          scrambleWarning
           recordedFrom
           recordedUntil
           gaps {

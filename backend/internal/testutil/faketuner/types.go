@@ -36,6 +36,9 @@ type Service struct {
 	Channel *ChannelRef `json:"channel,omitempty"`
 	// Logo は、/api/services/{id}/logo で返す PNG。nil なら、Mirakurun がロゴをまだ受信していないときと同じく 503 を返す。
 	Logo []byte `json:"-"`
+	// TS は、このサービスのストリームで繰り返し流す TS。nil なら Options.TS を流す。
+	// Scramble で、スクランブルされたまま届く局を作れる (#1517)。
+	TS []byte `json:"-"`
 }
 
 // Program は /api/programs の要素。

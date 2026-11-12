@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<eec94db3405c1359ce9111ce8ac20d38>>
+ * @generated SignedSource<<98dd8bf6fe1d1effaf2483127388de81>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,8 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "SCRAMBLED_RECORDINGS" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type notificationsSettingsQuery$variables = Record<PropertyKey, never>;
 export type notificationsSettingsQuery$data = {
   readonly notificationPreferences: ReadonlyArray<{
@@ -17,6 +18,9 @@ export type notificationsSettingsQuery$data = {
     readonly ruleReservations: boolean;
     readonly webPush: boolean;
   }>;
+  readonly viewer: {
+    readonly role: Role;
+  };
   readonly watchReminderSettings: {
     readonly minutesBefore: number;
   };
@@ -35,17 +39,24 @@ var v0 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "webPushPublicKey",
+  "name": "role",
   "storageKey": null
 },
 v1 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endpoint",
+  "name": "webPushPublicKey",
   "storageKey": null
 },
 v2 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "endpoint",
+  "storageKey": null
+},
+v3 = {
   "alias": null,
   "args": null,
   "concreteType": "NotificationPreference",
@@ -84,7 +95,7 @@ v2 = {
   ],
   "storageKey": null
 },
-v3 = {
+v4 = {
   "alias": null,
   "args": null,
   "concreteType": "WatchReminderSettings",
@@ -101,6 +112,13 @@ v3 = {
     }
   ],
   "storageKey": null
+},
+v5 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "id",
+  "storageKey": null
 };
 return {
   "fragment": {
@@ -109,7 +127,19 @@ return {
     "metadata": null,
     "name": "notificationsSettingsQuery",
     "selections": [
-      (v0/*:: as any*/),
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v0/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -118,12 +148,12 @@ return {
         "name": "webPushSubscriptions",
         "plural": true,
         "selections": [
-          (v1/*:: as any*/)
+          (v2/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/),
-      (v3/*:: as any*/)
+      (v3/*:: as any*/),
+      (v4/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -134,7 +164,20 @@ return {
     "kind": "Operation",
     "name": "notificationsSettingsQuery",
     "selections": [
-      (v0/*:: as any*/),
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v0/*:: as any*/),
+          (v5/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -143,32 +186,26 @@ return {
         "name": "webPushSubscriptions",
         "plural": true,
         "selections": [
-          (v1/*:: as any*/),
-          {
-            "alias": null,
-            "args": null,
-            "kind": "ScalarField",
-            "name": "id",
-            "storageKey": null
-          }
+          (v2/*:: as any*/),
+          (v5/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v2/*:: as any*/),
-      (v3/*:: as any*/)
+      (v3/*:: as any*/),
+      (v4/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "e33b4c0946520be0075ce6de8aea66fd",
+    "cacheID": "d21774baa8a3b3f2d97a135be99ae44e",
     "id": null,
     "metadata": {},
     "name": "notificationsSettingsQuery",
     "operationKind": "query",
-    "text": "query notificationsSettingsQuery {\n  webPushPublicKey\n  webPushSubscriptions {\n    endpoint\n    id\n  }\n  notificationPreferences {\n    kind\n    inApp\n    webPush\n    ruleReservations\n  }\n  watchReminderSettings {\n    minutesBefore\n  }\n}\n"
+    "text": "query notificationsSettingsQuery {\n  viewer {\n    role\n    id\n  }\n  webPushPublicKey\n  webPushSubscriptions {\n    endpoint\n    id\n  }\n  notificationPreferences {\n    kind\n    inApp\n    webPush\n    ruleReservations\n  }\n  watchReminderSettings {\n    minutesBefore\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3d5f9561c9bc73b318c938e73de085be";
+(node as any).hash = "072f35da0bfd502944a2e64795179698";
 
 export default node;
