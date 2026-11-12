@@ -22,6 +22,20 @@ run = "./scripts/build-mpeg2toh264.sh"
 depends = ["install"]
 run = "./scripts/build-demo-stream.sh"
 
+# ブラウザ内で MPEG-2 をそのままデコードする方式を測る道具 (#1516、bench/wasm-decode/README.md)。
+# FFmpeg は mise.wasm-decode-bench.toml で固定しているので、MISE_ENV=wasm-decode-bench を付けて実行する。
+# WASM の FFmpeg を、bench/wasm-decode/SOURCE の版から組む。引数で組み方の名前を絞れる。
+[tasks."wasm-decode:build"]
+run = "./bench/wasm-decode/build.sh"
+
+# 測定に使う合成の 1080i の TS と、パケットを落とした TS を作る。
+[tasks."wasm-decode:media"]
+run = "./bench/wasm-decode/make-media.sh"
+
+# 測定のページを配る。実機から開くときは、引数でポートと待ち受けるアドレスを渡す (例: 18516 0.0.0.0)。
+[tasks."wasm-decode:serve"]
+run = "node ./bench/wasm-decode/serve.mjs"
+
 # GraphQL のクエリから、Relay の型とアーティファクト (__generated__) を生成する。
 # watchman があれば使おうとするが、使わなくても足りるので切る。
 [tasks.relay]

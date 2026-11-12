@@ -117,6 +117,18 @@
       autoReplaceStringTemplate: '# renovate: datasource={{{datasource}}} depName={{{depName}}} currentValue={{{currentValue}}}\ncommit={{{newDigest}}}',
     },
     {
+      // ブラウザ内でそのままデコードする方式を測るときに組む、WASM の FFmpeg の版と emscripten のイメージ (#1516)。
+      // FFmpeg は、サーバの FFmpeg (Debian 13 の ffmpeg パッケージ) と同じ版を追う。
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^frontend/bench/wasm-decode/SOURCE$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+) versioning=(?<versioning>\\S+)\\nffmpeg=(?<currentValue>\\S+)',
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nemsdk=(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]{64})',
+      ],
+    },
+    {
       // atlas.hcl の開発用 DB のイメージ。
       customType: 'regex',
       managerFilePatterns: [

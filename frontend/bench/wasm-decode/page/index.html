@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WASM デコードの測定</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 16px;
+      }
+      label {
+        display: block;
+        margin: 8px 0 4px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        font-family: ui-monospace, monospace;
+      }
+      textarea {
+        height: 40vh;
+      }
+      button {
+        margin: 8px 8px 0 0;
+        padding: 8px 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WASM デコードの測定</h1>
+    <p>mpeg2toh264 の変換と、WASM でそのままデコードする方式を、同じ worker 1 本で比べます。</p>
+    <p>結果は 1 行に 1 つの JSON です。実機では、結果を写して残してください。</p>
+    <label for="files">映像 (.work/media/ のファイル名、空白区切り)</label>
+    <input id="files" value="testsrc2_1440.ts testsrc2_1920.ts mandel_1440.ts mandel_1920.ts" />
+    <label for="variants">WASM の組み方 (.work/out/ の名前、空白区切り)</label>
+    <input id="variants" value="O3-simd-lto" />
+    <label for="repeat">回数</label>
+    <input id="repeat" type="number" min="1" value="3" />
+    <button id="run-decode" type="button">デコードを測る</button>
+    <button id="run-convert" type="button">変換を測る</button>
+    <button id="run-all" type="button">両方を測る</button>
+    <label for="log">結果</label>
+    <textarea id="log" readonly></textarea>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

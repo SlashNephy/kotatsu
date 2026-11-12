@@ -1,0 +1,9 @@
+# ブラウザ内で MPEG-2 をそのままデコードする方式を測るときに組む、WASM の FFmpeg の版と、組むのに使う emscripten のイメージ (#1516)。
+# FFmpeg は、サーバの FFmpeg (Dockerfile の Debian 13 の ffmpeg パッケージ) と同じ版にする。
+# 変えたら、MISE_ENV=wasm-decode-bench mise run //frontend:wasm-decode:build で組み直す。
+# renovate: datasource=repology depName=debian_13/ffmpeg versioning=loose
+ffmpeg=7.1.5
+# renovate: datasource=docker depName=docker.io/emscripten/emsdk
+emsdk=6.0.13@sha256:fb7864e398acfda863dfcea78b8bc8adad359fa60c6a0bbeb845931de64aa68a
+# FFmpeg のリリースの署名鍵 (https://ffmpeg.org/download.html#releases)。取得した tarball の署名をこの鍵で確かめる。
+ffmpeg_signing_key=FCF986EA15E6E293A5644F10B4322F04D67658D8
