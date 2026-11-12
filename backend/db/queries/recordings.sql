@@ -374,6 +374,10 @@ SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
 WHERE recording_id = @recording_id AND detector = @detector
 ORDER BY start_offset_ms;
 
+-- name: GetRecordingCMDetectedAt :one
+-- 録画の CM の区間を、見分け方 detector で最後に見分け終えた日時を返す (#1571)。見分けていなければ行を返さない。
+SELECT detected_at FROM recording_cm_detections WHERE recording_id = @recording_id AND detector = @detector;
+
 -- name: ListLiveThumbnailRecordings :many
 -- 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
 SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @started_before ORDER BY recorded_from, id;

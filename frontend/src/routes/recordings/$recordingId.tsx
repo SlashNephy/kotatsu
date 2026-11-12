@@ -17,6 +17,11 @@ import {
 } from '@mantine/core';
 import { distinctVideoLabels } from '../../recordings/videoFormat';
 import { distinctTunerNames } from '../../recordings/tuners';
+import {
+  CmDetectionStatus,
+  cmDetectionActive,
+  useCmDetectionPoll,
+} from '../../recordings/CmDetection';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Download,
@@ -154,6 +159,9 @@ function Recording({ recordingId }: { recordingId: string }) {
   const navigate = useNavigate();
   // 録画を終えた、サムネイルができた、ほかの端末で保護やタグを変えたなど、録画が変わったら読み直す (#868)。
   const changes = useDataChanges(recordingChannels);
+  // CM の区間を見分けるのを待っている間と、見分けている間は、進み具合と、終わったか失敗したかを追うため、読み直し続ける (#1571)。
+  const [cmActive, setCmActive] = useState(false);
+  const [cmPoll, refreshCm] = useCmDetectionPoll(cmActive);
   const data = useLazyLoadQuery<RecordingIdQuery>(
     graphql`
       query RecordingIdQuery($id: ID!) {
@@ -193,6 +201,17 @@ function Recording({ recordingId }: { recordingId: string }) {
             gaps {
               from
               to
+            }
+            cmSections {
+              from
+            }
+            cmDetection {
+              state
+              detectedAt
+              progress {
+                ratio
+                remainingSeconds
+              }
             }
             programLost
             broadcastStartedAt
@@ -262,7 +281,7 @@ function Recording({ recordingId }: { recordingId: string }) {
       }
     `,
     { id: recordingId },
-    { fetchKey: changes, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${changes}:${cmPoll}`, fetchPolicy: 'store-and-network' },
   );
   const [protect, protecting] = useMutation<RecordingIdProtectMutation>(graphql`
     mutation RecordingIdProtectMutation($id: ID!, $protected: Boolean!) {
@@ -303,12 +322,17 @@ function Recording({ recordingId }: { recordingId: string }) {
       detectRecordingCm(id: $id)
     }
   `);
-  // regenerated は、画像の作り直しか解析のやり直しか CM の解析を頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
+  // regenerated は、画像の作り直しか解析のやり直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
+  // CM の解析は、頼んだ結果の代わりに、CM の区間のカードに状態を出す (#1571)。
   const [regenerated, setRegenerated] = useState<{
-    kind: 'images' | 'analysis' | 'cm';
+    kind: 'images' | 'analysis';
     result: 'queued' | 'waiting';
   } | null>(null);
   const node = data.node;
+  const cmNowActive = node?.__typename === 'Recording' && cmDetectionActive(node.cmDetection.state);
+  if (cmNowActive !== cmActive) {
+    setCmActive(cmNowActive);
+  }
   // editedTags は、編集中のタグ。編集していなければ null で、サーバーのタグをそのまま出す。
   const [editedTags, setEditedTags] = useState<string[] | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -401,16 +425,15 @@ function Recording({ recordingId }: { recordingId: string }) {
                 onClick={() =>
                   detectCm({
                     variables: { id: recording.id },
-                    onCompleted: (response, errors) => {
+                    onCompleted: (_response, errors) => {
                       if (failed(errors)) {
                         setError(t('recordings.actionError'));
 
                         return;
                       }
-                      setRegenerated({
-                        kind: 'cm',
-                        result: response.detectRecordingCm ? 'queued' : 'waiting',
-                      });
+                      setRegenerated(null);
+                      // 変更の知らせを待たずに読み直し、待っていることを CM の区間のカードに出す。
+                      refreshCm();
                     },
                     onError: () => setError(t('recordings.actionError')),
                   })
@@ -425,13 +448,9 @@ function Recording({ recordingId }: { recordingId: string }) {
                       ? regenerated.result === 'queued'
                         ? 'recordings.regenerateQueued'
                         : 'recordings.regenerateWaiting'
-                      : regenerated.kind === 'analysis'
-                        ? regenerated.result === 'queued'
-                          ? 'recordings.reanalyzeQueued'
-                          : 'recordings.reanalyzeWaiting'
-                        : regenerated.result === 'queued'
-                          ? 'recordings.detectCmQueued'
-                          : 'recordings.detectCmWaiting',
+                      : regenerated.result === 'queued'
+                        ? 'recordings.reanalyzeQueued'
+                        : 'recordings.reanalyzeWaiting',
                   )}
                 </Text>
               )}
@@ -657,6 +676,18 @@ function Recording({ recordingId }: { recordingId: string }) {
               )}
             </Stack>
           </Card>
+          {/* CM の区間を解析したか、解析しているかを出す (#1571)。見分けるのは TS のセグメントだけで、録画中は見分けない。 */}
+          {segments.length > 0 && recording.state !== 'RECORDING' && (
+            <Card withBorder>
+              <Stack gap={4}>
+                <CardHeading icon={Scissors}>{t('recordings.cm.title')}</CardHeading>
+                <CmDetectionStatus
+                  detection={recording.cmDetection}
+                  sections={recording.cmSections.length}
+                />
+              </Stack>
+            </Card>
+          )}
           {others.length > 0 && (
             <Card withBorder>
               <Stack gap="xs">

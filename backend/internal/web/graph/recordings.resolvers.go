@@ -97,6 +97,11 @@ func (r *recordingResolver) CMSections(ctx context.Context, obj *model.Recording
 	return r.recordingCMSections(ctx, obj)
 }
 
+// CMDetection is the resolver for the cmDetection field.
+func (r *recordingResolver) CMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error) {
+	return r.recordingCMDetection(ctx, obj)
+}
+
 // VideoFormat is the resolver for the videoFormat field.
 func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
 	return r.recordingVideoFormat(ctx, obj)

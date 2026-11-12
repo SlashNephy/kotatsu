@@ -3267,6 +3267,10 @@ type Recording implements Node {
   """
   cmSections: [RecordingCMSection!]!
   """
+  CM の区間の見分けの状態 (#1571)。見分けを待っているか、見分けているか、見分け終えたか、失敗したかを返す。
+  """
+  cmDetection: RecordingCMDetection!
+  """
   録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。
   """
   audios: [ProgramAudio!]!
@@ -3353,6 +3357,45 @@ type Recording implements Node {
   結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。
   """
   animeEpisodes: [AnimeEpisode!]!
+}
+"""
+録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
+"""
+type RecordingCMDetection {
+  state: RecordingCMDetectionState!
+  """
+  最後に見分け終えた日時。見分けていなければ null。見分け直している間と、見分け直しに失敗した後は、前に見分けた日時を返す。
+  """
+  detectedAt: Time
+  """
+  見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。
+  """
+  progress: JobProgress
+}
+"""
+録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。
+"""
+enum RecordingCMDetectionState {
+  """
+  見分けていない。見分けるジョブもない。
+  """
+  NOT_DETECTED
+  """
+  見分けるジョブが、動くのを待っている。試し直しを待っているときも含む。
+  """
+  QUEUED
+  """
+  見分けている。
+  """
+  RUNNING
+  """
+  見分け終えた。CM が見つからなくても、見分け終えたとする。
+  """
+  DETECTED
+  """
+  最後に頼んだ見分けが、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に見分けた結果の状態に戻る。
+  """
+  FAILED
 }
 """
 CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。
