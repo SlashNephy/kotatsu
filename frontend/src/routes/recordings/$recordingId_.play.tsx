@@ -48,6 +48,8 @@ import {
   formatDuration,
   playbackPosition,
   skipJump,
+  advanceTarget,
+  isBuffered,
 } from '../../yunomi/position';
 import {
   RateSelect,
@@ -102,15 +104,18 @@ import {
   SkipButton,
   usePlayerFlash,
 } from '../../yunomi/PlayerControls';
-import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
-import { cmSectionAt, shouldAutoSkip } from '../../yunomi/cmSkip';
+import { loadCmAutoSkip, useCmAutoSkip } from '../../yunomi/cmAutoSkip';
+import { CmAutoSkipper } from '../../yunomi/cmAutoSkipper';
+import { cmButtonSectionAt, cmMergeGap, cmSectionAt, mergeCmSections } from '../../yunomi/cmSkip';
+import type { PlayerCover } from '../../yunomi/playerCover';
+import { useVideoFrames } from '../../yunomi/useVideoFrames';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
-import { stepVolume } from '../../yunomi/volume';
+import { browserStorage, stepVolume } from '../../yunomi/volume';
 import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
@@ -256,6 +261,13 @@ const playQuery = graphql`
   }
 `;
 
+// hlsRestoreTolerance は、kyusu の HLS を作り直したあと、求めた位置へ移ったとみなす、映ったコマとの差 (秒)。
+// hls.js は、セグメントの頭から流すので、セグメントの長さ (約 2 秒) より広く取る。
+const hlsRestoreTolerance = 5;
+
+// positionEpsilon は、位置を比べるときの、計算の丸めの誤差 (秒)。
+const positionEpsilon = 0.001;
+
 // recordingRefreshMs は、録画中の録画を追っかけ再生している間に、録画を読み直す間隔 (#671)。
 // 録画を終えた時刻が分かるまでは、録画の長さを今の時刻まで伸ばして扱うので、終えたら読み直して止める。
 const recordingRefreshMs = 30_000;
@@ -334,12 +346,41 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           recording.gaps,
           recording.recordedUntil == null ? Date.now() : Date.parse(recording.recordedUntil),
         );
+  // cmPositions は、CM とみなした区間 (#479) を、途切れた分を詰めた再生の位置にしたもの。録画の時間軸の日時で受け取る。
+  const cmPositions = useMemo(
+    () =>
+      recording === null
+        ? []
+        : recording.cmSections.map((section) => ({
+            from: recordingPosition(
+              recording.recordedFrom,
+              recording.gaps,
+              Date.parse(section.from),
+            ),
+            to: recordingPosition(recording.recordedFrom, recording.gaps, Date.parse(section.to)),
+          })),
+    [recording],
+  );
+  // cmSpans は、自動で飛ばすときに使う、続いた区間をまとめた CM の区間 (#1512)。
+  const cmSpans = useMemo(() => mergeCmSections(cmPositions, cmMergeGap), [cmPositions]);
   // resumeAt は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ前回の続きから、続きもなければ 0 (設計書 7.5)。
   // Int64 は Relay の型では any になるので、数に直す。
   const savedMs = recording?.watchPositionMs == null ? null : Number(recording.watchPositionMs);
-  const [resumeAt] = useState(() =>
-    start === undefined ? resumePosition(savedMs, duration) : Math.min(start, duration),
-  );
+  // CM を自動で飛ばす設定で、URL で位置を渡されずに開いた位置が CM の中なら、最初から CM の終わりを求める (#1512)。
+  // 開いてから飛ぶと、頭の CM を飛んでから続きへ移ったり、読み直すたびに知らせが出たりする。CM の区間も開始位置も、
+  // 開いた時点で揃っているので、ここで一度だけ決める。URL で渡された位置は、自分でシークしたときと同じく飛ばさない。
+  const [opening] = useState(() => {
+    if (start !== undefined) {
+      return { at: Math.min(start, duration), skipped: false, resumed: false };
+    }
+    const at = resumePosition(savedMs, duration);
+    const span = loadCmAutoSkip(browserStorage()) ? cmSectionAt(cmSpans, at) : null;
+
+    return span === null
+      ? { at, skipped: false, resumed: at > 0 }
+      : { at: Math.min(span.to, duration), skipped: true, resumed: at > 0 };
+  });
+  const resumeAt = opening.at;
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
   // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
@@ -349,9 +390,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const [loads, setLoads] = useState(0);
   // startedAt は、ブラウザの中で変換するときに、配信が実際に流し始めた位置 (録画の始まりからの秒)。配信は、指定した位置の
   // 手前の I フレームから流すので、再生位置は、指定した位置 (offset) ではなく、ここから数える (#536)。分かるまでは offset を使う。
-  const [streamStart, setStreamStart] = useState<{ key: string; at: number } | null>(null);
+  // at が null なのは、HEAD に答えたが位置を返さなかったか、HEAD に失敗したとき。
+  const [streamStart, setStreamStart] = useState<{ key: string; at: number | null } | null>(null);
   const streamKey = `${offset}:${loads}`;
-  const startedAt = !hls && streamStart?.key === streamKey ? streamStart.at : offset;
+  const startedAt =
+    !hls && streamStart?.key === streamKey && streamStart.at !== null ? streamStart.at : offset;
+  // streamSettled は、流し始めた位置を引き終えたかどうか。引き終えるまでは、コマの位置を信じない (#1512)。
+  const streamSettled = hls || streamStart?.key === streamKey;
   const streamUrl = recording?.streamUrl ?? null;
   useEffect(() => {
     if (hls || streamUrl === null) {
@@ -366,11 +411,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     })
       .then((response) => {
         const at = response.ok ? parseStreamStart(response.headers.get('X-Kotatsu-Start')) : null;
-        if (at !== null) {
-          setStreamStart({ key: `${offset}:${loads}`, at });
-        }
+        setStreamStart({ key: `${offset}:${loads}`, at });
       })
-      .catch(() => {});
+      .catch(() => {
+        // 読み込みを始め直して止めたのでなければ、位置が分からないまま、指定した位置から数える。
+        if (!controller.signal.aborted) {
+          setStreamStart({ key: `${offset}:${loads}`, at: null });
+        }
+      });
 
     return () => controller.abort();
   }, [hls, streamUrl, offset, loads]);
@@ -387,13 +435,63 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   };
   // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
   const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
+  // settleBase は、読み込んだ映像の最初のコマが出たら、その時刻を base にする。mediaTime は、コマごとの知らせのそのコマの時刻。
+  // timeupdate を待つと、その間に進んだ分だけ base が後ろへずれ、位置を少なく数える。
+  const settleBase = (video: HTMLVideoElement, mediaTime: number | null) => {
+    if (
+      hls ||
+      phase.current !== 'awaitingBase' ||
+      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      return;
+    }
+    base.current = mediaTime ?? video.currentTime;
+    lastVideoTime.current = base.current;
+    phase.current = 'playing';
+  };
+  // reached は、読み込み (streamKey) ごとに、求めた位置 (offset) 以上のコマが映ったと確かめた読み込み (#1512)。
+  const reached = useRef<string | null>(null);
+  // reachedStart は、今の読み込みで、求めた位置以上のコマが映ったかを返す。まだなら、映っているコマの位置を信じない。
+  // ブラウザの中で変換する配信は、求めた位置の手前の I フレームから流れる (設計書 7.2)。最初のコマが求めた位置より手前なら、
+  // その位置へ currentTime を進め、手前のコマを再生する時間を省く。読み込んである範囲の外へ進めると、変換のプレイヤーが
+  // 配信を読み直すので、届くのを待ってから進める。kyusu の HLS は、プレイヤーを作り直したばかりのとき、まだ求めた位置へ
+  // 移っておらず、頭の位置を返すことがあるので、求めた位置の近くのコマが映るまで待つ。
+  const reachedStart = (video: HTMLVideoElement, mediaTime: number | null) => {
+    if (reached.current === streamKey) {
+      return true;
+    }
+    const time = mediaTime ?? video.currentTime;
+    if (hls) {
+      if (!video.seeking && Math.abs(time - offset) <= hlsRestoreTolerance) {
+        reached.current = streamKey;
+      }
+
+      return reached.current === streamKey;
+    }
+    if (!streamSettled || phase.current !== 'playing') {
+      return false;
+    }
+    const target = advanceTarget(base.current, startedAt, offset);
+    if (!video.seeking && time >= target - positionEpsilon) {
+      reached.current = streamKey;
+
+      return true;
+    }
+    if (!video.seeking && video.currentTime < target && isBuffered(video.buffered, target)) {
+      video.currentTime = target;
+      // 進めた分を、途切れた区間を越えたとみなさない。
+      lastVideoTime.current = target;
+    }
+
+    return false;
+  };
   const [position, setPosition] = useState(resumeAt);
   // positionRef は、別のウィンドウへの移し替えや、画質と音声の切り替えで、読み直すときに続ける位置。
   const positionRef = useRef(resumeAt);
   const [seeking, setSeeking] = useState<number | null>(null);
   const [paused, setPaused] = useState(true);
   // lastSeek は、利用者が最後にシークした位置 (#1282)。そこが CM の区間の中なら、自動では飛ばさない。
-  // URL で位置を渡されて開いたときも、その場面を見たいものとして扱う。
+  // URL で位置を渡されて開いたときも、その場面を見たいものとして扱う。自動で飛んだ位置は入れない (#1512)。
   const lastSeek = useRef<number | null>(start === undefined ? null : resumeAt);
   const [cmAutoSkip] = useCmAutoSkip();
   const [error, setError] = useState<string | null>(null);
@@ -432,16 +530,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       : broadcastTime(recording.recordedFrom, recording.gaps, currentPosition()),
   );
   // nicologCmSections は、上映会のコメント (NICOLOG) を合わせる、録画の CM の区間 (#1363)。CM の区間がなければ null にする。
-  const nicologCmSections = useMemo(() => {
-    if (recording === null || recording.cmSections.length === 0) {
-      return null;
-    }
-
-    return recording.cmSections.map((section) => ({
-      from: recordingPosition(recording.recordedFrom, recording.gaps, Date.parse(section.from)),
-      to: recordingPosition(recording.recordedFrom, recording.gaps, Date.parse(section.to)),
-    }));
-  }, [recording]);
+  const nicologCmSections = cmPositions.length === 0 ? null : cmPositions;
   const jikkyo = useRecordedJikkyo(
     channelId !== null && jikkyoEnabled && recording !== null ? recording.jikkyoCommentsUrl : null,
     currentPosition,
@@ -578,19 +667,25 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     const at = currentPosition();
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
-  const seek = (target: number) => {
+  // jumpTo は、指定の位置に移り、実際に移った先を返す。自動で CM を飛ぶときにも使うので、利用者のシークとしては数えない。
+  const jumpTo = (target: number) => {
     // 録画の外へは移らない。OS のメディア操作からも、範囲の外の位置が届くことがある。
     const seconds = Math.min(Math.max(target, 0), duration);
-    lastSeek.current = seconds;
     const video = videoRef.current;
     if (hls && video !== null) {
       video.currentTime = seconds;
       positionRef.current = seconds;
       setPosition(seconds);
 
-      return;
+      return seconds;
     }
     startAt(seconds);
+
+    return seconds;
+  };
+  // seek は、利用者の操作で、指定の位置に移る。
+  const seek = (target: number) => {
+    lastSeek.current = jumpTo(target);
   };
 
   // changeQuality は、画質を変え、それまでの位置から続ける。
@@ -795,16 +890,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
         return;
       }
-      if (phase.current === 'loading') {
+      settleBase(video, null);
+      // 読み直した先の手前のコマ (I フレームから目標まで) の間は、位置を動かさない (#1512)。
+      if (phase.current !== 'playing' || !reachedStart(video, null)) {
         return;
-      }
-      if (phase.current === 'awaitingBase') {
-        if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-          return;
-        }
-        base.current = video.currentTime;
-        lastVideoTime.current = video.currentTime;
-        phase.current = 'playing';
       }
       const next = convertedPosition(video.currentTime);
       positionRef.current = next;
@@ -831,7 +920,71 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       video.removeEventListener('playing', onPlaying);
     };
     // 画質を変えたときと、別のウィンドウに出したり戻したりしたときは、video の要素を作り直すので、付け直す。
-  }, [startedAt, hls, video]);
+  }, [startedAt, streamKey, streamSettled, hls, video]);
+
+  // coverRef は、映像の上に重ねる蓋 (#1512)。プレイヤーが出し入れの口を入れる。
+  const coverRef = useRef<PlayerCover | null>(null);
+  // live は、CM を自動で飛ばす判定が読む、描画ごとに変わる値。判定は描画の外 (コマごと) で行う。
+  const live = useRef({ cmAutoSkip, cmSpans, scrubbing: seeking !== null, jumpTo, showFlash, t });
+  live.current = { cmAutoSkip, cmSpans, scrubbing: seeking !== null, jumpTo, showFlash, t };
+  // skipper は、CM を自動で飛ばすときに、CM のコマを 1 コマも画面に出さないための判定と蓋 (#1512)。
+  const [skipper] = useState(
+    () =>
+      new CmAutoSkipper({
+        enabled: () => live.current.cmAutoSkip,
+        scrubbing: () => live.current.scrubbing,
+        lastSeek: () => lastSeek.current,
+        sections: () => live.current.cmSpans,
+        cover: (kind) => coverRef.current?.show(kind),
+        uncover: () => coverRef.current?.hide(),
+        jump: (target) => live.current.jumpTo(target),
+        notify: () => live.current.showFlash(live.current.t('player.flash.cmSkipped')),
+        setTimer: (callback, ms) => {
+          const timer = setTimeout(callback, ms);
+
+          return () => clearTimeout(timer);
+        },
+      }),
+  );
+  useEffect(() => () => skipper.dispose(), [skipper]);
+  // 判定は、映ったコマごとに、そのコマの時刻で行う。timeupdate は間隔が粗く、currentTime は代入した時点で飛び先を返すため。
+  useVideoFrames(video, ({ mediaTime, presented }) => {
+    if (video === null) {
+      return;
+    }
+    settleBase(video, mediaTime);
+    const trusted = phase.current === 'playing' && reachedStart(video, mediaTime);
+    const time = mediaTime ?? video.currentTime;
+    skipper.frame({
+      position: trusted ? (hls ? time : convertedPosition(time)) : null,
+      seeking: video.seeking,
+      paused: video.paused,
+      presented,
+    });
+  });
+  // 開いた位置が CM の中で、最初から CM の終わりを求めたときは、黒い蓋で覆い、CM の終わり以上のコマが映るまで待つ。
+  // 配信は手前の I フレームから流れるので、CM の末尾が映りうる。続きから開いたときは、続きから始めたことだけを伝え、
+  // CM を飛ばした知らせは出さない。頭から開いたときは、ほかの自動のスキップと同じく知らせる。
+  const openingHeld = useRef(false);
+  useEffect(() => {
+    if (!opening.skipped || openingHeld.current || video === null) {
+      return;
+    }
+    openingHeld.current = true;
+    skipper.holdUntil(opening.at);
+    if (!opening.resumed) {
+      showFlash(t('player.flash.cmSkipped'));
+    }
+  }, [video]);
+  // 自動で飛ばす設定を入れた瞬間に CM の中にいれば、その場で飛ぶ。「CM が始まったので入れた」が多いので、
+  // 自分でシークして CM の区間の中にいたときも、設定を入れたことを、飛ばしたい意思として扱う (#1512)。
+  const previousCmAutoSkip = useRef(cmAutoSkip);
+  useEffect(() => {
+    if (cmAutoSkip && !previousCmAutoSkip.current) {
+      lastSeek.current = null;
+    }
+    previousCmAutoSkip.current = cmAutoSkip;
+  }, [cmAutoSkip]);
 
   // 同じアカウントのほかの端末から、このプレイヤーを操作できるようにする (#459、設計書 7.7)。
   // ほかの端末から、別のチャンネルや録画を開かせられる (キャスト、#802)。
@@ -846,33 +999,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
   // cmBands は、CM とみなした区間 (#479)。途切れた区間と同じく、録画の時間軸の日時を、途切れた分を詰めた再生の位置にする。
   // 途切れた位置の印を上に重ねるよう、先に並べる。
-  const cmBands = (recording?.cmSections ?? []).map((section) => {
-    const from = recordingPosition(
-      recording!.recordedFrom,
-      recording!.gaps,
-      Date.parse(section.from),
-    );
-    const to = recordingPosition(recording!.recordedFrom, recording!.gaps, Date.parse(section.to));
-
-    return {
-      from,
-      to,
-      label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
-      kind: 'cm' as const,
-    };
-  });
+  const cmBands = cmPositions.map(({ from, to }) => ({
+    from,
+    to,
+    label: t('player.cmSection', { duration: formatDuration(Math.max(to - from, 0)) }),
+    kind: 'cm' as const,
+  }));
 
   // currentCm は、いま再生している CM の区間 (#1300)。あれば、区間の終わりへ飛ばすボタンを出す。
-  const currentCm = seeking === null ? cmSectionAt(cmBands, position) : null;
-  // CM を自動で飛ばす設定 (#1282) なら、再生して CM の区間に入ったとき、区間の終わりへ移る。
-  // 利用者が自分で区間の中へシークしたときは、見たいものとして飛ばさない。
-  useEffect(() => {
-    if (!shouldAutoSkip(currentCm, cmAutoSkip, !paused, lastSeek.current)) {
-      return;
-    }
-    seek(currentCm!.to);
-    showFlash(t('player.flash.cmSkipped'));
-  }, [currentCm?.from, cmAutoSkip, paused]);
+  const currentCm = seeking === null ? cmButtonSectionAt(cmBands, position) : null;
 
   if (recording === null) {
     return <Alert color="amber">{t('recordings.notFound')}</Alert>;
@@ -1070,6 +1205,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           onAudio={audio.onAudio}
           onReading={streamMeter.onReading}
           audio={audio.convertAudio}
+          coverRef={coverRef}
         />
       )}
       {route.kind === 'kyusu' && (
@@ -1099,6 +1235,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           }
           onLoaded={() => setError(null)}
           onError={onError}
+          coverRef={coverRef}
         />
       )}
     </div>

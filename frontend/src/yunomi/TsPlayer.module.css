@@ -55,6 +55,24 @@
   object-fit: contain;
 }
 
+/* CM を飛ぶ間に映像の上に重ねる蓋 (#1512)。映っていた本編のコマを写した canvas か、枠全体の黒。
+   置く場所と大きさは、映像が実際に出ている矩形に合わせて、スクリプトで決める。 */
+.cover {
+  position: absolute;
+  background: black;
+  pointer-events: none;
+}
+
+.cover > canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cover[data-cm-cover='black'] > canvas {
+  display: none;
+}
+
 /* 映像の上に重ねるもの (実況のコメント)。操作は映像に通す。 */
 .overlay {
   position: absolute;

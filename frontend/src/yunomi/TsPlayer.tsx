@@ -14,6 +14,7 @@ import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
 import { deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { fitMedia } from './mediaFit';
+import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import classes from './TsPlayer.module.css';
 
@@ -57,6 +58,8 @@ type Props = {
   audio?: string | null;
   // onReading は、映っている組の読み込みが進んだときに、読んだバイト数と放送の形式を受け取る (#828)。
   onReading?: (reading: TsPlayerReading) => void;
+  // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
+  coverRef?: RefObject<PlayerCover | null>;
 };
 
 // Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
@@ -144,6 +147,7 @@ export function TsPlayer({
   onAudio,
   audio = null,
   onReading,
+  coverRef,
 }: Props) {
   // active は、映っている組。pending は、切り替えるために裏で読み込んでいる組。
   const activeRef = useRef<Slot | null>(null);
@@ -166,6 +170,25 @@ export function TsPlayer({
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
   const handoverRef = useRef(handover);
   handoverRef.current = handover;
+  // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
+  const covered = useRef(false);
+  const cover = usePlayerCover(videoRef, (shown) => {
+    covered.current = shown;
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      slot?.captions.setVisible(showCaptions.current && !shown);
+    }
+  });
+  useEffect(() => {
+    if (coverRef === undefined) {
+      return;
+    }
+    coverRef.current = cover.cover;
+
+    return () => {
+      cover.cover.hide();
+      coverRef.current = null;
+    };
+  }, [coverRef, cover.cover]);
 
   const mediaRef = useRef<HTMLDivElement | null>(null);
 
@@ -191,7 +214,7 @@ export function TsPlayer({
         captionText.current?.(text);
       }
     });
-    renderer.setVisible(showCaptions.current);
+    renderer.setVisible(showCaptions.current && !covered.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
     const slot: Slot = {
@@ -392,7 +415,7 @@ export function TsPlayer({
 
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
-      slot?.captions.setVisible(captions);
+      slot?.captions.setVisible(captions && !covered.current);
     }
   }, [captions]);
 
@@ -540,6 +563,10 @@ export function TsPlayer({
       {/* 切り抜き (#496) で拡大した映像と字幕を、枠の外に出さない。 */}
       <div className={classes.clip}>
         <div ref={mediaRef} className={classes.media} style={cropStyle(crop)} />
+        {/* 蓋 (#1512) は、切り抜きの外に置き、映像が実際に出ている矩形に合わせて置く。 */}
+        <div ref={cover.ref} className={classes.cover} hidden>
+          <canvas />
+        </div>
       </div>
       {overlay !== undefined && <div className={classes.overlay}>{overlay}</div>}
       {controls}
