@@ -7,7 +7,13 @@ import {
   usesExtendedFont,
 } from './broadcastFont';
 import { defaultCaptionStyle, rendererColor, type CaptionStyle } from './captionStyle';
-import { drcsReplacements, recordDRCS } from './drcs';
+import {
+  drcsGlyphs,
+  drcsRenderReplacements,
+  drcsReplacements,
+  prepareDRCS,
+  recordDRCS,
+} from './drcs';
 
 export { rendererColor, type CaptionStyle } from './captionStyle';
 
@@ -126,6 +132,8 @@ function loadExtendedCaptionFont(text: string): Promise<void> {
 // fontAwareRenderer は、aribb24.js の CanvasMainThreadRenderer を広げ、JIS X 0213 で足された漢字のある字幕を、
 // 後の面を読み終えてから描く描画器を作る (#1520)。待つ間に次の字幕が来るか、消えるか、描画器を捨てたら、古い字幕は描かない。
 // 外字 (DRCS) を JIS X 0213 の漢字に置き換えたものは、ここでは見分けない。後の面を読むまでは、ほかのフォントで描く。
+// 描く直前には、置き換えられない外字の、なめらかにした path を登録する (#1518)。待つ間に別の字幕を描くと、登録が変わりうるので、
+// 待った後にも登録し直す。
 export function fontAwareRenderer(
   Base: typeof CanvasMainThreadRenderer,
   option: ConstructorParameters<typeof CanvasMainThreadRenderer>[0],
@@ -139,14 +147,18 @@ export function fontAwareRenderer(
       const text = (args[1] ?? [])
         .map((token) => (token.tag === 'Character' ? token.character : ''))
         .join('');
-      if (!usesExtendedFont(text)) {
+      const draw = () => {
+        prepareDRCS(args[0].fontsize, args[1] ?? []);
         super.render(...args);
+      };
+      if (!usesExtendedFont(text)) {
+        draw();
 
         return;
       }
       void loadExtendedCaptionFont(text).then(() => {
         if (generation === this.generation) {
-          super.render(...args);
+          draw();
         }
       });
     }
@@ -235,9 +247,10 @@ export function createCaptions(
         const feeder = new FeederClass({ receive: { type } });
         // 描画の領域を、映像の枠に合わせる。HTML や SVG で描く方法は、CSP で禁じたインラインの style を使うので選ばない。
         // 外字は、共有の表で文字に置き換える (#825)。表は描くたびに読まれるので、入れ替えれば次の字幕から効く。
+        // 表に無い外字は、私用領域の文字に置き換え、なめらかにした path で描く (#1518)。
         const renderer = fontAwareRenderer(RendererClass, {
           font: { normal: captionFont },
-          replace: { drcs: drcsReplacements },
+          replace: { drcs: drcsRenderReplacements, glyph: drcsGlyphs },
           resize: { target: 'container', objectFit: 'contain' },
         });
         // キャプチャで写す canvas だと分かるよう、印を付ける。
