@@ -163,12 +163,12 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  css: npm:@adobe/css-tools@4.5.0
+  css: npm:@adobe/css-tools@5.0.0
   vite: npm:@voidzero-dev/vite-plus-core@1.5.0
   vitest: 5.1.0
 
 patchedDependencies:
-  '@adobe/css-tools@4.5.0': 4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb
+  '@adobe/css-tools@5.0.0': ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a
   '@zxcvbn-ts/core@4.2.0': 695e13034eebf753282a23270d347e3d9fe96dc753d254507d41b27ffcd03cd9
   web-bml@1.0.1: 0a0e017dce273418311de4fbba65cad52b478ec7315d19c3835e2ea01f70b7af
 
@@ -342,6 +342,9 @@ packages:
 
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
+
+  '@adobe/css-tools@5.0.0':
+    resolution: {integrity: sha512-HNzgFxupiKEL0rCMkIcjJaqktW91V9hz/keDROHjvzVWA3AKG557RoeD3lnhFNZtRqzJS0cMvoOPO7VOYyBHDg==}
 
   '@apideck/better-ajv-errors@0.3.7':
     resolution: {integrity: sha512-TajUJwGWbDwkCx/CZi7tRE8PVB7simCvKJfHUsSdvps+aTM/PDPP4gkLmKnc+x3CE//y9i/nj74GqdL/hwk7Iw==}
@@ -3686,6 +3689,12 @@ packages:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
 
+  postcss-safe-parser@7.1.0:
+    resolution: {integrity: sha512-1WzZxRLaAFwEh6Do+zyGpjWV3nGJNxxhuh7Ubu/q1ICImMgZJnLwhoaEpRbG4pJppp2Y1ncL9ffA2f+LhrefQg==}
+    engines: {node: '>=18.0'}
+    peerDependencies:
+      postcss: ^8.4.31
+
   postcss@8.5.32:
     resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
@@ -4483,7 +4492,12 @@ packages:
 
 snapshots:
 
-  '@adobe/css-tools@4.5.0(patch_hash=4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb)': {}
+  '@adobe/css-tools@4.5.0': {}
+
+  '@adobe/css-tools@5.0.0(patch_hash=ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a)':
+    dependencies:
+      postcss: 8.5.32
+      postcss-safe-parser: 7.1.0(postcss@8.5.32)
 
   '@apideck/better-ajv-errors@0.3.7(ajv@8.20.0)':
     dependencies:
@@ -6002,7 +6016,7 @@ snapshots:
 
   '@testing-library/jest-dom@6.9.1':
     dependencies:
-      '@adobe/css-tools': 4.5.0(patch_hash=4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb)
+      '@adobe/css-tools': 4.5.0
       aria-query: 5.3.2
       css.escape: 1.5.1
       dom-accessibility-api: 0.6.3
@@ -7530,6 +7544,10 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
+  postcss-safe-parser@7.1.0(postcss@8.5.32):
+    dependencies:
+      postcss: 8.5.32
+
   postcss@8.5.32:
     dependencies:
       nanoid: 3.3.20
@@ -8286,7 +8304,7 @@ snapshots:
     dependencies:
       arib-mmt-tlv-ts: 2.0.2
       crc-32: 1.2.2
-      css: '@adobe/css-tools@4.5.0(patch_hash=4385640e58c823af4bae232da8690ab5d1b1a14d451d26ac936bc746402832fb)'
+      css: '@adobe/css-tools@5.0.0(patch_hash=ca2115bbd5dedc11344d69f43e4505ceed1ff14a91c399da214568207f7f941a)'
       fast-xml-parser: 4.5.7
       fflate: 0.8.3
 
