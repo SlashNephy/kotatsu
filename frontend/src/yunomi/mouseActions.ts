@@ -4,8 +4,8 @@ import { runCommand, type PlayerCommands, type SimpleCommandId } from './command
 import { onVideoSurface } from './useControlsVisibility';
 import { browserStorage } from './volume';
 
-// マウスのホイールと中クリックでの、プレイヤーの操作 (#810、設計書 7.5)。TVTest に合わせて、既定では、
-// 映像の上のホイールで音量を変え、中クリックでミュートを切り替える。どちらも端末ごとに変えられる。
+// マウスのホイールと中クリックでの、プレイヤーの操作 (#810、設計書 7.5)。TVTest から移ってくる人が
+// 同じ手つきで使えるよう、既定では TVTest に合わせて、映像の上のホイールで音量を変え、中クリックでミュートを切り替える。どちらも端末ごとに変えられる。
 
 // WheelAction は、ホイールで何をするか。volume は音量、seek は 10 秒のシーク、none は何もしない (ページを流す)。
 export type WheelAction = 'volume' | 'seek' | 'none';
