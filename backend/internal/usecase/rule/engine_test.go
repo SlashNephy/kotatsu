@@ -868,6 +868,7 @@ func TestEngineDeletesDuplicateReservationsWithinGrace(t *testing.T) {
 
 	assert.Equal(t, 1, f.run(t).Deleted)
 	assert.Empty(t, f.reserved(t))
+}
 
 // TestEngineSkipsUnconditionedRules は、番組を選ぶ条件のないルール (更新の前に保存した、時間帯と曜日だけのルール) を照合で当てず、
 // そのルールで作り済みの予約は消さずに残すことを確かめる (#1501)。当てると、その時間の全局を録ってディスクを埋める。

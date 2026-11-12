@@ -447,7 +447,7 @@ export function RuleEditor({
                   />
                 </Stack>
               </Card>
-              {!conditionsGiven && <Alert color="amber">{t('rules.noConditions')}</Alert>}
+              {!conditionsGiven && <Alert color="amber">{t('rules.noTargets')}</Alert>}
               {outdated && (
                 <Alert color="amber" role="status">
                   <Group justify="space-between" gap="xs">
