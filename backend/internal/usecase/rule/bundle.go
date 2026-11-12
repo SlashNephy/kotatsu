@@ -191,7 +191,7 @@ func listRecordedEpisodes(ctx context.Context, tx pgx.Tx, now time.Time) ([]*epi
 			anime = &episode.Anime{TID: *row.SyobocalTid, Count: *row.AnimeCount}
 		}
 		src := &episode.Source{Name: row.Name, Description: row.Description, Extended: "", SeriesEpisode: row.SeriesEpisode, Anime: anime}
-		r := &episode.Recorded{Episode: episode.Parse(src), ServiceID: row.ServiceID, StartAt: row.EndAt}
+		r := &episode.Recorded{Episode: episode.Parse(src)}
 		recorded = append(recorded, r)
 		refs[r] = &recordedEpisode{serviceID: row.ServiceID, name: row.Name, endAt: row.EndAt.UTC()}
 	}

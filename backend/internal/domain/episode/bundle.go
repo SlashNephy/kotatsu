@@ -22,9 +22,7 @@ type Broadcast struct {
 
 // Recorded は、録った回 (録画履歴か、録画中の録画)。
 type Recorded struct {
-	Episode   *Episode
-	ServiceID int64
-	StartAt   time.Time
+	Episode *Episode
 }
 
 // Decision は、放送 1 本の扱い。どちらも nil なら、予約する。
@@ -194,19 +192,25 @@ func attachable(u, b *Broadcast) bool {
 
 // bundleUnknown は、残った回の分からない放送を、飾りの印を除いて揃えた番組名ごとに分け、時間が重なるものだけを束ねる。
 // 時刻をまたいでは束ねない。束ねると、毎日の「ニュース」が初回しか録れなくなる。2 本以上の束だけを返す。
+// 間の放送を介してつながるだけで、どれかの組が重ならない束は、束ねない。回が分からないので、どれも録る。
 func bundleUnknown(broadcasts []*Broadcast, unknown []int) [][]int {
 	uf := newUnionFind(len(broadcasts))
+	adjacent := make([][]bool, len(broadcasts))
+	for i := range adjacent {
+		adjacent[i] = make([]bool, len(broadcasts))
+	}
 	for x, i := range unknown {
 		for _, j := range unknown[x+1:] {
 			a, b := broadcasts[i], broadcasts[j]
 			if a.Episode.Key != "" && a.Episode.Key == b.Episode.Key && overlaps(a, b) {
 				uf.union(i, j)
+				adjacent[i][j], adjacent[j][i] = true, true
 			}
 		}
 	}
 	result := [][]int{}
 	for _, members := range uf.groups(unknown) {
-		if len(members) >= 2 {
+		if len(members) >= 2 && isClique(members, adjacent) {
 			result = append(result, members)
 		}
 	}

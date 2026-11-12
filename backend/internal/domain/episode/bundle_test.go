@@ -14,18 +14,19 @@ func base() time.Time {
 	return time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
 }
 
-// broadcast は、base から startHour 時間後に 30 分の放送を作る。
+// broadcast は、base から startHour 時間と startMinute 分後に 30 分の放送を作る。
 type broadcast struct {
 	name, description string
 	serviceID         int64
 	startHour         int
+	startMinute       int
 	captioned         bool
 	satellite         bool
 	rejected          bool
 }
 
 func (b broadcast) build() *episode.Broadcast {
-	start := base().Add(time.Duration(b.startHour) * time.Hour)
+	start := base().Add(time.Duration(b.startHour)*time.Hour + time.Duration(b.startMinute)*time.Minute)
 
 	return &episode.Broadcast{
 		Episode:   episode.Parse(&episode.Source{Name: b.name, Description: b.description}),
@@ -142,6 +143,16 @@ func TestResolve(t *testing.T) {
 			want: []outcome{keep, keep},
 		},
 		{
+			// 間の放送を介してつながるだけで、重ならない放送どうしは同じ回と言えない。束ねずに、どれも録る。
+			name: "unknown episodes chained through an overlapping one",
+			broadcasts: []broadcast{
+				{name: news, serviceID: 1, startHour: 0},
+				{name: news, serviceID: 2, startHour: 0, startMinute: 20},
+				{name: news, serviceID: 3, startHour: 0, startMinute: 40},
+			},
+			want: []outcome{keep, keep, keep},
+		},
+		{
 			name: "unknown episodes are not compared with the recorded",
 			broadcasts: []broadcast{
 				{name: news, serviceID: 1, startHour: 0},
@@ -202,7 +213,7 @@ func TestResolve(t *testing.T) {
 			}
 			recorded := make([]*episode.Recorded, 0, len(tt.recorded))
 			for _, name := range tt.recorded {
-				recorded = append(recorded, &episode.Recorded{Episode: episode.Parse(&episode.Source{Name: name}), ServiceID: 9, StartAt: base().Add(-time.Hour)})
+				recorded = append(recorded, &episode.Recorded{Episode: episode.Parse(&episode.Source{Name: name})})
 			}
 
 			got := []outcome{}
