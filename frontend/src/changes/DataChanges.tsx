@@ -28,7 +28,13 @@ type Context = {
   // drains は、tenban から、止める前につなぎ直してほしいと知らされた回数 (#1085)。
   drains: number;
   addDrain: () => void;
+  // scrambled は、最後に届いた、ライブのサービスがスクランブルされたまま届くと決めた知らせ (#1517)。まだなければ null。
+  scrambled: LiveScrambled | null;
+  setScrambled: (scrambled: LiveScrambled) => void;
 };
+
+// LiveScrambled は、ライブのサービス service が、decidedAt にスクランブルされたまま届くと決めた知らせ。
+export type LiveScrambled = { service: string; decidedAt: string };
 
 const DataChangesContext = createContext<Context>({
   state: initialChangeState,
@@ -37,6 +43,8 @@ const DataChangesContext = createContext<Context>({
   setUnread: () => {},
   drains: 0,
   addDrain: () => {},
+  scrambled: null,
+  setScrambled: () => {},
 });
 
 // DataChangesProvider は、データの変更を、画面に配る (#503)。購読は DataChangesSubscriber が行う。
@@ -45,11 +53,12 @@ export function DataChangesProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(applyChange, initialChangeState);
   const [unread, setUnread] = useState<number | null>(null);
   const [drains, setDrains] = useState(0);
+  const [scrambled, setScrambled] = useState<LiveScrambled | null>(null);
   // 購読を作り直さないよう、変わらない関数にする。
   const addDrain = useCallback(() => setDrains((n) => n + 1), []);
   const value = useMemo(
-    () => ({ state, dispatch, unread, setUnread, drains, addDrain }),
-    [state, unread, drains, addDrain],
+    () => ({ state, dispatch, unread, setUnread, drains, addDrain, scrambled, setScrambled }),
+    [state, unread, drains, addDrain, scrambled],
   );
 
   return <DataChangesContext.Provider value={value}>{children}</DataChangesContext.Provider>;
@@ -71,12 +80,23 @@ export function useStreamsDrains(): number {
   return useContext(DataChangesContext).drains;
 }
 
+// useLiveScrambledDispatch は、ライブのサービスがスクランブルされたまま届くと決めた知らせを、DataChangesProvider に渡す関数を返す。
+export function useLiveScrambledDispatch(): Context['setScrambled'] {
+  return useContext(DataChangesContext).setScrambled;
+}
+
+// useLiveScrambledEvent は、最後に届いた、ライブのサービスがスクランブルされたまま届くと決めた知らせを返す (#1517)。
+// 知らせごとに新しい値になるので、プレイヤーは、変わったら自分のサービスかを確かめる。
+export function useLiveScrambledEvent(): LiveScrambled | null {
+  return useContext(DataChangesContext).scrambled;
+}
+
 // DataChangesSubscriber は、ログイン中のユーザーへの知らせを購読し、DataChangesProvider に渡す。ログインしている間だけ置く。
 // データの変更、ログイン中のユーザーの設定 (通知の設定、番組表ビュー、プレイヤーの設定、第二要素、パスキー、セッション) の版数、
-// 未読の通知の数を、1 つの接続でまとめて受け取る。HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、
+// 未読の通知の数、ライブのサービスがスクランブルされたまま届くと決めた知らせを、1 つの接続でまとめて受け取る。HTTP/1.1 では、ブラウザが同じホストに同時に開く接続は 6 本までなので、
 // 映像やデータ放送の接続のために、購読の接続の数を抑える。
 export function DataChangesSubscriber() {
-  const { dispatch, setUnread, addDrain } = useContext(DataChangesContext);
+  const { dispatch, setUnread, addDrain, setScrambled } = useContext(DataChangesContext);
   const config = useMemo(
     () => ({
       subscription: graphql`
@@ -89,6 +109,10 @@ export function DataChangesSubscriber() {
             viewerSettingsVersion
             unreadNotificationCount
             streamsDraining
+            liveStreamScrambled {
+              service
+              decidedAt
+            }
           }
         }
       `,
@@ -112,11 +136,14 @@ export function DataChangesSubscriber() {
         if (event.streamsDraining === true) {
           addDrain();
         }
+        if (event.liveStreamScrambled) {
+          setScrambled({ ...event.liveStreamScrambled });
+        }
       },
       // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。未読の数は分からなくなる。
       onError: () => setUnread(null),
     }),
-    [dispatch, setUnread, addDrain],
+    [dispatch, setUnread, addDrain, setScrambled],
   );
   useSubscription<DataChangesSubscription>(config);
 

@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
+	"strconv"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -194,32 +197,23 @@ func (r *Resolver) subscribeLiveStreamRates(ctx context.Context, service string)
 	return out, nil
 }
 
-// errLiveScrambleUnavailable は、スクランブルの判定を受け取れないことを表す。
-var errLiveScrambleUnavailable = errors.New("scrambled live stream notifications are not configured")
-
-// subscribeLiveStreamScrambled は、ライブのサービス service が、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。
-// 購読を始めたときに最後に決めた日時を控え、それより後に決めたものだけを送る。前に見た人の判定で、今の視聴を止めないためである。
-func (r *Resolver) subscribeLiveStreamScrambled(ctx context.Context, service string) (<-chan *model.LiveStreamScrambled, error) {
-	if _, err := viewer(ctx); err != nil {
-		return nil, err
-	}
-	serviceID, err := parseServiceGlobalID(service)
-	if err != nil {
-		return nil, err
-	}
+// subscribeLiveStreamScrambled は、ライブのサービスが、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。viewerEvents に載せる。
+// 購読を始めたときにサービスごとに最後に決めた日時を控え、それより後に決めたものだけを送る。前に見た人の判定で、今の視聴を止めないためである。
+// 変更の通知が設定されていなければ、何も送らない。
+func (r *Resolver) subscribeLiveStreamScrambled(ctx context.Context) (<-chan *model.LiveStreamScrambled, error) {
+	out := make(chan *model.LiveStreamScrambled, 1)
 	if r.changes == nil || r.db == nil {
-		return nil, errLiveScrambleUnavailable
+		return out, nil
 	}
 	// 決めた日時を読む前に購読し、読んだ後に決めたものを取りこぼさないようにする。
 	wake, unsubscribe := r.changes.Subscribe()
 	channelVersion := r.changes.Version(scramble.NotifyChannel)
-	last, _, err := r.liveScramble.DecidedAt(ctx, serviceID)
+	last, err := r.liveScramble.Verdicts(ctx)
 	if err != nil {
 		unsubscribe()
 
 		return nil, err
 	}
-	out := make(chan *model.LiveStreamScrambled, 1)
 	go func() {
 		defer close(out)
 		defer unsubscribe()
@@ -234,20 +228,23 @@ func (r *Resolver) subscribeLiveStreamScrambled(ctx context.Context, service str
 				continue
 			}
 			channelVersion = latest
-			decidedAt, found, err := r.liveScramble.DecidedAt(ctx, serviceID)
+			verdicts, err := r.liveScramble.Verdicts(ctx)
 			if err != nil {
 				// 閉じれば、クライアントがつなぎ直す。
 				return
 			}
-			// ほかのサービスで決めても、版数は上がる。
-			if !found || !decidedAt.After(last) {
-				continue
-			}
-			last = decidedAt
-			select {
-			case <-ctx.Done():
-				return
-			case out <- &model.LiveStreamScrambled{DecidedAt: decidedAt}:
+			for _, serviceID := range slices.Sorted(maps.Keys(verdicts)) {
+				decidedAt := verdicts[serviceID]
+				if previous, ok := last[serviceID]; ok && !decidedAt.After(previous) {
+					continue
+				}
+				last[serviceID] = decidedAt
+				event := &model.LiveStreamScrambled{Service: GlobalID(serviceType, strconv.FormatInt(serviceID, 10)), DecidedAt: decidedAt}
+				select {
+				case <-ctx.Done():
+					return
+				case out <- event:
+				}
 			}
 		}
 	}()

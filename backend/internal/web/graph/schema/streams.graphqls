@@ -104,16 +104,14 @@ extend type Subscription {
   ブラウザに届く TS ではなく、放送の内訳を送るので、kyusu の経路で見ていても使える。購読をやめると、ストリームを閉じる。
   """
   liveStreamRates(service: ID!): LiveStreamRates!
-  """
-  ライブのサービス service が、スクランブルされたまま届くと決めたら送る (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
-  決めるのは、ブラウザ内での変換のストリームを中継する tenban と、kyusu で、決めたらストリームを閉じる。
-  どの tenban や kyusu で決めても届く。プレイヤーは、受け取ったら、つなぎ直すのをやめて、理由を出す。
-  """
-  liveStreamScrambled(service: ID!): LiveStreamScrambled!
 }
 
-"ライブのサービスが、スクランブルされたまま届くと決めたこと (#1517)。"
+"""
+ライブのサービスが、スクランブルされたまま届くと決めたこと (設計書 7.1、#1517)。viewerEvents で届く。
+"""
 type LiveStreamScrambled {
+  "決めたサービス。"
+  service: ID!
   "決めた日時。"
   decidedAt: Time!
 }

@@ -283,8 +283,6 @@ type Querier interface {
 	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
 	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
-	// サービス service_id が、最後にスクランブルされたまま届くと決めた日時。決めたことがなければ行を返さない。
-	GetLiveScrambleVerdict(ctx context.Context, serviceID int64) (time.Time, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
@@ -603,6 +601,8 @@ type Querier interface {
 	ListLeases(ctx context.Context) ([]Lease, error)
 	// サービス service_id で、from から to までに重なる番組を、開始時刻の順に返す。終了時刻が未定の番組は、長さが分からないので返さない。
 	ListLiveProgramsInRange(ctx context.Context, arg ListLiveProgramsInRangeParams) ([]ListLiveProgramsInRangeRow, error)
+	// スクランブルされたまま届くと決めたサービスと、最後に決めた日時 (#1517)。サービスごとに 1 行なので、サービスの数より増えない。
+	ListLiveScrambleVerdicts(ctx context.Context) ([]LiveScrambleVerdict, error)
 	// 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
 	ListLiveThumbnailRecordings(ctx context.Context, startedBefore time.Time) ([]uuid.UUID, error)
 	// ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。

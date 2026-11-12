@@ -10,16 +10,29 @@ import (
 	"time"
 )
 
-const getLiveScrambleVerdict = `-- name: GetLiveScrambleVerdict :one
-SELECT decided_at FROM live_scramble_verdicts WHERE service_id = $1
+const listLiveScrambleVerdicts = `-- name: ListLiveScrambleVerdicts :many
+SELECT service_id, decided_at FROM live_scramble_verdicts ORDER BY service_id
 `
 
-// サービス service_id が、最後にスクランブルされたまま届くと決めた日時。決めたことがなければ行を返さない。
-func (q *Queries) GetLiveScrambleVerdict(ctx context.Context, serviceID int64) (time.Time, error) {
-	row := q.db.QueryRow(ctx, getLiveScrambleVerdict, serviceID)
-	var decided_at time.Time
-	err := row.Scan(&decided_at)
-	return decided_at, err
+// スクランブルされたまま届くと決めたサービスと、最後に決めた日時 (#1517)。サービスごとに 1 行なので、サービスの数より増えない。
+func (q *Queries) ListLiveScrambleVerdicts(ctx context.Context) ([]LiveScrambleVerdict, error) {
+	rows, err := q.db.Query(ctx, listLiveScrambleVerdicts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LiveScrambleVerdict{}
+	for rows.Next() {
+		var i LiveScrambleVerdict
+		if err := rows.Scan(&i.ServiceID, &i.DecidedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertLiveScrambleVerdict = `-- name: UpsertLiveScrambleVerdict :exec

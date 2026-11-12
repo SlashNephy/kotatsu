@@ -2,7 +2,6 @@ package scramble
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -54,17 +53,18 @@ func (r *Reporter) Report(ctx context.Context, serviceID int64) error {
 	return nil
 }
 
-// DecidedAt は、サービス serviceID が、最後にスクランブルされたまま届くと決めた日時を返す。決めたことがなければ found を false にする。
-func (r *Reporter) DecidedAt(ctx context.Context, serviceID int64) (time.Time, bool, error) {
-	decidedAt, err := sqlc.New(r.db).GetLiveScrambleVerdict(ctx, serviceID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return time.Time{}, false, nil
-	}
+// Verdicts は、スクランブルされたまま届くと決めたサービスごとの、最後に決めた日時を返す。
+func (r *Reporter) Verdicts(ctx context.Context) (map[int64]time.Time, error) {
+	rows, err := sqlc.New(r.db).ListLiveScrambleVerdicts(ctx)
 	if err != nil {
-		return time.Time{}, false, fmt.Errorf("failed to get the scrambled live stream: %w", err)
+		return nil, fmt.Errorf("failed to list the scrambled live streams: %w", err)
+	}
+	verdicts := make(map[int64]time.Time, len(rows))
+	for _, row := range rows {
+		verdicts[row.ServiceID] = row.DecidedAt
 	}
 
-	return decidedAt, true, nil
+	return verdicts, nil
 }
 
 // Watch は、ライブで流す TS src を、スクランブルされたまま届いているかを判定しながら読む io.Reader にする (設計書 7.1)。

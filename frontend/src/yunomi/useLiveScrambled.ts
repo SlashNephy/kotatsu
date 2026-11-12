@@ -1,30 +1,23 @@
-import { useMemo, useRef } from 'react';
-import { graphql, useSubscription } from 'react-relay';
+import { useEffect, useRef } from 'react';
 
-import type { useLiveScrambledSubscription } from './__generated__/useLiveScrambledSubscription.graphql';
+import { useLiveScrambledEvent } from '../changes/DataChanges';
 
 // useLiveScrambled は、ライブのサービス serviceId が、スクランブルされたまま届くと決まったら onScrambled を呼ぶ (設計書 7.1、#1517)。
 // 決めるのは、ストリームを中継する tenban か kyusu で、決めたらストリームを閉じるので、プレイヤーはつなぎ直すのをやめて理由を出す。
-// 購読を始めた後に決まったものだけが届く。
+// 知らせは、接続を増やさないよう、ヘッダーで購読している viewerEvents で届く (設計書 9.1)。この画面を開く前に届いた知らせでは呼ばない。
 export function useLiveScrambled(serviceId: string, onScrambled: () => void) {
-  // 購読し直さないよう、最新の関数を参照で持つ。
+  const event = useLiveScrambledEvent();
+  // 開いたときに届いていた知らせは、前に見た局のものなので、扱わない。
+  const seen = useRef(event);
   const callback = useRef(onScrambled);
   callback.current = onScrambled;
-  const config = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription useLiveScrambledSubscription($service: ID!) {
-          liveStreamScrambled(service: $service) {
-            decidedAt
-          }
-        }
-      `,
-      variables: { service: serviceId },
-      onNext: () => callback.current(),
-      // 購読できなくても、再生は続ける。理由が出ないだけで、切れたときはこれまでどおりつなぎ直す。
-      onError: () => {},
-    }),
-    [serviceId],
-  );
-  useSubscription<useLiveScrambledSubscription>(config);
+  useEffect(() => {
+    if (event === null || event === seen.current) {
+      return;
+    }
+    seen.current = event;
+    if (event.service === serviceId) {
+      callback.current();
+    }
+  }, [event, serviceId]);
 }

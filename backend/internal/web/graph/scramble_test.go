@@ -2,6 +2,7 @@ package graph_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,7 +29,7 @@ const (
 	// 「こたつテスト2」には、映像と音声をスクランブルしたままの TS を流させる。
 	clearService     = "3273601024"
 	scrambledService = "3273701032"
-	scrambledQuery   = `subscription($service: ID!) { liveStreamScrambled(service: $service) { decidedAt } }`
+	scrambledQuery   = `subscription { viewerEvents { liveStreamScrambled { service decidedAt } } }`
 )
 
 // scrambleRelay は、faketuner を上流にした、ブラウザ内での変換のライブの中継を立てる。clk で、スクランブルの抑止時間を測る。
@@ -88,35 +89,54 @@ func watchLive(t *testing.T, server *httptest.Server, clk *clocktest.Fake, servi
 	_, _ = io.Copy(io.Discard, resp.Body)
 }
 
+// scrambledServices は、viewerEvents の知らせのうち、スクランブルされたまま届くと決めた知らせのサービスを、within の間に届いた順に返す。
+func scrambledServices(t *testing.T, events <-chan json.RawMessage, within time.Duration) []string {
+	t.Helper()
+
+	services := []string{}
+	deadline := time.After(within)
+	for {
+		select {
+		case event, ok := <-events:
+			require.True(t, ok, "the stream ended")
+			var got struct {
+				ViewerEvents struct {
+					LiveStreamScrambled *struct {
+						Service string `json:"service"`
+					} `json:"liveStreamScrambled"`
+				} `json:"viewerEvents"`
+			}
+			require.NoError(t, json.Unmarshal(event, &got))
+			if got.ViewerEvents.LiveStreamScrambled != nil {
+				services = append(services, got.ViewerEvents.LiveStreamScrambled.Service)
+			}
+		case <-deadline:
+			return services
+		}
+	}
+}
+
 // TestLiveStreamScrambled は、ブラウザ内での変換の中継が、スクランブルされたまま届くと決めたら、ストリームを閉じ、
-// 理由が subscription でプレイヤーに届くことを確かめる (設計書 7.1、#1517)。
+// 理由が viewerEvents でプレイヤーに届くことを確かめる (設計書 7.1、#1517)。
 func TestLiveStreamScrambled(t *testing.T) {
 	t.Parallel()
 
 	f := newFixtureWithChanges(t)
 	clk := clocktest.NewFake(time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC))
 	server := scrambleRelay(t, f, clk)
-	events := f.subscribeWith(t, scrambledQuery, map[string]any{varService: graph.GlobalID("Service", scrambledService)})
-	others := f.subscribeWith(t, scrambledQuery, map[string]any{varService: graph.GlobalID("Service", clearService)})
+	events := f.subscribe(t, scrambledQuery)
 
-	// 復号できている局は、閉じずに流し続ける。
+	// 復号できている局は、閉じずに流し続け、知らせも届かない。
 	const watch = 2 * time.Second
 	started := time.Now()
 	watchLive(t, server, clk, clearService, watch)
 	assert.GreaterOrEqual(t, time.Since(started), watch, "the decrypted stream must not be closed")
 
-	// スクランブルされたまま届く局は、抑止時間を越えたら閉じ、理由が届く。
+	// スクランブルされたまま届く局は、抑止時間を越えたら閉じ、その局の知らせだけが届く。
 	started = time.Now()
 	watchLive(t, server, clk, scrambledService, 10*time.Second)
 	assert.Less(t, time.Since(started), 10*time.Second, "the scrambled stream must be closed")
-	event := next(t, events)
-	assert.Contains(t, string(event), "decidedAt")
-	// ほかのサービスの購読には届かない。
-	select {
-	case got := <-others:
-		t.Fatalf("an event arrived for another service: %s", got)
-	case <-time.After(2 * time.Second):
-	}
+	assert.Equal(t, []string{graph.GlobalID("Service", scrambledService)}, scrambledServices(t, events, 3*time.Second))
 }
 
 // TestLiveStreamScrambledSkipsEarlierVerdicts は、購読を始める前に決めた判定を送らないことを確かめる。
@@ -128,18 +148,14 @@ func TestLiveStreamScrambledSkipsEarlierVerdicts(t *testing.T) {
 	clk := clocktest.NewFake(time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC))
 	reporter := scramble.NewReporter(f.pool, clk, slog.New(slog.DiscardHandler))
 	require.NoError(t, reporter.Report(t.Context(), 3273701032))
-	events := f.subscribeWith(t, scrambledQuery, map[string]any{varService: graph.GlobalID("Service", scrambledService)})
-	// ほかのサービスで決めると版数が上がるが、このサービスの前の判定は送らない。
+	events := f.subscribe(t, scrambledQuery)
+	// ほかのサービスで決めると版数が上がるが、前に決めたサービスの判定は送らない。
 	require.NoError(t, reporter.Report(t.Context(), 3273601024))
-	select {
-	case got := <-events:
-		t.Fatalf("an earlier verdict arrived: %s", got)
-	case <-time.After(1500 * time.Millisecond):
-	}
+	assert.Equal(t, []string{graph.GlobalID("Service", clearService)}, scrambledServices(t, events, 1500*time.Millisecond))
 
 	clk.Advance(time.Minute)
 	require.NoError(t, reporter.Report(t.Context(), 3273701032))
-	assert.JSONEq(t, `{"liveStreamScrambled":{"decidedAt":"2026-11-12T12:01:00Z"}}`, string(next(t, events)))
+	assert.Equal(t, []string{graph.GlobalID("Service", scrambledService)}, scrambledServices(t, events, 1500*time.Millisecond))
 }
 
 // TestLiveStreamScrambledWithSkewedClocks は、時計の遅れたホストが後から決めても、新しい判定として届くことを確かめる。
@@ -150,8 +166,8 @@ func TestLiveStreamScrambledWithSkewedClocks(t *testing.T) {
 	ahead := clocktest.NewFake(time.Date(2026, 11, 12, 12, 0, 0, 0, time.UTC))
 	behind := clocktest.NewFake(ahead.Now().Add(-time.Minute))
 	require.NoError(t, scramble.NewReporter(f.pool, ahead, slog.New(slog.DiscardHandler)).Report(t.Context(), 3273701032))
-	events := f.subscribeWith(t, scrambledQuery, map[string]any{varService: graph.GlobalID("Service", scrambledService)})
+	events := f.subscribe(t, scrambledQuery)
 
 	require.NoError(t, scramble.NewReporter(f.pool, behind, slog.New(slog.DiscardHandler)).Report(t.Context(), 3273701032))
-	assert.Contains(t, string(next(t, events)), "liveStreamScrambled")
+	assert.Equal(t, []string{graph.GlobalID("Service", scrambledService)}, scrambledServices(t, events, 1500*time.Millisecond))
 }

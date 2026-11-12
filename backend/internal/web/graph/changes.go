@@ -256,6 +256,12 @@ func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.Vie
 
 		return nil, err
 	}
+	scrambled, err := r.subscribeLiveStreamScrambled(ctx)
+	if err != nil {
+		cancel()
+
+		return nil, err
+	}
 	// draining は、この tenban を止める前の知らせ (#1085)。一度送ったら、もう待たない。
 	var draining <-chan struct{}
 	if r.drain != nil {
@@ -272,22 +278,27 @@ func (r *Resolver) subscribeViewerEvents(ctx context.Context) (<-chan *model.Vie
 				return
 			case <-draining:
 				draining = nil
-				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: new(true)}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: new(true), LiveStreamScrambled: nil}
 			case change, ok := <-data:
 				if !ok {
 					return
 				}
-				event = &model.ViewerEvent{DataChange: change, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: nil}
+				event = &model.ViewerEvent{DataChange: change, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: nil, LiveStreamScrambled: nil}
 			case version, ok := <-settings:
 				if !ok {
 					return
 				}
-				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: &version, UnreadNotificationCount: nil, StreamsDraining: nil}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: &version, UnreadNotificationCount: nil, StreamsDraining: nil, LiveStreamScrambled: nil}
 			case count, ok := <-unread:
 				if !ok {
 					return
 				}
-				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: &count, StreamsDraining: nil}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: &count, StreamsDraining: nil, LiveStreamScrambled: nil}
+			case verdict, ok := <-scrambled:
+				if !ok {
+					return
+				}
+				event = &model.ViewerEvent{DataChange: nil, ViewerSettingsVersion: nil, UnreadNotificationCount: nil, StreamsDraining: nil, LiveStreamScrambled: verdict}
 			}
 			select {
 			case <-ctx.Done():

@@ -6,6 +6,6 @@ INSERT INTO live_scramble_verdicts (service_id, decided_at) VALUES (@service_id,
 ON CONFLICT (service_id) DO UPDATE SET
   decided_at = GREATEST(EXCLUDED.decided_at, live_scramble_verdicts.decided_at + interval '1 microsecond');
 
--- name: GetLiveScrambleVerdict :one
--- サービス service_id が、最後にスクランブルされたまま届くと決めた日時。決めたことがなければ行を返さない。
-SELECT decided_at FROM live_scramble_verdicts WHERE service_id = @service_id;
+-- name: ListLiveScrambleVerdicts :many
+-- スクランブルされたまま届くと決めたサービスと、最後に決めた日時 (#1517)。サービスごとに 1 行なので、サービスの数より増えない。
+SELECT service_id, decided_at FROM live_scramble_verdicts ORDER BY service_id;
