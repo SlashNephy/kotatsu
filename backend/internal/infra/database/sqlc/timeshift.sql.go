@@ -333,7 +333,7 @@ func (q *Queries) GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time
 }
 
 const getTimeshiftPromotion = `-- name: GetTimeshiftPromotion :one
-SELECT p.recording_id, p.service_id, p.from_at, p.to_at, p.created_by, p.created_at, r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.name_normalized, r.description_normalized, r.start_at, r.end_at, r.state, r.failure_reason, r.failure_detail, r.protected, r.drops, r.errors, r.scrambled, r.gaps, r.audios, r.video_resolution, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.waited_for_broadcast, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at, s.name AS service_name, s.channel_type, s.channel
+SELECT p.recording_id, p.service_id, p.from_at, p.to_at, p.created_by, p.created_at, r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.name_normalized, r.description_normalized, r.start_at, r.end_at, r.state, r.failure_reason, r.failure_detail, r.protected, r.drops, r.errors, r.scrambled, r.scrambled_ratio, r.scramble_warning, r.gaps, r.audios, r.video_resolution, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.waited_for_broadcast, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at, s.name AS service_name, s.channel_type, s.channel
 FROM timeshift_promotions p
 JOIN recordings r ON r.id = p.recording_id
 JOIN services s ON s.id = p.service_id
@@ -377,6 +377,8 @@ func (q *Queries) GetTimeshiftPromotion(ctx context.Context, recordingID uuid.UU
 		&i.Recording.Drops,
 		&i.Recording.Errors,
 		&i.Recording.Scrambled,
+		&i.Recording.ScrambledRatio,
+		&i.Recording.ScrambleWarning,
 		&i.Recording.Gaps,
 		&i.Recording.Audios,
 		&i.Recording.VideoResolution,

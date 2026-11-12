@@ -28,6 +28,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/usecase/history"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/usecase/videoformat"
 )
@@ -338,6 +340,11 @@ func (w *AnalyzeWorker) record(
 		if err != nil {
 			return fmt.Errorf("failed to record the stats: %w", err)
 		}
+		// 解析し直した内訳で、スクランブルされたまま録れたかも決め直す (#1517)。録画を終えたときに知らせたので、通知は送らず、
+		// 管理者に知らせるための、続いた録画の数も進めない。警告が変わったら、録画履歴も合わせて直す (設計書 4.4)。
+		if err := rejudgeScramble(ctx, q, recordingID, now); err != nil {
+			return err
+		}
 		// 録画の一覧にドロップの数を出すので、録画の変更として知らせる (#868)。
 		if _, err := notify.Publish(ctx, tx, w.clock, notify.RecordingsChannel); err != nil {
 			return err
@@ -364,6 +371,23 @@ func (w *AnalyzeWorker) record(
 	}
 
 	return err
+}
+
+// rejudgeScramble は、録画 recordingID がスクランブルされたまま録れたかを決め直し、警告が変わったら録画履歴を直す (#1517)。
+func rejudgeScramble(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, now time.Time) error {
+	before, err := q.GetRecording(ctx, recordingID)
+	if err != nil {
+		return fmt.Errorf("failed to get the recording: %w", err)
+	}
+	if _, err := scramble.Judge(ctx, q, recordingID, now); err != nil {
+		return err
+	}
+	after, err := q.GetRecording(ctx, recordingID)
+	if err != nil {
+		return fmt.Errorf("failed to get the recording: %w", err)
+	}
+
+	return history.Resync(ctx, q, &after, before.ScrambleWarning, now)
 }
 
 // readerFunc は、関数を io.Reader にする。

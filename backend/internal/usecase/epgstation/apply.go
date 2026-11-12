@@ -611,7 +611,7 @@ func (a *applier) history(ctx context.Context, tx pgx.Tx, h *RecordedHistory) (u
 	endAt := h.EndAt.UTC()
 	err := sqlc.New(tx).InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
 		ID: historyID, ServiceID: h.ChannelID, TitleKey: rule.TitleKey(h.Name), Name: h.Name,
-		StartAt: endAt, EndAt: endAt, Now: a.importer.clock.Now(),
+		StartAt: endAt, EndAt: endAt, Now: a.importer.clock.Now(), RecordingID: nil,
 	})
 	if err != nil {
 		return uuid.Nil(), fmt.Errorf("failed to insert the recording history: %w", err)

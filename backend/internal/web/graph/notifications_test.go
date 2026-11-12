@@ -199,6 +199,7 @@ func TestNotificationPreferences(t *testing.T) {
 		{Kind: "WATCH_REMINDER", InApp: true, WebPush: true, RuleReservations: true},
 		{Kind: "ANIME_RECORDED", InApp: true, WebPush: true, RuleReservations: true},
 		{Kind: "ANIME_RECORD_FAILED", InApp: true, WebPush: true, RuleReservations: true},
+		{Kind: "SCRAMBLED_RECORDINGS", InApp: true, WebPush: true, RuleReservations: true},
 	}
 	assert.Equal(t, want, list())
 

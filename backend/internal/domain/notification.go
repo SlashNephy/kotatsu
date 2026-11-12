@@ -25,6 +25,9 @@ const (
 	NotificationKindAnimeRecorded NotificationKind = "anime_recorded"
 	// NotificationKindAnimeRecordFailed は、見たアニメを記録できなかったことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
 	NotificationKindAnimeRecordFailed NotificationKind = "anime_record_failed"
+	// NotificationKindScrambledRecordings は、スクランブルされたまま録れた録画が続いたことを知らせる (#1517)。
+	// チューナーサーバーの B-CAS カードを確かめられるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+	NotificationKindScrambledRecordings NotificationKind = "scrambled_recordings"
 )
 
 // ErrUnknownNotificationKind は、知らない種類のイベントであることを表す。
@@ -35,7 +38,7 @@ func NotificationKinds() []NotificationKind {
 	return []NotificationKind{
 		NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed,
 		NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder,
-		NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed,
+		NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed, NotificationKindScrambledRecordings,
 	}
 }
 

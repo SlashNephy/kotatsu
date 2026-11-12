@@ -19,6 +19,8 @@ type Recording struct {
 	Drops                    int64                   `json:"drops"`
 	Errors                   int64                   `json:"errors"`
 	Scrambled                int64                   `json:"scrambled"`
+	ScrambleWarning          bool                    `json:"scrambleWarning"`
+	ScrambledRatio           *float64                `json:"scrambledRatio,omitempty"`
 	Gaps                     []*RecordingGap         `json:"gaps"`
 	Audios                   []*ProgramAudio         `json:"audios"`
 	Genres                   []*Genre                `json:"genres"`

@@ -56,6 +56,11 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 			return text
 		}
 
+		if warning, _ := payload["scrambleWarning"].(bool); warning {
+			// スクランブルされたまま録れた録画は、失敗にしないので、完了の通知に警告を添える (#1517)。
+			return withName("録画が終わりましたが、映像と音声がスクランブルされたままです")
+		}
+
 		return withName("録画が終わりました")
 	case domain.NotificationKindRecordingFailed:
 		return withName("録画に失敗しました")
@@ -74,6 +79,9 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 		return watchReminderMessage(name, field("serviceName"), payload, location)
 	case domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed:
 		return animeRecordMessage(kind, name, payload)
+	case domain.NotificationKindScrambledRecordings:
+		return "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります"
+
 	default:
 		return string(kind)
 	}

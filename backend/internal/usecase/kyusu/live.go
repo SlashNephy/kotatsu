@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 const (
@@ -55,6 +56,14 @@ type ServiceOpener interface {
 // Encoder は、TS を HLS にする。*Transcoder が満たす。
 type Encoder interface {
 	Run(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string) error
+}
+
+// ScrambleWatcher は、ライブで流す TS が、スクランブルされたまま届いているかを判定する (設計書 7.1、#1517)。*scramble.Reporter が満たす。
+type ScrambleWatcher interface {
+	// Watch は、src を判定しながら読む io.Reader と、その判定器を返す。スクランブルされたままと決めたら、理由を記録してから読むのを止める。
+	Watch(ctx context.Context, serviceID int64, src io.Reader) (io.Reader, *ts.ScrambleDetector)
+	// ReportQuietly は、スクランブルされたまま届くと決めたことを記録する。書けなければログに残す。
+	ReportQuietly(ctx context.Context, serviceID int64)
 }
 
 var (
@@ -95,6 +104,8 @@ type Live struct {
 	clock       clock.Clock
 	logger      *slog.Logger
 	idleTimeout time.Duration
+	// scramble は、スクランブルされたまま届くかを判定する。nil なら判定しない。
+	scramble ScrambleWatcher
 
 	mu       sync.Mutex
 	sessions map[sessionKey]*session
@@ -114,6 +125,8 @@ type LiveOptions struct {
 	Logger  *slog.Logger
 	// IdleTimeout は、セグメントへのリクエストが途絶えてから、エンコーダーを止めるまでの時間。0 なら 10 秒。
 	IdleTimeout time.Duration
+	// Scramble は、エンコーダーに流す TS が、スクランブルされたまま届いているかを判定する (#1517)。nil なら判定しない。
+	Scramble ScrambleWatcher
 }
 
 // NewLive は Live を返す。前に動いていたときの HLS が作業ディレクトリに残っていれば消す。
@@ -135,7 +148,7 @@ func NewLive(opts *LiveOptions) (*Live, error) {
 	}
 
 	return &Live{
-		opener: opts.Opener, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle,
+		opener: opts.Opener, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle, scramble: opts.Scramble,
 		mu: sync.Mutex{}, sessions: map[sessionKey]*session{}, stopped: false,
 	}, nil
 }
@@ -255,14 +268,21 @@ func (l *Live) encode(ctx context.Context, s *session, preset *Preset) {
 		defer func() {
 			_ = upstream.Close()
 		}()
+		if l.scramble == nil {
+			return l.encoder.Run(ctx, upstream, preset, s.key.audio, s.dir)
+		}
+		// スクランブルされた ES を渡すと、エンコーダーは理由の分からないエラーで降りるので、パケットを数えて理由を決める (#1517)。
+		src, detector := l.scramble.Watch(ctx, s.key.serviceID, upstream)
+		err = l.encoder.Run(ctx, src, preset, s.key.audio, s.dir)
 
-		return l.encoder.Run(ctx, upstream, preset, s.key.audio, s.dir)
+		return l.scrambleVerdict(ctx, s, detector, err)
 	}()
 	if ctx.Err() != nil {
 		// 使われなくなったか、kyusu を止めたので止めた。
 		err = errEnded
 	}
-	if err != nil && !errors.Is(err, errEnded) {
+	// スクランブルされたまま届いたことは、決めたときにログに残している。
+	if err != nil && !errors.Is(err, errEnded) && !errors.Is(err, ts.ErrScrambled) {
 		l.logger.WarnContext(ctx, "the live session failed", slog.Int64("service_id", s.key.serviceID), slog.String("preset", preset.Name), slog.Any("error", err))
 	}
 	l.mu.Lock()
@@ -279,6 +299,27 @@ func (l *Live) encode(ctx context.Context, s *session, preset *Preset) {
 	}
 	s.err = err
 	close(s.done)
+}
+
+// scrambleVerdict は、エンコーダーが止まった後に、スクランブルされたまま届いていたかを確かめ、そうなら ts.ErrScrambled を返す。
+// 最初のセグメントができる前にエンコーダーが降りたら、いちばん新しい窓だけで決める (設計書 7.1)。
+// 原因はエンコーダーではないので、エンコードの方式を変えて起動し直すことはしない。そうでなければ err をそのまま返す。
+func (l *Live) scrambleVerdict(ctx context.Context, s *session, detector *ts.ScrambleDetector, err error) error {
+	if detector == nil || ctx.Err() != nil {
+		return err
+	}
+	if detector.Verdict() == ts.ScrambleScrambled {
+		return ts.ErrScrambled
+	}
+	l.mu.Lock()
+	ready := s.ready
+	l.mu.Unlock()
+	if ready || detector.Finish() != ts.ScrambleScrambled {
+		return err
+	}
+	l.scramble.ReportQuietly(ctx, s.key.serviceID)
+
+	return ts.ErrScrambled
 }
 
 // playlist は、セッションのプレイリストに最初のセグメントが載るまで待ち、プレイリストを返す。
@@ -376,6 +417,9 @@ func (l *Live) servePlaylist(w http.ResponseWriter, r *http.Request, serviceID i
 	case errors.Is(err, tunerserver.ErrTunerUnavailable):
 		http.Error(w, "no tuner is available", http.StatusServiceUnavailable)
 	case errors.Is(err, errNoTuner), errors.Is(err, errNoEncoder), errors.Is(err, errNoPlaylist), errors.Is(err, errEnded):
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	case errors.Is(err, ts.ErrScrambled):
+		// 理由は、subscription でプレイヤーに届ける (#1517)。
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 	default:
 		l.logger.ErrorContext(r.Context(), "failed to start the live session", slog.Any("error", err))

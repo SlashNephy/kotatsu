@@ -95,6 +95,7 @@ import {
 import { dataBroadcastSource, hlsURL, toVideoFormat } from '../../yunomi/route';
 import { RemoteKey, useDataBroadcast } from '../../yunomi/useDataBroadcast';
 import { useRemotePlayer } from '../../yunomi/useRemotePlayer';
+import { useLiveScrambled } from '../../yunomi/useLiveScrambled';
 import { useRemoteOpen } from '../../yunomi/useRemoteOpen';
 import {
   documentTitle,
@@ -232,15 +233,21 @@ const liveLookahead = 6 * 3_600_000;
 const undecidedRecheckMs = 60_000;
 
 // Disconnection は、視聴が切れたことと、つなぎ直すまでの秒と、切れた理由とみなす録画。
+// scrambled は、スクランブルされたまま届くと決まって切れたかどうか (#1517)。つなぎ直しても映らないので、自動ではつなぎ直さない。
 type Disconnection = {
   at: number;
   retryIn: number;
   recordings: { name: string; serviceName: string }[];
+  scrambled: boolean;
 };
 
 // DisconnectionReason は、視聴が切れた理由と、つなぎ直すまでの秒を示す。ページの知らせと、映像に重ねる知らせで使う。
 function DisconnectionReason({ disconnection }: { disconnection: Disconnection }) {
   const { t } = useTranslation();
+
+  if (disconnection.scrambled) {
+    return <Text size="sm">{t('live.scrambled')}</Text>;
+  }
 
   return (
     <Stack gap={4}>
@@ -477,7 +484,7 @@ function Live({
     // 録画にチューナーを使われて切れた後は、録画が続いている間はつなぎ直せない。
     const retried = attempt.current > 0 && preempted.current;
     const delay = reconnectDelay(attempt.current);
-    setDisconnection({ at, retryIn: delay, recordings: [] });
+    setDisconnection({ at, retryIn: delay, recordings: [], scrambled: false });
     void fetchQuery<ServiceIdRecordingsQuery>(
       environment,
       recordingsQuery,
@@ -506,13 +513,23 @@ function Live({
       .catch(() => {});
   };
 
-  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。
+  // reconnectNow は、数え終わるのを待たずに、すぐにつなぎ直す。スクランブルされたまま届いて止めたときも、カードを直した後に試せる。
   const reconnectNow = () =>
-    setDisconnection((prev) => (prev === null ? null : { ...prev, retryIn: 0 }));
+    setDisconnection((prev) => (prev === null ? null : { ...prev, retryIn: 0, scrambled: false }));
+
+  // スクランブルされたまま届くと決まったら、つなぎ直すのをやめて、理由を出す (#1517)。
+  // バッファの再生 (タイムシフト) は数えないので、ライブを流している間だけ扱う。
+  useLiveScrambled(serviceId, () => {
+    if (timeshift.behind) {
+      return;
+    }
+    retryingImmediately.current = false;
+    setDisconnection({ at: Date.now(), retryIn: 0, recordings: [], scrambled: true });
+  });
 
   // つなぎ直すまでを数える。
   useEffect(() => {
-    if (disconnection === null) {
+    if (disconnection === null || disconnection.scrambled) {
       return;
     }
     if (disconnection.retryIn <= 0) {

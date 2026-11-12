@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -27,6 +28,12 @@ type ServiceOpener interface {
 
 var _ ServiceOpener = tunerserver.Client(nil)
 
+// ScrambleWatcher は、中継する TS が、スクランブルされたまま届いているかを判定する (設計書 7.1、#1517)。*scramble.Reporter が満たす。
+type ScrambleWatcher interface {
+	// Watch は、src を判定しながら読む io.Reader を返す。スクランブルされたままと決めたら、理由を記録してから ts.ErrScrambled で読むのを止める。
+	Watch(ctx context.Context, serviceID int64, src io.Reader) (io.Reader, *ts.ScrambleDetector)
+}
+
 // LiveHandler は、チューナーサーバーのサービスストリームを中継する (GET /streams/services/{id})。
 type LiveHandler struct {
 	// tuner は、チューナーサーバーのクライアント。設定していなければ nil。
@@ -34,20 +41,32 @@ type LiveHandler struct {
 	// dataBroadcast は、データ放送の描画に要るパケットだけを流すかどうか (設計書 7.4)。
 	dataBroadcast bool
 	logger        *slog.Logger
+	// scramble は、スクランブルされたまま届くかを判定する。nil なら判定しない。
+	scramble ScrambleWatcher
 }
 
 var _ http.Handler = new(LiveHandler)
 
 // NewLiveHandler は LiveHandler を返す。tuner が nil なら、すべてのリクエストに 503 を返す。
 func NewLiveHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHandler {
-	return &LiveHandler{tuner: tuner, dataBroadcast: false, logger: logger}
+	return &LiveHandler{tuner: tuner, dataBroadcast: false, logger: logger, scramble: nil}
 }
 
 // NewDataBroadcastHandler は、サービスストリームから、データ放送の描画に要るパケットだけを流す LiveHandler を返す
 // (GET /streams/services/{id}/data-broadcast、設計書 7.4)。ブラウザは、これを web-bml に渡す。
 // tuner が nil なら、すべてのリクエストに 503 を返す。
 func NewDataBroadcastHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHandler {
-	return &LiveHandler{tuner: tuner, dataBroadcast: true, logger: logger}
+	return &LiveHandler{tuner: tuner, dataBroadcast: true, logger: logger, scramble: nil}
+}
+
+// WithScramble は、中継しながら、スクランブルされたまま届いているかを判定する LiveHandler を返す (設計書 7.1、#1517)。
+// スクランブルされたままと決めたら、理由をプレイヤーに届けるよう記録してから、ストリームを閉じる。
+// 判定は、画面のプレイヤーに流す映像の中継でだけ行う。データ放送と、外部のプレイヤーに流す中継では行わない。
+func (h *LiveHandler) WithScramble(watcher ScrambleWatcher) *LiveHandler {
+	copied := *h
+	copied.scramble = watcher
+
+	return &copied
 }
 
 // ServeHTTP は、スクランブルを解除したストリームを、クライアントが切断するまで流す。
@@ -105,7 +124,15 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	writeStreamHeader(w)
-	if err := stream.CopyFlushing(dst, upstream); err != nil && r.Context().Err() == nil {
+	var src io.Reader = upstream
+	if h.scramble != nil && !h.dataBroadcast {
+		src, _ = h.scramble.Watch(r.Context(), serviceID, upstream)
+	}
+	err = stream.CopyFlushing(dst, src)
+	switch {
+	case errors.Is(err, ts.ErrScrambled):
+		// 理由は、記録して subscription でプレイヤーに届けたので、ここでは閉じるだけにする。
+	case err != nil && r.Context().Err() == nil:
 		// クライアントの切断ではなく、上流が途切れた。視聴の再接続はクライアントに任せる。
 		h.logger.WarnContext(r.Context(), "the service stream ended", slog.Int64("service_id", serviceID), slog.Any("error", err))
 	}

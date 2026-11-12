@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<fadc823fc7241a82700c08dc0a04226a>>
+ * @generated SignedSource<<1baf2a1c35ad2ba64cd628299fd6a23f>>
  * @lightSyntaxTransform
  */
 
@@ -11,7 +11,7 @@ import { ConcreteRequest } from 'relay-runtime';
 export type AnimeImportSource = "ANNICT_WORKS" | "ARM" | "SAYA_DEFINITIONS" | "SYOBOCAL_TITLES" | "%future added value";
 export type AnimeRecordDestination = "ANILIST" | "ANNICT" | "%future added value";
 export type CommentSource = "NICOLOG" | "NX_JIKKYO" | "%future added value";
-export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "SCRAMBLED_RECORDINGS" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type WebhookFormat = "DISCORD" | "JSON" | "SLACK" | "%future added value";
 export type integrationsQuery$variables = Record<PropertyKey, never>;
 export type integrationsQuery$data = {

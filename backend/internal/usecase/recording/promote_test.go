@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
@@ -84,7 +85,9 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 		chunks []chunk
 		// lastWrite は、最後のチャンクのファイルの更新時刻。ゼロなら、今 (書き出す範囲の終わりより後) のまま。
 		lastWrite time.Time
-		want      func(userID uuid.UUID) *promoted
+		// data は、チャンクに書く TS。nil なら testdata/ts/test.ts。
+		data []byte
+		want func(userID uuid.UUID) *promoted
 	}{
 		{
 			name: "書き出す範囲を通して録れていれば、1 つのセグメントに書き出して完了にし、録画履歴に記録する",
@@ -96,6 +99,18 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 				return &promoted{
 					state: string(recording.StateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
 					history: 1, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
+				}
+			},
+		},
+		{
+			// スクランブルされたまま録れた録画は、失敗にせず完了にするが、録画済みとみなさない (設計書 4.4、#1517)。
+			name:   "スクランブルされたまま録れていれば、完了にするが、録画履歴には記録しない",
+			chunks: []chunk{{start: from.Add(-time.Minute), end: new(to.Add(time.Minute))}},
+			data:   faketuner.Scramble(continuousRepeat(data, 8), 0x0111, 0x0112),
+			want: func(userID uuid.UUID) *promoted {
+				return &promoted{
+					state: string(recording.StateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
+					history: 0, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
 		},
@@ -166,8 +181,12 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			_, store := f.newRecorderWithTimeshift(t, nil)
 			tokyo, err := time.LoadLocation("Asia/Tokyo")
 			require.NoError(t, err)
+			chunkData := data
+			if tt.data != nil {
+				chunkData = tt.data
+			}
 			for _, c := range tt.chunks {
-				f.addChunk(t, store, grService(0), c, data)
+				f.addChunk(t, store, grService(0), c, chunkData)
 			}
 			if !tt.lastWrite.IsZero() {
 				last := tt.chunks[len(tt.chunks)-1]

@@ -105,3 +105,13 @@ extend type Subscription {
   """
   liveStreamRates(service: ID!): LiveStreamRates!
 }
+
+"""
+ライブのサービスが、スクランブルされたまま届くと決めたこと (設計書 7.1、#1517)。viewerEvents で届く。
+"""
+type LiveStreamScrambled {
+  "決めたサービス。"
+  service: ID!
+  "決めた日時。"
+  decidedAt: Time!
+}

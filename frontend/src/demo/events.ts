@@ -5,6 +5,8 @@ export type ViewerEvent = {
   unreadNotificationCount: number | null;
   // streamsDraining は、tenban を止める前の知らせ。デモは止まらないので、いつも null。
   streamsDraining: null;
+  // liveStreamScrambled は、ライブのサービスがスクランブルされたまま届くと決めた知らせ (#1517)。デモの局はどれも届くので、いつも null。
+  liveStreamScrambled: null;
 };
 
 // EventHub は、デモの中で起きた変更を、viewerEvents を購読している画面に届ける。

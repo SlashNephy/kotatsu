@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5197a64daaab2f8b1f272dd3e2673227>>
+ * @generated SignedSource<<083373caa0008c0f67b8666391232e71>>
  * @lightSyntaxTransform
  */
 
@@ -43,6 +43,7 @@ export type recordingsListQuery$data = {
         readonly protected: boolean;
         readonly recordedFrom: string;
         readonly recordedUntil: string | null | undefined;
+        readonly scrambleWarning: boolean;
         readonly scrambled: number;
         readonly service: {
           readonly logoUrl: string | null | undefined;
@@ -188,17 +189,24 @@ v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "scrambleWarning",
   "storageKey": null
 },
 v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v16 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v17 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -223,28 +231,28 @@ v16 = {
   ],
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "PreviewFrame",
@@ -304,14 +312,14 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -324,7 +332,7 @@ v22 = {
   ],
   "storageKey": null
 },
-v23 = {
+v24 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -401,6 +409,7 @@ return {
                   (v18/*:: as any*/),
                   (v19/*:: as any*/),
                   (v20/*:: as any*/),
+                  (v21/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -410,18 +419,18 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v21/*:: as any*/)
+                      (v22/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v22/*:: as any*/)
+                  (v23/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v23/*:: as any*/)
+          (v24/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -480,6 +489,7 @@ return {
                   (v18/*:: as any*/),
                   (v19/*:: as any*/),
                   (v20/*:: as any*/),
+                  (v21/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -489,35 +499,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v21/*:: as any*/),
+                      (v22/*:: as any*/),
                       (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v22/*:: as any*/)
+                  (v23/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v23/*:: as any*/)
+          (v24/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "91d1dba76e22db5d1406e24fa4ef575e",
+    "cacheID": "13e5ac3e18cf238173acff14115e14f0",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        scrambleWarning\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3ec5f9ab1aabb2e49b9470db99ab284c";
+(node as any).hash = "c6694c4381455ee3b66160ae31eb7c1e";
 
 export default node;

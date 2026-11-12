@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<bcac8ee23f80a3fb4ea8a07326feaddf>>
+ * @generated SignedSource<<cdcab5015d36269199b50647f1fa6ef2>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
+export type NotificationKind = "ANIME_RECORDED" | "ANIME_RECORD_FAILED" | "RECORDING_COMPLETED" | "RECORDING_FAILED" | "RECORDING_STARTED" | "RESERVATION_CONFLICT" | "SCRAMBLED_RECORDINGS" | "STORAGE_LOW" | "TUNER_SERVER_UNREACHABLE" | "WATCH_REMINDER" | "%future added value";
 export type NotificationListQuery$variables = {
   first: number;
 };
