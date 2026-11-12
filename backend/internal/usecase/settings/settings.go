@@ -479,6 +479,9 @@ func merge(base, changes *domain.RecordingOverrides) *domain.RecordingOverrides 
 	if changes.TranscodePreset != nil {
 		merged.TranscodePreset = changes.TranscodePreset
 	}
+	if changes.TranscodeFrameRate != nil {
+		merged.TranscodeFrameRate = changes.TranscodeFrameRate
+	}
 
 	return &merged
 }

@@ -940,6 +940,10 @@ CREATE TABLE recording_files (
   -- 見つけられなかったセグメントと、セグメント以外は NULL。名前は上流のホスト名を含むことがあるので、管理者にだけ見せる。
   tuner_index bigint,
   tuner_name text,
+  -- Kotatsu が録画を変換した MP4 (#1253) の、1 秒あたりのコマ数 (#1509)。インターレースをフィールドごとに 1 コマにしたら 60、
+  -- コマごとに解除したら 30。プログレッシブの映像は、元のコマ数を丸めた値。変換を終えたときに書く。
+  -- セグメントと、EPGStation から取り込んだファイルと、これを足す前に変換した MP4 は NULL。
+  transcode_frame_rate integer,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

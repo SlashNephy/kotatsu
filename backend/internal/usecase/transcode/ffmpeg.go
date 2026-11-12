@@ -37,10 +37,14 @@ var ErrFFmpegNotFound = errors.New("FFmpeg is not found")
 // Encoder は、TS を読んで MP4 を書く。
 type Encoder interface {
 	// Encode は、src の TS を、preset の画質の MP4 にして out に書く。progress には、FFmpeg の -progress の出力を書く。
-	Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string, progress io.Writer) error
+	// fields なら、インターレースをフィールドごとに 1 コマにして、60 コマで出す (#1509)。
+	Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, fields bool, out string, progress io.Writer) error
 	// ProbeFrameRate は、TS のファイル path の最初の映像のフレームレートを読む。読めなければ 0 を返す。
 	// 録画の映像の形式に、フレームレートがないとき (HEVC) に、進み具合の見込みのコマ数を求めるのに使う (#1511)。
 	ProbeFrameRate(ctx context.Context, path string) (float64, error)
+	// MeasureFields は、TS のファイル path の、offset から length の間の、フィールドどうしの輝度の差を測る (#1509)。
+	// 出すコマ数を自動で選ぶときに、映像が 24p 系、30p、60i のどれかを見分けるのに使う。
+	MeasureFields(ctx context.Context, path string, offset, length time.Duration) (*FieldDiffs, error)
 }
 
 // FFmpegEncoder は、FFmpeg で変換する。映像のエンコーダーは、kyusu と同じ設定 (config.Kyusu の encoder) を使う。
@@ -64,9 +68,9 @@ func NewFFmpegEncoder(cfg *config.Kyusu, lowerer *procprio.Lowerer) (*FFmpegEnco
 }
 
 // Encode は、src の TS を、preset の画質の MP4 にして out に書く。-progress の出力は、標準出力から progress に書く。
-func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, out string, progress io.Writer) error {
+func (e *FFmpegEncoder) Encode(ctx context.Context, src io.Reader, preset *kyusu.Preset, fields bool, out string, progress io.Writer) error {
 	// コマンドは定数で、引数は設定のエンコーダーと固定の表の画質、録画のセグメントから作った出力のパスから組み立てる。
-	cmd := exec.CommandContext(ctx, ffmpegCommand, FFmpegArgs(e.cfg, preset, out)...) //nolint:gosec // G204 の誤検知。理由は上のとおり。
+	cmd := exec.CommandContext(ctx, ffmpegCommand, FFmpegArgs(e.cfg, preset, fields, out)...) //nolint:gosec // G204 の誤検知。理由は上のとおり。
 	cmd.Stdin = src
 	cmd.Stdout = progress
 	cmd.WaitDelay = waitDelay
@@ -127,10 +131,17 @@ func parseRate(s string) float64 {
 
 // FFmpegArgs は、標準入力の TS を、preset の画質の MP4 にして out に書く FFmpeg の引数を返す。
 // 映像は、kyusu と同じく、CPU の bwdif でインターレースを解除してから縮め、8 ビットにする (設計書 7.3)。
+// bwdif は、インターレースの印のあるコマだけを解除する (deint=interlaced)。fields なら、フィールドごとに 1 コマにし (send_field)、
+// kyusu の 60fps の画質と同じく 59.94 コマに固定して、ビットレートを 1.4 倍にする (#1509)。そうでなければ、コマごとに解除する (send_frame)。
 // 音声は、最初の音声を AAC にする。MP4 は、先頭に索引を置き (faststart)、読み込み終える前から再生できるようにする。
-func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, out string) []string {
+func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, fields bool, out string) []string {
 	height := strconv.Itoa(preset.Height)
 	deinterlace := "bwdif=0:-1:1"
+	bitrate := preset.VideoBitrate
+	if fields {
+		deinterlace = "bwdif=1:-1:1,fps=60000/1001"
+		bitrate = bitrate * fieldBitrateNumerator / fieldBitrateDenominator
+	}
 	filter := deinterlace + ",scale=-2:" + height + ",format=yuv420p"
 	device := []string{}
 	options := []string{}
@@ -156,8 +167,6 @@ func FFmpegArgs(cfg *config.Kyusu, preset *kyusu.Preset, out string) []string {
 		// Safari は、hvc1 の印のない HEVC の MP4 を再生しない。
 		options = append(options, "-tag:v", "hvc1")
 	}
-	bitrate := preset.VideoBitrate
-
 	args := make([]string, 0, 48)
 	// 進み具合は、-progress のまとまりを標準出力に出させて読む (#1511)。標準エラー出力の統計の行は出さない。
 	args = append(args, "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-nostats", "-progress", "pipe:1")

@@ -324,6 +324,7 @@ func (r *Recorder) finishPromotion(
 			payload["joinSegments"] = settings.JoinSegments
 			payload["detectCm"] = settings.DetectCM
 			payload["transcodePreset"] = settings.TranscodePreset
+			payload["transcodeFrameRate"] = settings.TranscodeFrameRate
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, audienceOf(promotion.CreatedBy))
 		})

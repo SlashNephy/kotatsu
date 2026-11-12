@@ -120,12 +120,30 @@ type RecordingSettings struct {
 	// TranscodePreset は、録画が終わったら、録画を変換して MP4 を足すときの画質 (TranscodePresets のどれか、#1253)。
 	// 空なら変換しない。既定では変換しない。
 	TranscodePreset string
+	// TranscodeFrameRate は、録画を変換するときに出すコマ数 (TranscodeFrameRates のどれか、#1509)。
+	TranscodeFrameRate string
 }
 
 // TranscodePresets は、録画を終えた後の変換 (#1253) で選べる画質を返す。kyusu の画質のプリセットのうち、
 // 30fps の H.264 と HEVC に限る。映像を変換しないものと、フィールドごとに 1 フレームにするものは、ファイルに残す意味が薄いので除く。
 func TranscodePresets() []string {
 	return []string{"1080p", "720p", "540p", "360p", "1080p-hevc", "720p-hevc", "540p-hevc", "360p-hevc"}
+}
+
+const (
+	// TranscodeFrameRateAuto は、録画の映像から 24p 系、30p、60i を測り、出すコマ数 (30 か 60) を選ぶこと (#1509)。
+	TranscodeFrameRateAuto = "auto"
+	// TranscodeFrameRate30 は、インターレースをコマごとに解除し、30 コマで出すこと。
+	TranscodeFrameRate30 = "30"
+	// TranscodeFrameRate60 は、インターレースをフィールドごとに 1 コマにして、60 コマで出すこと。
+	TranscodeFrameRate60 = "60"
+	// DefaultTranscodeFrameRate は、出すコマ数の既定値。素材に合わせて選び、無駄を省きつつ実写の動きを保つ。
+	DefaultTranscodeFrameRate = TranscodeFrameRateAuto
+)
+
+// TranscodeFrameRates は、録画を変換するときに選べる、出すコマ数を返す (#1509)。
+func TranscodeFrameRates() []string {
+	return []string{TranscodeFrameRateAuto, TranscodeFrameRate30, TranscodeFrameRate60}
 }
 
 // DefaultRecordingSettings は、Go の既定値を返す。
@@ -140,6 +158,7 @@ func DefaultRecordingSettings() *RecordingSettings {
 		JoinSegments:       true,
 		DetectCM:           false,
 		TranscodePreset:    "",
+		TranscodeFrameRate: DefaultTranscodeFrameRate,
 	}
 }
 
@@ -154,6 +173,8 @@ type RecordingOverrides struct {
 	DetectCM           *bool   `json:"detectCm,omitempty"`
 	// TranscodePreset は、空の文字列なら「変換しない」で上書きする。nil なら上書きしない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
+	// TranscodeFrameRate は、出すコマ数 (TranscodeFrameRates のどれか)。nil なら上書きしない。
+	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
 }
 
 // Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
@@ -185,6 +206,9 @@ func (s *RecordingSettings) Resolve(o *RecordingOverrides) *RecordingSettings {
 	}
 	if o.TranscodePreset != nil {
 		resolved.TranscodePreset = *o.TranscodePreset
+	}
+	if o.TranscodeFrameRate != nil {
+		resolved.TranscodeFrameRate = *o.TranscodeFrameRate
 	}
 
 	return &resolved

@@ -613,19 +613,20 @@ type RecordingFailureCount struct {
 }
 
 type RecordingFile struct {
-	ID          uuid.UUID
-	RecordingID uuid.UUID
-	Kind        string
-	PoolID      string
-	Path        string
-	Size        int64
-	StartedAt   time.Time
-	EndedAt     *time.Time
-	PIDStats    []byte
-	Video       []byte
-	TunerIndex  *int64
-	TunerName   *string
-	CreatedAt   time.Time
+	ID                 uuid.UUID
+	RecordingID        uuid.UUID
+	Kind               string
+	PoolID             string
+	Path               string
+	Size               int64
+	StartedAt          time.Time
+	EndedAt            *time.Time
+	PIDStats           []byte
+	Video              []byte
+	TunerIndex         *int64
+	TunerName          *string
+	TranscodeFrameRate *int32
+	CreatedAt          time.Time
 }
 
 type RecordingHistory struct {

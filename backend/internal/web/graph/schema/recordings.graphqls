@@ -72,6 +72,11 @@ type RecordingFile {
   名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
   """
   tuner: RecordingFileTuner
+  """
+  Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
+  セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+  """
+  transcodeFrameRate: Int
 }
 
 """

@@ -1336,6 +1336,9 @@ type RecordingFile struct {
 	// セグメントを書いたストリームを受信していたチューナー (#1467)。見つけられなかったセグメントと、その他のファイルでは null。
 	// 名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
 	Tuner *RecordingFileTuner `json:"tuner,omitempty"`
+	// Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
+	// セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+	TranscodeFrameRate *int `json:"transcodeFrameRate,omitempty"`
 }
 
 type RecordingFileRename struct {
@@ -1411,6 +1414,8 @@ type RecordingSettings struct {
 	DetectCM bool `json:"detectCm"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
+	// 録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
+	TranscodeFrameRate string `json:"transcodeFrameRate"`
 }
 
 // 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -1429,6 +1434,8 @@ type RecordingSettingsOverrides struct {
 	DetectCM *bool `json:"detectCm,omitempty"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
+	// 録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
+	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1442,6 +1449,8 @@ type RecordingSettingsOverridesInput struct {
 	DetectCM           *bool   `json:"detectCm,omitempty"`
 	// 変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
+	// 変換で出すコマ数 (auto、30、60 のどれか)。
+	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
