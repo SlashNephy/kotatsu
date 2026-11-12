@@ -505,9 +505,10 @@ type Querier interface {
 	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
 	// 見たいリストの Annict の作品のうち、高画質の画像をまだ引いていないか、引き直す時期が来た作品の MyAnimeList の ID を返す (#1315)。
 	ListAnimeArtworkTargets(ctx context.Context, arg ListAnimeArtworkTargetsParams) ([]int32, error)
-	// サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
-	// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
-	ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error)
+	ListAnimeChannelDefinitions(ctx context.Context) ([]ListAnimeChannelDefinitionsRow, error)
+	// サービスごとに、取り込んだ対応と照らし合わせるための ID と種別、管理者の上書きを返す (設計書 3.8)。
+	// 取り込んだ対応との照らし合わせは、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
+	ListAnimeChannelServices(ctx context.Context) ([]ListAnimeChannelServicesRow, error)
 	// ユーザーが連携した記録先ごとに、作品 (TID) のフォロー中のユーザーの視聴状況を問い合わせた様子を返す (#1372)。
 	// まだ問い合わせていなければ、checked_at などは NULL。
 	ListAnimeFollowingFetches(ctx context.Context, arg ListAnimeFollowingFetchesParams) ([]ListAnimeFollowingFetchesRow, error)
