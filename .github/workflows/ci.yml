@@ -351,6 +351,97 @@ jobs:
 
   # workflow が使う actions が、.github/workflows/actions.lock に固定した commit と合っているかを確かめる (#790)。
   # actions は、uses: にタグで書き、commit はロックファイルで固定する。Renovate が actions を上げるときに、ロックファイルも作り直す。
+  # 配るアーカイブを、リリースと同じ組み方 (GoReleaser のスナップショット) で作る (#1523)。smoke-os が、Windows と macOS で開いて確かめる。
+  archives:
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.6
+      - run: mise run release:snapshot
+      # 埋め込んだ画面の中で、返せることを確かめるファイル (字幕のフォントと、ブラウザ内での変換の WebAssembly) のパス。
+      - name: List the embedded files to check
+        run: |
+          (cd backend/internal/web/webui/dist/app && find . -type f \( -name '*.wasm' -o -name 'rounded-mplus-1m-wadalab-mix*' \) | sed 's|^\.||' | sort) > dist/smoke-assets.txt
+          test -s dist/smoke-assets.txt
+          cat dist/smoke-assets.txt
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: archives
+          path: |
+            dist/kotatsu_*_windows_amd64.zip
+            dist/kotatsu_*_darwin_arm64.tar.gz
+            dist/smoke-assets.txt
+          retention-days: 3
+          if-no-files-found: error
+
+  # 配るアーカイブを Windows と macOS のランナーで開き、バイナリが起動して、画面と埋め込んだファイルを返すことを確かめる (#1523、設計書 11.6)。
+  # macOS のランナーは混むと長く待たされ、PR を止めてしまうので、必須のチェック (ci) には入れない。赤くなったら、その OS で壊れたということなので、見て直す。
+  smoke-os:
+    needs: archives
+    name: smoke (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            archive: windows_amd64.zip
+          - os: macos-latest
+            archive: darwin_arm64.tar.gz
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      # 偽のチューナーサーバーを立てるのに、Go だけを使う。
+      - uses: jdx/mise-action@v5.2.6
+        with:
+          install_args: go
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: archives
+          path: ${{ runner.temp }}/archives
+      # Windows のランナーには、PostgreSQL が入っている (止まっている)。macOS では Homebrew で入れる。
+      - name: Start PostgreSQL (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        run: |
+          # 管理者の権限で pg_ctl を動かすと断られることがあるので、入っているサービスとして起動する。
+          pwsh -NoProfile -Command 'Get-Service -Name "postgresql*" | Set-Service -StartupType Manual -PassThru | Start-Service'
+          pg_bin="$(cygpath "$PGBIN")"
+          for _ in $(seq 1 30); do "$pg_bin/pg_isready" -h 127.0.0.1 && break; sleep 1; done
+          PGPASSWORD=root "$pg_bin/createdb" -h 127.0.0.1 -U postgres kotatsu_smoke
+          echo "KOTATSU_DATABASE_URL=postgres://postgres:root@127.0.0.1:5432/kotatsu_smoke?sslmode=disable" >>"$GITHUB_ENV"
+      - name: Start PostgreSQL (macOS)
+        if: runner.os == 'macOS'
+        timeout-minutes: 10
+        run: |
+          brew install postgresql@17
+          brew services start postgresql@17
+          pg_bin="$(brew --prefix postgresql@17)/bin"
+          for _ in $(seq 1 30); do "$pg_bin/pg_isready" -h 127.0.0.1 && break; sleep 1; done
+          "$pg_bin/createdb" -h 127.0.0.1 kotatsu_smoke
+          echo "KOTATSU_DATABASE_URL=postgres://$(whoami)@127.0.0.1:5432/kotatsu_smoke?sslmode=disable" >>"$GITHUB_ENV"
+      - name: Start the archive
+        timeout-minutes: 15
+        env:
+          ARCHIVES: ${{ runner.temp }}/archives
+          ARCHIVE: ${{ matrix.archive }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: scripts/ci-smoke-archive.sh "$(ls "$ARCHIVES"/kotatsu_*_"$ARCHIVE")" "$ARCHIVES/smoke-assets.txt"
+
   actions-lock:
     runs-on: ubuntu-latest
     permissions:
