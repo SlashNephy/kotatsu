@@ -1027,15 +1027,16 @@ type ComplexityRoot struct {
 	}
 
 	RecordingFile struct {
-		EndedAt   func(childComplexity int) int
-		Kind      func(childComplexity int) int
-		Path      func(childComplexity int) int
-		PoolID    func(childComplexity int) int
-		Size      func(childComplexity int) int
-		StartedAt func(childComplexity int) int
-		Tuner     func(childComplexity int) int
-		URL       func(childComplexity int) int
-		Video     func(childComplexity int) int
+		EndedAt            func(childComplexity int) int
+		Kind               func(childComplexity int) int
+		Path               func(childComplexity int) int
+		PoolID             func(childComplexity int) int
+		Size               func(childComplexity int) int
+		StartedAt          func(childComplexity int) int
+		TranscodeFrameRate func(childComplexity int) int
+		Tuner              func(childComplexity int) int
+		URL                func(childComplexity int) int
+		Video              func(childComplexity int) int
 	}
 
 	RecordingFileRename struct {
@@ -1075,6 +1076,7 @@ type ComplexityRoot struct {
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
+		TranscodeFrameRate func(childComplexity int) int
 		TranscodePreset    func(childComplexity int) int
 	}
 
@@ -1086,6 +1088,7 @@ type ComplexityRoot struct {
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
 		StartMarginSeconds func(childComplexity int) int
+		TranscodeFrameRate func(childComplexity int) int
 		TranscodePreset    func(childComplexity int) int
 	}
 
@@ -6371,6 +6374,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingFile.StartedAt(childComplexity), true
+	case "RecordingFile.transcodeFrameRate":
+		if e.ComplexityRoot.RecordingFile.TranscodeFrameRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingFile.TranscodeFrameRate(childComplexity), true
 	case "RecordingFile.tuner":
 		if e.ComplexityRoot.RecordingFile.Tuner == nil {
 			break
@@ -6521,6 +6530,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettings.StartMarginSeconds(childComplexity), true
+	case "RecordingSettings.transcodeFrameRate":
+		if e.ComplexityRoot.RecordingSettings.TranscodeFrameRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.TranscodeFrameRate(childComplexity), true
 	case "RecordingSettings.transcodePreset":
 		if e.ComplexityRoot.RecordingSettings.TranscodePreset == nil {
 			break
@@ -6570,6 +6585,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettingsOverrides.StartMarginSeconds(childComplexity), true
+	case "RecordingSettingsOverrides.transcodeFrameRate":
+		if e.ComplexityRoot.RecordingSettingsOverrides.TranscodeFrameRate == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.TranscodeFrameRate(childComplexity), true
 	case "RecordingSettingsOverrides.transcodePreset":
 		if e.ComplexityRoot.RecordingSettingsOverrides.TranscodePreset == nil {
 			break
@@ -10443,6 +10464,11 @@ type RecordingFile {
   名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
   """
   tuner: RecordingFileTuner
+  """
+  Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
+  セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+  """
+  transcodeFrameRate: Int
 }
 
 """
@@ -11012,6 +11038,8 @@ type RecordingSettingsOverrides {
   detectCm: Boolean
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。"
   transcodePreset: String
+  "録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。"
+  transcodeFrameRate: String
 }
 
 """
@@ -11027,6 +11055,8 @@ input RecordingSettingsOverridesInput {
   detectCm: Boolean
   "変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。"
   transcodePreset: String
+  "変換で出すコマ数 (auto、30、60 のどれか)。"
+  transcodeFrameRate: String
 }
 
 """
@@ -11330,6 +11360,8 @@ type RecordingSettings {
   detectCm: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
+  "録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
+  transcodeFrameRate: String!
 }
 
 """
@@ -13758,6 +13790,8 @@ func (ec *executionContext) childFields_RecordingFile(ctx context.Context, field
 		return ec.fieldContext_RecordingFile_video(ctx, field)
 	case "tuner":
 		return ec.fieldContext_RecordingFile_tuner(ctx, field)
+	case "transcodeFrameRate":
+		return ec.fieldContext_RecordingFile_transcodeFrameRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingFile", field.Name)
 }
@@ -13838,6 +13872,8 @@ func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, f
 		return ec.fieldContext_RecordingSettings_detectCm(ctx, field)
 	case "transcodePreset":
 		return ec.fieldContext_RecordingSettings_transcodePreset(ctx, field)
+	case "transcodeFrameRate":
+		return ec.fieldContext_RecordingSettings_transcodeFrameRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettings", field.Name)
 }
@@ -13860,6 +13896,8 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_detectCm(ctx, field)
 	case "transcodePreset":
 		return ec.fieldContext_RecordingSettingsOverrides_transcodePreset(ctx, field)
+	case "transcodeFrameRate":
+		return ec.fieldContext_RecordingSettingsOverrides_transcodeFrameRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -35758,6 +35796,29 @@ func (ec *executionContext) fieldContext_RecordingFile_tuner(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _RecordingFile_transcodeFrameRate(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingFile_transcodeFrameRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TranscodeFrameRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingFile_transcodeFrameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingFile", field, false, false, "Int")
+}
+
 func (ec *executionContext) _RecordingFileRename_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingFileRename) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36282,6 +36343,29 @@ func (ec *executionContext) fieldContext_RecordingSettings_transcodePreset(_ con
 	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, "String")
 }
 
+func (ec *executionContext) _RecordingSettings_transcodeFrameRate(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_transcodeFrameRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TranscodeFrameRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_transcodeFrameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, "String")
+}
+
 func (ec *executionContext) _RecordingSettingsOverrides_poolId(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -36463,6 +36547,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_transcodePreset(ctx cont
 	)
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_transcodePreset(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingSettingsOverrides_transcodeFrameRate(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_transcodeFrameRate(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TranscodeFrameRate, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_transcodeFrameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "String")
 }
 
@@ -45110,7 +45217,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset", "transcodeFrameRate"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -45173,6 +45280,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.TranscodePreset = data
+		case "transcodeFrameRate":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transcodeFrameRate"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TranscodeFrameRate = data
 		}
 	}
 	return it, nil
@@ -52735,6 +52849,11 @@ func (ec *executionContext) _RecordingFile(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "transcodeFrameRate":
+			out.Values[i] = ec._RecordingFile_transcodeFrameRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -53013,6 +53132,11 @@ func (ec *executionContext) _RecordingSettings(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "transcodeFrameRate":
+			out.Values[i] = ec._RecordingSettings_transcodeFrameRate(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -53078,6 +53202,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "transcodePreset":
 			out.Values[i] = ec._RecordingSettingsOverrides_transcodePreset(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "transcodeFrameRate":
+			out.Values[i] = ec._RecordingSettingsOverrides_transcodeFrameRate(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

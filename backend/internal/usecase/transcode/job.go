@@ -2,7 +2,6 @@ package transcode
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +27,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
-	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jobprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -42,6 +40,8 @@ const (
 	kindOther   = "other"
 	// presetKey は、録画の完了のイベントの、変換の画質のキー。
 	presetKey = "transcodePreset"
+	// frameRateKey は、録画の完了のイベントの、変換で出すコマ数のキー (#1509)。
+	frameRateKey = "transcodeFrameRate"
 	// maxAttempts は、変換のジョブを試す回数の上限。
 	maxAttempts = 3
 	// timeout は、変換のジョブの時間の上限。CPU でエンコードすると、録画の長さと同じくらいかかることがある。
@@ -57,6 +57,7 @@ var (
 	errStillRecording    = errors.New("the recording is still being recorded")
 	errNoSegment         = errors.New("the recording has no segment on the mounted pools")
 	errUnknownPreset     = errors.New("unknown transcode preset")
+	errUnknownFrameRate  = errors.New("unknown transcode frame rate")
 	errPathTaken         = errors.New("the output path is used by another file")
 )
 
@@ -65,6 +66,9 @@ type Args struct {
 	RecordingID uuid.UUID `json:"recordingId"`
 	// Preset は、変換の画質 (domain.TranscodePresets のどれか)。
 	Preset string `json:"preset"`
+	// FrameRate は、出すコマ数 (domain.TranscodeFrameRates のどれか、#1509)。空なら既定値 (domain.DefaultTranscodeFrameRate) にする。
+	// 足す前の版が入れたジョブと、足す前の版の mikan が出した録画の完了のイベントでは空になる。
+	FrameRate string `json:"frameRate,omitempty"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(Args)
@@ -103,17 +107,19 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 
 // OnEvent は、録画の完了のイベントのうち、変換の画質を選んだ録画 (TS のセグメントを書いたもの) に、変換のジョブを投入する。
 // 変換するかどうかは、録画を終えるときに、全体の既定値に、ルールと予約の上書きを重ねて求めてある。
-// 画質のないイベント (足す前の版の mikan が出したもの) は、既定に合わせて変換しない。
+// 画質のないイベント (足す前の版の mikan が出したもの) は、既定に合わせて変換しない。出すコマ数のないイベントは、既定値で出す。
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
 	if event.Kind != domain.NotificationKindRecordingCompleted {
 		return nil
 	}
 	preset, _ := event.Payload[presetKey].(string)
+	frameRate, _ := event.Payload[frameRateKey].(string)
 	recordingID, ok := recordingIDOf(event.Payload)
 	if preset == "" || !ok || segmentCount(event.Payload) == 0 {
 		return nil
 	}
-	if _, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: Args{RecordingID: recordingID, Preset: preset}, InsertOpts: nil}}); err != nil {
+	args := Args{RecordingID: recordingID, Preset: preset, FrameRate: frameRate}
+	if _, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}}); err != nil {
 		return fmt.Errorf("failed to enqueue the transcoding: %w", err)
 	}
 
@@ -160,6 +166,8 @@ type Worker struct {
 	logger   *slog.Logger
 	// progress は、進み具合の割合と残り時間の決め方。
 	progress *ffprogress.Config
+	// cadence は、出すコマ数を自動で選ぶときの、窓の取り方と閾値 (#1509)。
+	cadence *CadenceParams
 	// newEncoder は、変換に使う Encoder を作る。テストでは差し替える。
 	newEncoder func() (Encoder, error)
 }
@@ -172,7 +180,7 @@ func NewWorker(db Database, store *kago.Store, clk clock.Clock, inserter Inserte
 	return &Worker{
 		WorkerDefaults: river.WorkerDefaults[Args]{}, db: db, store: store, clock: clk,
 		source: stream.NewRecordingSource(db, store, 0), inserter: inserter, logger: logger,
-		progress: ffprogress.DefaultConfig(), newEncoder: newEncoder,
+		progress: ffprogress.DefaultConfig(), cadence: DefaultCadenceParams(), newEncoder: newEncoder,
 	}
 }
 
@@ -186,6 +194,9 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	preset, ok := kyusu.PresetByName(job.Args.Preset)
 	if !ok || !slices.Contains(domain.TranscodePresets(), job.Args.Preset) {
 		return river.JobCancel(fmt.Errorf("%w: %q", errUnknownPreset, job.Args.Preset))
+	}
+	if job.Args.FrameRate != "" && !slices.Contains(domain.TranscodeFrameRates(), job.Args.FrameRate) {
+		return river.JobCancel(fmt.Errorf("%w: %q", errUnknownFrameRate, job.Args.FrameRate))
 	}
 	encoder, err := w.newEncoder()
 	if errors.Is(err, ErrFFmpegNotFound) {
@@ -243,11 +254,11 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	first := slices.IndexFunc(files, func(f sqlc.RecordingFile) bool { return f.Kind == kindSegment })
-	if first < 0 {
+	segments := slices.DeleteFunc(slices.Clone(files), func(f sqlc.RecordingFile) bool { return f.Kind != kindSegment })
+	if len(segments) == 0 {
 		return river.JobCancel(errNoSegment)
 	}
-	poolID, rel := files[first].PoolID, outputPath(files[first].Path, preset.Name)
+	poolID, rel := segments[0].PoolID, outputPath(segments[0].Path, preset.Name)
 	out, err := w.store.Path(poolID, rel)
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("%w: %w", errNoSegment, err))
@@ -257,6 +268,11 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 		return err
 	}
 
+	logger := w.logger.With(slog.Int64("job_id", job.ID), slog.String("recording_id", recordingID.String()))
+	plan, err := w.planFrameRate(ctx, encoder, logger, job.Args.FrameRate, segments)
+	if err != nil {
+		return err
+	}
 	opened, err := w.source.Open(ctx, recordingID)
 	if err != nil {
 		return fmt.Errorf("failed to open the recording: %w", err)
@@ -269,8 +285,8 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 	partial := partialFile.Name()
 	_ = partialFile.Close()
 	defer func() { _ = os.Remove(partial) }()
-	est := w.estimate(ctx, encoder, opened, &files[first])
-	if err := w.encode(ctx, encoder, opened, preset, partial, w.reporter(ctx, job, recordingID, est)); err != nil {
+	est := estimate(opened, plan.outputRate())
+	if err := w.encode(ctx, encoder, opened, preset, plan.fields, partial, w.reporter(ctx, logger, job, est)); err != nil {
 		return err
 	}
 	created, err := place(partial, out, ours)
@@ -285,7 +301,7 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 	err = pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
 		upserted, err = sqlc.New(tx).UpsertTranscodedRecordingFile(ctx, sqlc.UpsertTranscodedRecordingFileParams{
 			ID: id.New(), RecordingID: recordingID, PoolID: poolID, Path: rel, Size: info.Size(),
-			StartedAt: recording.RecordedFrom, EndedAt: recording.RecordedUntil, Now: w.clock.Now(),
+			StartedAt: recording.RecordedFrom, EndedAt: recording.RecordedUntil, TranscodeFrameRate: plan.recordedRate(), Now: w.clock.Now(),
 		})
 		if err != nil || upserted == 0 {
 			return err
@@ -321,41 +337,24 @@ func (w *Worker) enqueueChapters(ctx context.Context, tx pgx.Tx, recordingID uui
 }
 
 // estimate は、変換の進み具合の分母を求める (#1511)。見込みのコマ数は、最初の I フレームから流した再生の時間に、
-// 最初のセグメントの映像のフレームレートを掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を捨てた分) は含めない。
-// インターレースの映像も、bwdif の send_frame (FFmpegArgs) で 1 コマから 1 コマを作るので、倍にしない
-// (選べる画質は 30fps だけ。60fps で出す画質を足すなら、フィールド単位で出すので 2 倍にする)。
+// 出すコマ数 rate (frameRatePlan.outputRate) を掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を捨てた分) は含めない。
+// フィールドごとに 1 コマにするなら 59.94、コマごとに解除するなら、最初のセグメントの映像のフレームレートになる (#1509)。
 // 見込みのコマ数が出せなければ、入力の大きさで割る。
-func (w *Worker) estimate(ctx context.Context, encoder Encoder, recording *stream.Recording, first *sqlc.RecordingFile) ffprogress.Estimate {
+func estimate(recording *stream.Recording, rate float64) ffprogress.Estimate {
 	est := ffprogress.Estimate{Frames: 0, Bytes: 0}
 	if content, err := recording.Content(); err == nil {
 		est.Bytes = content.Size()
 		_ = content.Close()
 	}
-	duration, ok := recording.Duration()
-	if !ok {
-		return est
+	if duration, ok := recording.Duration(); ok {
+		est.Frames = duration.Seconds() * rate
 	}
-	var format ts.VideoFormat
-	if len(first.Video) > 0 {
-		_ = json.Unmarshal(first.Video, &format)
-	}
-	rate := format.FrameRate
-	if rate <= 0 {
-		// HEVC は、映像の形式にフレームレートを読んでいない (0) ので、ffprobe で補う。
-		if path, err := w.store.Path(first.PoolID, first.Path); err == nil {
-			if rate, err = encoder.ProbeFrameRate(ctx, path); err != nil {
-				w.logger.WarnContext(ctx, "failed to probe the frame rate; the progress uses the read position", slog.Any("error", err))
-			}
-		}
-	}
-	est.Frames = duration.Seconds() * max(rate, 0)
 
 	return est
 }
 
 // reporter は、ジョブ job の進み具合を DB に書き戻す ffprogress.Reporter を作る関数を返す。
-func (w *Worker) reporter(ctx context.Context, job *river.Job[Args], recordingID uuid.UUID, est ffprogress.Estimate) func(read func() int64) *ffprogress.Reporter {
-	logger := w.logger.With(slog.Int64("job_id", job.ID), slog.String("recording_id", recordingID.String()))
+func (w *Worker) reporter(ctx context.Context, logger *slog.Logger, job *river.Job[Args], est ffprogress.Estimate) func(read func() int64) *ffprogress.Reporter {
 	save := jobprogress.Saver(ctx, w.db, w.clock, logger, job.ID, job.Attempt)
 
 	return func(read func() int64) *ffprogress.Reporter {
@@ -376,8 +375,9 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// encode は、録画を始まりから流し、encoder で out に書く。FFmpeg の -progress の出力を、newReporter の Reporter で書き戻す。
-func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.Recording, preset *kyusu.Preset, out string,
+// encode は、録画を始まりから流し、encoder で out に書く。fields なら、フィールドごとに 1 コマにする。
+// FFmpeg の -progress の出力を、newReporter の Reporter で書き戻す。
+func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.Recording, preset *kyusu.Preset, fields bool, out string,
 	newReporter func(read func() int64) *ffprogress.Reporter,
 ) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -392,7 +392,7 @@ func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.
 	src := &countingReader{r: reader, n: atomic.Int64{}}
 	reporter := newReporter(src.n.Load)
 	parser := ffprogress.NewParser(func(b *ffprogress.Block) { reporter.Observe(ctx, b) }, nil)
-	err := encoder.Encode(ctx, src, preset, out, parser)
+	err := encoder.Encode(ctx, src, preset, fields, out, parser)
 	// FFmpeg が終わったら、間を空けずに書き戻す。止めた後も、止める前の値のまま書く。
 	parser.Flush()
 	reporter.Finish(ctx)

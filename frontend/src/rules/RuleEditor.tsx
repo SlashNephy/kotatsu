@@ -36,7 +36,13 @@ import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
 import { MarginFields } from '../reservations/MarginFields';
 import { PoolSelect } from '../reservations/PoolSelect';
-import { optionOfPreset, presetOfOption, transcodeOptions, useTranscodePresets } from './transcode';
+import {
+  frameRateOptions,
+  optionOfPreset,
+  presetOfOption,
+  transcodeOptions,
+  useTranscodePresets,
+} from './transcode';
 import { fromValidFromDate, fromValidUntilDate, validFromDate, validUntilDate } from './validity';
 
 // joinDefault は、分かれたファイルをつなぐかどうかと CM を見分けるかどうかの選択で、全体の既定値に従うことを表す値。
@@ -121,6 +127,7 @@ export const ruleEditorRuleFragment = graphql`
       joinSegments
       detectCm
       transcodePreset
+      transcodeFrameRate
     }
     validFrom
     validUntil
@@ -440,6 +447,27 @@ export function RuleEditor({
                           ...form.settings,
                           transcodePreset:
                             value === null || value === joinDefault ? null : presetOfOption(value),
+                        },
+                      })
+                    }
+                    allowDeselect={false}
+                  />
+                  {/* 全体に従うなら、録画を終えるときの全体の設定で決める (#1509)。 */}
+                  <Select
+                    label={t('rules.transcodeFrameRate')}
+                    description={t('rules.transcodeFrameRateHelp')}
+                    maw={360}
+                    data={[
+                      { value: joinDefault, label: t('rules.transcodeDefault') },
+                      ...frameRateOptions(t),
+                    ]}
+                    value={form.settings.transcodeFrameRate ?? joinDefault}
+                    onChange={(value) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          transcodeFrameRate:
+                            value === null || value === joinDefault ? null : value,
                         },
                       })
                     }

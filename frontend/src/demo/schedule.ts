@@ -18,6 +18,7 @@ export type SettingsInput = {
   joinSegments?: boolean | null;
   detectCm?: boolean | null;
   transcodePreset?: string | null;
+  transcodeFrameRate?: string | null;
 };
 
 export type RuleInput = {
@@ -168,6 +169,7 @@ export function createScheduler(options: {
     joinSegments: settings?.joinSegments ?? null,
     detectCm: settings?.detectCm ?? null,
     transcodePreset: settings?.transcodePreset ?? null,
+    transcodeFrameRate: settings?.transcodeFrameRate ?? null,
   });
 
   const conditionsView = (conditions: ProgramConditionsInput) => ({

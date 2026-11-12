@@ -878,6 +878,40 @@ func TestRecordingFileTuner(t *testing.T) {
 	}
 }
 
+// TestRecordingFileTranscodeFrameRate は、Kotatsu が変換した MP4 の記録に残したコマ数を返し、セグメントでは null を返すことを
+// 確かめる (#1509)。
+func TestRecordingFileTranscodeFrameRate(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	f.addRecording(t, dir, episode1, "completed", time.Hour)
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at,
+		transcode_frame_rate, created_at)
+		SELECT gen_random_uuid(), recording_id, 'other', pool_id, $2, 1, started_at, ended_at, 60, created_at FROM recording_files WHERE path = $1`,
+		episode1+".m2ts", episode1+".720p.mp4")
+	require.NoError(t, err)
+
+	var page struct {
+		Recordings struct {
+			Edges []struct {
+				Node struct {
+					Files []struct {
+						Kind               string `json:"kind"`
+						TranscodeFrameRate *int   `json:"transcodeFrameRate"`
+					} `json:"files"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"recordings"`
+	}
+	require.Empty(t, f.query(t, `query { recordings(first: 1) { edges { node { files { kind transcodeFrameRate } } } } }`, nil, &page))
+	require.Len(t, page.Recordings.Edges, 1)
+	rates := map[string]*int{}
+	for _, file := range page.Recordings.Edges[0].Node.Files {
+		rates[file.Kind] = file.TranscodeFrameRate
+	}
+	assert.Equal(t, map[string]*int{"SEGMENT": nil, "OTHER": new(60)}, rates)
+}
+
 // TestContinueWatching は、途中まで見た録画を、最後に見た新しい順に返し、少しだけ見た録画と見終えた録画を外すことを確かめる (#478、#1301)。
 func TestContinueWatching(t *testing.T) {
 	t.Parallel()

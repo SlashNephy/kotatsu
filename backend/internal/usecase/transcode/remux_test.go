@@ -49,7 +49,7 @@ func encodeMP4(t *testing.T, src, dir string) string {
 	require.NoError(t, err)
 	defer in.Close()
 	out := filepath.Join(dir, "test.360p.mp4")
-	require.NoError(t, encoder.Encode(t.Context(), in, preset, out, io.Discard))
+	require.NoError(t, encoder.Encode(t.Context(), in, preset, false, out, io.Discard))
 
 	return out
 }
@@ -70,7 +70,7 @@ func TestFFmpegEncoderProgress(t *testing.T) {
 	blocks := []ffprogress.Block{}
 	parser := ffprogress.NewParser(func(b *ffprogress.Block) { blocks = append(blocks, *b) }, nil)
 	out := filepath.Join(t.TempDir(), "test.360p.mp4")
-	require.NoError(t, encoder.Encode(t.Context(), in, preset, out, parser))
+	require.NoError(t, encoder.Encode(t.Context(), in, preset, false, out, parser))
 	require.NotEmpty(t, blocks)
 	last := blocks[len(blocks)-1]
 	assert.True(t, last.End)

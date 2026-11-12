@@ -30,10 +30,10 @@ const (
 	fieldCommentSources = "commentSources"
 	// commentSourceNXJikkyo は、GraphQL の NX-Jikkyo のソース。
 	commentSourceNXJikkyo = "NX_JIKKYO"
-	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority }
+	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority transcodeFrameRate }
 		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
 	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
-		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority } archiveRetentionDays notificationRetentionDays mcpEnabled
+		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority transcodeFrameRate } archiveRetentionDays notificationRetentionDays mcpEnabled
 		dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
 )
 
@@ -43,6 +43,8 @@ type recordingSettings struct {
 	StartMarginSeconds int     `json:"startMarginSeconds"`
 	EndMarginSeconds   int     `json:"endMarginSeconds"`
 	Priority           int     `json:"priority"`
+	// TranscodeFrameRate は、変換で出すコマ数 (#1509)。
+	TranscodeFrameRate string `json:"transcodeFrameRate"`
 }
 
 type systemSettings struct {
@@ -60,6 +62,7 @@ func defaultSystemSettings() systemSettings {
 		RecordingDefaults: recordingSettings{
 			PoolID: nil, FileNameTemplate: domain.DefaultFileNameTemplate,
 			StartMarginSeconds: domain.DefaultMarginSeconds, EndMarginSeconds: domain.DefaultMarginSeconds, Priority: domain.DefaultPriority,
+			TranscodeFrameRate: domain.DefaultTranscodeFrameRate,
 		},
 		ArchiveRetentionDays:      90,
 		NotificationRetentionDays: 90,
@@ -89,7 +92,9 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
 	assert.Equal(t, defaultSystemSettings(), got.SystemSettings)
 
-	change := map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{"startMarginSeconds": 30, "poolId": poolMain}, fieldDays: 0}}
+	change := map[string]any{varInput: map[string]any{fieldDefaults: map[string]any{
+		"startMarginSeconds": 30, "poolId": poolMain, "transcodeFrameRate": domain.TranscodeFrameRate30,
+	}, fieldDays: 0}}
 	for _, user := range []*fixture{f, viewerFixture} {
 		assert.Equal(t, []string{codeForbidden}, user.query(t, updateSettings, change, nil), "only administrators can change the settings")
 	}
@@ -102,6 +107,7 @@ func TestSystemSettings(t *testing.T) {
 	want := defaultSystemSettings()
 	want.RecordingDefaults.StartMarginSeconds = 30
 	want.RecordingDefaults.PoolID = new("main")
+	want.RecordingDefaults.TranscodeFrameRate = domain.TranscodeFrameRate30
 	want.ArchiveRetentionDays = 0
 	assert.Equal(t, want, updated.UpdateSystemSettings)
 	require.Empty(t, f.query(t, settingsQuery, nil, &got))
@@ -114,6 +120,7 @@ func TestSystemSettings(t *testing.T) {
 		{fieldNotificationDays: 3651},
 		{fieldDefaults: map[string]any{"fileNameTemplate": "{{.Unknown}}"}},
 		{fieldDefaults: map[string]any{"priority": 11}},
+		{fieldDefaults: map[string]any{"transcodeFrameRate": "24"}},
 	} {
 		assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateSettings, map[string]any{varInput: input}, nil), "%v", input)
 	}

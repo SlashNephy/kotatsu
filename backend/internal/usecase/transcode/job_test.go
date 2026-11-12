@@ -47,6 +47,8 @@ const (
 	filesKey = "files"
 	// presetKey は、録画の完了のイベントの、変換の画質のキー。
 	presetKey = "transcodePreset"
+	// frameRateKey は、録画の完了のイベントの、変換で出すコマ数のキー。
+	frameRateKey = "transcodeFrameRate"
 )
 
 type fixture struct {
@@ -103,18 +105,31 @@ func (f *fixture) recording(t *testing.T, content []byte) uuid.UUID {
 	return recordingID
 }
 
-// copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質を覚える。
+// copyEncoder は、読んだ TS をそのまま書く Encoder。渡された画質と、フィールドごとに 1 コマにするかを覚える。
 // 読み終えたら、progress を -progress の出力として書く。ProbeFrameRate は、rate を返す。
+// MeasureFields は、測った位置を覚え、diffs を返す。diffs が nil なら失敗する。
 type copyEncoder struct {
 	presets  []string
+	fields   []bool
 	progress string
 	rate     float64
+	diffs    *transcode.FieldDiffs
+	measured []measurement
+}
+
+// measurement は、MeasureFields に渡されたファイルの名前と位置。
+type measurement struct {
+	file   string
+	offset time.Duration
 }
 
 var _ transcode.Encoder = new(copyEncoder)
 
-func (e *copyEncoder) Encode(_ context.Context, src io.Reader, preset *kyusu.Preset, out string, progress io.Writer) error {
+var errMeasure = errors.New("measurement failed")
+
+func (e *copyEncoder) Encode(_ context.Context, src io.Reader, preset *kyusu.Preset, fields bool, out string, progress io.Writer) error {
 	e.presets = append(e.presets, preset.Name)
+	e.fields = append(e.fields, fields)
 	b, err := io.ReadAll(src)
 	if err != nil {
 		return err
@@ -128,6 +143,15 @@ func (e *copyEncoder) Encode(_ context.Context, src io.Reader, preset *kyusu.Pre
 
 func (e *copyEncoder) ProbeFrameRate(context.Context, string) (float64, error) {
 	return e.rate, nil
+}
+
+func (e *copyEncoder) MeasureFields(_ context.Context, path string, offset, _ time.Duration) (*transcode.FieldDiffs, error) {
+	e.measured = append(e.measured, measurement{file: filepath.Base(path), offset: offset})
+	if e.diffs == nil {
+		return nil, errMeasure
+	}
+
+	return e.diffs, nil
 }
 
 type otherFile struct {
@@ -152,16 +176,17 @@ func (f *fixture) otherFiles(t *testing.T, recordingID uuid.UUID) []otherFile {
 	return files
 }
 
+// work は、録画 recordingID を、画質 preset で、コマ数を 30 に決めて変換する。
 func work(t *testing.T, f *fixture, encoder transcode.Encoder, recordingID uuid.UUID, preset string) error {
 	t.Helper()
 
-	return workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 1, Attempt: 1}, recordingID, preset)
+	return workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 1, Attempt: 1}, transcode.Args{RecordingID: recordingID, Preset: preset, FrameRate: domain.TranscodeFrameRate30})
 }
 
-func workJob(ctx context.Context, f *fixture, encoder transcode.Encoder, row *rivertype.JobRow, recordingID uuid.UUID, preset string) error {
+func workJob(ctx context.Context, f *fixture, encoder transcode.Encoder, row *rivertype.JobRow, args transcode.Args) error {
 	worker := transcode.NewWorker(f.pool, f.store, f.clock, f.inserter, slog.New(slog.DiscardHandler), func() (transcode.Encoder, error) { return encoder, nil })
 
-	return worker.Work(ctx, &river.Job[transcode.Args]{JobRow: row, Args: transcode.Args{RecordingID: recordingID, Preset: preset}})
+	return worker.Work(ctx, &river.Job[transcode.Args]{JobRow: row, Args: args})
 }
 
 // index は、録画 recordingID のセグメントに、1 秒ごとの n 個の I フレームの索引と、フレームレートが rate の映像の形式を付ける。
@@ -324,7 +349,7 @@ func TestEnqueuer(t *testing.T) {
 		payload map[string]any
 		want    bool
 	}{
-		{name: "preset", kind: domain.NotificationKindRecordingCompleted, payload: map[string]any{filesKey: oneSegment(), presetKey: preset720p}, want: true},
+		{name: "preset", kind: domain.NotificationKindRecordingCompleted, payload: map[string]any{filesKey: oneSegment(), presetKey: preset720p, frameRateKey: "60"}, want: true},
 		{name: "no transcoding", kind: domain.NotificationKindRecordingCompleted, payload: map[string]any{filesKey: oneSegment(), presetKey: ""}, want: false},
 		{name: "older mikan", kind: domain.NotificationKindRecordingCompleted, payload: map[string]any{filesKey: oneSegment()}, want: false},
 		{name: "no segment", kind: domain.NotificationKindRecordingCompleted, payload: map[string]any{filesKey: []map[string]string{}, presetKey: preset720p}, want: false},
@@ -356,7 +381,7 @@ func TestEnqueuer(t *testing.T) {
 			}
 			require.NoError(t, rows.Err())
 			if tt.want {
-				assert.Equal(t, []transcode.Args{{RecordingID: recordingID, Preset: preset720p}}, queued)
+				assert.Equal(t, []transcode.Args{{RecordingID: recordingID, Preset: preset720p, FrameRate: domain.TranscodeFrameRate60}}, queued)
 			} else {
 				assert.Empty(t, queued)
 			}
@@ -377,15 +402,19 @@ func TestWorkerProgress(t *testing.T) {
 		keyframes int64
 		// video は、映像の形式のフレームレート。probe は、ffprobe で読むフレームレート。
 		video, probe float64
-		progress     string
-		want         float64
+		// frameRate は、出すコマ数の設定。
+		frameRate string
+		progress  string
+		want      float64
 	}{
-		{name: "frame rate of the video format", keyframes: 100, video: 10, probe: 0, progress: quarterBlock, want: 0.25},
+		{name: "frame rate of the video format", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.25},
 		// HEVC は、映像の形式にフレームレートがないので、ffprobe で補う。
-		{name: "frame rate from ffprobe", keyframes: 100, video: 0, probe: 10, progress: quarterBlock, want: 0.25},
-		{name: "end", keyframes: 100, video: 10, probe: 0, progress: quarterBlock + "frame=990\nprogress=end\n", want: 1},
+		{name: "frame rate from ffprobe", keyframes: 100, video: 0, probe: 10, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.25},
+		{name: "end", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock + "frame=990\nprogress=end\n", want: 1},
 		// 索引がなければ、見込みのコマ数を出せないので、流したバイト数で割る。読み終えていても、progress=end までは頭打ちで止める。
-		{name: "read position without the index", keyframes: 0, video: 10, probe: 0, progress: quarterBlock, want: 0.99},
+		{name: "read position without the index", keyframes: 0, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate30, progress: quarterBlock, want: 0.99},
+		// フィールドごとに 1 コマにするなら、元のフレームレートによらず 59.94 コマで数える (#1509)。100 秒 × 59.94 のおよそ半分。
+		{name: "fields", keyframes: 100, video: 10, probe: 0, frameRate: domain.TranscodeFrameRate60, progress: "frame=2997\nprogress=continue\n", want: 0.5},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -397,10 +426,11 @@ func TestWorkerProgress(t *testing.T) {
 				f.index(t, recordingID, tt.keyframes, tt.video)
 			}
 			encoder := &copyEncoder{presets: []string{}, progress: tt.progress, rate: tt.probe}
-			require.NoError(t, workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 42, Attempt: 2}, recordingID, preset720p))
+			args := transcode.Args{RecordingID: recordingID, Preset: preset720p, FrameRate: tt.frameRate}
+			require.NoError(t, workJob(t.Context(), f, encoder, &rivertype.JobRow{ID: 42, Attempt: 2}, args))
 			attempt, ratio := f.progressOf(t, 42)
 			assert.Equal(t, 2, attempt)
-			assert.InDelta(t, tt.want, ratio, 1e-9)
+			assert.InDelta(t, tt.want, ratio, 1e-6)
 		})
 	}
 }
@@ -453,7 +483,7 @@ func TestWorkerStopKeepsProgress(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- workJob(ctx, f, encoder, &rivertype.JobRow{ID: 7, Attempt: 1}, recordingID, preset720p)
+		done <- workJob(ctx, f, encoder, &rivertype.JobRow{ID: 7, Attempt: 1}, transcode.Args{RecordingID: recordingID, Preset: preset720p, FrameRate: domain.TranscodeFrameRate30})
 	}()
 	ratioOf := func() float64 {
 		_, ratio := f.progressOf(t, 7)

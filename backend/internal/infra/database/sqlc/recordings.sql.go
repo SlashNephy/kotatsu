@@ -970,7 +970,7 @@ func (q *Queries) ListLiveThumbnailRecordings(ctx context.Context, startedBefore
 }
 
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `
 
 // 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
@@ -996,6 +996,7 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.Video,
 			&i.TunerIndex,
 			&i.TunerName,
+			&i.TranscodeFrameRate,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1077,7 +1078,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 }
 
 const listRecordingFiles = `-- name: ListRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
@@ -1102,6 +1103,7 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.Video,
 			&i.TunerIndex,
 			&i.TunerName,
+			&i.TranscodeFrameRate,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1782,24 +1784,26 @@ func (q *Queries) UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecord
 }
 
 const upsertTranscodedRecordingFile = `-- name: UpsertTranscodedRecordingFile :execrows
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES ($1, $2, 'other', $3, $4, $5, $6, $7, $8)
-ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, transcode_frame_rate, created_at)
+VALUES ($1, $2, 'other', $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+  transcode_frame_rate = EXCLUDED.transcode_frame_rate
 WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other'
 `
 
 type UpsertTranscodedRecordingFileParams struct {
-	ID          uuid.UUID
-	RecordingID uuid.UUID
-	PoolID      string
-	Path        string
-	Size        int64
-	StartedAt   time.Time
-	EndedAt     *time.Time
-	Now         time.Time
+	ID                 uuid.UUID
+	RecordingID        uuid.UUID
+	PoolID             string
+	Path               string
+	Size               int64
+	StartedAt          time.Time
+	EndedAt            *time.Time
+	TranscodeFrameRate *int32
+	Now                time.Time
 }
 
-// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
+// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさとコマ数 (#1509) を書き直す。
 // ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
 func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertTranscodedRecordingFile,
@@ -1810,6 +1814,7 @@ func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertT
 		arg.Size,
 		arg.StartedAt,
 		arg.EndedAt,
+		arg.TranscodeFrameRate,
 		arg.Now,
 	)
 	if err != nil {

@@ -14,6 +14,8 @@ import { useTranslation } from 'react-i18next';
 import { graphql, useMutation } from 'react-relay';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import {
+  frameRateLabel,
+  frameRateOptions,
   noTranscode,
   optionOfPreset,
   presetOfOption,
@@ -80,6 +82,7 @@ function Form({ id, onClose, onReserved }: Props) {
             joinSegments
             detectCm
             transcodePreset
+            transcodeFrameRate
           }
         }
         storagePoolNames
@@ -110,6 +113,7 @@ function Form({ id, onClose, onReserved }: Props) {
                 joinSegments
                 detectCm
                 transcodePreset
+                transcodeFrameRate
               }
             }
             settings {
@@ -121,6 +125,7 @@ function Form({ id, onClose, onReserved }: Props) {
               joinSegments
               detectCm
               transcodePreset
+              transcodeFrameRate
             }
           }
         }
@@ -150,6 +155,7 @@ function Form({ id, onClose, onReserved }: Props) {
           joinSegments
           detectCm
           transcodePreset
+          transcodeFrameRate
         }
         # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
         assignment {
@@ -202,6 +208,9 @@ function Form({ id, onClose, onReserved }: Props) {
   const [transcodePreset, setTranscodePreset] = useState<string | null>(
     reservation?.settings.transcodePreset ?? null,
   );
+  const [transcodeFrameRate, setTranscodeFrameRate] = useState<string | null>(
+    reservation?.settings.transcodeFrameRate ?? null,
+  );
   const transcodePresets = useTranscodePresets();
   const [poolId, setPoolId] = useState<string | null>(reservation?.settings.poolId ?? null);
   const [followEventRelay, setFollowEventRelay] = useState(reservation?.followEventRelay ?? true);
@@ -221,6 +230,7 @@ function Form({ id, onClose, onReserved }: Props) {
   const ruleJoin = rule?.settings.joinSegments ?? null;
   const ruleDetect = rule?.settings.detectCm ?? null;
   const ruleTranscode = rule?.settings.transcodePreset ?? null;
+  const ruleFrameRate = rule?.settings.transcodeFrameRate ?? null;
   const rulePool = rule?.settings.poolId ?? null;
   const inherited = (fromRule: boolean, value: string) =>
     fromRule && rule !== undefined
@@ -239,6 +249,7 @@ function Form({ id, onClose, onReserved }: Props) {
       joinSegments,
       detectCm,
       transcodePreset,
+      transcodeFrameRate,
     };
     // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
     const failed = (errors: readonly unknown[] | null | undefined) =>
@@ -427,6 +438,31 @@ function Form({ id, onClose, onReserved }: Props) {
             setTranscodePreset(
               value === null || value === joinDefault ? null : presetOfOption(value),
             )
+          }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {/* 全体に従うなら、録画を終えるときの全体の設定 (ルール予約ならルールの設定) で決める (#1509)。 */}
+        <Select
+          label={t('rules.transcodeFrameRate')}
+          data={[
+            {
+              value: joinDefault,
+              label:
+                ruleFrameRate !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: frameRateLabel(t, ruleFrameRate),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: frameRateLabel(t, defaults.transcodeFrameRate),
+                    }),
+            },
+            ...frameRateOptions(t),
+          ]}
+          value={transcodeFrameRate ?? joinDefault}
+          onChange={(value) =>
+            setTranscodeFrameRate(value === null || value === joinDefault ? null : value)
           }
           allowDeselect={false}
           disabled={inFlight}

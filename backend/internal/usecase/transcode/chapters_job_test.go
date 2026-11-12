@@ -119,13 +119,14 @@ func runChapters(ctx context.Context, f *fixture, chapterer transcode.Chapterer,
 	return worker.Work(ctx, &river.Job[transcode.ChaptersArgs]{JobRow: new(rivertype.JobRow), Args: transcode.ChaptersArgs{RecordingID: recordingID}})
 }
 
-// transcoded は、録画 recordingID の、name の変換した MP4 (中身は content) を、その他のファイルとして置く。
+// transcoded は、録画 recordingID の、name の変換した MP4 (中身は content) を、60 コマで変換したその他のファイルとして置く。
 func (f *fixture) transcoded(t *testing.T, recordingID uuid.UUID, name string, content []byte) {
 	t.Helper()
 
 	require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), content, 0o600))
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-		SELECT $1, $2, 'other', $3, $4, $5, recorded_from, recorded_until, recorded_from FROM recordings WHERE id = $2`,
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at,
+		transcode_frame_rate, created_at)
+		SELECT $1, $2, 'other', $3, $4, $5, recorded_from, recorded_until, 60, recorded_from FROM recordings WHERE id = $2`,
 		id.New(), recordingID, poolID, name, len(content))
 	require.NoError(t, err)
 }
@@ -237,8 +238,9 @@ func TestChaptersWorkerRedetect(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, tt.want, string(written), tt.name)
 		assert.Len(t, chapterer.metadata, tt.wantRewrites, tt.name)
-		// 書き直した大きさを記録し直す。
+		// 書き直した大きさを記録し直す。映像は写すだけなので、コマ数 (#1509) は変えない。
 		assert.Equal(t, []otherFile{{path: outputName, size: int64(len(written))}}, f.otherFiles(t, recordingID), tt.name)
+		assert.Equal(t, new(int32(60)), f.transcodeFrameRate(t, recordingID), tt.name)
 		assert.Empty(t, leftovers(t, f.dir), tt.name)
 	}
 }

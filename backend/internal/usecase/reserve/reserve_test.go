@@ -193,9 +193,10 @@ func TestOverridesApplyOnDefaults(t *testing.T) {
 		FileNameTemplate:   `{{.Name}}`,
 		StartMarginSeconds: 60,
 		// 上書きしなかった項目は、全体の既定値のまま。
-		EndMarginSeconds: domain.DefaultMarginSeconds,
-		Priority:         3,
-		JoinSegments:     false,
+		EndMarginSeconds:   domain.DefaultMarginSeconds,
+		Priority:           3,
+		JoinSegments:       false,
+		TranscodeFrameRate: domain.DefaultTranscodeFrameRate,
 	}, got.Settings(domain.DefaultRecordingSettings()))
 }
 
@@ -212,6 +213,7 @@ func TestInvalidOverridesAreRejected(t *testing.T) {
 		{name: "invalid pool ID", overrides: &domain.RecordingOverrides{PoolID: new("../main")}, wantErr: `poolId "../main"`},
 		{name: "negative margin", overrides: &domain.RecordingOverrides{EndMarginSeconds: new(-1)}, wantErr: "endMarginSeconds must be between 0 and 3600"},
 		{name: "priority out of range", overrides: &domain.RecordingOverrides{Priority: new(11)}, wantErr: "priority must be between -10 and 10"},
+		{name: "unknown transcode frame rate", overrides: &domain.RecordingOverrides{TranscodeFrameRate: new("24")}, wantErr: "transcodeFrameRate must be one of"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
