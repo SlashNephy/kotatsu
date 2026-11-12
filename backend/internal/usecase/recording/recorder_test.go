@@ -984,9 +984,9 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 		wantHistory  bool
 	}{
 		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: recording.StateCompleted, wantHistory: true},
-		// 録画履歴には、ドロップが 1 件以下の録画だけを記録する (付録 A)。
-		{name: "前のセグメントのドロップが閾値以下", earlierDrops: 1, want: recording.StateCompletedWithErrors, wantHistory: true},
-		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 3, want: recording.StateCompletedWithErrors, wantHistory: false},
+		// 録画履歴には、ドロップが 4 件以下の録画だけを記録する (付録 A、#1497)。
+		{name: "前のセグメントのドロップが閾値ちょうど", earlierDrops: 4, want: recording.StateCompletedWithErrors, wantHistory: true},
+		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 5, want: recording.StateCompletedWithErrors, wantHistory: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -57,8 +57,11 @@ const (
 	DefaultRetryInterval = 2 * time.Second
 	// DefaultDatabaseTimeout は、録画中に 1 度に DB を待つ上限の既定値 (#1073)。
 	DefaultDatabaseTimeout = 5 * time.Second
-	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A)。EDCB と同じく 2 件未満にする。
-	MaxHistoryDrops = 1
+	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。
+	// 本番の録画 (2026-10-12〜11-12 の 1,538 件) では、ドロップは 0 件が 95% で、BS4K は
+	// 19 件すべてに 3〜4 件が出ていた。地上波と BS で 2〜4 件の録画は 3 件だけだった。
+	// BS4K の録画も録画済みとみなせるよう、上限を 4 件にする。
+	MaxHistoryDrops = 4
 	// ExtensionStep と MaxExtension は、延長中で終了時刻が未定の番組の、録画の延長幅と上限 (付録 A)。
 	ExtensionStep = 5 * time.Minute
 	MaxExtension  = 3 * time.Hour
