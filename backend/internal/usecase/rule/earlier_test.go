@@ -7,9 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
+	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
@@ -310,4 +312,59 @@ func TestFindSkippedEarlierEpisodes(t *testing.T) {
 			Instead: &rule.SkippedInstead{ServiceID: serviceID(), EventID: 503}, LaterEpisode: nil,
 		}}, skipped)
 	})
+}
+
+// TestEngineSkipsEpisodesBeforeReservedOrRecording は、候補の放送でも録画履歴でもない、手動で予約した回と録画中の録画も、
+// 比べる相手にすることを確かめる (#1499)。6 話は、ルールの対象でないサブチャンネルで、5 話より前に流れる。
+func TestEngineSkipsEpisodesBeforeReservedOrRecording(t *testing.T) {
+	t.Parallel()
+
+	sub := faketuner.ServiceItemID(grNetworkID, subServiceID)
+	tests := []struct {
+		name string
+		add  func(t *testing.T, f *engineFixture)
+		want map[int64]bool
+	}{
+		{
+			name: "手動で予約した 6 話",
+			add: func(t *testing.T, f *engineFixture) {
+				t.Helper()
+
+				_, _, err := f.reservations.CreateProgram(t.Context(), f.pool, f.user, &reserve.ProgramInput{
+					ServiceID: sub, EventID: 706, FollowEventRelay: false, Overrides: &domain.RecordingOverrides{},
+				})
+				require.NoError(t, err)
+			},
+			// 手動の予約は残り、BS の 5 話は予約しない。
+			want: map[int64]bool{706: true},
+		},
+		{
+			name: "録画中の 6 話",
+			add: func(t *testing.T, f *engineFixture) {
+				t.Helper()
+
+				start := testNow().Add(-10 * time.Minute)
+				_, err := f.pool.Exec(t.Context(),
+					`INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+					VALUES ($1, $2, $3, '', $4, $5, 'recording', $4, $4, $4)`,
+					id.New(), sub, seriesName+" #6", start, start.Add(time.Hour))
+				require.NoError(t, err)
+			},
+			want: map[int64]bool{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newEngineFixture(t,
+				episodeProgram(grNetworkID, subServiceID, 706, 2*time.Hour, seriesName+" #6"),
+				bsEpisode(605, 29*time.Hour, seriesName+" #5"))
+			tt.add(t, f)
+			f.createSeriesRule(t, true, false)
+			f.run(t)
+
+			assert.Equal(t, tt.want, f.reservedSeries(t))
+		})
+	}
 }
