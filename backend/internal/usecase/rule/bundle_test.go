@@ -168,6 +168,20 @@ func TestEngineKeepsNextEpisodeWhenConflicting(t *testing.T) {
 	assert.Equal(t, map[int64]bool{300: true, 400: true}, f.reservedEpisodes(t))
 }
 
+// TestEngineSkipsCancelledEpisodeInBundle は、人が取り消した最初の放送を束ねる前に外し、次の放送を予約することを確かめる (#1498、#1504)。
+// 取り消した放送を選ぶと、無効の予約のまま、ほかの放送も外してしまい、同じ回をどこでも録らなくなる。
+func TestEngineSkipsCancelledEpisodeInBundle(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t, earlyAndLateEpisodes()...)
+	f.createEpisodeRule(t, true)
+	f.run(t)
+	require.NoError(t, f.reservations.Delete(t.Context(), f.pool, f.user, f.reservationOf(t, 300).ID))
+	f.run(t)
+
+	assert.Equal(t, map[int64]bool{300: false, 400: true}, f.reservedEpisodes(t))
+}
+
 // TestEngineRemovesBundledReservations は、予約した後に同じ回の早い放送が番組表に入ったときと、同じ回を録り終えたときに、
 // 外れた予約を引っ込めることを確かめる (#1498)。別の放送で録るので外れた予約は、番組表の変化で外れたので猶予の内なら残し、
 // 録り終えて外れた予約は、猶予の内でもすぐ消す (#1501)。
@@ -259,4 +273,58 @@ func TestFindSkippedEpisodes(t *testing.T) {
 			assert.Nil(t, s.Instead)
 		}
 	})
+}
+
+// TestEngineBundlesAnimeEpisodes は、番組名の書き方が揃わなくても、しょぼいカレンダーの同じ話に結びついた放送を束ね、
+// 同じ話に結びついた録画中の録画があれば、どれも予約しないことを確かめる (#1498、設計書 3.8)。
+func TestEngineBundlesAnimeEpisodes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		recording bool
+		want      map[int64]bool
+	}{
+		{name: "同じ話の放送は、最初の放送だけを予約する", recording: false, want: map[int64]bool{300: true}},
+		{name: "同じ話を録画中なら、どれも予約しない", recording: true, want: map[int64]bool{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 番組名からは、どちらも話数を読めず、作品名も揃わない。
+			f := newEngineFixture(t,
+				episodeProgram(grNetworkID, grServiceID, 300, 5*time.Hour, "灯台の地図"),
+				episodeProgram(bsNetworkID, bsServiceID, 400, 29*time.Hour, "灯台の地図 リマスター版"))
+			link := func(serviceID int64, offset time.Duration, eventID int) {
+				start := testNow().Add(offset)
+				_, err := f.pool.Exec(t.Context(),
+					"INSERT INTO program_anime_matches (service_id, start_at, event_id, matched_at) VALUES ($1, $2, $3, $2)", serviceID, start, eventID)
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO program_anime_episodes (service_id, start_at, position, source, syobocal_tid, count_start, count_end, is_first, is_last)
+					VALUES ($1, $2, 0, 'syobocal', 100, 3, 3, false, false)`, serviceID, start)
+				require.NoError(t, err)
+			}
+			link(serviceID(), 5*time.Hour, 300)
+			link(bsServiceItemID(), 29*time.Hour, 400)
+			if tt.recording {
+				recordingID := id.New()
+				start := testNow().Add(-10 * time.Minute)
+				_, err := f.pool.Exec(t.Context(),
+					`INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+					VALUES ($1, $2, '別の書き方の番組名', '', $3, $4, 'recording', $3, $3, $3)`,
+					recordingID, faketuner.ServiceItemID(grNetworkID, subServiceID), start, start.Add(time.Hour))
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), "INSERT INTO recording_anime_matches (recording_id, matched_at) VALUES ($1, $2)", recordingID, start)
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_anime_episodes (recording_id, position, source, syobocal_tid, count_start, count_end, is_first, is_last)
+					VALUES ($1, 0, 'syobocal', 100, 3, 3, false, false)`, recordingID)
+				require.NoError(t, err)
+			}
+			f.createEpisodeRule(t, true)
+			f.run(t)
+
+			assert.Equal(t, tt.want, f.reservedEpisodes(t))
+		})
+	}
 }

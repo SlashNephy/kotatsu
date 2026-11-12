@@ -43,6 +43,15 @@ func bundleSameEpisodes(
 	if len(keys) == 0 {
 		return nil
 	}
+	// 人が取り消した (無効にした) 予約の番組は、束ねる前に外す。選ぶと、無効の予約のまま、ほかの放送も外してしまう。
+	cancelled, err := cancelledPrograms(ctx, tx, now)
+	if err != nil {
+		return err
+	}
+	keys = slices.DeleteFunc(keys, func(key programKey) bool { return cancelled[key] })
+	if len(keys) == 0 {
+		return nil
+	}
 	slices.SortFunc(keys, compareKeys)
 
 	broadcasts, err := listBundledBroadcasts(ctx, tx, now, matched, keys)
@@ -92,6 +101,20 @@ func bundleSameEpisodes(
 	}
 
 	return nil
+}
+
+// cancelledPrograms は、人が取り消した (無効にした) 予約のある、まだ終わっていない番組を返す (#1504)。
+func cancelledPrograms(ctx context.Context, tx pgx.Tx, now time.Time) (map[programKey]bool, error) {
+	rows, err := sqlc.New(tx).ListCancelledBroadcasts(ctx, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list cancelled broadcasts: %w", err)
+	}
+	cancelled := make(map[programKey]bool, len(rows))
+	for _, row := range rows {
+		cancelled[programKey{serviceID: row.ServiceID, eventID: *row.EventID}] = true
+	}
+
+	return cancelled, nil
 }
 
 // listBundledBroadcasts は、keys の番組を、束ねる候補の放送にする。返す値は keys と同じ並び。

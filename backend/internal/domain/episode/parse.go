@@ -56,9 +56,14 @@ type Episode struct {
 	Anime *Anime
 }
 
-// Known は、回が分かる (話数か副題を読めた) かどうかを返す。
+// Known は、回が分かる (話数か副題を読めたか、しょぼいカレンダーの話に結びついた) かどうかを返す。
 func (e *Episode) Known() bool {
-	return e.Number > 0 || e.Subtitle != "" || e.Anime != nil
+	return e.knownByTitle() || e.Anime != nil
+}
+
+// knownByTitle は、番組名か概要から、話数か副題を読めたかどうかを返す。
+func (e *Episode) knownByTitle() bool {
+	return e.Number > 0 || e.Subtitle != ""
 }
 
 var (

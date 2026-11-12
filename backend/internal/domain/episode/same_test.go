@@ -99,6 +99,13 @@ func TestSame(t *testing.T) {
 			want: true,
 		},
 		{
+			// 片方だけが話に結びついた、話数も副題も読めない放送は、シリーズが同じだけでは同じ回としない。
+			name: "an anime episode without a title episode against one without the anime",
+			a:    &episode.Source{Name: work, Anime: &episode.Anime{TID: 100, Count: 3}},
+			b:    &episode.Source{Name: work + "「霧笛」"},
+			want: false,
+		},
+		{
 			name: "different anime works",
 			a:    &episode.Source{Name: ep3, Anime: &episode.Anime{TID: 100, Count: 3}},
 			b:    &episode.Source{Name: ep3, Anime: &episode.Anime{TID: 200, Count: 3}},

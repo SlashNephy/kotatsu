@@ -60,6 +60,11 @@ func Same(a, b *Episode) bool {
 	if same, decided := sameAnime(a, b); decided {
 		return same
 	}
+	// 片方だけがしょぼいカレンダーの話に結びついたときは、番組名で回が分かる側どうしだけを比べる。
+	// 話数も副題も読めない側を番組名の規則で比べると、シリーズが同じだけで、どの回とも同じ回になる。
+	if !a.knownByTitle() || !b.knownByTitle() {
+		return false
+	}
 	switch {
 	case a.Number != b.Number:
 		return false
@@ -87,6 +92,11 @@ func coreContained(a, b *Episode) bool {
 func certainlySame(a, b *Episode) bool {
 	if same, decided := sameAnime(a, b); decided {
 		return same
+	}
+	// 片方だけがしょぼいカレンダーの話に結びついたときは、番組名で回が分かる側どうしだけを比べる。
+	// 話数も副題も読めない側を番組名の規則で比べると、シリーズが同じだけで、どの回とも同じ回になる。
+	if !a.knownByTitle() || !b.knownByTitle() {
+		return false
 	}
 	if a.Number != b.Number {
 		return false
