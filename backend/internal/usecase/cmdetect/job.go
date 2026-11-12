@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
@@ -84,7 +85,8 @@ type Beginner interface {
 
 // Enqueue は、録画 recordingID の CM の区間を見分けるジョブを投入する。録画の詳細から頼まれたときに使う (設計書 6.1)。
 // 全体や予約の設定にかかわらず見分ける。見分け終えた録画も見分け直せ、前の区間は置き換える。同じ録画のジョブを待っていれば、入れずに false を返す。
-func Enqueue(ctx context.Context, db Beginner, inserter Inserter, recordingID uuid.UUID) (bool, error) {
+// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
+func Enqueue(ctx context.Context, db Beginner, inserter Inserter, clk clock.Clock, recordingID uuid.UUID) (bool, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return false, fmt.Errorf("failed to begin a transaction: %w", err)
@@ -94,11 +96,18 @@ func Enqueue(ctx context.Context, db Beginner, inserter Inserter, recordingID uu
 	if err != nil {
 		return false, fmt.Errorf("failed to insert the CM detection job: %w", err)
 	}
+	inserted := len(results) == 1 && !results[0].UniqueSkippedAsDuplicate
+	if !inserted {
+		return false, nil
+	}
+	if _, err := notify.Publish(ctx, tx, clk, notify.RecordingsChannel); err != nil {
+		return false, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return false, fmt.Errorf("failed to commit the CM detection job: %w", err)
 	}
 
-	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+	return true, nil
 }
 
 // Inserter は、ジョブをトランザクションの中で投入する。*jobs.Client が満たす。
@@ -107,15 +116,17 @@ type Inserter interface {
 }
 
 // Enqueuer は、録画の完了のイベントを配るときに、CM の区間を見分けるジョブを投入する。
+// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
 type Enqueuer struct {
 	inserter Inserter
+	clock    clock.Clock
 }
 
 var _ notification.Hook = new(Enqueuer)
 
 // NewEnqueuer は Enqueuer を返す。
-func NewEnqueuer(inserter Inserter) *Enqueuer {
-	return &Enqueuer{inserter: inserter}
+func NewEnqueuer(inserter Inserter, clk clock.Clock) *Enqueuer {
+	return &Enqueuer{inserter: inserter, clock: clk}
 }
 
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
@@ -127,8 +138,15 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 		// 録画の ID のないイベントでは、何もできない。ほかの通知は配りたいので、失敗にはしない。
 		return nil
 	}
-	if _, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: DetectArgs{RecordingID: recordingID}, InsertOpts: nil}}); err != nil {
+	results, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: DetectArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	if err != nil {
 		return fmt.Errorf("failed to enqueue the CM detection: %w", err)
+	}
+	if len(results) != 1 || results[0].UniqueSkippedAsDuplicate {
+		return nil
+	}
+	if _, err := notify.Publish(ctx, tx, e.clock, notify.RecordingsChannel); err != nil {
+		return err
 	}
 
 	return nil
@@ -422,6 +440,10 @@ func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingI
 			if err != nil {
 				return fmt.Errorf("failed to record a CM section: %w", err)
 			}
+		}
+		// 録画の詳細と、プレイヤーのシークバーの区間を読み直させる (#1571)。
+		if _, err := notify.Publish(ctx, tx, w.clock, notify.RecordingsChannel); err != nil {
+			return err
 		}
 		if w.hook == nil {
 			return nil

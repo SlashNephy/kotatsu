@@ -26,8 +26,9 @@ import (
 )
 
 // RecordingsChannel は、録画が変わったことを知らせる変更通知のチャンネル (#868)。録画を始めた、終えた、消した、
-// 保護やタグを変えた、サムネイルや解析の結果を書いたときに版数を上げる。録画中にファイルが伸びるだけでは上げない。
-// 録画は recording、library、thumbnail、analysis、epgstation が書くので、互いに import しなくて済むよう、ここに置く。
+// 保護やタグを変えた、サムネイルや解析の結果を書いた、CM の区間の見分けを入れたか区間を書いた (#1571) ときに版数を上げる。
+// 録画中にファイルが伸びるだけでは上げない。
+// 録画は recording、library、thumbnail、analysis、cmdetect、epgstation が書くので、互いに import しなくて済むよう、ここに置く。
 const RecordingsChannel = "recordings"
 
 // AuditChannel は、監査ログに残る操作があったことを知らせる変更通知のチャンネル (#869)。

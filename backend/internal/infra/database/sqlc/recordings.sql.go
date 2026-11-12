@@ -416,6 +416,23 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 	return i, err
 }
 
+const getRecordingCMDetectedAt = `-- name: GetRecordingCMDetectedAt :one
+SELECT detected_at FROM recording_cm_detections WHERE recording_id = $1 AND detector = $2
+`
+
+type GetRecordingCMDetectedAtParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+// 録画の CM の区間を、見分け方 detector で最後に見分け終えた日時を返す (#1571)。見分けていなければ行を返さない。
+func (q *Queries) GetRecordingCMDetectedAt(ctx context.Context, arg GetRecordingCMDetectedAtParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, getRecordingCMDetectedAt, arg.RecordingID, arg.Detector)
+	var detected_at time.Time
+	err := row.Scan(&detected_at)
+	return detected_at, err
+}
+
 const getRecordingFileOwner = `-- name: GetRecordingFileOwner :one
 SELECT recording_id, kind FROM recording_files WHERE pool_id = $1 AND path = $2
 `

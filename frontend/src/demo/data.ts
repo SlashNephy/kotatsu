@@ -120,6 +120,7 @@ export function createRootValue(
     now,
     rules: scheduler.recordingRules(),
     ruleView: scheduler.findRule,
+    changed: dataChanged,
   });
   let playerSettings = {
     jikkyoEnabled: false,
@@ -504,9 +505,10 @@ export function createRootValue(
       recordings.setProtected(id, value),
     deleteRecording: ({ id }: { id: string }) => recordings.delete(id),
     deleteRecordings: ({ ids }: { ids: string[] }) => recordings.deleteMany(ids),
-    // 索引や画像を作り直すジョブと、CM を解析するジョブは、デモでは何もせずに受け付ける。
+    // 索引や画像を作り直すジョブは、デモでは何もせずに受け付ける。
     reanalyzeRecording: () => true,
-    detectRecordingCm: () => true,
+    // CM を解析するジョブは、待って、進み具合を出して、終える様子を真似る。デモの映像は CM を含まないので、区間は見つからない。
+    detectRecordingCm: ({ id }: { id: string }) => recordings.detectCm(id),
     regenerateRecordingImages: () => true,
     saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
       recordings.saveWatchPosition(id, positionMs),

@@ -404,7 +404,7 @@ func TestEnqueuer(t *testing.T) {
 			recordingID := id.New()
 			tt.payload["recordingId"] = recordingID.String()
 			require.NoError(t, notification.Emit(t.Context(), f.pool, f.clock, tt.kind, tt.payload))
-			_, err := notification.NewDispatcher(f.pool, f.clock, cmdetect.NewEnqueuer(f.inserter)).DispatchOnce(t.Context())
+			_, err := notification.NewDispatcher(f.pool, f.clock, cmdetect.NewEnqueuer(f.inserter, f.clock)).DispatchOnce(t.Context())
 			require.NoError(t, err)
 
 			rows, err := f.pool.Query(t.Context(), "SELECT queue, args FROM river_job WHERE kind = 'recording_cm_detect'")
@@ -421,10 +421,15 @@ func TestEnqueuer(t *testing.T) {
 				queued = append(queued, args.RecordingID)
 			}
 			require.NoError(t, rows.Err())
+			// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
+			var version int64
+			require.NoError(t, f.pool.QueryRow(t.Context(), recordingsVersion).Scan(&version))
 			if tt.want {
 				assert.Equal(t, []uuid.UUID{recordingID}, queued)
+				assert.Equal(t, int64(1), version)
 			} else {
 				assert.Empty(t, queued)
+				assert.Zero(t, version)
 			}
 		})
 	}

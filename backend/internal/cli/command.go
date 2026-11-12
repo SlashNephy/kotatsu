@@ -207,7 +207,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	}
 	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock,
 		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),
-		cmdetect.NewEnqueuer(inserter), transcode.NewEnqueuer(inserter))
+		cmdetect.NewEnqueuer(inserter, deps.Clock), transcode.NewEnqueuer(inserter))
 	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
 	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location, deps.Network))
 	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient(deps.Network)))
