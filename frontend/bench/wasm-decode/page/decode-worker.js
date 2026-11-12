@@ -15,7 +15,9 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
     const t0 = performance.now();
     const M = await init({ locateFile: (path) => `./wasm/${variant}/${path}` });
     const initMs = performance.now() - t0;
-    const buf = await (await fetch(`./media/${file}`)).arrayBuffer();
+    const response = await fetch(`./media/${file}`);
+    if (!response.ok) throw new Error(`failed to fetch ${file}: ${response.status}`);
+    const buf = await response.arrayBuffer();
     const td = performance.now();
     const { video, audio, ccErrors } = demux(buf);
     const demuxMs = performance.now() - td;
@@ -101,6 +103,8 @@ onmessage = async ({ data: { file, variant, checksum } }) => {
         o += len;
       }
     }
+    M._dec_send(ad, 0, 0, -1);
+    while (M._dec_receive(ad) === 0) samples += M._frame_nb_samples(ad);
     const audioMs = performance.now() - aStart;
     const totalMs = demuxMs + videoMs + audioMs;
     postMessage({

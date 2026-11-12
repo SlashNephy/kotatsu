@@ -16,7 +16,9 @@ EMSCRIPTEN_KEEPALIVE Dec *dec_open(int kind) {
   const AVCodec *codec = avcodec_find_decoder(kind == 0 ? AV_CODEC_ID_MPEG2VIDEO : AV_CODEC_ID_AAC);
   if (!codec) return NULL;
   Dec *d = av_mallocz(sizeof(Dec));
+  if (!d) return NULL;
   d->c = avcodec_alloc_context3(codec);
+  if (!d->c) return NULL;
   d->c->thread_count = 1;
   if (avcodec_open2(d->c, codec, NULL) < 0) return NULL;
   if (kind == 0) d->p = av_parser_init(AV_CODEC_ID_MPEG2VIDEO);

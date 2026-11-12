@@ -41,6 +41,12 @@ const runConvert = (file, { pictureWorkers = 1, save = false } = {}) =>
     let mime = null;
     let workers = 1;
     const t0 = performance.now();
+    worker.onerror = (event) => {
+      worker.terminate();
+      const result = { ok: false, kind: 'convert', file, error: event.message };
+      append(result);
+      resolve(result);
+    };
     worker.onmessage = async ({ data: m }) => {
       switch (m.type) {
         case 'mark':

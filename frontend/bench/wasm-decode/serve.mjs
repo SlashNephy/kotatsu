@@ -79,6 +79,10 @@ createServer(async (req, res) => {
       const start = first === '' ? info.size - Number(last) : Number(first);
       const end =
         first !== '' && last !== '' ? Math.min(Number(last), info.size - 1) : info.size - 1;
+      if ((first === '' && last === '') || start < 0 || start > end) {
+        res.writeHead(416, { 'Content-Range': `bytes */${info.size}` }).end();
+        return;
+      }
       res.writeHead(206, {
         ...headers,
         'Content-Range': `bytes ${start}-${end}/${info.size}`,

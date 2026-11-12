@@ -35,7 +35,11 @@ try {
       readFileSync(log, 'utf8')
         .split('\n')
         .filter((line) => line !== '')
-        .map((line) => Math.min(99, Number(/psnr_y:(\S+)/.exec(line)?.[1] ?? 0))),
+        .map((line) => {
+          // 同じ絵では inf と書かれる。Number('inf') は NaN になるので、上限の 99 にする
+          const value = /psnr_y:(\S+)/.exec(line)?.[1];
+          return value === 'inf' ? 99 : Math.min(99, Number(value));
+        }),
     );
   }
   const n = Math.max(...runs.map((r) => r.length));
