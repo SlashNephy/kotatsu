@@ -12,6 +12,9 @@ export type PlayerCommandArgs = {
   seekForward: [];
   seekBackwardLong: [];
   seekForwardLong: [];
+  // seekBackward15 と seekForward15 は、15 秒戻るか進む (#1572)。日本の CM は 15 秒を単位にするので、CM を 1 本ずつ飛ばせる。
+  seekBackward15: [];
+  seekForward15: [];
   // seekTo は、録画の始まり (ライブのバッファでは、バッファの始まり) からの秒の位置へ移る。
   seekTo: [seconds: number];
   toggleCaptions: [];
@@ -75,6 +78,8 @@ export const playerCommands: Readonly<Record<PlayerCommandId, PlayerCommandDefin
   seekForward: { repeatable: true },
   seekBackwardLong: { repeatable: true },
   seekForwardLong: { repeatable: true },
+  seekBackward15: { repeatable: true },
+  seekForward15: { repeatable: true },
   seekTo: { repeatable: false },
   toggleCaptions: { repeatable: false },
   toggleJikkyo: { repeatable: false },

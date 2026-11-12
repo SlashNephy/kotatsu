@@ -1295,6 +1295,7 @@
     },
     "partMarkerNoCm": "{{part}} (no commercials before)",
     "skipCm": "Skip commercials",
+    "seekForward15Hold": "Forward 15 seconds (hold to fast-forward)",
     "crop": {
       "mode": "Aspect ratio",
       "modes": {
@@ -1355,6 +1356,8 @@
       "seekForward": "Forward 10 seconds",
       "seekBackwardLong": "Back 30 seconds",
       "seekForwardLong": "Forward 30 seconds",
+      "seekBackward15": "Back 15 seconds",
+      "seekForward15": "Forward 15 seconds",
       "seekTo": "Seek to position",
       "toggleCaptions": "Toggle captions",
       "toggleJikkyo": "Toggle live comments",
@@ -1402,6 +1405,9 @@
       "seekForward": "+10 s",
       "seekBackwardLong": "-30 s",
       "seekForwardLong": "+30 s",
+      "seekBackward15": "-15 s",
+      "seekForward15": "+15 s",
+      "fastForward": "Fast-forwarding {{rate}}x",
       "dataBroadcastOn": "Data broadcasting shown",
       "dataBroadcastOff": "Data broadcasting hidden",
       "captured": "Image saved",
