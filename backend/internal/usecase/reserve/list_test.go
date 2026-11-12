@@ -192,12 +192,13 @@ func TestListCarriesAssignment(t *testing.T) {
 		Tuner:          new(int64(2)),
 		PlannedStartAt: new(time.Date(2026, 10, 10, 13, 59, 50, 0, time.UTC)),
 		PlannedEndAt:   new(at(14, 30)),
+		Peers:          []uuid.UUID{},
 	}, listed[0].Assignment)
 
 	// まだ計算していない予約は、割り当てたチューナーと予定の時刻を持たない。
 	got, err := query.New(f.pool).GetReservation(t.Context(), f.ids[first])
 	require.NoError(t, err)
-	assert.Equal(t, &domain.Assignment{State: domain.AssignmentPending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil}, got.Assignment)
+	assert.Equal(t, &domain.Assignment{State: domain.AssignmentPending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil, Peers: []uuid.UUID{}}, got.Assignment)
 }
 
 func TestListByPrograms(t *testing.T) {
