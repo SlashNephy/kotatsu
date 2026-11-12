@@ -20,9 +20,14 @@ jobs:
   # 2 種類のイメージを amd64 と arm64 でビルドし、main とタグでは ghcr.io に公開する (設計書 2.4、11.1)。
   image:
     runs-on: ubuntu-latest
+    # id-token と attestations は、公開したイメージに出所の証明を付けるのに使う (#1524)。
+    # artifact-metadata は、証明をレジストリにも置く (push-to-registry) のに使う。
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +99,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7.4.0
+      - id: build
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           target: ${{ matrix.target }}
@@ -107,3 +113,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,scope=${{ matrix.target }},mode=max
+      # 公開したイメージに、このリポジトリのこの workflow で作ったことを示す証明 (Sigstore) を付ける (#1524、設計書 11.1)。
+      # タグは後で別の digest を指しうるので、名前ではなく digest に付ける。レジストリにも置き、oci:// で確かめられるようにする。
+      - if: github.event_name != 'pull_request' && steps.meta.outputs.tags != ''
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-name: ghcr.io/slashnephy/kotatsu
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
