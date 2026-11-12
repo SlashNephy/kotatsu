@@ -2180,6 +2180,13 @@ Content Security Policyは厳しく設定します。
 | Docker Composeの例 | `-ffmpeg`イメージの`all`構成とPostgreSQLの組み合わせです。 |
 | 出所の証明 | コンテナイメージ（すべての種類）、リリースに添えるアーカイブ、Helm ChartのtgzにSigstoreの出所の証明（`actions/attest-build-provenance`）を付けます（#1524）。`checksums.txt`だけでは、リリースごとの差し替えを防げないからです。イメージは、タグが後で別のdigestを指しうるので、digestに付け、レジストリにも置きます。アーカイブとChartは、GoReleaserのOSS版が作る段と公開する段を分けられないので、公開の直後に付けます。そのため、証明の無いアーカイブがリリースに並ぶ時間が少しできます。利用者は`gh attestation verify`で確かめます（`docs/setup.md`）。 |
 
+公開したコンテナイメージとGoの依存の脆弱性は、毎日確かめます（`.github/workflows/scan.yml`）。結果はSARIFでCode scanningに送り、直った脆弱性のアラートは次のスキャンで閉じます。
+
+- イメージは、ghcr.ioにある`edge`と最新のリリースを、それぞれ2種類ともTrivyで見ます。ここでビルドし直したものではなく、利用者がpullするものを見るためです。Code scanningのcategoryは、版を含めずにイメージの種類ごとに固定します。版を含めると、次のリリースで前の版のアラートが閉じずに残るからです。修正版のない脆弱性は、対処のしようがないので除きます。アーキテクチャで入るパッケージは変わらないので、amd64だけを見ます。
+- Trivyは、2026年3月にactionと配布物が乗っ取られたことがあります（CVE-2026-33634）。そこでactionは使わず、CLIを`mise.scan.toml`で版とチェックサムまで固定します（`MISE_ENV=scan`のときだけ読みます）。
+- Goの依存と標準ライブラリは、govulncheck（`backend/go.mod`の`tool`）で見ます。呼び出しまで追うので、使っていない脆弱なコードはnoteに下がります。
+- 見つかってもworkflowは失敗にしません。新しく公開された脆弱性で、関係のないPRやRenovateの自動マージを止めないためです。スキャンの設定やGoの依存を変えたPRでも動かし、その時点の結果を見ます。
+
 GitHub Pagesは、GitHub Actionsから配信します（`.github/workflows/pages.yml`）。
 GitHub Pagesには、HelmリポジトリのChartの一覧（`index.yaml`）だけを置きます。
 一覧は、リリースのworkflowがgh-pagesブランチに置き、そのリリースのタグから配信し直します。gh-pagesブランチには、GitHub App（kotatsu-artifacts）のトークンで、GitHubのAPIからコミットを作って書きます。コミットはAppの名前になり、GitHubが署名します（#1060）。

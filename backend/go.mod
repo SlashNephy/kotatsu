@@ -108,8 +108,10 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/telemetry v0.0.0-20261010193011-f71dc92da45e // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.52.0 // indirect
+	golang.org/x/vuln v1.9.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
 	modernc.org/libc v1.79.0 // indirect
@@ -117,4 +119,7 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-tool github.com/99designs/gqlgen
+tool (
+	github.com/99designs/gqlgen
+	golang.org/x/vuln/cmd/govulncheck
+)
