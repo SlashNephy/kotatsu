@@ -164,6 +164,22 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual([]);
   });
 
+  test('相対の移動の行き先が CM の中なら、行き先へは移らず、黒い蓋を出して CM の終わりへ飛ぶ', () => {
+    const { host, events } = fakeHost();
+    expect(new CmAutoSkipper(host).skipFrom(610)).toBe(true);
+    expect(events).toEqual(['cover:black', 'jump:645', 'notify']);
+  });
+
+  test.each([
+    { name: '行き先が本編', position: 650, state: {} },
+    { name: '設定を切っている', position: 610, state: { enabled: false } },
+  ])('相対の移動で、$name ときは何もしない', ({ position, state: overrides }) => {
+    const { host, events, state } = fakeHost();
+    Object.assign(state, overrides);
+    expect(new CmAutoSkipper(host).skipFrom(position)).toBe(false);
+    expect(events).toEqual([]);
+  });
+
   test('開き始めは、飛ばずに黒い蓋で覆い、求めた位置以上のコマが映るまで待つ', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);

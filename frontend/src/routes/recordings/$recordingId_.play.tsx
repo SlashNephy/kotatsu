@@ -725,7 +725,23 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     }
   };
   // skip は、今の位置から seconds 秒だけ進むか戻る。
-  const skip = (seconds: number) => seek(currentPosition() + seconds);
+  // 進む向きの相対の移動 (キー、ダブルタップ、15 秒のボタン。#1572) は、行き先を選んだシークではないので、CM を見たい意思と
+  // みなさない (#1512)。CM を自動で飛ばす設定で、行き先が CM の中なら、CM の終わりへ飛ぶ。自分でシークして見ていた CM の中で
+  // 動いたときは、そのまま移る。戻る向きは、CM の終わりへ押し戻すと CM より前へ戻れなくなるので、これまでどおりシークとして扱う。
+  // CM を飛んだら、CM を飛ばした知らせを出して true を返す。呼んだ側は、そのときシークの結果の知らせを出さない。
+  const skip = (seconds: number): boolean => {
+    const target = currentPosition() + seconds;
+    const watching = lastSeek.current;
+    const span = cmSectionAt(cmSpans, target);
+    const insideWatched =
+      span !== null && watching !== null && span.from <= watching && watching < span.to;
+    if (seconds > 0 && !insideWatched && skipper.skipFrom(target)) {
+      return true;
+    }
+    seek(target);
+
+    return false;
+  };
   // flash は、キーで操作した結果。映像の上に短く出す (#448)。
   const [flash, showFlash] = usePlayerFlash();
   // 早回しの間は、押している間ずっと、速さを映像の上に出しておく。
@@ -750,8 +766,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     if (side === 'center') {
       return;
     }
-    skip(side === 'left' ? -10 : 10);
-    showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
+    if (!skip(side === 'left' ? -10 : 10)) {
+      showFlash(t(side === 'left' ? 'player.flash.seekBackward' : 'player.flash.seekForward'));
+    }
   });
   const saveCapture = async () => {
     if ((await capture.capture('save')) === 'saved') {
@@ -789,24 +806,27 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       showFlash(t('player.flash.seekBackward'));
     },
     seekForward: () => {
-      skip(10);
-      showFlash(t('player.flash.seekForward'));
+      if (!skip(10)) {
+        showFlash(t('player.flash.seekForward'));
+      }
     },
     seekBackwardLong: () => {
       skip(-30);
       showFlash(t('player.flash.seekBackwardLong'));
     },
     seekForwardLong: () => {
-      skip(30);
-      showFlash(t('player.flash.seekForwardLong'));
+      if (!skip(30)) {
+        showFlash(t('player.flash.seekForwardLong'));
+      }
     },
     seekBackward15: () => {
       skip(-15);
       showFlash(t('player.flash.seekBackward15'));
     },
     seekForward15: () => {
-      skip(15);
-      showFlash(t('player.flash.seekForward15'));
+      if (!skip(15)) {
+        showFlash(t('player.flash.seekForward15'));
+      }
     },
     toggleCaptions: () => setCaptions(!captions),
     ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),

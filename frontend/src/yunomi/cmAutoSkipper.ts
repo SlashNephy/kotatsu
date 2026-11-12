@@ -98,6 +98,24 @@ export class CmAutoSkipper {
     host.notify();
   }
 
+  // skipFrom は、利用者の相対の移動 (10 秒や 15 秒のシーク) の行き先 position が CM の中なら、そこへは移らず、黒い蓋を出して
+  // 続いた CM の終わりへ飛び、true を返す。行き先へ移ってから飛ぶと、読み直した CM のコマが映る。
+  // 設定を切っているとき、飛び先が映るのを待っているとき、行き先が CM の中でないときは、何もせず false を返す。
+  skipFrom(position: number): boolean {
+    const host = this.#host;
+    if (this.#waiting !== null || !host.enabled()) {
+      return false;
+    }
+    const section = cmSectionAt(host.sections(), position);
+    if (section === null) {
+      return false;
+    }
+    this.#hold('black', () => host.jump(section.to));
+    host.notify();
+
+    return true;
+  }
+
   // holdUntil は、飛ばずに、黒い蓋で覆ったまま、target 以上のコマが映るのを待つ。開き始めに、最初から CM の終わりを
   // 求めたときに使う。配信は手前の I フレームから流れるので、CM の末尾が映りうる。
   holdUntil(target: number): void {
