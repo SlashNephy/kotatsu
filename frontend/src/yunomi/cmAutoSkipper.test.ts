@@ -13,10 +13,11 @@ import { cmLookahead } from './cmSkip';
 function fakeHost(overrides: Partial<SkipperHost> = {}) {
   const events: string[] = [];
   const timers: { callback: () => void; ms: number; cancelled: boolean }[] = [];
-  const state = { enabled: true, scrubbing: false, lastSeek: null as number | null };
+  const state = { enabled: true, scrubbing: false, paused: false, lastSeek: null as number | null };
   const host: SkipperHost = {
     enabled: () => state.enabled,
     scrubbing: () => state.scrubbing,
+    paused: () => state.paused,
     lastSeek: () => state.lastSeek,
     sections: () => [{ from: 600, to: 645 }],
     cover: (kind) => events.push(`cover:${kind}`),
@@ -125,6 +126,19 @@ describe('CmAutoSkipper', () => {
     timers[0]!.callback();
     expect(events.at(-1)).toBe('uncover');
     expect(skipper.waiting).toBe(false);
+  });
+
+  test('止めている間は、上限の時間がたっても外さず、再生してから上限がたったら外す', () => {
+    const { host, events, timers, state } = fakeHost();
+    const skipper = new CmAutoSkipper(host);
+    skipper.holdUntil(645);
+    state.paused = true;
+    timers[0]!.callback();
+    expect(events).toEqual(['cover:black']);
+    expect(skipper.waiting).toBe(true);
+    state.paused = false;
+    timers[1]!.callback();
+    expect(events).toEqual(['cover:black', 'uncover']);
   });
 
   test('外したら、外し忘れのタイマーを止める', () => {

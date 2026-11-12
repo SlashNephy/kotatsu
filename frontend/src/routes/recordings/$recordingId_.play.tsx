@@ -677,6 +677,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     const video = videoRef.current;
     if (hls && video !== null) {
       video.currentTime = seconds;
+      // 求めた位置へ移るのを待っている間に移ったら、移った先で位置を信じる。待ち続けると、自動で飛ばす判定が止まったままになる。
+      reached.current = streamKey;
       positionRef.current = seconds;
       setPosition(seconds);
 
@@ -970,6 +972,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       new CmAutoSkipper({
         enabled: () => live.current.cmAutoSkip,
         scrubbing: () => live.current.scrubbing,
+        paused: () => videoRef.current?.paused ?? true,
         lastSeek: () => lastSeek.current,
         sections: () => live.current.cmSpans,
         cover: (kind) => coverRef.current?.show(kind),
@@ -1104,7 +1107,17 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     return { from: at, to: at, label: t('player.gapMark', { duration: formatDuration(length) }) };
   });
   const skipButton = currentCm !== null && (
-    <SkipButton raised={controls.visible} onClick={() => seek(currentCm.to)}>
+    <SkipButton
+      raised={controls.visible}
+      // CM から出るための操作なので、CM を見たい意思 (lastSeek) を消す (#1512)。自動で飛ばす設定なら、続いた CM の終わりまで、
+      // 蓋を出して 1 回で飛ぶ。区間の終わりへ移るだけだと、残りの CM の頭が映ってから飛ぶ。
+      onClick={() => {
+        lastSeek.current = null;
+        if (!skipper.skipFrom(currentPosition())) {
+          jumpTo(currentCm.to);
+        }
+      }}
+    >
       {t('player.skipCm')}
     </SkipButton>
   );

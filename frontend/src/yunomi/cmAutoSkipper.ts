@@ -34,6 +34,8 @@ export type SkipperHost = {
   enabled: () => boolean;
   // scrubbing は、シークバーのつまみをつまんでいるかどうか。
   scrubbing: () => boolean;
+  // paused は、一時停止しているかどうか (自動再生を断られて止まっているときも含む)。
+  paused: () => boolean;
   // lastSeek は、利用者が最後にシークした位置。自動で飛んだ位置は含めない。
   lastSeek: () => number | null;
   // sections は、続いた区間をまとめた CM の区間。
@@ -47,13 +49,16 @@ export type SkipperHost = {
   setTimer: (callback: () => void, ms: number) => () => void;
 };
 
+// Waiting は、蓋を出して飛び先が映るのを待っている間の状態。count は、飛び先以上のコマが続いて映った数。
+type Waiting = { target: number; count: number; cancelTimer: () => void };
+
 // CmAutoSkipper は、CM を自動で飛ばすときに、CM のコマを 1 コマも画面に出さないための、判定と蓋の出し入れ (#1512)。
 // 映ったコマごとに frame を呼ぶ。いまのコマの位置に先読みの分を足して CM に入っていれば、続いた CM の終わりへ飛ぶ。
 // 飛ぶ直前に蓋を出し、飛び先以上のコマが uncoverFrames だけ続いて映ってから外す。
 export class CmAutoSkipper {
   readonly #host: SkipperHost;
   // waiting は、蓋を出して、飛び先が映るのを待っている間の状態。
-  #waiting: { target: number; count: number; cancelTimer: () => void } | null = null;
+  #waiting: Waiting | null = null;
 
   constructor(host: SkipperHost) {
     this.#host = host;
@@ -134,10 +139,22 @@ export class CmAutoSkipper {
     const waiting = { target: Number.POSITIVE_INFINITY, count: 0, cancelTimer: () => {} };
     this.#waiting = waiting;
     waiting.target = move();
+    this.#arm(waiting);
+  }
+
+  // arm は、外し忘れのタイマーを掛ける。止めている間は、コマが来ず、外す条件を数えられないので、外さずに掛け直す。
+  // 止めたまま外すと、映っている手前のコマ (CM の末尾) が見える。
+  #arm(waiting: Waiting): void {
     waiting.cancelTimer = this.#host.setTimer(() => {
-      if (this.#waiting === waiting) {
-        this.#release();
+      if (this.#waiting !== waiting) {
+        return;
       }
+      if (this.#host.paused()) {
+        this.#arm(waiting);
+
+        return;
+      }
+      this.#release();
     }, coverTimeoutMs);
   }
 
