@@ -1,4 +1,4 @@
-package procprio
+package procprio_test
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 )
 
 // niceOf は、/proc/<pid>/stat から、プロセスの nice 値を読む。
@@ -33,10 +35,10 @@ func TestLowererStart(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		lowerer  *Lowerer
+		lowerer  *procprio.Lowerer
 		wantNice func(parent int) int
 	}{
-		{name: "最低の優先度に下げる", lowerer: New(slog.New(slog.DiscardHandler)), wantNice: func(int) int { return lowestNice }},
+		{name: "最低の優先度に下げる", lowerer: procprio.New(slog.New(slog.DiscardHandler)), wantNice: func(int) int { return procprio.LowestNice }},
 		{name: "nil なら、優先度を変えない", lowerer: nil, wantNice: func(parent int) int { return parent }},
 	}
 	for _, tt := range tests {
@@ -58,5 +60,5 @@ func TestLowererStart(t *testing.T) {
 func TestLowerReportsExitedProcess(t *testing.T) {
 	t.Parallel()
 
-	assert.ErrorIs(t, lower(math.MaxInt32), errProcessGone)
+	assert.True(t, procprio.IsProcessGone(procprio.Lower(math.MaxInt32)))
 }
