@@ -273,12 +273,15 @@ export function PlayButton({ video, commands }: { video: VideoState; commands: P
 }
 
 // VolumeControl は、ミュートのボタンと、ホバーで広がる音量のスライダー。
+// optional は、狭い画面で外してよいかどうか。外しても、右クリック (Android では長押し) のメニューと m のキーでミュートできる。
 export function VolumeControl({
   video,
   commands,
+  optional = false,
 }: {
   video: VideoState;
   commands: PlayerCommands;
+  optional?: boolean;
 }) {
   const { t } = useTranslation();
   // ミュートしている間に目盛りが残っていると、音が出るように見えるので、0 として見せる。
@@ -286,7 +289,7 @@ export function VolumeControl({
   const icon = shown < 0.01 ? VolumeX : shown < 0.5 ? Volume1 : Volume2;
 
   return (
-    <div className={classes.volume}>
+    <div className={`${classes.volume} ${optional ? classes.optional : ''}`}>
       <CommandButton
         commands={commands}
         command="toggleMute"
@@ -310,6 +313,17 @@ export function VolumeControl({
         />
       </div>
     </div>
+  );
+}
+
+// PositionStatus は、録画とタイムシフトの操作バーの真ん中に出す、再生位置と、続けて出す長さと時刻 (rest)。
+// 狭くて入りきらないときも、再生位置は省かず、続きのほうを省く (#1572)。
+export function PositionStatus({ position, rest }: { position: string; rest: string }) {
+  return (
+    <span className={classes.positionStatus}>
+      <span className={classes.position}>{position}</span>
+      <span className={classes.positionRest}>{rest}</span>
+    </span>
   );
 }
 

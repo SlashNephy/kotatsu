@@ -74,6 +74,7 @@ import {
   FullscreenButton,
   PlayButton,
   PlayerControls,
+  PositionStatus,
   SeekStepButtons,
   playerControlsClasses,
   SettingsButton,
@@ -592,10 +593,16 @@ function Player({
         <>
           <PlayButton video={videoState} commands={commands} />
           <SeekStepButtons commands={commands} onFastForward={fastForward.setHeld} />
-          <VolumeControl video={videoState} commands={commands} />
+          {/* 狭い画面 (スマートフォン) では、再生位置を出す幅を空けるため、ミュートのボタンを外す。本体の音量キーで操作できる。 */}
+          <VolumeControl video={videoState} commands={commands} optional />
         </>
       }
-      status={`${formatDuration(shown)} / ${formatDuration(duration)} · ${formatClock(broadcastTime(program.playableFrom, program.gaps, shown))}`}
+      status={
+        <PositionStatus
+          position={formatDuration(shown)}
+          rest={` / ${formatDuration(duration)} · ${formatClock(broadcastTime(program.playableFrom, program.gaps, shown))}`}
+        />
+      }
       end={
         <>
           <CommandButton
@@ -614,8 +621,8 @@ function Player({
             <AudioDelaySetting />
             <SleepTimerSelect timer={sleep} />
           </SettingsButton>
-          {/* 狭い画面では、15 秒のシークのボタン (#1572) を収めるため、キャプチャのボタンを外す。 */}
-          <CaptureButton capture={capture} optional />
+          {/* 幅 375px ほどのスマートフォンでは、15 秒のシークのボタン (#1572) と再生位置を収めるため、キャプチャのボタンも外す。 */}
+          <CaptureButton capture={capture} optional="compact" />
           <CommandButton
             commands={commands}
             command="showShortcuts"
