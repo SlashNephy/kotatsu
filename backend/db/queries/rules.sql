@@ -1,11 +1,12 @@
 -- name: InsertRule :exec
 INSERT INTO rules (
   id, name, memo, enabled, conditions, settings, valid_from, valid_until,
-  avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, created_at, created_by, updated_at, updated_by
+  avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes,
+  created_at, created_by, updated_at, updated_by
 )
 VALUES (
   @id, @name, @memo, @enabled, @conditions, @settings, @valid_from, @valid_until,
-  @avoid_duplicates, @duplicate_window_days, @follow_event_relay, @bundle_same_episodes, @now, @actor, @now, @actor
+  @avoid_duplicates, @duplicate_window_days, @follow_event_relay, @bundle_same_episodes, @skip_earlier_episodes, @now, @actor, @now, @actor
 );
 
 -- name: GetRule :one
@@ -27,6 +28,7 @@ UPDATE rules SET
   duplicate_window_days = @duplicate_window_days,
   follow_event_relay = @follow_event_relay,
   bundle_same_episodes = @bundle_same_episodes,
+  skip_earlier_episodes = @skip_earlier_episodes,
   updated_at = @now,
   updated_by = @actor
 WHERE id = @id;

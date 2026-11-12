@@ -811,12 +811,13 @@
     },
     "skipped": {
       "tab": "重複で見送り",
-      "description": "ルールに一致したものの、同じ番組名や同じ回をすでに録画しているか、同じ回を別の放送で録るので、予約しなかった番組です。録り直したい番組は、手動で予約できます。手動の予約は、重複の回避と同じ回の束ねの対象になりません",
+      "description": "ルールに一致したものの、同じ番組名や同じ回をすでに録画しているか、同じ回を別の放送で録るか、追っているシリーズの前の回なので、予約しなかった番組です。録り直したい番組は、手動で予約できます。手動の予約は、重複の回避、同じ回の束ね、前の回を録らない設定の対象になりません",
       "empty": "重複の回避で見送った番組はありません",
       "reason": "{{rules}} に一致。{{date}} に録画済み",
       "reasonRecordedEpisode": "{{rules}} に一致。同じ回を {{service}} で {{date}} に録画済み",
       "reasonOtherBroadcast": "{{rules}} に一致。同じ回を {{service}} の {{date}} の放送で録ります",
       "reasonOtherBroadcastUnknown": "{{rules}} に一致。同じ回を別の放送で録ります",
+      "reasonEarlierEpisode": "{{rules}} に一致。第{{episode}}話まで録画済みか予約済みなので、前の回です",
       "unknownService": "消えた局",
       "reserve": "予約する",
       "reserveError": "予約できませんでした。時間をおいてやり直してください"
@@ -1019,6 +1020,8 @@
     "followEventRelay": "イベントリレーで続く番組も予約する",
     "bundleSameEpisodes": "局をまたいで同じ回を束ね、最初の放送だけを予約する",
     "bundleSameEpisodesDescription": "地上波と BS のように、同じ回を何度も流すときに、録画済みの回と、2 回目以降の放送を予約しません",
+    "skipEarlierEpisodes": "追っているシリーズの前の回を予約しない",
+    "skipEarlierEpisodesDescription": "録画済みの回や予約済みの回、先に流れる放送より話数の小さい回（途中の回から追い始めたシリーズの一挙放送や再放送など）を予約しません。番組名を変えずに 1 話から数え直すシリーズでは、新しいシーズンも飛ばすので注意してください",
     "priority": "優先度",
     "priorityDescription": "-10 〜 10。チューナーが足りないときは、高い予約から割り当てます",
     "joinSegments": "分かれた録画のファイルを1つにつなぐ",

@@ -787,6 +787,9 @@ CREATE TABLE rules (
   follow_event_relay boolean NOT NULL,
   -- 局をまたいで同じ回を束ね、最初の放送だけを予約するかどうか (設計書 4.4、#1498)。この列を足す前からあるルールは false。
   bundle_same_episodes boolean NOT NULL DEFAULT false,
+  -- 追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
+  -- 番組名を変えずに 1 話から数え直すシリーズを黙って飛ばさないよう、既定は false。この列を足す前からあるルールも false。
+  skip_earlier_episodes boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
@@ -1070,6 +1073,10 @@ CREATE TABLE recording_history (
   anime_count double precision,
   -- ほかの録画ソフトから引き継いだ履歴かどうか。引き継いだ履歴は、録った回を見る期間で切らない (#1498)。
   imported boolean NOT NULL DEFAULT false,
+  -- 番組名から読んだシリーズ名 (作品名と編と期。半角に寄せ、小文字にし、空白を除いたもの。設計書 4.4)。
+  -- 前の回を録らない (#1499) ときに、候補の放送のシリーズ名で履歴を引くのに使う。回の読み方は Go で書くので、Go で書き込む。
+  -- 列を足す前の履歴と、列を知らない古いバイナリが書いた履歴は NULL で、kotatsu migrate が埋める。
+  series text,
   start_at timestamptz NOT NULL,
   end_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL,
@@ -1084,6 +1091,9 @@ CREATE INDEX recording_history_recording_id_idx ON recording_history (recording_
 -- 重複の回避の照合で、(正規化した番組名, サービス) と期間で引く (設計書 4.4)。
 -- EPGStation では、このインデックスがないために照合が全件を走査し、利用者が手でインデックスを足していた。
 CREATE INDEX recording_history_title_key_service_id_end_at_idx ON recording_history (title_key, service_id, end_at);
+
+-- 前の回を録らない (#1499) 照合で、候補の放送のシリーズ名で履歴を引く。期間で切らないので、索引がなければ全件を読む。
+CREATE INDEX recording_history_series_idx ON recording_history (series);
 
 -- 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存する。
 -- 条件は、ジャンルの包含と除外、番組の最短の長さ、無料放送だけかどうか、チャンネルの並び、番組のないチャンネルを隠すかどうか。

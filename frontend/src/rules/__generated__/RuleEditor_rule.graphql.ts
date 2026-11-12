@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<707df3aaee652cd7e7696a0b396d5433>>
+ * @generated SignedSource<<c60654ba15f4538f2806b0c9290673c7>>
  * @lightSyntaxTransform
  */
 
@@ -75,6 +75,7 @@ export type RuleEditor_rule$data = {
     readonly transcodeFrameRate: string | null | undefined;
     readonly transcodePreset: string | null | undefined;
   };
+  readonly skipEarlierEpisodes: boolean;
   readonly updatedAt: string;
   readonly updatedBy: {
     readonly displayName: string;
@@ -483,6 +484,13 @@ return {
       "kind": "ScalarField",
       "name": "bundleSameEpisodes",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "skipEarlierEpisodes",
+      "storageKey": null
     }
   ],
   "type": "Rule",
@@ -490,6 +498,6 @@ return {
 };
 })();
 
-(node as any).hash = "71207df2e5fc457df866caf042c4939d";
+(node as any).hash = "a1c554eff51606259e8002e19f2c84f3";
 
 export default node;

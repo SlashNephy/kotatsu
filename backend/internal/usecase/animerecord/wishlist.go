@@ -681,5 +681,7 @@ func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rul
 		ValidFrom: nil, ValidUntil: nil,
 		AvoidDuplicates: defaults.AvoidDuplicates, DuplicateWindowDays: defaults.DuplicateWindowDays, FollowEventRelay: defaults.FollowEventRelay,
 		BundleSameEpisodes: defaults.BundleSameEpisodes,
+		// 前の回を録らない設定は、ルールを作るときの既定値に持たず、切で作る (#1499)。
+		SkipEarlierEpisodes: false,
 	}
 }
