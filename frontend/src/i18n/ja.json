@@ -1815,6 +1815,51 @@
         "webhook_deliver": "Webhookの配信"
       }
     },
+    "logs": {
+      "title": "ログ",
+      "summary": "直近のログを読み、秘密と家の構成を伏せた不具合の報告を作ります",
+      "description": "このプロセスのメモリにある直近のログと、チューナーサーバーのログです。再起動すると消えます。サーバーからは、どこにも送りません。",
+      "refresh": "読み直す",
+      "reportIssue": "Issue にする",
+      "environment": "環境",
+      "lines": "ログ",
+      "sourceKotatsu": "Kotatsu ({{instance}})",
+      "sourceTunerServer": "チューナーサーバー",
+      "tunerShort": "チューナー",
+      "sourceCount": "{{name}} {{count}} / {{total}} 行",
+      "problemsOnly": "警告とエラーだけ",
+      "search": "ログを検索",
+      "empty": "出す行がありません",
+      "showing": "{{count}} 行のうち {{shown}} 行を出しています",
+      "more": "もっと見る",
+      "levelWarn": "警告",
+      "levelError": "エラー",
+      "inferred": "重さは本文の言葉から推し量ったものです",
+      "failed": "{{name}}のログを取れませんでした: {{reason}}",
+      "failures": {
+        "TIMEOUT": "時間内に答えがありませんでした",
+        "UNREACHABLE": "つながりませんでした",
+        "UNSUPPORTED": "ログの API がありません",
+        "HTTP_ERROR": "エラーが返りました"
+      },
+      "splitTitle": "この画面に出るのは、答えた tenban ({{instance}}) のログだけです",
+      "splitBody": "ロールを分けた構成では、ログはプロセスごとに持ちます。この画面には {{roles}} のログだけが出ます。{{others}} のログは、次のように kubectl logs で集めて、報告に貼ってください。",
+      "issue": {
+        "title": "不具合の報告",
+        "description": "秘密の値、IP アドレス、ホスト名などを伏せた報告です。開く前に中身を確かめ、要らないところは書き換えたり消したりしてください。「GitHub で開く」は、このブラウザで Issue のフォームを開くだけです。起きたことと再現の手順は、GitHub で書いてください。",
+        "fieldTitle": "タイトル",
+        "fieldVersion": "版",
+        "fieldEnvironment": "環境",
+        "fieldLogs": "ログ",
+        "length": "URL の長さ: {{length}} / {{limit}}",
+        "trimmed": "URL の上限に収めるため、ログの古い方から {{count}} 行を省きます。",
+        "copy": "コピー",
+        "copied": "コピーしました",
+        "download": "ダウンロード",
+        "cancel": "やめる",
+        "open": "GitHub で開く"
+      }
+    },
     "settings": {
       "recordingDefaults": "録画設定の既定値",
       "recordingDefaultsNote": "ルールや予約で上書きしていない項目に使います",

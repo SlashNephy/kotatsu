@@ -7,6 +7,7 @@ package webpush
 import (
 	"context"
 	"crypto/ecdh"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/url"
@@ -145,6 +146,20 @@ func (s *Service) List(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) ([]*
 	}
 
 	return subscriptions, nil
+}
+
+// LogSecrets は、ログの報告から伏せる値として、全ユーザーの購読の送り先 (URL の全体) と、認証の秘密を返す (#1521)。
+func (s *Service) LogSecrets(ctx context.Context, db sqlc.DBTX) ([]string, error) {
+	rows, err := sqlc.New(db).ListWebPushSecrets(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list web push subscriptions: %w", err)
+	}
+	secrets := []string{}
+	for _, row := range rows {
+		secrets = append(secrets, row.Endpoint, base64.RawURLEncoding.EncodeToString(row.Auth), base64.StdEncoding.EncodeToString(row.Auth))
+	}
+
+	return secrets, nil
 }
 
 func (s *Service) create(ctx context.Context, q *sqlc.Queries) error {

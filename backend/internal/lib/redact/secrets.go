@@ -1,0 +1,111 @@
+package redact
+
+import (
+	"cmp"
+	"net/url"
+	"regexp"
+	"slices"
+	"strings"
+)
+
+const (
+	// MinSecretLength は、伏せる秘密の値の最短の長さ (秘密の最短の長さ、設計書 付録 A)。
+	// これより短い値は、ふつうの語や番組名の一部と区別が付かないので使わない。
+	MinSecretLength = 8
+	// SecretMark は、伏せた秘密の値の代わりに置く印。画面で伏せるもの (frontend の admin/logs/redact.ts) と同じ印にする。
+	SecretMark = "[REDACTED_SECRET]"
+)
+
+// Secrets は、秘密の値を伏せる。値は MinSecretLength 以上のものだけを使い、大文字と小文字を区別せずに当てる。
+// 短い秘密が長い秘密の一部だと、短い方を先に消したときに長い方が半端に残るので、長いものから順に置き換える。
+type Secrets struct {
+	patterns []*regexp.Regexp
+}
+
+// NewSecrets は、values を伏せる Secrets を作る。同じ値は 1 つにまとめる。
+func NewSecrets(values []string) *Secrets {
+	unique := map[string]struct{}{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		// 印そのものに含まれる値は、伏せた後の印を崩すので使わない。
+		if len(value) < MinSecretLength || strings.Contains(strings.ToLower(SecretMark), strings.ToLower(value)) {
+			continue
+		}
+		unique[strings.ToLower(value)] = struct{}{}
+	}
+	sorted := make([]string, 0, len(unique))
+	for value := range unique {
+		sorted = append(sorted, value)
+	}
+	slices.SortFunc(sorted, func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), strings.Compare(a, b))
+	})
+	patterns := make([]*regexp.Regexp, 0, len(sorted))
+	for _, value := range sorted {
+		patterns = append(patterns, regexp.MustCompile("(?i)"+regexp.QuoteMeta(value)))
+	}
+
+	return &Secrets{patterns: patterns}
+}
+
+// Len は、伏せる値の数を返す。
+func (s *Secrets) Len() int {
+	return len(s.patterns)
+}
+
+// Apply は、text の中の秘密の値を SecretMark にする。
+func (s *Secrets) Apply(text string) string {
+	for _, pattern := range s.patterns {
+		text = pattern.ReplaceAllLiteralString(text, SecretMark)
+	}
+
+	return text
+}
+
+// URLSecrets は、URL の文字列 raw のうち、秘密として伏せる部分を返す。
+// 資格情報 (ユーザー:パスワード) は、そのままの形と、パーセントエンコードを解いた形の両方を返す。
+// whole なら、URL の全体も返す (Webhook の URL のように、URL そのものが秘密になるもの)。
+func URLSecrets(raw string, whole bool) []string {
+	secrets := []string{}
+	if raw == "" {
+		return secrets
+	}
+	if whole {
+		secrets = append(secrets, raw)
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return secrets
+	}
+	if userinfo, _, ok := strings.Cut(strings.TrimPrefix(raw, u.Scheme+"://"), "@"); ok {
+		secrets = append(secrets, userinfo)
+	}
+	if password, ok := u.User.Password(); ok {
+		secrets = append(secrets, password, url.QueryEscape(password), url.PathEscape(password))
+	}
+
+	return secrets
+}
+
+// HeaderSecrets は、「名前=値」をカンマでつないだヘッダーの値 (OTEL_EXPORTER_OTLP_HEADERS の形) から、値を返す。
+// 名前と値をつないだものも、全体も返す。
+func HeaderSecrets(headers string) []string {
+	secrets := []string{}
+	if headers == "" {
+		return secrets
+	}
+	secrets = append(secrets, headers)
+	for pair := range strings.SplitSeq(headers, ",") {
+		_, value, ok := strings.Cut(pair, "=")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		secrets = append(secrets, strings.TrimSpace(pair), value)
+		if decoded, err := url.QueryUnescape(value); err == nil {
+			secrets = append(secrets, decoded)
+		}
+	}
+
+	return secrets
+}

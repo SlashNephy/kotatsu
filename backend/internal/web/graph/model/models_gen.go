@@ -912,6 +912,44 @@ type LiveStreamScrambled struct {
 	DecidedAt time.Time `json:"decidedAt"`
 }
 
+// ログの 1 行。秘密の値は、サーバーが知っているものを伏せてある (1 段目)。
+type LogLine struct {
+	// epoch ミリ秒の時刻。
+	Time  int64    `json:"time"`
+	Level LogLevel `json:"level"`
+	// 重さを本文の言葉から推し量ったかどうか。推し量った重さは、絞り込みと報告に入れる順にだけ使う。
+	Inferred bool   `json:"inferred"`
+	Text     string `json:"text"`
+}
+
+// 直近のログと、不具合の報告に要るもの (#1521、設計書 11.3)。
+type LogReport struct {
+	Sources []*LogSource `json:"sources"`
+	// 不具合の報告を作るときに、ブラウザで伏せるホスト名 (2 段目)。リクエストが来たホスト名と、チューナーサーバーと DB のホスト名。
+	RedactHosts []string `json:"redactHosts"`
+	// このリクエストに答えたインスタンスの ID。
+	InstanceID string `json:"instanceId"`
+	// このプロセスが動かしているロール。tenban だけなら、ロールを分けた構成で、ほかのロールのログは出せない。
+	Roles []string `json:"roles"`
+}
+
+// 1 つの出どころのログと環境。
+type LogSource struct {
+	Kind LogSourceKind `json:"kind"`
+	// 古い順の行。
+	Lines []*LogLine `json:"lines"`
+	// 出どころが持っていた行の数。lines は、このうち最後の保持行数まで。
+	Total int `json:"total"`
+	// ログを取れなかった理由。取れたら null。
+	Failure *LogSourceFailure `json:"failure,omitempty"`
+	// 版。分からなければ空。
+	Version string `json:"version"`
+	Os      string `json:"os"`
+	Arch    string `json:"arch"`
+	// Kotatsu では Go の版、チューナーサーバーではサーバーの種類 (分かるときだけ)。
+	Runtime string `json:"runtime"`
+}
+
 // セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 type MissingRecording struct {
 	Recording *Recording `json:"recording"`
@@ -2831,6 +2869,183 @@ func (e *KeywordMuteMatch) UnmarshalJSON(b []byte) error {
 }
 
 func (e KeywordMuteMatch) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ログの行の重さ。debug は INFO として扱う。
+type LogLevel string
+
+const (
+	LogLevelInfo  LogLevel = "INFO"
+	LogLevelWarn  LogLevel = "WARN"
+	LogLevelError LogLevel = "ERROR"
+)
+
+var AllLogLevel = []LogLevel{
+	LogLevelInfo,
+	LogLevelWarn,
+	LogLevelError,
+}
+
+func (e LogLevel) IsValid() bool {
+	switch e {
+	case LogLevelInfo, LogLevelWarn, LogLevelError:
+		return true
+	}
+	return false
+}
+
+func (e LogLevel) String() string {
+	return string(e)
+}
+
+func (e *LogLevel) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LogLevel(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LogLevel", str)
+	}
+	return nil
+}
+
+func (e LogLevel) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LogLevel) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LogLevel) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ログを取れなかった理由。ホスト名や URL を含めないよう、決まった語だけにする。
+type LogSourceFailure string
+
+const (
+	LogSourceFailureTimeout     LogSourceFailure = "TIMEOUT"
+	LogSourceFailureUnreachable LogSourceFailure = "UNREACHABLE"
+	// チューナーサーバーがログの API を持たない (mirakc など)。
+	LogSourceFailureUnsupported LogSourceFailure = "UNSUPPORTED"
+	LogSourceFailureHTTPError   LogSourceFailure = "HTTP_ERROR"
+)
+
+var AllLogSourceFailure = []LogSourceFailure{
+	LogSourceFailureTimeout,
+	LogSourceFailureUnreachable,
+	LogSourceFailureUnsupported,
+	LogSourceFailureHTTPError,
+}
+
+func (e LogSourceFailure) IsValid() bool {
+	switch e {
+	case LogSourceFailureTimeout, LogSourceFailureUnreachable, LogSourceFailureUnsupported, LogSourceFailureHTTPError:
+		return true
+	}
+	return false
+}
+
+func (e LogSourceFailure) String() string {
+	return string(e)
+}
+
+func (e *LogSourceFailure) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LogSourceFailure(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LogSourceFailure", str)
+	}
+	return nil
+}
+
+func (e LogSourceFailure) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LogSourceFailure) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LogSourceFailure) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// ログの出どころ (#1521)。
+type LogSourceKind string
+
+const (
+	// このリクエストに答えた Kotatsu のプロセス。
+	LogSourceKindKotatsu LogSourceKind = "KOTATSU"
+	// チューナーサーバー (/api/log)。
+	LogSourceKindTunerServer LogSourceKind = "TUNER_SERVER"
+)
+
+var AllLogSourceKind = []LogSourceKind{
+	LogSourceKindKotatsu,
+	LogSourceKindTunerServer,
+}
+
+func (e LogSourceKind) IsValid() bool {
+	switch e {
+	case LogSourceKindKotatsu, LogSourceKindTunerServer:
+		return true
+	}
+	return false
+}
+
+func (e LogSourceKind) String() string {
+	return string(e)
+}
+
+func (e *LogSourceKind) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = LogSourceKind(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid LogSourceKind", str)
+	}
+	return nil
+}
+
+func (e LogSourceKind) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *LogSourceKind) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e LogSourceKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -23,6 +23,7 @@ import { Route as AdminAuditRouteImport } from './routes/admin/audit'
 import { Route as AdminCaptionsRouteImport } from './routes/admin/captions'
 import { Route as AdminIntegrationsRouteImport } from './routes/admin/integrations'
 import { Route as AdminJobsRouteImport } from './routes/admin/jobs'
+import { Route as AdminLogsRouteImport } from './routes/admin/logs'
 import { Route as AdminRecordingRouteImport } from './routes/admin/recording'
 import { Route as AdminRetentionRouteImport } from './routes/admin/retention'
 import { Route as AdminServicesRouteImport } from './routes/admin/services'
@@ -124,6 +125,11 @@ const AdminIntegrationsRoute = AdminIntegrationsRouteImport.update({
 const AdminJobsRoute = AdminJobsRouteImport.update({
   id: '/admin/jobs',
   path: '/admin/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLogsRoute = AdminLogsRouteImport.update({
+  id: '/admin/logs',
+  path: '/admin/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRecordingRoute = AdminRecordingRouteImport.update({
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/admin/captions': typeof AdminCaptionsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/jobs': typeof AdminJobsRoute
+  '/admin/logs': typeof AdminLogsRoute
   '/admin/recording': typeof AdminRecordingRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/services': typeof AdminServicesRoute
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/admin/captions': typeof AdminCaptionsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/jobs': typeof AdminJobsRoute
+  '/admin/logs': typeof AdminLogsRoute
   '/admin/recording': typeof AdminRecordingRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/services': typeof AdminServicesRoute
@@ -400,6 +408,7 @@ export interface FileRoutesById {
   '/admin/captions': typeof AdminCaptionsRoute
   '/admin/integrations': typeof AdminIntegrationsRoute
   '/admin/jobs': typeof AdminJobsRoute
+  '/admin/logs': typeof AdminLogsRoute
   '/admin/recording': typeof AdminRecordingRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/services': typeof AdminServicesRoute
@@ -450,6 +459,7 @@ export interface FileRouteTypes {
     | '/admin/captions'
     | '/admin/integrations'
     | '/admin/jobs'
+    | '/admin/logs'
     | '/admin/recording'
     | '/admin/retention'
     | '/admin/services'
@@ -498,6 +508,7 @@ export interface FileRouteTypes {
     | '/admin/captions'
     | '/admin/integrations'
     | '/admin/jobs'
+    | '/admin/logs'
     | '/admin/recording'
     | '/admin/retention'
     | '/admin/services'
@@ -546,6 +557,7 @@ export interface FileRouteTypes {
     | '/admin/captions'
     | '/admin/integrations'
     | '/admin/jobs'
+    | '/admin/logs'
     | '/admin/recording'
     | '/admin/retention'
     | '/admin/services'
@@ -595,6 +607,7 @@ export interface RootRouteChildren {
   AdminCaptionsRoute: typeof AdminCaptionsRoute
   AdminIntegrationsRoute: typeof AdminIntegrationsRoute
   AdminJobsRoute: typeof AdminJobsRoute
+  AdminLogsRoute: typeof AdminLogsRoute
   AdminRecordingRoute: typeof AdminRecordingRoute
   AdminRetentionRoute: typeof AdminRetentionRoute
   AdminServicesRoute: typeof AdminServicesRoute
@@ -727,6 +740,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/jobs'
       fullPath: '/admin/jobs'
       preLoaderRoute: typeof AdminJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/logs': {
+      id: '/admin/logs'
+      path: '/admin/logs'
+      fullPath: '/admin/logs'
+      preLoaderRoute: typeof AdminLogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/recording': {
@@ -971,6 +991,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminCaptionsRoute: AdminCaptionsRoute,
   AdminIntegrationsRoute: AdminIntegrationsRoute,
   AdminJobsRoute: AdminJobsRoute,
+  AdminLogsRoute: AdminLogsRoute,
   AdminRecordingRoute: AdminRecordingRoute,
   AdminRetentionRoute: AdminRetentionRoute,
   AdminServicesRoute: AdminServicesRoute,

@@ -271,3 +271,21 @@ func TestSubscribe(t *testing.T) {
 		assert.True(t, deleted)
 	})
 }
+
+// TestLogSecrets は、ログの報告から伏せる値として、全ユーザーの購読の送り先と認証用の秘密を返すことを確かめる (#1521)。
+func TestLogSecrets(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	first := newBrowser(t).subscription("https://push.example/send/first")
+	second := newBrowser(t).subscription("https://push.example/send/second")
+	require.NoError(t, f.service.Subscribe(t.Context(), f.pool, f.user(t, "mikan"), first))
+	require.NoError(t, f.service.Subscribe(t.Context(), f.pool, f.user(t, "yuzu"), second))
+
+	secrets, err := f.service.LogSecrets(t.Context(), f.pool)
+	require.NoError(t, err)
+	for _, subscription := range []*webpush.Subscription{first, second} {
+		assert.Contains(t, secrets, subscription.Endpoint)
+		assert.Contains(t, secrets, base64.RawURLEncoding.EncodeToString(subscription.Auth))
+	}
+}

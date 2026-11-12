@@ -1893,6 +1893,51 @@
         "webhook_deliver": "Deliver webhook"
       }
     },
+    "logs": {
+      "title": "Logs",
+      "summary": "Read recent logs and prepare a bug report with secrets and your home network hidden",
+      "description": "Recent logs kept in this process's memory, and the tuner server's logs. They are lost on restart. The server sends them nowhere.",
+      "refresh": "Reload",
+      "reportIssue": "Report an issue",
+      "environment": "Environment",
+      "lines": "Logs",
+      "sourceKotatsu": "Kotatsu ({{instance}})",
+      "sourceTunerServer": "Tuner server",
+      "tunerShort": "Tuner",
+      "sourceCount": "{{name}} {{count}} / {{total}} lines",
+      "problemsOnly": "Warnings and errors only",
+      "search": "Search logs",
+      "empty": "No lines to show",
+      "showing": "Showing {{shown}} of {{count}} lines",
+      "more": "Show more",
+      "levelWarn": "Warning",
+      "levelError": "Error",
+      "inferred": "The level was guessed from the words in the line",
+      "failed": "Could not get the logs of {{name}}: {{reason}}",
+      "failures": {
+        "TIMEOUT": "No answer in time",
+        "UNREACHABLE": "Could not connect",
+        "UNSUPPORTED": "It has no log API",
+        "HTTP_ERROR": "It returned an error"
+      },
+      "splitTitle": "This page shows only the logs of the tenban that answered ({{instance}})",
+      "splitBody": "With roles split, each process keeps its own logs. This page shows only the logs of {{roles}}. Collect the logs of {{others}} with kubectl logs as below, and paste them into the report.",
+      "issue": {
+        "title": "Bug report",
+        "description": "Secrets, IP addresses, host names and the like are hidden. Check the contents before opening, and edit or delete anything you do not need. \"Open on GitHub\" only opens the issue form in this browser. Describe what happened and how to reproduce it on GitHub.",
+        "fieldTitle": "Title",
+        "fieldVersion": "Version",
+        "fieldEnvironment": "Environment",
+        "fieldLogs": "Logs",
+        "length": "URL length: {{length}} / {{limit}}",
+        "trimmed": "To fit the URL limit, {{count}} of the oldest log lines will be left out.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "download": "Download",
+        "cancel": "Cancel",
+        "open": "Open on GitHub"
+      }
+    },
     "settings": {
       "recordingDefaults": "Recording setting defaults",
       "recordingDefaultsNote": "Used for items not overridden by a rule or reservation",

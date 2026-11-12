@@ -27,6 +27,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
@@ -128,6 +129,8 @@ type Options struct {
 	Updates Updates
 	// Drain は、tenban を止める前に、視聴者につなぎ直してもらう知らせ (#1085)。nil なら、知らせない。
 	Drain Drain
+	// Logs は、直近のログを集める (#1521)。nil なら、logReport は失敗する。
+	Logs *logreport.Service
 }
 
 // Drain は、tenban を止める前の知らせを始めたら閉じるチャネルを返す。*streamapi.Drainer が満たす。
@@ -228,6 +231,7 @@ func NewHandler(opts *Options) http.Handler {
 		captures:         capture.New(kago.New(o.Pools, o.FreeSpace).WithDataDir(o.DataDir), o.Clock, o.Logger, 0),
 		updates:          o.Updates,
 		drain:            o.Drain,
+		logs:             o.Logs,
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace
