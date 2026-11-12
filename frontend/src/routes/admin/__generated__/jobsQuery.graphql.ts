@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<44d7b5075bd932241292a342b4173f33>>
+ * @generated SignedSource<<7429cafd903ec1c19ae8345ebe26fc34>>
  * @lightSyntaxTransform
  */
 
@@ -32,6 +32,10 @@ export type jobsQuery$data = {
       readonly id: string;
       readonly kind: string;
       readonly maxAttempts: number;
+      readonly progress: {
+        readonly ratio: number;
+        readonly remainingSeconds: number | null | undefined;
+      } | null | undefined;
       readonly queue: string;
       readonly recording: {
         readonly id: string;
@@ -234,6 +238,31 @@ v4 = [
               }
             ],
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "JobProgress",
+            "kind": "LinkedField",
+            "name": "progress",
+            "plural": false,
+            "selections": [
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "ratio",
+                "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "remainingSeconds",
+                "storageKey": null
+              }
+            ],
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -260,16 +289,16 @@ return {
     "selections": (v4/*:: as any*/)
   },
   "params": {
-    "cacheID": "40723d4185df07f6d4a81eec3ba41f3e",
+    "cacheID": "2a6bc710e1542232b96cf84e1d2884c1",
     "id": null,
     "metadata": {},
     "name": "jobsQuery",
     "operationKind": "query",
-    "text": "query jobsQuery(\n  $state: JobState!\n) {\n  jobCounts {\n    state\n    count\n  }\n  jobs(state: $state, first: 100) {\n    nodes {\n      id\n      kind\n      state\n      queue\n      attempt\n      maxAttempts\n      createdAt\n      scheduledAt\n      attemptedAt\n      finalizedAt\n      retryable\n      cancellable\n      errors {\n        at\n        attempt\n        message\n      }\n      recording {\n        id\n        name\n      }\n    }\n  }\n}\n"
+    "text": "query jobsQuery(\n  $state: JobState!\n) {\n  jobCounts {\n    state\n    count\n  }\n  jobs(state: $state, first: 100) {\n    nodes {\n      id\n      kind\n      state\n      queue\n      attempt\n      maxAttempts\n      createdAt\n      scheduledAt\n      attemptedAt\n      finalizedAt\n      retryable\n      cancellable\n      errors {\n        at\n        attempt\n        message\n      }\n      recording {\n        id\n        name\n      }\n      progress {\n        ratio\n        remainingSeconds\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "a11ff0dd089f3ecff9055cd9a92aef29";
+(node as any).hash = "bc77319f39683dead8b4632d571c0030";
 
 export default node;

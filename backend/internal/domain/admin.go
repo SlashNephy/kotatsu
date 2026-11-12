@@ -96,3 +96,13 @@ type Tuner struct {
 	IsRemote    bool
 	IsFault     bool
 }
+
+// JobProgress は、動いている録画の後処理のジョブの進み具合 (#1511)。
+type JobProgress struct {
+	JobID   int64
+	Attempt int32
+	Ratio   float64
+	// RemainingMs は、残り時間 (ミリ秒)。nil なら不明。
+	RemainingMs *int64
+	UpdatedAt   time.Time
+}

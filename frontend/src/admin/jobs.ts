@@ -47,3 +47,26 @@ const kindKeys = {
 export function jobKindLabel(t: TFunction, kind: string): string {
   return kind in kindKeys ? t(kindKeys[kind as keyof typeof kindKeys]) : kind;
 }
+
+// progressPercent は、ジョブの進み具合の割合 (0 から 1) を、百分率の整数にする (#1511)。
+// 切り捨てて、書き終える前に 100% と出さない。
+export function progressPercent(ratio: number): number {
+  return Math.min(100, Math.max(0, Math.floor(ratio * 100)));
+}
+
+// remainingLabel は、ジョブの残り時間 (秒) を、画面に出す文にする (#1511)。null なら、まだ計算しているところとする。
+// 分は切り上げ、1 時間を超えたら時間と分に分ける。
+export function remainingLabel(t: TFunction, seconds: number | null | undefined): string {
+  if (seconds == null) {
+    return t('admin.jobs.remainingUnknown');
+  }
+  if (seconds < 60) {
+    return t('admin.jobs.remainingUnderMinute');
+  }
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) {
+    return t('admin.jobs.remainingMinutes', { minutes });
+  }
+
+  return t('admin.jobs.remainingHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
+}

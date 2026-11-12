@@ -3,10 +3,12 @@ package transcode_test
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 )
@@ -46,9 +49,45 @@ func encodeMP4(t *testing.T, src, dir string) string {
 	require.NoError(t, err)
 	defer in.Close()
 	out := filepath.Join(dir, "test.360p.mp4")
-	require.NoError(t, encoder.Encode(t.Context(), in, preset, out))
+	require.NoError(t, encoder.Encode(t.Context(), in, preset, out, io.Discard))
 
 	return out
+}
+
+// TestFFmpegEncoderProgress は、本物の FFmpeg が、変換しながら -progress のまとまりを出し、最後のまとまりが progress=end で、
+// そのコマ数が MP4 のコマ数と同じであることを確かめる (#1511)。進み具合の分子に使う。
+func TestFFmpegEncoderProgress(t *testing.T) {
+	t.Parallel()
+
+	newChapterer(t)
+	encoder, err := transcode.NewFFmpegEncoder(&config.Kyusu{Encoder: "", VAAPIDevice: "", WorkDir: ""}, nil)
+	require.NoError(t, err)
+	preset, ok := kyusu.PresetByName("360p")
+	require.True(t, ok)
+	in, err := os.Open(testTS)
+	require.NoError(t, err)
+	defer in.Close()
+	blocks := []ffprogress.Block{}
+	parser := ffprogress.NewParser(func(b *ffprogress.Block) { blocks = append(blocks, *b) }, nil)
+	out := filepath.Join(t.TempDir(), "test.360p.mp4")
+	require.NoError(t, encoder.Encode(t.Context(), in, preset, out, parser))
+	require.NotEmpty(t, blocks)
+	last := blocks[len(blocks)-1]
+	assert.True(t, last.End)
+	for _, b := range blocks[:len(blocks)-1] {
+		assert.False(t, b.End)
+	}
+
+	cmd := exec.CommandContext(t.Context(), "ffprobe", "-v", "error", "-select_streams", "v:0", "-count_frames",
+		"-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", out)
+	frames, err := cmd.Output()
+	require.NoError(t, err)
+	assert.Equal(t, strings.TrimSpace(string(frames)), strconv.FormatInt(last.Frame, 10))
+
+	// フレームレートは、TS のファイルから読む。
+	rate, err := encoder.ProbeFrameRate(t.Context(), testTS)
+	require.NoError(t, err)
+	assert.InDelta(t, 30000.0/1001, rate, 0.01)
 }
 
 // probed は、ffprobe が報告する MP4 のストリームとチャプター。

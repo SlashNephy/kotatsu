@@ -2,14 +2,17 @@ package transcode
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 	"uuid"
 
@@ -23,8 +26,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/jobprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
@@ -151,6 +157,9 @@ type Worker struct {
 	clock    clock.Clock
 	source   *stream.RecordingSource
 	inserter Inserter
+	logger   *slog.Logger
+	// progress は、進み具合の割合と残り時間の決め方。
+	progress *ffprogress.Config
 	// newEncoder は、変換に使う Encoder を作る。テストでは差し替える。
 	newEncoder func() (Encoder, error)
 }
@@ -158,11 +167,12 @@ type Worker struct {
 var _ river.Worker[Args] = new(Worker)
 
 // NewWorker は Worker を返す。store は、このインスタンスにマウントされたプール。
-// inserter は、変換し終えたときに、チャプターを書くジョブ (ChaptersArgs) を投入する。
-func NewWorker(db Database, store *kago.Store, clk clock.Clock, inserter Inserter, newEncoder func() (Encoder, error)) *Worker {
+// inserter は、変換し終えたときに、チャプターを書くジョブ (ChaptersArgs) を投入する。logger には、変換の進み具合を出す。
+func NewWorker(db Database, store *kago.Store, clk clock.Clock, inserter Inserter, logger *slog.Logger, newEncoder func() (Encoder, error)) *Worker {
 	return &Worker{
 		WorkerDefaults: river.WorkerDefaults[Args]{}, db: db, store: store, clock: clk,
-		source: stream.NewRecordingSource(db, store, 0), inserter: inserter, newEncoder: newEncoder,
+		source: stream.NewRecordingSource(db, store, 0), inserter: inserter, logger: logger,
+		progress: ffprogress.DefaultConfig(), newEncoder: newEncoder,
 	}
 }
 
@@ -186,7 +196,7 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 	}
 
 	return withRecordingLock(ctx, w.db, job.Args.RecordingID, func() error {
-		return w.work(ctx, encoder, job.Args.RecordingID, preset)
+		return w.work(ctx, encoder, job, preset)
 	})
 }
 
@@ -216,7 +226,8 @@ func withRecordingLock(ctx context.Context, db Database, recordingID uuid.UUID, 
 	return fn()
 }
 
-func (w *Worker) work(ctx context.Context, encoder Encoder, recordingID uuid.UUID, preset *kyusu.Preset) error {
+func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args], preset *kyusu.Preset) error {
+	recordingID := job.Args.RecordingID
 	q := sqlc.New(w.db)
 	recording, err := q.GetRecording(ctx, recordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -258,7 +269,8 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, recordingID uuid.UUI
 	partial := partialFile.Name()
 	_ = partialFile.Close()
 	defer func() { _ = os.Remove(partial) }()
-	if err := w.encode(ctx, encoder, opened, preset, partial); err != nil {
+	est := w.estimate(ctx, encoder, opened, &files[first])
+	if err := w.encode(ctx, encoder, opened, preset, partial, w.reporter(ctx, job, recordingID, est)); err != nil {
 		return err
 	}
 	created, err := place(partial, out, ours)
@@ -308,8 +320,66 @@ func (w *Worker) enqueueChapters(ctx context.Context, tx pgx.Tx, recordingID uui
 	return insertChapters(ctx, w.inserter, tx, recordingID)
 }
 
-// encode は、録画を始まりから流し、encoder で out に書く。
-func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.Recording, preset *kyusu.Preset, out string) error {
+// estimate は、変換の進み具合の分母を求める (#1511)。見込みのコマ数は、最初の I フレームから流した再生の時間に、
+// 最初のセグメントの映像のフレームレートを掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を捨てた分) は含めない。
+// インターレースの映像も、bwdif の send_frame (FFmpegArgs) で 1 コマから 1 コマを作るので、倍にしない
+// (選べる画質は 30fps だけ。60fps で出す画質を足すなら、フィールド単位で出すので 2 倍にする)。
+// 見込みのコマ数が出せなければ、入力の大きさで割る。
+func (w *Worker) estimate(ctx context.Context, encoder Encoder, recording *stream.Recording, first *sqlc.RecordingFile) ffprogress.Estimate {
+	est := ffprogress.Estimate{Frames: 0, Bytes: 0}
+	if content, err := recording.Content(); err == nil {
+		est.Bytes = content.Size()
+		_ = content.Close()
+	}
+	duration, ok := recording.Duration()
+	if !ok {
+		return est
+	}
+	var format ts.VideoFormat
+	if len(first.Video) > 0 {
+		_ = json.Unmarshal(first.Video, &format)
+	}
+	rate := format.FrameRate
+	if rate <= 0 {
+		// HEVC は、映像の形式にフレームレートを読んでいない (0) ので、ffprobe で補う。
+		if path, err := w.store.Path(first.PoolID, first.Path); err == nil {
+			if rate, err = encoder.ProbeFrameRate(ctx, path); err != nil {
+				w.logger.WarnContext(ctx, "failed to probe the frame rate; the progress uses the read position", slog.Any("error", err))
+			}
+		}
+	}
+	est.Frames = duration.Seconds() * max(rate, 0)
+
+	return est
+}
+
+// reporter は、ジョブ job の進み具合を DB に書き戻す ffprogress.Reporter を作る関数を返す。
+func (w *Worker) reporter(ctx context.Context, job *river.Job[Args], recordingID uuid.UUID, est ffprogress.Estimate) func(read func() int64) *ffprogress.Reporter {
+	logger := w.logger.With(slog.Int64("job_id", job.ID), slog.String("recording_id", recordingID.String()))
+	save := jobprogress.Saver(ctx, w.db, w.clock, logger, job.ID, job.Attempt)
+
+	return func(read func() int64) *ffprogress.Reporter {
+		return ffprogress.NewReporter(w.progress, est, w.clock, read, save, logger)
+	}
+}
+
+// countingReader は、読んだバイト数を数える。FFmpeg に流した入力の読み位置を、進み具合の見込みが出せないときに使う。
+type countingReader struct {
+	r io.Reader
+	n atomic.Int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n.Add(int64(n))
+
+	return n, err
+}
+
+// encode は、録画を始まりから流し、encoder で out に書く。FFmpeg の -progress の出力を、newReporter の Reporter で書き戻す。
+func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.Recording, preset *kyusu.Preset, out string,
+	newReporter func(read func() int64) *ffprogress.Reporter,
+) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	reader, writer := io.Pipe()
@@ -319,7 +389,13 @@ func (w *Worker) encode(ctx context.Context, encoder Encoder, recording *stream.
 		_ = writer.CloseWithError(err)
 		written <- err
 	}()
-	err := encoder.Encode(ctx, reader, preset, out)
+	src := &countingReader{r: reader, n: atomic.Int64{}}
+	reporter := newReporter(src.n.Load)
+	parser := ffprogress.NewParser(func(b *ffprogress.Block) { reporter.Observe(ctx, b) }, nil)
+	err := encoder.Encode(ctx, src, preset, out, parser)
+	// FFmpeg が終わったら、間を空けずに書き戻す。止めた後も、止める前の値のまま書く。
+	parser.Flush()
+	reporter.Finish(ctx)
 	_ = reader.Close()
 	cancel()
 	writeErr := <-written

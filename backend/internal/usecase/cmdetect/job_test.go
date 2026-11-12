@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -185,6 +186,67 @@ func TestDetectWorker(t *testing.T) {
 	var detections int
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_cm_detections WHERE recording_id = $1", recordingID).Scan(&detections))
 	assert.Equal(t, 1, detections)
+}
+
+// progressDetector は、ファイルの名前ごとに決めた -progress のまとまりを、読んだバイト数と一緒に渡す Detector。区間は見つけない。
+type progressDetector struct {
+	// blocks は、ファイルの名前ごとの、渡すまとまり。read は、そのファイルから読んだバイト数。
+	blocks map[string][]progressBlock
+}
+
+type progressBlock struct {
+	read int64
+	end  bool
+}
+
+var _ cmdetect.Detector = new(progressDetector)
+
+func (*progressDetector) Name() string { return "fake" }
+
+func (*progressDetector) Version() int32 { return 3 }
+
+func (d *progressDetector) Detect(_ context.Context, input *cmdetect.Input) ([]cmdetect.Section, error) {
+	for _, b := range d.blocks[filepath.Base(input.Path)] {
+		input.Progress(&ffprogress.Block{Frame: 1, TotalSize: -1, DropFrames: -1, Bitrate: "", Speed: "", End: b.end}, b.read)
+	}
+
+	return []cmdetect.Section{}, nil
+}
+
+// TestDetectWorkerProgress は、セグメントを順に見分ける進み具合を、読んだバイト数をセグメントの大きさの合計で割って書き、
+// 最後のセグメントの FFmpeg が書き終えたときだけ 1 にすることを確かめる (#1511)。セグメントは、どれも 2 バイト。
+func TestDetectWorkerProgress(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		blocks map[string][]progressBlock
+		want   float64
+	}{
+		{
+			// 1 つ目のセグメントの progress=end では、終わりとみなさない。
+			name:   "end of the first segment",
+			blocks: map[string][]progressBlock{segmentA: {{read: 1}, {read: 2, end: true}}, segmentB: {{read: 1}}},
+			want:   0.75,
+		},
+		{
+			name:   "end of the last segment",
+			blocks: map[string][]progressBlock{segmentA: {{read: 2, end: true}}, segmentB: {{read: 1}, {read: 2, end: true}}},
+			want:   1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: 0}, segmentAt{name: segmentB, start: 20 * time.Minute})
+			require.NoError(t, f.detect(t, &progressDetector{blocks: tt.blocks}, recordingID))
+			var ratio float64
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT ratio FROM job_progress WHERE job_id = 0").Scan(&ratio))
+			assert.InDelta(t, tt.want, ratio, 1e-9)
+		})
+	}
 }
 
 // recordingHook は、見分け終えたことを受け取り、そのトランザクションから見えた区間の数を覚える DetectedHook。
