@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 import defaultTable from '../../vendor/libaribcaption/drcs.json';
+import { smoothDRCS, type DRCSShape } from './drcsSmooth';
 import { md5 } from './md5';
 
 // 字幕の外字 (DRCS) を文字に置き換える表と、置き換えられなかった外字の一覧 (#825、設計書 7.4)。
@@ -90,7 +91,131 @@ export function setDRCSReplacements(rows: readonly { md5: string; text: string }
   for (const { md5: key, text } of rows) {
     drcsReplacements.set(key.toLowerCase(), text);
   }
+  // 登録した外字は文字で描くので、私用領域の割り当てを外す。
+  for (const key of privateUse.keys()) {
+    if (drcsReplacements.has(key)) {
+      privateUse.delete(key);
+    }
+  }
   notify();
+}
+
+// 置き換えられない外字は、なめらかにした形で描く (#1518)。aribb24.js の canvas の描画器は、外字を文字に置き換えた後、
+// 文字を path に置き換える表 (replace.glyph) を引いてから描くので、外字に私用領域の 1 文字を割り当て、その文字の path を登録する。
+// 割り当ては、drcsReplacements に足さず、映像に重ねる描画器にだけ渡す。字幕の文 (TextRenderer) では「〓」のままにし、
+// 置き換えられなかった外字の一覧にも残すためである。
+
+// GlyphPath は、aribb24.js の replace.glyph に登録する形。viewBox の広さが、字の枠 (fontsize) に縮めて描かれる。
+type GlyphPath = { viewBox: [number, number, number, number]; path: string };
+
+// privateUseFirst と privateUseLast は、割り当てる私用領域の範囲。
+// aribb24.js は、usePUA を付けると ARIB の追加記号を U+E0D8〜U+E39C に置くので、そこを避けて U+E400 から使う。
+const privateUseFirst = 0xe400;
+const privateUseLast = 0xf8ff;
+// maxSmoothed は、なめらかにした結果を覚えておく件数の上限。溢れたら、割り当てと登録した path ごと捨てて作り直す。
+// 1 つの番組に出る置き換えられない外字は、多くても数十種類なので、番組をまたいでも作り直しはまれである。
+// path は 1 件あたり数 KB なので、上限まで溜まっても 1 MB ほどに収まる。
+const maxSmoothed = 256;
+
+// smoothed は、なめらかにした結果。鍵は、元の画像の MD5、幅と高さ、1 画素のビット数の組。MD5 は画素の並びしか見ないので、大きさも含める。
+// 読めない画像は null を覚え、手を加えずに描く。
+const smoothed = new Map<string, DRCSShape | null>();
+// privateUse は、外字の画像の MD5 から、割り当てた私用領域の文字への表。
+const privateUse = new Map<string, string>();
+let nextPrivateUse = privateUseFirst;
+
+// drcsGlyphs は、私用領域の文字から、なめらかにした外字の path への表。映像に重ねる描画器の replace.glyph に渡す。
+export const drcsGlyphs = new Map<string, GlyphPath>();
+
+// RenderReplacements は、drcsReplacements と私用領域の割り当ての両方を引く表。aribb24.js は get だけを引くので、
+// get と has だけを重ねる。中身を並べる操作 (size や反復) は、空の表として振る舞う。
+class RenderReplacements extends Map<string, string> {
+  override get(key: string): string | undefined {
+    return drcsReplacements.get(key) ?? privateUse.get(key);
+  }
+
+  override has(key: string): boolean {
+    return drcsReplacements.has(key) || privateUse.has(key);
+  }
+}
+
+// drcsRenderReplacements は、映像に重ねる描画器に渡す外字の表。管理者の登録と既定の表を、割り当てより優先する。
+export const drcsRenderReplacements: Map<string, string> = new RenderReplacements();
+
+function forgetSmoothed() {
+  smoothed.clear();
+  privateUse.clear();
+  drcsGlyphs.clear();
+  nextPrivateUse = privateUseFirst;
+}
+
+// prepareDRCS は、描画器が描く直前に呼び、置き換えられない外字に私用領域の文字を割り当て、なめらかにした path を登録する。
+// fontsize は、描き始めの字の大きさ (aribb24.js の initialState の fontsize)。tokens は、描画器が受け取る部品の並び。
+// aribb24.js は、path を、元の画像の大きさではなく字の大きさに縮めて描くので、viewBox を広げて、元の外字と同じ大きさにする。
+export function prepareDRCS(fontsize: readonly [number, number], tokens: readonly unknown[]) {
+  // 描いている途中で捨てると、その字幕の外字が引けなくなるので、捨てるのは描き始める前にする。
+  if (smoothed.size >= maxSmoothed || nextPrivateUse > privateUseLast) {
+    forgetSmoothed();
+  }
+  let size = fontsize;
+  for (const token of tokens) {
+    if (isCompositionToken(token)) {
+      // 字の大きさを変える指定 (SSM)。aribb24.js も、ここで字の大きさを変える。
+      size = [token.horizontal, token.vertical];
+      continue;
+    }
+    if (!isDRCSToken(token)) {
+      continue;
+    }
+    // 置き換え表は、元の画像の MD5 で引く。
+    const key = md5(token.binary);
+    if (drcsReplacements.has(key)) {
+      continue;
+    }
+    const cacheKey = `${key}:${token.width}x${token.height}:${token.depth}`;
+    let shape = smoothed.get(cacheKey);
+    if (shape === undefined) {
+      shape = smoothDRCS(token);
+      smoothed.set(cacheKey, shape);
+    }
+    if (shape === null) {
+      continue;
+    }
+    let character = privateUse.get(key);
+    if (character === undefined) {
+      if (nextPrivateUse > privateUseLast) {
+        continue;
+      }
+      character = String.fromCodePoint(nextPrivateUse++);
+      privateUse.set(key, character);
+    }
+    const glyph: GlyphPath = {
+      viewBox: [
+        0,
+        0,
+        (shape.width * size[0]) / token.width,
+        (shape.height * size[1]) / token.height,
+      ],
+      path: shape.path,
+    };
+    drcsGlyphs.set(character, glyph);
+    // 結合する文字 (combining) があると、aribb24.js は、それを足した文字列で path を引く。
+    // 外字の描画でも結合する文字は描かないので、同じ path を登録する。
+    const combining = (token as { combining?: unknown }).combining;
+    if (typeof combining === 'string' && combining !== '') {
+      drcsGlyphs.set(character + combining, glyph);
+    }
+  }
+}
+
+function isCompositionToken(
+  token: unknown,
+): token is { tag: 'CharacterCompositionDotDesignation'; horizontal: number; vertical: number } {
+  return (
+    typeof token === 'object' &&
+    token !== null &&
+    (token as { tag?: unknown }).tag === 'CharacterCompositionDotDesignation'
+  );
 }
 
 // recordDRCS は、字幕の部品のうち外字を、出たものとして覚える。表に無い外字は、管理者が登録できるよう一覧に出す。
@@ -191,5 +316,6 @@ export function drcsImage(glyph: DRCSGlyph, color: string): string {
 export function resetDRCSForTest() {
   seen.clear();
   restoreDefaults();
+  forgetSmoothed();
   notify();
 }
