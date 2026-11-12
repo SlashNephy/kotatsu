@@ -110,6 +110,7 @@ export function createRootValue(
         viewerSettingsVersion: null,
         unreadNotificationCount: null,
         streamsDraining: null,
+        liveStreamScrambled: null,
       });
     }
   };
@@ -253,6 +254,7 @@ export function createRootValue(
       viewerSettingsVersion,
       unreadNotificationCount: null,
       streamsDraining: null,
+      liveStreamScrambled: null,
     });
   };
 

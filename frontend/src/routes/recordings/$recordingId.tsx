@@ -50,6 +50,7 @@ import {
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
+import { ScrambleBadge } from '../../recordings/ScrambleBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
 import { recordingPosition } from '../../yunomi/position';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
@@ -100,6 +101,11 @@ const timeFormat = zonedFormat({
   minute: '2-digit',
   second: '2-digit',
   hourCycle: 'h23',
+});
+// percentFormat は、スクランブルされていたパケットの割合を、整数の百分率で書く (#1517)。
+const percentFormat = new Intl.NumberFormat(undefined, {
+  style: 'percent',
+  maximumFractionDigits: 0,
 });
 
 // RecordingPage は、録画の詳細の画面 (設計書 10.3)。保護、タグ付け、削除と、外部プレイヤーでの再生ができる。
@@ -172,6 +178,8 @@ function Recording({ recordingId }: { recordingId: string }) {
             drops
             errors
             scrambled
+            scrambleWarning
+            scrambledRatio
             streamQuality {
               pid
               kind
@@ -495,6 +503,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             </Text>
             {/* 完了は当たり前なので出さず、録画中や失敗のように目を留めたい状態だけを出す。 */}
             {recording.state !== 'COMPLETED' && <RecordingStateBadge state={recording.state} />}
+            {recording.scrambleWarning && <ScrambleBadge />}
             {recording.protected && (
               <Badge color="gray" variant="outline" leftSection={<Lock size={12} aria-hidden />}>
                 {t('recordings.protected')}
@@ -544,6 +553,16 @@ function Recording({ recordingId }: { recordingId: string }) {
                   </Stack>
                 )}
               </Stack>
+            </Alert>
+          )}
+          {/* スクランブルされたまま録れた録画は、失敗にしないので、理由と確かめることを警告で出す (#1517)。 */}
+          {recording.scrambleWarning && (
+            <Alert color="amber">
+              <Text size="sm">
+                {t('recordings.scrambleWarning', {
+                  percent: percentFormat.format(recording.scrambledRatio ?? 1),
+                })}
+              </Text>
             </Alert>
           )}
           {recording.description !== '' && (

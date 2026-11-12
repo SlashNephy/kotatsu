@@ -318,6 +318,11 @@ type Lease struct {
 	ExpiresAt  time.Time
 }
 
+type LiveScrambleVerdict struct {
+	ServiceID int64
+	DecidedAt time.Time
+}
+
 type LoginChallenge struct {
 	ID              uuid.UUID
 	TokenHash       []byte
@@ -541,6 +546,8 @@ type Recording struct {
 	Drops                 int64
 	Errors                int64
 	Scrambled             int64
+	ScrambledRatio        *float64
+	ScrambleWarning       bool
 	Gaps                  []byte
 	Audios                []byte
 	VideoResolution       *string
@@ -630,13 +637,14 @@ type RecordingFile struct {
 }
 
 type RecordingHistory struct {
-	ID        uuid.UUID
-	ServiceID int64
-	TitleKey  string
-	Name      string
-	StartAt   time.Time
-	EndAt     time.Time
-	CreatedAt time.Time
+	ID          uuid.UUID
+	ServiceID   int64
+	TitleKey    string
+	Name        string
+	StartAt     time.Time
+	EndAt       time.Time
+	CreatedAt   time.Time
+	RecordingID *uuid.UUID
 }
 
 type RecordingLiveStat struct {
@@ -713,6 +721,13 @@ type SchemaCompatibility struct {
 	ID               bool
 	MinBinaryVersion int64
 	UpdatedAt        time.Time
+}
+
+type ScrambleAlert struct {
+	ID          bool
+	Consecutive int64
+	NotifiedAt  *time.Time
+	UpdatedAt   time.Time
 }
 
 type Service struct {

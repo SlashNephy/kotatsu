@@ -904,6 +904,14 @@ type LiveStreamRates struct {
 	Scrambled int64 `json:"scrambled"`
 }
 
+// ライブのサービスが、スクランブルされたまま届くと決めたこと (設計書 7.1、#1517)。viewerEvents で届く。
+type LiveStreamScrambled struct {
+	// 決めたサービス。
+	Service string `json:"service"`
+	// 決めた日時。
+	DecidedAt time.Time `json:"decidedAt"`
+}
+
 // セグメントのファイルが見つからない録画 (設計書 5.6)。Kotatsu を通さずにファイルを消すと、録画の一覧に残り続けるので、探して DB から消す。
 type MissingRecording struct {
 	Recording *Recording `json:"recording"`
@@ -1901,6 +1909,10 @@ type ViewerEvent struct {
 	// この tenban が止まる前に、流しているストリームを、新しい接続を張ってから切り替えてほしいという知らせ (設計書 7.2、#1085)。
 	// 届くときは常に true。届いてから一定の時間 (20 秒) が過ぎると、この tenban は、残ったストリームを打ち切る。
 	StreamsDraining *bool `json:"streamsDraining,omitempty"`
+	// ライブのサービスが、スクランブルされたまま届くと決めたという知らせ (設計書 7.1、#1517)。購読を始めた後に決めたものだけを送る。
+	// 決めるのは、ブラウザ内での変換のストリームを中継する tenban と、kyusu で、決めたらストリームを閉じる。どの tenban や kyusu で決めても届く。
+	// ライブを流しているプレイヤーは、自分のサービスなら、つなぎ直すのをやめて、理由を出す。接続を増やさないよう、ここに載せる。
+	LiveStreamScrambled *LiveStreamScrambled `json:"liveStreamScrambled,omitempty"`
 }
 
 // 視聴予約の通知の設定。端末をまたいで同期する。
@@ -2965,6 +2977,8 @@ const (
 	NotificationKindAnimeRecorded NotificationKind = "ANIME_RECORDED"
 	// 見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
 	NotificationKindAnimeRecordFailed NotificationKind = "ANIME_RECORD_FAILED"
+	// スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。
+	NotificationKindScrambledRecordings NotificationKind = "SCRAMBLED_RECORDINGS"
 )
 
 var AllNotificationKind = []NotificationKind{
@@ -2977,11 +2991,12 @@ var AllNotificationKind = []NotificationKind{
 	NotificationKindWatchReminder,
 	NotificationKindAnimeRecorded,
 	NotificationKindAnimeRecordFailed,
+	NotificationKindScrambledRecordings,
 }
 
 func (e NotificationKind) IsValid() bool {
 	switch e {
-	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed:
+	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed, NotificationKindScrambledRecordings:
 		return true
 	}
 	return false

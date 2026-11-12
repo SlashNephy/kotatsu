@@ -20,6 +20,8 @@ enum NotificationKind {
   ANIME_RECORDED
   "見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。"
   ANIME_RECORD_FAILED
+  "スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。"
+  SCRAMBLED_RECORDINGS
 }
 
 """

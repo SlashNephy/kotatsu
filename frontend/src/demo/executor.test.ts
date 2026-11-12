@@ -279,6 +279,7 @@ describe('demo viewerEvents', () => {
       viewerSettingsVersion: null,
       unreadNotificationCount: null,
       streamsDraining: null,
+      liveStreamScrambled: null,
     });
 
     const { value } = await next;
@@ -289,6 +290,7 @@ describe('demo viewerEvents', () => {
           viewerSettingsVersion: null,
           unreadNotificationCount: null,
           streamsDraining: null,
+          liveStreamScrambled: null,
         },
       },
     });

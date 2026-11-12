@@ -11,6 +11,7 @@ import { framePosition, type FramePosition } from './previewFrame';
 import { usePreviewSlideshow } from './usePreviewSlideshow';
 import { watchProgress } from './watchProgress';
 import { RecordingStateBadge } from './RecordingStateBadge';
+import { ScrambleBadge } from './ScrambleBadge';
 import { recordingPosition, type Gap } from '../yunomi/position';
 import { zonedFormat } from '../futon';
 
@@ -36,6 +37,8 @@ export type RecordingCardData = {
   drops?: unknown;
   errors?: unknown;
   scrambled?: unknown;
+  // scrambleWarning は、スクランブルされたまま録れたという警告の印 (#1517)。
+  scrambleWarning?: boolean | null;
   // tags は、録画の一覧でだけ渡す。
   tags?: readonly { id: string; name: string }[];
 };
@@ -177,6 +180,7 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
               !(recording.state === 'COMPLETED_WITH_ERRORS' && damaged) && (
                 <RecordingStateBadge state={recording.state} size="xs" />
               )}
+            {recording.scrambleWarning === true && <ScrambleBadge size="xs" />}
           </Group>
         </Box>
         <Text size="xs" c="dimmed" mt="xs">

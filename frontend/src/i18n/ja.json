@@ -88,7 +88,8 @@
       "TUNER_SERVER_UNREACHABLE": "チューナーサーバーにつながらない",
       "WATCH_REMINDER": "視聴予約した番組が始まる",
       "ANIME_RECORDED": "見たアニメを記録した",
-      "ANIME_RECORD_FAILED": "見たアニメを記録できなかった"
+      "ANIME_RECORD_FAILED": "見たアニメを記録できなかった",
+      "SCRAMBLED_RECORDINGS": "スクランブルされたまま録れた録画が続いた"
     },
     "openExternal": "記録先で開く"
   },
@@ -1137,6 +1138,8 @@
     "tuners": "チューナー {{names}}",
     "gap": "{{from}} 〜 {{to}} が途切れています",
     "programLost": "録画中に、番組が番組表から消えました",
+    "scrambled": "スクランブル",
+    "scrambleWarning": "映像と音声のパケットの {{percent}} が、スクランブルされたまま録れています。チューナーサーバーの B-CAS カードか、この局の契約を確かめてください",
     "broadcastRange": "実際の放送: {{from}} 〜 {{until}}",
     "broadcastOngoing": "放送中",
     "notBroadcast": "予約した番組は、予定の時間に放送されませんでした。録った映像には、ほかの番組が入っています",
@@ -1476,6 +1479,7 @@
     "disconnected": "視聴が止まりました",
     "tunerTaken": "録画のためにチューナーを使っているので、視聴が止まりました。録画中: {{recordings}}",
     "streamEnded": "チューナーサーバーとの接続が切れました",
+    "scrambled": "この局の映像と音声がスクランブルされたまま届いています。チューナーサーバーの B-CAS カードか、この局の契約を確かめてください。",
     "retryIn": "{{seconds}}秒後につなぎ直します",
     "reconnectNow": "今すぐつなぎ直す",
     "programDetail": "この番組の詳細と録画予約"

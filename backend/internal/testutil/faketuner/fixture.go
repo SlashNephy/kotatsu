@@ -142,5 +142,6 @@ func newService(networkID, serviceID int, name string) *Service {
 		LogoID:             nil,
 		Channel:            nil,
 		Logo:               nil,
+		TS:                 nil,
 	}
 }

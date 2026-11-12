@@ -62,6 +62,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
@@ -1028,7 +1029,9 @@ func handleStreams(
 		return serviceID, ok
 	}
 	mux.Handle("GET /streams/services/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
-		watches.Track(liveWatch, streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger))))))
+		watches.Track(liveWatch, streams.Count(streamapi.StreamLive,
+			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確かめる (設計書 7.1、#1517)。
+			streamapi.NewLiveHandler(opener, streamLogger).WithScramble(scramble.NewReporter(deps.DB, deps.Clock, streamLogger)))))))
 	mux.Handle("GET /streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Middleware(
 		streams.Count(streamapi.StreamDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
@@ -1283,6 +1286,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 	}
 	live, err := kyusu.NewLive(&kyusu.LiveOptions{
 		Opener: opener, Encoder: liveEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0,
+		Scramble: scramble.NewReporter(deps.DB, deps.Clock, kyusuLogger),
 	})
 	if err != nil {
 		return nil, nil, nil, err
