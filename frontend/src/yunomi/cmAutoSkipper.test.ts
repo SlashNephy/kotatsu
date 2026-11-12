@@ -110,6 +110,22 @@ describe('CmAutoSkipper', () => {
     expect(events).toEqual([]);
   });
 
+  test('止めている間に届いたコマは、飛び先以上でも、蓋を外す数に入れない', () => {
+    // requestVideoFrameCallback のないブラウザは、requestAnimationFrame で代えるので、止めている間もコマの知らせが届く。
+    const { host, events } = fakeHost();
+    const skipper = new CmAutoSkipper(host);
+    skipper.frame(playing(610));
+    events.length = 0;
+    for (let i = 0; i < uncoverFrames + 2; i++) {
+      skipper.frame(playing(645, { paused: true }));
+    }
+    expect(events).toEqual([]);
+    for (let i = 0; i < uncoverFrames; i++) {
+      skipper.frame(playing(645 + i / 30));
+    }
+    expect(events).toEqual(['uncover']);
+  });
+
   test('飛び先が映るのを待っている間は、もう一度は飛ばない', () => {
     const { host, events } = fakeHost();
     const skipper = new CmAutoSkipper(host);

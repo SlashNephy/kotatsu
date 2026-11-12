@@ -76,8 +76,11 @@ export class CmAutoSkipper {
       if (!frame.presented) {
         return;
       }
-      // seek の途中のコマと、飛び先より手前のコマが来たら、数え直す。
+      // seek の途中のコマと、飛び先より手前のコマが来たら、数え直す。止めている間のコマも数えない。
+      // requestVideoFrameCallback のないブラウザは requestAnimationFrame で代えるので、止めている間も知らせが届くが、
+      // そのコマが画面に出たかは分からない (設計書 7.5)。
       const landed =
+        !frame.paused &&
         !frame.seeking &&
         frame.position !== null &&
         frame.position >= waiting.target - landingTolerance;
