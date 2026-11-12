@@ -125,6 +125,38 @@ describe('SeekStepButtons', () => {
     expect(onFastForward).toHaveBeenLastCalledWith(false);
   });
 
+  test('押し続けている間にタブを隠したら、早回しをやめる', () => {
+    const onFastForward = vi.fn();
+    renderButtons(onFastForward);
+
+    fireEvent.pointerDown(forwardButton(), { button: 0, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(holdDelayMs);
+    });
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    try {
+      fireEvent(document, new Event('visibilitychange'));
+    } finally {
+      visibility.mockRestore();
+    }
+
+    expect(onFastForward).toHaveBeenLastCalledWith(false);
+  });
+
+  test('キーボードで押したら、早回しにせず 15 秒進む', () => {
+    const onFastForward = vi.fn();
+    const commands = renderButtons(onFastForward);
+
+    // キーボードの Enter や Space では、ポインターのイベントは届かず、クリックだけが届く。
+    fireEvent.click(forwardButton());
+    act(() => {
+      vi.advanceTimersByTime(holdDelayMs * 2);
+    });
+
+    expect(commands.seekForward15).toHaveBeenCalledOnce();
+    expect(onFastForward).not.toHaveBeenCalled();
+  });
+
   test('指がずれて取り消されたら、早回しをやめる', () => {
     const onFastForward = vi.fn();
     renderButtons(onFastForward);
