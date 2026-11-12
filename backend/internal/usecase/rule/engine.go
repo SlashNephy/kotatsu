@@ -125,7 +125,6 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules)
 		watchRules, skippedUsers, err := e.enabledWatchRules(ctx, tx, result)
 		if err != nil {
 			return err
@@ -135,10 +134,13 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		if err != nil {
 			return err
 		}
-		desired, err := e.narrow(ctx, tx, now, matched, nil)
+		// 重複の回避で外した番組は、猶予の内でも残さない。外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501)。
+		duplicates := map[programKey]*skippedProgram{}
+		desired, err := e.narrow(ctx, tx, now, matched, duplicates)
 		if err != nil {
 			return err
 		}
+		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, duplicates)
 		if err := e.apply(ctx, tx, now, desired, keep, result); err != nil {
 			return err
 		}
@@ -481,15 +483,17 @@ type keepPolicy struct {
 	graceUntil time.Time
 	// enabled は、照合した (有効で、条件を読めた) ルールの ID。無効にしたか消したルールは含まない。
 	enabled map[uuid.UUID]bool
+	// duplicates は、重複の回避で予約すべき集合から外した番組。
+	duplicates map[programKey]*skippedProgram
 }
 
-func newKeepPolicy(now time.Time, grace time.Duration, rules []*compiledRule) *keepPolicy {
+func newKeepPolicy(now time.Time, grace time.Duration, rules []*compiledRule, duplicates map[programKey]*skippedProgram) *keepPolicy {
 	enabled := make(map[uuid.UUID]bool, len(rules))
 	for _, r := range rules {
 		enabled[r.ID] = true
 	}
 
-	return &keepPolicy{graceUntil: now.Add(grace), enabled: enabled}
+	return &keepPolicy{graceUntil: now.Add(grace), enabled: enabled, duplicates: duplicates}
 }
 
 // apply は、予約すべき集合と既存の予約を突き合わせる。
@@ -647,6 +651,9 @@ func keepsUnmatched(row *sqlc.ListFutureProgramReservationsRow, have map[uuid.UU
 		return true
 	case !linksAny(have, keep.enabled):
 		// 結び付いたルールを、人が消したか無効にした。迷う理由がないので、猶予の内でも、番組名が空でも消す (#1501)。
+		return false
+	case keep.duplicates[programKey{serviceID: row.ServiceID, eventID: *row.EventID}] != nil:
+		// 同じ番組名を録り終え、重複の回避で外れた。番組表の書き換えで外れたのではないので、猶予の内でも消す (#1501)。
 		return false
 	case row.StartAt.Before(keep.graceUntil):
 		// 放送の直前の書き換え ([新] が付く、副題が入る、誤字が直るなど) で外れたかもしれない。消すと録り逃す (#1501)。

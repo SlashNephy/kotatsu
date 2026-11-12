@@ -847,3 +847,25 @@ func TestEngineKeepsReservationsOfUnnamedPrograms(t *testing.T) {
 	assert.Equal(t, 1, f.run(t).Deleted)
 	assert.Empty(t, f.reserved(t))
 }
+
+// TestEngineDeletesDuplicateReservationsWithinGrace は、予約した後に同じ番組名を録り終え、重複の回避で外れた予約を、
+// 猶予の内でも消すことを確かめる (#1501)。外れた理由は番組表の書き換えでなく録画の完了なので、迷う理由がない。
+func TestEngineDeletesDuplicateReservationsWithinGrace(t *testing.T) {
+	t.Parallel()
+
+	f := newEngineFixture(t)
+	f.setGrace(t, 24*60)
+	f.createRule(t, `テスト番組 5$`, func(in *rule.Input) { in.AvoidDuplicates = true })
+	f.run(t)
+	require.Equal(t, map[int64]bool{5: true}, f.reserved(t))
+
+	// 同じ局で、同じ番組名を録り終えた。
+	_, err := f.pool.Exec(t.Context(),
+		"INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $6)",
+		id.New(), serviceID(), rule.TitleKey("こたつテスト1 テスト番組 5"), "こたつテスト1 テスト番組 5",
+		testNow().Add(-time.Hour), testNow().Add(-30*time.Minute))
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, f.run(t).Deleted)
+	assert.Empty(t, f.reserved(t))
+}
