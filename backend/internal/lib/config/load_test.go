@@ -332,6 +332,8 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
 			// jikkyo の設定は TestLoadJikkyo で確かめる。
 			tt.want.Jikkyo = config.Jikkyo{Channels: map[string]string{}}
+			// OS のスリープの設定は TestLoadPower で確かめる。
+			tt.want.Power = config.Power{ManageSleep: true}
 			// OTLP のメトリクスの設定は TestLoadTelemetry で確かめるので、ここでは既定値のままであることだけを確かめる。
 			tt.want.Telemetry.OTLPMetricsProtocol = config.OTLPProtocolGRPC
 			tt.want.Telemetry.OTLPMetricsIntervalSeconds = defaultOTLPMetricsIntervalSeconds
@@ -583,6 +585,35 @@ func TestLoadJikkyo(t *testing.T) {
 			cfg, err := config.Load(path, lookup(tt.env))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, cfg.Jikkyo.Channels)
+		})
+	}
+}
+
+// TestLoadPower は、OS のスリープを扱うかを、既定では扱い、YAML と環境変数で切れることを確かめる (#1522、設計書 11.7)。
+func TestLoadPower(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		yaml string
+		env  map[string]string
+		want bool
+	}{
+		{name: "既定では扱う", env: map[string]string{envKeyURL: envURL}, want: true},
+		{name: "YAML で切る", yaml: "power:\n  manage_sleep: false\n", env: map[string]string{envKeyURL: envURL}, want: false},
+		{name: "環境変数で切る", env: map[string]string{envKeyURL: envURL, "KOTATSU_POWER_MANAGE_SLEEP": "false"}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Power.ManageSleep)
 		})
 	}
 }
