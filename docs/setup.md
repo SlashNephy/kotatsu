@@ -37,7 +37,7 @@ gh attestation verify oci://ghcr.io/slashnephy/kotatsu:<バージョン> -R Slas
 gh attestation verify kotatsu_<バージョン>_linux_amd64.tar.gz -R SlashNephy/kotatsu
 ```
 
-コンテナイメージは`edge`と`v2026.11.4`以降の版から、アーカイブとHelm Chartは`v2026.11.4`以降のリリースから、証明を付けています。
+コンテナイメージは`edge`と`2026.11.4`以降の版（タグに`v`は付きません）から、アーカイブとHelm Chartは`v2026.11.4`以降のリリースから、証明を付けています。
 
 ## Docker Composeで動かす
 
