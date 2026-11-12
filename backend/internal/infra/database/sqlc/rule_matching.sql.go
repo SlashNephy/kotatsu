@@ -41,6 +41,53 @@ func (q *Queries) InsertReservationRule(ctx context.Context, arg InsertReservati
 	return err
 }
 
+const listCancelledBroadcasts = `-- name: ListCancelledBroadcasts :many
+SELECT r.service_id, r.event_id, r.name, r.start_at, s.channel_type, s.channel
+FROM reservations r
+JOIN services s ON s.id = r.service_id
+WHERE NOT r.enabled AND r.event_id IS NOT NULL AND r.end_at > $1 AND r.name <> ''
+ORDER BY r.service_id, r.event_id
+`
+
+type ListCancelledBroadcastsRow struct {
+	ServiceID   int64
+	EventID     *int64
+	Name        string
+	StartAt     time.Time
+	ChannelType string
+	Channel     string
+}
+
+// 人が取り消した (無効にした) 番組の予約のうち、まだ終わっていない、番組名のあるものの放送 (#1504、設計書 4.3)。
+// 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
+// 予約を無効にするのは、今は人の操作だけなので、無効の予約はすべて人が取り消したものとみなす。
+func (q *Queries) ListCancelledBroadcasts(ctx context.Context, now time.Time) ([]ListCancelledBroadcastsRow, error) {
+	rows, err := q.db.Query(ctx, listCancelledBroadcasts, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCancelledBroadcastsRow{}
+	for rows.Next() {
+		var i ListCancelledBroadcastsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.StartAt,
+			&i.ChannelType,
+			&i.Channel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFutureProgramReservations = `-- name: ListFutureProgramReservations :many
 SELECT r.id, r.kind, r.service_id, r.event_id, r.start_at, r.enabled, r.follow_event_relay,
   EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id AND rec.state = 'recording') AS recording,
@@ -164,7 +211,7 @@ func (q *Queries) ListLatestRecordingHistory(ctx context.Context, titleKeys []st
 const listMatchablePrograms = `-- name: ListMatchablePrograms :many
 SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.is_free, p.name, p.name_normalized, p.description_normalized,
   p.extended_normalized, (CASE WHEN p.extended_normalized IS NULL THEN p.extended ELSE '{}' END)::jsonb AS extended,
-  p.genres, p.related_items, s.channel_type
+  p.genres, p.related_items, s.channel_type, s.channel
 FROM programs p
 JOIN services s ON s.id = p.service_id
 WHERE p.start_at > $1 AND NOT p.end_undecided AND s.service_type = ANY($2::bigint[])
@@ -190,6 +237,7 @@ type ListMatchableProgramsRow struct {
 	Genres                []byte
 	RelatedItems          []byte
 	ChannelType           string
+	Channel               string
 }
 
 // ルールの対象になる番組。放送が始まった番組と、終了時刻が未定の番組は対象にしない (設計書 4.3)。
@@ -218,6 +266,7 @@ func (q *Queries) ListMatchablePrograms(ctx context.Context, arg ListMatchablePr
 			&i.Genres,
 			&i.RelatedItems,
 			&i.ChannelType,
+			&i.Channel,
 		); err != nil {
 			return nil, err
 		}

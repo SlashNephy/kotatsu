@@ -180,11 +180,14 @@ func (e *Engine) desired(
 	return e.narrow(ctx, tx, now, matched, skipped)
 }
 
-// narrow は、ルールに一致した番組を、重複の回避とイベント共有で絞り込み、予約すべき番組にする。
+// narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避とイベント共有で絞り込み、予約すべき番組にする。
 // skipped を渡せば、重複の回避で予約すべき集合から外した番組を、そこに入れる。
 func (e *Engine) narrow(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
 ) (map[programKey]*desiredProgram, error) {
+	if err := excludeCancelledBroadcasts(ctx, tx, now, matched); err != nil {
+		return nil, err
+	}
 	if err := e.avoidDuplicates(ctx, tx, now, matched, skipped); err != nil {
 		return nil, err
 	}
@@ -447,6 +450,59 @@ func (e *Engine) avoidDuplicates(
 			delete(matched, key)
 			if skipped != nil {
 				skipped[key] = &skippedProgram{row: d.row, rules: removed, lastRecorded: last}
+			}
+		}
+	}
+
+	return nil
+}
+
+// CancelledBroadcastTolerance は、人が取り消した予約と同じ放送とみなす、開始の差の最大 (付録 A、#1504)。
+// イベント ID が変わる経路 (局の送り直しと、枝番の局の束ねが一時的に外れたとき) では、開始はほとんど動かない。
+// 延長や繰り下げで開始が動いても、イベント ID が同じなら、取り消した予約そのものが番組を追う。
+// 一方、本番の番組表では、同じ局で同じ番組名の放送が 15 分未満の間隔で並ぶことがある (多くは穴埋めの番組)。
+// そうした別の回まで録らなくならないよう、短くする。
+const CancelledBroadcastTolerance = 10 * time.Minute
+
+// cancelledBroadcast は、人が取り消した予約の放送。
+type cancelledBroadcast struct {
+	program programKey
+	name    string
+	startAt time.Time
+}
+
+// broadcastChannel は、物理チャンネル。
+type broadcastChannel struct {
+	channelType string
+	channel     string
+}
+
+// excludeCancelledBroadcasts は、人が取り消した (無効にした) 予約と同じ放送の番組を、予約すべき集合から外す (#1504、設計書 4.3)。
+// 同じ放送とは、物理チャンネルが同じで、番組名が完全に一致し、開始の差が CancelledBroadcastTolerance の内の番組である。
+// 局が同じ番組を別のイベント ID で送り直しても、取り消した回を予約し直さない。取り消した予約の番組そのものは、
+// 無効の予約が残っているので、ここでは外さない。
+func excludeCancelledBroadcasts(ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram) error {
+	rows, err := sqlc.New(tx).ListCancelledBroadcasts(ctx, now)
+	if err != nil {
+		return fmt.Errorf("failed to list cancelled broadcasts: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	cancelled := map[broadcastChannel][]cancelledBroadcast{}
+	for _, row := range rows {
+		channel := broadcastChannel{channelType: row.ChannelType, channel: row.Channel}
+		cancelled[channel] = append(cancelled[channel], cancelledBroadcast{
+			program: programKey{serviceID: row.ServiceID, eventID: *row.EventID}, name: row.Name, startAt: row.StartAt,
+		})
+	}
+
+	for key, d := range matched {
+		for _, c := range cancelled[broadcastChannel{channelType: d.row.ChannelType, channel: d.row.Channel}] {
+			if c.program != key && c.name == d.row.Name && d.row.StartAt.Sub(c.startAt).Abs() <= CancelledBroadcastTolerance {
+				delete(matched, key)
+
+				break
 			}
 		}
 	}
