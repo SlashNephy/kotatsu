@@ -116,7 +116,7 @@ jobs:
       # 公開したイメージに、このリポジトリのこの workflow で作ったことを示す証明 (Sigstore) を付ける (#1524、設計書 11.1)。
       # タグは後で別の digest を指しうるので、名前ではなく digest に付ける。レジストリにも置き、oci:// で確かめられるようにする。
       - if: github.event_name != 'pull_request' && steps.meta.outputs.tags != ''
-        uses: actions/attest-build-provenance@v4.2.2
+        uses: actions/attest@v4.2.2
         with:
           subject-name: ghcr.io/slashnephy/kotatsu
           subject-digest: ${{ steps.build.outputs.digest }}
