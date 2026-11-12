@@ -3460,6 +3460,11 @@ type RecordingFile {
   名前は上流のチューナーのホスト名を含むことがあるので、管理者にだけ返す。ほかのユーザーには null を返す。
   """
   tuner: RecordingFileTuner
+  """
+  Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。30 か 60 (プログレッシブの映像は元のコマ数)。
+  セグメントと、取り込んだファイルと、コマ数を記録する前に変換した MP4 では null。
+  """
+  transcodeFrameRate: Int
 }
 """
 録画のファイルの種類。
@@ -3596,6 +3601,10 @@ type RecordingSettings {
   録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
   """
   transcodePreset: String
+  """
+  録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
+  """
+  transcodeFrameRate: String!
 }
 """
 録画設定の上書き (設計書 4.7)。null の項目は全体の既定値を使う。
@@ -3627,6 +3636,10 @@ type RecordingSettingsOverrides {
   録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
   """
   transcodePreset: String
+  """
+  録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
+  """
+  transcodeFrameRate: String
 }
 """
 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -3643,6 +3656,10 @@ input RecordingSettingsOverridesInput {
   変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
   """
   transcodePreset: String
+  """
+  変換で出すコマ数 (auto、30、60 のどれか)。
+  """
+  transcodeFrameRate: String
 }
 """
 録画の状態 (設計書 5.5)。

@@ -395,6 +395,8 @@ export function createRootValue(
         joinSegments: true,
         detectCm: false,
         transcodePreset: null,
+        // 変換で出すコマ数の既定値 (#1509)。
+        transcodeFrameRate: 'auto',
       },
       archiveRetentionDays: 30,
       notificationRetentionDays: 30,

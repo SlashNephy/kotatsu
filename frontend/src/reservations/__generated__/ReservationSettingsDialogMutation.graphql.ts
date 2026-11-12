@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f5c56b723734e550e9c41cc1a971727a>>
+ * @generated SignedSource<<e9e4515efb67aa89cd608b7c2bc93505>>
  * @lightSyntaxTransform
  */
 
@@ -17,6 +17,7 @@ export type RecordingSettingsOverridesInput = {
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
   startMarginSeconds?: number | null | undefined;
+  transcodeFrameRate?: string | null | undefined;
   transcodePreset?: string | null | undefined;
 };
 export type ReservationSettingsDialogMutation$variables = {
@@ -39,6 +40,7 @@ export type ReservationSettingsDialogMutation$data = {
       readonly poolId: string | null | undefined;
       readonly priority: number | null | undefined;
       readonly startMarginSeconds: number | null | undefined;
+      readonly transcodeFrameRate: string | null | undefined;
       readonly transcodePreset: string | null | undefined;
     };
   };
@@ -172,6 +174,13 @@ v3 = [
             "kind": "ScalarField",
             "name": "transcodePreset",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "transcodeFrameRate",
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -224,16 +233,16 @@ return {
     "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "c2751f19909b8924ac4ffcbbda312542",
+    "cacheID": "0bdeb5ea0f510802c658c8241266498b",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogMutation",
     "operationKind": "mutation",
-    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
+    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "4c84a94d3d4640adc2b246e4af112030";
+(node as any).hash = "94fc5cc72a8fc7a4eaf4523108fc3478";
 
 export default node;

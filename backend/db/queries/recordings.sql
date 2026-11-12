@@ -360,11 +360,12 @@ SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @starte
 SELECT recording_id, kind FROM recording_files WHERE pool_id = @pool_id AND path = @path;
 
 -- name: UpsertTranscodedRecordingFile :execrows
--- 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさを書き直す。
+-- 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさとコマ数 (#1509) を書き直す。
 -- ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
-INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
-VALUES (@id, @recording_id, 'other', @pool_id, @path, @size, @started_at, @ended_at, @now)
-ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, transcode_frame_rate, created_at)
+VALUES (@id, @recording_id, 'other', @pool_id, @path, @size, @started_at, @ended_at, @transcode_frame_rate, @now)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at,
+  transcode_frame_rate = EXCLUDED.transcode_frame_rate
 WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other';
 
 -- name: SetRecordingFileVideo :exec

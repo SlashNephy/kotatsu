@@ -1920,6 +1920,7 @@ func (r *Recorder) complete(
 		payload["joinSegments"] = settings.JoinSegments
 		payload["detectCm"] = settings.DetectCM
 		payload["transcodePreset"] = settings.TranscodePreset
+		payload["transcodeFrameRate"] = settings.TranscodeFrameRate
 		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)

@@ -1,7 +1,7 @@
 import type { TFunction } from 'i18next';
 import { describe, expect, test } from 'vitest';
 
-import { optionOfPreset, presetOfOption, transcodeLabel } from './transcode';
+import { frameRateLabel, optionOfPreset, presetOfOption, transcodeLabel } from './transcode';
 
 // t は、キーと値をそのまま並べて返す。
 const t = ((key: string, values?: Record<string, string>) =>
@@ -26,5 +26,19 @@ describe('optionOfPreset と presetOfOption', () => {
 
   test('変換しないは、Select の値を空にしない', () => {
     expect(optionOfPreset('')).not.toBe('');
+  });
+});
+
+describe('frameRateLabel (#1509)', () => {
+  // rateT は、キーと、コマ数を並べて返す。
+  const rateT = ((key: string, values?: Record<string, string>) =>
+    values === undefined ? key : `${key}:${values['rate']}`) as unknown as TFunction;
+
+  test.each([
+    { name: '自動', frameRate: 'auto', want: 'rules.transcodeFrameRateAuto' },
+    { name: '30', frameRate: '30', want: 'rules.transcodeFrameRateFixed:30' },
+    { name: '60', frameRate: '60', want: 'rules.transcodeFrameRateFixed:60' },
+  ])('$name', ({ frameRate, want }) => {
+    expect(frameRateLabel(rateT, frameRate)).toBe(want);
   });
 });

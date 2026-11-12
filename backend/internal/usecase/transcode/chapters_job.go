@@ -342,7 +342,7 @@ func (w *ChaptersWorker) rewrite(ctx context.Context, chapterer Chapterer, path 
 	return t, chapterer.Rewrite(ctx, path, metadata, t.partial)
 }
 
-// replace は、書き終えた一時ファイルを元の名前に置き換え、大きさを記録し直す。
+// replace は、書き終えた一時ファイルを元の名前に置き換え、大きさを記録し直す。写し直しても映像は変わらないので、コマ数 (#1509) は前の記録のままにする。
 func (w *ChaptersWorker) replace(ctx context.Context, targets []*target) error {
 	for _, t := range targets {
 		if err := os.Rename(t.partial, t.path); err != nil {
@@ -357,7 +357,7 @@ func (w *ChaptersWorker) replace(ctx context.Context, targets []*target) error {
 		}
 		_, err = q.UpsertTranscodedRecordingFile(ctx, sqlc.UpsertTranscodedRecordingFileParams{
 			ID: id.New(), RecordingID: t.file.RecordingID, PoolID: t.file.PoolID, Path: t.file.Path, Size: info.Size(),
-			StartedAt: t.file.StartedAt, EndedAt: t.file.EndedAt, Now: w.clock.Now(),
+			StartedAt: t.file.StartedAt, EndedAt: t.file.EndedAt, TranscodeFrameRate: t.file.TranscodeFrameRate, Now: w.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the transcoded file: %w", err)
