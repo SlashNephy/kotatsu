@@ -839,8 +839,8 @@ func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFi
 }
 
 const insertRecordingHistory = `-- name: InsertRecordingHistory :exec
-INSERT INTO recording_history (id, service_id, title_key, name, imported, start_at, end_at, created_at)
-VALUES ($1, $2, $3, $4, true, $5, $6, $7)
+INSERT INTO recording_history (id, service_id, title_key, name, series, imported, start_at, end_at, created_at)
+VALUES ($1, $2, $3, $4, $5::text, true, $6, $7, $8)
 `
 
 type InsertRecordingHistoryParams struct {
@@ -848,18 +848,21 @@ type InsertRecordingHistoryParams struct {
 	ServiceID int64
 	TitleKey  string
 	Name      string
+	Series    string
 	StartAt   time.Time
 	EndAt     time.Time
 	Now       time.Time
 }
 
 // ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にし、録画は NULL にする。
+// series は、番組名から読んだシリーズ名 (#1499)。
 func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistory,
 		arg.ID,
 		arg.ServiceID,
 		arg.TitleKey,
 		arg.Name,
+		arg.Series,
 		arg.StartAt,
 		arg.EndAt,
 		arg.Now,
@@ -869,16 +872,16 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 
 const insertRecordingHistoryFromRecording = `-- name: InsertRecordingHistoryFromRecording :exec
 INSERT INTO recording_history (
-  id, service_id, title_key, name, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at,
+  id, service_id, title_key, name, series, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at,
   recording_id
 )
-SELECT $1, rec.service_id, $2, rec.name, rec.description,
+SELECT $1, rec.service_id, $2, rec.name, $3::text, rec.description,
   coalesce(
     (SELECT p.series_episode FROM programs p WHERE p.service_id = rec.service_id AND p.event_id = rec.event_id),
     (SELECT pa.series_episode FROM program_archives pa
       WHERE pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at)
   ),
-  a.syobocal_tid, a.count_start, false, rec.start_at, rec.end_at, $3, rec.id
+  a.syobocal_tid, a.count_start, false, rec.start_at, rec.end_at, $4, rec.id
 FROM recordings rec
 LEFT JOIN LATERAL (
   SELECT min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count_start
@@ -886,12 +889,13 @@ LEFT JOIN LATERAL (
   WHERE e.recording_id = rec.id
   HAVING count(*) = 1 AND min(e.count_start) = min(e.count_end)
 ) a ON true
-WHERE rec.id = $4
+WHERE rec.id = $5
 `
 
 type InsertRecordingHistoryFromRecordingParams struct {
 	ID          uuid.UUID
 	TitleKey    string
+	Series      string
 	Now         time.Time
 	RecordingID uuid.UUID
 }
@@ -899,10 +903,12 @@ type InsertRecordingHistoryFromRecordingParams struct {
 // 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
 // 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 // 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
+// series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
 func (q *Queries) InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistoryFromRecording,
 		arg.ID,
 		arg.TitleKey,
+		arg.Series,
 		arg.Now,
 		arg.RecordingID,
 	)
@@ -1145,6 +1151,39 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.TranscodeFrameRate,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordingHistoryWithoutSeries = `-- name: ListRecordingHistoryWithoutSeries :many
+SELECT id, name FROM recording_history
+WHERE series IS NULL
+ORDER BY id
+LIMIT $1
+`
+
+type ListRecordingHistoryWithoutSeriesRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+// シリーズ名の列がまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
+func (q *Queries) ListRecordingHistoryWithoutSeries(ctx context.Context, maxCount int32) ([]ListRecordingHistoryWithoutSeriesRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingHistoryWithoutSeries, maxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingHistoryWithoutSeriesRow{}
+	for rows.Next() {
+		var i ListRecordingHistoryWithoutSeriesRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

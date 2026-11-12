@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<560e86df56133eecaa4bf3d146a52c73>>
+ * @generated SignedSource<<6701e256355b32d36db8243da175fa77>>
  * @lightSyntaxTransform
  */
 
@@ -21,6 +21,7 @@ export type RuleInput = {
   memo?: string;
   name: string;
   settings?: RecordingSettingsOverridesInput | null | undefined;
+  skipEarlierEpisodes?: boolean;
   validFrom?: string | null | undefined;
   validUntil?: string | null | undefined;
 };

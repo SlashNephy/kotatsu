@@ -417,6 +417,99 @@ func (q *Queries) ListRecordedEpisodes(ctx context.Context, since time.Time) ([]
 	return items, nil
 }
 
+const listRecordedEpisodesBySeries = `-- name: ListRecordedEpisodesBySeries :many
+SELECT h.service_id, h.name, h.description, h.series_episode, h.start_at
+FROM recording_history h
+WHERE h.series = ANY($1::text[]) OR h.series IS NULL
+UNION ALL
+SELECT rec.service_id, rec.name, rec.description, p.series_episode, rec.start_at
+FROM recordings rec
+LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
+WHERE rec.state = 'recording'
+`
+
+type ListRecordedEpisodesBySeriesRow struct {
+	ServiceID     int64
+	Name          string
+	Description   string
+	SeriesEpisode *int32
+	StartAt       time.Time
+}
+
+// 前の回を録らない (#1499) ときの「録った回」。録画履歴のうち、シリーズ名が @series のどれかのものの全部 (期間で切らない) と、録画中の録画。
+// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4) ので、失敗した録画は含まない。消した録画も、履歴は残る。
+// 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比べるので、ここでは候補を絞るだけに使う。
+// シリーズ名がまだ埋まっていない (列を知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
+func (q *Queries) ListRecordedEpisodesBySeries(ctx context.Context, series []string) ([]ListRecordedEpisodesBySeriesRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedEpisodesBySeries, series)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedEpisodesBySeriesRow{}
+	for rows.Next() {
+		var i ListRecordedEpisodesBySeriesRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.Name,
+			&i.Description,
+			&i.SeriesEpisode,
+			&i.StartAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReservedEpisodes = `-- name: ListReservedEpisodes :many
+SELECT r.service_id, r.name, r.description, p.series_episode, r.start_at
+FROM reservations r
+LEFT JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
+WHERE r.enabled AND r.assignment_state <> 'conflict' AND r.end_at > $1
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
+`
+
+type ListReservedEpisodesRow struct {
+	ServiceID     int64
+	Name          string
+	Description   string
+	SeriesEpisode *int32
+	StartAt       time.Time
+}
+
+// 前の回を録らない (#1499) ときの「予約してある回」。録画しない状態 (無効) でも競合でもなく、まだ録り始めておらず、
+// 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
+func (q *Queries) ListReservedEpisodes(ctx context.Context, now time.Time) ([]ListReservedEpisodesRow, error) {
+	rows, err := q.db.Query(ctx, listReservedEpisodes, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReservedEpisodesRow{}
+	for rows.Next() {
+		var i ListReservedEpisodesRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.Name,
+			&i.Description,
+			&i.SeriesEpisode,
+			&i.StartAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setReservationFollowEventRelay = `-- name: SetReservationFollowEventRelay :exec
 UPDATE reservations SET follow_event_relay = $1, updated_at = $2 WHERE id = $3
 `

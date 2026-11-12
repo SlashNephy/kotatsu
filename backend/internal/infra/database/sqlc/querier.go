@@ -441,10 +441,12 @@ type Querier interface {
 	// チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
 	// ほかの録画ソフトから引き継いだ録画履歴を記録する (設計書 4.4)。番組名しか持たないので、概要は空にし、録画は NULL にする。
+	// series は、番組名から読んだシリーズ名 (#1499)。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
 	// 重複の回避に使う録画履歴を、録り終えた録画から記録する (設計書 4.4)。録画を削除しても残す。
 	// 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 	// 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
+	// series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
 	InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error
 	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
@@ -505,9 +507,10 @@ type Querier interface {
 	ListAnalyzableRecordingSegments(ctx context.Context) ([]ListAnalyzableRecordingSegmentsRow, error)
 	// 見たいリストの Annict の作品のうち、高画質の画像をまだ引いていないか、引き直す時期が来た作品の MyAnimeList の ID を返す (#1315)。
 	ListAnimeArtworkTargets(ctx context.Context, arg ListAnimeArtworkTargetsParams) ([]int32, error)
-	// サービスごとに、取り込んだ対応と管理者の上書き、使う値を返す (設計書 3.8)。
-	// 地上波は種別とサービス ID で、BS と CS はネットワーク ID とサービス ID で、取り込んだ対応と照らし合わせる。
-	ListAnimeChannels(ctx context.Context) ([]ListAnimeChannelsRow, error)
+	ListAnimeChannelDefinitions(ctx context.Context) ([]ListAnimeChannelDefinitionsRow, error)
+	// サービスごとに、取り込んだ対応と照らし合わせるための ID と種別、管理者の上書きを返す (設計書 3.8)。
+	// 取り込んだ対応との照らし合わせは、地上波の他の地域やサブチャンネルの規則があるので、呼ぶ側で行う。
+	ListAnimeChannelServices(ctx context.Context) ([]ListAnimeChannelServicesRow, error)
 	// ユーザーが連携した記録先ごとに、作品 (TID) のフォロー中のユーザーの視聴状況を問い合わせた様子を返す (#1372)。
 	// まだ問い合わせていなければ、checked_at などは NULL。
 	ListAnimeFollowingFetches(ctx context.Context, arg ListAnimeFollowingFetchesParams) ([]ListAnimeFollowingFetchesRow, error)
@@ -674,6 +677,11 @@ type Querier interface {
 	// ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 	// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
 	ListRecordedEpisodes(ctx context.Context, since time.Time) ([]ListRecordedEpisodesRow, error)
+	// 前の回を録らない (#1499) ときの「録った回」。録画履歴のうち、シリーズ名が @series のどれかのものの全部 (期間で切らない) と、録画中の録画。
+	// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4) ので、失敗した録画は含まない。消した録画も、履歴は残る。
+	// 引き継いだ履歴も、録画履歴に入っている。シリーズ名は Go で読み直して比べるので、ここでは候補を絞るだけに使う。
+	// シリーズ名がまだ埋まっていない (列を知らない古いバイナリが書いた) 履歴は、読み落とさないよう、すべて返す。
+	ListRecordedEpisodesBySeries(ctx context.Context, series []string) ([]ListRecordedEpisodesBySeriesRow, error)
 	// 番組 (サービス, eventId, 放送時間) のうち、録画のあるものを返す (#1278)。失敗した録画は数えない。
 	// eventId は使い回されるので、ListProgramRecordings と同じく、放送時間に重なる録画だけを数える。
 	ListRecordedPrograms(ctx context.Context, arg ListRecordedProgramsParams) ([]ListRecordedProgramsRow, error)
@@ -689,6 +697,8 @@ type Querier interface {
 	ListRecordingFileLocations(ctx context.Context) ([]ListRecordingFileLocationsRow, error)
 	ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
 	ListRecordingFilesByRecordings(ctx context.Context, recordingIds []uuid.UUID) ([]RecordingFile, error)
+	// シリーズ名の列がまだない録画履歴を、ID の順に max_count 件返す (#1499)。kotatsu migrate が埋める。
+	ListRecordingHistoryWithoutSeries(ctx context.Context, maxCount int32) ([]ListRecordingHistoryWithoutSeriesRow, error)
 	// 録画のセグメントの PID ごとの品質の集計 (#473)。スクランブルされたまま録れたかを判定するのに使う (#1517)。
 	// 集計を記録する前に閉じたセグメントの pid_stats は NULL。
 	ListRecordingSegmentPIDStats(ctx context.Context, recordingID uuid.UUID) ([][]byte, error)
@@ -723,6 +733,9 @@ type Querier interface {
 	ListReservationsToRelay(ctx context.Context, since time.Time) ([]ListReservationsToRelayRow, error)
 	// from から to までの間にチューナーを使う予約。有効で、チューナーを割り当て済みで、予定が期間と重なるもの。録画中の予約も含む。
 	ListReservationsUsingTunersBetween(ctx context.Context, arg ListReservationsUsingTunersBetweenParams) ([]ListReservationsUsingTunersBetweenRow, error)
+	// 前の回を録らない (#1499) ときの「予約してある回」。録画しない状態 (無効) でも競合でもなく、まだ録り始めておらず、
+	// 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
+	ListReservedEpisodes(ctx context.Context, now time.Time) ([]ListReservedEpisodesRow, error)
 	// 視聴ルールが作った視聴予約のうち、番組の放送が始まっていないもの。照合で、一致しなくなったものを消すのに使う。
 	ListRuleWatchReservations(ctx context.Context, now time.Time) ([]ListRuleWatchReservationsRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
@@ -985,6 +998,8 @@ type Querier interface {
 	SetRecordingFileVideo(ctx context.Context, arg SetRecordingFileVideoParams) error
 	// 録画を終えるときに、セグメントの時間の範囲から求めた途切れた区間を記録する。
 	SetRecordingGaps(ctx context.Context, arg SetRecordingGapsParams) error
+	// 録画履歴のシリーズ名を書く (#1499)。
+	SetRecordingHistorySeries(ctx context.Context, arg []SetRecordingHistorySeriesParams) *SetRecordingHistorySeriesBatchResults
 	// 録画の正規化した番組名と概要を書く (#1044)。
 	SetRecordingNormalized(ctx context.Context, arg []SetRecordingNormalizedParams) *SetRecordingNormalizedBatchResults
 	SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error

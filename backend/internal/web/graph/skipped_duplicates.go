@@ -18,6 +18,8 @@ func skipReason(reason rule.SkipReason) model.SkipReason {
 		return model.SkipReasonRecordedEpisode
 	case rule.SkipReasonOtherBroadcast:
 		return model.SkipReasonOtherBroadcast
+	case rule.SkipReasonEarlierEpisode:
+		return model.SkipReasonEarlierEpisode
 	case rule.SkipReasonDuplicateTitle:
 		return model.SkipReasonDuplicateTitle
 	}
@@ -25,7 +27,7 @@ func skipReason(reason rule.SkipReason) model.SkipReason {
 	return model.SkipReasonDuplicateTitle
 }
 
-// skippedDuplicates は、重複の回避と同じ回の束ねで予約しなかった番組を返す。
+// skippedDuplicates は、重複の回避、同じ回の束ね、前の回を録らない設定で予約しなかった番組を返す。
 func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error) {
 	if _, err := viewer(ctx); err != nil {
 		return nil, err
@@ -87,6 +89,7 @@ func (r *Resolver) skippedDuplicates(ctx context.Context) ([]*model.SkippedDupli
 		}
 		item := &model.SkippedDuplicate{
 			Program: program, Rules: rules, Reason: skipReason(s.Reason), LastRecordedAt: s.LastRecordedAt, Recorded: nil, Instead: nil,
+			LaterEpisode: s.LaterEpisode,
 		}
 		if s.Recorded != nil {
 			item.Recorded = &model.SkippedRecording{Service: services[s.Recorded.ServiceID], Name: s.Recorded.Name, EndAt: s.Recorded.EndAt}

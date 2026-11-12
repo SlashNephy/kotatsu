@@ -749,15 +749,19 @@ func TestApplyHistories(t *testing.T) {
 		ServiceID int64
 		TitleKey  string
 		Name      string
-		StartAt   time.Time
-		EndAt     time.Time
+		// Series は、前の回を録らない (#1499) ときに引く、番組名から読んだシリーズ名。
+		Series  *string
+		StartAt time.Time
+		EndAt   time.Time
 	}
-	rows, err := f.pool.Query(t.Context(), "SELECT service_id, title_key, name, start_at, end_at FROM recording_history WHERE id = $1",
+	rows, err := f.pool.Query(t.Context(), "SELECT service_id, title_key, name, series, start_at, end_at FROM recording_history WHERE id = $1",
 		f.targetOf(t, epgstation.KindRecordedHistory, 1))
 	require.NoError(t, err)
 	got, err := pgx.CollectExactlyOneRow(rows, pgx.RowToAddrOfStructByPos[history])
 	require.NoError(t, err)
-	assert.Equal(t, &history{ServiceID: channelID, TitleKey: rule.TitleKey("[新]こたつ特集 #1"), Name: "[新]こたつ特集 #1", StartAt: endAt, EndAt: endAt}, got)
+	assert.Equal(t, &history{
+		ServiceID: channelID, TitleKey: rule.TitleKey("[新]こたつ特集 #1"), Name: "[新]こたつ特集 #1", Series: new("こたつ特集"), StartAt: endAt, EndAt: endAt,
+	}, got)
 }
 
 // TestApplyIsIdempotent は、同じデータを 2 度取り込んでも、前に取り込んだものを作り直さないことを確かめる。

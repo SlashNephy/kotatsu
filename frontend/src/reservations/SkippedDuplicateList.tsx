@@ -28,8 +28,8 @@ const timeFormat = zonedFormat({
 });
 const dateFormat = zonedFormat({ year: 'numeric', month: 'numeric', day: 'numeric' });
 
-// SkippedDuplicateList は、ルールに一致したが、重複の回避か同じ回の束ねで予約しなかった番組の一覧 (設計書 4.4、#469、#1498)。
-// 録り直したい番組は、ここから手動で予約する。手動の予約は、重複の回避と同じ回の束ねの対象にならない。
+// SkippedDuplicateList は、ルールに一致したが、重複の回避、同じ回の束ね、前の回を録らない設定で予約しなかった番組の一覧
+// (設計書 4.4、#469、#1498、#1499)。録り直したい番組は、ここから手動で予約する。手動の予約は、これらの対象にならない。
 export function SkippedDuplicateList() {
   const { t } = useTranslation();
   // 予約やルールが変わったら、読み直す。
@@ -70,6 +70,7 @@ export function SkippedDuplicateList() {
               name
             }
           }
+          laterEpisode
         }
       }
     `,
@@ -122,7 +123,7 @@ export function SkippedDuplicateList() {
         <EmptyState icon={CopyCheck} title={t('reservations.skipped.empty')} />
       ) : (
         data.skippedDuplicates.map(
-          ({ program, rules, reason, lastRecordedAt, recorded, instead }) => {
+          ({ program, rules, reason, lastRecordedAt, recorded, instead, laterEpisode }) => {
             const start = Date.parse(program.startAt);
             const ruleNames = rules.map((rule) => rule.name).join('、');
             let reasonText: string;
@@ -131,6 +132,11 @@ export function SkippedDuplicateList() {
                 rules: ruleNames,
                 service: recorded.service?.name ?? t('reservations.skipped.unknownService'),
                 date: dateFormat.format(Date.parse(recorded.endAt)),
+              });
+            } else if (reason === 'EARLIER_EPISODE' && laterEpisode != null) {
+              reasonText = t('reservations.skipped.reasonEarlierEpisode', {
+                rules: ruleNames,
+                episode: laterEpisode,
               });
             } else if (reason === 'OTHER_BROADCAST') {
               reasonText =
