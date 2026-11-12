@@ -22,20 +22,20 @@ func TestPIDQualities(t *testing.T) {
 	pids := []*ts.PIDStats{
 		{PID: 0x0000, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0},
 		{PID: 0x0012, Packets: 20, Drops: 1, Errors: 0, Scrambled: 0},
-		{PID: 0x0100, Packets: 1000, Drops: 3, Errors: 2, Scrambled: 1},
-		{PID: 0x0110, Packets: 100, Drops: 0, Errors: 0, Scrambled: 0},
+		{PID: 0x0100, Packets: 1000, Drops: 3, Errors: 2, Scrambled: 1, Payloads: 990, ScrambledPayloads: 1},
+		{PID: 0x0110, Packets: 100, Drops: 0, Errors: 0, Scrambled: 0, Payloads: 100, ScrambledPayloads: 0},
 		{PID: 0x0130, Packets: 5, Drops: 0, Errors: 0, Scrambled: 0},
 		{PID: 0x01F0, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0},
 		{PID: 0x0901, Packets: 7, Drops: 2, Errors: 0, Scrambled: 0},
 	}
 
 	assert.Equal(t, []ts.PIDQuality{
-		{PID: 0x0000, Kind: ts.PIDKindPSI, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0},
-		{PID: 0x0012, Kind: ts.PIDKindPSI, Packets: 20, Drops: 1, Errors: 0, Scrambled: 0},
-		{PID: 0x0100, Kind: ts.PIDKindVideo, Packets: 1000, Drops: 3, Errors: 2, Scrambled: 1, StreamType: new(uint8(0x02))},
-		{PID: 0x0110, Kind: ts.PIDKindAudio, Packets: 100, Drops: 0, Errors: 0, Scrambled: 0, StreamType: new(uint8(0x0F)), ComponentTag: new(uint8(0x10))},
-		{PID: 0x0130, Kind: ts.PIDKindOther, Packets: 5, Drops: 0, Errors: 0, Scrambled: 0, StreamType: new(uint8(0x06))},
-		{PID: 0x01F0, Kind: ts.PIDKindPSI, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0},
-		{PID: 0x0901, Kind: ts.PIDKindUnknown, Packets: 7, Drops: 2, Errors: 0, Scrambled: 0},
+		{PID: 0x0000, Kind: ts.PIDKindPSI, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
+		{PID: 0x0012, Kind: ts.PIDKindPSI, Packets: 20, Drops: 1, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
+		{PID: 0x0100, Kind: ts.PIDKindVideo, Packets: 1000, Drops: 3, Errors: 2, Scrambled: 1, Payloads: new(int64(990)), ScrambledPayloads: new(int64(1)), StreamType: new(uint8(0x02))},
+		{PID: 0x0110, Kind: ts.PIDKindAudio, Packets: 100, Drops: 0, Errors: 0, Scrambled: 0, Payloads: new(int64(100)), ScrambledPayloads: new(int64(0)), StreamType: new(uint8(0x0F)), ComponentTag: new(uint8(0x10))},
+		{PID: 0x0130, Kind: ts.PIDKindOther, Packets: 5, Drops: 0, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0)), StreamType: new(uint8(0x06))},
+		{PID: 0x01F0, Kind: ts.PIDKindPSI, Packets: 10, Drops: 0, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
+		{PID: 0x0901, Kind: ts.PIDKindUnknown, Packets: 7, Drops: 2, Errors: 0, Scrambled: 0, Payloads: new(int64(0)), ScrambledPayloads: new(int64(0))},
 	}, ts.PIDQualities(stats, pids))
 }

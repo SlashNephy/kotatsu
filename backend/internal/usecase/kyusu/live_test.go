@@ -112,10 +112,18 @@ type liveFixture struct {
 func newLiveFixture(t *testing.T, opener kyusu.ServiceOpener, encoder kyusu.Encoder) *liveFixture {
 	t.Helper()
 
+	return newLiveFixtureWithScramble(t, opener, encoder, nil)
+}
+
+// newLiveFixtureWithScramble は、newLiveFixture に加えて、スクランブルされたまま届くかを watcher で判定する (#1517)。nil なら判定しない。
+func newLiveFixtureWithScramble(t *testing.T, opener kyusu.ServiceOpener, encoder kyusu.Encoder, watcher kyusu.ScrambleWatcher) *liveFixture {
+	t.Helper()
+
 	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
 	workDir := t.TempDir()
 	live, err := kyusu.NewLive(&kyusu.LiveOptions{
 		Opener: opener, Encoder: encoder, WorkDir: workDir, Clock: clk, Logger: slog.New(slog.DiscardHandler), IdleTimeout: 0,
+		Scramble: watcher,
 	})
 	require.NoError(t, err)
 	token, err := kyusu.NewToken(keyMaterial)

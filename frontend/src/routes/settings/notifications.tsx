@@ -8,7 +8,7 @@ import type { PayloadError, RecordSourceSelectorProxy } from 'relay-runtime';
 
 import { ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { currentSubscription, pushSupported, subscribe } from '../../notifications/push';
-import { notificationKinds } from '../../notifications/kinds';
+import { adminKinds, notificationKinds } from '../../notifications/kinds';
 import { isUnauthenticated } from '../../relay/environment';
 import { useDataChanges } from '../../changes/DataChanges';
 import { WatchReminderSettings } from '../../watch/WatchReminderSettings';
@@ -61,6 +61,9 @@ function Settings() {
   const data = useLazyLoadQuery<notificationsSettingsQuery>(
     graphql`
       query notificationsSettingsQuery {
+        viewer {
+          role
+        }
         webPushPublicKey
         webPushSubscriptions {
           endpoint
@@ -194,8 +197,13 @@ function Settings() {
         </Table.Thead>
         <Table.Tbody>
           {data.notificationPreferences.map((preference) => {
-            const label = notificationKinds[preference.kind as keyof typeof notificationKinds];
-            if (label === undefined) {
+            const kind = preference.kind as keyof typeof notificationKinds;
+            const label = notificationKinds[kind];
+            // 管理者にだけ届く種類は、ほかのユーザーには届かないので、設定にも出さない (#1517)。
+            if (
+              label === undefined ||
+              (adminKinds.includes(kind) && data.viewer.role !== 'ADMIN')
+            ) {
               return null;
             }
             // NotificationPreference は ID を持たず、Relay が一覧の行と結び付けられないので、種類で探して書き換える。

@@ -399,6 +399,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
 		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
+		ScrambleWarning: row.ScrambleWarning, ScrambledRatio: row.ScrambledRatio,
 		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID, ImageSegmentID: uuid.Nil(),
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,

@@ -32,6 +32,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
+	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -211,6 +212,7 @@ func NewHandler(opts *Options) http.Handler {
 		webPush:          o.WebPush,
 		streamSigner:     o.StreamSigner,
 		liveRates:        o.LiveRates,
+		liveScramble:     scramble.NewReporter(o.DB, o.Clock, o.Logger),
 		channelInspector: o.ChannelInspector,
 		jikkyoTable:      o.JikkyoTable,
 		jikkyoClient:     o.JikkyoClient,

@@ -46,6 +46,16 @@ func TestMessage(t *testing.T) {
 			name: "放送されていた番組が分からない", kind: domain.NotificationKindRecordingCompleted, location: tokyo,
 			payload: map[string]any{keyNotBroadcast: true}, want: "予約した番組は、予定の時間に放送されませんでした",
 		},
+		{
+			name: "スクランブルされたまま録れた録画の完了", kind: domain.NotificationKindRecordingCompleted, location: tokyo,
+			payload: map[string]any{keyName: programName, "scrambleWarning": true, "scrambledRatio": 0.99},
+			want:    "「こたつ特集」の録画が終わりましたが、映像と音声がスクランブルされたままです",
+		},
+		{
+			name: "スクランブルされたまま録れた録画が続いた", kind: domain.NotificationKindScrambledRecordings, location: tokyo,
+			payload: map[string]any{keyName: programName, "consecutive": 2},
+			want:    "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります",
+		},
 		{name: "録画の失敗", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画に失敗しました"},
 		{
 			name: "競合は、表示のタイムゾーンの日時で書く。日付をまたぐ", kind: domain.NotificationKindReservationConflict, payload: conflict, location: tokyo,

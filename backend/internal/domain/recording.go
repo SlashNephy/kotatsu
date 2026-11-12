@@ -24,11 +24,15 @@ type Recording struct {
 	State                 string
 	FailureReason         *string
 	// FailureDetail は、失敗した理由に至った、最後のエラーの本文 (#1467)。管理者にだけ見せる。
-	FailureDetail      *string
-	Protected          bool
-	Drops              int64
-	Errors             int64
-	Scrambled          int64
+	FailureDetail *string
+	Protected     bool
+	Drops         int64
+	Errors        int64
+	Scrambled     int64
+	// ScrambledRatio は、ES の PID だけで出した、スクランブルされていたパケットの割合 (#1517)。判定しなかった録画では nil。
+	ScrambledRatio *float64
+	// ScrambleWarning は、スクランブルされたまま録れたという警告の印 (設計書 5.5)。状態とは別に持つ。
+	ScrambleWarning    bool
 	Gaps               []byte
 	Audios             []byte
 	VideoResolution    *string

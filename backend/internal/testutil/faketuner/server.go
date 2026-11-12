@@ -1,6 +1,7 @@
 package faketuner
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -518,6 +519,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, id int64) {
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
 
+	data := s.tsOf(id)
 	ticker := time.NewTicker(streamInterval)
 	defer ticker.Stop()
 	for offset := 0; ; {
@@ -528,14 +530,14 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request, id int64) {
 		case <-ticker.C:
 		}
 
-		end := min(offset+streamChunkSize, len(s.ts))
-		if _, err := w.Write(s.ts[offset:end]); err != nil {
+		end := min(offset+streamChunkSize, len(data))
+		if _, err := w.Write(data[offset:end]); err != nil {
 			return
 		}
 		if flusher != nil {
 			flusher.Flush()
 		}
-		offset = end % len(s.ts)
+		offset = end % len(data)
 	}
 }
 
@@ -661,6 +663,38 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, reason string) {
 	writeJSON(w, status, map[string]any{"code": status, "reason": reason})
+}
+
+// tsOf は、サービス id のストリームで流す TS を返す。サービスに TS がなければ、Options.TS を返す。
+func (s *Server) tsOf(id int64) []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, channel := range s.channels {
+		for _, service := range channel.Services {
+			if service.ID == id && len(service.TS) > 0 {
+				return service.TS
+			}
+		}
+	}
+
+	return s.ts
+}
+
+// Scramble は、TS ts のうち、PID が pids のパケットのペイロードをスクランブルされたものとして印を付けた複製を返す (#1517)。
+// transport_scrambling_control を 0b10 (偶数鍵) にするだけで、ペイロードは書き換えない。
+// 合成した TS で、チューナーサーバーの B-CAS カードが読めていないときの TS を真似るのに使う。
+func Scramble(ts []byte, pids ...uint16) []byte {
+	scrambled := bytes.Clone(ts)
+	for offset := 0; offset+188 <= len(scrambled); offset += 188 {
+		packet := scrambled[offset : offset+188]
+		pid := uint16(packet[1]&0x1F)<<8 | uint16(packet[2])
+		if packet[0] != 0x47 || packet[3]&0x10 == 0 || !slices.Contains(pids, pid) {
+			continue
+		}
+		packet[3] = packet[3]&0x3F | 0x80
+	}
+
+	return scrambled
 }
 
 // nullPackets は、n 個の null パケット (PID 0x1FFF) からなる TS を作る。

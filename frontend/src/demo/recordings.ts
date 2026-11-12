@@ -139,6 +139,9 @@ export function createRecordings(options: {
       drops: recording.drops,
       errors: 0,
       scrambled: 0,
+      // デモの録画は、どれも復号できている。
+      scrambleWarning: false,
+      scrambledRatio: 0,
       streamQuality: [
         { pid: 0x100, kind: 'VIDEO', packets, drops: recording.drops, errors: 0, scrambled: 0 },
         {

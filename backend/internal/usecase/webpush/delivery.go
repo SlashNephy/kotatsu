@@ -263,7 +263,8 @@ func urgency(kind domain.NotificationKind) string {
 	case domain.NotificationKindRecordingFailed, domain.NotificationKindStorageLow, domain.NotificationKindTunerServerUnreachable:
 		return "high"
 	case domain.NotificationKindRecordingStarted, domain.NotificationKindRecordingCompleted, domain.NotificationKindReservationConflict,
-		domain.NotificationKindWatchReminder, domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed:
+		domain.NotificationKindWatchReminder, domain.NotificationKindAnimeRecorded, domain.NotificationKindAnimeRecordFailed,
+		domain.NotificationKindScrambledRecordings:
 		return "normal"
 	default:
 		return "normal"
