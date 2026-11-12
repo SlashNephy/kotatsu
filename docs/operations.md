@@ -100,7 +100,25 @@ Docker Composeの例は、mikanが1つの`all`の構成です。
 `/readyz`は、チューナーサーバーの状態を判定に含めません。
 
 ログは、JSON形式で標準出力に書きます。
+各プロセスは、最後の8000行をメモリにも持ち、管理者は`/admin/logs`の画面で読めます。
 OpenTelemetryのトレースを送るときは、`telemetry.otlp_endpoint`を設定してください。
+
+## 不具合の報告
+
+1. 管理者で`/admin/logs`を開きます。直近のログと、チューナーサーバーのログが並びます。「警告とエラーだけ」と検索で、起きたときの行を確かめられます。
+2. 「Issue にする」を押すと、秘密の値、IPアドレス、ホスト名、メールアドレス、ホームフォルダのユーザー名などを伏せた報告が、確認の窓に出ます。どの欄も書き換えたり消したりできます。
+3. 「GitHub で開く」を押すと、このブラウザでGitHubの不具合の報告のフォームが開き、版、環境、ログが入ります。起きたことと再現の手順を書いて、送ってください。KotatsuのサーバーからGitHubには何も送りません。
+
+URLの長さには上限があるので、フォームに入るのは、警告とエラーを先に、新しい順に選んだ行だけです。全部のログが要るときは、確認の窓の「コピー」か「ダウンロード」で全部入りの報告を取り、Issueに貼るか添付してください。伏せる規則は形で当てるので、貼る前にもう一度中身を確かめてください。
+
+ログはプロセスごとに持つので、ロールを分けた構成では、画面に出るのは、答えたtenbanのログだけです。ほかのロールのログは、次のように集めて、報告に足してください。伏せていないので、貼る前に秘密の値やホスト名を消してください。
+
+```sh
+kubectl logs -l app.kubernetes.io/component=neko --tail=1000
+kubectl logs -l app.kubernetes.io/component=mikan --tail=1000
+kubectl logs -l app.kubernetes.io/component=nekonote --tail=1000
+kubectl logs -l app.kubernetes.io/component=kyusu --tail=1000
+```
 
 ## アカウントの復旧
 
