@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/encoding/japanese"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -22,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
 // 同じ回かを確かめ直す (#1500) テストの番組。番組表 (数日前の EIT[schedule]) の番組名と概要には話数がなく、
@@ -477,4 +479,59 @@ func TestStoppedReservationIsNotRecordedAgain(t *testing.T) {
 	got, found := f.recording(t, reservationID)
 	require.True(t, found)
 	assert.Equal(t, string(recording.StateRecording), got.state)
+}
+
+// TestRecorderRecordsHistoryFromRewrittenName は、EIT[p/f] で番組名を書き直した録画を録り終えたら、録画履歴の番組名のキーと、
+// 前の回を録らない (#1499) ときに引くシリーズ名を、書き直した後の番組名から作ることを確かめる (#1500)。
+// 数日前の番組表では、番組名が枠の名前だけの局を真似る。
+func TestRecorderRecordsHistoryFromRewrittenName(t *testing.T) {
+	t.Parallel()
+
+	const placeholder = "アニメ枠"
+	f := newFixture(t)
+	reservationID := f.reserveBundled(t, 0, true)
+	_, err := f.pool.Exec(t.Context(), "UPDATE programs SET name = $1 WHERE service_id = $2 AND event_id = 6", placeholder, grService(0))
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET name = $1 WHERE id = $2", placeholder, reservationID)
+	require.NoError(t, err)
+	stream := newSteppedStream()
+	logs := &messageRecorder{mu: sync.Mutex{}, messages: []string{}}
+	recorder, _ := f.newRecorderWithLogger(t, stream, nil, nil, slog.New(logs))
+	_, done := f.session(t, recorder, reservationID)
+	f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+
+	// 予約した番組が放送中になり、EIT[p/f] に作品名が載る。待つ上限まで進めて、確かめ終える。
+	cc := byte(0)
+	stream.next(t, pfPackets(t, &cc, 0x0400, pfEvent{eventID: 6, name: recheckName, description: recheckDescription},
+		pfEvent{eventID: 7, name: "", description: ""}))
+	require.Eventually(t, func() bool { return f.recordingName(t, reservationID) == recheckName }, waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(recording.EpisodeRecheckTimeout)
+	require.Eventually(t, func() bool { return f.startedEvents(t) == 1 }, waitTimeout, 10*time.Millisecond)
+	// 次の番組に切り替わったら、予定の終わりで止める。
+	stream.next(t, pfPackets(t, &cc, 0x0400, pfEvent{eventID: 7, name: "", description: ""}, pfEvent{eventID: 8, name: "", description: ""}))
+	require.Eventually(t, func() bool { return slices.Contains(logs.list(), "the program left the air; recording the end margin") },
+		waitTimeout, 10*time.Millisecond)
+	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
+	require.NoError(t, wait(t, done))
+
+	var name, titleKey string
+	var series *string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT name, title_key, series FROM recording_history").Scan(&name, &titleKey, &series))
+	assert.Equal(t, recheckName, name)
+	assert.Equal(t, rule.TitleKey(recheckName), titleKey)
+	require.NotNil(t, series)
+	assert.Equal(t, episode.SeriesOf(recheckName), *series)
+	assert.NotEqual(t, episode.SeriesOf(placeholder), *series)
+}
+
+// recordingName は、予約の録画の番組名を返す。録画がなければ空にする。
+func (f *fixture) recordingName(t *testing.T, reservationID uuid.UUID) string {
+	t.Helper()
+
+	var name string
+	if err := f.pool.QueryRow(t.Context(), "SELECT name FROM recordings WHERE reservation_id = $1", reservationID).Scan(&name); err != nil {
+		return ""
+	}
+
+	return name
 }

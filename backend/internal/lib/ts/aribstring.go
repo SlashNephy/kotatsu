@@ -168,7 +168,7 @@ func (d *aribDecoder) writeTwo(set int, c1, c2 byte) {
 	}
 	// 85 区から後ろは、ARIB の追加漢字と追加記号にする。
 	if c1 >= 0x75 {
-		if s, ok := aribSymbols[uint16(c1)<<8|uint16(c2)]; ok {
+		if s, ok := aribSymbol(uint16(c1)<<8 | uint16(c2)); ok {
 			d.out.WriteString(s)
 		}
 
