@@ -31,9 +31,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/history"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
-	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
@@ -58,11 +58,8 @@ const (
 	DefaultRetryInterval = 2 * time.Second
 	// DefaultDatabaseTimeout は、録画中に 1 度に DB を待つ上限の既定値 (#1073)。
 	DefaultDatabaseTimeout = 5 * time.Second
-	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。
-	// 本番の録画 (2026-10-12〜11-12 の 1,538 件) では、ドロップは 0 件が 95% で、BS4K は
-	// 19 件すべてに 3〜4 件が出ていた。地上波と BS で 2〜4 件の録画は 3 件だけだった。
-	// BS4K の録画も録画済みとみなせるよう、上限を 4 件にする。
-	MaxHistoryDrops = 4
+	// MaxHistoryDrops は、重複の回避で「録画済み」とみなすドロップの数の上限 (付録 A、#1497)。決め方は history.MaxDrops に書く。
+	MaxHistoryDrops = history.MaxDrops
 	// ExtensionStep と MaxExtension は、延長中で終了時刻が未定の番組の、録画の延長幅と上限 (付録 A)。
 	ExtensionStep = 5 * time.Minute
 	MaxExtension  = 3 * time.Hour
@@ -1907,14 +1904,9 @@ func (r *Recorder) complete(
 			return err
 		}
 
-		if (state == StateCompleted || state == StateCompletedWithErrors) && recording.Drops <= MaxHistoryDrops {
-			err := q.InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
-				ID: id.New(), ServiceID: recording.ServiceID, TitleKey: rule.TitleKey(recording.Name), Name: recording.Name,
-				StartAt: recording.StartAt, EndAt: recording.EndAt, Now: now,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to save the recording history: %w", err)
-			}
+		// スクランブルされたまま録れた録画は、ドロップの多い録画と同じく、録画済みとみなさない (設計書 4.4、#1517)。
+		if err := history.Record(ctx, q, &recording, now); err != nil {
+			return err
 		}
 		segments, err := q.ListRecordingSegments(ctx, recordingID)
 		if err != nil {
@@ -1944,7 +1936,7 @@ func (r *Recorder) complete(
 	return nil
 }
 
-// judgeScramble は、スクランブルされたまま録れたかを判定して録画に記録し、警告なら完了の通知の payload に添え、
+// judgeScramble は、スクランブルされたまま録れたかを判定して録画 (recording の警告の印も) に記録し、警告なら完了の通知の payload に添え、
 // 続けて起きたら管理者に知らせる (設計書 5.5、6.2、#1517)。スクランブルされたまま録れても、失敗にはしない。
 func (r *Recorder) judgeScramble(
 	ctx context.Context, tx pgx.Tx, recording *sqlc.Recording, serviceName string, payload map[string]any, now time.Time,
@@ -1953,6 +1945,7 @@ func (r *Recorder) judgeScramble(
 	if err != nil {
 		return err
 	}
+	recording.ScrambleWarning = scrambled.Warning
 	scramble.AddToPayload(payload, scrambled)
 	alert := recordingPayload(recording.ID, recording.Name, serviceName, recording.StartAt, recording.EndAt)
 

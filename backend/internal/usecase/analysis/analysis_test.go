@@ -550,3 +550,68 @@ func TestAnalyzeWorkerJudgesScramble(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzeWorkerResyncsHistory は、解析し直してスクランブルの警告が変わったら、録画履歴を合わせて直すことを確かめる (設計書 4.4、#1517)。
+// 警告が変わらなければ、取り込んだ録画のように終えたときに記録しなかった録画を、解析だけで記録し始めない。
+func TestAnalyzeWorkerResyncsHistory(t *testing.T) {
+	t.Parallel()
+
+	clean := continuousRepeat(loadTestTS(t), 8)
+	tests := []struct {
+		name string
+		data []byte
+		// warned は、解析し直す前の警告の印。linked は、解析し直す前に、この録画から記録した録画履歴があるか。
+		warned, linked bool
+		// wantLinked は、解析し直した後の、この録画から記録した録画履歴の数。
+		wantLinked int
+	}{
+		{name: "a warning appears", data: faketuner.Scramble(clean, videoPID, 0x0112), warned: false, linked: true, wantLinked: 0},
+		{name: "the warning goes away", data: clean, warned: true, linked: false, wantLinked: 1},
+		{name: "no warning before or after", data: clean, warned: false, linked: false, wantLinked: 0},
+		{name: "still warned", data: faketuner.Scramble(clean, videoPID, 0x0112), warned: true, linked: false, wantLinked: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed", tt.data)
+			ctx := t.Context()
+			_, err := f.pool.Exec(ctx, "UPDATE recordings SET scramble_warning = $1 WHERE id = $2", tt.warned, recordingID)
+			require.NoError(t, err)
+			// EPGStation から取り込んだ履歴のように、録画と結びつかない履歴は、警告で消さない。
+			_, err = f.pool.Exec(ctx, `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
+				VALUES ($1, $2, '録画', '録画', $3, $3, $3)`, id.New(), serviceID, f.clock.Now())
+			require.NoError(t, err)
+			if tt.linked {
+				_, err = f.pool.Exec(ctx, `INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at, recording_id)
+					VALUES ($1, $2, '録画', '録画', $3, $3, $3, $4)`, id.New(), serviceID, f.clock.Now(), recordingID)
+				require.NoError(t, err)
+			}
+			require.NoError(t, f.analyze(t, recordingID))
+
+			var linked, unlinked int
+			require.NoError(t, f.pool.QueryRow(ctx, "SELECT count(*) FILTER (WHERE recording_id = $1), count(*) FILTER (WHERE recording_id IS NULL) FROM recording_history",
+				recordingID).Scan(&linked, &unlinked))
+			assert.Equal(t, tt.wantLinked, linked)
+			assert.Equal(t, 1, unlinked)
+		})
+	}
+}
+
+// continuousRepeat は、TS data を n 回つなぎ、continuity_counter を PID ごとに通し番号に振り直す。つなぎ目でドロップを数えないようにする。
+func continuousRepeat(data []byte, n int) []byte {
+	repeated := bytes.Repeat(data, n)
+	counters := map[uint16]byte{}
+	for offset := 0; offset+188 <= len(repeated); offset += 188 {
+		packet := repeated[offset : offset+188]
+		if packet[3]&0x10 == 0 {
+			continue
+		}
+		pid := uint16(packet[1]&0x1F)<<8 | uint16(packet[2])
+		packet[3] = packet[3]&0xF0 | counters[pid]&0x0F
+		counters[pid]++
+	}
+
+	return repeated
+}

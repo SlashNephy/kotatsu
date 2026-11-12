@@ -96,6 +96,18 @@ func (q *Queries) CloseRecordingFile(ctx context.Context, arg CloseRecordingFile
 	return err
 }
 
+const countRecordingHistoryByRecording = `-- name: CountRecordingHistoryByRecording :one
+SELECT count(*) FROM recording_history WHERE recording_id = $1
+`
+
+// 録画 recording_id から記録した録画履歴の数 (#1517)。
+func (q *Queries) CountRecordingHistoryByRecording(ctx context.Context, recordingID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecordingHistoryByRecording, recordingID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRecordingSegments = `-- name: CountRecordingSegments :one
 SELECT count(*) AS segments, coalesce(max(size) FILTER (WHERE id = $1), 0)::bigint AS first_size
 FROM recording_files WHERE recording_id = $2 AND kind = 'segment' AND size > 0
@@ -147,6 +159,19 @@ type DeleteRecordingFilesParams struct {
 func (q *Queries) DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error {
 	_, err := q.db.Exec(ctx, deleteRecordingFiles, arg.RecordingID, arg.Ids)
 	return err
+}
+
+const deleteRecordingHistoryByRecording = `-- name: DeleteRecordingHistoryByRecording :execrows
+DELETE FROM recording_history WHERE recording_id = $1
+`
+
+// 録画 recording_id から記録した録画履歴を消す (#1517)。スクランブルの警告が付いたら、録画済みとみなさない。
+func (q *Queries) DeleteRecordingHistoryByRecording(ctx context.Context, recordingID *uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRecordingHistoryByRecording, recordingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteRecordingSegments = `-- name: DeleteRecordingSegments :many
@@ -797,21 +822,23 @@ func (q *Queries) InsertRecordingFile(ctx context.Context, arg InsertRecordingFi
 }
 
 const insertRecordingHistory = `-- name: InsertRecordingHistory :exec
-INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at, recording_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type InsertRecordingHistoryParams struct {
-	ID        uuid.UUID
-	ServiceID int64
-	TitleKey  string
-	Name      string
-	StartAt   time.Time
-	EndAt     time.Time
-	Now       time.Time
+	ID          uuid.UUID
+	ServiceID   int64
+	TitleKey    string
+	Name        string
+	StartAt     time.Time
+	EndAt       time.Time
+	Now         time.Time
+	RecordingID *uuid.UUID
 }
 
 // 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
+// recording_id は、記録した Kotatsu の録画。EPGStation から取り込んだ履歴では NULL にする。
 func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistory,
 		arg.ID,
@@ -821,6 +848,7 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 		arg.StartAt,
 		arg.EndAt,
 		arg.Now,
+		arg.RecordingID,
 	)
 	return err
 }

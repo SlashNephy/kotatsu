@@ -628,13 +628,14 @@ type RecordingFile struct {
 }
 
 type RecordingHistory struct {
-	ID        uuid.UUID
-	ServiceID int64
-	TitleKey  string
-	Name      string
-	StartAt   time.Time
-	EndAt     time.Time
-	CreatedAt time.Time
+	ID          uuid.UUID
+	ServiceID   int64
+	TitleKey    string
+	Name        string
+	StartAt     time.Time
+	EndAt       time.Time
+	CreatedAt   time.Time
+	RecordingID *uuid.UUID
 }
 
 type RecordingLiveStat struct {

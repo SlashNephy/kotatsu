@@ -69,8 +69,17 @@ SELECT end_at, end_undecided FROM programs WHERE service_id = @service_id AND ev
 
 -- name: InsertRecordingHistory :exec
 -- 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
-INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at)
-VALUES (@id, @service_id, @title_key, @name, @start_at, @end_at, @now);
+-- recording_id は、記録した Kotatsu の録画。EPGStation から取り込んだ履歴では NULL にする。
+INSERT INTO recording_history (id, service_id, title_key, name, start_at, end_at, created_at, recording_id)
+VALUES (@id, @service_id, @title_key, @name, @start_at, @end_at, @now, sqlc.narg(recording_id));
+
+-- name: CountRecordingHistoryByRecording :one
+-- 録画 recording_id から記録した録画履歴の数 (#1517)。
+SELECT count(*) FROM recording_history WHERE recording_id = @recording_id;
+
+-- name: DeleteRecordingHistoryByRecording :execrows
+-- 録画 recording_id から記録した録画履歴を消す (#1517)。スクランブルの警告が付いたら、録画済みとみなさない。
+DELETE FROM recording_history WHERE recording_id = @recording_id;
 
 -- name: ListRecordingSegments :many
 -- 通知に載せる、録画のセグメントの保存先プールとプール内の相対パス。何も書けなかったセグメントは含めない。

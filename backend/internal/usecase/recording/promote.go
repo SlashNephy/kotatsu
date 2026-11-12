@@ -20,11 +20,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
-	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/history"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
-	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
@@ -307,12 +306,12 @@ func (r *Recorder) finishPromotion(
 		if err != nil {
 			return err
 		}
-		state, err := r.completePromoted(ctx, q, recording.ID, promotion, recordedUntil, now)
+		// 録画履歴に記録するかを決めるのに使うので、録画を終える前に判定する (設計書 4.4、#1517)。
+		scrambled, err := scramble.Judge(ctx, q, recording.ID, now)
 		if err != nil {
 			return err
 		}
-
-		scrambled, err := scramble.Judge(ctx, q, recording.ID, now)
+		state, err := r.completePromoted(ctx, q, recording.ID, promotion, recordedUntil, now)
 		if err != nil {
 			return err
 		}
@@ -407,15 +406,10 @@ func (r *Recorder) completePromoted(
 	if err != nil {
 		return "", fmt.Errorf("failed to finish the recording: %w", err)
 	}
-	if state == StatePartial || recording.Drops > MaxHistoryDrops {
-		return state, nil
-	}
-	err = q.InsertRecordingHistory(ctx, sqlc.InsertRecordingHistoryParams{
-		ID: id.New(), ServiceID: recording.ServiceID, TitleKey: rule.TitleKey(recording.Name), Name: recording.Name,
-		StartAt: recording.StartAt, EndAt: recording.EndAt, Now: now,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to save the recording history: %w", err)
+	// スクランブルの警告は、録画を終える前に判定して記録してある (#1517)。
+	recording.State = string(state)
+	if err := history.Record(ctx, q, &recording, now); err != nil {
+		return "", err
 	}
 
 	return state, nil

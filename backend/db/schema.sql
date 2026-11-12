@@ -1047,7 +1047,7 @@ CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
 -- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
 CREATE INDEX watch_progress_updated_at_idx ON watch_progress (updated_at);
 
--- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値未満だった録画だけを記録し、録画を削除しても残す。
+-- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値以下で、スクランブルの警告のない録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,
   service_id bigint NOT NULL REFERENCES services (id),
@@ -1057,8 +1057,14 @@ CREATE TABLE recording_history (
   name text NOT NULL,
   start_at timestamptz NOT NULL,
   end_at timestamptz NOT NULL,
-  created_at timestamptz NOT NULL
+  created_at timestamptz NOT NULL,
+  -- 記録した Kotatsu の録画 (#1517)。解析し直して、スクランブルの警告が変わったときに、履歴を合わせて直すのに使う。
+  -- 録画を消しても履歴は残すので、NULL にする。EPGStation から取り込んだ履歴と、これを足す前に記録した履歴も NULL。
+  recording_id uuid REFERENCES recordings (id) ON DELETE SET NULL
 );
+
+-- 録画の履歴を、録画で引くのに使う (#1517)。録画を消すときの ON DELETE SET NULL でも引く。
+CREATE INDEX recording_history_recording_id_idx ON recording_history (recording_id);
 
 -- 重複の回避の照合で、(正規化した番組名, サービス) と期間で引く (設計書 4.4)。
 -- EPGStation では、このインデックスがないために照合が全件を走査し、利用者が手でインデックスを足していた。

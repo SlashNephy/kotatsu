@@ -20,17 +20,19 @@ func TestRecorderWarnsScrambledRecordings(t *testing.T) {
 
 	data, err := os.ReadFile("../../../testdata/ts/test.ts")
 	require.NoError(t, err)
-	// 判定に要る ES のパケットの数に届くよう、繰り返す。つなぎ目のドロップは、この確かめに関わらない。
-	repeated := bytes.Repeat(data, 8)
+	// 判定に要る ES のパケットの数に届くよう、つなぎ目にドロップのないように繰り返す。
+	repeated := continuousRepeat(data, 8)
 	tests := []struct {
 		name        string
 		data        []byte
 		wantWarning bool
 		wantRatio   float64
+		// wantHistory は、録画履歴に記録した数。スクランブルされたまま録れた録画は、録画済みとみなさない (設計書 4.4)。
+		wantHistory int
 	}{
-		{name: "decrypted", data: repeated, wantWarning: false, wantRatio: 0},
+		{name: "decrypted", data: repeated, wantWarning: false, wantRatio: 0, wantHistory: 1},
 		// 映像 (0x0111) と音声 (0x0112) をスクランブルし、PAT、PMT、EIT などは平文のままにする。
-		{name: "still scrambled", data: faketuner.Scramble(repeated, 0x0111, 0x0112), wantWarning: true, wantRatio: 1},
+		{name: "still scrambled", data: faketuner.Scramble(repeated, 0x0111, 0x0112), wantWarning: true, wantRatio: 1, wantHistory: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -47,7 +49,8 @@ func TestRecorderWarnsScrambledRecordings(t *testing.T) {
 			require.NoError(t, wait(t, done))
 
 			got, _ := f.recording(t, reservationID)
-			assert.NotEqual(t, string(recording.StateFailed), got.state, "a scrambled recording must not fail")
+			assert.Equal(t, recorded{state: string(recording.StateCompleted), failureReason: nil, drops: 0}, got, "a scrambled recording must not fail")
+			assert.Equal(t, tt.wantHistory, f.historyCount(t))
 			var warning bool
 			var ratio *float64
 			err := f.pool.QueryRow(t.Context(), "SELECT scramble_warning, scrambled_ratio FROM recordings WHERE reservation_id = $1", reservationID).
@@ -69,4 +72,22 @@ func TestRecorderWarnsScrambledRecordings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// continuousRepeat は、TS data を n 回つなぎ、continuity_counter を PID ごとに通し番号に振り直す。
+// つなぎ目でドロップを数えないようにし、ドロップのない録画として確かめるのに使う。
+func continuousRepeat(data []byte, n int) []byte {
+	repeated := bytes.Repeat(data, n)
+	counters := map[uint16]byte{}
+	for offset := 0; offset+188 <= len(repeated); offset += 188 {
+		packet := repeated[offset : offset+188]
+		if packet[3]&0x10 == 0 {
+			continue
+		}
+		pid := uint16(packet[1]&0x1F)<<8 | uint16(packet[2])
+		packet[3] = packet[3]&0xF0 | counters[pid]&0x0F
+		counters[pid]++
+	}
+
+	return repeated
 }

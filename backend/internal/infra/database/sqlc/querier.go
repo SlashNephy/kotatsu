@@ -67,6 +67,8 @@ type Querier interface {
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
 	// /metrics に出す、失敗の理由ごとの録画の数。
 	CountRecordingFailures(ctx context.Context) ([]CountRecordingFailuresRow, error)
+	// 録画 recording_id から記録した録画履歴の数 (#1517)。
+	CountRecordingHistoryByRecording(ctx context.Context, recordingID *uuid.UUID) (int64, error)
 	// 録画のセグメントの記録の数と、そのうち最初のもの first_id の大きさ。つないだ結果が確定したかを確かめるのに使う。
 	CountRecordingSegments(ctx context.Context, arg CountRecordingSegmentsParams) (CountRecordingSegmentsRow, error)
 	// /metrics に出す、状態ごとの録画の数 (設計書 11.3)。
@@ -142,6 +144,8 @@ type Querier interface {
 	DeleteRecordingCMSections(ctx context.Context, arg DeleteRecordingCMSectionsParams) error
 	// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
 	DeleteRecordingFiles(ctx context.Context, arg DeleteRecordingFilesParams) error
+	// 録画 recording_id から記録した録画履歴を消す (#1517)。スクランブルの警告が付いたら、録画済みとみなさない。
+	DeleteRecordingHistoryByRecording(ctx context.Context, recordingID *uuid.UUID) (int64, error)
 	// 録画のセグメントの記録を消し、消したファイルを返す (#1046)。ファイルは、呼ぶ側が消す。
 	DeleteRecordingSegments(ctx context.Context, recordingID uuid.UUID) ([]DeleteRecordingSegmentsRow, error)
 	DeleteRecordingTags(ctx context.Context, recordingID uuid.UUID) error
@@ -430,6 +434,7 @@ type Querier interface {
 	// チューナーは、セグメントを書くストリームを受信していたもの (#1467)。見つけられなければ NULL。
 	InsertRecordingFile(ctx context.Context, arg InsertRecordingFileParams) error
 	// 重複の回避に使う録画履歴を記録する (設計書 4.4)。録画を削除しても残す。
+	// recording_id は、記録した Kotatsu の録画。EPGStation から取り込んだ履歴では NULL にする。
 	InsertRecordingHistory(ctx context.Context, arg InsertRecordingHistoryParams) error
 	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
