@@ -30,7 +30,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
-	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -125,12 +124,6 @@ func DefaultRoles() []*Role {
 		},
 	}
 }
-
-// EDCB の TunerServer は、neko の EPG の同期とチューナーの把握に渡す (#1531、#1532)。
-var (
-	_ neko.EPGSource      = new(edcb.TunerServer)
-	_ tunerstate.Upstream = new(edcb.TunerServer)
-)
 
 func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")

@@ -88,3 +88,37 @@ func TestTunerServerClockAndIdentity(t *testing.T) {
 	// どちらも EpgTimerSrv に問い合わせない。
 	assert.Empty(t, s.received())
 }
+
+func TestTunerServerChannels(t *testing.T) {
+	t.Parallel()
+
+	// チャンネルの設定のサービスを、TS (TSID) ごとにまとめる。
+	s := edcbServer(t)
+	server := edcb.NewTunerServer(s.client(t), nil)
+	channels, err := server.Channels(t.Context())
+	require.NoError(t, err)
+	services, err := server.Services(t.Context())
+	require.NoError(t, err)
+	total := 0
+	for _, channel := range channels {
+		assert.Equal(t, "GR", channel.Type)
+		assert.NotEmpty(t, channel.Name)
+		for _, service := range channel.Services {
+			assert.Equal(t, tunerserver.ChannelRef{Type: channel.Type, Channel: channel.Channel}, *service.Channel)
+		}
+		total += len(channel.Services)
+	}
+	assert.Equal(t, len(services), total)
+	// NHK 総合 (東京) の TS には、NHK 総合 1 のサービスが入る。
+	ids := map[string][]int64{}
+	for _, channel := range channels {
+		for _, service := range channel.Services {
+			ids[channel.Channel] = append(ids[channel.Channel], service.ID)
+		}
+	}
+	assert.Contains(t, ids["32736"], int64(3273601024))
+	assert.NotContains(t, ids["32736"], int64(3273701032))
+
+	_, err = server.ServiceLogo(t.Context(), 3273601024)
+	require.ErrorIs(t, err, tunerserver.ErrLogoUnavailable)
+}

@@ -111,6 +111,9 @@ func (s *TunerServer) Channels(ctx context.Context) ([]*tunerserver.Channel, err
 	channels := []*tunerserver.Channel{}
 	index := map[tunerserver.ChannelRef]*tunerserver.Channel{}
 	for _, service := range services {
+		if service == nil || service.Channel == nil {
+			continue
+		}
 		ref := *service.Channel
 		channel, ok := index[ref]
 		if !ok {

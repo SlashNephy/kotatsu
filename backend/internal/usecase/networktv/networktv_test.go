@@ -56,9 +56,21 @@ func mustIDs(t *testing.T, db *pgxpool.Pool, clk clock.Clock, owner uuid.UUID, c
 func TestNewIDsRejectsInvalidRange(t *testing.T) {
 	t.Parallel()
 
-	for _, r := range [][2]int{{0, 1}, {1, 0}, {math.MaxInt32, 2}} {
-		_, err := networktv.NewIDs(nil, nil, uuid.Nil(), r[0], r[1])
-		require.Error(t, err, "start %d, count %d", r[0], r[1])
+	tests := []struct {
+		name         string
+		start, count int
+	}{
+		{name: "start is zero", start: 0, count: 1},
+		{name: "count is zero", start: 1, count: 0},
+		{name: "beyond int32", start: math.MaxInt32, count: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := networktv.NewIDs(nil, nil, uuid.Nil(), tt.start, tt.count)
+			require.Error(t, err)
+		})
 	}
 }
 
