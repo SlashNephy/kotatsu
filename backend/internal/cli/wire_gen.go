@@ -8,6 +8,7 @@ package cli
 
 import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"log/slog"
 )
@@ -58,4 +59,35 @@ func newKyusuParts(deps *Deps, logger *slog.Logger, token *kyusu.Token, opener k
 		vod:   vod,
 	}
 	return cliKyusuParts, nil
+}
+
+// newAccountParts は、ユーザーのアカウントとログインを扱う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確かめる。
+func newAccountParts(deps *Deps, logger *slog.Logger) (*accountParts, error) {
+	clock := clockOf(deps)
+	sessions := newSessions(clock, logger)
+	dbRecorder := audit.NewRecorder(clock)
+	cliAppSecret := appSecretOf(deps)
+	secondFactors, err := newSecondFactors(clock, dbRecorder, cliAppSecret)
+	if err != nil {
+		return nil, err
+	}
+	passkeys := newPasskeys(clock, dbRecorder, logger, sessions)
+	policy, err := newAccountPasswordPolicy(deps, logger)
+	if err != nil {
+		return nil, err
+	}
+	userAdmin := auth.NewUserAdmin(clock, dbRecorder, policy)
+	passwords := auth.NewPasswords(clock, dbRecorder, policy)
+	pool := poolOf(deps)
+	apiTokens := auth.NewAPITokens(pool, clock, dbRecorder)
+	cliAccountParts := &accountParts{
+		sessions:       sessions,
+		factors:        secondFactors,
+		passkeys:       passkeys,
+		passwordPolicy: policy,
+		userAdmin:      userAdmin,
+		passwords:      passwords,
+		apiTokens:      apiTokens,
+	}
+	return cliAccountParts, nil
 }

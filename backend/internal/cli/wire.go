@@ -8,6 +8,7 @@ import (
 	"github.com/goforj/wire"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
@@ -39,5 +40,24 @@ func newKyusuParts(
 		newKyusuLive,
 		newKyusuVOD,
 		wire.Struct(new(kyusuParts), "*"),
+	))
+}
+
+// newAccountParts は、ユーザーのアカウントとログインを扱う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確かめる。
+func newAccountParts(deps *Deps, logger *slog.Logger) (*accountParts, error) {
+	panic(wire.Build(
+		clockOf,
+		appSecretOf,
+		poolOf,
+		audit.NewRecorder,
+		wire.Bind(new(audit.Recorder), new(*audit.DBRecorder)),
+		newSessions,
+		newSecondFactors,
+		newPasskeys,
+		newAccountPasswordPolicy,
+		auth.NewUserAdmin,
+		auth.NewPasswords,
+		auth.NewAPITokens,
+		wire.Struct(new(accountParts), "*"),
 	))
 }
