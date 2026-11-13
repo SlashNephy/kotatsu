@@ -15,8 +15,10 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -24266,8 +24268,8 @@ func (ec *executionContext) _Keyword_fields(ctx context.Context, field graphql.C
 			return obj.Fields, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []model.KeywordField) graphql.Marshaler {
-			return ec.marshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []match.Field) graphql.Marshaler {
+			return ec.marshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐFieldᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -32334,8 +32336,8 @@ func (ec *executionContext) _ProgramConditions_keywordMatch(ctx context.Context,
 			return obj.KeywordMatch, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.KeywordMatch) graphql.Marshaler {
-			return ec.marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordMatch(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v match.KeywordMatch) graphql.Marshaler {
+			return ec.marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx, selections, v)
 		},
 		true,
 		true,
@@ -40475,8 +40477,8 @@ func (ec *executionContext) _StreamPreset_codec(ctx context.Context, field graph
 			return obj.Codec, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.VideoCodec) graphql.Marshaler {
-			return ec.marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐVideoCodec(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v kyusu.Codec) graphql.Marshaler {
+			return ec.marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec(ctx, selections, v)
 		},
 		true,
 		true,
@@ -45704,7 +45706,7 @@ func (ec *executionContext) unmarshalInputKeywordInput(ctx context.Context, obj 
 			it.CaseSensitive = data
 		case "fields":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("fields"))
-			data, err := ec.unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx, v)
+			data, err := ec.unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐFieldᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -46303,7 +46305,7 @@ func (ec *executionContext) unmarshalInputProgramConditionsInput(ctx context.Con
 			it.Keywords = data
 		case "keywordMatch":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("keywordMatch"))
-			data, err := ec.unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordMatch(ctx, v)
+			data, err := ec.unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -59053,23 +59055,41 @@ func (ec *executionContext) marshalNKeyword2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 	return ec._Keyword(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordField(ctx context.Context, v any) (model.KeywordField, error) {
-	var res model.KeywordField
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField(ctx context.Context, v any) (match.Field, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordField(ctx context.Context, sel ast.SelectionSet, v model.KeywordField) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField(ctx context.Context, sel ast.SelectionSet, v match.Field) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "KeywordField!")
+	}
+	return res
 }
 
-func (ec *executionContext) unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx context.Context, v any) ([]model.KeywordField, error) {
+var (
+	unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField = map[string]match.Field{
+		"NAME":        match.FieldName,
+		"DESCRIPTION": match.FieldDescription,
+		"EXTENDED":    match.FieldExtended,
+	}
+	marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField = map[match.Field]string{
+		match.FieldName:        "NAME",
+		match.FieldDescription: "DESCRIPTION",
+		match.FieldExtended:    "EXTENDED",
+	}
+)
+
+func (ec *executionContext) unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐFieldᚄ(ctx context.Context, v any) ([]match.Field, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
-	res := make([]model.KeywordField, len(vSlice))
+	res := make([]match.Field, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordField(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -59077,11 +59097,11 @@ func (ec *executionContext) unmarshalNKeywordField2ᚕgithubᚗcomᚋSlashNephy�
 	return res, nil
 }
 
-func (ec *executionContext) marshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []model.KeywordField) graphql.Marshaler {
+func (ec *executionContext) marshalNKeywordField2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐFieldᚄ(ctx context.Context, sel ast.SelectionSet, v []match.Field) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordField(ctx, sel, v[i])
+		return ec.marshalNKeywordField2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐField(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -59098,15 +59118,31 @@ func (ec *executionContext) unmarshalNKeywordInput2ᚖgithubᚗcomᚋSlashNephy�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordMatch(ctx context.Context, v any) (model.KeywordMatch, error) {
-	var res model.KeywordMatch
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx context.Context, v any) (match.KeywordMatch, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordMatch(ctx context.Context, sel ast.SelectionSet, v model.KeywordMatch) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch(ctx context.Context, sel ast.SelectionSet, v match.KeywordMatch) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "KeywordMatch!")
+	}
+	return res
 }
+
+var (
+	unmarshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch = map[string]match.KeywordMatch{
+		"ALL": match.KeywordMatchAll,
+		"ANY": match.KeywordMatchAny,
+	}
+	marshalNKeywordMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋmatchᚐKeywordMatch = map[match.KeywordMatch]string{
+		match.KeywordMatchAll: "ALL",
+		match.KeywordMatchAny: "ANY",
+	}
+)
 
 func (ec *executionContext) unmarshalNKeywordMuteMatch2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐKeywordMuteMatch(ctx context.Context, v any) (model.KeywordMuteMatch, error) {
 	var res model.KeywordMuteMatch
@@ -61070,15 +61106,31 @@ func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 	return ec._User(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐVideoCodec(ctx context.Context, v any) (model.VideoCodec, error) {
-	var res model.VideoCodec
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec(ctx context.Context, v any) (kyusu.Codec, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐVideoCodec(ctx context.Context, sel ast.SelectionSet, v model.VideoCodec) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec(ctx context.Context, sel ast.SelectionSet, v kyusu.Codec) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "VideoCodec!")
+	}
+	return res
 }
+
+var (
+	unmarshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec = map[string]kyusu.Codec{
+		"H264": kyusu.CodecH264,
+		"HEVC": kyusu.CodecHEVC,
+	}
+	marshalNVideoCodec2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋkyusuᚐCodec = map[kyusu.Codec]string{
+		kyusu.CodecH264: "H264",
+		kyusu.CodecHEVC: "HEVC",
+	}
+)
 
 func (ec *executionContext) unmarshalNVideoFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐVideoFormat(ctx context.Context, v any) (model.VideoFormat, error) {
 	var res model.VideoFormat

@@ -28,6 +28,29 @@ struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
 models:
+  KeywordMatch:
+    model: github.com/SlashNephy/kotatsu/internal/domain/match.KeywordMatch
+    enum_values:
+      ALL:
+        value: github.com/SlashNephy/kotatsu/internal/domain/match.KeywordMatchAll
+      ANY:
+        value: github.com/SlashNephy/kotatsu/internal/domain/match.KeywordMatchAny
+  KeywordField:
+    model: github.com/SlashNephy/kotatsu/internal/domain/match.Field
+    enum_values:
+      NAME:
+        value: github.com/SlashNephy/kotatsu/internal/domain/match.FieldName
+      DESCRIPTION:
+        value: github.com/SlashNephy/kotatsu/internal/domain/match.FieldDescription
+      EXTENDED:
+        value: github.com/SlashNephy/kotatsu/internal/domain/match.FieldExtended
+  VideoCodec:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/kyusu.Codec
+    enum_values:
+      H264:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/kyusu.CodecH264
+      HEVC:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/kyusu.CodecHEVC
   RecordingCMDetectionState:
     model: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.State
     enum_values:
