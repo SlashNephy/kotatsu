@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
@@ -119,7 +120,7 @@ function readPackage(dir: string): BundledPackage {
 // (vendor/ の mpeg2toh264) である。Service Worker に入れる workbox も dependencies にあるので、ここに含まれる。
 // 一覧は、依存を上げるたびに変わるので、リポジトリには置かず、ビルドのたびに作る。/about の画面を開いたときだけ読む。
 function bundledLicenses(): Plugin {
-  const root = new URL('.', import.meta.url).pathname;
+  const root = fileURLToPath(new URL('.', import.meta.url));
 
   return {
     name: 'kotatsu:bundled-licenses',
@@ -131,6 +132,8 @@ function bundledLicenses(): Plugin {
           encoding: 'utf8',
         }),
       ) as Record<string, { paths: string[] }[]>;
+      // paths には、版ごとのディレクトリと、依存の組み合わせごとに同じ版を別に置いたディレクトリが並ぶ。
+      // 同じパッケージの同じ版は 1 つにし、版が違えば、それぞれ同梱するので分けて並べる。
       const dirs = Object.values(listed).flatMap((packages) =>
         packages.flatMap((pkg) => pkg.paths),
       );
@@ -142,9 +145,12 @@ function bundledLicenses(): Plugin {
           dirs.push(realpathSync(join(root, 'node_modules', name)));
         }
       }
-      const packages = dirs
-        .map(readPackage)
-        .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+      const unique = new Map(
+        dirs.map(readPackage).map((pkg) => [`${pkg.name}@${pkg.version}`, pkg] as const),
+      );
+      const packages = [...unique.values()].sort(
+        (a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version),
+      );
       this.emitFile({ type: 'asset', fileName: 'licenses.json', source: JSON.stringify(packages) });
     },
   };

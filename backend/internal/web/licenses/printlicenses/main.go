@@ -140,7 +140,8 @@ func standardLibrary(ctx context.Context) (*licenses.Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("go env failed: %w", err)
 	}
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	// Windows の go env は CRLF で区切るので、空白で分ける。GOROOT に空白を含む環境は扱わない。
+	lines := strings.Fields(string(out))
 	if len(lines) != 2 {
 		return nil, fmt.Errorf("unexpected go env output: %q", out)
 	}

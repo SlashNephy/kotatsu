@@ -28,7 +28,7 @@ export const repositoryURL = 'https://github.com/SlashNephy/kotatsu';
 
 // sourceURL は、リポジトリの path を、revision (分からなければ main) で開く URL を返す。
 export function sourceURL(path: string, revision: string | null): string {
-  return `${repositoryURL}/blob/${revision ?? 'main'}/${path}`;
+  return `${repositoryURL}/blob/${revision || 'main'}/${path}`;
 }
 
 // fetchBundledPackages は、画面に同梱するパッケージの一覧を読む。開発サーバーのように書き出していなければ null を返す。
