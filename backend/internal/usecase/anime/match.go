@@ -265,7 +265,8 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	return result, nil
 }
 
-// MatchImported は、EPGStation から取り込んだ、まだ照合していない録画を、古い順に照合する (設計書 6.3)。
+// MatchImported は、まだ照合していない録画を、古い順に照合する (設計書 3.8、6.3)。EPGStation から取り込んだ録画と、
+// 録画への写しが入る前 (v2026.11.0 より前) に Kotatsu で録った録画が対象 (#1658)。時刻予約の録画は、番組と対応しないので照合しない。
 // 番組を照合していればその結びつきを写し、なければ録画のサービスと開始時刻で照合する。
 // 取り込んだ録画は何年分もあり、日がばらばらなので、1 回に問い合わせる ChID と日の数を maxImportedDays までに抑える。
 func (m *Matcher) MatchImported(ctx context.Context) (*MatchResult, error) {
@@ -283,7 +284,7 @@ func (m *Matcher) MatchImported(ctx context.Context) (*MatchResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := sqlc.New(m.db).ListImportedRecordingsToMatch(ctx, maxImportedRecordings)
+	rows, err := sqlc.New(m.db).ListRecordingsToMatch(ctx, maxImportedRecordings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the imported recordings: %w", err)
 	}

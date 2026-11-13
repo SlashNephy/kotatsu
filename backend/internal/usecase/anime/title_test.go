@@ -271,20 +271,25 @@ func TestMatchImported(t *testing.T) {
 	// 番組を照合した録画と、番組表にない古い録画。
 	copied := insertRecording(t, db, grService, jst(2, 0, 0), jst(2, 0, 30), true)
 	old := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), true)
-	notImported := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), false)
+	// 写しが入る前に Kotatsu で録った番組の録画も照合する (#1658)。時刻予約の録画 (event_id がない) は照合しない。
+	recorded := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), false)
+	_, err = db.Exec(t.Context(), `UPDATE recordings SET event_id = 1 WHERE id = $1`, recorded)
+	require.NoError(t, err)
+	timeRecording := insertRecording(t, db, bsService, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), false)
 	client.set([]*syobocal.Program{
 		syobocalProgram(300, 40, bsChannel, time.Date(2024, 4, 1, 13, 0, 0, 0, time.UTC), time.Date(2024, 4, 1, 13, 30, 0, 0, time.UTC), "8", "", "", 0),
 	}, false)
 	clk.Advance(time.Minute)
 	result, err := matcher.MatchImported(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 2, result.Programs)
+	assert.Equal(t, 3, result.Programs)
 	calls := client.takeCalls()
-	require.Len(t, calls, 1, "only the old recording is looked up")
+	require.Len(t, calls, 1, "only the old recordings are looked up")
 	assert.Equal(t, []int32{bsChannel}, calls[0].channelIDs)
 	assert.Equal(t, []float64{5}, recordingEpisodes(t, db, copied))
 	assert.Equal(t, []float64{8}, recordingEpisodes(t, db, old))
-	assert.Nil(t, recordingEpisodes(t, db, notImported), "recordings made by Kotatsu are not matched by this job")
+	assert.Equal(t, []float64{8}, recordingEpisodes(t, db, recorded))
+	assert.Nil(t, recordingEpisodes(t, db, timeRecording), "time-reservation recordings are not matched")
 
 	result, err = matcher.MatchImported(t.Context())
 	require.NoError(t, err)

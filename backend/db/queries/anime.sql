@@ -240,14 +240,15 @@ VALUES (
 -- name: ListRecordingAnimeEpisodes :many
 SELECT * FROM recording_anime_episodes WHERE recording_id = @recording_id ORDER BY position;
 
--- name: ListImportedRecordingsToMatch :many
--- EPGStation から取り込んだ、まだ照合していない録画を、古い順に max_count 件返す。
+-- name: ListRecordingsToMatch :many
+-- まだ照合していない録画を、古い順に max_count 件返す。EPGStation から取り込んだ録画と、番組を録った Kotatsu の録画が対象 (#1658)。
+-- Kotatsu の録画のうち、時刻予約の録画 (event_id が NULL) は、番組と対応しないので返さない。
 -- 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
 SELECT r.id, r.service_id, r.start_at, r.end_at, r.name FROM recordings r
-JOIN import_sources s ON s.kind = 'recorded' AND s.target_id = r.id
 LEFT JOIN recording_anime_matches m ON m.recording_id = r.id
 WHERE m.recording_id IS NULL AND r.state <> 'recording'
   AND (r.genres = '[]'::jsonb OR r.genres @> '[{"lv1": 7}]'::jsonb)
+  AND (r.event_id IS NOT NULL OR EXISTS (SELECT 1 FROM import_sources s WHERE s.kind = 'recorded' AND s.target_id = r.id))
 ORDER BY r.start_at, r.id
 LIMIT @max_count;
 
