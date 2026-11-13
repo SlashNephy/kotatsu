@@ -42,6 +42,9 @@ declare module '@tanstack/react-router' {
     // searchConditions は、番組検索の条件の初期値。過去の番組の詳細から、同じ番組名で探すときに渡す (#1121)。
     // 渡したときは、過去の放送も含めて探す。
     searchConditions?: ConditionsForm;
+    // searchArchive は、過去の放送も含めて探すかどうか。渡さなければ、searchConditions を渡したときだけ含める。
+    // ヘッダーの検索 (#1627) は、これから放送する番組を探すので、含めない。
+    searchArchive?: boolean;
   }
 }
 
@@ -97,6 +100,8 @@ type Page = {
 // 条件の入力欄は、ルールの画面と同じものを使い、左に条件、右に結果を並べる。
 function SearchPage() {
   const { t } = useTranslation();
+  // entry は、履歴の項目ごとの key。条件は、画面を作るときにだけ履歴の状態から読むので、新しく開くたびに作り直す。
+  const entry = useLocation({ select: (location) => location.state.__TSR_key });
   useDocumentTitle([t('search.title')]);
 
   return (
@@ -116,7 +121,8 @@ function SearchPage() {
         }
       >
         <Suspense fallback={<PageLoader />}>
-          <Search />
+          {/* 番組検索の画面を開いたまま、ヘッダーの検索から探し直したら (#1627)、渡された条件で始め直す。 */}
+          <Search key={entry} />
         </Suspense>
       </ErrorBoundary>
     </Stack>
@@ -155,7 +161,10 @@ function Search() {
   const [conditions, setConditions] = useState<ConditionsForm>(
     () => initialConditions ?? { ...emptyConditions(), keywords: [emptyKeyword()] },
   );
-  const [includeArchive, setIncludeArchive] = useState(initialConditions !== undefined);
+  const initialArchive = useLocation({ select: (location) => location.state.searchArchive });
+  const [includeArchive, setIncludeArchive] = useState(
+    initialArchive ?? initialConditions !== undefined,
+  );
   const [archiveDays, setArchiveDays] = useState(30);
   const [page, setPage] = useState<Page | null>(null);
   // loading は、読み込み中の操作。新しい検索と、続きの読み込みで、表示を分ける。

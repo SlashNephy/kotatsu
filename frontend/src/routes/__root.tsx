@@ -13,6 +13,7 @@ import UserMenuQueryNode from '../auth/__generated__/UserMenuQuery.graphql';
 import { DataChangesProvider, DataChangesSubscriber } from '../changes/DataChanges';
 import { ColorSchemeToggle, ErrorBoundary, useDocumentTitle, useThemeColor } from '../futon';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { HeaderSearch } from '../search/HeaderSearch';
 import { useOfflineRecordings } from '../offline/store';
 import { ConnectionStatus } from '../relay/ConnectionStatus';
 import type { RootNavQuery } from './__generated__/RootNavQuery.graphql';
@@ -133,6 +134,7 @@ function RootLayout() {
               <Group gap="md" wrap="nowrap">
                 <DataChangesSubscriber />
                 <ConnectionStatus />
+                <HeaderSearch />
                 <NotificationBell />
                 <UserMenu />
               </Group>
