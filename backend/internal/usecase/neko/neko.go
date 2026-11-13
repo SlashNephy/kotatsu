@@ -43,8 +43,11 @@ type Options struct {
 	DB         *pgxpool.Pool
 	Clock      clock.Clock
 	InstanceID uuid.UUID
-	// Tuner はチューナーサーバーのクライアント。nil なら EPG を同期しない。
+	// Tuner はチューナーサーバーのクライアント。nil なら、チューナーの状態を把握しない。
 	Tuner tunerserver.Client
+	// EPGSource は、EPG の同期に使う上流。nil なら Tuner を使う。どちらも nil なら EPG を同期しない。
+	// EDCB は、まだ EPG の同期にだけ使う (#1531)。
+	EPGSource EPGSource
 	// EPG は EPG の同期の設定。nil なら既定値を使う。
 	EPG *epg.SyncerOptions
 	// Archive は、放送が終わった番組のアーカイブの設定。nil なら既定値を使う。
@@ -64,6 +67,14 @@ type Options struct {
 	// Timeshift は、タイムシフトの割り振りの設定。nil なら既定値を使う。
 	Timeshift *timeshift.SchedulerOptions
 }
+
+// EPGSource は、EPG の同期に使う上流。サービスと番組を返し、変化をイベントで知らせる。
+type EPGSource interface {
+	epg.Upstream
+	epg.EventSource
+}
+
+var _ EPGSource = tunerserver.Client(nil)
 
 // Run は、ctx が終わるまでリースを取り合い、リーダーになっている間だけ neko の処理を動かす。
 // リーダーの間は、EPG を同期し (設計書 3.3)、放送が終わった番組をアーカイブに移し (設計書 3.4)、
@@ -137,24 +148,32 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 
 			return scheduler.Run(ctx)
 		})
-		if opts.Tuner == nil {
+		source := opts.EPGSource
+		if source == nil && opts.Tuner != nil {
+			source = opts.Tuner
+		}
+		if source == nil {
 			logger.WarnContext(ctx, "tuner server is not configured; EPG sync and tuner monitoring are disabled")
 
 			return eg.Wait()
 		}
-		monitor := tunerstate.NewMonitor(opts.DB, opts.Tuner, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
-		eg.Go(func() error {
-			return monitor.Run(ctx)
-		})
-		eg.Go(func() error {
-			var syncerOptions epg.SyncerOptions
-			if opts.EPG != nil {
-				syncerOptions = *opts.EPG
-			}
+		var syncerOptions epg.SyncerOptions
+		if opts.EPG != nil {
+			syncerOptions = *opts.EPG
+		}
+		if opts.Tuner == nil {
+			logger.WarnContext(ctx, "tuner server is not configured; tuner monitoring is disabled")
+		} else {
+			monitor := tunerstate.NewMonitor(opts.DB, opts.Tuner, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
+			eg.Go(func() error {
+				return monitor.Run(ctx)
+			})
 			syncerOptions.OnTunerEvent = monitor.Trigger
-			reconciler := epg.NewReconciler(opts.DB, opts.Tuner, opts.Clock, guard)
+		}
+		eg.Go(func() error {
+			reconciler := epg.NewReconciler(opts.DB, source, opts.Clock, guard)
 
-			return epg.NewSyncer(reconciler, opts.Tuner, opts.Clock, epgLogger, &syncerOptions).Run(ctx)
+			return epg.NewSyncer(reconciler, source, opts.Clock, epgLogger, &syncerOptions).Run(ctx)
 		})
 
 		return eg.Wait()
