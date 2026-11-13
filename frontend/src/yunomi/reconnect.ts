@@ -46,6 +46,17 @@ export function endedEarly(bufferedEnd: number, duration: number): boolean {
   return bufferedEnd < duration - endedEarlyMarginSec;
 }
 
+// playableTailSeconds は、ブラウザの中で変換する録画を、終わりからこれより近い位置から読み始めないための秒 (#1576)。
+// 終わりの直前から読むと、届く TS に MPEG-2 のコマが 1 つもなく、変換のプレイヤーがエラー (no MPEG-2 pictures) を出す。
+// CM の区間が録画の終わりまで続くと、CM を飛ばした先がそこになる。放送の GOP は 0.5 秒ほどなので、その数倍を残す。
+export const playableTailSeconds = 2;
+
+// playableStart は、録画の長さ duration (秒) のうち、位置 seconds から読み始めるとき、映像が入るよう、
+// 終わりから playableTailSeconds より近ければ、その手前から読む位置を返す。
+export function playableStart(seconds: number, duration: number): number {
+  return Math.max(Math.min(seconds, duration - playableTailSeconds), 0);
+}
+
 // brokenMediaSkipSeconds は、映像の要素が復号に失敗して止まったとき、読み直す位置を進める秒。
 // 位置の手前の I フレームから流すので、同じ位置から読み直すと、同じ壊れたフレームでまた止まる。I フレームの間隔 (約 0.5 秒) より長く進めて、
 // 壊れた所の後の I フレームから流させる。

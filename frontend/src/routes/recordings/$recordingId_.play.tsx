@@ -123,7 +123,12 @@ import { currentVolume } from '../../yunomi/volumeBoost';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { useDocumentPictureInPicture } from '../../yunomi/useDocumentPictureInPicture';
 import { useStreamsDrains } from '../../changes/DataChanges';
-import { canRetryImmediately, endedEarly, skipBrokenMedia } from '../../yunomi/reconnect';
+import {
+  canRetryImmediately,
+  endedEarly,
+  playableStart,
+  skipBrokenMedia,
+} from '../../yunomi/reconnect';
 import { resumePosition } from '../../yunomi/resume';
 import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useVisible } from '../../yunomi/useVisible';
@@ -383,7 +388,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       ? { at, skipped: false, resumed: at > 0 }
       : { at: Math.min(span.to, duration), skipped: true, resumed: at > 0 };
   });
-  const resumeAt = opening.at;
+  // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から始める (#1576)。
+  const resumeAt = playableStart(opening.at, duration);
   // kyusu の HLS は、録画の全体を 1 つのプレイリストで表すので、video の時刻がそのまま録画の中の位置になる。
   const hls = route.kind === 'kyusu';
   // offset は、今の読み込みを始めた、録画の始まりからの秒。ブラウザの中で変換するときは、シークすると、
@@ -627,7 +633,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
   // startAt は、指定の位置から読み直す。
-  const startAt = (seconds: number) => {
+  const startAt = (target: number) => {
+    // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
+    // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
+    const seconds = playableStart(target, duration);
     setHandover(false);
     phase.current = 'loading';
     positionRef.current = seconds;
