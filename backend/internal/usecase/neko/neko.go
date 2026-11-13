@@ -50,6 +50,8 @@ type Options struct {
 	EPGSource EPGSource
 	// TunerSource は、チューナーの状態の把握に使う上流。nil なら Tuner を使う。どちらも nil なら、チューナーの状態を把握しない。
 	TunerSource tunerstate.Upstream
+	// NetworkTVSweeper は、持ち主の止まった EDCB の NetworkTV を閉じる (#1533)。nil なら動かさない。
+	NetworkTVSweeper Runner
 	// EPG は EPG の同期の設定。nil なら既定値を使う。
 	EPG *epg.SyncerOptions
 	// Archive は、放送が終わった番組のアーカイブの設定。nil なら既定値を使う。
@@ -68,6 +70,11 @@ type Options struct {
 	Recording *recording.SchedulerOptions
 	// Timeshift は、タイムシフトの割り振りの設定。nil なら既定値を使う。
 	Timeshift *timeshift.SchedulerOptions
+}
+
+// Runner は、リーダーの間だけ動かす処理。
+type Runner interface {
+	Run(ctx context.Context) error
 }
 
 // EPGSource は、EPG の同期に使う上流。サービスと番組を返し、変化をイベントで知らせる。
@@ -150,37 +157,7 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 
 			return scheduler.Run(ctx)
 		})
-		source := opts.EPGSource
-		if source == nil && opts.Tuner != nil {
-			source = opts.Tuner
-		}
-		if source == nil {
-			logger.WarnContext(ctx, "tuner server is not configured; EPG sync and tuner monitoring are disabled")
-
-			return eg.Wait()
-		}
-		var syncerOptions epg.SyncerOptions
-		if opts.EPG != nil {
-			syncerOptions = *opts.EPG
-		}
-		tunerSource := opts.TunerSource
-		if tunerSource == nil && opts.Tuner != nil {
-			tunerSource = opts.Tuner
-		}
-		if tunerSource == nil {
-			logger.WarnContext(ctx, "tuner server is not configured; tuner monitoring is disabled")
-		} else {
-			monitor := tunerstate.NewMonitor(opts.DB, tunerSource, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
-			eg.Go(func() error {
-				return monitor.Run(ctx)
-			})
-			syncerOptions.OnTunerEvent = monitor.Trigger
-		}
-		eg.Go(func() error {
-			reconciler := epg.NewReconciler(opts.DB, source, opts.Clock, guard)
-
-			return epg.NewSyncer(reconciler, source, opts.Clock, epgLogger, &syncerOptions).Run(ctx)
-		})
+		goTunerServerTasks(ctx, eg, opts, guard, logger, epgLogger)
 
 		return eg.Wait()
 	})
@@ -202,4 +179,44 @@ func timeshiftOptions(opts *Options) *timeshift.SchedulerOptions {
 	}
 
 	return &options
+}
+
+// goTunerServerTasks は、チューナーサーバーを使う処理 (EPG の同期、チューナーの把握、NetworkTV の後片付け) を eg で動かす。
+func goTunerServerTasks(ctx context.Context, eg *errgroup.Group, opts *Options, guard epg.Guard, logger, epgLogger *slog.Logger) {
+	if opts.NetworkTVSweeper != nil {
+		eg.Go(func() error {
+			return opts.NetworkTVSweeper.Run(ctx)
+		})
+	}
+	source := opts.EPGSource
+	if source == nil && opts.Tuner != nil {
+		source = opts.Tuner
+	}
+	if source == nil {
+		logger.WarnContext(ctx, "tuner server is not configured; EPG sync and tuner monitoring are disabled")
+
+		return
+	}
+	var syncerOptions epg.SyncerOptions
+	if opts.EPG != nil {
+		syncerOptions = *opts.EPG
+	}
+	tunerSource := opts.TunerSource
+	if tunerSource == nil && opts.Tuner != nil {
+		tunerSource = opts.Tuner
+	}
+	if tunerSource == nil {
+		logger.WarnContext(ctx, "tuner server is not configured; tuner monitoring is disabled")
+	} else {
+		monitor := tunerstate.NewMonitor(opts.DB, tunerSource, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
+		eg.Go(func() error {
+			return monitor.Run(ctx)
+		})
+		syncerOptions.OnTunerEvent = monitor.Trigger
+	}
+	eg.Go(func() error {
+		reconciler := epg.NewReconciler(opts.DB, source, opts.Clock, guard)
+
+		return epg.NewSyncer(reconciler, source, opts.Clock, epgLogger, &syncerOptions).Run(ctx)
+	})
 }

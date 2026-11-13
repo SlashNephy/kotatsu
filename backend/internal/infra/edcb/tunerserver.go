@@ -20,6 +20,8 @@ type TunerServer struct {
 	text *strings.Replacer
 	// bonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。空なら、すべてのチューナーを使えるとみなす (#1532)。
 	bonDrivers map[string]bool
+	// ids は、NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
+	ids NetworkTVIDs
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -27,18 +29,22 @@ type TunerServerOptions struct {
 	// BonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。EpgTimerSrv.ini の [TVTEST] に並べたものと同じにする。
 	// 空なら、すべてのチューナーを使えるとみなす (#1532)。
 	BonDrivers []string
+	// NetworkTVIDs は、ストリームを開くときに NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
+	NetworkTVIDs NetworkTVIDs
 }
 
 // NewTunerServer は TunerServer を返す。opts は nil でもよい。
 func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 	bonDrivers := map[string]bool{}
+	var ids NetworkTVIDs
 	if opts != nil {
 		for _, name := range opts.BonDrivers {
 			bonDrivers[strings.ToLower(name)] = true
 		}
+		ids = opts.NetworkTVIDs
 	}
 
-	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers}
+	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids}
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。

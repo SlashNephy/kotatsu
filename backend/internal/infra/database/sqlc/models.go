@@ -269,6 +269,14 @@ type ChannelType struct {
 	SortOrder   int32
 }
 
+type EdcbNetworkTv struct {
+	ID         int32
+	InstanceID uuid.UUID
+	NetworkID  int32
+	ServiceID  int32
+	AcquiredAt time.Time
+}
+
 type EpgChange struct {
 	Version   int64
 	ServiceID int64
