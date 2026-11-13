@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -94,16 +95,22 @@ func TestImportTitles(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
-	titles := newFakeTitles()
+	titles := NewMockTitleFetcher(gomock.NewController(t))
+	// 1 回目はすべてのタイトルを引き、2 回目は前に取り込んだ後の更新だけを引く。
+	previous := time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC)
+	gomock.InOrder(
+		titles.EXPECT().
+			TitleLookup(gomock.Any(), gomock.Cond(func(since time.Time) bool { return since.IsZero() })).
+			DoAndReturn(lookupTitlesSince),
+		titles.EXPECT().
+			TitleLookup(gomock.Any(), gomock.Cond(func(since time.Time) bool { return since.Equal(previous) })).
+			DoAndReturn(lookupTitlesSince),
+	)
 	importer := anime.NewImporter(db, clk, newFakeFetcher(), titles, nil, slog.New(slog.DiscardHandler))
 	_, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
 	_, err = importer.Import(t.Context(), true)
 	require.NoError(t, err)
-
-	require.Len(t, titles.since, 2)
-	assert.True(t, titles.since[0].IsZero(), "the first import reads every title")
-	assert.True(t, titles.since[1].Equal(time.Date(2026, 9, 30, 1, 0, 0, 0, time.UTC)), "%v", titles.since[1])
 }
 
 // TestMatchTitleFallback は、しょぼいカレンダーで引けない番組を、番組名を解析して話に結びつけることを確かめる。

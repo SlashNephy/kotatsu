@@ -147,6 +147,8 @@ func titleEpisodes(ctx context.Context, db sqlc.DBTX, name string, series *Serie
 	return []*Episode{episode}, nil
 }
 
+//go:generate go tool mockgen -typed -destination=mock_title_fetcher_test.go -package=anime_test . TitleFetcher
+
 // TitleFetcher は、しょぼいカレンダーのタイトルの一覧を引く。*syobocal.Client が満たす。
 type TitleFetcher interface {
 	TitleLookup(ctx context.Context, since time.Time) ([]*syobocal.Title, error)

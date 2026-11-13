@@ -2474,6 +2474,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 テスト用のTSは、FFmpegで作ったテストパターンの映像（MPEG-2とAAC）に、TSDuckで合成したSIを載せて作ります。
 
 - Goのテストはtable-drivenで書き、testifyで検証します。時刻はclockのinterfaceで差し替えます。
+- interfaceの偽物は、mockgen（`go.uber.org/mock`、`backend/go.mod`の`tool`）で生成します（#1608）。生成は、interfaceのそばに書いた`go:generate`で、`-typed`を付け、テストのパッケージ（`_test`）の`mock_<interface>_test.go`に書き出します。製品のコードには入れません。手で書いた偽物は、まとめて置き換えず、そのテストを直すときに置き換えます。偽のチューナーサーバーのように、HTTPの振る舞いごと真似るものは、そのまま使います。
 - チューナー割り当てのアルゴリズムには、性質ベースのテストも加えます（同じ入力から常に同じ結果が出ること、録画が始まった予約を動かさないこと、など）。
 - DBを使うテストは、本物のPostgreSQLで実行します。
 - Goのテストは、配布するOS（Linux、Windows、macOS）のそれぞれのランナーでも実行します（[11.7](#117-対応するos)、#1099）。DBのサービスコンテナーはLinuxのランナーでしか動かないので、WindowsとmacOSでは、DBを使うテストを飛ばします（`KOTATSU_TEST_SKIP_DATABASE`）。CIでは、ふつうはDBの接続先がないと失敗にし、飛ばしたまま通らないようにします。
