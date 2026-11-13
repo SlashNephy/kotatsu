@@ -11,6 +11,9 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
 // ID で引けるもの (Relay の Global Object Identification)。
@@ -938,13 +941,13 @@ type LogReport struct {
 
 // 1 つの出どころのログと環境。
 type LogSource struct {
-	Kind LogSourceKind `json:"kind"`
+	Kind logreport.SourceKind `json:"kind"`
 	// 古い順の行。
 	Lines []*LogLine `json:"lines"`
 	// 出どころが持っていた行の数。lines は、このうち最後の保持行数まで。
 	Total int `json:"total"`
 	// ログを取れなかった理由。取れたら null。
-	Failure *LogSourceFailure `json:"failure,omitempty"`
+	Failure *logreport.Failure `json:"failure,omitempty"`
 	// 版。分からなければ空。
 	Version string `json:"version"`
 	Os      string `json:"os"`
@@ -1340,7 +1343,7 @@ type RecordAnimeEpisodesInput struct {
 
 // 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
 type RecordingCMDetection struct {
-	State RecordingCMDetectionState `json:"state"`
+	State cmdetect.State `json:"state"`
 	// 最後に見分け終えた日時。見分けていなければ null。見分け直している間と、見分け直しに失敗した後は、前に見分けた日時を返す。
 	DetectedAt *time.Time `json:"detectedAt,omitempty"`
 	// 見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。
@@ -1656,7 +1659,7 @@ type SkippedDuplicate struct {
 	// 一致したが外したルール。
 	Rules []*SkippedRule `json:"rules"`
 	// 外した理由。
-	Reason SkipReason `json:"reason"`
+	Reason rule.SkipReason `json:"reason"`
 	// 前に録った録画の終わり。DUPLICATE_TITLE では、同じ番組名を同じサービスで最後に録った録画の終わり。
 	// OTHER_BROADCAST では null。
 	LastRecordedAt *time.Time `json:"lastRecordedAt,omitempty"`
@@ -2875,125 +2878,6 @@ func (e LogLevel) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ログを取れなかった理由。ホスト名や URL を含めないよう、決まった語だけにする。
-type LogSourceFailure string
-
-const (
-	LogSourceFailureTimeout     LogSourceFailure = "TIMEOUT"
-	LogSourceFailureUnreachable LogSourceFailure = "UNREACHABLE"
-	// チューナーサーバーがログの API を持たない (mirakc など)。
-	LogSourceFailureUnsupported LogSourceFailure = "UNSUPPORTED"
-	LogSourceFailureHTTPError   LogSourceFailure = "HTTP_ERROR"
-)
-
-var AllLogSourceFailure = []LogSourceFailure{
-	LogSourceFailureTimeout,
-	LogSourceFailureUnreachable,
-	LogSourceFailureUnsupported,
-	LogSourceFailureHTTPError,
-}
-
-func (e LogSourceFailure) IsValid() bool {
-	switch e {
-	case LogSourceFailureTimeout, LogSourceFailureUnreachable, LogSourceFailureUnsupported, LogSourceFailureHTTPError:
-		return true
-	}
-	return false
-}
-
-func (e LogSourceFailure) String() string {
-	return string(e)
-}
-
-func (e *LogSourceFailure) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = LogSourceFailure(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid LogSourceFailure", str)
-	}
-	return nil
-}
-
-func (e LogSourceFailure) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *LogSourceFailure) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e LogSourceFailure) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// ログの出どころ (#1521)。
-type LogSourceKind string
-
-const (
-	// このリクエストに答えた Kotatsu のプロセス。
-	LogSourceKindKotatsu LogSourceKind = "KOTATSU"
-	// チューナーサーバー (/api/log)。
-	LogSourceKindTunerServer LogSourceKind = "TUNER_SERVER"
-)
-
-var AllLogSourceKind = []LogSourceKind{
-	LogSourceKindKotatsu,
-	LogSourceKindTunerServer,
-}
-
-func (e LogSourceKind) IsValid() bool {
-	switch e {
-	case LogSourceKindKotatsu, LogSourceKindTunerServer:
-		return true
-	}
-	return false
-}
-
-func (e LogSourceKind) String() string {
-	return string(e)
-}
-
-func (e *LogSourceKind) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = LogSourceKind(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid LogSourceKind", str)
-	}
-	return nil
-}
-
-func (e LogSourceKind) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *LogSourceKind) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e LogSourceKind) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
 // プレイヤーへの操作の種類。
 type PlayerCommandType string
 
@@ -3122,73 +3006,6 @@ func (e *PlayerKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e PlayerKind) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。
-type RecordingCMDetectionState string
-
-const (
-	// 見分けていない。見分けるジョブもない。
-	RecordingCMDetectionStateNotDetected RecordingCMDetectionState = "NOT_DETECTED"
-	// 見分けるジョブが、動くのを待っている。試し直しを待っているときも含む。
-	RecordingCMDetectionStateQueued RecordingCMDetectionState = "QUEUED"
-	// 見分けている。
-	RecordingCMDetectionStateRunning RecordingCMDetectionState = "RUNNING"
-	// 見分け終えた。CM が見つからなくても、見分け終えたとする。
-	RecordingCMDetectionStateDetected RecordingCMDetectionState = "DETECTED"
-	// 最後に頼んだ見分けが、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に見分けた結果の状態に戻る。
-	RecordingCMDetectionStateFailed RecordingCMDetectionState = "FAILED"
-)
-
-var AllRecordingCMDetectionState = []RecordingCMDetectionState{
-	RecordingCMDetectionStateNotDetected,
-	RecordingCMDetectionStateQueued,
-	RecordingCMDetectionStateRunning,
-	RecordingCMDetectionStateDetected,
-	RecordingCMDetectionStateFailed,
-}
-
-func (e RecordingCMDetectionState) IsValid() bool {
-	switch e {
-	case RecordingCMDetectionStateNotDetected, RecordingCMDetectionStateQueued, RecordingCMDetectionStateRunning, RecordingCMDetectionStateDetected, RecordingCMDetectionStateFailed:
-		return true
-	}
-	return false
-}
-
-func (e RecordingCMDetectionState) String() string {
-	return string(e)
-}
-
-func (e *RecordingCMDetectionState) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = RecordingCMDetectionState(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid RecordingCMDetectionState", str)
-	}
-	return nil
-}
-
-func (e RecordingCMDetectionState) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *RecordingCMDetectionState) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e RecordingCMDetectionState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -3357,70 +3174,6 @@ func (e *RuleWarningKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e RuleWarningKind) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 予約しなかった理由。
-type SkipReason string
-
-const (
-	// 同じ番組名を期間内に録画済み (重複の回避)。
-	SkipReasonDuplicateTitle SkipReason = "DUPLICATE_TITLE"
-	// 同じ回を録画済み (録画中を含む)。
-	SkipReasonRecordedEpisode SkipReason = "RECORDED_EPISODE"
-	// 同じ回を別の放送で録る。
-	SkipReasonOtherBroadcast SkipReason = "OTHER_BROADCAST"
-	// 追っているシリーズの前の回 (録った回、予約してある回、先に流れる放送より話数が小さい)。
-	SkipReasonEarlierEpisode SkipReason = "EARLIER_EPISODE"
-)
-
-var AllSkipReason = []SkipReason{
-	SkipReasonDuplicateTitle,
-	SkipReasonRecordedEpisode,
-	SkipReasonOtherBroadcast,
-	SkipReasonEarlierEpisode,
-}
-
-func (e SkipReason) IsValid() bool {
-	switch e {
-	case SkipReasonDuplicateTitle, SkipReasonRecordedEpisode, SkipReasonOtherBroadcast, SkipReasonEarlierEpisode:
-		return true
-	}
-	return false
-}
-
-func (e SkipReason) String() string {
-	return string(e)
-}
-
-func (e *SkipReason) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = SkipReason(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid SkipReason", str)
-	}
-	return nil
-}
-
-func (e SkipReason) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *SkipReason) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e SkipReason) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

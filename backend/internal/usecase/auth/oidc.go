@@ -35,8 +35,6 @@ const (
 	OIDCCallbackPath = "/internal/auth/oidc/callback"
 	// OIDCLoginTTL は、IdP へ送り出してから、戻ってくるまでに許す時間 (付録 A)。
 	OIDCLoginTTL = 10 * time.Minute
-	// methodOIDC は、OIDC でのログインを監査ログに残すときの方式。多要素認証は IdP に任せる (設計書 9.4)。
-	methodOIDC SecondFactor = "oidc"
 	// oidcRandomBytes は、state と nonce の乱数の長さ。
 	oidcRandomBytes = 32
 	// oidcHTTPTimeout は、IdP との 1 回の通信に許す時間。IdP が応答しないときに、待ち続けないようにする。
@@ -451,7 +449,7 @@ func (o *OIDC) login(ctx context.Context, db Database, claims *oidcClaims, clien
 		if err != nil {
 			return err
 		}
-		result, err = startSession(ctx, tx, o.sessions, o.recorder, *userID, methodOIDC, client)
+		result, err = startSession(ctx, tx, o.sessions, o.recorder, *userID, SecondFactorOIDC, client)
 		if err != nil {
 			return err
 		}
@@ -613,7 +611,7 @@ func (o *OIDC) recordDenied(ctx context.Context, tx pgx.Tx, claims *oidcClaims, 
 		TargetType: loginAuditTarget,
 		TargetID:   targetID,
 		Summary: map[string]any{
-			summaryMethod: string(methodOIDC), summaryIssuer: claims.issuer, summarySubject: claims.subject, "reason": reason.Error(),
+			summaryMethod: string(SecondFactorOIDC), summaryIssuer: claims.issuer, summarySubject: claims.subject, "reason": reason.Error(),
 		},
 		SourceIP:  client.SourceIP,
 		UserAgent: client.UserAgent,

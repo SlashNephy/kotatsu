@@ -28,6 +28,48 @@ struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
 models:
+  RecordingCMDetectionState:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.State
+    enum_values:
+      NOT_DETECTED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateNotDetected
+      QUEUED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateQueued
+      RUNNING:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateRunning
+      DETECTED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateDetected
+      FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateFailed
+  SkipReason:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReason
+    enum_values:
+      DUPLICATE_TITLE:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReasonDuplicateTitle
+      RECORDED_EPISODE:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReasonRecordedEpisode
+      OTHER_BROADCAST:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReasonOtherBroadcast
+      EARLIER_EPISODE:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReasonEarlierEpisode
+  LogSourceKind:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/logreport.SourceKind
+    enum_values:
+      KOTATSU:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/logreport.SourceKindKotatsu
+      TUNER_SERVER:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/logreport.SourceKindTunerServer
+  LogSourceFailure:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/logreport.Failure
+    enum_values:
+      TIMEOUT:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/logreport.FailureTimeout
+      UNREACHABLE:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/logreport.FailureUnreachable
+      UNSUPPORTED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/logreport.FailureUnsupported
+      HTTP_ERROR:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/logreport.FailureHTTPError
   Role:
     model: github.com/SlashNephy/kotatsu/internal/domain.Role
     enum_values:

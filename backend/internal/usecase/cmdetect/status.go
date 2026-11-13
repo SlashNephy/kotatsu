@@ -12,21 +12,18 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
-// State は、録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。
-type State string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// StateNotDetected は、見分けていず、見分けるジョブもないこと。
-	StateNotDetected State = "not_detected"
-	// StateQueued は、見分けるジョブが動くのを待っていること。試し直しを待っているときも含む。
-	StateQueued State = "queued"
-	// StateRunning は、見分けていること。
-	StateRunning State = "running"
-	// StateDetected は、見分け終えたこと。CM が見つからなくても、見分け終えたとする。
-	StateDetected State = "detected"
-	// StateFailed は、最後に入れた見分けのジョブが、試す回数を使い切ったか、取りやめたこと。
-	StateFailed State = "failed"
-)
+// State は、録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。
+//
+// ENUM(
+// not_detected // 見分けていず、見分けるジョブもないこと。
+// queued // 見分けるジョブが動くのを待っていること。試し直しを待っているときも含む。
+// running // 見分けていること。
+// detected // 見分け終えたこと。CM が見つからなくても、見分け終えたとする。
+// failed // 最後に入れた見分けのジョブが、試す回数を使い切ったか、取りやめたこと。
+// )
+type State string
 
 // Progress は、見分けているジョブの進み具合 (#1511)。
 type Progress struct {

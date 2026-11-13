@@ -94,7 +94,7 @@ func (o *OIDC) reauthenticate(
 			return fmt.Errorf("failed to record the OIDC identity use: %w", err)
 		}
 
-		return markSessionReauthenticated(ctx, tx, o.recorder, principal, methodOIDC, client, now)
+		return markSessionReauthenticated(ctx, tx, o.recorder, principal, SecondFactorOIDC, client, now)
 	})
 	if err != nil {
 		return nil, err

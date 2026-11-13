@@ -31,12 +31,12 @@ func (r *Resolver) logReport(ctx context.Context) (*model.LogReport, error) {
 		for _, line := range source.Lines {
 			lines = append(lines, &model.LogLine{Time: line.Time, Level: logLevelOf(line.Level), Inferred: line.Inferred, Text: line.Text})
 		}
-		var failure *model.LogSourceFailure
+		var failure *logreport.Failure
 		if source.Failure != logreport.FailureNone {
-			failure = new(model.LogSourceFailure(source.Failure))
+			failure = new(source.Failure)
 		}
 		sources = append(sources, &model.LogSource{
-			Kind: model.LogSourceKind(source.Kind), Lines: lines, Total: source.Total, Failure: failure,
+			Kind: source.Kind, Lines: lines, Total: source.Total, Failure: failure,
 			Version: source.Version, Os: source.OS, Arch: source.Arch, Runtime: source.Runtime,
 		})
 	}

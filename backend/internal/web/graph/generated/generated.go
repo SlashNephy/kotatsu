@@ -16,6 +16,9 @@ import (
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
+	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/web/licenses"
 	gqlparser "github.com/vektah/gqlparser/v2"
@@ -24916,8 +24919,8 @@ func (ec *executionContext) _LogSource_kind(ctx context.Context, field graphql.C
 			return obj.Kind, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.LogSourceKind) graphql.Marshaler {
-			return ec.marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceKind(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v logreport.SourceKind) graphql.Marshaler {
+			return ec.marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -24994,8 +24997,8 @@ func (ec *executionContext) _LogSource_failure(ctx context.Context, field graphq
 			return obj.Failure, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.LogSourceFailure) graphql.Marshaler {
-			return ec.marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceFailure(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *logreport.Failure) graphql.Marshaler {
+			return ec.marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure(ctx, selections, v)
 		},
 		true,
 		false,
@@ -36357,8 +36360,8 @@ func (ec *executionContext) _RecordingCMDetection_state(ctx context.Context, fie
 			return obj.State, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.RecordingCMDetectionState) graphql.Marshaler {
-			return ec.marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetectionState(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v cmdetect.State) graphql.Marshaler {
+			return ec.marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState(ctx, selections, v)
 		},
 		true,
 		true,
@@ -40008,8 +40011,8 @@ func (ec *executionContext) _SkippedDuplicate_reason(ctx context.Context, field 
 			return obj.Reason, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.SkipReason) graphql.Marshaler {
-			return ec.marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkipReason(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v rule.SkipReason) graphql.Marshaler {
+			return ec.marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason(ctx, selections, v)
 		},
 		true,
 		true,
@@ -59237,15 +59240,31 @@ func (ec *executionContext) marshalNLogSource2ᚖgithubᚗcomᚋSlashNephyᚋkot
 	return ec._LogSource(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceKind(ctx context.Context, v any) (model.LogSourceKind, error) {
-	var res model.LogSourceKind
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind(ctx context.Context, v any) (logreport.SourceKind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceKind(ctx context.Context, sel ast.SelectionSet, v model.LogSourceKind) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind(ctx context.Context, sel ast.SelectionSet, v logreport.SourceKind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "LogSourceKind!")
+	}
+	return res
 }
+
+var (
+	unmarshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind = map[string]logreport.SourceKind{
+		"KOTATSU":      logreport.SourceKindKotatsu,
+		"TUNER_SERVER": logreport.SourceKindTunerServer,
+	}
+	marshalNLogSourceKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐSourceKind = map[logreport.SourceKind]string{
+		logreport.SourceKindKotatsu:     "KOTATSU",
+		logreport.SourceKindTunerServer: "TUNER_SERVER",
+	}
+)
 
 func (ec *executionContext) marshalNMissingRecording2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐMissingRecordingᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.MissingRecording) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
@@ -59969,15 +59988,37 @@ func (ec *executionContext) marshalNRecordingCMDetection2ᚖgithubᚗcomᚋSlash
 	return ec._RecordingCMDetection(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetectionState(ctx context.Context, v any) (model.RecordingCMDetectionState, error) {
-	var res model.RecordingCMDetectionState
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState(ctx context.Context, v any) (cmdetect.State, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetectionState(ctx context.Context, sel ast.SelectionSet, v model.RecordingCMDetectionState) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState(ctx context.Context, sel ast.SelectionSet, v cmdetect.State) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "RecordingCMDetectionState!")
+	}
+	return res
 }
+
+var (
+	unmarshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState = map[string]cmdetect.State{
+		"NOT_DETECTED": cmdetect.StateNotDetected,
+		"QUEUED":       cmdetect.StateQueued,
+		"RUNNING":      cmdetect.StateRunning,
+		"DETECTED":     cmdetect.StateDetected,
+		"FAILED":       cmdetect.StateFailed,
+	}
+	marshalNRecordingCMDetectionState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcmdetectᚐState = map[cmdetect.State]string{
+		cmdetect.StateNotDetected: "NOT_DETECTED",
+		cmdetect.StateQueued:      "QUEUED",
+		cmdetect.StateRunning:     "RUNNING",
+		cmdetect.StateDetected:    "DETECTED",
+		cmdetect.StateFailed:      "FAILED",
+	}
+)
 
 func (ec *executionContext) marshalNRecordingCMSection2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingCMSection) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
@@ -60564,15 +60605,35 @@ func (ec *executionContext) marshalNSession2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 	return ec._Session(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkipReason(ctx context.Context, v any) (model.SkipReason, error) {
-	var res model.SkipReason
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason(ctx context.Context, v any) (rule.SkipReason, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkipReason(ctx context.Context, sel ast.SelectionSet, v model.SkipReason) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason(ctx context.Context, sel ast.SelectionSet, v rule.SkipReason) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "SkipReason!")
+	}
+	return res
 }
+
+var (
+	unmarshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason = map[string]rule.SkipReason{
+		"DUPLICATE_TITLE":  rule.SkipReasonDuplicateTitle,
+		"RECORDED_EPISODE": rule.SkipReasonRecordedEpisode,
+		"OTHER_BROADCAST":  rule.SkipReasonOtherBroadcast,
+		"EARLIER_EPISODE":  rule.SkipReasonEarlierEpisode,
+	}
+	marshalNSkipReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋruleᚐSkipReason = map[rule.SkipReason]string{
+		rule.SkipReasonDuplicateTitle:  "DUPLICATE_TITLE",
+		rule.SkipReasonRecordedEpisode: "RECORDED_EPISODE",
+		rule.SkipReasonOtherBroadcast:  "OTHER_BROADCAST",
+		rule.SkipReasonEarlierEpisode:  "EARLIER_EPISODE",
+	}
+)
 
 func (ec *executionContext) marshalNSkippedDuplicate2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSkippedDuplicateᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SkippedDuplicate) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
@@ -61745,21 +61806,39 @@ func (ec *executionContext) marshalOLiveStreamScrambled2ᚖgithubᚗcomᚋSlashN
 	return ec._LiveStreamScrambled(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceFailure(ctx context.Context, v any) (*model.LogSourceFailure, error) {
+func (ec *executionContext) unmarshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure(ctx context.Context, v any) (*logreport.Failure, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var res = new(model.LogSourceFailure)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLogSourceFailure(ctx context.Context, sel ast.SelectionSet, v *model.LogSourceFailure) graphql.Marshaler {
+func (ec *executionContext) marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure(ctx context.Context, sel ast.SelectionSet, v *logreport.Failure) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure[*v])
+	return res
 }
+
+var (
+	unmarshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure = map[string]logreport.Failure{
+		"TIMEOUT":     logreport.FailureTimeout,
+		"UNREACHABLE": logreport.FailureUnreachable,
+		"UNSUPPORTED": logreport.FailureUnsupported,
+		"HTTP_ERROR":  logreport.FailureHTTPError,
+	}
+	marshalOLogSourceFailure2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋlogreportᚐFailure = map[logreport.Failure]string{
+		logreport.FailureTimeout:     "TIMEOUT",
+		logreport.FailureUnreachable: "UNREACHABLE",
+		logreport.FailureUnsupported: "UNSUPPORTED",
+		logreport.FailureHTTPError:   "HTTP_ERROR",
+	}
+)
 
 func (ec *executionContext) marshalONode2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNode(ctx context.Context, sel ast.SelectionSet, v model.Node) graphql.Marshaler {
 	if v == nil {
