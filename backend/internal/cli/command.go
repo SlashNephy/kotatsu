@@ -46,7 +46,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/logring"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
-	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
@@ -808,18 +807,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	sessions := auth.NewSessions(&auth.SessionsOptions{
-		IdleTimeout:     0,
-		AbsoluteTimeout: 0,
-		// リバースプロキシが HTTPS を終端するときも、信頼済みのプロキシの X-Forwarded-Proto で Secure を付ける。
-		IsSecure: func(r *http.Request) bool {
-			client := clientinfo.From(r.Context())
-
-			return client != nil && client.Secure
-		},
-		Clock:  deps.Clock,
-		Logger: logger.With(slog.String("component", "session")),
-	})
 	// 署名付き URL を発行したユーザーを引く。DB に届かない間は、覚えた結果を使う (#1084)。
 	urlUsers := auth.NewURLUsers(deps.DB, deps.Clock, logger.With(slog.String("component", "stream")))
 
@@ -833,20 +820,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if deps.Config.Auth.SecretKey.Value() == "" {
 		return nil, errSecretKeyRequired
 	}
-	factors, err := auth.NewSecondFactors(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
+	accounts, err := newAccountParts(deps, logger)
 	if err != nil {
 		return nil, err
 	}
-	passkeys := auth.NewPasskeys(&auth.PasskeysOptions{
-		Clock:    deps.Clock,
-		Recorder: audit.NewRecorder(deps.Clock),
-		Logger:   logger.With(slog.String("component", "passkey")),
-		Sessions: sessions,
-	})
-	passwordPolicy, err := password.NewPolicy(&password.PolicyOptions{HIBP: hibpOf(deps.Config, deps.Network), StrengthTimeout: 0, Estimator: nil, Logger: logger})
-	if err != nil {
-		return nil, err
-	}
+	sessions, factors, passkeys, passwordPolicy := accounts.sessions, accounts.factors, accounts.passkeys, accounts.passwordPolicy
 	sealed, err := newSealedStores(deps, logger)
 	if err != nil {
 		return nil, err
@@ -869,7 +847,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: jikkyoclient.NewHTTPClient(deps.Network), Clock: deps.Clock, LiveRetryDelays: nil})
 	updates, graphUpdates := newUpdates(logger, deps)
-	apiTokens := auth.NewAPITokens(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
+	apiTokens := accounts.apiTokens
 	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	iptvFeeds := auth.NewIPTVFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock, deps.Network), audit.NewRecorder(deps.Clock))
@@ -894,8 +872,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		IPTVFeeds:         iptvFeeds,
 		OAuth:             authorizationServer,
 		Players:           player.NewService(deps.DB, deps.Clock),
-		UserAdmin:         auth.NewUserAdmin(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
-		Passwords:         auth.NewPasswords(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy),
+		UserAdmin:         accounts.userAdmin,
+		Passwords:         accounts.passwords,
 		Sessions:          sessions,
 		URLUsers:          urlUsers,
 		Drain:             drainer,
