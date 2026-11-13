@@ -739,6 +739,8 @@
   "search": {
     "title": "Program search",
     "results": "Search results",
+    "headerLabel": "Search by program name",
+    "headerPlaceholder": "Program name, then Enter",
     "noConditions": "Enter conditions to show matching programs here",
     "freeOnly": "Free-to-air only",
     "includeArchive": "Include past broadcasts",

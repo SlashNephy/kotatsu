@@ -729,6 +729,8 @@
   "search": {
     "title": "番組検索",
     "results": "検索結果",
+    "headerLabel": "番組名で探す",
+    "headerPlaceholder": "番組名を入れて Enter",
     "noConditions": "条件を入れると、一致する番組をここに表示します",
     "freeOnly": "無料放送のみ",
     "includeArchive": "過去の放送を含める",
