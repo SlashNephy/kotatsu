@@ -107,17 +107,16 @@ func JudgeRecordingScramble(segments [][]PIDQuality) RecordingScramble {
 	return RecordingScramble{Judged: true, Ratio: total.Ratio(), Warning: warning || total.Ratio() > ScrambledRatioThreshold}
 }
 
-// ScrambleVerdict は、ライブの TS がスクランブルされたままかを判定した結果。
-type ScrambleVerdict int
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// ScrambleUndecided は、まだ決めていないことを表す。
-	ScrambleUndecided ScrambleVerdict = iota
-	// ScrambleClear は、スクランブルされていないと決めたことを表す。決めたら変わらない。
-	ScrambleClear
-	// ScrambleScrambled は、スクランブルされたままと決めたことを表す。決めたら変わらない。
-	ScrambleScrambled
-)
+// ScrambleVerdict は、ライブの TS がスクランブルされたままかを判定した結果。
+//
+// ENUM(
+// Undecided // まだ決めていないことを表す。
+// Clear // スクランブルされていないと決めたことを表す。決めたら変わらない。
+// Scrambled // スクランブルされたままと決めたことを表す。決めたら変わらない。
+// )
+type ScrambleVerdict int
 
 // ErrScrambled は、スクランブルされたままと決めた後に、ScrambleDetector へ書き込んだことを表す。
 // io.TeeReader で読むストリームに挟むと、決めた時点で読むのが止まる。
@@ -190,7 +189,7 @@ func NewScrambleDetector(opts ScrambleDetectorOptions) *ScrambleDetector {
 	return &ScrambleDetector{
 		opts: opts, mu: sync.Mutex{}, carry: [PacketSize]byte{}, carryLen: 0,
 		programs: newProgramTable(), sections: map[uint16]*sectionAssembler{}, esPIDs: map[uint16]bool{}, programsGeneration: 0,
-		verdict: ScrambleUndecided, window: ScrambleCounts{Packets: 0, Scrambled: 0}, windowStart: time.Time{},
+		verdict: ScrambleVerdictUndecided, window: ScrambleCounts{Packets: 0, Scrambled: 0}, windowStart: time.Time{},
 		last: ScrambleCounts{Packets: 0, Scrambled: 0}, over: 0, streakStart: time.Time{},
 	}
 }
@@ -209,7 +208,7 @@ func (d *ScrambleDetector) Verdict() ScrambleVerdict {
 func (d *ScrambleDetector) Finish() ScrambleVerdict {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.verdict != ScrambleUndecided {
+	if d.verdict != ScrambleVerdictUndecided {
 		return d.verdict
 	}
 	counts := d.last
@@ -219,9 +218,9 @@ func (d *ScrambleDetector) Finish() ScrambleVerdict {
 	switch {
 	case counts.Packets == 0:
 	case counts.Ratio() > ScrambledRatioThreshold:
-		d.verdict = ScrambleScrambled
+		d.verdict = ScrambleVerdictScrambled
 	default:
-		d.verdict = ScrambleClear
+		d.verdict = ScrambleVerdictClear
 	}
 
 	return d.verdict
@@ -231,13 +230,13 @@ func (d *ScrambleDetector) Finish() ScrambleVerdict {
 func (d *ScrambleDetector) Write(p []byte) (int, error) {
 	n := len(p)
 	d.mu.Lock()
-	if d.verdict == ScrambleClear {
+	if d.verdict == ScrambleVerdictClear {
 		// 決めた後は、中継の邪魔をしないよう、読まない。
 		d.mu.Unlock()
 
 		return n, nil
 	}
-	if d.verdict == ScrambleScrambled {
+	if d.verdict == ScrambleVerdictScrambled {
 		d.mu.Unlock()
 
 		return 0, ErrScrambled
@@ -268,7 +267,7 @@ func (d *ScrambleDetector) feed(p []byte) bool {
 			return true
 		}
 	}
-	for len(p) > 0 && d.verdict == ScrambleUndecided {
+	for len(p) > 0 && d.verdict == ScrambleVerdictUndecided {
 		if p[0] != syncByte || (len(p) > PacketSize && p[PacketSize] != syncByte) {
 			// 境界がずれていれば、次の sync byte を探す。判定に使うだけなので、Analyzer ほど厳密には合わせ直さない。
 			p = p[1:]
@@ -351,7 +350,7 @@ func (d *ScrambleDetector) count(scrambled bool) bool {
 	d.last, d.window = filled, ScrambleCounts{Packets: 0, Scrambled: 0}
 	if filled.Ratio() <= ScrambledRatioThreshold {
 		// スクランブルされていない窓が来たら、そこで決める。閾値を超えた窓は、必ず続いた並びになる。
-		d.verdict = ScrambleClear
+		d.verdict = ScrambleVerdictClear
 
 		return false
 	}
@@ -360,7 +359,7 @@ func (d *ScrambleDetector) count(scrambled bool) bool {
 	}
 	d.over++
 	if d.over >= d.opts.Windows && now.Sub(d.streakStart) >= d.opts.Hold {
-		d.verdict = ScrambleScrambled
+		d.verdict = ScrambleVerdictScrambled
 
 		return true
 	}

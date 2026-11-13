@@ -353,8 +353,8 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request, kind string) {
 
 		return
 	}
-	audio, ok := ParseAudio(r.PathValue("audio"))
-	if !ok {
+	audio, err := ParseAudio(r.PathValue("audio"))
+	if err != nil {
 		http.Error(w, "unknown audio", http.StatusNotFound)
 
 		return

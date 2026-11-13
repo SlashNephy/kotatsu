@@ -20,9 +20,9 @@ func TestLiveRates(t *testing.T) {
 	t.Parallel()
 
 	programs := []*ts.Program{{Number: 1024, PMTPID: 0x1F0, PCRPID: 0x100, Version: 0, Streams: []*ts.Stream{
-		{PID: 0x100, StreamType: 0x02, Kind: ts.StreamVideo, ComponentTag: nil},
-		{PID: 0x110, StreamType: 0x0F, Kind: ts.StreamAudio, ComponentTag: nil},
-		{PID: 0x130, StreamType: 0x06, Kind: ts.StreamOther, ComponentTag: nil},
+		{PID: 0x100, StreamType: 0x02, Kind: ts.StreamKindVideo, ComponentTag: nil},
+		{PID: 0x110, StreamType: 0x0F, Kind: ts.StreamKindAudio, ComponentTag: nil},
+		{PID: 0x130, StreamType: 0x06, Kind: ts.StreamKindOther, ComponentTag: nil},
 	}}}
 	stats := func(video, audio, other, psi, unknown, drops int64) *ts.Stats {
 		return &ts.Stats{

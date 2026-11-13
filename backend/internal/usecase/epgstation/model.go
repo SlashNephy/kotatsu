@@ -116,15 +116,15 @@ type Recording struct {
 	TagIDs []int64
 }
 
-// VideoFileType は録画のファイルの種類。
-type VideoFileType string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// VideoFileTypeTS は、録画した TS。
-	VideoFileTypeTS VideoFileType = "ts"
-	// VideoFileTypeEncoded は、エンコードしたファイル。
-	VideoFileTypeEncoded VideoFileType = "encoded"
-)
+// VideoFileType は録画のファイルの種類。
+//
+// ENUM(
+// TS = ts // 録画した TS。
+// encoded // エンコードしたファイル。
+// )
+type VideoFileType string
 
 // VideoFile は録画のファイル。
 type VideoFile struct {

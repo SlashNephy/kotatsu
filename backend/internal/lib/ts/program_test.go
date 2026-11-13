@@ -123,8 +123,8 @@ func TestAnalyzerProgramsFromTestTS(t *testing.T) {
 		PCRPID:  videoPID,
 		Version: 0,
 		Streams: []*ts.Stream{
-			{PID: videoPID, StreamType: 0x02, Kind: ts.StreamVideo},
-			{PID: audioPID, StreamType: 0x0F, Kind: ts.StreamAudio},
+			{PID: videoPID, StreamType: 0x02, Kind: ts.StreamKindVideo},
+			{PID: audioPID, StreamType: 0x0F, Kind: ts.StreamKindAudio},
 		},
 	}}, analyzer.Stats().Programs)
 }
@@ -151,7 +151,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 			build: func(cc map[uint16]*byte) [][]byte {
 				return append(psiPackets(0, cc[0], patSection(0, pat)), psiPackets(pmtPID, cc[pmtPID], pmtSection(0, video, audio))...)
 			},
-			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio},
+			wantStreams: []ts.StreamKind{ts.StreamKindVideo, ts.StreamKindAudio},
 		},
 		{
 			name: "PMT version update",
@@ -159,7 +159,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 				return append(psiPackets(0, cc[0], patSection(0, pat)),
 					psiPackets(pmtPID, cc[pmtPID], pmtSection(0, video, audio), pmtSection(1, video, audio, caption))...)
 			},
-			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamOther},
+			wantStreams: []ts.StreamKind{ts.StreamKindVideo, ts.StreamKindAudio, ts.StreamKindOther},
 			wantVersion: 1,
 		},
 		{
@@ -171,7 +171,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 
 				return append(pkts, psiPackets(0x01F1, cc[0x01F1], pmtSection(0, video, audio, caption))...)
 			},
-			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamOther},
+			wantStreams: []ts.StreamKind{ts.StreamKindVideo, ts.StreamKindAudio, ts.StreamKindOther},
 			wantPID:     0x01F1,
 		},
 		{
@@ -181,7 +181,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 				// PMT は 3 パケットにまたがる。
 				return append(psiPackets(0, cc[0], patSection(0, pat)), psiPackets(pmtPID, cc[pmtPID], pmtSection(0, video, long, audio))...)
 			},
-			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamAudio},
+			wantStreams: []ts.StreamKind{ts.StreamKindVideo, ts.StreamKindAudio, ts.StreamKindAudio},
 		},
 		{
 			name: "PMT with a broken CRC is ignored",
@@ -224,7 +224,7 @@ func TestAnalyzerPrograms(t *testing.T) {
 
 				return append(psiPackets(0, cc[0], patSection(0, pat)), pmt[0], pmt[1], pmt[1], pmt[2])
 			},
-			wantStreams: []ts.StreamKind{ts.StreamVideo, ts.StreamAudio, ts.StreamAudio},
+			wantStreams: []ts.StreamKind{ts.StreamKindVideo, ts.StreamKindAudio, ts.StreamKindAudio},
 		},
 		{
 			name: "PMT missing a middle packet is ignored",

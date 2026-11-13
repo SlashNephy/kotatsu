@@ -20,7 +20,7 @@ func TestOnAirPrograms(t *testing.T) {
 		want []*tunerserver.OnAirProgram
 	}{
 		{
-			kind: mirakurun.ServerMirakc,
+			kind: mirakurun.ServerKindMirakc,
 			want: []*tunerserver.OnAirProgram{{
 				ServiceID: 3273601024,
 				Current: &tunerserver.Program{
@@ -30,8 +30,8 @@ func TestOnAirPrograms(t *testing.T) {
 				Next: nil,
 			}},
 		},
-		{kind: mirakurun.ServerMirakurun, want: []*tunerserver.OnAirProgram{}},
-		{kind: mirakurun.ServerMahiron, want: []*tunerserver.OnAirProgram{}},
+		{kind: mirakurun.ServerKindMirakurun, want: []*tunerserver.OnAirProgram{}},
+		{kind: mirakurun.ServerKindMahiron, want: []*tunerserver.OnAirProgram{}},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {

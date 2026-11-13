@@ -308,13 +308,13 @@ func (l *Live) scrambleVerdict(ctx context.Context, s *session, detector *ts.Scr
 	if detector == nil || ctx.Err() != nil {
 		return err
 	}
-	if detector.Verdict() == ts.ScrambleScrambled {
+	if detector.Verdict() == ts.ScrambleVerdictScrambled {
 		return ts.ErrScrambled
 	}
 	l.mu.Lock()
 	ready := s.ready
 	l.mu.Unlock()
-	if ready || detector.Finish() != ts.ScrambleScrambled {
+	if ready || detector.Finish() != ts.ScrambleVerdictScrambled {
 		return err
 	}
 	l.scramble.ReportQuietly(ctx, s.key.serviceID)
@@ -383,8 +383,8 @@ func (l *Live) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	audio, ok := ParseAudio(r.PathValue("audio"))
-	if !ok {
+	audio, err := ParseAudio(r.PathValue("audio"))
+	if err != nil {
 		http.Error(w, "unknown audio", http.StatusNotFound)
 
 		return

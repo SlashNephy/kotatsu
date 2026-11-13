@@ -62,17 +62,16 @@ type StatusRules struct {
 	WatchedOnLast bool
 }
 
-// WorkStatus は、記録先によらない作品の状態。
-type WorkStatus int
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// WorkStatusNone は、状態を決めていないこと (ほかの状態も含む) を表す。
-	WorkStatusNone WorkStatus = iota
-	// WorkStatusWatching は「見てる」。
-	WorkStatusWatching
-	// WorkStatusWatched は「見た」。
-	WorkStatusWatched
-)
+// WorkStatus は、記録先によらない作品の状態。
+//
+// ENUM(
+// None // 状態を決めていないこと (ほかの状態も含む) を表す。
+// Watching // 「見てる」。
+// Watched // 「見た」。
+// )
+type WorkStatus int
 
 // NextStatus は、話を見たときに変える作品の状態を返す。変えなければ false を返す。
 // 最終話なら「見た」に、第 1 話か最終話以外なら「見てる」にする。すでに「見た」の作品は「見てる」に戻さないが、

@@ -14,9 +14,9 @@ func TestPIDQualities(t *testing.T) {
 
 	stats := &ts.Stats{
 		Programs: []*ts.Program{{Number: 1024, PMTPID: 0x1F0, PCRPID: 0x1FF, Version: 0, Streams: []*ts.Stream{
-			{PID: 0x100, StreamType: 0x02, Kind: ts.StreamVideo},
-			{PID: 0x110, StreamType: 0x0F, Kind: ts.StreamAudio, ComponentTag: new(uint8(0x10))},
-			{PID: 0x130, StreamType: 0x06, Kind: ts.StreamOther},
+			{PID: 0x100, StreamType: 0x02, Kind: ts.StreamKindVideo},
+			{PID: 0x110, StreamType: 0x0F, Kind: ts.StreamKindAudio, ComponentTag: new(uint8(0x10))},
+			{PID: 0x130, StreamType: 0x06, Kind: ts.StreamKindOther},
 		}}},
 	}
 	pids := []*ts.PIDStats{

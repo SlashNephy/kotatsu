@@ -41,19 +41,17 @@ const (
 	pgUniqueViolation = "23505"
 )
 
-// Kind は、取り込むデータの種類。import_sources の kind に記録する。
-type Kind string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// KindRule はルール。
-	KindRule Kind = "rule"
-	// KindReserve は手動予約。
-	KindReserve Kind = "reserve"
-	// KindRecorded は録画済みの番組。
-	KindRecorded Kind = "recorded"
-	// KindRecordedHistory は、重複の回避に使う録画履歴。
-	KindRecordedHistory Kind = "recorded_history"
-)
+// Kind は、取り込むデータの種類。import_sources の kind に記録する。
+//
+// ENUM(
+// rule // ルール。
+// reserve // 手動予約。
+// recorded // 録画済みの番組。
+// recorded_history // 重複の回避に使う録画履歴。
+// )
+type Kind string
 
 // ApplyOptions は、取り込みの条件。
 type ApplyOptions struct {

@@ -208,7 +208,7 @@ func TestOpenEventsMirakurun(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 
 	// program.create は、番組が作られたことと、番組のサービスに読み替える。
-	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventProgramCreated, ServiceID: faketuner.ServiceItemID(0x7FE0, 0x0400)}, event)
+	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeProgramCreated, ServiceID: faketuner.ServiceItemID(0x7FE0, 0x0400)}, event)
 }
 
 // TestToEvent は、Mirakurun、Mahiron と mirakc のイベントを、何が変わったかの知らせに読み替えることを確かめる。
@@ -225,43 +225,43 @@ func TestToEvent(t *testing.T) {
 		{
 			name:   "program created on Mirakurun",
 			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: "create", Data: json.RawMessage(`{"id":327360102400005,"networkId":32736,"serviceId":1024,"eventId":5}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventProgramCreated, ServiceID: service},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeProgramCreated, ServiceID: service},
 			wantOK: true,
 		},
 		{
 			name:   "program removed on Mirakurun has only its id",
 			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: "remove", Data: json.RawMessage(`{"id":327360102400005}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventProgramRemoved, ServiceID: service},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeProgramRemoved, ServiceID: service},
 			wantOK: true,
 		},
 		{
 			name:   "service number without network falls back to the program id",
 			raw:    &mirakurun.RawEvent{Resource: resourceProgram, Type: typeUpdate, Data: json.RawMessage(`{"id":327360102400005,"serviceId":1024}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeProgramUpdated, ServiceID: service},
 			wantOK: true,
 		},
 		{
 			name:   "programs updated on mirakc",
 			raw:    &mirakurun.RawEvent{Resource: resourceEPG, Type: typeProgramsUpdated, Data: json.RawMessage(`{"serviceId":3273601024}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeProgramUpdated, ServiceID: service},
 			wantOK: true,
 		},
 		{
 			name:   "on-air program changed on mirakc",
 			raw:    &mirakurun.RawEvent{Resource: "onair", Type: "program-changed", Data: json.RawMessage(`{"serviceId":3273601024}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: service},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeProgramUpdated, ServiceID: service},
 			wantOK: true,
 		},
 		{
 			name:   "service changed",
 			raw:    &mirakurun.RawEvent{Resource: "service", Type: typeUpdate, Data: json.RawMessage(`{"id":3273601024}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventServiceChanged, ServiceID: 0},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0},
 			wantOK: true,
 		},
 		{
 			name:   "tuner status changed on mirakc",
 			raw:    &mirakurun.RawEvent{Resource: resourceTuner, Type: typeStatusChanged, Data: json.RawMessage(`{"tunerIndex":0}`)},
-			want:   &tunerserver.Event{Type: tunerserver.EventTunerChanged, ServiceID: 0},
+			want:   &tunerserver.Event{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0},
 			wantOK: true,
 		},
 		{

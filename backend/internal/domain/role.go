@@ -14,18 +14,14 @@ import "slices"
 type Role string
 
 // Permission は、ロールに許す操作のまとまり (設計書 9.7 の表の各行)。
+//
+// ENUM(
+// watch // ライブ視聴、録画の再生、自分の設定と再生位置の変更。
+// manage_schedule // ルールと予約の作成、変更、削除。
+// manage_recordings // 録画の削除、保護、タグ付け。
+// administer // ユーザー、システム設定、Webhook、保存先プール、監査ログの管理。
+// )
 type Permission string
-
-const (
-	// PermissionWatch は、ライブ視聴、録画の再生、自分の設定と再生位置の変更。
-	PermissionWatch Permission = "watch"
-	// PermissionManageSchedule は、ルールと予約の作成、変更、削除。
-	PermissionManageSchedule Permission = "manage_schedule"
-	// PermissionManageRecordings は、録画の削除、保護、タグ付け。
-	PermissionManageRecordings Permission = "manage_recordings"
-	// PermissionAdminister は、ユーザー、システム設定、Webhook、保存先プール、監査ログの管理。
-	PermissionAdminister Permission = "administer"
-)
 
 // permissionsOf は、ロールごとに許す操作 (設計書 9.7)。
 func permissionsOf(role Role) []Permission {

@@ -23,21 +23,21 @@ func TestBatchEvents(t *testing.T) {
 		{
 			name: "program events collect their services",
 			events: []*tunerserver.Event{
-				{Type: tunerserver.EventProgramCreated, ServiceID: service},
-				{Type: tunerserver.EventProgramUpdated, ServiceID: service},
-				{Type: tunerserver.EventProgramRemoved, ServiceID: other},
+				{Type: tunerserver.EventTypeProgramCreated, ServiceID: service},
+				{Type: tunerserver.EventTypeProgramUpdated, ServiceID: service},
+				{Type: tunerserver.EventTypeProgramRemoved, ServiceID: other},
 			},
 			wantServices: map[int64]struct{}{service: {}, other: {}},
 		},
 		{
 			name:         "service changed",
-			events:       []*tunerserver.Event{{Type: tunerserver.EventServiceChanged, ServiceID: 0}},
+			events:       []*tunerserver.Event{{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}},
 			wantServices: map[int64]struct{}{},
 			wantAll:      true,
 		},
 		{
 			name:         "tuner events do not sync programs",
-			events:       []*tunerserver.Event{{Type: tunerserver.EventTunerChanged, ServiceID: 0}},
+			events:       []*tunerserver.Event{{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0}},
 			wantServices: map[int64]struct{}{},
 		},
 	}

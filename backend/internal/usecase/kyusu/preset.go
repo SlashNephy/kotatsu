@@ -6,15 +6,15 @@ package kyusu
 
 import "slices"
 
-// Codec は、映像のコーデック。
-type Codec string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// CodecH264 は H.264。どのブラウザでも再生できる。
-	CodecH264 Codec = "h264"
-	// CodecHEVC は HEVC。同じ画質を H.264 より少ない帯域で送れるが、再生できる端末が限られる。
-	CodecHEVC Codec = "hevc"
-)
+// Codec は、映像のコーデック。
+//
+// ENUM(
+// H264 = h264 // H.264。どのブラウザでも再生できる。
+// HEVC = hevc // HEVC。同じ画質を H.264 より少ない帯域で送れるが、再生できる端末が限られる。
+// )
+type Codec string
 
 // Preset は、画質のプリセット (設計書 7.3)。
 type Preset struct {

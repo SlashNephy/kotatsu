@@ -282,11 +282,11 @@ func newEventBatch() *eventBatch {
 // add は、イベントから変化のあったものを読み取る。
 func (b *eventBatch) add(event *tunerserver.Event) {
 	switch event.Type {
-	case tunerserver.EventProgramCreated, tunerserver.EventProgramUpdated, tunerserver.EventProgramRemoved:
+	case tunerserver.EventTypeProgramCreated, tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeProgramRemoved:
 		b.serviceIDs[event.ServiceID] = struct{}{}
-	case tunerserver.EventServiceChanged:
+	case tunerserver.EventTypeServiceChanged:
 		b.services = true
-	case tunerserver.EventTunerChanged:
+	case tunerserver.EventTypeTunerChanged:
 		b.tuners = true
 	}
 }

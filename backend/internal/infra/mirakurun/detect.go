@@ -10,14 +10,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
-// ServerKind はチューナーサーバーの種類。
-type ServerKind string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	ServerMirakurun ServerKind = "mirakurun"
-	ServerMirakc    ServerKind = "mirakc"
-	ServerMahiron   ServerKind = "mahiron"
-)
+// ServerKind はチューナーサーバーの種類。
+//
+// ENUM(
+// mirakurun
+// mirakc
+// mahiron
+// )
+type ServerKind string
 
 // mahironServerName は、Mahiron が /api/version の server で返す名前。
 const mahironServerName = "mahiron"
@@ -84,7 +86,7 @@ func (c *Client) Detect(ctx context.Context) (*ServerInfo, error) {
 
 	if version.Server == mahironServerName {
 		return &ServerInfo{
-			Kind:         ServerMahiron,
+			Kind:         ServerKindMahiron,
 			Version:      version,
 			EventsStream: true,
 			SSEEvents:    false,
@@ -98,7 +100,7 @@ func (c *Client) Detect(ctx context.Context) (*ServerInfo, error) {
 	}
 	if sse {
 		return &ServerInfo{
-			Kind:         ServerMirakc,
+			Kind:         ServerKindMirakc,
 			Version:      version,
 			EventsStream: false,
 			SSEEvents:    true,
@@ -107,7 +109,7 @@ func (c *Client) Detect(ctx context.Context) (*ServerInfo, error) {
 	}
 
 	return &ServerInfo{
-		Kind:         ServerMirakurun,
+		Kind:         ServerKindMirakurun,
 		Version:      version,
 		EventsStream: true,
 		SSEEvents:    false,

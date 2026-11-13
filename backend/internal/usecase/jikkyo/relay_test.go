@@ -56,7 +56,7 @@ func waitConnected(t *testing.T, subscription *jikkyo.Subscription) {
 	for {
 		select {
 		case event := <-subscription.Events:
-			if event.Status != nil && event.Status.Kind == jikkyoclient.LiveConnected {
+			if event.Status != nil && event.Status.Kind == jikkyoclient.LiveStatusKindConnected {
 				return
 			}
 		case <-timeout:

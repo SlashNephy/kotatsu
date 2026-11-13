@@ -35,11 +35,11 @@ func newStubServer(t *testing.T, kind mirakurun.ServerKind) (*stubServer, *httpt
 func (s *stubServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	kind, _ := s.kind.Load().(mirakurun.ServerKind)
 	switch {
-	case r.URL.Path == pathVersion && kind == mirakurun.ServerMahiron:
+	case r.URL.Path == pathVersion && kind == mirakurun.ServerKindMahiron:
 		_, _ = w.Write([]byte(`{"current":"5.2.2","latest":"","server":"mahiron"}`))
 	case r.URL.Path == pathVersion:
 		_, _ = w.Write([]byte(`{"current":"4.0.0","latest":"4.0.0"}`))
-	case r.URL.Path == pathSSEEvents && kind == mirakurun.ServerMirakc:
+	case r.URL.Path == pathSSEEvents && kind == mirakurun.ServerKindMirakc:
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("event: tuner.status-changed\ndata: {\"tunerIndex\":0}\n\n"))
@@ -47,7 +47,7 @@ func (s *stubServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 		<-r.Context().Done()
-	case r.URL.Path == "/api/onair" && kind == mirakurun.ServerMirakc:
+	case r.URL.Path == "/api/onair" && kind == mirakurun.ServerKindMirakc:
 		// 延長で終了時刻が未定になった番組と、次の番組がない状態。形は mirakc の OpenAPI の WebOnairProgram に従う。
 		_, _ = w.Write([]byte(`[{"serviceId":3273601024,"current":{"id":327360102401405,"eventId":1405,"serviceId":1024,` +
 			`"networkId":32736,"startAt":1791702600000,"duration":1,"isFree":true,"name":"中継"},"next":null}]`))
@@ -75,26 +75,26 @@ func TestDetect(t *testing.T) {
 		want *mirakurun.ServerInfo
 	}{
 		{
-			kind: mirakurun.ServerMirakurun,
+			kind: mirakurun.ServerKindMirakurun,
 			want: &mirakurun.ServerInfo{
-				Kind:         mirakurun.ServerMirakurun,
+				Kind:         mirakurun.ServerKindMirakurun,
 				Version:      stubMirakurunVersion(),
 				EventsStream: true,
 			},
 		},
 		{
-			kind: mirakurun.ServerMirakc,
+			kind: mirakurun.ServerKindMirakc,
 			want: &mirakurun.ServerInfo{
-				Kind:      mirakurun.ServerMirakc,
+				Kind:      mirakurun.ServerKindMirakc,
 				Version:   stubMirakurunVersion(),
 				SSEEvents: true,
 				OnAir:     true,
 			},
 		},
 		{
-			kind: mirakurun.ServerMahiron,
+			kind: mirakurun.ServerKindMahiron,
 			want: &mirakurun.ServerInfo{
-				Kind:         mirakurun.ServerMahiron,
+				Kind:         mirakurun.ServerKindMahiron,
 				Version:      &mirakurun.Version{Current: "5.2.2", Latest: "", Server: "mahiron"},
 				EventsStream: true,
 			},
@@ -102,7 +102,7 @@ func TestDetect(t *testing.T) {
 		{
 			kind: "spa",
 			want: &mirakurun.ServerInfo{
-				Kind:         mirakurun.ServerMirakurun,
+				Kind:         mirakurun.ServerKindMirakurun,
 				Version:      stubMirakurunVersion(),
 				EventsStream: true,
 			},
@@ -126,34 +126,34 @@ func TestDetect(t *testing.T) {
 func TestServerRedetects(t *testing.T) {
 	t.Parallel()
 
-	stub, server := newStubServer(t, mirakurun.ServerMirakurun)
+	stub, server := newStubServer(t, mirakurun.ServerKindMirakurun)
 	clk := clocktest.NewFake(testNow())
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, DetectInterval: 10 * time.Minute, Clock: clk})
 	require.NoError(t, err)
 
 	info, err := client.Server(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, mirakurun.ServerMirakurun, info.Kind)
+	assert.Equal(t, mirakurun.ServerKindMirakurun, info.Kind)
 
 	// サーバーが mirakc に入れ替わっても、間隔が過ぎるまでは前の結果を使う。
-	stub.kind.Store(mirakurun.ServerMirakc)
+	stub.kind.Store(mirakurun.ServerKindMirakc)
 	clk.Advance(9 * time.Minute)
 	info, err = client.Server(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, mirakurun.ServerMirakurun, info.Kind)
+	assert.Equal(t, mirakurun.ServerKindMirakurun, info.Kind)
 
 	// 間隔が過ぎたら判定し直す。
 	clk.Advance(time.Minute)
 	info, err = client.Server(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, mirakurun.ServerMirakc, info.Kind)
+	assert.Equal(t, mirakurun.ServerKindMirakc, info.Kind)
 
 	// Invalidate したら、間隔を待たずに判定し直す。
-	stub.kind.Store(mirakurun.ServerMahiron)
+	stub.kind.Store(mirakurun.ServerKindMahiron)
 	client.Invalidate()
 	info, err = client.Server(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, mirakurun.ServerMahiron, info.Kind)
+	assert.Equal(t, mirakurun.ServerKindMahiron, info.Kind)
 }
 
 func TestOpenEventsByServerKind(t *testing.T) {
@@ -163,9 +163,9 @@ func TestOpenEventsByServerKind(t *testing.T) {
 	tests := []struct {
 		kind mirakurun.ServerKind
 	}{
-		{kind: mirakurun.ServerMirakurun},
-		{kind: mirakurun.ServerMahiron},
-		{kind: mirakurun.ServerMirakc},
+		{kind: mirakurun.ServerKindMirakurun},
+		{kind: mirakurun.ServerKindMahiron},
+		{kind: mirakurun.ServerKindMirakc},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {
@@ -181,7 +181,7 @@ func TestOpenEventsByServerKind(t *testing.T) {
 
 			event, err := stream.Next()
 			require.NoError(t, err)
-			assert.Equal(t, tunerserver.EventTunerChanged, event.Type)
+			assert.Equal(t, tunerserver.EventTypeTunerChanged, event.Type)
 		})
 	}
 }
@@ -189,17 +189,17 @@ func TestOpenEventsByServerKind(t *testing.T) {
 func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 	t.Parallel()
 
-	stub, server := newStubServer(t, mirakurun.ServerMirakc)
+	stub, server := newStubServer(t, mirakurun.ServerKindMirakc)
 	clk := clocktest.NewFake(testNow())
 	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL, Clock: clk})
 	require.NoError(t, err)
 
 	info, err := client.Server(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, mirakurun.ServerMirakc, info.Kind)
+	require.Equal(t, mirakurun.ServerKindMirakc, info.Kind)
 
 	// mirakc から Mirakurun に入れ替わると /events が 404 になり、開くのに失敗する。
-	stub.kind.Store(mirakurun.ServerMirakurun)
+	stub.kind.Store(mirakurun.ServerKindMirakurun)
 	_, err = client.OpenEvents(t.Context())
 	var apiErr *mirakurun.APIError
 	require.ErrorAs(t, err, &apiErr)
@@ -211,5 +211,5 @@ func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 	t.Cleanup(func() { _ = stream.Close() })
 	event, err := stream.Next()
 	require.NoError(t, err)
-	assert.Equal(t, tunerserver.EventTunerChanged, event.Type)
+	assert.Equal(t, tunerserver.EventTypeTunerChanged, event.Type)
 }
