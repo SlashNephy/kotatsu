@@ -151,3 +151,18 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 		})
 	}
 }
+
+func TestTunerServerOpenChannelStreamNotFound(t *testing.T) {
+	t.Parallel()
+
+	// チャンネルの設定にない TS は、NetworkTV の ID を取らずに、ないものとして返す。
+	s := streamServer(t, nil, 0)
+	ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids})
+	for _, tt := range []struct{ channelType, channel string }{{"GR", "1"}, {"BS", "32736"}} {
+		_, err := server.OpenChannelStream(t.Context(), tt.channelType, tt.channel, nil)
+		require.ErrorIs(t, err, tunerserver.ErrNotFound)
+	}
+	acquired, _ := ids.state()
+	assert.Empty(t, acquired)
+}
