@@ -84,3 +84,42 @@ func TestLeaderSyncsEPGAndMatchesRules(t *testing.T) {
 	cancel()
 	assert.NoError(t, <-done)
 }
+
+// TestLeaderSyncsEPGFromEPGSource は、チューナーサーバーがなくても、EPG の上流 (EDCB) があれば、neko が EPG を同期することを確かめる (#1531)。
+func TestLeaderSyncsEPGFromEPGSource(t *testing.T) {
+	t.Parallel()
+
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+
+	options := faketuner.DefaultOptions(time.Now(), nil)
+	server := httptest.NewServer(faketuner.New(options))
+	t.Cleanup(server.Close)
+	client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	go func() {
+		done <- neko.Run(ctx, slog.New(slog.DiscardHandler), &neko.Options{
+			DB:         pool,
+			Clock:      clock.Real{},
+			InstanceID: id.New(),
+			Tuner:      nil,
+			EPGSource:  client,
+			Location:   time.UTC,
+		})
+	}()
+
+	require.Eventually(t, func() bool {
+		var n int
+		require.NoError(t, pool.QueryRow(t.Context(), "SELECT count(*) FROM programs").Scan(&n))
+
+		return n == len(options.Programs)
+	}, 10*time.Second, 20*time.Millisecond)
+
+	cancel()
+	assert.NoError(t, <-done)
+}
