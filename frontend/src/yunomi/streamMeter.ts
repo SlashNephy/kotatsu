@@ -205,12 +205,14 @@ export type TransportCounts = { dropped: number; errors: number; scrambled: numb
 // SourcePicture は、放送の映像の大きさと走査の方式。interlaced が分からなければ null。
 // film は、yadif が 2:3 プルダウンを見つけ、24p に組み直して出していること (#1284)。
 // filmFps は、24p で出している間に、yadif が実際に出した 1 秒あたりのコマの数。それ以外は null。
+// unfiltered は、WebGL2 がないなどで yadif を動かせず、インターレースを解除せずに出していること (#1617)。
 export type SourcePicture = {
   width: number;
   height: number;
   interlaced: boolean | null;
   film: boolean;
   filmFps: number | null;
+  unfiltered: boolean;
 };
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。

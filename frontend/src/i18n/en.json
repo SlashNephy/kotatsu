@@ -1337,6 +1337,7 @@
       "secondsAgo": "{{seconds}} s ago",
       "source": "Broadcast video",
       "film": "{{picture}} (pulldown detected, shown at 24p)",
+      "unfiltered": "{{picture}} (not deinterlaced: WebGL2 is unavailable)",
       "playing": "Playing video",
       "frameRate": "Frame rate",
       "audio": "Broadcast audio",
