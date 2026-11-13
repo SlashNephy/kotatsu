@@ -11,7 +11,7 @@ import { ChannelInspector } from '../../admin/ChannelInspector';
 import { FailureCounts } from '../../admin/FailureCounts';
 import { Section } from '../../admin/Section';
 import { useDataChanges } from '../../changes/DataChanges';
-import type { systemQuery } from './__generated__/systemQuery.graphql';
+import type { systemQuery, TunerServerKind } from './__generated__/systemQuery.graphql';
 import { zonedFormat } from '../../futon';
 
 export const Route = createFileRoute('/admin/system')({
@@ -28,6 +28,14 @@ const dateTimeFormat = zonedFormat({
 });
 
 const formatTime = (time: string) => dateTimeFormat.format(Date.parse(time));
+
+// tunerServerNames は、チューナーサーバーの種類の名前 (#1538)。製品の名前なので、言語によらず同じに書く。
+const tunerServerNames: Record<TunerServerKind, string> = {
+  MIRAKURUN: 'Mirakurun',
+  MIRAKC: 'mirakc',
+  MAHIRON: 'Mahiron',
+  '%future added value': '-',
+};
 
 // SystemPage は、チューナーサーバー、チューナー、インスタンス、リースの状態を見る、管理者向けの画面 (設計書 10.3)。
 // 本人確認はしない。録画の失敗の累計を 0 に戻す操作は、第三者に影響しない管理の操作なので、再認証も求めない (設計書 9.5)。保存先プールは、保存先の画面 (/admin/storage) で変える。
@@ -68,6 +76,8 @@ const query = graphql`
         valid
       }
       tunerServer {
+        kind
+        version
         degraded
         degradedSince
         lastError
@@ -158,6 +168,19 @@ function SystemStatus() {
                 </Text>
               )}
             </Group>
+            {/* 種類と版は、接続できない間も、最後に分かったものを出す (#1538)。 */}
+            {status.tunerServer.kind != null && (
+              <Text size="sm">
+                {status.tunerServer.version == null
+                  ? t('admin.system.tunerServerKind', {
+                      kind: tunerServerNames[status.tunerServer.kind],
+                    })
+                  : t('admin.system.tunerServerKindVersion', {
+                      kind: tunerServerNames[status.tunerServer.kind],
+                      version: status.tunerServer.version,
+                    })}
+              </Text>
+            )}
             {status.tunerServer.lastError !== '' && (
               <Text size="sm" c="red">
                 {t('admin.system.lastError', { error: status.tunerServer.lastError })}

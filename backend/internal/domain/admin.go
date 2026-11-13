@@ -44,6 +44,9 @@ type TunerServerStatus struct {
 	// 測った日時 (#1309)。まだ測っていなければ nil。
 	BroadcastClockSkewMs    *int64
 	BroadcastClockCheckedAt *time.Time
+	// ServerKind と ServerVersion は、チューナーサーバーの種類 (tunerserver.Kind の値) と版 (#1538)。まだ分からなければ nil。
+	ServerKind    *string
+	ServerVersion *string
 }
 
 // StoragePool は、保存先プールの設定と状態。

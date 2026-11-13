@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<5251acf8f7d4442af504e9f228d66e02>>
+ * @generated SignedSource<<5d932d011705565b5c3368dce4aa895e>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
+export type TunerServerKind = "MAHIRON" | "MIRAKC" | "MIRAKURUN" | "%future added value";
 export type systemQuery$variables = Record<PropertyKey, never>;
 export type systemQuery$data = {
   readonly systemStatus: {
@@ -43,7 +44,9 @@ export type systemQuery$data = {
       readonly clockSkewed: boolean;
       readonly degraded: boolean;
       readonly degradedSince: string | null | undefined;
+      readonly kind: TunerServerKind | null | undefined;
       readonly lastError: string;
+      readonly version: string | null | undefined;
     } | null | undefined;
     readonly tuners: ReadonlyArray<{
       readonly available: boolean;
@@ -235,6 +238,14 @@ v2 = [
             "alias": null,
             "args": null,
             "kind": "ScalarField",
+            "name": "kind",
+            "storageKey": null
+          },
+          (v0/*:: as any*/),
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
             "name": "degraded",
             "storageKey": null
           },
@@ -412,16 +423,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "691ca606121ec52dad7b0efd225881f9",
+    "cacheID": "2b1c67b9f58d88b47aa52cfd348f0e81",
     "id": null,
     "metadata": {},
     "name": "systemQuery",
     "operationKind": "query",
-    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n      broadcastClockSkewMs\n      broadcastClockSkewed\n      broadcastClockCheckedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    recordingFailures {\n      reason\n      count\n      lastFailedAt\n      resetAt\n    }\n  }\n}\n"
+    "text": "query systemQuery {\n  version {\n    version\n    latestRelease {\n      version\n      url\n      publishedAt\n    }\n  }\n  systemStatus {\n    instances {\n      instanceId\n      role\n      address\n      startedAt\n      heartbeatAt\n      alive\n    }\n    leases {\n      name\n      holderInstanceId\n      generation\n      expiresAt\n      valid\n    }\n    tunerServer {\n      kind\n      version\n      degraded\n      degradedSince\n      lastError\n      clockSkewMs\n      clockSkewed\n      clockSkewThresholdMs\n      checkedAt\n      broadcastClockSkewMs\n      broadcastClockSkewed\n      broadcastClockCheckedAt\n    }\n    tuners {\n      index\n      name\n      types\n      available\n      remote\n      fault\n    }\n    recordingFailures {\n      reason\n      count\n      lastFailedAt\n      resetAt\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "cf8ba8afbf4780871416fb35fecdfa2a";
+(node as any).hash = "8990b2d376fdfa3d812bc5fbd4f96b5f";
 
 export default node;

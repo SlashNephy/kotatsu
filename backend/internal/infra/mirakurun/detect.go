@@ -63,6 +63,35 @@ func (c *Client) Server(ctx context.Context) (*ServerInfo, error) {
 	return server, nil
 }
 
+// Identify は、チューナーサーバーの種類と版を返す (#1538)。判定の結果は、Server と同じく使い回す。
+func (c *Client) Identify(ctx context.Context) (*tunerserver.Identity, error) {
+	server, err := c.Server(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	identity := &tunerserver.Identity{Kind: identityKind(server.Kind), Version: ""}
+	if server.Version != nil {
+		identity.Version = server.Version.Current
+	}
+
+	return identity, nil
+}
+
+// identityKind は、判定した種類を、種類に依らない型の種類にする。
+func identityKind(kind ServerKind) tunerserver.Kind {
+	switch kind {
+	case ServerKindMirakc:
+		return tunerserver.KindMirakc
+	case ServerKindMahiron:
+		return tunerserver.KindMahiron
+	case ServerKindMirakurun:
+		return tunerserver.KindMirakurun
+	}
+
+	return tunerserver.KindMirakurun
+}
+
 // Invalidate は、判定の結果を捨てる。次の Server の呼び出しで判定し直す。
 // チューナーサーバーに再接続するときに呼ぶ。サーバーが入れ替わっているかもしれないからである。
 func (c *Client) Invalidate() {

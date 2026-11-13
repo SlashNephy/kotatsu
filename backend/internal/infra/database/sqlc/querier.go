@@ -1162,6 +1162,7 @@ type Querier interface {
 	// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさとコマ数 (#1509) を書き直す。
 	// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
 	UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error)
+	// 種類と版が NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error

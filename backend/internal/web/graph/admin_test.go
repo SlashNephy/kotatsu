@@ -26,7 +26,7 @@ const (
 	systemStatusQuery = `{ systemStatus {
 		instances { role address alive }
 		leases { name holderInstanceId generation valid }
-		tunerServer { degraded lastError clockSkewMs clockSkewed clockSkewThresholdMs }
+		tunerServer { degraded lastError clockSkewMs clockSkewed clockSkewThresholdMs kind version }
 		tuners { index name types available remote fault }
 		pools { id path }
 	} }`
@@ -183,7 +183,7 @@ func TestSystemStatus(t *testing.T) {
 		{"INSERT INTO instances (id, role, address, started_at, heartbeat_at) VALUES ($1, 'neko', '10.0.0.1:8080', $2, $2)", []any{alive, now}},
 		{"INSERT INTO instances (id, role, address, started_at, heartbeat_at) VALUES ($1, 'mikan', '10.0.0.2:8080', $2, $2)", []any{stopped, now.Add(-time.Hour)}},
 		{"INSERT INTO leases (name, holder, generation, acquired_at, renewed_at, expires_at) VALUES ('neko', $1, 3, $2, $2, $3)", []any{alive, now, now.Add(15 * time.Second)}},
-		{"INSERT INTO tuner_server_status (degraded_since, last_error, clock_skew_ms, checked_at) VALUES ($1, 'connection refused', 120, $1)", []any{now}},
+		{"INSERT INTO tuner_server_status (degraded_since, last_error, clock_skew_ms, checked_at, server_kind, server_version) VALUES ($1, 'connection refused', 120, $1, 'mahiron', '5.2.2')", []any{now}},
 		{"INSERT INTO tuners (tuner_index, name, types, is_available, is_remote, is_fault, updated_at) VALUES (0, 'PX-Q3PE', '{GR,BS}', $1, $2, $3, $4)", []any{true, false, false, now}},
 	} {
 		_, err := f.pool.Exec(t.Context(), stmt.sql, stmt.args...)
@@ -212,6 +212,9 @@ func TestSystemStatus(t *testing.T) {
 				// ClockSkewed と ClockSkewThresholdMs は、時計の差が閾値を超えたかと、その閾値 (#505)。
 				ClockSkewed          bool `json:"clockSkewed"`
 				ClockSkewThresholdMs int  `json:"clockSkewThresholdMs"`
+				// Kind と Version は、チューナーサーバーの種類と版 (#1538)。接続できない間も、最後に分かったものを返す。
+				Kind    *string `json:"kind"`
+				Version *string `json:"version"`
 			} `json:"tunerServer"`
 			Tuners []struct {
 				Index int      `json:"index"`
@@ -241,6 +244,8 @@ func TestSystemStatus(t *testing.T) {
 	assert.Equal(t, 120, *status.TunerServer.ClockSkewMs)
 	assert.False(t, status.TunerServer.ClockSkewed)
 	assert.Equal(t, 10_000, status.TunerServer.ClockSkewThresholdMs)
+	assert.Equal(t, new("MAHIRON"), status.TunerServer.Kind)
+	assert.Equal(t, new("5.2.2"), status.TunerServer.Version)
 	require.Len(t, status.Tuners, 1)
 	assert.Equal(t, []string{"GR", "BS"}, status.Tuners[0].Types)
 	require.Len(t, status.Pools, 2)

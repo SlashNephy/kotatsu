@@ -42,6 +42,7 @@ const (
 type Upstream interface {
 	Tuners(ctx context.Context) ([]*tunerserver.Tuner, error)
 	ServerDate(ctx context.Context) (time.Time, error)
+	Identify(ctx context.Context) (*tunerserver.Identity, error)
 }
 
 var _ Upstream = tunerserver.Client(nil)
@@ -139,6 +140,15 @@ func (m *Monitor) Check(ctx context.Context) error {
 		skewMs = new(skew.Milliseconds())
 	}
 
+	// 種類と版は、判定できたときだけ書く。判定できなければ、最後に分かったものを残す (#1538)。
+	var kind, version *string
+	identity, err := m.upstream.Identify(ctx)
+	if err != nil {
+		m.logger.WarnContext(ctx, "failed to identify the tuner server", slog.Any("error", err))
+	} else {
+		kind, version = new(identity.Kind.String()), new(identity.Version)
+	}
+
 	return pgx.BeginFunc(ctx, m.pool, func(tx pgx.Tx) error {
 		if err := m.guard(ctx, tx); err != nil {
 			return err
@@ -149,6 +159,8 @@ func (m *Monitor) Check(ctx context.Context) error {
 			LastError:     "",
 			ClockSkewMs:   skewMs,
 			CheckedAt:     now,
+			ServerKind:    kind,
+			ServerVersion: version,
 		}); err != nil {
 			return fmt.Errorf("failed to record the tuner server status: %w", err)
 		}
@@ -189,6 +201,8 @@ func (m *Monitor) recordDegraded(ctx context.Context, now time.Time, cause error
 			LastError:     message,
 			ClockSkewMs:   nil,
 			CheckedAt:     now,
+			ServerKind:    nil,
+			ServerVersion: nil,
 		}); err != nil {
 			return fmt.Errorf("failed to record the tuner server status: %w", err)
 		}

@@ -28,6 +28,15 @@ struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
 models:
+  TunerServerKind:
+    model: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.Kind
+    enum_values:
+      MIRAKURUN:
+        value: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.KindMirakurun
+      MIRAKC:
+        value: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.KindMirakc
+      MAHIRON:
+        value: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.KindMahiron
   KeywordMatch:
     model: github.com/SlashNephy/kotatsu/internal/domain/match.KeywordMatch
     enum_values:

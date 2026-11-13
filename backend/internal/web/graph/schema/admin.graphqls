@@ -87,9 +87,22 @@ type Lease {
 }
 
 """
+チューナーサーバーの種類 (設計書 3.1)。
+"""
+enum TunerServerKind {
+  MIRAKURUN
+  MIRAKC
+  MAHIRON
+}
+
+"""
 チューナーサーバーの状態 (設計書 3.7)。
 """
 type TunerServerStatus {
+  "チューナーサーバーの種類 (#1538)。まだ分からなければ null。接続できない間は、最後に分かったもの。"
+  kind: TunerServerKind
+  "チューナーサーバーが名乗った版。まだ分からないか、名乗らなければ null。"
+  version: String
   "接続できない縮退中かどうか。"
   degraded: Boolean!
   degradedSince: Time

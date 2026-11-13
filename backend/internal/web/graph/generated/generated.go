@@ -16,6 +16,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -1449,7 +1450,9 @@ type ComplexityRoot struct {
 		ClockSkewed             func(childComplexity int) int
 		Degraded                func(childComplexity int) int
 		DegradedSince           func(childComplexity int) int
+		Kind                    func(childComplexity int) int
 		LastError               func(childComplexity int) int
+		Version                 func(childComplexity int) int
 	}
 
 	User struct {
@@ -8098,12 +8101,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.TunerServerStatus.DegradedSince(childComplexity), true
+	case "TunerServerStatus.kind":
+		if e.ComplexityRoot.TunerServerStatus.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.Kind(childComplexity), true
 	case "TunerServerStatus.lastError":
 		if e.ComplexityRoot.TunerServerStatus.LastError == nil {
 			break
 		}
 
 		return e.ComplexityRoot.TunerServerStatus.LastError(childComplexity), true
+	case "TunerServerStatus.version":
+		if e.ComplexityRoot.TunerServerStatus.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TunerServerStatus.Version(childComplexity), true
 
 	case "User.avatarUrl":
 		if e.ComplexityRoot.User.AvatarURL == nil {
@@ -8546,9 +8561,22 @@ type Lease {
 }
 
 """
+チューナーサーバーの種類 (設計書 3.1)。
+"""
+enum TunerServerKind {
+  MIRAKURUN
+  MIRAKC
+  MAHIRON
+}
+
+"""
 チューナーサーバーの状態 (設計書 3.7)。
 """
 type TunerServerStatus {
+  "チューナーサーバーの種類 (#1538)。まだ分からなければ null。接続できない間は、最後に分かったもの。"
+  kind: TunerServerKind
+  "チューナーサーバーが名乗った版。まだ分からないか、名乗らなければ null。"
+  version: String
   "接続できない縮退中かどうか。"
   degraded: Boolean!
   degradedSince: Time
@@ -14994,6 +15022,10 @@ func (ec *executionContext) childFields_TunerServerHealth(ctx context.Context, f
 
 func (ec *executionContext) childFields_TunerServerStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
+	case "kind":
+		return ec.fieldContext_TunerServerStatus_kind(ctx, field)
+	case "version":
+		return ec.fieldContext_TunerServerStatus_version(ctx, field)
 	case "degraded":
 		return ec.fieldContext_TunerServerStatus_degraded(ctx, field)
 	case "degradedSince":
@@ -42693,6 +42725,52 @@ func (ec *executionContext) fieldContext_TunerServerHealth_broadcastClockSkewMs(
 	return graphql.NewScalarFieldContext("TunerServerHealth", field, false, false, "Int")
 }
 
+func (ec *executionContext) _TunerServerStatus_kind(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *tunerserver.Kind) graphql.Marshaler {
+			return ec.marshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "TunerServerKind")
+}
+
+func (ec *executionContext) _TunerServerStatus_version(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_TunerServerStatus_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_TunerServerStatus_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("TunerServerStatus", field, false, false, "String")
+}
+
 func (ec *executionContext) _TunerServerStatus_degraded(ctx context.Context, field graphql.CollectedField, obj *model.TunerServerStatus) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -56874,6 +56952,16 @@ func (ec *executionContext) _TunerServerStatus(ctx context.Context, sel ast.Sele
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("TunerServerStatus")
+		case "kind":
+			out.Values[i] = ec._TunerServerStatus_kind(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._TunerServerStatus_version(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "degraded":
 			out.Values[i] = ec._TunerServerStatus_degraded(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -62275,6 +62363,38 @@ func (ec *executionContext) marshalOTimeshiftBuffer2ᚖgithubᚗcomᚋSlashNephy
 	}
 	return ec._TimeshiftBuffer(ctx, sel, v)
 }
+
+func (ec *executionContext) unmarshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind(ctx context.Context, v any) (*tunerserver.Kind, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind(ctx context.Context, sel ast.SelectionSet, v *tunerserver.Kind) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind[*v])
+	return res
+}
+
+var (
+	unmarshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind = map[string]tunerserver.Kind{
+		"MIRAKURUN": tunerserver.KindMirakurun,
+		"MIRAKC":    tunerserver.KindMirakc,
+		"MAHIRON":   tunerserver.KindMahiron,
+	}
+	marshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind = map[tunerserver.Kind]string{
+		tunerserver.KindMirakurun: "MIRAKURUN",
+		tunerserver.KindMirakc:    "MIRAKC",
+		tunerserver.KindMahiron:   "MAHIRON",
+	}
+)
 
 func (ec *executionContext) marshalOTunerServerStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐTunerServerStatus(ctx context.Context, sel ast.SelectionSet, v *model.TunerServerStatus) graphql.Marshaler {
 	if v == nil {

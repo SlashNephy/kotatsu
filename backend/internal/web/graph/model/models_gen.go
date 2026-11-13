@@ -11,6 +11,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -1932,6 +1933,10 @@ type TunerServerHealth struct {
 
 // チューナーサーバーの状態 (設計書 3.7)。
 type TunerServerStatus struct {
+	// チューナーサーバーの種類 (#1538)。まだ分からなければ null。接続できない間は、最後に分かったもの。
+	Kind *tunerserver.Kind `json:"kind,omitempty"`
+	// チューナーサーバーが名乗った版。まだ分からないか、名乗らなければ null。
+	Version *string `json:"version,omitempty"`
 	// 接続できない縮退中かどうか。
 	Degraded      bool       `json:"degraded"`
 	DegradedSince *time.Time `json:"degradedSince,omitempty"`

@@ -1616,6 +1616,8 @@
       "healthy": "正常",
       "degraded": "縮退中",
       "degradedSince": "{{since}}から縮退しています",
+      "tunerServerKind": "種類: {{kind}}",
+      "tunerServerKindVersion": "種類: {{kind}} {{version}}",
       "lastError": "最後のエラー: {{error}}",
       "clockSkew": "時計のずれ: {{ms}}ミリ秒",
       "clockSkewExceeded": "時計のずれ: {{ms}}ミリ秒 (閾値の{{threshold}}ミリ秒を超えています)",
