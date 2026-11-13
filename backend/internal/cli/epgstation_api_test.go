@@ -95,6 +95,10 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		{name: "ない録画の動画", path: "/api/epgstation/api/videos/999999", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "ない録画のサムネイル", path: "/api/epgstation/api/thumbnails/999999", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "用意していない API", path: "/api/epgstation/api/reserves", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "用意していない API の深いパス", path: "/api/epgstation/api/reserves/1/detail", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "トークンを HEAD で", path: "/api/epgstation/api/version", cookie: false, bearer: true, want: http.StatusOK, head: true},
+		// 録画の ID は、包んだハンドラーが r.PathValue("id") で読む。数でなければ 400 になる。
+		{name: "録画の ID が数でない", path: "/api/epgstation/api/recorded/abc", cookie: false, bearer: true, want: http.StatusBadRequest},
 		{name: "前の EPGStation 互換のパス", path: "/api/version", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "署名付き URL", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound},
 		{name: "署名付き URL を HEAD で", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound, head: true},
