@@ -702,6 +702,38 @@ func TestLoadTuner(t *testing.T) {
 			wantErrs: []string{"tuner.edcb.address (KOTATSU_TUNER_EDCB_ADDRESS): must have a port between 1 and 65535"},
 		},
 		{
+			name: "EDCB の接続先にコロンが多い",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost + "::4510",
+			},
+			wantErrs: []string{"tuner.edcb.address (KOTATSU_TUNER_EDCB_ADDRESS): must be a host or host:port such as 192.168.1.10:4510"},
+		},
+		{
+			name: "EDCB のポートが数でない",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost + ":abc",
+			},
+			wantErrs: []string{"tuner.edcb.address (KOTATSU_TUNER_EDCB_ADDRESS): must have a port between 1 and 65535"},
+		},
+		{
+			name: "EDCB の接続先にポートのない IPv6",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: "::1",
+			},
+			want: config.Tuner{
+				Kind: config.TunerKindEDCB, URL: "",
+				EDCB: config.EDCB{Address: "::1", NetworkTVIDStart: 1000, NetworkTVIDCount: 32},
+			},
+			wantUses: false,
+		},
+		{
+			name: "URL のない Mirakurun 互換",
+			env:  map[string]string{envKeyURL: envURL},
+			want: defaultTuner(""),
+			// URL がなければ、チューナーサーバーはないものとして扱う。
+			wantUses: false,
+		},
+		{
 			name: "NetworkTV の ID の範囲が違う",
 			env: map[string]string{
 				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost,

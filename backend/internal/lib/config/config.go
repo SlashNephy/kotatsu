@@ -275,7 +275,10 @@ func validateEDCBAddress(address string) error {
 	}
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
-		// ポートを省いた形 (例: 192.168.1.10、::1)。
+		// ポートを省いた形 (例: 192.168.1.10、::1)。コロンを含むなら、IPv6 のアドレスに限る。
+		if _, parseErr := netip.ParseAddr(address); strings.Contains(address, ":") && parseErr != nil {
+			return errors.New("must be a host or host:port such as 192.168.1.10:4510; write an IPv6 address with a port as [::1]:4510")
+		}
 		host, port = address, "4510"
 	}
 	if host == "" || strings.ContainsAny(host, "/ ") {

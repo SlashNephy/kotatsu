@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -137,7 +139,10 @@ func normalizeAddress(address string) (string, error) {
 	}
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
-		// ポートを省いた形 (例: 192.168.1.10、::1) として読み直す。
+		// ポートを省いた形 (例: 192.168.1.10、::1) として読み直す。コロンを含むなら、IPv6 のアドレスに限る。
+		if _, parseErr := netip.ParseAddr(address); strings.Contains(address, ":") && parseErr != nil {
+			return "", fmt.Errorf("the EDCB address %q is not host or host:port", address)
+		}
 		host, port = address, DefaultPort
 	}
 	if host == "" {

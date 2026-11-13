@@ -147,6 +147,9 @@ func TestNewNormalizesAddress(t *testing.T) {
 		{in: "", wantErr: true},
 		{in: "edcb.local:99999", wantErr: true},
 		{in: ":4510", wantErr: true},
+		{in: "edcb.local::4510", wantErr: true},
+		{in: "192.168.1.10:4510:extra", wantErr: true},
+		{in: "edcb.local:abc", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
