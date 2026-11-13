@@ -1310,63 +1310,6 @@ func newEPGStationAPI(
 	return tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(mux))
 }
 
-// newKyusu は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを返す。
-// FFmpeg か tsreadex がなければ、起動はするが、トランスコードには理由を添えて 503 を返す。
-// 録画は、このインスタンスにマウントした保存先プールから読む。
-func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live, *kyusu.VOD, *kyusu.Token, error) {
-	// tenban だけが、アプリの秘密キーから導いたトークンを付けて、kyusu に中継する。
-	token, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
-	if errors.Is(err, kyusu.ErrNoKey) {
-		return nil, nil, nil, errSecretKeyRequired
-	}
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	var opener kyusu.ServiceOpener
-	if deps.Config.Tuner.UsesTunerServer() {
-		client, err := newTunerClient(deps)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		opener = client
-	}
-	kyusuLogger := logger.With(slog.String("component", "kyusu"))
-	var liveEncoder kyusu.Encoder
-	var vodEncoder kyusu.VODEncoder
-	transcoder, err := kyusu.NewTranscoder(&deps.Config.Kyusu)
-	switch {
-	case errors.Is(err, kyusu.ErrToolNotFound):
-		logger.WarnContext(ctx, "FFmpeg or tsreadex is not found; server-side transcoding is disabled", slog.Any("error", err))
-	case err != nil:
-		return nil, nil, nil, err
-	default:
-		liveEncoder, vodEncoder = transcoder, transcoder
-	}
-	live, err := kyusu.NewLive(&kyusu.LiveOptions{
-		Opener: opener, Encoder: liveEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0,
-		Scramble: scramble.NewReporter(deps.DB, deps.Clock, kyusuLogger),
-	})
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	vod, err := kyusu.NewVOD(&kyusu.VODOptions{
-		Opener:    stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
-		Timeshift: stream.NewTimeshiftSource(deps.DB, storeOf(deps.Config), 0),
-		Encoder:   vodEncoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: kyusuLogger, IdleTimeout: 0, MaxSessions: 0,
-	})
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	for kind, sessions := range map[string]func() int{"live": live.Sessions, "vod": vod.Sessions} {
-		deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-			Namespace: metrics.Namespace, Name: "kyusu_sessions", Help: "Number of kyusu transcoding sessions on this instance.",
-			ConstLabels: prometheus.Labels{kindLabel: kind},
-		}, func() float64 { return float64(sessions()) }))
-	}
-
-	return live, vod, token, nil
-}
-
 // errSecretKeyRequired は、tenban、nekonote か kyusu を、アプリの秘密キーなしで起動しようとしたことを表す。
 var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, and kyusu; " +
 	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
