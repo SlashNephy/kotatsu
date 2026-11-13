@@ -33,6 +33,14 @@ const (
 	poolMain = "main"
 	// envKeyTunerURL は、チューナーサーバーの URL を渡す環境変数。
 	envKeyTunerURL = "KOTATSU_TUNER_URL"
+	// edcbHost は、テストで使う EDCB のホスト名。
+	edcbHost = "edcb.local"
+	// envKeyTunerKind は、チューナーサーバーの種類の環境変数 (#1530)。
+	envKeyTunerKind = "KOTATSU_TUNER_KIND"
+	// envKeyEDCBAddress は、EDCB の接続先の環境変数 (#1530)。
+	envKeyEDCBAddress = "KOTATSU_TUNER_EDCB_ADDRESS"
+	// tunerURL は、テストで使う Mirakurun 互換のチューナーサーバーの URL。
+	tunerURL = "http://mirakurun:40772/"
 	// envKeyArmURL は、作品 ID の対応を取り込む URL を渡す環境変数。
 	envKeyArmURL = "KOTATSU_ANIME_LINKING_ARM_URL"
 	// errTimeshiftOverlapsDataDir と errTimeshiftOverlapsMain は、タイムシフトのディレクトリが、データディレクトリかプール main と重なるときのエラー。
@@ -143,6 +151,14 @@ func TestLoadPrecedence(t *testing.T) {
 	}
 }
 
+// defaultTuner は、URL のほかは既定のままのチューナーサーバーの設定。
+func defaultTuner(url config.Secret) config.Tuner {
+	return config.Tuner{
+		Kind: config.TunerKindMirakurun, URL: url,
+		EDCB: config.EDCB{Address: "", NetworkTVIDStart: config.DefaultEDCBNetworkTVIDStart, NetworkTVIDCount: config.DefaultEDCBNetworkTVIDCount},
+	}
+}
+
 func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -161,7 +177,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 			},
 		},
 		{
@@ -178,7 +194,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
 				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:   noPools(),
-				Tuner:     config.Tuner{URL: ""},
+				Tuner:     defaultTuner(""),
 			},
 		},
 		{
@@ -194,7 +210,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: true},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 			},
 		},
 		{
@@ -206,7 +222,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 			},
 		},
 		{
@@ -219,7 +235,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 				Auth:     config.Auth{HIBP: config.HIBP{Enabled: true, URL: "https://hibp.example.com"}},
 			},
 		},
@@ -236,7 +252,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 				Auth: config.Auth{OIDC: config.OIDC{
 					Issuer: testIssuer, ClientID: testClientID, ClientSecret: "", RedirectURL: "",
 					Scopes: []string{"openid", "groups"}, DisplayName: "OIDC", UsernameClaim: "preferred_username",
@@ -256,7 +272,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: 30, ClientInfoRetentionDays: 7},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 			},
 		},
 		{
@@ -277,7 +293,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 			},
 		},
 		{
@@ -285,7 +301,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			yaml: "",
 			env: map[string]string{
 				envKeyURL:      envURL,
-				envKeyTunerURL: "http://mirakurun:40772/",
+				envKeyTunerURL: tunerURL,
 			},
 			want: &config.Config{
 				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
@@ -293,7 +309,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: "http://mirakurun:40772/"},
+				Tuner:    defaultTuner(tunerURL),
 			},
 		},
 		{
@@ -309,7 +325,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
-				Tuner:    config.Tuner{URL: ""},
+				Tuner:    defaultTuner(""),
 			},
 		},
 	}
@@ -614,6 +630,117 @@ func TestLoadPower(t *testing.T) {
 			cfg, err := config.Load(path, lookup(tt.env))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, cfg.Power.ManageSleep)
+		})
+	}
+}
+
+// TestLoadTuner は、チューナーサーバーの種類と、EDCB の接続先と NetworkTV の ID の範囲を読み、誤りを起動時に知らせることを確かめる (#1530)。
+func TestLoadTuner(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		yaml     string
+		env      map[string]string
+		want     config.Tuner
+		wantUses bool
+		wantErrs []string
+	}{
+		{
+			name: "既定は Mirakurun 互換",
+			env:  map[string]string{envKeyURL: envURL, envKeyTunerURL: tunerURL},
+			want: config.Tuner{
+				Kind: config.TunerKindMirakurun, URL: tunerURL,
+				EDCB: config.EDCB{Address: "", NetworkTVIDStart: 1000, NetworkTVIDCount: 32},
+			},
+			wantUses: true,
+		},
+		{
+			name: "YAML で EDCB を選ぶ",
+			yaml: "tuner:\n  kind: edcb\n  edcb:\n    address: 192.168.1.10\n    network_tv_id_start: 2000\n    network_tv_id_count: 8\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Tuner{
+				Kind: config.TunerKindEDCB, URL: "",
+				EDCB: config.EDCB{Address: "192.168.1.10", NetworkTVIDStart: 2000, NetworkTVIDCount: 8},
+			},
+			// EDCB は、まだチューナーサーバーとしてつないでいない (#1258)。
+			wantUses: false,
+		},
+		{
+			name: "環境変数で EDCB を選ぶ",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: "[::1]:14510",
+			},
+			want: config.Tuner{
+				Kind: config.TunerKindEDCB, URL: "",
+				EDCB: config.EDCB{Address: "[::1]:14510", NetworkTVIDStart: 1000, NetworkTVIDCount: 32},
+			},
+			wantUses: false,
+		},
+		{
+			name:     "知らない種類",
+			env:      map[string]string{envKeyURL: envURL, envKeyTunerKind: "mahiron"},
+			wantErrs: []string{"tuner.kind (KOTATSU_TUNER_KIND): must be mirakurun or edcb"},
+		},
+		{
+			name:     "EDCB の接続先がない",
+			env:      map[string]string{envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB},
+			wantErrs: []string{"tuner.edcb.address (KOTATSU_TUNER_EDCB_ADDRESS): is required when tuner.kind is edcb"},
+		},
+		{
+			name: "EDCB を選んで URL も書いた",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost, envKeyTunerURL: tunerURL,
+			},
+			wantErrs: []string{"tuner.url (KOTATSU_TUNER_URL): must be empty when tuner.kind is edcb; set tuner.edcb.address instead"},
+		},
+		{
+			name: "EDCB の接続先の形が違う",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost + ":99999",
+			},
+			wantErrs: []string{"tuner.edcb.address (KOTATSU_TUNER_EDCB_ADDRESS): must have a port between 1 and 65535"},
+		},
+		{
+			name: "NetworkTV の ID の範囲が違う",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost,
+				"KOTATSU_TUNER_EDCB_NETWORK_TV_ID_START": "0", "KOTATSU_TUNER_EDCB_NETWORK_TV_ID_COUNT": "0",
+			},
+			wantErrs: []string{
+				"tuner.edcb.network_tv_id_start (KOTATSU_TUNER_EDCB_NETWORK_TV_ID_START): must be between 1 and 2147483647",
+				"tuner.edcb.network_tv_id_count (KOTATSU_TUNER_EDCB_NETWORK_TV_ID_COUNT): must be between 1 and 1000",
+			},
+		},
+		{
+			name: "NetworkTV の ID が上限を越える",
+			env: map[string]string{
+				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: edcbHost,
+				"KOTATSU_TUNER_EDCB_NETWORK_TV_ID_START": "2147483640", "KOTATSU_TUNER_EDCB_NETWORK_TV_ID_COUNT": "32",
+			},
+			wantErrs: []string{"tuner.edcb.network_tv_id_count (KOTATSU_TUNER_EDCB_NETWORK_TV_ID_COUNT): the IDs must not exceed 2147483647"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			if len(tt.wantErrs) > 0 {
+				require.Error(t, err)
+				for _, want := range tt.wantErrs {
+					assert.Contains(t, err.Error(), want)
+				}
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, cfg.Tuner)
+			assert.Equal(t, tt.wantUses, cfg.Tuner.UsesTunerServer())
 		})
 	}
 }

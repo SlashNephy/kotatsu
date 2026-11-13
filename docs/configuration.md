@@ -230,11 +230,19 @@ DBには、録画のパスを「プールのID」と「プールの中の相対�
 
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
-| `tuner.url` | `KOTATSU_TUNER_URL` | なし（秘密） | チューナーサーバーのURL |
+| `tuner.kind` | `KOTATSU_TUNER_KIND` | `mirakurun` | チューナーサーバーの種類。`mirakurun`（Mirakurun、mirakc、Mahiron）か`edcb` |
+| `tuner.url` | `KOTATSU_TUNER_URL` | なし（秘密） | チューナーサーバーのURL（`mirakurun`のとき） |
+| `tuner.edcb.address` | `KOTATSU_TUNER_EDCB_ADDRESS` | なし | EpgTimerSrvのTCPの待ち受け（`edcb`のとき） |
+| `tuner.edcb.network_tv_id_start` | `KOTATSU_TUNER_EDCB_NETWORK_TV_ID_START` | `1000` | Kotatsuが使うNetworkTVのIDの始まり（`edcb`のとき） |
+| `tuner.edcb.network_tv_id_count` | `KOTATSU_TUNER_EDCB_NETWORK_TV_ID_COUNT` | `32` | Kotatsuが使うNetworkTVのIDの数（`edcb`のとき） |
 
-`http://mirakurun:40772/`のように書きます。
+`tuner.url`は、`http://mirakurun:40772/`のように書きます。
 BASIC認証が要るときは、URLに資格情報を含めてください。
 空のときは、nekoが番組表を同期しません。
+
+`tuner.kind`に`edcb`を選ぶときは、`tuner.url`を空にし、`tuner.edcb.address`に`192.168.1.10:4510`のように書きます。ポートを省けば4510です。
+NetworkTVのIDは、EpgTimerSrvに接続するほかのクライアント（KonomiTVは500から）と重ならない範囲にしてください。
+EDCBは、まだチューナーサーバーとしてつないでいません（#1258）。選んでも、チューナーサーバーがないものとして動き、nekoが起動時に警告を出します。
 
 ### auth
 

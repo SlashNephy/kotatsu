@@ -102,7 +102,7 @@ type Options struct {
 	Buffer *logring.Buffer
 	// Tuner は、チューナーサーバー。nil なら、チューナーサーバーのログは出さない。
 	Tuner TunerServer
-	// Hosts は、リクエストが来たホスト名のほかに伏せるホスト名 (チューナーサーバー、DB)。
+	// Hosts は、リクエストが来たホスト名のほかに伏せるホスト名 (チューナーサーバー、EDCB、DB)。URL か host:port で渡す。
 	Hosts      []string
 	InstanceID string
 	Roles      []string

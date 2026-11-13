@@ -1236,7 +1236,7 @@ type tunerUses struct {
 // newTunerUses は、映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) と、ロゴに使うチューナーサーバーの口を返す。
 func newTunerUses(deps *Deps) (*tunerUses, error) {
 	uses := &tunerUses{opener: nil, logos: nil, rates: nil, channels: nil, logs: nil}
-	if deps.Config.Tuner.URL.Value() == "" {
+	if !deps.Config.Tuner.UsesTunerServer() {
 		return uses, nil
 	}
 	client, err := newTunerClient(deps)
@@ -1306,7 +1306,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 		return nil, nil, nil, err
 	}
 	var opener kyusu.ServiceOpener
-	if deps.Config.Tuner.URL.Value() != "" {
+	if deps.Config.Tuner.UsesTunerServer() {
 		client, err := newTunerClient(deps)
 		if err != nil {
 			return nil, nil, nil, err
