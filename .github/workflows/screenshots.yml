@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: jdx/mise-action@v5.2.6
+      - uses: jdx/mise-action@v5.2.7
       # pnpm のストア。frontend/pnpm-lock.yaml が変わったら作り直す。
       - uses: actions/cache@v6.1.0
         with:
