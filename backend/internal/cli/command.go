@@ -17,6 +17,7 @@ import (
 	"uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/riverqueue/river"
 	"github.com/spf13/cobra"
@@ -990,26 +991,28 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
 	root.Handle(internalPathPrefix, api)
 	handlePublicAPI(root, deps, &publicAPI{
-		apiTokens: apiTokens, calendarFeeds: calendarFeeds, iptvFeeds: iptvFeeds, authorizer: authorizer,
+		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger, logger: logger,
 	})
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
+	// 一番外側は echo のルーターにし、移し終えたルートだけを echo のハンドラーで受ける (#1606)。ほかは root の mux に渡す。
+	router := httpserver.NewRouter(logger, root)
+	handleCalendar(router, deps, calendarFeeds)
 
-	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
+	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
 
 // publicAPI は、/api の下の端点を登録するのに使うもの。
 type publicAPI struct {
-	apiTokens     *auth.APITokens
-	calendarFeeds *auth.Feeds
-	iptvFeeds     *auth.Feeds
-	authorizer    *streamapi.Authorizer
-	opener        streamapi.ServiceOpener
-	logos         streamapi.LogoFetcher
-	streams       *streamapi.StreamCounter
-	streamLogger  *slog.Logger
-	logger        *slog.Logger
+	apiTokens    *auth.APITokens
+	iptvFeeds    *auth.Feeds
+	authorizer   *streamapi.Authorizer
+	opener       streamapi.ServiceOpener
+	logos        streamapi.LogoFetcher
+	streams      *streamapi.StreamCounter
+	streamLogger *slog.Logger
+	logger       *slog.Logger
 }
 
 // handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) を mux に登録する (設計書 9.1、#1605)。
@@ -1019,7 +1022,6 @@ func handlePublicAPI(mux *http.ServeMux, deps *Deps, p *publicAPI) {
 	mux.Handle(apiPathPrefix, http.NotFoundHandler())
 	compat := newEPGStationAPI(deps, p.apiTokens, p.opener, p.logos, p.streams, p.streamLogger)
 	mux.Handle(epgstationPathPrefix+"api/", http.StripPrefix(strings.TrimSuffix(epgstationPathPrefix, "/"), compat))
-	handleCalendar(mux, deps, p.calendarFeeds, p.logger)
 	handleIPTV(mux, deps, p.iptvFeeds, p.opener, p.logos, p.streams, p.streamLogger)
 	handleSignedStreams(mux, deps, p.authorizer, p.opener, p.streams, p.streamLogger)
 }
@@ -1215,11 +1217,10 @@ func jobAdminOf(deps *Deps) graph.JobAdmin {
 	return deps.Jobs
 }
 
-// handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を mux に登録する。
+// handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を、echo のルーターに登録する (#1606)。
 // カレンダーのアプリは Cookie を送れないので、パスの秘密の値だけで認証する。
-func handleCalendar(mux *http.ServeMux, deps *Deps, feeds *auth.Feeds, logger *slog.Logger) {
-	mux.Handle("GET "+calendarPathPrefix+"{token}/reservations.ics", calendarapi.NewHandler(
-		feeds, query.New(deps.DB), deps.Clock, logger.With(slog.String("component", "calendar"))))
+func handleCalendar(router *echo.Echo, deps *Deps, feeds *auth.Feeds) {
+	router.GET(calendarapi.Route, calendarapi.NewHandler(feeds, query.New(deps.DB), deps.Clock).Serve, httpserver.Component("calendar"))
 }
 
 // tunerUses は、tenban がチューナーサーバーを使う先ごとの口。チューナーサーバーを設定していなければ、どれも nil。

@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -16,6 +18,9 @@ import (
 // PathPrefix は、予約の iCalendar のパスの頭。この後ろに秘密の値が続く (#1255)。
 // 前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const PathPrefix = "/api/calendar/"
+
+// Route は、予約の iCalendar の echo のルート。:token が秘密の値。
+const Route = PathPrefix + ":token/reservations.ics"
 
 const (
 	// pastWindow は、終わった予約を載せておく長さ。終わった直後の予定がカレンダーからすぐ消えないようにする。
@@ -43,23 +48,30 @@ type Queries interface {
 
 var _ Queries = new(query.Queries)
 
-// Handler は、予約を iCalendar で返す (GET /api/calendar/{token}/reservations.ics)。
+// Handler は、予約を iCalendar で返す (GET /api/calendar/:token/reservations.ics)。
 // カレンダーのアプリは Cookie もヘッダーも送れないので、パスに入れた秘密の値で認証する。
 type Handler struct {
 	auth    Authenticator
 	queries Queries
 	clock   clock.Clock
-	logger  *slog.Logger
 }
 
 // NewHandler は Handler を返す。
-func NewHandler(authenticator Authenticator, queries Queries, clk clock.Clock, logger *slog.Logger) *Handler {
-	return &Handler{auth: authenticator, queries: queries, clock: clk, logger: logger}
+func NewHandler(authenticator Authenticator, queries Queries, clk clock.Clock) *Handler {
+	return &Handler{auth: authenticator, queries: queries, clock: clk}
 }
 
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// Serve は、echo のハンドラー。ログは、リクエストのロガー (echo.Context.Logger) に書く (#1606)。
+// エラーは echo に返さず、ここで応答を書く。echo の既定のエラーの応答 (JSON) にしないためである。
+func (h *Handler) Serve(c *echo.Context) error {
+	h.serve(c.Response(), c.Request(), c.Param("token"), c.Logger())
+
+	return nil
+}
+
+func (h *Handler) serve(w http.ResponseWriter, r *http.Request, token string, logger *slog.Logger) {
 	ctx := r.Context()
-	principal, err := h.auth.Authenticate(ctx, r.PathValue("token"))
+	principal, err := h.auth.Authenticate(ctx, token)
 	if errors.Is(err, auth.ErrUnauthenticated) {
 		// 秘密の値が違うことを、見つからないことと区別させない。
 		http.NotFound(w, r)
@@ -67,7 +79,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		h.fail(ctx, w, "failed to authenticate the calendar feed", err)
+		fail(ctx, logger, w, "failed to authenticate the calendar feed", err)
 
 		return
 	}
@@ -83,13 +95,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		RuleID: nil, AfterStartAt: nil, AfterID: nil, Limit: maxEvents,
 	})
 	if err != nil {
-		h.fail(ctx, w, "failed to list reservations for the calendar feed", err)
+		fail(ctx, logger, w, "failed to list reservations for the calendar feed", err)
 
 		return
 	}
 	names, err := h.serviceNames(ctx, reservations)
 	if err != nil {
-		h.fail(ctx, w, "failed to list services for the calendar feed", err)
+		fail(ctx, logger, w, "failed to list services for the calendar feed", err)
 
 		return
 	}
@@ -131,7 +143,7 @@ func (h *Handler) serviceNames(ctx context.Context, reservations []*domain.Reser
 	return names, nil
 }
 
-func (h *Handler) fail(ctx context.Context, w http.ResponseWriter, message string, err error) {
-	h.logger.ErrorContext(ctx, message, slog.Any("error", err))
+func fail(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, message string, err error) {
+	logger.ErrorContext(ctx, message, slog.Any("error", err))
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
