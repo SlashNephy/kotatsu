@@ -27,14 +27,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 )
 
-// Dialect は、EPGStation が対応する DB の種類。
-type Dialect string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	SQLite  Dialect = "sqlite"
-	MySQL   Dialect = "mysql"
-	MariaDB Dialect = "mariadb"
-)
+// Dialect は、EPGStation が対応する DB の種類。値はすべて、テストで確かめる。
+//
+// ENUM(SQLite = sqlite, MySQL = mysql, MariaDB = mariadb)
+type Dialect string
 
 // EnvMySQLURL と EnvMariaDBURL は、テストに使う MySQL と MariaDB の接続先を与える環境変数。
 const (
@@ -44,11 +42,6 @@ const (
 
 //go:embed schema/*.sql
 var schemas embed.FS
-
-// Dialects は、テストで確かめる DB の種類を返す。
-func Dialects() []Dialect {
-	return []Dialect{SQLite, MySQL, MariaDB}
-}
 
 // DB は、EPGStation のスキーマを適用したテスト用の DB。
 type DB struct {
@@ -66,19 +59,20 @@ func New(t *testing.T, dialect Dialect) *DB {
 
 	var db *DB
 	switch dialect {
-	case SQLite:
+	case DialectSQLite:
 		db = newSQLite(t)
-	case MySQL:
+	case DialectMySQL:
 		db = newMySQL(t, EnvMySQLURL)
-	case MariaDB:
+	case DialectMariaDB:
 		db = newMySQL(t, EnvMariaDBURL)
 	default:
 		t.Fatalf("unknown dialect %q", dialect)
 	}
 
-	schemaName := "sqlite"
-	if dialect != SQLite {
-		schemaName = "mysql"
+	// スキーマは、SQLite のものと、MySQL と MariaDB で共通のものの 2 つ。
+	schemaName := DialectSQLite.String()
+	if dialect != DialectSQLite {
+		schemaName = DialectMySQL.String()
 	}
 	Exec(t, db.Writer, statements(t, schemaName)...)
 

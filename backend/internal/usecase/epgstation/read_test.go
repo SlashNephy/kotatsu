@@ -213,7 +213,7 @@ func expectedSnapshot() *epgstation.Snapshot {
 func TestReadUsesSlashInFilePath(t *testing.T) {
 	t.Parallel()
 
-	for _, dialect := range epgstationtest.Dialects() {
+	for _, dialect := range epgstationtest.DialectValues() {
 		t.Run(string(dialect), func(t *testing.T) {
 			t.Parallel()
 
@@ -268,7 +268,7 @@ func TestRead(t *testing.T) {
 			},
 		},
 	}
-	for _, dialect := range epgstationtest.Dialects() {
+	for _, dialect := range epgstationtest.DialectValues() {
 		for _, tt := range tests {
 			t.Run(string(dialect)+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()

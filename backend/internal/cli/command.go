@@ -1076,11 +1076,11 @@ func handleStreams(
 		return serviceID, ok
 	}
 	mux.Handle("GET /internal/streams/services/{id}", httpserver.StopOnShutdown(authorizer.Session(
-		watches.Track(liveWatch, streams.Count(streamapi.StreamLive,
+		watches.Track(liveWatch, streams.Count(streamapi.StreamKindLive,
 			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確かめる (設計書 7.1、#1517)。
 			streamapi.NewLiveHandler(opener, streamLogger).WithScramble(scramble.NewReporter(deps.DB, deps.Clock, streamLogger)))))))
 	mux.Handle("GET /internal/streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
-		streams.Count(streamapi.StreamDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
+		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
@@ -1096,13 +1096,13 @@ func handleStreams(
 		authorizer.Session(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	mux.Handle("GET /internal/streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Session(
-		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	mux.Handle("GET /internal/streams/timeshift/{id}", httpserver.StopOnShutdown(authorizer.Session(
-		watches.Track(liveWatch, streams.Count(streamapi.StreamTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
+		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
 	mux.Handle("GET /internal/streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Session(
-		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
+		streams.Count(streamapi.StreamKindRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
 
 	return instances, nil
 }
@@ -1115,9 +1115,9 @@ func handleSignedStreams(
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
 	mux.Handle("GET "+stream.SignedPathPrefix+"services/{id}", httpserver.StopOnShutdown(authorizer.Signed(
-		streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger)))))
+		streams.Count(streamapi.StreamKindLive, streamapi.NewLiveHandler(opener, streamLogger)))))
 	mux.Handle("GET "+stream.SignedPathPrefix+"recordings/{id}", httpserver.StopOnShutdown(authorizer.Signed(
-		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 }
 
 // registerFallbacks は、tenban が DB に届かずに、覚えた結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。
@@ -1202,7 +1202,7 @@ func handleOAuth(root *http.ServeMux, server *oauth.Server, graphQL http.Handler
 // kyusu への中継は、kyusu が kotatsu_kyusu_sessions で数えるので、ここでは数えない。
 func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 	streams := streamapi.NewStreamCounter()
-	for _, kind := range streamapi.StreamKinds() {
+	for _, kind := range streamapi.StreamKindValues() {
 		deps.Metrics.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: metrics.Namespace, Name: "tenban_streams", Help: "Number of responses that tenban is streaming without transcoding on this instance.",
 			ConstLabels: prometheus.Labels{kindLabel: string(kind)},
@@ -1293,7 +1293,7 @@ func handleIPTV(
 	mux.Handle("GET "+iptvPathPrefix+"{token}/channels.m3u", h.Authenticate(http.HandlerFunc(h.Playlist)))
 	mux.Handle("GET "+iptvPathPrefix+"{token}/guide.xml", h.Authenticate(http.HandlerFunc(h.Guide)))
 	mux.Handle("GET "+iptvPathPrefix+"{token}/services/{id}/stream.m2ts", h.Authenticate(
-		streams.Count(streamapi.StreamLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, iptvLogger)))))
+		streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, iptvLogger)))))
 	mux.Handle("GET "+iptvPathPrefix+"{token}/services/{id}/logo", h.Authenticate(
 		streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), iptvLogger)))
 }
@@ -1311,11 +1311,11 @@ func newEPGStationAPI(
 	mux.Handle("GET /api/channels/{id}/logo", streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger))
 	mux.HandleFunc("GET /api/schedules", h.Schedules)
 	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
-	mux.Handle("GET /api/streams/live/{id}/m2ts", streams.Count(streamapi.StreamLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))))
+	mux.Handle("GET /api/streams/live/{id}/m2ts", streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))))
 	mux.HandleFunc("GET /api/recorded", h.Recorded)
 	mux.HandleFunc("GET /api/recorded/{id}", h.RecordedItem)
 	// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
-	mux.Handle("GET /api/videos/{id}", streams.Count(streamapi.StreamRecording, httpserver.StopOnShutdown(
+	mux.Handle("GET /api/videos/{id}", streams.Count(streamapi.StreamKindRecording, httpserver.StopOnShutdown(
 		h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), ""))))
 	mux.Handle("GET /api/thumbnails/{id}",
 		h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName))

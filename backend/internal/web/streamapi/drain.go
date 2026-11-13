@@ -42,7 +42,7 @@ func (d *Drainer) Drain(ctx context.Context, timeout time.Duration) {
 	defer cancel()
 	ticker := time.NewTicker(drainPollInterval)
 	defer ticker.Stop()
-	for d.streams.Streams(StreamLive)+d.streams.Streams(StreamRecording)+d.streams.Streams(StreamTimeshift) > 0 {
+	for d.streams.Streams(StreamKindLive)+d.streams.Streams(StreamKindRecording)+d.streams.Streams(StreamKindTimeshift) > 0 {
 		select {
 		case <-ctx.Done():
 			return

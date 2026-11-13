@@ -127,7 +127,7 @@ func TestOpenRejectsUnsupportedSchema(t *testing.T) {
 			setup: []string{"DROP TABLE migrations"},
 		},
 	}
-	for _, dialect := range epgstationtest.Dialects() {
+	for _, dialect := range epgstationtest.DialectValues() {
 		for _, tt := range tests {
 			t.Run(string(dialect)+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -146,7 +146,7 @@ func TestOpenRejectsUnsupportedSchema(t *testing.T) {
 func TestReadDoesNotWrite(t *testing.T) {
 	t.Parallel()
 
-	for _, dialect := range epgstationtest.Dialects() {
+	for _, dialect := range epgstationtest.DialectValues() {
 		t.Run(string(dialect), func(t *testing.T) {
 			t.Parallel()
 
@@ -175,7 +175,7 @@ func TestReadDoesNotWrite(t *testing.T) {
 func TestReadLeavesSQLiteFileUntouched(t *testing.T) {
 	t.Parallel()
 
-	db := epgstationtest.New(t, epgstationtest.SQLite)
+	db := epgstationtest.New(t, epgstationtest.DialectSQLite)
 	epgstationtest.Exec(t, db.Writer, seed()...)
 	require.NoError(t, db.Writer.Close())
 	dir := filepath.Dir(db.Path)

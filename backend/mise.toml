@@ -27,6 +27,8 @@ run = [
   "sqlc generate",
   # GraphQL のスキーマから、実行のコードとモデルを生成する。リゾルバの実装は残る。
   "go tool gqlgen generate",
+  # ENUM(...) のコメントを書いた型から、値の一覧と Parse を生成する (go:generate)。
+  "go generate ./...",
   # gqlgen が書き換えたリゾルバの import を、リポジトリの形式にそろえる。
   "golangci-lint fmt",
   # フロントエンドの Relay のコンパイラが読む、1 つにまとめたスキーマを書き出す。

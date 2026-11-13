@@ -1,34 +1,18 @@
 package domain
 
-// EnclosedGroup は、囲み文字を画面で選ぶときのまとまり。意味は Unicode の符号表の注記による。
+//go:generate go tool go-enum --values --nocomments
+
+// EnclosedGroup は、囲み文字を画面で選ぶときのまとまり。意味は Unicode の符号表の注記による。値を並べた順が、画面に並べる順になる。
+//
+// ENUM(
+// basic // 基本の囲み文字 (新番組、最終回、再放送、初回放送と、字幕、解説、言語)。
+// program // 番組の種類 (生放送、前編、映画、ニュースなど)。
+// video // 映像 (ハイビジョン、4K、HDR など)。
+// audio // 音声 (ステレオ、5.1 など)。
+// data // データ放送や連携 (データ放送、双方向、ハイブリッドキャストなど)。
+// access // 料金と視聴制限 (無料放送、有料放送、ペイ・パー・ビュー、視聴制限)。
+// )
 type EnclosedGroup string
-
-const (
-	// EnclosedGroupBasic は、基本の囲み文字 (新番組、最終回、再放送、初回放送と、字幕、解説、言語)。
-	EnclosedGroupBasic EnclosedGroup = "basic"
-	// EnclosedGroupProgram は、番組の種類 (生放送、前編、映画、ニュースなど)。
-	EnclosedGroupProgram EnclosedGroup = "program"
-	// EnclosedGroupVideo は、映像 (ハイビジョン、4K、HDR など)。
-	EnclosedGroupVideo EnclosedGroup = "video"
-	// EnclosedGroupAudio は、音声 (ステレオ、5.1 など)。
-	EnclosedGroupAudio EnclosedGroup = "audio"
-	// EnclosedGroupData は、データ放送や連携 (データ放送、双方向、ハイブリッドキャストなど)。
-	EnclosedGroupData EnclosedGroup = "data"
-	// EnclosedGroupAccess は、料金と視聴制限 (無料放送、有料放送、ペイ・パー・ビュー、視聴制限)。
-	EnclosedGroupAccess EnclosedGroup = "access"
-)
-
-// EnclosedGroups は、まとまりを、画面で並べる順に返す。
-func EnclosedGroups() []EnclosedGroup {
-	return []EnclosedGroup{
-		EnclosedGroupBasic,
-		EnclosedGroupProgram,
-		EnclosedGroupVideo,
-		EnclosedGroupAudio,
-		EnclosedGroupData,
-		EnclosedGroupAccess,
-	}
-}
 
 // EnclosedCharacter は、番組名に付く ARIB の囲み文字 (設計書 4.2)。
 type EnclosedCharacter struct {
