@@ -26,7 +26,7 @@ import (
 const (
 	validFeed       = "kotatsu_iptv_valid"
 	unwatchableFeed = "kotatsu_iptv_cannot_watch"
-	base            = "https://kotatsu.test/iptv/" + validFeed
+	base            = "https://kotatsu.test/api/iptv/" + validFeed
 )
 
 func testNow() time.Time {
@@ -160,11 +160,11 @@ func TestHandler(t *testing.T) {
 		contentType string
 		contains    string
 	}{
-		{name: "playlist", path: "/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusOK, contentType: "audio/x-mpegurl; charset=utf-8", contains: base + "/services/400141/stream.m2ts"},
-		{name: "guide", path: "/iptv/" + validFeed + "/guide.xml", wantStatus: http.StatusOK, contentType: "application/xml; charset=utf-8", contains: `channel="400141"`},
-		{name: "wrong value", path: "/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
-		{name: "user who cannot watch", path: "/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
-		{name: "authentication failure", path: "/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
+		{name: "playlist", path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusOK, contentType: "audio/x-mpegurl; charset=utf-8", contains: base + "/services/400141/stream.m2ts"},
+		{name: "guide", path: "/api/iptv/" + validFeed + "/guide.xml", wantStatus: http.StatusOK, contentType: "application/xml; charset=utf-8", contains: `channel="400141"`},
+		{name: "wrong value", path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
+		{name: "user who cannot watch", path: "/api/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
+		{name: "authentication failure", path: "/api/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,8 +174,8 @@ func TestHandler(t *testing.T) {
 			h := iptvapi.NewHandler(fakeAuth{}, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" },
 				slog.New(slog.DiscardHandler))
 			mux := http.NewServeMux()
-			mux.Handle("GET /iptv/{token}/channels.m3u", h.Authenticate(http.HandlerFunc(h.Playlist)))
-			mux.Handle("GET /iptv/{token}/guide.xml", h.Authenticate(http.HandlerFunc(h.Guide)))
+			mux.Handle("GET /api/iptv/{token}/channels.m3u", h.Authenticate(http.HandlerFunc(h.Playlist)))
+			mux.Handle("GET /api/iptv/{token}/guide.xml", h.Authenticate(http.HandlerFunc(h.Guide)))
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 

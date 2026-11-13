@@ -15,6 +15,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
+// PathPrefix は、ライブ視聴の M3U、番組表の XMLTV、配信、ロゴのパスの頭。この後ろに秘密の値が続く (#1324)。
+// 前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
+const PathPrefix = "/api/iptv/"
+
 const (
 	// guidePast は、番組表に載せる、始まった番組を探す長さ。放送中の番組を載せる。
 	guidePast = time.Hour
@@ -86,9 +90,9 @@ func (h *Handler) services(ctx context.Context) ([]domain.Service, error) {
 	})
 }
 
-// base は、秘密の値 token の配信の URL の頭 (scheme://host/iptv/<token>) を返す。
+// base は、秘密の値 token の配信の URL の頭 (scheme://host/api/iptv/<token>) を返す。
 func (h *Handler) base(r *http.Request) string {
-	return h.origin(r) + "/iptv/" + r.PathValue("token")
+	return h.origin(r) + PathPrefix + r.PathValue("token")
 }
 
 func (h *Handler) fail(ctx context.Context, w http.ResponseWriter, message string, err error) {

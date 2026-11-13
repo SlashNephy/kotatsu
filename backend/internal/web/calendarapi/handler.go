@@ -13,6 +13,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
+// PathPrefix は、予約の iCalendar のパスの頭。この後ろに秘密の値が続く (#1255)。
+// 前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
+const PathPrefix = "/api/calendar/"
+
 const (
 	// pastWindow は、終わった予約を載せておく長さ。終わった直後の予定がカレンダーからすぐ消えないようにする。
 	pastWindow = 7 * 24 * time.Hour
@@ -39,7 +43,7 @@ type Queries interface {
 
 var _ Queries = new(query.Queries)
 
-// Handler は、予約を iCalendar で返す (GET /calendar/{token}/reservations.ics)。
+// Handler は、予約を iCalendar で返す (GET /api/calendar/{token}/reservations.ics)。
 // カレンダーのアプリは Cookie もヘッダーも送れないので、パスに入れた秘密の値で認証する。
 type Handler struct {
 	auth    Authenticator

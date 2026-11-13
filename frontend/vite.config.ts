@@ -150,17 +150,14 @@ export default defineConfig(({ mode }) => ({
       '/streams': { target: devAPI, changeOrigin: false },
       // 実況のコメントの中継 (/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
       '/media': { target: devAPI, changeOrigin: false, ws: true },
-      // EPGStation 互換の API (#431) も、開発サーバーから確かめられるようにする。
+      // ブラウザ以外から叩く端点 (EPGStation 互換の API、予約の iCalendar、IPTV、署名付き URL の配信、#1605) も、
+      // 開発サーバーから確かめられるようにする。
       '/api': { target: devAPI, changeOrigin: false },
       // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
       '/oauth': { target: devAPI, changeOrigin: false },
       '/.well-known': { target: devAPI, changeOrigin: false },
       // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
       '/mcp': { target: devAPI, changeOrigin: false },
-      // 予約の iCalendar (#1255) も、開発サーバーから確かめられるようにする。
-      '/calendar': { target: devAPI, changeOrigin: false },
-      // ライブ視聴の M3U と番組表の XMLTV (#1324) も、開発サーバーから確かめられるようにする。
-      '/iptv': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {

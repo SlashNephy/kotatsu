@@ -38,8 +38,8 @@ func TestCreateStreamURL(t *testing.T) {
 		target   string
 		wantPath string
 	}{
-		{name: "サービス", target: graph.GlobalID("Service", "3273601024"), wantPath: "/streams/services/3273601024"},
-		{name: "録画", target: recordingID, wantPath: "/streams/recordings/" + rawRecordingID},
+		{name: "サービス", target: graph.GlobalID("Service", "3273601024"), wantPath: "/api/streams/services/3273601024"},
+		{name: "録画", target: recordingID, wantPath: "/api/streams/recordings/" + rawRecordingID},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

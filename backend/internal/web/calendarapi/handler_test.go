@@ -85,10 +85,10 @@ func TestHandler(t *testing.T) {
 				StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Enabled: true, UpdatedAt: now,
 			}}}
 			mux := http.NewServeMux()
-			mux.Handle("GET /calendar/{token}/reservations.ics",
+			mux.Handle("GET /api/calendar/{token}/reservations.ics",
 				calendarapi.NewHandler(&fakeAuthenticator{role: tt.role}, queries, clocktest.NewFake(now), slog.New(slog.DiscardHandler)))
 			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/calendar/"+tt.token+"/reservations.ics", nil))
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/calendar/"+tt.token+"/reservations.ics", nil))
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			if tt.wantStatus != http.StatusOK {

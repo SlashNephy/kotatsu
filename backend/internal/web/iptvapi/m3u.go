@@ -11,7 +11,7 @@ import (
 // channelTypeGR は、地上波のチャンネルの種類。
 const channelTypeGR = "GR"
 
-// Playlist は、ライブ視聴のストリームの一覧を M3U で返す (GET /iptv/{token}/channels.m3u)。
+// Playlist は、ライブ視聴のストリームの一覧を M3U で返す (GET /api/iptv/{token}/channels.m3u)。
 // サービスごとに、無変換の TS のストリームと、ロゴと、XMLTV の番組表のチャンネルの ID (tvg-id) を書く。
 func (h *Handler) Playlist(w http.ResponseWriter, r *http.Request) {
 	services, err := h.services(r.Context())

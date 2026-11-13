@@ -9,7 +9,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// Authorizer は、映像のリクエストを、セッションか署名付き URL で認可する (設計書 9.6)。
+// Authorizer は、映像と画像のリクエストを、セッションか署名付き URL のどちらか一方で認可する (設計書 9.1、9.6、#1605)。
+// 画面が Cookie で使う経路はセッションだけで、外部プレイヤーに渡す /api/streams/* は署名付き URL だけで認可する。
+// 1 つの経路で両方を受けると、前段の認証のプロキシから、署名付き URL だけを外せないため。
 type Authorizer struct {
 	signer *stream.Signer
 	users  *auth.URLUsers
@@ -21,24 +23,31 @@ func NewAuthorizer(signer *stream.Signer, users *auth.URLUsers, clk clock.Clock)
 	return &Authorizer{signer: signer, users: users, clock: clk}
 }
 
-// Middleware は、視聴を許されたユーザーのリクエストだけ next に渡すミドルウェアを返す。
-// ログイン中のセッション (Sessions.Middleware が context に持たせる) があれば、そのユーザーで認可する。
-// なければ、リクエストのパスに対する署名を確かめ、URL を発行したユーザーで認可する。
-// 発行した後に無効にしたユーザーの URL は、期限の前でも使えない。
-// DB に届かない間は、DB が止まる前に引けたユーザーに限って、覚えた結果で認可する (#1084)。
-func (a *Authorizer) Middleware(next http.Handler) http.Handler {
+// Session は、ログイン中のセッション (Sessions.Middleware が context に持たせる) のユーザーが視聴を許されていれば、
+// リクエストを next に渡すミドルウェアを返す。署名付き URL は受け付けない。
+func (a *Authorizer) Session(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if principal := auth.PrincipalFrom(r.Context()); principal != nil {
-			if !principal.Role.Can(auth.PermissionWatch) {
-				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-
-				return
-			}
-			next.ServeHTTP(w, r)
+		principal := auth.PrincipalFrom(r.Context())
+		if principal == nil {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 
 			return
 		}
+		if !principal.Role.Can(auth.PermissionWatch) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Signed は、リクエストのパスに対する署名を確かめ、URL を発行したユーザーが視聴を許されていれば、
+// リクエストを next に渡すミドルウェアを返す。セッションは見ない。
+// 発行した後に無効にしたユーザーの URL は、期限の前でも使えない。
+// DB に届かない間は、DB が止まる前に引けたユーザーに限って、覚えた結果で認可する (#1084)。
+func (a *Authorizer) Signed(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID, err := a.signer.Verify(r.URL.Path, r.URL.Query(), a.clock.Now())
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)

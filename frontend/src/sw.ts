@@ -31,7 +31,8 @@ registerRoute(
         return cached;
       }
     },
-    { denylist: [/^\/graphql/, /^\/auth\//] },
+    // /api の下 (署名付き URL のダウンロードなど、#1605) は、画面ではないので返さない。
+    { denylist: [/^\/graphql/, /^\/auth\//, /^\/api\//] },
   ),
 );
 

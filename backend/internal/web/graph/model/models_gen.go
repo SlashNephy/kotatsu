@@ -360,7 +360,7 @@ type AnimeWork struct {
 	MalURL *string `json:"malUrl,omitempty"`
 }
 
-// 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
+// 読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/epgstation/api/*) を、外のクライアントから使うのに発行する。
 // トークンそのものは、発行したときにだけ返す。
 type APIToken struct {
 	ID string `json:"id"`
@@ -620,16 +620,16 @@ type CreatedAPIToken struct {
 
 // 発行した購読用の URL。
 type CreatedCalendarFeed struct {
-	// URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
+	// URL のパス (/api/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。
 	Path         string        `json:"path"`
 	CalendarFeed *CalendarFeed `json:"calendarFeed"`
 }
 
 // 発行した IPTV の配信の URL。
 type CreatedIptvFeed struct {
-	// M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
+	// M3U のパス (/api/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。
 	PlaylistPath string `json:"playlistPath"`
-	// XMLTV のパス (/iptv/<秘密の値>/guide.xml)。
+	// XMLTV のパス (/api/iptv/<秘密の値>/guide.xml)。
 	GuidePath string    `json:"guidePath"`
 	IptvFeed  *IptvFeed `json:"iptvFeed"`
 }
@@ -1737,7 +1737,7 @@ type StreamQuality struct {
 // 外部プレイヤー (VLC や mpv) で開くための、署名付きの映像の URL (設計書 7.6、9.6)。
 // URL には、リソース、URL を発行したユーザー、有効期限に対する署名が付く。中身は TS をそのまま流す。
 type StreamURL struct {
-	// パスとクエリ (例: /streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
+	// パスとクエリ (例: /api/streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
 	// 録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
 	URL string `json:"url"`
 	// 有効期限。既定では発行から 6 時間。

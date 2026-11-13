@@ -1,4 +1,4 @@
-// Package epgstationapi は、EPGStation 互換の読み取り専用 API (/api/*) を提供する (#431、設計書 9.1)。
+// Package epgstationapi は、EPGStation 互換の読み取り専用 API (/api/epgstation/api/*) を提供する (#431、設計書 9.1)。
 // EPGStation の API で番組表や録画を読むクライアント (kiririn など) から、Kotatsu を使えるようにする。
 // クライアントが読む範囲だけを用意し、予約やルールのような書き込みの API は用意しない。
 package epgstationapi

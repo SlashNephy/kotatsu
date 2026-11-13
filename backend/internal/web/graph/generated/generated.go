@@ -9220,7 +9220,7 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../schema/api_tokens.graphqls", Input: `"""
-読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/*) を、外のクライアントから使うのに発行する。
+読み取り専用の API トークン (#431、設計書 9.8)。EPGStation 互換の読み取り API (/api/epgstation/api/*) を、外のクライアントから使うのに発行する。
 トークンそのものは、発行したときにだけ返す。
 """
 type ApiToken {
@@ -9265,7 +9265,7 @@ type CalendarFeed {
 
 "発行した購読用の URL。"
 type CreatedCalendarFeed {
-  "URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
+  "URL のパス (/api/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
   path: String!
   calendarFeed: CalendarFeed!
 }
@@ -9297,9 +9297,9 @@ type IptvFeed {
 
 "発行した IPTV の配信の URL。"
 type CreatedIptvFeed {
-  "M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。"
+  "M3U のパス (/api/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。"
   playlistPath: String!
-  "XMLTV のパス (/iptv/<秘密の値>/guide.xml)。"
+  "XMLTV のパス (/api/iptv/<秘密の値>/guide.xml)。"
   guidePath: String!
   iptvFeed: IptvFeed!
 }
@@ -11954,7 +11954,7 @@ URL には、リソース、URL を発行したユーザー、有効期限に対
 """
 type StreamURL {
   """
-  パスとクエリ (例: /streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
+  パスとクエリ (例: /api/streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
   録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
   """
   url: String!

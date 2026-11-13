@@ -19,16 +19,16 @@ func TestTraceable(t *testing.T) {
 		path string
 		want bool
 	}{
-		{name: "calendar", path: "/calendar/kotatsu_cal_x/reservations.ics", want: false},
-		{name: "double slash", path: "//calendar/kotatsu_cal_x/reservations.ics", want: false},
-		{name: "dot segment", path: "/./api/../calendar/kotatsu_cal_x/reservations.ics", want: false},
-		{name: "calendar directory", path: "/calendar", want: false},
-		{name: "similar prefix", path: "/calendars", want: true},
-		{name: "IPTV playlist", path: "/iptv/kotatsu_iptv_x/channels.m3u", want: false},
-		{name: "IPTV stream", path: "//iptv/kotatsu_iptv_x/services/1/stream.m2ts", want: false},
-		{name: "IPTV similar prefix", path: "/iptvs", want: true},
+		{name: "calendar", path: "/api/calendar/kotatsu_cal_x/reservations.ics", want: false},
+		{name: "double slash", path: "//api//calendar/kotatsu_cal_x/reservations.ics", want: false},
+		{name: "dot segment", path: "/api/epgstation/../calendar/kotatsu_cal_x/reservations.ics", want: false},
+		{name: "calendar directory", path: "/api/calendar", want: false},
+		{name: "similar prefix", path: "/api/calendars", want: true},
+		{name: "IPTV playlist", path: "/api/iptv/kotatsu_iptv_x/channels.m3u", want: false},
+		{name: "IPTV stream", path: "//api/iptv/kotatsu_iptv_x/services/1/stream.m2ts", want: false},
+		{name: "IPTV similar prefix", path: "/api/iptvs", want: true},
 		{name: "graphql", path: "/graphql", want: true},
-		{name: "api", path: "/api/recorded", want: true},
+		{name: "EPGStation", path: "/api/epgstation/api/recorded", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
