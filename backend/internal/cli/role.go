@@ -272,7 +272,7 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 			return nil, err
 		}
 
-		return edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids}), nil
+		return edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0}), nil
 	}
 	client, err := mirakurun.New(&mirakurun.Options{
 		URL:               deps.Config.Tuner.URL.Value(),

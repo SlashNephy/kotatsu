@@ -1142,6 +1142,7 @@
       "PROGRAM_NOT_FOUND": "番組が見つかりませんでした",
       "CANCELLED": "録画を取り消しました",
       "RECORDER_UNAVAILABLE": "録画を始める時刻に、録画できる mikan がいませんでした",
+      "TUNER_PREEMPTED": "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せませんでした",
       "unknown": "録画に失敗しました"
     },
     "quality": "録画の品質",

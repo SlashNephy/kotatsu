@@ -18,6 +18,10 @@ var (
 // ErrClockUnavailable は、チューナーサーバーの時計を読めないこと。EDCB の CtrlCmd には、HTTP の Date ヘッダーに当たるものがない (#1532)。
 var ErrClockUnavailable = errors.New("the tuner server does not tell its clock")
 
+// ErrTunerPreempted は、ストリームを受け取っている間に、チューナーサーバーのほかの利用者 (EDCB の予約) にチューナーを取られたこと (#1534)。
+// 呼び出し側は、ストリームが途切れたときと同じく、つなぎ直せる。
+var ErrTunerPreempted = errors.New("another user of the tuner server took the tuner")
+
 var (
 	// ErrStreamStalled は、ストリームが、接続を保ったまま、データを送らなくなったこと。
 	ErrStreamStalled = errors.New("the tuner server stopped sending the stream")

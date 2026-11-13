@@ -8,6 +8,7 @@ const failureKeys = {
   PROGRAM_NOT_FOUND: 'recordings.failure.PROGRAM_NOT_FOUND',
   CANCELLED: 'recordings.failure.CANCELLED',
   RECORDER_UNAVAILABLE: 'recordings.failure.RECORDER_UNAVAILABLE',
+  TUNER_PREEMPTED: 'recordings.failure.TUNER_PREEMPTED',
 } as const;
 
 // failureKey は、失敗の理由の表示名の翻訳のキーを返す。知らない理由 (新しいサーバー) には、汎用の文を返す。

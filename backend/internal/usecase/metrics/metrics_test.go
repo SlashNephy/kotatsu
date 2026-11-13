@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -153,6 +154,7 @@ kotatsu_recording_failures_total{reason="storage_full"} 0
 kotatsu_recording_failures_total{reason="storage_unavailable"} 0
 kotatsu_recording_failures_total{reason="stream_interrupted"} 0
 kotatsu_recording_failures_total{reason="tuner_server_unreachable"} 0
+kotatsu_recording_failures_total{reason="tuner_preempted"} 0
 kotatsu_recording_failures_total{reason="tuner_unavailable"} 0
 # HELP kotatsu_recording_last_failure_timestamp_seconds Time when a recording last failed, by failure reason.
 # TYPE kotatsu_recording_last_failure_timestamp_seconds gauge
@@ -226,7 +228,7 @@ kotatsu_metrics_collection_errors 0
 			created[m.GetLabel()[0].GetValue()] = m.GetCounter().GetCreatedTimestamp().AsTime()
 		}
 	}
-	require.Len(t, created, 8)
+	require.Len(t, created, len(domain.RecordingFailureReasonValues()))
 	for reason, at := range created {
 		want := metrics.FailureCountsCreated()
 		if reason == "storage_full" {

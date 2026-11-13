@@ -874,7 +874,7 @@ CREATE TABLE recordings (
   -- 失敗の理由 (設計書 5.5)。失敗していなければ NULL。
   failure_reason text CHECK (failure_reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted'
   )),
   -- 失敗の理由に至った、最後のエラーの本文 (設計書 5.5、#1467)。上流のチューナーのホスト名などを含むので、管理者にだけ見せる。
   -- 失敗していないか、本文がなければ NULL。
@@ -929,7 +929,7 @@ CREATE TABLE recordings (
 CREATE TABLE recording_failure_counts (
   reason text PRIMARY KEY CHECK (reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted'
   )),
   count bigint NOT NULL DEFAULT 0,
   -- 一度も失敗していなければ NULL。

@@ -1,10 +1,13 @@
 package edcb_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,7 +98,7 @@ func TestTunerServerOpenServiceStream(t *testing.T) {
 
 			s := streamServer(t, ts, tt.notReady)
 			ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
-			stream, err := tt.open(edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids}))
+			stream, err := tt.open(edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: 0}))
 			require.NoError(t, err)
 			got, err := io.ReadAll(stream)
 			require.NoError(t, err)
@@ -143,7 +146,7 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 			s := streamServer(t, nil, 0)
 			s.queued[1073] = []reply{{status: tt.openStatus, payload: payload{}.u32(27), stream: nil, hold: false, drop: false}}
 			ids := &fakeIDs{mu: sync.Mutex{}, used: tt.busy, acquired: []edcb.ServiceKey{}, released: []int32{}}
-			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids})
+			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: 0})
 			_, err := server.OpenServiceStream(t.Context(), tt.serviceID, nil)
 			require.ErrorIs(t, err, tt.want)
 			_, released := ids.state()
@@ -158,11 +161,91 @@ func TestTunerServerOpenChannelStreamNotFound(t *testing.T) {
 	// チャンネルの設定にない TS は、NetworkTV の ID を取らずに、ないものとして返す。
 	s := streamServer(t, nil, 0)
 	ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
-	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids})
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: 0})
 	for _, tt := range []struct{ channelType, channel string }{{"GR", "1"}, {"BS", "32736"}} {
 		_, err := server.OpenChannelStream(t.Context(), tt.channelType, tt.channel, nil)
 		require.ErrorIs(t, err, tunerserver.ErrNotFound)
 	}
 	acquired, _ := ids.state()
 	assert.Empty(t, acquired)
+}
+
+// crcMPEG は、CRC-32/MPEG-2 を求める。
+func crcMPEG(b []byte) uint32 {
+	crc := uint32(0xFFFFFFFF)
+	for _, c := range b {
+		crc ^= uint32(c) << 24
+		for range 8 {
+			if crc&0x80000000 != 0 {
+				crc = crc<<1 ^ 0x04C11DB7
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+
+	return crc
+}
+
+// patPacket は、transport_stream_id が tsid で、NIT とサービス sid を持つ PAT のパケットを作る。
+func patPacket(tsid, sid uint16) []byte {
+	section := binary.BigEndian.AppendUint16([]byte{0x00, 0xB0, 0x11}, tsid)
+	section = append(section, 0xC1, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x10)
+	section = binary.BigEndian.AppendUint16(section, sid)
+	section = append(section, 0xE1, 0x00)
+	section = binary.BigEndian.AppendUint32(section, crcMPEG(section))
+	p := bytes.Repeat([]byte{0xFF}, 188)
+	copy(p, []byte{0x47, 0x40, 0x00, 0x10, 0x00})
+	copy(p[5:], section)
+
+	return p
+}
+
+// dataPacket は、PID 0x100 のパケットを作る。
+func dataPacket() []byte {
+	p := bytes.Repeat([]byte{0xAA}, 188)
+	copy(p, []byte{0x47, 0x01, 0x00, 0x10})
+
+	return p
+}
+
+func TestTunerServerStreamPreemptedByPAT(t *testing.T) {
+	t.Parallel()
+
+	// EDCB の予約にチューナーを取られると、接続を保ったまま別の局 (TSID 0x4010) の TS が届く。
+	own := append(patPacket(32736, 1024), dataPacket()...)
+	other := append(patPacket(0x4010, 101), dataPacket()...)
+	s := streamServer(t, append(append([]byte{}, own...), other...), 0)
+	ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: time.Hour})
+	stream, err := server.OpenServiceStream(t.Context(), 3273601024, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Close() })
+
+	got, err := io.ReadAll(stream)
+	require.ErrorIs(t, err, tunerserver.ErrTunerPreempted)
+	// 別の局の TS は返さない。
+	assert.NotContains(t, string(got), string(patPacket(0x4010, 101)))
+	assert.True(t, bytes.HasPrefix(got, patPacket(32736, 1024)))
+}
+
+func TestTunerServerStreamPreemptedByCheck(t *testing.T) {
+	t.Parallel()
+
+	// NetworkTV がまだ開いているかを問い合わせて、閉じていたら、中継の接続を切って知らせる。
+	s := streamServer(t, nil, 0)
+	s.replies[301] = reply{status: 1, payload: nil, stream: patPacket(32736, 1024), hold: true, drop: false}
+	s.queued[1073] = []reply{
+		{status: 1, payload: payload{}.u32(27), stream: nil, hold: false, drop: false},
+		{status: 1, payload: payload{}.u32(27), stream: nil, hold: false, drop: false},
+		{status: 0, payload: nil, stream: nil, hold: false, drop: false},
+	}
+	ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: 10 * time.Millisecond})
+	stream, err := server.OpenServiceStream(t.Context(), 3273601024, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = stream.Close() })
+
+	_, err = io.ReadAll(stream)
+	require.ErrorIs(t, err, tunerserver.ErrTunerPreempted)
 }
