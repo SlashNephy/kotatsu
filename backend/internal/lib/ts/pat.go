@@ -22,35 +22,26 @@ func NewPATWatcher(onPAT func(*PAT)) *PATWatcher {
 	return &PATWatcher{onPAT: onPAT, assembler: newSectionAssembler(), rest: make([]byte, 0, PacketSize)}
 }
 
-// Write は、TS を読む。パケットの区切りは、同期バイトで合わせ直す。エラーは返さない。
+// Write は、TS を読む。パケットの区切りは、同期バイトで合わせ直す。読み始めがパケットの途中でも、
+// 小さな塊に分けて渡されても、届いた順につないでから区切る。エラーは返さない。
 func (w *PATWatcher) Write(p []byte) (int, error) {
-	n := len(p)
-	if len(w.rest) > 0 {
-		need := PacketSize - len(w.rest)
-		if len(p) < need {
-			w.rest = append(w.rest, p...)
-
-			return n, nil
-		}
-		w.rest = append(w.rest, p[:need]...)
-		w.packet(w.rest)
-		w.rest = w.rest[:0]
-		p = p[need:]
-	}
-	for len(p) >= PacketSize {
-		if p[0] != syncByte {
+	w.rest = append(w.rest, p...)
+	buf := w.rest
+	for len(buf) >= PacketSize {
+		if buf[0] != syncByte {
 			// 区切りがずれたら、次の同期バイトまで読み飛ばす。
 			w.assembler.reset()
-			p = p[1:]
+			buf = buf[1:]
 
 			continue
 		}
-		w.packet(p[:PacketSize])
-		p = p[PacketSize:]
+		w.packet(buf[:PacketSize])
+		buf = buf[PacketSize:]
 	}
-	w.rest = append(w.rest, p...)
+	// 残りを先頭に寄せる。読むたびに、残りの分だけを持つ。
+	w.rest = w.rest[:copy(w.rest, buf)]
 
-	return n, nil
+	return len(p), nil
 }
 
 func (w *PATWatcher) packet(b []byte) {

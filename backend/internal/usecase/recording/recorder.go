@@ -622,10 +622,13 @@ type sessionResult struct {
 // failed は、録画できなかった理由と、そのエラーを覚える。err が nil なら、本文は空にする。
 // EDCB の予約にチューナーを取られたなら (#1534)、どこで気づいても、取られたことを理由にする。
 // 取られた後に、チューナーを確保できずにつなぎ直せないときも、取られたことを理由に残す。
-// 取られたチューナーが空かないことが、つなぎ直せない元だからである。
+// 取られたチューナーが空かないことが、つなぎ直せない元だからである。このときは、エラーの本文も、取られたときのものを残す。後のチューナーを確保できなかった本文では、元が分からないからである。
 func (s *sessionResult) failed(reason domain.RecordingFailureReason, err error) {
-	if errors.Is(err, tunerserver.ErrTunerPreempted) ||
-		(s.lastFailure == domain.RecordingFailureReasonTunerPreempted && reason == domain.RecordingFailureReasonTunerUnavailable) {
+	if s.lastFailure == domain.RecordingFailureReasonTunerPreempted && reason == domain.RecordingFailureReasonTunerUnavailable &&
+		!errors.Is(err, tunerserver.ErrTunerPreempted) {
+		return
+	}
+	if errors.Is(err, tunerserver.ErrTunerPreempted) {
 		reason = domain.RecordingFailureReasonTunerPreempted
 	}
 	s.lastFailure = reason
