@@ -43,6 +43,11 @@ func TestTenbanServesIPTV(t *testing.T) {
 		// 秘密の値が違えば、見つからないことと区別させない。
 		{name: "wrong token", method: http.MethodGet, path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound, wantType: textPlain, wantBody: ""},
 		{name: "wrong token stream", method: http.MethodGet, path: "/api/iptv/kotatsu_iptv_wrong/services/3273601024/stream.m2ts", wantStatus: http.StatusNotFound, wantType: textPlain, wantBody: ""},
+		// 配信とロゴは、包んだ http.Handler が r.PathValue("id") でサービスを読む。読めなければ 400 (invalid service ID) になる。
+		// この tenban にはチューナーサーバーがないので、どちらも 503 になる。ID が数でなければ 400 になる。
+		{name: "stream", method: http.MethodGet, path: "/api/iptv/" + token + "/services/3273601024/stream.m2ts", wantStatus: http.StatusServiceUnavailable, wantType: textPlain, wantBody: ""},
+		{name: "logo", method: http.MethodGet, path: "/api/iptv/" + token + "/services/3273601024/logo", wantStatus: http.StatusServiceUnavailable, wantType: textPlain, wantBody: ""},
+		{name: "invalid service ID", method: http.MethodGet, path: "/api/iptv/" + token + "/services/abc/stream.m2ts", wantStatus: http.StatusBadRequest, wantType: textPlain, wantBody: "invalid service ID"},
 		{name: "unknown file", method: http.MethodGet, path: "/api/iptv/" + token + "/unknown", wantStatus: http.StatusNotFound, wantType: textPlain, wantBody: ""},
 	}
 	client := httpclienttest.New(t)
