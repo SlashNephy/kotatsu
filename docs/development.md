@@ -142,6 +142,16 @@ docker compose restart web
 `mise run //frontend:dev`は、Composeの外で画面の開発サーバーを`http://localhost:5173`に起動します。
 Composeを使わずに、手元でKotatsuを`127.0.0.1:8080`に起動しているときに使います。
 
+### 画面の要素からソースを辿る
+
+画面の開発サーバーでは、[React Grab](https://github.com/aidenybai/react-grab)が動きます。
+画面の下のツールバーから選ぶモードに入り、要素をクリックすると、その要素のHTMLと、それを描いたコンポーネントとファイルの名前をクリップボードに写します。
+コーディングエージェントに画面の場所を伝えるときに使います。
+
+本番のビルドと静的なデモには含めません。
+版の問い合わせ（`react-grab.com`）は切っています。
+ただし、React Grabの表示に使うフォントを、ブラウザが`fonts.googleapis.com`から読み込みます。
+
 ## テストを流す
 
 DBを使うGoのテストは、`KOTATSU_TEST_DATABASE_URL`にPostgreSQLの接続先を渡したときだけ実行されます。
