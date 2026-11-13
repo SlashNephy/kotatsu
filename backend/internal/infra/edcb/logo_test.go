@@ -13,7 +13,9 @@ import (
 func TestParseLogoMap(t *testing.T) {
 	t.Parallel()
 
-	data := []byte("\xEF\xBB\xBF[Other]\r\n7FE00400=9\r\n[LogoIDMap]\r\n7FE00400=0\r\n7fe10408 = 8\r\nbroken=1\r\n7FE00401=x\r\n")
+	// 前後の節のキー、壊れた行、範囲外のロゴの ID は読み飛ばす。
+	data := []byte("\xEF\xBB\xBF[Other]\r\n7FE00400=9\r\n[LogoIDMap]\r\n7FE00400=0\r\n7fe10408 = 8\r\nbroken=1\r\n7FE00401=x\r\n" +
+		"7FE00402=-1\r\n7FE00403=65536\r\n[Next]\r\n7FE00404=1\r\n")
 	assert.Equal(t, map[edcb.ServiceKey]int{
 		{ONID: 0x7FE0, TSID: 0, SID: 0x0400}: 0,
 		{ONID: 0x7FE1, TSID: 0, SID: 0x0408}: 8,
