@@ -8,6 +8,7 @@ package cli
 
 import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"log/slog"
 )
 
@@ -37,4 +38,24 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 		animeRecords: animerecordService,
 	}
 	return cliSealedStores, nil
+}
+
+// newKyusuParts は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを作る。
+// トークンと、構成によってないことがあるストリームを開く先とトランスコーダーは、newKyusu が先に決めて渡す。
+func newKyusuParts(deps *Deps, logger *slog.Logger, token *kyusu.Token, opener kyusu.ServiceOpener, transcoder *kyusu.Transcoder) (*kyusuParts, error) {
+	cliKyusuLogger := kyusuLoggerOf(logger)
+	live, err := newKyusuLive(deps, cliKyusuLogger, opener, transcoder)
+	if err != nil {
+		return nil, err
+	}
+	vod, err := newKyusuVOD(deps, cliKyusuLogger, transcoder)
+	if err != nil {
+		return nil, err
+	}
+	cliKyusuParts := &kyusuParts{
+		token: token,
+		live:  live,
+		vod:   vod,
+	}
+	return cliKyusuParts, nil
 }
