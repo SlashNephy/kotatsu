@@ -84,6 +84,8 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		cookie bool
 		bearer bool
 		want   int
+		// head は、GET ではなく HEAD で送るかどうか。http.ServeMux の GET のパターンは HEAD にも答えたので、echo に移しても答える (#1606)。
+		head bool
 	}{
 		{name: "トークン", path: "/api/epgstation/api/version", cookie: false, bearer: true, want: http.StatusOK},
 		{name: "セッションの Cookie だけ", path: "/api/epgstation/api/version", cookie: true, bearer: false, want: http.StatusUnauthorized},
@@ -95,6 +97,11 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		{name: "用意していない API", path: "/api/epgstation/api/reserves", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "前の EPGStation 互換のパス", path: "/api/version", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "署名付き URL", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound},
+		{name: "署名付き URL を HEAD で", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound, head: true},
+		// 配信のハンドラーは、r.PathValue("id") で録画とサービスを読む。読めなければ 400 になる。
+		// この tenban にはチューナーサーバーがないので、ライブ視聴は 503 になる。
+		{name: "署名付き URL のライブ視聴", path: signer.Sign(stream.SignedPathPrefix+"services/3273601024", user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusServiceUnavailable},
+		{name: "署名付き URL の録画の ID が違う形", path: signer.Sign(stream.SignedPathPrefix+"recordings/abc", user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusBadRequest},
 		{name: "署名付き URL の経路にセッションの Cookie だけ", path: stream.SignedPathPrefix + missing[1:], cookie: true, bearer: false, want: http.StatusUnauthorized},
 		{name: "画面の経路にセッションの Cookie", path: "/internal/streams" + missing, cookie: true, bearer: false, want: http.StatusNotFound},
 		{name: "画面の経路の知らないパス", path: "/internal/nope", cookie: true, bearer: false, want: http.StatusNotFound},
@@ -105,7 +112,11 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+tt.path, http.NoBody)
+			method := http.MethodGet
+			if tt.head {
+				method = http.MethodHead
+			}
+			req, err := http.NewRequestWithContext(t.Context(), method, base+tt.path, http.NoBody)
 			require.NoError(t, err)
 			if tt.cookie {
 				req.Header.Set("Cookie", auth.CookieName+"="+session)

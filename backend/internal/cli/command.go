@@ -1007,6 +1007,7 @@ func newRouter(logger *slog.Logger, root http.Handler, deps *Deps, calendarFeeds
 	router := httpserver.NewRouter(logger, root)
 	handleCalendar(router, deps, calendarFeeds)
 	handleIPTV(router, deps, public.iptvFeeds, public.opener, public.logos, public.streams, public.streamLogger)
+	handleSignedStreams(router, deps, public.authorizer, public.opener, public.streams, public.streamLogger)
 
 	return router
 }
@@ -1023,14 +1024,14 @@ type publicAPI struct {
 	logger       *slog.Logger
 }
 
-// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) を mux に登録する (設計書 9.1、#1605)。
-// どれもセッションの Cookie を見ず、API トークン、パスの秘密の値、署名のどれかで認証する。
-// 知らないパスは、画面を返さずに 404 にする。
+// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) のうち、まだ echo に移していないものを
+// mux に登録する (設計書 9.1、#1605)。今は、API トークンで認証する EPGStation 互換の API だけが残る。
+// echo に移したもの (iCalendar、IPTV、署名付きの配信) は、newRouter が受ける (#1606)。
+// どれにも当たらないパスは、画面を返さずに 404 にする。
 func handlePublicAPI(mux *http.ServeMux, deps *Deps, p *publicAPI) {
 	mux.Handle(apiPathPrefix, http.NotFoundHandler())
 	compat := newEPGStationAPI(deps, p.apiTokens, p.opener, p.logos, p.streams, p.streamLogger)
 	mux.Handle(epgstationPathPrefix+"api/", http.StripPrefix(strings.TrimSuffix(epgstationPathPrefix, "/"), compat))
-	handleSignedStreams(mux, deps, p.authorizer, p.opener, p.streams, p.streamLogger)
 }
 
 // handleStreams は、映像の配信 (/internal/streams/*) を mux に登録する。どれも、セッションで認可する。
@@ -1086,17 +1087,23 @@ func handleStreams(
 	return instances, nil
 }
 
-// handleSignedStreams は、外部プレイヤーに渡す署名付き URL の配信 (/api/streams/*) を mux に登録する (設計書 7.6、9.6、#1605)。
+// handleSignedStreams は、外部プレイヤーに渡す署名付き URL の配信 (/api/streams/*) を、echo のルーターに登録する (設計書 7.6、9.6、#1605、#1606)。
 // 署名だけで認可し、セッションは見ない。画面のプレイヤーではないので、スクランブルの判定 (設計書 7.1) と、
 // 視聴している間だけ録るタイムシフトの記録 (設計書 5.7) には数えない。変換せずに流すので、streams には数える。
+// 配信のハンドラーは、ほかの配信と共有するので、ロガーを渡したまま包む。:id は、包んだハンドラーに r.PathValue("id") で渡る。
 func handleSignedStreams(
-	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
+	router *echo.Echo, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
-	mux.Handle("GET "+stream.SignedPathPrefix+"services/{id}", httpserver.StopOnShutdown(authorizer.Signed(
+	live := echo.WrapHandler(httpserver.StopOnShutdown(authorizer.Signed(
 		streams.Count(streamapi.StreamKindLive, streamapi.NewLiveHandler(opener, streamLogger)))))
-	mux.Handle("GET "+stream.SignedPathPrefix+"recordings/{id}", httpserver.StopOnShutdown(authorizer.Signed(
+	recording := echo.WrapHandler(httpserver.StopOnShutdown(authorizer.Signed(
 		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+	// http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD のルートも登録する。
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		router.Add(method, stream.SignedPathPrefix+"services/:id", live, httpserver.Component("stream"))
+		router.Add(method, stream.SignedPathPrefix+"recordings/:id", recording, httpserver.Component("stream"))
+	}
 }
 
 // registerFallbacks は、tenban が DB に届かずに、覚えた結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。
