@@ -34,7 +34,7 @@ type nicologCommentsResponse struct {
 	Comments []*commentJSON `json:"comments"`
 }
 
-// NicologCommentsHandler は、録画に対応する NICOLOG のコメントを中継する (GET /media/recordings/{id}/jikkyo-nicolog.json、#1363)。
+// NicologCommentsHandler は、録画に対応する NICOLOG のコメントを中継する (GET /internal/media/recordings/{id}/jikkyo-nicolog.json、#1363)。
 // 全体の設定かユーザーの設定で NICOLOG のソースをオプトインしていなければ、問い合わせずに 404 を返す。
 type NicologCommentsHandler struct {
 	*CommentsHandler

@@ -22,7 +22,7 @@ type oidcBeginResponse struct {
 }
 
 // StatusHandler は、OIDC でのログインを受け付けるかと、ログイン中のユーザーが IdP のユーザーと紐付いているかを返す
-// ハンドラーを返す (GET /auth/oidc)。
+// ハンドラーを返す (GET /internal/auth/oidc)。
 func (o *OIDC) StatusHandler(db Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !o.Enabled() {
@@ -44,8 +44,8 @@ func (o *OIDC) StatusHandler(db Database) http.Handler {
 	})
 }
 
-// BeginHandler は、OIDC でのログインを始め、IdP の認可のエンドポイントを返すハンドラーを返す (POST /auth/oidc)。
-// 画面は、返した URL にブラウザーを送り出す。CSRF を防ぐため、ほかの /auth/* と同じく、同じオリジンの JSON の POST にする。
+// BeginHandler は、OIDC でのログインを始め、IdP の認可のエンドポイントを返すハンドラーを返す (POST /internal/auth/oidc)。
+// 画面は、返した URL にブラウザーを送り出す。CSRF を防ぐため、ほかの /internal/auth/* と同じく、同じオリジンの JSON の POST にする。
 func (o *OIDC) BeginHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requireJSONPost(w, r) {
@@ -79,7 +79,7 @@ type oidcReauthBody struct {
 }
 
 // ReauthenticationHandler は、ログイン中のセッションのまま、IdP でもう一度認証する再認証を始め、
-// IdP の認可のエンドポイントを返すハンドラーを返す (POST /auth/reauth/oidc)。
+// IdP の認可のエンドポイントを返すハンドラーを返す (POST /internal/auth/reauth/oidc)。
 // 画面は、返した URL にブラウザーを送り出す。IdP から戻ってきたら、CallbackHandler が、セッションの認証の日時を更新する。
 func (o *OIDC) ReauthenticationHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +127,7 @@ type oidcLinkBody struct {
 }
 
 // LinkHandler は、ログイン中のユーザーを、IdP のユーザーと紐付けるのを始め、IdP の認可のエンドポイントを返すハンドラーを返す
-// (POST /auth/oidc/link)。直前に再認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
+// (POST /internal/auth/oidc/link)。直前に再認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
 // 画面は、返した URL にブラウザーを送り出す。IdP から戻ってきたら、CallbackHandler が紐付ける。
 func (o *OIDC) LinkHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +173,7 @@ func (o *OIDC) LinkHandler(db Database, client func(*http.Request) *ClientInfo) 
 	})
 }
 
-// CallbackHandler は、IdP から戻ってきたログインを確かめ、セッションを作るハンドラーを返す (GET /auth/oidc/callback)。
+// CallbackHandler は、IdP から戻ってきたログインを確かめ、セッションを作るハンドラーを返す (GET /internal/auth/oidc/callback)。
 // 再認証として始めたものなら、ログイン中のセッションの認証の日時を更新し、始めたときに渡したパスに戻す。
 // 紐付けとして始めたものなら、ログイン中のユーザーを IdP のユーザーと紐付け、始めたときに渡したパスに linked=oidc を付けて戻す。
 //

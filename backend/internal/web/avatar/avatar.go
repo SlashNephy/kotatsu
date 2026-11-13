@@ -42,7 +42,7 @@ var (
 	errNotImage       = errors.New("the response is not an image")
 )
 
-// Handler は、ユーザーのアイコンの画像を中継する (GET /media/users/{id}/avatar)。
+// Handler は、ユーザーのアイコンの画像を中継する (GET /internal/media/users/{id}/avatar)。
 //
 // picture の URL は IdP が返すが、IdP によってはユーザーが自由に書き換えられる。そのため、接続先を限り、LAN の中のサーバーへ
 // リクエストを送らせないようにする。IdP の issuer と同じホストの URL だけは、IdP と同じく信じて、LAN の中でも取りに行く。

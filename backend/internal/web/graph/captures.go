@@ -125,7 +125,7 @@ func captureOf(c *domain.Capture) *model.Capture {
 
 	return &model.Capture{
 		ID:          CaptureID(c.ID),
-		ImageURL:    "/media/captures/" + c.ID.String(),
+		ImageURL:    "/internal/media/captures/" + c.ID.String(),
 		ServiceName: c.ServiceName,
 		ProgramName: c.ProgramName,
 		Caption:     c.Caption,

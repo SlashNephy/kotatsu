@@ -16,10 +16,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// TestTenbanServesEPGStationAPI は、tenban が /api/* を、API トークンでだけ受け付けることを確かめる (#431、設計書 9.8)。
-// セッションの Cookie では受け付けない。チューナーサーバーを設定していないので、ロゴとライブ視聴は 503 になる。
+// TestTenbanServesEPGStationAPI は、tenban が EPGStation 互換の API (/api/epgstation/api/*) を、API トークンでだけ受け付けることを確かめる
+// (#431、設計書 9.8)。セッションの Cookie では受け付けない。チューナーサーバーを設定していないので、ロゴとライブ視聴は 503 になる。
+// あわせて、外部プレイヤー向けの /api/streams/* は署名だけで、画面の /internal/streams/* はセッションだけで認可することを確かめる (#1605)。
+// 認可を通ったら、ない録画は 404 になるので、401 と分けて見られる。
 func TestTenbanServesEPGStationAPI(t *testing.T) {
 	t.Parallel()
 
@@ -69,6 +72,10 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		assert.NoError(t, <-done)
 	})
 	base := "http://" + <-addresses
+	signer, err := stream.NewSigner(testKeyMaterial)
+	require.NoError(t, err)
+	missing := "/recordings/0199d000-0000-7000-8000-000000000999"
+	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
 
 	tests := []struct {
 		name   string
@@ -77,14 +84,21 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		bearer bool
 		want   int
 	}{
-		{name: "トークン", path: "/api/version", cookie: false, bearer: true, want: http.StatusOK},
-		{name: "セッションの Cookie だけ", path: "/api/version", cookie: true, bearer: false, want: http.StatusUnauthorized},
-		{name: "どちらもない", path: "/api/channels", cookie: false, bearer: false, want: http.StatusUnauthorized},
-		{name: "ロゴ", path: "/api/channels/3273601024/logo", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
-		{name: "ライブ視聴", path: "/api/streams/live/3273601024/m2ts?mode=0", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
-		{name: "ない録画の動画", path: "/api/videos/999999", cookie: false, bearer: true, want: http.StatusNotFound},
-		{name: "ない録画のサムネイル", path: "/api/thumbnails/999999", cookie: false, bearer: true, want: http.StatusNotFound},
-		{name: "用意していない API", path: "/api/reserves", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "トークン", path: "/api/epgstation/api/version", cookie: false, bearer: true, want: http.StatusOK},
+		{name: "セッションの Cookie だけ", path: "/api/epgstation/api/version", cookie: true, bearer: false, want: http.StatusUnauthorized},
+		{name: "どちらもない", path: "/api/epgstation/api/channels", cookie: false, bearer: false, want: http.StatusUnauthorized},
+		{name: "ロゴ", path: "/api/epgstation/api/channels/3273601024/logo", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
+		{name: "ライブ視聴", path: "/api/epgstation/api/streams/live/3273601024/m2ts?mode=0", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
+		{name: "ない録画の動画", path: "/api/epgstation/api/videos/999999", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "ない録画のサムネイル", path: "/api/epgstation/api/thumbnails/999999", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "用意していない API", path: "/api/epgstation/api/reserves", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "前の EPGStation 互換のパス", path: "/api/version", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "署名付き URL", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound},
+		{name: "署名付き URL の経路にセッションの Cookie だけ", path: stream.SignedPathPrefix + missing[1:], cookie: true, bearer: false, want: http.StatusUnauthorized},
+		{name: "画面の経路にセッションの Cookie", path: "/internal/streams" + missing, cookie: true, bearer: false, want: http.StatusNotFound},
+		{name: "画面の経路の知らないパス", path: "/internal/nope", cookie: true, bearer: false, want: http.StatusNotFound},
+		{name: "GraphQL の下の知らないパス", path: "/internal/graphql/nope", cookie: true, bearer: false, want: http.StatusNotFound},
+		{name: "画面の経路に署名だけ", path: signer.Sign("/internal/streams"+missing, user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

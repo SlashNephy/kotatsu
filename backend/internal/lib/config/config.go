@@ -293,7 +293,7 @@ type OIDC struct {
 	Issuer       string `yaml:"issuer"`
 	ClientID     string `yaml:"client_id"`
 	ClientSecret Secret `yaml:"client_secret"`
-	// RedirectURL は、IdP に登録したリダイレクト URI。空なら、接続したオリジンに /auth/oidc/callback を付けたものにする。
+	// RedirectURL は、IdP に登録したリダイレクト URI。空なら、接続したオリジンに /internal/auth/oidc/callback を付けたものにする。
 	RedirectURL string `yaml:"redirect_url"`
 	// Scopes は、IdP に求めるスコープ。openid は必ず含める。環境変数では、カンマで区切って渡す。
 	Scopes []string `yaml:"scopes"`

@@ -42,7 +42,7 @@ func (f *commentsFixture) nicologHandler(t *testing.T, fetcher jikkyoapi.Nicolog
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, jikkyoapi.NewNicologCommentsHandler(f.comments, fetcher))
+	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, jikkyoapi.NewNicologCommentsHandler(f.comments, fetcher))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: auth.RoleAdmin})))
@@ -86,7 +86,7 @@ func TestNicologCommentsHandler(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/recordings/"+recordingID.String()+"/"+jikkyoapi.NicologCommentsFileName, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/recordings/"+recordingID.String()+"/"+jikkyoapi.NicologCommentsFileName, nil)
 			handler.ServeHTTP(rec, req)
 
 			assert.Equal(t, tt.wantStatus, rec.Code)

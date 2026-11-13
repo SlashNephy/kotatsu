@@ -53,7 +53,7 @@ func TestManageCalendarFeed(t *testing.T) {
 		return created.CreateCalendarFeed.Path
 	}
 	first := issue()
-	assert.True(t, strings.HasPrefix(first, "/calendar/kotatsu_cal_"), first)
+	assert.True(t, strings.HasPrefix(first, "/api/calendar/kotatsu_cal_"), first)
 	assert.True(t, strings.HasSuffix(first, "/reservations.ics"), first)
 	require.NotNil(t, f.calendarFeed(t))
 	// ほかのユーザーからは、自分の URL は見えない。

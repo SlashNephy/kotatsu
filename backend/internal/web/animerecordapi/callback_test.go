@@ -55,7 +55,7 @@ func TestCallbackHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
-			handler.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/anime-records/annict/callback?"+tt.query, nil))
+			handler.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/auth/anime-records/annict/callback?"+tt.query, nil))
 			assert.Equal(t, http.StatusSeeOther, recorder.Code)
 			assert.Equal(t, tt.want, recorder.Header().Get("Location"))
 		})

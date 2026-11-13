@@ -31,7 +31,7 @@ const CommentsFileName = "jikkyo.json"
 const finishedCacheControl = "private, max-age=600"
 
 // CommentsHandler は、録画の時間帯の実況の過去ログを、過去ログ API から取って中継する
-// (GET /media/recordings/{id}/jikkyo.json、設計書 7.4)。
+// (GET /internal/media/recordings/{id}/jikkyo.json、設計書 7.4)。
 // 描画とミュートに使う項目だけを、録画の始まり (最初のセグメントを書き始めた時刻) からの秒とともに返す。
 // ユーザー ID は、過去ログ API が公開している匿名の ID で、ID でのミュートに使う (#488)。
 // 全体の設定かユーザーの設定で実況を切っていれば、過去ログ API へ問い合わせずに 404 を返す。

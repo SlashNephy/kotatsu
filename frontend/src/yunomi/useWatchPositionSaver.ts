@@ -70,7 +70,7 @@ export function useWatchPositionSaver(
         return;
       }
       saved.current = positionMs;
-      void fetch('/graphql', {
+      void fetch('/internal/graphql', {
         method: 'POST',
         keepalive: true,
         credentials: 'same-origin',

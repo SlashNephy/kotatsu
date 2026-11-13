@@ -16,7 +16,7 @@ import (
 const imageCacheControl = "private, max-age=3600"
 
 // ImageHandler は、録画の代表画像と、シークバー用のプレビュー画像とその説明を配信する
-// (GET /media/recordings/{id}/{file}、file は thumbnail.jpg、preview.jpg、preview.json のどれか)。
+// (GET /internal/media/recordings/{id}/{file}、file は thumbnail.jpg、preview.jpg、preview.json のどれか)。
 // ファイルは、データディレクトリの、画像を置くセグメント (ImageSegment) のディレクトリから読む。
 type ImageHandler struct {
 	db     sqlc.DBTX

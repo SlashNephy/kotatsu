@@ -13,7 +13,7 @@ describe('loadManifest (#1424)', () => {
     ['503', () => Promise.resolve(new Response('', { status: 503 }))],
     ['通信の失敗', () => Promise.reject(new TypeError('Failed to fetch'))],
   ])('%s で読めなかったら、次に読むときに取り直す', async (_, fail) => {
-    const previewUrl = `/media/recordings/${crypto.randomUUID()}/preview`;
+    const previewUrl = `/internal/media/recordings/${crypto.randomUUID()}/preview`;
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockImplementationOnce(fail)
@@ -26,7 +26,7 @@ describe('loadManifest (#1424)', () => {
   });
 
   test('プレビュー画像がなければ (404)、取り直さずに null を返し続ける', async () => {
-    const previewUrl = `/media/recordings/${crypto.randomUUID()}/preview`;
+    const previewUrl = `/internal/media/recordings/${crypto.randomUUID()}/preview`;
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -36,7 +36,7 @@ describe('loadManifest (#1424)', () => {
   });
 
   test('中身の壊れた preview.json は、取り直さずに null を返し続ける', async () => {
-    const previewUrl = `/media/recordings/${crypto.randomUUID()}/preview`;
+    const previewUrl = `/internal/media/recordings/${crypto.randomUUID()}/preview`;
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockImplementation(() => Promise.resolve(new Response('{', { status: 200 })));
@@ -48,7 +48,7 @@ describe('loadManifest (#1424)', () => {
   });
 
   test('読めた preview.json は、取り直さない', async () => {
-    const previewUrl = `/media/recordings/${crypto.randomUUID()}/preview`;
+    const previewUrl = `/internal/media/recordings/${crypto.randomUUID()}/preview`;
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockImplementation(() => Promise.resolve(Response.json(manifest)));

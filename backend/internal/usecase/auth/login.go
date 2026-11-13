@@ -25,8 +25,8 @@ import (
 const (
 	// ChallengeCookieName は、第二要素の確認を待つログインのトークンを入れる Cookie の名前。
 	ChallengeCookieName = "kotatsu_login"
-	// challengeCookiePath は、第二要素の確認を待つログインの Cookie を送るパス。/auth/* にだけ送る。
-	challengeCookiePath = "/auth/"
+	// challengeCookiePath は、第二要素の確認を待つログインの Cookie を送るパス。/internal/auth/* にだけ送る。
+	challengeCookiePath = "/internal/auth/"
 	// DefaultChallengeTTL は、パスワードの確認から第二要素の確認までに許す時間 (付録 A)。
 	DefaultChallengeTTL = 5 * time.Minute
 

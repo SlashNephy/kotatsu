@@ -73,7 +73,7 @@ func TestOtherCommentsHandler(t *testing.T) {
 	f.setMix(t, true)
 
 	rec := httptest.NewRecorder()
-	f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/recordings/"+recordingID.String()+"/"+jikkyoapi.OtherCommentsFileName, nil))
+	f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/recordings/"+recordingID.String()+"/"+jikkyoapi.OtherCommentsFileName, nil))
 
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var body othersBody
@@ -119,7 +119,7 @@ func TestOtherCommentsHandlerNotApplicable(t *testing.T) {
 			f.setJikkyo(t, true, tt.jikkyo)
 
 			rec := httptest.NewRecorder()
-			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/recordings/"+recordingID.String()+"/"+jikkyoapi.OtherCommentsFileName, nil))
+			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/recordings/"+recordingID.String()+"/"+jikkyoapi.OtherCommentsFileName, nil))
 
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Nil(t, f.fake.query.Load(), "the kakolog API is not called")

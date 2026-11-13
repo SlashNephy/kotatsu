@@ -21,7 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
-const logoPattern = "GET /media/services/{id}/logo"
+const logoPattern = "GET /internal/media/services/{id}/logo"
 
 // htmlLogo は、ロゴの代わりに HTML を返す、壊れたチューナーサーバー。
 type htmlLogo struct{}
@@ -94,7 +94,7 @@ func TestLogoHandler(t *testing.T) {
 			t.Parallel()
 
 			server := logoServer(t, tt.tuner)
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/media/services/"+tt.id+"/logo", nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/internal/media/services/"+tt.id+"/logo", nil)
 			require.NoError(t, err)
 			resp, err := server.Client().Do(req)
 			require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestLogoHandlerCollected(t *testing.T) {
 			t.Parallel()
 
 			server := logoServerWithCollected(t, tt.tuner, collected)
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/media/services/"+tt.id+"/logo", nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/internal/media/services/"+tt.id+"/logo", nil)
 			require.NoError(t, err)
 			resp, err := server.Client().Do(req)
 			require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestLogoHandlerNotModified(t *testing.T) {
 	t.Parallel()
 
 	server := logoServer(t, fakeTunerClient(t))
-	url := server.URL + "/media/services/" + serviceID + "/logo"
+	url := server.URL + "/internal/media/services/" + serviceID + "/logo"
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	require.NoError(t, err)
 	first, err := server.Client().Do(req)
@@ -205,7 +205,7 @@ func TestLogoHandlerKeepsCacheControl(t *testing.T) {
 	}))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/media/services/"+serviceID+"/logo", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/internal/media/services/"+serviceID+"/logo", nil)
 	require.NoError(t, err)
 	resp, err := server.Client().Do(req)
 	require.NoError(t, err)

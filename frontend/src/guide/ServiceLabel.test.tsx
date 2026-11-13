@@ -9,7 +9,11 @@ afterEach(() => {
 
 describe('ServiceLabel', () => {
   test.each([
-    { name: 'ロゴがあれば、名前の前に出す', logoUrl: '/media/services/1/logo', wantLogo: true },
+    {
+      name: 'ロゴがあれば、名前の前に出す',
+      logoUrl: '/internal/media/services/1/logo',
+      wantLogo: true,
+    },
     { name: 'ロゴがなければ、代わりの枠と名前を出す', logoUrl: null, wantLogo: false },
   ])('$name', ({ logoUrl, wantLogo }) => {
     const { container } = render(<ServiceLabel name="こたつテスト1" logoUrl={logoUrl} />);
@@ -23,7 +27,7 @@ describe('ServiceLabel', () => {
 
   test('ロゴを読めなければ、代わりの枠にし、URL が変われば読み直す', () => {
     const { container, rerender } = render(
-      <ServiceLabel name="こたつテスト1" logoUrl="/media/services/1/logo" />,
+      <ServiceLabel name="こたつテスト1" logoUrl="/internal/media/services/1/logo" />,
     );
 
     fireEvent.error(container.querySelector('img')!);
@@ -31,7 +35,9 @@ describe('ServiceLabel', () => {
     expect(container.querySelector('[data-logo-placeholder]')).not.toBeNull();
     expect(screen.getByText('こたつテスト1')).toBeDefined();
 
-    rerender(<ServiceLabel name="こたつテスト2" logoUrl="/media/services/2/logo" />);
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('/media/services/2/logo');
+    rerender(<ServiceLabel name="こたつテスト2" logoUrl="/internal/media/services/2/logo" />);
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      '/internal/media/services/2/logo',
+    );
   });
 });

@@ -25,8 +25,12 @@ import (
 const (
 	// keyMaterial は、テストのアプリの秘密キー。
 	keyMaterial = "kotatsu-stream-test-application-key-0123456789"
-	// resource は、署名するリソース。
-	resource = "/streams/services/" + serviceID
+	// resource は、署名するリソース。外部プレイヤーに渡す、署名付き URL の経路。
+	resource = "/api/streams/services/" + serviceID
+	// signedPattern は、署名付き URL の経路のパターン。
+	signedPattern = "GET /api/streams/services/{id}"
+	// sessionPath は、画面のプレイヤーが Cookie で使う経路。
+	sessionPath = "/internal/streams/services/" + serviceID
 )
 
 func newSigner(t *testing.T, key string) *stream.Signer {
@@ -69,7 +73,8 @@ func TestSigner(t *testing.T) {
 				return q
 			},
 		},
-		{name: "別のリソース", signer: newSigner(t, keyMaterial), resource: "/streams/services/3273601025", query: query.Clone, now: now, wantErr: true},
+		{name: "別のリソース", signer: newSigner(t, keyMaterial), resource: "/api/streams/services/3273601025", query: query.Clone, now: now, wantErr: true},
+		{name: "画面の経路", signer: newSigner(t, keyMaterial), resource: sessionPath, query: query.Clone, now: now, wantErr: true},
 		{
 			name: "別のユーザー", signer: newSigner(t, keyMaterial), resource: resource, now: now, wantErr: true,
 			query: func() url.Values {
@@ -123,7 +128,8 @@ func TestNewSignerRequiresSecret(t *testing.T) {
 	require.ErrorIs(t, err, stream.ErrNoKey)
 }
 
-// TestAuthorizer は、ログイン中のセッションか、無効にしていないユーザーの署名付き URL のどちらかで、映像を見られることを確かめる。
+// TestAuthorizer は、画面の経路はログイン中のセッションでだけ、外部プレイヤーの経路は無効にしていないユーザーの署名付き URL でだけ、
+// 映像を見られることを確かめる (設計書 9.6、#1605)。もう一方の経路の認証は受け付けない。
 func TestAuthorizer(t *testing.T) {
 	t.Parallel()
 
@@ -143,10 +149,13 @@ func TestAuthorizer(t *testing.T) {
 	require.NoError(t, err)
 
 	signer := newSigner(t, keyMaterial)
-	mux := http.NewServeMux()
-	mux.Handle(livePattern, streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)), clk).Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)), clk)
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})))
+	})
+	mux := http.NewServeMux()
+	mux.Handle(livePattern, authorizer.Session(ok))
+	mux.Handle(signedPattern, authorizer.Signed(ok))
 	server := httptest.NewServer(sessions.Middleware(pool)(mux))
 	t.Cleanup(server.Close)
 	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
@@ -157,14 +166,17 @@ func TestAuthorizer(t *testing.T) {
 		cookie     string
 		wantStatus int
 	}{
-		{name: "ログイン中のセッション", path: resource, cookie: token, wantStatus: http.StatusOK},
+		{name: "画面の経路にログイン中のセッション", path: sessionPath, cookie: token, wantStatus: http.StatusOK},
+		{name: "画面の経路に認証がない", path: sessionPath, cookie: "", wantStatus: http.StatusUnauthorized},
+		{name: "画面の経路に署名だけ", path: signer.Sign(sessionPath, viewer.ID, expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
 		{name: "署名付き URL", path: signer.Sign(resource, viewer.ID, expiresAt).URL + "&start=60", cookie: "", wantStatus: http.StatusOK},
-		{name: "認証がない", path: resource, cookie: "", wantStatus: http.StatusUnauthorized},
+		{name: "署名付き URL の経路にセッションだけ", path: resource, cookie: token, wantStatus: http.StatusUnauthorized},
+		{name: "署名付き URL の経路に認証がない", path: resource, cookie: "", wantStatus: http.StatusUnauthorized},
 		{name: "無効にしたユーザーの署名付き URL", path: signer.Sign(resource, disabled.ID, expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
 		{name: "いないユーザーの署名付き URL", path: signer.Sign(resource, uuid.New(), expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
 		{
 			name: "別のリソースの署名付き URL", cookie: "", wantStatus: http.StatusUnauthorized,
-			path: resource + "?" + mustQuery(t, signer.Sign("/streams/services/3273601025", viewer.ID, expiresAt).URL),
+			path: resource + "?" + mustQuery(t, signer.Sign("/api/streams/services/3273601025", viewer.ID, expiresAt).URL),
 		},
 	}
 	for _, tt := range tests {
@@ -210,10 +222,12 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 
 	signer := newSigner(t, keyMaterial)
 	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(conn.Pool, clk, slog.New(slog.DiscardHandler)), clk)
-	mux := http.NewServeMux()
-	mux.Handle(livePattern, authorizer.Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})))
+	})
+	mux := http.NewServeMux()
+	mux.Handle(livePattern, authorizer.Session(ok))
+	mux.Handle(signedPattern, authorizer.Signed(ok))
 	server := httptest.NewServer(sessions.Middleware(conn.Pool)(mux))
 	t.Cleanup(server.Close)
 	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
@@ -235,9 +249,9 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 		return resp.StatusCode
 	}
 	// DB が止まる前に、見ていたセッションと署名付き URL を認可する。取り消したセッションも、取り消す前は見ていた。
-	require.Equal(t, http.StatusOK, get(t, resource, seen))
+	require.Equal(t, http.StatusOK, get(t, sessionPath, seen))
 	require.Equal(t, http.StatusOK, get(t, signedSeen, ""))
-	require.Equal(t, http.StatusOK, get(t, resource, revoked))
+	require.Equal(t, http.StatusOK, get(t, sessionPath, revoked))
 	require.NoError(t, sessions.Revoke(t.Context(), pool, viewer.ID, revokedSession.ID))
 	conn.Down()
 
@@ -247,12 +261,12 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 		cookie     string
 		wantStatus int
 	}{
-		{name: "認可できたセッション", path: resource, cookie: seen, wantStatus: http.StatusOK},
+		{name: "認可できたセッション", path: sessionPath, cookie: seen, wantStatus: http.StatusOK},
 		{name: "認可できた署名付き URL", path: signedSeen, cookie: "", wantStatus: http.StatusOK},
-		{name: "DB が止まってから初めてのセッション", path: resource, cookie: unseen, wantStatus: http.StatusServiceUnavailable},
+		{name: "DB が止まってから初めてのセッション", path: sessionPath, cookie: unseen, wantStatus: http.StatusServiceUnavailable},
 		{name: "DB が止まってから初めての署名付き URL", path: signedUnseen, cookie: "", wantStatus: http.StatusServiceUnavailable},
-		{name: "DB が止まる前に取り消したセッション", path: resource, cookie: revoked, wantStatus: http.StatusServiceUnavailable},
-		{name: "認証がない", path: resource, cookie: "", wantStatus: http.StatusUnauthorized},
+		{name: "DB が止まる前に取り消したセッション", path: sessionPath, cookie: revoked, wantStatus: http.StatusServiceUnavailable},
+		{name: "認証がない", path: sessionPath, cookie: "", wantStatus: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

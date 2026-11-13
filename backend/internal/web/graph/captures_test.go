@@ -73,7 +73,7 @@ func TestCaptures(t *testing.T) {
 	require.Empty(t, f.query(t, capturesQuery, map[string]any{}, &first))
 	require.Len(t, first.Captures.Edges, 1)
 	assert.Equal(t, graph.CaptureID(newer), first.Captures.Edges[0].Node.ID)
-	assert.Equal(t, "/media/captures/"+newer.String(), first.Captures.Edges[0].Node.ImageURL)
+	assert.Equal(t, "/internal/media/captures/"+newer.String(), first.Captures.Edges[0].Node.ImageURL)
 	assert.True(t, first.Captures.PageInfo.HasNextPage)
 
 	var second capturesResult

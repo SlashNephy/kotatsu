@@ -1,5 +1,5 @@
-// Package captureapi は、キャプチャの画像を受け取り (POST /media/captures)、撮ったユーザーにだけ返す
-// (GET /media/captures/{id}、設計書 7.5、#908)。
+// Package captureapi は、キャプチャの画像を受け取り (POST /internal/media/captures)、撮ったユーザーにだけ返す
+// (GET /internal/media/captures/{id}、設計書 7.5、#908)。
 //
 // キャプチャは撮ったユーザーだけのものなので、どちらもログイン中のセッションでだけ受け付け、署名付き URL では受け付けない。
 // ほかのユーザーのキャプチャは、あることも知らせないよう、見つからないものとして答える。
@@ -65,7 +65,7 @@ type UploadResponse struct {
 	ID string `json:"id"`
 }
 
-// UploadHandler は、キャプチャを受け取って残す (POST /media/captures)。
+// UploadHandler は、キャプチャを受け取って残す (POST /internal/media/captures)。
 // 本文は multipart/form-data で、MetadataPart に撮った場面の情報の JSON を、ImagePart に PNG の画像を、この順に送る。
 type UploadHandler struct {
 	db       *pgxpool.Pool
@@ -214,7 +214,7 @@ func uploadOf(metadata *Metadata, image []byte) (*capture.Upload, error) {
 	return upload, nil
 }
 
-// ImageHandler は、キャプチャの画像を、撮ったユーザーにだけ返す (GET /media/captures/{id})。
+// ImageHandler は、キャプチャの画像を、撮ったユーザーにだけ返す (GET /internal/media/captures/{id})。
 type ImageHandler struct {
 	queries *query.Queries
 	store   *kago.Store

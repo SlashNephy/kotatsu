@@ -35,7 +35,7 @@ describe('FakeJikkyoSocket', () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(sockets).toHaveLength(1);
-    expect(new URL(sockets[0]!.url).pathname).toBe('/media/jikkyo/demo1024/ws');
+    expect(new URL(sockets[0]!.url).pathname).toBe('/internal/media/jikkyo/demo1024/ws');
     expect(statuses).toEqual([{ kind: 'connecting' }, { kind: 'connected' }]);
     expect(comments.length).toBeGreaterThanOrEqual(3);
     expect(comments[0]).toMatchObject({ content: 'おはよう', userId: 'demo-user-0' });

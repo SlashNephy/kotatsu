@@ -54,7 +54,7 @@ export function demoAnimeRecordApps(origin: string) {
     destination,
     clientId: null,
     configured: false,
-    redirectUri: `${origin}/auth/anime-records/${destination.toLowerCase()}/callback`,
+    redirectUri: `${origin}/internal/auth/anime-records/${destination.toLowerCase()}/callback`,
     updatedAt: null,
   }));
 }

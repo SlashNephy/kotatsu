@@ -33,11 +33,11 @@ func TestDataBroadcastHandlerFiltersPackets(t *testing.T) {
 	})
 	require.NoError(t, err)
 	mux := http.NewServeMux()
-	mux.Handle("GET /streams/services/{id}/data-broadcast", streamapi.NewDataBroadcastHandler(client, slog.New(slog.DiscardHandler)))
+	mux.Handle("GET /internal/streams/services/{id}/data-broadcast", streamapi.NewDataBroadcastHandler(client, slog.New(slog.DiscardHandler)))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/services/"+serviceID+"/data-broadcast", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/internal/streams/services/"+serviceID+"/data-broadcast", nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)

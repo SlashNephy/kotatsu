@@ -28,5 +28,5 @@ func TestViewerAvatarURL(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, f.query(t, avatarQuery, nil, &got))
 	require.NotNil(t, got.Viewer.AvatarURL)
-	assert.Equal(t, "/media/users/"+f.userID.String()+"/avatar", *got.Viewer.AvatarURL)
+	assert.Equal(t, "/internal/media/users/"+f.userID.String()+"/avatar", *got.Viewer.AvatarURL)
 }

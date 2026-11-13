@@ -58,7 +58,7 @@ func TestLogoutHandler(t *testing.T) {
 	token, _ := f.login(t)
 	handler := f.sessions.Middleware(f.db)(f.sessions.LogoutHandler(f.db))
 
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/logout", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/internal/auth/logout", nil)
 	req.Header.Set("Cookie", auth.CookieName+"="+token)
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -111,7 +111,7 @@ func TestReauthenticationStatusHandler(t *testing.T) {
 			if tt.principal != nil {
 				ctx = auth.WithPrincipal(ctx, tt.principal)
 			}
-			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/auth/reauth", nil)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/internal/auth/reauth", nil)
 			rec := httptest.NewRecorder()
 			auth.ReauthenticationStatusHandler(clocktest.NewFake(now)).ServeHTTP(rec, req)
 

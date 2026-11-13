@@ -30,7 +30,7 @@ var (
 	_ LogoFetcher = new(servicelogo.Store)
 )
 
-// LogoHandler は、チューナーサーバーのサービスのロゴを中継する (GET /media/services/{id}/logo)。
+// LogoHandler は、チューナーサーバーのサービスのロゴを中継する (GET /internal/media/services/{id}/logo)。
 // チューナーサーバーがロゴを返さなければ、録画している TS から集めたロゴを返す (#1308)。
 type LogoHandler struct {
 	// tuner は、チューナーサーバーのクライアント。設定していなければ nil。

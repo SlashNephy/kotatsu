@@ -32,14 +32,14 @@ type TimeshiftProgram struct {
 	ServiceKey int64 `json:"-"`
 }
 
-// StreamURL は、バッファの TS を、PlayableFrom を起点に流す URL のパス。tenban の GET /streams/timeshift/{id} で、Mirakurun のサービス ID を使う。
+// StreamURL は、バッファの TS を、PlayableFrom を起点に流す URL のパス。tenban の GET /internal/streams/timeshift/{id} で、Mirakurun のサービス ID を使う。
 func (p *TimeshiftProgram) StreamURL() string {
-	return "/streams/timeshift/" + strconv.FormatInt(p.ServiceKey, 10) + "?from=" + url.QueryEscape(p.PlayableFrom.UTC().Format(time.RFC3339Nano))
+	return "/internal/streams/timeshift/" + strconv.FormatInt(p.ServiceKey, 10) + "?from=" + url.QueryEscape(p.PlayableFrom.UTC().Format(time.RFC3339Nano))
 }
 
 // HlsURL は、バッファを、PlayableFrom を起点に kyusu で変換して流す仮想 HLS の、元の URL のパス。
 func (p *TimeshiftProgram) HlsURL() string {
-	return "/streams/timeshift/" + kyusu.FormatTimeshiftID(p.ServiceKey, p.PlayableFrom)
+	return "/internal/streams/timeshift/" + kyusu.FormatTimeshiftID(p.ServiceKey, p.PlayableFrom)
 }
 
 // TimeshiftBuffer は、サービスのタイムシフトのバッファの、再生できる範囲。
@@ -52,10 +52,10 @@ type TimeshiftBuffer struct {
 
 // StreamURL は、バッファの TS を、From を起点に流す URL のパス。
 func (b *TimeshiftBuffer) StreamURL() string {
-	return "/streams/timeshift/" + strconv.FormatInt(b.ServiceKey, 10) + "?from=" + url.QueryEscape(b.From.UTC().Format(time.RFC3339Nano))
+	return "/internal/streams/timeshift/" + strconv.FormatInt(b.ServiceKey, 10) + "?from=" + url.QueryEscape(b.From.UTC().Format(time.RFC3339Nano))
 }
 
 // HlsURL は、バッファを、From を起点に kyusu で変換して流す仮想 HLS の、元の URL のパス。
 func (b *TimeshiftBuffer) HlsURL() string {
-	return "/streams/timeshift/" + kyusu.FormatTimeshiftID(b.ServiceKey, b.From)
+	return "/internal/streams/timeshift/" + kyusu.FormatTimeshiftID(b.ServiceKey, b.From)
 }

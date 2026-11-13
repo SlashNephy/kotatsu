@@ -47,7 +47,7 @@ type xmltvProgramme struct {
 	Categories []xmltvText `xml:"category"`
 }
 
-// Guide は、番組表を XMLTV で返す (GET /iptv/{token}/guide.xml)。M3U に載せるサービスの、放送中とこれから 7 日の番組を載せる。
+// Guide は、番組表を XMLTV で返す (GET /api/iptv/{token}/guide.xml)。M3U に載せるサービスの、放送中とこれから 7 日の番組を載せる。
 func (h *Handler) Guide(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	services, err := h.services(ctx)

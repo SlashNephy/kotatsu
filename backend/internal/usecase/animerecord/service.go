@@ -36,7 +36,7 @@ const (
 	// connectionSealPurpose は、ユーザーのアクセストークンを暗号化する用途 (設計書 8.4)。
 	connectionSealPurpose = "kotatsu/anime-record-token/v1"
 	// CallbackPathPrefix は、記録先から戻ってくるリダイレクト URI のパスの前半。後ろに記録先の名前と /callback を付ける。
-	CallbackPathPrefix = "/auth/anime-records/"
+	CallbackPathPrefix = "/internal/auth/anime-records/"
 	// authorizationTTL は、認可を始めてから戻ってくるまでの時間の上限。
 	authorizationTTL = 10 * time.Minute
 	// stateBytes は、state の乱数の長さ。

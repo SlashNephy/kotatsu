@@ -4,7 +4,9 @@ import (
 	"errors"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
 )
 
 var (
@@ -20,7 +22,7 @@ func calendarFeedOf(feed *auth.Feed) *model.CalendarFeed {
 
 // calendarFeedPath は、秘密の値 token から、予約の iCalendar のパスを作る。
 func calendarFeedPath(token string) string {
-	return "/calendar/" + token + "/reservations.ics"
+	return calendarapi.PathPrefix + token + "/reservations.ics"
 }
 
 func iptvFeedOf(feed *auth.Feed) *model.IptvFeed {
@@ -29,5 +31,5 @@ func iptvFeedOf(feed *auth.Feed) *model.IptvFeed {
 
 // iptvFeedPaths は、秘密の値 token から、ライブ視聴の M3U と番組表の XMLTV のパスを作る (#1324)。
 func iptvFeedPaths(token string) (string, string) {
-	return "/iptv/" + token + "/channels.m3u", "/iptv/" + token + "/guide.xml"
+	return iptvapi.PathPrefix + token + "/channels.m3u", iptvapi.PathPrefix + token + "/guide.xml"
 }

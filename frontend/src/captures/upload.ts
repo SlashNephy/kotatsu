@@ -2,7 +2,7 @@
 // 残したキャプチャは、ユーザーのメニューのキャプチャの一覧から、どの端末でも見られる。
 
 // uploadPath は、キャプチャを受け取る tenban のパス。
-export const uploadPath = '/media/captures';
+export const uploadPath = '/internal/media/captures';
 
 // CaptureInfo は、撮った場面の情報。time は撮った場面の放送時刻、takenAt は撮った時刻 (どちらも Unix ミリ秒)。
 export type CaptureInfo = {

@@ -779,7 +779,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 // newAPI は、tenban の API と SPA のハンドラーを返す。
 //
 // どのリクエストも、まず接続元を確かめる (設計書 9.5)。
-// API は、ログイン中のユーザーをサーバー側のセッションから引く。/auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
+// API は、ログイン中のユーザーをサーバー側のセッションから引く。/internal/auth/* の状態を変えるリクエストは、Origin が同じでなければ拒否する。
 // SPA は、ログイン画面も含むので、セッションを引かずに配信する。
 // ChangeFeed は、変更の通知を見張り、subscription の購読者に知らせる。API を配信する間、Run で動かし続ける。
 type ChangeFeed interface {
@@ -954,8 +954,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Updates:           graphUpdates,
 		Logs:              newLogReport(deps, sealed, location, tuner.logs),
 	})
-	mux.Handle("/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
-	mux.Handle("POST /auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
+	mux.Handle("/internal/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
+	mux.Handle("POST /internal/auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
 		Recorder:      audit.NewRecorder(deps.Clock),
@@ -968,34 +968,34 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		VerificationWait:           0,
 	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
-	mux.Handle("GET /auth/setup", setup.StatusHandler(deps.DB))
+	mux.Handle("GET /internal/auth/setup", setup.StatusHandler(deps.DB))
 	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確かめる (設計書 9.5)。
-	mux.Handle("GET /auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
+	mux.Handle("GET /internal/auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
 	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions, deps.Network)
-	mux.Handle("GET /auth/oidc", oidc.StatusHandler(deps.DB))
+	mux.Handle("GET /internal/auth/oidc", oidc.StatusHandler(deps.DB))
 	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
 	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
 	handleAnimeRecordCallbacks(mux, deps, animeRecords, logger)
 	for pattern, handler := range map[string]http.Handler{
-		"POST /auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
-		"POST /auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
-		"POST /auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
-		"POST /auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),
-		"POST /auth/login/totp/enrollment":         logins.EnrollmentHandler(deps.DB),
-		"POST /auth/login/totp/enrollment/confirm": logins.EnrollmentConfirmHandler(deps.DB, clientInfo),
-		"POST /auth/login/passkey":                 logins.PasskeySecondFactorHandler(deps.DB, clientInfo),
-		"POST /auth/login/passkey/confirm":         logins.PasskeySecondFactorConfirmHandler(deps.DB, clientInfo),
-		"POST /auth/passkey/login":                 logins.PasskeyLoginHandler(deps.DB, clientInfo),
-		"POST /auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
-		"POST /auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
-		"POST /auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
-		"POST /auth/oidc":                          oidc.BeginHandler(deps.DB, clientInfo),
-		"POST /auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
-		"POST /auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
-		"POST /auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
-		"POST /auth/reauth/oidc":                   oidc.ReauthenticationHandler(deps.DB, clientInfo),
-		"POST /auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
+		"POST /internal/auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
+		"POST /internal/auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
+		"POST /internal/auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
+		"POST /internal/auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),
+		"POST /internal/auth/login/totp/enrollment":         logins.EnrollmentHandler(deps.DB),
+		"POST /internal/auth/login/totp/enrollment/confirm": logins.EnrollmentConfirmHandler(deps.DB, clientInfo),
+		"POST /internal/auth/login/passkey":                 logins.PasskeySecondFactorHandler(deps.DB, clientInfo),
+		"POST /internal/auth/login/passkey/confirm":         logins.PasskeySecondFactorConfirmHandler(deps.DB, clientInfo),
+		"POST /internal/auth/passkey/login":                 logins.PasskeyLoginHandler(deps.DB, clientInfo),
+		"POST /internal/auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
+		"POST /internal/auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
+		"POST /internal/auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
+		"POST /internal/auth/oidc":                          oidc.BeginHandler(deps.DB, clientInfo),
+		"POST /internal/auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
+		"POST /internal/auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
+		"POST /internal/auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
+		"POST /internal/auth/reauth/oidc":                   oidc.ReauthenticationHandler(deps.DB, clientInfo),
+		"POST /internal/auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
 	} {
 		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
 	}
@@ -1010,27 +1010,51 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	})
 	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
 	api := sessions.Middleware(deps.DB)(mux)
-	compat := newEPGStationAPI(deps, apiTokens, opener, logos, streams, streamLogger)
 
 	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
 		return nil, err
 	}
 	root := http.NewServeMux()
-	root.Handle("/graphql", api)
-	root.Handle("/auth/", api)
-	root.Handle("/streams/", api)
-	root.Handle("/media/", api)
-	root.Handle("/api/", compat)
-	handleCalendar(root, deps, calendarFeeds, logger)
-	handleIPTV(root, deps, iptvFeeds, opener, logos, streams, streamLogger)
+	// 画面がセッションの Cookie で使う端点は、/internal の下にまとめる (設計書 9.1、#1605)。知らないパスは、画面を返さずに 404 にする。
+	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
+	root.Handle(internalPathPrefix, api)
+	handlePublicAPI(root, deps, &publicAPI{
+		apiTokens: apiTokens, calendarFeeds: calendarFeeds, iptvFeeds: iptvFeeds, authorizer: authorizer,
+		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger, logger: logger,
+	})
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 
 	return &apiHandler{handler: policy.Middleware(root), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
 
-// handleStreams は、映像の配信 (/streams/*) を mux に登録する。どれも、セッションか署名付き URL で認可する。
+// publicAPI は、/api の下の端点を登録するのに使うもの。
+type publicAPI struct {
+	apiTokens     *auth.APITokens
+	calendarFeeds *auth.Feeds
+	iptvFeeds     *auth.Feeds
+	authorizer    *streamapi.Authorizer
+	opener        streamapi.ServiceOpener
+	logos         streamapi.LogoFetcher
+	streams       *streamapi.StreamCounter
+	streamLogger  *slog.Logger
+	logger        *slog.Logger
+}
+
+// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) を mux に登録する (設計書 9.1、#1605)。
+// どれもセッションの Cookie を見ず、API トークン、パスの秘密の値、署名のどれかで認証する。
+// 知らないパスは、画面を返さずに 404 にする。
+func handlePublicAPI(mux *http.ServeMux, deps *Deps, p *publicAPI) {
+	mux.Handle(apiPathPrefix, http.NotFoundHandler())
+	compat := newEPGStationAPI(deps, p.apiTokens, p.opener, p.logos, p.streams, p.streamLogger)
+	mux.Handle(epgstationPathPrefix+"api/", http.StripPrefix(strings.TrimSuffix(epgstationPathPrefix, "/"), compat))
+	handleCalendar(mux, deps, p.calendarFeeds, p.logger)
+	handleIPTV(mux, deps, p.iptvFeeds, p.opener, p.logos, p.streams, p.streamLogger)
+	handleSignedStreams(mux, deps, p.authorizer, p.opener, p.streams, p.streamLogger)
+}
+
+// handleStreams は、映像の配信 (/internal/streams/*) を mux に登録する。どれも、セッションで認可する。
 // 変換せずに流す配信を、streams に数える。EPGStation 互換の配信も、同じものに数える。
 // kyusu への中継に使うインスタンスの登録簿を返す。
 func handleStreams(
@@ -1051,11 +1075,11 @@ func handleStreams(
 
 		return serviceID, ok
 	}
-	mux.Handle("GET /streams/services/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+	mux.Handle("GET /internal/streams/services/{id}", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamLive,
 			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確かめる (設計書 7.1、#1517)。
 			streamapi.NewLiveHandler(opener, streamLogger).WithScramble(scramble.NewReporter(deps.DB, deps.Clock, streamLogger)))))))
-	mux.Handle("GET /streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Middleware(
+	mux.Handle("GET /internal/streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
@@ -1064,23 +1088,36 @@ func handleStreams(
 	}
 	// DB に届かない間は、最後に引けた登録簿で中継を続ける (#1084)。
 	instances := kyusu.NewLastKnownInstances(registry.New(deps.DB, deps.Clock, deps.InstanceID), deps.Clock, streamLogger)
-	mux.Handle("GET /streams/services/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(watches.Track(liveWatch, kyusu.NewRelay(instances, kyusuToken, streamLogger))))
-	mux.Handle("GET /streams/recordings/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
-	mux.Handle("GET /streams/timeshift/{id}/hls/{preset}/{audio}/{file}",
-		authorizer.Middleware(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
+	mux.Handle("GET /internal/streams/services/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Session(watches.Track(liveWatch, kyusu.NewRelay(instances, kyusuToken, streamLogger))))
+	mux.Handle("GET /internal/streams/recordings/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Session(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
+	mux.Handle("GET /internal/streams/timeshift/{id}/hls/{preset}/{audio}/{file}",
+		authorizer.Session(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
-	mux.Handle("GET /streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+	mux.Handle("GET /internal/streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
-	mux.Handle("GET /streams/timeshift/{id}", httpserver.StopOnShutdown(authorizer.Middleware(
+	mux.Handle("GET /internal/streams/timeshift/{id}", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
-	mux.Handle("GET /streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Middleware(
+	mux.Handle("GET /internal/streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
 
 	return instances, nil
+}
+
+// handleSignedStreams は、外部プレイヤーに渡す署名付き URL の配信 (/api/streams/*) を mux に登録する (設計書 7.6、9.6、#1605)。
+// 署名だけで認可し、セッションは見ない。画面のプレイヤーではないので、スクランブルの判定 (設計書 7.1) と、
+// 視聴している間だけ録るタイムシフトの記録 (設計書 5.7) には数えない。変換せずに流すので、streams には数える。
+func handleSignedStreams(
+	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
+	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
+) {
+	mux.Handle("GET "+stream.SignedPathPrefix+"services/{id}", httpserver.StopOnShutdown(authorizer.Signed(
+		streams.Count(streamapi.StreamLive, streamapi.NewLiveHandler(opener, streamLogger)))))
+	mux.Handle("GET "+stream.SignedPathPrefix+"recordings/{id}", httpserver.StopOnShutdown(authorizer.Signed(
+		streams.Count(streamapi.StreamRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 }
 
 // registerFallbacks は、tenban が DB に届かずに、覚えた結果を使った回数を、種類ごとに /metrics に出す (設計書 11.3、#1084)。
@@ -1094,35 +1131,34 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 	}
 }
 
-// handleMedia は、画像と実況の過去ログ (/media/*) を mux に登録する。キャプチャのほかは、セッションか署名付き URL で認可する。
-// キャプチャは撮ったユーザーだけのものなので、セッションでだけ受け付ける (設計書 7.5)。
+// handleMedia は、画像と実況の過去ログ (/internal/media/*) を mux に登録する。どれも、セッションで認可する。
 func handleMedia(
 	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
 	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions,
 ) {
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
-	mux.Handle("GET /media/services/{id}/logo", authorizer.Middleware(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
+	mux.Handle("GET /internal/media/services/{id}/logo", authorizer.Session(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
-	mux.Handle("GET /media/users/{id}/avatar",
-		authorizer.Middleware(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")), deps.Network)))
+	mux.Handle("GET /internal/media/users/{id}/avatar",
+		authorizer.Session(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")), deps.Network)))
 	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
 	animeImages := animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")), deps.Network)
-	mux.Handle("GET /media/anime-works/{destination}/{workId}/image", authorizer.Middleware(animeImages))
+	mux.Handle("GET /internal/media/anime-works/{destination}/{workId}/image", authorizer.Session(animeImages))
 	// フォロー中のユーザーのアバターも、記録先が示した URL から取って中継する (#1372)。
-	mux.Handle("GET /media/anime-following/{destination}/{username}/avatar",
-		authorizer.Middleware(http.HandlerFunc(animeImages.ServeFollowingAvatar)))
+	mux.Handle("GET /internal/media/anime-following/{destination}/{username}/avatar",
+		authorizer.Session(http.HandlerFunc(animeImages.ServeFollowingAvatar)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
-	mux.Handle("GET /media/recordings/{id}/{file}",
-		authorizer.Middleware(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
+	mux.Handle("GET /internal/media/recordings/{id}/{file}",
+		authorizer.Session(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Middleware(jikkyoComments))
+	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))
 	// 同じ話の別の放送の過去ログも、過去ログ API から取って中継する (#1361)。
 	// 上映会のコメント (NICOLOG) も、tenban が取得して中継する (#1363)。
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, authorizer.Middleware(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,
+	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, authorizer.Session(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,
 		nicolog.NewClient(&nicolog.Options{HTTPClient: nicolog.NewHTTPClient(deps.Network), URL: ""}))))
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, authorizer.Middleware(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
+	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, authorizer.Session(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
 	// ライブの実況のコメントは、tenban が NX-Jikkyo との間を中継する (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
 	mux.Handle("GET "+jikkyoapi.LivePath, httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{
 		Pool: deps.DB, Table: jikkyoTable, Client: jikkyoClient, Relay: jikkyo.NewRelay(jikkyoClient),
@@ -1140,8 +1176,8 @@ func handleMedia(
 	captureLogger := logger.With(slog.String("component", "capture"))
 	dataStore := storeOf(deps.Config)
 	captures := capture.New(dataStore, deps.Clock, captureLogger, 0)
-	mux.Handle("POST /media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
-	mux.Handle("GET /media/captures/{id}", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
+	mux.Handle("POST /internal/media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
+	mux.Handle("GET /internal/media/captures/{id}", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
 }
 
 // handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
@@ -1177,15 +1213,21 @@ func newStreamCounter(deps *Deps) *streamapi.StreamCounter {
 }
 
 const (
+	// internalPathPrefix は、画面がセッションの Cookie で使う端点と、内部の通信の端点のパスの頭 (設計書 9.1、#1605)。
+	internalPathPrefix = "/internal/"
+	// apiPathPrefix は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点のパスの頭 (設計書 9.1、#1605)。
+	apiPathPrefix = "/api/"
+	// epgstationPathPrefix は、EPGStation 互換の API のベース URL のパス。クライアントは、この後ろに /api/... を付けて呼ぶ (#431)。
+	epgstationPathPrefix = apiPathPrefix + "epgstation/"
 	// calendarPathPrefix は、予約の iCalendar のパスの頭。パスに購読用の URL の秘密の値を含む (#1255)。
-	calendarPathPrefix = "/calendar/"
+	calendarPathPrefix = calendarapi.PathPrefix
 	// iptvPathPrefix は、ライブ視聴の M3U と番組表の XMLTV のパスの頭。パスに配信の URL の秘密の値を含む (#1324)。
-	iptvPathPrefix = "/iptv/"
+	iptvPathPrefix = iptvapi.PathPrefix
 )
 
 // traceable は、リクエストをトレースに残してよいかを返す。予約の iCalendar と IPTV の配信はパスに秘密の値を含むので、
 // トレースの属性 (URL のパス) に残さないよう、トレースしない。
-// ServeMux は、整っていないパス (//calendar/... など) を、整えたパスへのリダイレクトで返すので、そのリクエストも外せるよう、
+// ServeMux は、整っていないパス (//api//calendar/... など) を、整えたパスへのリダイレクトで返すので、そのリクエストも外せるよう、
 // パスを整えてから比べる。
 func traceable(r *http.Request) bool {
 	cleaned := path.Clean("/"+r.URL.Path) + "/"
@@ -1256,7 +1298,7 @@ func handleIPTV(
 		streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), iptvLogger)))
 }
 
-// newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/*) を返す (#431、設計書 9.1)。
+// newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/epgstation/api/*) を返す (#431、設計書 9.1)。
 // セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
 func newEPGStationAPI(
 	deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher, streams *streamapi.StreamCounter, streamLogger *slog.Logger,

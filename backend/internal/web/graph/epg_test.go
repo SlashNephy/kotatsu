@@ -167,11 +167,11 @@ func TestServiceLogoURL(t *testing.T) {
 	// 番号が 0 でもロゴはある。こたつテスト2 は、画像をまだ受信していないが、番号はあるので URL を返す。
 	// 番号がなければ、URL も返さない。
 	assert.Equal(t, map[int64]*string{
-		3273601024: new("/media/services/3273601024/logo"),
+		3273601024: new("/internal/media/services/3273601024/logo"),
 		3273601025: nil,
-		3273701032: new("/media/services/3273701032/logo"),
+		3273701032: new("/internal/media/services/3273701032/logo"),
 		3273801040: nil,
-		400101:     new("/media/services/400101/logo"),
+		400101:     new("/internal/media/services/400101/logo"),
 	}, logos)
 }
 
@@ -211,7 +211,7 @@ func TestGuide(t *testing.T) {
 	require.Empty(t, f.query(t, `{ services { id name networkId serviceId streamUrl } }`, nil, &services))
 	// ライブ視聴の URL は、Mirakurun のサービス ID (network_id * 100000 + service_id) で表す。
 	for _, service := range services.Services {
-		assert.Equal(t, fmt.Sprintf("/streams/services/%d", service.NetworkID*100000+service.ServiceID), service.StreamURL)
+		assert.Equal(t, fmt.Sprintf("/internal/streams/services/%d", service.NetworkID*100000+service.ServiceID), service.StreamURL)
 	}
 
 	tests := []struct {

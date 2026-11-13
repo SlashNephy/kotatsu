@@ -2,8 +2,8 @@ import type { IP } from 'web-bml';
 
 // requestPath と connectivityPath は、データ放送の文書の通信を中継する tenban のエンドポイント (#501、設計書 7.4)。
 // CSP (設計書 10.4) で、ブラウザからは外部へ接続させないので、文書の通信はどれも tenban に送る。
-export const requestPath = '/media/data-broadcast/requests';
-export const connectivityPath = '/media/data-broadcast/connectivity';
+export const requestPath = '/internal/media/data-broadcast/requests';
+export const connectivityPath = '/internal/media/data-broadcast/connectivity';
 
 // connectionTypeEthernetDHCP は、getConnectionType で返す接続の種類 (ARIB STD-B24 第二分冊 第二編 付属 3 の表 5-12)。
 const connectionTypeEthernetDHCP = 403;

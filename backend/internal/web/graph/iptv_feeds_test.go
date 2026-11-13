@@ -52,9 +52,9 @@ func TestManageIptvFeed(t *testing.T) {
 		return created.CreateIptvFeed.PlaylistPath, created.CreateIptvFeed.GuidePath
 	}
 	playlist, guide := issue()
-	token := strings.TrimSuffix(strings.TrimPrefix(playlist, "/iptv/"), "/channels.m3u")
+	token := strings.TrimSuffix(strings.TrimPrefix(playlist, "/api/iptv/"), "/channels.m3u")
 	assert.True(t, strings.HasPrefix(token, "kotatsu_iptv_"), playlist)
-	assert.Equal(t, "/iptv/"+token+"/guide.xml", guide)
+	assert.Equal(t, "/api/iptv/"+token+"/guide.xml", guide)
 	got := f.feeds(t)
 	require.NotNil(t, got.IptvFeed)
 	assert.Nil(t, got.CalendarFeed, "issuing an IPTV feed does not issue a calendar feed")

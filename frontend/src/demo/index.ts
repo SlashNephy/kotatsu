@@ -40,20 +40,20 @@ function interceptFetch(executor: Executor, captures: DemoCaptures): void {
     if (url.origin !== window.location.origin) {
       return original(input, init);
     }
-    if (url.pathname === '/graphql') {
+    if (url.pathname === '/internal/graphql') {
       const request = new Request(input, init);
       const body = (await request.json()) as GraphQLBody;
 
       return json(await executor.execute(body.query ?? '', body.variables ?? {}));
     }
-    if (url.pathname.startsWith('/auth/')) {
+    if (url.pathname.startsWith('/internal/auth/')) {
       return json(authResponse(url.pathname));
     }
     // 録画の再生で読む実況の過去ログ。どの録画も同じ映像を流すので、同じコメントを返す。
     if (url.pathname === demoCommentsPath) {
       return json({ channel: { id: 'demo' }, origin: null, comments: demoRecordedComments() });
     }
-    if (url.pathname === '/media/captures') {
+    if (url.pathname === '/internal/media/captures') {
       const id = await captures.add(await new Request(input, init).formData());
 
       return json({ id });

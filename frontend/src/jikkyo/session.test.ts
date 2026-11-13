@@ -66,8 +66,8 @@ function setup() {
 
 describe('jikkyoSocketURL', () => {
   test.each([
-    ['https:', 'wss://tv.example/media/jikkyo/jk1/ws'],
-    ['http:', 'ws://tv.example/media/jikkyo/jk1/ws'],
+    ['https:', 'wss://tv.example/internal/media/jikkyo/jk1/ws'],
+    ['http:', 'ws://tv.example/internal/media/jikkyo/jk1/ws'],
   ])('%s のページからは、同じオリジンの WebSocket につなぐ', (protocol, want) => {
     expect(jikkyoSocketURL('jk1', { protocol, host: 'tv.example' } as Location)).toBe(want);
   });

@@ -239,8 +239,8 @@ func TestOIDCLinkHandlers(t *testing.T) {
 	f.token = token
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
-	mux.Handle("GET /auth/oidc", f.oidc.StatusHandler(f.db))
-	mux.Handle("POST /auth/oidc/link", f.oidc.LinkHandler(f.db, client))
+	mux.Handle("GET /internal/auth/oidc", f.oidc.StatusHandler(f.db))
+	mux.Handle("POST /internal/auth/oidc/link", f.oidc.LinkHandler(f.db, client))
 	mux.Handle("GET "+auth.OIDCCallbackPath, f.oidc.CallbackHandler(f.db, client))
 	server := httptest.NewServer(auth.NewSessions(&auth.SessionsOptions{Clock: f.clock}).Middleware(f.db)(mux))
 	t.Cleanup(server.Close)
@@ -263,7 +263,7 @@ func TestOIDCLinkHandlers(t *testing.T) {
 		return resp.StatusCode, resp.Header.Get("Location"), data
 	}
 	linked := func() bool {
-		status, _, body := do(http.MethodGet, server.URL+"/auth/oidc", "")
+		status, _, body := do(http.MethodGet, server.URL+"/internal/auth/oidc", "")
 		require.Equal(t, http.StatusOK, status, string(body))
 		var got struct {
 			Linked bool `json:"linked"`
@@ -274,7 +274,7 @@ func TestOIDCLinkHandlers(t *testing.T) {
 	}
 	// begin は、紐付けを始めて、IdP でログインし、テストのサーバーのコールバックの URL を返す。
 	begin := func() string {
-		status, _, body := do(http.MethodPost, server.URL+"/auth/oidc/link", `{"returnTo": "/settings/security?tab=security"}`)
+		status, _, body := do(http.MethodPost, server.URL+"/internal/auth/oidc/link", `{"returnTo": "/settings/security?tab=security"}`)
 		require.Equal(t, http.StatusOK, status, string(body))
 		var begun struct {
 			AuthorizationURL string `json:"authorizationUrl"`
@@ -307,7 +307,7 @@ func TestOIDCLinkHandlers(t *testing.T) {
 	assert.True(t, linked())
 
 	// 紐付いたら、もう始められない。
-	status, _, body := do(http.MethodPost, server.URL+"/auth/oidc/link", `{}`)
+	status, _, body := do(http.MethodPost, server.URL+"/internal/auth/oidc/link", `{}`)
 	assert.Equal(t, http.StatusConflict, status)
 	assert.Contains(t, string(body), `"code":"OIDC_ALREADY_LINKED"`)
 
@@ -315,7 +315,7 @@ func TestOIDCLinkHandlers(t *testing.T) {
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Minute)
 	_, err = f.db.Exec(t.Context(), "DELETE FROM user_oidc_identities WHERE user_id = $1", f.user.ID)
 	require.NoError(t, err)
-	status, _, body = do(http.MethodPost, server.URL+"/auth/oidc/link", `{}`)
+	status, _, body = do(http.MethodPost, server.URL+"/internal/auth/oidc/link", `{}`)
 	assert.Equal(t, http.StatusForbidden, status)
 	assert.Contains(t, string(body), `"code":"REAUTHENTICATION_REQUIRED"`)
 }

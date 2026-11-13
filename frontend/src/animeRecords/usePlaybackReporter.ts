@@ -170,7 +170,7 @@ export function usePlaybackReporter(
       if (stopped || intervals.length === 0) {
         return;
       }
-      void fetch('/graphql', {
+      void fetch('/internal/graphql', {
         method: 'POST',
         keepalive: true,
         credentials: 'same-origin',

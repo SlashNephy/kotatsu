@@ -422,7 +422,7 @@ func (s *Sessions) Middleware(db sqlc.DBTX) func(http.Handler) http.Handler {
 	}
 }
 
-// LogoutHandler は、ログイン中のセッションを失効させ、Cookie を消すハンドラーを返す (POST /auth/logout)。
+// LogoutHandler は、ログイン中のセッションを失効させ、Cookie を消すハンドラーを返す (POST /internal/auth/logout)。
 // ログインしていなくても、Cookie を消して成功を返す。
 func (s *Sessions) LogoutHandler(db Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

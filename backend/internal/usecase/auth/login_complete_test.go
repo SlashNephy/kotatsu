@@ -166,10 +166,10 @@ func TestLoginHandlers(t *testing.T) {
 	f.clock.Advance(time.Since(f.clock.Now()))
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
-	mux.Handle("POST /auth/login", f.logins.PasswordHandler(f.db, client))
-	mux.Handle("POST /auth/login/totp", f.logins.TOTPHandler(f.db, client))
-	mux.Handle("POST /auth/login/totp/enrollment", f.logins.EnrollmentHandler(f.db))
-	mux.Handle("POST /auth/login/totp/enrollment/confirm", f.logins.EnrollmentConfirmHandler(f.db, client))
+	mux.Handle("POST /internal/auth/login", f.logins.PasswordHandler(f.db, client))
+	mux.Handle("POST /internal/auth/login/totp", f.logins.TOTPHandler(f.db, client))
+	mux.Handle("POST /internal/auth/login/totp/enrollment", f.logins.EnrollmentHandler(f.db))
+	mux.Handle("POST /internal/auth/login/totp/enrollment/confirm", f.logins.EnrollmentConfirmHandler(f.db, client))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	jar, err := cookiejar.New(nil)
@@ -192,7 +192,7 @@ func TestLoginHandlers(t *testing.T) {
 		return resp.StatusCode
 	}
 	cookie := func(name string) string {
-		for _, c := range jar.Cookies(mustParseURL(t, server.URL+"/auth/")) {
+		for _, c := range jar.Cookies(mustParseURL(t, server.URL+"/internal/auth/")) {
 			if c.Name == name {
 				return c.Value
 			}
@@ -202,12 +202,12 @@ func TestLoginHandlers(t *testing.T) {
 	}
 
 	// 確認を待つトークンがなければ、登録を始められない。
-	assert.Equal(t, http.StatusUnauthorized, post("/auth/login/totp/enrollment", "{}", nil))
+	assert.Equal(t, http.StatusUnauthorized, post("/internal/auth/login/totp/enrollment", "{}", nil))
 
 	var login struct {
 		Next string `json:"next"`
 	}
-	require.Equal(t, http.StatusOK, post("/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
+	require.Equal(t, http.StatusOK, post("/internal/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
 	assert.Equal(t, "enroll_second_factor", login.Next)
 	assert.NotEmpty(t, cookie(auth.ChallengeCookieName))
 
@@ -215,7 +215,7 @@ func TestLoginHandlers(t *testing.T) {
 		Secret string `json:"secret"`
 		URI    string `json:"uri"`
 	}
-	require.Equal(t, http.StatusOK, post("/auth/login/totp/enrollment", "{}", &enrollment))
+	require.Equal(t, http.StatusOK, post("/internal/auth/login/totp/enrollment", "{}", &enrollment))
 	secret, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(enrollment.Secret)
 	require.NoError(t, err)
 
@@ -224,34 +224,34 @@ func TestLoginHandlers(t *testing.T) {
 			Code string `json:"code"`
 		} `json:"error"`
 	}
-	require.Equal(t, http.StatusUnauthorized, post("/auth/login/totp/enrollment/confirm", `{"code":"000000"}`, &failed))
+	require.Equal(t, http.StatusUnauthorized, post("/internal/auth/login/totp/enrollment/confirm", `{"code":"000000"}`, &failed))
 	assert.Equal(t, "INVALID_SECOND_FACTOR", failed.Error.Code)
 	assert.Empty(t, cookie(auth.CookieName))
 
 	var completed struct {
 		RecoveryCodes []string `json:"recoveryCodes"`
 	}
-	require.Equal(t, http.StatusOK, post("/auth/login/totp/enrollment/confirm", `{"code":"`+f.totpCode(t, secret)+`"}`, &completed))
+	require.Equal(t, http.StatusOK, post("/internal/auth/login/totp/enrollment/confirm", `{"code":"`+f.totpCode(t, secret)+`"}`, &completed))
 	assert.Len(t, completed.RecoveryCodes, auth.RecoveryCodeCount)
 	assert.NotEmpty(t, cookie(auth.CookieName), "the session cookie must be set")
 	assert.Empty(t, cookie(auth.ChallengeCookieName), "the challenge cookie must be cleared")
 
 	// 2 回目からは、登録した TOTP で確かめる。
 	f.clock.Advance(totp.Period)
-	require.Equal(t, http.StatusOK, post("/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
+	require.Equal(t, http.StatusOK, post("/internal/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
 	assert.Equal(t, "second_factor", login.Next)
-	require.Equal(t, http.StatusOK, post("/auth/login/totp", `{"code":"`+f.totpCode(t, secret)+`"}`, &completed))
+	require.Equal(t, http.StatusOK, post("/internal/auth/login/totp", `{"code":"`+f.totpCode(t, secret)+`"}`, &completed))
 	assert.Empty(t, completed.RecoveryCodes)
 
 	// 第二要素の失敗が続いて待たせている間は、429 を返す。
 	f.clock.Advance(totp.Period)
 	for range 2 {
-		require.Equal(t, http.StatusOK, post("/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
+		require.Equal(t, http.StatusOK, post("/internal/auth/login", `{"username":"Kotatsu","password":"`+loginPhrase+`"}`, &login))
 		for range 3 {
-			require.Equal(t, http.StatusUnauthorized, post("/auth/login/totp", `{"code":"000000"}`, nil))
+			require.Equal(t, http.StatusUnauthorized, post("/internal/auth/login/totp", `{"code":"000000"}`, nil))
 		}
 	}
-	require.Equal(t, http.StatusTooManyRequests, post("/auth/login/totp", `{"code":"000000"}`, &failed))
+	require.Equal(t, http.StatusTooManyRequests, post("/internal/auth/login/totp", `{"code":"000000"}`, &failed))
 	assert.Equal(t, "TOO_MANY_ATTEMPTS", failed.Error.Code)
 }
 

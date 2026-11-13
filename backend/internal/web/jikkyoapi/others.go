@@ -33,7 +33,7 @@ type otherBroadcastJSON struct {
 	Comments []*commentJSON `json:"comments"`
 }
 
-// OtherCommentsHandler は、録画と同じ話の、別の放送の実況の過去ログを中継する (GET /media/recordings/{id}/jikkyo-others.json、#1361)。
+// OtherCommentsHandler は、録画と同じ話の、別の放送の実況の過去ログを中継する (GET /internal/media/recordings/{id}/jikkyo-others.json、#1361)。
 // 全体の設定かユーザーの設定で実況を切っているか、別の放送を混ぜる設定を切っていれば、過去ログ API へ問い合わせずに 404 を返す。
 type OtherCommentsHandler struct {
 	*CommentsHandler

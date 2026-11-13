@@ -17,7 +17,7 @@ import { withTransientRetry } from './withTransientRetry';
 export { GraphQLRequestError } from './requestError';
 
 // GraphQL のエンドポイント (設計書 9.1)。tenban と同じオリジンに置く。
-const endpoint = '/graphql';
+const endpoint = '/internal/graphql';
 
 // isUnauthenticated は、ログインしていないために拒否されたエラーかどうかを返す。
 export function isUnauthenticated(error: unknown): boolean {

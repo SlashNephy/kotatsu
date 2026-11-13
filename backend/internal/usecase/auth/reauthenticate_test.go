@@ -255,7 +255,7 @@ func TestReauthenticateHandler(t *testing.T) {
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	handler := f.logins.ReauthenticateHandler(f.db, client)
 	serve := func(principal *auth.Principal, body string) (int, string) {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/auth/reauth", strings.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/internal/auth/reauth", strings.NewReader(body))
 		req.Header.Set("Content-Type", jsonType)
 		if principal != nil {
 			req = req.WithContext(auth.WithPrincipal(req.Context(), principal))

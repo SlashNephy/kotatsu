@@ -54,10 +54,10 @@ var (
 func Path(destination string, workID int32, imageURL string) string {
 	sum := sha256.Sum256([]byte(imageURL))
 
-	return "/media/anime-works/" + url.PathEscape(destination) + "/" + strconv.Itoa(int(workID)) + "/image?v=" + hex.EncodeToString(sum[:8])
+	return "/internal/media/anime-works/" + url.PathEscape(destination) + "/" + strconv.Itoa(int(workID)) + "/image?v=" + hex.EncodeToString(sum[:8])
 }
 
-// Handler は、見たいリストの作品の画像を中継する (GET /media/anime-works/{destination}/{workId}/image)。
+// Handler は、見たいリストの作品の画像を中継する (GET /internal/media/anime-works/{destination}/{workId}/image)。
 //
 // 画像の URL は記録先が返すが、Annict の画像は作品の公式サイトなど、どのホストにもありうる。そのため、ログイン中のユーザーの
 // 見たいリストにある作品の画像に限り、http か https の、グローバルなアドレスにだけ接続する。リダイレクトは 3 回までたどり、
@@ -125,10 +125,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func FollowingAvatarPath(destination, username, avatarURL string) string {
 	sum := sha256.Sum256([]byte(avatarURL))
 
-	return "/media/anime-following/" + url.PathEscape(destination) + "/" + url.PathEscape(username) + "/avatar?v=" + hex.EncodeToString(sum[:8])
+	return "/internal/media/anime-following/" + url.PathEscape(destination) + "/" + url.PathEscape(username) + "/avatar?v=" + hex.EncodeToString(sum[:8])
 }
 
-// ServeFollowingAvatar は、フォロー中のユーザーのアバターを中継する (GET /media/anime-following/{destination}/{username}/avatar、#1372)。
+// ServeFollowingAvatar は、フォロー中のユーザーのアバターを中継する (GET /internal/media/anime-following/{destination}/{username}/avatar、#1372)。
 // ログイン中のユーザーが取り込んだ視聴状況にあるアバターだけを、作品の画像と同じく、グローバルなアドレスから取る。
 func (h *Handler) ServeFollowingAvatar(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")

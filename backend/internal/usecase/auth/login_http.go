@@ -59,7 +59,7 @@ type loginErrorBody struct {
 	Message string `json:"message"`
 }
 
-// PasswordHandler は、パスワードでのログインを受け付けるハンドラーを返す (POST /auth/login)。
+// PasswordHandler は、パスワードでのログインを受け付けるハンドラーを返す (POST /internal/auth/login)。
 //
 // パスワードを確かめると、第二要素の確認を待つトークンを Cookie (kotatsu_login) に入れて返す。
 // セッションは、第二要素を確かめるまで作らない。client は、リクエストから送信元を求める。
@@ -107,14 +107,14 @@ func (l *Logins) PasswordHandler(db Database, client func(*http.Request) *Client
 	})
 }
 
-// TOTPHandler は、TOTP のコードでログインを完了させるハンドラーを返す (POST /auth/login/totp)。
+// TOTPHandler は、TOTP のコードでログインを完了させるハンドラーを返す (POST /internal/auth/login/totp)。
 func (l *Logins) TOTPHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return l.completeHandler(func(r *http.Request, token, code string) (*LoginResult, error) {
 		return l.CompleteWithTOTP(r.Context(), db, token, code, client(r))
 	})
 }
 
-// RecoveryCodeHandler は、リカバリーコードでログインを完了させるハンドラーを返す (POST /auth/login/recovery-code)。
+// RecoveryCodeHandler は、リカバリーコードでログインを完了させるハンドラーを返す (POST /internal/auth/login/recovery-code)。
 func (l *Logins) RecoveryCodeHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return l.completeHandler(func(r *http.Request, token, code string) (*LoginResult, error) {
 		return l.CompleteWithRecoveryCode(r.Context(), db, token, code, client(r))
@@ -122,7 +122,7 @@ func (l *Logins) RecoveryCodeHandler(db Database, client func(*http.Request) *Cl
 }
 
 // EnrollmentConfirmHandler は、ログインの途中で登録する TOTP のコードを確かめ、ログインを完了させるハンドラーを返す
-// (POST /auth/login/totp/enrollment/confirm)。リカバリーコードを、この応答でだけ返す。
+// (POST /internal/auth/login/totp/enrollment/confirm)。リカバリーコードを、この応答でだけ返す。
 func (l *Logins) EnrollmentConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return l.completeHandler(func(r *http.Request, token, code string) (*LoginResult, error) {
 		return l.CompleteEnrollment(r.Context(), db, token, code, client(r))
@@ -130,7 +130,7 @@ func (l *Logins) EnrollmentConfirmHandler(db Database, client func(*http.Request
 }
 
 // EnrollmentHandler は、第二要素を 1 つも登録していないユーザーに、ログインの途中で TOTP の登録を始めさせるハンドラーを返す
-// (POST /auth/login/totp/enrollment)。秘密キーと otpauth URI を返す。
+// (POST /internal/auth/login/totp/enrollment)。秘密キーと otpauth URI を返す。
 func (l *Logins) EnrollmentHandler(db Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requireJSONPost(w, r) {

@@ -23,7 +23,7 @@ type reauthResponse struct {
 }
 
 // ReauthenticateHandler は、ログイン中のセッションのまま、パスワードと第二要素で再認証するハンドラーを返す
-// (POST /auth/reauth)。
+// (POST /internal/auth/reauth)。
 func (l *Logins) ReauthenticateHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req reauthRequest
@@ -64,7 +64,7 @@ func (l *Logins) ReauthenticateHandler(db Database, client func(*http.Request) *
 }
 
 // PasskeyReauthenticationHandler は、ログイン中のユーザーに、パスキーでの再認証を始めさせるハンドラーを返す
-// (POST /auth/reauth/passkey)。
+// (POST /internal/auth/reauth/passkey)。
 func (l *Logins) PasskeyReauthenticationHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requireJSONPost(w, r) {
@@ -88,7 +88,7 @@ func (l *Logins) PasskeyReauthenticationHandler(db Database, client func(*http.R
 }
 
 // PasskeyReauthenticationConfirmHandler は、パスキーの応答を確かめ、セッションの認証の日時を更新するハンドラーを返す
-// (POST /auth/reauth/passkey/confirm)。
+// (POST /internal/auth/reauth/passkey/confirm)。
 func (l *Logins) PasskeyReauthenticationConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, ok := decodePasskeyRequest(w, r)
@@ -126,7 +126,7 @@ type reauthStatusResponse struct {
 }
 
 // ReauthenticationStatusHandler は、ログイン中のセッションの認証の日時と、重要な操作ができるかを返すハンドラーを返す
-// (GET /auth/reauth)。画面は、重要な操作の入力を始める前にこれを確かめ、必要なら先に再認証させる (#916)。
+// (GET /internal/auth/reauth)。画面は、重要な操作の入力を始める前にこれを確かめ、必要なら先に再認証させる (#916)。
 // IdP での再認証はページを離れるので、入力の途中で求めると、入力が消えてしまうため。
 // 端末の時計はずれていることがあるので、できるかどうかはサーバーの時計で決める。
 func ReauthenticationStatusHandler(clk clock.Clock) http.Handler {

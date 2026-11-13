@@ -155,7 +155,7 @@ func TestSetupHandlers(t *testing.T) {
 	require.NoError(t, err)
 
 	serve := func(handler http.Handler, method, body string) (int, string) {
-		req := httptest.NewRequestWithContext(t.Context(), method, "/auth/setup", strings.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), method, "/internal/auth/setup", strings.NewReader(body))
 		req.Header.Set("Content-Type", jsonType)
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)

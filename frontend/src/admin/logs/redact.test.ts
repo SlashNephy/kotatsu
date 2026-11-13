@@ -132,8 +132,9 @@ const cases: { rule: string; input: string; want: string; secrets?: string[]; ho
     // 9. URL のクエリの鍵
     {
       rule: '9 クエリの鍵の値を伏せる',
-      input: '/auth/oidc/callback?code=xyz&state=abc&foo=1 and https://github.com/x?sig=deadbeef',
-      want: `/auth/oidc/callback?code=${marks.secret}&state=${marks.secret}&foo=1 and https://github.com/x?sig=${marks.secret}`,
+      input:
+        '/internal/auth/oidc/callback?code=xyz&state=abc&foo=1 and https://github.com/x?sig=deadbeef',
+      want: `/internal/auth/oidc/callback?code=${marks.secret}&state=${marks.secret}&foo=1 and https://github.com/x?sig=${marks.secret}`,
     },
     {
       rule: '9 ? と & の直後でなければ触らない',

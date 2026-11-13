@@ -13,7 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// TimeshiftHandler は、タイムシフトのバッファを配信する (GET /streams/timeshift/{id}?from=RFC 3339 の時刻&start=秒、設計書 7.2)。
+// TimeshiftHandler は、タイムシフトのバッファを配信する (GET /internal/streams/timeshift/{id}?from=RFC 3339 の時刻&start=秒、設計書 7.2)。
 // id はサービス ID。from の時刻を再生の時間の起点にし、そこから start 秒の位置の手前の I フレームから流す。
 // 時間は、録画の再生と同じく、途切れた区間を含めない。実際に流し始めた位置 (起点からの秒) を X-Kotatsu-Start で返し、HEAD でも返す。
 // バッファは終わらないので、書いている途中のチャンクの末尾まで読んだら、伸びるのと、次のチャンクができるのを待ちながら流し続ける。

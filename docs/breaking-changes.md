@@ -4,6 +4,43 @@
 更新する前に、今の版より後の版の節をすべて読み、書いてある対処を済ませてください。
 更新の手順は[運用](operations.md#更新)にあります。
 
+## v2026.11.5
+
+v2026.11.4からの変更です。
+
+### ブラウザ以外から叩くエンドポイントのパス
+
+前段に認証のプロキシ（Authentikのforward-authなど）を置く構成で、認証から外すパスを`/api`、`/.well-known`、`/oauth`、`/mcp`、`/healthz`の5つにまとめられるよう、ブラウザ以外から叩くエンドポイントを`/api`の下に移しました（#1605）。古いパスは使えなくなり、転送もしません。
+
+| 変わったもの | 前のパス | 新しいパス |
+|---|---|---|
+| EPGStation互換のAPI | `/api/*` | `/api/epgstation/api/*` |
+| 予約のカレンダー（iCalendar） | `/calendar/<秘密の値>/reservations.ics` | `/api/calendar/<秘密の値>/reservations.ics` |
+| ライブ視聴の一覧（M3U）と番組表（XMLTV） | `/iptv/<秘密の値>/…` | `/api/iptv/<秘密の値>/…` |
+| 外部プレイヤー用の署名付きURL | `/streams/services/…`、`/streams/recordings/…` | `/api/streams/services/…`、`/api/streams/recordings/…` |
+
+- EPGStation互換のAPIを使うクライアント（kiririnなど）は、ベースURLを`https://<ホスト>/api/epgstation`に変えてください。
+- 予約のカレンダーと、IPTVのクライアントに登録したURLは、パスを上の表のとおりに直してください。秘密の値は変わらないので、発行し直す必要はありません。
+- 外部プレイヤー用のURLは、画面から発行し直してください。前の版で発行したURLは使えなくなります。
+- 画面のプレイヤーが使う`/streams/*`と`/media/*`は、署名付きURLを受け付けなくなり、セッションのCookieでだけ認証します。
+- 前段に認証のプロキシを置いているときは、`/api`の下を認証から外してください。`/calendar`、`/iptv`を認証から外す設定は、要らなくなります。
+
+### 画面が使うエンドポイントのパス
+
+画面がセッションのCookieで使うエンドポイントを、`/internal`の下に移しました（#1605）。古いパスは使えなくなり、転送もしません。
+
+| 変わったもの | 前のパス | 新しいパス |
+|---|---|---|
+| GraphQL | `/graphql` | `/internal/graphql` |
+| ログイン、ログアウト、WebAuthn、OIDC | `/auth/*` | `/internal/auth/*` |
+| 映像の配信 | `/streams/*` | `/internal/streams/*` |
+| 画像、実況のコメント、キャプチャ | `/media/*` | `/internal/media/*` |
+
+- OIDCでログインしているときは、IdPに登録したリダイレクトURIを、`/auth/oidc/callback`から`/internal/auth/oidc/callback`に直してください。直すまでは、OIDCでログインできません。設定の`auth.oidc.redirect_url`（`KOTATSU_AUTH_OIDC_REDIRECT_URL`）を書いているときは、その値も直してください。
+- AnnictとAniListとの連携を使っているときは、それぞれのアプリに登録したリダイレクトURIを、`/auth/anime-records/<記録先>/callback`から`/internal/auth/anime-records/<記録先>/callback`に直してください。直すまでは、連携をつなぎ直せません。つないである連携は、そのまま使えます。
+- リバースプロキシで、パスごとに転送先や設定を分けているときは（実況のWebSocketを通す設定など）、`/internal`の下に合わせてください。
+- 更新した直後は、ブラウザに残った前の版の画面が、古いパスを呼んで失敗することがあります。画面を読み直してください。
+
 ## v2026.11.4
 
 v2026.11.3からの変更です。

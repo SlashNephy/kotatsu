@@ -42,7 +42,7 @@ type passkeyResponse struct {
 	LastUsedAt *time.Time `json:"lastUsedAt"`
 }
 
-// RegistrationHandler は、ログイン中のユーザーに、パスキーの登録を始めさせるハンドラーを返す (POST /auth/passkey/registration)。
+// RegistrationHandler は、ログイン中のユーザーに、パスキーの登録を始めさせるハンドラーを返す (POST /internal/auth/passkey/registration)。
 // 第二要素を変える操作なので、直前の再認証を求める (設計書 9.5)。
 func (p *Passkeys) RegistrationHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ func (p *Passkeys) RegistrationHandler(db Database, client func(*http.Request) *
 }
 
 // RegistrationConfirmHandler は、認証器の応答を確かめ、パスキーを登録するハンドラーを返す
-// (POST /auth/passkey/registration/confirm)。
+// (POST /internal/auth/passkey/registration/confirm)。
 func (p *Passkeys) RegistrationConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, ok := decodePasskeyRequest(w, r)
@@ -127,7 +127,7 @@ func (p *Passkeys) writeError(w http.ResponseWriter, r *http.Request, err error)
 	return true
 }
 
-// PasskeyLoginHandler は、パスキーだけでのログインを始めるハンドラーを返す (POST /auth/passkey/login)。
+// PasskeyLoginHandler は、パスキーだけでのログインを始めるハンドラーを返す (POST /internal/auth/passkey/login)。
 func (l *Logins) PasskeyLoginHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requireJSONPost(w, r) {
@@ -147,7 +147,7 @@ func (l *Logins) PasskeyLoginHandler(db Database, client func(*http.Request) *Cl
 }
 
 // PasskeyLoginConfirmHandler は、認証器の応答を確かめ、パスキーだけでのログインを完了させるハンドラーを返す
-// (POST /auth/passkey/login/confirm)。
+// (POST /internal/auth/passkey/login/confirm)。
 func (l *Logins) PasskeyLoginConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, ok := decodePasskeyRequest(w, r)
@@ -174,7 +174,7 @@ func (l *Logins) PasskeyLoginConfirmHandler(db Database, client func(*http.Reque
 }
 
 // PasskeySecondFactorHandler は、パスワードを確かめた後の第二要素として、パスキーでの確認を始めるハンドラーを返す
-// (POST /auth/login/passkey)。
+// (POST /internal/auth/login/passkey)。
 func (l *Logins) PasskeySecondFactorHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requireJSONPost(w, r) {
@@ -196,7 +196,7 @@ func (l *Logins) PasskeySecondFactorHandler(db Database, client func(*http.Reque
 }
 
 // PasskeySecondFactorConfirmHandler は、パスキーの応答を確かめ、パスワードでのログインを完了させるハンドラーを返す
-// (POST /auth/login/passkey/confirm)。
+// (POST /internal/auth/login/passkey/confirm)。
 func (l *Logins) PasskeySecondFactorConfirmHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, ok := decodePasskeyRequest(w, r)

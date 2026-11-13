@@ -1,4 +1,4 @@
-// Package stream は、tenban が配信する映像 (/streams/*) を扱う (設計書 7.2、7.6、9.6)。
+// Package stream は、tenban が配信する映像 (/internal/streams/*、署名付き URL は /api/streams/*) を扱う (設計書 7.2、7.6、9.6)。
 //
 // ブラウザ内の再生は、同じオリジンへのリクエストなので、セッションの Cookie で認証する。
 // VLC や mpv のような外部プレイヤーには、リソース、ユーザー、有効期限に HMAC-SHA256 で署名した短命の URL を渡す。
@@ -36,14 +36,17 @@ var (
 	ErrInvalidSignature = errors.New("invalid or expired signature")
 )
 
-// ServicePath は、サービスのライブ視聴のパスを返す。
+// SignedPathPrefix は、署名付き URL で配信するパスの頭。前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
+const SignedPathPrefix = "/api/streams/"
+
+// ServicePath は、サービスのライブ視聴の、署名付き URL のパスを返す。
 func ServicePath(serviceID int64) string {
-	return "/streams/services/" + strconv.FormatInt(serviceID, 10)
+	return SignedPathPrefix + "services/" + strconv.FormatInt(serviceID, 10)
 }
 
-// RecordingPath は、録画の再生のパスを返す。
+// RecordingPath は、録画の再生の、署名付き URL のパスを返す。
 func RecordingPath(recordingID uuid.UUID) string {
-	return "/streams/recordings/" + recordingID.String()
+	return SignedPathPrefix + "recordings/" + recordingID.String()
 }
 
 // Signer は、映像の URL に署名し、署名を確かめる。
@@ -71,7 +74,7 @@ type SignedURL struct {
 	ExpiresAt time.Time
 }
 
-// Sign は、resource (例: /streams/services/3273601024) を、userID が expiresAt まで使える URL にする。
+// Sign は、resource (例: /api/streams/services/3273601024) を、userID が expiresAt まで使える URL にする。
 // 録画の再生の開始位置 (start) のようなほかのクエリは署名の対象にしないので、同じ URL のまま位置を変えられる。
 func (s *Signer) Sign(resource string, userID uuid.UUID, expiresAt time.Time) *SignedURL {
 	expires := expiresAt.Unix()

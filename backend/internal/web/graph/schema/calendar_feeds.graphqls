@@ -9,7 +9,7 @@ type CalendarFeed {
 
 "発行した購読用の URL。"
 type CreatedCalendarFeed {
-  "URL のパス (/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
+  "URL のパス (/api/calendar/<秘密の値>/reservations.ics)。ここでしか分からないので、すぐに控えてもらう。"
   path: String!
   calendarFeed: CalendarFeed!
 }
@@ -41,9 +41,9 @@ type IptvFeed {
 
 "発行した IPTV の配信の URL。"
 type CreatedIptvFeed {
-  "M3U のパス (/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。"
+  "M3U のパス (/api/iptv/<秘密の値>/channels.m3u)。ここでしか分からないので、すぐに控えてもらう。"
   playlistPath: String!
-  "XMLTV のパス (/iptv/<秘密の値>/guide.xml)。"
+  "XMLTV のパス (/api/iptv/<秘密の値>/guide.xml)。"
   guidePath: String!
   iptvFeed: IptvFeed!
 }

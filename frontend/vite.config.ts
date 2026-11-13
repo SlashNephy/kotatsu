@@ -140,27 +140,21 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     // 開発中は、API を手元の tenban に中継する。compose.yaml と同じく、KOTATSU_DEV_PORT でポートを変えられる。
-    // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比べて /auth/* の CSRF を防ぎ、
+    // Host は書き換えない。tenban は、Host から求めたオリジンと Origin を比べて /internal/auth/* の CSRF を防ぎ、
     // OIDC のリダイレクト URI も Host から作る。文字列で書くと changeOrigin が有効になり、どちらも食い違う。
     proxy: {
-      '/graphql': { target: devAPI, changeOrigin: false },
-      // 末尾の / まで含めて指す。'/auth' だけでは、同意の画面 (/authorize、#965) まで中継してしまう。
-      '/auth/': { target: devAPI, changeOrigin: false },
+      // 画面がセッションの Cookie で使う端点 (GraphQL、ログイン、映像、画像、#1605) を中継する。
+      // 実況のコメントの中継 (/internal/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
       // 映像、録画の画像、ロゴも中継し、開発サーバーだけで画面のすべてを確かめられるようにする。
-      '/streams': { target: devAPI, changeOrigin: false },
-      // 実況のコメントの中継 (/media/jikkyo/*/ws) は WebSocket なので、ws も中継する。
-      '/media': { target: devAPI, changeOrigin: false, ws: true },
-      // EPGStation 互換の API (#431) も、開発サーバーから確かめられるようにする。
+      '/internal/': { target: devAPI, changeOrigin: false, ws: true },
+      // ブラウザ以外から叩く端点 (EPGStation 互換の API、予約の iCalendar、IPTV、署名付き URL の配信、#1605) も、
+      // 開発サーバーから確かめられるようにする。
       '/api': { target: devAPI, changeOrigin: false },
       // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
       '/oauth': { target: devAPI, changeOrigin: false },
       '/.well-known': { target: devAPI, changeOrigin: false },
       // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。
       '/mcp': { target: devAPI, changeOrigin: false },
-      // 予約の iCalendar (#1255) も、開発サーバーから確かめられるようにする。
-      '/calendar': { target: devAPI, changeOrigin: false },
-      // ライブ視聴の M3U と番組表の XMLTV (#1324) も、開発サーバーから確かめられるようにする。
-      '/iptv': { target: devAPI, changeOrigin: false },
     },
   },
   fmt: {

@@ -254,7 +254,7 @@ func TestOIDCReauthenticationHandlers(t *testing.T) {
 	f := newOIDCReauthFixtureFrom(t, base)
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
-	mux.Handle("POST /auth/reauth/oidc", f.oidc.ReauthenticationHandler(f.db, client))
+	mux.Handle("POST /internal/auth/reauth/oidc", f.oidc.ReauthenticationHandler(f.db, client))
 	mux.Handle("GET "+auth.OIDCCallbackPath, f.oidc.CallbackHandler(f.db, client))
 	server := httptest.NewServer(auth.NewSessions(&auth.SessionsOptions{Clock: f.clock}).Middleware(f.db)(mux))
 	t.Cleanup(server.Close)
@@ -282,7 +282,7 @@ func TestOIDCReauthenticationHandlers(t *testing.T) {
 	}
 	// begin は、再認証を始めて、IdP で認証し直し、テストのサーバーのコールバックの URL を返す。
 	begin := func() string {
-		status, _, body := do(http.MethodPost, server.URL+"/auth/reauth/oidc", `{"returnTo": "/settings/security?tab=passkeys"}`)
+		status, _, body := do(http.MethodPost, server.URL+"/internal/auth/reauth/oidc", `{"returnTo": "/settings/security?tab=passkeys"}`)
 		require.Equal(t, http.StatusOK, status, string(body))
 		var begun struct {
 			AuthorizationURL string `json:"authorizationUrl"`
@@ -310,6 +310,6 @@ func TestOIDCReauthenticationHandlers(t *testing.T) {
 
 	// ログインしていなければ、始められない。
 	sessionToken = ""
-	status, _, _ = do(http.MethodPost, server.URL+"/auth/reauth/oidc", `{}`)
+	status, _, _ = do(http.MethodPost, server.URL+"/internal/auth/reauth/oidc", `{}`)
 	assert.Equal(t, http.StatusUnauthorized, status)
 }
