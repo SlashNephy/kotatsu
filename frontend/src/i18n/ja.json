@@ -2392,5 +2392,29 @@
       }
     },
     "hostHidden": "非公開の接続先"
+  },
+  "about": {
+    "menu": "このアプリについて",
+    "title": "このアプリについて",
+    "version": "版: {{version}}",
+    "license": "ライセンス:",
+    "description": "Kotatsuが同梱しているソフトウェアとデータと、そのライセンスです。行を開くと、ライセンスの文書が出ます。",
+    "filter": "絞り込み",
+    "filterPlaceholder": "名前かライセンス（MITなど）",
+    "noMatch": "一致するものはありません",
+    "frontend": "画面に同梱しているソフトウェア",
+    "frontendDescription": "ブラウザで動く画面に組み込んだパッケージです。",
+    "backend": "サーバーに組み込んでいるソフトウェア",
+    "backendDescription": "Kotatsuの本体（このサーバーで動いているバイナリ）に組み込んだGoのモジュールです。",
+    "data": "フォントとデータ",
+    "dataDescription": "パッケージとしては組み込んでいない、フォントとデータの表です。",
+    "image": "-ffmpegのイメージに同梱しているプログラム",
+    "imageDescription": "-ffmpegのコンテナイメージにだけ同梱し、子プロセスとして動かすプログラムです。本体とはリンクしません。",
+    "notGenerated": "このビルドには一覧が含まれていません。開発用のビルドでは作りません",
+    "goStandardLibrary": "Goの標準ライブラリ",
+    "generatedLicense": "このパッケージはライセンスの文書を含まないので、package.jsonが宣言するライセンス（MIT）と著作者から文書を示しています",
+    "inRepository": "ライセンスと著作権表示は、リンク先のファイルに残しています",
+    "inImage": "ライセンスの文書とソースの入手先は、イメージの /usr/share/doc/kotatsu/third-party/ と、Debianのパッケージの /usr/share/doc/ に置いています",
+    "loadFailed": "読み込めませんでした"
   }
 }

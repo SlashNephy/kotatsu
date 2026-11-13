@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/web/licenses"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -432,6 +433,12 @@ type ComplexityRoot struct {
 		Lv2 func(childComplexity int) int
 	}
 
+	GoModuleLicense struct {
+		Files   func(childComplexity int) int
+		Path    func(childComplexity int) int
+		Version func(childComplexity int) int
+	}
+
 	GuideRow struct {
 		Programs func(childComplexity int) int
 		Service  func(childComplexity int) int
@@ -540,6 +547,11 @@ type ComplexityRoot struct {
 		HolderInstanceID func(childComplexity int) int
 		Name             func(childComplexity int) int
 		Valid            func(childComplexity int) int
+	}
+
+	LicenseFile struct {
+		Name func(childComplexity int) int
+		Text func(childComplexity int) int
 	}
 
 	LiveStreamRates struct {
@@ -924,6 +936,7 @@ type ComplexityRoot struct {
 		ContinueWatching        func(childComplexity int, first int) int
 		DrcsReplacements        func(childComplexity int) int
 		FileNameTemplateHelp    func(childComplexity int) int
+		GoModuleLicenses        func(childComplexity int) int
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
 		IptvFeed                func(childComplexity int) int
@@ -1640,6 +1653,7 @@ type QueryResolver interface {
 	GuideViews(ctx context.Context) ([]*model.GuideView, error)
 	Jobs(ctx context.Context, state model.JobState, first int, after *string) (*model.JobPage, error)
 	JobCounts(ctx context.Context) ([]*model.JobStateCount, error)
+	GoModuleLicenses(ctx context.Context) ([]*licenses.Module, error)
 	LogReport(ctx context.Context) (*model.LogReport, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
 	NetworkActivity(ctx context.Context) (*model.NetworkActivity, error)
@@ -3140,6 +3154,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.GenreCondition.Lv2(childComplexity), true
 
+	case "GoModuleLicense.files":
+		if e.ComplexityRoot.GoModuleLicense.Files == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoModuleLicense.Files(childComplexity), true
+	case "GoModuleLicense.path":
+		if e.ComplexityRoot.GoModuleLicense.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoModuleLicense.Path(childComplexity), true
+	case "GoModuleLicense.version":
+		if e.ComplexityRoot.GoModuleLicense.Version == nil {
+			break
+		}
+
+		return e.ComplexityRoot.GoModuleLicense.Version(childComplexity), true
+
 	case "GuideRow.programs":
 		if e.ComplexityRoot.GuideRow.Programs == nil {
 			break
@@ -3561,6 +3594,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Lease.Valid(childComplexity), true
+
+	case "LicenseFile.name":
+		if e.ComplexityRoot.LicenseFile.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LicenseFile.Name(childComplexity), true
+	case "LicenseFile.text":
+		if e.ComplexityRoot.LicenseFile.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LicenseFile.Text(childComplexity), true
 
 	case "LiveStreamRates.audioBps":
 		if e.ComplexityRoot.LiveStreamRates.AudioBps == nil {
@@ -5766,6 +5812,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.FileNameTemplateHelp(childComplexity), true
+	case "Query.goModuleLicenses":
+		if e.ComplexityRoot.Query.GoModuleLicenses == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.GoModuleLicenses(childComplexity), true
 	case "Query.guide":
 		if e.ComplexityRoot.Query.Guide == nil {
 			break
@@ -9928,6 +9980,32 @@ extend type Mutation {
   cancelJob(id: ID!): Job!
 }
 `, BuiltIn: false},
+	{Name: "../schema/licenses.graphqls", Input: `"""
+本体に組み込んだ Go のモジュールと、そのライセンスの文書 (設計書 10.3、付録 B、#1604)。
+"""
+type GoModuleLicense {
+  "モジュールのパス。Go の標準ライブラリは std。"
+  path: String!
+  "モジュールの版。Go の標準ライブラリは、ビルドに使った Go の版 (go1.27.3 など)。"
+  version: String!
+  "モジュールの直下にある、ライセンスの文書と NOTICE。"
+  files: [LicenseFile!]!
+}
+
+"ライセンスの文書のファイル 1 つ。"
+type LicenseFile {
+  name: String!
+  text: String!
+}
+
+extend type Query {
+  """
+  本体に組み込んだ Go のモジュールと、そのライセンスの文書。動いているバイナリに組み込まれたものだけを、パスの順に返す。
+  版は古い版の脆弱性を狙う手がかりになるので、ログインしたユーザーにだけ返す。一覧を書き出さずにビルドしたときは null。
+  """
+  goModuleLicenses: [GoModuleLicense!]
+}
+`, BuiltIn: false},
 	{Name: "../schema/logs.graphqls", Input: `"ログの行の重さ。debug は INFO として扱う。"
 enum LogLevel {
   INFO
@@ -13277,6 +13355,18 @@ func (ec *executionContext) childFields_GenreCondition(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type GenreCondition", field.Name)
 }
 
+func (ec *executionContext) childFields_GoModuleLicense(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "path":
+		return ec.fieldContext_GoModuleLicense_path(ctx, field)
+	case "version":
+		return ec.fieldContext_GoModuleLicense_version(ctx, field)
+	case "files":
+		return ec.fieldContext_GoModuleLicense_files(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type GoModuleLicense", field.Name)
+}
+
 func (ec *executionContext) childFields_GuideRow(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "service":
@@ -13495,6 +13585,16 @@ func (ec *executionContext) childFields_Lease(ctx context.Context, field graphql
 		return ec.fieldContext_Lease_valid(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Lease", field.Name)
+}
+
+func (ec *executionContext) childFields_LicenseFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "name":
+		return ec.fieldContext_LicenseFile_name(ctx, field)
+	case "text":
+		return ec.fieldContext_LicenseFile_text(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LicenseFile", field.Name)
 }
 
 func (ec *executionContext) childFields_LiveStreamRates(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -22578,6 +22678,84 @@ func (ec *executionContext) fieldContext_GenreCondition_lv2(_ context.Context, f
 	return graphql.NewScalarFieldContext("GenreCondition", field, false, false, "Int")
 }
 
+func (ec *executionContext) _GoModuleLicense_path(ctx context.Context, field graphql.CollectedField, obj *licenses.Module) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoModuleLicense_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoModuleLicense_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoModuleLicense", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoModuleLicense_version(ctx context.Context, field graphql.CollectedField, obj *licenses.Module) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoModuleLicense_version(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Version, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoModuleLicense_version(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("GoModuleLicense", field, false, false, "String")
+}
+
+func (ec *executionContext) _GoModuleLicense_files(ctx context.Context, field graphql.CollectedField, obj *licenses.Module) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_GoModuleLicense_files(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Files, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*licenses.File) graphql.Marshaler {
+			return ec.marshalNLicenseFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐFileᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_GoModuleLicense_files(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "GoModuleLicense",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LicenseFile(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _GuideRow_service(ctx context.Context, field graphql.CollectedField, obj *model.GuideRow) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -24230,6 +24408,52 @@ func (ec *executionContext) _Lease_valid(ctx context.Context, field graphql.Coll
 }
 func (ec *executionContext) fieldContext_Lease_valid(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Lease", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _LicenseFile_name(ctx context.Context, field graphql.CollectedField, obj *licenses.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LicenseFile_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LicenseFile_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LicenseFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LicenseFile_text(ctx context.Context, field graphql.CollectedField, obj *licenses.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LicenseFile_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LicenseFile_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LicenseFile", field, false, false, "String")
 }
 
 func (ec *executionContext) _LiveStreamRates_videoBps(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
@@ -33580,6 +33804,38 @@ func (ec *executionContext) fieldContext_Query_jobCounts(_ context.Context, fiel
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_JobStateCount(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_goModuleLicenses(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_goModuleLicenses(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().GoModuleLicenses(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*licenses.Module) graphql.Marshaler {
+			return ec.marshalOGoModuleLicense2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐModuleᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_goModuleLicenses(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_GoModuleLicense(ctx, field)
 		},
 	}
 	return fc, nil
@@ -50064,6 +50320,49 @@ func (ec *executionContext) _GenreCondition(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var goModuleLicenseImplementors = []string{"GoModuleLicense"}
+
+func (ec *executionContext) _GoModuleLicense(ctx context.Context, sel ast.SelectionSet, obj *licenses.Module) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, goModuleLicenseImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("GoModuleLicense")
+		case "path":
+			out.Values[i] = ec._GoModuleLicense_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "version":
+			out.Values[i] = ec._GoModuleLicense_version(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "files":
+			out.Values[i] = ec._GoModuleLicense_files(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var guideRowImplementors = []string{"GuideRow"}
 
 func (ec *executionContext) _GuideRow(ctx context.Context, sel ast.SelectionSet, obj *model.GuideRow) graphql.Marshaler {
@@ -50777,6 +51076,44 @@ func (ec *executionContext) _Lease(ctx context.Context, sel ast.SelectionSet, ob
 			}
 		case "valid":
 			out.Values[i] = ec._Lease_valid(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var licenseFileImplementors = []string{"LicenseFile"}
+
+func (ec *executionContext) _LicenseFile(ctx context.Context, sel ast.SelectionSet, obj *licenses.File) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, licenseFileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LicenseFile")
+		case "name":
+			out.Values[i] = ec._LicenseFile_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._LicenseFile_text(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -53429,6 +53766,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_jobCounts(ctx, field)
+				})
+		case "goModuleLicenses":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_goModuleLicenses(ctx, field)
 				})
 		case "logReport":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -58330,6 +58673,14 @@ func (ec *executionContext) unmarshalNGenreInput2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
+func (ec *executionContext) marshalNGoModuleLicense2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐModule(ctx context.Context, sel ast.SelectionSet, v *licenses.Module) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "GoModuleLicense!")
+		return graphql.Null
+	}
+	return ec._GoModuleLicense(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNGuideRow2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐGuideRowᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.GuideRow) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -58764,6 +59115,30 @@ func (ec *executionContext) marshalNLease2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu
 		return graphql.Null
 	}
 	return ec._Lease(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNLicenseFile2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*licenses.File) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLicenseFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐFile(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLicenseFile2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐFile(ctx context.Context, sel ast.SelectionSet, v *licenses.File) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LicenseFile!")
+		return graphql.Null
+	}
+	return ec._LicenseFile(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNLiveStreamRates2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLiveStreamRates(ctx context.Context, sel ast.SelectionSet, v *model.LiveStreamRates) graphql.Marshaler {
@@ -60952,6 +61327,25 @@ func (ec *executionContext) unmarshalOGenreInput2ᚕᚖgithubᚗcomᚋSlashNephy
 		}
 	}
 	return res, nil
+}
+
+func (ec *executionContext) marshalOGoModuleLicense2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐModuleᚄ(ctx context.Context, sel ast.SelectionSet, v []*licenses.Module) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGoModuleLicense2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋlicensesᚐModule(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOID2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {

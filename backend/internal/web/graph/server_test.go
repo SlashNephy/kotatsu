@@ -276,6 +276,19 @@ func TestHandler(t *testing.T) {
 			wantBody:   []string{unauthenticatedBody},
 		},
 		{
+			// 一覧はビルドで書き出すので、テストのバイナリに含まれるとは限らない。ログインしたユーザーには、エラーにせず返すことだけを見る。
+			name:       "logged-in user gets the Go module licenses",
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ goModuleLicenses { path } }"}`, loggedIn: true},
+			wantStatus: http.StatusOK,
+			wantBody:   []string{`{"data":{"goModuleLicenses":`},
+		},
+		{
+			name:       "unauthenticated Go module licenses query is rejected",
+			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ goModuleLicenses { path } }"}`, loggedIn: false},
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   []string{unauthenticatedBody},
+		},
+		{
 			name:       "unauthenticated introspection is rejected",
 			req:        request{method: http.MethodPost, contentType: contentTypeJSON, body: `{"query":"{ __schema { queryType { name } } }"}`, loggedIn: false},
 			wantStatus: http.StatusUnauthorized,

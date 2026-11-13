@@ -172,6 +172,9 @@ export function UserMenu() {
               {t('app.newRelease', { version: latest.version })}
             </Menu.Item>
           )}
+          <Menu.Item component={Link} to="/about">
+            {t('about.menu')}
+          </Menu.Item>
           <Menu.Label>
             <Text size="xs" c="dimmed">
               {t('app.version', { version: formatVersion(data.version) })}

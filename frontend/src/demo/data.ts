@@ -265,6 +265,8 @@ export function createRootValue(
     captures: (args: { keyword?: string | null }) => captures.list(args),
     capturesAvailable: () => true,
     version: () => ({ version: 'demo', revision: null, modified: false, latestRelease: null }),
+    // デモには tenban がないので、本体の Go のモジュールの一覧はない (#1604)。
+    goModuleLicenses: () => null,
     timeZone: () => 'Asia/Tokyo',
     tunerServerHealth: () => ({
       degraded: false,

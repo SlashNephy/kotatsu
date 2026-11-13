@@ -2470,5 +2470,29 @@
       }
     },
     "hostHidden": "Undisclosed destination"
+  },
+  "about": {
+    "menu": "About Kotatsu",
+    "title": "About Kotatsu",
+    "version": "Version: {{version}}",
+    "license": "License:",
+    "description": "Software and data bundled with Kotatsu, and their licenses. Open a row to read the license text.",
+    "filter": "Filter",
+    "filterPlaceholder": "Name or license (e.g. MIT)",
+    "noMatch": "Nothing matches",
+    "frontend": "Software bundled with the web app",
+    "frontendDescription": "Packages built into the web app that runs in your browser.",
+    "backend": "Software built into the server",
+    "backendDescription": "Go modules built into the Kotatsu binary running on this server.",
+    "data": "Fonts and data",
+    "dataDescription": "Fonts and data tables that are not bundled as packages.",
+    "image": "Programs in the -ffmpeg image",
+    "imageDescription": "Programs shipped only in the -ffmpeg container image and run as child processes. They are not linked into Kotatsu.",
+    "notGenerated": "This build does not include the list. Development builds do not generate it",
+    "goStandardLibrary": "Go standard library",
+    "generatedLicense": "This package does not include a license file, so the text is built from the license (MIT) and author declared in its package.json",
+    "inRepository": "The license and copyright notice are kept in the linked file",
+    "inImage": "License texts and source locations are in /usr/share/doc/kotatsu/third-party/ and, for Debian packages, /usr/share/doc/ in the image",
+    "loadFailed": "Could not load"
   }
 }

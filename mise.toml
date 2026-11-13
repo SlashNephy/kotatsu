@@ -25,7 +25,8 @@ run = "DEV_UID=$(id -u) DEV_GID=$(id -g) docker compose up --build"
 
 # 埋め込んだバイナリを作るときは、mise run //frontend:build の後に実行する。
 [tasks.build]
-run = "go build -trimpath -o ./bin/ ./backend/cmd/kotatsu"
+# 本体に組み込む Go のモジュールのライセンスの一覧を、ビルドの前に書き出して埋め込む (#1604)。
+run = ["go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json", "go build -trimpath -o ./bin/ ./backend/cmd/kotatsu"]
 
 # Helm Chart から、全ロールを 1 つの Pod で動かす構成と、ロールを分けた構成のマニフェストを生成する (設計書 11.1)。
 # 生成したものとリポジトリの内容に差分がないことを、CI で確かめる。
@@ -50,4 +51,4 @@ run = "goreleaser release --snapshot --clean"
 [tasks."e2e:stack"]
 # 画面を埋め込むので、Kotatsu は //frontend:build の後にビルドする。depends に並べると、同時に走ってしまう。
 depends = ["//frontend:build"]
-run = ["go build -trimpath -o ./bin/ ./backend/cmd/kotatsu", "scripts/e2e-stack.sh"]
+run = ["go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json", "go build -trimpath -o ./bin/ ./backend/cmd/kotatsu", "scripts/e2e-stack.sh"]
