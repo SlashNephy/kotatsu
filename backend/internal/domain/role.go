@@ -2,7 +2,7 @@ package domain
 
 import "slices"
 
-//go:generate go tool go-enum --values --nocomments
+//go:generate go tool go-enum --values --nocomments --sql
 
 // Role はユーザーのロール (設計書 9.7)。
 //

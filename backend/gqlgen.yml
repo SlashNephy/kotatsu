@@ -28,6 +28,108 @@ struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
 models:
+  Role:
+    model: github.com/SlashNephy/kotatsu/internal/domain.Role
+    enum_values:
+      ADMIN:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RoleAdmin
+      MEMBER:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RoleMember
+      VIEWER:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RoleViewer
+  WebhookFormat:
+    model: github.com/SlashNephy/kotatsu/internal/domain.WebhookFormat
+    enum_values:
+      JSON:
+        value: github.com/SlashNephy/kotatsu/internal/domain.WebhookFormatJSON
+      DISCORD:
+        value: github.com/SlashNephy/kotatsu/internal/domain.WebhookFormatDiscord
+      SLACK:
+        value: github.com/SlashNephy/kotatsu/internal/domain.WebhookFormatSlack
+  RecordingState:
+    model: github.com/SlashNephy/kotatsu/internal/domain.RecordingState
+    enum_values:
+      RECORDING:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingStateRecording
+      COMPLETED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingStateCompleted
+      COMPLETED_WITH_ERRORS:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingStateCompletedWithErrors
+      PARTIAL:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingStatePartial
+      FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingStateFailed
+  RecordingFailureReason:
+    model: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReason
+    enum_values:
+      TUNER_UNAVAILABLE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTunerUnavailable
+      TUNER_SERVER_UNREACHABLE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTunerServerUnreachable
+      STREAM_INTERRUPTED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonStreamInterrupted
+      STORAGE_UNAVAILABLE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonStorageUnavailable
+      STORAGE_FULL:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonStorageFull
+      PROGRAM_NOT_FOUND:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonProgramNotFound
+      CANCELLED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonCancelled
+      RECORDER_UNAVAILABLE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonRecorderUnavailable
+  NetworkActivityPurpose:
+    model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Purpose
+    enum_values:
+      JIKKYO_CHANNELS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeJikkyoChannels
+      JIKKYO_COMMENTS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeJikkyoComments
+      JIKKYO_KAKOLOG:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeJikkyoKakolog
+      NICOLOG_COMMENTS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeNicologComments
+      ANIME_PROGRAM_SYNC:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeProgramSync
+      ANIME_MAPPINGS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeMappings
+      ANIME_WORK_IDS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeWorkIDs
+      ANIME_ARTWORKS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeArtworks
+      ANIME_RECORD:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeRecord
+      ANIME_LINK:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeLink
+      ANIME_IMAGE:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeImage
+      USER_AVATAR:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeUserAvatar
+      OIDC:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeOIDC
+      HIBP:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeHIBP
+      MCP_CLIENT_METADATA:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeMCPClientMetadata
+      UPDATE_CHECK:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeUpdateCheck
+      TELEMETRY_TRACES:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeTelemetryTraces
+      TELEMETRY_METRICS:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeTelemetryMetrics
+      WEB_PUSH:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeWebPush
+      WEBHOOK:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeWebhook
+      DATA_BROADCAST:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDataBroadcast
+  NetworkActivityInitiator:
+    model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Initiator
+    enum_values:
+      SCHEDULED:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.InitiatorScheduled
+      USER:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.InitiatorUser
   AssignmentState:
     model: github.com/SlashNephy/kotatsu/internal/domain.AssignmentState
     enum_values:

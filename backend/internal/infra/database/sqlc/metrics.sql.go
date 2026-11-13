@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -17,7 +18,7 @@ SELECT state, count(*) AS count FROM recording_assignments GROUP BY state ORDER 
 `
 
 type CountRecordingAssignmentsByStateRow struct {
-	State string
+	State domain.RecordingAssignmentState
 	Count int64
 }
 
@@ -77,7 +78,7 @@ SELECT state, count(*) AS count FROM recordings GROUP BY state ORDER BY state
 `
 
 type CountRecordingsByStateRow struct {
-	State string
+	State domain.RecordingState
 	Count int64
 }
 

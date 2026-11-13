@@ -15,7 +15,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -459,10 +458,7 @@ func (s *Sessions) lookup(ctx context.Context, db sqlc.DBTX, token string) (*aut
 		row.UserDisabledAt != nil:
 		return nil, ErrSessionInvalid
 	}
-	role, err := domain.ParseRole(row.Role)
-	if err != nil {
-		return nil, err
-	}
+	role := row.Role
 
 	return &authenticatedSession{
 		principal: &Principal{UserID: session.UserID, Role: role, SessionID: session.ID, AuthenticatedAt: session.AuthenticatedAt.UTC(), OAuthClientID: ""},

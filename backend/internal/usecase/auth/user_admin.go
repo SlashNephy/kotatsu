@@ -70,11 +70,7 @@ func (a *UserAdmin) List(ctx context.Context, db sqlc.DBTX) ([]*User, error) {
 	}
 	users := make([]*User, 0, len(rows))
 	for i := range rows {
-		user, err := userOf(&rows[i])
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, user)
+		users = append(users, userOf(&rows[i]))
 	}
 
 	return users, nil
@@ -109,7 +105,7 @@ func (a *UserAdmin) Create(ctx context.Context, db Database, actor *audit.Actor,
 		}
 
 		return a.record(ctx, tx, actor, "user.created", created.ID, map[string]any{
-			summaryUsername: created.Username, summaryRole: string(created.Role), "hasPassword": hash != nil,
+			summaryUsername: created.Username, summaryRole: created.Role, "hasPassword": hash != nil,
 		})
 	})
 	if err != nil {
@@ -131,10 +127,7 @@ func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor,
 		if err != nil {
 			return err
 		}
-		current, err := userOf(row)
-		if err != nil {
-			return err
-		}
+		current := userOf(row)
 		next := *current
 		if changes.DisplayName != nil {
 			next.DisplayName = *changes.DisplayName
@@ -154,19 +147,17 @@ func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor,
 			return ErrLastAdmin
 		}
 		saved, err := sqlc.New(tx).UpdateUserProfile(ctx, sqlc.UpdateUserProfileParams{
-			ID: userID, DisplayName: next.DisplayName, Role: string(next.Role), Now: a.clock.Now(),
+			ID: userID, DisplayName: next.DisplayName, Role: next.Role, Now: a.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the user: %w", err)
 		}
-		if updated, err = userOf(&saved); err != nil {
-			return err
-		}
+		updated = userOf(&saved)
 
 		return a.record(ctx, tx, actor, "user.updated", userID, map[string]any{
 			summaryUsername: current.Username,
 			"displayName":   map[string]string{"from": current.DisplayName, "to": next.DisplayName},
-			summaryRole:     map[string]string{"from": string(current.Role), "to": string(next.Role)},
+			summaryRole:     map[string]string{"from": string(current.Role), "to": next.Role.String()},
 		})
 	})
 	if err != nil {
@@ -192,7 +183,7 @@ func (a *UserAdmin) Disable(ctx context.Context, db Database, actor *audit.Actor
 			// 既に無効なら、何もしない。
 			return nil
 		}
-		if row.Role == string(domain.RoleAdmin) && admins <= 1 {
+		if row.Role == domain.RoleAdmin && admins <= 1 {
 			return ErrLastAdmin
 		}
 		if err := NewUsers(a.clock).Disable(ctx, tx, userID); err != nil {
@@ -257,7 +248,7 @@ func (a *UserAdmin) erase(ctx context.Context, db Database, actor *audit.Actor, 
 		if err != nil {
 			return err
 		}
-		if row.Role == string(domain.RoleAdmin) && row.DisabledAt == nil && admins <= 1 {
+		if row.Role == domain.RoleAdmin && row.DisabledAt == nil && admins <= 1 {
 			return ErrLastAdmin
 		}
 		for _, eraser := range erasers {
@@ -322,13 +313,8 @@ func (a *UserAdmin) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, a
 }
 
 // userOf は、DB の行を User にする。
-func userOf(row *sqlc.User) (*User, error) {
-	role, err := domain.ParseRole(row.Role)
-	if err != nil {
-		return nil, err
-	}
-
+func userOf(row *sqlc.User) *User {
 	return &User{
-		ID: row.ID, Username: row.Username, DisplayName: row.DisplayName, Role: role, DisabledAt: row.DisabledAt, CreatedAt: row.CreatedAt,
-	}, nil
+		ID: row.ID, Username: row.Username, DisplayName: row.DisplayName, Role: row.Role, DisabledAt: row.DisabledAt, CreatedAt: row.CreatedAt,
+	}
 }

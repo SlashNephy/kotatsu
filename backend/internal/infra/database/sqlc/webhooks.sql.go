@@ -56,7 +56,7 @@ type InsertWebhookParams struct {
 	ID               uuid.UUID
 	Name             string
 	URL              string
-	Format           string
+	Format           domain.WebhookFormat
 	Kinds            []domain.NotificationKind
 	SecretCiphertext []byte
 	Enabled          bool
@@ -179,7 +179,7 @@ RETURNING id, name, url, format, kinds, secret_ciphertext, enabled, created_at, 
 type UpdateWebhookParams struct {
 	Name    string
 	URL     string
-	Format  string
+	Format  domain.WebhookFormat
 	Kinds   []domain.NotificationKind
 	Enabled bool
 	Now     time.Time

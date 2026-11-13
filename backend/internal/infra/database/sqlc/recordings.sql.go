@@ -296,8 +296,8 @@ WHERE finished.state = 'failed' AND prev.state <> 'failed' AND c.reason = finish
 type FinishRecordingParams struct {
 	Now           *time.Time
 	ID            uuid.UUID
-	State         string
-	FailureReason *string
+	State         domain.RecordingState
+	FailureReason *domain.RecordingFailureReason
 	FailureDetail *string
 }
 
@@ -1510,7 +1510,7 @@ UPDATE recordings SET failure_reason = $1, failure_detail = $2, updated_at = $3 
 `
 
 type SetRecordingFailureHintParams struct {
-	FailureReason *string
+	FailureReason *domain.RecordingFailureReason
 	FailureDetail *string
 	Now           time.Time
 	ID            uuid.UUID

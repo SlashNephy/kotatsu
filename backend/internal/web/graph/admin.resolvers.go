@@ -3,11 +3,12 @@ package graph
 import (
 	"context"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
 // ResetRecordingFailureCounts is the resolver for the resetRecordingFailureCounts field.
-func (r *mutationResolver) ResetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error) {
+func (r *mutationResolver) ResetRecordingFailureCounts(ctx context.Context, reasons []domain.RecordingFailureReason) ([]*model.RecordingFailureCount, error) {
 	return r.resetRecordingFailureCounts(ctx, reasons)
 }
 

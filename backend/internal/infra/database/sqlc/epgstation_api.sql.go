@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -47,7 +48,7 @@ type GetAPIRecordingRow struct {
 	StartAt        time.Time
 	EndAt          time.Time
 	Genres         []byte
-	State          string
+	State          domain.RecordingState
 	Protected      bool
 	Extended       []byte
 	Size           int64
@@ -117,7 +118,7 @@ type ListAPIRecordingsRow struct {
 	StartAt        time.Time
 	EndAt          time.Time
 	Genres         []byte
-	State          string
+	State          domain.RecordingState
 	Protected      bool
 	Extended       []byte
 	Size           int64

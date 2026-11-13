@@ -44,6 +44,47 @@ sql:
             go_type:
               import: github.com/SlashNephy/kotatsu/internal/domain
               type: NotificationKind
+          - column: users.role
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: Role
+          - column: webhooks.format
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: WebhookFormat
+          - column: recordings.state
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: RecordingState
+          - column: recordings.failure_reason
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: RecordingFailureReason
+              pointer: true
+          - column: recording_failure_counts.reason
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: RecordingFailureReason
+          - column: recording_assignments.state
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: RecordingAssignmentState
+          - column: timeshift_assignments.state
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: RecordingAssignmentState
+          - column: audit_events.actor_type
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: AuditActorType
+          - column: network_activity.purpose
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/lib/netactivity
+              type: Purpose
+          - column: network_activity.initiator
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/lib/netactivity
+              type: Initiator
           - column: webhooks.kinds
             go_type:
               import: github.com/SlashNephy/kotatsu/internal/domain

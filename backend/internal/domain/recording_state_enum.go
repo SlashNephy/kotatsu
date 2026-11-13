@@ -6,6 +6,7 @@
 package domain
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
 )
@@ -58,6 +59,46 @@ func ParseRecordingAssignmentState(name string) (RecordingAssignmentState, error
 		return x, nil
 	}
 	return RecordingAssignmentState(""), fmt.Errorf("%s is %w", name, ErrInvalidRecordingAssignmentState)
+}
+
+var errRecordingAssignmentStateNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *RecordingAssignmentState) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = RecordingAssignmentState("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseRecordingAssignmentState(v)
+	case []byte:
+		*x, err = ParseRecordingAssignmentState(string(v))
+	case RecordingAssignmentState:
+		*x = v
+	case *RecordingAssignmentState:
+		if v == nil {
+			return errRecordingAssignmentStateNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errRecordingAssignmentStateNilPtr
+		}
+		*x, err = ParseRecordingAssignmentState(*v)
+	default:
+		return errors.New("invalid type for RecordingAssignmentState")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x RecordingAssignmentState) Value() (driver.Value, error) {
+	return x.String(), nil
 }
 
 const (
@@ -119,6 +160,46 @@ func ParseRecordingFailureReason(name string) (RecordingFailureReason, error) {
 	return RecordingFailureReason(""), fmt.Errorf("%s is %w", name, ErrInvalidRecordingFailureReason)
 }
 
+var errRecordingFailureReasonNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *RecordingFailureReason) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = RecordingFailureReason("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseRecordingFailureReason(v)
+	case []byte:
+		*x, err = ParseRecordingFailureReason(string(v))
+	case RecordingFailureReason:
+		*x = v
+	case *RecordingFailureReason:
+		if v == nil {
+			return errRecordingFailureReasonNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errRecordingFailureReasonNilPtr
+		}
+		*x, err = ParseRecordingFailureReason(*v)
+	default:
+		return errors.New("invalid type for RecordingFailureReason")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x RecordingFailureReason) Value() (driver.Value, error) {
+	return x.String(), nil
+}
+
 const (
 	RecordingStateRecording           RecordingState = "recording"
 	RecordingStateCompleted           RecordingState = "completed"
@@ -166,4 +247,44 @@ func ParseRecordingState(name string) (RecordingState, error) {
 		return x, nil
 	}
 	return RecordingState(""), fmt.Errorf("%s is %w", name, ErrInvalidRecordingState)
+}
+
+var errRecordingStateNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *RecordingState) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = RecordingState("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseRecordingState(v)
+	case []byte:
+		*x, err = ParseRecordingState(string(v))
+	case RecordingState:
+		*x = v
+	case *RecordingState:
+		if v == nil {
+			return errRecordingStateNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errRecordingStateNilPtr
+		}
+		*x, err = ParseRecordingState(*v)
+	default:
+		return errors.New("invalid type for RecordingState")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x RecordingState) Value() (driver.Value, error) {
+	return x.String(), nil
 }

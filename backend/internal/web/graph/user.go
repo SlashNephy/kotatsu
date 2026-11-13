@@ -3,7 +3,6 @@ package graph
 import (
 	"context"
 	"slices"
-	"strings"
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -18,7 +17,7 @@ func toUser(user *domain.User) *model.User {
 		ID:          GlobalID(userType, user.ID.String()),
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
-		Role:        model.Role(strings.ToUpper(user.Role)),
+		Role:        user.Role,
 		Disabled:    user.DisabledAt != nil,
 		CreatedAt:   user.CreatedAt,
 		AvatarURL:   nil,

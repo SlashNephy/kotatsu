@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -136,10 +135,7 @@ func (c *Feeds) Authenticate(ctx context.Context, token string) (*Principal, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up the feed: %w", err)
 	}
-	role, err := domain.ParseRole(row.Role)
-	if err != nil {
-		return nil, err
-	}
+	role := row.Role
 	now := c.clock.Now()
 	if row.LastUsedAt == nil || now.Sub(*row.LastUsedAt) >= feedTouchInterval {
 		if err := q.TouchCalendarFeed(ctx, sqlc.TouchCalendarFeedParams{UserID: row.UserID, Kind: c.kind, Now: &now}); err != nil {

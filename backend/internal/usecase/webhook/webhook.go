@@ -122,7 +122,7 @@ func (s *Store) Create(ctx context.Context, db Database, actor *audit.Actor, inp
 	var created *Webhook
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		row, err := sqlc.New(tx).InsertWebhook(ctx, sqlc.InsertWebhookParams{
-			ID: id.New(), Name: normalized.Name, URL: normalized.URL, Format: string(normalized.Format),
+			ID: id.New(), Name: normalized.Name, URL: normalized.URL, Format: normalized.Format,
 			Kinds: normalized.Kinds, SecretCiphertext: sealed, Enabled: normalized.Enabled, Now: s.clock.Now(),
 		})
 		if err != nil {
@@ -175,7 +175,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, web
 			return err
 		}
 		saved, err := q.UpdateWebhook(ctx, sqlc.UpdateWebhookParams{
-			ID: webhookID, Name: normalized.Name, URL: normalized.URL, Format: string(normalized.Format),
+			ID: webhookID, Name: normalized.Name, URL: normalized.URL, Format: normalized.Format,
 			Kinds: normalized.Kinds, Enabled: normalized.Enabled, Now: s.clock.Now(),
 		})
 		if err != nil {
@@ -365,7 +365,7 @@ func newSecret() (string, error) {
 
 func webhookOf(row *sqlc.Webhook) *Webhook {
 	return &Webhook{
-		ID: row.ID, Name: row.Name, URL: row.URL, Format: domain.WebhookFormat(row.Format), Kinds: row.Kinds,
+		ID: row.ID, Name: row.Name, URL: row.URL, Format: row.Format, Kinds: row.Kinds,
 		Enabled: row.Enabled, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }

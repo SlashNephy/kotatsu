@@ -494,7 +494,7 @@ func (r *Recorder) unreachableTooLong(ctx context.Context, reason domain.Recordi
 // ほかの mikan も録れなければ、neko がこの理由で録画を失敗にする。
 func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reason domain.RecordingFailureReason, detail string) error {
 	err := sqlc.New(r.pool).SetRecordingFailureHint(ctx, sqlc.SetRecordingFailureHintParams{
-		FailureReason: new(string(reason)), FailureDetail: nonEmpty(detail), Now: r.clock.Now(), ID: recording.ID,
+		FailureReason: new(reason), FailureDetail: nonEmpty(detail), Now: r.clock.Now(), ID: recording.ID,
 	})
 	if err != nil {
 		return errors.Join(fmt.Errorf("%w: %s", ErrRecorderUnavailable, reason), fmt.Errorf("failed to record the failure reason: %w", err))
@@ -1890,11 +1890,11 @@ func (r *Recorder) complete(
 			return errSuperseded
 		}
 		now := at
-		var failure *string
+		var failure *domain.RecordingFailureReason
 		if reason != "" {
-			failure = new(string(reason))
+			failure = new(reason)
 		}
-		params := sqlc.FinishRecordingParams{State: string(state), FailureReason: failure, FailureDetail: nonEmpty(detail), Now: &now, ID: recordingID}
+		params := sqlc.FinishRecordingParams{State: state, FailureReason: failure, FailureDetail: nonEmpty(detail), Now: &now, ID: recordingID}
 		if err := q.FinishRecording(ctx, params); err != nil {
 			return fmt.Errorf("failed to finish the recording: %w", err)
 		}

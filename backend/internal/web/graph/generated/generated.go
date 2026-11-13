@@ -15,6 +15,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/web/licenses"
 	gqlparser "github.com/vektah/gqlparser/v2"
@@ -664,7 +665,7 @@ type ComplexityRoot struct {
 		RenamePasskey                 func(childComplexity int, id string, name string) int
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
 		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
-		ResetRecordingFailureCounts   func(childComplexity int, reasons []model.RecordingFailureReason) int
+		ResetRecordingFailureCounts   func(childComplexity int, reasons []domain.RecordingFailureReason) int
 		ResetUserPassword             func(childComplexity int, id string, password string) int
 		RetryJob                      func(childComplexity int, id string) int
 		RevokeOtherSessions           func(childComplexity int) int
@@ -1513,7 +1514,7 @@ type MutationResolver interface {
 	CreateGuideView(ctx context.Context, input model.GuideViewInput) (*model.GuideView, error)
 	UpdateGuideView(ctx context.Context, id string, input model.GuideViewInput) (*model.GuideView, error)
 	DeleteGuideView(ctx context.Context, id string) (string, error)
-	ResetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error)
+	ResetRecordingFailureCounts(ctx context.Context, reasons []domain.RecordingFailureReason) ([]*model.RecordingFailureCount, error)
 	UpdateAnimeChannel(ctx context.Context, serviceID string, input model.AnimeChannelInput) (*model.AnimeChannel, error)
 	UpdateAnimeImportToken(ctx context.Context, annictToken string) (*model.AnimeImportToken, error)
 	RefreshAnimeFollowingViewings(ctx context.Context, tid int) (bool, error)
@@ -4410,7 +4411,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ResetRecordingFailureCounts(childComplexity, args["reasons"].([]model.RecordingFailureReason)), true
+		return e.ComplexityRoot.Mutation.ResetRecordingFailureCounts(childComplexity, args["reasons"].([]domain.RecordingFailureReason)), true
 	case "Mutation.resetUserPassword":
 		if e.ComplexityRoot.Mutation.ResetUserPassword == nil {
 			break
@@ -15976,8 +15977,8 @@ func (ec *executionContext) field_Mutation_resetRecordingFailureCounts_args(ctx 
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "reasons",
-		func(ctx context.Context, v any) ([]model.RecordingFailureReason, error) {
-			return ec.unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReasonᚄ(ctx, v)
+		func(ctx context.Context, v any) ([]domain.RecordingFailureReason, error) {
+			return ec.unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReasonᚄ(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -25316,7 +25317,7 @@ func (ec *executionContext) _Mutation_resetRecordingFailureCounts(ctx context.Co
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ResetRecordingFailureCounts(ctx, fc.Args["reasons"].([]model.RecordingFailureReason))
+			return ec.Resolvers.Mutation().ResetRecordingFailureCounts(ctx, fc.Args["reasons"].([]domain.RecordingFailureReason))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingFailureCount) graphql.Marshaler {
@@ -29486,8 +29487,8 @@ func (ec *executionContext) _NetworkActivityEntry_purpose(ctx context.Context, f
 			return obj.Purpose, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.NetworkActivityPurpose) graphql.Marshaler {
-			return ec.marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityPurpose(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v netactivity.Purpose) graphql.Marshaler {
+			return ec.marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose(ctx, selections, v)
 		},
 		true,
 		true,
@@ -29532,8 +29533,8 @@ func (ec *executionContext) _NetworkActivityEntry_initiator(ctx context.Context,
 			return obj.Initiator, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.NetworkActivityInitiator) graphql.Marshaler {
-			return ec.marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityInitiator(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v netactivity.Initiator) graphql.Marshaler {
+			return ec.marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35420,8 +35421,8 @@ func (ec *executionContext) _Recording_state(ctx context.Context, field graphql.
 			return obj.State, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.RecordingState) graphql.Marshaler {
-			return ec.marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingState(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.RecordingState) graphql.Marshaler {
+			return ec.marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState(ctx, selections, v)
 		},
 		true,
 		true,
@@ -35443,8 +35444,8 @@ func (ec *executionContext) _Recording_failureReason(ctx context.Context, field 
 			return obj.FailureReason, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingFailureReason) graphql.Marshaler {
-			return ec.marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *domain.RecordingFailureReason) graphql.Marshaler {
+			return ec.marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx, selections, v)
 		},
 		true,
 		false,
@@ -36599,8 +36600,8 @@ func (ec *executionContext) _RecordingFailureCount_reason(ctx context.Context, f
 			return obj.Reason, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.RecordingFailureReason) graphql.Marshaler {
-			return ec.marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.RecordingFailureReason) graphql.Marshaler {
+			return ec.marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx, selections, v)
 		},
 		true,
 		true,
@@ -42998,8 +42999,8 @@ func (ec *executionContext) _User_role(ctx context.Context, field graphql.Collec
 			return obj.Role, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.Role) graphql.Marshaler {
-			return ec.marshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.Role) graphql.Marshaler {
+			return ec.marshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx, selections, v)
 		},
 		true,
 		true,
@@ -43632,8 +43633,8 @@ func (ec *executionContext) _Webhook_format(ctx context.Context, field graphql.C
 			return obj.Format, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.WebhookFormat) graphql.Marshaler {
-			return ec.marshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.WebhookFormat) graphql.Marshaler {
+			return ec.marshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx, selections, v)
 		},
 		true,
 		true,
@@ -45360,7 +45361,7 @@ func (ec *executionContext) unmarshalInputCreateUserInput(ctx context.Context, o
 			it.DisplayName = data
 		case "role":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
-			data, err := ec.unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx, v)
+			data, err := ec.unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -45427,7 +45428,7 @@ func (ec *executionContext) unmarshalInputCreateWebhookInput(ctx context.Context
 			it.URL = data
 		case "format":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
-			data, err := ec.unmarshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx, v)
+			data, err := ec.unmarshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -46562,7 +46563,7 @@ func (ec *executionContext) unmarshalInputRecordingFilter(ctx context.Context, o
 			it.TagIds = data
 		case "states":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("states"))
-			data, err := ec.unmarshalORecordingState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingStateᚄ(ctx, v)
+			data, err := ec.unmarshalORecordingState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingStateᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -47419,7 +47420,7 @@ func (ec *executionContext) unmarshalInputUpdateUserInput(ctx context.Context, o
 			it.DisplayName = data
 		case "role":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
-			data, err := ec.unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx, v)
+			data, err := ec.unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -47475,7 +47476,7 @@ func (ec *executionContext) unmarshalInputUpdateWebhookInput(ctx context.Context
 			it.URL = data
 		case "format":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
-			data, err := ec.unmarshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx, v)
+			data, err := ec.unmarshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -59345,25 +59346,95 @@ func (ec *executionContext) marshalNNetworkActivityEntry2ᚖgithubᚗcomᚋSlash
 	return ec._NetworkActivityEntry(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityInitiator(ctx context.Context, v any) (model.NetworkActivityInitiator, error) {
-	var res model.NetworkActivityInitiator
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator(ctx context.Context, v any) (netactivity.Initiator, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityInitiator(ctx context.Context, sel ast.SelectionSet, v model.NetworkActivityInitiator) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator(ctx context.Context, sel ast.SelectionSet, v netactivity.Initiator) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "NetworkActivityInitiator!")
+	}
+	return res
 }
 
-func (ec *executionContext) unmarshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityPurpose(ctx context.Context, v any) (model.NetworkActivityPurpose, error) {
-	var res model.NetworkActivityPurpose
-	err := res.UnmarshalGQL(v)
+var (
+	unmarshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator = map[string]netactivity.Initiator{
+		"SCHEDULED": netactivity.InitiatorScheduled,
+		"USER":      netactivity.InitiatorUser,
+	}
+	marshalNNetworkActivityInitiator2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐInitiator = map[netactivity.Initiator]string{
+		netactivity.InitiatorScheduled: "SCHEDULED",
+		netactivity.InitiatorUser:      "USER",
+	}
+)
+
+func (ec *executionContext) unmarshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose(ctx context.Context, v any) (netactivity.Purpose, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNetworkActivityPurpose(ctx context.Context, sel ast.SelectionSet, v model.NetworkActivityPurpose) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose(ctx context.Context, sel ast.SelectionSet, v netactivity.Purpose) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "NetworkActivityPurpose!")
+	}
+	return res
 }
+
+var (
+	unmarshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose = map[string]netactivity.Purpose{
+		"JIKKYO_CHANNELS":     netactivity.PurposeJikkyoChannels,
+		"JIKKYO_COMMENTS":     netactivity.PurposeJikkyoComments,
+		"JIKKYO_KAKOLOG":      netactivity.PurposeJikkyoKakolog,
+		"NICOLOG_COMMENTS":    netactivity.PurposeNicologComments,
+		"ANIME_PROGRAM_SYNC":  netactivity.PurposeAnimeProgramSync,
+		"ANIME_MAPPINGS":      netactivity.PurposeAnimeMappings,
+		"ANIME_WORK_IDS":      netactivity.PurposeAnimeWorkIDs,
+		"ANIME_ARTWORKS":      netactivity.PurposeAnimeArtworks,
+		"ANIME_RECORD":        netactivity.PurposeAnimeRecord,
+		"ANIME_LINK":          netactivity.PurposeAnimeLink,
+		"ANIME_IMAGE":         netactivity.PurposeAnimeImage,
+		"USER_AVATAR":         netactivity.PurposeUserAvatar,
+		"OIDC":                netactivity.PurposeOIDC,
+		"HIBP":                netactivity.PurposeHIBP,
+		"MCP_CLIENT_METADATA": netactivity.PurposeMCPClientMetadata,
+		"UPDATE_CHECK":        netactivity.PurposeUpdateCheck,
+		"TELEMETRY_TRACES":    netactivity.PurposeTelemetryTraces,
+		"TELEMETRY_METRICS":   netactivity.PurposeTelemetryMetrics,
+		"WEB_PUSH":            netactivity.PurposeWebPush,
+		"WEBHOOK":             netactivity.PurposeWebhook,
+		"DATA_BROADCAST":      netactivity.PurposeDataBroadcast,
+	}
+	marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose = map[netactivity.Purpose]string{
+		netactivity.PurposeJikkyoChannels:    "JIKKYO_CHANNELS",
+		netactivity.PurposeJikkyoComments:    "JIKKYO_COMMENTS",
+		netactivity.PurposeJikkyoKakolog:     "JIKKYO_KAKOLOG",
+		netactivity.PurposeNicologComments:   "NICOLOG_COMMENTS",
+		netactivity.PurposeAnimeProgramSync:  "ANIME_PROGRAM_SYNC",
+		netactivity.PurposeAnimeMappings:     "ANIME_MAPPINGS",
+		netactivity.PurposeAnimeWorkIDs:      "ANIME_WORK_IDS",
+		netactivity.PurposeAnimeArtworks:     "ANIME_ARTWORKS",
+		netactivity.PurposeAnimeRecord:       "ANIME_RECORD",
+		netactivity.PurposeAnimeLink:         "ANIME_LINK",
+		netactivity.PurposeAnimeImage:        "ANIME_IMAGE",
+		netactivity.PurposeUserAvatar:        "USER_AVATAR",
+		netactivity.PurposeOIDC:              "OIDC",
+		netactivity.PurposeHIBP:              "HIBP",
+		netactivity.PurposeMCPClientMetadata: "MCP_CLIENT_METADATA",
+		netactivity.PurposeUpdateCheck:       "UPDATE_CHECK",
+		netactivity.PurposeTelemetryTraces:   "TELEMETRY_TRACES",
+		netactivity.PurposeTelemetryMetrics:  "TELEMETRY_METRICS",
+		netactivity.PurposeWebPush:           "WEB_PUSH",
+		netactivity.PurposeWebhook:           "WEBHOOK",
+		netactivity.PurposeDataBroadcast:     "DATA_BROADCAST",
+	}
+)
 
 func (ec *executionContext) marshalNNotification2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotification(ctx context.Context, sel ast.SelectionSet, v *model.Notification) graphql.Marshaler {
 	if v == nil {
@@ -59988,23 +60059,51 @@ func (ec *executionContext) marshalNRecordingFailureCount2ᚖgithubᚗcomᚋSlas
 	return ec._RecordingFailureCount(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, v any) (model.RecordingFailureReason, error) {
-	var res model.RecordingFailureReason
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx context.Context, v any) (domain.RecordingFailureReason, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, sel ast.SelectionSet, v model.RecordingFailureReason) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx context.Context, sel ast.SelectionSet, v domain.RecordingFailureReason) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "RecordingFailureReason!")
+	}
+	return res
 }
 
-func (ec *executionContext) unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReasonᚄ(ctx context.Context, v any) ([]model.RecordingFailureReason, error) {
+var (
+	unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[string]domain.RecordingFailureReason{
+		"TUNER_UNAVAILABLE":        domain.RecordingFailureReasonTunerUnavailable,
+		"TUNER_SERVER_UNREACHABLE": domain.RecordingFailureReasonTunerServerUnreachable,
+		"STREAM_INTERRUPTED":       domain.RecordingFailureReasonStreamInterrupted,
+		"STORAGE_UNAVAILABLE":      domain.RecordingFailureReasonStorageUnavailable,
+		"STORAGE_FULL":             domain.RecordingFailureReasonStorageFull,
+		"PROGRAM_NOT_FOUND":        domain.RecordingFailureReasonProgramNotFound,
+		"CANCELLED":                domain.RecordingFailureReasonCancelled,
+		"RECORDER_UNAVAILABLE":     domain.RecordingFailureReasonRecorderUnavailable,
+	}
+	marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[domain.RecordingFailureReason]string{
+		domain.RecordingFailureReasonTunerUnavailable:       "TUNER_UNAVAILABLE",
+		domain.RecordingFailureReasonTunerServerUnreachable: "TUNER_SERVER_UNREACHABLE",
+		domain.RecordingFailureReasonStreamInterrupted:      "STREAM_INTERRUPTED",
+		domain.RecordingFailureReasonStorageUnavailable:     "STORAGE_UNAVAILABLE",
+		domain.RecordingFailureReasonStorageFull:            "STORAGE_FULL",
+		domain.RecordingFailureReasonProgramNotFound:        "PROGRAM_NOT_FOUND",
+		domain.RecordingFailureReasonCancelled:              "CANCELLED",
+		domain.RecordingFailureReasonRecorderUnavailable:    "RECORDER_UNAVAILABLE",
+	}
+)
+
+func (ec *executionContext) unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReasonᚄ(ctx context.Context, v any) ([]domain.RecordingFailureReason, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
-	res := make([]model.RecordingFailureReason, len(vSlice))
+	res := make([]domain.RecordingFailureReason, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -60012,11 +60111,11 @@ func (ec *executionContext) unmarshalNRecordingFailureReason2ᚕgithubᚗcomᚋS
 	return res, nil
 }
 
-func (ec *executionContext) marshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReasonᚄ(ctx context.Context, sel ast.SelectionSet, v []model.RecordingFailureReason) graphql.Marshaler {
+func (ec *executionContext) marshalNRecordingFailureReason2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReasonᚄ(ctx context.Context, sel ast.SelectionSet, v []domain.RecordingFailureReason) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx, sel, v[i])
+		return ec.marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -60160,15 +60259,37 @@ func (ec *executionContext) marshalNRecordingSettingsOverrides2ᚖgithubᚗcom�
 	return ec._RecordingSettingsOverrides(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingState(ctx context.Context, v any) (model.RecordingState, error) {
-	var res model.RecordingState
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState(ctx context.Context, v any) (domain.RecordingState, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingState(ctx context.Context, sel ast.SelectionSet, v model.RecordingState) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState(ctx context.Context, sel ast.SelectionSet, v domain.RecordingState) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "RecordingState!")
+	}
+	return res
 }
+
+var (
+	unmarshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState = map[string]domain.RecordingState{
+		"RECORDING":             domain.RecordingStateRecording,
+		"COMPLETED":             domain.RecordingStateCompleted,
+		"COMPLETED_WITH_ERRORS": domain.RecordingStateCompletedWithErrors,
+		"PARTIAL":               domain.RecordingStatePartial,
+		"FAILED":                domain.RecordingStateFailed,
+	}
+	marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState = map[domain.RecordingState]string{
+		domain.RecordingStateRecording:           "RECORDING",
+		domain.RecordingStateCompleted:           "COMPLETED",
+		domain.RecordingStateCompletedWithErrors: "COMPLETED_WITH_ERRORS",
+		domain.RecordingStatePartial:             "PARTIAL",
+		domain.RecordingStateFailed:              "FAILED",
+	}
+)
 
 func (ec *executionContext) marshalNRecoveryCodes2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecoveryCodes(ctx context.Context, sel ast.SelectionSet, v *model.RecoveryCodes) graphql.Marshaler {
 	if v == nil {
@@ -60283,15 +60404,33 @@ func (ec *executionContext) unmarshalNReservationUpdateInput2githubᚗcomᚋSlas
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
-	var res model.Role
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx context.Context, v any) (domain.Role, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx context.Context, sel ast.SelectionSet, v model.Role) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx context.Context, sel ast.SelectionSet, v domain.Role) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "Role!")
+	}
+	return res
 }
+
+var (
+	unmarshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole = map[string]domain.Role{
+		"ADMIN":  domain.RoleAdmin,
+		"MEMBER": domain.RoleMember,
+		"VIEWER": domain.RoleViewer,
+	}
+	marshalNRole2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole = map[domain.Role]string{
+		domain.RoleAdmin:  "ADMIN",
+		domain.RoleMember: "MEMBER",
+		domain.RoleViewer: "VIEWER",
+	}
+)
 
 func (ec *executionContext) marshalNRule2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Rule) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
@@ -61012,15 +61151,33 @@ func (ec *executionContext) marshalNWebhook2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 	return ec._Webhook(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx context.Context, v any) (model.WebhookFormat, error) {
-	var res model.WebhookFormat
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx context.Context, v any) (domain.WebhookFormat, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx context.Context, sel ast.SelectionSet, v model.WebhookFormat) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx context.Context, sel ast.SelectionSet, v domain.WebhookFormat) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "WebhookFormat!")
+	}
+	return res
 }
+
+var (
+	unmarshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat = map[string]domain.WebhookFormat{
+		"JSON":    domain.WebhookFormatJSON,
+		"DISCORD": domain.WebhookFormatDiscord,
+		"SLACK":   domain.WebhookFormatSlack,
+	}
+	marshalNWebhookFormat2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat = map[domain.WebhookFormat]string{
+		domain.WebhookFormatJSON:    "JSON",
+		domain.WebhookFormatDiscord: "DISCORD",
+		domain.WebhookFormatSlack:   "SLACK",
+	}
+)
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
 	return ec.___Directive(ctx, sel, &v)
@@ -61675,21 +61832,47 @@ func (ec *executionContext) marshalORecording2ᚖgithubᚗcomᚋSlashNephyᚋkot
 	return ec._Recording(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, v any) (*model.RecordingFailureReason, error) {
+func (ec *executionContext) unmarshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx context.Context, v any) (*domain.RecordingFailureReason, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var res = new(model.RecordingFailureReason)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFailureReason(ctx context.Context, sel ast.SelectionSet, v *model.RecordingFailureReason) graphql.Marshaler {
+func (ec *executionContext) marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason(ctx context.Context, sel ast.SelectionSet, v *domain.RecordingFailureReason) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason[*v])
+	return res
 }
+
+var (
+	unmarshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[string]domain.RecordingFailureReason{
+		"TUNER_UNAVAILABLE":        domain.RecordingFailureReasonTunerUnavailable,
+		"TUNER_SERVER_UNREACHABLE": domain.RecordingFailureReasonTunerServerUnreachable,
+		"STREAM_INTERRUPTED":       domain.RecordingFailureReasonStreamInterrupted,
+		"STORAGE_UNAVAILABLE":      domain.RecordingFailureReasonStorageUnavailable,
+		"STORAGE_FULL":             domain.RecordingFailureReasonStorageFull,
+		"PROGRAM_NOT_FOUND":        domain.RecordingFailureReasonProgramNotFound,
+		"CANCELLED":                domain.RecordingFailureReasonCancelled,
+		"RECORDER_UNAVAILABLE":     domain.RecordingFailureReasonRecorderUnavailable,
+	}
+	marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[domain.RecordingFailureReason]string{
+		domain.RecordingFailureReasonTunerUnavailable:       "TUNER_UNAVAILABLE",
+		domain.RecordingFailureReasonTunerServerUnreachable: "TUNER_SERVER_UNREACHABLE",
+		domain.RecordingFailureReasonStreamInterrupted:      "STREAM_INTERRUPTED",
+		domain.RecordingFailureReasonStorageUnavailable:     "STORAGE_UNAVAILABLE",
+		domain.RecordingFailureReasonStorageFull:            "STORAGE_FULL",
+		domain.RecordingFailureReasonProgramNotFound:        "PROGRAM_NOT_FOUND",
+		domain.RecordingFailureReasonCancelled:              "CANCELLED",
+		domain.RecordingFailureReasonRecorderUnavailable:    "RECORDER_UNAVAILABLE",
+	}
+)
 
 func (ec *executionContext) marshalORecordingFileTuner2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingFileTuner(ctx context.Context, sel ast.SelectionSet, v *model.RecordingFileTuner) graphql.Marshaler {
 	if v == nil {
@@ -61721,16 +61904,16 @@ func (ec *executionContext) unmarshalORecordingSettingsOverridesInput2ᚖgithub�
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalORecordingState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingStateᚄ(ctx context.Context, v any) ([]model.RecordingState, error) {
+func (ec *executionContext) unmarshalORecordingState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingStateᚄ(ctx context.Context, v any) ([]domain.RecordingState, error) {
 	if v == nil {
 		return nil, nil
 	}
 	vSlice := graphql.CoerceList(v)
 	var err error
-	res := make([]model.RecordingState, len(vSlice))
+	res := make([]domain.RecordingState, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingState(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -61738,14 +61921,14 @@ func (ec *executionContext) unmarshalORecordingState2ᚕgithubᚗcomᚋSlashNeph
 	return res, nil
 }
 
-func (ec *executionContext) marshalORecordingState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingStateᚄ(ctx context.Context, sel ast.SelectionSet, v []model.RecordingState) graphql.Marshaler {
+func (ec *executionContext) marshalORecordingState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingStateᚄ(ctx context.Context, sel ast.SelectionSet, v []domain.RecordingState) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingState(ctx, sel, v[i])
+		return ec.marshalNRecordingState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingState(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -61799,21 +61982,37 @@ var (
 	}
 )
 
-func (ec *executionContext) unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (*model.Role, error) {
+func (ec *executionContext) unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx context.Context, v any) (*domain.Role, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var res = new(model.Role)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx context.Context, sel ast.SelectionSet, v *model.Role) graphql.Marshaler {
+func (ec *executionContext) marshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole(ctx context.Context, sel ast.SelectionSet, v *domain.Role) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole[*v])
+	return res
 }
+
+var (
+	unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole = map[string]domain.Role{
+		"ADMIN":  domain.RoleAdmin,
+		"MEMBER": domain.RoleMember,
+		"VIEWER": domain.RoleViewer,
+	}
+	marshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRole = map[domain.Role]string{
+		domain.RoleAdmin:  "ADMIN",
+		domain.RoleMember: "MEMBER",
+		domain.RoleViewer: "VIEWER",
+	}
+)
 
 func (ec *executionContext) marshalORule2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRule(ctx context.Context, sel ast.SelectionSet, v *model.Rule) graphql.Marshaler {
 	if v == nil {
@@ -61960,21 +62159,37 @@ func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋSlashNephyᚋkotatsu�
 	return ec._User(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx context.Context, v any) (*model.WebhookFormat, error) {
+func (ec *executionContext) unmarshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx context.Context, v any) (*domain.WebhookFormat, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var res = new(model.WebhookFormat)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐWebhookFormat(ctx context.Context, sel ast.SelectionSet, v *model.WebhookFormat) graphql.Marshaler {
+func (ec *executionContext) marshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat(ctx context.Context, sel ast.SelectionSet, v *domain.WebhookFormat) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat[*v])
+	return res
 }
+
+var (
+	unmarshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat = map[string]domain.WebhookFormat{
+		"JSON":    domain.WebhookFormatJSON,
+		"DISCORD": domain.WebhookFormatDiscord,
+		"SLACK":   domain.WebhookFormatSlack,
+	}
+	marshalOWebhookFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐWebhookFormat = map[domain.WebhookFormat]string{
+		domain.WebhookFormatJSON:    "JSON",
+		domain.WebhookFormatDiscord: "DISCORD",
+		domain.WebhookFormatSlack:   "SLACK",
+	}
+)
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
 	if v == nil {

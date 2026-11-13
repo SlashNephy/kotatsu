@@ -116,7 +116,7 @@ func (r *DBRecorder) params(event *Event) (sqlc.InsertAuditEventParams, error) {
 	params = sqlc.InsertAuditEventParams{
 		ID:          id.New(),
 		OccurredAt:  r.clock.Now(),
-		ActorType:   string(event.Actor.Type),
+		ActorType:   event.Actor.Type,
 		ActorUserID: nil,
 		ActorRole:   nil,
 		Action:      event.Action,

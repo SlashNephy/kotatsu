@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -146,10 +145,7 @@ func (a *APITokens) Authenticate(ctx context.Context, token string) (*Principal,
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up the API token: %w", err)
 	}
-	role, err := domain.ParseRole(row.Role)
-	if err != nil {
-		return nil, err
-	}
+	role := row.Role
 	now := a.clock.Now()
 	if row.LastUsedAt == nil || now.Sub(*row.LastUsedAt) >= apiTokenTouchInterval {
 		if err := q.TouchAPIToken(ctx, sqlc.TouchAPITokenParams{ID: row.ID, Now: &now}); err != nil {

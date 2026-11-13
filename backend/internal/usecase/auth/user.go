@@ -82,7 +82,7 @@ func (u *Users) Create(ctx context.Context, db sqlc.DBTX, user *NewUser) (*User,
 		ID:           created.ID,
 		Username:     created.Username,
 		DisplayName:  created.DisplayName,
-		Role:         string(created.Role),
+		Role:         created.Role,
 		PasswordHash: user.PasswordHash,
 		CreatedAt:    created.CreatedAt,
 	})

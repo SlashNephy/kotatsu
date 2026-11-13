@@ -151,7 +151,7 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 	if err != nil {
 		return err
 	}
-	body, err := Body(domain.WebhookFormat(row.Format), &eventRow, w.location)
+	body, err := Body(row.Format, &eventRow, w.location)
 	if err != nil {
 		return err
 	}

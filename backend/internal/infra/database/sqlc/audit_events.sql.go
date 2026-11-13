@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -67,7 +68,7 @@ INSERT INTO audit_events (
 type InsertAuditEventParams struct {
 	ID          uuid.UUID
 	OccurredAt  time.Time
-	ActorType   string
+	ActorType   domain.AuditActorType
 	ActorUserID *uuid.UUID
 	ActorRole   *string
 	Action      string

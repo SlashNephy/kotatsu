@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -64,7 +65,7 @@ type GetAPITokenUserRow struct {
 	ID         uuid.UUID
 	LastUsedAt *time.Time
 	UserID     uuid.UUID
-	Role       string
+	Role       domain.Role
 }
 
 // トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。

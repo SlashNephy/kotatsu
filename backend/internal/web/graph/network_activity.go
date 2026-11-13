@@ -41,7 +41,7 @@ func (r *Resolver) networkActivity(ctx context.Context) (*model.NetworkActivity,
 			host = &row.Host
 		}
 		entries = append(entries, &model.NetworkActivityEntry{
-			Hour: row.Hour, Purpose: model.NetworkActivityPurpose(row.Purpose), Host: host, Initiator: model.NetworkActivityInitiator(row.Initiator),
+			Hour: row.Hour, Purpose: row.Purpose, Host: host, Initiator: row.Initiator,
 			Success: row.Success, Count: row.Count, SentBytes: row.SentBytes, ReceivedBytes: row.ReceivedBytes,
 		})
 	}

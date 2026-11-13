@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -261,7 +262,7 @@ type GetOAuthAccessTokenRow struct {
 	Resource   string
 	LastUsedAt *time.Time
 	UserID     uuid.UUID
-	Role       string
+	Role       domain.Role
 }
 
 // アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
@@ -365,7 +366,7 @@ type LockOAuthRefreshTokenRow struct {
 	ClientID       string
 	Scopes         []string
 	Resource       string
-	Role           string
+	Role           domain.Role
 	UserDisabledAt *time.Time
 }
 

@@ -6,6 +6,7 @@
 package domain
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
 )
@@ -54,4 +55,44 @@ func ParseWebhookFormat(name string) (WebhookFormat, error) {
 		return x, nil
 	}
 	return WebhookFormat(""), fmt.Errorf("%s is %w", name, ErrInvalidWebhookFormat)
+}
+
+var errWebhookFormatNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *WebhookFormat) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = WebhookFormat("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseWebhookFormat(v)
+	case []byte:
+		*x, err = ParseWebhookFormat(string(v))
+	case WebhookFormat:
+		*x = v
+	case *WebhookFormat:
+		if v == nil {
+			return errWebhookFormatNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errWebhookFormatNilPtr
+		}
+		*x, err = ParseWebhookFormat(*v)
+	default:
+		return errors.New("invalid type for WebhookFormat")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x WebhookFormat) Value() (driver.Value, error) {
+	return x.String(), nil
 }

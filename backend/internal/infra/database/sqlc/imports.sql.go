@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -72,7 +73,7 @@ type InsertImportedRecordingParams struct {
 	DescriptionNormalized *string
 	StartAt               time.Time
 	EndAt                 time.Time
-	State                 string
+	State                 domain.RecordingState
 	Protected             bool
 	Drops                 int64
 	Errors                int64

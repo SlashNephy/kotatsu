@@ -21,8 +21,8 @@ type Recording struct {
 	DescriptionNormalized *string
 	StartAt               time.Time
 	EndAt                 time.Time
-	State                 string
-	FailureReason         *string
+	State                 RecordingState
+	FailureReason         *RecordingFailureReason
 	// FailureDetail は、失敗した理由に至った、最後のエラーの本文 (#1467)。管理者にだけ見せる。
 	FailureDetail *string
 	Protected     bool
@@ -110,7 +110,7 @@ type APIRecording struct {
 	StartAt        time.Time
 	EndAt          time.Time
 	Genres         []byte
-	State          string
+	State          RecordingState
 	Protected      bool
 	Extended       []byte
 	Size           int64
