@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"net/http"
 	"strconv"
+
+	"github.com/labstack/echo/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -47,14 +48,15 @@ type xmltvProgramme struct {
 	Categories []xmltvText `xml:"category"`
 }
 
-// Guide は、番組表を XMLTV で返す (GET /api/iptv/{token}/guide.xml)。M3U に載せるサービスの、放送中とこれから 7 日の番組を載せる。
-func (h *Handler) Guide(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+// Guide は、番組表を XMLTV で返す echo のハンドラー (GET /api/iptv/:token/guide.xml)。
+// M3U に載せるサービスの、放送中とこれから 7 日の番組を載せる。
+func (h *Handler) Guide(c *echo.Context) error {
+	w, ctx, logger := c.Response(), c.Request().Context(), c.Logger()
 	services, err := h.services(ctx)
 	if err != nil {
-		h.fail(ctx, w, "failed to list the services for the IPTV guide", err)
+		fail(ctx, logger, w, "failed to list the services for the IPTV guide", err)
 
-		return
+		return nil
 	}
 	ids := make([]int64, 0, len(services))
 	for i := range services {
@@ -63,18 +65,20 @@ func (h *Handler) Guide(w http.ResponseWriter, r *http.Request) {
 	now := h.clock.Now()
 	programs, err := h.queries.ListProgramsInRange(ctx, query.ListProgramsInRangeParams{ServiceIDs: ids, FromAt: now.Add(-guidePast), ToAt: now.Add(guideFuture)})
 	if err != nil {
-		h.fail(ctx, w, "failed to list the programs for the IPTV guide", err)
+		fail(ctx, logger, w, "failed to list the programs for the IPTV guide", err)
 
-		return
+		return nil
 	}
-	body, err := Guide(h.base(r), services, programs)
+	body, err := Guide(h.base(c), services, programs)
 	if err != nil {
-		h.fail(ctx, w, "failed to write the IPTV guide", err)
+		fail(ctx, logger, w, "failed to write the IPTV guide", err)
 
-		return
+		return nil
 	}
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	_, _ = w.Write(body)
+
+	return nil
 }
 
 // Guide は、サービス services と番組 programs の XMLTV を、配信の URL の頭 base から作る。

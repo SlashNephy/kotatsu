@@ -1,9 +1,10 @@
 package iptvapi
 
 import (
-	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/labstack/echo/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 )
@@ -11,17 +12,20 @@ import (
 // channelTypeGR は、地上波のチャンネルの種類。
 const channelTypeGR = "GR"
 
-// Playlist は、ライブ視聴のストリームの一覧を M3U で返す (GET /api/iptv/{token}/channels.m3u)。
+// Playlist は、ライブ視聴のストリームの一覧を M3U で返す echo のハンドラー (GET /api/iptv/:token/channels.m3u)。
 // サービスごとに、無変換の TS のストリームと、ロゴと、XMLTV の番組表のチャンネルの ID (tvg-id) を書く。
-func (h *Handler) Playlist(w http.ResponseWriter, r *http.Request) {
-	services, err := h.services(r.Context())
+func (h *Handler) Playlist(c *echo.Context) error {
+	w, ctx := c.Response(), c.Request().Context()
+	services, err := h.services(ctx)
 	if err != nil {
-		h.fail(r.Context(), w, "failed to list the services for the IPTV playlist", err)
+		fail(ctx, c.Logger(), w, "failed to list the services for the IPTV playlist", err)
 
-		return
+		return nil
 	}
 	w.Header().Set("Content-Type", "audio/x-mpegurl; charset=utf-8")
-	_, _ = w.Write([]byte(Playlist(h.base(r), services)))
+	_, _ = w.Write([]byte(Playlist(h.base(c), services)))
+
+	return nil
 }
 
 // Playlist は、サービス services の M3U を、配信の URL の頭 base から作る。

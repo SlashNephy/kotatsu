@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,8 +23,12 @@ import (
 
 // TestTenbanServesCalendar は、tenban が、echo のルーターで予約の iCalendar を返し (#1606)、
 // 崩れたパスは、これまでどおり、整えた先へリダイレクトすることを確かめる。
-func TestTenbanServesCalendar(t *testing.T) {
-	t.Parallel()
+// textPlain は、見つからないときなどの、素の文の応答の Content-Type。
+const textPlain = "text/plain; charset=utf-8"
+
+// startTenban は、移行した DB で tenban を動かし、届くベースの URL と DB を返す。テストが終わったら止める。
+func startTenban(t *testing.T) (string, *pgxpool.Pool) {
+	t.Helper()
 
 	dbConfig := databasetest.New(t)
 	env := testEnv()
@@ -45,17 +50,9 @@ func TestTenbanServesCalendar(t *testing.T) {
 	migrateCmd := cli.NewCommand(opts)
 	migrateCmd.SetArgs([]string{subcommandMigrate})
 	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
-
 	pool, err := database.Open(t.Context(), dbConfig)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
-	clk := new(clock.Real)
-	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-		Username: "calendar", DisplayName: "カレンダー", Role: domain.RoleViewer, PasswordHash: nil,
-	})
-	require.NoError(t, err)
-	token, _, err := auth.NewCalendarFeeds(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID)
-	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := cli.NewCommand(opts)
@@ -68,7 +65,21 @@ func TestTenbanServesCalendar(t *testing.T) {
 		cancel()
 		assert.NoError(t, <-done)
 	})
-	base := "http://" + <-addresses
+
+	return "http://" + <-addresses, pool
+}
+
+func TestTenbanServesCalendar(t *testing.T) {
+	t.Parallel()
+
+	base, pool := startTenban(t)
+	clk := new(clock.Real)
+	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
+		Username: "calendar", DisplayName: "カレンダー", Role: domain.RoleViewer, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+	token, _, err := auth.NewCalendarFeeds(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name         string
@@ -79,14 +90,14 @@ func TestTenbanServesCalendar(t *testing.T) {
 	}{
 		{name: "valid token", path: "/api/calendar/" + token + "/reservations.ics", wantStatus: http.StatusOK, wantType: "text/calendar; charset=utf-8"},
 		// 秘密の値が違えば、見つからないことと区別させない。
-		{name: "wrong token", path: "/api/calendar/kotatsu_cal_wrong/reservations.ics", wantStatus: http.StatusNotFound, wantType: "text/plain; charset=utf-8"},
+		{name: "wrong token", path: "/api/calendar/kotatsu_cal_wrong/reservations.ics", wantStatus: http.StatusNotFound, wantType: textPlain},
 		// echo のルートに当たらない崩れたパスは、これまでどおり、http.ServeMux が整えた先へリダイレクトする。
 		{
 			name: "double slash", path: "//api//calendar/" + token + "/reservations.ics", wantStatus: http.StatusTemporaryRedirect,
 			wantLocation: "/api/calendar/" + token + "/reservations.ics",
 		},
 		// 移していない /api の下のほかのパスは、これまでどおり 404 になる。
-		{name: "other api", path: "/api/unknown", wantStatus: http.StatusNotFound, wantType: "text/plain; charset=utf-8"},
+		{name: "other api", path: "/api/unknown", wantStatus: http.StatusNotFound, wantType: textPlain},
 	}
 	client := httpclienttest.New(t)
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
