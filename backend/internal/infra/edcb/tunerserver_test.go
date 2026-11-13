@@ -320,3 +320,26 @@ func TestTunerServerProgramsShareDetails(t *testing.T) {
 		})
 	}
 }
+
+func TestTunerServerProgramsRestoresText(t *testing.T) {
+	t.Parallel()
+
+	// EDCB は、追加記号を角括弧の形に、〜と—を CP932 の文字に置き換え、改行を CRLF で返す。
+	// 同じ形が複数の記号に当たる「[三]」は、戻さない。
+	list := vector(serviceEvents(1024, event(1024, 100, "ニュース[字][三]～―\r\n続き")))
+	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: list, stream: nil, hold: false}})
+	programs, err := edcb.NewTunerServer(s.client(t)).Programs(t.Context(), nil)
+	require.NoError(t, err)
+	require.Len(t, programs, 1)
+	assert.Equal(t, "ニュース🈑[三]〜—\n続き", programs[0].Name)
+}
+
+func TestTunerServerOnAirPrograms(t *testing.T) {
+	t.Parallel()
+
+	s := newFakeServer(t, map[uint32]reply{})
+	programs, err := edcb.NewTunerServer(s.client(t)).OnAirPrograms(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, programs)
+	assert.Empty(t, s.received())
+}
