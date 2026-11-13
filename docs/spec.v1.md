@@ -245,7 +245,7 @@ v1では、これらの値を設定で変えられないようにします。mir
 |---|---|---|
 | 言語 | Go | メンテナーが習熟しており、コントリビューターも参入しやすいためです。Kotatsuの負荷はI/Oと外部プロセス（FFmpeg）とブラウザに集まるので、Rustとの性能差はほぼ出ません。`CGO_ENABLED=0`でarm64の静的バイナリも作れます。 |
 | API | GraphQL（gqlgen） | スキーマ（SDL）をAPIの原本にします。subscriptionをSSEで配信できます。 |
-| HTTP | 標準のnet/http | 映像の配信と認証の手続きは、GraphQLの外の素のHTTPで扱います。 |
+| HTTP | 標準のnet/http、echo v5 | 映像の配信と認証の手続きは、GraphQLの外の素のHTTPで扱います。tenbanの一番外側のルーターはecho v5にし、ルートをまとまりごとに`http.ServeMux`からechoのハンドラーへ移していきます（#1606）。echoのハンドラーは、ロガーを受け取らずに、リクエストのロガー（`echo.Context.Logger`、`*slog.Logger`）に書きます。部品の名前（`component`）は、ルートに掛けるミドルウェアで付けます。echoのルートに当たらないリクエストは、移し終えていない`http.ServeMux`に渡すので、二重のスラッシュなどのパスを整えるリダイレクトも、これまでどおりです。エラーの応答は、echoの既定（JSON）にせず、これまでと同じ形でハンドラーが書きます。今移したのは、予約のiCalendar（`/api/calendar/:token/reservations.ics`）です。 |
 | ジョブ | River（riverpgxv5） | PostgreSQLのトランザクションの中でジョブを投入できます。 |
 | DB | PostgreSQL、pgx v5、sqlc | v1はPostgreSQLだけに対応します。DBへのアクセスはinterfaceの裏に置き、将来はsqlcのSQLiteエンジンで2系統目のクエリを足せるようにします。 |
 | マイグレーション | `schema.sql`に宣言的に書き、Atlasで差分を生成します | 実行時は、Goに埋め込んだマイグレーションを`kotatsu migrate`が適用します。 |

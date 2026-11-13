@@ -10,6 +10,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -84,11 +85,11 @@ func TestHandler(t *testing.T) {
 				ID: reservationID, ServiceID: 3273701032, Name: "ニュース", Description: "説明",
 				StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Enabled: true, UpdatedAt: now,
 			}}}
-			mux := http.NewServeMux()
-			mux.Handle("GET /api/calendar/{token}/reservations.ics",
-				calendarapi.NewHandler(&fakeAuthenticator{role: tt.role}, queries, clocktest.NewFake(now), slog.New(slog.DiscardHandler)))
+			e := echo.New()
+			e.Logger = slog.New(slog.DiscardHandler)
+			e.GET(calendarapi.Route, calendarapi.NewHandler(&fakeAuthenticator{role: tt.role}, queries, clocktest.NewFake(now)).Serve)
 			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/calendar/"+tt.token+"/reservations.ics", nil))
+			e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/calendar/"+tt.token+"/reservations.ics", nil))
 
 			require.Equal(t, tt.wantStatus, rec.Code)
 			if tt.wantStatus != http.StatusOK {
