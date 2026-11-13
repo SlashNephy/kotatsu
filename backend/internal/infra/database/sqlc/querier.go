@@ -633,9 +633,6 @@ type Querier interface {
 	// media_service_types を渡すと、その種別 (映像か音声を流すサービス) だけを返す。空なら、種別で絞らない。
 	ListGuideServices(ctx context.Context, arg ListGuideServicesParams) ([]ListGuideServicesRow, error)
 	ListGuideViews(ctx context.Context, userID uuid.UUID) ([]GuideView, error)
-	// EPGStation から取り込んだ、まだ照合していない録画を、古い順に max_count 件返す。
-	// 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
-	ListImportedRecordingsToMatch(ctx context.Context, maxCount int32) ([]ListImportedRecordingsToMatchRow, error)
 	// 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
 	ListInstances(ctx context.Context) ([]Instance, error)
 	ListJobProgress(ctx context.Context, jobIds []int64) ([]JobProgress, error)
@@ -737,6 +734,10 @@ type Querier interface {
 	// ファイル名を付け直す録画と、ファイル名のテンプレートに当てはめる番組とサービスと、録画設定を求めるための予約。
 	// 録画中の録画は除く。予約が消えていれば、予約の項目は NULL になる。
 	ListRecordingsForRename(ctx context.Context, ids []uuid.UUID) ([]ListRecordingsForRenameRow, error)
+	// まだ照合していない録画を、古い順に max_count 件返す。EPGStation から取り込んだ録画と、番組を録った Kotatsu の録画が対象 (#1658)。
+	// Kotatsu の録画のうち、時刻予約の録画 (event_id が NULL) は、番組と対応しないので返さない。
+	// 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
+	ListRecordingsToMatch(ctx context.Context, maxCount int32) ([]ListRecordingsToMatchRow, error)
 	// 正規化した番組名と概要の列がまだない録画を、ID の順に max_count 件返す (#1044)。kotatsu migrate が埋める。
 	ListRecordingsWithoutNormalized(ctx context.Context, maxCount int32) ([]ListRecordingsWithoutNormalizedRow, error)
 	// 予約に一致したルール。ルールを作った順に返す。

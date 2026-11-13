@@ -762,52 +762,6 @@ func (q *Queries) ListAnnictWorksToResolve(ctx context.Context, arg ListAnnictWo
 	return items, nil
 }
 
-const listImportedRecordingsToMatch = `-- name: ListImportedRecordingsToMatch :many
-SELECT r.id, r.service_id, r.start_at, r.end_at, r.name FROM recordings r
-JOIN import_sources s ON s.kind = 'recorded' AND s.target_id = r.id
-LEFT JOIN recording_anime_matches m ON m.recording_id = r.id
-WHERE m.recording_id IS NULL AND r.state <> 'recording'
-  AND (r.genres = '[]'::jsonb OR r.genres @> '[{"lv1": 7}]'::jsonb)
-ORDER BY r.start_at, r.id
-LIMIT $1
-`
-
-type ListImportedRecordingsToMatchRow struct {
-	ID        uuid.UUID
-	ServiceID int64
-	StartAt   time.Time
-	EndAt     time.Time
-	Name      string
-}
-
-// EPGStation から取り込んだ、まだ照合していない録画を、古い順に max_count 件返す。
-// 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
-func (q *Queries) ListImportedRecordingsToMatch(ctx context.Context, maxCount int32) ([]ListImportedRecordingsToMatchRow, error) {
-	rows, err := q.db.Query(ctx, listImportedRecordingsToMatch, maxCount)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListImportedRecordingsToMatchRow{}
-	for rows.Next() {
-		var i ListImportedRecordingsToMatchRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.ServiceID,
-			&i.StartAt,
-			&i.EndAt,
-			&i.Name,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listOtherAnimeBroadcasts = `-- name: ListOtherAnimeBroadcasts :many
 SELECT b.pid, b.start_at, b.end_at, b.offset_seconds, j.jikkyo_channel_id::integer AS jikkyo_channel_id
 FROM anime_episode_broadcasts b
@@ -1043,6 +997,53 @@ func (q *Queries) ListRecordingsForNicolog(ctx context.Context, arg ListRecordin
 	for rows.Next() {
 		var i ListRecordingsForNicologRow
 		if err := rows.Scan(&i.ID, &i.Title, &i.EpisodeCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordingsToMatch = `-- name: ListRecordingsToMatch :many
+SELECT r.id, r.service_id, r.start_at, r.end_at, r.name FROM recordings r
+LEFT JOIN recording_anime_matches m ON m.recording_id = r.id
+WHERE m.recording_id IS NULL AND r.state <> 'recording'
+  AND (r.genres = '[]'::jsonb OR r.genres @> '[{"lv1": 7}]'::jsonb)
+  AND (r.event_id IS NOT NULL OR EXISTS (SELECT 1 FROM import_sources s WHERE s.kind = 'recorded' AND s.target_id = r.id))
+ORDER BY r.start_at, r.id
+LIMIT $1
+`
+
+type ListRecordingsToMatchRow struct {
+	ID        uuid.UUID
+	ServiceID int64
+	StartAt   time.Time
+	EndAt     time.Time
+	Name      string
+}
+
+// まだ照合していない録画を、古い順に max_count 件返す。EPGStation から取り込んだ録画と、番組を録った Kotatsu の録画が対象 (#1658)。
+// Kotatsu の録画のうち、時刻予約の録画 (event_id が NULL) は、番組と対応しないので返さない。
+// 取り込んだ録画はジャンルを持たないことがあるので、ジャンルのない録画も返す。アニメと特撮でないジャンルを持つ録画は返さない。
+func (q *Queries) ListRecordingsToMatch(ctx context.Context, maxCount int32) ([]ListRecordingsToMatchRow, error) {
+	rows, err := q.db.Query(ctx, listRecordingsToMatch, maxCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordingsToMatchRow{}
+	for rows.Next() {
+		var i ListRecordingsToMatchRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Name,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
