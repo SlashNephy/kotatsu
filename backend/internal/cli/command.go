@@ -322,37 +322,6 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter, p
 	})
 }
 
-// sealedStores は、アプリの秘密キーで暗号化した秘密情報 (設計書 8.4) を扱う部品。
-type sealedStores struct {
-	webhooks     *webhook.Store
-	webPush      *webpush.Service
-	animeRecords *animerecord.Service
-}
-
-// newSealedStores は、アプリの秘密キーで暗号化した秘密情報を扱う部品を作る。
-func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
-	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, err
-	}
-	// VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。
-	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, err
-	}
-	// 連携した後の見たいリストの取り込み (#928) は、ジョブを入れられるときだけ始める。
-	var inserter anime.Inserter
-	if deps.Jobs != nil {
-		inserter = deps.Jobs
-	}
-	animeRecords, err := newAnimeRecords(deps, logger, inserter, netactivity.PurposeAnimeLink)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sealedStores{webhooks: webhooks, webPush: webPush, animeRecords: animeRecords}, nil
-}
-
 // handleAnimeRecordCallbacks は、Annict と AniList から戻ってくる認可のハンドラーを、記録先ごとに mux に登録する (#927)。
 func handleAnimeRecordCallbacks(mux *http.ServeMux, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
 	logger = logger.With(slog.String("component", "anime_record"))
