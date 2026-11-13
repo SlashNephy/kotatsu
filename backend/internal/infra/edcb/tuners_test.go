@@ -1,6 +1,7 @@
 package edcb_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -60,10 +61,17 @@ func TestTunerServerTuners(t *testing.T) {
 func TestTunerServerTunersWhenFailed(t *testing.T) {
 	t.Parallel()
 
-	// 一覧を取れなければ、空の一覧ではなくエラーを返す。空の一覧を記録すると、チューナーがないことになってしまう。
-	s := newFakeServer(t, map[uint32]reply{1016: {status: 208, payload: nil, stream: nil, hold: false}})
-	_, err := edcb.NewTunerServer(s.client(t), nil).Tuners(t.Context())
-	require.ErrorIs(t, err, edcb.ErrBusy)
+	// どの問い合わせが失敗しても、空の一覧ではなくエラーを返す。空の一覧を記録すると、チューナーがないことになってしまう。
+	for _, command := range []uint32{1016, 1066, 1060} {
+		t.Run(strconv.FormatUint(uint64(command), 10), func(t *testing.T) {
+			t.Parallel()
+
+			s := tunerServer(t)
+			s.queued[command] = []reply{{status: 208, payload: nil, stream: nil, hold: false}}
+			_, err := edcb.NewTunerServer(s.client(t), nil).Tuners(t.Context())
+			require.ErrorIs(t, err, edcb.ErrBusy)
+		})
+	}
 }
 
 func TestTunerServerClockAndIdentity(t *testing.T) {

@@ -43,7 +43,7 @@ type Options struct {
 	DB         *pgxpool.Pool
 	Clock      clock.Clock
 	InstanceID uuid.UUID
-	// Tuner はチューナーサーバーのクライアント。nil なら、チューナーの状態を把握しない。
+	// Tuner はチューナーサーバーのクライアント。EPGSource と TunerSource が nil のとき、代わりに使う。
 	Tuner tunerserver.Client
 	// EPGSource は、EPG の同期に使う上流。nil なら Tuner を使う。どちらも nil なら EPG を同期しない。
 	// EDCB は、まだ EPG の同期とチューナーの把握にだけ使う (#1531、#1532)。

@@ -125,6 +125,12 @@ func DefaultRoles() []*Role {
 	}
 }
 
+// EDCB の TunerServer は、neko の EPG の同期とチューナーの把握に渡す (#1531、#1532)。
+var (
+	_ neko.EPGSource      = new(edcb.TunerServer)
+	_ tunerstate.Upstream = new(edcb.TunerServer)
+)
+
 func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")

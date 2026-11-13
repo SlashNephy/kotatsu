@@ -339,7 +339,7 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 設定するのはURLと、必要に応じてBASIC認証の資格情報です。
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
 EDCBは、まだEPGの同期とチューナーの把握にだけ使います（#1531、#1532）。録画と視聴に使えるようにする作業を進めています（#1258）。
-チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、nekoはEPGを同期し、チューナーを把握しますが、録画と視聴はチューナーサーバーがないものとして動き、nekoが起動時に警告を出します。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
+チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）と、Kotatsuがライブと録画に使うBonDriverの名前（`tuner.edcb.bon_drivers`、既定は空で、すべてのチューナーを使う。[3.6](#36-チューナーの把握)、#1532）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、nekoはEPGを同期し、チューナーを把握しますが、録画と視聴はチューナーサーバーがないものとして動き、nekoが起動時に警告を出します。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
 
 Kotatsuは、チューナーサーバーを、サーバーの種類に依らない型とinterface（`backend/internal/domain/tunerserver`）で扱います。
 チャンネル、サービス、番組、チューナー、イベント、ストリームの開き方と、開けなかった理由（チューナーが足りない、サービスがないなど）は、この型で表します。
@@ -2597,6 +2597,7 @@ macOSとWindowsの実機では、まだ動きを確かめていません。CIで
 | 録画を始めるのが予定の開始より遅れても、冒頭が欠けたとはみなさない時間 | 30秒 | 初期値 |
 | チューナーサーバーにつながらないまま、mikanが割り振りを手放すまでの時間 | 30秒 | 初期値 |
 | EDCBのNetworkTVで、Kotatsuが使うIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、#1530） | 1000から32個 | 初期値 |
+| EDCBで、Kotatsuがライブと録画に使うBonDriver（`tuner.edcb.bon_drivers`、#1532） | 空（すべてのチューナーを使う） | 合意 |
 | チューナーサーバーの放送のストリームのデータが届かないまま、切れたとみなすまでの時間（イベントストリームには使いません） | 10秒 | 初期値 |
 | ストリームを開くときに、チューナーサーバーの応答を待つ時間 | 30秒 | 初期値 |
 | 録画できずに割り振りを手放したmikanが、割り振りを取らずに待つ時間 | 1分 | 初期値 |
