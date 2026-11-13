@@ -7,6 +7,7 @@ import {
   useLiveTimeshift,
   type TimeshiftMode,
 } from './useLiveTimeshift';
+import { loadLiveResume, saveLiveResume } from './liveResume';
 
 const origin = Date.parse('2026-10-29T08:00:00Z');
 // buffer は、10 分前から録っているバッファ。途切れた区間はない。
@@ -24,6 +25,7 @@ function fire(video: HTMLVideoElement, type: string) {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   vi.useFakeTimers();
   vi.setSystemTime(origin);
   // 配信の HEAD は、流し始めた位置を返さない。位置は、指定した位置のままにする。
@@ -125,5 +127,73 @@ describe('useLiveTimeshift', () => {
     rerender({ mode: null });
     expect(result.current.behind).toBe(false);
     expect(result.current.available).toBe(false);
+  });
+});
+
+describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
+  const service = 'U2VydmljZTox';
+
+  test('バッファを見ている間は、見ている放送時刻を覚え、ライブに戻ったら忘れる', () => {
+    const video = document.createElement('video');
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    act(() => {
+      result.current.seekTo(120);
+    });
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    // バッファの始まりから 120 秒の放送時刻。
+    expect(loadLiveResume(localStorage, service)).toBe(origin - 600_000 + 120_000);
+
+    act(() => {
+      result.current.goLive();
+    });
+    expect(loadLiveResume(localStorage, service)).toBeNull();
+  });
+
+  test('ライブの端を見ている間は、覚えない', () => {
+    const video = document.createElement('video');
+    renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+
+    expect(loadLiveResume(localStorage, service)).toBeNull();
+  });
+
+  test.each([
+    { name: 'バッファに残っていれば、その位置から再開する', ago: 300_000, behind: true },
+    // バッファの始まりより前は、もう残っていない。
+    { name: 'バッファより前なら、ライブの端から始めて忘れる', ago: 900_000, behind: false },
+    {
+      name: 'ライブの端に近ければ、ライブの端から始めて忘れる',
+      ago: (liveThresholdSeconds - 1) * 1000,
+      behind: false,
+    },
+  ])('$name', ({ ago, behind }) => {
+    saveLiveResume(localStorage, service, origin - ago, origin - 1_000);
+    const video = document.createElement('video');
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+
+    expect(result.current.behind).toBe(behind);
+    if (behind) {
+      expect(result.current.hlsStart).toBeCloseTo((600_000 - ago) / 1000, 0);
+      // 移れたら、続けて見ている位置を覚え直す。
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(loadLiveResume(localStorage, service)).toBe(origin - ago);
+    } else {
+      expect(loadLiveResume(localStorage, service)).toBeNull();
+    }
+  });
+
+  test('ほかのサービスで覚えた位置では、再開しない', () => {
+    saveLiveResume(localStorage, 'other', origin - 300_000, origin);
+    const video = document.createElement('video');
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+
+    expect(result.current.behind).toBe(false);
+    expect(loadLiveResume(localStorage, 'other')).toBe(origin - 300_000);
   });
 });
