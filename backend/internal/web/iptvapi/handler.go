@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/labstack/echo/v5"
@@ -105,9 +104,8 @@ func (h *Handler) services(ctx context.Context) ([]domain.Service, error) {
 }
 
 // base は、秘密の値 token の配信の URL の頭 (scheme://host/api/iptv/<token>) を返す。
-// token は、リクエストの値をそのまま返すので、パスの一部としてエスケープする。発行する値は base64url なので変わらない。
 func (h *Handler) base(c *echo.Context) string {
-	return h.origin(c.Request()) + PathPrefix + url.PathEscape(c.Param("token"))
+	return h.origin(c.Request()) + PathPrefix + c.Param("token")
 }
 
 func fail(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, message string, err error) {

@@ -1,6 +1,7 @@
 package iptvapi
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -22,10 +23,8 @@ func (h *Handler) Playlist(c *echo.Context) error {
 
 		return nil
 	}
-	w.Header().Set("Content-Type", "audio/x-mpegurl; charset=utf-8")
-	_, _ = w.Write([]byte(Playlist(h.base(c), services)))
 
-	return nil
+	return c.Blob(http.StatusOK, "audio/x-mpegurl; charset=utf-8", []byte(Playlist(h.base(c), services)))
 }
 
 // Playlist は、サービス services の M3U を、配信の URL の頭 base から作る。

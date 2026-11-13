@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v5"
@@ -75,10 +76,8 @@ func (h *Handler) Guide(c *echo.Context) error {
 
 		return nil
 	}
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	_, _ = w.Write(body)
 
-	return nil
+	return c.Blob(http.StatusOK, "application/xml; charset=utf-8", body)
 }
 
 // Guide は、サービス services と番組 programs の XMLTV を、配信の URL の頭 base から作る。
