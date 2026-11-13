@@ -22,7 +22,7 @@ Kotatsuは何も設定しなければ外部と通信しません。テレメト�
 | 接続先 | 通信する側 | 送る内容 | 有効になる条件 | 既定 |
 | --- | --- | --- | --- | --- |
 | しょぼいカレンダー（`cal.syoboi.jp`） | サーバー（nekonote） | 放送の時間帯とチャンネルの問い合わせ。録画に結びついた作品（TID）の放送の問い合わせ（#1361） | 管理者が`/admin/integrations`で有効にする | 無効 |
-| GitHubのraw（`raw.githubusercontent.com`） | サーバー（nekonote） | チャンネルと作品IDの対応表の取得 | 同上 | 無効 |
+| GitHubのraw（`raw.githubusercontent.com`） | サーバー（nekonote） | 作品IDの対応表（arm）の取得。チャンネルの対応表は本体に埋め込んだので取得しません（#1589） | 同上 | 無効 |
 | AnnictとAniListのAPI（作品IDの対応） | サーバー（nekonote） | 作品の問い合わせ | 同上に加えて、管理者がAnnictのトークンを設定する | 無効 |
 | AnnictとAniListのAPI（見たアニメの記録） | サーバー（nekonote、連携の操作はtenban） | 見た作品と話、見たいリストの取得、連携のトークン | 管理者がアプリを登録し、ユーザーが連携する | 無効 |
 | Jikan（`api.jikan.moe`） | サーバー（nekonote） | MyAnimeListの作品ID | アニメの連携を有効にし、見たいリストを取り込む | 無効 |

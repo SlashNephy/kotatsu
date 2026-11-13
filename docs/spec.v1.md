@@ -515,14 +515,15 @@ Dateヘッダーとの比較では、チューナーサーバーとKotatsuの時
 
 | データ | 取り込み元 | 中身 |
 |---|---|---|
-| チャンネルの対応 | [saya-definitions](https://github.com/SlashNephy/saya-definitions)の`definitions.json` | サービスと、しょぼいカレンダーのチャンネル（ChID）、Annictのチャンネルの対応 |
+| チャンネルの対応 | バイナリに埋め込んだ定義（`backend/internal/infra/animedata/channels.json`。[saya-definitions](https://github.com/SlashNephy/saya-definitions)の`definitions.json`をもとに、このリポジトリで直しています。#1589） | サービスと、しょぼいカレンダーのチャンネル（ChID）、Annictのチャンネル、ニコニコ実況のチャンネルの対応 |
 | 作品IDの対応 | [arm](https://github.com/kawaiioverflow/arm)の`arm.json`（設定で、同じ形のJSONに向け直せます） | しょぼいカレンダーのTIDと、Annict、AniList、MyAnimeListの作品IDの対応 |
 | 作品IDの対応（自前） | AnnictとAniListのGraphQL API（管理者がAnnictのトークンを設定したときだけ） | AnnictのしょぼいカレンダーのTIDとMyAnimeListのIDから作った、TIDと、Annict、AniList、MyAnimeListの作品IDの対応（#1223） |
 
 - nekonoteは、1時間ごとに取り込み直す時期が来たかを確かめ、前に問い合わせてから1日たった取り込み元を取り込みます。管理者が連携を有効にしたときは、1時間を待たずに取り込みます。前に取り込んだときのETagを送り、変わっていなければ読み直しません。
 - 取り込めなかったら、前に取り込んだ内容を残し、理由を記録して、1時間後に問い合わせ直します。1つの取り込み元が取り込めなくても、ほかの取り込み元は取り込みます。連携の画面には、取り込み元ごとに、取り込んだ日時と件数、取り込めなかった理由を出します。
-- saya-definitionsは、地上波のネットワークIDを持ちません（地域ごとに違うので、`15`が入っています）。そこで、地上波は種別とサービスIDで、BSとCSはネットワークIDとサービスIDで、サービスと照らし合わせます。同じサービスが2度出てきたら、先に出てきたものを使います（TVTestAnnictRecorderと同じです）。
-- 地上波の他の地域の局を、Mirakurunで`EXT1`のような地上波でない種別として受けていることがあります。ネットワークIDが地上波のもの（ARIB TR-B14）なら、種別が地上波でなくても、サービスIDで照らし合わせます（#1566）。ただし、使うのはNHK（しょぼいカレンダーのNHK総合とEテレ）と、独立局（地上波の対応のうち、そのChIDを持つサービスIDが1つだけのもの）の対応だけです。saya-definitionsは、系列局（毎日放送など）をキー局のChIDに寄せていますが、アニメは系列局で放送時間が違うことがあり、キー局の放送時間データで照合すると、別の作品に結びついてしまうためです。系列局の番組は、ChIDに対応しないサービスの番組と同じく、番組名を解析して結びつけます。種別が地上波のサービスは、これまでどおり、系列局でもsaya-definitionsの対応を使います。
+- チャンネルの定義は、Kotatsuの更新で届きます。外部へは問い合わせず、中身のハッシュをETagの代わりにして、変わったときだけ取り込み直します。saya-definitionsはアーカイブされて直せないので、定義をこのリポジトリに移しました。地上波の系列局は、saya-definitionsではキー局の項目にまとめられていたので、サービスIDの地域（ARIB TR-B14の上位6ビット）と系列から局を決め、局ごとに分けました。ChIDは、しょぼいカレンダーの`ChLookup`（`ChID=*`）の局名と、AnnictのチャンネルのIDは、Annict DBのチャンネルの一覧の局名と突き合わせて決めました（2026年11月）。AnnictのチャンネルのIDは、ChIDと同じとは限りません（長崎国際テレビは、ChIDが171、Annictが173）。しょぼいカレンダーにない局（秋田放送など）は、ChIDを持たせません。キー局のChIDで引くと、放送時間の違う別の作品に結びつくためです。ニコニコ実況のチャンネルは、系列局もキー局のものを持ちます。
+- 定義は、地上波のネットワークIDを持ちません（地域ごとに違うので、`15`が入っています）。そこで、地上波は種別とサービスIDで、BSとCSはネットワークIDとサービスIDで、サービスと照らし合わせます。同じサービスが2度出てきたら、先に出てきたものを使います（TVTestAnnictRecorderと同じです）。
+- 地上波の他の地域の局を、Mirakurunで`EXT1`のような地上波でない種別として受けていることがあります。ネットワークIDが地上波のもの（ARIB TR-B14）なら、種別が地上波でなくても、サービスIDで照らし合わせます（#1566）。定義は系列局を局ごとに持つので（#1589）、系列局も、その局のChIDに当たります。
 - 地上波のサブチャンネル（サービスIDがメインの1つ後か2つ後で、対応のないもの）には、メインの対応を使います（#1566）。メインで野球中継をし、サブチャンネルでアニメを放送することがあるためです。実況の対応表（[7.4](#74-字幕データ放送実況)）と同じ寄せ方です。しょぼいカレンダーで別のチャンネルを持つサブチャンネル（Eテレ2とEテレ3、TOKYO MX2）には、そのChIDを使い、Annictのチャンネルは付けません。サブチャンネルで放送する番組は、しょぼいカレンダーではそのチャンネルに登録されるので、メインのChIDで引くと、メインの別の番組に結びついてしまうためです。
 - 管理者は、サービスの画面（`/admin/services`）で、サービスごとにChIDとAnnictのチャンネルを上書きできます。項目ごとに上書きし、空にすると取り込んだ対応に戻ります。取り込み直しても、上書きは残ります。家族の中で完結する操作なので、再認証は求めません。変えたことは監査ログに残します。
 - 1つのTIDに複数の作品が対応することがあります（分割して登録された作品など）。
@@ -1720,7 +1721,7 @@ EPGStationをシングルサインオンの背後に置いた運用では、外�
 | システム | `system_settings` | 画面から変える設定（[11.2](#112-設定の置き場所)） |
 | | `schema_compatibility` | 動いているバイナリが対応するスキーマの版（[11.4](#114-バックアップと更新)） |
 | | `vapid_keys` | Web PushのVAPIDキー。秘密鍵はアプリの秘密キーで暗号化する（[8.4](#84-秘密情報)） |
-| アニメ | `anime_channel_definitions`、`anime_channel_overrides` | saya-definitionsから取り込んだ、サービスとしょぼいカレンダーのChID、Annictのチャンネルの対応と、管理者の上書き（[3.8](#38-アニメの番組と作品の結びつき)）。取り込んだ対応は、saya-definitionsの行のまま持ち、サービスとの照らし合わせ（他の地域の局やサブチャンネルの規則）は、読むときに行います。上書きはサービスごとに1行で、項目ごとに持ちます。 |
+| アニメ | `anime_channel_definitions`、`anime_channel_overrides` | チャンネルの定義から取り込んだ、サービスとしょぼいカレンダーのChID、Annictのチャンネルの対応と、管理者の上書き（[3.8](#38-アニメの番組と作品の結びつき)）。取り込んだ対応は、定義の行のまま持ち、サービスとの照らし合わせ（他の地域の局やサブチャンネルの規則）は、読むときに行います。上書きはサービスごとに1行で、項目ごとに持ちます。 |
 | | `anime_works` | armから取り込んだか、AnnictとAniListから作った（`annict`）、しょぼいカレンダーのTIDと、Annict、AniList、MyAnimeListの作品IDの対応です。取り込み元ごとに行を持ち、取り込み直すときは、その取り込み元の行だけを入れ替えます。TIDごとに、`annict`の行があればそれを使います。 |
 | | `annict_works`、`annict_work_sync`、`anime_import_tokens` | Annictから引いた作品（TID、MyAnimeListのID、AniListから引いたID）と、引いたところまで、管理者が設定した暗号化したAnnictのトークン（#1223） |
 | | `anime_imports` | 取り込み元ごとの、最後に問い合わせた日時、取り込めた日時と件数、ETag、取り込めなかった理由 |
@@ -2656,7 +2657,7 @@ macOSとWindowsの実機では、まだ動きを確かめていません。CIで
 | フォロー中のユーザーの視聴状況を引く問い合わせ | 見たいリストの取り込みと合わせて1つずつ、1秒以上空けます。記録先ごとに20ページ、1,000人まで（1回にAnnictは50人、AniListは50件） | 初期値 |
 | フォロー中のユーザーの視聴状況を出す期間 | 取得できてから24時間（過ぎたものは出さず、nekonoteが1日ごとに消します。DBには最長で約48時間残ります） | 初期値 |
 | フォロー中のユーザーの視聴状況を取得するジョブ | キュー`anime_following`で1つずつ。時間の上限は15分、試すのは1回だけ | 初期値 |
-| saya-definitions、arm、しょぼいカレンダーのタイトルの一覧を取り込み直す間隔 | 1日（1時間ごとに時期が来たかを確かめます。取り込めなかったら、1時間後に問い合わせ直します。タイトルの一覧は、前に取り込んだ後の更新だけを引きます） | 合意 |
+| チャンネルの定義、arm、しょぼいカレンダーのタイトルの一覧を取り込み直す間隔 | 1日（1時間ごとに時期が来たかを確かめます。取り込めなかったら、1時間後に問い合わせ直します。タイトルの一覧は、前に取り込んだ後の更新だけを引きます） | 合意 |
 | 連携先の情報を取り込むジョブの時間の上限 | 15分 | 初期値 |
 | AnnictとAniListから作品IDの対応を作る間隔と量（[3.8](#38-アニメの番組と作品の結びつき)） | 1時間ごとに、今期と来期の作品は1日に1回、すべての作品は1回に20ページ（1ページ50作品）ずつ引き、引き終えたら30日後に引き直します。AniListのIDは、1回に50件ずつ20回まで、引いてから30日で引き直します。問い合わせの間は、Annictは1秒、AniListは2秒以上空けます。取り込めなかったら、1時間後に問い合わせ直します | 初期値 |
 | アニメの番組を照合し直す範囲と間隔 | 放送中と、これから1週間の番組を、6時間ごと | 合意 |
@@ -2826,8 +2827,8 @@ Kotatsu本体はApache License 2.0で公開します。
 | パスワードのブロックリスト（SecListsの`xato-net-10-million-passwords-100000.txt`から作成） | MIT | 本体に埋め込み、ライセンスと出典を`backend/internal/lib/password/`に残します。 |
 | 実況チャンネルの対応表（KonomiTVの`jikkyo_channels.json`から作成） | MIT | 本体に同梱し、著作権表示を残します。 |
 | 字幕の外字の既定の表（libaribcaptionの`b24_drcs_conv.cpp`から作成） | MIT（ファイルの見出しは同種の許諾の表示） | フロントエンドに同梱します（リポジトリには置かず、ビルド時に固定したcommitから作ります）。著作権表示を`frontend/public/licenses/libaribcaption.txt`に残します。 |
-| saya-definitions | MIT | 本体には同梱しません。連携を有効にしたインスタンスが、実行時にGitHubから取得してDBに持ちます（[3.8](#38-アニメの番組と作品の結びつき)）。 |
-| arm | MIT（リポジトリにLICENSEのファイルはなく、`package.json`の`license`で示しています。2026年11月に確かめました） | saya-definitionsと同じく、本体には同梱せず、実行時に取得します。 |
+| saya-definitions | MIT | `definitions.json`をもとにした定義（`channels.json`）を本体に埋め込みます（#1589）。同じフォルダーの`channels.LICENSE`に、出典とライセンスの本文を置きます。 |
+| arm | MIT（リポジトリにLICENSEのファイルはなく、`package.json`の`license`で示しています。2026年11月に確かめました） | 本体には同梱せず、実行時に取得します。 |
 | AnnictとAniListの作品のID | AnnictのAPI利用規約（第6条で、まとまったデータとしての提供を禁じ、第7条で、アプリケーションの提供に要る範囲での保存を認めています）と、AniListのAPIの利用規約に従います | 本体には同梱しません。管理者がAnnictのトークンを設定したインスタンスが、実行時にAPIへ問い合わせ、作品IDの対応に使うID（TID、AnnictのID、MyAnimeListのID、AniListのID）だけをDBに持ちます。作品名や画像は持ちません（#1223）。 |
 | 作品の高画質の画像（AniListの`coverImage`と、Jikan（MIT）が返すMyAnimeListの画像） | AniListのAPIの利用規約と、MyAnimeListの利用規約に従います（Jikanは、MyAnimeListを読む非公式のAPIです） | 本体には同梱しません。見たいリストのある作品の画像のURLだけをDBに持ち（#1315）、画像は、画面で使うときにtenbanが取って中継し、メモリに覚えるだけにします（[3.8](#38-アニメの番組と作品の結びつき)）。 |
 | しょぼいカレンダーの放送時間データとタイトルの一覧 | ライセンスの表示はありません（取得の方法は、公式の文書で`db.php`の仕様として公開されています） | 本体には同梱しません。連携を有効にしたインスタンスが`db.php`に問い合わせ、照合に使う分だけをDBにキャッシュし、放送が終わってから2日で消します。照合の結果として、TID、話数、サブタイトルを持ちます。タイトルの一覧は、番組名から作品を引くために、TIDとタイトル名と更新日時だけを持ちます。 |
@@ -2868,7 +2869,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | [otya128/mpeg2toh264](https://github.com/otya128/mpeg2toh264) | MIT | [`7b008c6`](https://github.com/otya128/mpeg2toh264/commit/7b008c6) | ブラウザ内でのMPEG-2からH.264への変換 |
 | [rokoucha/Mahiron](https://github.com/rokoucha/Mahiron) | Apache-2.0 | [`8a7fd39`](https://github.com/rokoucha/Mahiron/commit/8a7fd39) | 任意の文字列のチャンネル種別、データ放送のAPI |
 | [SlashNephy/annict-tracker](https://github.com/SlashNephy/annict-tracker) | MIT | [`ebe5075`](https://github.com/SlashNephy/annict-tracker/commit/ebe5075) | 見たいリストの作品を、次の話と次の放送とともにカードで並べる視聴管理の画面（#1229）、作品の高画質の画像をAniListの`extraLarge`とJikanから引く選び方（#1315）、放送の時期のバッジと絞り込み、配信サービスで作品を探すリンクのURLの形 |
-| [SlashNephy/saya-definitions](https://github.com/SlashNephy/saya-definitions) | MIT | [`00d8dab`](https://github.com/SlashNephy/saya-definitions/commit/00d8dab) | サービスと、しょぼいカレンダーのチャンネル、Annictのチャンネルの対応 |
+| [SlashNephy/saya-definitions](https://github.com/SlashNephy/saya-definitions) | MIT | [`00d8dab`](https://github.com/SlashNephy/saya-definitions/commit/00d8dab) | サービスと、しょぼいカレンダーのチャンネル、Annictのチャンネルの対応。`definitions.json`をもとにした定義を埋め込みます（#1589） |
 | [SlashNephy/TVTestAnnictRecorder](https://github.com/SlashNephy/TVTestAnnictRecorder) | MIT | [`e8c867b`](https://github.com/SlashNephy/TVTestAnnictRecorder/commit/e8c867b) | アニメの番組と作品の照合の流れ（しょぼいカレンダー → arm → Annict）、話数とサブタイトルによるエピソードの特定、`[新]`と`[終]`による作品の状態の変更、番組名からの作品名と話数の解析（[3.8](#38-アニメの番組と作品の結びつき)） |
 | [tsukumijima/jikkyo-api](https://github.com/tsukumijima/jikkyo-api) | MIT | [`bca86ff`](https://github.com/tsukumijima/jikkyo-api/commit/bca86ff) | ニコニコ実況とNX-Jikkyoの過去ログのAPI |
 | [tsukumijima/KonomiTV](https://github.com/tsukumijima/KonomiTV) | MIT | [`0775594`](https://github.com/tsukumijima/KonomiTV/commit/0775594) | tsreadexによる入力の正規化とID3による字幕の運搬、仮想HLSとオンデマンドのエンコード、機能ごとに分けたプレイヤーの構成、Document Picture-in-Picture |
