@@ -1024,9 +1024,10 @@ type publicAPI struct {
 	logger       *slog.Logger
 }
 
-// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) を mux に登録する (設計書 9.1、#1605)。
-// どれもセッションの Cookie を見ず、API トークン、パスの秘密の値、署名のどれかで認証する。
-// 知らないパスは、画面を返さずに 404 にする。
+// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) のうち、まだ echo に移していないものを
+// mux に登録する (設計書 9.1、#1605)。今は、API トークンで認証する EPGStation 互換の API だけが残る。
+// echo に移したもの (iCalendar、IPTV、署名付きの配信) は、newRouter が受ける (#1606)。
+// どれにも当たらないパスは、画面を返さずに 404 にする。
 func handlePublicAPI(mux *http.ServeMux, deps *Deps, p *publicAPI) {
 	mux.Handle(apiPathPrefix, http.NotFoundHandler())
 	compat := newEPGStationAPI(deps, p.apiTokens, p.opener, p.logos, p.streams, p.streamLogger)
