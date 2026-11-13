@@ -36,6 +36,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.opentelemetry.io/proto/otlp v1.11.1
+	go.uber.org/mock v0.6.0
 	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mod v0.42.0
@@ -146,5 +147,6 @@ tool (
 	github.com/99designs/gqlgen
 	github.com/abice/go-enum
 	github.com/goforj/wire/cmd/wire
+	go.uber.org/mock/mockgen
 	golang.org/x/vuln/cmd/govulncheck
 )
