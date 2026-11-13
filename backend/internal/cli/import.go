@@ -10,15 +10,18 @@ import (
 	"slices"
 	"strings"
 	"text/tabwriter"
+	"uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/edcbimport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epgstation"
 )
 
@@ -110,9 +113,112 @@ func newImportCommand(
 	epgstationCmd.Flags().BoolVar(&dryRun, "dry-run", false, "only show what would be imported")
 	epgstationCmd.Flags().StringVar(&username, "user", "", "the Kotatsu user recorded as the creator of the imported rules and reserves")
 	_ = epgstationCmd.MarkFlagRequired("source")
-	importCmd.AddCommand(epgstationCmd)
+	importCmd.AddCommand(epgstationCmd, newImportEDCBCommand(opts, connect))
 
 	return importCmd
+}
+
+// newImportEDCBCommand は kotatsu import edcb を作る (#1503)。dry run でも、サービスと番組を引くので DB に接続する。
+// 書き込みは巻き戻すので、DB は変わらない。
+func newImportEDCBCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
+	var (
+		address  string
+		dryRun   bool
+		username string
+	)
+	cmd := &cobra.Command{
+		Use:   "edcb",
+		Short: "Import automatic and manual reservations and the recorded history from EDCB (EpgTimerSrv)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !dryRun && username == "" {
+				return errImportUserRequired
+			}
+			_, pool, err := connect(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer closePool(pool)
+			client, err := edcb.New(&edcb.Options{Address: address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
+			if err != nil {
+				return err
+			}
+			snapshot, err := edcbimport.Read(cmd.Context(), client, opts.Logger, nil)
+			if err != nil {
+				return err
+			}
+			serviceIDs, err := sqlc.New(pool).ListServiceIDs(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to list services: %w", err)
+			}
+			if len(serviceIDs) == 0 {
+				return errNoServices
+			}
+			userID := uuid.Nil()
+			if username != "" {
+				if userID, err = auth.UserIDByUsername(cmd.Context(), pool, username); err != nil {
+					return err
+				}
+			}
+			result, err := edcbimport.NewImporter(opts.Clock, audit.NewRecorder(opts.Clock)).Apply(cmd.Context(), pool, snapshot, &edcbimport.ApplyOptions{
+				UserID: userID, DryRun: dryRun,
+			})
+			if err != nil {
+				return err
+			}
+
+			return printEDCBImportResult(cmd.OutOrStdout(), result, dryRun)
+		},
+	}
+	cmd.Flags().StringVar(&address, "address", "", "EpgTimerSrv TCP address (host:port; the port defaults to 4510)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "only show what would be imported; changes are rolled back")
+	cmd.Flags().StringVar(&username, "user", "", "the Kotatsu user recorded as the creator of the imported rules and reserves")
+	_ = cmd.MarkFlagRequired("address")
+
+	return cmd
+}
+
+// printEDCBImportResult は、EDCB からの取り込みの結果を表にして w に書く。
+func printEDCBImportResult(w io.Writer, result *edcbimport.Result, dryRun bool) error {
+	skipped := map[string]int{}
+	for _, s := range result.Skipped {
+		skipped[s.Kind]++
+	}
+	title := "EDCB import result"
+	if dryRun {
+		title = "EDCB import plan (dry run; nothing was written)"
+	}
+	kinds := []struct{ kind, label string }{
+		{edcbimport.KindRecordedHistory, "recorded history"},
+		{edcbimport.KindRule, "keyword reservations"},
+		{edcbimport.KindReserve, "reservations"},
+	}
+	labels := map[string]string{}
+	lines := []string{title, "", "KIND\tIMPORTED\tALREADY IMPORTED\tSKIPPED"}
+	for _, k := range kinds {
+		labels[k.kind] = k.label
+		lines = append(lines, fmt.Sprintf("%s\t%d\t%d\t%d", k.label, result.Imported[k.kind], result.AlreadyImported[k.kind], skipped[k.kind]))
+	}
+	if result.SkippedAutoReserves > 0 {
+		lines = append(lines, "", fmt.Sprintf("%d reservations made by keyword reservations were skipped; the imported rules make them again", result.SkippedAutoReserves))
+	}
+	if len(result.Skipped) > 0 {
+		lines = append(lines, "", "Skipped", "  KIND\tID\tREASON")
+		for _, s := range result.Skipped {
+			lines = append(lines, fmt.Sprintf("  %s\t%d\t%s", labels[s.Kind], s.SourceID, s.Reason))
+		}
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(tw, line); err != nil {
+			return fmt.Errorf("failed to print the import result: %w", err)
+		}
+	}
+	if err := tw.Flush(); err != nil {
+		return fmt.Errorf("failed to print the import result: %w", err)
+	}
+
+	return nil
 }
 
 // sourceAuthEnv は、取り込み元の DB のパスワードを渡す環境変数。

@@ -97,6 +97,15 @@ func (d *decoder) failf(format string, args ...any) {
 	}
 }
 
+// remaining は、まだ読んでいないバイト数を返す。版によって後ろに項目が増える構造体で、項目があるかを確かめるのに使う。
+func (d *decoder) remaining() int {
+	if d.err != nil {
+		return 0
+	}
+
+	return len(d.b) - d.pos
+}
+
 // take は、n バイトを読む。足りなければ nil を返す。
 func (d *decoder) take(n int) []byte {
 	if d.err != nil {
