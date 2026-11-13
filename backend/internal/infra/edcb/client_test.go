@@ -517,11 +517,11 @@ func TestFilesFromRealEDCB(t *testing.T) {
 	})
 	client := s.client(t)
 
-	files, err := client.Files(t.Context(), []string{"LogoData.ini", "ChSet5.txt"})
+	files, err := client.Files(t.Context(), []string{logoMapFile, "ChSet5.txt"})
 	require.NoError(t, err)
 	require.Len(t, files, 2)
 	// ロゴをまだ受け取っていなければ、LogoData.ini は空で返る。
-	assert.Equal(t, &edcb.File{Name: "LogoData.ini", Data: []byte{}}, files[0])
+	assert.Equal(t, &edcb.File{Name: logoMapFile, Data: []byte{}}, files[0])
 	assert.Equal(t, &edcb.File{Name: "ChSet5.txt", Data: chSet}, files[1])
 
 	got, err := client.ChannelSettings(t.Context())

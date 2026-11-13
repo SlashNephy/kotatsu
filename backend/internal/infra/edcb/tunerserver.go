@@ -5,6 +5,7 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -24,6 +25,8 @@ type TunerServer struct {
 	ids NetworkTVIDs
 	// preemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。
 	preemptionCheckInterval time.Duration
+	// logos は、サービスとロゴの ID の対応 (#1537)。
+	logos *logoMap
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -52,7 +55,10 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 		ids = opts.NetworkTVIDs
 	}
 
-	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval}
+	return &TunerServer{
+		client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval,
+		logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}},
+	}
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。
