@@ -238,9 +238,15 @@ const (
 )
 
 // UsesTunerServer は、設定から、Kotatsu が使えるチューナーサーバーがあるかどうかを返す。
-// EDCB は、まだチューナーサーバーとしてつないでいない (#1258) ので、選んでもチューナーサーバーがないものとして扱う。
 func (t *Tuner) UsesTunerServer() bool {
-	return t.Kind == TunerKindMirakurun && t.URL.Value() != ""
+	switch t.Kind {
+	case TunerKindMirakurun:
+		return t.URL.Value() != ""
+	case TunerKindEDCB:
+		return t.EDCB.Address != ""
+	default:
+		return false
+	}
 }
 
 func (t *Tuner) validate() []error {

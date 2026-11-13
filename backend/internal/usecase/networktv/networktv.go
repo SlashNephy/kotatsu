@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 	"uuid"
 
@@ -35,9 +36,13 @@ type IDs struct {
 
 var _ edcb.NetworkTVIDs = new(IDs)
 
-// NewIDs は IDs を返す。範囲は [start, start+count)。
-func NewIDs(db sqlc.DBTX, clk clock.Clock, instanceID uuid.UUID, start, count int32) *IDs {
-	return &IDs{db: db, clock: clk, instanceID: instanceID, start: start, count: count}
+// NewIDs は IDs を返す。範囲は [start, start+count) で、1 から int32 の最大値までに収まらなければエラーを返す。
+func NewIDs(db sqlc.DBTX, clk clock.Clock, instanceID uuid.UUID, start, count int) (*IDs, error) {
+	if start < 1 || start > math.MaxInt32 || count < 1 || count > math.MaxInt32 || start > math.MaxInt32-count+1 {
+		return nil, fmt.Errorf("invalid NetworkTV ID range: start %d, count %d", start, count)
+	}
+
+	return &IDs{db: db, clock: clk, instanceID: instanceID, start: int32(start), count: int32(count)}, nil
 }
 
 // Acquire は、空いている最も小さい ID を取る。空いていなければ edcb.ErrNoNetworkTVID を返す。

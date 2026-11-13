@@ -20,9 +20,9 @@ func tunerServer(t *testing.T) *fakeServer {
 	t.Helper()
 
 	return newFakeServer(t, map[uint32]reply{
-		1016: {status: 1, payload: fixture(t, "enum_tuner_reserve.bin"), stream: nil, hold: false},
-		1066: {status: 1, payload: fixture(t, "enum_tuner_process_open.bin"), stream: nil, hold: false},
-		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false},
+		1016: {status: 1, payload: fixture(t, "enum_tuner_reserve.bin"), stream: nil, hold: false, drop: false},
+		1066: {status: 1, payload: fixture(t, "enum_tuner_process_open.bin"), stream: nil, hold: false, drop: false},
+		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false, drop: false},
 	})
 }
 
@@ -67,7 +67,7 @@ func TestTunerServerTunersWhenFailed(t *testing.T) {
 			t.Parallel()
 
 			s := tunerServer(t)
-			s.queued[command] = []reply{{status: 208, payload: nil, stream: nil, hold: false}}
+			s.queued[command] = []reply{{status: 208, payload: nil, stream: nil, hold: false, drop: false}}
 			_, err := edcb.NewTunerServer(s.client(t), nil).Tuners(t.Context())
 			require.ErrorIs(t, err, edcb.ErrBusy)
 		})

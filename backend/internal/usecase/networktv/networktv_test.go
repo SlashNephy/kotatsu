@@ -3,6 +3,7 @@ package networktv_test
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -41,13 +43,32 @@ func nhk() edcb.ServiceKey {
 	return edcb.ServiceKey{ONID: 32736, TSID: 32736, SID: 1024}
 }
 
+// mustIDs は、1000 から count 個の ID を配る IDs を返す。
+func mustIDs(t *testing.T, db *pgxpool.Pool, clk clock.Clock, owner uuid.UUID, count int) *networktv.IDs {
+	t.Helper()
+
+	ids, err := networktv.NewIDs(db, clk, owner, 1000, count)
+	require.NoError(t, err)
+
+	return ids
+}
+
+func TestNewIDsRejectsInvalidRange(t *testing.T) {
+	t.Parallel()
+
+	for _, r := range [][2]int{{0, 1}, {1, 0}, {math.MaxInt32, 2}} {
+		_, err := networktv.NewIDs(nil, nil, uuid.Nil(), r[0], r[1])
+		require.Error(t, err, "start %d, count %d", r[0], r[1])
+	}
+}
+
 func TestIDs(t *testing.T) {
 	t.Parallel()
 
 	pool := newDB(t)
 	clk := clocktest.NewFake(testNow())
-	a := networktv.NewIDs(pool, clk, id.New(), 1000, 2)
-	b := networktv.NewIDs(pool, clk, id.New(), 1000, 2)
+	a := mustIDs(t, pool, clk, id.New(), 2)
+	b := mustIDs(t, pool, clk, id.New(), 2)
 
 	// 空いている最も小さい ID を、インスタンスをまたいで重ならないように配る。
 	first, err := a.Acquire(t.Context(), nhk())
@@ -79,8 +100,8 @@ func TestIDsConcurrent(t *testing.T) {
 	got := make(chan int32, instances)
 	var wg sync.WaitGroup
 	for range instances {
+		ids := mustIDs(t, pool, clk, id.New(), instances)
 		wg.Go(func() {
-			ids := networktv.NewIDs(pool, clk, id.New(), 1000, instances)
 			n, err := ids.Acquire(context.Background(), nhk())
 			assert.NoError(t, err)
 			got <- n
@@ -123,7 +144,7 @@ func TestSweeper(t *testing.T) {
 	_, err := pool.Exec(t.Context(), `INSERT INTO instances (id, role, address, started_at, heartbeat_at) VALUES ($1, 'mikan', '', $2, $2)`, alive, testNow())
 	require.NoError(t, err)
 	acquire := func(owner uuid.UUID, at time.Time) int32 {
-		n, err := networktv.NewIDs(pool, clocktest.NewFake(at), owner, 1000, 10).Acquire(t.Context(), nhk())
+		n, err := mustIDs(t, pool, clocktest.NewFake(at), owner, 10).Acquire(t.Context(), nhk())
 		require.NoError(t, err)
 
 		return n

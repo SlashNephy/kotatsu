@@ -125,9 +125,9 @@ func edcbServer(t *testing.T) *fakeServer {
 	t.Helper()
 
 	return newFakeServer(t, map[uint32]reply{
-		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false},
-		1021: {status: 1, payload: fixture(t, "enum_service.bin"), stream: nil, hold: false},
-		1029: {status: 1, payload: fixture(t, "enum_pg_info_ex.bin"), stream: nil, hold: false},
+		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false, drop: false},
+		1021: {status: 1, payload: fixture(t, "enum_service.bin"), stream: nil, hold: false, drop: false},
+		1029: {status: 1, payload: fixture(t, "enum_pg_info_ex.bin"), stream: nil, hold: false, drop: false},
 	})
 }
 
@@ -156,8 +156,8 @@ func TestTunerServerServicesWhenBusy(t *testing.T) {
 
 	// EPG のデータを読み込み終えていなければ、空の一覧にせず、ErrBusy を返す。空の一覧として扱うと、DB のサービスを消してしまう。
 	s := newFakeServer(t, map[uint32]reply{
-		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false},
-		1021: {status: 208, payload: nil, stream: nil, hold: false},
+		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false, drop: false},
+		1021: {status: 208, payload: nil, stream: nil, hold: false, drop: false},
 	})
 	_, err := edcb.NewTunerServer(s.client(t), nil).Services(t.Context())
 	require.ErrorIs(t, err, edcb.ErrBusy)
@@ -279,7 +279,7 @@ func TestTunerServerProgramsShareDetails(t *testing.T) {
 		{
 			name:   "all services",
 			query:  nil,
-			events: []reply{{status: 1, payload: vector(main, sub), stream: nil, hold: false}},
+			events: []reply{{status: 1, payload: vector(main, sub), stream: nil, hold: false, drop: false}},
 			want:   []uint32{1029},
 		},
 		{
@@ -287,8 +287,8 @@ func TestTunerServerProgramsShareDetails(t *testing.T) {
 			name:  "sub-channel only",
 			query: &tunerserver.ProgramsQuery{NetworkID: 32736, ServiceID: 1025, EventID: 0},
 			events: []reply{
-				{status: 1, payload: vector(sub), stream: nil, hold: false},
-				{status: 1, payload: vector(main), stream: nil, hold: false},
+				{status: 1, payload: vector(sub), stream: nil, hold: false, drop: false},
+				{status: 1, payload: vector(main), stream: nil, hold: false, drop: false},
 			},
 			want: []uint32{1060, 1029, 1029},
 		},
@@ -297,7 +297,7 @@ func TestTunerServerProgramsShareDetails(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newFakeServer(t, map[uint32]reply{1060: {status: 1, payload: chSet, stream: nil, hold: false}})
+			s := newFakeServer(t, map[uint32]reply{1060: {status: 1, payload: chSet, stream: nil, hold: false, drop: false}})
 			s.queued[1029] = tt.events
 			programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), tt.query)
 			require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestTunerServerProgramsRestoresText(t *testing.T) {
 	// EDCB は、追加記号を角括弧の形に、〜と—を CP932 の文字に置き換え、改行を CRLF で返す。
 	// 同じ形が複数の記号に当たる「[三]」は、戻さない。
 	list := vector(serviceEvents(1024, event(1024, 100, "ニュース[字][三]～―\r\n続き")))
-	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: list, stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: list, stream: nil, hold: false, drop: false}})
 	programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), nil)
 	require.NoError(t, err)
 	require.Len(t, programs, 1)
