@@ -28,8 +28,6 @@ import (
 )
 
 const (
-	// SecondFactorPasskey は、第二要素としてのパスキー。
-	SecondFactorPasskey SecondFactor = "passkey"
 	// WebAuthnCookieName は、パスキーの登録と、パスキーだけでのログインの手続きのトークンを入れる Cookie の名前。
 	WebAuthnCookieName = "kotatsu_webauthn"
 	// MaxPasskeys は、1 人が登録できるパスキーの数 (付録 A)。

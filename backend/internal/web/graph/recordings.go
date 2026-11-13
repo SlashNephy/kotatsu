@@ -747,24 +747,6 @@ func (r *Resolver) recordingCMSections(ctx context.Context, obj *model.Recording
 	return out, nil
 }
 
-// cmDetectionState は、CM の区間の見分けの状態を、GraphQL の形にする (#1571)。
-func cmDetectionState(state cmdetect.State) model.RecordingCMDetectionState {
-	switch state {
-	case cmdetect.StateQueued:
-		return model.RecordingCMDetectionStateQueued
-	case cmdetect.StateRunning:
-		return model.RecordingCMDetectionStateRunning
-	case cmdetect.StateDetected:
-		return model.RecordingCMDetectionStateDetected
-	case cmdetect.StateFailed:
-		return model.RecordingCMDetectionStateFailed
-	case cmdetect.StateNotDetected:
-		return model.RecordingCMDetectionStateNotDetected
-	default:
-		return model.RecordingCMDetectionStateNotDetected
-	}
-}
-
 // recordingCMDetection は、録画の CM の区間の見分けの状態を返す (#1571)。失敗の理由は、管理者がジョブの画面で確かめるので返さない。
 func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error) {
 	recordingID, err := parseRecordingID(obj.ID)
@@ -775,7 +757,7 @@ func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recordin
 	if err != nil {
 		return nil, err
 	}
-	detection := &model.RecordingCMDetection{State: cmDetectionState(status.State), DetectedAt: status.DetectedAt, Progress: nil}
+	detection := &model.RecordingCMDetection{State: status.State, DetectedAt: status.DetectedAt, Progress: nil}
 	if p := status.Progress; p != nil {
 		detection.Progress = &model.JobProgress{Ratio: p.Ratio, RemainingSeconds: nil, UpdatedAt: p.UpdatedAt}
 		if p.Remaining != nil {

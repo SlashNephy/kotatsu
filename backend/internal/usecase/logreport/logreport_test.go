@@ -66,14 +66,14 @@ func TestServiceReport(t *testing.T) {
 	require.Len(t, report.Sources, 2)
 
 	kotatsu := report.Sources[0]
-	assert.Equal(t, logreport.SourceKotatsu, kotatsu.Kind)
+	assert.Equal(t, logreport.SourceKindKotatsu, kotatsu.Kind)
 	assert.Equal(t, []logreport.Line{
 		{Time: 1, Level: logring.LevelWarn, Inferred: false, Text: "webhook failed url=https://discord.com/api/webhooks/1/[REDACTED_SECRET]"},
 	}, kotatsu.Lines)
 	assert.NotEmpty(t, kotatsu.OS)
 
 	tunerSource := report.Sources[1]
-	assert.Equal(t, logreport.SourceTunerServer, tunerSource.Kind)
+	assert.Equal(t, logreport.SourceKindTunerServer, tunerSource.Kind)
 	assert.Equal(t, logreport.FailureNone, tunerSource.Failure)
 	assert.Equal(t, "5.3.2", tunerSource.Version)
 	assert.Equal(t, "mahiron", tunerSource.Runtime)

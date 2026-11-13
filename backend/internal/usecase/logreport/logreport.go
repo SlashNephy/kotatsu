@@ -37,25 +37,26 @@ type Line struct {
 	Text     string
 }
 
+//go:generate go tool go-enum --values --nocomments
+
 // SourceKind は、ログの出どころ。
+//
+// ENUM(Kotatsu = KOTATSU, TunerServer = TUNER_SERVER)
 type SourceKind string
 
-const (
-	SourceKotatsu     SourceKind = "KOTATSU"
-	SourceTunerServer SourceKind = "TUNER_SERVER"
-)
-
 // Failure は、ログを取れなかった理由。文言にホスト名や URL を含めないよう、決まった語だけにする。
+// 取れたときは FailureNone (空文字列) で、値の一覧には含めない。
+//
+// ENUM(
+// Timeout = TIMEOUT
+// Unreachable = UNREACHABLE
+// Unsupported = UNSUPPORTED // チューナーサーバーがログの API を持たないこと (mirakc など)。
+// HTTPError = HTTP_ERROR
+// )
 type Failure string
 
-const (
-	FailureNone        Failure = ""
-	FailureTimeout     Failure = "TIMEOUT"
-	FailureUnreachable Failure = "UNREACHABLE"
-	// FailureUnsupported は、チューナーサーバーがログの API を持たないこと (mirakc など)。
-	FailureUnsupported Failure = "UNSUPPORTED"
-	FailureHTTPError   Failure = "HTTP_ERROR"
-)
+// FailureNone は、ログを取れたこと。
+const FailureNone Failure = ""
 
 // Source は、1 つの出どころのログと環境。
 type Source struct {
@@ -148,7 +149,7 @@ func (s *Service) Report(ctx context.Context, requestHost string) (*Report, erro
 
 	build := buildinfo.Get()
 	kotatsu := &Source{
-		Kind: SourceKotatsu, Lines: []Line{}, Total: 0, Failure: FailureNone,
+		Kind: SourceKindKotatsu, Lines: []Line{}, Total: 0, Failure: FailureNone,
 		Version: build.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, Runtime: runtime.Version(),
 	}
 	for _, line := range s.opts.Buffer.Lines() {
@@ -172,7 +173,7 @@ func (s *Service) tunerServer(ctx context.Context, secrets *redact.Secrets) *Sou
 	ctx, cancel := context.WithTimeout(ctx, s.opts.Timeout)
 	defer cancel()
 
-	source := &Source{Kind: SourceTunerServer, Lines: []Line{}, Total: 0, Failure: FailureNone, Version: "", OS: "", Arch: "", Runtime: ""}
+	source := &Source{Kind: SourceKindTunerServer, Lines: []Line{}, Total: 0, Failure: FailureNone, Version: "", OS: "", Arch: "", Runtime: ""}
 	var (
 		wg      sync.WaitGroup
 		version *mirakurun.Version

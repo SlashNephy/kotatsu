@@ -43,13 +43,17 @@ const (
 	recoveryCodeChars = 10
 )
 
-// SecondFactor は、第二要素の種類。
-type SecondFactor string
+//go:generate go tool go-enum --values --nocomments --noparse
 
-const (
-	SecondFactorTOTP         SecondFactor = "totp"
-	SecondFactorRecoveryCode SecondFactor = "recovery_code"
-)
+// SecondFactor は、第二要素の種類。監査ログには、ログインや再認証の方式として残す。
+//
+// ENUM(
+// TOTP = totp
+// recovery_code
+// passkey // 第二要素としてのパスキー。
+// OIDC = oidc // OIDC でのログインの方式。多要素認証は IdP に任せる (設計書 9.4)。
+// )
+type SecondFactor string
 
 var (
 	// ErrInvalidSecondFactor は、TOTP のコードやリカバリーコードが違う、使用済み、のどれかを表す。

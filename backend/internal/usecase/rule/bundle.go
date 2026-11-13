@@ -222,16 +222,14 @@ func listRecordedEpisodes(ctx context.Context, tx pgx.Tx, now time.Time) ([]*epi
 	return recorded, refs, nil
 }
 
-// SkipReason は、ルールに一致した番組を予約しなかった理由。
-type SkipReason string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// SkipReasonDuplicateTitle は、同じ番組名を期間内に録画済みなので、重複の回避で外したこと (設計書 4.4)。
-	SkipReasonDuplicateTitle SkipReason = "duplicate_title"
-	// SkipReasonRecordedEpisode は、同じ回を録画済み (録画中を含む) なので外したこと (#1498)。
-	SkipReasonRecordedEpisode SkipReason = "recorded_episode"
-	// SkipReasonOtherBroadcast は、同じ回を別の放送で録るので外したこと (#1498)。
-	SkipReasonOtherBroadcast SkipReason = "other_broadcast"
-	// SkipReasonEarlierEpisode は、追っているシリーズの前の回なので外したこと (#1499)。
-	SkipReasonEarlierEpisode SkipReason = "earlier_episode"
-)
+// SkipReason は、ルールに一致した番組を予約しなかった理由。
+//
+// ENUM(
+// duplicate_title // 同じ番組名を期間内に録画済みなので、重複の回避で外したこと (設計書 4.4)。
+// recorded_episode // 同じ回を録画済み (録画中を含む) なので外したこと (#1498)。
+// other_broadcast // 同じ回を別の放送で録るので外したこと (#1498)。
+// earlier_episode // 追っているシリーズの前の回なので外したこと (#1499)。
+// )
+type SkipReason string
