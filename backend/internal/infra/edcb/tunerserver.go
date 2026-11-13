@@ -22,6 +22,8 @@ type TunerServer struct {
 	bonDrivers map[string]bool
 	// ids は、NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
 	ids NetworkTVIDs
+	// preemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。
+	preemptionCheckInterval time.Duration
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -31,20 +33,26 @@ type TunerServerOptions struct {
 	BonDrivers []string
 	// NetworkTVIDs は、ストリームを開くときに NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
 	NetworkTVIDs NetworkTVIDs
+	// PreemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。0 なら 5 秒。
+	PreemptionCheckInterval time.Duration
 }
 
 // NewTunerServer は TunerServer を返す。opts は nil でもよい。
 func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 	bonDrivers := map[string]bool{}
 	var ids NetworkTVIDs
+	interval := defaultPreemptionCheckInterval
 	if opts != nil {
+		if opts.PreemptionCheckInterval > 0 {
+			interval = opts.PreemptionCheckInterval
+		}
 		for _, name := range opts.BonDrivers {
 			bonDrivers[strings.ToLower(name)] = true
 		}
 		ids = opts.NetworkTVIDs
 	}
 
-	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids}
+	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval}
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。

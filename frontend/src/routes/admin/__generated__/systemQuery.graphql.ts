@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8380fb947a890825a8274989b718d99b>>
+ * @generated SignedSource<<2255ec249b93526f73e523faf6e4152a>>
  * @lightSyntaxTransform
  */
 
@@ -8,7 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
-export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
+export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_PREEMPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
 export type TunerServerKind = "EDCB" | "MAHIRON" | "MIRAKC" | "MIRAKURUN" | "%future added value";
 export type systemQuery$variables = Record<PropertyKey, never>;
 export type systemQuery$data = {

@@ -3593,6 +3593,10 @@ enum RecordingFailureReason {
   録画を始める時刻に、録画できる mikan がいなかった
   """
   RECORDER_UNAVAILABLE
+  """
+  録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)
+  """
+  TUNER_PREEMPTED
 }
 """
 録画のファイル。

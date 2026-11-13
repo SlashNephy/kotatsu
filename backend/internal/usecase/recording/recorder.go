@@ -573,6 +573,12 @@ func interruption(ctx context.Context, logger *slog.Logger, closeErr, copyErr er
 
 		return domain.RecordingFailureReasonStorageUnavailable
 	}
+	// EDCB の予約にチューナーを取られた (#1534)。つなぎ直せなければ、この理由で失敗にする。
+	if errors.Is(copyErr, tunerserver.ErrTunerPreempted) {
+		logger.WarnContext(ctx, "the tuner server took the tuner for another user; reconnecting", slog.Any("error", copyErr))
+
+		return domain.RecordingFailureReasonTunerPreempted
+	}
 	logger.WarnContext(ctx, "the stream was interrupted; reconnecting", slog.Any("error", copyErr))
 
 	return domain.RecordingFailureReasonStreamInterrupted
@@ -614,7 +620,14 @@ type sessionResult struct {
 }
 
 // failed は、録画できなかった理由と、そのエラーを覚える。err が nil なら、本文は空にする。
+// EDCB の予約にチューナーを取られたなら (#1534)、どこで気づいても、取られたことを理由にする。
+// 取られた後に、チューナーを確保できずにつなぎ直せないときも、取られたことを理由に残す。
+// 取られたチューナーが空かないことが、つなぎ直せない元だからである。
 func (s *sessionResult) failed(reason domain.RecordingFailureReason, err error) {
+	if errors.Is(err, tunerserver.ErrTunerPreempted) ||
+		(s.lastFailure == domain.RecordingFailureReasonTunerPreempted && reason == domain.RecordingFailureReasonTunerUnavailable) {
+		reason = domain.RecordingFailureReasonTunerPreempted
+	}
 	s.lastFailure = reason
 	s.lastError = failureDetail(err)
 }

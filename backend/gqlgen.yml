@@ -154,6 +154,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonCancelled
       RECORDER_UNAVAILABLE:
         value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonRecorderUnavailable
+      TUNER_PREEMPTED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTunerPreempted
   NetworkActivityPurpose:
     model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Purpose
     enum_values:

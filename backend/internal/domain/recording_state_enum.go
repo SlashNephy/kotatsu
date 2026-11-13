@@ -111,6 +111,8 @@ const (
 	RecordingFailureReasonCancelled              RecordingFailureReason = "cancelled"
 	// 録画を始める時刻に、割り振りを取る mikan がいなかったこと (#517)。
 	RecordingFailureReasonRecorderUnavailable RecordingFailureReason = "recorder_unavailable"
+	// 録画中に、チューナーサーバー (EDCB) の予約にチューナーを取られ、つなぎ直せなかったこと (#1534)。
+	RecordingFailureReasonTunerPreempted RecordingFailureReason = "tuner_preempted"
 )
 
 var ErrInvalidRecordingFailureReason = errors.New("not a valid RecordingFailureReason")
@@ -126,6 +128,7 @@ func RecordingFailureReasonValues() []RecordingFailureReason {
 		RecordingFailureReasonProgramNotFound,
 		RecordingFailureReasonCancelled,
 		RecordingFailureReasonRecorderUnavailable,
+		RecordingFailureReasonTunerPreempted,
 	}
 }
 
@@ -150,6 +153,7 @@ var _RecordingFailureReasonValue = map[string]RecordingFailureReason{
 	"program_not_found":        RecordingFailureReasonProgramNotFound,
 	"cancelled":                RecordingFailureReasonCancelled,
 	"recorder_unavailable":     RecordingFailureReasonRecorderUnavailable,
+	"tuner_preempted":          RecordingFailureReasonTunerPreempted,
 }
 
 // ParseRecordingFailureReason attempts to convert a string to a RecordingFailureReason.

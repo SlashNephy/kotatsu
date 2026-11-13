@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
 const (
@@ -20,6 +23,9 @@ const (
 	relayRetryTimeout  = 10 * time.Second
 	// closeTimeout は、ストリームを閉じるときに、NWTV_ID_CLOSE と ID の返却に掛ける時間の上限。
 	closeTimeout = 10 * time.Second
+	// defaultPreemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる既定の間隔 (#1534)。
+	// EDCB の予約にチューナーを取られると NetworkTV は閉じるので、TS の PAT が変わるより先に気づけることがある。
+	defaultPreemptionCheckInterval = 5 * time.Second
 )
 
 // ErrNoNetworkTVID は、設定した範囲の NetworkTV の ID が、すべて使われていることを表す。
@@ -82,7 +88,10 @@ func (s *TunerServer) openNetworkTV(ctx context.Context, service ServiceKey) (io
 	if err != nil {
 		return nil, err
 	}
-	stream := &networkTVStream{ReadCloser: nil, server: s, id: id, once: sync.Once{}, closeErr: nil}
+	stream := &networkTVStream{
+		ReadCloser: nil, server: s, id: id, once: sync.Once{}, closeErr: nil,
+		pat: nil, preempted: atomic.Bool{}, stopCheck: func() {}, checkDone: nil,
+	}
 	processID, err := s.client.OpenNetworkTV(ctx, id, service)
 	if err != nil {
 		_ = stream.release(context.WithoutCancel(ctx))
@@ -100,6 +109,7 @@ func (s *TunerServer) openNetworkTV(ctx context.Context, service ServiceKey) (io
 		return nil, err
 	}
 	stream.ReadCloser = relay
+	stream.watch(ctx, service, processID)
 
 	return stream, nil
 }
@@ -134,13 +144,42 @@ type networkTVStream struct {
 	id       int32
 	once     sync.Once
 	closeErr error
+
+	// pat は、受け取った TS の PAT を見張る。TSID かサービスが、開いたときから変わったら、preempted を立てる (#1534)。
+	pat *ts.PATWatcher
+	// preempted は、EDCB の予約にチューナーを取られたと分かったかどうか。立ったら、Read は ErrTunerPreempted を返す。
+	preempted atomic.Bool
+	// stopCheck と checkDone は、NetworkTV がまだ開いているかを問い合わせる goroutine を止めて待つ。
+	stopCheck func()
+	checkDone chan struct{}
 }
 
 var _ io.ReadCloser = new(networkTVStream)
 
+// Read は、TS を読む。EDCB の予約にチューナーを取られたと分かったら、tunerserver.ErrTunerPreempted を返す。
+// 取られた後に届いた別の局の TS は返さない。
+func (n *networkTVStream) Read(p []byte) (int, error) {
+	if n.preempted.Load() {
+		return 0, n.preemption()
+	}
+	read, err := n.ReadCloser.Read(p)
+	if n.pat != nil {
+		_, _ = n.pat.Write(p[:read])
+	}
+	if n.preempted.Load() {
+		return 0, n.preemption()
+	}
+
+	return read, err
+}
+
 // Close は、中継の接続を切り、NetworkTV を閉じて ID を返す。何度呼んでもよい。
 func (n *networkTVStream) Close() error {
 	n.once.Do(func() {
+		n.stopCheck()
+		if n.checkDone != nil {
+			<-n.checkDone
+		}
 		var errs []error
 		if n.ReadCloser != nil {
 			errs = append(errs, n.ReadCloser.Close())
@@ -166,4 +205,46 @@ func (n *networkTVStream) release(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func (n *networkTVStream) preemption() error {
+	return fmt.Errorf("%w: NetworkTV %d", tunerserver.ErrTunerPreempted, n.id)
+}
+
+// watch は、EDCB の予約にチューナーを取られたことに気づけるようにする (#1534)。
+//   - 受け取った TS の PAT の TSID かサービスが、開いたときから変わったら、取られたとみなす。EDCB は、取られても接続を切らずに、
+//     別の局の TS を送り続ける。プロセスも同じままなので、プロセスの ID では気づけない。
+//   - PreemptionCheckInterval ごとに、NetworkTV がまだ開いているかを問い合わせ (NWTV_ID_SET_CH を useSID=0 で送る)、
+//     閉じていたら取られたとみなし、中継の接続を切って Read を止める。
+//
+// 問い合わせは、ストリームと同じく ctx が終わるまで続ける。
+func (n *networkTVStream) watch(ctx context.Context, service ServiceKey, processID int32) {
+	n.pat = ts.NewPATWatcher(func(pat *ts.PAT) {
+		if pat.TransportStreamID != service.TSID || !slices.Contains(pat.Programs, service.SID) {
+			n.preempted.Store(true)
+		}
+	})
+	ctx, cancel := context.WithCancel(ctx)
+	n.stopCheck, n.checkDone = cancel, make(chan struct{})
+	go func() {
+		defer close(n.checkDone)
+		ticker := time.NewTicker(n.server.preemptionCheckInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			current, open, err := n.server.client.NetworkTVProcess(ctx, n.id)
+			// 問い合わせに失敗しただけなら、TS の PAT で気づくのに任せる。
+			if err != nil || (open && current == processID) {
+				continue
+			}
+			n.preempted.Store(true)
+			_ = n.ReadCloser.Close()
+
+			return
+		}
+	}()
 }

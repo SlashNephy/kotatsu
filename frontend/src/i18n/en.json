@@ -1188,6 +1188,7 @@
       "PROGRAM_NOT_FOUND": "Program not found",
       "CANCELLED": "The recording was cancelled",
       "RECORDER_UNAVAILABLE": "No mikan was available to record when the recording was due to start",
+      "TUNER_PREEMPTED": "A reservation in EDCB took the tuner during the recording, and Kotatsu could not reconnect",
       "unknown": "Recording failed"
     },
     "quality": "Recording quality",

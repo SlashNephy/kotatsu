@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 	"uuid"
 
@@ -709,6 +710,23 @@ func TestRecorderSkipsDisabledReservations(t *testing.T) {
 // failingStream は、ストリームを開くと err を返す。
 type failingStream struct{ err error }
 
+// preemptedStream は、最初に開いたストリームが、チューナーを取られて読めなくなり (#1534)、その後は開けないチューナーサーバーを再現する。
+type preemptedStream struct {
+	mu     sync.Mutex
+	opened bool
+}
+
+func (s *preemptedStream) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.opened {
+		return nil, fmt.Errorf("NWTV_ID_SET_CH failed: %w", tunerserver.ErrTunerUnavailable)
+	}
+	s.opened = true
+
+	return io.NopCloser(iotest.ErrReader(fmt.Errorf("NetworkTV 1000: %w", tunerserver.ErrTunerPreempted))), nil
+}
+
 func (s failingStream) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	return nil, s.err
 }
@@ -792,6 +810,15 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "failed to request",
+			retries:    true,
+		},
+		{
+			// 録画中に EDCB の予約にチューナーを取られ、その後もチューナーを確保できない (#1534)。
+			name:       "チューナーを取られた",
+			tuner:      func(*fixture) recording.StreamOpener { return &preemptedStream{mu: sync.Mutex{}, opened: false} },
+			freeSpace:  nil,
+			want:       domain.RecordingFailureReasonTunerPreempted,
+			wantDetail: "took the tuner",
 			retries:    true,
 		},
 		{

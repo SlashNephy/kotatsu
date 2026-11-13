@@ -30,7 +30,8 @@ type reply struct {
 	payload []byte
 	// stream は、応答の後に続けて送るバイト列 (RELAY_VIEW_STREAM の TS)。
 	stream []byte
-	// hold は、応答を返さずに、接続が閉じられるまで待つかどうか (保留した GET_STATUS_NOTIFY2)。
+	// hold は、接続が閉じられるまで待つかどうか。stream がなければ応答も返さない (保留した GET_STATUS_NOTIFY2)。
+	// stream があれば、応答と TS を返してから待つ。
 	hold bool
 	// drop は、応答を返さずに、接続を閉じるかどうか (応答の上限の時間が過ぎた GET_STATUS_NOTIFY2)。
 	drop bool
@@ -99,6 +100,12 @@ func (s *fakeServer) handle(conn net.Conn) {
 		r = reply{status: 203, payload: nil, stream: nil, hold: false, drop: false}
 	}
 	if r.hold {
+		// TS を返すなら、返してから、接続を保ったまま待つ (中継の途中で止まった TS)。
+		if r.stream != nil {
+			res := binary.LittleEndian.AppendUint32(nil, r.status)
+			res = binary.LittleEndian.AppendUint32(res, dword(len(r.payload)))
+			_, _ = conn.Write(append(append(res, r.payload...), r.stream...))
+		}
 		_, _ = io.Copy(io.Discard, conn)
 
 		return
