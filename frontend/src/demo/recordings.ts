@@ -176,6 +176,7 @@ export function createRecordings(options: {
       eventId: program.eventId,
       name: program.name,
       description: program.description,
+      extended: program.extended,
       startAt: program.startAt,
       endAt: program.endAt,
       state: recording.state,
