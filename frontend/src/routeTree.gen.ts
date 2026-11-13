@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as AnimeRouteImport } from './routes/anime'
 import { Route as AuthorizeRouteImport } from './routes/authorize'
 import { Route as CapturesRouteImport } from './routes/captures'
@@ -60,6 +61,11 @@ import { Route as TimeshiftServiceIdPlayRouteImport } from './routes/timeshift/$
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnimeRoute = AnimeRouteImport.update({
@@ -296,6 +302,7 @@ const TimeshiftServiceIdPlayRoute = TimeshiftServiceIdPlayRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
@@ -345,6 +352,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
@@ -395,6 +403,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/anime': typeof AnimeRoute
   '/authorize': typeof AuthorizeRoute
   '/captures': typeof CapturesRoute
@@ -446,6 +455,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
     | '/anime'
     | '/authorize'
     | '/captures'
@@ -495,6 +505,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/anime'
     | '/authorize'
     | '/captures'
@@ -544,6 +555,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/about'
     | '/anime'
     | '/authorize'
     | '/captures'
@@ -594,6 +606,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
   AnimeRoute: typeof AnimeRoute
   AuthorizeRoute: typeof AuthorizeRoute
   CapturesRoute: typeof CapturesRoute
@@ -649,6 +662,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/anime': {
@@ -978,6 +998,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
   AnimeRoute: AnimeRoute,
   AuthorizeRoute: AuthorizeRoute,
   CapturesRoute: CapturesRoute,

@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
 
 import babel from '@rolldown/plugin-babel';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
@@ -29,6 +31,121 @@ function inlineAppleTouchIcon(): Plugin {
       );
 
       return html.replace(placeholder, `data:image/png;base64,${icon.toString('base64')}`);
+    },
+  };
+}
+
+// BundledPackage は、画面に同梱するパッケージ 1 つと、そのライセンスの文書。licenses.json に書き、/about の画面が読む (#1604)。
+type BundledPackage = {
+  name: string;
+  version: string;
+  license: string;
+  homepage: string | null;
+  files: { name: string; text: string }[];
+  // generated は、パッケージにライセンスの文書がないので、package.json の license と author から作ったときに真になる。
+  generated: boolean;
+};
+
+// licenseFile は、パッケージの直下にある、ライセンスの文書と NOTICE のファイルの名前。
+const licenseFile = /^(licen[cs]e|copying|notice)([.\-_].*)?$/i;
+
+// packagesWithoutLicenseFile は、ライセンスの文書を持たずに公開されているパッケージ。どれも package.json で MIT を宣言しているので、
+// MIT の文に author を著作権者として入れて示す。ここにないパッケージで文書が見つからなければ、ビルドを止める。
+const packagesWithoutLicenseFile = new Set(['react-remove-scroll-bar', 'tr46']);
+
+const mitLicenseText = (holder: string) => `MIT License
+
+Copyright (c) ${holder}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+`;
+
+// readPackage は、dir のパッケージの package.json とライセンスの文書を読む。
+function readPackage(dir: string): BundledPackage {
+  const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+    name: string;
+    version: string;
+    license?: string;
+    homepage?: string;
+    author?: string | { name?: string };
+  };
+  const files = readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && licenseFile.test(entry.name))
+    .map((entry) => ({ name: entry.name, text: readFileSync(join(dir, entry.name), 'utf8') }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const license = manifest.license ?? 'UNKNOWN';
+  let generated = false;
+  if (files.length === 0) {
+    const author = typeof manifest.author === 'string' ? manifest.author : manifest.author?.name;
+    if (
+      !packagesWithoutLicenseFile.has(manifest.name) ||
+      license !== 'MIT' ||
+      author === undefined
+    ) {
+      throw new Error(`no license file found for ${manifest.name}@${manifest.version}`);
+    }
+    files.push({ name: 'LICENSE', text: mitLicenseText(author.replace(/\s*<[^>]*>/, '')) });
+    generated = true;
+  }
+
+  return {
+    name: manifest.name,
+    version: manifest.version,
+    license,
+    homepage: manifest.homepage ?? null,
+    files,
+    generated,
+  };
+}
+
+// bundledLicenses は、画面に同梱するパッケージと、そのライセンスの文書の一覧を licenses.json に書き出す (設計書 付録 B、#1604)。
+// 同梱するのは、dependencies とその依存 (pnpm licenses list --prod) と、dependencies に置いたワークスペースのパッケージ
+// (vendor/ の mpeg2toh264) である。Service Worker に入れる workbox も dependencies にあるので、ここに含まれる。
+// 一覧は、依存を上げるたびに変わるので、リポジトリには置かず、ビルドのたびに作る。/about の画面を開いたときだけ読む。
+function bundledLicenses(): Plugin {
+  const root = new URL('.', import.meta.url).pathname;
+
+  return {
+    name: 'kotatsu:bundled-licenses',
+    apply: 'build',
+    generateBundle() {
+      const listed = JSON.parse(
+        execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], {
+          cwd: root,
+          encoding: 'utf8',
+        }),
+      ) as Record<string, { paths: string[] }[]>;
+      const dirs = Object.values(listed).flatMap((packages) =>
+        packages.flatMap((pkg) => pkg.paths),
+      );
+      const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+        dependencies: Record<string, string>;
+      };
+      for (const [name, spec] of Object.entries(manifest.dependencies)) {
+        if (spec.startsWith('workspace:')) {
+          dirs.push(realpathSync(join(root, 'node_modules', name)));
+        }
+      }
+      const packages = dirs
+        .map(readPackage)
+        .sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
+      this.emitFile({ type: 'asset', fileName: 'licenses.json', source: JSON.stringify(packages) });
     },
   };
 }
@@ -84,6 +201,7 @@ export default defineConfig(({ mode }) => ({
     }),
     react(),
     inlineAppleTouchIcon(),
+    bundledLicenses(),
     ...(mode === 'demo' ? [demoStream()] : []),
     // graphql`...` を、Relay のコンパイラが生成したアーティファクトの import に置き換える。
     babel({ presets: [reactCompilerPreset()], plugins: [['relay', { eagerEsModules: true }]] }),

@@ -1,0 +1,25 @@
+"""
+本体に組み込んだ Go のモジュールと、そのライセンスの文書 (設計書 10.3、付録 B、#1604)。
+"""
+type GoModuleLicense {
+  "モジュールのパス。Go の標準ライブラリは std。"
+  path: String!
+  "モジュールの版。Go の標準ライブラリは、ビルドに使った Go の版 (go1.27.3 など)。"
+  version: String!
+  "モジュールの直下にある、ライセンスの文書と NOTICE。"
+  files: [LicenseFile!]!
+}
+
+"ライセンスの文書のファイル 1 つ。"
+type LicenseFile {
+  name: String!
+  text: String!
+}
+
+extend type Query {
+  """
+  本体に組み込んだ Go のモジュールと、そのライセンスの文書。動いているバイナリに組み込まれたものだけを、パスの順に返す。
+  版は古い版の脆弱性を狙う手がかりになるので、ログインしたユーザーにだけ返す。一覧を書き出さずにビルドしたときは null。
+  """
+  goModuleLicenses: [GoModuleLicense!]
+}

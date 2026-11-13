@@ -28,6 +28,12 @@ struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
 models:
+  GoModuleLicense:
+    model:
+      - github.com/SlashNephy/kotatsu/internal/web/licenses.Module
+  LicenseFile:
+    model:
+      - github.com/SlashNephy/kotatsu/internal/web/licenses.File
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID

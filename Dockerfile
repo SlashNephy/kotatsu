@@ -44,6 +44,9 @@ ARG TARGETARCH
 # VERSION は、版とコミットを 1.2.3+<コミット> の形で渡す (internal/lib/buildinfo)。.git はイメージに入れないので、
 # 渡さなければ dev になる。
 ARG VERSION=""
+# 本体に組み込む Go のモジュールのライセンスの一覧を、ビルドの前に書き出して埋め込む (#1604)。
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
     -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/lib/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu

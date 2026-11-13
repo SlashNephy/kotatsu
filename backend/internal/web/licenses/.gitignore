@@ -1,0 +1,3 @@
+# printlicenses が書き出す、本体に組み込んだ Go のモジュールのライセンスの一覧。.gitkeep だけを残し、書き出さなくても go build が通るようにする。
+/dist/*
+!/dist/.gitkeep

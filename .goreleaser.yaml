@@ -10,6 +10,9 @@ before:
   hooks:
     # SPA を作り忘れたまま公開しないよう、埋め込む前に確かめる。
     - test -f backend/internal/web/webui/dist/app/index.html
+    # 本体に組み込む Go のモジュールのライセンスの一覧を書き出して埋め込む (#1604)。配布するすべての OS の分を合わせて書き、
+    # 動いているバイナリが、自分に組み込まれたものに絞る。
+    - go -C backend run ./internal/web/licenses/printlicenses -o internal/web/licenses/dist/go.json
 
 builds:
   - id: kotatsu
