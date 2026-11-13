@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -135,7 +136,7 @@ func (c *Channels) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, ac
 
 // userOf は、操作者がユーザーならその ID を返す。システムの操作なら nil を返す。
 func userOf(actor *audit.Actor) *uuid.UUID {
-	if actor == nil || actor.Type != audit.ActorTypeUser {
+	if actor == nil || actor.Type != domain.AuditActorTypeUser {
 		return nil
 	}
 

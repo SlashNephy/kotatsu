@@ -308,7 +308,7 @@ func TestRecorderRechecksEpisodeFromPresentFollowing(t *testing.T) {
 			require.ErrorIs(t, wait(t, done), errStopForTest)
 			got, found := f.recording(t, reservationID)
 			require.True(t, found)
-			assert.Equal(t, string(recording.StateRecording), got.state)
+			assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 			assert.Len(t, f.files(t, reservationID), 1)
 			assert.True(t, f.disabledState(t, reservationID).enabled)
 			assert.Equal(t, 1, f.startedEvents(t))
@@ -343,7 +343,7 @@ func TestRecorderKeepsRecordingWithoutPresentFollowing(t *testing.T) {
 	require.NoError(t, wait(t, done))
 	got, found := f.recording(t, reservationID)
 	require.True(t, found)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 	assert.True(t, f.disabledState(t, reservationID).enabled)
 	var description string
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT description FROM recordings WHERE reservation_id = $1", reservationID).Scan(&description))
@@ -415,7 +415,7 @@ func TestRecorderStopsOnlyLaterOfSimultaneousEpisodes(t *testing.T) {
 			require.ErrorIs(t, wait(t, earlierDone), errStopForTest)
 			got, found := f.recording(t, earlierID)
 			require.True(t, found, "the earlier recording keeps recording")
-			assert.Equal(t, string(recording.StateRecording), got.state)
+			assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 			assert.True(t, f.disabledState(t, earlierID).enabled)
 		})
 	}
@@ -478,7 +478,7 @@ func TestStoppedReservationIsNotRecordedAgain(t *testing.T) {
 	require.ErrorIs(t, wait(t, done), errStopForTest)
 	got, found := f.recording(t, reservationID)
 	require.True(t, found)
-	assert.Equal(t, string(recording.StateRecording), got.state)
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 }
 
 // TestRecorderRecordsHistoryFromRewrittenName は、EIT[p/f] で番組名を書き直した録画を録り終えたら、録画履歴の番組名のキーと、

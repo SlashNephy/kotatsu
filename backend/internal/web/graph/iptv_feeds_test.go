@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -59,9 +60,9 @@ func TestManageIptvFeed(t *testing.T) {
 	require.NotNil(t, got.IptvFeed)
 	assert.Nil(t, got.CalendarFeed, "issuing an IPTV feed does not issue a calendar feed")
 	// ほかのユーザーからは、自分の URL は見えない。
-	assert.Nil(t, f.as(t, otherUser, auth.RoleMember).feeds(t).IptvFeed)
+	assert.Nil(t, f.as(t, otherUser, domain.RoleMember).feeds(t).IptvFeed)
 	// 視聴者も、ライブ視聴を見られるので発行できる。
-	viewer := f.as(t, "iptv-viewer", auth.RoleViewer)
+	viewer := f.as(t, "iptv-viewer", domain.RoleViewer)
 	require.Empty(t, viewer.query(t, createIptvFeedMutation, nil, nil))
 
 	newPlaylist, _ := issue()

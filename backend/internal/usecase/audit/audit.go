@@ -13,28 +13,19 @@ import (
 	"net/netip"
 	"uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
 
-// ActorType は操作者の種類。
-type ActorType string
-
-const (
-	// ActorTypeUser はユーザーの操作。
-	ActorTypeUser ActorType = "user"
-	// ActorTypeSystem はシステムのロールの操作 (neko による自動予約など)。
-	ActorTypeSystem ActorType = "system"
-)
-
 // Actor は操作者。User か System で作る。
 type Actor struct {
-	Type ActorType
-	// UserID は、Type が ActorTypeUser のときの操作したユーザー。
+	Type domain.AuditActorType
+	// UserID は、Type が domain.AuditActorTypeUser のときの操作したユーザー。
 	UserID uuid.UUID
-	// Role は、Type が ActorTypeSystem のときの操作したロールの名前 (neko など)。
+	// Role は、Type が domain.AuditActorTypeSystem のときの操作したロールの名前 (neko など)。
 	Role string
 	// SourceIP と UserAgent は、ユーザーの操作の送信元。分からなければ空にする。
 	SourceIP  netip.Addr
@@ -45,17 +36,17 @@ type Actor struct {
 
 // User は、ユーザーの操作者を返す。
 func User(userID uuid.UUID) *Actor {
-	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
+	return &Actor{Type: domain.AuditActorTypeUser, UserID: userID, Role: "", SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
 }
 
 // UserFrom は、送信元の分かるユーザーの操作者を返す。
 func UserFrom(userID uuid.UUID, sourceIP netip.Addr, userAgent string) *Actor {
-	return &Actor{Type: ActorTypeUser, UserID: userID, Role: "", SourceIP: sourceIP, UserAgent: userAgent, Client: ""}
+	return &Actor{Type: domain.AuditActorTypeUser, UserID: userID, Role: "", SourceIP: sourceIP, UserAgent: userAgent, Client: ""}
 }
 
 // System は、システムのロールの操作者を返す。
 func System(role string) *Actor {
-	return &Actor{Type: ActorTypeSystem, UserID: uuid.Nil(), Role: role, SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
+	return &Actor{Type: domain.AuditActorTypeSystem, UserID: uuid.Nil(), Role: role, SourceIP: netip.Addr{}, UserAgent: "", Client: ""}
 }
 
 // Event は、記録する操作。
@@ -141,12 +132,12 @@ func (r *DBRecorder) params(event *Event) (sqlc.InsertAuditEventParams, error) {
 	}
 
 	switch event.Actor.Type {
-	case ActorTypeUser:
+	case domain.AuditActorTypeUser:
 		if event.Actor.UserID == uuid.Nil() {
 			return params, fmt.Errorf("%w: the user ID of the actor is required", ErrInvalidEvent)
 		}
 		params.ActorUserID = &event.Actor.UserID
-	case ActorTypeSystem:
+	case domain.AuditActorTypeSystem:
 		if event.Actor.Role == "" {
 			return params, fmt.Errorf("%w: the role of the actor is required", ErrInvalidEvent)
 		}

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -275,7 +276,7 @@ func importDatabase(t *testing.T, services bool) (*cli.Options, *pgxpool.Pool) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	_, err = auth.NewUsers(opts.Clock).Create(t.Context(), pool, &auth.NewUser{
-		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+		Username: adminUsername, DisplayName: adminUsername, Role: domain.RoleAdmin, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 	if services {

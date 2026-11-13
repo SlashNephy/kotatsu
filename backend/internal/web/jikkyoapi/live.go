@@ -17,6 +17,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -115,7 +116,7 @@ func (h *LiveHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	if !principal.Role.Can(auth.PermissionWatch) {
+	if !principal.Role.Can(domain.PermissionWatch) {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 
 		return

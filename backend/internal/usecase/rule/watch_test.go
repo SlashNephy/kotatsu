@@ -34,7 +34,7 @@ func newWatchFixture(tb testing.TB, extra ...*faketuner.Program) *watchFixture {
 	users := map[string]uuid.UUID{}
 	for _, name := range []string{"alice", "bob"} {
 		user, err := auth.NewUsers(clocktest.NewFake(testNow())).Create(tb.Context(), f.pool, &auth.NewUser{
-			Username: name, DisplayName: name, Role: auth.RoleViewer, PasswordHash: nil,
+			Username: name, DisplayName: name, Role: domain.RoleViewer, PasswordHash: nil,
 		})
 		require.NoError(tb, err)
 		users[name] = user.ID

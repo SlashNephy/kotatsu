@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -233,7 +234,7 @@ func TestBeginOIDCReauthenticationRejects(t *testing.T) {
 	t.Run("紐付いていないユーザー", func(t *testing.T) {
 		t.Parallel()
 
-		user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: "yuzu", DisplayName: "yuzu", Role: auth.RoleMember, PasswordHash: nil})
+		user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: "yuzu", DisplayName: "yuzu", Role: domain.RoleMember, PasswordHash: nil})
 		require.NoError(t, err)
 		_, session, err := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock}).Create(t.Context(), f.db, user.ID, f.client)
 		require.NoError(t, err)

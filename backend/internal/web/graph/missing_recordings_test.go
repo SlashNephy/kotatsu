@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 const (
@@ -24,7 +24,7 @@ func TestMissingRecordings(t *testing.T) {
 	t.Parallel()
 
 	f, dir := newRecordingFixture(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	gone := f.addRecording(t, dir, missingRecordingName, "completed", 2*time.Hour)
 	kept := f.addRecording(t, dir, remainingRecordingName, "completed", time.Hour)
 	require.NoError(t, os.Remove(filepath.Join(dir, missingRecordingName+".m2ts")))

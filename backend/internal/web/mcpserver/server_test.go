@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -51,7 +52,7 @@ func (a *fakeAuthenticator) Authenticate(_ context.Context, token, resource stri
 	case scopes == nil:
 		return nil, nil, auth.ErrUnauthenticated
 	}
-	principal := &auth.Principal{UserID: a.userID, Role: auth.RoleMember, OAuthClientID: "https://claude.ai/oauth/claude-code-client-metadata"}
+	principal := &auth.Principal{UserID: a.userID, Role: domain.RoleMember, OAuthClientID: "https://claude.ai/oauth/claude-code-client-metadata"}
 
 	return principal, &oauth.Grant{ID: uuid.New(), ClientID: principal.OAuthClientID, ClientName: "Claude Code", Scopes: scopes}, nil
 }

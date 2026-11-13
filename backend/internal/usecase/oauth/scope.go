@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 const (
@@ -38,8 +38,8 @@ func parseScopes(raw string) []string {
 }
 
 // AllowedScopes は、ロールに許すスコープを返す。視聴者は予約とルールを変えられないので、書くスコープを持てない (設計書 9.7)。
-func AllowedScopes(role auth.Role) []string {
-	if role.Can(auth.PermissionManageSchedule) {
+func AllowedScopes(role domain.Role) []string {
+	if role.Can(domain.PermissionManageSchedule) {
 		return supportedScopes()
 	}
 
@@ -49,7 +49,7 @@ func AllowedScopes(role auth.Role) []string {
 // narrowScopes は、連携のスコープを、ユーザーの今のロールに許すものに絞る。
 // 同意した後にロールを下げられたユーザーの連携が、下げる前のスコープのまま使われないようにする。
 // 書くスコープだけの連携でも、読むスコープを含むので、視聴者に下げたら読むスコープを残す。
-func narrowScopes(scopes []string, role auth.Role) []string {
+func narrowScopes(scopes []string, role domain.Role) []string {
 	allowed := AllowedScopes(role)
 	narrowed := make([]string, 0, len(allowed))
 	for _, scope := range allowed {

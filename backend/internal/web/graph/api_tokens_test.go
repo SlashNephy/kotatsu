@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -54,10 +55,10 @@ func TestManageAPITokens(t *testing.T) {
 	assert.Equal(t, clientName, created.CreateAPIToken.APIToken.Name)
 	assert.Equal(t, []apiToken{{ID: created.CreateAPIToken.APIToken.ID, Name: clientName, LastUsedAt: nil}}, f.listAPITokens(t))
 	// 一覧にはトークンそのものを出さないので、ほかのユーザーからも自分のトークンは見えない。
-	assert.Empty(t, f.as(t, otherUser, auth.RoleMember).listAPITokens(t))
+	assert.Empty(t, f.as(t, otherUser, domain.RoleMember).listAPITokens(t))
 
 	// ほかのユーザーのトークンは消せない。
-	assert.Equal(t, []string{codeNotFound}, f.as(t, "another", auth.RoleMember).query(t, revokeMutation, map[string]any{varID: created.CreateAPIToken.APIToken.ID}, nil))
+	assert.Equal(t, []string{codeNotFound}, f.as(t, "another", domain.RoleMember).query(t, revokeMutation, map[string]any{varID: created.CreateAPIToken.APIToken.ID}, nil))
 
 	var deleted struct {
 		DeleteAPIToken string `json:"deleteApiToken"`

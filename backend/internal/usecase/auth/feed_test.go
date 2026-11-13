@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -21,7 +22,7 @@ func TestCalendarFeeds(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	users := auth.NewUsers(clk)
-	member, err := users.Create(t.Context(), db, &auth.NewUser{Username: "calendar", DisplayName: "calendar", Role: auth.RoleMember, PasswordHash: nil})
+	member, err := users.Create(t.Context(), db, &auth.NewUser{Username: "calendar", DisplayName: "calendar", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	feeds := auth.NewCalendarFeeds(db, clk, audit.NewRecorder(clk))
 	actor := audit.User(member.ID)
@@ -37,7 +38,7 @@ func TestCalendarFeeds(t *testing.T) {
 	principal, err := feeds.Authenticate(t.Context(), first)
 	require.NoError(t, err)
 	assert.Equal(t, member.ID, principal.UserID)
-	assert.Equal(t, auth.RoleMember, principal.Role)
+	assert.Equal(t, domain.RoleMember, principal.Role)
 	// セッションを持たないので、再認証の要る操作には使えない。
 	require.ErrorIs(t, auth.RequireRecentAuthentication(auth.WithPrincipal(t.Context(), principal), clk), auth.ErrReauthenticationRequired)
 	got, err := feeds.Get(t.Context(), member.ID)
@@ -87,7 +88,7 @@ func TestCalendarFeedsDisabledUser(t *testing.T) {
 
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
-	user, err := auth.NewUsers(clk).Create(t.Context(), db, &auth.NewUser{Username: "gone", DisplayName: "gone", Role: auth.RoleMember, PasswordHash: nil})
+	user, err := auth.NewUsers(clk).Create(t.Context(), db, &auth.NewUser{Username: "gone", DisplayName: "gone", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	feeds := auth.NewCalendarFeeds(db, clk, audit.NewRecorder(clk))
 	token, _, err := feeds.Create(t.Context(), audit.User(user.ID), user.ID)
@@ -106,7 +107,7 @@ func TestFeedKinds(t *testing.T) {
 
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
-	member, err := auth.NewUsers(clk).Create(t.Context(), db, &auth.NewUser{Username: "iptv", DisplayName: "iptv", Role: auth.RoleMember, PasswordHash: nil})
+	member, err := auth.NewUsers(clk).Create(t.Context(), db, &auth.NewUser{Username: "iptv", DisplayName: "iptv", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	calendar := auth.NewCalendarFeeds(db, clk, audit.NewRecorder(clk))
 	iptv := auth.NewIPTVFeeds(db, clk, audit.NewRecorder(clk))

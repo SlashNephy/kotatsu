@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
 // TestRecorderFollowsInterruption は、録画中の番組 (eventId 6) が臨時ニュースなど別の番組 (eventId 65522) に割り込まれ、
@@ -99,7 +98,7 @@ func TestRecorderFollowsInterruption(t *testing.T) {
 			case <-time.After(200 * time.Millisecond):
 			}
 			got, _ := f.recording(t, reservationID)
-			assert.Equal(t, string(recording.StateRecording), got.state)
+			assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 
 			// 再開した番組が終わったら、そこで止める。
 			programEnd := programStart().Add(30 * time.Minute)

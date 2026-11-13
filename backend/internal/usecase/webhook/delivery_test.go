@@ -52,7 +52,7 @@ func receiver(t *testing.T, status int) (*httptest.Server, <-chan received) {
 	return server, requests
 }
 
-func (f *fixture) createWebhook(t *testing.T, url string, format webhook.Format, kinds []domain.NotificationKind, enabled bool) (uuid.UUID, string) {
+func (f *fixture) createWebhook(t *testing.T, url string, format domain.WebhookFormat, kinds []domain.NotificationKind, enabled bool) (uuid.UUID, string) {
 	t.Helper()
 
 	created, secret, err := f.store.Create(t.Context(), f.pool, audit.System("test"), &webhook.Input{
@@ -118,9 +118,9 @@ func TestEnqueuerQueuesDeliveries(t *testing.T) {
 
 	f := newFixture(t)
 	failed := []domain.NotificationKind{domain.NotificationKindRecordingFailed}
-	target, _ := f.createWebhook(t, "https://a.example/hook", webhook.FormatJSON, failed, true)
-	f.createWebhook(t, "https://b.example/hook", webhook.FormatJSON, failed, false)
-	f.createWebhook(t, "https://c.example/hook", webhook.FormatJSON, []domain.NotificationKind{domain.NotificationKindStorageLow}, true)
+	target, _ := f.createWebhook(t, "https://a.example/hook", domain.WebhookFormatJSON, failed, true)
+	f.createWebhook(t, "https://b.example/hook", domain.WebhookFormatJSON, failed, false)
+	f.createWebhook(t, "https://c.example/hook", domain.WebhookFormatJSON, []domain.NotificationKind{domain.NotificationKindStorageLow}, true)
 	eventID := f.emit(t, domain.NotificationKindRecordingFailed, nil)
 
 	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
@@ -153,18 +153,18 @@ func TestDeliverWorkerSendsSignedBody(t *testing.T) {
 	}
 	tests := []struct {
 		name   string
-		format webhook.Format
+		format domain.WebhookFormat
 		want   func(eventID uuid.UUID) string
 	}{
-		{name: "汎用の JSON", format: webhook.FormatJSON, want: func(eventID uuid.UUID) string {
+		{name: "汎用の JSON", format: domain.WebhookFormatJSON, want: func(eventID uuid.UUID) string {
 			return `{"id": "` + eventID.String() + `", "kind": "reservation_conflict", "occurredAt": "2026-10-10T12:00:00Z", "payload": {
 				"reservationId": "0199d000-0000-7000-8000-000000000001", "name": "こたつ特集", "serviceName": "NHK総合",
 				"startAt": "2026-10-10T12:30:00Z", "endAt": "2026-10-10T13:00:00Z"}}`
 		}},
-		{name: "Discord", format: webhook.FormatDiscord, want: func(uuid.UUID) string {
+		{name: "Discord", format: domain.WebhookFormatDiscord, want: func(uuid.UUID) string {
 			return `{"content": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」", "allowed_mentions": {"parse": []}}`
 		}},
-		{name: "Slack", format: webhook.FormatSlack, want: func(uuid.UUID) string {
+		{name: "Slack", format: domain.WebhookFormatSlack, want: func(uuid.UUID) string {
 			return `{"text": "チューナーが足りず、録画できない見込みの予約があります。10/10（土）21:30 NHK総合「こたつ特集」"}`
 		}},
 	}
@@ -196,27 +196,27 @@ func TestBodyEscapesNames(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		format  webhook.Format
+		format  domain.WebhookFormat
 		program string
 		want    string
 	}{
 		{
-			name: "Discord のメンションと偽装リンク", format: webhook.FormatDiscord,
+			name: "Discord のメンションと偽装リンク", format: domain.WebhookFormatDiscord,
 			program: "@everyone <@&123> [確認](https://example.com/login)",
 			want:    `{"content": "「@everyone \\<@&123> \\[確認\\](https://example.com/login)」の録画を始めました", "allowed_mentions": {"parse": []}}`,
 		},
 		{
-			name: "Discord の強調とコードと改行", format: webhook.FormatDiscord,
+			name: "Discord の強調とコードと改行", format: domain.WebhookFormatDiscord,
 			program: "**太字** `code` ||spoiler||\n# 見出し",
 			want:    `{"content": "「\\*\\*太字\\*\\* \\` + "`" + `code\\` + "`" + ` \\|\\|spoiler\\|\\| # 見出し」の録画を始めました", "allowed_mentions": {"parse": []}}`,
 		},
 		{
-			name: "Discord で記法を始めない括弧は打ち消さない", format: webhook.FormatDiscord,
+			name: "Discord で記法を始めない括弧は打ち消さない", format: domain.WebhookFormatDiscord,
 			program: "こたつ特集(再)",
 			want:    `{"content": "「こたつ特集(再)」の録画を始めました", "allowed_mentions": {"parse": []}}`,
 		},
 		{
-			name: "Slack のメンションとリンク", format: webhook.FormatSlack,
+			name: "Slack のメンションとリンク", format: domain.WebhookFormatSlack,
 			program: "<!channel> <https://example.com/login|確認> & more",
 			want:    `{"text": "「&lt;!channel&gt; &lt;https://example.com/login|確認&gt; &amp; more」の録画を始めました"}`,
 		},
@@ -245,7 +245,7 @@ func TestDeliverWorkerRedactsURL(t *testing.T) {
 	server, _ := receiver(t, http.StatusNoContent)
 	server.Close()
 	kinds := []domain.NotificationKind{domain.NotificationKindStorageLow}
-	webhookID, _ := f.createWebhook(t, server.URL+"/api/webhooks/123/secret-token", webhook.FormatDiscord, kinds, true)
+	webhookID, _ := f.createWebhook(t, server.URL+"/api/webhooks/123/secret-token", domain.WebhookFormatDiscord, kinds, true)
 	eventID := f.emit(t, domain.NotificationKindStorageLow, nil)
 
 	err := f.deliver(t, webhookID, eventID)
@@ -277,7 +277,7 @@ func TestDeliverWorkerFailures(t *testing.T) {
 
 			f := newFixture(t)
 			server, requests := receiver(t, tt.status)
-			webhookID, _ := f.createWebhook(t, server.URL, webhook.FormatJSON, kinds, tt.enabled)
+			webhookID, _ := f.createWebhook(t, server.URL, domain.WebhookFormatJSON, kinds, tt.enabled)
 			if tt.deleted {
 				require.NoError(t, f.store.Delete(t.Context(), f.pool, audit.System("test"), webhookID))
 			}

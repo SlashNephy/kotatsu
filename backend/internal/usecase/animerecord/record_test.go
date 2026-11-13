@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -148,8 +149,8 @@ func newRecordFixture(t *testing.T) *recordFixture {
 		Logger: slog.New(slog.DiscardHandler), Inserter: f.inserter, WishlistInterval: 0,
 	})
 	require.NoError(t, err)
-	f.alice = f.login(t, "alice", auth.RoleViewer)
-	f.bob = f.login(t, "bob", auth.RoleMember)
+	f.alice = f.login(t, "alice", domain.RoleViewer)
+	f.bob = f.login(t, "bob", domain.RoleMember)
 
 	actor := audit.User(f.bob.UserID)
 	_, err = settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, actor, &settings.Changes{
@@ -181,7 +182,7 @@ func newRecordFixture(t *testing.T) *recordFixture {
 	return f
 }
 
-func (f *recordFixture) login(t *testing.T, name string, role auth.Role) *auth.Principal {
+func (f *recordFixture) login(t *testing.T, name string, role domain.Role) *auth.Principal {
 	t.Helper()
 	user, err := auth.NewUsers(f.clock).Create(t.Context(), f.pool, &auth.NewUser{Username: name, DisplayName: name, Role: role, PasswordHash: nil})
 	require.NoError(t, err)
@@ -360,7 +361,7 @@ func TestBeginRequiresSessionAndApp(t *testing.T) {
 	t.Parallel()
 	f := newRecordFixture(t)
 
-	token := &auth.Principal{UserID: f.alice.UserID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "mcp"}
+	token := &auth.Principal{UserID: f.alice.UserID, Role: domain.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "mcp"}
 	_, err := f.service.Begin(t.Context(), f.pool, token, animerecord.DestinationAnnict, origin)
 	require.ErrorIs(t, err, animerecord.ErrSessionRequired)
 

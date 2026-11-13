@@ -5,10 +5,10 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
@@ -73,7 +73,7 @@ func (r *Resolver) subscribeDataChanges(ctx context.Context) (<-chan *model.Data
 		return nil, errChangesUnavailable
 	}
 	channels := dataChannels()
-	if principal.Role != auth.RoleAdmin {
+	if principal.Role != domain.RoleAdmin {
 		channels = slices.DeleteFunc(channels, func(c dataChannel) bool { return c.adminOnly })
 	}
 	// 版数を読む前に購読し、読んだ後の変更を取りこぼさないようにする。

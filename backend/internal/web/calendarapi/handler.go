@@ -71,7 +71,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	if !principal.Role.Can(auth.PermissionWatch) {
+	if !principal.Role.Can(domain.PermissionWatch) {
 		http.NotFound(w, r)
 
 		return

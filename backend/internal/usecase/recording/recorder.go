@@ -79,32 +79,6 @@ const (
 	fileKindSegment = "segment"
 )
 
-// FailureReason は、録画に失敗した理由 (設計書 5.5)。
-type FailureReason string
-
-const (
-	FailureTunerUnavailable       FailureReason = "tuner_unavailable"
-	FailureTunerServerUnreachable FailureReason = "tuner_server_unreachable"
-	FailureStreamInterrupted      FailureReason = "stream_interrupted"
-	FailureStorageUnavailable     FailureReason = "storage_unavailable"
-	FailureStorageFull            FailureReason = "storage_full"
-	FailureProgramNotFound        FailureReason = "program_not_found"
-	FailureCancelled              FailureReason = "cancelled"
-	// FailureRecorderUnavailable は、録画を始める時刻に、割り振りを取る mikan がいなかったこと (#517)。
-	FailureRecorderUnavailable FailureReason = "recorder_unavailable"
-)
-
-// State は、録画の状態 (設計書 5.5)。
-type State string
-
-const (
-	StateRecording           State = "recording"
-	StateCompleted           State = "completed"
-	StateCompletedWithErrors State = "completed_with_errors"
-	StatePartial             State = "partial"
-	StateFailed              State = "failed"
-)
-
 // StreamOpener は、サービスのストリームを開く。tunerserver.Client が満たす。
 type StreamOpener interface {
 	OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error)
@@ -446,7 +420,7 @@ func (r *Recorder) retryOpen(
 // まだ何も作っていなければ失敗にする。録画の途中なら、それまでに録れた分を失敗にしないよう、作れるようになるまでやり直す (#519)。
 func (r *Recorder) retryCreate(
 	ctx context.Context, logger *slog.Logger, assignment *Assignment, recording *sqlc.Recording, tracker *endTracker, result *sessionResult,
-	created int, reason FailureReason, err error,
+	created int, reason domain.RecordingFailureReason, err error,
 ) (bool, error) {
 	if ctx.Err() != nil {
 		return true, context.Cause(ctx)
@@ -500,8 +474,8 @@ func (r *Recorder) hasPeers(ctx context.Context) bool {
 
 // unreachableTooLong は、まだ何も録っていないのに、チューナーサーバーにつながらないまま ReleaseAfter が過ぎ、
 // ほかに mikan がいるかを返す (#524)。チューナーサーバーの再起動はすべての mikan に同時に起きるので、一度つながらないだけでは手放さない。
-func (r *Recorder) unreachableTooLong(ctx context.Context, reason FailureReason, created int, since *time.Time) bool {
-	if reason != FailureTunerServerUnreachable || created > 0 {
+func (r *Recorder) unreachableTooLong(ctx context.Context, reason domain.RecordingFailureReason, created int, since *time.Time) bool {
+	if reason != domain.RecordingFailureReasonTunerServerUnreachable || created > 0 {
 		*since = time.Time{}
 
 		return false
@@ -518,7 +492,7 @@ func (r *Recorder) unreachableTooLong(ctx context.Context, reason FailureReason,
 
 // release は、録画できなかった理由を録画の行に残し、割り振りを手放させるために ErrRecorderUnavailable を返す (#524)。
 // ほかの mikan も録れなければ、neko がこの理由で録画を失敗にする。
-func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reason FailureReason, detail string) error {
+func (r *Recorder) release(ctx context.Context, recording *sqlc.Recording, reason domain.RecordingFailureReason, detail string) error {
 	err := sqlc.New(r.pool).SetRecordingFailureHint(ctx, sqlc.SetRecordingFailureHintParams{
 		FailureReason: new(string(reason)), FailureDetail: nonEmpty(detail), Now: r.clock.Now(), ID: recording.ID,
 	})
@@ -593,15 +567,15 @@ func (r *Recorder) countSegments(ctx context.Context, recordingID uuid.UUID) (in
 
 // interruption は、セグメントへの書き込みが途中で止まった理由をログに残し、録画が失敗したときに記録する理由を返す。
 // 書き込めなかったか、閉じられなかったなら保存先、そうでなければストリームの中断とする。
-func interruption(ctx context.Context, logger *slog.Logger, closeErr, copyErr error) FailureReason {
+func interruption(ctx context.Context, logger *slog.Logger, closeErr, copyErr error) domain.RecordingFailureReason {
 	if closeErr != nil || errors.Is(copyErr, errWrite) {
 		logger.WarnContext(ctx, "failed to write the recording file; starting a new one", slog.Any("error", errors.Join(copyErr, closeErr)))
 
-		return FailureStorageUnavailable
+		return domain.RecordingFailureReasonStorageUnavailable
 	}
 	logger.WarnContext(ctx, "the stream was interrupted; reconnecting", slog.Any("error", copyErr))
 
-	return FailureStreamInterrupted
+	return domain.RecordingFailureReasonStreamInterrupted
 }
 
 // waitToReopen は、ストリームを開き直す前に d だけ待つ。d が 0 以下なら待たない。
@@ -634,13 +608,13 @@ func (r *Recorder) waitToReopen(
 // sessionResult は、この mikan が録画を担当した間の結果。
 type sessionResult struct {
 	// lastFailure は、最後にストリームを開けなかったか、切れた理由。
-	lastFailure FailureReason
+	lastFailure domain.RecordingFailureReason
 	// lastError は、lastFailure に至ったエラーの本文 (#1467)。録画を失敗にするときに、理由と一緒に残す。
 	lastError string
 }
 
 // failed は、録画できなかった理由と、そのエラーを覚える。err が nil なら、本文は空にする。
-func (s *sessionResult) failed(reason FailureReason, err error) {
+func (s *sessionResult) failed(reason domain.RecordingFailureReason, err error) {
 	s.lastFailure = reason
 	s.lastError = failureDetail(err)
 }
@@ -727,7 +701,7 @@ func (r *Recorder) finishOnce(
 	if end == endCancelled {
 		logger.InfoContext(ctx, "the reservation was disabled or deleted while recording")
 
-		return r.fail(ctx, assignment, recording, FailureCancelled, "", now)
+		return r.fail(ctx, assignment, recording, domain.RecordingFailureReasonCancelled, "", now)
 	}
 	// 落ちた mikan が残した書きかけのファイルを閉じる。止まる mikan は、ストリームを開いたのを見てから、RenewInterval ごとに確かめて止まるので、
 	// それより長く書き込みのないファイルは、落ちた mikan のものとする。
@@ -750,7 +724,7 @@ func (r *Recorder) finishOnce(
 	if !recorded {
 		reason, detail := result.lastFailure, result.lastError
 		if reason == "" {
-			reason, detail = FailureStreamInterrupted, ""
+			reason, detail = domain.RecordingFailureReasonStreamInterrupted, ""
 		}
 		logger.WarnContext(ctx, "nothing was recorded", slog.String("reason", string(reason)))
 
@@ -769,12 +743,12 @@ func (r *Recorder) finishOnce(
 	if err != nil {
 		return fmt.Errorf("failed to get the recording: %w", err)
 	}
-	finalState := StateCompleted
+	finalState := domain.RecordingStateCompleted
 	switch {
 	case len(gaps) > 0:
-		finalState = StatePartial
+		finalState = domain.RecordingStatePartial
 	case finished.Drops > 0:
-		finalState = StateCompletedWithErrors
+		finalState = domain.RecordingStateCompletedWithErrors
 	}
 	if err := r.complete(ctx, assignment, recording.ID, finalState, "", "", now); err != nil {
 		return err
@@ -937,20 +911,20 @@ type segment struct {
 // startedAt は、セグメントの最初のデータを読んだ時刻。遅れた番組を待った後は、溜めた分を読み始めた時刻になる (#1046)。
 func (r *Recorder) createSegment(
 	ctx context.Context, tracker *endTracker, reservation *sqlc.GetReservationForRecordingRow, startedAt time.Time, tuner *usedTuner,
-) (*segment, FailureReason, error) {
+) (*segment, domain.RecordingFailureReason, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, r.opts.DatabaseTimeout)
 	defer cancel()
 	settings, err := r.cachedSettings(dbCtx, reservation, tracker.pending.cache)
 	if err != nil {
-		return nil, FailureStorageUnavailable, err
+		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
 	mounted := r.store.PoolIDs()
 	if (settings.PoolID != "" && !slices.Contains(mounted, settings.PoolID)) || len(mounted) == 0 {
-		return nil, FailureStorageUnavailable, fmt.Errorf("%w: %q", kago.ErrPoolNotMounted, settings.PoolID)
+		return nil, domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("%w: %q", kago.ErrPoolNotMounted, settings.PoolID)
 	}
 	pools, err := r.cachedPools(dbCtx, mounted, settings.PoolID, tracker.pending.cache)
 	if err != nil {
-		return nil, FailureStorageUnavailable, err
+		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
 	// 推定サイズは、これから録る残りの時間から求める。途中で開き直すときに、全長で選ぶと終盤ほど選べなくなる (#519)。
 	from := maxTime(r.clock.Now(), *reservation.PlannedStartAt)
@@ -967,7 +941,7 @@ func (r *Recorder) createSegment(
 	if err != nil {
 		seg.closeFiles()
 
-		return nil, FailureStorageUnavailable, fmt.Errorf("failed to save the recording file: %w", err)
+		return nil, domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to save the recording file: %w", err)
 	}
 
 	return seg, "", nil
@@ -978,31 +952,31 @@ func (r *Recorder) createSegment(
 func (r *Recorder) newSegment(
 	ctx context.Context, settings *domain.RecordingSettings, pools []*kago.Pool, reservation *sqlc.GetReservationForRecordingRow,
 	startedAt time.Time, estimated uint64,
-) (*segment, FailureReason, error) {
+) (*segment, domain.RecordingFailureReason, error) {
 	pool, err := r.store.Select(pools, estimated)
 	if errors.Is(err, kago.ErrNoPoolFits) {
-		return nil, FailureStorageFull, err
+		return nil, domain.RecordingFailureReasonStorageFull, err
 	}
 	if err != nil {
-		return nil, FailureStorageUnavailable, err
+		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
 
 	tmpl, err := reserve.ParseFileNameTemplate(settings.FileNameTemplate)
 	if err != nil {
-		return nil, FailureStorageUnavailable, err
+		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
 	name, err := reserve.RenderFileName(tmpl, &reserve.FileNameData{
 		StartAt: reservation.StartAt.In(r.location), EndAt: reservation.EndAt.In(r.location), ServiceName: reservation.ServiceName,
 		ChannelType: reservation.ChannelType, Channel: reservation.Channel, Name: reservation.Name, EventID: valueOr(reservation.EventID),
 	}, segmentExt)
 	if err != nil {
-		return nil, FailureStorageUnavailable, err
+		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
 	// ファイル名のテンプレートは、/ でディレクトリに分けられる。
 	dir, base := path.Split(name)
 	file, rel, err := r.store.Create(pool.ID, strings.TrimSuffix(dir, "/"), base)
 	if err != nil {
-		return nil, FailureStorageUnavailable, err
+		return nil, domain.RecordingFailureReasonStorageUnavailable, err
 	}
 	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
@@ -1754,8 +1728,8 @@ func addSegmentStats(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID
 }
 
 // fail は、録画を失敗にし、理由とエラーの本文 (#1467) を記録する。割り振りは終わったことにするので、nil を返す。at は、録画を止めた時刻。
-func (r *Recorder) fail(ctx context.Context, assignment *Assignment, recording *sqlc.Recording, reason FailureReason, detail string, at time.Time) error {
-	return r.complete(ctx, assignment, recording.ID, StateFailed, reason, detail, at)
+func (r *Recorder) fail(ctx context.Context, assignment *Assignment, recording *sqlc.Recording, reason domain.RecordingFailureReason, detail string, at time.Time) error {
+	return r.complete(ctx, assignment, recording.ID, domain.RecordingStateFailed, reason, detail, at)
 }
 
 // nonEmpty は、空でない文字列へのポインタを返す。空なら nil にして、DB に NULL を書く。
@@ -1899,7 +1873,7 @@ func recordingPayload(recordingID uuid.UUID, name, serviceName string, startAt, 
 // 録画の完了か失敗を通知する (設計書 6.2)。完了の通知には、Webhook のためにセグメントのプール内のパスを載せる。
 // at は、録画を止めた時刻。DB に届かずに記録が遅れても、録画の終わりはこの時刻にする。
 func (r *Recorder) complete(
-	ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state State, reason FailureReason, detail string, at time.Time,
+	ctx context.Context, assignment *Assignment, recordingID uuid.UUID, state domain.RecordingState, reason domain.RecordingFailureReason, detail string, at time.Time,
 ) error {
 	// 録画設定は、トランザクションの外で先に読む。トランザクションの中でプールから別の接続を借りると、接続が足りないときに詰まる。
 	settings := r.completionSettings(ctx, assignment)
@@ -1939,7 +1913,7 @@ func (r *Recorder) complete(
 			return err
 		}
 		target.AddTo(payload)
-		if state == StateFailed {
+		if state == domain.RecordingStateFailed {
 			payload["reason"] = string(reason)
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingFailed, payload, target.Audience)
@@ -2067,22 +2041,22 @@ func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservatio
 }
 
 // streamFailure は、ストリームを開けなかったエラーを、録画の失敗の理由にする。
-func streamFailure(err error) FailureReason {
+func streamFailure(err error) domain.RecordingFailureReason {
 	// 開いた後に切れたので、チューナーサーバーにはつながっている。
 	if errors.Is(err, errInterruptedBeforeStart) {
-		return FailureStreamInterrupted
+		return domain.RecordingFailureReasonStreamInterrupted
 	}
 	// チューナーサーバーは、チューナーの空きを待つ間、応答を返さないことがある。つながってはいるので、チューナーが空いていないとみなす。
 	if errors.Is(err, tunerserver.ErrStreamOpenTimeout) {
-		return FailureTunerUnavailable
+		return domain.RecordingFailureReasonTunerUnavailable
 	}
 	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りないほか、上流のチューナーにつなげないこともある。
 	// まだ一度も開いていないので、中断とはせず、チューナーを確保できなかったとみなす。
 	if errors.Is(err, tunerserver.ErrRefused) {
-		return FailureTunerUnavailable
+		return domain.RecordingFailureReasonTunerUnavailable
 	}
 
-	return FailureTunerServerUnreachable
+	return domain.RecordingFailureReasonTunerServerUnreachable
 }
 
 // drops は、全 PID のドロップの合計を返す。

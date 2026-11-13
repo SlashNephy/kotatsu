@@ -6,6 +6,7 @@ import (
 	"strings"
 	"uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -126,6 +127,6 @@ func webhookModel(w *webhook.Webhook) *model.Webhook {
 	}
 }
 
-func webhookFormatOf(format model.WebhookFormat) webhook.Format {
-	return webhook.Format(strings.ToLower(string(format)))
+func webhookFormatOf(format model.WebhookFormat) domain.WebhookFormat {
+	return domain.WebhookFormat(strings.ToLower(string(format)))
 }

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -64,7 +64,7 @@ func TestCaptures(t *testing.T) {
 
 	dataDir := t.TempDir()
 	f := newFixture(t, &graph.Options{DataDir: dataDir})
-	other := f.as(t, "other", auth.RoleViewer)
+	other := f.as(t, "other", domain.RoleViewer)
 	older := saveCapture(t, f, dataDir, f.userID, "こたつテスト1")
 	newer := saveCapture(t, f, dataDir, f.userID, "ＮＨＫ総合")
 	_ = saveCapture(t, f, dataDir, other.userID, "ＮＨＫ総合")
@@ -95,7 +95,7 @@ func TestDeleteCapture(t *testing.T) {
 
 	dataDir := t.TempDir()
 	f := newFixture(t, &graph.Options{DataDir: dataDir})
-	other := f.as(t, "other", auth.RoleViewer)
+	other := f.as(t, "other", domain.RoleViewer)
 	captureID := saveCapture(t, f, dataDir, f.userID, "こたつテスト1")
 	image := filepath.Join(dataDir, kago.CaptureLocation(f.userID, captureID).Path)
 	const mutation = `mutation($id: ID!) { deleteCapture(id: $id) }`

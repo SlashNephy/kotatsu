@@ -20,7 +20,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -49,7 +48,7 @@ func librarian(ctx context.Context) (*audit.Actor, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !principal.Role.Can(auth.PermissionManageRecordings) {
+	if !principal.Role.Can(domain.PermissionManageRecordings) {
 		return nil, NewError(CodeForbidden, "viewers cannot change recordings")
 	}
 
@@ -252,7 +251,7 @@ func (r *Resolver) recordingModels(ctx context.Context, rows []domain.Recording)
 		return nil, fmt.Errorf("failed to list the recording files: %w", err)
 	}
 	files := map[uuid.UUID][]*model.RecordingFile{}
-	admin := principal.Role.Can(auth.PermissionAdminister)
+	admin := principal.Role.Can(domain.PermissionAdminister)
 	// 画像は、書いたものがある最初のセグメントのディレクトリに置く (thumbnail.ImageSegment)。行は始まりの順に並ぶ。
 	imageSegments := map[uuid.UUID]uuid.UUID{}
 	for i := range fileRows {

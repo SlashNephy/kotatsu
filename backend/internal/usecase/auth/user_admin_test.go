@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -36,7 +37,7 @@ func newUserAdminFixture(t *testing.T) *userAdminFixture {
 	policy := newTestPolicy(t)
 	db := newDB(t)
 	users := auth.NewUsers(clk)
-	root, err := users.Create(t.Context(), db, &auth.NewUser{Username: rootName, DisplayName: rootName, Role: auth.RoleAdmin, PasswordHash: nil})
+	root, err := users.Create(t.Context(), db, &auth.NewUser{Username: rootName, DisplayName: rootName, Role: domain.RoleAdmin, PasswordHash: nil})
 	require.NoError(t, err)
 
 	return &userAdminFixture{db: db, clock: clk, admin: auth.NewUserAdmin(clk, audit.NewRecorder(clk), policy), users: users, root: root}
@@ -46,7 +47,7 @@ func (f *userAdminFixture) actor() *audit.Actor {
 	return audit.User(f.root.ID)
 }
 
-func (f *userAdminFixture) create(t *testing.T, username string, role auth.Role) *auth.User {
+func (f *userAdminFixture) create(t *testing.T, username string, role domain.Role) *auth.User {
 	t.Helper()
 
 	user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: username, DisplayName: username, Role: role, PasswordHash: nil})
@@ -76,11 +77,11 @@ func TestUserAdminCreate(t *testing.T) {
 		wantRejected bool
 		wantHash     bool
 	}{
-		{name: "with a password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: auth.RoleMember, Password: snowPhrase}, wantHash: true},
-		{name: "without a password", account: auth.NewAccount{Username: nekoName, DisplayName: "ねこ", Role: auth.RoleViewer, Password: ""}},
-		{name: "weak password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: auth.RoleMember, Password: weakPhrase}, wantRejected: true},
-		{name: "taken username", account: auth.NewAccount{Username: "ROOT", DisplayName: rootName, Role: auth.RoleMember, Password: ""}, wantErr: auth.ErrUsernameTaken},
-		{name: "unknown role", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: "owner", Password: ""}, wantErr: auth.ErrInvalidRole},
+		{name: "with a password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: domain.RoleMember, Password: snowPhrase}, wantHash: true},
+		{name: "without a password", account: auth.NewAccount{Username: nekoName, DisplayName: "ねこ", Role: domain.RoleViewer, Password: ""}},
+		{name: "weak password", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: domain.RoleMember, Password: weakPhrase}, wantRejected: true},
+		{name: "taken username", account: auth.NewAccount{Username: "ROOT", DisplayName: rootName, Role: domain.RoleMember, Password: ""}, wantErr: auth.ErrUsernameTaken},
+		{name: "unknown role", account: auth.NewAccount{Username: mikanName, DisplayName: mikanLabel, Role: "owner", Password: ""}, wantErr: domain.ErrInvalidRole},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,7 +118,7 @@ func TestUserAdminCreate(t *testing.T) {
 func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 	t.Parallel()
 
-	member := auth.RoleMember
+	member := domain.RoleMember
 	tests := []struct {
 		name string
 		// prepare は、ほかのユーザーを用意し、操作の対象を返す。
@@ -148,7 +149,7 @@ func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 			name: "a disabled administrator does not count", wantErr: auth.ErrLastAdmin,
 			prepare: func(t *testing.T, f *userAdminFixture) uuid.UUID {
 				t.Helper()
-				require.NoError(t, f.users.Disable(t.Context(), f.db, f.create(t, "old-admin", auth.RoleAdmin).ID))
+				require.NoError(t, f.users.Disable(t.Context(), f.db, f.create(t, "old-admin", domain.RoleAdmin).ID))
 
 				return f.root.ID
 			},
@@ -164,7 +165,7 @@ func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 			prepare: func(t *testing.T, f *userAdminFixture) uuid.UUID {
 				t.Helper()
 
-				return f.create(t, "second-admin", auth.RoleAdmin).ID
+				return f.create(t, "second-admin", domain.RoleAdmin).ID
 			},
 			op: func(t *testing.T, f *userAdminFixture, target uuid.UUID) error {
 				t.Helper()
@@ -178,7 +179,7 @@ func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 			prepare: func(t *testing.T, f *userAdminFixture) uuid.UUID {
 				t.Helper()
 
-				return f.create(t, "second-admin", auth.RoleAdmin).ID
+				return f.create(t, "second-admin", domain.RoleAdmin).ID
 			},
 			op: func(t *testing.T, f *userAdminFixture, target uuid.UUID) error {
 				t.Helper()
@@ -190,7 +191,7 @@ func TestUserAdminKeepsAnAdministrator(t *testing.T) {
 			name: "disable yourself", wantErr: auth.ErrCannotDisableSelf,
 			prepare: func(t *testing.T, f *userAdminFixture) uuid.UUID {
 				t.Helper()
-				f.create(t, "second-admin", auth.RoleAdmin)
+				f.create(t, "second-admin", domain.RoleAdmin)
 
 				return f.root.ID
 			},
@@ -226,8 +227,8 @@ func TestUserAdminUpdateAndEnable(t *testing.T) {
 	t.Parallel()
 
 	f := newUserAdminFixture(t)
-	user := f.create(t, mikanName, auth.RoleViewer)
-	name, role := mikanLabel, auth.RoleMember
+	user := f.create(t, mikanName, domain.RoleViewer)
+	name, role := mikanLabel, domain.RoleMember
 	updated, err := f.admin.Update(t.Context(), f.db, f.actor(), user.ID, &auth.UserChanges{DisplayName: &name, Role: &role})
 	require.NoError(t, err)
 	assert.Equal(t, name, updated.DisplayName)
@@ -271,8 +272,8 @@ func TestUserAdminKeepsAnAdministratorConcurrently(t *testing.T) {
 	t.Parallel()
 
 	f := newUserAdminFixture(t)
-	second := f.create(t, "second-admin", auth.RoleAdmin)
-	member := auth.RoleMember
+	second := f.create(t, "second-admin", domain.RoleAdmin)
+	member := domain.RoleMember
 	errs := make(chan error, 2)
 	for _, target := range []uuid.UUID{f.root.ID, second.ID} {
 		go func() {
@@ -298,7 +299,7 @@ func TestUserAdminDisableRevokesSessions(t *testing.T) {
 	t.Parallel()
 
 	f := newUserAdminFixture(t)
-	member := f.create(t, "member", auth.RoleMember)
+	member := f.create(t, "member", domain.RoleMember)
 	sessions := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock})
 	token, _, err := sessions.Create(t.Context(), f.db, member.ID, &auth.ClientInfo{})
 	require.NoError(t, err)
@@ -368,8 +369,8 @@ func TestUserAdminDeleteRemovesPersonalData(t *testing.T) {
 			t.Parallel()
 
 			f := newUserAdminFixture(t)
-			target := f.create(t, "leaving", auth.RoleViewer)
-			other := f.create(t, "staying", auth.RoleViewer)
+			target := f.create(t, "leaving", domain.RoleViewer)
+			other := f.create(t, "staying", domain.RoleViewer)
 			now := f.clock.Now()
 			for _, userID := range []uuid.UUID{target.ID, other.ID} {
 				_, err := f.db.Exec(t.Context(), `INSERT INTO user_settings (user_id, updated_at) VALUES ($1, $2)`, userID, now)
@@ -430,7 +431,7 @@ func TestUserAdminDeleteRefuses(t *testing.T) {
 			name: "the last enabled administrator when the other is disabled",
 			op: func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error) {
 				t.Helper()
-				disabled := f.create(t, "disabled-admin", auth.RoleAdmin)
+				disabled := f.create(t, "disabled-admin", domain.RoleAdmin)
 				require.NoError(t, f.admin.Disable(t.Context(), f.db, f.actor(), f.root.ID, disabled.ID))
 
 				return f.root.ID, f.admin.DeleteSelf(t.Context(), f.db, f.actor(), f.root.ID, eraser)
@@ -442,7 +443,7 @@ func TestUserAdminDeleteRefuses(t *testing.T) {
 			name: "when an eraser fails",
 			op: func(t *testing.T, f *userAdminFixture, eraser auth.UserDataEraser) (uuid.UUID, error) {
 				t.Helper()
-				target := f.create(t, "kept-on-failure", auth.RoleViewer)
+				target := f.create(t, "kept-on-failure", domain.RoleViewer)
 
 				return target.ID, f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, target.ID, eraser)
 			},
@@ -472,7 +473,7 @@ func TestUserAdminDeleteAllowsDisabledAdministrator(t *testing.T) {
 	t.Parallel()
 
 	f := newUserAdminFixture(t)
-	disabled := f.create(t, "disabled-admin", auth.RoleAdmin)
+	disabled := f.create(t, "disabled-admin", domain.RoleAdmin)
 	require.NoError(t, f.admin.Disable(t.Context(), f.db, f.actor(), f.root.ID, disabled.ID))
 
 	require.NoError(t, f.admin.Delete(t.Context(), f.db, f.actor(), f.root.ID, disabled.ID))

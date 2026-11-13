@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 const animeFollowingQuery = `query ($work: Int!) {
@@ -39,9 +39,9 @@ type animeFollowingResult struct {
 func TestAnimeFollowingViewings(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
-	viewer := f.as(t, "viewer", auth.RoleViewer)
-	other := f.as(t, "other", auth.RoleViewer)
+	admin := f.as(t, adminName, domain.RoleAdmin)
+	viewer := f.as(t, "viewer", domain.RoleViewer)
+	other := f.as(t, "other", domain.RoleViewer)
 	tid := map[string]any{"work": wishlistTID}
 
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('arm', 6776, 0, 10, 20, NULL)`)

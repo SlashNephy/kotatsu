@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clientinfo"
@@ -59,7 +60,7 @@ type fixture struct {
 }
 
 // as は、role のユーザーでログインしたセッションで、同じサーバーを使う fixture を返す。
-func (f *fixture) as(t *testing.T, username string, role auth.Role) *fixture {
+func (f *fixture) as(t *testing.T, username string, role domain.Role) *fixture {
 	t.Helper()
 
 	user, err := auth.NewUsers(f.clock).Create(t.Context(), f.pool, &auth.NewUser{
@@ -128,7 +129,7 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 
 	clk := clocktest.NewFake(testNow())
 	user, err := auth.NewUsers(clk).Create(tb.Context(), pool, &auth.NewUser{
-		Username: testUsername, DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
+		Username: testUsername, DisplayName: "こたつ", Role: domain.RoleMember, PasswordHash: nil,
 	})
 	require.NoError(tb, err)
 	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: clk})

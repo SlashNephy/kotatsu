@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -135,7 +136,7 @@ func (c *Feeds) Authenticate(ctx context.Context, token string) (*Principal, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up the feed: %w", err)
 	}
-	role, err := ParseRole(row.Role)
+	role, err := domain.ParseRole(row.Role)
 	if err != nil {
 		return nil, err
 	}

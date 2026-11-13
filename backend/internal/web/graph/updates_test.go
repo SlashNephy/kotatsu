@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
@@ -27,12 +27,12 @@ func TestLatestRelease(t *testing.T) {
 	tests := []struct {
 		name    string
 		updates graph.Updates
-		role    auth.Role
+		role    domain.Role
 		want    bool
 	}{
-		{name: "管理者には返す", updates: &fakeUpdates{release: release}, role: auth.RoleAdmin, want: true},
-		{name: "管理者でなければ返さない", updates: &fakeUpdates{release: release}, role: auth.RoleMember, want: false},
-		{name: "確かめない設定なら返さない", updates: nil, role: auth.RoleAdmin, want: false},
+		{name: "管理者には返す", updates: &fakeUpdates{release: release}, role: domain.RoleAdmin, want: true},
+		{name: "管理者でなければ返さない", updates: &fakeUpdates{release: release}, role: domain.RoleMember, want: false},
+		{name: "確かめない設定なら返さない", updates: nil, role: domain.RoleAdmin, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

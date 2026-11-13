@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -45,9 +46,9 @@ func TestOAuthAuthorizationHidesFetchError(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, "admin", auth.RoleAdmin)
+	admin := f.as(t, "admin", domain.RoleAdmin)
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldMCPEnabled: true}}, nil))
-	viewer := f.as(t, "guest", auth.RoleViewer)
+	viewer := f.as(t, "guest", domain.RoleViewer)
 
 	// ループバックのアドレスには、取りに行く前に断る。断った理由には、そのアドレスが入る。
 	const query = `query($q: String!) { oauthAuthorization(query: $q) { errorRedirectUrl } }`
@@ -99,7 +100,7 @@ func TestManageOAuthGrants(t *testing.T) {
 	require.Len(t, grants, 1)
 	assert.Equal(t, oauthGrant{ID: grants[0].ID, ClientID: clientID, ClientName: "Claude Code", Scopes: []string{"mcp:read", "mcp:write"}, LastUsedAt: nil}, grants[0])
 	// ほかのユーザーには見えず、取り消せない。
-	other := f.as(t, otherUser, auth.RoleMember)
+	other := f.as(t, otherUser, domain.RoleMember)
 	assert.Empty(t, other.listOAuthGrants(t))
 	assert.Equal(t, []string{codeNotFound}, other.query(t, deleteGrantMutation, map[string]any{varID: grants[0].ID}, nil))
 

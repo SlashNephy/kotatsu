@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -139,9 +140,9 @@ func TestAuthorizer(t *testing.T) {
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	users := auth.NewUsers(clk)
-	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "mikan", DisplayName: "みかん", Role: auth.RoleViewer, PasswordHash: nil})
+	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "mikan", DisplayName: "みかん", Role: domain.RoleViewer, PasswordHash: nil})
 	require.NoError(t, err)
-	disabled, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "neko", DisplayName: "ねこ", Role: auth.RoleMember, PasswordHash: nil})
+	disabled, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "neko", DisplayName: "ねこ", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	require.NoError(t, users.Disable(t.Context(), pool, disabled.ID))
 	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: clk})
@@ -207,9 +208,9 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	users := auth.NewUsers(clk)
-	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "mikan", DisplayName: "みかん", Role: auth.RoleViewer, PasswordHash: nil})
+	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "mikan", DisplayName: "みかん", Role: domain.RoleViewer, PasswordHash: nil})
 	require.NoError(t, err)
-	other, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "neko", DisplayName: "ねこ", Role: auth.RoleMember, PasswordHash: nil})
+	other, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "neko", DisplayName: "ねこ", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	conn := databasetest.NewSwitch(t, pool)
 	sessions := auth.NewSessions(&auth.SessionsOptions{IdleTimeout: 0, AbsoluteTimeout: 0, IsSecure: nil, Clock: clk, Logger: nil})

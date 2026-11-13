@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -202,7 +203,7 @@ func apply(ctx context.Context, q *sqlc.Queries, now time.Time, channels []*Chan
 	have := map[int64]bool{}
 	deleted := 0
 	for _, a := range assignments {
-		finished := a.State == string(recording.AssignmentFinished)
+		finished := a.State == string(domain.RecordingAssignmentStateFinished)
 		if !finished {
 			have[a.ServiceID] = true
 		}

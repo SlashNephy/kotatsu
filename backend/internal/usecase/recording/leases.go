@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -72,7 +73,7 @@ func (l *recordingLeases) Acquire(ctx context.Context, holder uuid.UUID, now, ex
 	}
 
 	// 引き継ぎ待ちでも、古い mikan のリースが切れていれば、引き継ぎの最中に落ちたので、落ちた mikan の代わりとして扱う。
-	handedOver := row.PreviousState == string(AssignmentHandover) && row.PreviousLeaseExpiresAt != nil && row.PreviousLeaseExpiresAt.After(now)
+	handedOver := row.PreviousState == string(domain.RecordingAssignmentStateHandover) && row.PreviousLeaseExpiresAt != nil && row.PreviousLeaseExpiresAt.After(now)
 
 	return &Assignment{
 		ID: row.ID, ReservationID: row.ReservationID, ServiceID: 0, Priority: int(row.Priority), Generation: row.Generation,

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -65,9 +66,9 @@ func newFixture(t *testing.T) *fixture {
 
 	clk := clocktest.NewFake(testNow())
 	users := auth.NewUsers(clk)
-	member, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "member", DisplayName: "member", Role: auth.RoleMember, PasswordHash: nil})
+	member, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "member", DisplayName: "member", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
-	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "viewer", DisplayName: "viewer", Role: auth.RoleViewer, PasswordHash: nil})
+	viewer, err := users.Create(t.Context(), pool, &auth.NewUser{Username: "viewer", DisplayName: "viewer", Role: domain.RoleViewer, PasswordHash: nil})
 	require.NoError(t, err)
 	setMCPEnabled(t, pool, true)
 
@@ -76,8 +77,8 @@ func newFixture(t *testing.T) *fixture {
 
 	return &fixture{
 		db: pool, clock: clk, server: server, clientID: srv.URL + metadataPath,
-		member: &auth.Principal{UserID: member.ID, Role: auth.RoleMember},
-		viewer: &auth.Principal{UserID: viewer.ID, Role: auth.RoleViewer},
+		member: &auth.Principal{UserID: member.ID, Role: domain.RoleMember},
+		viewer: &auth.Principal{UserID: viewer.ID, Role: domain.RoleViewer},
 	}
 }
 
@@ -232,7 +233,7 @@ func TestAuthorizationCodeFlow(t *testing.T) {
 	principal, grant, err := f.server.Authenticate(t.Context(), access, testResource)
 	require.NoError(t, err)
 	assert.Equal(t, f.member.UserID, principal.UserID)
-	assert.Equal(t, auth.RoleMember, principal.Role)
+	assert.Equal(t, domain.RoleMember, principal.Role)
 	assert.Equal(t, f.clientID, grant.ClientID)
 	assert.True(t, oauth.HasScope(grant.Scopes, oauth.ScopeRead))
 	// ほかのオリジンの MCP サーバーには使えない。末尾の / と大文字と小文字は区別しない。

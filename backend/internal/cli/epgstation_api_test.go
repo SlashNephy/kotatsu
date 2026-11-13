@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -52,7 +53,7 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 	t.Cleanup(pool.Close)
 	clk := new(clock.Real)
 	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-		Username: adminUsername, DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
+		Username: adminUsername, DisplayName: "こたつ", Role: domain.RoleViewer, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 	session, _, err := auth.NewSessions(nil).Create(t.Context(), pool, user.ID, nil)

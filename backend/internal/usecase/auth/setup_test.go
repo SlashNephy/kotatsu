@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -79,7 +80,7 @@ func TestSetup(t *testing.T) {
 
 	admin, err := f.setup.CreateAdmin(t.Context(), f.db, token, f.admin(adminPhrase), f.client)
 	require.NoError(t, err)
-	assert.Equal(t, auth.RoleAdmin, admin.Role)
+	assert.Equal(t, domain.RoleAdmin, admin.Role)
 
 	// 作った後は、セットアップは要らず、トークンは消え、新しいトークンも発行できない。
 	needed, err = f.setup.Needed(t.Context(), f.db)

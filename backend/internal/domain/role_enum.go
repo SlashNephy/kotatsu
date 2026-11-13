@@ -3,7 +3,7 @@
 
 // Built By: go install
 
-package auth
+package domain
 
 import (
 	"errors"

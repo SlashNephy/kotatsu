@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -93,7 +94,7 @@ func TestHandler(t *testing.T) {
 			t.Cleanup(pool.Close)
 			require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 			user, err := auth.NewUsers(clocktest.NewFake(time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
-				Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
+				Username: "kotatsu", DisplayName: "こたつ", Role: domain.RoleViewer, PasswordHash: nil,
 			})
 			require.NoError(t, err)
 			_, err = pool.Exec(t.Context(), `INSERT INTO anime_record_connections (user_id, destination, access_token_encrypted, account_name, connected_at)
@@ -110,7 +111,7 @@ func TestHandler(t *testing.T) {
 				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/anime-works/anilist/"+tt.workID+"/image", http.NoBody)
 				if tt.signedIn {
 					req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
-						UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
+						UserID: user.ID, Role: domain.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
 					}))
 				}
 				rec := httptest.NewRecorder()
@@ -155,7 +156,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 			t.Cleanup(pool.Close)
 			require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 			user, err := auth.NewUsers(clocktest.NewFake(time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
-				Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
+				Username: "kotatsu", DisplayName: "こたつ", Role: domain.RoleViewer, PasswordHash: nil,
 			})
 			require.NoError(t, err)
 			for _, statement := range []string{
@@ -181,7 +182,7 @@ func TestServeFollowingAvatar(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/anime-following/annict/"+tt.username+"/avatar", http.NoBody)
 			if tt.signedIn {
 				req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
-					UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
+					UserID: user.ID, Role: domain.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
 				}))
 			}
 			rec := httptest.NewRecorder()

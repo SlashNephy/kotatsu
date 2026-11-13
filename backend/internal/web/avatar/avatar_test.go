@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -44,7 +45,7 @@ func newPool(t *testing.T, picture string) (*pgxpool.Pool, uuid.UUID) {
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
 	user, err := auth.NewUsers(clocktest.NewFake(now)).Create(t.Context(), pool, &auth.NewUser{
-		Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
+		Username: "kotatsu", DisplayName: "こたつ", Role: domain.RoleViewer, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 	if picture != "" {

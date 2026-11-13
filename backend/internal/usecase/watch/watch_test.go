@@ -72,7 +72,7 @@ func newFixture(t *testing.T) *fixture {
 	users := map[string]uuid.UUID{}
 	for _, name := range []string{"alice", "bob"} {
 		user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-			Username: name, DisplayName: name, Role: auth.RoleViewer, PasswordHash: nil,
+			Username: name, DisplayName: name, Role: domain.RoleViewer, PasswordHash: nil,
 		})
 		require.NoError(t, err)
 		users[name] = user.ID

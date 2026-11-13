@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
@@ -55,19 +56,19 @@ func TestAuthorizationMatrix(t *testing.T) {
 
 	// 設計書 9.7 の表。行が操作、列が管理者、メンバー、視聴者。
 	table := []struct {
-		permission auth.Permission
+		permission domain.Permission
 		admin      bool
 		member     bool
 		viewer     bool
 	}{
-		{permission: auth.PermissionWatch, admin: true, member: true, viewer: true},
-		{permission: auth.PermissionManageSchedule, admin: true, member: true, viewer: false},
-		{permission: auth.PermissionManageRecordings, admin: true, member: true, viewer: false},
-		{permission: auth.PermissionAdminister, admin: true, member: false, viewer: false},
+		{permission: domain.PermissionWatch, admin: true, member: true, viewer: true},
+		{permission: domain.PermissionManageSchedule, admin: true, member: true, viewer: false},
+		{permission: domain.PermissionManageRecordings, admin: true, member: true, viewer: false},
+		{permission: domain.PermissionAdminister, admin: true, member: false, viewer: false},
 	}
 
 	for _, row := range table {
-		for role, allowed := range map[auth.Role]bool{auth.RoleAdmin: row.admin, auth.RoleMember: row.member, auth.RoleViewer: row.viewer} {
+		for role, allowed := range map[domain.Role]bool{domain.RoleAdmin: row.admin, domain.RoleMember: row.member, domain.RoleViewer: row.viewer} {
 			t.Run(string(row.permission)+"/"+string(role), func(t *testing.T) {
 				t.Parallel()
 
@@ -87,7 +88,7 @@ func TestAuthorizationMatrix(t *testing.T) {
 }
 
 // serveWithPrincipal は、principal としてログインしたリクエストを、p を要するハンドラーに送り、状態コードを返す。
-func serveWithPrincipal(t *testing.T, p auth.Permission, principal *auth.Principal) int {
+func serveWithPrincipal(t *testing.T, p domain.Permission, principal *auth.Principal) int {
 	t.Helper()
 
 	handler := auth.RequirePermission(p)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -108,12 +109,12 @@ func TestParseRole(t *testing.T) {
 
 	tests := []struct {
 		input   string
-		want    auth.Role
+		want    domain.Role
 		wantErr bool
 	}{
-		{input: "admin", want: auth.RoleAdmin},
-		{input: "member", want: auth.RoleMember},
-		{input: "viewer", want: auth.RoleViewer},
+		{input: "admin", want: domain.RoleAdmin},
+		{input: "member", want: domain.RoleMember},
+		{input: "viewer", want: domain.RoleViewer},
 		{input: "Admin", wantErr: true},
 		{input: "", wantErr: true},
 	}
@@ -121,9 +122,9 @@ func TestParseRole(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := auth.ParseRole(tt.input)
+			got, err := domain.ParseRole(tt.input)
 			if tt.wantErr {
-				require.ErrorIs(t, err, auth.ErrInvalidRole)
+				require.ErrorIs(t, err, domain.ErrInvalidRole)
 
 				return
 			}

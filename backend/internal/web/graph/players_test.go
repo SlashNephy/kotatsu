@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -95,7 +95,7 @@ func TestPlayers(t *testing.T) {
 	assert.Equal(t, "主音声", listed[0].State.Audios[0].Label)
 	assert.True(t, f.players(t)[0].Current)
 	// ほかのユーザーには見えない。
-	other := f.as(t, otherUser, auth.RoleMember)
+	other := f.as(t, otherUser, domain.RoleMember)
 	assert.Empty(t, other.players(t))
 
 	// 状態を送れるのは、登録した端末だけ。
@@ -201,7 +201,7 @@ func TestPlayerCommands(t *testing.T) {
 	assert.JSONEq(t, `{"playersChanged":3}`, string(next(t, changes)))
 
 	// ほかのユーザーは、操作を送れない。
-	other := f.as(t, otherUser, auth.RoleMember)
+	other := f.as(t, otherUser, domain.RoleMember)
 	assert.Equal(t, []string{codeNotFound}, other.query(t, sendCommand, map[string]any{varID: playerID, varCommand: map[string]any{keyCommandType: "PLAY"}}, nil))
 }
 

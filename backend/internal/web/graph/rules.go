@@ -29,7 +29,7 @@ func scheduler(ctx context.Context) (*audit.Actor, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !principal.Role.Can(auth.PermissionManageSchedule) {
+	if !principal.Role.Can(domain.PermissionManageSchedule) {
 		return nil, NewError(CodeForbidden, "viewers cannot change rules and reservations")
 	}
 

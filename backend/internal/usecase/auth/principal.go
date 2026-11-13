@@ -7,6 +7,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 )
 
@@ -23,7 +24,7 @@ var (
 // Principal は、リクエストを送ってきたログイン中のユーザー。
 type Principal struct {
 	UserID uuid.UUID
-	Role   Role
+	Role   domain.Role
 	// SessionID は、認証に使ったセッションの ID。
 	SessionID uuid.UUID
 	// AuthenticatedAt は、このセッションで最後にパスワードなどで認証した日時。
@@ -64,7 +65,7 @@ func PrincipalFrom(ctx context.Context) *Principal {
 // RequirePermission は、ログイン中のユーザーのロールが p を許されているときだけ next を呼ぶミドルウェアを返す。
 // 未ログインなら 401、許されていなければ 403 を返す。
 // ログイン中のユーザーは、手前のミドルウェア (Sessions.Middleware) が context に持たせておく。
-func RequirePermission(p Permission) func(http.Handler) http.Handler {
+func RequirePermission(p domain.Permission) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal := PrincipalFrom(r.Context())

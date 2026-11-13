@@ -103,7 +103,7 @@ func TestRecorderBackfillsFromTimeshift(t *testing.T) {
 		chunks    []chunk
 		// wantStarts は、録画のセグメントの始まり。最後はライブのストリームで書いたセグメント (予定の開始から late の後)。
 		wantStarts []time.Time
-		wantState  recording.State
+		wantState  domain.RecordingState
 		wantGaps   int
 	}{
 		{
@@ -112,12 +112,12 @@ func TestRecorderBackfillsFromTimeshift(t *testing.T) {
 				{start: planned.Add(-5 * time.Minute), end: new(planned.Add(time.Minute))},
 				{start: planned.Add(time.Minute), end: nil},
 			},
-			wantStarts: []time.Time{planned, planned.Add(late)}, wantState: recording.StateCompleted, wantGaps: 0,
+			wantStarts: []time.Time{planned, planned.Add(late)}, wantState: domain.RecordingStateCompleted, wantGaps: 0,
 		},
 		{
 			name: "バッファが予定の開始より後から始まるなら、その間を途切れた区間にする", timeshift: true,
 			chunks:     []chunk{{start: planned.Add(time.Minute), end: nil}},
-			wantStarts: []time.Time{planned.Add(time.Minute), planned.Add(late)}, wantState: recording.StatePartial, wantGaps: 1,
+			wantStarts: []time.Time{planned.Add(time.Minute), planned.Add(late)}, wantState: domain.RecordingStatePartial, wantGaps: 1,
 		},
 		{
 			name: "バッファに穴があれば、続いたチャンクごとにセグメントに写し、穴を途切れた区間にする", timeshift: true,
@@ -125,12 +125,12 @@ func TestRecorderBackfillsFromTimeshift(t *testing.T) {
 				{start: planned.Add(-time.Minute), end: new(planned.Add(30 * time.Second))},
 				{start: planned.Add(time.Minute), end: nil},
 			},
-			wantStarts: []time.Time{planned, planned.Add(time.Minute), planned.Add(late)}, wantState: recording.StatePartial, wantGaps: 1,
+			wantStarts: []time.Time{planned, planned.Add(time.Minute), planned.Add(late)}, wantState: domain.RecordingStatePartial, wantGaps: 1,
 		},
 		{
 			name: "サービスをタイムシフトで録っていなければ、写さない", timeshift: false,
 			chunks:     []chunk{{start: planned.Add(-time.Minute), end: nil}},
-			wantStarts: []time.Time{planned.Add(late)}, wantState: recording.StatePartial, wantGaps: 1,
+			wantStarts: []time.Time{planned.Add(late)}, wantState: domain.RecordingStatePartial, wantGaps: 1,
 		},
 	}
 	for _, tt := range tests {

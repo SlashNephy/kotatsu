@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -23,7 +24,7 @@ func TestAPITokens(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	users := auth.NewUsers(clk)
-	viewer, err := users.Create(t.Context(), db, &auth.NewUser{Username: "kiririn", DisplayName: "kiririn", Role: auth.RoleViewer, PasswordHash: nil})
+	viewer, err := users.Create(t.Context(), db, &auth.NewUser{Username: "kiririn", DisplayName: "kiririn", Role: domain.RoleViewer, PasswordHash: nil})
 	require.NoError(t, err)
 	tokens := auth.NewAPITokens(db, clk, audit.NewRecorder(clk))
 	actor := audit.User(viewer.ID)
@@ -36,7 +37,7 @@ func TestAPITokens(t *testing.T) {
 	principal, err := tokens.Authenticate(t.Context(), token)
 	require.NoError(t, err)
 	assert.Equal(t, viewer.ID, principal.UserID)
-	assert.Equal(t, auth.RoleViewer, principal.Role)
+	assert.Equal(t, domain.RoleViewer, principal.Role)
 	// セッションを持たないので、再認証の要る操作には使えない。
 	require.ErrorIs(t, auth.RequireRecentAuthentication(auth.WithPrincipal(t.Context(), principal), clk), auth.ErrReauthenticationRequired)
 
@@ -92,7 +93,7 @@ func TestAPITokenRejects(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	users := auth.NewUsers(clk)
-	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "rejects", DisplayName: "rejects", Role: auth.RoleMember, PasswordHash: nil})
+	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "rejects", DisplayName: "rejects", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	tokens := auth.NewAPITokens(db, clk, audit.NewRecorder(clk))
 	actor := audit.User(user.ID)
@@ -130,12 +131,12 @@ func TestAPITokenBearerMiddleware(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(testNow())
 	users := auth.NewUsers(clk)
-	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "bearer", DisplayName: "bearer", Role: auth.RoleViewer, PasswordHash: nil})
+	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "bearer", DisplayName: "bearer", Role: domain.RoleViewer, PasswordHash: nil})
 	require.NoError(t, err)
 	tokens := auth.NewAPITokens(db, clk, audit.NewRecorder(clk))
 	token, _, err := tokens.Create(t.Context(), audit.User(user.ID), user.ID, "kiririn")
 	require.NoError(t, err)
-	handler := tokens.BearerMiddleware(auth.RequirePermission(auth.PermissionWatch)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})))
 

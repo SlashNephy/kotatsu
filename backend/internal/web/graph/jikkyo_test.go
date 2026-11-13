@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -85,7 +85,7 @@ func TestServiceJikkyo(t *testing.T) {
 func enableJikkyo(t *testing.T, f *fixture) {
 	t.Helper()
 
-	require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {commentSources: [NX_JIKKYO]}) { jikkyoEnabled } }`, nil, nil))
+	require.Empty(t, f.as(t, "jikkyo-admin", domain.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {commentSources: [NX_JIKKYO]}) { jikkyoEnabled } }`, nil, nil))
 	require.Empty(t, f.query(t, `mutation { updatePlayerSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))
 }
 
@@ -123,7 +123,7 @@ func TestServiceJikkyoOptIn(t *testing.T) {
 			f := newFixture(t, &graph.Options{JikkyoTable: table, JikkyoClient: client})
 			f.syncEPG(t)
 			if tt.system {
-				require.Empty(t, f.as(t, "jikkyo-admin", auth.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {commentSources: [NX_JIKKYO]}) { jikkyoEnabled } }`, nil, nil))
+				require.Empty(t, f.as(t, "jikkyo-admin", domain.RoleAdmin).query(t, `mutation { updateSystemSettings(input: {commentSources: [NX_JIKKYO]}) { jikkyoEnabled } }`, nil, nil))
 			}
 			if tt.user {
 				require.Empty(t, f.query(t, `mutation { updatePlayerSettings(input: {jikkyoEnabled: true}) { jikkyoEnabled } }`, nil, nil))

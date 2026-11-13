@@ -203,8 +203,8 @@ func TestRecorderMarksNotBroadcastWhenFollowingUntilLimit(t *testing.T) {
 	assert.Equal(t, new(int64(99)), aired)
 	assert.Empty(t, f.files(t, reservationID), "the TS of the previous program is not kept")
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateFailed), got.state)
-	assert.Equal(t, new(string(recording.FailureProgramNotFound)), got.failureReason)
+	assert.Equal(t, string(domain.RecordingStateFailed), got.state)
+	assert.Equal(t, new(string(domain.RecordingFailureReasonProgramNotFound)), got.failureReason)
 }
 
 // TestRecorderWaitsForDelayedBroadcast は、番組が始まるはずの時刻から猶予が過ぎても、予約した番組 (eventId 6) が
@@ -265,7 +265,7 @@ func TestRecorderWaitsForDelayedBroadcast(t *testing.T) {
 	f.clock.Advance(domain.DefaultMarginSeconds * time.Second)
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 	files := f.files(t, reservationID)
 	require.Len(t, files, 1)
 	// 先に書くのは、溜めた分のうち開始マージン (15 秒) の間に読んだものだけ。待ち始めたときの EIT[p/f] は 10 分前に読んだので書かない。
@@ -505,7 +505,7 @@ func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
 				f.clock.Advance(domain.DefaultMarginSeconds * time.Second)
 				require.NoError(t, wait(t, done))
 				got, _ := f.recording(t, reservationID)
-				assert.Equal(t, string(recording.StatePartial), got.state, "the cut is recorded as a gap")
+				assert.Equal(t, string(domain.RecordingStatePartial), got.state, "the cut is recorded as a gap")
 
 				return
 			}
@@ -518,7 +518,7 @@ func TestRecorderFollowsBroadcastAcrossReconnect(t *testing.T) {
 			_, ended := broadcast()
 			assert.Nil(t, ended)
 			got, _ := f.recording(t, reservationID)
-			assert.Equal(t, string(recording.StateRecording), got.state)
+			assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 			stop(errStopForTest)
 			assert.ErrorIs(t, wait(t, done), errStopForTest)
 		})
@@ -579,7 +579,7 @@ func TestRecorderStopsWhenLeftAirWhileEndIsUndecided(t *testing.T) {
 	f.clock.Advance(domain.DefaultMarginSeconds * time.Second)
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 	_, ended := broadcast()
 	require.NotNil(t, ended)
 	assert.True(t, ended.Equal(programEnd), "the broadcast ended at %v", ended)
@@ -619,7 +619,7 @@ func TestRecorderKeepsWaitingAcrossReconnect(t *testing.T) {
 	stream.next(t, eitPFPacketsFrom(&cc, 0x0400, 6, 7))
 	require.Eventually(t, func() bool { return f.segments(t, reservationID) == 1 }, waitTimeout, 10*time.Millisecond)
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateRecording), got.state)
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 	stop(errStopForTest)
 	assert.ErrorIs(t, wait(t, done), errStopForTest)
 }

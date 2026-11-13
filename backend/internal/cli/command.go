@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/animedata"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
@@ -1320,7 +1321,7 @@ func newEPGStationAPI(
 	mux.Handle("GET /api/thumbnails/{id}",
 		h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName))
 
-	return tokens.BearerMiddleware(auth.RequirePermission(auth.PermissionWatch)(mux))
+	return tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(mux))
 }
 
 // newKyusu は、kyusu のライブ視聴と録画の仮想 HLS のセッションと、tenban からのリクエストを確かめるトークンを返す。

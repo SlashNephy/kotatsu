@@ -151,7 +151,7 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 	if err != nil {
 		return err
 	}
-	body, err := Body(Format(row.Format), &eventRow, w.location)
+	body, err := Body(domain.WebhookFormat(row.Format), &eventRow, w.location)
 	if err != nil {
 		return err
 	}
@@ -241,17 +241,17 @@ func escapeSlack(text string) string {
 }
 
 // Body は、イベントを、形式 format の本文にする。Discord と Slack には、location の日時で書いた文を送る。
-func Body(format Format, event *sqlc.NotificationEvent, location *time.Location) ([]byte, error) {
+func Body(format domain.WebhookFormat, event *sqlc.NotificationEvent, location *time.Location) ([]byte, error) {
 	var value any
 	switch format {
-	case FormatJSON:
+	case domain.WebhookFormatJSON:
 		value = jsonBody{ID: event.ID, Kind: event.Kind, OccurredAt: event.OccurredAt.UTC(), Payload: event.Payload}
-	case FormatDiscord, FormatSlack:
+	case domain.WebhookFormatDiscord, domain.WebhookFormatSlack:
 		payload := map[string]any{}
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 		}
-		if format == FormatDiscord {
+		if format == domain.WebhookFormatDiscord {
 			text := notification.MessageEscaped(event.Kind, payload, location, escapeDiscord)
 			// 名前に書かれたメンションで、チャンネルの人に通知が飛ばないようにする。
 			value = discordBody{Content: text, AllowedMentions: discordAllowedMentions{Parse: []string{}}}

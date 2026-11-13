@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -79,7 +80,7 @@ func TestTimeshiftChannels(t *testing.T) {
 	assert.Equal(t, []string{codeForbidden}, f.query(t, setTimeshiftChannel, set, nil))
 	assert.Equal(t, []string{codeForbidden}, f.query(t, removeTimeshiftChannel, set, nil))
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var available struct {
 		TimeshiftAvailable bool `json:"timeshiftAvailable"`
 	}
@@ -150,7 +151,7 @@ func TestSetTimeshiftChannelRejectsInvalidInput(t *testing.T) {
 
 	f := newFixture(t, &graph.Options{TimeshiftDir: t.TempDir()})
 	f.syncEPG(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 
 	tests := []struct {
 		name      string
@@ -187,7 +188,7 @@ func TestTimeshiftUnavailable(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var available struct {
 		TimeshiftAvailable bool `json:"timeshiftAvailable"`
 	}
@@ -263,7 +264,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 			exec(`INSERT INTO timeshift_programs (service_id, started_at, event_id, name, ended_at) VALUES ($1, $2, 100, '番組', NULL)`,
 				timeshiftServiceKey, now.Add(-40*time.Minute))
 
-			viewer := f.as(t, "viewer", auth.RoleViewer)
+			viewer := f.as(t, "viewer", domain.RoleViewer)
 			var got struct {
 				Node struct {
 					TimeshiftPrograms []timeshiftProgram `json:"timeshiftPrograms"`
@@ -363,9 +364,9 @@ func TestPromoteTimeshiftProgram(t *testing.T) {
 		promoteTimeshiftProgram(serviceId: $serviceId, startAt: $startAt) { recording { name state } reservation { id } } }`
 	vars := map[string]any{varServiceID: timeshiftServiceID(), varStartAt: started}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, promote, vars, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, promote, vars, nil))
 
-	member := f.as(t, "member", auth.RoleMember)
+	member := f.as(t, "member", domain.RoleMember)
 	var got struct {
 		PromoteTimeshiftProgram struct {
 			Recording *struct {

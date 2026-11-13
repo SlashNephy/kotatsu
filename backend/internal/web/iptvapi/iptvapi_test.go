@@ -51,9 +51,9 @@ type fakeAuth struct{}
 func (fakeAuth) Authenticate(_ context.Context, token string) (*auth.Principal, error) {
 	switch token {
 	case validFeed:
-		return &auth.Principal{UserID: uuid.New(), Role: auth.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
+		return &auth.Principal{UserID: uuid.New(), Role: domain.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 	case unwatchableFeed:
-		return &auth.Principal{UserID: uuid.New(), Role: auth.Role("none"), SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
+		return &auth.Principal{UserID: uuid.New(), Role: domain.Role("none"), SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: ""}, nil
 	case "broken":
 		return nil, errors.New("database is down")
 	default:

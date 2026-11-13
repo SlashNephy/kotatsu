@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -591,7 +592,7 @@ func TestPinnedServices(t *testing.T) {
 	var other struct {
 		PinnedServices []service `json:"pinnedServices"`
 	}
-	require.Empty(t, f.as(t, "other", auth.RoleViewer).query(t, listPinned, nil, &other))
+	require.Empty(t, f.as(t, "other", domain.RoleViewer).query(t, listPinned, nil, &other))
 	assert.Empty(t, other.PinnedServices)
 
 	require.Empty(t, f.query(t, setPinned, map[string]any{varID: first, varPinned: false}, &set))

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -84,7 +85,7 @@ func newLiveFixture(t *testing.T) *liveFixture {
 			return
 		}
 		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{
-			UserID: user, Role: auth.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: time.Now(), OAuthClientID: "",
+			UserID: user, Role: domain.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: time.Now(), OAuthClientID: "",
 		})))
 	}))
 	t.Cleanup(func() {

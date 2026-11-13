@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -86,7 +87,7 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 		f.userID, recordedFrom())
 	require.NoError(t, err)
 	f.handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: recordedFrom(), OAuthClientID: ""})))
+		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: domain.RoleMember, SessionID: uuid.Nil(), AuthenticatedAt: recordedFrom(), OAuthClientID: ""})))
 	})
 	f.setJikkyo(t, true, true)
 

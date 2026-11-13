@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"golang.org/x/oauth2"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -207,14 +208,14 @@ func pictureOf(claims map[string]any) *string {
 }
 
 // roleFor は、groups のどれかが当たる、最も強いロールを返す。どれにも当たらなければ false を返す。
-func (a *OIDCAutoCreate) roleFor(groups []string) (Role, bool) {
+func (a *OIDCAutoCreate) roleFor(groups []string) (domain.Role, bool) {
 	for _, candidate := range []struct {
-		role   Role
+		role   domain.Role
 		groups []string
 	}{
-		{role: RoleAdmin, groups: a.AdminGroups},
-		{role: RoleMember, groups: a.MemberGroups},
-		{role: RoleViewer, groups: a.ViewerGroups},
+		{role: domain.RoleAdmin, groups: a.AdminGroups},
+		{role: domain.RoleMember, groups: a.MemberGroups},
+		{role: domain.RoleViewer, groups: a.ViewerGroups},
 	} {
 		for _, group := range groups {
 			if slices.Contains(candidate.groups, group) {

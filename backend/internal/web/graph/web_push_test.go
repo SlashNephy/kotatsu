@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
@@ -61,7 +61,7 @@ func TestWebPush(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	viewer := f.as(t, "yuzu", auth.RoleViewer)
+	viewer := f.as(t, "yuzu", domain.RoleViewer)
 
 	var key struct {
 		WebPushPublicKey string `json:"webPushPublicKey"`

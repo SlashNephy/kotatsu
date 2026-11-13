@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
@@ -156,15 +157,15 @@ func TestWorkersShareAssignment(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	assert.Equal(t, int32(1), sessions.Load())
 	row := f.assignment(t, reservationID)
-	assert.Equal(t, string(recording.AssignmentRecording), row.state)
+	assert.Equal(t, string(domain.RecordingAssignmentStateRecording), row.state)
 	require.NotNil(t, row.holder)
 	assert.Contains(t, holders, *row.holder)
 
 	close(finish)
 	require.Eventually(t, func() bool {
-		return f.assignment(t, reservationID).state == string(recording.AssignmentFinished)
+		return f.assignment(t, reservationID).state == string(domain.RecordingAssignmentStateFinished)
 	}, waitTimeout, 20*time.Millisecond)
-	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
+	assert.Equal(t, assignmentRow{state: string(domain.RecordingAssignmentStateFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
 }
 
 // TestWorkerStopsWhenLeaseIsLost は、ほかの mikan が世代を進めて割り振りを取ると、古い mikan が書き込みをやめ、
@@ -195,7 +196,7 @@ func TestWorkerStopsWhenLeaseIsLost(t *testing.T) {
 	case <-time.After(waitTimeout):
 		t.Fatal("the old mikan kept recording after losing the lease")
 	}
-	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID),
+	assert.Equal(t, assignmentRow{state: string(domain.RecordingAssignmentStateRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID),
 		"the old mikan does not finish the assignment")
 }
 
@@ -556,7 +557,7 @@ func TestWorkerHandsOver(t *testing.T) {
 		t.Fatal("the old mikan did not stop after the handover")
 	}
 	<-stopped
-	assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID))
+	assert.Equal(t, assignmentRow{state: string(domain.RecordingAssignmentStateRecording), generation: 2, holder: &successor}, f.assignment(t, reservationID))
 }
 
 // TestWorkerReleasesWithoutSuccessor は、引き継ぐ mikan がいないか、引き継ぎを待ちきれなければ、割り振りを手放して止まり、
@@ -595,7 +596,7 @@ func TestWorkerReleasesWithoutSuccessor(t *testing.T) {
 			<-started
 			stop()
 			require.ErrorIs(t, <-causes, recording.ErrStopped)
-			assert.Equal(t, assignmentRow{state: string(recording.AssignmentRecording), generation: 1, holder: nil}, f.assignment(t, reservationID))
+			assert.Equal(t, assignmentRow{state: string(domain.RecordingAssignmentStateRecording), generation: 1, holder: nil}, f.assignment(t, reservationID))
 
 			// 再起動した mikan は、時計を進めなくても (リースが切れなくても)、すぐに取る。
 			taken := make(chan *recording.Assignment, 1)
@@ -690,7 +691,7 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 		stop()
 	}()
 	require.Eventually(t, func() bool {
-		return f.assignment(t, reservationID).state == string(recording.AssignmentHandover)
+		return f.assignment(t, reservationID).state == string(domain.RecordingAssignmentStateHandover)
 	}, waitTimeout, 10*time.Millisecond)
 
 	close(finish)
@@ -700,7 +701,7 @@ func TestWorkerFinishesDuringHandover(t *testing.T) {
 	case <-time.After(waitTimeout / 2):
 		t.Fatal("the mikan kept waiting for a successor after finishing the recording")
 	}
-	assert.Equal(t, assignmentRow{state: string(recording.AssignmentFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
+	assert.Equal(t, assignmentRow{state: string(domain.RecordingAssignmentStateFinished), generation: 1, holder: nil}, f.assignment(t, reservationID))
 }
 
 // TestWorkerDeletesAssignmentsEndedWithoutRecording は、録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を、
@@ -750,7 +751,7 @@ func TestWorkerReleasesUnrecordableAssignment(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return brokenSessions.Load() == 1 && f.assignment(t, reservationID).holder == nil
 	}, waitTimeout, 10*time.Millisecond)
-	assert.Equal(t, string(recording.AssignmentWaiting), f.assignment(t, reservationID).state)
+	assert.Equal(t, string(domain.RecordingAssignmentStateWaiting), f.assignment(t, reservationID).state)
 
 	recorded := make(chan struct{})
 	f.startWorker(t, healthy, func(ctx context.Context, assignment *recording.Assignment) error {
@@ -765,7 +766,7 @@ func TestWorkerReleasesUnrecordableAssignment(t *testing.T) {
 		t.Fatal("the healthy mikan did not take the released assignment")
 	}
 	require.Eventually(t, func() bool {
-		return f.assignment(t, reservationID).state == string(recording.AssignmentFinished)
+		return f.assignment(t, reservationID).state == string(domain.RecordingAssignmentStateFinished)
 	}, waitTimeout, 10*time.Millisecond)
 	// 手放した mikan は、しばらく取り直さない。
 	assert.Equal(t, int32(1), brokenSessions.Load())

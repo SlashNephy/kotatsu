@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/oidctest"
@@ -107,7 +108,7 @@ func (f *oidcFixture) count(t *testing.T, query string, args ...any) int {
 func (f *oidcFixture) linkedUser(t *testing.T) *auth.User {
 	t.Helper()
 
-	user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: linkedName, DisplayName: linkedName, Role: auth.RoleMember, PasswordHash: nil})
+	user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: linkedName, DisplayName: linkedName, Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	require.NoError(t, f.oidc.Link(t.Context(), f.db, audit.System("cli"), linkedName, idpSubject))
 
@@ -132,14 +133,14 @@ func TestOIDCLogin(t *testing.T) {
 		prepare    func(t *testing.T, f *oidcFixture)
 		claims     map[string]any
 		wantErr    error
-		wantRole   auth.Role
+		wantRole   domain.Role
 		// wantUsername は、ログインしたユーザーの名前。
 		wantUsername string
 		// wantDisplayName は、ログインしたユーザーの表示名。空なら確かめない。
 		wantDisplayName string
 	}{
 		{
-			name: "linked user", wantRole: auth.RoleMember, wantUsername: linkedName,
+			name: "linked user", wantRole: domain.RoleMember, wantUsername: linkedName,
 			prepare: func(t *testing.T, f *oidcFixture) { t.Helper(); f.linkedUser(t) },
 		},
 		{
@@ -153,12 +154,12 @@ func TestOIDCLogin(t *testing.T) {
 		{
 			name: "auto_create picks the strongest role", autoCreate: autoCreateGroups(),
 			claims:   map[string]any{nameClaim: mikanName, nameText: mikanLabel, groupsClaim: []string{viewersGroup, adminsGroup}},
-			wantRole: auth.RoleAdmin, wantUsername: mikanName, wantDisplayName: mikanLabel,
+			wantRole: domain.RoleAdmin, wantUsername: mikanName, wantDisplayName: mikanLabel,
 		},
 		{
 			name: "auto_create accepts a single group string", autoCreate: autoCreateGroups(),
 			claims:   map[string]any{nameClaim: nekoName, groupsClaim: membersGroup},
-			wantRole: auth.RoleMember, wantUsername: nekoName,
+			wantRole: domain.RoleMember, wantUsername: nekoName,
 		},
 		{
 			name: "auto_create rejects users outside the groups", autoCreate: autoCreateGroups(),
@@ -174,7 +175,7 @@ func TestOIDCLogin(t *testing.T) {
 			wantErr: auth.ErrOIDCUsernameTaken,
 			prepare: func(t *testing.T, f *oidcFixture) {
 				t.Helper()
-				_, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: "Kotatsu", DisplayName: linkedName, Role: auth.RoleViewer, PasswordHash: nil})
+				_, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: "Kotatsu", DisplayName: linkedName, Role: domain.RoleViewer, PasswordHash: nil})
 				require.NoError(t, err)
 			},
 		},
@@ -425,7 +426,7 @@ func TestOIDCLink(t *testing.T) {
 
 	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
 	f.linkedUser(t)
-	_, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: otherName, DisplayName: otherName, Role: auth.RoleMember, PasswordHash: nil})
+	_, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: otherName, DisplayName: otherName, Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 
 	tests := []struct {

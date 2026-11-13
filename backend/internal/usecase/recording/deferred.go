@@ -186,7 +186,7 @@ func provisionalRecording(reservation *sqlc.GetReservationForRecordingRow, start
 		ID: id.New(), APIID: 0, ReservationID: &reservation.ID, ServiceID: reservation.ServiceID, EventID: reservation.EventID,
 		Name: reservation.Name, Description: reservation.Description,
 		NameNormalized: new(domain.Normalize(reservation.Name)), DescriptionNormalized: new(domain.Normalize(reservation.Description)),
-		StartAt: reservation.StartAt, EndAt: reservation.EndAt, State: string(StateRecording), FailureReason: nil, FailureDetail: nil, Protected: false, Drops: 0, Errors: 0, Scrambled: 0,
+		StartAt: reservation.StartAt, EndAt: reservation.EndAt, State: string(domain.RecordingStateRecording), FailureReason: nil, FailureDetail: nil, Protected: false, Drops: 0, Errors: 0, Scrambled: 0,
 		ScrambledRatio: nil, ScrambleWarning: false,
 		Gaps: []byte("[]"), Audios: []byte("[]"), VideoResolution: nil, Genres: []byte("[]"), RuleID: nil, RuleName: nil,
 		ProgramLost: false, BroadcastStartedAt: nil, BroadcastEndedAt: nil, WaitedForBroadcast: false, NotBroadcast: false, AiredEventID: nil,

@@ -73,7 +73,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 
 			return
 		}
-		if !principal.Role.Can(auth.PermissionWatch) {
+		if !principal.Role.Can(domain.PermissionWatch) {
 			http.NotFound(w, r)
 
 			return
