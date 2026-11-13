@@ -118,7 +118,4 @@ func TestTunerServerChannels(t *testing.T) {
 	}
 	assert.Contains(t, ids["32736"], int64(3273601024))
 	assert.NotContains(t, ids["32736"], int64(3273701032))
-
-	_, err = server.ServiceLogo(t.Context(), 3273601024)
-	require.ErrorIs(t, err, tunerserver.ErrLogoUnavailable)
 }

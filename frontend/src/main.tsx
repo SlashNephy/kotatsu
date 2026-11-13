@@ -21,6 +21,13 @@ import { createEnvironment } from './relay/environment';
 import { errorRecovery } from './relay/recovery';
 import { routeTree } from './routeTree.gen';
 
+// 開発サーバーでだけ、React Grab で画面の要素からコンポーネントとソースの位置を写せるようにする。
+// import.meta.env.DEV は本番のビルドで false になり、React Grab のコードを含まない。
+// telemetry を切り、react-grab.com への版の問い合わせを送らない。
+if (import.meta.env.DEV) {
+  void import('react-grab/core').then(({ init }) => init({ telemetry: false }));
+}
+
 // Mantine の Modal と Drawer は、背景のスクロールを止める <style> を react-remove-scroll で差し込む。
 // react-remove-scroll は get-nonce から nonce を引くので、CSP の nonce を渡しておく (設計書 10.4)。
 setNonce(cspNonce());
