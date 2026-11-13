@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
-	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/workids"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
@@ -118,13 +118,14 @@ func (f *fakeWorkIDs) setFail(fail bool) {
 	f.fail = fail
 }
 
-// fakeTokens は、管理者が設定した Annict のトークンを返す偽物。
-type fakeTokens struct{ token string }
+// tokensReturning は、管理者が設定した Annict のトークンとして、token を返す偽物を返す。
+func tokensReturning(t *testing.T, token string) *MockTokenSource {
+	t.Helper()
 
-var _ anime.TokenSource = new(fakeTokens)
+	tokens := NewMockTokenSource(gomock.NewController(t))
+	tokens.EXPECT().AnnictImportToken(gomock.Any(), gomock.Any()).Return(token, nil).AnyTimes()
 
-func (f *fakeTokens) AnnictImportToken(context.Context, sqlc.DBTX) (string, error) {
-	return f.token, nil
+	return tokens
 }
 
 // TestImportAnnictWorksWithoutToken は、管理者が Annict のトークンを設定していなければ、Annict にも AniList にも問い合わせないことを確かめる。
@@ -135,8 +136,8 @@ func TestImportAnnictWorksWithoutToken(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeWorkIDs()
-	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(), nil, slog.New(slog.DiscardHandler)).
-		WithWorkIDs(&anime.WorkIDOptions{Fetcher: fetcher, Tokens: &fakeTokens{token: ""}, AnnictInterval: 0, AniListInterval: 0})
+	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(t), nil, slog.New(slog.DiscardHandler)).
+		WithWorkIDs(&anime.WorkIDOptions{Fetcher: fetcher, Tokens: tokensReturning(t, ""), AnnictInterval: 0, AniListInterval: 0})
 
 	result, err := importer.Import(t.Context(), true)
 	require.NoError(t, err)
@@ -154,8 +155,8 @@ func TestImportAnnictWorks(t *testing.T) {
 	clk := clocktest.NewFake(testNow())
 	enable(t, db, clk)
 	fetcher := newFakeWorkIDs()
-	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(), nil, slog.New(slog.DiscardHandler)).
-		WithWorkIDs(&anime.WorkIDOptions{Fetcher: fetcher, Tokens: &fakeTokens{token: annictToken}, AnnictInterval: 0, AniListInterval: 0})
+	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(t), nil, slog.New(slog.DiscardHandler)).
+		WithWorkIDs(&anime.WorkIDOptions{Fetcher: fetcher, Tokens: tokensReturning(t, annictToken), AnnictInterval: 0, AniListInterval: 0})
 
 	result, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)
@@ -217,8 +218,8 @@ func TestImportAnnictWorksFailure(t *testing.T) {
 	enable(t, db, clk)
 	fetcher := newFakeWorkIDs()
 	fetcher.setFail(true)
-	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(), nil, slog.New(slog.DiscardHandler)).
-		WithWorkIDs(&anime.WorkIDOptions{Fetcher: fetcher, Tokens: &fakeTokens{token: annictToken}, AnnictInterval: 0, AniListInterval: 0})
+	importer := anime.NewImporter(db, clk, newFakeFetcher(), newFakeTitles(t), nil, slog.New(slog.DiscardHandler)).
+		WithWorkIDs(&anime.WorkIDOptions{Fetcher: fetcher, Tokens: tokensReturning(t, annictToken), AnnictInterval: 0, AniListInterval: 0})
 
 	result, err := importer.Import(t.Context(), false)
 	require.NoError(t, err)

@@ -44,6 +44,8 @@ type WorkIDFetcher interface {
 
 var _ WorkIDFetcher = new(workids.Client)
 
+//go:generate go tool mockgen -typed -destination=mock_token_source_test.go -package=anime_test . TokenSource
+
 // TokenSource は、管理者が設定した、作品 ID を引くための Annict のトークンを返す。設定していなければ空を返す。
 // *animerecord.Service が満たす。
 type TokenSource interface {
