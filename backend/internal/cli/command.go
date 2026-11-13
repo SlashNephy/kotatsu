@@ -970,9 +970,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle(internalPathPrefix, api)
 	public := &publicAPI{
 		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
-		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger, logger: logger,
+		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
 	}
-	handlePublicAPI(root, deps, public)
+	handlePublicAPI(root)
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 	router := newRouter(logger, root, deps, calendarFeeds, public)
@@ -986,6 +986,7 @@ func newRouter(logger *slog.Logger, root http.Handler, deps *Deps, calendarFeeds
 	handleCalendar(router, deps, calendarFeeds)
 	handleIPTV(router, deps, public.iptvFeeds, public.opener, public.logos, public.streams, public.streamLogger)
 	handleSignedStreams(router, deps, public.authorizer, public.opener, public.streams, public.streamLogger)
+	handleEPGStationAPI(router, deps, public.apiTokens, public.opener, public.logos, public.streams, public.streamLogger)
 
 	return router
 }
@@ -999,17 +1000,13 @@ type publicAPI struct {
 	logos        streamapi.LogoFetcher
 	streams      *streamapi.StreamCounter
 	streamLogger *slog.Logger
-	logger       *slog.Logger
 }
 
-// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) のうち、まだ echo に移していないものを
-// mux に登録する (設計書 9.1、#1605)。今は、API トークンで認証する EPGStation 互換の API だけが残る。
-// echo に移したもの (iCalendar、IPTV、署名付きの配信) は、newRouter が受ける (#1606)。
-// どれにも当たらないパスは、画面を返さずに 404 にする。
-func handlePublicAPI(mux *http.ServeMux, deps *Deps, p *publicAPI) {
+// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) のうち、echo のルートに当たらないものを
+// 404 にする (設計書 9.1、#1605)。端点は、どれも echo に移した (iCalendar、IPTV、署名付きの配信、EPGStation 互換の API。#1606)。
+// 画面を返さないよう、/api の下は mux でも受ける。
+func handlePublicAPI(mux *http.ServeMux) {
 	mux.Handle(apiPathPrefix, http.NotFoundHandler())
-	compat := newEPGStationAPI(deps, p.apiTokens, p.opener, p.logos, p.streams, p.streamLogger)
-	mux.Handle(epgstationPathPrefix+"api/", http.StripPrefix(strings.TrimSuffix(epgstationPathPrefix, "/"), compat))
 }
 
 // handleStreams は、映像の配信 (/internal/streams/*) を mux に登録する。どれも、セッションで認可する。
@@ -1270,29 +1267,40 @@ func handleIPTV(
 	}
 }
 
-// newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/epgstation/api/*) を返す (#431、設計書 9.1)。
+// handleEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/epgstation/api/*) を、echo のルーターに登録する (#431、設計書 9.1、#1606)。
 // セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
-func newEPGStationAPI(
-	deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher, streams *streamapi.StreamCounter, streamLogger *slog.Logger,
-) http.Handler {
+// ハンドラーは net/http のまま包み、:id は r.PathValue("id") で渡る。用意していない API も、認証を通してから 404 にする。
+func handleEPGStationAPI(
+	router *echo.Echo, deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
+	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
+) {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/version", h.Version)
-	mux.HandleFunc("GET /api/config", h.Config)
-	mux.HandleFunc("GET /api/channels", h.Channels)
-	mux.Handle("GET /api/channels/{id}/logo", streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger))
-	mux.HandleFunc("GET /api/schedules", h.Schedules)
-	// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
-	mux.Handle("GET /api/streams/live/{id}/m2ts", streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))))
-	mux.HandleFunc("GET /api/recorded", h.Recorded)
-	mux.HandleFunc("GET /api/recorded/{id}", h.RecordedItem)
-	// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
-	mux.Handle("GET /api/videos/{id}", streams.Count(streamapi.StreamKindRecording, httpserver.StopOnShutdown(
-		h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), ""))))
-	mux.Handle("GET /api/thumbnails/{id}",
-		h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName))
-
-	return tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(mux))
+	protect := func(next http.Handler) echo.HandlerFunc {
+		return echo.WrapHandler(tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next)))
+	}
+	prefix := epgstationPathPrefix + "api/"
+	routes := map[string]http.Handler{
+		"version":           http.HandlerFunc(h.Version),
+		"config":            http.HandlerFunc(h.Config),
+		"channels":          http.HandlerFunc(h.Channels),
+		"channels/:id/logo": streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger),
+		"schedules":         http.HandlerFunc(h.Schedules),
+		// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
+		"streams/live/:id/m2ts": streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))),
+		"recorded":              http.HandlerFunc(h.Recorded),
+		"recorded/:id":          http.HandlerFunc(h.RecordedItem),
+		// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
+		"videos/:id": streams.Count(streamapi.StreamKindRecording, httpserver.StopOnShutdown(
+			h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), ""))),
+		"thumbnails/:id": h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName),
+	}
+	for path, handler := range routes {
+		// http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD のルートも登録する。
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			router.Add(method, prefix+path, protect(handler), httpserver.Component("stream"))
+		}
+	}
+	router.Any(prefix+"*", protect(http.NotFoundHandler()), httpserver.Component("stream"))
 }
 
 // errSecretKeyRequired は、tenban、nekonote か kyusu を、アプリの秘密キーなしで起動しようとしたことを表す。
