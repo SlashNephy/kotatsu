@@ -288,7 +288,7 @@ func (q *Queries) ListDueReservations(ctx context.Context, arg ListDueReservatio
 }
 
 const listMissedRecordingAssignments = `-- name: ListMissedRecordingAssignments :many
-SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
+SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.extended, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
 FROM recording_assignments a
 JOIN reservations r ON r.id = a.reservation_id
 JOIN services s ON s.id = r.service_id
@@ -305,6 +305,7 @@ type ListMissedRecordingAssignmentsRow struct {
 	EventID        *int64
 	Name           string
 	Description    string
+	Extended       []byte
 	StartAt        time.Time
 	EndAt          time.Time
 	PlannedStartAt *time.Time
@@ -327,6 +328,7 @@ func (q *Queries) ListMissedRecordingAssignments(ctx context.Context, now time.T
 			&i.EventID,
 			&i.Name,
 			&i.Description,
+			&i.Extended,
 			&i.StartAt,
 			&i.EndAt,
 			&i.PlannedStartAt,

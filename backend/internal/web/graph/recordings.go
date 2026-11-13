@@ -398,8 +398,12 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 	for _, g := range upstreamGenres {
 		genres = append(genres, &model.Genre{Lv1: g.Lv1, Lv2: g.Lv2})
 	}
+	extended, err := toExtendedItems(row.Extended)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the recording extended: %w", err)
+	}
 	recording := &model.Recording{
-		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
+		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description, Extended: extended,
 		StartAt: row.StartAt, EndAt: row.EndAt, State: row.State, FailureReason: row.FailureReason,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
 		ScrambleWarning: row.ScrambleWarning, ScrambledRatio: row.ScrambledRatio,

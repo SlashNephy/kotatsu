@@ -3350,6 +3350,10 @@ type Recording implements Node {
   name: String!
   description: String!
   """
+  番組の詳細。番組情報と同じく、録画を始めたときの予約から写し、放送後に確定したものに置き換える。見出しの順に並べる。
+  """
+  extended: [ExtendedItem!]!
+  """
   番組の放送の開始と終了。
   """
   startAt: Time!

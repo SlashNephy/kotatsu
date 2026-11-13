@@ -131,7 +131,7 @@ func (p *Promoter) enqueue(
 	q := sqlc.New(db)
 	insert := sqlc.InsertPromotedRecordingParams{
 		ID: id.New(), ServiceID: serviceID, EventID: &program.EventID, Name: program.Name, Description: "", NameNormalized: nil, DescriptionNormalized: nil,
-		StartAt: program.StartedAt, EndAt: *program.EndedAt, Audios: []byte("[]"), VideoResolution: nil, Genres: []byte("[]"),
+		StartAt: program.StartedAt, EndAt: *program.EndedAt, Audios: []byte("[]"), VideoResolution: nil, Genres: []byte("[]"), Extended: []byte("{}"),
 		RecordedFrom: time.Time{}, Now: now,
 	}
 	epg, err := q.GetTimeshiftPromotionProgram(ctx, sqlc.GetTimeshiftPromotionProgramParams{ServiceID: serviceID, EventID: program.EventID, At: program.StartedAt})
@@ -141,7 +141,7 @@ func (p *Promoter) enqueue(
 		return nil, fmt.Errorf("failed to look up the program: %w", err)
 	default:
 		insert.Name, insert.Description, insert.StartAt = epg.Name, epg.Description, epg.StartAt
-		insert.Audios, insert.VideoResolution, insert.Genres = epg.Audios, epg.VideoResolution, epg.Genres
+		insert.Audios, insert.VideoResolution, insert.Genres, insert.Extended = epg.Audios, epg.VideoResolution, epg.Genres, epg.Extended
 		if !epg.EndUndecided {
 			insert.EndAt = epg.EndAt
 		}

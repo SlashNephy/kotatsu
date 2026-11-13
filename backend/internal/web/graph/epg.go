@@ -104,14 +104,24 @@ func toChannelType(row *domain.ChannelType) *model.ChannelType {
 	return &model.ChannelType{Type: row.Type, DisplayName: row.DisplayName, SortOrder: int(row.SortOrder)}
 }
 
-func toProgram(row *domain.Program) (*model.Program, error) {
+// toExtendedItems は、番組の詳細の JSON (見出しから本文への対応) を、見出しの順に並べる。
+func toExtendedItems(raw []byte) ([]*model.ExtendedItem, error) {
 	extendedMap := map[string]string{}
-	if err := json.Unmarshal(row.Extended, &extendedMap); err != nil {
-		return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
+	if err := json.Unmarshal(raw, &extendedMap); err != nil {
+		return nil, err
 	}
 	extended := make([]*model.ExtendedItem, 0, len(extendedMap))
 	for _, heading := range slices.Sorted(maps.Keys(extendedMap)) {
 		extended = append(extended, &model.ExtendedItem{Heading: heading, Text: extendedMap[heading]})
+	}
+
+	return extended, nil
+}
+
+func toProgram(row *domain.Program) (*model.Program, error) {
+	extended, err := toExtendedItems(row.Extended)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode the extended of program %d/%d: %w", row.ServiceID, row.EventID, err)
 	}
 	upstreamGenres := []*domain.Genre{}
 	if err := json.Unmarshal(row.Genres, &upstreamGenres); err != nil {

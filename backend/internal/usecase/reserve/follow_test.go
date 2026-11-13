@@ -63,6 +63,8 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 		wantUpdated int
 		wantStart   time.Time
 		wantEnd     time.Time
+		// wantExtended は、予約と録画の番組の詳細。
+		wantExtended string
 	}{
 		{
 			name: "rescheduled",
@@ -70,9 +72,10 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 				t.Helper()
 				require.NoError(t, fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), testNow().Add(3*time.Hour), time.Hour))
 			},
-			wantUpdated: 1,
-			wantStart:   testNow().Add(3 * time.Hour),
-			wantEnd:     testNow().Add(4 * time.Hour),
+			wantUpdated:  1,
+			wantStart:    testNow().Add(3 * time.Hour),
+			wantEnd:      testNow().Add(4 * time.Hour),
+			wantExtended: `{}`,
 		},
 		{
 			name: "extended",
@@ -80,9 +83,10 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 				t.Helper()
 				require.NoError(t, fake.ExtendProgram(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent), 10*time.Minute))
 			},
-			wantUpdated: 1,
-			wantStart:   time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC),
-			wantEnd:     time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC),
+			wantUpdated:  1,
+			wantStart:    time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC),
+			wantEnd:      time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC),
+			wantExtended: `{}`,
 		},
 		{
 			name: "delayed with an undecided end",
@@ -92,9 +96,10 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 				require.NoError(t, fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent),
 					time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC), time.Millisecond))
 			},
-			wantUpdated: 1,
-			wantStart:   time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC),
-			wantEnd:     time.Date(2026, 10, 10, 14, 40, 0, 0, time.UTC),
+			wantUpdated:  1,
+			wantStart:    time.Date(2026, 10, 10, 14, 10, 0, 0, time.UTC),
+			wantEnd:      time.Date(2026, 10, 10, 14, 40, 0, 0, time.UTC),
+			wantExtended: `{}`,
 		},
 		{
 			name: "end becomes undecided",
@@ -104,9 +109,22 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 				require.NoError(t, fake.RescheduleProgram(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent),
 					time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC), time.Millisecond))
 			},
-			wantUpdated: 0,
-			wantStart:   time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC),
-			wantEnd:     time.Date(2026, 10, 10, 14, 0, 0, 0, time.UTC),
+			wantUpdated:  0,
+			wantStart:    time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC),
+			wantEnd:      time.Date(2026, 10, 10, 14, 0, 0, 0, time.UTC),
+			wantExtended: `{}`,
+		},
+		{
+			name: "extended information changed",
+			change: func(t *testing.T, fake *faketuner.Server) {
+				t.Helper()
+				require.NoError(t, fake.ChangeProgramExtended(faketuner.ProgramID(grNetworkID, grServiceID, futureEvent),
+					map[string]string{"出演者": "こたつ"}))
+			},
+			wantUpdated:  1,
+			wantStart:    time.Date(2026, 10, 10, 13, 30, 0, 0, time.UTC),
+			wantEnd:      time.Date(2026, 10, 10, 14, 0, 0, 0, time.UTC),
+			wantExtended: `{"出演者": "こたつ"}`,
 		},
 	}
 	for _, tt := range tests {
@@ -131,11 +149,14 @@ func TestFollowerUpdatesRescheduledPrograms(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStart, got.StartAt)
 			assert.Equal(t, tt.wantEnd, got.EndAt)
+			assert.JSONEq(t, tt.wantExtended, string(got.Extended))
 			var recordingStart, recordingEnd time.Time
-			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT start_at, end_at FROM recordings WHERE id = $1", recordingID).
-				Scan(&recordingStart, &recordingEnd))
+			var recordingExtended string
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT start_at, end_at, extended::text FROM recordings WHERE id = $1", recordingID).
+				Scan(&recordingStart, &recordingEnd, &recordingExtended))
 			assert.Equal(t, tt.wantStart, recordingStart.UTC())
 			assert.Equal(t, tt.wantEnd, recordingEnd.UTC())
+			assert.JSONEq(t, tt.wantExtended, recordingExtended)
 
 			// 同じ EPG に何度追従しても、予約は変わらない。
 			assert.Equal(t, &reserve.FollowResult{Updated: 0, Relayed: 0, Removed: 0}, f.follow(t))

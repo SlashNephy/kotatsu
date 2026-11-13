@@ -199,6 +199,13 @@ func (s *Server) ChangeProgramSeries(id int64, series *Series) error {
 	})
 }
 
+// ChangeProgramExtended は番組の詳細を変え、program の update イベントを送る。
+func (s *Server) ChangeProgramExtended(id int64, extended map[string]string) error {
+	return s.updateProgram(id, func(p *Program) {
+		p.Extended = extended
+	})
+}
+
 // RenameProgram は番組名を変え、program の update イベントを送る。空にすると、番組名を返さなくなる。
 func (s *Server) RenameProgram(id int64, name string) error {
 	return s.updateProgram(id, func(p *Program) {

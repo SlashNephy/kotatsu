@@ -831,6 +831,42 @@ func TestRecordingFailureDetail(t *testing.T) {
 	}
 }
 
+// TestRecordingExtended は、録画の番組の詳細を、見出しの順に並べて返すことを確かめる (#1646)。
+// 詳細を持たない録画 (列を足す前に取り込んだものなど) は、空の一覧を返す。
+func TestRecordingExtended(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		Heading string `json:"heading"`
+		Text    string `json:"text"`
+	}
+	f, dir := newRecordingFixture(t)
+	f.addRecording(t, dir, episode1, "completed", 2*time.Hour)
+	f.addRecording(t, dir, episode2, "completed", time.Hour)
+	_, err := f.pool.Exec(t.Context(), `UPDATE recordings SET extended = '{"番組内容":"第1話","出演者":"炬燵の猫"}' WHERE name = $1`, episode1)
+	require.NoError(t, err)
+
+	var page struct {
+		Recordings struct {
+			Edges []struct {
+				Node struct {
+					Name     string `json:"name"`
+					Extended []item `json:"extended"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"recordings"`
+	}
+	require.Empty(t, f.query(t, `query { recordings(first: 2) { edges { node { name extended { heading text } } } } }`, nil, &page))
+	got := map[string][]item{}
+	for _, edge := range page.Recordings.Edges {
+		got[edge.Node.Name] = edge.Node.Extended
+	}
+	assert.Equal(t, map[string][]item{
+		episode1: {{Heading: "出演者", Text: "炬燵の猫"}, {Heading: "番組内容", Text: "第1話"}},
+		episode2: {},
+	}, got)
+}
+
 // TestRecordingFileTuner は、セグメントを書いたストリームを受信していたチューナーを、管理者にだけ返し、
 // ほかのユーザーには null を返すことを確かめる (#1467)。名前は上流のチューナーのホスト名を含むことがある。
 func TestRecordingFileTuner(t *testing.T) {

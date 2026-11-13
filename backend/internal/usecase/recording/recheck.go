@@ -215,11 +215,15 @@ func (c *episodeRecheck) rewrite(ctx context.Context, logger *slog.Logger, info 
 			return fmt.Errorf("failed to get the recording: %w", err)
 		}
 		recordingParams := sqlc.RewriteRecordingProgramInfoParams{
-			Name: nil, Description: nil, NameNormalized: nil, DescriptionNormalized: nil, Now: now, ID: t.recordingID,
+			Name: nil, Description: nil, Extended: nil, NameNormalized: nil, DescriptionNormalized: nil, Now: now, ID: t.recordingID,
 		}
 		recordingParams.Name, recordingParams.NameNormalized = changedText(info.Name, recording.NameNormalized)
 		recordingParams.Description, recordingParams.DescriptionNormalized = changedText(info.Description, recording.DescriptionNormalized)
-		if recordingParams.Name != nil || recordingParams.Description != nil {
+		recordingParams.Extended, err = changedExtended(info.Extended, recording.Extended)
+		if err != nil {
+			return err
+		}
+		if recordingParams.Name != nil || recordingParams.Description != nil || recordingParams.Extended != nil {
 			if err := q.RewriteRecordingProgramInfo(ctx, recordingParams); err != nil {
 				return fmt.Errorf("failed to rewrite the recording: %w", err)
 			}
@@ -347,6 +351,27 @@ func encodeExtended(items []*ts.ExtendedItem) ([]byte, *string, error) {
 	}
 
 	return encoded, new(domain.NormalizeExtended(extended)), nil
+}
+
+// changedExtended は、EIT[p/f] の詳細 items が、録画の今の詳細 current と正規化して違えば、書き直す JSON を返す (#1646)。
+// 詳細がないか、同じなら nil を返して、前の値を残す。
+func changedExtended(items []*ts.ExtendedItem, current []byte) ([]byte, error) {
+	extended, normalized, err := encodeExtended(items)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the extended information: %w", err)
+	}
+	if normalized == nil {
+		return nil, nil
+	}
+	currentMap := map[string]string{}
+	if err := json.Unmarshal(current, &currentMap); err != nil {
+		return nil, fmt.Errorf("failed to decode the extended information of the recording: %w", err)
+	}
+	if foldWaveDash(domain.NormalizeExtended(currentMap)) == foldWaveDash(*normalized) {
+		return nil, nil
+	}
+
+	return extended, nil
 }
 
 // judge は、この録画を、同じ回を束ねる判定 (#1498) の候補 1 本として、先に録り始めた録画と、録画履歴と比べる。

@@ -106,7 +106,7 @@ SELECT generation FROM recording_assignments WHERE id = @id FOR UPDATE;
 
 -- name: ListMissedRecordingAssignments :many
 -- mikan が 1 台も取らないまま、予定の終わりが過ぎた割り振りの予約。録画の行がまだなければ、失敗として記録する (#517)。
-SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
+SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.extended, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
 FROM recording_assignments a
 JOIN reservations r ON r.id = a.reservation_id
 JOIN services s ON s.id = r.service_id

@@ -333,7 +333,7 @@ func (q *Queries) GetTimeshiftChunkEnd(ctx context.Context, id uuid.UUID) (*time
 }
 
 const getTimeshiftPromotion = `-- name: GetTimeshiftPromotion :one
-SELECT p.recording_id, p.service_id, p.from_at, p.to_at, p.created_by, p.created_at, r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.name_normalized, r.description_normalized, r.start_at, r.end_at, r.state, r.failure_reason, r.failure_detail, r.protected, r.drops, r.errors, r.scrambled, r.scrambled_ratio, r.scramble_warning, r.gaps, r.audios, r.video_resolution, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.waited_for_broadcast, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at, s.name AS service_name, s.channel_type, s.channel
+SELECT p.recording_id, p.service_id, p.from_at, p.to_at, p.created_by, p.created_at, r.id, r.api_id, r.reservation_id, r.service_id, r.event_id, r.name, r.description, r.extended, r.name_normalized, r.description_normalized, r.start_at, r.end_at, r.state, r.failure_reason, r.failure_detail, r.protected, r.drops, r.errors, r.scrambled, r.scrambled_ratio, r.scramble_warning, r.gaps, r.audios, r.video_resolution, r.genres, r.rule_id, r.rule_name, r.program_lost, r.broadcast_started_at, r.broadcast_ended_at, r.waited_for_broadcast, r.not_broadcast, r.aired_event_id, r.recorded_from, r.recorded_until, r.created_at, r.updated_at, s.name AS service_name, s.channel_type, s.channel
 FROM timeshift_promotions p
 JOIN recordings r ON r.id = p.recording_id
 JOIN services s ON s.id = p.service_id
@@ -366,6 +366,7 @@ func (q *Queries) GetTimeshiftPromotion(ctx context.Context, recordingID uuid.UU
 		&i.Recording.EventID,
 		&i.Recording.Name,
 		&i.Recording.Description,
+		&i.Recording.Extended,
 		&i.Recording.NameNormalized,
 		&i.Recording.DescriptionNormalized,
 		&i.Recording.StartAt,
@@ -403,12 +404,12 @@ func (q *Queries) GetTimeshiftPromotion(ctx context.Context, recordingID uuid.UU
 }
 
 const getTimeshiftPromotionProgram = `-- name: GetTimeshiftPromotionProgram :one
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.description, p.genres, p.audios, p.video_resolution
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.description, p.extended, p.genres, p.audios, p.video_resolution
 FROM (
-  SELECT g.service_id, g.event_id, g.start_at, g.end_at, g.end_undecided, g.name, g.description, g.genres, g.audios, g.video_resolution
+  SELECT g.service_id, g.event_id, g.start_at, g.end_at, g.end_undecided, g.name, g.description, g.extended, g.genres, g.audios, g.video_resolution
   FROM programs g WHERE g.service_id = $1 AND g.event_id = $2
   UNION ALL
-  SELECT a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.name, a.description, a.genres, a.audios, a.video_resolution
+  SELECT a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.name, a.description, a.extended, a.genres, a.audios, a.video_resolution
   FROM program_archives a WHERE a.service_id = $1 AND a.event_id = $2
 ) p
 ORDER BY abs(extract(epoch FROM p.start_at - $3::timestamptz))
@@ -429,6 +430,7 @@ type GetTimeshiftPromotionProgramRow struct {
 	EndUndecided    bool
 	Name            string
 	Description     string
+	Extended        []byte
 	Genres          []byte
 	Audios          []byte
 	VideoResolution *string
@@ -447,6 +449,7 @@ func (q *Queries) GetTimeshiftPromotionProgram(ctx context.Context, arg GetTimes
 		&i.EndUndecided,
 		&i.Name,
 		&i.Description,
+		&i.Extended,
 		&i.Genres,
 		&i.Audios,
 		&i.VideoResolution,

@@ -976,7 +976,7 @@ type Querier interface {
 	// 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
 	// EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
 	RewriteProgramInfo(ctx context.Context, arg RewriteProgramInfoParams) (int64, error)
-	// 録画の番組名と概要を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。
+	// 録画の番組名、概要、詳細を、EIT[p/f] で読んだもので書き直す (#1500、#1646)。空の値は渡さず、前の値を残す。
 	RewriteRecordingProgramInfo(ctx context.Context, arg RewriteRecordingProgramInfoParams) error
 	// 問い合わせた結果を残す。取り込めたら (error が NULL)、取り込めた日時を進める。取り込めなければ、前に取り込めた日時を残す。
 	// 連携を外した後なら、何も書かない。
@@ -1059,6 +1059,7 @@ type Querier interface {
 	// 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 	// 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 	// ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
+	// 番組の詳細も予約から写す。予約を消しても、録画の画面で番組の詳細を出せるようにする (#1646)。
 	// recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
 	StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error)
 	// 番組の始まりを記録する。同じ時刻の行があれば、その番組は始まってすぐに替わったので、新しい番組で置き換え、放送中に戻す。

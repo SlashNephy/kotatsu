@@ -253,26 +253,29 @@ const rewriteRecordingProgramInfo = `-- name: RewriteRecordingProgramInfo :exec
 UPDATE recordings SET
   name = coalesce($1::text, name),
   description = coalesce($2::text, description),
-  name_normalized = coalesce($3::text, name_normalized),
-  description_normalized = coalesce($4::text, description_normalized),
-  updated_at = $5
-WHERE id = $6
+  extended = coalesce($3::jsonb, extended),
+  name_normalized = coalesce($4::text, name_normalized),
+  description_normalized = coalesce($5::text, description_normalized),
+  updated_at = $6
+WHERE id = $7
 `
 
 type RewriteRecordingProgramInfoParams struct {
 	Name                  *string
 	Description           *string
+	Extended              []byte
 	NameNormalized        *string
 	DescriptionNormalized *string
 	Now                   time.Time
 	ID                    uuid.UUID
 }
 
-// 録画の番組名と概要を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。
+// 録画の番組名、概要、詳細を、EIT[p/f] で読んだもので書き直す (#1500、#1646)。空の値は渡さず、前の値を残す。
 func (q *Queries) RewriteRecordingProgramInfo(ctx context.Context, arg RewriteRecordingProgramInfoParams) error {
 	_, err := q.db.Exec(ctx, rewriteRecordingProgramInfo,
 		arg.Name,
 		arg.Description,
+		arg.Extended,
 		arg.NameNormalized,
 		arg.DescriptionNormalized,
 		arg.Now,

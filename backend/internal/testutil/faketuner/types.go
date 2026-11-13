@@ -55,6 +55,8 @@ type Program struct {
 	IsFree      bool   `json:"isFree"`
 	Name        string `json:"name,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Extended は、番組の詳細 (見出しから本文への対応)。
+	Extended map[string]string `json:"extended,omitempty"`
 	// RelatedItems は、イベント共有 (shared) とイベントリレー (relay) で関連づけた番組。
 	RelatedItems []*RelatedItem `json:"relatedItems,omitempty"`
 	// Audios は、番組の音声の構成。

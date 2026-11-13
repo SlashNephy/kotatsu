@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
@@ -534,4 +535,44 @@ func (f *fixture) recordingName(t *testing.T, reservationID uuid.UUID) string {
 	}
 
 	return name
+}
+
+// castHeading は、番組の詳細の見出し。
+const castHeading = "出演者"
+
+// TestChangedExtended は、EIT[p/f] の番組の詳細で録画の詳細を書き直すのが、正規化して違うときだけであることを確かめる (#1646)。
+// 書き方の違い (全角と半角、波ダッシュ) だけでは書き直さず、EIT[p/f] に詳細がなければ前の値を残す。
+func TestChangedExtended(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		items   []*ts.ExtendedItem
+		current string
+		want    string
+	}{
+		{name: "no extended in EIT", items: nil, current: `{"出演者":"こたつ"}`, want: ""},
+		{name: "same text", items: []*ts.ExtendedItem{{Heading: castHeading, Text: "こたつ"}}, current: `{"出演者":"こたつ"}`, want: ""},
+		{name: "only width differs", items: []*ts.ExtendedItem{{Heading: castHeading, Text: "ＡＢＣ"}}, current: `{"出演者":"ABC"}`, want: ""},
+		{name: "only wave dash differs", items: []*ts.ExtendedItem{{Heading: "内容", Text: "前編〜後編"}}, current: `{"内容":"前編～後編"}`, want: ""},
+		{
+			name:    "changed",
+			items:   []*ts.ExtendedItem{{Heading: castHeading, Text: "こたつ"}, {Heading: castHeading, Text: "ほか"}, {Heading: "内容", Text: "第1話"}},
+			current: `{}`, want: `{"出演者":"こたつほか","内容":"第1話"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := recording.ChangedExtended(tt.items, []byte(tt.current))
+			require.NoError(t, err)
+			if tt.want == "" {
+				assert.Nil(t, got)
+
+				return
+			}
+			assert.JSONEq(t, tt.want, string(got))
+		})
+	}
 }

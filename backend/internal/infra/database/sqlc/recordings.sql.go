@@ -370,7 +370,7 @@ func (q *Queries) GetProgramEnd(ctx context.Context, arg GetProgramEndParams) (G
 }
 
 const getRecording = `-- name: GetRecording :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE id = $1
 `
 
 func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, error) {
@@ -384,6 +384,7 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.EventID,
 		&i.Name,
 		&i.Description,
+		&i.Extended,
 		&i.NameNormalized,
 		&i.DescriptionNormalized,
 		&i.StartAt,
@@ -457,7 +458,7 @@ func (q *Queries) GetRecordingFileOwner(ctx context.Context, arg GetRecordingFil
 }
 
 const getRecordingInProgressByReservation = `-- name: GetRecordingInProgressByReservation :one
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings WHERE reservation_id = $1 AND state = 'recording'
 `
 
 // 予約の、録画中のままの録画。予定の終わりの後に割り振りを取った mikan が、前の mikan の録画を終えるのに使う (#1073)。
@@ -472,6 +473,7 @@ func (q *Queries) GetRecordingInProgressByReservation(ctx context.Context, reser
 		&i.EventID,
 		&i.Name,
 		&i.Description,
+		&i.Extended,
 		&i.NameNormalized,
 		&i.DescriptionNormalized,
 		&i.StartAt,
@@ -572,7 +574,7 @@ func (q *Queries) GetRecordingSID(ctx context.Context, id uuid.UUID) (int64, err
 }
 
 const getRecordingWithService = `-- name: GetRecordingWithService :one
-SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.scrambled_ratio, recordings.scramble_warning, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
+SELECT recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.extended, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.scrambled_ratio, recordings.scramble_warning, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, s.name AS service_name
 FROM recordings
 JOIN services s ON s.id = recordings.service_id
 WHERE recordings.id = $1
@@ -595,6 +597,7 @@ func (q *Queries) GetRecordingWithService(ctx context.Context, id uuid.UUID) (Ge
 		&i.Recording.EventID,
 		&i.Recording.Name,
 		&i.Recording.Description,
+		&i.Recording.Extended,
 		&i.Recording.NameNormalized,
 		&i.Recording.DescriptionNormalized,
 		&i.Recording.StartAt,
@@ -643,11 +646,11 @@ func (q *Queries) GetStoragePoolThreshold(ctx context.Context, id string) (int64
 
 const insertMissedRecording = `-- name: InsertMissedRecording :execrows
 WITH inserted AS (
-  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
+  INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized,
     start_at, end_at, state, failure_reason, recorded_from, recorded_until, created_at, updated_at)
-  VALUES ($2, $3, $4, $5, $6, $7, $8, $9,
-    $10, $11, 'failed', 'recorder_unavailable',
-    $12, $12, $1, $1)
+  VALUES ($2, $3, $4, $5, $6, $7, $8, $9, $10,
+    $11, $12, 'failed', 'recorder_unavailable',
+    $13, $13, $1, $1)
   ON CONFLICT (reservation_id) DO NOTHING
   RETURNING failure_reason
 )
@@ -664,6 +667,7 @@ type InsertMissedRecordingParams struct {
 	EventID               *int64
 	Name                  string
 	Description           string
+	Extended              []byte
 	NameNormalized        *string
 	DescriptionNormalized *string
 	StartAt               time.Time
@@ -683,6 +687,7 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		arg.EventID,
 		arg.Name,
 		arg.Description,
+		arg.Extended,
 		arg.NameNormalized,
 		arg.DescriptionNormalized,
 		arg.StartAt,
@@ -697,11 +702,11 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 
 const insertPromotedRecording = `-- name: InsertPromotedRecording :one
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
-  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, extended, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
 VALUES ($1, NULL, $2, $3, $4, $5, $6, $7,
   $8, $9, 'recording', NULL,
-  false, 0, 0, 0, $10, $11, $12, NULL, NULL, $13, NULL, $14, $14)
-RETURNING id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at
+  false, 0, 0, 0, $10, $11, $12, $13, NULL, NULL, $14, NULL, $15, $15)
+RETURNING id, api_id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at
 `
 
 type InsertPromotedRecordingParams struct {
@@ -717,6 +722,7 @@ type InsertPromotedRecordingParams struct {
 	Audios                []byte
 	VideoResolution       *string
 	Genres                []byte
+	Extended              []byte
 	RecordedFrom          time.Time
 	Now                   time.Time
 }
@@ -737,6 +743,7 @@ func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromote
 		arg.Audios,
 		arg.VideoResolution,
 		arg.Genres,
+		arg.Extended,
 		arg.RecordedFrom,
 		arg.Now,
 	)
@@ -749,6 +756,7 @@ func (q *Queries) InsertPromotedRecording(ctx context.Context, arg InsertPromote
 		&i.EventID,
 		&i.Name,
 		&i.Description,
+		&i.Extended,
 		&i.NameNormalized,
 		&i.DescriptionNormalized,
 		&i.StartAt,
@@ -1681,13 +1689,14 @@ func (q *Queries) SetRecordingVideoResolutionFromFile(ctx context.Context, arg S
 
 const startRecording = `-- name: StartRecording :one
 INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized,
-  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, audios, video_resolution, genres, extended, rule_id, rule_name, recorded_from, recorded_until, created_at, updated_at)
 SELECT $1, $2, $3, $4, $5, $6, $7, $8,
   $9, $10, 'recording', NULL,
   false, 0, 0, 0,
   COALESCE((SELECT p.audios FROM programs p WHERE p.service_id = $3 AND p.event_id = $4), '[]'::jsonb),
   (SELECT p.video_resolution FROM programs p WHERE p.service_id = $3 AND p.event_id = $4),
   COALESCE((SELECT r.genres FROM reservations r WHERE r.id = $2), '[]'::jsonb),
+  COALESCE((SELECT r.extended FROM reservations r WHERE r.id = $2), '{}'::jsonb),
   m.id, m.name,
   $11, NULL, $12, $12
 FROM (SELECT 1) AS one
@@ -1698,7 +1707,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) AS m ON true
 ON CONFLICT (reservation_id) DO UPDATE SET state = 'recording', failure_reason = NULL, failure_detail = NULL, recorded_until = NULL, updated_at = EXCLUDED.updated_at
-RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.scrambled_ratio, recordings.scramble_warning, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
+RETURNING recordings.id, recordings.api_id, recordings.reservation_id, recordings.service_id, recordings.event_id, recordings.name, recordings.description, recordings.extended, recordings.name_normalized, recordings.description_normalized, recordings.start_at, recordings.end_at, recordings.state, recordings.failure_reason, recordings.failure_detail, recordings.protected, recordings.drops, recordings.errors, recordings.scrambled, recordings.scrambled_ratio, recordings.scramble_warning, recordings.gaps, recordings.audios, recordings.video_resolution, recordings.genres, recordings.rule_id, recordings.rule_name, recordings.program_lost, recordings.broadcast_started_at, recordings.broadcast_ended_at, recordings.waited_for_broadcast, recordings.not_broadcast, recordings.aired_event_id, recordings.recorded_from, recordings.recorded_until, recordings.created_at, recordings.updated_at, (xmax = 0)::boolean AS inserted
 `
 
 type StartRecordingParams struct {
@@ -1724,6 +1733,7 @@ type StartRecordingRow struct {
 // 予約の録画を始める。引き継ぎや再開で、すでに録画があれば、それを続ける。新しく始めたかどうかを inserted で返す。
 // 番組の音声の構成と映像の解像度は、始めたときの番組から写す。続けるときは、最初に写したものを残す。
 // ジャンルと、一致したルール (最も古いもの) とその名前も、予約から写す。予約やルールを消しても、録画を絞れるようにする (#468)。
+// 番組の詳細も予約から写す。予約を消しても、録画の画面で番組の詳細を出せるようにする (#1646)。
 // recorded_from は、録画ファイルに書き始める時刻。チューニングのために早く開いたストリームは、予定の開始まで捨てるので (#847)、now より後になることがある。
 func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) (StartRecordingRow, error) {
 	row := q.db.QueryRow(ctx, startRecording,
@@ -1749,6 +1759,7 @@ func (q *Queries) StartRecording(ctx context.Context, arg StartRecordingParams) 
 		&i.Recording.EventID,
 		&i.Recording.Name,
 		&i.Recording.Description,
+		&i.Recording.Extended,
 		&i.Recording.NameNormalized,
 		&i.Recording.DescriptionNormalized,
 		&i.Recording.StartAt,

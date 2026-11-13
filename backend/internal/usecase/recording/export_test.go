@@ -75,3 +75,8 @@ func ObserveTOT(r *Recorder, at time.Time) {
 func WriteBroadcastSkew(ctx context.Context, r *Recorder) {
 	newLiveStatsWriter(r, new(atomic.Pointer[uuid.UUID])).writeBroadcastSkew(ctx)
 }
+
+// ChangedExtended は、テストから changedExtended を呼ぶために公開する。
+func ChangedExtended(items []*ts.ExtendedItem, current []byte) ([]byte, error) {
+	return changedExtended(items, current)
+}

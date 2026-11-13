@@ -1011,6 +1011,7 @@ type ComplexityRoot struct {
 		EndAt                    func(childComplexity int) int
 		Errors                   func(childComplexity int) int
 		EventID                  func(childComplexity int) int
+		Extended                 func(childComplexity int) int
 		FailureDetail            func(childComplexity int) int
 		FailureReason            func(childComplexity int) int
 		Files                    func(childComplexity int) int
@@ -6273,6 +6274,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.EventID(childComplexity), true
+	case "Recording.extended":
+		if e.ComplexityRoot.Recording.Extended == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.Extended(childComplexity), true
 	case "Recording.failureDetail":
 		if e.ComplexityRoot.Recording.FailureDetail == nil {
 			break
@@ -10963,6 +10970,8 @@ type Recording implements Node {
   eventId: Int
   name: String!
   description: String!
+  "番組の詳細。番組情報と同じく、録画を始めたときの予約から写し、放送後に確定したものに置き換える。見出しの順に並べる。"
+  extended: [ExtendedItem!]!
   "番組の放送の開始と終了。"
   startAt: Time!
   endAt: Time!
@@ -14176,6 +14185,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_name(ctx, field)
 	case "description":
 		return ec.fieldContext_Recording_description(ctx, field)
+	case "extended":
+		return ec.fieldContext_Recording_extended(ctx, field)
 	case "startAt":
 		return ec.fieldContext_Recording_startAt(ctx, field)
 	case "endAt":
@@ -35404,6 +35415,38 @@ func (ec *executionContext) fieldContext_Recording_description(_ context.Context
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
 }
 
+func (ec *executionContext) _Recording_extended(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_extended(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Extended, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.ExtendedItem) graphql.Marshaler {
+			return ec.marshalNExtendedItem2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐExtendedItemᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_extended(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_ExtendedItem(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_startAt(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -54161,6 +54204,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "description":
 			out.Values[i] = ec._Recording_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "extended":
+			out.Values[i] = ec._Recording_extended(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

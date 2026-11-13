@@ -13,6 +13,7 @@ type Recording struct {
 	EventID                  *int                           `json:"eventId,omitempty"`
 	Name                     string                         `json:"name"`
 	Description              string                         `json:"description"`
+	Extended                 []*ExtendedItem                `json:"extended"`
 	StartAt                  time.Time                      `json:"startAt"`
 	EndAt                    time.Time                      `json:"endAt"`
 	State                    domain.RecordingState          `json:"state"`
