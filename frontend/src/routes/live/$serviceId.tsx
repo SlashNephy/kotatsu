@@ -320,6 +320,10 @@ function Live({
             id
             name
             description
+            extended {
+              heading
+              text
+            }
             startAt
             endAt
             endUndecided
@@ -1280,7 +1284,9 @@ function Live({
                 </Menu>
               }
             />
-            {program !== null && <WatchDescription text={program.description} />}
+            {program !== null && (
+              <WatchDescription text={program.description} extended={program.extended} />
+            )}
             {disconnection !== null && (
               <Alert color="amber" role="alert" title={t('live.disconnected')}>
                 <Stack gap="xs" align="flex-start">

@@ -119,9 +119,17 @@ export const watchCommentsHeight = 'var(--watch-comments-height)';
 const descriptionMaxHeight = 66;
 
 // WatchDescription は、番組名とサービスの行の下に置く、番組の説明 (#1266)。空なら何も出さない。
-export function WatchDescription({ text }: { text: string }) {
+// extended (番組の詳細。番組表の詳細と同じ見出しと本文の組) があれば、説明の後に続ける (#1646)。畳んだ高さは説明と共有する。
+export function WatchDescription({
+  text,
+  extended = [],
+}: {
+  text: string;
+  extended?: ReadonlyArray<{ readonly heading: string; readonly text: string }>;
+}) {
   const { t } = useTranslation();
-  if (text.trim() === '') {
+  const items = extended.filter((item) => item.heading.trim() !== '' || item.text.trim() !== '');
+  if (text.trim() === '' && items.length === 0) {
     return null;
   }
 
@@ -131,9 +139,25 @@ export function WatchDescription({ text }: { text: string }) {
       showLabel={t('player.description.show')}
       hideLabel={t('player.description.hide')}
     >
-      <Text size="sm" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
-        <LinkifiedText text={toHalfWidth(text)} />
-      </Text>
+      <Stack gap="xs">
+        {text.trim() !== '' && (
+          <Text size="sm" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
+            <LinkifiedText text={toHalfWidth(text)} />
+          </Text>
+        )}
+        {items.map((item, index) => (
+          <Stack key={index} gap={2}>
+            {item.heading.trim() !== '' && (
+              <Text size="sm" c="dimmed" fw={700}>
+                {toHalfWidth(item.heading)}
+              </Text>
+            )}
+            <Text size="sm" c="dimmed" style={{ whiteSpace: 'pre-wrap' }}>
+              <LinkifiedText text={toHalfWidth(item.text)} />
+            </Text>
+          </Stack>
+        ))}
+      </Stack>
     </Spoiler>
   );
 }
