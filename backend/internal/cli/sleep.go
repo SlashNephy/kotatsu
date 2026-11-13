@@ -68,7 +68,7 @@ func runSleepControl(ctx context.Context, logger *slog.Logger, opts *Options, de
 	viewers := func() int64 {
 		var n int64
 		if api != nil {
-			n += int64(api.streams.Streams(streamapi.StreamLive) + api.streams.Streams(streamapi.StreamTimeshift))
+			n += int64(api.streams.Streams(streamapi.StreamKindLive) + api.streams.Streams(streamapi.StreamKindTimeshift))
 		}
 		if live != nil {
 			n += int64(live.Sessions())

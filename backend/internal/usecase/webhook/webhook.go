@@ -50,22 +50,16 @@ var (
 	ErrNotFound = errors.New("webhook not found")
 )
 
+//go:generate go tool go-enum --values --nocomments
+
 // Format は、Webhook で送る形式。
+//
+// ENUM(
+// JSON = json // 汎用の JSON。イベントの種類と、画面に出す文の材料をそのまま送る。
+// discord // Discord の Webhook の形式。
+// slack // Slack の Incoming Webhook の形式。
+// )
 type Format string
-
-const (
-	// FormatJSON は、汎用の JSON。イベントの種類と、画面に出す文の材料をそのまま送る。
-	FormatJSON Format = "json"
-	// FormatDiscord は、Discord の Webhook の形式。
-	FormatDiscord Format = "discord"
-	// FormatSlack は、Slack の Incoming Webhook の形式。
-	FormatSlack Format = "slack"
-)
-
-// Formats は、Webhook で送る形式を返す。
-func Formats() []Format {
-	return []Format{FormatJSON, FormatDiscord, FormatSlack}
-}
 
 // Webhook は、管理者が設定した Webhook。署名用の秘密キーは含めない。
 type Webhook struct {
@@ -330,7 +324,7 @@ func normalize(input *Input) (*Input, error) {
 	if err := validateURL(rawURL); err != nil {
 		return nil, err
 	}
-	if !slices.Contains(Formats(), input.Format) {
+	if !input.Format.IsValid() {
 		return nil, fmt.Errorf("%w: unknown format %q", ErrInvalidWebhook, input.Format)
 	}
 	if len(input.Kinds) == 0 {

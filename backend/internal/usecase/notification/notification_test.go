@@ -112,7 +112,7 @@ func TestEmit(t *testing.T) {
 	}{
 		{name: "payload を JSON にして記録する", kind: domain.NotificationKindStorageLow, payload: map[string]any{keyPool: poolName, "freeBytes": 1024}, want: map[string]any{keyPool: poolName, "freeBytes": float64(1024)}, wantErr: nil},
 		{name: "payload がなければ空のオブジェクトを記録する", kind: domain.NotificationKindRecordingStarted, payload: nil, want: map[string]any{}, wantErr: nil},
-		{name: "知らない種類は記録しない", kind: domain.NotificationKind("unknown"), payload: nil, want: nil, wantErr: domain.ErrUnknownNotificationKind},
+		{name: "知らない種類は記録しない", kind: domain.NotificationKind("unknown"), payload: nil, want: nil, wantErr: domain.ErrInvalidNotificationKind},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -322,8 +322,8 @@ func TestPreferences(t *testing.T) {
 	t.Parallel()
 
 	defaults := func() []*domain.NotificationPreference {
-		preferences := make([]*domain.NotificationPreference, 0, len(domain.NotificationKinds()))
-		for _, kind := range domain.NotificationKinds() {
+		preferences := make([]*domain.NotificationPreference, 0, len(domain.NotificationKindValues()))
+		for _, kind := range domain.NotificationKindValues() {
 			preferences = append(preferences, &domain.NotificationPreference{Kind: kind, InApp: true, WebPush: true, RuleReservations: true})
 		}
 
@@ -352,7 +352,7 @@ func TestPreferences(t *testing.T) {
 			},
 			wantErr: nil,
 		},
-		{name: "知らない種類は設定できない", set: []*domain.NotificationPreference{{Kind: "unknown", InApp: false, WebPush: false, RuleReservations: true}}, want: defaults, wantErr: domain.ErrUnknownNotificationKind},
+		{name: "知らない種類は設定できない", set: []*domain.NotificationPreference{{Kind: "unknown", InApp: false, WebPush: false, RuleReservations: true}}, want: defaults, wantErr: domain.ErrInvalidNotificationKind},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

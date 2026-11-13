@@ -26,7 +26,7 @@ mise run dev
 
 | コマンド | 内容 |
 | --- | --- |
-| `mise run //backend:generate` | 生成物 (sqlc、gqlgen、GraphQLのスキーマなど) を作り直す。生成物の差分も一緒にコミットする |
+| `mise run //backend:generate` | 生成物 (sqlc、gqlgen、go-enum、GraphQLのスキーマなど) を作り直す。生成物の差分も一緒にコミットする |
 | `mise run //backend:lint` | golangci-lintを実行する |
 | `mise run //backend:test` | Goのテストを実行する。DBを使うテストには`KOTATSU_TEST_DATABASE_URL`が要る |
 | `mise run //frontend:check` | 画面のlintと型を確かめる |

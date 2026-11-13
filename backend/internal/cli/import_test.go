@@ -137,7 +137,7 @@ Skipped
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			db := epgstationtest.New(t, epgstationtest.SQLite)
+			db := epgstationtest.New(t, epgstationtest.DialectSQLite)
 			epgstationtest.Exec(t, db.Writer, epgstationSeed()...)
 
 			var out bytes.Buffer
@@ -159,7 +159,7 @@ Skipped
 func TestImportEPGStationRequiresUser(t *testing.T) {
 	t.Parallel()
 
-	db := epgstationtest.New(t, epgstationtest.SQLite)
+	db := epgstationtest.New(t, epgstationtest.DialectSQLite)
 	cmd := cli.NewCommand(importOptions(t))
 	cmd.SetArgs(importArgs(sourceFlag, db.URL))
 	require.EqualError(t, cmd.ExecuteContext(t.Context()), "--user is required to import; run with --dry-run to only see the plan")
@@ -215,7 +215,7 @@ Skipped
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			source := epgstationtest.New(t, epgstationtest.SQLite)
+			source := epgstationtest.New(t, epgstationtest.DialectSQLite)
 			epgstationtest.Exec(t, source.Writer, epgstationSeed()...)
 			opts, pool := importDatabase(t, tt.services)
 			run := func() (string, error) {

@@ -26,9 +26,9 @@ func TestDrainer(t *testing.T) {
 		wantMax    time.Duration
 	}{
 		{name: "ストリームがない", kind: "", timeout: time.Minute, wantMin: 0, wantMax: 100 * time.Millisecond},
-		{name: "ライブ視聴がつなぎ直した", kind: streamapi.StreamLive, closeAfter: 300 * time.Millisecond, timeout: time.Minute, wantMin: 300 * time.Millisecond, wantMax: time.Second},
-		{name: "録画の再生がつなぎ直さない", kind: streamapi.StreamRecording, timeout: 500 * time.Millisecond, wantMin: 500 * time.Millisecond, wantMax: 900 * time.Millisecond},
-		{name: "データ放送は待たない", kind: streamapi.StreamDataBroadcast, timeout: time.Minute, wantMin: 0, wantMax: 100 * time.Millisecond},
+		{name: "ライブ視聴がつなぎ直した", kind: streamapi.StreamKindLive, closeAfter: 300 * time.Millisecond, timeout: time.Minute, wantMin: 300 * time.Millisecond, wantMax: time.Second},
+		{name: "録画の再生がつなぎ直さない", kind: streamapi.StreamKindRecording, timeout: 500 * time.Millisecond, wantMin: 500 * time.Millisecond, wantMax: 900 * time.Millisecond},
+		{name: "データ放送は待たない", kind: streamapi.StreamKindDataBroadcast, timeout: time.Minute, wantMin: 0, wantMax: 100 * time.Millisecond},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

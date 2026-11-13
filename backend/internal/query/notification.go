@@ -71,8 +71,8 @@ func (q *Queries) NotificationPreferences(ctx context.Context, userID uuid.UUID)
 	for _, row := range rows {
 		saved[row.Kind] = row
 	}
-	preferences := make([]*domain.NotificationPreference, 0, len(domain.NotificationKinds()))
-	for _, kind := range domain.NotificationKinds() {
+	preferences := make([]*domain.NotificationPreference, 0, len(domain.NotificationKindValues()))
+	for _, kind := range domain.NotificationKindValues() {
 		preference := &domain.NotificationPreference{Kind: kind, InApp: true, WebPush: true, RuleReservations: true}
 		if row, ok := saved[string(kind)]; ok {
 			preference.InApp, preference.WebPush, preference.RuleReservations = row.InApp, row.WebPush, row.RuleReservations
