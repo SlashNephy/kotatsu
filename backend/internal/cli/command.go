@@ -1227,7 +1227,11 @@ func jobAdminOf(deps *Deps) graph.JobAdmin {
 // handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を、echo のルーターに登録する (#1606)。
 // カレンダーのアプリは Cookie を送れないので、パスの秘密の値だけで認証する。
 func handleCalendar(router *echo.Echo, deps *Deps, feeds *auth.Feeds) {
-	router.GET(calendarapi.Route, calendarapi.NewHandler(feeds, query.New(deps.DB), deps.Clock).Serve, httpserver.Component("calendar"))
+	h := calendarapi.NewHandler(feeds, query.New(deps.DB), deps.Clock)
+	// http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD のルートも登録する。
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		router.Add(method, calendarapi.Route, h.Serve, httpserver.Component("calendar"))
+	}
 }
 
 // tunerUses は、tenban がチューナーサーバーを使う先ごとの口。チューナーサーバーを設定していなければ、どれも nil。

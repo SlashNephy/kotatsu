@@ -82,13 +82,16 @@ func TestTenbanServesCalendar(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name         string
+		name string
+		// method は、空なら GET。
+		method       string
 		path         string
 		wantStatus   int
 		wantType     string
 		wantLocation string
 	}{
 		{name: "valid token", path: "/api/calendar/" + token + "/reservations.ics", wantStatus: http.StatusOK, wantType: "text/calendar; charset=utf-8"},
+		{name: "valid token HEAD", method: http.MethodHead, path: "/api/calendar/" + token + "/reservations.ics", wantStatus: http.StatusOK, wantType: "text/calendar; charset=utf-8"},
 		// 秘密の値が違えば、見つからないことと区別させない。
 		{name: "wrong token", path: "/api/calendar/kotatsu_cal_wrong/reservations.ics", wantStatus: http.StatusNotFound, wantType: textPlain},
 		// echo のルートに当たらない崩れたパスは、これまでどおり、http.ServeMux が整えた先へリダイレクトする。
@@ -105,7 +108,11 @@ func TestTenbanServesCalendar(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+tt.path, nil)
+			method := tt.method
+			if method == "" {
+				method = http.MethodGet
+			}
+			req, err := http.NewRequestWithContext(t.Context(), method, base+tt.path, nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
 			require.NoError(t, err)
