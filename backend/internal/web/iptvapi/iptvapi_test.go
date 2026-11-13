@@ -20,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 	"github.com/SlashNephy/kotatsu/internal/web/iptvapi"
 )
 
@@ -171,12 +172,11 @@ func TestHandler(t *testing.T) {
 			t.Parallel()
 
 			queries := new(fakeQueries)
-			h := iptvapi.NewHandler(fakeAuth{}, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" },
-				slog.New(slog.DiscardHandler))
-			mux := http.NewServeMux()
-			mux.Handle("GET /api/iptv/{token}/channels.m3u", h.Authenticate(http.HandlerFunc(h.Playlist)))
-			mux.Handle("GET /api/iptv/{token}/guide.xml", h.Authenticate(http.HandlerFunc(h.Guide)))
-			server := httptest.NewServer(mux)
+			h := iptvapi.NewHandler(fakeAuth{}, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
+			router := httpserver.NewRouter(slog.New(slog.DiscardHandler), http.NotFoundHandler())
+			router.GET(iptvapi.PlaylistRoute, h.Playlist, h.Authenticate)
+			router.GET(iptvapi.GuideRoute, h.Guide, h.Authenticate)
+			server := httptest.NewServer(router)
 			t.Cleanup(server.Close)
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+tt.path, nil)

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -18,6 +20,14 @@ import (
 // PathPrefix は、ライブ視聴の M3U、番組表の XMLTV、配信、ロゴのパスの頭。この後ろに秘密の値が続く (#1324)。
 // 前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const PathPrefix = "/api/iptv/"
+
+// echo のルート (#1606)。:token が秘密の値、:id がサービスの ID。
+const (
+	PlaylistRoute = PathPrefix + ":token/channels.m3u"
+	GuideRoute    = PathPrefix + ":token/guide.xml"
+	StreamRoute   = PathPrefix + ":token/services/:id/stream.m2ts"
+	LogoRoute     = PathPrefix + ":token/services/:id/logo"
+)
 
 const (
 	// guidePast は、番組表に載せる、始まった番組を探す長さ。放送中の番組を載せる。
@@ -48,39 +58,42 @@ type Handler struct {
 	clock   clock.Clock
 	// origin は、リクエストが届いたオリジン (scheme://host)。M3U と XMLTV には、ストリームとロゴの絶対 URL を書く。
 	origin func(r *http.Request) string
-	logger *slog.Logger
 }
 
-// NewHandler は Handler を返す。
-func NewHandler(authenticator Authenticator, queries Queries, clk clock.Clock, origin func(r *http.Request) string, logger *slog.Logger) *Handler {
-	return &Handler{auth: authenticator, queries: queries, clock: clk, origin: origin, logger: logger}
+// NewHandler は Handler を返す。ログは、リクエストのロガー (echo.Context.Logger) に書く (#1606)。
+func NewHandler(authenticator Authenticator, queries Queries, clk clock.Clock, origin func(r *http.Request) string) *Handler {
+	return &Handler{auth: authenticator, queries: queries, clock: clk, origin: origin}
 }
 
-// Authenticate は、パスの秘密の値 ({token}) で認証し、発行したユーザーとして next を呼ぶ。
+// Authenticate は、パスの秘密の値 (:token) で認証し、発行したユーザーとして next を呼ぶ echo のミドルウェア。
 // 秘密の値が違うか、ユーザーがライブ視聴を見られなければ、URL があることを知らせないよう 404 を返す。
 // URL に秘密の値を含むので、途中のキャッシュに残させない。
-func (h *Handler) Authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// エラーは echo に返さず、ここで応答を書く。echo の既定のエラーの応答 (JSON) にしないためである。
+func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c *echo.Context) error {
+		w, r := c.Response(), c.Request()
 		ctx := r.Context()
-		principal, err := h.auth.Authenticate(ctx, r.PathValue("token"))
+		principal, err := h.auth.Authenticate(ctx, c.Param("token"))
 		if errors.Is(err, auth.ErrUnauthenticated) {
 			http.NotFound(w, r)
 
-			return
+			return nil
 		}
 		if err != nil {
-			h.fail(ctx, w, "failed to authenticate the IPTV feed", err)
+			fail(ctx, c.Logger(), w, "failed to authenticate the IPTV feed", err)
 
-			return
+			return nil
 		}
 		if !principal.Role.Can(domain.PermissionWatch) {
 			http.NotFound(w, r)
 
-			return
+			return nil
 		}
 		w.Header().Set("Cache-Control", "private, no-store")
-		next.ServeHTTP(w, r.WithContext(auth.WithPrincipal(ctx, principal)))
-	})
+		c.SetRequest(r.WithContext(auth.WithPrincipal(ctx, principal)))
+
+		return next(c)
+	}
 }
 
 // services は、番組表に出すサービス (非表示と、映像も音声も流さないサービスを除く) を返す。
@@ -91,11 +104,11 @@ func (h *Handler) services(ctx context.Context) ([]domain.Service, error) {
 }
 
 // base は、秘密の値 token の配信の URL の頭 (scheme://host/api/iptv/<token>) を返す。
-func (h *Handler) base(r *http.Request) string {
-	return h.origin(r) + PathPrefix + r.PathValue("token")
+func (h *Handler) base(c *echo.Context) string {
+	return h.origin(c.Request()) + PathPrefix + c.Param("token")
 }
 
-func (h *Handler) fail(ctx context.Context, w http.ResponseWriter, message string, err error) {
-	h.logger.ErrorContext(ctx, message, slog.Any("error", err))
+func fail(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, message string, err error) {
+	logger.ErrorContext(ctx, message, slog.Any("error", err))
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }

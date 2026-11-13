@@ -990,17 +990,25 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 画面がセッションの Cookie で使う端点は、/internal の下にまとめる (設計書 9.1、#1605)。知らないパスは、画面を返さずに 404 にする。
 	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
 	root.Handle(internalPathPrefix, api)
-	handlePublicAPI(root, deps, &publicAPI{
+	public := &publicAPI{
 		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger, logger: logger,
-	})
+	}
+	handlePublicAPI(root, deps, public)
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
-	// 一番外側は echo のルーターにし、移し終えたルートだけを echo のハンドラーで受ける (#1606)。ほかは root の mux に渡す。
-	router := httpserver.NewRouter(logger, root)
-	handleCalendar(router, deps, calendarFeeds)
+	router := newRouter(logger, root, deps, calendarFeeds, public)
 
 	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
+}
+
+// newRouter は、tenban の一番外側の echo のルーターを返す。移し終えたルートだけを echo のハンドラーで受け、ほかは root の mux に渡す (#1606)。
+func newRouter(logger *slog.Logger, root http.Handler, deps *Deps, calendarFeeds *auth.Feeds, public *publicAPI) *echo.Echo {
+	router := httpserver.NewRouter(logger, root)
+	handleCalendar(router, deps, calendarFeeds)
+	handleIPTV(router, deps, public.iptvFeeds, public.opener, public.logos, public.streams, public.streamLogger)
+
+	return router
 }
 
 // publicAPI は、/api の下の端点を登録するのに使うもの。
@@ -1022,7 +1030,6 @@ func handlePublicAPI(mux *http.ServeMux, deps *Deps, p *publicAPI) {
 	mux.Handle(apiPathPrefix, http.NotFoundHandler())
 	compat := newEPGStationAPI(deps, p.apiTokens, p.opener, p.logos, p.streams, p.streamLogger)
 	mux.Handle(epgstationPathPrefix+"api/", http.StripPrefix(strings.TrimSuffix(epgstationPathPrefix, "/"), compat))
-	handleIPTV(mux, deps, p.iptvFeeds, p.opener, p.logos, p.streams, p.streamLogger)
 	handleSignedStreams(mux, deps, p.authorizer, p.opener, p.streams, p.streamLogger)
 }
 
@@ -1220,7 +1227,11 @@ func jobAdminOf(deps *Deps) graph.JobAdmin {
 // handleCalendar は、予約の iCalendar (#1255、設計書 9.8) を、echo のルーターに登録する (#1606)。
 // カレンダーのアプリは Cookie を送れないので、パスの秘密の値だけで認証する。
 func handleCalendar(router *echo.Echo, deps *Deps, feeds *auth.Feeds) {
-	router.GET(calendarapi.Route, calendarapi.NewHandler(feeds, query.New(deps.DB), deps.Clock).Serve, httpserver.Component("calendar"))
+	h := calendarapi.NewHandler(feeds, query.New(deps.DB), deps.Clock)
+	// http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD のルートも登録する。
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		router.Add(method, calendarapi.Route, h.Serve, httpserver.Component("calendar"))
+	}
 }
 
 // tunerUses は、tenban がチューナーサーバーを使う先ごとの口。チューナーサーバーを設定していなければ、どれも nil。
@@ -1256,17 +1267,22 @@ func newTunerUses(deps *Deps) (*tunerUses, error) {
 // handleIPTV は、ライブ視聴の M3U と番組表の XMLTV (#1324、設計書 9.8) と、そこから参照するストリームとロゴを mux に登録する。
 // IPTV のクライアントは Cookie を送れないので、パスの秘密の値だけで認証する。ストリームは、EPGStation 互換の API と同じく無変換の TS にする。
 func handleIPTV(
-	mux *http.ServeMux, deps *Deps, feeds *auth.Feeds, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
+	router *echo.Echo, deps *Deps, feeds *auth.Feeds, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
 	streams *streamapi.StreamCounter, logger *slog.Logger,
 ) {
+	h := iptvapi.NewHandler(feeds, query.New(deps.DB), deps.Clock, func(r *http.Request) string { return clientInfo(r).Origin() })
+	// 配信とロゴのハンドラーは、ほかの配信と共有するので、ロガーを渡したまま包む。:id は、包んだハンドラーに r.PathValue("id") で渡る。
 	iptvLogger := logger.With(slog.String("component", "iptv"))
-	h := iptvapi.NewHandler(feeds, query.New(deps.DB), deps.Clock, func(r *http.Request) string { return clientInfo(r).Origin() }, iptvLogger)
-	mux.Handle("GET "+iptvPathPrefix+"{token}/channels.m3u", h.Authenticate(http.HandlerFunc(h.Playlist)))
-	mux.Handle("GET "+iptvPathPrefix+"{token}/guide.xml", h.Authenticate(http.HandlerFunc(h.Guide)))
-	mux.Handle("GET "+iptvPathPrefix+"{token}/services/{id}/stream.m2ts", h.Authenticate(
-		streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, iptvLogger)))))
-	mux.Handle("GET "+iptvPathPrefix+"{token}/services/{id}/logo", h.Authenticate(
-		streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), iptvLogger)))
+	// echo の Group にミドルウェアを掛けると、見つからないパスを受けるルートも足されて、ほかのパスが mux に届かなくなる。
+	// そのため、ルートごとにミドルウェアを掛ける。
+	middlewares := []echo.MiddlewareFunc{httpserver.Component("iptv"), h.Authenticate}
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		router.Add(method, iptvapi.PlaylistRoute, h.Playlist, middlewares...)
+		router.Add(method, iptvapi.GuideRoute, h.Guide, middlewares...)
+		router.Add(method, iptvapi.StreamRoute, echo.WrapHandler(
+			streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, iptvLogger)))), middlewares...)
+		router.Add(method, iptvapi.LogoRoute, echo.WrapHandler(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), iptvLogger)), middlewares...)
+	}
 }
 
 // newEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/epgstation/api/*) を返す (#431、設計書 9.1)。
