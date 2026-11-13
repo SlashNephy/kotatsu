@@ -69,6 +69,8 @@ type StatusError struct {
 	Status  uint32
 }
 
+var _ error = (*StatusError)(nil)
+
 func (e *StatusError) Error() string {
 	return fmt.Sprintf("EpgTimerSrv returned %d for command %d", e.Status, e.Command)
 }
@@ -173,9 +175,12 @@ type EventsQuery struct {
 	From, To time.Time
 }
 
-// Events は、番組をサービスごとに返す (ENUM_PG_INFO_EX)。番組のないサービスは含まない。
+// Events は、番組をサービスごとに返す (ENUM_PG_INFO_EX)。番組のないサービスは含まない。query が nil なら、すべての番組を返す。
 // EpgTimerSrv が EPG のデータを読み込み終えていなければ ErrBusy を返す。
 func (c *Client) Events(ctx context.Context, query *EventsQuery) ([]*ServiceEvents, error) {
+	if query == nil {
+		query = new(EventsQuery)
+	}
 	var e encoder
 	// キーは、(マスク, 値) の組を並べる。サービスのキーにマスクを OR したものが値と等しければ当たる。
 	// 最後の 2 つは、開始時刻の範囲 (FILETIME と同じ 1601 年からの 100 ナノ秒、日本標準時)。
@@ -348,6 +353,8 @@ type relayStream struct {
 
 	stop func() bool
 }
+
+var _ io.ReadCloser = (*relayStream)(nil)
 
 func (s *relayStream) Close() error {
 	s.stop()

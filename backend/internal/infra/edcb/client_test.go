@@ -317,6 +317,7 @@ func TestEventsRequest(t *testing.T) {
 	}{
 		// 範囲を決めなければ、開始時刻が未定の番組も含めて、すべてを引く (EpgTimerSrv は 0 と最大の値を特別に扱う)。
 		{name: "everything", query: &edcb.EventsQuery{Services: nil, From: time.Time{}, To: time.Time{}}, want: all(0, 1<<63-1)},
+		{name: "nil query", query: nil, want: all(0, 1<<63-1)},
 		// 終わりだけを決めたときは、未定の番組を含めないよう、始まりを 1 にする。
 		{
 			name:  "until",
@@ -356,7 +357,7 @@ func TestNetworkTVProcess(t *testing.T) {
 		wantPID  int32
 		wantOpen bool
 	}{
-		{name: "open", reply: reply{status: 1, payload: fromHex(t, "1b000000"), stream: nil, hold: false}, wantPID: 27, wantOpen: true},
+		{name: "open", reply: reply{status: 1, payload: fixture(t, "nwtv_check_open.bin"), stream: nil, hold: false}, wantPID: 27, wantOpen: true},
 		// 開いていなければ (EDCB の予約にチューナーを取られたときも)、EpgTimerSrv は CMD_ERR (0) を返す。
 		{name: "closed", reply: reply{status: 0, payload: nil, stream: nil, hold: false}, wantPID: 0, wantOpen: false},
 	}

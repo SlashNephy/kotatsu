@@ -337,12 +337,12 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 接続するチューナーサーバーは1台だけです。
 設定するのはURLと、必要に応じてBASIC認証の資格情報です。
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
-EDCBは、チューナーサーバーとして使いません。
+EDCBは、まだチューナーサーバーとして使いません。使えるようにする作業を進めています（#1258）。
 
 Kotatsuは、チューナーサーバーを、サーバーの種類に依らない型とinterface（`backend/internal/domain/tunerserver`）で扱います。
 チャンネル、サービス、番組、チューナー、イベント、ストリームの開き方と、開けなかった理由（チューナーが足りない、サービスがないなど）は、この型で表します。
 サーバーのAPIの形、イベントの種類の文字列、HTTPのステータスの意味は、サーバーごとの実装が読み替えます。
-今ある実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）だけです。
+今ある実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）だけです。EDCBのEpgTimerSrvとCtrlCmdのTCPで話すクライアント（`backend/internal/infra/edcb`、#1529）は用意しましたが、まだこのinterfaceを満たす実装にはつないでいません。CtrlCmdは、1つの接続で1つのコマンドを送る、HTTPではない独自のバイナリのプロトコルで、パスワードもTLSもありません。
 設定から実装を選ぶ所は、ロールを組み立てる`cli`の1か所にまとめます。
 
 Mirakurun互換の実装は、サーバーごとの追加機能を、接続時と定期的に判定します。

@@ -73,7 +73,7 @@ func readHeader(r io.Reader) (uint32, uint32, error) {
 	return binary.LittleEndian.Uint32(head), binary.LittleEndian.Uint32(head[4:]), nil
 }
 
-// decode は、本文を読み、読み残しや形の誤りがあればエラーを返す。
+// decode は、本文を読み、形の誤りがあればエラーを返す。新しい版の EpgTimerSrv が末尾に足した項目は、読まずに捨てる。
 func decode[T any](cmd uint32, payload []byte, read func(*decoder) T) (T, error) {
 	d := newDecoder(payload)
 	v := read(d)
