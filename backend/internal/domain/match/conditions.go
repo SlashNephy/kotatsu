@@ -123,7 +123,7 @@ func (c *Conditions) Validate() error {
 	errs := []error{}
 	errs = append(errs, validateKeywords("keywords", c.Keywords)...)
 	errs = append(errs, validateKeywords("excludeKeywords", c.ExcludeKeywords)...)
-	if c.KeywordMatch != "" && c.KeywordMatch != KeywordMatchAll && c.KeywordMatch != KeywordMatchAny {
+	if c.KeywordMatch != "" && !c.KeywordMatch.IsValid() {
 		errs = append(errs, invalid("keywordMatch must be %q or %q", KeywordMatchAll, KeywordMatchAny))
 	}
 	for _, list := range []struct {

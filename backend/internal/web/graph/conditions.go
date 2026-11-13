@@ -1,8 +1,6 @@
 package graph
 
 import (
-	"strings"
-
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -20,7 +18,7 @@ func toConditions(in *model.ProgramConditionsInput) (*match.Conditions, error) {
 
 	conditions := &match.Conditions{
 		Keywords:           toKeywords(in.Keywords),
-		KeywordMatch:       toKeywordMatch(in.KeywordMatch),
+		KeywordMatch:       in.KeywordMatch,
 		ExcludeKeywords:    toKeywords(in.ExcludeKeywords),
 		ChannelTypes:       nonNil(in.ChannelTypes),
 		ServiceIDs:         services,
@@ -55,31 +53,19 @@ func parseServiceGlobalIDs(globalIDs []string) ([]int64, error) {
 	return ids, nil
 }
 
-// toKeywordMatch と toKeywordMatchModel は、含めるキーワードの照合のしかたを、GraphQL と照合の条件で行き来させる。
-func toKeywordMatch(in model.KeywordMatch) match.KeywordMatch {
-	if in == model.KeywordMatchAny {
-		return match.KeywordMatchAny
+// keywordMatchOf は、保存した条件の照合のしかたを返す。項目を足す前に保存した条件では空なので、すべてに一致するとみなす。
+func keywordMatchOf(in match.KeywordMatch) match.KeywordMatch {
+	if in == "" {
+		return match.KeywordMatchAll
 	}
 
-	return match.KeywordMatchAll
-}
-
-func toKeywordMatchModel(in match.KeywordMatch) model.KeywordMatch {
-	if in == match.KeywordMatchAny {
-		return model.KeywordMatchAny
-	}
-
-	return model.KeywordMatchAll
+	return in
 }
 
 func toKeywords(in []*model.KeywordInput) []*match.Keyword {
 	keywords := make([]*match.Keyword, 0, len(in))
 	for _, k := range in {
-		fields := make([]match.Field, 0, len(k.Fields))
-		for _, field := range k.Fields {
-			fields = append(fields, match.Field(strings.ToLower(string(field))))
-		}
-		keywords = append(keywords, &match.Keyword{Text: k.Text, Regexp: k.Regexp, CaseSensitive: k.CaseSensitive, Fields: fields})
+		keywords = append(keywords, &match.Keyword{Text: k.Text, Regexp: k.Regexp, CaseSensitive: k.CaseSensitive, Fields: nonNil(k.Fields)})
 	}
 
 	return keywords

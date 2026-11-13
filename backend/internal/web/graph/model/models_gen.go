@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
@@ -862,10 +864,10 @@ type JobStateCount struct {
 
 // キーワードと、その照合の仕方。
 type Keyword struct {
-	Text          string         `json:"text"`
-	Regexp        bool           `json:"regexp"`
-	CaseSensitive bool           `json:"caseSensitive"`
-	Fields        []KeywordField `json:"fields"`
+	Text          string        `json:"text"`
+	Regexp        bool          `json:"regexp"`
+	CaseSensitive bool          `json:"caseSensitive"`
+	Fields        []match.Field `json:"fields"`
 }
 
 // キーワードと、その照合の仕方 (設計書 4.2)。キーワードと番組の文字列は、NFKC で正規化してから比べる。
@@ -875,7 +877,7 @@ type KeywordInput struct {
 	Regexp        bool `json:"regexp"`
 	CaseSensitive bool `json:"caseSensitive"`
 	// 照合する項目。どれか 1 つに一致すれば、このキーワードに一致したとみなす。
-	Fields []KeywordField `json:"fields"`
+	Fields []match.Field `json:"fields"`
 }
 
 // リーダー選出のリース (設計書 1.4)。neko のリースを持つインスタンスだけがアクティブになる。
@@ -1287,7 +1289,7 @@ type ProgramConditionsInput struct {
 	// keywordMatch に従い、すべてか、いずれかに一致する番組だけを対象にする。
 	Keywords []*KeywordInput `json:"keywords,omitempty"`
 	// keywords の照合のしかた。
-	KeywordMatch KeywordMatch `json:"keywordMatch"`
+	KeywordMatch match.KeywordMatch `json:"keywordMatch"`
 	// どれか 1 つに一致したら除外する。
 	ExcludeKeywords []*KeywordInput `json:"excludeKeywords,omitempty"`
 	// チャンネル種別とサービスは、どちらかに含まれていれば対象にする。
@@ -1719,8 +1721,8 @@ type StreamPreset struct {
 	Name   string `json:"name"`
 	Height int    `json:"height"`
 	// 映像のビットレート (kbps)。
-	VideoBitrate int        `json:"videoBitrate"`
-	Codec        VideoCodec `json:"codec"`
+	VideoBitrate int         `json:"videoBitrate"`
+	Codec        kyusu.Codec `json:"codec"`
 	// 映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の番組を、HEVC を復号できる端末で見るのに使う。
 	// height と videoBitrate は、BS4K の放送の目安。
 	Passthrough bool `json:"passthrough"`
@@ -2634,125 +2636,6 @@ func (e JobState) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// キーワードを照合する番組の項目。
-type KeywordField string
-
-const (
-	// 番組名
-	KeywordFieldName KeywordField = "NAME"
-	// 概要
-	KeywordFieldDescription KeywordField = "DESCRIPTION"
-	// 詳細
-	KeywordFieldExtended KeywordField = "EXTENDED"
-)
-
-var AllKeywordField = []KeywordField{
-	KeywordFieldName,
-	KeywordFieldDescription,
-	KeywordFieldExtended,
-}
-
-func (e KeywordField) IsValid() bool {
-	switch e {
-	case KeywordFieldName, KeywordFieldDescription, KeywordFieldExtended:
-		return true
-	}
-	return false
-}
-
-func (e KeywordField) String() string {
-	return string(e)
-}
-
-func (e *KeywordField) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = KeywordField(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid KeywordField", str)
-	}
-	return nil
-}
-
-func (e KeywordField) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *KeywordField) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e KeywordField) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 含めるキーワードの照合のしかた。
-type KeywordMatch string
-
-const (
-	// すべてのキーワードに一致する番組を対象にする
-	KeywordMatchAll KeywordMatch = "ALL"
-	// いずれかのキーワードに一致する番組を対象にする
-	KeywordMatchAny KeywordMatch = "ANY"
-)
-
-var AllKeywordMatch = []KeywordMatch{
-	KeywordMatchAll,
-	KeywordMatchAny,
-}
-
-func (e KeywordMatch) IsValid() bool {
-	switch e {
-	case KeywordMatchAll, KeywordMatchAny:
-		return true
-	}
-	return false
-}
-
-func (e KeywordMatch) String() string {
-	return string(e)
-}
-
-func (e *KeywordMatch) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = KeywordMatch(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid KeywordMatch", str)
-	}
-	return nil
-}
-
-func (e KeywordMatch) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *KeywordMatch) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e KeywordMatch) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
 // ミュートするキーワードの照らし方。大文字と小文字、全角と半角は区別しない (正規表現は大文字と小文字だけ区別しない)。
 type KeywordMuteMatch string
 
@@ -3236,62 +3119,6 @@ func (e *StreamKind) UnmarshalJSON(b []byte) error {
 }
 
 func (e StreamKind) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// サーバー側でのトランスコード (kyusu) の映像のコーデック。
-type VideoCodec string
-
-const (
-	VideoCodecH264 VideoCodec = "H264"
-	VideoCodecHevc VideoCodec = "HEVC"
-)
-
-var AllVideoCodec = []VideoCodec{
-	VideoCodecH264,
-	VideoCodecHevc,
-}
-
-func (e VideoCodec) IsValid() bool {
-	switch e {
-	case VideoCodecH264, VideoCodecHevc:
-		return true
-	}
-	return false
-}
-
-func (e VideoCodec) String() string {
-	return string(e)
-}
-
-func (e *VideoCodec) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = VideoCodec(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid VideoCodec", str)
-	}
-	return nil
-}
-
-func (e VideoCodec) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *VideoCodec) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e VideoCodec) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

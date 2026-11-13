@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"time"
 	"uuid"
 
@@ -186,7 +185,7 @@ func toProgramConditions(c *match.Conditions) *model.ProgramConditions {
 
 	return &model.ProgramConditions{
 		Keywords:           toKeywordModels(c.Keywords),
-		KeywordMatch:       toKeywordMatchModel(c.KeywordMatch),
+		KeywordMatch:       keywordMatchOf(c.KeywordMatch),
 		ExcludeKeywords:    toKeywordModels(c.ExcludeKeywords),
 		ChannelTypes:       nonNil(c.ChannelTypes),
 		Genres:             toGenreConditions(c.Genres),
@@ -205,11 +204,7 @@ func toProgramConditions(c *match.Conditions) *model.ProgramConditions {
 func toKeywordModels(keywords []*match.Keyword) []*model.Keyword {
 	models := make([]*model.Keyword, 0, len(keywords))
 	for _, k := range keywords {
-		fields := make([]model.KeywordField, 0, len(k.Fields))
-		for _, field := range k.Fields {
-			fields = append(fields, model.KeywordField(strings.ToUpper(string(field))))
-		}
-		models = append(models, &model.Keyword{Text: k.Text, Regexp: k.Regexp, CaseSensitive: k.CaseSensitive, Fields: fields})
+		models = append(models, &model.Keyword{Text: k.Text, Regexp: k.Regexp, CaseSensitive: k.CaseSensitive, Fields: nonNil(k.Fields)})
 	}
 
 	return models

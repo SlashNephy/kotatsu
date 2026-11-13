@@ -6,6 +6,7 @@ import (
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/match"
 )
 
 var (
@@ -109,18 +110,18 @@ func (GuideView) IsNode() {}
 
 // ProgramConditions は番組の条件。サービスは、リゾルバが dataloader で引く。
 type ProgramConditions struct {
-	Keywords           []*Keyword        `json:"keywords"`
-	KeywordMatch       KeywordMatch      `json:"keywordMatch"`
-	ExcludeKeywords    []*Keyword        `json:"excludeKeywords"`
-	ChannelTypes       []string          `json:"channelTypes"`
-	Genres             []*GenreCondition `json:"genres"`
-	ExcludeGenres      []*GenreCondition `json:"excludeGenres"`
-	TimeRanges         []*TimeRange      `json:"timeRanges"`
-	MinDurationSeconds *int              `json:"minDurationSeconds,omitempty"`
-	MaxDurationSeconds *int              `json:"maxDurationSeconds,omitempty"`
-	FreeOnly           bool              `json:"freeOnly"`
-	Marks              []string          `json:"marks"`
-	ExcludeMarks       []string          `json:"excludeMarks"`
+	Keywords           []*Keyword         `json:"keywords"`
+	KeywordMatch       match.KeywordMatch `json:"keywordMatch"`
+	ExcludeKeywords    []*Keyword         `json:"excludeKeywords"`
+	ChannelTypes       []string           `json:"channelTypes"`
+	Genres             []*GenreCondition  `json:"genres"`
+	ExcludeGenres      []*GenreCondition  `json:"excludeGenres"`
+	TimeRanges         []*TimeRange       `json:"timeRanges"`
+	MinDurationSeconds *int               `json:"minDurationSeconds,omitempty"`
+	MaxDurationSeconds *int               `json:"maxDurationSeconds,omitempty"`
+	FreeOnly           bool               `json:"freeOnly"`
+	Marks              []string           `json:"marks"`
+	ExcludeMarks       []string           `json:"excludeMarks"`
 	// ServiceKeys は、サービス (Mirakurun のサービス ID)。スキーマには出さない。
 	ServiceKeys []int64 `json:"-"`
 	// ExcludeServiceKeys は、除外するサービス (Mirakurun のサービス ID)。スキーマには出さない。
