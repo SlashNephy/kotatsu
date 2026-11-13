@@ -39,7 +39,7 @@ func newLogReport(deps *Deps, sealed *sealedStores, location *time.Location, tun
 	return logreport.New(&logreport.Options{
 		Buffer:     buffer,
 		Tuner:      tuner,
-		Hosts:      []string{deps.Config.Tuner.URL.Value(), deps.Config.Database.URL.Value()},
+		Hosts:      []string{deps.Config.Tuner.URL.Value(), deps.Config.Tuner.EDCB.Address, deps.Config.Database.URL.Value()},
 		InstanceID: deps.InstanceID.String(),
 		Roles:      deps.Roles,
 		Secrets:    logreport.Secrets(deps.DB, logreport.ConfigSecrets(deps.Config, lookupEnv), stored...),

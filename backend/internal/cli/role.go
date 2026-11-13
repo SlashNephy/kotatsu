@@ -129,7 +129,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 	// 設定していなければ、interface のまま nil にする。neko は nil と比べて、EPG の同期を止める。
 	var tuner tunerserver.Client
-	if deps.Config.Tuner.URL.Value() != "" {
+	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
+		// EDCB は設定で選べるが、まだチューナーサーバーとしてつないでいない (#1258)。
+		logger.WarnContext(ctx, "EDCB is not yet supported as a tuner server; running without a tuner server",
+			slog.String("edcb_address", deps.Config.Tuner.EDCB.Address))
+	}
+	if deps.Config.Tuner.UsesTunerServer() {
 		var err error
 		if tuner, err = newTunerClient(deps); err != nil {
 			return err
@@ -273,7 +278,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")
 
-	if deps.Config.Tuner.URL.Value() == "" {
+	if !deps.Config.Tuner.UsesTunerServer() {
 		// neko と同じく、チューナーサーバーを設定するまでは、何もせずに待つ。
 		logger.WarnContext(ctx, "tuner server is not configured; recording is disabled")
 		<-ctx.Done()

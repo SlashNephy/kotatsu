@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net"
 	"net/netip"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -189,11 +191,104 @@ type Storage struct {
 	TimeshiftDir string `yaml:"timeshift_dir"`
 }
 
+// チューナーサーバーの種類 (Tuner.Kind、設計書 3.1)。
+const (
+	// TunerKindMirakurun は、Mirakurun 互換の API を持つチューナーサーバー (Mirakurun、mirakc、Mahiron)。
+	TunerKindMirakurun = "mirakurun"
+	// TunerKindEDCB は、EDCB の EpgTimerSrv (#1258)。
+	TunerKindEDCB = "edcb"
+)
+
 // Tuner はチューナーサーバーの設定 (設計書 3.1)。
 type Tuner struct {
+	// Kind はチューナーサーバーの種類。TunerKindMirakurun (既定) か TunerKindEDCB。
+	Kind string `yaml:"kind"`
 	// URL はチューナーサーバーの URL (http://mirakurun:40772/ など)。BASIC 認証の資格情報を含めてよい。
-	// 資格情報を含みうるので秘密情報として扱う。空なら、neko は EPG を同期しない。
+	// 資格情報を含みうるので秘密情報として扱う。空なら、neko は EPG を同期しない。Kind が TunerKindMirakurun のときだけ使う。
 	URL Secret `yaml:"url"`
+	// EDCB は、Kind が TunerKindEDCB のときの設定 (#1530)。
+	EDCB EDCB `yaml:"edcb"`
+}
+
+// EDCB は、チューナーサーバーに EDCB を使うときの設定 (#1530)。
+type EDCB struct {
+	// Address は、EpgTimerSrv の TCP の待ち受け (host:port)。ポートを省けば 4510。
+	// CtrlCmd の TCP には、パスワードも TLS もないので、資格情報の設定はない。
+	Address string `yaml:"address"`
+	// NetworkTVIDStart と NetworkTVIDCount は、Kotatsu が使う NetworkTV の ID の範囲 [Start, Start+Count)。
+	// ID は EpgTimerSrv 全体で 1 つの名前空間なので、ほかのクライアント (KonomiTV は 500 から、EpgTimer の視聴や
+	// TVTest は小さい番号) と重ならないようにする。
+	NetworkTVIDStart int `yaml:"network_tv_id_start"`
+	NetworkTVIDCount int `yaml:"network_tv_id_count"`
+}
+
+const (
+	// DefaultEDCBNetworkTVIDStart と DefaultEDCBNetworkTVIDCount は、NetworkTV の ID の範囲の既定 (付録 A)。
+	// KonomiTV (500 から) と EpgTimer の視聴 (小さい番号) から離した、1000 から 32 個にする。
+	DefaultEDCBNetworkTVIDStart = 1000
+	DefaultEDCBNetworkTVIDCount = 32
+	// maxEDCBNetworkTVID は、NetworkTV の ID の上限。EpgTimerSrv は int で持つ。
+	maxEDCBNetworkTVID = math.MaxInt32
+	// maxEDCBNetworkTVIDCount は、NetworkTV の ID の数の上限。チューナーの数より十分に多ければよい。
+	maxEDCBNetworkTVIDCount = 1000
+)
+
+// UsesTunerServer は、設定から、Kotatsu が使えるチューナーサーバーがあるかどうかを返す。
+// EDCB は、まだチューナーサーバーとしてつないでいない (#1258) ので、選んでもチューナーサーバーがないものとして扱う。
+func (t *Tuner) UsesTunerServer() bool {
+	return t.Kind == TunerKindMirakurun && t.URL.Value() != ""
+}
+
+func (t *Tuner) validate() []error {
+	var errs []error
+	switch t.Kind {
+	case TunerKindMirakurun:
+		if err := validateSecretHTTPURL(t.URL); err != nil {
+			errs = append(errs, fieldError("tuner.url", err))
+		}
+	case TunerKindEDCB:
+		if t.URL.Value() != "" {
+			errs = append(errs, fieldError("tuner.url", errors.New("must be empty when tuner.kind is edcb; set tuner.edcb.address instead")))
+		}
+		if err := validateEDCBAddress(t.EDCB.Address); err != nil {
+			errs = append(errs, fieldError("tuner.edcb.address", err))
+		}
+		if start := t.EDCB.NetworkTVIDStart; start < 1 || start > maxEDCBNetworkTVID {
+			errs = append(errs, fieldError("tuner.edcb.network_tv_id_start", fmt.Errorf("must be between 1 and %d", maxEDCBNetworkTVID)))
+		}
+		if count := t.EDCB.NetworkTVIDCount; count < 1 || count > maxEDCBNetworkTVIDCount {
+			errs = append(errs, fieldError("tuner.edcb.network_tv_id_count", fmt.Errorf("must be between 1 and %d", maxEDCBNetworkTVIDCount)))
+		} else if t.EDCB.NetworkTVIDStart > maxEDCBNetworkTVID-count+1 {
+			errs = append(errs, fieldError("tuner.edcb.network_tv_id_count", fmt.Errorf("the IDs must not exceed %d", maxEDCBNetworkTVID)))
+		}
+	default:
+		errs = append(errs, fieldError("tuner.kind", fmt.Errorf("must be %s or %s", TunerKindMirakurun, TunerKindEDCB)))
+	}
+
+	return errs
+}
+
+// validateEDCBAddress は、EpgTimerSrv の待ち受けが、host か host:port の形かを検査する。
+func validateEDCBAddress(address string) error {
+	if address == "" {
+		return errors.New("is required when tuner.kind is edcb")
+	}
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		// ポートを省いた形 (例: 192.168.1.10、::1)。コロンを含むなら、IPv6 のアドレスに限る。
+		if _, parseErr := netip.ParseAddr(address); strings.Contains(address, ":") && parseErr != nil {
+			return errors.New("must be a host or host:port such as 192.168.1.10:4510; write an IPv6 address with a port as [::1]:4510")
+		}
+		host, port = address, "4510"
+	}
+	if host == "" || strings.ContainsAny(host, "/ ") {
+		return errors.New("must be a host or host:port such as 192.168.1.10:4510")
+	}
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return errors.New("must have a port between 1 and 65535")
+	}
+
+	return nil
 }
 
 // Thumbnail は、録画の代表画像とシークバー用のプレビュー画像の設定 (設計書 6.1)。nekonote が使う。
@@ -387,7 +482,9 @@ func Default() *Config {
 			TimeshiftDir: "",
 		},
 		Tuner: Tuner{
-			URL: "",
+			Kind: TunerKindMirakurun,
+			URL:  "",
+			EDCB: EDCB{Address: "", NetworkTVIDStart: DefaultEDCBNetworkTVIDStart, NetworkTVIDCount: DefaultEDCBNetworkTVIDCount},
 		},
 		Auth: Auth{
 			SecretKey: "",
@@ -446,9 +543,7 @@ func (c *Config) validate() error {
 	if err := validateDatabaseURL(c.Database.URL); err != nil {
 		errs = append(errs, fieldError("database.url", err))
 	}
-	if err := validateSecretHTTPURL(c.Tuner.URL); err != nil {
-		errs = append(errs, fieldError("tuner.url", err))
-	}
+	errs = append(errs, c.Tuner.validate()...)
 	if err := validateSecretHTTPURL(c.AnimeLinking.ArmURL); err != nil {
 		errs = append(errs, fieldError("anime_linking.arm_url", err))
 	}
