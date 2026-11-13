@@ -5,6 +5,7 @@
 #
 # 規則は勧告 (GHSA) ごと、結果は勧告に当たったパッケージの版ごとに作る。
 # 結果の位置は、frontend/pnpm-lock.yaml の packages の節で、その版を書いた行にする。見つからなければ 1 行目にする。
+# packages の節は snapshots の節より前にあるので、最初に当たった行を使う。
 
 # score は、Code scanning が重大度の分類に使う security-severity。GitHub の区切り (9.0 以上が critical、7.0 以上が high、
 # 4.0 以上が medium) に収まる値にする。
@@ -46,13 +47,17 @@ def level:
                   }
                 }
             ]
+            # SARIF では規則の id が重なってはいけない。同じ GHSA の勧告が複数あれば、1 つにまとめる。
+            | unique_by(.id)
           }
         },
         results: [
           $advisories[] as $advisory
           | $advisory.findings[]
           | . as $finding
-          | ([$lines | to_entries[] | select(.value == "  \($advisory.module_name)@\($finding.version):") | .key + 1][0] // 1) as $line
+          | "\($advisory.module_name)@\($finding.version)" as $key
+          # スコープ付きのパッケージ (@scope/name) は、YAML で @ から始められないので、引用符で囲んで書かれる。
+          | ([$lines | to_entries[] | select(.value == "  \($key):" or .value == "  '\($key)':") | .key + 1][0] // 1) as $line
           | {
               ruleId: $advisory.github_advisory_id,
               level: ($advisory.severity | level),
