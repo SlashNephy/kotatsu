@@ -429,10 +429,12 @@ function Live({
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
   // timeshift は、タイムシフトのバッファへのシーク (設計書 5.7)。ブラウザ内で変換する経路では TS を、kyusu の経路では仮想 HLS を流す。
+  // バッファを見ていた位置は、サービスごとに端末に覚え、戻ったときにその位置から再開する (#1600)。
   const timeshift = useLiveTimeshift(
     data.node?.__typename === 'Service' ? (data.node.timeshiftBuffer ?? null) : null,
     video,
     route.kind === 'convert' ? 'convert' : route.kind === 'kyusu' ? 'hls' : null,
+    serviceId,
   );
   // 実際に再生した区間を送り、見たアニメを記録させる (#927)。バッファを再生している間は、その位置の放送時刻を使う。
   usePlaybackReporter(data.node?.__typename === 'Service' ? { serviceId } : null, video, () =>
