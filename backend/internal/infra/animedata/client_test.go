@@ -139,6 +139,41 @@ func TestChannelDefinitions(t *testing.T) {
 	}
 }
 
+// TestChannelDefinitionsDistinctIDs は、別の局に、同じしょぼいカレンダーの ChID や Annict のチャンネルを当てていないことを確かめる。
+// saya-definitions は、BSよしもとに BS松竹東急の ChID (271) を当てていた。
+func TestChannelDefinitionsDistinctIDs(t *testing.T) {
+	t.Parallel()
+
+	// 放送大学の 2 つのサービスは、しょぼいカレンダーでも Annict でも 1 つのチャンネル (158) にまとめられている。
+	shared := map[int32]bool{158: true}
+	channels, _, err := animedata.NewClient(nil).ChannelDefinitions(t.Context(), "")
+	require.NoError(t, err)
+	for _, field := range []struct {
+		name string
+		id   func(*animedata.Channel) *int32
+	}{
+		{name: "syobocal", id: func(c *animedata.Channel) *int32 { return c.SyobocalID }},
+		{name: "annict", id: func(c *animedata.Channel) *int32 { return c.AnnictID }},
+	} {
+		owners := map[int32]string{}
+		for _, c := range channels {
+			id := field.id(c)
+			if id == nil || shared[*id] {
+				continue
+			}
+			if owner, ok := owners[*id]; ok {
+				assert.Failf(t, "duplicate ID", "%s %d is used by %s and %s", field.name, *id, owner, c.Name)
+			}
+			owners[*id] = c.Name
+		}
+	}
+	for _, c := range channels {
+		if c.Name == "BSよしもと" {
+			assert.Equal(t, new(int32(272)), c.SyobocalID)
+		}
+	}
+}
+
 // TestParseChannelDefinitionsErrors は、読めない定義をエラーにすることを確かめる。
 func TestParseChannelDefinitionsErrors(t *testing.T) {
 	t.Parallel()

@@ -1918,7 +1918,7 @@
       ],
       "networkId": 4,
       "syobocalId": 271,
-      "annictId": 302,
+      "annictId": null,
       "nicojkId": 260
     },
     {
@@ -1939,7 +1939,7 @@
         265
       ],
       "networkId": 4,
-      "syobocalId": 271,
+      "syobocalId": 272,
       "annictId": 304,
       "nicojkId": 265
     },
