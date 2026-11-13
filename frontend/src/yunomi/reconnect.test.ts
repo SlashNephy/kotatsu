@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import {
   canRetryImmediately,
   endedEarly,
+  playableStart,
+  playableTailSeconds,
   skipBrokenMedia,
   reconnectDelay,
   recordingsThatTookTuner,
@@ -86,5 +88,26 @@ describe('skipBrokenMedia', () => {
     },
   ])('$name', ({ position, lastSkipped, want }) => {
     expect(skipBrokenMedia(position, lastSkipped)).toBe(want);
+  });
+});
+
+describe('playableStart', () => {
+  test.each([
+    { name: '終わりから離れた位置は、そのまま', seconds: 600, duration: 1800, want: 600 },
+    {
+      name: '終わりの直前は、映像が入るだけ手前から読む (#1576)',
+      seconds: 1799.9,
+      duration: 1800,
+      want: 1800 - playableTailSeconds,
+    },
+    {
+      name: '終わりを越えた位置も、同じく手前から読む',
+      seconds: 1810,
+      duration: 1800,
+      want: 1800 - playableTailSeconds,
+    },
+    { name: '録画が短ければ、始まりから読む', seconds: 1, duration: 1, want: 0 },
+  ])('$name', ({ seconds, duration, want }) => {
+    expect(playableStart(seconds, duration)).toBe(want);
   });
 });
