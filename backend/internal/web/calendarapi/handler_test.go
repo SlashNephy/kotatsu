@@ -2,6 +2,7 @@ package calendarapi_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -44,12 +45,14 @@ func (f *fakeAuthenticator) Authenticate(_ context.Context, token string) (*auth
 type fakeQueries struct {
 	reservations []*domain.Reservation
 	listed       *query.ReservationListQuery
+	// err は、予約を読むときに返す誤り。
+	err error
 }
 
 func (f *fakeQueries) ListReservations(_ context.Context, q *query.ReservationListQuery) ([]*domain.Reservation, error) {
 	f.listed = q
 
-	return f.reservations, nil
+	return f.reservations, f.err
 }
 
 func (f *fakeQueries) ListGuideServices(_ context.Context, arg query.ListGuideServicesParams) ([]domain.Service, error) {
@@ -81,7 +84,7 @@ func TestHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queries := &fakeQueries{reservations: []*domain.Reservation{{
+			queries := &fakeQueries{err: nil, listed: nil, reservations: []*domain.Reservation{{
 				ID: reservationID, ServiceID: 3273701032, Name: "ニュース", Description: "説明",
 				StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Enabled: true, UpdatedAt: now,
 			}}}
@@ -111,4 +114,23 @@ func TestHandler(t *testing.T) {
 			assert.Equal(t, now.Add(366*24*time.Hour), queries.listed.To)
 		})
 	}
+}
+
+// TestHandlerFailsWhenQueriesFail は、予約を読めなければ、500 を返し、理由をリクエストのロガーに書くことを確かめる (#1606)。
+func TestHandlerFailsWhenQueriesFail(t *testing.T) {
+	t.Parallel()
+
+	var logs strings.Builder
+	e := echo.New()
+	e.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+	queries := &fakeQueries{reservations: nil, listed: nil, err: errors.New("database is down")}
+	e.GET(calendarapi.Route, calendarapi.NewHandler(&fakeAuthenticator{role: domain.RoleMember}, queries, clocktest.NewFake(time.Now())).Serve)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/calendar/"+validToken+"/reservations.ics", nil))
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	// エラーの応答は、echo の既定 (JSON) ではなく、これまでと同じ文にする。
+	assert.Equal(t, "Internal Server Error\n", rec.Body.String())
+	assert.Contains(t, logs.String(), "failed to list reservations for the calendar feed")
+	assert.Contains(t, logs.String(), "database is down")
 }
