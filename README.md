@@ -5,7 +5,7 @@
 # Kotatsu
 
 Kotatsu はテレビ番組を予約、録画、視聴できる Web アプリケーションです。
-チューナーサーバーとして [Mirakurun](https://github.com/Chinachu/Mirakurun)、[mirakc](https://github.com/mirakc/mirakc)、[Mahiron](https://github.com/rokoucha/Mahiron) をサポートしています。
+チューナーサーバーとして [Mirakurun](https://github.com/Chinachu/Mirakurun)、[mirakc](https://github.com/mirakc/mirakc)、[Mahiron](https://github.com/rokoucha/Mahiron)、[EDCB](https://github.com/xtne6f/EDCB) をサポートしています。
 
 [デモアプリ](https://kotatsu-demo.pages.dev/)で操作感をおためしできます。
 
@@ -66,7 +66,7 @@ Kotatsu はテレビ番組を予約、録画、視聴できる Web アプリケ�
 
 - OS: Linux、macOS、Windows のいずれか
 - データベース: PostgreSQL
-- チューナーサーバー: [Mirakurun](https://github.com/Chinachu/Mirakurun)、[mirakc](https://github.com/mirakc/mirakc)、[Mahiron](https://github.com/rokoucha/Mahiron) のいずれか
+- チューナーサーバー: [Mirakurun](https://github.com/Chinachu/Mirakurun)、[mirakc](https://github.com/mirakc/mirakc)、[Mahiron](https://github.com/rokoucha/Mahiron)、[EDCB](https://github.com/xtne6f/EDCB) のいずれか
 
 > [!WARNING]
 > ガイドを準備中です。もうしばらくお待ちください。

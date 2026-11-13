@@ -1,7 +1,7 @@
 # セットアップ
 
 Kotatsuを動かすには、PostgreSQLと、チューナーサーバーが1つ必要です。
-チューナーサーバーには、Mirakurun、mirakc、Mahironのどれかを使えます。
+チューナーサーバーには、Mirakurun、mirakc、Mahironのどれかか、EDCBのEpgTimerSrvを使えます。EDCBを使うときは、[EDCBを使う](#edcbを使う)も読んでください。
 CIでは、PostgreSQL 17で動作を確認しています。
 
 このドキュメントの手順は、Docker ComposeとHelmの2通りです。
@@ -203,6 +203,29 @@ helm install kotatsu ./deploy/helm/kotatsu -f values.yaml
 インストールと更新の前に、Chartのフックが`kotatsu migrate`のJobを実行し、DBのスキーマを更新します。
 
 続けて、[最初の管理者を作る](#最初の管理者を作る)に進んでください。
+
+## EDCBを使う
+
+チューナーサーバーにEDCB（[xtne6f/EDCB](https://github.com/xtne6f/EDCB)）のEpgTimerSrvを使えます。
+KotatsuはEpgTimerSrvとTCP（CtrlCmd）で話し、EPGの同期、チューナーの把握、録画、タイムシフト、ライブ視聴に使います。
+録画とライブ視聴のTSは、EDCBのNetworkTVで受け取ります。
+設定の項目は[設定](configuration.md#tuner)の`tuner.kind`と`tuner.edcb.*`です。
+
+Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください。
+
+- EpgTimerSrvの設定で、TCPでの接続を有効にします（`EnableTCPSrv`と`TCPPort`。既定のポートは4510です）。
+- 別のホストからつなぐときは、`TCPAccessControlList`にKotatsuのホストを入れます。既定は`+127.0.0.1,+192.168.0.0/16`です。一覧から外れたホストからの接続は、何も返さずに切られます。
+- Windowsでは、EpgTimerSrvを初めて起動したときのダイアログで許可しないと、ファイアウォールに受信を遮断するルールが残ります。別のホストからつなぐ前に、EpgTimerSrvの受信を許可してください。
+- `EpgTimerSrv.ini`の`[TVTEST]`に、Kotatsuのライブ視聴と録画に使うBonDriverを並べます。NetworkTVは、ここに並べたBonDriverしか使わないので、空のままだと1本も開けません。同じ名前を、Kotatsuの設定の`tuner.edcb.bon_drivers`にも並べてください。EpgTimerSrvはこの一覧をKotatsuに返さないので、Kotatsuはチューナーの一覧で使えるチューナーを見分けるのに、設定の一覧を使います。
+
+次のことに注意してください。
+
+- CtrlCmdのTCPには、パスワードも暗号化もありません。信頼できるネットワークの中でだけつないでください。
+- NetworkTVのIDは、EpgTimerSrv全体で1つの名前空間です。Kotatsuが使う範囲（`tuner.edcb.network_tv_id_start`と`_count`。既定は1000から32個）を、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならないようにしてください。
+- KotatsuとEDCBは、チューナーを取り合います。EDCBの予約が始まると、EDCBはKotatsuが使っているNetworkTVのチューナーを取っていくので、Kotatsuの録画やライブ視聴が切れることがあります。Kotatsuはこれに気づいてつなぎ直しを試み、つなぎ直せなければ、録画の失敗の理由を「EDCBの予約にチューナーを取られた」として残します。
+- EDCBはKotatsuの予約を知りません。EDCBの予約の割り当てや、EDCBのスリープの判断には、Kotatsuの予約は入りません。
+- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。Kotatsuで同じ局を録画しながらライブで見ると、チューナーを2本使います。
+- サービスのロゴは、EDCBが集めたもの（`LogoData`）を使います。EDCBがロゴを集めていなければ、Kotatsuが録画とタイムシフトのTSから集めたロゴを使います。
 
 ## WindowsとmacOSの電源の設定
 
