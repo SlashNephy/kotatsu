@@ -23,6 +23,9 @@ import (
 // TestTenbanServesEPGStationAPI は、tenban が EPGStation 互換の API (/api/epgstation/api/*) を、API トークンでだけ受け付けることを確かめる
 // (#431、設計書 9.8)。セッションの Cookie では受け付けない。チューナーサーバーを設定していないので、ロゴとライブ視聴は 503 になる。
 // あわせて、外部プレイヤー向けの /api/streams/* は署名だけで、画面の /internal/streams/* はセッションだけで認可することを確かめる (#1605)。
+// epgstationVersionPath は、EPGStation 互換の API の版を返す端点。
+const epgstationVersionPath = "/api/epgstation/api/version"
+
 // 認可を通ったら、ない録画は 404 になるので、401 と分けて見られる。
 func TestTenbanServesEPGStationAPI(t *testing.T) {
 	t.Parallel()
@@ -87,16 +90,18 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		// head は、GET ではなく HEAD で送るかどうか。http.ServeMux の GET のパターンは HEAD にも答えたので、echo に移しても答える (#1606)。
 		head bool
 	}{
-		{name: "トークン", path: "/api/epgstation/api/version", cookie: false, bearer: true, want: http.StatusOK},
-		{name: "セッションの Cookie だけ", path: "/api/epgstation/api/version", cookie: true, bearer: false, want: http.StatusUnauthorized},
+		{name: "トークン", path: epgstationVersionPath, cookie: false, bearer: true, want: http.StatusOK},
+		{name: "セッションの Cookie だけ", path: epgstationVersionPath, cookie: true, bearer: false, want: http.StatusUnauthorized},
 		{name: "どちらもない", path: "/api/epgstation/api/channels", cookie: false, bearer: false, want: http.StatusUnauthorized},
 		{name: "ロゴ", path: "/api/epgstation/api/channels/3273601024/logo", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
 		{name: "ライブ視聴", path: "/api/epgstation/api/streams/live/3273601024/m2ts?mode=0", cookie: false, bearer: true, want: http.StatusServiceUnavailable},
 		{name: "ない録画の動画", path: "/api/epgstation/api/videos/999999", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "ない録画のサムネイル", path: "/api/epgstation/api/thumbnails/999999", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "用意していない API", path: "/api/epgstation/api/reserves", cookie: false, bearer: true, want: http.StatusNotFound},
+		{name: "用意していない API にトークンなし", path: "/api/epgstation/api/reserves", cookie: false, bearer: false, want: http.StatusUnauthorized},
+		{name: "ない録画", path: "/api/epgstation/api/recorded/999999", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "用意していない API の深いパス", path: "/api/epgstation/api/reserves/1/detail", cookie: false, bearer: true, want: http.StatusNotFound},
-		{name: "トークンを HEAD で", path: "/api/epgstation/api/version", cookie: false, bearer: true, want: http.StatusOK, head: true},
+		{name: "トークンを HEAD で", path: epgstationVersionPath, cookie: false, bearer: true, want: http.StatusOK, head: true},
 		// 録画の ID は、包んだハンドラーが r.PathValue("id") で読む。数でなければ 400 になる。
 		{name: "録画の ID が数でない", path: "/api/epgstation/api/recorded/abc", cookie: false, bearer: true, want: http.StatusBadRequest},
 		{name: "前の EPGStation 互換のパス", path: "/api/version", cookie: false, bearer: true, want: http.StatusNotFound},

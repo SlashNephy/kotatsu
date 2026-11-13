@@ -970,7 +970,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle(internalPathPrefix, api)
 	public := &publicAPI{
 		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
-		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger, logger: logger,
+		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
 	}
 	handlePublicAPI(root)
 	handleOAuth(root, authorizationServer, graphQL, logger)
@@ -1000,7 +1000,6 @@ type publicAPI struct {
 	logos        streamapi.LogoFetcher
 	streams      *streamapi.StreamCounter
 	streamLogger *slog.Logger
-	logger       *slog.Logger
 }
 
 // handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) のうち、echo のルートに当たらないものを
