@@ -80,6 +80,17 @@ func snapshot(now time.Time) *edcbimport.Snapshot {
 		}
 	}
 	past := now.Add(-24 * time.Hour)
+	bsKey := edcb.ServiceKey{ONID: 4, TSID: 16625, SID: 101}
+	bs := func(r *edcb.Reserve) *edcb.Reserve {
+		r.ServiceKey = bsKey
+
+		return r
+	}
+	bsRecorded := func(f *edcb.RecordedFile) *edcb.RecordedFile {
+		f.ServiceKey = bsKey
+
+		return f
+	}
 
 	return &edcbimport.Snapshot{
 		AutoAdds: []*edcb.AutoAdd{
@@ -92,6 +103,8 @@ func snapshot(now time.Time) *edcbimport.Snapshot {
 			reserveOf(2, eventID, "EPG自動予約(ニュース)", 1),
 			reserveOf(3, 0xFFFF, "", 1),
 			reserveOf(4, eventID, "", 4),
+			// Kotatsu にない局の予約は飛ばす。
+			bs(reserveOf(5, eventID, "", 1)),
 		},
 		Recorded: []*edcb.RecordedFile{
 			recorded(1, "こたつ特集 #1", 1, past),
@@ -99,6 +112,8 @@ func snapshot(now time.Time) *edcbimport.Snapshot {
 			recorded(2, "こたつ特集 #1", 1, past),
 			recorded(3, "こたつ特集 #2", 7, past.Add(time.Hour)),
 			recorded(4, "", 1, past.Add(2*time.Hour)),
+			// Kotatsu にない局の録画済みは飛ばす。
+			bsRecorded(recorded(5, "BS", 1, past)),
 		},
 	}
 }
@@ -126,9 +141,9 @@ func TestApply(t *testing.T) {
 		skipped[sk.Kind] = append(skipped[sk.Kind], sk.SourceID)
 	}
 	assert.Equal(t, map[string][]int64{
-		edcbimport.KindRecordedHistory: {3, 4},
+		edcbimport.KindRecordedHistory: {3, 4, 5},
 		edcbimport.KindRule:            {8},
-		edcbimport.KindReserve:         {3, 4},
+		edcbimport.KindReserve:         {3, 4, 5},
 	}, skipped)
 	assert.Equal(t, 1, f.count(t, "rules"))
 	assert.Equal(t, 1, f.count(t, "reservations"))
