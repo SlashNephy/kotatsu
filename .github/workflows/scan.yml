@@ -1,6 +1,6 @@
 name: Scan
 
-# 公開したコンテナイメージと Go の依存の脆弱性を、毎日確かめる (設計書 11.1)。
+# 公開したコンテナイメージと、Go と画面の依存の脆弱性、マニフェストの設定を、毎日確かめる (設計書 11.1)。
 # 結果は SARIF で Code scanning に送る。直った脆弱性のアラートは、次のスキャンで閉じる。
 # 見つかっても失敗にはしない。新しく公開された脆弱性で、関係のない PR や Renovate の自動マージを止めないため。
 on:
@@ -8,13 +8,17 @@ on:
     # 毎日 6:23 (JST)。
     - cron: '23 21 * * *'
   pull_request:
-    # スキャンの設定と Go の依存を変えた PR では、スキャンが動くことと、その時点の結果を確かめる。
+    # スキャンの設定と、依存とマニフェストを変えた PR では、スキャンが動くことと、その時点の結果を確かめる。
     paths:
       - .github/workflows/scan.yml
+      - .github/scan/**
       - mise.scan.toml
       - mise.scan.lock
       - backend/go.mod
       - backend/go.sum
+      - frontend/package.json
+      - frontend/pnpm-lock.yaml
+      - deploy/kubernetes/**
   workflow_dispatch:
 
 concurrency:
@@ -98,3 +102,67 @@ jobs:
         with:
           sarif_file: govulncheck.sarif
           category: govulncheck
+
+  # 画面 (frontend/) の依存の脆弱性を pnpm audit で確かめる。開発用の依存もビルドと開発で動くので、含めて見る。
+  # pnpm audit は SARIF を出さないので、JSON から直して送る (.github/scan/pnpm-audit-sarif.jq)。
+  pnpm-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.6
+        with:
+          install_args: node pnpm
+      - name: Run pnpm audit
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          # 脆弱性が見つかると 0 以外で終わるので、終了コードではなく、結果の形で失敗を見分ける。
+          pnpm audit --json > ../pnpm-audit.json || true
+          if ! jq -e '.advisories | type == "object"' ../pnpm-audit.json > /dev/null; then
+            cat ../pnpm-audit.json
+            exit 1
+          fi
+          jq --rawfile lock pnpm-lock.yaml -f ../.github/scan/pnpm-audit-sarif.jq ../pnpm-audit.json > ../pnpm-audit.sarif
+          echo "$(jq '[.runs[].results[]?] | length' ../pnpm-audit.sarif) results"
+      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: pnpm-audit.sarif
+          category: pnpm-audit
+
+  # Helm Chart から生成したマニフェストの設定 (securityContext、リソースの指定、プローブなど) を kube-linter で確かめる。
+  # all と split の両方の構成を見る (設計書 2.4)。
+  kube-linter:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      MISE_ENV: scan
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.2.6
+        with:
+          install_args: aqua:stackrox/kube-linter
+      - name: Run kube-linter
+        run: |
+          set -euo pipefail
+          # 見つかると 1 で終わるので、終了コードではなく、結果の形で失敗を見分ける。
+          kube-linter lint deploy/kubernetes/all.yaml deploy/kubernetes/split.yaml --format sarif > kube-linter.sarif || true
+          if ! jq -e '.runs | type == "array"' kube-linter.sarif > /dev/null; then
+            cat kube-linter.sarif
+            exit 1
+          fi
+          echo "$(jq '[.runs[].results[]?] | length' kube-linter.sarif) results"
+      - if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4.39.3
+        with:
+          sarif_file: kube-linter.sarif
+          category: kube-linter
