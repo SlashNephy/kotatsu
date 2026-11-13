@@ -127,10 +127,4 @@ func (s *TunerServer) Channels(ctx context.Context) ([]*tunerserver.Channel, err
 	return channels, nil
 }
 
-// ServiceLogo は、EDCB のロゴをまだ読まないので、常に tunerserver.ErrLogoUnavailable を返す。
-// tenban は、録画とタイムシフトの TS から集めたロゴを返す (#1308)。EDCB のロゴは #1537 で扱う。
-func (s *TunerServer) ServiceLogo(context.Context, int64) ([]byte, error) {
-	return nil, tunerserver.ErrLogoUnavailable
-}
-
 var _ tunerserver.Client = new(TunerServer)

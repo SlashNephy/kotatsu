@@ -5,6 +5,7 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -22,6 +23,8 @@ type TunerServer struct {
 	bonDrivers map[string]bool
 	// ids は、NetworkTV の ID を配る (#1533)。nil なら、ストリームを開けない。
 	ids NetworkTVIDs
+	// logos は、サービスとロゴの ID の対応 (#1537)。
+	logos *logoMap
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -44,7 +47,7 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 		ids = opts.NetworkTVIDs
 	}
 
-	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids}
+	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}}}
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。
