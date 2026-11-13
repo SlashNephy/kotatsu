@@ -6,19 +6,17 @@ import (
 	"time"
 )
 
-// Cadence は、録画の映像の窓を、フィールドどうしの差から分類したもの (#1509、設計書 6.1)。
-type Cadence string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// CadenceUnknown は、動いている秒が足りないか、FFmpeg が失敗して、測れなかったこと。
-	CadenceUnknown Cadence = "unknown"
-	// Cadence24p は、24p を 3:2 プルダウンで載せた映像 (アニメやフィルム)。5 フィールドに 1 回、同じフィールドが繰り返される。
-	Cadence24p Cadence = "24p"
-	// Cadence30p は、上下のフィールドが同じ時刻の絵である 30p の映像。
-	Cadence30p Cadence = "30p"
-	// Cadence60i は、フィールドごとに時刻の違う 60i の映像 (実写)。
-	Cadence60i Cadence = "60i"
-)
+// Cadence は、録画の映像の窓を、フィールドどうしの差から分類したもの (#1509、設計書 6.1)。
+//
+// ENUM(
+// unknown // 動いている秒が足りないか、FFmpeg が失敗して、測れなかったこと。
+// 24p // 24p を 3:2 プルダウンで載せた映像 (アニメやフィルム)。5 フィールドに 1 回、同じフィールドが繰り返される。
+// 30p // 上下のフィールドが同じ時刻の絵である 30p の映像。
+// 60i // フィールドごとに時刻の違う 60i の映像 (実写)。
+// )
+type Cadence string
 
 const (
 	// topPerSecond は、上フィールドの差の 1 秒あたりの数。
@@ -87,12 +85,12 @@ func (p *CadenceParams) Classify(d *FieldDiffs) *WindowResult {
 	switch {
 	case result.RepSeconds < p.MinSeconds:
 	case result.Rep < p.RepThreshold:
-		result.Cadence = Cadence24p
+		result.Cadence = Cadence24P
 	case result.WRSeconds < p.MinSeconds:
 	case result.WR < p.WRThreshold:
-		result.Cadence = Cadence30p
+		result.Cadence = Cadence30P
 	default:
-		result.Cadence = Cadence60i
+		result.Cadence = Cadence60I
 	}
 
 	return result
@@ -169,9 +167,9 @@ func FieldOutput(results []*WindowResult) bool {
 	var interlaced, progressive int
 	for _, r := range results {
 		switch r.Cadence {
-		case Cadence60i:
+		case Cadence60I:
 			interlaced++
-		case Cadence24p, Cadence30p:
+		case Cadence24P, Cadence30P:
 			progressive++
 		case CadenceUnknown:
 		}

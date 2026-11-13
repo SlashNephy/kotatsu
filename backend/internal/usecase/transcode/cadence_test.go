@@ -82,11 +82,11 @@ func TestClassify(t *testing.T) {
 		wantRep, wantWR float64
 		wantSeconds     int
 	}{
-		{name: telecineName, diffs: telecined(0), want: transcode.Cadence24p, wantRep: repeated / moving, wantWR: 1, wantSeconds: 10},
+		{name: telecineName, diffs: telecined(0), want: transcode.Cadence24P, wantRep: repeated / moving, wantWR: 1, wantSeconds: 10},
 		// 秒の区切りとプルダウンの周期がずれていても、繰り返す差は同じ位相に集まる。
-		{name: "telecine sought to the middle of the cycle", diffs: telecined(3), want: transcode.Cadence24p, wantRep: repeated / moving, wantWR: 1, wantSeconds: 10},
-		{name: "30p", diffs: progressive30(10), want: transcode.Cadence30p, wantRep: 1, wantWR: sameFrame / moving, wantSeconds: 10},
-		{name: interlacedName, diffs: interlaced60(10), want: transcode.Cadence60i, wantRep: 1, wantWR: 1, wantSeconds: 10},
+		{name: "telecine sought to the middle of the cycle", diffs: telecined(3), want: transcode.Cadence24P, wantRep: repeated / moving, wantWR: 1, wantSeconds: 10},
+		{name: "30p", diffs: progressive30(10), want: transcode.Cadence30P, wantRep: 1, wantWR: sameFrame / moving, wantSeconds: 10},
+		{name: interlacedName, diffs: interlaced60(10), want: transcode.Cadence60I, wantRep: 1, wantWR: 1, wantSeconds: 10},
 		// 上下を交互に並べた差は、静止した絵でも行のずれの分だけ大きく出るが、動いているかは上フィールドの差だけで決める。
 		{name: "still", diffs: diffsOf(10, constant(still), constant(sameFrame*2)), want: transcode.CadenceUnknown, wantRep: 0, wantWR: 0, wantSeconds: 0},
 		{name: "too few moving seconds", diffs: interlaced60(4), want: transcode.CadenceUnknown, wantRep: 1, wantWR: 1, wantSeconds: 4},
@@ -102,7 +102,7 @@ func TestClassify(t *testing.T) {
 
 				return moving
 			}, constant(moving)),
-			want: transcode.Cadence60i, wantRep: 1, wantWR: 1, wantSeconds: 5,
+			want: transcode.Cadence60I, wantRep: 1, wantWR: 1, wantSeconds: 5,
 		},
 	}
 	for _, tt := range tests {
@@ -128,7 +128,7 @@ func TestClassifyWithoutFields(t *testing.T) {
 		want  transcode.Cadence
 	}{
 		// rep だけで 24p 系と分かるので、wr は要らない。
-		{name: telecineName, diffs: &transcode.FieldDiffs{Top: telecined(0).Top, Fields: []float64{}}, want: transcode.Cadence24p},
+		{name: telecineName, diffs: &transcode.FieldDiffs{Top: telecined(0).Top, Fields: []float64{}}, want: transcode.Cadence24P},
 		{name: interlacedName, diffs: &transcode.FieldDiffs{Top: interlaced60(10).Top, Fields: interlaced60(2).Fields}, want: transcode.CadenceUnknown},
 	}
 	for _, tt := range tests {
@@ -149,13 +149,13 @@ func TestFieldOutput(t *testing.T) {
 		cadences []transcode.Cadence
 		want     bool
 	}{
-		{name: "anime", cadences: []transcode.Cadence{transcode.Cadence24p, transcode.Cadence24p, transcode.Cadence60i, transcode.Cadence24p}, want: false},
-		{name: "30p and 24p add up", cadences: []transcode.Cadence{transcode.Cadence24p, transcode.Cadence30p, transcode.Cadence60i}, want: false},
-		{name: "live action", cadences: []transcode.Cadence{transcode.Cadence60i, transcode.Cadence60i, transcode.Cadence24p, transcode.CadenceUnknown}, want: true},
+		{name: "anime", cadences: []transcode.Cadence{transcode.Cadence24P, transcode.Cadence24P, transcode.Cadence60I, transcode.Cadence24P}, want: false},
+		{name: "30p and 24p add up", cadences: []transcode.Cadence{transcode.Cadence24P, transcode.Cadence30P, transcode.Cadence60I}, want: false},
+		{name: "live action", cadences: []transcode.Cadence{transcode.Cadence60I, transcode.Cadence60I, transcode.Cadence24P, transcode.CadenceUnknown}, want: true},
 		// 迷ったら 60 コマにする。
-		{name: "tie", cadences: []transcode.Cadence{transcode.Cadence60i, transcode.Cadence30p}, want: true},
+		{name: "tie", cadences: []transcode.Cadence{transcode.Cadence60I, transcode.Cadence30P}, want: true},
 		{name: "nothing measured", cadences: []transcode.Cadence{transcode.CadenceUnknown, transcode.CadenceUnknown}, want: true},
-		{name: "unknown windows do not count", cadences: []transcode.Cadence{transcode.Cadence24p, transcode.CadenceUnknown, transcode.CadenceUnknown}, want: false},
+		{name: "unknown windows do not count", cadences: []transcode.Cadence{transcode.Cadence24P, transcode.CadenceUnknown, transcode.CadenceUnknown}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -248,9 +248,9 @@ func TestFFmpegEncoderMeasureFields(t *testing.T) {
 		filter string
 		want   transcode.Cadence
 	}{
-		{name: telecineName, source: "testsrc2=s=720x480:r=24000/1001:d=12", filter: "telecine=first_field=top:pattern=23,", want: transcode.Cadence24p},
-		{name: "30p", source: "testsrc2=s=720x480:r=30000/1001:d=12", filter: "", want: transcode.Cadence30p},
-		{name: interlacedName, source: "testsrc2=s=720x480:r=60000/1001:d=12", filter: "interlace=scan=tff:lowpass=off,", want: transcode.Cadence60i},
+		{name: telecineName, source: "testsrc2=s=720x480:r=24000/1001:d=12", filter: "telecine=first_field=top:pattern=23,", want: transcode.Cadence24P},
+		{name: "30p", source: "testsrc2=s=720x480:r=30000/1001:d=12", filter: "", want: transcode.Cadence30P},
+		{name: interlacedName, source: "testsrc2=s=720x480:r=60000/1001:d=12", filter: "interlace=scan=tff:lowpass=off,", want: transcode.Cadence60I},
 		{name: "black", source: "color=black:s=720x480:r=30000/1001:d=12", filter: "", want: transcode.CadenceUnknown},
 	}
 	for _, tt := range tests {

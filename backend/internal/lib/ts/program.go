@@ -5,15 +5,16 @@ import (
 	"slices"
 )
 
-// StreamKind は、エレメンタリーストリームの大まかな種類。
-type StreamKind string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	StreamVideo StreamKind = "video"
-	StreamAudio StreamKind = "audio"
-	// StreamOther は、字幕、データ放送、その他のストリーム。
-	StreamOther StreamKind = "other"
-)
+// StreamKind は、エレメンタリーストリームの大まかな種類。
+//
+// ENUM(
+// video
+// audio
+// other // 字幕、データ放送、その他のストリーム。
+// )
+type StreamKind string
 
 // stream_type の値 (ISO/IEC 13818-1、ARIB STD-B10)。
 const (
@@ -73,11 +74,11 @@ func componentTag(descriptors []byte) *uint8 {
 func streamKind(streamType uint8) StreamKind {
 	switch streamType {
 	case streamTypeMPEG1Video, streamTypeMPEG2Video, streamTypeH264, streamTypeHEVC:
-		return StreamVideo
+		return StreamKindVideo
 	case streamTypeMPEG1Audio, streamTypeMPEG2Audio, streamTypeAACADTS, streamTypeAACLATM:
-		return StreamAudio
+		return StreamKindAudio
 	default:
-		return StreamOther
+		return StreamKindOther
 	}
 }
 
@@ -199,7 +200,7 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 func (t *programTable) firstVideo() (*Stream, bool) {
 	for _, number := range slices.Sorted(maps.Keys(t.programs)) {
 		for _, s := range t.programs[number].Streams {
-			if s.Kind == StreamVideo {
+			if s.Kind == StreamKindVideo {
 				return s, true
 			}
 		}
@@ -211,7 +212,7 @@ func (t *programTable) firstVideo() (*Stream, bool) {
 // firstVideoProgram は、映像のある番組のうち、program_number が最も小さいものを返す。なければ nil を返す。
 func (t *programTable) firstVideoProgram() *Program {
 	for _, number := range slices.Sorted(maps.Keys(t.programs)) {
-		if slices.ContainsFunc(t.programs[number].Streams, func(s *Stream) bool { return s.Kind == StreamVideo }) {
+		if slices.ContainsFunc(t.programs[number].Streams, func(s *Stream) bool { return s.Kind == StreamKindVideo }) {
 			return t.programs[number]
 		}
 	}

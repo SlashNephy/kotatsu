@@ -53,19 +53,21 @@ var ErrLivePostRejected = errors.New("NX-Jikkyo rejected the comment")
 // ErrLiveNotConnected は、NX-Jikkyo につながっていないので投稿できないこと。
 var ErrLiveNotConnected = errors.New("not connected to NX-Jikkyo")
 
-// LiveStatusKind は、NX-Jikkyo との接続の状態。
-type LiveStatusKind string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	LiveConnecting   LiveStatusKind = "connecting"
-	LiveConnected    LiveStatusKind = "connected"
-	LiveDisconnected LiveStatusKind = "disconnected"
-)
+// LiveStatusKind は、NX-Jikkyo との接続の状態。
+//
+// ENUM(
+// connecting
+// connected
+// disconnected
+// )
+type LiveStatusKind string
 
 // LiveStatus は、NX-Jikkyo との接続の状態の変化。
 type LiveStatus struct {
 	Kind LiveStatusKind
-	// Reason は、切れた理由のコード。RetryIn は、つなぎ直すまでの秒。どちらも LiveDisconnected のときだけ入れる。
+	// Reason は、切れた理由のコード。RetryIn は、つなぎ直すまでの秒。どちらも LiveStatusKindDisconnected のときだけ入れる。
 	Reason  string
 	RetryIn int
 }
@@ -201,7 +203,7 @@ func (s *LiveSession) run(ctx context.Context) {
 	defer close(s.done)
 	attempt := 0
 	for {
-		s.status(&LiveStatus{Kind: LiveConnecting, Reason: "", RetryIn: 0})
+		s.status(&LiveStatus{Kind: LiveStatusKindConnecting, Reason: "", RetryIn: 0})
 		reason, connected := s.connect(ctx)
 		if ctx.Err() != nil {
 			return
@@ -212,7 +214,7 @@ func (s *LiveSession) run(ctx context.Context) {
 		delays := s.client.liveRetryDelays
 		delay := delays[min(attempt, len(delays)-1)]
 		attempt++
-		s.status(&LiveStatus{Kind: LiveDisconnected, Reason: reason, RetryIn: int(delay.Round(time.Second) / time.Second)})
+		s.status(&LiveStatus{Kind: LiveStatusKindDisconnected, Reason: reason, RetryIn: int(delay.Round(time.Second) / time.Second)})
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -311,7 +313,7 @@ func (c *liveConnection) markConnected() {
 	c.mu.Lock()
 	c.connected = true
 	c.mu.Unlock()
-	c.session.status(&LiveStatus{Kind: LiveConnected, Reason: "", RetryIn: 0})
+	c.session.status(&LiveStatus{Kind: LiveStatusKindConnected, Reason: "", RetryIn: 0})
 }
 
 // handle は、視聴セッションのメッセージを処理する。接続をやめるなら、その理由のコードを返す。

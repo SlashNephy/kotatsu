@@ -57,15 +57,15 @@ var (
 	ErrNoFrame = errors.New("failed to extract any frame from the recording")
 )
 
-// Size は、取り出すフレームの大きさ。
-type Size int
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// SizeThumbnail は、代表画像の大きさ (ThumbnailWidth × ThumbnailHeight)。
-	SizeThumbnail Size = iota
-	// SizeTile は、プレビュー画像の 1 コマの大きさ (TileWidth × TileHeight)。
-	SizeTile
-)
+// Size は、取り出すフレームの大きさ。
+//
+// ENUM(
+// Thumbnail // 代表画像の大きさ (ThumbnailWidth × ThumbnailHeight)。
+// Tile // プレビュー画像の 1 コマの大きさ (TileWidth × TileHeight)。
+// )
+type Size int
 
 // Extractor は、TS の最初のキーフレームを、size の大きさに収めた JPEG にする。
 type Extractor interface {

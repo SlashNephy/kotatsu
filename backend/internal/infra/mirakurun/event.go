@@ -34,11 +34,11 @@ func toEvent(raw *RawEvent) (*tunerserver.Event, bool) {
 			return nil, false
 		}
 
-		return &tunerserver.Event{Type: tunerserver.EventProgramUpdated, ServiceID: data.ServiceID}, true
+		return &tunerserver.Event{Type: tunerserver.EventTypeProgramUpdated, ServiceID: data.ServiceID}, true
 	case raw.Resource == "service":
-		return &tunerserver.Event{Type: tunerserver.EventServiceChanged, ServiceID: 0}, true
+		return &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}, true
 	case raw.Resource == "tuner":
-		return &tunerserver.Event{Type: tunerserver.EventTunerChanged, ServiceID: 0}, true
+		return &tunerserver.Event{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0}, true
 	default:
 		return nil, false
 	}
@@ -48,11 +48,11 @@ func toEvent(raw *RawEvent) (*tunerserver.Event, bool) {
 func programEventType(eventType string) tunerserver.EventType {
 	switch eventType {
 	case "create":
-		return tunerserver.EventProgramCreated
+		return tunerserver.EventTypeProgramCreated
 	case "remove":
-		return tunerserver.EventProgramRemoved
+		return tunerserver.EventTypeProgramRemoved
 	default:
-		return tunerserver.EventProgramUpdated
+		return tunerserver.EventTypeProgramUpdated
 	}
 }
 

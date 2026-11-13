@@ -2,20 +2,18 @@ package tunerserver
 
 import "io"
 
-// EventType は、イベントが知らせる変化の種類。
-type EventType string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// EventProgramCreated、EventProgramUpdated、EventProgramRemoved は、番組が作られた、変わった、消えたこと。
-	// Event の ServiceID に、番組が変わったサービスを持つ。
-	EventProgramCreated EventType = "program-created"
-	EventProgramUpdated EventType = "program-updated"
-	EventProgramRemoved EventType = "program-removed"
-	// EventServiceChanged は、サービスが作られたか、変わったか、消えたこと。
-	EventServiceChanged EventType = "service-changed"
-	// EventTunerChanged は、チューナーの状態か構成が変わったこと。
-	EventTunerChanged EventType = "tuner-changed"
-)
+// EventType は、イベントが知らせる変化の種類。値は Mirakurun のイベントの名前。
+//
+// ENUM(
+// ProgramCreated = program-created // 番組が作られたこと。Event の ServiceID に、番組が変わったサービスを持つ。
+// ProgramUpdated = program-updated // 番組が変わったこと。Event の ServiceID に、番組が変わったサービスを持つ。
+// ProgramRemoved = program-removed // 番組が消えたこと。Event の ServiceID に、番組が変わったサービスを持つ。
+// ServiceChanged = service-changed // サービスが作られたか、変わったか、消えたこと。
+// TunerChanged = tuner-changed // チューナーの状態か構成が変わったこと。
+// )
+type EventType string
 
 // Event は、チューナーサーバーから届いた、何が変わったかの知らせ。
 //

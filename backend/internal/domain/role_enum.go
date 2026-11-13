@@ -12,6 +12,96 @@ import (
 )
 
 const (
+	// ライブ視聴、録画の再生、自分の設定と再生位置の変更。
+	PermissionWatch Permission = "watch"
+	// ルールと予約の作成、変更、削除。
+	PermissionManageSchedule Permission = "manage_schedule"
+	// 録画の削除、保護、タグ付け。
+	PermissionManageRecordings Permission = "manage_recordings"
+	// ユーザー、システム設定、Webhook、保存先プール、監査ログの管理。
+	PermissionAdminister Permission = "administer"
+)
+
+var ErrInvalidPermission = errors.New("not a valid Permission")
+
+// PermissionValues returns a list of the values for Permission
+func PermissionValues() []Permission {
+	return []Permission{
+		PermissionWatch,
+		PermissionManageSchedule,
+		PermissionManageRecordings,
+		PermissionAdminister,
+	}
+}
+
+// String implements the Stringer interface.
+func (x Permission) String() string {
+	return string(x)
+}
+
+// IsValid provides a quick way to determine if the typed value is
+// part of the allowed enumerated values
+func (x Permission) IsValid() bool {
+	_, err := ParsePermission(string(x))
+	return err == nil
+}
+
+var _PermissionValue = map[string]Permission{
+	"watch":             PermissionWatch,
+	"manage_schedule":   PermissionManageSchedule,
+	"manage_recordings": PermissionManageRecordings,
+	"administer":        PermissionAdminister,
+}
+
+// ParsePermission attempts to convert a string to a Permission.
+func ParsePermission(name string) (Permission, error) {
+	if x, ok := _PermissionValue[name]; ok {
+		return x, nil
+	}
+	return Permission(""), fmt.Errorf("%s is %w", name, ErrInvalidPermission)
+}
+
+var errPermissionNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *Permission) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = Permission("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParsePermission(v)
+	case []byte:
+		*x, err = ParsePermission(string(v))
+	case Permission:
+		*x = v
+	case *Permission:
+		if v == nil {
+			return errPermissionNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errPermissionNilPtr
+		}
+		*x, err = ParsePermission(*v)
+	default:
+		return errors.New("invalid type for Permission")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x Permission) Value() (driver.Value, error) {
+	return x.String(), nil
+}
+
+const (
 	// 管理者。すべての操作ができる。
 	RoleAdmin Role = "admin"
 	// メンバー。ユーザーとシステムの管理のほかは、すべての操作ができる。ルール、予約、録画は家族で共有するので、誰が作ったものでも変更や削除ができる。

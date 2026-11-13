@@ -84,7 +84,7 @@ func TestLiveSessionReceivesCommentsAfterCaughtUp(t *testing.T) {
 	recorder := new(liveRecorder)
 	openLive(t, nx, recorder.options(true, ""))
 	require.Eventually(t, func() bool { return nx.CommentSessions() == 1 }, liveTimeout, liveTick)
-	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveConnected) == 1 }, liveTimeout, liveTick)
+	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveStatusKindConnected) == 1 }, liveTimeout, liveTick)
 
 	nx.Chat(t.Context(), "こんにちは", "someone")
 
@@ -117,7 +117,7 @@ func TestLiveSessionToleratesKeepInterval(t *testing.T) {
 			recorder := new(liveRecorder)
 			openLive(t, nx, recorder.options(true, ""))
 
-			require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveConnected) == 1 }, liveTimeout, liveTick)
+			require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveStatusKindConnected) == 1 }, liveTimeout, liveTick)
 			assert.Zero(t, nx.KeepSeats(), "短すぎる間隔や不正な間隔では、既定の間隔で送る")
 		})
 	}
@@ -132,7 +132,7 @@ func TestLiveSessionIgnoresAdvertisedMessageServer(t *testing.T) {
 	recorder := new(liveRecorder)
 	openLive(t, nx, recorder.options(true, ""))
 
-	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveConnected) == 1 }, liveTimeout, liveTick)
+	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveStatusKindConnected) == 1 }, liveTimeout, liveTick)
 	assert.Equal(t, 1, nx.CommentSessions())
 }
 
@@ -142,12 +142,12 @@ func TestLiveSessionReconnects(t *testing.T) {
 	nx := nxjikkyotest.New(t)
 	recorder := new(liveRecorder)
 	openLive(t, nx, recorder.options(true, ""))
-	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveConnected) == 1 }, liveTimeout, liveTick)
+	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveStatusKindConnected) == 1 }, liveTimeout, liveTick)
 
 	nx.DropAll()
 
-	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveConnected) == 2 }, liveTimeout, liveTick)
-	assert.Positive(t, recorder.count(jikkyoclient.LiveDisconnected))
+	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveStatusKindConnected) == 2 }, liveTimeout, liveTick)
+	assert.Positive(t, recorder.count(jikkyoclient.LiveStatusKindDisconnected))
 }
 
 func TestLiveSessionPost(t *testing.T) {

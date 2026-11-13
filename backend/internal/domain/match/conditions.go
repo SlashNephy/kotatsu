@@ -34,17 +34,16 @@ const (
 // ErrInvalidConditions は、条件が正しくないことを表す。
 var ErrInvalidConditions = errors.New("invalid conditions")
 
-// Field は、キーワードを照合する番組の項目。
-type Field string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// FieldName は番組名。
-	FieldName Field = "name"
-	// FieldDescription は概要。
-	FieldDescription Field = "description"
-	// FieldExtended は詳細。
-	FieldExtended Field = "extended"
-)
+// Field は、キーワードを照合する番組の項目。
+//
+// ENUM(
+// name // 番組名。
+// description // 概要。
+// extended // 詳細。
+// )
+type Field string
 
 // Keyword はキーワードと、その照合の仕方。
 type Keyword struct {
@@ -76,14 +75,12 @@ type TimeRange struct {
 }
 
 // KeywordMatch は、含めるキーワードの照合のしかた。
+//
+// ENUM(
+// all // すべてのキーワードに一致する番組を対象にする。保存した条件に項目がなければ、これとみなす。
+// any // いずれかのキーワードに一致する番組を対象にする。
+// )
 type KeywordMatch string
-
-const (
-	// KeywordMatchAll は、すべてのキーワードに一致する番組を対象にする。保存した条件に項目がなければ、これとみなす。
-	KeywordMatchAll KeywordMatch = "all"
-	// KeywordMatchAny は、いずれかのキーワードに一致する番組を対象にする。
-	KeywordMatchAny KeywordMatch = "any"
-)
 
 // Conditions はルールの条件。空の項目では絞り込まない。
 type Conditions struct {

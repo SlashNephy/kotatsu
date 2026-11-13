@@ -164,9 +164,9 @@ func (s *CueScanner) assign() {
 	audios := 0
 	for _, stream := range program.Streams {
 		switch {
-		case stream.Kind == StreamVideo && s.videoPID == NullPID:
+		case stream.Kind == StreamKindVideo && s.videoPID == NullPID:
 			s.videoPID = stream.PID
-		case stream.Kind == StreamAudio:
+		case stream.Kind == StreamKindAudio:
 			if s.audioPID == NullPID {
 				s.audioPID = stream.PID
 			}

@@ -180,7 +180,7 @@ func quietEventsServer(t *testing.T, kind mirakurun.ServerKind, quiet time.Durat
 		switch {
 		case r.URL.Path == pathVersion:
 			_, _ = w.Write([]byte(`{"current":"4.0.0","latest":"4.0.0"}`))
-		case r.URL.Path == pathSSEEvents && kind == mirakurun.ServerMirakc:
+		case r.URL.Path == pathSSEEvents && kind == mirakurun.ServerKindMirakc:
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.WriteHeader(http.StatusOK)
 			flusher.Flush()
@@ -189,7 +189,7 @@ func quietEventsServer(t *testing.T, kind mirakurun.ServerKind, quiet time.Durat
 				flusher.Flush()
 			}
 			<-r.Context().Done()
-		case r.URL.Path == "/api/events/stream" && kind != mirakurun.ServerMirakc:
+		case r.URL.Path == "/api/events/stream" && kind != mirakurun.ServerKindMirakc:
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			_, _ = w.Write([]byte("[\n"))
 			flusher.Flush()
@@ -215,8 +215,8 @@ func TestClientOpenEventsQuiet(t *testing.T) {
 	tests := []struct {
 		kind mirakurun.ServerKind
 	}{
-		{kind: mirakurun.ServerMirakurun},
-		{kind: mirakurun.ServerMirakc},
+		{kind: mirakurun.ServerKindMirakurun},
+		{kind: mirakurun.ServerKindMirakc},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {
@@ -232,7 +232,7 @@ func TestClientOpenEventsQuiet(t *testing.T) {
 			event, err := stream.Next()
 
 			require.NoError(t, err)
-			assert.Equal(t, tunerserver.EventTunerChanged, event.Type)
+			assert.Equal(t, tunerserver.EventTypeTunerChanged, event.Type)
 		})
 	}
 }

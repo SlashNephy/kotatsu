@@ -23,28 +23,21 @@ const (
 	extensionReason = "reason"
 )
 
-// Code は、エラーの extensions.code に入れるエラーコード (設計書 9.1)。クライアントはこれで処理を分ける。
-type Code string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	// CodeUnauthenticated は、ログインしていないこと。
-	CodeUnauthenticated Code = "UNAUTHENTICATED"
-	// CodeReauthenticationRequired は、重要な操作の前に、もう一度認証する必要があること (設計書 9.5)。
-	CodeReauthenticationRequired Code = "REAUTHENTICATION_REQUIRED"
-	// CodeForbidden は、ロールに許されていない操作であること。
-	CodeForbidden Code = "FORBIDDEN"
-	// CodeNotFound は、対象がないこと。
-	CodeNotFound Code = "NOT_FOUND"
-	// CodeBadUserInput は、入力が正しくないこと。
-	CodeBadUserInput Code = "BAD_USER_INPUT"
-	// CodeConflict は、対象の今の状態では、その操作ができないこと (保護した録画を消すなど)。
-	CodeConflict Code = "CONFLICT"
-	// CodeQueryTooDeep は、クエリの深さが上限を超えていること。
-	// 複雑度が上限を超えたときは、gqlgen の COMPLEXITY_LIMIT_EXCEEDED を返す。
-	CodeQueryTooDeep Code = "DEPTH_LIMIT_EXCEEDED"
-	// CodeInternal は、サーバーの内部のエラー。詳細はログに出し、クライアントには返さない。
-	CodeInternal Code = "INTERNAL"
-)
+// Code は、エラーの extensions.code に入れるエラーコード (設計書 9.1)。クライアントはこれで処理を分ける。
+//
+// ENUM(
+// Unauthenticated = UNAUTHENTICATED // ログインしていないこと。
+// ReauthenticationRequired = REAUTHENTICATION_REQUIRED // 重要な操作の前に、もう一度認証する必要があること (設計書 9.5)。
+// Forbidden = FORBIDDEN // ロールに許されていない操作であること。
+// NotFound = NOT_FOUND // 対象がないこと。
+// BadUserInput = BAD_USER_INPUT // 入力が正しくないこと。
+// Conflict = CONFLICT // 対象の今の状態では、その操作ができないこと (保護した録画を消すなど)。
+// QueryTooDeep = DEPTH_LIMIT_EXCEEDED // クエリの深さが上限を超えていること。複雑度が上限を超えたときは、gqlgen の COMPLEXITY_LIMIT_EXCEEDED を返す。
+// Internal = INTERNAL // サーバーの内部のエラー。詳細はログに出し、クライアントには返さない。
+// )
+type Code string
 
 var _ error = new(Error)
 

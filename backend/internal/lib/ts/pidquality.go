@@ -36,11 +36,11 @@ func PIDQualities(stats *Stats, pids []*PIDStats) []PIDQuality {
 		for _, stream := range program.Streams {
 			streams[stream.PID] = stream
 			switch stream.Kind {
-			case StreamVideo:
+			case StreamKindVideo:
 				kinds[stream.PID] = PIDKindVideo
-			case StreamAudio:
+			case StreamKindAudio:
 				kinds[stream.PID] = PIDKindAudio
-			case StreamOther:
+			case StreamKindOther:
 				kinds[stream.PID] = PIDKindOther
 			}
 		}

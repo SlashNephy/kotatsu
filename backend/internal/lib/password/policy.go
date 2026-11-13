@@ -24,16 +24,18 @@ const (
 	MinScore = 2
 )
 
-// Reason は、パスワードを拒否した理由。画面は、理由ごとに案内を出し分ける。
-type Reason string
+//go:generate go tool go-enum --values --nocomments
 
-const (
-	ReasonTooShort    Reason = "too_short"
-	ReasonTooLong     Reason = "too_long"
-	ReasonBlocklisted Reason = "blocklisted"
-	ReasonBreached    Reason = "breached"
-	ReasonTooWeak     Reason = "too_weak"
-)
+// Reason は、パスワードを拒否した理由。画面は、理由ごとに案内を出し分ける。
+//
+// ENUM(
+// too_short
+// too_long
+// blocklisted
+// breached
+// too_weak
+// )
+type Reason string
 
 // ErrWeakPassword は、パスワードが規定を満たさないことを表す。errors.As で RejectedError を取り出せる。
 var ErrWeakPassword = errors.New("the password does not meet the policy")

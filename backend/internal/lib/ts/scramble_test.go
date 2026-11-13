@@ -89,23 +89,23 @@ func TestScrambleDetector(t *testing.T) {
 		{
 			name: "only the packets before the first window filled are scrambled",
 			pkts: scrambleStream(10*scrambleWindow, func(i int) bool { return i < scrambleWindow/2+10 }),
-			step: time.Millisecond, finish: false, want: ts.ScrambleClear,
+			step: time.Millisecond, finish: false, want: ts.ScrambleVerdictClear,
 		},
 		{
 			name: "all scrambled for enough windows past the hold",
 			pkts: scrambleStream(10*scrambleWindow, always),
-			step: 20 * time.Millisecond, finish: false, want: ts.ScrambleScrambled,
+			step: 20 * time.Millisecond, finish: false, want: ts.ScrambleVerdictScrambled,
 		},
 		{
 			name: "all scrambled for many windows but within the hold",
 			pkts: scrambleStream(10*scrambleWindow, always),
-			step: time.Millisecond, finish: false, want: ts.ScrambleUndecided,
+			step: time.Millisecond, finish: false, want: ts.ScrambleVerdictUndecided,
 		},
 		{
 			// 窓 1 つが抑止時間を越えて埋まるビットレートの低い局。窓が続ける数に届くまで決めない。
 			name: "all scrambled past the hold but in fewer windows than required",
 			pkts: scrambleStream(scrambleWindow+scrambleWindow/2, always),
-			step: hold / scrambleWindow * 2, finish: false, want: ts.ScrambleUndecided,
+			step: hold / scrambleWindow * 2, finish: false, want: ts.ScrambleVerdictUndecided,
 		},
 		{
 			name: "plain sections do not dilute the ratio",
@@ -120,7 +120,7 @@ func TestScrambleDetector(t *testing.T) {
 
 				return pkts
 			}(),
-			step: 5 * time.Millisecond, finish: false, want: ts.ScrambleScrambled,
+			step: 5 * time.Millisecond, finish: false, want: ts.ScrambleVerdictScrambled,
 		},
 		{
 			name: "packets without a payload are not counted",
@@ -132,7 +132,7 @@ func TestScrambleDetector(t *testing.T) {
 
 				return pkts
 			}(),
-			step: 20 * time.Millisecond, finish: true, want: ts.ScrambleUndecided,
+			step: 20 * time.Millisecond, finish: true, want: ts.ScrambleVerdictUndecided,
 		},
 		{
 			name: "packets with the transport error indicator are not counted",
@@ -146,7 +146,7 @@ func TestScrambleDetector(t *testing.T) {
 
 				return pkts
 			}(),
-			step: 20 * time.Millisecond, finish: true, want: ts.ScrambleUndecided,
+			step: 20 * time.Millisecond, finish: true, want: ts.ScrambleVerdictUndecided,
 		},
 		{
 			name: "packets before the PMT are not counted",
@@ -158,27 +158,27 @@ func TestScrambleDetector(t *testing.T) {
 
 				return pkts
 			}(),
-			step: 20 * time.Millisecond, finish: true, want: ts.ScrambleUndecided,
+			step: 20 * time.Millisecond, finish: true, want: ts.ScrambleVerdictUndecided,
 		},
 		{
 			name: "the encoder exits with a partial scrambled window",
 			pkts: scrambleStream(scrambleWindow/2, always),
-			step: time.Millisecond, finish: true, want: ts.ScrambleScrambled,
+			step: time.Millisecond, finish: true, want: ts.ScrambleVerdictScrambled,
 		},
 		{
 			name: "the encoder exits with a short partial window after a filled scrambled window",
 			pkts: scrambleStream(scrambleWindow+scrambleWindow/10, func(i int) bool { return i < scrambleWindow }),
-			step: time.Millisecond, finish: true, want: ts.ScrambleScrambled,
+			step: time.Millisecond, finish: true, want: ts.ScrambleVerdictScrambled,
 		},
 		{
 			name: "the encoder exits with a partial plain window",
 			pkts: scrambleStream(scrambleWindow/2, func(int) bool { return false }),
-			step: time.Millisecond, finish: true, want: ts.ScrambleClear,
+			step: time.Millisecond, finish: true, want: ts.ScrambleVerdictClear,
 		},
 		{
 			name: "the encoder exits with too few packets",
 			pkts: scrambleStream(scrambleWindow/10, always),
-			step: time.Millisecond, finish: true, want: ts.ScrambleUndecided,
+			step: time.Millisecond, finish: true, want: ts.ScrambleVerdictUndecided,
 		},
 	}
 	for _, tt := range tests {
@@ -197,7 +197,7 @@ func TestScrambleDetector(t *testing.T) {
 				got = d.Finish()
 			}
 			assert.Equal(t, tt.want, got)
-			if tt.want == ts.ScrambleScrambled && !tt.finish {
+			if tt.want == ts.ScrambleVerdictScrambled && !tt.finish {
 				require.ErrorIs(t, err, ts.ErrScrambled)
 				assert.Equal(t, 1, called)
 			} else {
@@ -218,8 +218,8 @@ func TestScrambleDetectorStreakStart(t *testing.T) {
 		gap  time.Duration
 		want ts.ScrambleVerdict
 	}{
-		{name: "the hold counts from the first packet of the window", gap: 9 * time.Second, want: ts.ScrambleScrambled},
-		{name: "the hold has not passed yet", gap: 5 * time.Second, want: ts.ScrambleUndecided},
+		{name: "the hold counts from the first packet of the window", gap: 9 * time.Second, want: ts.ScrambleVerdictScrambled},
+		{name: "the hold has not passed yet", gap: 5 * time.Second, want: ts.ScrambleVerdictUndecided},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -267,7 +267,7 @@ func TestScrambleDetectorChunkedWrites(t *testing.T) {
 				require.NoError(t, err)
 				data = data[n:]
 			}
-			assert.Equal(t, ts.ScrambleScrambled, d.Finish())
+			assert.Equal(t, ts.ScrambleVerdictScrambled, d.Finish())
 		})
 	}
 }
