@@ -188,6 +188,40 @@ describe('useLiveTimeshift の、見ていた位置の再開 (#1600)', () => {
     }
   });
 
+  test('再開した後に、ほかの位置へシークしたら、移った先を覚える', () => {
+    saveLiveResume(localStorage, service, origin - 300_000, origin - 1_000);
+    const video = document.createElement('video');
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    expect(result.current.behind).toBe(true);
+
+    // 再開した位置 (バッファの始まりから 300 秒) より 15 秒以上離れた所へ移る。
+    act(() => {
+      result.current.seekTo(60);
+    });
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(loadLiveResume(localStorage, service)).toBe(origin - 600_000 + 60_000);
+  });
+
+  test('バッファを再生していても、ライブの端に近ければ、覚えずに忘れる', () => {
+    saveLiveResume(localStorage, service, origin - 300_000, origin - 1_000);
+    const video = document.createElement('video');
+    const { result } = renderHook(() => useLiveTimeshift(buffer, video, 'hls', service));
+    expect(result.current.behind).toBe(true);
+    // 再開した位置から続けて再生し、ライブの端の 1 秒手前まで追いついた。
+    Object.defineProperty(video, 'currentTime', {
+      get: () => (Date.now() - (origin - 600_000)) / 1000 - 1,
+    });
+    fire(video, 'playing');
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+
+    expect(result.current.behind).toBe(true);
+    expect(loadLiveResume(localStorage, service)).toBeNull();
+  });
+
   test('ほかのサービスで覚えた位置では、再開しない', () => {
     saveLiveResume(localStorage, 'other', origin - 300_000, origin);
     const video = document.createElement('video');

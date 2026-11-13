@@ -87,12 +87,16 @@ export function useLiveTimeshift(
   const clockAt = (seconds: number) =>
     frame === null ? Date.now() : broadcastTime(frame.from, frame.gaps, seconds);
   const edge = positionAt(now);
+  // pendingResume は、覚えていた位置から再開しようとしている放送時刻。移れるまでは、開いた直後の位置で上書きしないよう、覚えない。
+  const pendingResume = useRef<number | null>(null);
   // restart は、今の起点での位置 seconds から、バッファを読み直す。読み直すたびに、起点を最新のバッファに移す。
   // 古いチャンクを破棄すると、配信は残ったチャンクから流すので、破棄した範囲の途切れた区間を、起点のバッファと数え違えるためである。
   const restart = (seconds: number) => {
     if (!available || buffer === null) {
       return;
     }
+    // 移る先を選び直したので、覚えていた位置への再開を待つのをやめる (#1600)。再開のときは、読み直した後で待ちを立て直す。
+    pendingResume.current = null;
     const at = clockAt(seconds);
     setPinned(buffer);
     const start = Math.max(recordingPosition(buffer.from, buffer.gaps, at), 0);
@@ -107,6 +111,7 @@ export function useLiveTimeshift(
     if (!available) {
       return;
     }
+    pendingResume.current = null;
     if (seconds >= positionAt(Date.now()) - liveThresholdSeconds) {
       setPinned(null);
 
@@ -162,8 +167,6 @@ export function useLiveTimeshift(
   currentPositionRef.current = currentPosition;
   const clockAtRef = useRef(clockAt);
   clockAtRef.current = clockAt;
-  // pendingResume は、覚えていた位置から再開しようとしている放送時刻。移れるまでは、開いた直後の位置で上書きしないよう、覚えない。
-  const pendingResume = useRef<number | null>(null);
   // 開いたときに、覚えていた位置がまだバッファに残っていれば、その位置から再開する。残っていなければ、ライブの端から始めて忘れる。
   // 再開を試すのは、サービスごとに 1 回だけにする。
   const resumedService = useRef<string | null>(null);
@@ -191,8 +194,8 @@ export function useLiveTimeshift(
 
       return;
     }
-    pendingResume.current = at;
     restartRef.current(seconds);
+    pendingResume.current = at;
   }, [service, available]);
   // バッファを見ている間は、見ている放送時刻を覚え直す。ライブの端を見ているときは覚えない (戻ったときもライブの端でよい)。
   useEffect(() => {
@@ -200,7 +203,16 @@ export function useLiveTimeshift(
       return;
     }
     const timer = setInterval(() => {
-      const at = clockAtRef.current(currentPositionRef.current());
+      const storage = browserStorage();
+      const seconds = currentPositionRef.current();
+      // バッファを再生したまま、ライブの端まで追いついたら、覚えずに忘れる。戻ったときもライブの端でよいからである。
+      if (seconds >= positionAtRef.current(Date.now()) - liveThresholdSeconds) {
+        pendingResume.current = null;
+        clearLiveResume(storage, service);
+
+        return;
+      }
+      const at = clockAtRef.current(seconds);
       const pending = pendingResume.current;
       if (pending !== null) {
         if (Math.abs(at - pending) > reachedResumeMs) {
@@ -208,7 +220,7 @@ export function useLiveTimeshift(
         }
         pendingResume.current = null;
       }
-      saveLiveResume(browserStorage(), service, at, Date.now());
+      saveLiveResume(storage, service, at, Date.now());
     }, saveResumeIntervalMs);
 
     return () => clearInterval(timer);
