@@ -199,7 +199,7 @@ func ReservationFromRow(row sqlc.Reservation) (*domain.Reservation, error) {
 
 	return &domain.Reservation{
 		ID:                row.ID,
-		Kind:              domain.ReservationKind(row.Kind),
+		Kind:              row.Kind,
 		ServiceID:         row.ServiceID,
 		EventID:           row.EventID,
 		StartAt:           row.StartAt.UTC(),
@@ -215,7 +215,7 @@ func ReservationFromRow(row sqlc.Reservation) (*domain.Reservation, error) {
 		Overrides:         overrides,
 		RelayedFrom:       row.RelayedFrom,
 		Assignment: &domain.Assignment{
-			State:          domain.AssignmentState(row.AssignmentState),
+			State:          row.AssignmentState,
 			Tuner:          row.AssignedTuner,
 			PlannedStartAt: utc(row.PlannedStartAt),
 			PlannedEndAt:   utc(row.PlannedEndAt),
@@ -237,12 +237,12 @@ func nonNilIDs(ids []uuid.UUID) []uuid.UUID {
 }
 
 // disabledReason は、Kotatsu が予約を無効にした理由を返す (#1500)。NULL なら空にする。
-func disabledReason(reason *string) domain.ReservationDisabledReason {
+func disabledReason(reason *domain.ReservationDisabledReason) domain.ReservationDisabledReason {
 	if reason == nil {
 		return ""
 	}
 
-	return domain.ReservationDisabledReason(*reason)
+	return *reason
 }
 
 func utc(t *time.Time) *time.Time {

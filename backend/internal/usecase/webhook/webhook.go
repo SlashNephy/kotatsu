@@ -134,7 +134,7 @@ func (s *Store) Create(ctx context.Context, db Database, actor *audit.Actor, inp
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		row, err := sqlc.New(tx).InsertWebhook(ctx, sqlc.InsertWebhookParams{
 			ID: id.New(), Name: normalized.Name, URL: normalized.URL, Format: string(normalized.Format),
-			Kinds: kindStrings(normalized.Kinds), SecretCiphertext: sealed, Enabled: normalized.Enabled, Now: s.clock.Now(),
+			Kinds: normalized.Kinds, SecretCiphertext: sealed, Enabled: normalized.Enabled, Now: s.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to save the webhook: %w", err)
@@ -187,7 +187,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, web
 		}
 		saved, err := q.UpdateWebhook(ctx, sqlc.UpdateWebhookParams{
 			ID: webhookID, Name: normalized.Name, URL: normalized.URL, Format: string(normalized.Format),
-			Kinds: kindStrings(normalized.Kinds), Enabled: normalized.Enabled, Now: s.clock.Now(),
+			Kinds: normalized.Kinds, Enabled: normalized.Enabled, Now: s.clock.Now(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update the webhook: %w", err)
@@ -375,22 +375,8 @@ func newSecret() (string, error) {
 }
 
 func webhookOf(row *sqlc.Webhook) *Webhook {
-	kinds := make([]domain.NotificationKind, 0, len(row.Kinds))
-	for _, kind := range row.Kinds {
-		kinds = append(kinds, domain.NotificationKind(kind))
-	}
-
 	return &Webhook{
-		ID: row.ID, Name: row.Name, URL: row.URL, Format: Format(row.Format), Kinds: kinds,
+		ID: row.ID, Name: row.Name, URL: row.URL, Format: Format(row.Format), Kinds: row.Kinds,
 		Enabled: row.Enabled, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
-}
-
-func kindStrings(kinds []domain.NotificationKind) []string {
-	result := make([]string, 0, len(kinds))
-	for _, kind := range kinds {
-		result = append(result, string(kind))
-	}
-
-	return result
 }

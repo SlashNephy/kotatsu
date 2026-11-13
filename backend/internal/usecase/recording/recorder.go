@@ -2045,7 +2045,7 @@ func (r *Recorder) settings(ctx context.Context, reservation *sqlc.GetReservatio
 	if err != nil {
 		return nil, err
 	}
-	if domain.ReservationKind(reservation.Kind) == domain.ReservationKindRule {
+	if reservation.Kind == domain.ReservationKindRule {
 		rows, err := q.ListFirstRuleSettings(ctx, []uuid.UUID{reservation.ID})
 		if err != nil {
 			return nil, fmt.Errorf("failed to list rule settings: %w", err)

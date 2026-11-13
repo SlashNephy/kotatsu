@@ -146,7 +146,7 @@ func eventOf(row *sqlc.NotificationEvent) (*Event, error) {
 	}
 
 	return &Event{
-		ID: row.ID, Kind: domain.NotificationKind(row.Kind), OccurredAt: row.OccurredAt, Payload: payload,
+		ID: row.ID, Kind: row.Kind, OccurredAt: row.OccurredAt, Payload: payload,
 		Audience: Audience{UserIDs: row.Audience, ByRule: row.ByRule},
 	}, nil
 }

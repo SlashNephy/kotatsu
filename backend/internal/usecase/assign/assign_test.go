@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"pgregory.net/rapid"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 )
 
@@ -93,8 +94,8 @@ func TestAssign(t *testing.T) {
 			tuners:       grTuners(1),
 			want: []*assign.Assignment{
 				// 前の録画の終了マージンを先に削り、それでも重なる分は後の録画の開始マージンを削る。本編はどちらも削らない。
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -106,8 +107,8 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(5 * time.Second)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(5 * time.Second), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(5 * time.Second)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(30).Add(5 * time.Second), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -115,8 +116,8 @@ func TestAssign(t *testing.T) {
 			reservations: []*assign.Reservation{program(1, "27", 0, 30), program(2, "26", 30, 30)},
 			tuners:       grTuners(2),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 1, PlannedStart: at(30).Add(-margin), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 1, PlannedStart: at(30).Add(-margin), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -125,8 +126,8 @@ func TestAssign(t *testing.T) {
 			reservations: []*assign.Reservation{program(1, "27", 0, 30), program(2, "27", 30, 30)},
 			tuners:       grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(-margin), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(30).Add(-margin), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -134,8 +135,8 @@ func TestAssign(t *testing.T) {
 			reservations: []*assign.Reservation{program(1, "27", 0, 60), program(2, "27", 30, 60)},
 			tuners:       grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60).Add(margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30).Add(-margin), PlannedEnd: at(90).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(30).Add(-margin), PlannedEnd: at(90).Add(margin)},
 			},
 		},
 		{
@@ -147,8 +148,8 @@ func TestAssign(t *testing.T) {
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
 				// 優先度の低い方の本編を削る。本編はマージンより優先するので、高い方の開始マージンは、低い方の残った本編に譲る。
-				{ReservationID: reservationID(1), State: assign.StatePartial, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(90).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(90).Add(margin)},
 			},
 		},
 		{
@@ -156,8 +157,8 @@ func TestAssign(t *testing.T) {
 			reservations: []*assign.Reservation{program(1, "27", 0, 60), program(2, "26", 10, 30)},
 			tuners:       grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60).Add(margin)},
-				{ReservationID: reservationID(2), State: assign.StateConflict, Tuner: assign.NoTuner, PlannedStart: at(10).Add(-margin), PlannedEnd: at(40).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateConflict, Tuner: assign.NoTuner, PlannedStart: at(10).Add(-margin), PlannedEnd: at(40).Add(margin)},
 			},
 		},
 		{
@@ -169,9 +170,9 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
-				{ReservationID: reservationID(3), State: assign.StatePartial, Tuner: 0, PlannedStart: at(60), PlannedEnd: at(90).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
+				{ReservationID: reservationID(3), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(60), PlannedEnd: at(90).Add(margin)},
 			},
 		},
 		{
@@ -192,8 +193,8 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
-				{ReservationID: reservationID(2), State: assign.StatePartial, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(40)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(40)},
 			},
 		},
 		{
@@ -203,7 +204,7 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(2),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateConflict, Tuner: assign.NoTuner, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateConflict, Tuner: assign.NoTuner, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
 			},
 		},
 		{
@@ -214,8 +215,8 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(2),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 1, PlannedStart: at(-10).Add(-margin), PlannedEnd: at(50).Add(margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 1, PlannedStart: at(-10).Add(-margin), PlannedEnd: at(50).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(margin)},
 			},
 		},
 		{
@@ -224,8 +225,8 @@ func TestAssign(t *testing.T) {
 			reservations: []*assign.Reservation{recordingOn(program(1, "27", 0, 30), 0), program(2, "26", 30, 30)},
 			tuners:       grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -240,9 +241,9 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(2),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 1, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(5 * time.Second)},
-				{ReservationID: reservationID(3), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(10*time.Second + margin)},
-				{ReservationID: reservationID(2), State: assign.StateOK, Tuner: 1, PlannedStart: at(30).Add(5 * time.Second), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 1, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(5 * time.Second)},
+				{ReservationID: reservationID(3), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30).Add(10*time.Second + margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 1, PlannedStart: at(30).Add(5 * time.Second), PlannedEnd: at(60).Add(margin)},
 			},
 		},
 		{
@@ -254,8 +255,8 @@ func TestAssign(t *testing.T) {
 			},
 			tuners: grTuners(1),
 			want: []*assign.Assignment{
-				{ReservationID: reservationID(1), State: assign.StateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
-				{ReservationID: reservationID(2), State: assign.StatePartial, Tuner: 0, PlannedStart: at(60), PlannedEnd: at(90).Add(margin)},
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(60), PlannedEnd: at(90).Add(margin)},
 			},
 		},
 	}
@@ -360,7 +361,7 @@ func TestAssignProperties(t *testing.T) {
 func checkAssignment(t *rapid.T, r *assign.Reservation, got map[uuid.UUID]*assign.Assignment, reservations []*assign.Reservation, tuners []*assign.Tuner) {
 	a := got[r.ID]
 	// 録画が始まった予約は、そのチューナーから動かさず、削りもしない。
-	if r.Recording && (a.Tuner != r.Tuner || a.State != assign.StateOK) {
+	if r.Recording && (a.Tuner != r.Tuner || a.State != domain.AssignmentStateOK) {
 		t.Fatalf("recording reservation %s was moved or cut: %+v", r.ID, a)
 	}
 	// 予定の時刻は、マージンを含めた区間からはみ出さない。
@@ -368,10 +369,10 @@ func checkAssignment(t *rapid.T, r *assign.Reservation, got map[uuid.UUID]*assig
 		t.Fatalf("planned time of %s exceeds its margins: %+v", r.ID, a)
 	}
 	// 正常なら、本編をすべて録る。
-	if a.State == assign.StateOK && (a.PlannedStart.After(r.StartAt) || a.PlannedEnd.Before(r.EndAt)) {
+	if a.State == domain.AssignmentStateOK && (a.PlannedStart.After(r.StartAt) || a.PlannedEnd.Before(r.EndAt)) {
 		t.Fatalf("reservation %s is ok but its core is cut: %+v", r.ID, a)
 	}
-	if a.State == assign.StateConflict {
+	if a.State == domain.AssignmentStateConflict {
 		return
 	}
 	// 割り当てたチューナーは、そのチャンネルの種別を受信できる。
@@ -415,7 +416,7 @@ func TestAssignDoesNotCutCoresForMarginsOnly(t *testing.T) {
 		}
 
 		for _, a := range assign.Assign(reservations, grTuners(1)) {
-			if a.State != assign.StateOK {
+			if a.State != domain.AssignmentStateOK {
 				t.Fatalf("reservation %s is %s although only margins overlap", a.ReservationID, a.State)
 			}
 		}

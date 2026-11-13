@@ -40,7 +40,7 @@ func (q *Queries) ListNotifications(ctx context.Context, userID uuid.UUID, query
 		}
 		notifications = append(notifications, &domain.Notification{
 			ID:         rows[i].Notification.ID,
-			Kind:       domain.NotificationKind(rows[i].NotificationEvent.Kind),
+			Kind:       rows[i].NotificationEvent.Kind,
 			OccurredAt: rows[i].NotificationEvent.OccurredAt,
 			Payload:    payload,
 			CreatedAt:  rows[i].Notification.CreatedAt,
@@ -67,14 +67,14 @@ func (q *Queries) NotificationPreferences(ctx context.Context, userID uuid.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list notification preferences: %w", err)
 	}
-	saved := make(map[string]sqlc.NotificationPreference, len(rows))
+	saved := make(map[domain.NotificationKind]sqlc.NotificationPreference, len(rows))
 	for _, row := range rows {
 		saved[row.Kind] = row
 	}
 	preferences := make([]*domain.NotificationPreference, 0, len(domain.NotificationKindValues()))
 	for _, kind := range domain.NotificationKindValues() {
 		preference := &domain.NotificationPreference{Kind: kind, InApp: true, WebPush: true, RuleReservations: true}
-		if row, ok := saved[string(kind)]; ok {
+		if row, ok := saved[kind]; ok {
 			preference.InApp, preference.WebPush, preference.RuleReservations = row.InApp, row.WebPush, row.RuleReservations
 		}
 		preferences = append(preferences, preference)

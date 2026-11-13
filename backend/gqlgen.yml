@@ -28,6 +28,54 @@ struct_fields_always_pointers: true
 resolvers_always_return_pointers: true
 
 models:
+  AssignmentState:
+    model: github.com/SlashNephy/kotatsu/internal/domain.AssignmentState
+    enum_values:
+      PENDING:
+        value: github.com/SlashNephy/kotatsu/internal/domain.AssignmentStatePending
+      OK:
+        value: github.com/SlashNephy/kotatsu/internal/domain.AssignmentStateOK
+      PARTIAL:
+        value: github.com/SlashNephy/kotatsu/internal/domain.AssignmentStatePartial
+      CONFLICT:
+        value: github.com/SlashNephy/kotatsu/internal/domain.AssignmentStateConflict
+  ReservationDisabledReason:
+    model: github.com/SlashNephy/kotatsu/internal/domain.ReservationDisabledReason
+    enum_values:
+      RECORDED_EPISODE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.ReservationDisabledReasonRecordedEpisode
+  NotificationKind:
+    model: github.com/SlashNephy/kotatsu/internal/domain.NotificationKind
+    enum_values:
+      RECORDING_STARTED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindRecordingStarted
+      RECORDING_COMPLETED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindRecordingCompleted
+      RECORDING_FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindRecordingFailed
+      RESERVATION_CONFLICT:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindReservationConflict
+      STORAGE_LOW:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindStorageLow
+      TUNER_SERVER_UNREACHABLE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindTunerServerUnreachable
+      WATCH_REMINDER:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindWatchReminder
+      ANIME_RECORDED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindAnimeRecorded
+      ANIME_RECORD_FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindAnimeRecordFailed
+      SCRAMBLED_RECORDINGS:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindScrambledRecordings
+  ReservationKind:
+    model: github.com/SlashNephy/kotatsu/internal/domain.ReservationKind
+    enum_values:
+      PROGRAM:
+        value: github.com/SlashNephy/kotatsu/internal/domain.ReservationKindProgram
+      TIME:
+        value: github.com/SlashNephy/kotatsu/internal/domain.ReservationKindTime
+      RULE:
+        value: github.com/SlashNephy/kotatsu/internal/domain.ReservationKindRule
   GoModuleLicense:
     model:
       - github.com/SlashNephy/kotatsu/internal/web/licenses.Module

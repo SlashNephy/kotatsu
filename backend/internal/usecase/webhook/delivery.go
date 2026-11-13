@@ -168,7 +168,7 @@ func (w *DeliverWorker) send(ctx context.Context, url, secret string, event *sql
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set(EventIDHeader, event.ID.String())
-	req.Header.Set(EventKindHeader, event.Kind)
+	req.Header.Set(EventKindHeader, event.Kind.String())
 	req.Header.Set(SignatureHeader, signature(secret, w.clock.Now(), body))
 
 	resp, err := w.client.Do(req)
@@ -205,10 +205,10 @@ func signature(secret string, at time.Time, body []byte) string {
 
 // jsonBody は、汎用の JSON の形式の本文。
 type jsonBody struct {
-	ID         uuid.UUID       `json:"id"`
-	Kind       string          `json:"kind"`
-	OccurredAt time.Time       `json:"occurredAt"`
-	Payload    json.RawMessage `json:"payload"`
+	ID         uuid.UUID               `json:"id"`
+	Kind       domain.NotificationKind `json:"kind"`
+	OccurredAt time.Time               `json:"occurredAt"`
+	Payload    json.RawMessage         `json:"payload"`
 }
 
 // discordBody は、Discord の形式の本文。
@@ -252,11 +252,11 @@ func Body(format Format, event *sqlc.NotificationEvent, location *time.Location)
 			return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 		}
 		if format == FormatDiscord {
-			text := notification.MessageEscaped(domain.NotificationKind(event.Kind), payload, location, escapeDiscord)
+			text := notification.MessageEscaped(event.Kind, payload, location, escapeDiscord)
 			// 名前に書かれたメンションで、チャンネルの人に通知が飛ばないようにする。
 			value = discordBody{Content: text, AllowedMentions: discordAllowedMentions{Parse: []string{}}}
 		} else {
-			value = map[string]string{"text": notification.MessageEscaped(domain.NotificationKind(event.Kind), payload, location, escapeSlack)}
+			value = map[string]string{"text": notification.MessageEscaped(event.Kind, payload, location, escapeSlack)}
 		}
 	default:
 		return nil, fmt.Errorf("%w: unknown format %q", ErrInvalidWebhook, format)

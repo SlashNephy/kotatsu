@@ -88,7 +88,8 @@ func (l *Library) PlanRenames(ctx context.Context, db sqlc.DBTX, ids []uuid.UUID
 func firstRuleSettings(ctx context.Context, q *sqlc.Queries, rows []sqlc.ListRecordingsForRenameRow) (map[uuid.UUID][]byte, error) {
 	ruleReservations := []uuid.UUID{}
 	for i := range rows {
-		if rows[i].ReservationKind != nil && domain.ReservationKind(*rows[i].ReservationKind) == domain.ReservationKindRule {
+		// 予約が消えていれば、外部結合の ReservationKind は空になる。
+		if rows[i].ReservationKind == domain.ReservationKindRule {
 			ruleReservations = append(ruleReservations, *rows[i].ReservationID)
 		}
 	}

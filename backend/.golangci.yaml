@@ -148,6 +148,11 @@ linters:
         - pattern: ^slog\.(Debug|Info|Warn|Error)$
         - pattern: ^\(\*log/slog\.Logger\)\.(Debug|Info|Warn|Error)$
       analyze-types: true
+    recvcheck:
+      # sql.Scanner の Scan はポインタのレシーバーを求めるので、既定で除く UnmarshalText などと同じく除く (#1609)。
+      # go-enum の --sql が生成する列挙型は、Scan のほかを値のレシーバーで持つ。
+      exclusions:
+        - "*.Scan"
   exclusions:
     generated: strict
     presets:

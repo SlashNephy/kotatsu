@@ -103,7 +103,7 @@ func TestList(t *testing.T) {
 		{
 			name: "reservations in the states",
 			query: query.ReservationListQuery{
-				From: at(0, 0), To: at(23, 0), States: []domain.AssignmentState{domain.AssignmentConflict}, AfterStartAt: nil, AfterID: nil, Limit: 10,
+				From: at(0, 0), To: at(23, 0), States: []domain.AssignmentState{domain.AssignmentStateConflict}, AfterStartAt: nil, AfterID: nil, Limit: 10,
 			},
 			want: []string{conflicting},
 		},
@@ -188,7 +188,7 @@ func TestListCarriesAssignment(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	assert.Equal(t, &domain.Assignment{
-		State:          domain.AssignmentPartial,
+		State:          domain.AssignmentStatePartial,
 		Tuner:          new(int64(2)),
 		PlannedStartAt: new(time.Date(2026, 10, 10, 13, 59, 50, 0, time.UTC)),
 		PlannedEndAt:   new(at(14, 30)),
@@ -198,7 +198,7 @@ func TestListCarriesAssignment(t *testing.T) {
 	// まだ計算していない予約は、割り当てたチューナーと予定の時刻を持たない。
 	got, err := query.New(f.pool).GetReservation(t.Context(), f.ids[first])
 	require.NoError(t, err)
-	assert.Equal(t, &domain.Assignment{State: domain.AssignmentPending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil, Peers: []uuid.UUID{}}, got.Assignment)
+	assert.Equal(t, &domain.Assignment{State: domain.AssignmentStatePending, Tuner: nil, PlannedStartAt: nil, PlannedEndAt: nil, Peers: []uuid.UUID{}}, got.Assignment)
 }
 
 func TestListByPrograms(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/web/licenses"
 	gqlparser "github.com/vektah/gqlparser/v2"
@@ -960,7 +961,7 @@ type ComplexityRoot struct {
 		PreviewRule             func(childComplexity int, input model.RuleInput, first int, after *string) int
 		RecordingRenames        func(childComplexity int) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
-		Reservations            func(childComplexity int, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) int
+		Reservations            func(childComplexity int, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) int
 		RuleWarnings            func(childComplexity int, input model.RuleInput) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
@@ -1671,7 +1672,7 @@ type QueryResolver interface {
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
 	ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
-	Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
+	Reservations(ctx context.Context, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
 	RuleWarnings(ctx context.Context, input model.RuleInput) ([]*model.RuleWarning, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
@@ -6007,7 +6008,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]model.AssignmentState), args["enabled"].(*bool), args["rule"].(*string), args["first"].(int), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]domain.AssignmentState), args["enabled"].(*bool), args["rule"].(*string), args["first"].(int), args["after"].(*string)), true
 	case "Query.ruleWarnings":
 		if e.ComplexityRoot.Query.RuleWarnings == nil {
 			break
@@ -17013,8 +17014,8 @@ func (ec *executionContext) field_Query_reservations_args(ctx context.Context, r
 	}
 	args["to"] = arg1
 	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "states",
-		func(ctx context.Context, v any) ([]model.AssignmentState, error) {
-			return ec.unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentStateᚄ(ctx, v)
+		func(ctx context.Context, v any) ([]domain.AssignmentState, error) {
+			return ec.unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentStateᚄ(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -29669,8 +29670,8 @@ func (ec *executionContext) _Notification_kind(ctx context.Context, field graphq
 			return obj.Kind, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.NotificationKind) graphql.Marshaler {
-			return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.NotificationKind) graphql.Marshaler {
+			return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -29949,8 +29950,8 @@ func (ec *executionContext) _NotificationPreference_kind(ctx context.Context, fi
 			return obj.Kind, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.NotificationKind) graphql.Marshaler {
-			return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.NotificationKind) graphql.Marshaler {
+			return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -34434,7 +34435,7 @@ func (ec *executionContext) _Query_reservations(ctx context.Context, field graph
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]model.AssignmentState), fc.Args["enabled"].(*bool), fc.Args["rule"].(*string), fc.Args["first"].(int), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().Reservations(ctx, fc.Args["from"].(time.Time), fc.Args["to"].(time.Time), fc.Args["states"].([]domain.AssignmentState), fc.Args["enabled"].(*bool), fc.Args["rule"].(*string), fc.Args["first"].(int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationConnection) graphql.Marshaler {
@@ -37876,8 +37877,8 @@ func (ec *executionContext) _Reservation_kind(ctx context.Context, field graphql
 			return obj.Kind, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.ReservationKind) graphql.Marshaler {
-			return ec.marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationKind(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.ReservationKind) graphql.Marshaler {
+			return ec.marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind(ctx, selections, v)
 		},
 		true,
 		true,
@@ -38101,8 +38102,8 @@ func (ec *executionContext) _Reservation_disabledReason(ctx context.Context, fie
 			return obj.DisabledReason, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *model.ReservationDisabledReason) graphql.Marshaler {
-			return ec.marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationDisabledReason(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *domain.ReservationDisabledReason) graphql.Marshaler {
+			return ec.marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason(ctx, selections, v)
 		},
 		true,
 		false,
@@ -38385,8 +38386,8 @@ func (ec *executionContext) _ReservationAssignment_state(ctx context.Context, fi
 			return obj.State, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v model.AssignmentState) graphql.Marshaler {
-			return ec.marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentState(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v domain.AssignmentState) graphql.Marshaler {
+			return ec.marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState(ctx, selections, v)
 		},
 		true,
 		true,
@@ -43654,8 +43655,8 @@ func (ec *executionContext) _Webhook_kinds(ctx context.Context, field graphql.Co
 			return obj.Kinds, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []model.NotificationKind) graphql.Marshaler {
-			return ec.marshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []domain.NotificationKind) graphql.Marshaler {
+			return ec.marshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx, selections, v)
 		},
 		true,
 		true,
@@ -45433,7 +45434,7 @@ func (ec *executionContext) unmarshalInputCreateWebhookInput(ctx context.Context
 			it.Format = data
 		case "kinds":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kinds"))
-			data, err := ec.unmarshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx, v)
+			data, err := ec.unmarshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -45790,7 +45791,7 @@ func (ec *executionContext) unmarshalInputNotificationPreferenceInput(ctx contex
 		switch k {
 		case "kind":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
-			data, err := ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, v)
+			data, err := ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -47481,7 +47482,7 @@ func (ec *executionContext) unmarshalInputUpdateWebhookInput(ctx context.Context
 			it.Format = data
 		case "kinds":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kinds"))
-			data, err := ec.unmarshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx, v)
+			data, err := ec.unmarshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -58184,15 +58185,35 @@ func (ec *executionContext) marshalNAppVersion2ᚖgithubᚗcomᚋSlashNephyᚋko
 	return ec._AppVersion(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentState(ctx context.Context, v any) (model.AssignmentState, error) {
-	var res model.AssignmentState
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState(ctx context.Context, v any) (domain.AssignmentState, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentState(ctx context.Context, sel ast.SelectionSet, v model.AssignmentState) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState(ctx context.Context, sel ast.SelectionSet, v domain.AssignmentState) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "AssignmentState!")
+	}
+	return res
 }
+
+var (
+	unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState = map[string]domain.AssignmentState{
+		"PENDING":  domain.AssignmentStatePending,
+		"OK":       domain.AssignmentStateOK,
+		"PARTIAL":  domain.AssignmentStatePartial,
+		"CONFLICT": domain.AssignmentStateConflict,
+	}
+	marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState = map[domain.AssignmentState]string{
+		domain.AssignmentStatePending:  "PENDING",
+		domain.AssignmentStateOK:       "OK",
+		domain.AssignmentStatePartial:  "PARTIAL",
+		domain.AssignmentStateConflict: "CONFLICT",
+	}
+)
 
 func (ec *executionContext) marshalNAuditActor2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAuditActor(ctx context.Context, sel ast.SelectionSet, v *model.AuditActor) graphql.Marshaler {
 	if v == nil {
@@ -59384,23 +59405,55 @@ func (ec *executionContext) marshalNNotificationEdge2ᚖgithubᚗcomᚋSlashNeph
 	return ec._NotificationEdge(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx context.Context, v any) (model.NotificationKind, error) {
-	var res model.NotificationKind
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx context.Context, v any) (domain.NotificationKind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx context.Context, sel ast.SelectionSet, v model.NotificationKind) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx context.Context, sel ast.SelectionSet, v domain.NotificationKind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "NotificationKind!")
+	}
+	return res
 }
 
-func (ec *executionContext) unmarshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx context.Context, v any) ([]model.NotificationKind, error) {
+var (
+	unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind = map[string]domain.NotificationKind{
+		"RECORDING_STARTED":        domain.NotificationKindRecordingStarted,
+		"RECORDING_COMPLETED":      domain.NotificationKindRecordingCompleted,
+		"RECORDING_FAILED":         domain.NotificationKindRecordingFailed,
+		"RESERVATION_CONFLICT":     domain.NotificationKindReservationConflict,
+		"STORAGE_LOW":              domain.NotificationKindStorageLow,
+		"TUNER_SERVER_UNREACHABLE": domain.NotificationKindTunerServerUnreachable,
+		"WATCH_REMINDER":           domain.NotificationKindWatchReminder,
+		"ANIME_RECORDED":           domain.NotificationKindAnimeRecorded,
+		"ANIME_RECORD_FAILED":      domain.NotificationKindAnimeRecordFailed,
+		"SCRAMBLED_RECORDINGS":     domain.NotificationKindScrambledRecordings,
+	}
+	marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind = map[domain.NotificationKind]string{
+		domain.NotificationKindRecordingStarted:       "RECORDING_STARTED",
+		domain.NotificationKindRecordingCompleted:     "RECORDING_COMPLETED",
+		domain.NotificationKindRecordingFailed:        "RECORDING_FAILED",
+		domain.NotificationKindReservationConflict:    "RESERVATION_CONFLICT",
+		domain.NotificationKindStorageLow:             "STORAGE_LOW",
+		domain.NotificationKindTunerServerUnreachable: "TUNER_SERVER_UNREACHABLE",
+		domain.NotificationKindWatchReminder:          "WATCH_REMINDER",
+		domain.NotificationKindAnimeRecorded:          "ANIME_RECORDED",
+		domain.NotificationKindAnimeRecordFailed:      "ANIME_RECORD_FAILED",
+		domain.NotificationKindScrambledRecordings:    "SCRAMBLED_RECORDINGS",
+	}
+)
+
+func (ec *executionContext) unmarshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx context.Context, v any) ([]domain.NotificationKind, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
-	res := make([]model.NotificationKind, len(vSlice))
+	res := make([]domain.NotificationKind, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -59408,11 +59461,11 @@ func (ec *executionContext) unmarshalNNotificationKind2ᚕgithubᚗcomᚋSlashNe
 	return res, nil
 }
 
-func (ec *executionContext) marshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx context.Context, sel ast.SelectionSet, v []model.NotificationKind) graphql.Marshaler {
+func (ec *executionContext) marshalNNotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx context.Context, sel ast.SelectionSet, v []domain.NotificationKind) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, sel, v[i])
+		return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -60197,15 +60250,33 @@ func (ec *executionContext) marshalNReservationEdge2ᚖgithubᚗcomᚋSlashNephy
 	return ec._ReservationEdge(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationKind(ctx context.Context, v any) (model.ReservationKind, error) {
-	var res model.ReservationKind
-	err := res.UnmarshalGQL(v)
+func (ec *executionContext) unmarshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind(ctx context.Context, v any) (domain.ReservationKind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind[tmp]
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationKind(ctx context.Context, sel ast.SelectionSet, v model.ReservationKind) graphql.Marshaler {
-	return v
+func (ec *executionContext) marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind(ctx context.Context, sel ast.SelectionSet, v domain.ReservationKind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "ReservationKind!")
+	}
+	return res
 }
+
+var (
+	unmarshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind = map[string]domain.ReservationKind{
+		"PROGRAM": domain.ReservationKindProgram,
+		"TIME":    domain.ReservationKindTime,
+		"RULE":    domain.ReservationKindRule,
+	}
+	marshalNReservationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationKind = map[domain.ReservationKind]string{
+		domain.ReservationKindProgram: "PROGRAM",
+		domain.ReservationKindTime:    "TIME",
+		domain.ReservationKindRule:    "RULE",
+	}
+)
 
 func (ec *executionContext) unmarshalNReservationUpdateInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationUpdateInput(ctx context.Context, v any) (model.ReservationUpdateInput, error) {
 	res, err := ec.unmarshalInputReservationUpdateInput(ctx, v)
@@ -61138,16 +61209,16 @@ func (ec *executionContext) unmarshalOArchiveRangeInput2ᚖgithubᚗcomᚋSlashN
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentStateᚄ(ctx context.Context, v any) ([]model.AssignmentState, error) {
+func (ec *executionContext) unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentStateᚄ(ctx context.Context, v any) ([]domain.AssignmentState, error) {
 	if v == nil {
 		return nil, nil
 	}
 	vSlice := graphql.CoerceList(v)
 	var err error
-	res := make([]model.AssignmentState, len(vSlice))
+	res := make([]domain.AssignmentState, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentState(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -61155,14 +61226,14 @@ func (ec *executionContext) unmarshalOAssignmentState2ᚕgithubᚗcomᚋSlashNep
 	return res, nil
 }
 
-func (ec *executionContext) marshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentStateᚄ(ctx context.Context, sel ast.SelectionSet, v []model.AssignmentState) graphql.Marshaler {
+func (ec *executionContext) marshalOAssignmentState2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentStateᚄ(ctx context.Context, sel ast.SelectionSet, v []domain.AssignmentState) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐAssignmentState(ctx, sel, v[i])
+		return ec.marshalNAssignmentState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐAssignmentState(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -61540,16 +61611,16 @@ func (ec *executionContext) marshalONode2githubᚗcomᚋSlashNephyᚋkotatsuᚋi
 	return ec._Node(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx context.Context, v any) ([]model.NotificationKind, error) {
+func (ec *executionContext) unmarshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx context.Context, v any) ([]domain.NotificationKind, error) {
 	if v == nil {
 		return nil, nil
 	}
 	vSlice := graphql.CoerceList(v)
 	var err error
-	res := make([]model.NotificationKind, len(vSlice))
+	res := make([]domain.NotificationKind, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -61557,14 +61628,14 @@ func (ec *executionContext) unmarshalONotificationKind2ᚕgithubᚗcomᚋSlashNe
 	return res, nil
 }
 
-func (ec *executionContext) marshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKindᚄ(ctx context.Context, sel ast.SelectionSet, v []model.NotificationKind) graphql.Marshaler {
+func (ec *executionContext) marshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx context.Context, sel ast.SelectionSet, v []domain.NotificationKind) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐNotificationKind(ctx, sel, v[i])
+		return ec.marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -61700,21 +61771,33 @@ func (ec *executionContext) marshalOReservation2ᚖgithubᚗcomᚋSlashNephyᚋk
 	return ec._Reservation(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationDisabledReason(ctx context.Context, v any) (*model.ReservationDisabledReason, error) {
+func (ec *executionContext) unmarshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason(ctx context.Context, v any) (*domain.ReservationDisabledReason, error) {
 	if v == nil {
 		return nil, nil
 	}
-	var res = new(model.ReservationDisabledReason)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐReservationDisabledReason(ctx context.Context, sel ast.SelectionSet, v *model.ReservationDisabledReason) graphql.Marshaler {
+func (ec *executionContext) marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason(ctx context.Context, sel ast.SelectionSet, v *domain.ReservationDisabledReason) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return v
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason[*v])
+	return res
 }
+
+var (
+	unmarshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason = map[string]domain.ReservationDisabledReason{
+		"RECORDED_EPISODE": domain.ReservationDisabledReasonRecordedEpisode,
+	}
+	marshalOReservationDisabledReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐReservationDisabledReason = map[domain.ReservationDisabledReason]string{
+		domain.ReservationDisabledReasonRecordedEpisode: "RECORDED_EPISODE",
+	}
+)
 
 func (ec *executionContext) unmarshalORole2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (*model.Role, error) {
 	if v == nil {

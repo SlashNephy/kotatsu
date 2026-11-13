@@ -227,7 +227,7 @@ func TestBodyEscapesNames(t *testing.T) {
 
 			payload, err := json.Marshal(map[string]any{"name": tt.program})
 			require.NoError(t, err)
-			event := &sqlc.NotificationEvent{ID: uuid.New(), Kind: string(domain.NotificationKindRecordingStarted), Payload: payload}
+			event := &sqlc.NotificationEvent{ID: uuid.New(), Kind: domain.NotificationKindRecordingStarted, Payload: payload}
 
 			body, err := webhook.Body(tt.format, event, time.UTC)
 			require.NoError(t, err)

@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -105,7 +106,7 @@ ORDER BY r.id
 
 type ListReservationsToFollowRow struct {
 	ID                  uuid.UUID
-	Kind                string
+	Kind                domain.ReservationKind
 	Enabled             bool
 	ServiceID           int64
 	EventID             *int64
@@ -187,7 +188,7 @@ ORDER BY r.id
 
 type ListReservationsToRelayRow struct {
 	ID                  uuid.UUID
-	Kind                string
+	Kind                domain.ReservationKind
 	ServiceID           int64
 	Settings            []byte
 	RuleSettings        []byte

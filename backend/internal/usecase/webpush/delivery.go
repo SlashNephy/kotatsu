@@ -75,7 +75,7 @@ func NewEnqueuer(inserter Inserter) *Enqueuer {
 
 func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.Event) error {
 	subscriptions, err := sqlc.New(tx).ListWebPushSubscriptionsForKind(ctx, sqlc.ListWebPushSubscriptionsForKindParams{
-		Kind: string(event.Kind), Audience: event.Audience.UserIDs, ByRule: event.Audience.ByRule,
+		Kind: event.Kind, Audience: event.Audience.UserIDs, ByRule: event.Audience.ByRule,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list web push subscriptions: %w", err)
@@ -180,7 +180,7 @@ func (w *DeliverWorker) Work(ctx context.Context, job *river.Job[DeliverArgs]) e
 		return err
 	}
 
-	return w.send(ctx, &subscription, keys, domain.NotificationKind(event.Kind), body)
+	return w.send(ctx, &subscription, keys, event.Kind, body)
 }
 
 func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
@@ -188,7 +188,7 @@ func (w *DeliverWorker) payload(event *sqlc.NotificationEvent) ([]byte, error) {
 	if err := json.Unmarshal(event.Payload, &payload); err != nil {
 		return nil, fmt.Errorf("failed to decode the notification payload: %w", err)
 	}
-	kind := domain.NotificationKind(event.Kind)
+	kind := event.Kind
 	plaintext, err := json.Marshal(&Payload{
 		Title: title, Body: notification.Message(kind, payload, w.location), EventID: event.ID, Kind: kind, OccurredAt: event.OccurredAt,
 		URL: domain.NotificationURL(payload),

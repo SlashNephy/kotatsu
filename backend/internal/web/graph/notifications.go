@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 	"uuid"
 
@@ -137,10 +136,7 @@ func (r *Resolver) updateNotificationPreference(ctx context.Context, input *mode
 	if err != nil {
 		return nil, err
 	}
-	kind, err := domain.ParseNotificationKind(strings.ToLower(string(input.Kind)))
-	if err != nil {
-		return nil, NewError(CodeBadUserInput, "unknown notification kind")
-	}
+	kind := input.Kind
 	preference := &domain.NotificationPreference{Kind: kind, InApp: input.InApp, WebPush: input.WebPush, RuleReservations: true}
 	if input.RuleReservations != nil {
 		preference.RuleReservations = *input.RuleReservations
@@ -171,7 +167,7 @@ func notificationOf(n *domain.Notification, location *time.Location) (*model.Not
 
 	return &model.Notification{
 		ID:          GlobalID(notificationType, n.ID.String()),
-		Kind:        kindOf(n.Kind),
+		Kind:        n.Kind,
 		OccurredAt:  n.OccurredAt,
 		Payload:     string(payload),
 		Message:     notification.Message(n.Kind, n.Payload, location),
@@ -183,12 +179,8 @@ func notificationOf(n *domain.Notification, location *time.Location) (*model.Not
 
 func preferenceOf(preference *domain.NotificationPreference) *model.NotificationPreference {
 	return &model.NotificationPreference{
-		Kind: kindOf(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush, RuleReservations: preference.RuleReservations,
+		Kind: preference.Kind, InApp: preference.InApp, WebPush: preference.WebPush, RuleReservations: preference.RuleReservations,
 	}
-}
-
-func kindOf(kind domain.NotificationKind) model.NotificationKind {
-	return model.NotificationKind(strings.ToUpper(string(kind)))
 }
 
 // nonEmpty は、空文字列を nil にする。

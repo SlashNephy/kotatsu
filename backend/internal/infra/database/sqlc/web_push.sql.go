@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -202,7 +203,7 @@ ORDER BY s.id
 `
 
 type ListWebPushSubscriptionsForKindParams struct {
-	Kind     string
+	Kind     domain.NotificationKind
 	Audience []uuid.UUID
 	ByRule   bool
 }
@@ -280,7 +281,7 @@ SELECT EXISTS (
 `
 
 type WebPushSubscriptionReceivesParams struct {
-	Kind     string
+	Kind     domain.NotificationKind
 	ID       uuid.UUID
 	Audience []uuid.UUID
 	ByRule   bool

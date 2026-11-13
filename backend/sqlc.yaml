@@ -23,6 +23,32 @@ sql:
           mcp_enabled: MCPEnabled
           data_broadcast_ip_enabled: DataBroadcastIPEnabled
         overrides:
+          - column: reservations.kind
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: ReservationKind
+          - column: reservations.assignment_state
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: AssignmentState
+          - column: reservations.disabled_reason
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: ReservationDisabledReason
+              pointer: true
+          - column: notification_events.kind
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: NotificationKind
+          - column: notification_preferences.kind
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: NotificationKind
+          - column: webhooks.kinds
+            go_type:
+              import: github.com/SlashNephy/kotatsu/internal/domain
+              type: NotificationKind
+              slice: true
           - db_type: uuid
             go_type:
               type: UUID

@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -38,11 +39,11 @@ ORDER BY r.id
 
 type ListAssignableReservationsRow struct {
 	ID              uuid.UUID
-	Kind            string
+	Kind            domain.ReservationKind
 	StartAt         time.Time
 	EndAt           time.Time
 	Settings        []byte
-	AssignmentState string
+	AssignmentState domain.AssignmentState
 	AssignedTuner   *int64
 	PlannedStartAt  *time.Time
 	PlannedEndAt    *time.Time
@@ -159,7 +160,7 @@ WHERE id = $6
 `
 
 type UpdateAssignmentParams struct {
-	AssignmentState string
+	AssignmentState domain.AssignmentState
 	AssignedTuner   *int64
 	PlannedStartAt  *time.Time
 	PlannedEndAt    *time.Time

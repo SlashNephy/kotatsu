@@ -253,7 +253,7 @@ func (r *Runner) inputs(
 	reservations := make([]*Reservation, 0, len(rows))
 	for _, row := range rows {
 		settings := defaults
-		if raw, ok := ruleSettings[row.ID]; ok && domain.ReservationKind(row.Kind) == domain.ReservationKindRule {
+		if raw, ok := ruleSettings[row.ID]; ok && row.Kind == domain.ReservationKindRule {
 			overrides, err := domain.DecodeOverrides(raw)
 			if err != nil {
 				return nil, err
@@ -267,7 +267,7 @@ func (r *Runner) inputs(
 		settings = settings.Resolve(overrides)
 
 		recording := row.PlannedStartAt != nil && !row.PlannedStartAt.After(now) &&
-			row.AssignedTuner != nil && State(row.AssignmentState) != StateConflict
+			row.AssignedTuner != nil && row.AssignmentState != domain.AssignmentStateConflict
 		tuner := 0
 		if recording {
 			tuner = int(*row.AssignedTuner)
@@ -308,7 +308,7 @@ func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReserv
 	if a.Tuner != NoTuner {
 		tuner = new(int64(a.Tuner))
 	}
-	same := row.AssignmentState == string(a.State) && equalPtr(row.AssignedTuner, tuner) &&
+	same := row.AssignmentState == a.State && equalPtr(row.AssignedTuner, tuner) &&
 		row.PlannedStartAt != nil && row.PlannedStartAt.Equal(a.PlannedStart) &&
 		row.PlannedEndAt != nil && row.PlannedEndAt.Equal(a.PlannedEnd) &&
 		slices.Equal(row.AssignmentPeers, peers)
@@ -318,7 +318,7 @@ func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReserv
 
 	err := q.UpdateAssignment(ctx, sqlc.UpdateAssignmentParams{
 		ID:              a.ReservationID,
-		AssignmentState: string(a.State),
+		AssignmentState: a.State,
 		AssignedTuner:   tuner,
 		PlannedStartAt:  &a.PlannedStart,
 		PlannedEndAt:    &a.PlannedEnd,
@@ -328,7 +328,7 @@ func update(ctx context.Context, q *sqlc.Queries, row *sqlc.ListAssignableReserv
 		return false, false, fmt.Errorf("failed to update the assignment of %s: %w", a.ReservationID, err)
 	}
 
-	return true, a.State == StateConflict && State(row.AssignmentState) != StateConflict, nil
+	return true, a.State == domain.AssignmentStateConflict && row.AssignmentState != domain.AssignmentStateConflict, nil
 }
 
 func equalPtr[T comparable](a, b *T) bool {

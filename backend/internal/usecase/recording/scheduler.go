@@ -160,7 +160,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 		}
 		for _, row := range due {
 			priority := int32(Priority)
-			if row.AssignmentState == string(assign.StateConflict) {
+			if row.AssignmentState == domain.AssignmentStateConflict {
 				priority = ConflictPriority
 			}
 			err := q.InsertRecordingAssignment(ctx, sqlc.InsertRecordingAssignmentParams{ID: id.New(), ReservationID: row.ID, Priority: priority, Now: now})

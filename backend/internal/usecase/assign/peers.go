@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"uuid"
+
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 // Peers は、競合か一部のみになった予約ごとに、チューナーを取り合っている相手の予約の ID を返す (#1502、設計書 4.5)。
@@ -24,7 +26,7 @@ func Peers(reservations []*Reservation, tuners []*Tuner, assignments []*Assignme
 	peers := make([][]uuid.UUID, 0, len(reservations))
 	for i, r := range reservations {
 		a := assignments[i]
-		if a.State != StateConflict && a.State != StatePartial {
+		if a.State != domain.AssignmentStateConflict && a.State != domain.AssignmentStatePartial {
 			peers = append(peers, []uuid.UUID{})
 
 			continue

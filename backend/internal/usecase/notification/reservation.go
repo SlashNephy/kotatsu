@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
@@ -22,7 +23,7 @@ type ReservationContext struct {
 	// Audience は、通知を受け取るユーザー。nil なら全員に届ける。
 	Audience *Audience
 	// Kind は、予約の種類 (program、time、rule)。予約が消えていれば空。
-	Kind string
+	Kind domain.ReservationKind
 	// Rules は、ルール予約のもとになったルール。ルールを作った順に並べる。
 	Rules []ReservationRule
 }
@@ -46,7 +47,7 @@ func LoadReservationContext(ctx context.Context, db sqlc.DBTX, reservationID uui
 	}
 	result := &ReservationContext{Audience: nil, Kind: row.Kind, Rules: rules}
 	switch {
-	case row.Kind == "rule":
+	case row.Kind == domain.ReservationKindRule:
 		var users []uuid.UUID
 		if len(row.RuleCreators) > 0 {
 			users = row.RuleCreators

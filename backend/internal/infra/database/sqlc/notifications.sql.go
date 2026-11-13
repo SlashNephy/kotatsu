@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -80,7 +81,7 @@ GROUP BY r.id
 `
 
 type GetReservationAudienceRow struct {
-	Kind         string
+	Kind         domain.ReservationKind
 	CreatedBy    *uuid.UUID
 	RuleIds      []uuid.UUID
 	RuleNames    []string
@@ -160,7 +161,7 @@ VALUES ($1, $2, $3, $4, NULL, $5::uuid[], $6)
 
 type InsertNotificationEventParams struct {
 	ID         uuid.UUID
-	Kind       string
+	Kind       domain.NotificationKind
 	OccurredAt time.Time
 	Payload    []byte
 	Audience   []uuid.UUID
@@ -244,7 +245,7 @@ ORDER BY users.id
 `
 
 type ListNotificationRecipientsParams struct {
-	Kind     string
+	Kind     domain.NotificationKind
 	Audience []uuid.UUID
 	ByRule   bool
 }
@@ -441,7 +442,7 @@ ON CONFLICT (user_id, kind) DO UPDATE SET in_app = EXCLUDED.in_app, web_push = E
 
 type UpsertNotificationPreferenceParams struct {
 	UserID           uuid.UUID
-	Kind             string
+	Kind             domain.NotificationKind
 	InApp            bool
 	WebPush          bool
 	RuleReservations bool

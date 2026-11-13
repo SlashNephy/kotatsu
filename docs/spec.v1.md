@@ -249,7 +249,7 @@ v1では、これらの値を設定で変えられないようにします。mir
 | ジョブ | River（riverpgxv5） | PostgreSQLのトランザクションの中でジョブを投入できます。 |
 | DB | PostgreSQL、pgx v5、sqlc | v1はPostgreSQLだけに対応します。DBへのアクセスはinterfaceの裏に置き、将来はsqlcのSQLiteエンジンで2系統目のクエリを足せるようにします。 |
 | マイグレーション | `schema.sql`に宣言的に書き、Atlasで差分を生成します | 実行時は、Goに埋め込んだマイグレーションを`kotatsu migrate`が適用します。 |
-| 列挙型 | go-enum | 型のコメントに`ENUM(...)`で値を並べ、値の一覧（`<型>Values`）、`Parse<型>`、`IsValid`を生成します。一覧とパースを手で書き写して、値を足したときに直し漏れるのを防ぎます（#1609）。 |
+| 列挙型 | go-enum | 型のコメントに`ENUM(...)`で値を並べ、値の一覧（`<型>Values`）、`Parse<型>`、`IsValid`を生成します。一覧とパースを手で書き写して、値を足したときに直し漏れるのを防ぎます（#1609）。DBの列は、`--sql`の`Scan`とsqlcの`overrides`で列挙型として読み、知らない値ならエラーにします。GraphQLの列挙は、gqlgenの`enum_values`で同じ型にひも付け、文字列の変換を挟みません。 |
 | ログ | log/slog（JSON形式） | |
 | 可観測性 | OpenTelemetryとPrometheus形式の`/metrics` | OTLPの送信先を設定したときだけ、トレースとメトリクスを送ります。メトリクスは`/metrics`と同じものです。 |
 | 設定 | YAMLと環境変数 | 置き場所の基準は[11.2](#112-設定の置き場所)で定めます。 |

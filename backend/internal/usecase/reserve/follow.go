@@ -244,7 +244,7 @@ func (f *Follower) relay(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservati
 	}
 
 	settings := row.Settings
-	if domain.ReservationKind(row.Kind) == domain.ReservationKindRule && row.RuleSettings != nil {
+	if row.Kind == domain.ReservationKindRule && row.RuleSettings != nil {
 		settings = row.RuleSettings
 	}
 

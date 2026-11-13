@@ -8,7 +8,7 @@ import (
 	"uuid"
 )
 
-//go:generate go tool go-enum --values --nocomments
+//go:generate go tool go-enum --values --nocomments --sql
 
 // NotificationKind は、通知するイベントの種類 (設計書 6.2)。値を並べた順が、画面に並べる順になる。
 //
