@@ -245,7 +245,7 @@ v1では、これらの値を設定で変えられないようにします。mir
 |---|---|---|
 | 言語 | Go | メンテナーが習熟しており、コントリビューターも参入しやすいためです。Kotatsuの負荷はI/Oと外部プロセス（FFmpeg）とブラウザに集まるので、Rustとの性能差はほぼ出ません。`CGO_ENABLED=0`でarm64の静的バイナリも作れます。 |
 | API | GraphQL（gqlgen） | スキーマ（SDL）をAPIの原本にします。subscriptionをSSEで配信できます。 |
-| HTTP | 標準のnet/http | 映像の配信と認証の手続きは、GraphQLの外の素のHTTPで扱います。 |
+| HTTP | 標準のnet/http、echo v5 | 映像の配信と認証の手続きは、GraphQLの外の素のHTTPで扱います。tenbanの一番外側のルーターはecho v5にし、ルートをまとまりごとに`http.ServeMux`からechoのハンドラーへ移していきます（#1606）。echoのハンドラーは、ロガーを受け取らずに、リクエストのロガー（`echo.Context.Logger`、`*slog.Logger`）に書きます。部品の名前（`component`）は、ルートに掛けるミドルウェアで付けます。echoのルートに当たらないリクエストは、移し終えていない`http.ServeMux`に渡すので、二重のスラッシュなどのパスを整えるリダイレクトも、これまでどおりです。エラーの応答は、echoの既定（JSON）にせず、これまでと同じ形でハンドラーが書きます。今移したのは、予約のiCalendar（`/api/calendar/:token/reservations.ics`）です。 |
 | ジョブ | River（riverpgxv5） | PostgreSQLのトランザクションの中でジョブを投入できます。 |
 | DB | PostgreSQL、pgx v5、sqlc | v1はPostgreSQLだけに対応します。DBへのアクセスはinterfaceの裏に置き、将来はsqlcのSQLiteエンジンで2系統目のクエリを足せるようにします。 |
 | マイグレーション | `schema.sql`に宣言的に書き、Atlasで差分を生成します | 実行時は、Goに埋め込んだマイグレーションを`kotatsu migrate`が適用します。 |
@@ -338,13 +338,13 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 接続するチューナーサーバーは1台だけです。
 設定するのはURLと、必要に応じてBASIC認証の資格情報です。
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
-EDCBは、チューナーサーバーとして使いません。
+EDCBは、まだチューナーサーバーとして使いません。使えるようにする作業を進めています（#1258）。
 チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選んでも、つなぐ作業が済むまでは、チューナーサーバーがないものとして動き、nekoが起動時に警告を出します。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。種類を替えたときのDBのサービスと番組の扱いは、EPGの取り込み（#1531）で決めます。
 
 Kotatsuは、チューナーサーバーを、サーバーの種類に依らない型とinterface（`backend/internal/domain/tunerserver`）で扱います。
 チャンネル、サービス、番組、チューナー、イベント、ストリームの開き方と、開けなかった理由（チューナーが足りない、サービスがないなど）は、この型で表します。
 サーバーのAPIの形、イベントの種類の文字列、HTTPのステータスの意味は、サーバーごとの実装が読み替えます。
-今ある実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）だけです。
+今ある実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）だけです。EDCBのEpgTimerSrvとCtrlCmdのTCPで話すクライアント（`backend/internal/infra/edcb`、#1529）は用意しましたが、まだこのinterfaceを満たす実装にはつないでいません。CtrlCmdは、1つの接続で1つのコマンドを送る、HTTPではない独自のバイナリのプロトコルで、パスワードもTLSもありません。
 設定から実装を選ぶ所は、ロールを組み立てる`cli`の1か所にまとめます。
 
 Mirakurun互換の実装は、サーバーごとの追加機能を、接続時と定期的に判定します。
@@ -2819,6 +2819,7 @@ Kotatsu本体はApache License 2.0で公開します。
 | AnnictとAniListの作品のID | AnnictのAPI利用規約（第6条で、まとまったデータとしての提供を禁じ、第7条で、アプリケーションの提供に要る範囲での保存を認めています）と、AniListのAPIの利用規約に従います | 本体には同梱しません。管理者がAnnictのトークンを設定したインスタンスが、実行時にAPIへ問い合わせ、作品IDの対応に使うID（TID、AnnictのID、MyAnimeListのID、AniListのID）だけをDBに持ちます。作品名や画像は持ちません（#1223）。 |
 | 作品の高画質の画像（AniListの`coverImage`と、Jikan（MIT）が返すMyAnimeListの画像） | AniListのAPIの利用規約と、MyAnimeListの利用規約に従います（Jikanは、MyAnimeListを読む非公式のAPIです） | 本体には同梱しません。見たいリストのある作品の画像のURLだけをDBに持ち（#1315）、画像は、画面で使うときにtenbanが取って中継し、メモリに覚えるだけにします（[3.8](#38-アニメの番組と作品の結びつき)）。 |
 | しょぼいカレンダーの放送時間データとタイトルの一覧 | ライセンスの表示はありません（取得の方法は、公式の文書で`db.php`の仕様として公開されています） | 本体には同梱しません。連携を有効にしたインスタンスが`db.php`に問い合わせ、照合に使う分だけをDBにキャッシュし、放送が終わってから2日で消します。照合の結果として、TID、話数、サブタイトルを持ちます。タイトルの一覧は、番組名から作品を引くために、TIDとタイトル名と更新日時だけを持ちます。 |
+| EDCB（xtne6f/EDCB）のCtrlCmdのプロトコル | GitHub上は「Other」。`Document/Readme.txt`で、フリーソフトに限り改変と組み込みを自由とし、公開するときは該当部分のソースも公開するよう求め（強制ではない）、商用やシェアウェアへの許可のない組み込みを禁じています | 本体にEDCBのコードは含めません。EpgTimerSrvとTCPで話すために、プロトコルの定義（`Common/CtrlCmdDef.h`、`Common/CtrlCmdUtil.cpp`、`Common/StructDef.h`）を読んで、Goで書き起こしました（`backend/internal/infra/edcb`、#1529）。Kotatsuはソースを公開したフリーソフトなので、この条件に収まると判断しました（2026年11月）。テストに使う応答は、実際のEDCBから取ったもので、番組名、概要、詳細は伏せ字に置き換えています。 |
 | mirakc-arib、aribb24（C実装） | GPL-2.0、LGPL-3.0 | v1では使いません。将来使う場合も、子プロセスとして実行し、本体とはリンクしません。 |
 | Intel Media Driver（`intel-media-va-driver-non-free`） | Expat（同梱のGoogle TestはBSD-3-Clause）。ただし、ソースのないGPUのバイナリ（メディアのカーネル）を含むので、Debianではnon-freeにあります | amd64の`-ffmpeg`イメージにだけ同梱します。FFmpegが、libvaを通して実行時に読み込むプラグインで、本体ともFFmpegともリンクしません。ライセンス文書は、ほかのDebianのパッケージと同じく残し、ソースパッケージの入手先も一覧に書き出します（GPUのバイナリは、ソースパッケージの中でもバイナリのままです）。#509で、Gen11以前のGPUで縮小とHEVCのエンコードができるように入れました。 |
 | jellyfin-ffmpeg | GPL-3.0-or-later（libfdk-aacをリンク） | 使いません。GPLと両立しないlibfdk-aacを、FFmpegのnonfreeの判定を外してリンクしているためです。 |
