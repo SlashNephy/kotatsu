@@ -154,23 +154,23 @@ func (Rule) IsNode() {}
 
 // Reservation は予約。サービスと一致したルールは、リゾルバが dataloader で引く。
 type Reservation struct {
-	ID               string                      `json:"id"`
-	Kind             ReservationKind             `json:"kind"`
-	EventID          *int                        `json:"eventId,omitempty"`
-	StartAt          time.Time                   `json:"startAt"`
-	EndAt            time.Time                   `json:"endAt"`
-	Name             string                      `json:"name"`
-	Description      string                      `json:"description"`
-	Genres           []*Genre                    `json:"genres"`
-	Enabled          bool                        `json:"enabled"`
-	DisabledReason   *ReservationDisabledReason  `json:"disabledReason,omitempty"`
-	FollowEventRelay bool                        `json:"followEventRelay"`
-	Settings         *RecordingSettingsOverrides `json:"settings"`
-	Assignment       *ReservationAssignment      `json:"assignment"`
-	CreatedAt        time.Time                   `json:"createdAt"`
-	CreatedBy        *User                       `json:"createdBy,omitempty"`
-	UpdatedAt        time.Time                   `json:"updatedAt"`
-	UpdatedBy        *User                       `json:"updatedBy,omitempty"`
+	ID               string                            `json:"id"`
+	Kind             domain.ReservationKind            `json:"kind"`
+	EventID          *int                              `json:"eventId,omitempty"`
+	StartAt          time.Time                         `json:"startAt"`
+	EndAt            time.Time                         `json:"endAt"`
+	Name             string                            `json:"name"`
+	Description      string                            `json:"description"`
+	Genres           []*Genre                          `json:"genres"`
+	Enabled          bool                              `json:"enabled"`
+	DisabledReason   *domain.ReservationDisabledReason `json:"disabledReason,omitempty"`
+	FollowEventRelay bool                              `json:"followEventRelay"`
+	Settings         *RecordingSettingsOverrides       `json:"settings"`
+	Assignment       *ReservationAssignment            `json:"assignment"`
+	CreatedAt        time.Time                         `json:"createdAt"`
+	CreatedBy        *User                             `json:"createdBy,omitempty"`
+	UpdatedAt        time.Time                         `json:"updatedAt"`
+	UpdatedBy        *User                             `json:"updatedBy,omitempty"`
 	// Key と ServiceKey は、予約の ID と Mirakurun のサービス ID。スキーマには出さない。
 	Key        uuid.UUID `json:"-"`
 	ServiceKey int64     `json:"-"`
@@ -183,7 +183,7 @@ func (Reservation) IsNode() {}
 // ReservationAssignment は、予約のチューナーの割り当ての結果。neko が計算し直すたびに変わる。
 // チューナーを取り合っている相手の予約は、リゾルバが dataloader で引く。
 type ReservationAssignment struct {
-	State AssignmentState `json:"state"`
+	State domain.AssignmentState `json:"state"`
 	// 割り当てたチューナーの番号。割り当てていなければ null。
 	Tuner *int `json:"tuner,omitempty"`
 	// マージンを削った後の、録画する予定の時刻。割り当てていなければ null。

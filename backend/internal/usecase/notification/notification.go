@@ -50,7 +50,7 @@ func EmitTo(ctx context.Context, db sqlc.DBTX, clk clock.Clock, kind domain.Noti
 		return fmt.Errorf("failed to encode the notification payload: %w", err)
 	}
 	params := sqlc.InsertNotificationEventParams{
-		ID: id.New(), Kind: string(kind), OccurredAt: clk.Now(), Payload: encoded, Audience: nil, ByRule: false,
+		ID: id.New(), Kind: kind, OccurredAt: clk.Now(), Payload: encoded, Audience: nil, ByRule: false,
 	}
 	if audience != nil {
 		// 空のスライスは全員に届けるのと同じにする。そのまま渡すと、空の配列として誰にも届かない。

@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -1274,7 +1275,7 @@ type ListRecordingsForRenameRow struct {
 	ChannelType         string
 	Channel             string
 	ReservationID       *uuid.UUID
-	ReservationKind     *string
+	ReservationKind     domain.ReservationKind
 	ReservationSettings []byte
 }
 

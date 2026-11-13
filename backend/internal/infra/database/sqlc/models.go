@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/jackc/pgx/v5/pgtype"
 	"uuid"
 )
@@ -363,7 +364,7 @@ type Notification struct {
 
 type NotificationEvent struct {
 	ID           uuid.UUID
-	Kind         string
+	Kind         domain.NotificationKind
 	OccurredAt   time.Time
 	Payload      []byte
 	DispatchedAt *time.Time
@@ -373,7 +374,7 @@ type NotificationEvent struct {
 
 type NotificationPreference struct {
 	UserID           uuid.UUID
-	Kind             string
+	Kind             domain.NotificationKind
 	InApp            bool
 	WebPush          bool
 	RuleReservations bool
@@ -676,7 +677,7 @@ type RecordingTag struct {
 
 type Reservation struct {
 	ID                   uuid.UUID
-	Kind                 string
+	Kind                 domain.ReservationKind
 	ServiceID            int64
 	EventID              *int64
 	StartAt              time.Time
@@ -692,13 +693,13 @@ type Reservation struct {
 	CreatedBy            *uuid.UUID
 	UpdatedAt            time.Time
 	UpdatedBy            *uuid.UUID
-	AssignmentState      string
+	AssignmentState      domain.AssignmentState
 	AssignedTuner        *int64
 	PlannedStartAt       *time.Time
 	PlannedEndAt         *time.Time
 	AssignmentPeers      []uuid.UUID
 	RelayedFrom          *uuid.UUID
-	DisabledReason       *string
+	DisabledReason       *domain.ReservationDisabledReason
 	DisabledServiceID    *int64
 	EpisodeRecheckWaived bool
 }
@@ -1062,7 +1063,7 @@ type Webhook struct {
 	Name             string
 	URL              string
 	Format           string
-	Kinds            []string
+	Kinds            []domain.NotificationKind
 	SecretCiphertext []byte
 	Enabled          bool
 	CreatedAt        time.Time

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
@@ -85,7 +86,7 @@ func TestLoadReservationContext(t *testing.T) {
 		},
 		{
 			name: "予約したユーザーが分からなければ、全員に届ける", reservationID: imported,
-			want: &notification.ReservationContext{Audience: nil, Kind: "time", Rules: []notification.ReservationRule{}},
+			want: &notification.ReservationContext{Audience: nil, Kind: domain.ReservationKindTime, Rules: []notification.ReservationRule{}},
 		},
 		{
 			name: "ルール予約は、ルールを作ったユーザーに届け、ルールを作った順に載せる", reservationID: byRules,

@@ -6,7 +6,6 @@ import (
 	"strings"
 	"uuid"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -54,7 +53,7 @@ func (r *Resolver) createWebhook(ctx context.Context, input *model.CreateWebhook
 		return nil, err
 	}
 	created, secret, err := r.webhooks.Create(ctx, r.db, actor, &webhook.Input{
-		Name: input.Name, URL: input.URL, Format: webhookFormatOf(input.Format), Kinds: notificationKindsOf(input.Kinds), Enabled: input.Enabled,
+		Name: input.Name, URL: input.URL, Format: webhookFormatOf(input.Format), Kinds: input.Kinds, Enabled: input.Enabled,
 	})
 	if err != nil {
 		return nil, webhookError(err)
@@ -77,7 +76,7 @@ func (r *Resolver) updateWebhook(ctx context.Context, globalID string, input *mo
 		changes.Format = new(webhookFormatOf(*input.Format))
 	}
 	if input.Kinds != nil {
-		changes.Kinds = notificationKindsOf(input.Kinds)
+		changes.Kinds = input.Kinds
 	}
 	updated, err := r.webhooks.Update(ctx, r.db, actor, webhookID, changes)
 	if err != nil {
@@ -120,27 +119,13 @@ func webhookError(err error) error {
 }
 
 func webhookModel(w *webhook.Webhook) *model.Webhook {
-	kinds := make([]model.NotificationKind, 0, len(w.Kinds))
-	for _, kind := range w.Kinds {
-		kinds = append(kinds, kindOf(kind))
-	}
-
 	return &model.Webhook{
 		ID: GlobalID(webhookType, w.ID.String()), Name: w.Name, URL: w.URL,
-		Format: model.WebhookFormat(strings.ToUpper(string(w.Format))), Kinds: kinds,
+		Format: model.WebhookFormat(strings.ToUpper(string(w.Format))), Kinds: w.Kinds,
 		Enabled: w.Enabled, CreatedAt: w.CreatedAt, UpdatedAt: w.UpdatedAt,
 	}
 }
 
 func webhookFormatOf(format model.WebhookFormat) webhook.Format {
 	return webhook.Format(strings.ToLower(string(format)))
-}
-
-func notificationKindsOf(kinds []model.NotificationKind) []domain.NotificationKind {
-	result := make([]domain.NotificationKind, 0, len(kinds))
-	for _, kind := range kinds {
-		result = append(result, domain.NotificationKind(strings.ToLower(string(kind))))
-	}
-
-	return result
 }

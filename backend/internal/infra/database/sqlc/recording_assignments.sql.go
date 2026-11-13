@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -182,7 +183,7 @@ WHERE r.id = $1
 
 type GetReservationForRecordingRow struct {
 	ID             uuid.UUID
-	Kind           string
+	Kind           domain.ReservationKind
 	ServiceID      int64
 	EventID        *int64
 	Name           string
@@ -262,7 +263,7 @@ type ListDueReservationsParams struct {
 
 type ListDueReservationsRow struct {
 	ID              uuid.UUID
-	AssignmentState string
+	AssignmentState domain.AssignmentState
 }
 
 // 割り振りを書く予約。有効で、チューナーの割り当てを計算済みで、予定の開始が due_before までに来て、まだ終わっておらず、割り振りのないもの。

@@ -169,9 +169,9 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 	assert.Equal(t, []uuid.UUID{conflicted}, f.notifiedConflicts(t))
 	assert.Positive(t, f.version(t, assign.ConflictChannel))
 	for _, id := range ids {
-		want := string(assign.StateOK)
+		want := string(domain.AssignmentStateOK)
 		if id == conflicted {
-			want = string(assign.StateConflict)
+			want = string(domain.AssignmentStateConflict)
 		}
 		assert.Equal(t, want, f.stored(t, id).state)
 	}
@@ -190,7 +190,7 @@ func TestRunOnceStoresAssignments(t *testing.T) {
 	_, err := f.reservations.Update(t.Context(), f.pool, audit.System("test"), disabled, &reserve.Update{Enabled: new(false)})
 	require.NoError(t, err)
 	f.runOnce(t)
-	assert.Equal(t, string(assign.StateOK), f.stored(t, conflicted).state)
+	assert.Equal(t, string(domain.AssignmentStateOK), f.stored(t, conflicted).state)
 	assert.Equal(t, stored{state: "pending", tuner: nil, plannedStart: nil}, f.stored(t, disabled))
 }
 
@@ -241,7 +241,7 @@ func TestRunOnceNotifiesConflictOnce(t *testing.T) {
 			require.NoError(t, err)
 			f.runOnce(t)
 		}
-		require.Equal(t, string(assign.StateConflict), f.stored(t, conflicted).state)
+		require.Equal(t, string(domain.AssignmentStateConflict), f.stored(t, conflicted).state)
 
 		return f.notifiedConflicts(t)
 	}
@@ -349,12 +349,12 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 	// 最初の予約が割り当てられるのを待ち、始めたときの計算が終わったことを確かめる。
 	first := f.reserve(t, 0, nil)
 	require.Eventually(t, func() bool {
-		return f.stored(t, first).state == string(assign.StateOK)
+		return f.stored(t, first).state == string(domain.AssignmentStateOK)
 	}, 10*time.Second, 20*time.Millisecond)
 
 	// 定期の計算は 1 時間後なので、次の予約が割り当てられるのは、予約の変更の通知を受けたときだけである。
 	second := f.reserve(t, 1, nil)
 	require.Eventually(t, func() bool {
-		return f.stored(t, second).state == string(assign.StateOK)
+		return f.stored(t, second).state == string(domain.AssignmentStateOK)
 	}, 10*time.Second, 20*time.Millisecond)
 }

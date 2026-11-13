@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -132,7 +133,7 @@ ORDER BY r.id
 
 type ListFutureProgramReservationsRow struct {
 	ID               uuid.UUID
-	Kind             string
+	Kind             domain.ReservationKind
 	ServiceID        int64
 	EventID          *int64
 	StartAt          time.Time

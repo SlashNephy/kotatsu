@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 	"uuid"
 
@@ -96,7 +95,7 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 
 	return &model.Reservation{
 		ID:               GlobalID(reservationType, r.ID.String()),
-		Kind:             model.ReservationKind(strings.ToUpper(string(r.Kind))),
+		Kind:             r.Kind,
 		EventID:          eventID,
 		StartAt:          r.StartAt,
 		EndAt:            r.EndAt,
@@ -108,7 +107,7 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 		FollowEventRelay: r.FollowEventRelay,
 		Settings:         toOverridesModel(r.Overrides),
 		Assignment: &model.ReservationAssignment{
-			State:          model.AssignmentState(strings.ToUpper(string(r.Assignment.State))),
+			State:          r.Assignment.State,
 			Tuner:          tuner,
 			PlannedStartAt: r.Assignment.PlannedStartAt,
 			PlannedEndAt:   r.Assignment.PlannedEndAt,
@@ -126,12 +125,12 @@ func toReservation(r *domain.Reservation) (*model.Reservation, error) {
 
 // disabledReason は、Kotatsu が予約を無効にした理由を、スキーマの値にする (#1500)。理由がないか、有効な予約なら nil。
 // この列を知らない古いバイナリが有効に戻すと理由が残るので、有効な予約では返さない。
-func disabledReason(r *domain.Reservation) *model.ReservationDisabledReason {
+func disabledReason(r *domain.Reservation) *domain.ReservationDisabledReason {
 	if r.Enabled || r.DisabledReason == "" {
 		return nil
 	}
 
-	return new(model.ReservationDisabledReason(strings.ToUpper(string(r.DisabledReason))))
+	return new(r.DisabledReason)
 }
 
 // reservation は、予約を引く。
@@ -152,7 +151,7 @@ func (r *Resolver) reservation(ctx context.Context, globalID string) (*model.Res
 func (r *Resolver) listReservations(
 	ctx context.Context,
 	from, to time.Time,
-	states []model.AssignmentState,
+	states []domain.AssignmentState,
 	enabled *bool,
 	ruleGlobalID *string,
 	first int,
@@ -162,12 +161,9 @@ func (r *Resolver) listReservations(
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxReservations))
 	}
 	listQuery := &query.ReservationListQuery{
-		From: from, To: to, States: make([]domain.AssignmentState, 0, len(states)), Enabled: enabled, RuleID: nil, AfterStartAt: nil, AfterID: nil,
+		From: from, To: to, States: states, Enabled: enabled, RuleID: nil, AfterStartAt: nil, AfterID: nil,
 		// 次のページがあるかを知るため、1 件多く読む。
 		Limit: first + 1,
-	}
-	for _, state := range states {
-		listQuery.States = append(listQuery.States, domain.AssignmentState(strings.ToLower(string(state))))
 	}
 	if ruleGlobalID != nil {
 		ruleID, err := parseRuleID(*ruleGlobalID)

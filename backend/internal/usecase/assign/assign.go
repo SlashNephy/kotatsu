@@ -9,18 +9,8 @@ import (
 	"slices"
 	"time"
 	"uuid"
-)
 
-// State は、予約の割り当ての結果 (設計書 4.5)。
-type State string
-
-const (
-	// StateOK は、全編を録画できる見込みであること。
-	StateOK State = "ok"
-	// StatePartial は、本編の一部が欠ける見込みであること。
-	StatePartial State = "partial"
-	// StateConflict は、チューナーが足りないこと。録画は優先度 1 で試み、チューナーが空いていれば録る。
-	StateConflict State = "conflict"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 // Reservation は、割り当てる予約。
@@ -60,7 +50,7 @@ type Tuner struct {
 // Assignment は、予約 1 件の割り当ての結果。
 type Assignment struct {
 	ReservationID uuid.UUID
-	State         State
+	State         domain.AssignmentState
 	// Tuner は、割り当てたチューナー。競合した予約では -1。
 	Tuner int
 	// PlannedStart と PlannedEnd は、隣の録画と重なるマージンを削った後の、録画する予定の時刻。
@@ -155,7 +145,7 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 		tuner, ok := choose(d, tuners, byTuner)
 		if !ok {
 			for _, r := range d.reservations {
-				results[r.ID] = &Assignment{ReservationID: r.ID, State: StateConflict, Tuner: NoTuner, PlannedStart: r.fullStart(), PlannedEnd: r.fullEnd()}
+				results[r.ID] = &Assignment{ReservationID: r.ID, State: domain.AssignmentStateConflict, Tuner: NoTuner, PlannedStart: r.fullStart(), PlannedEnd: r.fullEnd()}
 			}
 
 			continue
@@ -169,15 +159,15 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 		trim(list)
 		for _, p := range list {
 			r := p.reservation
-			state := StateOK
+			state := domain.AssignmentStateOK
 			switch {
 			case !p.start.Before(p.end):
 				// 先に置いた予約に、録画する時間をすべて取られた。
-				results[r.ID] = &Assignment{ReservationID: r.ID, State: StateConflict, Tuner: NoTuner, PlannedStart: r.fullStart(), PlannedEnd: r.fullEnd()}
+				results[r.ID] = &Assignment{ReservationID: r.ID, State: domain.AssignmentStateConflict, Tuner: NoTuner, PlannedStart: r.fullStart(), PlannedEnd: r.fullEnd()}
 
 				continue
 			case p.start.After(r.StartAt) || p.end.Before(r.EndAt):
-				state = StatePartial
+				state = domain.AssignmentStatePartial
 			}
 			results[r.ID] = &Assignment{ReservationID: r.ID, State: state, Tuner: tuner, PlannedStart: p.start, PlannedEnd: p.end}
 		}

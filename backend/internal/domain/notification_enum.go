@@ -6,6 +6,7 @@
 package domain
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
 )
@@ -76,4 +77,44 @@ func ParseNotificationKind(name string) (NotificationKind, error) {
 		return x, nil
 	}
 	return NotificationKind(""), fmt.Errorf("%s is %w", name, ErrInvalidNotificationKind)
+}
+
+var errNotificationKindNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *NotificationKind) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = NotificationKind("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseNotificationKind(v)
+	case []byte:
+		*x, err = ParseNotificationKind(string(v))
+	case NotificationKind:
+		*x = v
+	case *NotificationKind:
+		if v == nil {
+			return errNotificationKindNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errNotificationKindNilPtr
+		}
+		*x, err = ParseNotificationKind(*v)
+	default:
+		return errors.New("invalid type for NotificationKind")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x NotificationKind) Value() (driver.Value, error) {
+	return x.String(), nil
 }

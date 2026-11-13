@@ -8,6 +8,8 @@ import (
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 // ID で引けるもの (Relay の Global Object Identification)。
@@ -601,8 +603,8 @@ type CreateWebhookInput struct {
 	URL    string        `json:"url"`
 	Format WebhookFormat `json:"format"`
 	// 送るイベントの種類。1 つ以上。
-	Kinds   []NotificationKind `json:"kinds"`
-	Enabled bool               `json:"enabled"`
+	Kinds   []domain.NotificationKind `json:"kinds"`
+	Enabled bool                      `json:"enabled"`
 }
 
 type CreateWebhookPayload struct {
@@ -1004,8 +1006,8 @@ type NetworkActivityEntry struct {
 
 // ログイン中のユーザーに届いた、画面内の通知 (設計書 6.2)。
 type Notification struct {
-	ID   string           `json:"id"`
-	Kind NotificationKind `json:"kind"`
+	ID   string                  `json:"id"`
+	Kind domain.NotificationKind `json:"kind"`
 	// 出来事が起きた日時。
 	OccurredAt time.Time `json:"occurredAt"`
 	// 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。JSON の文字列。
@@ -1032,7 +1034,7 @@ type NotificationEdge struct {
 
 // イベントの種類ごとの通知設定。
 type NotificationPreference struct {
-	Kind NotificationKind `json:"kind"`
+	Kind domain.NotificationKind `json:"kind"`
 	// 画面内の通知で受け取るかどうか。
 	InApp bool `json:"inApp"`
 	// Web Push で受け取るかどうか。購読していなければ届かない。
@@ -1043,9 +1045,9 @@ type NotificationPreference struct {
 }
 
 type NotificationPreferenceInput struct {
-	Kind    NotificationKind `json:"kind"`
-	InApp   bool             `json:"inApp"`
-	WebPush bool             `json:"webPush"`
+	Kind    domain.NotificationKind `json:"kind"`
+	InApp   bool                    `json:"inApp"`
+	WebPush bool                    `json:"webPush"`
 	// 省けば、今の設定のままにする。
 	RuleReservations *bool `json:"ruleReservations,omitempty"`
 }
@@ -1952,11 +1954,11 @@ type UpdateUserInput struct {
 
 // Webhook の変える項目。省いた項目は変えない。署名用の秘密キーは変えない。
 type UpdateWebhookInput struct {
-	Name    *string            `json:"name,omitempty"`
-	URL     *string            `json:"url,omitempty"`
-	Format  *WebhookFormat     `json:"format,omitempty"`
-	Kinds   []NotificationKind `json:"kinds,omitempty"`
-	Enabled *bool              `json:"enabled,omitempty"`
+	Name    *string                   `json:"name,omitempty"`
+	URL     *string                   `json:"url,omitempty"`
+	Format  *WebhookFormat            `json:"format,omitempty"`
+	Kinds   []domain.NotificationKind `json:"kinds,omitempty"`
+	Enabled *bool                     `json:"enabled,omitempty"`
 }
 
 type User struct {
@@ -2051,10 +2053,10 @@ type Webhook struct {
 	URL    string        `json:"url"`
 	Format WebhookFormat `json:"format"`
 	// 送るイベントの種類。
-	Kinds     []NotificationKind `json:"kinds"`
-	Enabled   bool               `json:"enabled"`
-	CreatedAt time.Time          `json:"createdAt"`
-	UpdatedAt time.Time          `json:"updatedAt"`
+	Kinds     []domain.NotificationKind `json:"kinds"`
+	Enabled   bool                      `json:"enabled"`
+	CreatedAt time.Time                 `json:"createdAt"`
+	UpdatedAt time.Time                 `json:"updatedAt"`
 }
 
 // 番組や録画に結びついた話を、どこから結びつけたか (設計書 3.8)。
@@ -2418,70 +2420,6 @@ func (e *AnimeWishlistStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e AnimeWishlistStatus) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 予約のチューナーの割り当ての状態 (設計書 4.5)。
-type AssignmentState string
-
-const (
-	// まだ割り当てを計算していない。
-	AssignmentStatePending AssignmentState = "PENDING"
-	// 全編を録画できる見込み。
-	AssignmentStateOk AssignmentState = "OK"
-	// 本編の一部が欠ける見込み。
-	AssignmentStatePartial AssignmentState = "PARTIAL"
-	// チューナーが足りない。
-	AssignmentStateConflict AssignmentState = "CONFLICT"
-)
-
-var AllAssignmentState = []AssignmentState{
-	AssignmentStatePending,
-	AssignmentStateOk,
-	AssignmentStatePartial,
-	AssignmentStateConflict,
-}
-
-func (e AssignmentState) IsValid() bool {
-	switch e {
-	case AssignmentStatePending, AssignmentStateOk, AssignmentStatePartial, AssignmentStateConflict:
-		return true
-	}
-	return false
-}
-
-func (e AssignmentState) String() string {
-	return string(e)
-}
-
-func (e *AssignmentState) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = AssignmentState(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid AssignmentState", str)
-	}
-	return nil
-}
-
-func (e AssignmentState) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *AssignmentState) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e AssignmentState) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -3205,88 +3143,6 @@ func (e NetworkActivityPurpose) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 通知するイベントの種類 (設計書 6.2)。
-type NotificationKind string
-
-const (
-	// 録画の開始
-	NotificationKindRecordingStarted NotificationKind = "RECORDING_STARTED"
-	// 録画の完了
-	NotificationKindRecordingCompleted NotificationKind = "RECORDING_COMPLETED"
-	// 録画の失敗
-	NotificationKindRecordingFailed NotificationKind = "RECORDING_FAILED"
-	// 新たな競合の発生
-	NotificationKindReservationConflict NotificationKind = "RESERVATION_CONFLICT"
-	// 空き容量の不足
-	NotificationKindStorageLow NotificationKind = "STORAGE_LOW"
-	// チューナーサーバーへの接続不可
-	NotificationKindTunerServerUnreachable NotificationKind = "TUNER_SERVER_UNREACHABLE"
-	// 視聴予約した番組の放送が近い (設計書 4.8)。予約したユーザーだけに届き、Webhook では送らない。
-	NotificationKindWatchReminder NotificationKind = "WATCH_REMINDER"
-	// 見たアニメを Annict や AniList に記録した (#927)。見たユーザーだけに届き、Webhook では送らない。
-	NotificationKindAnimeRecorded NotificationKind = "ANIME_RECORDED"
-	// 見たアニメを Annict や AniList に記録できなかった (#927)。見たユーザーだけに届き、Webhook では送らない。
-	NotificationKindAnimeRecordFailed NotificationKind = "ANIME_RECORD_FAILED"
-	// スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。
-	NotificationKindScrambledRecordings NotificationKind = "SCRAMBLED_RECORDINGS"
-)
-
-var AllNotificationKind = []NotificationKind{
-	NotificationKindRecordingStarted,
-	NotificationKindRecordingCompleted,
-	NotificationKindRecordingFailed,
-	NotificationKindReservationConflict,
-	NotificationKindStorageLow,
-	NotificationKindTunerServerUnreachable,
-	NotificationKindWatchReminder,
-	NotificationKindAnimeRecorded,
-	NotificationKindAnimeRecordFailed,
-	NotificationKindScrambledRecordings,
-}
-
-func (e NotificationKind) IsValid() bool {
-	switch e {
-	case NotificationKindRecordingStarted, NotificationKindRecordingCompleted, NotificationKindRecordingFailed, NotificationKindReservationConflict, NotificationKindStorageLow, NotificationKindTunerServerUnreachable, NotificationKindWatchReminder, NotificationKindAnimeRecorded, NotificationKindAnimeRecordFailed, NotificationKindScrambledRecordings:
-		return true
-	}
-	return false
-}
-
-func (e NotificationKind) String() string {
-	return string(e)
-}
-
-func (e *NotificationKind) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = NotificationKind(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid NotificationKind", str)
-	}
-	return nil
-}
-
-func (e NotificationKind) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *NotificationKind) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e NotificationKind) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
 // プレイヤーへの操作の種類。
 type PlayerCommandType string
 
@@ -3739,122 +3595,6 @@ func (e *RecordingState) UnmarshalJSON(b []byte) error {
 }
 
 func (e RecordingState) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// Kotatsu が予約を無効にした理由 (#1500)。
-type ReservationDisabledReason string
-
-const (
-	// ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画しない。
-	ReservationDisabledReasonRecordedEpisode ReservationDisabledReason = "RECORDED_EPISODE"
-)
-
-var AllReservationDisabledReason = []ReservationDisabledReason{
-	ReservationDisabledReasonRecordedEpisode,
-}
-
-func (e ReservationDisabledReason) IsValid() bool {
-	switch e {
-	case ReservationDisabledReasonRecordedEpisode:
-		return true
-	}
-	return false
-}
-
-func (e ReservationDisabledReason) String() string {
-	return string(e)
-}
-
-func (e *ReservationDisabledReason) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = ReservationDisabledReason(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid ReservationDisabledReason", str)
-	}
-	return nil
-}
-
-func (e ReservationDisabledReason) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *ReservationDisabledReason) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e ReservationDisabledReason) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 予約の種類 (設計書 4.1)。
-type ReservationKind string
-
-const (
-	// 番組予約。番組の放送時間の変更とイベントリレーに追従する。
-	ReservationKindProgram ReservationKind = "PROGRAM"
-	// 時刻予約。サービスと、開始と終了の時刻を指定する。番組の変更には追従しない。
-	ReservationKindTime ReservationKind = "TIME"
-	// ルール予約。ルールが自動で作る。
-	ReservationKindRule ReservationKind = "RULE"
-)
-
-var AllReservationKind = []ReservationKind{
-	ReservationKindProgram,
-	ReservationKindTime,
-	ReservationKindRule,
-}
-
-func (e ReservationKind) IsValid() bool {
-	switch e {
-	case ReservationKindProgram, ReservationKindTime, ReservationKindRule:
-		return true
-	}
-	return false
-}
-
-func (e ReservationKind) String() string {
-	return string(e)
-}
-
-func (e *ReservationKind) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = ReservationKind(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid ReservationKind", str)
-	}
-	return nil
-}
-
-func (e ReservationKind) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *ReservationKind) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e ReservationKind) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

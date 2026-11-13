@@ -8,17 +8,16 @@ import (
 	"uuid"
 )
 
-// ReservationKind は予約の種類。
-type ReservationKind string
+//go:generate go tool go-enum --values --nocomments --sql
 
-const (
-	// ReservationKindProgram は番組予約。番組の放送時間の変更とイベントリレーに追従する。
-	ReservationKindProgram ReservationKind = "program"
-	// ReservationKindTime は時刻予約。サービスと開始と終了の時刻を指定し、番組の変更には追従しない。
-	ReservationKindTime ReservationKind = "time"
-	// ReservationKindRule はルール予約。ルールの照合が作る (#19)。
-	ReservationKindRule ReservationKind = "rule"
-)
+// ReservationKind は予約の種類。
+//
+// ENUM(
+// program // 番組予約。番組の放送時間の変更とイベントリレーに追従する。
+// time // 時刻予約。サービスと開始と終了の時刻を指定し、番組の変更には追従しない。
+// rule // ルール予約。ルールの照合が作る (#19)。
+// )
+type ReservationKind string
 
 var (
 	// ErrReservationNotFound は、予約がないことを表す。
@@ -44,7 +43,7 @@ type Reservation struct {
 	Enabled  bool
 	// DisabledReason は、Kotatsu が予約を無効にした理由 (#1500)。人が無効にした予約と、有効な予約では空。
 	DisabledReason ReservationDisabledReason
-	// DisabledServiceID は、DisabledReason が ReservationDisabledRecordedEpisode のときの、先に同じ回を録った録画のサービス。分からなければ nil。
+	// DisabledServiceID は、DisabledReason が ReservationDisabledReasonRecordedEpisode のときの、先に同じ回を録った録画のサービス。分からなければ nil。
 	DisabledServiceID *int64
 	FollowEventRelay  bool
 	// Overrides は、この予約の録画設定の上書き。
@@ -60,24 +59,21 @@ type Reservation struct {
 }
 
 // ReservationDisabledReason は、Kotatsu が予約を無効にした理由 (#1500)。人が無効にした予約 (#1504) と見分ける。
+//
+// ENUM(
+// recorded_episode // ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画をやめたこと。
+// )
 type ReservationDisabledReason string
 
-// ReservationDisabledRecordedEpisode は、ルール予約の録画の録り始めに、EIT[p/f] で同じ回を録画済みと分かったので、録画をやめたこと。
-const ReservationDisabledRecordedEpisode ReservationDisabledReason = "recorded_episode"
-
-// AssignmentState は、予約のチューナーの割り当ての状態。値は assign.State と同じで、まだ計算していない状態が加わる。
+// AssignmentState は、予約のチューナーの割り当ての状態 (設計書 4.5)。割り当ての計算 (assign) は、pending のほかを返す。
+//
+// ENUM(
+// pending // まだ割り当てを計算していないこと。
+// OK = ok // 全編を録画できる見込みであること。
+// partial // 本編の一部が欠ける見込みであること。
+// conflict // チューナーが足りないこと。録画は優先度 1 で試み、チューナーが空いていれば録る。
+// )
 type AssignmentState string
-
-const (
-	// AssignmentPending は、まだ割り当てを計算していないこと。
-	AssignmentPending AssignmentState = "pending"
-	// AssignmentOK は、全編を録画できる見込みであること。
-	AssignmentOK AssignmentState = "ok"
-	// AssignmentPartial は、本編の一部が欠ける見込みであること。
-	AssignmentPartial AssignmentState = "partial"
-	// AssignmentConflict は、チューナーが足りないこと。
-	AssignmentConflict AssignmentState = "conflict"
-)
 
 // Assignment は、予約のチューナーの割り当ての結果。
 type Assignment struct {

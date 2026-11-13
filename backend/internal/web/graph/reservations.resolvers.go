@@ -108,7 +108,7 @@ func (r *programResolver) Reservation(ctx context.Context, obj *model.Program) (
 }
 
 // Reservations is the resolver for the reservations field.
-func (r *queryResolver) Reservations(ctx context.Context, from time.Time, to time.Time, states []model.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error) {
+func (r *queryResolver) Reservations(ctx context.Context, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error) {
 	return r.listReservations(ctx, from, to, states, enabled, rule, first, after)
 }
 

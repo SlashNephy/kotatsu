@@ -57,7 +57,7 @@ func (b *Inbox) SetPreference(ctx context.Context, db Database, userID uuid.UUID
 
 	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		err := sqlc.New(tx).UpsertNotificationPreference(ctx, sqlc.UpsertNotificationPreferenceParams{
-			UserID: userID, Kind: string(preference.Kind), InApp: preference.InApp, WebPush: preference.WebPush,
+			UserID: userID, Kind: preference.Kind, InApp: preference.InApp, WebPush: preference.WebPush,
 			RuleReservations: preference.RuleReservations, Now: b.clock.Now(),
 		})
 		if err != nil {

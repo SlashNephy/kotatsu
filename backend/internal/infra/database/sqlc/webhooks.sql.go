@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -56,7 +57,7 @@ type InsertWebhookParams struct {
 	Name             string
 	URL              string
 	Format           string
-	Kinds            []string
+	Kinds            []domain.NotificationKind
 	SecretCiphertext []byte
 	Enabled          bool
 	Now              time.Time
@@ -179,7 +180,7 @@ type UpdateWebhookParams struct {
 	Name    string
 	URL     string
 	Format  string
-	Kinds   []string
+	Kinds   []domain.NotificationKind
 	Enabled bool
 	Now     time.Time
 	ID      uuid.UUID
