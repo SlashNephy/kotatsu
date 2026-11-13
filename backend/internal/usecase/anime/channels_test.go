@@ -124,11 +124,11 @@ func TestListChannelsTerrestrial(t *testing.T) {
 	db := newDB(t)
 	_, err := db.Exec(t.Context(), `INSERT INTO channel_types (type, display_name, sort_order) VALUES ('EXT1', 'EXT1', 3), ('BS4K', 'BS4K', 4)`)
 	require.NoError(t, err)
-	// saya-definitions の形のまま、地上波はネットワーク ID 0 で入れる。TBS の項目は、系列局の MBS (2064) を含む。
+	// 埋め込んだ定義の形のまま、地上波はネットワーク ID 0 で入れる。系列局の MBS (2064) は、局ごとの ChID を持つ (#1589)。
 	_, err = db.Exec(t.Context(), `INSERT INTO anime_channel_definitions (channel_type, network_id, sid, name, syobocal_channel_id, annict_channel_id) VALUES
 		('GR', 0, 1024, 'NHK 総合', 1, 1), ('GR', 0, 41984, 'NHK 総合', 1, 1),
 		('GR', 0, 1032, 'Eテレ', 2, 2), ('GR', 0, 2056, 'Eテレ', 2, 2),
-		('GR', 0, 1048, 'TBS', 5, 5), ('GR', 0, 2064, 'TBS', 5, 5),
+		('GR', 0, 1048, 'TBS', 5, 5), ('GR', 0, 2064, 'MBS毎日放送', 48, 48),
 		('GR', 0, 42032, 'KBS京都', 66, 66), ('GR', 0, 23608, 'TOKYO MX', 19, 19),
 		('BS', 4, 101, 'NHKBS1', 9, 9)`)
 	require.NoError(t, err)
@@ -148,9 +148,9 @@ func TestListChannelsTerrestrial(t *testing.T) {
 		{name: "EXT NHK of another area", channelType: extType, networkID: 32096, sid: 41984, wantName: new("NHK 総合"), wantSyobocal: new(int32(1)), wantAnnict: new(int32(1))},
 		{name: "EXT Eテレ of another area", channelType: extType, networkID: 32721, sid: 2056, wantName: new("Eテレ"), wantSyobocal: new(int32(2)), wantAnnict: new(int32(2))},
 		{name: "EXT independent station", channelType: extType, networkID: 32102, sid: 42032, wantName: new("KBS京都"), wantSyobocal: new(int32(66)), wantAnnict: new(int32(66))},
-		// 系列局は、キー局のチャンネルの放送時間データで照合すると、別の作品に結びつくことがある。
-		{name: "EXT affiliate", channelType: extType, networkID: 32722, sid: 2064, wantName: nil, wantSyobocal: nil, wantAnnict: nil},
-		{name: "EXT affiliate subchannel", channelType: extType, networkID: 32722, sid: 2065, wantName: nil, wantSyobocal: nil, wantAnnict: nil},
+		// 系列局は、キー局ではなく、その局のチャンネルに当てる。
+		{name: "EXT affiliate", channelType: extType, networkID: 32722, sid: 2064, wantName: new("MBS毎日放送"), wantSyobocal: new(int32(48)), wantAnnict: new(int32(48))},
+		{name: "EXT affiliate subchannel", channelType: extType, networkID: 32722, sid: 2065, wantName: new("MBS毎日放送"), wantSyobocal: new(int32(48)), wantAnnict: new(int32(48))},
 		{name: "GR subchannel", channelType: "GR", networkID: 32736, sid: 1025, wantName: new("NHK 総合"), wantSyobocal: new(int32(1)), wantAnnict: new(int32(1))},
 		{name: "EXT subchannel of NHK", channelType: extType, networkID: 32096, sid: 41985, wantName: new("NHK 総合"), wantSyobocal: new(int32(1)), wantAnnict: new(int32(1))},
 		{name: "Eテレ2", channelType: "GR", networkID: 32737, sid: 1033, wantName: new("Eテレ"), wantSyobocal: new(int32(64)), wantAnnict: nil},

@@ -23,6 +23,7 @@ import (
 
 // 取り込み元の名前 (anime_imports.source)。
 const (
+	// SourceSayaDefinitions は、チャンネルの定義。名前は、saya-definitions から取り込んでいた頃のまま (#1589)。
 	SourceSayaDefinitions = "saya_definitions"
 	SourceArm             = "arm"
 )
@@ -32,7 +33,7 @@ const (
 	ImportInterval = 24 * time.Hour
 	// importRetryInterval は、取り込めなかったときに、次に問い合わせるまでの間隔。
 	importRetryInterval = time.Hour
-	// channelTypeTerrestrial は、地上波の種別。saya-definitions は地上波のネットワーク ID を持たない。
+	// channelTypeTerrestrial は、地上波の種別。チャンネルの定義は地上波のネットワーク ID を持たない。
 	channelTypeTerrestrial = "GR"
 	// maxErrorLength は、記録する取り込めなかった理由の長さの上限 (バイト)。
 	maxErrorLength = 1000
@@ -40,7 +41,7 @@ const (
 
 // Fetcher は、連携先の情報を取得する。*animedata.Client が満たす。
 type Fetcher interface {
-	SayaDefinitions(ctx context.Context, etag string) ([]*animedata.Channel, string, error)
+	ChannelDefinitions(ctx context.Context, etag string) ([]*animedata.Channel, string, error)
 	Arm(ctx context.Context, etag string) ([]*animedata.Work, string, error)
 }
 
@@ -52,7 +53,7 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// Importer は、saya-definitions と arm、しょぼいカレンダーのタイトルの一覧を取り込む。
+// Importer は、チャンネルの定義と arm、しょぼいカレンダーのタイトルの一覧を取り込む。
 type Importer struct {
 	db      Database
 	clock   clock.Clock
@@ -156,7 +157,7 @@ func (i *Importer) importSource(ctx context.Context, source, etag string) (int, 
 	case SourceSyobocalTitles:
 		return i.importTitles(ctx)
 	case SourceSayaDefinitions:
-		channels, newETag, err := i.fetcher.SayaDefinitions(ctx, etag)
+		channels, newETag, err := i.fetcher.ChannelDefinitions(ctx, etag)
 		if err != nil {
 			return 0, err
 		}
@@ -252,7 +253,7 @@ type channelKey struct {
 	sid         int64
 }
 
-// channelDefinitionsOf は、saya-definitions のチャンネルを、サービスごとの行にする。
+// channelDefinitionsOf は、チャンネルの定義を、サービスごとの行にする。
 // 地上波はネットワーク ID を 0 にする。同じサービスが 2 度出てきたら、先に出てきたものを使う (TVTestAnnictRecorder と同じ)。
 func channelDefinitionsOf(channels []*animedata.Channel) *sqlc.InsertAnimeChannelDefinitionsParams {
 	params := &sqlc.InsertAnimeChannelDefinitionsParams{

@@ -25,14 +25,14 @@ type Node interface {
 }
 
 // サービスと、しょぼいカレンダーのチャンネル (ChID)、Annict のチャンネルの対応 (設計書 3.8)。
-// saya-definitions から取り込んだ対応に、管理者の上書きを重ねる。
+// チャンネルの定義 (#1589) から取り込んだ対応に、管理者の上書きを重ねる。
 type AnimeChannel struct {
 	ServiceID string `json:"serviceId"`
-	// 対応を取り込んだ saya-definitions のチャンネルの名前。取り込んだ対応がなければ null。
+	// 対応を取り込んだ、チャンネルの定義の名前。取り込んだ対応がなければ null。
 	DefinitionName *string `json:"definitionName,omitempty"`
-	// saya-definitions から取り込んだ、しょぼいカレンダーの ChID。
+	// チャンネルの定義から取り込んだ、しょぼいカレンダーの ChID。
 	ImportedSyobocalChannelID *int `json:"importedSyobocalChannelId,omitempty"`
-	// saya-definitions から取り込んだ、Annict のチャンネルの ID。
+	// チャンネルの定義から取り込んだ、Annict のチャンネルの ID。
 	ImportedAnnictChannelID *int `json:"importedAnnictChannelId,omitempty"`
 	// 管理者が上書きした、しょぼいカレンダーの ChID。上書きしていなければ null。
 	SyobocalChannelIDOverride *int `json:"syobocalChannelIdOverride,omitempty"`
@@ -2202,7 +2202,7 @@ func (e AnimeFollowingStatus) MarshalJSON() ([]byte, error) {
 type AnimeImportSource string
 
 const (
-	// サービスとしょぼいカレンダー、Annict のチャンネルの対応
+	// サービスとしょぼいカレンダー、Annict のチャンネルの対応。本体に埋め込んだ定義から取り込む (#1589)。名前は、saya-definitions から取り込んでいた頃のまま
 	AnimeImportSourceSayaDefinitions AnimeImportSource = "SAYA_DEFINITIONS"
 	// しょぼいカレンダーの TID と、Annict、AniList、MyAnimeList の作品 ID の対応
 	AnimeImportSourceArm AnimeImportSource = "ARM"

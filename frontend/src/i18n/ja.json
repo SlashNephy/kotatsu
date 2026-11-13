@@ -1939,7 +1939,7 @@
       "animeNeverImported": "まだ取り込めていません",
       "animeImported": "{{at}}に{{items}}件を取り込みました",
       "animeImportFailed": "{{at}}に取り込めませんでした：{{error}}",
-      "animeSourceSaya": "チャンネルの対応（saya-definitions）",
+      "animeSourceSaya": "チャンネルの対応",
       "animeSourceArm": "作品IDの対応（arm）",
       "animeSourceSyobocalTitles": "しょぼいカレンダーのタイトル",
       "animeSourceAnnictWorks": "作品IDの対応（Annict、AniList）",

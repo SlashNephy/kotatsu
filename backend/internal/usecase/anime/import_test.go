@@ -116,7 +116,7 @@ func newFakeFetcher() *fakeFetcher {
 	}
 }
 
-func (f *fakeFetcher) SayaDefinitions(_ context.Context, etag string) ([]*animedata.Channel, string, error) {
+func (f *fakeFetcher) ChannelDefinitions(_ context.Context, etag string) ([]*animedata.Channel, string, error) {
 	f.wait(anime.SourceSayaDefinitions)
 	f.mu.Lock()
 	defer f.mu.Unlock()

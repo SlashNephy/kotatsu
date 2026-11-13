@@ -30,9 +30,9 @@ const serviceAuditTarget = "service"
 // Channel は、サービスと、しょぼいカレンダーの ChID、Annict のチャンネルの対応 (設計書 3.8)。
 type Channel struct {
 	ServiceID int64
-	// DefinitionName は、対応を取り込んだ saya-definitions のチャンネルの名前。取り込んだ対応がなければ nil。
+	// DefinitionName は、対応を取り込んだ、チャンネルの定義の名前。取り込んだ対応がなければ nil。
 	DefinitionName *string
-	// ImportedSyobocalChannelID と ImportedAnnictChannelID は、saya-definitions から取り込んだ対応。
+	// ImportedSyobocalChannelID と ImportedAnnictChannelID は、チャンネルの定義から取り込んだ対応。
 	ImportedSyobocalChannelID *int32
 	ImportedAnnictChannelID   *int32
 	// OverrideSyobocalChannelID と OverrideAnnictChannelID は、管理者の上書き。上書きしていなければ nil。
@@ -76,19 +76,12 @@ func ListChannels(ctx context.Context, db sqlc.DBTX) ([]*Channel, error) {
 
 // しょぼいカレンダーのチャンネルの ChID。
 const (
-	syobocalNHKSogo   = 1
 	syobocalNHKETele  = 2
 	syobocalTokyoMX   = 19
 	syobocalNHKETele2 = 64
 	syobocalNHKETele3 = 65
 	syobocalTokyoMX2  = 187
 )
-
-// isNationwideSyobocalChannel は、どの地域の局でも同じ時間に放送する、しょぼいカレンダーのチャンネル (NHK 総合と Eテレ) かを返す。
-// saya-definitions は、この 2 つに、各地域の NHK のサービス ID を並べている。
-func isNationwideSyobocalChannel(id int32) bool {
-	return id == syobocalNHKSogo || id == syobocalNHKETele
-}
 
 // subchannelSyobocalChannel は、しょぼいカレンダーで、メインと別のチャンネルを持つサブチャンネルの ChID を返す。
 // メインの ChID mainID と、サブチャンネルのサービス ID がメインからいくつ後か offset で引く。Eテレ2 と Eテレ3、TOKYO MX2。
@@ -126,19 +119,13 @@ type importedChannel struct {
 // channelResolver は、サービスに、取り込んだチャンネルの対応を当てる (設計書 3.8)。
 type channelResolver struct {
 	definitions map[definitionKey]*importedChannel
-	// terrestrialServices は、地上波の対応の ChID ごとの、その ChID を持つサービス ID の数。
-	// 1 つだけなら、その ChID は 1 つの局のもの (独立局) で、どこで受けても同じ時間に放送する。
-	terrestrialServices map[int32]int
 }
 
 func newChannelResolver(definitions []sqlc.ListAnimeChannelDefinitionsRow) *channelResolver {
-	r := &channelResolver{definitions: map[definitionKey]*importedChannel{}, terrestrialServices: map[int32]int{}}
+	r := &channelResolver{definitions: map[definitionKey]*importedChannel{}}
 	for _, d := range definitions {
 		r.definitions[definitionKey{channelType: d.ChannelType, networkID: d.NetworkID, sid: d.Sid}] = &importedChannel{
 			name: d.Name, syobocalChannelID: d.SyobocalChannelID, annictChannelID: d.AnnictChannelID,
-		}
-		if d.ChannelType == channelTypeTerrestrial && d.SyobocalChannelID != nil {
-			r.terrestrialServices[*d.SyobocalChannelID]++
 		}
 	}
 
@@ -148,8 +135,7 @@ func newChannelResolver(definitions []sqlc.ListAnimeChannelDefinitionsRow) *chan
 // resolve は、サービスに対応させる、取り込んだチャンネルの対応を返す。対応がなければ nil を返す。
 //   - 種別が地上波なら種別とサービス ID で、BS と CS は種別とネットワーク ID とサービス ID で照らし合わせる。
 //   - ネットワーク ID が地上波でも、Mirakurun の種別が地上波でないサービス (他の地域を受ける EXT などの種別) は、
-//     NHK と独立局の対応だけを使う。saya-definitions は、系列局をキー局のチャンネルに寄せているが、
-//     アニメは系列局で放送時間が違うことがあり、キー局の放送時間データで照合すると、別の作品に結びついてしまう。
+//     地上波の対応を使う。定義は系列局を局ごとに持つので (#1589)、どの地域で受けても、その局のチャンネルに当たる。
 //   - 地上波のサブチャンネル (サービス ID がメインの 1 つ後か 2 つ後) は、メインの対応を使う。メインで野球中継をし、
 //     サブチャンネルでアニメを放送することがあるためである。しょぼいカレンダーでサブチャンネルが別のチャンネルを持てば、そちらを使う。
 func (r *channelResolver) resolve(channelType string, networkID, sid int64) *importedChannel {
@@ -164,7 +150,7 @@ func (r *channelResolver) resolve(channelType string, networkID, sid int64) *imp
 		return nil
 	}
 	for offset := range int64(maxSubchannelOffset + 1) {
-		d := r.terrestrial(channelType, sid-offset)
+		d := r.terrestrial(sid - offset)
 		if d == nil {
 			continue
 		}
@@ -182,24 +168,9 @@ func (r *channelResolver) resolve(channelType string, networkID, sid int64) *imp
 	return nil
 }
 
-// terrestrial は、地上波のサービス ID sid の対応を返す。種別が地上波でないサービスには、NHK と独立局の対応だけを返す。
-func (r *channelResolver) terrestrial(channelType string, sid int64) *importedChannel {
-	d, ok := r.definitions[definitionKey{channelType: channelTypeTerrestrial, networkID: 0, sid: sid}]
-	if !ok {
-		return nil
-	}
-	if channelType == channelTypeTerrestrial {
-		return d
-	}
-	if d.syobocalChannelID == nil {
-		return nil
-	}
-	id := *d.syobocalChannelID
-	if isNationwideSyobocalChannel(id) || r.terrestrialServices[id] == 1 {
-		return d
-	}
-
-	return nil
+// terrestrial は、地上波のサービス ID sid の対応を返す。
+func (r *channelResolver) terrestrial(sid int64) *importedChannel {
+	return r.definitions[definitionKey{channelType: channelTypeTerrestrial, networkID: 0, sid: sid}]
 }
 
 // Import は、取り込み元 1 つの、取り込んだ様子。
