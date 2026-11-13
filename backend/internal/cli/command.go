@@ -1387,8 +1387,8 @@ func closePool(pool *pgxpool.Pool) {
 // animeDataClient は、連携先の情報を取得するクライアントを返す。作品 ID の対応は、設定した arm と同じ形の JSON から取り込む (設計書 3.8)。
 func animeDataClient(cfg *config.Config, recorder *netactivity.Recorder) *animedata.Client {
 	return animedata.NewClient(&animedata.Options{
-		HTTPClient:         netactivity.NewClient(recorder, netactivity.PurposeAnimeMappings, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}),
-		SayaDefinitionsURL: "", ArmURL: cfg.AnimeLinking.ArmURL.Value(),
+		HTTPClient: netactivity.NewClient(recorder, netactivity.PurposeAnimeMappings, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}),
+		ArmURL:     cfg.AnimeLinking.ArmURL.Value(),
 	})
 }
 

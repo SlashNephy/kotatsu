@@ -1,0 +1,2608 @@
+{
+  "channels": [
+    {
+      "name": "NHK 総合",
+      "type": "GR",
+      "serviceIds": [
+        1024,
+        10240,
+        11264,
+        12288,
+        13312,
+        14336,
+        15360,
+        16384,
+        17408,
+        18432,
+        19456,
+        20480,
+        21504,
+        22528,
+        25600,
+        26624,
+        28672,
+        30720,
+        31744,
+        32768,
+        33792,
+        34816,
+        35840,
+        36864,
+        37888,
+        38912,
+        39936,
+        40960,
+        41984,
+        43008,
+        44032,
+        45056,
+        46080,
+        47104,
+        48128,
+        49152,
+        50176,
+        51200,
+        52224,
+        53248,
+        54272,
+        55296,
+        56320,
+        56832,
+        57344,
+        58368,
+        59392,
+        60416,
+        61440,
+        62464,
+        63488
+      ],
+      "networkId": 15,
+      "syobocalId": 1,
+      "annictId": 1,
+      "nicojkId": 1
+    },
+    {
+      "name": "Eテレ",
+      "type": "GR",
+      "serviceIds": [
+        1032,
+        2056,
+        3080,
+        10248,
+        11272,
+        12296,
+        13320,
+        14344,
+        15368,
+        16392,
+        17416,
+        18440,
+        19464,
+        20488,
+        21512,
+        22536,
+        30728,
+        31752,
+        32776,
+        34824,
+        35848,
+        36872,
+        37896,
+        47112,
+        48136,
+        49160,
+        50184,
+        51208,
+        52232,
+        53256,
+        54280,
+        55304,
+        56328,
+        56840,
+        57352,
+        58376,
+        59400,
+        60424,
+        61448,
+        62472,
+        63496
+      ],
+      "networkId": 15,
+      "syobocalId": 2,
+      "annictId": 2,
+      "nicojkId": 2
+    },
+    {
+      "name": "日本テレビ",
+      "type": "GR",
+      "serviceIds": [
+        1040
+      ],
+      "networkId": 15,
+      "syobocalId": 4,
+      "annictId": 4,
+      "nicojkId": 4
+    },
+    {
+      "name": "読売テレビ",
+      "type": "GR",
+      "serviceIds": [
+        2088
+      ],
+      "networkId": 15,
+      "syobocalId": 54,
+      "annictId": 54,
+      "nicojkId": 4
+    },
+    {
+      "name": "中京テレビ",
+      "type": "GR",
+      "serviceIds": [
+        3112
+      ],
+      "networkId": 15,
+      "syobocalId": 80,
+      "annictId": 80,
+      "nicojkId": 4
+    },
+    {
+      "name": "札幌テレビ放送",
+      "type": "GR",
+      "serviceIds": [
+        4120,
+        10264,
+        11288,
+        12312,
+        13336,
+        14360,
+        15384,
+        16408
+      ],
+      "networkId": 15,
+      "syobocalId": 92,
+      "annictId": 92,
+      "nicojkId": 4
+    },
+    {
+      "name": "西日本放送",
+      "type": "GR",
+      "serviceIds": [
+        5136
+      ],
+      "networkId": 15,
+      "syobocalId": 124,
+      "annictId": 124,
+      "nicojkId": 4
+    },
+    {
+      "name": "日本海テレビ",
+      "type": "GR",
+      "serviceIds": [
+        6176
+      ],
+      "networkId": 15,
+      "syobocalId": 242,
+      "annictId": 252,
+      "nicojkId": 4
+    },
+    {
+      "name": "ミヤギテレビ",
+      "type": "GR",
+      "serviceIds": [
+        17440
+      ],
+      "networkId": 15,
+      "syobocalId": 232,
+      "annictId": 239,
+      "nicojkId": 4
+    },
+    {
+      "name": "秋田放送",
+      "type": "GR",
+      "serviceIds": [
+        18448
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 295,
+      "nicojkId": 4
+    },
+    {
+      "name": "山形放送",
+      "type": "GR",
+      "serviceIds": [
+        19472
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 307,
+      "nicojkId": 4
+    },
+    {
+      "name": "テレビ岩手",
+      "type": "GR",
+      "serviceIds": [
+        20504
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 296,
+      "nicojkId": 4
+    },
+    {
+      "name": "福島中央テレビ",
+      "type": "GR",
+      "serviceIds": [
+        21528
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 264,
+      "nicojkId": 4
+    },
+    {
+      "name": "青森放送",
+      "type": "GR",
+      "serviceIds": [
+        22544
+      ],
+      "networkId": 15,
+      "syobocalId": 198,
+      "annictId": 199,
+      "nicojkId": 4
+    },
+    {
+      "name": "テレビ信州",
+      "type": "GR",
+      "serviceIds": [
+        30736
+      ],
+      "networkId": 15,
+      "syobocalId": 111,
+      "annictId": 111,
+      "nicojkId": 4
+    },
+    {
+      "name": "テレビ新潟",
+      "type": "GR",
+      "serviceIds": [
+        31776
+      ],
+      "networkId": 15,
+      "syobocalId": 207,
+      "annictId": 207,
+      "nicojkId": 4
+    },
+    {
+      "name": "山梨放送",
+      "type": "GR",
+      "serviceIds": [
+        32784
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 271,
+      "nicojkId": 4
+    },
+    {
+      "name": "テレビ金沢",
+      "type": "GR",
+      "serviceIds": [
+        34832
+      ],
+      "networkId": 15,
+      "syobocalId": 172,
+      "annictId": 174,
+      "nicojkId": 4
+    },
+    {
+      "name": "静岡第一テレビ",
+      "type": "GR",
+      "serviceIds": [
+        35872
+      ],
+      "networkId": 15,
+      "syobocalId": 154,
+      "annictId": 154,
+      "nicojkId": 4
+    },
+    {
+      "name": "福井放送",
+      "type": "GR",
+      "serviceIds": [
+        36880
+      ],
+      "networkId": 15,
+      "syobocalId": 148,
+      "annictId": 148,
+      "nicojkId": 4
+    },
+    {
+      "name": "北日本放送",
+      "type": "GR",
+      "serviceIds": [
+        37904
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 267,
+      "nicojkId": 4
+    },
+    {
+      "name": "広島テレビ",
+      "type": "GR",
+      "serviceIds": [
+        47128
+      ],
+      "networkId": 15,
+      "syobocalId": 103,
+      "annictId": 103,
+      "nicojkId": 4
+    },
+    {
+      "name": "山口放送",
+      "type": "GR",
+      "serviceIds": [
+        51216
+      ],
+      "networkId": 15,
+      "syobocalId": 126,
+      "annictId": 126,
+      "nicojkId": 4
+    },
+    {
+      "name": "南海放送",
+      "type": "GR",
+      "serviceIds": [
+        52240
+      ],
+      "networkId": 15,
+      "syobocalId": 114,
+      "annictId": 114,
+      "nicojkId": 4
+    },
+    {
+      "name": "四国放送",
+      "type": "GR",
+      "serviceIds": [
+        54288
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 265,
+      "nicojkId": 4
+    },
+    {
+      "name": "高知放送",
+      "type": "GR",
+      "serviceIds": [
+        55312
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 297,
+      "nicojkId": 4
+    },
+    {
+      "name": "福岡放送",
+      "type": "GR",
+      "serviceIds": [
+        56352
+      ],
+      "networkId": 15,
+      "syobocalId": 96,
+      "annictId": 96,
+      "nicojkId": 4
+    },
+    {
+      "name": "くまもと県民テレビ",
+      "type": "GR",
+      "serviceIds": [
+        57376
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 294,
+      "nicojkId": 4
+    },
+    {
+      "name": "長崎国際テレビ",
+      "type": "GR",
+      "serviceIds": [
+        58408
+      ],
+      "networkId": 15,
+      "syobocalId": 171,
+      "annictId": 173,
+      "nicojkId": 4
+    },
+    {
+      "name": "鹿児島読売テレビ",
+      "type": "GR",
+      "serviceIds": [
+        59432
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 298,
+      "nicojkId": 4
+    },
+    {
+      "name": "テレビ大分",
+      "type": "GR",
+      "serviceIds": [
+        61464
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 299,
+      "nicojkId": 4
+    },
+    {
+      "name": "テレビ朝日",
+      "type": "GR",
+      "serviceIds": [
+        1064
+      ],
+      "networkId": 15,
+      "syobocalId": 6,
+      "annictId": 6,
+      "nicojkId": 5
+    },
+    {
+      "name": "ABCテレビ",
+      "type": "GR",
+      "serviceIds": [
+        2072
+      ],
+      "networkId": 15,
+      "syobocalId": 67,
+      "annictId": 67,
+      "nicojkId": 5
+    },
+    {
+      "name": "メ～テレ",
+      "type": "GR",
+      "serviceIds": [
+        3104
+      ],
+      "networkId": 15,
+      "syobocalId": 81,
+      "annictId": 81,
+      "nicojkId": 5
+    },
+    {
+      "name": "北海道テレビ",
+      "type": "GR",
+      "serviceIds": [
+        4128,
+        10272,
+        11296,
+        12320,
+        13344,
+        14368,
+        15392,
+        16416
+      ],
+      "networkId": 15,
+      "syobocalId": 88,
+      "annictId": 88,
+      "nicojkId": 5
+    },
+    {
+      "name": "瀬戸内海放送",
+      "type": "GR",
+      "serviceIds": [
+        5144
+      ],
+      "networkId": 15,
+      "syobocalId": 123,
+      "annictId": 123,
+      "nicojkId": 5
+    },
+    {
+      "name": "東日本放送",
+      "type": "GR",
+      "serviceIds": [
+        17448
+      ],
+      "networkId": 15,
+      "syobocalId": 255,
+      "annictId": 285,
+      "nicojkId": 5
+    },
+    {
+      "name": "秋田朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        18464
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 309,
+      "nicojkId": 5
+    },
+    {
+      "name": "山形テレビ",
+      "type": "GR",
+      "serviceIds": [
+        19480
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 310,
+      "nicojkId": 5
+    },
+    {
+      "name": "岩手朝日テレビ",
+      "type": "GR",
+      "serviceIds": [
+        20520
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 308,
+      "nicojkId": 5
+    },
+    {
+      "name": "福島放送",
+      "type": "GR",
+      "serviceIds": [
+        21536
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 311,
+      "nicojkId": 5
+    },
+    {
+      "name": "青森朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        22560
+      ],
+      "networkId": 15,
+      "syobocalId": 199,
+      "annictId": 200,
+      "nicojkId": 5
+    },
+    {
+      "name": "長野朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        30744
+      ],
+      "networkId": 15,
+      "syobocalId": 237,
+      "annictId": 246,
+      "nicojkId": 5
+    },
+    {
+      "name": "新潟テレビ21",
+      "type": "GR",
+      "serviceIds": [
+        31784
+      ],
+      "networkId": 15,
+      "syobocalId": 208,
+      "annictId": 208,
+      "nicojkId": 5
+    },
+    {
+      "name": "北陸朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        34840
+      ],
+      "networkId": 15,
+      "syobocalId": 146,
+      "annictId": 146,
+      "nicojkId": 5
+    },
+    {
+      "name": "静岡朝日テレビ",
+      "type": "GR",
+      "serviceIds": [
+        35880
+      ],
+      "networkId": 15,
+      "syobocalId": 155,
+      "annictId": 155,
+      "nicojkId": 5
+    },
+    {
+      "name": "広島ホームテレビ",
+      "type": "GR",
+      "serviceIds": [
+        47136
+      ],
+      "networkId": 15,
+      "syobocalId": 99,
+      "annictId": 99,
+      "nicojkId": 5
+    },
+    {
+      "name": "山口朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        51232
+      ],
+      "networkId": 15,
+      "syobocalId": 127,
+      "annictId": 127,
+      "nicojkId": 5
+    },
+    {
+      "name": "愛媛朝日テレビ",
+      "type": "GR",
+      "serviceIds": [
+        52248
+      ],
+      "networkId": 15,
+      "syobocalId": 117,
+      "annictId": 117,
+      "nicojkId": 5
+    },
+    {
+      "name": "九州朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        56336
+      ],
+      "networkId": 15,
+      "syobocalId": 138,
+      "annictId": 138,
+      "nicojkId": 5
+    },
+    {
+      "name": "熊本朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        57384
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 312,
+      "nicojkId": 5
+    },
+    {
+      "name": "長崎文化放送",
+      "type": "GR",
+      "serviceIds": [
+        58400
+      ],
+      "networkId": 15,
+      "syobocalId": 169,
+      "annictId": 171,
+      "nicojkId": 5
+    },
+    {
+      "name": "鹿児島放送",
+      "type": "GR",
+      "serviceIds": [
+        59424
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 313,
+      "nicojkId": 5
+    },
+    {
+      "name": "大分朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        61472
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 272,
+      "nicojkId": 5
+    },
+    {
+      "name": "琉球朝日放送",
+      "type": "GR",
+      "serviceIds": [
+        63520
+      ],
+      "networkId": 15,
+      "syobocalId": 202,
+      "annictId": 203,
+      "nicojkId": 5
+    },
+    {
+      "name": "TBS",
+      "type": "GR",
+      "serviceIds": [
+        1048
+      ],
+      "networkId": 15,
+      "syobocalId": 5,
+      "annictId": 5,
+      "nicojkId": 6
+    },
+    {
+      "name": "MBS毎日放送",
+      "type": "GR",
+      "serviceIds": [
+        2064
+      ],
+      "networkId": 15,
+      "syobocalId": 48,
+      "annictId": 48,
+      "nicojkId": 6
+    },
+    {
+      "name": "CBCテレビ",
+      "type": "GR",
+      "serviceIds": [
+        3096
+      ],
+      "networkId": 15,
+      "syobocalId": 79,
+      "annictId": 79,
+      "nicojkId": 6
+    },
+    {
+      "name": "北海道放送",
+      "type": "GR",
+      "serviceIds": [
+        4112,
+        10256,
+        11280,
+        12304,
+        13328,
+        14352,
+        15376,
+        16400
+      ],
+      "networkId": 15,
+      "syobocalId": 89,
+      "annictId": 89,
+      "nicojkId": 6
+    },
+    {
+      "name": "RSK山陽放送",
+      "type": "GR",
+      "serviceIds": [
+        5152
+      ],
+      "networkId": 15,
+      "syobocalId": 105,
+      "annictId": 105,
+      "nicojkId": 6
+    },
+    {
+      "name": "BSS山陰放送",
+      "type": "GR",
+      "serviceIds": [
+        6168
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 279,
+      "nicojkId": 6
+    },
+    {
+      "name": "東北放送",
+      "type": "GR",
+      "serviceIds": [
+        17424
+      ],
+      "networkId": 15,
+      "syobocalId": 98,
+      "annictId": 98,
+      "nicojkId": 6
+    },
+    {
+      "name": "テレビユー山形",
+      "type": "GR",
+      "serviceIds": [
+        19488
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 275,
+      "nicojkId": 6
+    },
+    {
+      "name": "IBC岩手放送",
+      "type": "GR",
+      "serviceIds": [
+        20496
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 274,
+      "nicojkId": 6
+    },
+    {
+      "name": "テレビユー福島",
+      "type": "GR",
+      "serviceIds": [
+        21544
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 276,
+      "nicojkId": 6
+    },
+    {
+      "name": "青森テレビ",
+      "type": "GR",
+      "serviceIds": [
+        22552
+      ],
+      "networkId": 15,
+      "syobocalId": 200,
+      "annictId": 201,
+      "nicojkId": 6
+    },
+    {
+      "name": "信越放送",
+      "type": "GR",
+      "serviceIds": [
+        30752
+      ],
+      "networkId": 15,
+      "syobocalId": 253,
+      "annictId": 278,
+      "nicojkId": 6
+    },
+    {
+      "name": "新潟放送",
+      "type": "GR",
+      "serviceIds": [
+        31760
+      ],
+      "networkId": 15,
+      "syobocalId": 206,
+      "annictId": 206,
+      "nicojkId": 6
+    },
+    {
+      "name": "テレビ山梨",
+      "type": "GR",
+      "serviceIds": [
+        32792
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 277,
+      "nicojkId": 6
+    },
+    {
+      "name": "北陸放送",
+      "type": "GR",
+      "serviceIds": [
+        34848
+      ],
+      "networkId": 15,
+      "syobocalId": 147,
+      "annictId": 147,
+      "nicojkId": 6
+    },
+    {
+      "name": "静岡放送",
+      "type": "GR",
+      "serviceIds": [
+        35856
+      ],
+      "networkId": 15,
+      "syobocalId": 113,
+      "annictId": 113,
+      "nicojkId": 6
+    },
+    {
+      "name": "チューリップテレビ",
+      "type": "GR",
+      "serviceIds": [
+        37920
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 269,
+      "nicojkId": 6
+    },
+    {
+      "name": "中国放送",
+      "type": "GR",
+      "serviceIds": [
+        47120
+      ],
+      "networkId": 15,
+      "syobocalId": 102,
+      "annictId": 102,
+      "nicojkId": 6
+    },
+    {
+      "name": "テレビ山口",
+      "type": "GR",
+      "serviceIds": [
+        51224
+      ],
+      "networkId": 15,
+      "syobocalId": 125,
+      "annictId": 125,
+      "nicojkId": 6
+    },
+    {
+      "name": "あいテレビ",
+      "type": "GR",
+      "serviceIds": [
+        52256
+      ],
+      "networkId": 15,
+      "syobocalId": 116,
+      "annictId": 116,
+      "nicojkId": 6
+    },
+    {
+      "name": "テレビ高知",
+      "type": "GR",
+      "serviceIds": [
+        55320
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 280,
+      "nicojkId": 6
+    },
+    {
+      "name": "RKB毎日放送",
+      "type": "GR",
+      "serviceIds": [
+        56344
+      ],
+      "networkId": 15,
+      "syobocalId": 94,
+      "annictId": 94,
+      "nicojkId": 6
+    },
+    {
+      "name": "熊本放送",
+      "type": "GR",
+      "serviceIds": [
+        57360
+      ],
+      "networkId": 15,
+      "syobocalId": 142,
+      "annictId": 142,
+      "nicojkId": 6
+    },
+    {
+      "name": "長崎放送",
+      "type": "GR",
+      "serviceIds": [
+        58384
+      ],
+      "networkId": 15,
+      "syobocalId": 168,
+      "annictId": 170,
+      "nicojkId": 6
+    },
+    {
+      "name": "南日本放送",
+      "type": "GR",
+      "serviceIds": [
+        59408
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 283,
+      "nicojkId": 6
+    },
+    {
+      "name": "宮崎放送",
+      "type": "GR",
+      "serviceIds": [
+        60432
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 282,
+      "nicojkId": 6
+    },
+    {
+      "name": "大分放送",
+      "type": "GR",
+      "serviceIds": [
+        61456
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 281,
+      "nicojkId": 6
+    },
+    {
+      "name": "琉球放送",
+      "type": "GR",
+      "serviceIds": [
+        63504
+      ],
+      "networkId": 15,
+      "syobocalId": 201,
+      "annictId": 202,
+      "nicojkId": 6
+    },
+    {
+      "name": "テレビ東京",
+      "type": "GR",
+      "serviceIds": [
+        1072
+      ],
+      "networkId": 15,
+      "syobocalId": 7,
+      "annictId": 7,
+      "nicojkId": 7
+    },
+    {
+      "name": "テレビ北海道",
+      "type": "GR",
+      "serviceIds": [
+        4144,
+        10288,
+        11312,
+        12336,
+        13360,
+        14384,
+        15408,
+        16432
+      ],
+      "networkId": 15,
+      "syobocalId": 90,
+      "annictId": 90,
+      "nicojkId": 7
+    },
+    {
+      "name": "テレビせとうち",
+      "type": "GR",
+      "serviceIds": [
+        5160
+      ],
+      "networkId": 15,
+      "syobocalId": 95,
+      "annictId": 95,
+      "nicojkId": 7
+    },
+    {
+      "name": "テレビ愛知",
+      "type": "GR",
+      "serviceIds": [
+        33840
+      ],
+      "networkId": 15,
+      "syobocalId": 59,
+      "annictId": 59,
+      "nicojkId": 7
+    },
+    {
+      "name": "テレビ大阪",
+      "type": "GR",
+      "serviceIds": [
+        41008
+      ],
+      "networkId": 15,
+      "syobocalId": 28,
+      "annictId": 28,
+      "nicojkId": 7
+    },
+    {
+      "name": "TVQ九州放送",
+      "type": "GR",
+      "serviceIds": [
+        56360
+      ],
+      "networkId": 15,
+      "syobocalId": 93,
+      "annictId": 93,
+      "nicojkId": 7
+    },
+    {
+      "name": "フジテレビ",
+      "type": "GR",
+      "serviceIds": [
+        1056
+      ],
+      "networkId": 15,
+      "syobocalId": 3,
+      "annictId": 3,
+      "nicojkId": 8
+    },
+    {
+      "name": "関西テレビ",
+      "type": "GR",
+      "serviceIds": [
+        2080
+      ],
+      "networkId": 15,
+      "syobocalId": 70,
+      "annictId": 70,
+      "nicojkId": 8
+    },
+    {
+      "name": "東海テレビ",
+      "type": "GR",
+      "serviceIds": [
+        3088
+      ],
+      "networkId": 15,
+      "syobocalId": 77,
+      "annictId": 77,
+      "nicojkId": 8
+    },
+    {
+      "name": "北海道文化放送",
+      "type": "GR",
+      "serviceIds": [
+        4136,
+        10280,
+        11304,
+        12328,
+        13352,
+        14376,
+        15400,
+        16424
+      ],
+      "networkId": 15,
+      "syobocalId": 91,
+      "annictId": 91,
+      "nicojkId": 8
+    },
+    {
+      "name": "岡山放送",
+      "type": "GR",
+      "serviceIds": [
+        5168
+      ],
+      "networkId": 15,
+      "syobocalId": 104,
+      "annictId": 104,
+      "nicojkId": 8
+    },
+    {
+      "name": "山陰中央テレビ",
+      "type": "GR",
+      "serviceIds": [
+        6160
+      ],
+      "networkId": 15,
+      "syobocalId": 275,
+      "annictId": 291,
+      "nicojkId": 8
+    },
+    {
+      "name": "仙台放送",
+      "type": "GR",
+      "serviceIds": [
+        17432
+      ],
+      "networkId": 15,
+      "syobocalId": 231,
+      "annictId": 238,
+      "nicojkId": 8
+    },
+    {
+      "name": "秋田テレビ",
+      "type": "GR",
+      "serviceIds": [
+        18456
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 286,
+      "nicojkId": 8
+    },
+    {
+      "name": "さくらんぼテレビ",
+      "type": "GR",
+      "serviceIds": [
+        19496
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 287,
+      "nicojkId": 8
+    },
+    {
+      "name": "岩手めんこいテレビ",
+      "type": "GR",
+      "serviceIds": [
+        20512
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 284,
+      "nicojkId": 8
+    },
+    {
+      "name": "福島テレビ",
+      "type": "GR",
+      "serviceIds": [
+        21520
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 288,
+      "nicojkId": 8
+    },
+    {
+      "name": "長野放送",
+      "type": "GR",
+      "serviceIds": [
+        30760
+      ],
+      "networkId": 15,
+      "syobocalId": 236,
+      "annictId": 245,
+      "nicojkId": 8
+    },
+    {
+      "name": "NST新潟総合テレビ",
+      "type": "GR",
+      "serviceIds": [
+        31768
+      ],
+      "networkId": 15,
+      "syobocalId": 209,
+      "annictId": 209,
+      "nicojkId": 8
+    },
+    {
+      "name": "石川テレビ",
+      "type": "GR",
+      "serviceIds": [
+        34856
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 266,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビ静岡",
+      "type": "GR",
+      "serviceIds": [
+        35864
+      ],
+      "networkId": 15,
+      "syobocalId": 141,
+      "annictId": 141,
+      "nicojkId": 8
+    },
+    {
+      "name": "福井テレビ",
+      "type": "GR",
+      "serviceIds": [
+        36888
+      ],
+      "networkId": 15,
+      "syobocalId": 149,
+      "annictId": 149,
+      "nicojkId": 8
+    },
+    {
+      "name": "富山テレビ",
+      "type": "GR",
+      "serviceIds": [
+        37912
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 268,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビ新広島",
+      "type": "GR",
+      "serviceIds": [
+        47144
+      ],
+      "networkId": 15,
+      "syobocalId": 60,
+      "annictId": 60,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビ愛媛",
+      "type": "GR",
+      "serviceIds": [
+        52264
+      ],
+      "networkId": 15,
+      "syobocalId": 115,
+      "annictId": 115,
+      "nicojkId": 8
+    },
+    {
+      "name": "高知さんさんテレビ",
+      "type": "GR",
+      "serviceIds": [
+        55328
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 263,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビ西日本",
+      "type": "GR",
+      "serviceIds": [
+        56368
+      ],
+      "networkId": 15,
+      "syobocalId": 144,
+      "annictId": 144,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビくまもと",
+      "type": "GR",
+      "serviceIds": [
+        57368
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 289,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビ長崎",
+      "type": "GR",
+      "serviceIds": [
+        58392
+      ],
+      "networkId": 15,
+      "syobocalId": 170,
+      "annictId": 172,
+      "nicojkId": 8
+    },
+    {
+      "name": "鹿児島テレビ",
+      "type": "GR",
+      "serviceIds": [
+        59416
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 290,
+      "nicojkId": 8
+    },
+    {
+      "name": "テレビ宮崎",
+      "type": "GR",
+      "serviceIds": [
+        60440
+      ],
+      "networkId": 15,
+      "syobocalId": null,
+      "annictId": 300,
+      "nicojkId": 8
+    },
+    {
+      "name": "サガテレビ",
+      "type": "GR",
+      "serviceIds": [
+        62480
+      ],
+      "networkId": 15,
+      "syobocalId": 145,
+      "annictId": 145,
+      "nicojkId": 8
+    },
+    {
+      "name": "沖縄テレビ",
+      "type": "GR",
+      "serviceIds": [
+        63544
+      ],
+      "networkId": 15,
+      "syobocalId": 203,
+      "annictId": 204,
+      "nicojkId": 8
+    },
+    {
+      "name": "TOKYO MX",
+      "type": "GR",
+      "serviceIds": [
+        23608
+      ],
+      "networkId": 15,
+      "syobocalId": 19,
+      "annictId": 19,
+      "nicojkId": 9
+    },
+    {
+      "name": "放送大学",
+      "type": "GR",
+      "serviceIds": [
+        1088
+      ],
+      "networkId": 15,
+      "syobocalId": 158,
+      "annictId": null,
+      "nicojkId": 231
+    },
+    {
+      "name": "テレ玉",
+      "type": "GR",
+      "serviceIds": [
+        29752
+      ],
+      "networkId": 15,
+      "syobocalId": 14,
+      "annictId": 14,
+      "nicojkId": 10
+    },
+    {
+      "name": "tvk",
+      "type": "GR",
+      "serviceIds": [
+        24632
+      ],
+      "networkId": 15,
+      "syobocalId": 8,
+      "annictId": 8,
+      "nicojkId": 11
+    },
+    {
+      "name": "チバテレビ",
+      "type": "GR",
+      "serviceIds": [
+        27704
+      ],
+      "networkId": 15,
+      "syobocalId": 13,
+      "annictId": 13,
+      "nicojkId": 12
+    },
+    {
+      "name": "群馬テレビ",
+      "type": "GR",
+      "serviceIds": [
+        25656
+      ],
+      "networkId": 15,
+      "syobocalId": 72,
+      "annictId": 72,
+      "nicojkId": null
+    },
+    {
+      "name": "とちぎテレビ",
+      "type": "GR",
+      "serviceIds": [
+        28728
+      ],
+      "networkId": 15,
+      "syobocalId": 100,
+      "annictId": 100,
+      "nicojkId": null
+    },
+    {
+      "name": "三重テレビ",
+      "type": "GR",
+      "serviceIds": [
+        38960
+      ],
+      "networkId": 15,
+      "syobocalId": 82,
+      "annictId": 82,
+      "nicojkId": null
+    },
+    {
+      "name": "ぎふチャン",
+      "type": "GR",
+      "serviceIds": [
+        39984
+      ],
+      "networkId": 15,
+      "syobocalId": 83,
+      "annictId": 83,
+      "nicojkId": null
+    },
+    {
+      "name": "KBS京都",
+      "type": "GR",
+      "serviceIds": [
+        42032
+      ],
+      "networkId": 15,
+      "syobocalId": 66,
+      "annictId": 66,
+      "nicojkId": null
+    },
+    {
+      "name": "サンテレビ",
+      "type": "GR",
+      "serviceIds": [
+        43056
+      ],
+      "networkId": 15,
+      "syobocalId": 58,
+      "annictId": 58,
+      "nicojkId": null
+    },
+    {
+      "name": "テレビ和歌山",
+      "type": "GR",
+      "serviceIds": [
+        44080
+      ],
+      "networkId": 15,
+      "syobocalId": 86,
+      "annictId": 86,
+      "nicojkId": null
+    },
+    {
+      "name": "奈良テレビ",
+      "type": "GR",
+      "serviceIds": [
+        45104
+      ],
+      "networkId": 15,
+      "syobocalId": 74,
+      "annictId": 74,
+      "nicojkId": null
+    },
+    {
+      "name": "BBCびわ湖放送",
+      "type": "GR",
+      "serviceIds": [
+        46128
+      ],
+      "networkId": 15,
+      "syobocalId": 87,
+      "annictId": 87,
+      "nicojkId": null
+    },
+    {
+      "name": "J:COM HD",
+      "type": "GR",
+      "serviceIds": [
+        23656,
+        23672
+      ],
+      "networkId": 15,
+      "syobocalId": 245,
+      "annictId": 255,
+      "nicojkId": null
+    },
+    {
+      "name": "NHKBS1",
+      "type": "BS",
+      "serviceIds": [
+        101,
+        102
+      ],
+      "networkId": 4,
+      "syobocalId": 9,
+      "annictId": 9,
+      "nicojkId": 101
+    },
+    {
+      "name": "NHKBSプレミアム",
+      "type": "BS",
+      "serviceIds": [
+        103,
+        104
+      ],
+      "networkId": 4,
+      "syobocalId": 179,
+      "annictId": 180,
+      "nicojkId": 103
+    },
+    {
+      "name": "BS日テレ",
+      "type": "BS",
+      "serviceIds": [
+        141,
+        142,
+        143
+      ],
+      "networkId": 4,
+      "syobocalId": 71,
+      "annictId": 71,
+      "nicojkId": 141
+    },
+    {
+      "name": "BS朝日",
+      "type": "BS",
+      "serviceIds": [
+        151,
+        152,
+        153
+      ],
+      "networkId": 4,
+      "syobocalId": 18,
+      "annictId": 18,
+      "nicojkId": 151
+    },
+    {
+      "name": "BS-TBS",
+      "type": "BS",
+      "serviceIds": [
+        161,
+        162,
+        163
+      ],
+      "networkId": 4,
+      "syobocalId": 16,
+      "annictId": 16,
+      "nicojkId": 161
+    },
+    {
+      "name": "BSテレ東",
+      "type": "BS",
+      "serviceIds": [
+        171,
+        172,
+        173
+      ],
+      "networkId": 4,
+      "syobocalId": 15,
+      "annictId": 15,
+      "nicojkId": 171
+    },
+    {
+      "name": "BSフジ",
+      "type": "BS",
+      "serviceIds": [
+        181,
+        182,
+        183
+      ],
+      "networkId": 4,
+      "syobocalId": 17,
+      "annictId": 17,
+      "nicojkId": 181
+    },
+    {
+      "name": "WOWOWプライム",
+      "type": "BS",
+      "serviceIds": [
+        191
+      ],
+      "networkId": 4,
+      "syobocalId": 204,
+      "annictId": 205,
+      "nicojkId": 191
+    },
+    {
+      "name": "WOWOWライブ",
+      "type": "BS",
+      "serviceIds": [
+        192
+      ],
+      "networkId": 4,
+      "syobocalId": 97,
+      "annictId": 97,
+      "nicojkId": 192
+    },
+    {
+      "name": "WOWOWシネマ",
+      "type": "BS",
+      "serviceIds": [
+        193
+      ],
+      "networkId": 4,
+      "syobocalId": 76,
+      "annictId": 76,
+      "nicojkId": 193
+    },
+    {
+      "name": "スターチャンネル1",
+      "type": "BS",
+      "serviceIds": [
+        200
+      ],
+      "networkId": 4,
+      "syobocalId": 217,
+      "annictId": 217,
+      "nicojkId": 200
+    },
+    {
+      "name": "スターチャンネル2",
+      "type": "BS",
+      "serviceIds": [
+        201
+      ],
+      "networkId": 4,
+      "syobocalId": 219,
+      "annictId": 220,
+      "nicojkId": 201
+    },
+    {
+      "name": "スターチャンネル3",
+      "type": "BS",
+      "serviceIds": [
+        202
+      ],
+      "networkId": 4,
+      "syobocalId": 214,
+      "annictId": 214,
+      "nicojkId": 202
+    },
+    {
+      "name": "BS11イレブン",
+      "type": "BS",
+      "serviceIds": [
+        211
+      ],
+      "networkId": 4,
+      "syobocalId": 128,
+      "annictId": 128,
+      "nicojkId": 211
+    },
+    {
+      "name": "BS12トゥエルビ",
+      "type": "BS",
+      "serviceIds": [
+        222
+      ],
+      "networkId": 4,
+      "syobocalId": 129,
+      "annictId": 129,
+      "nicojkId": 222
+    },
+    {
+      "name": "放送大学ex",
+      "type": "BS",
+      "serviceIds": [
+        231
+      ],
+      "networkId": 4,
+      "syobocalId": 158,
+      "annictId": 158,
+      "nicojkId": 231
+    },
+    {
+      "name": "放送大学on",
+      "type": "BS",
+      "serviceIds": [
+        232,
+        233
+      ],
+      "networkId": 4,
+      "syobocalId": 158,
+      "annictId": 158,
+      "nicojkId": 231
+    },
+    {
+      "name": "グリーンチャンネル",
+      "type": "BS",
+      "serviceIds": [
+        234
+      ],
+      "networkId": 4,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": 234
+    },
+    {
+      "name": "BSアニマックス",
+      "type": "BS",
+      "serviceIds": [
+        236
+      ],
+      "networkId": 4,
+      "syobocalId": 197,
+      "annictId": 167,
+      "nicojkId": 236
+    },
+    {
+      "name": "FOXbs238",
+      "type": "BS",
+      "serviceIds": [
+        238
+      ],
+      "networkId": 4,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": 238
+    },
+    {
+      "name": "BSスカパー!",
+      "type": "BS",
+      "serviceIds": [
+        241
+      ],
+      "networkId": 4,
+      "syobocalId": 196,
+      "annictId": 197,
+      "nicojkId": 241
+    },
+    {
+      "name": "J SPORTS 1",
+      "type": "BS",
+      "serviceIds": [
+        242
+      ],
+      "networkId": 4,
+      "syobocalId": 258,
+      "annictId": null,
+      "nicojkId": 242
+    },
+    {
+      "name": "J SPORTS 2",
+      "type": "BS",
+      "serviceIds": [
+        243
+      ],
+      "networkId": 4,
+      "syobocalId": 259,
+      "annictId": null,
+      "nicojkId": 243
+    },
+    {
+      "name": "J SPORTS 3",
+      "type": "BS",
+      "serviceIds": [
+        244
+      ],
+      "networkId": 4,
+      "syobocalId": 260,
+      "annictId": null,
+      "nicojkId": 244
+    },
+    {
+      "name": "J SPORTS 4",
+      "type": "BS",
+      "serviceIds": [
+        245
+      ],
+      "networkId": 4,
+      "syobocalId": 261,
+      "annictId": null,
+      "nicojkId": 245
+    },
+    {
+      "name": "BS釣りビジョン",
+      "type": "BS",
+      "serviceIds": [
+        251
+      ],
+      "networkId": 4,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": 251
+    },
+    {
+      "name": "WOWOWプラス",
+      "type": "BS",
+      "serviceIds": [
+        252
+      ],
+      "networkId": 4,
+      "syobocalId": 251,
+      "annictId": null,
+      "nicojkId": 252
+    },
+    {
+      "name": "日本映画専門ch",
+      "type": "BS",
+      "serviceIds": [
+        255
+      ],
+      "networkId": 4,
+      "syobocalId": 40,
+      "annictId": 40,
+      "nicojkId": 255
+    },
+    {
+      "name": "ディズニーch",
+      "type": "BS",
+      "serviceIds": [
+        256
+      ],
+      "networkId": 4,
+      "syobocalId": 163,
+      "annictId": 163,
+      "nicojkId": 256
+    },
+    {
+      "name": "Dlife",
+      "type": "BS",
+      "serviceIds": [
+        258
+      ],
+      "networkId": 4,
+      "syobocalId": 212,
+      "annictId": 212,
+      "nicojkId": 258
+    },
+    {
+      "name": "BS松竹東急",
+      "type": "BS",
+      "serviceIds": [
+        260
+      ],
+      "networkId": 4,
+      "syobocalId": 271,
+      "annictId": null,
+      "nicojkId": 260
+    },
+    {
+      "name": "BSJapanext",
+      "type": "BS",
+      "serviceIds": [
+        263
+      ],
+      "networkId": 4,
+      "syobocalId": 273,
+      "annictId": 303,
+      "nicojkId": 263
+    },
+    {
+      "name": "BSよしもと",
+      "type": "BS",
+      "serviceIds": [
+        265
+      ],
+      "networkId": 4,
+      "syobocalId": 272,
+      "annictId": 304,
+      "nicojkId": 265
+    },
+    {
+      "name": "放送大学ラジオ",
+      "type": "BS",
+      "serviceIds": [
+        531
+      ],
+      "networkId": 4,
+      "syobocalId": 159,
+      "annictId": 159,
+      "nicojkId": 231
+    },
+    {
+      "name": "SOLiVE24",
+      "type": "BS",
+      "serviceIds": [
+        910
+      ],
+      "networkId": 4,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": 910
+    },
+    {
+      "name": "ショップチャンネル",
+      "type": "CS",
+      "serviceIds": [
+        55
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "QVC",
+      "type": "CS",
+      "serviceIds": [
+        161
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "東映チャンネル",
+      "type": "CS",
+      "serviceIds": [
+        218
+      ],
+      "networkId": 6,
+      "syobocalId": 39,
+      "annictId": 39,
+      "nicojkId": null
+    },
+    {
+      "name": "衛星劇場",
+      "type": "CS",
+      "serviceIds": [
+        219
+      ],
+      "networkId": 6,
+      "syobocalId": 220,
+      "annictId": 221,
+      "nicojkId": null
+    },
+    {
+      "name": "映画・chNECO",
+      "type": "CS",
+      "serviceIds": [
+        223
+      ],
+      "networkId": 7,
+      "syobocalId": 26,
+      "annictId": 26,
+      "nicojkId": null
+    },
+    {
+      "name": "ザ・シネマ",
+      "type": "CS",
+      "serviceIds": [
+        227
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "FOXムービー",
+      "type": "CS",
+      "serviceIds": [
+        229
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "ムービープラス",
+      "type": "CS",
+      "serviceIds": [
+        240
+      ],
+      "networkId": 7,
+      "syobocalId": 152,
+      "annictId": 152,
+      "nicojkId": null
+    },
+    {
+      "name": "スカイA",
+      "type": "CS",
+      "serviceIds": [
+        250
+      ],
+      "networkId": 7,
+      "syobocalId": 84,
+      "annictId": 84,
+      "nicojkId": null
+    },
+    {
+      "name": "GAORA",
+      "type": "CS",
+      "serviceIds": [
+        254
+      ],
+      "networkId": 7,
+      "syobocalId": 265,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "日テレジータス",
+      "type": "CS",
+      "serviceIds": [
+        257
+      ],
+      "networkId": 7,
+      "syobocalId": 266,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "ゴルフネットワーク",
+      "type": "CS",
+      "serviceIds": [
+        262
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "SKY STAGE",
+      "type": "CS",
+      "serviceIds": [
+        290
+      ],
+      "networkId": 7,
+      "syobocalId": 167,
+      "annictId": 169,
+      "nicojkId": null
+    },
+    {
+      "name": "時代劇専門ch",
+      "type": "CS",
+      "serviceIds": [
+        292
+      ],
+      "networkId": 7,
+      "syobocalId": 221,
+      "annictId": 222,
+      "nicojkId": null
+    },
+    {
+      "name": "ファミリー劇場",
+      "type": "CS",
+      "serviceIds": [
+        293
+      ],
+      "networkId": 7,
+      "syobocalId": 42,
+      "annictId": 42,
+      "nicojkId": null
+    },
+    {
+      "name": "ホームドラマCH",
+      "type": "CS",
+      "serviceIds": [
+        294
+      ],
+      "networkId": 7,
+      "syobocalId": 153,
+      "annictId": 153,
+      "nicojkId": null
+    },
+    {
+      "name": "MONDO TV",
+      "type": "CS",
+      "serviceIds": [
+        295
+      ],
+      "networkId": 7,
+      "syobocalId": 47,
+      "annictId": 47,
+      "nicojkId": null
+    },
+    {
+      "name": "TBSチャンネル1",
+      "type": "CS",
+      "serviceIds": [
+        296
+      ],
+      "networkId": 6,
+      "syobocalId": 52,
+      "annictId": 52,
+      "nicojkId": null
+    },
+    {
+      "name": "TBSチャンネル2",
+      "type": "CS",
+      "serviceIds": [
+        297
+      ],
+      "networkId": 7,
+      "syobocalId": 215,
+      "annictId": 215,
+      "nicojkId": null
+    },
+    {
+      "name": "テレ朝チャンネル1",
+      "type": "CS",
+      "serviceIds": [
+        298
+      ],
+      "networkId": 6,
+      "syobocalId": 224,
+      "annictId": 229,
+      "nicojkId": null
+    },
+    {
+      "name": "テレ朝チャンネル2",
+      "type": "CS",
+      "serviceIds": [
+        299
+      ],
+      "networkId": 6,
+      "syobocalId": 243,
+      "annictId": 253,
+      "nicojkId": null
+    },
+    {
+      "name": "日テレプラス",
+      "type": "CS",
+      "serviceIds": [
+        300
+      ],
+      "networkId": 7,
+      "syobocalId": 119,
+      "annictId": 119,
+      "nicojkId": null
+    },
+    {
+      "name": "エンタメ〜テレ",
+      "type": "CS",
+      "serviceIds": [
+        301
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "銀河◆歴ドラ・サスペ",
+      "type": "CS",
+      "serviceIds": [
+        305
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "フジテレビONE",
+      "type": "CS",
+      "serviceIds": [
+        307
+      ],
+      "networkId": 7,
+      "syobocalId": 109,
+      "annictId": 109,
+      "nicojkId": null
+    },
+    {
+      "name": "フジテレビTWO",
+      "type": "CS",
+      "serviceIds": [
+        308
+      ],
+      "networkId": 7,
+      "syobocalId": 43,
+      "annictId": 43,
+      "nicojkId": null
+    },
+    {
+      "name": "フジテレビNEXT",
+      "type": "CS",
+      "serviceIds": [
+        309
+      ],
+      "networkId": 7,
+      "syobocalId": 131,
+      "annictId": 131,
+      "nicojkId": null
+    },
+    {
+      "name": "スーパー！ドラマTV",
+      "type": "CS",
+      "serviceIds": [
+        310
+      ],
+      "networkId": 7,
+      "syobocalId": 216,
+      "annictId": 216,
+      "nicojkId": null
+    },
+    {
+      "name": "AXN 海外ドラマ",
+      "type": "CS",
+      "serviceIds": [
+        311
+      ],
+      "networkId": 7,
+      "syobocalId": 254,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "FOX",
+      "type": "CS",
+      "serviceIds": [
+        312
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "女性ch/LaLa",
+      "type": "CS",
+      "serviceIds": [
+        314
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "FOXプラス",
+      "type": "CS",
+      "serviceIds": [
+        315
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "AXNミステリー",
+      "type": "CS",
+      "serviceIds": [
+        316
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "KBS World",
+      "type": "CS",
+      "serviceIds": [
+        317
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "Mnet",
+      "type": "CS",
+      "serviceIds": [
+        318
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "スペシャプラス",
+      "type": "CS",
+      "serviceIds": [
+        321
+      ],
+      "networkId": 7,
+      "syobocalId": 211,
+      "annictId": 211,
+      "nicojkId": null
+    },
+    {
+      "name": "スペースシャワーTV",
+      "type": "CS",
+      "serviceIds": [
+        322
+      ],
+      "networkId": 7,
+      "syobocalId": 194,
+      "annictId": 195,
+      "nicojkId": null
+    },
+    {
+      "name": "MTV",
+      "type": "CS",
+      "serviceIds": [
+        323
+      ],
+      "networkId": 7,
+      "syobocalId": 235,
+      "annictId": 242,
+      "nicojkId": null
+    },
+    {
+      "name": "ミュージック・エア",
+      "type": "CS",
+      "serviceIds": [
+        324,
+        326
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "エムオン!",
+      "type": "CS",
+      "serviceIds": [
+        325
+      ],
+      "networkId": 7,
+      "syobocalId": 151,
+      "annictId": 151,
+      "nicojkId": null
+    },
+    {
+      "name": "歌謡ポップス",
+      "type": "CS",
+      "serviceIds": [
+        329
+      ],
+      "networkId": 7,
+      "syobocalId": 222,
+      "annictId": 223,
+      "nicojkId": null
+    },
+    {
+      "name": "キッズステーション",
+      "type": "CS",
+      "serviceIds": [
+        330
+      ],
+      "networkId": 7,
+      "syobocalId": 22,
+      "annictId": 22,
+      "nicojkId": null
+    },
+    {
+      "name": "カートゥーン",
+      "type": "CS",
+      "serviceIds": [
+        331
+      ],
+      "networkId": 7,
+      "syobocalId": 23,
+      "annictId": 23,
+      "nicojkId": null
+    },
+    {
+      "name": "AT-X",
+      "type": "CS",
+      "serviceIds": [
+        333
+      ],
+      "networkId": 7,
+      "syobocalId": 20,
+      "annictId": 20,
+      "nicojkId": 333
+    },
+    {
+      "name": "ディズニーXD",
+      "type": "CS",
+      "serviceIds": [
+        334
+      ],
+      "networkId": 6,
+      "syobocalId": 161,
+      "annictId": 161,
+      "nicojkId": null
+    },
+    {
+      "name": "ディズニージュニア",
+      "type": "CS",
+      "serviceIds": [
+        339
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "ディスカバリー",
+      "type": "CS",
+      "serviceIds": [
+        340
+      ],
+      "networkId": 7,
+      "syobocalId": 61,
+      "annictId": 61,
+      "nicojkId": null
+    },
+    {
+      "name": "アニマルプラネット",
+      "type": "CS",
+      "serviceIds": [
+        341
+      ],
+      "networkId": 7,
+      "syobocalId": 56,
+      "annictId": 56,
+      "nicojkId": null
+    },
+    {
+      "name": "ヒストリーチャンネル",
+      "type": "CS",
+      "serviceIds": [
+        342
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "ナショジオ",
+      "type": "CS",
+      "serviceIds": [
+        343
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "日テレNEWS24",
+      "type": "CS",
+      "serviceIds": [
+        349
+      ],
+      "networkId": 6,
+      "syobocalId": 263,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "TBS NEWS",
+      "type": "CS",
+      "serviceIds": [
+        351
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "BBCワールド",
+      "type": "CS",
+      "serviceIds": [
+        353
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "CNNj",
+      "type": "CS",
+      "serviceIds": [
+        354
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "旅チャンネル",
+      "type": "CS",
+      "serviceIds": [
+        362
+      ],
+      "networkId": 6,
+      "syobocalId": 176,
+      "annictId": 177,
+      "nicojkId": null
+    },
+    {
+      "name": "囲碁・将棋チャンネル",
+      "type": "CS",
+      "serviceIds": [
+        363
+      ],
+      "networkId": 7,
+      "syobocalId": null,
+      "annictId": null,
+      "nicojkId": null
+    },
+    {
+      "name": "スポーツライブ+",
+      "type": "CS",
+      "serviceIds": [
+        800
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": 150,
+      "nicojkId": null
+    },
+    {
+      "name": "スカチャン1",
+      "type": "CS",
+      "serviceIds": [
+        801
+      ],
+      "networkId": 6,
+      "syobocalId": null,
+      "annictId": 175,
+      "nicojkId": null
+    }
+  ]
+}

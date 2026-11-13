@@ -14,10 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/animedata"
 )
 
-const (
-	sayaPath = "/saya.json"
-	armPath  = "/arm.json"
-)
+const armPath = "/arm.json"
 
 // agents は、サーバーが受け取った User-Agent。
 type agents struct {
@@ -61,70 +58,130 @@ func newServer(t *testing.T, bodies map[string]string, seen *agents) *animedata.
 	t.Cleanup(server.Close)
 
 	return animedata.NewClient(&animedata.Options{
-		HTTPClient: server.Client(), SayaDefinitionsURL: server.URL + sayaPath, ArmURL: server.URL + armPath,
+		HTTPClient: server.Client(), ArmURL: server.URL + armPath,
 	})
 }
 
-// TestClient は、取り込み元の JSON を読み、ETag を返し、変わっていなければ ErrNotModified を返すことを確かめる。
+// TestArm は、arm の JSON を読み、ETag を返し、変わっていなければ ErrNotModified を返すことを確かめる。
 // 問い合わせには、Kotatsu からの問い合わせだと分かる User-Agent を付ける。
-func TestClient(t *testing.T) {
+func TestArm(t *testing.T) {
 	t.Parallel()
 
 	seen := &agents{mu: sync.Mutex{}, values: []string{}}
 	client := newServer(t, map[string]string{
-		sayaPath: `{"channels":[{"name":"NHK 総合","type":"GR","serviceIds":[1024,1025],"networkId":15,"syobocalId":1,"annictId":1},` +
-			`{"name":"無い","type":"BS","serviceIds":[999],"networkId":4}]}`,
 		armPath: `[{"mal_id":5114,"anilist_id":5114,"annict_id":1745,"syobocal_tid":1575},{"annict_id":2,"anidb_id":1}]`,
 	}, seen)
 
-	channels, etag, err := client.SayaDefinitions(t.Context(), "")
+	works, etag, err := client.Arm(t.Context(), "")
 	require.NoError(t, err)
 	assert.Equal(t, `"v1"`, etag)
-	assert.Equal(t, []*animedata.Channel{
-		{Name: "NHK 総合", Type: "GR", ServiceIDs: []int64{1024, 1025}, NetworkID: 15, SyobocalID: new(int32(1)), AnnictID: new(int32(1))},
-		{Name: "無い", Type: "BS", ServiceIDs: []int64{999}, NetworkID: 4, SyobocalID: nil, AnnictID: nil},
-	}, channels)
-
-	works, _, err := client.Arm(t.Context(), "")
-	require.NoError(t, err)
 	assert.Equal(t, []*animedata.Work{
 		{SyobocalTID: new(int32(1575)), AnnictID: new(int32(1745)), AniListID: new(int32(5114)), MALID: new(int32(5114))},
 		{SyobocalTID: nil, AnnictID: new(int32(2)), AniListID: nil, MALID: nil},
 	}, works)
-
-	_, _, err = client.SayaDefinitions(t.Context(), `"v1"`)
-	require.ErrorIs(t, err, animedata.ErrNotModified)
 	_, _, err = client.Arm(t.Context(), `"v1"`)
 	require.ErrorIs(t, err, animedata.ErrNotModified)
 
-	require.Len(t, seen.list(), 4)
+	require.Len(t, seen.list(), 2)
 	for _, agent := range seen.list() {
 		assert.True(t, strings.HasPrefix(agent, "Kotatsu/"), agent)
 		assert.Contains(t, agent, "https://github.com/SlashNephy/kotatsu")
 	}
 }
 
-// TestClientErrors は、取り込めない応答をエラーにすることを確かめる。
-func TestClientErrors(t *testing.T) {
+// TestChannelDefinitions は、埋め込んだ定義を読み、中身が変わらなければ ErrNotModified を返すことを確かめる。
+// 地上波の系列局は、キー局ではなく、その局のしょぼいカレンダーの ChID と Annict のチャンネルを持つ (#1589)。
+func TestChannelDefinitions(t *testing.T) {
 	t.Parallel()
 
+	client := animedata.NewClient(nil)
+	channels, etag, err := client.ChannelDefinitions(t.Context(), "")
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(etag, "sha256:"), etag)
+	_, _, err = client.ChannelDefinitions(t.Context(), etag)
+	require.ErrorIs(t, err, animedata.ErrNotModified)
+
+	type ids struct {
+		name     string
+		syobocal *int32
+		annict   *int32
+	}
+	terrestrial := map[int64]ids{}
+	for _, c := range channels {
+		if c.Type != "GR" {
+			continue
+		}
+		for _, sid := range c.ServiceIDs {
+			_, dup := terrestrial[sid]
+			require.False(t, dup, "service %d is defined twice", sid)
+			terrestrial[sid] = ids{name: c.Name, syobocal: c.SyobocalID, annict: c.AnnictID}
+		}
+	}
 	tests := []struct {
 		name string
-		body map[string]string
+		sid  int64
+		want ids
 	}{
-		{name: "not found", body: map[string]string{}},
-		{name: "broken JSON", body: map[string]string{sayaPath: `{"channels":`}},
-		{name: "no channels", body: map[string]string{sayaPath: `{"boards":[]}`}},
+		{name: "key station", sid: 1048, want: ids{name: "TBS", syobocal: new(int32(5)), annict: new(int32(5))}},
+		{name: "Kansai affiliate", sid: 2064, want: ids{name: "MBS毎日放送", syobocal: new(int32(48)), annict: new(int32(48))}},
+		{name: "Kansai TXN affiliate", sid: 41008, want: ids{name: "テレビ大阪", syobocal: new(int32(28)), annict: new(int32(28))}},
+		{name: "Annict ID differs from ChID", sid: 58408, want: ids{name: "長崎国際テレビ", syobocal: new(int32(171)), annict: new(int32(173))}},
+		{name: "not on Syobocal", sid: 18448, want: ids{name: "秋田放送", syobocal: nil, annict: new(int32(295))}},
+		{name: "Hokkaido sub-area", sid: 11280, want: ids{name: "北海道放送", syobocal: new(int32(89)), annict: new(int32(89))}},
+		{name: "NHK in Osaka", sid: 40960, want: ids{name: "NHK 総合", syobocal: new(int32(1)), annict: new(int32(1))}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			seen := &agents{mu: sync.Mutex{}, values: []string{}}
-			_, _, err := newServer(t, tt.body, seen).SayaDefinitions(t.Context(), "")
-			require.Error(t, err)
-			assert.NotErrorIs(t, err, animedata.ErrNotModified)
+			assert.Equal(t, tt.want, terrestrial[tt.sid])
 		})
+	}
+}
+
+// TestChannelDefinitionsDistinctIDs は、別の局に、同じしょぼいカレンダーの ChID や Annict のチャンネルを当てていないことを確かめる。
+// saya-definitions は、BSよしもとに BS松竹東急の ChID (271) を当てていた。
+func TestChannelDefinitionsDistinctIDs(t *testing.T) {
+	t.Parallel()
+
+	// 放送大学の 2 つのサービスは、しょぼいカレンダーでも Annict でも 1 つのチャンネル (158) にまとめられている。
+	shared := map[int32]bool{158: true}
+	channels, _, err := animedata.NewClient(nil).ChannelDefinitions(t.Context(), "")
+	require.NoError(t, err)
+	for _, field := range []struct {
+		name string
+		id   func(*animedata.Channel) *int32
+	}{
+		{name: "syobocal", id: func(c *animedata.Channel) *int32 { return c.SyobocalID }},
+		{name: "annict", id: func(c *animedata.Channel) *int32 { return c.AnnictID }},
+	} {
+		owners := map[int32]string{}
+		for _, c := range channels {
+			id := field.id(c)
+			if id == nil || shared[*id] {
+				continue
+			}
+			if owner, ok := owners[*id]; ok {
+				assert.Failf(t, "duplicate ID", "%s %d is used by %s and %s", field.name, *id, owner, c.Name)
+			}
+			owners[*id] = c.Name
+		}
+	}
+	for _, c := range channels {
+		if c.Name == "BSよしもと" {
+			assert.Equal(t, new(int32(272)), c.SyobocalID)
+		}
+	}
+}
+
+// TestParseChannelDefinitionsErrors は、読めない定義をエラーにすることを確かめる。
+func TestParseChannelDefinitionsErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, body := range []string{`{"channels":`, `{"boards":[]}`} {
+		_, _, err := animedata.ParseChannelDefinitions([]byte(body), "")
+		require.Error(t, err)
+		assert.NotErrorIs(t, err, animedata.ErrNotModified)
 	}
 }
 
@@ -152,7 +209,7 @@ func TestClientErrorsHideURL(t *testing.T) {
 			t.Parallel()
 
 			client := animedata.NewClient(&animedata.Options{
-				HTTPClient: server.Client(), SayaDefinitionsURL: "", ArmURL: tt.baseURL + "/arm.json?token=" + token,
+				HTTPClient: server.Client(), ArmURL: tt.baseURL + "/arm.json?token=" + token,
 			})
 			_, _, err := client.Arm(t.Context(), "")
 			require.ErrorContains(t, err, tt.want)

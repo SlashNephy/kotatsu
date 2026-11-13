@@ -1,12 +1,15 @@
-// Package animedata は、アニメの番組と作品の結びつきに使う、連携先の情報を GitHub から取得する (設計書 3.8)。
+// Package animedata は、アニメの番組と作品の結びつきに使う、連携先の情報を返す (設計書 3.8)。
 //
-// サービスとしょぼいカレンダー、Annict のチャンネルの対応は saya-definitions から、
-// しょぼいカレンダーの TID と Annict、AniList、MyAnimeList の作品 ID の対応は arm から取得する。
-// どれも 1 日ごとに取得し直すので、ETag を送り、変わっていなければ読み直さない。
+// サービスとしょぼいカレンダー、Annict のチャンネルの対応は、バイナリに埋め込んだ定義 (channels.json) を返す (#1589)。
+// しょぼいカレンダーの TID と Annict、AniList、MyAnimeList の作品 ID の対応は、arm を GitHub から取得する。
+// どれも 1 日ごとに問い合わせ直すので、ETag を比べ、変わっていなければ読み直さない。
 package animedata
 
 import (
 	"context"
+	"crypto/sha256"
+	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +23,6 @@ import (
 )
 
 const (
-	// DefaultSayaDefinitionsURL は、saya-definitions のチャンネルの定義。
-	DefaultSayaDefinitionsURL = "https://raw.githubusercontent.com/SlashNephy/saya-definitions/master/definitions.json"
 	// DefaultArmURL は、arm の作品 ID の対応。
 	DefaultArmURL = "https://raw.githubusercontent.com/kawaiioverflow/arm/master/arm.json"
 	// requestTimeout は、1 回の取得の時間の上限。arm は数 MB ある。
@@ -33,7 +34,13 @@ const (
 // ErrNotModified は、前に取得したときから内容が変わっていない (304) ことを表す。
 var ErrNotModified = errors.New("not modified")
 
-// Channel は、saya-definitions のチャンネル 1 つ。
+// channelDefinitions は、サービスとしょぼいカレンダー、Annict のチャンネルの対応 (#1589)。
+// SlashNephy/saya-definitions (MIT) の definitions.json から、Kotatsu が使う項目だけを残し、系列局を局ごとに分けたもの。
+//
+//go:embed channels.json
+var channelDefinitions []byte
+
+// Channel は、チャンネルの定義 1 つ。地上波の系列局は、局ごとに 1 つ。
 type Channel struct {
 	Name string `json:"name"`
 	// Type は、GR、BS、CS のどれか。
@@ -43,9 +50,9 @@ type Channel struct {
 	NetworkID int64 `json:"networkId"`
 	// SyobocalID は、しょぼいカレンダーの ChID。対応がなければ nil。
 	SyobocalID *int32 `json:"syobocalId"`
-	// AnnictID は、Annict のチャンネルの ID。対応がなければ nil。
+	// AnnictID は、Annict のチャンネルの ID。しょぼいカレンダーの ChID と同じとは限らない。対応がなければ nil。
 	AnnictID *int32 `json:"annictId"`
-	// NicojkID は、ニコニコ実況のチャンネルの番号。対応がなければ nil。
+	// NicojkID は、ニコニコ実況のチャンネルの番号。系列局は、キー局の番号を持つ。対応がなければ nil。
 	NicojkID *int32 `json:"nicojkId"`
 }
 
@@ -59,45 +66,50 @@ type Work struct {
 
 // Options は Client の設定。空の項目は既定値を使う。
 type Options struct {
-	HTTPClient         *http.Client
-	SayaDefinitionsURL string
-	ArmURL             string
+	HTTPClient *http.Client
+	ArmURL     string
 }
 
 // Client は、連携先の情報を取得する。
 type Client struct {
-	http               *http.Client
-	sayaDefinitionsURL string
-	armURL             string
+	http   *http.Client
+	armURL string
 }
 
 // NewClient は Client を返す。opts が nil なら、既定値を使う。
 func NewClient(opts *Options) *Client {
-	c := &Client{http: netactivity.NewClient(nil, netactivity.PurposeAnimeMappings, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}), sayaDefinitionsURL: DefaultSayaDefinitionsURL, armURL: DefaultArmURL}
+	c := &Client{http: netactivity.NewClient(nil, netactivity.PurposeAnimeMappings, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}), armURL: DefaultArmURL}
 	if opts == nil {
 		return c
 	}
 	if opts.HTTPClient != nil {
 		c.http = opts.HTTPClient
 	}
-	c.sayaDefinitionsURL = valueOr(opts.SayaDefinitionsURL, c.sayaDefinitionsURL)
 	c.armURL = valueOr(opts.ArmURL, c.armURL)
 
 	return c
 }
 
-// SayaDefinitions は、saya-definitions のチャンネルの一覧と ETag を返す。
-// etag が前に取得したときの ETag で、内容が変わっていなければ ErrNotModified を返す。
-func (c *Client) SayaDefinitions(ctx context.Context, etag string) ([]*Channel, string, error) {
+// ChannelDefinitions は、埋め込んだチャンネルの定義の一覧と、その ETag (中身のハッシュ) を返す。
+// etag が前に返した ETag と同じなら、ErrNotModified を返す。Kotatsu を更新して定義が変わったときだけ、取り込み直させる。
+func (c *Client) ChannelDefinitions(_ context.Context, etag string) ([]*Channel, string, error) {
+	return parseChannelDefinitions(channelDefinitions, etag)
+}
+
+func parseChannelDefinitions(data []byte, etag string) ([]*Channel, string, error) {
+	sum := sha256.Sum256(data)
+	newETag := "sha256:" + hex.EncodeToString(sum[:])
+	if etag == newETag {
+		return nil, "", ErrNotModified
+	}
 	var body struct {
 		Channels []*Channel `json:"channels"`
 	}
-	newETag, err := c.fetch(ctx, "saya-definitions", c.sayaDefinitionsURL, etag, &body)
-	if err != nil {
-		return nil, "", err
+	if err := json.Unmarshal(data, &body); err != nil {
+		return nil, "", fmt.Errorf("failed to decode the channel definitions: %w", err)
 	}
 	if body.Channels == nil {
-		return nil, "", errors.New("saya-definitions has no channels")
+		return nil, "", errors.New("the channel definitions have no channels")
 	}
 
 	return body.Channels, newETag, nil

@@ -2016,7 +2016,7 @@
       "animeNeverImported": "Not imported yet",
       "animeImported": "Imported {{items}} items at {{at}}",
       "animeImportFailed": "Failed to import at {{at}}: {{error}}",
-      "animeSourceSaya": "Channel mapping (saya-definitions)",
+      "animeSourceSaya": "Channel mapping",
       "animeSourceArm": "Work ID mapping (arm)",
       "animeSourceSyobocalTitles": "Syobocal titles",
       "animeSourceAnnictWorks": "Work ID mapping (Annict, AniList)",
