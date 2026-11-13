@@ -104,10 +104,10 @@ func TestHandler(t *testing.T) {
 			require.NoError(t, err)
 			handler := animeimage.NewHandlerWithClient(pool, slog.New(slog.DiscardHandler), upstream.Client())
 			mux := http.NewServeMux()
-			mux.Handle("GET /media/anime-works/{destination}/{workId}/image", handler)
+			mux.Handle("GET /internal/media/anime-works/{destination}/{workId}/image", handler)
 
 			for range 2 {
-				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/anime-works/anilist/"+tt.workID+"/image", http.NoBody)
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/anime-works/anilist/"+tt.workID+"/image", http.NoBody)
 				if tt.signedIn {
 					req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
 						UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
@@ -176,9 +176,9 @@ func TestServeFollowingAvatar(t *testing.T) {
 			require.NoError(t, err)
 			handler := animeimage.NewHandlerWithClient(pool, slog.New(slog.DiscardHandler), upstream.Client())
 			mux := http.NewServeMux()
-			mux.HandleFunc("GET /media/anime-following/{destination}/{username}/avatar", handler.ServeFollowingAvatar)
+			mux.HandleFunc("GET /internal/media/anime-following/{destination}/{username}/avatar", handler.ServeFollowingAvatar)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/media/anime-following/annict/"+tt.username+"/avatar", http.NoBody)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/anime-following/annict/"+tt.username+"/avatar", http.NoBody)
 			if tt.signedIn {
 				req = req.WithContext(auth.WithPrincipal(req.Context(), &auth.Principal{
 					UserID: user.ID, Role: auth.RoleViewer, SessionID: uuid.Nil(), AuthenticatedAt: time.Time{}, OAuthClientID: "",
@@ -197,7 +197,7 @@ func TestPath(t *testing.T) {
 	a := animeimage.Path("anilist", 10, "https://example.com/a.png")
 	assert.Equal(t, a, animeimage.Path("anilist", 10, "https://example.com/a.png"))
 	assert.NotEqual(t, a, animeimage.Path("anilist", 10, "https://example.com/b.png"))
-	assert.Contains(t, a, "/media/anime-works/anilist/10/image?v=")
+	assert.Contains(t, a, "/internal/media/anime-works/anilist/10/image?v=")
 }
 
 // TestCache は、覚えた画像が上限を超えたら、古く覚えたものから忘れ、上限より大きい画像は覚えないことを確かめる。

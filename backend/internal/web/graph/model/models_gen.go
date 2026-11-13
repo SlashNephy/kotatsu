@@ -1118,7 +1118,7 @@ type PageInfo struct {
 	EndCursor       *string `json:"endCursor,omitempty"`
 }
 
-// ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/auth/passkey/* で扱う。
+// ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/internal/auth/passkey/* で扱う。
 type Passkey struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -1708,7 +1708,7 @@ type StoragePoolInput struct {
 
 // サーバー側でのトランスコードの画質 (設計書 7.3)。
 type StreamPreset struct {
-	// URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/{audio}/playlist.m3u8 で取る。
+	// URL に使う名前 (720p、720p-hevc など)。HLS は /internal/streams/{services|recordings}/{id}/hls/{name}/{audio}/playlist.m3u8 で取る。
 	// audio は、第 1 音声なら 1、第 2 音声 (デュアルモノの副音声や 2 つ目の音声) なら 2。
 	Name   string `json:"name"`
 	Height int    `json:"height"`

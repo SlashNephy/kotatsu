@@ -31,8 +31,9 @@ registerRoute(
         return cached;
       }
     },
-    // /api の下 (署名付き URL のダウンロードなど、#1605) は、画面ではないので返さない。
-    { denylist: [/^\/graphql/, /^\/auth\//, /^\/api\//] },
+    // /internal の下 (OIDC と視聴記録のサービスから戻るリダイレクトなど) と /api の下 (署名付き URL のダウンロードなど) は、
+    // 画面ではないので返さない (#1605)。
+    { denylist: [/^\/internal\//, /^\/api\//] },
   ),
 );
 

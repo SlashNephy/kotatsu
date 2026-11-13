@@ -27,7 +27,7 @@ const (
 	// serviceID は、faketuner の「こたつテスト1」のサービス ID。testdata/ts/test.ts を流す。
 	serviceID = "3273601024"
 	// livePattern は、ライブ視聴のパス。
-	livePattern = "GET /streams/services/{id}"
+	livePattern = "GET /internal/streams/services/{id}"
 )
 
 func loadTestTS(t *testing.T) []byte {
@@ -81,7 +81,7 @@ func TestLiveHandlerRelaysAndReleases(t *testing.T) {
 	server, fake := liveServer(t, true)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/streams/services/"+serviceID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/internal/streams/services/"+serviceID, nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestLiveHandlerHead(t *testing.T) {
 	t.Parallel()
 
 	server, fake := liveServer(t, true)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, server.URL+"/streams/services/"+serviceID, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, server.URL+"/internal/streams/services/"+serviceID, nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestLiveHandlerErrors(t *testing.T) {
 			t.Parallel()
 
 			server, fake := liveServer(t, tt.tuner)
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/services/"+tt.serviceID, nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/internal/streams/services/"+tt.serviceID, nil)
 			require.NoError(t, err)
 			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)

@@ -16,7 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
-// RecordingHandler は、録画を配信する (GET /streams/recordings/{id}?start=秒)。download を付けると、録画ファイルの名前で保存させる。
+// RecordingHandler は、録画を配信する (GET /internal/streams/recordings/{id}?start=秒)。download を付けると、録画ファイルの名前で保存させる。
 // 録画を終えた録画を start なしで要求されたら、長さを返し、HTTP の Range に答える。外部プレイヤーは Range でシークする。
 //
 // 索引を使って、録画の始まりから start 秒の位置を GOP の先頭のバイト位置に変換し、そこからセグメントを連結して流す。

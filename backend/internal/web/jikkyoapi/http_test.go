@@ -79,8 +79,8 @@ func newCommentsFixture(t *testing.T, kakolog string) *commentsFixture {
 	clk := clocktest.NewFake(recordedFrom().Add(40 * time.Minute))
 	handler := jikkyoapi.NewCommentsHandler(pool, table, client, clk, slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.CommentsFileName, handler)
-	mux.Handle("GET /media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, jikkyoapi.NewOtherCommentsHandler(handler))
+	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.CommentsFileName, handler)
+	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, jikkyoapi.NewOtherCommentsHandler(handler))
 	f := &commentsFixture{pool: pool, fake: fake, userID: id.New(), mux: mux, handler: nil, comments: handler}
 	_, err = pool.Exec(t.Context(), `INSERT INTO users (id, username, display_name, role, created_at, updated_at) VALUES ($1, 'member', 'member', 'member', $2, $2)`,
 		f.userID, recordedFrom())
@@ -197,7 +197,7 @@ func TestCommentsHandler(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-				"/media/recordings/"+recordingID.String()+"/"+jikkyoapi.CommentsFileName, http.NoBody))
+				"/internal/media/recordings/"+recordingID.String()+"/"+jikkyoapi.CommentsFileName, http.NoBody))
 
 			require.Equal(t, http.StatusOK, rec.Code)
 			assert.Equal(t, tt.wantCache, rec.Header().Get("Cache-Control"))
@@ -258,7 +258,7 @@ func TestCommentsHandlerErrors(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			f.handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-				"/media/recordings/"+path+"/"+jikkyoapi.CommentsFileName, http.NoBody))
+				"/internal/media/recordings/"+path+"/"+jikkyoapi.CommentsFileName, http.NoBody))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 		})
 	}
@@ -295,7 +295,7 @@ func TestCommentsHandlerOptIn(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-				"/media/recordings/"+recordingID.String()+"/"+jikkyoapi.CommentsFileName, http.NoBody))
+				"/internal/media/recordings/"+recordingID.String()+"/"+jikkyoapi.CommentsFileName, http.NoBody))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantUpstream, f.fake.query.Load() != nil)
 		})

@@ -20,7 +20,7 @@ import (
 )
 
 // otherFilePattern は、録画のその他のファイルのパス。
-const otherFilePattern = "GET /streams/recordings/{id}/files/{file}"
+const otherFilePattern = "GET /internal/streams/recordings/{id}/files/{file}"
 
 // otherFile は、録画に、TS 以外のファイルを置いて記録する。
 func (f *recordingFixture) otherFile(t *testing.T, recordingID uuid.UUID, kind, name, body string) uuid.UUID {

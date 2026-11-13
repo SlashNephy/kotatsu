@@ -125,7 +125,7 @@ const loadTimeZoneTimeoutMs = 3000;
 
 // loadTimeZone は、サーバーの表示のタイムゾーンを読み込む。ログインしていないときや、読めなかったときは、既定のまま。
 // ログインすると画面を読み直すので、ログインした後の画面は、サーバーのタイムゾーンで出る。
-export async function loadTimeZone(endpoint = '/graphql'): Promise<void> {
+export async function loadTimeZone(endpoint = '/internal/graphql'): Promise<void> {
   try {
     const response = await fetch(endpoint, {
       method: 'POST',

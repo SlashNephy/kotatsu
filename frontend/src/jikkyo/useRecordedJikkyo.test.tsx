@@ -75,7 +75,7 @@ describe('useRecordedJikkyo', () => {
       async () => new Response(JSON.stringify({ channel: { id: 'jk1' }, comments })),
     );
     vi.stubGlobal('fetch', fetchMock);
-    const url = '/media/recordings/r/jikkyo.json';
+    const url = '/internal/media/recordings/r/jikkyo.json';
     const { result, rerender } = renderHook(
       ({ src }: { src: string | null }) => useRecordedJikkyo(src, () => 0, true),
       {
@@ -104,7 +104,7 @@ describe('useRecordedJikkyo', () => {
       vi.fn(async () => new Response('bad gateway', { status: 502 })),
     );
     const { result } = renderHook(() =>
-      useRecordedJikkyo('/media/recordings/r/jikkyo.json', () => 0, true),
+      useRecordedJikkyo('/internal/media/recordings/r/jikkyo.json', () => 0, true),
     );
 
     await waitFor(() => expect(result.current.state).toEqual({ kind: 'error' }));
@@ -120,7 +120,7 @@ describe('useRecordedJikkyo', () => {
     );
     const live = { channelId: 'jk1', recordedFrom, gaps: [] };
     const { result } = renderHook(() =>
-      useRecordedJikkyo('/media/recordings/r/jikkyo.json', () => 0, true, live),
+      useRecordedJikkyo('/internal/media/recordings/r/jikkyo.json', () => 0, true, live),
     );
     render(<>{result.current.overlay}</>);
     await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 1 }));
@@ -148,7 +148,7 @@ describe('useRecordedJikkyo', () => {
     const { rerender } = renderHook(
       ({ recording }: { recording: boolean }) =>
         useRecordedJikkyo(
-          '/media/recordings/r/jikkyo.json',
+          '/internal/media/recordings/r/jikkyo.json',
           () => 0,
           true,
           recording ? live : null,
@@ -171,7 +171,7 @@ describe('useRecordedJikkyo', () => {
     const origin = '2026-10-16T10:00:02Z';
     const live = { channelId: 'jk1', recordedFrom: '2026-10-16T10:00:00Z', gaps: [] };
     const { result } = renderHook(() =>
-      useRecordedJikkyo('/media/recordings/r/jikkyo.json', () => 0, true, live),
+      useRecordedJikkyo('/internal/media/recordings/r/jikkyo.json', () => 0, true, live),
     );
     act(() =>
       sessions[0]!.onComment({

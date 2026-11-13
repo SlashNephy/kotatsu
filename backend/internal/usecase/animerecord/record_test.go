@@ -207,7 +207,7 @@ func (f *recordFixture) begin(t *testing.T, principal *auth.Principal, name, cod
 	parsed, err := url.Parse(authorizationURL)
 	require.NoError(t, err)
 	query := parsed.Query()
-	assert.Equal(t, origin+"/auth/anime-records/"+name+"/callback", query.Get("redirect_uri"))
+	assert.Equal(t, origin+"/internal/auth/anime-records/"+name+"/callback", query.Get("redirect_uri"))
 	assert.Equal(t, "S256", query.Get("code_challenge_method"), "PKCE is used")
 	assert.NotEmpty(t, query.Get("code_challenge"))
 

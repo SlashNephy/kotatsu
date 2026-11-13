@@ -9074,7 +9074,7 @@ extend type Mutation {
   updateAnimeRecordApp(destination: AnimeRecordDestination!, input: AnimeRecordAppInput!): AnimeRecordApp!
   """
   ログイン中のユーザーと記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#927)。
-  記録先から GET /auth/anime-records/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
+  記録先から GET /internal/auth/anime-records/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
   管理者が連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
   """
   beginAnimeRecordConnection(destination: AnimeRecordDestination!): String!
@@ -10318,7 +10318,7 @@ extend type Mutation {
 }
 `, BuiltIn: false},
 	{Name: "../schema/passkeys.graphqls", Input: `"""
-ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/auth/passkey/* で扱う。
+ログイン中のユーザーが登録したパスキー (設計書 9.3)。登録とログインは、/internal/auth/passkey/* で扱う。
 """
 type Passkey {
   id: ID!
@@ -11995,7 +11995,7 @@ enum VideoFormat {
 """
 type StreamPreset {
   """
-  URL に使う名前 (720p、720p-hevc など)。HLS は /streams/{services|recordings}/{id}/hls/{name}/{audio}/playlist.m3u8 で取る。
+  URL に使う名前 (720p、720p-hevc など)。HLS は /internal/streams/{services|recordings}/{id}/hls/{name}/{audio}/playlist.m3u8 で取る。
   audio は、第 1 音声なら 1、第 2 音声 (デュアルモノの副音声や 2 つ目の音声) なら 2。
   """
   name: String!

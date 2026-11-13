@@ -13,8 +13,8 @@ const origin = Date.parse('2026-10-29T08:00:00Z');
 const buffer = {
   from: new Date(origin - 600_000).toISOString(),
   gaps: [],
-  streamUrl: '/streams/timeshift/1?from=x',
-  hlsUrl: '/streams/timeshift/1-0',
+  streamUrl: '/internal/streams/timeshift/1?from=x',
+  hlsUrl: '/internal/streams/timeshift/1-0',
 };
 
 function fire(video: HTMLVideoElement, type: string) {

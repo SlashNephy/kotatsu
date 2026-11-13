@@ -41,11 +41,11 @@ func videoContentTypeOf(ext string) (string, bool) {
 
 // OtherFileURL は、録画のその他のファイルを流す URL のパスを返す。
 func OtherFileURL(recordingID, fileID uuid.UUID) string {
-	return "/streams/recordings/" + recordingID.String() + "/files/" + fileID.String()
+	return "/internal/streams/recordings/" + recordingID.String() + "/files/" + fileID.String()
 }
 
 // OtherFileHandler は、EPGStation から取り込んだ、エンコード済みの MP4 のような TS 以外のファイルを、そのまま流す
-// (GET /streams/recordings/{id}/files/{file}、設計書 6.3)。ブラウザがそのコーデックに対応していれば、そのまま再生できる。
+// (GET /internal/streams/recordings/{id}/files/{file}、設計書 6.3)。ブラウザがそのコーデックに対応していれば、そのまま再生できる。
 // ファイルは、このインスタンスにマウントしたプールから読む。
 type OtherFileHandler struct {
 	queries *query.Queries

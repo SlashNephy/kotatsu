@@ -31,7 +31,7 @@ const (
 	// OIDCCookieName は、OIDC でのログインの途中の状態のトークンを入れる Cookie の名前。
 	OIDCCookieName = "kotatsu_oidc"
 	// OIDCCallbackPath は、IdP から戻ってくるリダイレクト URI のパス。
-	OIDCCallbackPath = "/auth/oidc/callback"
+	OIDCCallbackPath = "/internal/auth/oidc/callback"
 	// OIDCLoginTTL は、IdP へ送り出してから、戻ってくるまでに許す時間 (付録 A)。
 	OIDCLoginTTL = 10 * time.Minute
 	// methodOIDC は、OIDC でのログインを監査ログに残すときの方式。多要素認証は IdP に任せる (設計書 9.4)。

@@ -46,7 +46,7 @@ func TestAnimeRecordApps(t *testing.T) {
 	require.Empty(t, admin.query(t, updateAnimeRecordApp, input, &updated))
 	assert.Equal(t, animeRecordApp{
 		Destination: destinationAnnict, ClientID: new("client"), Configured: true,
-		RedirectURI: f.server.URL + "/auth/anime-records/annict/callback",
+		RedirectURI: f.server.URL + "/internal/auth/anime-records/annict/callback",
 	}, updated.UpdateAnimeRecordApp)
 	var listed struct {
 		AnimeRecordApps []animeRecordApp `json:"animeRecordApps"`

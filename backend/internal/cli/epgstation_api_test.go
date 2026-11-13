@@ -21,7 +21,7 @@ import (
 
 // TestTenbanServesEPGStationAPI は、tenban が EPGStation 互換の API (/api/epgstation/api/*) を、API トークンでだけ受け付けることを確かめる
 // (#431、設計書 9.8)。セッションの Cookie では受け付けない。チューナーサーバーを設定していないので、ロゴとライブ視聴は 503 になる。
-// あわせて、外部プレイヤー向けの /api/streams/* は署名だけで、画面の /streams/* はセッションだけで認可することを確かめる (#1605)。
+// あわせて、外部プレイヤー向けの /api/streams/* は署名だけで、画面の /internal/streams/* はセッションだけで認可することを確かめる (#1605)。
 // 認可を通ったら、ない録画は 404 になるので、401 と分けて見られる。
 func TestTenbanServesEPGStationAPI(t *testing.T) {
 	t.Parallel()
@@ -95,8 +95,8 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		{name: "前の EPGStation 互換のパス", path: "/api/version", cookie: false, bearer: true, want: http.StatusNotFound},
 		{name: "署名付き URL", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound},
 		{name: "署名付き URL の経路にセッションの Cookie だけ", path: stream.SignedPathPrefix + missing[1:], cookie: true, bearer: false, want: http.StatusUnauthorized},
-		{name: "画面の経路にセッションの Cookie", path: "/streams" + missing, cookie: true, bearer: false, want: http.StatusNotFound},
-		{name: "画面の経路に署名だけ", path: signer.Sign("/streams"+missing, user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusUnauthorized},
+		{name: "画面の経路にセッションの Cookie", path: "/internal/streams" + missing, cookie: true, bearer: false, want: http.StatusNotFound},
+		{name: "画面の経路に署名だけ", path: signer.Sign("/internal/streams"+missing, user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

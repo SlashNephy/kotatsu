@@ -348,7 +348,7 @@ func TestPasswordHandler(t *testing.T) {
 				}
 			}
 			handler := f.logins.PasswordHandler(f.db, func(*http.Request) *auth.ClientInfo { return f.client })
-			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/auth/login", strings.NewReader(tt.body))
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/internal/auth/login", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", tt.contentType)
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
@@ -372,7 +372,7 @@ func TestPasswordHandler(t *testing.T) {
 			cookies := rec.Result().Cookies()
 			require.Len(t, cookies, 1)
 			assert.Equal(t, auth.ChallengeCookieName, cookies[0].Name)
-			assert.Equal(t, "/auth/", cookies[0].Path)
+			assert.Equal(t, "/internal/auth/", cookies[0].Path)
 			assert.True(t, cookies[0].HttpOnly)
 			assert.Equal(t, http.SameSiteLaxMode, cookies[0].SameSite)
 		})

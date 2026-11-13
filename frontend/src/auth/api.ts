@@ -107,47 +107,47 @@ export type PasskeyCreation = {
 export type RegisteredPasskey = { id: string; name: string };
 
 export const authApi = {
-  setupStatus: () => get<{ required: boolean }>('/auth/setup'),
+  setupStatus: () => get<{ required: boolean }>('/internal/auth/setup'),
   setup: (input: { token: string; username: string; displayName: string; password: string }) =>
-    post<{ username: string; next: 'login' }>('/auth/setup', input),
+    post<{ username: string; next: 'login' }>('/internal/auth/setup', input),
   login: (username: string, password: string) =>
-    post<LoginResult>('/auth/login', { username, password }),
-  totp: (code: string) => post<Completed>('/auth/login/totp', { code }),
-  recoveryCode: (code: string) => post<Completed>('/auth/login/recovery-code', { code }),
-  beginEnrollment: () => post<TOTPEnrollment>('/auth/login/totp/enrollment', {}),
+    post<LoginResult>('/internal/auth/login', { username, password }),
+  totp: (code: string) => post<Completed>('/internal/auth/login/totp', { code }),
+  recoveryCode: (code: string) => post<Completed>('/internal/auth/login/recovery-code', { code }),
+  beginEnrollment: () => post<TOTPEnrollment>('/internal/auth/login/totp/enrollment', {}),
   confirmEnrollment: (code: string) =>
-    post<Completed>('/auth/login/totp/enrollment/confirm', { code }),
+    post<Completed>('/internal/auth/login/totp/enrollment/confirm', { code }),
   // パスキーだけでログインする。どのユーザーかは、認証器が答える。
-  beginPasskeyLogin: () => post<PasskeyAssertion>('/auth/passkey/login', {}),
+  beginPasskeyLogin: () => post<PasskeyAssertion>('/internal/auth/passkey/login', {}),
   confirmPasskeyLogin: (credential: AuthenticationResponseJSON) =>
-    post<Completed>('/auth/passkey/login/confirm', { credential }),
+    post<Completed>('/internal/auth/passkey/login/confirm', { credential }),
   // パスワードの後の第二要素として、パスキーで確かめる。
-  beginPasskeySecondFactor: () => post<PasskeyAssertion>('/auth/login/passkey', {}),
+  beginPasskeySecondFactor: () => post<PasskeyAssertion>('/internal/auth/login/passkey', {}),
   confirmPasskeySecondFactor: (credential: AuthenticationResponseJSON) =>
-    post<Completed>('/auth/login/passkey/confirm', { credential }),
+    post<Completed>('/internal/auth/login/passkey/confirm', { credential }),
   // OIDC でのログイン (設計書 9.4)。始めると、IdP の認可のエンドポイントを返すので、ブラウザーを送り出す。
-  oidcStatus: () => get<OIDCStatus>('/auth/oidc'),
-  beginOIDC: () => post<{ authorizationUrl: string }>('/auth/oidc', {}),
+  oidcStatus: () => get<OIDCStatus>('/internal/auth/oidc'),
+  beginOIDC: () => post<{ authorizationUrl: string }>('/internal/auth/oidc', {}),
   // ログイン中のセッションのまま、もう一度確かめる (設計書 9.3)。パスワードの変更などの前に求められる。
   reauthenticate: (password: string, method: 'totp' | 'recovery_code', code: string) =>
-    post<Reauthenticated>('/auth/reauth', { password, method, code }),
-  beginPasskeyReauthentication: () => post<PasskeyAssertion>('/auth/reauth/passkey', {}),
+    post<Reauthenticated>('/internal/auth/reauth', { password, method, code }),
+  beginPasskeyReauthentication: () => post<PasskeyAssertion>('/internal/auth/reauth/passkey', {}),
   // ログイン中のユーザーに、パスキーを登録する。直前に再認証していなければ、REAUTHENTICATION_REQUIRED を返す。
-  beginPasskeyRegistration: () => post<PasskeyCreation>('/auth/passkey/registration', {}),
+  beginPasskeyRegistration: () => post<PasskeyCreation>('/internal/auth/passkey/registration', {}),
   confirmPasskeyRegistration: (credential: RegistrationResponseJSON, name: string) =>
-    post<RegisteredPasskey>('/auth/passkey/registration/confirm', { credential, name }),
+    post<RegisteredPasskey>('/internal/auth/passkey/registration/confirm', { credential, name }),
   confirmPasskeyReauthentication: (credential: AuthenticationResponseJSON) =>
-    post<Reauthenticated>('/auth/reauth/passkey/confirm', { credential }),
+    post<Reauthenticated>('/internal/auth/reauth/passkey/confirm', { credential }),
   // 重要な操作ができるか。重要な操作のある画面は、開いたときに確かめ、必要なら先に再認証させる (#981)。
-  reauthenticationStatus: () => get<ReauthenticationStatus>('/auth/reauth'),
+  reauthenticationStatus: () => get<ReauthenticationStatus>('/internal/auth/reauth'),
   // IdP で再認証する。終えると、returnTo のパスに戻る。失敗したときは、returnTo に error=<理由> が付く。
   beginOIDCReauthentication: (returnTo: string) =>
-    post<{ authorizationUrl: string }>('/auth/reauth/oidc', { returnTo }),
+    post<{ authorizationUrl: string }>('/internal/auth/reauth/oidc', { returnTo }),
   // ログイン中のユーザーを IdP のユーザーと紐付ける (設計書 9.4)。終えると、returnTo のパスに linked=oidc を付けて戻る。
   // 失敗したときは、returnTo に error=<理由> が付く。直前に再認証していなければ、REAUTHENTICATION_REQUIRED を返す。
   beginOIDCLink: (returnTo: string) =>
-    post<{ authorizationUrl: string }>('/auth/oidc/link', { returnTo }),
+    post<{ authorizationUrl: string }>('/internal/auth/oidc/link', { returnTo }),
   logout: async () => {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+    await fetch('/internal/auth/logout', { method: 'POST', credentials: 'same-origin' });
   },
 };

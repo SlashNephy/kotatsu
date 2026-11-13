@@ -54,7 +54,7 @@ func scrambleRelay(t *testing.T, f *fixture, clk *clocktest.Fake) *httptest.Serv
 	require.NoError(t, err)
 	mux := http.NewServeMux()
 	reporter := scramble.NewReporter(f.pool, clk, slog.New(slog.DiscardHandler))
-	mux.Handle("GET /streams/services/{id}", streamapi.NewLiveHandler(client, slog.New(slog.DiscardHandler)).WithScramble(reporter))
+	mux.Handle("GET /internal/streams/services/{id}", streamapi.NewLiveHandler(client, slog.New(slog.DiscardHandler)).WithScramble(reporter))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
@@ -67,7 +67,7 @@ func watchLive(t *testing.T, server *httptest.Server, clk *clocktest.Fake, servi
 
 	ctx, cancel := context.WithTimeout(t.Context(), timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/streams/services/"+serviceID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/internal/streams/services/"+serviceID, nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)

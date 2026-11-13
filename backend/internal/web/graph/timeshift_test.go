@@ -295,8 +295,8 @@ func TestTimeshiftPrograms(t *testing.T) {
 			require.Len(t, program.Gaps, 1)
 			assert.True(t, now.Add(-25*time.Minute).Equal(program.Gaps[0].From))
 			assert.True(t, now.Add(-20*time.Minute).Equal(program.Gaps[0].To))
-			assert.Equal(t, "/streams/timeshift/3273601024?from="+url.QueryEscape(program.PlayableFrom.UTC().Format(time.RFC3339Nano)), program.StreamURL)
-			assert.Equal(t, "/streams/timeshift/3273601024-"+strconv.FormatInt(program.PlayableFrom.UnixMicro(), 10), program.HlsURL)
+			assert.Equal(t, "/internal/streams/timeshift/3273601024?from="+url.QueryEscape(program.PlayableFrom.UTC().Format(time.RFC3339Nano)), program.StreamURL)
+			assert.Equal(t, "/internal/streams/timeshift/3273601024-"+strconv.FormatInt(program.PlayableFrom.UnixMicro(), 10), program.HlsURL)
 
 			// サービスのバッファの範囲も返す。今チャンクを書いているので、終わりの途切れはない。
 			var buffer struct {
@@ -317,7 +317,7 @@ func TestTimeshiftPrograms(t *testing.T) {
 			assert.True(t, now.Add(-30*time.Minute).Equal(buffer.Node.TimeshiftBuffer.From))
 			require.Len(t, buffer.Node.TimeshiftBuffer.Gaps, 1)
 			assert.True(t, now.Add(-25*time.Minute).Equal(buffer.Node.TimeshiftBuffer.Gaps[0].From))
-			assert.Equal(t, "/streams/timeshift/3273601024?from="+url.QueryEscape(buffer.Node.TimeshiftBuffer.From.UTC().Format(time.RFC3339Nano)),
+			assert.Equal(t, "/internal/streams/timeshift/3273601024?from="+url.QueryEscape(buffer.Node.TimeshiftBuffer.From.UTC().Format(time.RFC3339Nano)),
 				buffer.Node.TimeshiftBuffer.StreamURL)
 
 			// 始まりの時刻で 1 つの番組を引く。ない番組は NOT_FOUND。

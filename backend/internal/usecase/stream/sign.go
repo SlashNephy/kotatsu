@@ -1,4 +1,4 @@
-// Package stream は、tenban が配信する映像 (/streams/*、署名付き URL は /api/streams/*) を扱う (設計書 7.2、7.6、9.6)。
+// Package stream は、tenban が配信する映像 (/internal/streams/*、署名付き URL は /api/streams/*) を扱う (設計書 7.2、7.6、9.6)。
 //
 // ブラウザ内の再生は、同じオリジンへのリクエストなので、セッションの Cookie で認証する。
 // VLC や mpv のような外部プレイヤーには、リソース、ユーザー、有効期限に HMAC-SHA256 で署名した短命の URL を渡す。

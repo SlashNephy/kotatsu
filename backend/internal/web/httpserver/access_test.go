@@ -285,7 +285,7 @@ func TestRequireSameOrigin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequestWithContext(t.Context(), tt.method, "http://"+hostName+"/auth/logout", nil)
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "http://"+hostName+"/internal/auth/logout", nil)
 			req.RemoteAddr = tt.remoteAddr + ":51234"
 			for key, value := range tt.headers {
 				req.Header.Set(key, value)
@@ -325,7 +325,7 @@ func TestRequireSameOriginUpgrade(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+hostName+"/media/jikkyo/jk1/ws", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+hostName+"/internal/media/jikkyo/jk1/ws", nil)
 			req.RemoteAddr = tt.remoteAddr + ":51234"
 			for key, value := range tt.headers {
 				req.Header.Set(key, value)

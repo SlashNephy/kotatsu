@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 const workImage = 'https://example.com/work.jpg';
-const thumbnail = '/media/thumbnails/1.jpg';
+const thumbnail = '/internal/media/thumbnails/1.jpg';
 
 // library は、作品の画像 imageUrl と、録画の代表画像を 1 つ持つ作品だけのライブラリ。
 function library(imageUrl: string | null, recorded = true) {

@@ -64,8 +64,8 @@ func newFixture(t *testing.T, dataDir string) *fixture {
 	logger := slog.New(slog.DiscardHandler)
 	store := kago.New(nil, nil).WithDataDir(dataDir)
 	mux := http.NewServeMux()
-	mux.Handle("POST /media/captures", captureapi.NewUploadHandler(pool, capture.New(store, clk, logger, maxImageBytes), logger))
-	mux.Handle("GET /media/captures/{id}", captureapi.NewImageHandler(pool, store, logger))
+	mux.Handle("POST /internal/media/captures", captureapi.NewUploadHandler(pool, capture.New(store, clk, logger, maxImageBytes), logger))
+	mux.Handle("GET /internal/media/captures/{id}", captureapi.NewImageHandler(pool, store, logger))
 	server := httptest.NewServer(sessions.Middleware(pool)(mux))
 	t.Cleanup(server.Close)
 
@@ -107,7 +107,7 @@ func (f *fixture) upload(t *testing.T, user string, parts ...part) (int, []byte)
 		require.NoError(t, err)
 	}
 	require.NoError(t, writer.Close())
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/media/captures", &body)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, f.server.URL+"/internal/media/captures", &body)
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
@@ -118,7 +118,7 @@ func (f *fixture) upload(t *testing.T, user string, parts ...part) (int, []byte)
 func (f *fixture) image(t *testing.T, user, captureID string) (int, []byte) {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/media/captures/"+captureID, http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/media/captures/"+captureID, http.NoBody)
 	require.NoError(t, err)
 
 	return f.do(t, req, user)

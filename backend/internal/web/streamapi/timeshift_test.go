@@ -28,7 +28,7 @@ import (
 
 const (
 	// timeshiftPattern は、タイムシフトのバッファの再生のパス。
-	timeshiftPattern = "GET /streams/timeshift/{id}"
+	timeshiftPattern = "GET /internal/streams/timeshift/{id}"
 	// atOrigin は、起点から流し始めたときに返す位置。
 	atOrigin = "0.000"
 )
@@ -110,7 +110,7 @@ func (f *timeshiftFixture) writeChunk(t *testing.T, name string, data []byte, st
 func (f *timeshiftFixture) get(t *testing.T, from time.Time, query string) *fetched {
 	t.Helper()
 
-	url := f.server.URL + "/streams/timeshift/" + serviceID + "?from=" + from.Format(time.RFC3339Nano) + query
+	url := f.server.URL + "/internal/streams/timeshift/" + serviceID + "?from=" + from.Format(time.RFC3339Nano) + query
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
@@ -237,7 +237,7 @@ func TestTimeshiftHandlerFollowsChunks(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.server.URL+"/streams/timeshift/"+serviceID+"?from="+f.origin.Format(time.RFC3339Nano), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.server.URL+"/internal/streams/timeshift/"+serviceID+"?from="+f.origin.Format(time.RFC3339Nano), nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestTimeshiftHandlerRejects(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/timeshift/"+tt.path, nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/timeshift/"+tt.path, nil)
 			require.NoError(t, err)
 			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)

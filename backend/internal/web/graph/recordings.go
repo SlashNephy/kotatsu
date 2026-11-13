@@ -363,7 +363,7 @@ func (r *Resolver) readManifest(owner uuid.UUID) (*thumbnail.Manifest, error) {
 
 // imageURL は、録画の画像 name の URL のパスを返す。データディレクトリの、セグメントのファイル owner のディレクトリになければ nil を返す。
 // 画像はブラウザにしばらく使い回させるので、作り直したら URL が変わるよう、ファイルの更新日時を添える (#476)。配信する側は、クエリを見ない。
-// 画像は、GET /media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
+// 画像は、GET /internal/media/recordings/{id}/{file} で配信する (thumbnail.ImageHandler)。
 func (r *Resolver) imageURL(recordingID, owner uuid.UUID, name string) *string {
 	if owner == uuid.Nil() {
 		return nil
@@ -374,7 +374,7 @@ func (r *Resolver) imageURL(recordingID, owner uuid.UUID, name string) *string {
 		return nil
 	}
 
-	return new("/media/recordings/" + recordingID.String() + "/" + name + "?v=" + strconv.FormatInt(info.ModTime().Unix(), 10))
+	return new("/internal/media/recordings/" + recordingID.String() + "/" + name + "?v=" + strconv.FormatInt(info.ModTime().Unix(), 10))
 }
 
 // imageURLs は、録画の代表画像とプレビュー画像の URL のパスを返す。画像のファイルがなければ nil にする。
@@ -408,10 +408,10 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		ProgramLost: row.ProgramLost, RecordedFrom: row.RecordedFrom, RecordedUntil: row.RecordedUntil,
 		BroadcastStartedAt: row.BroadcastStartedAt, BroadcastEndedAt: row.BroadcastEndedAt, NotBroadcast: row.NotBroadcast,
 		Tags: []*model.Tag{}, Files: []*model.RecordingFile{}, WatchPositionMs: nil, ThumbnailURL: nil, PreviewURL: nil,
-		StreamURL:                "/streams/recordings/" + row.ID.String(),
-		JikkyoCommentsURL:        "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.CommentsFileName,
-		JikkyoOtherCommentsURL:   "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.OtherCommentsFileName,
-		JikkyoNicologCommentsURL: "/media/recordings/" + row.ID.String() + "/" + jikkyoapi.NicologCommentsFileName,
+		StreamURL:                "/internal/streams/recordings/" + row.ID.String(),
+		JikkyoCommentsURL:        "/internal/media/recordings/" + row.ID.String() + "/" + jikkyoapi.CommentsFileName,
+		JikkyoOtherCommentsURL:   "/internal/media/recordings/" + row.ID.String() + "/" + jikkyoapi.OtherCommentsFileName,
+		JikkyoNicologCommentsURL: "/internal/media/recordings/" + row.ID.String() + "/" + jikkyoapi.NicologCommentsFileName,
 		ServiceKey:               row.ServiceID,
 		VideoResolution:          row.VideoResolution,
 		FailureDetailText:        row.FailureDetail,

@@ -467,8 +467,8 @@ func TestOIDCHandlers(t *testing.T) {
 	f.clock.Advance(time.Since(f.clock.Now()))
 	client := func(*http.Request) *auth.ClientInfo { return f.client }
 	mux := http.NewServeMux()
-	mux.Handle("GET /auth/oidc", f.oidc.StatusHandler(f.db))
-	mux.Handle("POST /auth/oidc", f.oidc.BeginHandler(f.db, client))
+	mux.Handle("GET /internal/auth/oidc", f.oidc.StatusHandler(f.db))
+	mux.Handle("POST /internal/auth/oidc", f.oidc.BeginHandler(f.db, client))
 	mux.Handle("GET "+auth.OIDCCallbackPath, f.oidc.CallbackHandler(f.db, client))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
@@ -496,7 +496,7 @@ func TestOIDCHandlers(t *testing.T) {
 		return &response{status: resp.StatusCode, location: resp.Header.Get("Location"), body: body}
 	}
 	cookie := func(name string) string {
-		for _, c := range jar.Cookies(mustParseURL(t, server.URL+"/auth/")) {
+		for _, c := range jar.Cookies(mustParseURL(t, server.URL+"/internal/auth/")) {
 			if c.Name == name {
 				return c.Value
 			}
@@ -515,7 +515,7 @@ func TestOIDCHandlers(t *testing.T) {
 		Enabled     bool   `json:"enabled"`
 		DisplayName string `json:"displayName"`
 	}
-	require.NoError(t, json.Unmarshal(do(http.MethodGet, server.URL+"/auth/oidc").body, &status))
+	require.NoError(t, json.Unmarshal(do(http.MethodGet, server.URL+"/internal/auth/oidc").body, &status))
 	assert.True(t, status.Enabled)
 	assert.Equal(t, "Test IdP", status.DisplayName)
 
@@ -523,7 +523,7 @@ func TestOIDCHandlers(t *testing.T) {
 	var begin struct {
 		AuthorizationURL string `json:"authorizationUrl"`
 	}
-	require.NoError(t, json.Unmarshal(do(http.MethodPost, server.URL+"/auth/oidc").body, &begin))
+	require.NoError(t, json.Unmarshal(do(http.MethodPost, server.URL+"/internal/auth/oidc").body, &begin))
 	redirect, err := f.idp.Authorize(begin.AuthorizationURL)
 	require.NoError(t, err)
 	forged := mustParseURL(t, callback(redirect))
@@ -537,7 +537,7 @@ func TestOIDCHandlers(t *testing.T) {
 	assert.Empty(t, cookie(auth.OIDCCookieName), "the login state cookie must be cleared")
 
 	// 正しく戻ってくれば、セッションの Cookie を受け取り、ホームへ進む。
-	require.NoError(t, json.Unmarshal(do(http.MethodPost, server.URL+"/auth/oidc").body, &begin))
+	require.NoError(t, json.Unmarshal(do(http.MethodPost, server.URL+"/internal/auth/oidc").body, &begin))
 	assert.NotEmpty(t, cookie(auth.OIDCCookieName))
 	redirect, err = f.idp.Authorize(begin.AuthorizationURL)
 	require.NoError(t, err)
@@ -573,7 +573,7 @@ func TestOIDCHandlersUnavailable(t *testing.T) {
 		{name: "begin when the provider is down", handler: f.oidc.BeginHandler(f.db, client), method: http.MethodPost, wantStatus: http.StatusServiceUnavailable, want: `"code":"OIDC_UNAVAILABLE"`},
 	}
 	for _, tt := range tests {
-		req := httptest.NewRequestWithContext(t.Context(), tt.method, "/auth/oidc", strings.NewReader("{}"))
+		req := httptest.NewRequestWithContext(t.Context(), tt.method, "/internal/auth/oidc", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", jsonType)
 		rec := httptest.NewRecorder()
 		tt.handler.ServeHTTP(rec, req)

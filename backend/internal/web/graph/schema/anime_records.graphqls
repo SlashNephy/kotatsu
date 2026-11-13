@@ -105,7 +105,7 @@ extend type Mutation {
   updateAnimeRecordApp(destination: AnimeRecordDestination!, input: AnimeRecordAppInput!): AnimeRecordApp!
   """
   ログイン中のユーザーと記録先 destination の連携を始め、ブラウザーを送り出す記録先の認可のエンドポイントの URL を返す (#927)。
-  記録先から GET /auth/anime-records/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
+  記録先から GET /internal/auth/anime-records/{destination}/callback に戻ってきたら、連携する。ブラウザーのセッションでだけ使える。
   管理者が連携を無効にしているか、アプリを登録していなければ CONFLICT を返す。
   """
   beginAnimeRecordConnection(destination: AnimeRecordDestination!): String!

@@ -186,9 +186,9 @@ func TestRecordings(t *testing.T) {
 	var rawID string
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text FROM recordings WHERE name = $1`, episode1).Scan(&rawID))
 	suffix := "?v=" + strconv.FormatInt(generatedAt.Unix(), 10)
-	assert.Equal(t, new("/media/recordings/"+rawID+"/thumbnail.jpg"+suffix), withImages.ThumbnailURL)
-	assert.Equal(t, new("/media/recordings/"+rawID+"/preview.jpg"+suffix), withImages.PreviewURL)
-	assert.Equal(t, "/streams/recordings/"+rawID, withImages.StreamURL)
+	assert.Equal(t, new("/internal/media/recordings/"+rawID+"/thumbnail.jpg"+suffix), withImages.ThumbnailURL)
+	assert.Equal(t, new("/internal/media/recordings/"+rawID+"/preview.jpg"+suffix), withImages.PreviewURL)
+	assert.Equal(t, "/internal/streams/recordings/"+rawID, withImages.StreamURL)
 	assert.Nil(t, f.recordings(t, 10, nil, nil).Recordings.Edges[0].Node.ThumbnailURL)
 	kinds := make([]string, 0, len(files))
 	for _, file := range files {
@@ -734,7 +734,7 @@ func TestRecordingWatchFrame(t *testing.T) {
 	var rawID string
 	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text FROM recordings WHERE name = $1`, episode1).Scan(&rawID))
 	assert.Equal(t, &frame{
-		URL: "/media/recordings/" + rawID + "/preview.jpg?v=" + strconv.FormatInt(generatedAt.Unix(), 10), X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
+		URL: "/internal/media/recordings/" + rawID + "/preview.jpg?v=" + strconv.FormatInt(generatedAt.Unix(), 10), X: 160, Y: 0, Width: 160, Height: 90, SheetWidth: 480, SheetHeight: 90,
 	}, got)
 
 	// 終わりの近くまで見ていたら、見終えたとみなして返さない。

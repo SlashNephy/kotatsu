@@ -34,7 +34,7 @@ type ScrambleWatcher interface {
 	Watch(ctx context.Context, serviceID int64, src io.Reader) (io.Reader, *ts.ScrambleDetector)
 }
 
-// LiveHandler は、チューナーサーバーのサービスストリームを中継する (GET /streams/services/{id})。
+// LiveHandler は、チューナーサーバーのサービスストリームを中継する (GET /internal/streams/services/{id})。
 type LiveHandler struct {
 	// tuner は、チューナーサーバーのクライアント。設定していなければ nil。
 	tuner ServiceOpener
@@ -53,7 +53,7 @@ func NewLiveHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHandler {
 }
 
 // NewDataBroadcastHandler は、サービスストリームから、データ放送の描画に要るパケットだけを流す LiveHandler を返す
-// (GET /streams/services/{id}/data-broadcast、設計書 7.4)。ブラウザは、これを web-bml に渡す。
+// (GET /internal/streams/services/{id}/data-broadcast、設計書 7.4)。ブラウザは、これを web-bml に渡す。
 // tuner が nil なら、すべてのリクエストに 503 を返す。
 func NewDataBroadcastHandler(tuner ServiceOpener, logger *slog.Logger) *LiveHandler {
 	return &LiveHandler{tuner: tuner, dataBroadcast: true, logger: logger, scramble: nil}

@@ -1,4 +1,4 @@
-// Package animerecordapi は、Annict と AniList から戻ってくる認可を受け付ける (GET /auth/anime-records/<記録先>/callback、#927)。
+// Package animerecordapi は、Annict と AniList から戻ってくる認可を受け付ける (GET /internal/auth/anime-records/<記録先>/callback、#927)。
 package animerecordapi
 
 import (
@@ -15,7 +15,7 @@ import (
 const SettingsPath = "/settings/account"
 
 // CallbackHandler は、記録先 name から戻ってきた認可を確かめ、ログイン中のユーザーと記録先を連携するハンドラーを返す
-// (GET /auth/anime-records/<記録先>/callback)。記録先ごとに登録し、記録先をリクエストのパスからは選ばない。
+// (GET /internal/auth/anime-records/<記録先>/callback)。記録先ごとに登録し、記録先をリクエストのパスからは選ばない。
 //
 // 記録先からのリダイレクトなので、Origin を確かめられない。代わりに、state で認可の途中の状態を引き、
 // 始めたセッションのまま戻ってきたことを確かめる。結果は、設定の画面へのリダイレクトで伝える。

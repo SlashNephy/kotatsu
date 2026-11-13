@@ -34,7 +34,7 @@ describe('fetchQuery', () => {
     await expect(fetchQuery(operation, { first: 1 }, {}, undefined)).resolves.toEqual({
       data: { viewer: { id: 'VXNlcjox' } },
     });
-    expect(fetchMock).toHaveBeenCalledWith('/graphql', {
+    expect(fetchMock).toHaveBeenCalledWith('/internal/graphql', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

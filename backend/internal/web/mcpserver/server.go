@@ -323,7 +323,7 @@ func (h *Handler) execute(ctx context.Context, query string, arguments json.RawM
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the GraphQL request: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/graphql", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "/internal/graphql", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to build the GraphQL request: %w", err)
 	}

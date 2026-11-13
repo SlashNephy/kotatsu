@@ -79,7 +79,7 @@ func TestTenbanServesGraphQL(t *testing.T) {
 				assert.NoError(t, <-done)
 			})
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+<-addresses+"/graphql",
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+<-addresses+"/internal/graphql",
 				strings.NewReader(`{"query":"{ viewer { username } }"}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")

@@ -27,7 +27,7 @@ func TestTraceable(t *testing.T) {
 		{name: "IPTV playlist", path: "/api/iptv/kotatsu_iptv_x/channels.m3u", want: false},
 		{name: "IPTV stream", path: "//api/iptv/kotatsu_iptv_x/services/1/stream.m2ts", want: false},
 		{name: "IPTV similar prefix", path: "/api/iptvs", want: true},
-		{name: "graphql", path: "/graphql", want: true},
+		{name: "graphql", path: "/internal/graphql", want: true},
 		{name: "EPGStation", path: "/api/epgstation/api/recorded", want: true},
 	}
 	for _, tt := range tests {

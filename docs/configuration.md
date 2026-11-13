@@ -108,7 +108,7 @@ proxy_set_header X-Forwarded-Proto $scheme;
 proxy_set_header X-Forwarded-Host $host;
 ```
 
-ライブ視聴の実況のコメントは、WebSocket（`/media/jikkyo/{channel}/ws`）で届きます。
+ライブ視聴の実況のコメントは、WebSocket（`/internal/media/jikkyo/{channel}/ws`）で届きます。
 nginxでは、WebSocketの接続も通るように設定してください。
 `$connection_upgrade`は、`http`のブロックの`map $http_upgrade $connection_upgrade { default upgrade; '' close; }`で定義します。
 
@@ -266,7 +266,7 @@ OpenID ConnectのIdPでログインするための設定です。
 | `auth.oidc.issuer` | `KOTATSU_AUTH_OIDC_ISSUER` | なし | IdPのissuerのURL |
 | `auth.oidc.client_id` | `KOTATSU_AUTH_OIDC_CLIENT_ID` | なし | クライアントID |
 | `auth.oidc.client_secret` | `KOTATSU_AUTH_OIDC_CLIENT_SECRET` | なし（秘密） | クライアントシークレット |
-| `auth.oidc.redirect_url` | `KOTATSU_AUTH_OIDC_REDIRECT_URL` | 接続したオリジン＋`/auth/oidc/callback` | IdPに登録したリダイレクトURI |
+| `auth.oidc.redirect_url` | `KOTATSU_AUTH_OIDC_REDIRECT_URL` | 接続したオリジン＋`/internal/auth/oidc/callback` | IdPに登録したリダイレクトURI |
 | `auth.oidc.scopes` | `KOTATSU_AUTH_OIDC_SCOPES` | `openid`、`profile`、`email` | IdPに求めるスコープ |
 | `auth.oidc.display_name` | `KOTATSU_AUTH_OIDC_DISPLAY_NAME` | `OIDC` | ログイン画面のボタンに出すIdPの名前 |
 | `auth.oidc.username_claim` | `KOTATSU_AUTH_OIDC_USERNAME_CLAIM` | `preferred_username` | 自動で作るユーザーのユーザー名にするclaim |

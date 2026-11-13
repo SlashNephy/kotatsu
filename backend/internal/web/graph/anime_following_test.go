@@ -69,7 +69,7 @@ func TestAnimeFollowingViewings(t *testing.T) {
 	assert.Equal(t, "ON_HOLD", viewing.Status)
 	assert.Equal(t, "https://annict.com/@a%20b", viewing.ProfileURL)
 	require.NotNil(t, viewing.AvatarURL)
-	assert.Contains(t, *viewing.AvatarURL, "/media/anime-following/annict/a%20b/avatar?v=")
+	assert.Contains(t, *viewing.AvatarURL, "/internal/media/anime-following/annict/a%20b/avatar?v=")
 
 	got = animeFollowingResult{}
 	require.Empty(t, other.query(t, animeFollowingQuery, tid, &got))

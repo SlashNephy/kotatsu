@@ -2,7 +2,7 @@
 // NX-Jikkyo には tenban がつなぐ。視聴者の IP アドレスと見ているチャンネルを、第三者に渡さないためである。
 
 // jikkyoSocketPath は、実況のコメントを中継する WebSocket のパスの前半。
-export const jikkyoSocketPath = '/media/jikkyo/';
+export const jikkyoSocketPath = '/internal/media/jikkyo/';
 
 // jikkyoSocketURL は、実況のチャンネル channelId のコメントを中継する WebSocket の URL を返す。同じオリジンにつなぐ。
 export function jikkyoSocketURL(channelId: string, location: Location = window.location): string {

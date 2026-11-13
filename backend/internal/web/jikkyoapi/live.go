@@ -26,7 +26,7 @@ import (
 
 const (
 	// LivePath は、ライブの実況のコメントを中継する WebSocket のパス。
-	LivePath = "/media/jikkyo/{channel}/ws"
+	LivePath = "/internal/media/jikkyo/{channel}/ws"
 
 	// maxPostRunes は、投稿できるコメントの長さの上限。画面の入力の上限と同じにする。
 	maxPostRunes = 75
@@ -63,7 +63,7 @@ type LiveOptions struct {
 	RevalidateInterval time.Duration
 }
 
-// LiveHandler は、ライブの実況のコメントの受信と投稿を、WebSocket で中継する (GET /media/jikkyo/{channel}/ws、設計書 7.4)。
+// LiveHandler は、ライブの実況のコメントの受信と投稿を、WebSocket で中継する (GET /internal/media/jikkyo/{channel}/ws、設計書 7.4)。
 // ブラウザを NX-Jikkyo につながせないのは、視聴者の IP アドレスと見ているチャンネルを、第三者に渡さないためである。
 // 全体の設定とユーザーの設定の両方で実況を有効にしていなければ、404 を返し、NX-Jikkyo にはつながない。
 type LiveHandler struct {

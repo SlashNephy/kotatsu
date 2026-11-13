@@ -180,21 +180,21 @@ describe('hlsURL', () => {
   test.each([
     {
       name: 'TS の URL に、画質と音声ごとのプレイリストのパスを足す',
-      streamUrl: '/streams/services/3273601024',
+      streamUrl: '/internal/streams/services/3273601024',
       audio: 1 as const,
-      want: '/streams/services/3273601024/hls/720p-hevc/1/playlist.m3u8',
+      want: '/internal/streams/services/3273601024/hls/720p-hevc/1/playlist.m3u8',
     },
     {
       name: '第 2 音声',
-      streamUrl: '/streams/services/3273601024',
+      streamUrl: '/internal/streams/services/3273601024',
       audio: 2 as const,
-      want: '/streams/services/3273601024/hls/720p-hevc/2/playlist.m3u8',
+      want: '/internal/streams/services/3273601024/hls/720p-hevc/2/playlist.m3u8',
     },
     {
       name: 'クエリは、プレイリストのパスの後ろに付け直す',
-      streamUrl: '/streams/services/3273601024?token=abc',
+      streamUrl: '/internal/streams/services/3273601024?token=abc',
       audio: 1 as const,
-      want: '/streams/services/3273601024/hls/720p-hevc/1/playlist.m3u8?token=abc',
+      want: '/internal/streams/services/3273601024/hls/720p-hevc/1/playlist.m3u8?token=abc',
     },
   ])('$name', ({ streamUrl, audio, want }) => {
     expect(hlsURL(streamUrl, '720p-hevc', audio)).toBe(want);
@@ -205,15 +205,15 @@ describe('dataBroadcastSource', () => {
   test.each([
     {
       name: 'TS の URL に、データ放送のパスを足し、サービス ID の下 5 桁を program_number にする',
-      streamUrl: '/streams/services/3273601024',
-      want: { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+      streamUrl: '/internal/streams/services/3273601024',
+      want: { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 },
     },
     {
       name: 'クエリは、データ放送のパスの後ろに付け直す',
-      streamUrl: '/streams/services/400101?token=abc',
-      want: { url: '/streams/services/400101/data-broadcast?token=abc', serviceId: 101 },
+      streamUrl: '/internal/streams/services/400101?token=abc',
+      want: { url: '/internal/streams/services/400101/data-broadcast?token=abc', serviceId: 101 },
     },
-    { name: 'サービス ID でない', streamUrl: '/streams/services/nhk', want: null },
+    { name: 'サービス ID でない', streamUrl: '/internal/streams/services/nhk', want: null },
   ])('$name', ({ streamUrl, want }) => {
     expect(dataBroadcastSource(streamUrl)).toEqual(want);
   });

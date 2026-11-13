@@ -176,7 +176,7 @@ type weakPasswordBody struct {
 	Reason password.Reason `json:"reason"`
 }
 
-// StatusHandler は、初回セットアップが要るかを返すハンドラーを返す (GET /auth/setup)。
+// StatusHandler は、初回セットアップが要るかを返すハンドラーを返す (GET /internal/auth/setup)。
 func (s *Setup) StatusHandler(db sqlc.DBTX) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		needed, err := s.Needed(r.Context(), db)
@@ -189,7 +189,7 @@ func (s *Setup) StatusHandler(db sqlc.DBTX) http.Handler {
 	})
 }
 
-// CreateHandler は、セットアップトークンを確かめて、最初の管理者を作るハンドラーを返す (POST /auth/setup)。
+// CreateHandler は、セットアップトークンを確かめて、最初の管理者を作るハンドラーを返す (POST /internal/auth/setup)。
 func (s *Setup) CreateHandler(db Database, client func(*http.Request) *ClientInfo) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req setupRequest

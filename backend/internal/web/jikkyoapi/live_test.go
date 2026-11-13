@@ -127,7 +127,7 @@ type liveMessage struct {
 func (f *liveFixture) dial(t *testing.T, user uuid.UUID) *websocket.Conn {
 	t.Helper()
 
-	url := "ws" + strings.TrimPrefix(f.server.URL, "http") + "/media/jikkyo/" + jkNHK + "/ws"
+	url := "ws" + strings.TrimPrefix(f.server.URL, "http") + "/internal/media/jikkyo/" + jkNHK + "/ws"
 	conn, response, err := websocket.Dial(t.Context(), url, &websocket.DialOptions{HTTPClient: httpclienttest.New(t), HTTPHeader: http.Header{"X-Test-User": {user.String()}}})
 	if response != nil && response.Body != nil {
 		_ = response.Body.Close()
@@ -197,7 +197,7 @@ func TestLiveHandlerOptIn(t *testing.T) {
 			f := newLiveFixture(t)
 			f.setSystem(t, tt.system)
 			f.setUser(t, f.alice, tt.user)
-			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/media/jikkyo/"+tt.path+"/ws", http.NoBody)
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/media/jikkyo/"+tt.path+"/ws", http.NoBody)
 			require.NoError(t, err)
 			if !tt.anonymous {
 				request.Header.Set("X-Test-User", f.alice.String())

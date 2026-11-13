@@ -126,7 +126,7 @@ func TestWatchesTrack(t *testing.T) {
 	serviceRequest := func(t *testing.T, method string, principal *auth.Principal) *http.Request {
 		t.Helper()
 
-		request := httptest.NewRequestWithContext(t.Context(), method, "/streams/services/1", http.NoBody)
+		request := httptest.NewRequestWithContext(t.Context(), method, "/internal/streams/services/1", http.NoBody)
 		request.SetPathValue("id", "1")
 		if principal != nil {
 			request = request.WithContext(auth.WithPrincipal(request.Context(), principal))

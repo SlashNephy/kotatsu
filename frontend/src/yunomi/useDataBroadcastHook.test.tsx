@@ -88,7 +88,9 @@ const players: HTMLVideoElement[] = [];
 function Harness({ shown = true, receive = true }: { shown?: boolean; receive?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { layer, state, receiving, press } = useDataBroadcast(
-    receive ? { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 } : null,
+    receive
+      ? { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 }
+      : null,
     videoRef,
     shown,
     false,
@@ -691,7 +693,7 @@ function TuneHarness({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { layer } = useDataBroadcast(
-    { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+    { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 },
     videoRef,
     true,
     false,
@@ -733,7 +735,7 @@ describe('データ放送の文書からの選局と音声の切り替え', () =
 function IPHarness({ ipEnabled }: { ipEnabled: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { layer } = useDataBroadcast(
-    { url: '/streams/services/3273601024/data-broadcast', serviceId: 1024 },
+    { url: '/internal/streams/services/3273601024/data-broadcast', serviceId: 1024 },
     videoRef,
     true,
     ipEnabled,

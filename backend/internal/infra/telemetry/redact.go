@@ -17,7 +17,7 @@ const urlPathKey = attribute.Key("url.path")
 // redactedSegment は、url.path の ID らしいセグメントの置き換え先。
 const redactedSegment = ":id"
 
-// keptPathSegments は、url.path の先頭から残すセグメントの数。/streams/recordings のように、機能が分かる範囲だけを残す。
+// keptPathSegments は、url.path の先頭から残すセグメントの数。/internal/streams のように、機能が分かる範囲だけを残す。
 const keptPathSegments = 2
 
 // isDroppedAttribute は、視聴者を識別できるので送らない属性かを返す。network.peer.* は、手前にプロキシがなければ視聴者の IP アドレスになる。

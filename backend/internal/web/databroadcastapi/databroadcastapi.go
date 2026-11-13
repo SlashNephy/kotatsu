@@ -36,9 +36,9 @@ import (
 
 const (
 	// RequestPath は、文書の HTTP のリクエスト (GET と、transmitTextDataOverIP の POST) を中継するエンドポイント。
-	RequestPath = "/media/data-broadcast/requests"
+	RequestPath = "/internal/media/data-broadcast/requests"
 	// ConnectivityPath は、文書がインターネットへ接続できるかを確かめる (confirmIPNetwork) エンドポイント。
-	ConnectivityPath = "/media/data-broadcast/connectivity"
+	ConnectivityPath = "/internal/media/data-broadcast/connectivity"
 
 	// requestTimeout は、中継するリクエストの 1 回を待つ長さ (リダイレクトを含む)。
 	requestTimeout = 10 * time.Second

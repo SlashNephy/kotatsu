@@ -22,7 +22,7 @@ import (
 
 const (
 	// imagePattern は、録画の画像のパス。
-	imagePattern = "GET /media/recordings/{id}/{file}"
+	imagePattern = "GET /internal/media/recordings/{id}/{file}"
 )
 
 // addSegment は、録画に、書いたもののあるセグメントの行を足し、そのファイルの ID を返す。画像の配信は、セグメントを読まない。
@@ -110,41 +110,41 @@ func TestImageHandler(t *testing.T) {
 		wantContentType string
 	}{
 		{
-			name: "thumbnail", store: f.store, path: "/media/recordings/" + withImages.String() + "/thumbnail.jpg",
+			name: "thumbnail", store: f.store, path: "/internal/media/recordings/" + withImages.String() + "/thumbnail.jpg",
 			wantStatus: http.StatusOK, wantBody: "thumbnail-jpeg", wantContentType: "image/jpeg",
 		},
 		{
-			name: "preview image", store: f.store, path: "/media/recordings/" + withImages.String() + "/preview.jpg",
+			name: "preview image", store: f.store, path: "/internal/media/recordings/" + withImages.String() + "/preview.jpg",
 			wantStatus: http.StatusOK, wantBody: "preview-jpeg", wantContentType: "image/jpeg",
 		},
 		{
 			name: "preview manifest", store: f.store,
-			path:       "/media/recordings/" + withImages.String() + "/preview.json",
+			path:       "/internal/media/recordings/" + withImages.String() + "/preview.json",
 			wantStatus: http.StatusOK, wantBody: `{"columns":10}`, wantContentType: "application/json",
 		},
 		{
 			name: "other file names in the segment directory are not served", store: f.store,
-			path: "/media/recordings/" + withImages.String() + "/index", wantStatus: http.StatusNotFound,
+			path: "/internal/media/recordings/" + withImages.String() + "/index", wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "recording without segments", store: f.store,
-			path: "/media/recordings/" + withoutImages.String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
+			path: "/internal/media/recordings/" + withoutImages.String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "images not generated yet", store: f.store,
-			path: "/media/recordings/" + missingFile.String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
+			path: "/internal/media/recordings/" + missingFile.String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "unknown recording", store: f.store,
-			path: "/media/recordings/" + id.New().String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
+			path: "/internal/media/recordings/" + id.New().String() + "/thumbnail.jpg", wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "invalid recording ID", store: f.store,
-			path: "/media/recordings/not-a-uuid/thumbnail.jpg", wantStatus: http.StatusBadRequest,
+			path: "/internal/media/recordings/not-a-uuid/thumbnail.jpg", wantStatus: http.StatusBadRequest,
 		},
 		{
 			name: "data directory not mounted on this instance", store: kago.New(map[string]string{}, nil),
-			path:       "/media/recordings/" + withImages.String() + "/thumbnail.jpg",
+			path:       "/internal/media/recordings/" + withImages.String() + "/thumbnail.jpg",
 			wantStatus: http.StatusServiceUnavailable,
 		},
 	}
@@ -175,7 +175,7 @@ func TestImageHandlerNotModified(t *testing.T) {
 	f := newJobFixture(t)
 	recordingID := f.bareRecording(t)
 	f.addImages(t, recordingID)
-	path := "/media/recordings/" + recordingID.String() + "/thumbnail.jpg"
+	path := "/internal/media/recordings/" + recordingID.String() + "/thumbnail.jpg"
 
 	first := serveImage(t, f.store, f, path, nil)
 	require.Equal(t, http.StatusOK, first.status)

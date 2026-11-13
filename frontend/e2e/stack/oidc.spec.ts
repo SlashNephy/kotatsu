@@ -86,7 +86,7 @@ class Client {
   }
 
   async graphql<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
-    const response = await this.postJSON('/graphql', { query, variables });
+    const response = await this.postJSON('/internal/graphql', { query, variables });
     const result = (await response.json()) as { data?: T; errors?: unknown[] };
     expect(result.errors, JSON.stringify(result.errors)).toBeUndefined();
     return result.data!;
@@ -94,7 +94,7 @@ class Client {
 
   // viewerStatus は、ログインしているかを、GraphQL の viewer の応答の状態で返す。
   async viewerStatus(): Promise<number> {
-    const response = await this.postJSON('/graphql', { query: '{ viewer { id } }' });
+    const response = await this.postJSON('/internal/graphql', { query: '{ viewer { id } }' });
     const result = (await response.json()) as { errors?: { extensions?: { code?: string } }[] };
     return result.errors?.some((error) => error.extensions?.code === 'UNAUTHENTICATED')
       ? 401
@@ -102,8 +102,12 @@ class Client {
   }
 }
 
-// begin は、OIDC でのログイン (url の既定は /auth/oidc) を始め、IdP の認可のエンドポイントの URL を返す。
-async function begin(client: Client, path = '/auth/oidc', body: unknown = {}): Promise<URL> {
+// begin は、OIDC でのログイン (url の既定は /internal/auth/oidc) を始め、IdP の認可のエンドポイントの URL を返す。
+async function begin(
+  client: Client,
+  path = '/internal/auth/oidc',
+  body: unknown = {},
+): Promise<URL> {
   const response = await client.postJSON(path, body);
   expect(response.status, await response.clone().text()).toBe(200);
   const { authorizationUrl } = (await response.json()) as { authorizationUrl: string };
@@ -154,7 +158,7 @@ test('ログインの始まりで、PKCE と state と nonce を付けて IdP �
   const client = new Client();
   const url = await begin(client);
   expect(url.searchParams.get('client_id')).toBe('kotatsu');
-  expect(url.searchParams.get('redirect_uri')).toBe(`${baseURL}/auth/oidc/callback`);
+  expect(url.searchParams.get('redirect_uri')).toBe(`${baseURL}/internal/auth/oidc/callback`);
   expect(url.searchParams.get('response_type')).toBe('code');
   expect(url.searchParams.get('code_challenge_method')).toBe('S256');
   expect(url.searchParams.get('code_challenge')).toBeTruthy();
@@ -309,23 +313,24 @@ test('設定の画面からの紐付けは、ほかのユーザーと紐付い�
 
   // パスワードでログインし、その場で認証アプリを登録する (第二要素は必須)。ログインした直後なので、紐付けに要る再認証を満たす。
   const local = new Client();
-  expect((await local.postJSON('/auth/login', { username: 'e2e-local', password })).status).toBe(
-    200,
-  );
-  const enrollment = await local.postJSON('/auth/login/totp/enrollment', {});
+  expect(
+    (await local.postJSON('/internal/auth/login', { username: 'e2e-local', password })).status,
+  ).toBe(200);
+  const enrollment = await local.postJSON('/internal/auth/login/totp/enrollment', {});
   const { secret } = (await enrollment.json()) as { secret: string };
-  const confirmed = await local.postJSON('/auth/login/totp/enrollment/confirm', {
+  const confirmed = await local.postJSON('/internal/auth/login/totp/enrollment/confirm', {
     code: totp(secret),
   });
   expect(confirmed.status, await confirmed.clone().text()).toBe(200);
   expect(local.cookies.has('kotatsu_session')).toBe(true);
 
   // 戻すパスは、/ で始まり // で始まらないものだけを受け付ける。外のホストへは出さない。
-  expect((await local.postJSON('/auth/oidc/link', { returnTo: '//evil.example/' })).status).toBe(
-    400,
-  );
   expect(
-    (await local.postJSON('/auth/oidc/link', { returnTo: 'https://evil.example/' })).status,
+    (await local.postJSON('/internal/auth/oidc/link', { returnTo: '//evil.example/' })).status,
+  ).toBe(400);
+  expect(
+    (await local.postJSON('/internal/auth/oidc/link', { returnTo: 'https://evil.example/' }))
+      .status,
   ).toBe(400);
 
   // 既にほかのユーザー (自動で作った管理者) と紐付いた subject は断る。
@@ -335,7 +340,9 @@ test('設定の画面からの紐付けは、ほかのユーザーと紐付い�
     name: 'OIDC の管理者',
     groups: ['kotatsu-admins'],
   });
-  let redirect = await authorize(await begin(local, '/auth/oidc/link', { returnTo: '/settings' }));
+  let redirect = await authorize(
+    await begin(local, '/internal/auth/oidc/link', { returnTo: '/settings' }),
+  );
   expect(await callback(local, redirect)).toBe('/settings?error=oidc_link_taken');
 
   await nextIdentity({
@@ -344,7 +351,9 @@ test('設定の画面からの紐付けは、ほかのユーザーと紐付い�
     name: 'ローカルの IdP',
     groups: [],
   });
-  redirect = await authorize(await begin(local, '/auth/oidc/link', { returnTo: '/settings' }));
+  redirect = await authorize(
+    await begin(local, '/internal/auth/oidc/link', { returnTo: '/settings' }),
+  );
   expect(await callback(local, redirect)).toBe('/settings?linked=oidc');
 
   // 紐付けた後は、IdP でそのユーザーとしてログインできる。グループに当たらなくても、作るわけではないので通る。
@@ -363,10 +372,12 @@ test('設定の画面からの紐付けは、ほかのユーザーと紐付い�
   expect(viewer.username).toBe('e2e-local');
 });
 
-test('状態を変える /auth/* の POST は、ほかのオリジンと Origin のないものを断る', async () => {
+test('状態を変える /internal/auth/* の POST は、ほかのオリジンと Origin のないものを断る', async () => {
   const client = new Client();
-  expect((await client.postJSON('/auth/oidc', {}, 'http://evil.example')).status).toBe(403);
-  expect((await client.postJSON('/auth/oidc', {}, null)).status).toBe(403);
+  expect((await client.postJSON('/internal/auth/oidc', {}, 'http://evil.example')).status).toBe(
+    403,
+  );
+  expect((await client.postJSON('/internal/auth/oidc', {}, null)).status).toBe(403);
   expect(client.cookies.has('kotatsu_oidc')).toBe(false);
 });
 
@@ -379,10 +390,10 @@ test('ログアウトすると、セッションが消えて、再びログイ�
     groups: ['kotatsu-members'],
   });
   // よそのページの画像のタグなどから、ログアウトさせられないようにする。
-  expect((await client.send('/auth/logout')).status).toBe(405);
+  expect((await client.send('/internal/auth/logout')).status).toBe(405);
   expect(await client.viewerStatus()).toBe(200);
 
-  expect((await client.send('/auth/logout', { method: 'POST' })).status).toBeLessThan(400);
+  expect((await client.send('/internal/auth/logout', { method: 'POST' })).status).toBeLessThan(400);
   expect(client.cookies.has('kotatsu_session')).toBe(false);
   expect(await client.viewerStatus()).toBe(401);
 });

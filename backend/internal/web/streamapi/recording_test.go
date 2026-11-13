@@ -33,7 +33,7 @@ import (
 const (
 	poolID = "main"
 	// recordingPattern は、録画の再生のパス。
-	recordingPattern = "GET /streams/recordings/{id}"
+	recordingPattern = "GET /internal/streams/recordings/{id}"
 	// pollInterval は、追っかけ再生のテストで、ファイルが伸びるのを確かめる間隔。
 	pollInterval = 10 * time.Millisecond
 )
@@ -144,7 +144,7 @@ type fetched struct {
 func (f *recordingFixture) get(t *testing.T, recordingID uuid.UUID, query string) *fetched {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String()+query, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String()+query, nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -240,7 +240,7 @@ func TestRecordingHandler(t *testing.T) {
 func (f *recordingFixture) getRange(t *testing.T, recordingID uuid.UUID, rangeHeader string) (*fetched, http.Header) {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
 	if rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
@@ -348,7 +348,7 @@ func TestRecordingHandlerStreamsRecordingInProgress(t *testing.T) {
 	recordingID := f.recording(t, "recording")
 	f.segment(t, recordingID, "a.m2ts", data, 0, false)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
 	req.Header.Set("Range", "bytes=1000-1999")
 	resp, err := httpclienttest.New(t).Do(req)
@@ -389,7 +389,7 @@ func TestRecordingHandlerReportsStartOnHead(t *testing.T) {
 	recordingID := f.recording(t, "completed")
 	f.segment(t, recordingID, "a.m2ts", loadTestTS(t), 0, false)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, f.server.URL+"/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodHead, f.server.URL+"/internal/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -413,7 +413,7 @@ func TestRecordingHandlerFollowsGrowingFile(t *testing.T) {
 	recordingID := f.recording(t, "recording")
 	segmentID := f.segment(t, recordingID, "a.m2ts", data[:half], 0, true)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -464,7 +464,7 @@ func TestRecordingHandlerFollowsGrowingFileWhileDatabaseIsUnreachable(t *testing
 			conn := databasetest.NewSwitch(t, f.pool)
 			server := f.serve(t, conn.Pool)
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/streams/recordings/"+recordingID.String(), nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 			require.NoError(t, err)
 			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
@@ -513,7 +513,7 @@ func TestRecordingHandlerEndsWhenSegmentClosesShort(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String()+"?start=2.01", nil)
 	require.NoError(t, err)
 	// 応答のヘッダーは、流し始めるまで返らないので、待っている間にセグメントを閉じる。
 	type result struct {
@@ -609,7 +609,7 @@ func TestRecordingHandlerFollowsHandover(t *testing.T) {
 	recordingID := f.recording(t, "recording")
 	f.segment(t, recordingID, "a.m2ts", first, 0, false)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)
@@ -658,7 +658,7 @@ func TestRecordingHandlerAcrossHandovers(t *testing.T) {
 			f := newRecordingFixture(t, nil)
 			recordingID := f.recording(t, "recording")
 			segmentA := f.segment(t, recordingID, "a.m2ts", a, 0, tt.openA)
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 			require.NoError(t, err)
 			resp, err := httpclienttest.New(t).Do(req)
 			require.NoError(t, err)
@@ -690,7 +690,7 @@ func TestRecordingHandlerTrimsOpenPredecessor(t *testing.T) {
 	recordingID := f.recording(t, "recording")
 	segmentA := f.segment(t, recordingID, "a.m2ts", data[:packetAligned(500000)], 0, true)
 	segmentB := f.segment(t, recordingID, "b.m2ts", data[packetAligned(200000):], time.Second, true)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/streams/recordings/"+recordingID.String(), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, f.server.URL+"/internal/streams/recordings/"+recordingID.String(), nil)
 	require.NoError(t, err)
 	resp, err := httpclienttest.New(t).Do(req)
 	require.NoError(t, err)

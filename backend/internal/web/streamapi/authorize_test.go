@@ -30,7 +30,7 @@ const (
 	// signedPattern は、署名付き URL の経路のパターン。
 	signedPattern = "GET /api/streams/services/{id}"
 	// sessionPath は、画面のプレイヤーが Cookie で使う経路。
-	sessionPath = "/streams/services/" + serviceID
+	sessionPath = "/internal/streams/services/" + serviceID
 )
 
 func newSigner(t *testing.T, key string) *stream.Signer {

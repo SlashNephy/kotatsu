@@ -150,7 +150,7 @@ type Updates interface {
 	Latest() *update.Release
 }
 
-// NewHandler は、POST /graphql のハンドラーを返す (設計書 9.1)。
+// NewHandler は、POST /internal/graphql のハンドラーを返す (設計書 9.1)。
 //
 // ログイン中のユーザーは、手前のミドルウェア (auth.Sessions.Middleware) が context に入れておく。
 // 次のリクエストは、GraphQL の処理に入る前に拒否する。

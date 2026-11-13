@@ -36,7 +36,7 @@ oidc_secret="kotatsu-e2e-only-oidc-secret"
 go build -o "$work/fakeidp" ./backend/cmd/fakeidp
 "$work/fakeidp" -listen "127.0.0.1:$idp_port" -control "127.0.0.1:$idp_control_port" \
   -client-id kotatsu -client-secret "$oidc_secret" \
-  -redirect-uri "http://127.0.0.1:$port/auth/oidc/callback" -groups kotatsu-members >"$work/fakeidp.log" 2>&1 &
+  -redirect-uri "http://127.0.0.1:$port/internal/auth/oidc/callback" -groups kotatsu-members >"$work/fakeidp.log" 2>&1 &
 pids+=("$!")
 
 mkdir -p "$work/recordings" "$work/data"
@@ -50,7 +50,7 @@ export KOTATSU_KYUSU_WORK_DIR="$work/kyusu"
 export KOTATSU_AUTH_OIDC_ISSUER="http://127.0.0.1:$idp_port"
 export KOTATSU_AUTH_OIDC_CLIENT_ID=kotatsu
 export KOTATSU_AUTH_OIDC_CLIENT_SECRET="$oidc_secret"
-export KOTATSU_AUTH_OIDC_REDIRECT_URL="http://127.0.0.1:$port/auth/oidc/callback"
+export KOTATSU_AUTH_OIDC_REDIRECT_URL="http://127.0.0.1:$port/internal/auth/oidc/callback"
 export KOTATSU_AUTH_OIDC_DISPLAY_NAME="E2E の IdP"
 export KOTATSU_AUTH_OIDC_AUTO_CREATE_ENABLED=true
 export KOTATSU_AUTH_OIDC_AUTO_CREATE_GROUPS_CLAIM=groups
