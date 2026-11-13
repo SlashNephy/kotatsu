@@ -46,8 +46,10 @@ type Options struct {
 	// Tuner はチューナーサーバーのクライアント。nil なら、チューナーの状態を把握しない。
 	Tuner tunerserver.Client
 	// EPGSource は、EPG の同期に使う上流。nil なら Tuner を使う。どちらも nil なら EPG を同期しない。
-	// EDCB は、まだ EPG の同期にだけ使う (#1531)。
+	// EDCB は、まだ EPG の同期とチューナーの把握にだけ使う (#1531、#1532)。
 	EPGSource EPGSource
+	// TunerSource は、チューナーの状態の把握に使う上流。nil なら Tuner を使う。どちらも nil なら、チューナーの状態を把握しない。
+	TunerSource tunerstate.Upstream
 	// EPG は EPG の同期の設定。nil なら既定値を使う。
 	EPG *epg.SyncerOptions
 	// Archive は、放送が終わった番組のアーカイブの設定。nil なら既定値を使う。
@@ -161,10 +163,14 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 		if opts.EPG != nil {
 			syncerOptions = *opts.EPG
 		}
-		if opts.Tuner == nil {
+		tunerSource := opts.TunerSource
+		if tunerSource == nil && opts.Tuner != nil {
+			tunerSource = opts.Tuner
+		}
+		if tunerSource == nil {
 			logger.WarnContext(ctx, "tuner server is not configured; tuner monitoring is disabled")
 		} else {
-			monitor := tunerstate.NewMonitor(opts.DB, opts.Tuner, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
+			monitor := tunerstate.NewMonitor(opts.DB, tunerSource, opts.Clock, tunerstate.Guard(guard), logger.With(slog.String("component", "tuners")), opts.Tuners)
 			eg.Go(func() error {
 				return monitor.Run(ctx)
 			})

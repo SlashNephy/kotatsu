@@ -4899,6 +4899,10 @@ enum TunerServerKind {
   MIRAKURUN
   MIRAKC
   MAHIRON
+  """
+  EDCB の EpgTimerSrv (#1532)。版を名乗らない
+  """
+  EDCB
 }
 """
 チューナーサーバーの状態 (設計書 3.7)。

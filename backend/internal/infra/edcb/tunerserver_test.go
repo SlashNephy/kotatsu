@@ -134,7 +134,7 @@ func edcbServer(t *testing.T) *fakeServer {
 func TestTunerServerServices(t *testing.T) {
 	t.Parallel()
 
-	services, err := edcb.NewTunerServer(edcbServer(t).client(t)).Services(t.Context())
+	services, err := edcb.NewTunerServer(edcbServer(t).client(t), nil).Services(t.Context())
 	require.NoError(t, err)
 
 	// ENUM_SERVICE は EPG を読み込んだ 31 サービスだけを返すが、一覧はチャンネルスキャンで拾った 39 サービスにする。
@@ -159,7 +159,7 @@ func TestTunerServerServicesWhenBusy(t *testing.T) {
 		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false},
 		1021: {status: 208, payload: nil, stream: nil, hold: false},
 	})
-	_, err := edcb.NewTunerServer(s.client(t)).Services(t.Context())
+	_, err := edcb.NewTunerServer(s.client(t), nil).Services(t.Context())
 	require.ErrorIs(t, err, edcb.ErrBusy)
 }
 
@@ -167,7 +167,7 @@ func TestTunerServerPrograms(t *testing.T) {
 	t.Parallel()
 
 	s := edcbServer(t)
-	programs, err := edcb.NewTunerServer(s.client(t)).Programs(t.Context(), nil)
+	programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), nil)
 	require.NoError(t, err)
 
 	require.Len(t, programs, 5)
@@ -198,7 +198,7 @@ func TestTunerServerProgramsOfService(t *testing.T) {
 	t.Parallel()
 
 	s := edcbServer(t)
-	programs, err := edcb.NewTunerServer(s.client(t)).Programs(t.Context(), &tunerserver.ProgramsQuery{NetworkID: 32736, ServiceID: 1024, EventID: 13583})
+	programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), &tunerserver.ProgramsQuery{NetworkID: 32736, ServiceID: 1024, EventID: 13583})
 	require.NoError(t, err)
 
 	// 番組 ID は、要求ではなく、受け取った後で絞る。
@@ -214,7 +214,7 @@ func TestTunerServerProgramsOfUnknownService(t *testing.T) {
 	t.Parallel()
 
 	s := edcbServer(t)
-	programs, err := edcb.NewTunerServer(s.client(t)).Programs(t.Context(), &tunerserver.ProgramsQuery{NetworkID: 1, ServiceID: 2, EventID: 0})
+	programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), &tunerserver.ProgramsQuery{NetworkID: 1, ServiceID: 2, EventID: 0})
 	require.NoError(t, err)
 	assert.Empty(t, programs)
 	assert.Equal(t, []uint32{1060}, commands(s.received()))
@@ -299,7 +299,7 @@ func TestTunerServerProgramsShareDetails(t *testing.T) {
 
 			s := newFakeServer(t, map[uint32]reply{1060: {status: 1, payload: chSet, stream: nil, hold: false}})
 			s.queued[1029] = tt.events
-			programs, err := edcb.NewTunerServer(s.client(t)).Programs(t.Context(), tt.query)
+			programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), tt.query)
 			require.NoError(t, err)
 
 			byID := map[int64]*tunerserver.Program{}
@@ -328,7 +328,7 @@ func TestTunerServerProgramsRestoresText(t *testing.T) {
 	// 同じ形が複数の記号に当たる「[三]」は、戻さない。
 	list := vector(serviceEvents(1024, event(1024, 100, "ニュース[字][三]～―\r\n続き")))
 	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: list, stream: nil, hold: false}})
-	programs, err := edcb.NewTunerServer(s.client(t)).Programs(t.Context(), nil)
+	programs, err := edcb.NewTunerServer(s.client(t), nil).Programs(t.Context(), nil)
 	require.NoError(t, err)
 	require.Len(t, programs, 1)
 	assert.Equal(t, "ニュース🈑[三]〜—\n続き", programs[0].Name)
@@ -338,7 +338,7 @@ func TestTunerServerOnAirPrograms(t *testing.T) {
 	t.Parallel()
 
 	s := newFakeServer(t, map[uint32]reply{})
-	programs, err := edcb.NewTunerServer(s.client(t)).OnAirPrograms(t.Context())
+	programs, err := edcb.NewTunerServer(s.client(t), nil).OnAirPrograms(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, programs)
 	assert.Empty(t, s.received())

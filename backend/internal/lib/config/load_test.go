@@ -155,7 +155,7 @@ func TestLoadPrecedence(t *testing.T) {
 func defaultTuner(url config.Secret) config.Tuner {
 	return config.Tuner{
 		Kind: config.TunerKindMirakurun, URL: url,
-		EDCB: config.EDCB{Address: "", NetworkTVIDStart: config.DefaultEDCBNetworkTVIDStart, NetworkTVIDCount: config.DefaultEDCBNetworkTVIDCount},
+		EDCB: config.EDCB{Address: "", NetworkTVIDStart: config.DefaultEDCBNetworkTVIDStart, NetworkTVIDCount: config.DefaultEDCBNetworkTVIDCount, BonDrivers: []string{}},
 	}
 }
 
@@ -651,17 +651,17 @@ func TestLoadTuner(t *testing.T) {
 			env:  map[string]string{envKeyURL: envURL, envKeyTunerURL: tunerURL},
 			want: config.Tuner{
 				Kind: config.TunerKindMirakurun, URL: tunerURL,
-				EDCB: config.EDCB{Address: "", NetworkTVIDStart: 1000, NetworkTVIDCount: 32},
+				EDCB: config.EDCB{Address: "", NetworkTVIDStart: 1000, NetworkTVIDCount: 32, BonDrivers: []string{}},
 			},
 			wantUses: true,
 		},
 		{
 			name: "YAML で EDCB を選ぶ",
-			yaml: "tuner:\n  kind: edcb\n  edcb:\n    address: 192.168.1.10\n    network_tv_id_start: 2000\n    network_tv_id_count: 8\n",
+			yaml: "tuner:\n  kind: edcb\n  edcb:\n    address: 192.168.1.10\n    network_tv_id_start: 2000\n    network_tv_id_count: 8\n    bon_drivers: [BonDriver_mirakc.dll]\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: config.Tuner{
 				Kind: config.TunerKindEDCB, URL: "",
-				EDCB: config.EDCB{Address: "192.168.1.10", NetworkTVIDStart: 2000, NetworkTVIDCount: 8},
+				EDCB: config.EDCB{Address: "192.168.1.10", NetworkTVIDStart: 2000, NetworkTVIDCount: 8, BonDrivers: []string{"BonDriver_mirakc.dll"}},
 			},
 			// EDCB は、まだチューナーサーバーとしてつないでいない (#1258)。
 			wantUses: false,
@@ -670,10 +670,11 @@ func TestLoadTuner(t *testing.T) {
 			name: "環境変数で EDCB を選ぶ",
 			env: map[string]string{
 				envKeyURL: envURL, envKeyTunerKind: config.TunerKindEDCB, envKeyEDCBAddress: "[::1]:14510",
+				"KOTATSU_TUNER_EDCB_BON_DRIVERS": "BonDriver_A.dll, BonDriver_B.dll",
 			},
 			want: config.Tuner{
 				Kind: config.TunerKindEDCB, URL: "",
-				EDCB: config.EDCB{Address: "[::1]:14510", NetworkTVIDStart: 1000, NetworkTVIDCount: 32},
+				EDCB: config.EDCB{Address: "[::1]:14510", NetworkTVIDStart: 1000, NetworkTVIDCount: 32, BonDrivers: []string{"BonDriver_A.dll", "BonDriver_B.dll"}},
 			},
 			wantUses: false,
 		},
@@ -722,7 +723,7 @@ func TestLoadTuner(t *testing.T) {
 			},
 			want: config.Tuner{
 				Kind: config.TunerKindEDCB, URL: "",
-				EDCB: config.EDCB{Address: "::1", NetworkTVIDStart: 1000, NetworkTVIDCount: 32},
+				EDCB: config.EDCB{Address: "::1", NetworkTVIDStart: 1000, NetworkTVIDCount: 32, BonDrivers: []string{}},
 			},
 			wantUses: false,
 		},

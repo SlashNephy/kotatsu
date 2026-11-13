@@ -13,16 +13,32 @@ import (
 )
 
 // TunerServer は、EDCB の EpgTimerSrv を、Kotatsu のチューナーサーバーの型で読む (#1531、設計書 3.1)。
-// 今は、EPG の同期に使う、サービスと番組だけを持つ。値は、Mirakurun が同じ放送から作る値にそろえる。
+// 今は、EPG の同期に使うサービスと番組と、チューナーの一覧を持つ。値は、Mirakurun が同じ放送から作る値にそろえる。
 type TunerServer struct {
 	client *Client
 	// text は、EDCB が書いた番組とサービスの文を、Mirakurun と同じ形に戻す。
 	text *strings.Replacer
+	// bonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。空なら、すべてのチューナーを使えるとみなす (#1532)。
+	bonDrivers map[string]bool
 }
 
-// NewTunerServer は TunerServer を返す。
-func NewTunerServer(client *Client) *TunerServer {
-	return &TunerServer{client: client, text: newTextReplacer()}
+// TunerServerOptions は TunerServer の設定。
+type TunerServerOptions struct {
+	// BonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前。EpgTimerSrv.ini の [TVTEST] に並べたものと同じにする。
+	// 空なら、すべてのチューナーを使えるとみなす (#1532)。
+	BonDrivers []string
+}
+
+// NewTunerServer は TunerServer を返す。opts は nil でもよい。
+func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
+	bonDrivers := map[string]bool{}
+	if opts != nil {
+		for _, name := range opts.BonDrivers {
+			bonDrivers[strings.ToLower(name)] = true
+		}
+	}
+
+	return &TunerServer{client: client, text: newTextReplacer(), bonDrivers: bonDrivers}
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。

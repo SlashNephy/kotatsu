@@ -28,7 +28,7 @@ func TestTunerServerEvents(t *testing.T) {
 	// 最後の通知の巡回カウンタ (5) より後の通知を待つ。予約の変化 (2) は読み飛ばし、EPG の読み込み (1) をイベントにする。
 	s := newFakeServer(t, map[uint32]reply{2200: {status: 0, payload: nil, stream: nil, hold: true}})
 	s.queued[2200] = []reply{notification(edcb.NotifyUpdateSrvStatus, 5), notification(edcb.NotifyUpdateReserveInfo, 6), notification(edcb.NotifyUpdateEPGData, 7)}
-	stream, err := edcb.NewTunerServer(s.client(t)).OpenEvents(t.Context())
+	stream, err := edcb.NewTunerServer(s.client(t), nil).OpenEvents(t.Context())
 	require.NoError(t, err)
 
 	event, err := stream.Next()
@@ -52,7 +52,7 @@ func TestTunerServerEventsFails(t *testing.T) {
 	// 待っている間に EpgTimerSrv が失敗を返したら、Next はそのエラーを返す。続けて呼んでも同じエラーを返す。
 	s := newFakeServer(t, map[uint32]reply{2200: {status: 0, payload: nil, stream: nil, hold: false}})
 	s.queued[2200] = []reply{notification(edcb.NotifyUpdateSrvStatus, 5)}
-	stream, err := edcb.NewTunerServer(s.client(t)).OpenEvents(t.Context())
+	stream, err := edcb.NewTunerServer(s.client(t), nil).OpenEvents(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = stream.Close() })
 
@@ -66,6 +66,6 @@ func TestTunerServerEventsWhenBusy(t *testing.T) {
 	t.Parallel()
 
 	s := newFakeServer(t, map[uint32]reply{2200: {status: 208, payload: nil, stream: nil, hold: false}})
-	_, err := edcb.NewTunerServer(s.client(t)).OpenEvents(t.Context())
+	_, err := edcb.NewTunerServer(s.client(t), nil).OpenEvents(t.Context())
 	require.ErrorIs(t, err, edcb.ErrBusy)
 }
