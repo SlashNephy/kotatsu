@@ -15,6 +15,8 @@ type Recording struct {
 	EventID       *int64
 	Name          string
 	Description   string
+	// Extended は、番組の詳細を、番組表の JSON (見出しから本文への対応) のまま持つ (#1646)。
+	Extended []byte
 	// NameNormalized と DescriptionNormalized は、NFKC で正規化した番組名と概要 (設計書 3.5)。録画の検索に使う。
 	// 列を知らない古いバイナリが書いた録画では nil。
 	NameNormalized        *string

@@ -374,7 +374,7 @@ func (q *Queries) ListGuideServices(ctx context.Context, arg ListGuideServicesPa
 }
 
 const listProgramRecordings = `-- name: ListProgramRecordings :many
-SELECT id, api_id, reservation_id, service_id, event_id, name, description, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings
+SELECT id, api_id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized, start_at, end_at, state, failure_reason, failure_detail, protected, drops, errors, scrambled, scrambled_ratio, scramble_warning, gaps, audios, video_resolution, genres, rule_id, rule_name, program_lost, broadcast_started_at, broadcast_ended_at, waited_for_broadcast, not_broadcast, aired_event_id, recorded_from, recorded_until, created_at, updated_at FROM recordings
 WHERE service_id = $1 AND event_id = $2 AND start_at < $3 AND end_at > $4
 ORDER BY start_at, id
 `
@@ -409,6 +409,7 @@ func (q *Queries) ListProgramRecordings(ctx context.Context, arg ListProgramReco
 			&i.EventID,
 			&i.Name,
 			&i.Description,
+			&i.Extended,
 			&i.NameNormalized,
 			&i.DescriptionNormalized,
 			&i.StartAt,

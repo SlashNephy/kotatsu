@@ -266,12 +266,12 @@ WHERE p.service_id = @service_id AND p.ended_at IS NULL;
 -- name: GetTimeshiftPromotionProgram :one
 -- タイムシフトのバッファから録画に昇格する番組の、番組表の情報。終わった番組は program_archives に移っていることがあるので、両方から引く。
 -- 同じイベント ID が繰り返し使われることがあるので、mikan が番組の始まりに気づいた時刻 at に最も近い始まりのものを選ぶ。
-SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.description, p.genres, p.audios, p.video_resolution
+SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.description, p.extended, p.genres, p.audios, p.video_resolution
 FROM (
-  SELECT g.service_id, g.event_id, g.start_at, g.end_at, g.end_undecided, g.name, g.description, g.genres, g.audios, g.video_resolution
+  SELECT g.service_id, g.event_id, g.start_at, g.end_at, g.end_undecided, g.name, g.description, g.extended, g.genres, g.audios, g.video_resolution
   FROM programs g WHERE g.service_id = @service_id AND g.event_id = @event_id
   UNION ALL
-  SELECT a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.name, a.description, a.genres, a.audios, a.video_resolution
+  SELECT a.service_id, a.event_id, a.start_at, a.end_at, a.end_undecided, a.name, a.description, a.extended, a.genres, a.audios, a.video_resolution
   FROM program_archives a WHERE a.service_id = @service_id AND a.event_id = @event_id
 ) p
 ORDER BY abs(extract(epoch FROM p.start_at - @at::timestamptz))

@@ -207,6 +207,10 @@ const playQuery = graphql`
       ... on Recording {
         name
         description
+        extended {
+          heading
+          text
+        }
         startAt
         endAt
         streamUrl
@@ -1340,7 +1344,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               </Button>
             }
           />
-          <WatchDescription text={recording.description} />
+          <WatchDescription text={recording.description} extended={recording.extended} />
           {error !== null && (
             <Alert color="red" role="alert">
               <Group justify="space-between" gap="xs">

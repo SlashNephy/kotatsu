@@ -52,10 +52,11 @@ LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_star
 WHERE rec.id = @id;
 
 -- name: RewriteRecordingProgramInfo :exec
--- 録画の番組名と概要を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。
+-- 録画の番組名、概要、詳細を、EIT[p/f] で読んだもので書き直す (#1500、#1646)。空の値は渡さず、前の値を残す。
 UPDATE recordings SET
   name = coalesce(sqlc.narg(name)::text, name),
   description = coalesce(sqlc.narg(description)::text, description),
+  extended = coalesce(sqlc.narg(extended)::jsonb, extended),
   name_normalized = coalesce(sqlc.narg(name_normalized)::text, name_normalized),
   description_normalized = coalesce(sqlc.narg(description_normalized)::text, description_normalized),
   updated_at = @now

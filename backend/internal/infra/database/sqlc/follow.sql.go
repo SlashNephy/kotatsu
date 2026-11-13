@@ -231,10 +231,11 @@ UPDATE recordings SET
   end_at = $2,
   name = $3,
   description = $4,
-  name_normalized = $5,
-  description_normalized = $6,
-  updated_at = $7
-WHERE reservation_id = $8
+  extended = $5,
+  name_normalized = $6,
+  description_normalized = $7,
+  updated_at = $8
+WHERE reservation_id = $9
 `
 
 type UpdateRecordingProgramParams struct {
@@ -242,6 +243,7 @@ type UpdateRecordingProgramParams struct {
 	EndAt                 time.Time
 	Name                  string
 	Description           string
+	Extended              []byte
 	NameNormalized        *string
 	DescriptionNormalized *string
 	Now                   time.Time
@@ -255,6 +257,7 @@ func (q *Queries) UpdateRecordingProgram(ctx context.Context, arg UpdateRecordin
 		arg.EndAt,
 		arg.Name,
 		arg.Description,
+		arg.Extended,
 		arg.NameNormalized,
 		arg.DescriptionNormalized,
 		arg.Now,

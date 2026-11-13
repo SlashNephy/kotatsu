@@ -34,6 +34,7 @@ UPDATE recordings SET
   end_at = @end_at,
   name = @name,
   description = @description,
+  extended = @extended,
   name_normalized = @name_normalized,
   description_normalized = @description_normalized,
   updated_at = @now

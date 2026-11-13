@@ -1610,8 +1610,8 @@ func TestRecorderCopiesProgramAudios(t *testing.T) {
 	assert.JSONEq(t, `{"codec":"mpeg2","width":720,"height":480,"interlaced":false,"frameRate":29.97002997002997}`, string(video))
 }
 
-// TestRecorderCopiesRuleAndGenres は、録画を始めたときに、予約のジャンルと、一致したルールのうち最も古いものとその名前を、
-// 録画に残すことを確かめる (#468)。予約やルールを消しても、録画をルールとジャンルで絞れるようにするため。
+// TestRecorderCopiesRuleAndGenres は、録画を始めたときに、予約のジャンルと番組の詳細と、一致したルールのうち最も古いものとその名前を、
+// 録画に残すことを確かめる (#468、#1646)。予約やルールを消しても、録画をルールとジャンルで絞り、番組の詳細を出せるようにするため。
 func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 	t.Parallel()
 
@@ -1619,7 +1619,7 @@ func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 	require.NoError(t, err)
 	f := newFixture(t)
 	reservationID := f.reserve(t, 0)
-	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET genres = '[{"lv1":7,"lv2":0}]' WHERE id = $1`, reservationID)
+	_, err = f.pool.Exec(t.Context(), `UPDATE reservations SET genres = '[{"lv1":7,"lv2":0}]', extended = '{"出演者":"こたつ"}' WHERE id = $1`, reservationID)
 	require.NoError(t, err)
 	older, newer := id.New(), id.New()
 	for _, r := range []struct {
@@ -1644,12 +1644,13 @@ func TestRecorderCopiesRuleAndGenres(t *testing.T) {
 
 	var ruleID *uuid.UUID
 	var ruleName *string
-	var genres string
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT rule_id, rule_name, genres::text FROM recordings WHERE reservation_id = $1",
-		reservationID).Scan(&ruleID, &ruleName, &genres))
+	var genres, extended string
+	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT rule_id, rule_name, genres::text, extended::text FROM recordings WHERE reservation_id = $1",
+		reservationID).Scan(&ruleID, &ruleName, &genres, &extended))
 	assert.Equal(t, &older, ruleID)
 	assert.Equal(t, new("古いルール"), ruleName)
 	assert.JSONEq(t, `[{"lv1":7,"lv2":0}]`, genres)
+	assert.JSONEq(t, `{"出演者":"こたつ"}`, extended)
 }
 
 // TestRecorderRecordsGapOnResume は、引き継ぎや再開で続きを録るとき、前のセグメントを書き終えてからの間を、途切れた区間として記録することを確かめる。

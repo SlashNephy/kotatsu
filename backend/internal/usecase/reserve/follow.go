@@ -211,6 +211,7 @@ func (f *Follower) update(ctx context.Context, tx pgx.Tx, row *sqlc.ListReservat
 		EndAt:                 endAt,
 		Name:                  row.ProgramName,
 		Description:           row.ProgramDescription,
+		Extended:              row.ProgramExtended,
 		NameNormalized:        new(domain.Normalize(row.ProgramName)),
 		DescriptionNormalized: new(domain.Normalize(row.ProgramDescription)),
 		Now:                   now,

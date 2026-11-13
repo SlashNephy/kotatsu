@@ -863,6 +863,9 @@ CREATE TABLE recordings (
   -- 番組情報。録画を始めたときの予約からコピーし、放送後に確定したものに置き換える。
   name text NOT NULL,
   description text NOT NULL,
+  -- 番組の詳細 (見出しから本文への対応の JSON)。番組情報と同じく、予約から写し、確定したものに置き換える (#1646)。
+  -- 列を足す前の録画は、予約が残っていれば予約から写す。
+  extended jsonb NOT NULL DEFAULT '{}'::jsonb,
   -- NFKC で正規化した番組名と概要 (設計書 3.5)。録画の検索に使う。列を足す前の録画は、kotatsu migrate が埋める。
   -- 列を知らない古いバイナリが書いた録画では NULL になり、検索では正規化していない番組名と概要に当てる。
   name_normalized text,

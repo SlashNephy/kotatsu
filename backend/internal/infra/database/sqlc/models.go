@@ -545,6 +545,7 @@ type Recording struct {
 	EventID               *int64
 	Name                  string
 	Description           string
+	Extended              []byte
 	NameNormalized        *string
 	DescriptionNormalized *string
 	StartAt               time.Time

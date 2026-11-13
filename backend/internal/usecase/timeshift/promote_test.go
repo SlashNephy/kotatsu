@@ -121,6 +121,9 @@ func TestPromoteEndedProgram(t *testing.T) {
 	e := newPromoteEnv(t)
 	ctx := t.Context()
 	programStart := time.Date(2026, 10, 10, 11, 30, 0, 0, time.UTC)
+	// 番組の詳細も、番組表から写す (#1646)。
+	_, err := e.pool.Exec(ctx, `UPDATE programs SET extended = '{"出演者":"こたつ"}' WHERE service_id = $1 AND event_id = 2`, grService(0))
+	require.NoError(t, err)
 	promotion, err := e.promoter.Promote(ctx, e.pool, audit.User(e.userID), grService(0), programStart.Add(noticeDelay))
 	require.NoError(t, err)
 	require.NotNil(t, promotion.RecordingID)
@@ -140,6 +143,7 @@ func TestPromoteEndedProgram(t *testing.T) {
 	assert.Equal(t, "こたつテスト1 テスト番組 2", rec.Name)
 	assert.Equal(t, programStart, rec.StartAt.UTC())
 	assert.Equal(t, programStart.Add(30*time.Minute), rec.EndAt.UTC())
+	assert.JSONEq(t, `{"出演者":"こたつ"}`, string(rec.Extended))
 
 	require.Len(t, e.inserter.params, 1)
 	assert.Equal(t, recording.PromoteArgs{RecordingID: *promotion.RecordingID}, e.inserter.params[0].Args)
