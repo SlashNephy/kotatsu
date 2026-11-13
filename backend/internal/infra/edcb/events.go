@@ -33,7 +33,7 @@ type eventStream struct {
 	done   chan struct{}
 }
 
-var _ tunerserver.EventStream = (*eventStream)(nil)
+var _ tunerserver.EventStream = new(eventStream)
 
 // Next は、次のイベントを返す。通知を待てなくなったら、その理由を返す。
 func (e *eventStream) Next() (*tunerserver.Event, error) {
