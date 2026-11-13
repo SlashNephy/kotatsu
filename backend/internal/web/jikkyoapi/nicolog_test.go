@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/nicolog"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
@@ -45,7 +46,7 @@ func (f *commentsFixture) nicologHandler(t *testing.T, fetcher jikkyoapi.Nicolog
 	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, jikkyoapi.NewNicologCommentsHandler(f.comments, fetcher))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: auth.RoleAdmin})))
+		mux.ServeHTTP(w, r.WithContext(auth.WithPrincipal(r.Context(), &auth.Principal{UserID: f.userID, Role: domain.RoleAdmin})))
 	})
 }
 

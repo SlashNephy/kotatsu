@@ -107,7 +107,7 @@ func TestDataChanged(t *testing.T) {
 	t.Parallel()
 
 	f := newFixtureWithChanges(t)
-	events := f.as(t, "viewer", auth.RoleViewer).subscribe(t, `subscription { dataChanged { channel version } }`)
+	events := f.as(t, "viewer", domain.RoleViewer).subscribe(t, `subscription { dataChanged { channel version } }`)
 	initial := make([]string, 0, 7)
 	for range 8 {
 		initial = append(initial, string(next(t, events)))
@@ -167,11 +167,11 @@ func TestDataChangedAdmin(t *testing.T) {
 
 	tests := []struct {
 		name string
-		role auth.Role
+		role domain.Role
 		want bool
 	}{
-		{name: "管理者", role: auth.RoleAdmin, want: true},
-		{name: "閲覧者", role: auth.RoleViewer, want: false},
+		{name: "管理者", role: domain.RoleAdmin, want: true},
+		{name: "閲覧者", role: domain.RoleViewer, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -242,7 +242,7 @@ func TestUnreadNotificationCountIsPerUser(t *testing.T) {
 	t.Parallel()
 
 	f := newFixtureWithChanges(t)
-	other := f.as(t, "viewer", auth.RoleViewer)
+	other := f.as(t, "viewer", domain.RoleViewer)
 	f.notify(t, domain.NotificationKindRecordingStarted, nil)
 	events := f.subscribe(t, `subscription { unreadNotificationCount }`)
 	assert.JSONEq(t, `{"unreadNotificationCount":1}`, string(next(t, events)))
@@ -259,7 +259,7 @@ func TestViewerSettingsChanged(t *testing.T) {
 	t.Parallel()
 
 	f := newFixtureWithChanges(t)
-	other := f.as(t, "viewer", auth.RoleViewer)
+	other := f.as(t, "viewer", domain.RoleViewer)
 	mine := f.subscribe(t, `subscription { viewerSettingsChanged }`)
 	theirs := other.subscribe(t, `subscription { viewerSettingsChanged }`)
 	assert.JSONEq(t, `{"viewerSettingsChanged":0}`, string(next(t, mine)))

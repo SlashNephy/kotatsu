@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 )
 
@@ -73,7 +73,7 @@ func (f *fixture) watchRules(t *testing.T) []watchRuleResult {
 func TestWatchRules(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t, nil).as(t, "child", auth.RoleViewer)
+	f := newFixture(t, nil).as(t, "child", domain.RoleViewer)
 	version := func() int64 {
 		v, err := query.New(f.pool).UserSettingsVersion(t.Context(), f.userID)
 		require.NoError(t, err)
@@ -124,7 +124,7 @@ func TestWatchRulesOfOtherUsers(t *testing.T) {
 	owner := newFixture(t, nil)
 	created, codes := owner.createWatchRule(t, "ゆるキャン")
 	require.Empty(t, codes)
-	other := owner.as(t, "other", auth.RoleAdmin)
+	other := owner.as(t, "other", domain.RoleAdmin)
 
 	tests := []struct {
 		name      string

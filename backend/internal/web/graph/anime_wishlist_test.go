@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
@@ -89,9 +89,9 @@ func TestAnimeWishlist(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
-	viewer := f.as(t, "viewer", auth.RoleViewer)
-	other := f.as(t, "other", auth.RoleMember)
+	admin := f.as(t, adminName, domain.RoleAdmin)
+	viewer := f.as(t, "viewer", domain.RoleViewer)
+	other := f.as(t, "other", domain.RoleMember)
 	serviceID := int64(3273601024)
 	// こたつテスト1 の 13:00 からの番組と、別の局 (こたつテスト2) の 13:30 からの番組を、作品の第 5 話にする。
 	start := time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC)

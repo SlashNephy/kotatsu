@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -36,7 +37,7 @@ func newSessionFixture(t *testing.T, db *pgxpool.Pool) *sessionFixture {
 
 	clk := clocktest.NewFake(testNow())
 	users := auth.NewUsers(clk)
-	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "user-" + id.New().String(), DisplayName: "ゆーざー", Role: auth.RoleMember})
+	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "user-" + id.New().String(), DisplayName: "ゆーざー", Role: domain.RoleMember})
 	require.NoError(t, err)
 
 	return &sessionFixture{
@@ -148,7 +149,7 @@ func TestAuthenticate(t *testing.T) {
 			}
 			require.NoError(t, err)
 			// 使い続けても、認証した日時はログインしたときのまま。
-			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
+			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: domain.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
 		})
 	}
 
@@ -274,7 +275,7 @@ func newCookieServer(t *testing.T, f *sessionFixture, tls bool) *httptest.Server
 		}
 		f.sessions.SetCookie(w, r, token, session)
 	})
-	mux.Handle("GET /watch", auth.RequirePermission(auth.PermissionWatch)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /watch", auth.RequirePermission(domain.PermissionWatch)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(auth.PrincipalFrom(r.Context()).UserID.String()))
 	})))
 	handler := f.sessions.Middleware(f.db)(mux)
@@ -505,7 +506,7 @@ func TestAuthenticateWhileDatabaseIsUnreachable(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: auth.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
+			assert.Equal(t, &auth.Principal{UserID: f.userID, Role: domain.RoleMember, SessionID: session.ID, AuthenticatedAt: testNow()}, principal)
 		})
 	}
 }

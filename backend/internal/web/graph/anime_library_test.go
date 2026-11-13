@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 )
 
 const animeLibraryQuery = `{ animeLibrary { enabled imports { destination entryCount }
@@ -64,9 +64,9 @@ func TestAnimeLibrary(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
-	viewer := f.as(t, "viewer", auth.RoleViewer)
-	other := f.as(t, "other", auth.RoleMember)
+	admin := f.as(t, adminName, domain.RoleAdmin)
+	viewer := f.as(t, "viewer", domain.RoleViewer)
+	other := f.as(t, "other", domain.RoleMember)
 	linkWishlistProgram(t, f, 3273601024, time.Date(2026, 10, 10, 13, 0, 0, 0, time.UTC))
 	_, err := f.pool.Exec(t.Context(), `INSERT INTO anime_works (source, syobocal_tid, position, annict_work_id, anilist_id, mal_id) VALUES ('arm', 6776, 0, 10, NULL, NULL)`)
 	require.NoError(t, err)

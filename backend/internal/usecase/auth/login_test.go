@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/argon2"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -68,7 +69,7 @@ func newLoginFixture(t *testing.T) *loginFixture {
 	encoded, err := password.Hash(loginPhrase)
 	require.NoError(t, err)
 	user, err := auth.NewUsers(clk).Create(t.Context(), db, &auth.NewUser{
-		Username: loginName, DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: &encoded,
+		Username: loginName, DisplayName: "こたつ", Role: domain.RoleMember, PasswordHash: &encoded,
 	})
 	require.NoError(t, err)
 

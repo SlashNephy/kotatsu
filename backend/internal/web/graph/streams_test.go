@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -31,7 +31,7 @@ func TestCreateStreamURL(t *testing.T) {
 	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
 	_, rawRecordingID, err := graph.ParseGlobalID(recordingID)
 	require.NoError(t, err)
-	viewer := f.as(t, "yuzu", auth.RoleViewer)
+	viewer := f.as(t, "yuzu", domain.RoleViewer)
 
 	tests := []struct {
 		name     string

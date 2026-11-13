@@ -39,7 +39,7 @@ func newUser(tb testing.TB, pool *pgxpool.Pool) *audit.Actor {
 	tb.Helper()
 
 	user, err := auth.NewUsers(clocktest.NewFake(testNow())).Create(tb.Context(), pool, &auth.NewUser{
-		Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
+		Username: "kotatsu", DisplayName: "こたつ", Role: domain.RoleMember, PasswordHash: nil,
 	})
 	require.NoError(tb, err)
 

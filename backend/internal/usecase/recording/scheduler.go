@@ -40,20 +40,6 @@ const (
 	ConflictPriority = 1
 )
 
-// AssignmentState は、割り振りの状態 (recording_assignments.state)。
-type AssignmentState string
-
-const (
-	// AssignmentWaiting は、まだ mikan が取っていない割り振り。
-	AssignmentWaiting AssignmentState = "waiting"
-	// AssignmentRecording は、mikan が取って録画している割り振り。
-	AssignmentRecording AssignmentState = "recording"
-	// AssignmentHandover は、止まる mikan が、引き継ぎを待っている割り振り (設計書 5.4)。
-	AssignmentHandover AssignmentState = "handover"
-	// AssignmentFinished は、録画を終えた割り振り。
-	AssignmentFinished AssignmentState = "finished"
-)
-
 // Guard は、書き込みのトランザクションの中で、まだ neko のリーダーであることを確かめる。
 type Guard func(ctx context.Context, tx pgx.Tx) error
 
@@ -202,8 +188,8 @@ func (s *Scheduler) failStuck(ctx context.Context, tx pgx.Tx, now time.Time) (in
 	for _, row := range rows {
 		s.logger.WarnContext(ctx, "failed a recording left recording without a mikan", slog.String("recording_id", row.ID.String()))
 		payload := recordingPayload(row.ID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
-		payload["state"] = string(StateFailed)
-		payload["reason"] = string(FailureStreamInterrupted)
+		payload["state"] = string(domain.RecordingStateFailed)
+		payload["reason"] = string(domain.RecordingFailureReasonStreamInterrupted)
 		var audience *notification.Audience
 		if row.ReservationID != nil {
 			target, err := notification.LoadReservationContext(ctx, tx, *row.ReservationID)
@@ -251,8 +237,8 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 		}
 		missed++
 		payload := recordingPayload(recordingID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
-		payload["state"] = string(StateFailed)
-		payload["reason"] = string(FailureRecorderUnavailable)
+		payload["state"] = string(domain.RecordingStateFailed)
+		payload["reason"] = string(domain.RecordingFailureReasonRecorderUnavailable)
 		target, err := notification.LoadReservationContext(ctx, tx, row.ID)
 		if err != nil {
 			return 0, err

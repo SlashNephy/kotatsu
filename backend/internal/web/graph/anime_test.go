@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -39,7 +40,7 @@ func TestAnimeChannels(t *testing.T) {
 	input := map[string]any{"id": serviceID, varInput: map[string]any{fieldSyobocal: 19}}
 	assert.Equal(t, []string{codeForbidden}, f.query(t, update, input, nil), "only administrators can change the anime channels")
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var listed struct {
 		AnimeChannels []animeChannel   `json:"animeChannels"`
 		AnimeImports  []map[string]any `json:"animeImports"`

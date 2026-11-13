@@ -1,11 +1,10 @@
-// Package auth は、ユーザー、ロール、セッション、認可を扱う (設計書 9.5、9.7)。
-package auth
+package domain
 
 import "slices"
 
 //go:generate go tool go-enum --values --nocomments
 
-// Role はユーザーのロール。
+// Role はユーザーのロール (設計書 9.7)。
 //
 // ENUM(
 // admin // 管理者。すべての操作ができる。

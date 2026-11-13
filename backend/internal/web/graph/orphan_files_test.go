@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
 const (
@@ -35,9 +35,9 @@ func TestOrphanFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dataRootOf(dir), orphanSegmentDir, "thumbnail.jpg"), []byte("jpeg"), 0o600))
 	// 書くか名前を変えてから時間が経ったファイルだけを、DB にないとみなす。
 	f.clock.Advance(time.Since(f.clock.Now()) + 2*time.Hour)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	// 時計を今まで進めるので、fixture が最初に作ったセッションは、無操作の期限を過ぎている。進めた後に作り直す。
-	member := f.as(t, "orphan-member", auth.RoleMember)
+	member := f.as(t, "orphan-member", domain.RoleMember)
 
 	type orphanFile struct {
 		PoolID     *string `json:"poolId"`

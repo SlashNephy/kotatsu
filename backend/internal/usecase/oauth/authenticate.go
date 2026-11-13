@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -52,7 +53,7 @@ func (s *Server) Authenticate(ctx context.Context, token, resource string) (*aut
 	if !sameResource(resource, row.Resource) {
 		return nil, nil, ErrWrongAudience
 	}
-	role, err := auth.ParseRole(row.Role)
+	role, err := domain.ParseRole(row.Role)
 	if err != nil {
 		return nil, nil, err
 	}

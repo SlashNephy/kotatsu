@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -86,7 +86,7 @@ func TestJobs(t *testing.T) {
 	_, err = client.Insert(t.Context(), promoteArgs{}, nil)
 	require.NoError(t, err)
 
-	adminFixture := f.as(t, adminName, auth.RoleAdmin)
+	adminFixture := f.as(t, adminName, domain.RoleAdmin)
 	list := func(fx *fixture, state string) []jobNode {
 		t.Helper()
 
@@ -138,7 +138,7 @@ func TestJobs(t *testing.T) {
 	// 取り消させないジョブと、管理者でない操作は断る。
 	assert.Equal(t, []string{codeBadUserInput}, adminFixture.query(t, cancelJob, map[string]any{varID: byKind["timeshift_promote"].ID}, nil))
 	assert.Equal(t, []string{codeNotFound}, adminFixture.query(t, cancelJob, map[string]any{varID: "999999"}, nil))
-	member := f.as(t, otherUser, auth.RoleMember)
+	member := f.as(t, otherUser, domain.RoleMember)
 	assert.Equal(t, []string{codeForbidden}, member.query(t, listJobsQuery, map[string]any{"state": stateAvailable}, nil))
 	assert.Equal(t, []string{codeForbidden}, member.query(t, retryJob, map[string]any{varID: thumbID}, nil))
 
@@ -195,7 +195,7 @@ func TestJobProgress(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-	adminFixture := f.as(t, adminName, auth.RoleAdmin)
+	adminFixture := f.as(t, adminName, domain.RoleAdmin)
 	got := map[string]*progress{}
 	for _, state := range []string{"RUNNING", "RETRYABLE"} {
 		var page struct {

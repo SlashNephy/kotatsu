@@ -170,7 +170,7 @@ func (f *fixture) failureDetail(t *testing.T, reservationID uuid.UUID) *string {
 }
 
 // failures は、理由 reason の失敗の累計と、最後に失敗した時刻を返す (#960)。失敗したことがなければ、時刻は nil。
-func (f *fixture) failures(t *testing.T, reason recording.FailureReason) (int, *time.Time) {
+func (f *fixture) failures(t *testing.T, reason domain.RecordingFailureReason) (int, *time.Time) {
 	t.Helper()
 
 	var count int
@@ -269,7 +269,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 		return len(files) == 1
 	}, waitTimeout, 10*time.Millisecond)
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateRecording), got.state)
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 	// 書いている間も、最終的な保存先のファイルが伸びていく (追っかけ再生のため)。
 	segment := f.files(t, reservationID)[0]
 	require.Eventually(t, func() bool {
@@ -284,7 +284,7 @@ func TestRecorderRecordsUntilPlannedEnd(t *testing.T) {
 
 	// 偽チューナーサーバーは、同じ TS を繰り返し流すので、つなぎ目で continuity_counter が飛び、ドロップとして数える。
 	got, _ = f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompletedWithErrors), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompletedWithErrors), got.state)
 	assert.Nil(t, got.failureReason)
 	assert.Positive(t, got.drops)
 	// 索引は DB に記録せず、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。
@@ -343,7 +343,7 @@ func TestRecorderRecordsWithoutTuner(t *testing.T) {
 
 	// ドロップの有無は、偽のチューナーサーバーが TS を繰り返すつなぎ目次第なので、失敗していないことだけを見る。
 	got, _ := f.recording(t, reservationID)
-	assert.NotEqual(t, string(recording.StateFailed), got.state)
+	assert.NotEqual(t, string(domain.RecordingStateFailed), got.state)
 	assert.Nil(t, got.failureReason)
 	var tunerIndex *int64
 	var tunerName *string
@@ -416,7 +416,7 @@ func TestRecorderFinishesWhileDatabaseIsUnreachable(t *testing.T) {
 
 			// 途切れていないので、partial にはならない。偽チューナーサーバーのつなぎ目のドロップは、録った長さによる。
 			got, _ := f.recording(t, reservationID)
-			assert.Contains(t, []string{string(recording.StateCompleted), string(recording.StateCompletedWithErrors)}, got.state)
+			assert.Contains(t, []string{string(domain.RecordingStateCompleted), string(domain.RecordingStateCompletedWithErrors)}, got.state)
 			files := f.files(t, reservationID)
 			require.Len(t, files, 1)
 			assert.True(t, files[0].closed)
@@ -462,7 +462,7 @@ func TestRecorderStartsWhileDatabaseIsUnreachable(t *testing.T) {
 	f.clock.Advance(programStart().Add(30*time.Minute + domain.DefaultMarginSeconds*time.Second).Sub(f.clock.Now()))
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
-	assert.Contains(t, []string{string(recording.StateCompleted), string(recording.StateCompletedWithErrors)}, got.state)
+	assert.Contains(t, []string{string(domain.RecordingStateCompleted), string(domain.RecordingStateCompletedWithErrors)}, got.state)
 	files := f.files(t, reservationID)
 	require.Len(t, files, 1)
 	assert.True(t, files[0].closed)
@@ -526,8 +526,8 @@ func TestRecorderFailsWhileDatabaseIsUnreachable(t *testing.T) {
 
 	got, ok := f.recording(t, reservationID)
 	require.True(t, ok, "the recording is saved after the database is reachable")
-	assert.Equal(t, string(recording.StateFailed), got.state)
-	assert.Equal(t, new(string(recording.FailureStorageFull)), got.failureReason)
+	assert.Equal(t, string(domain.RecordingStateFailed), got.state)
+	assert.Equal(t, new(string(domain.RecordingFailureReasonStorageFull)), got.failureReason)
 }
 
 // waitForQueries は、Recorder が、開始を待つ間に予約を何度か読み直すまで待つ。最初に予約と録画設定を読み終えたことになる。
@@ -564,7 +564,7 @@ func TestRecorderFinishesRecordingLeftAfterPlannedEnd(t *testing.T) {
 	require.NoError(t, wait(t, done))
 
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 	var recordedUntil time.Time
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT recorded_until FROM recordings WHERE id = $1", recordingID).Scan(&recordedUntil))
 	assert.True(t, plannedEnd.Equal(recordedUntil), "recorded until %s", recordedUntil)
@@ -612,7 +612,7 @@ func TestRecorderKeepsExtendingWhileDatabaseIsUnreachable(t *testing.T) {
 		}
 		got, _ := f.recording(t, reservationID)
 
-		return got.state != string(recording.StateRecording)
+		return got.state != string(domain.RecordingStateRecording)
 	}, 500*time.Millisecond, 10*time.Millisecond, "the recorder keeps recording while extending")
 }
 
@@ -660,7 +660,7 @@ func TestRecorderStopsWhenStopped(t *testing.T) {
 	cancel(recording.ErrLeaseLost)
 	require.ErrorIs(t, wait(t, done), recording.ErrLeaseLost)
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateRecording), got.state, "the successor continues the recording")
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state, "the successor continues the recording")
 	for _, file := range f.files(t, reservationID) {
 		assert.True(t, file.closed, file.path)
 	}
@@ -755,7 +755,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 		name      string
 		tuner     func(f *fixture) recording.StreamOpener
 		freeSpace kago.FreeSpaceFunc
-		want      recording.FailureReason
+		want      domain.RecordingFailureReason
 		// wantDetail は、録画に残すエラーの本文に含まれるはずの文字列 (#1467)。
 		wantDetail string
 		// retries は、予定の終わりまで開き直すかどうか。開き直すなら、開こうとしてから予定の終わりまで進める。
@@ -768,7 +768,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 				return failingStream{err: fmt.Errorf("no available tuners: %w", tunerserver.ErrTunerUnavailable)}
 			},
 			freeSpace:  nil,
-			want:       recording.FailureTunerUnavailable,
+			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "no available tuners",
 			retries:    true,
 		},
@@ -779,7 +779,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 				return failingStream{err: fmt.Errorf("upstream: context deadline exceeded: %w", tunerserver.ErrRefused)}
 			},
 			freeSpace:  nil,
-			want:       recording.FailureTunerUnavailable,
+			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "upstream: context deadline exceeded",
 			retries:    true,
 		},
@@ -790,7 +790,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 				return failingStream{err: fmt.Errorf("failed to request: %w", tunerserver.ErrStreamOpenTimeout)}
 			},
 			freeSpace:  nil,
-			want:       recording.FailureTunerUnavailable,
+			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "failed to request",
 			retries:    true,
 		},
@@ -798,7 +798,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			name:       "チューナーサーバーに接続できない",
 			tuner:      func(*fixture) recording.StreamOpener { return failingStream{err: errors.New("connection refused")} },
 			freeSpace:  nil,
-			want:       recording.FailureTunerServerUnreachable,
+			want:       domain.RecordingFailureReasonTunerServerUnreachable,
 			wantDetail: connectionRefused,
 			retries:    true,
 		},
@@ -806,7 +806,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			name:       "保存先の容量が足りない",
 			tuner:      func(f *fixture) recording.StreamOpener { return f.tuner },
 			freeSpace:  func(string) (uint64, error) { return 1 << 20, nil },
-			want:       recording.FailureStorageFull,
+			want:       domain.RecordingFailureReasonStorageFull,
 			wantDetail: kago.ErrNoPoolFits.Error(),
 			retries:    false,
 		},
@@ -830,7 +830,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			require.NoError(t, wait(t, done))
 			got, ok := f.recording(t, reservationID)
 			require.True(t, ok)
-			assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(tt.want)), drops: 0}, got)
+			assert.Equal(t, recorded{state: string(domain.RecordingStateFailed), failureReason: new(string(tt.want)), drops: 0}, got)
 			// 理由に至ったエラーの本文も残す (#1467)。
 			detail := f.failureDetail(t, reservationID)
 			require.NotNil(t, detail)
@@ -892,14 +892,14 @@ func TestFinishRecordingCountsFailures(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		before recording.State
-		after  recording.State
+		before domain.RecordingState
+		after  domain.RecordingState
 		reason *string
 		want   int
 	}{
-		{name: "録画中から失敗", before: recording.StateRecording, after: recording.StateFailed, reason: new(string(recording.FailureCancelled)), want: 1},
-		{name: "失敗から失敗", before: recording.StateFailed, after: recording.StateFailed, reason: new(string(recording.FailureCancelled)), want: 0},
-		{name: "録画中から完了", before: recording.StateRecording, after: recording.StateCompleted, reason: nil, want: 0},
+		{name: "録画中から失敗", before: domain.RecordingStateRecording, after: domain.RecordingStateFailed, reason: new(string(domain.RecordingFailureReasonCancelled)), want: 1},
+		{name: "失敗から失敗", before: domain.RecordingStateFailed, after: domain.RecordingStateFailed, reason: new(string(domain.RecordingFailureReasonCancelled)), want: 0},
+		{name: "録画中から完了", before: domain.RecordingStateRecording, after: domain.RecordingStateCompleted, reason: nil, want: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -916,7 +916,7 @@ func TestFinishRecordingCountsFailures(t *testing.T) {
 			require.NoError(t, sqlc.New(f.pool).FinishRecording(t.Context(), sqlc.FinishRecordingParams{
 				State: string(tt.after), FailureReason: tt.reason, Now: &now, ID: recordingID,
 			}))
-			count, _ := f.failures(t, recording.FailureCancelled)
+			count, _ := f.failures(t, domain.RecordingFailureReasonCancelled)
 			assert.Equal(t, tt.want, count)
 		})
 	}
@@ -984,13 +984,13 @@ func TestRecorderDecidesStateFromWholeRecording(t *testing.T) {
 		name string
 		// earlierDrops は、引き継ぐ前のセグメントで数えたドロップ。
 		earlierDrops int64
-		want         recording.State
+		want         domain.RecordingState
 		wantHistory  bool
 	}{
-		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: recording.StateCompleted, wantHistory: true},
+		{name: "どのセグメントにもドロップがない", earlierDrops: 0, want: domain.RecordingStateCompleted, wantHistory: true},
 		// 録画履歴には、ドロップが 4 件以下の録画だけを記録する (付録 A、#1497)。
-		{name: "前のセグメントのドロップが閾値ちょうど", earlierDrops: 4, want: recording.StateCompletedWithErrors, wantHistory: true},
-		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 5, want: recording.StateCompletedWithErrors, wantHistory: false},
+		{name: "前のセグメントのドロップが閾値ちょうど", earlierDrops: 4, want: domain.RecordingStateCompletedWithErrors, wantHistory: true},
+		{name: "前のセグメントのドロップが閾値を超える", earlierDrops: 5, want: domain.RecordingStateCompletedWithErrors, wantHistory: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1067,8 +1067,8 @@ func TestRecorderCancelsWhenDisabled(t *testing.T) {
 			var failureReason *string
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT state, failure_reason FROM recordings WHERE id = $1", recordingID).
 				Scan(&state, &failureReason))
-			assert.Equal(t, string(recording.StateFailed), state)
-			assert.Equal(t, new(string(recording.FailureCancelled)), failureReason)
+			assert.Equal(t, string(domain.RecordingStateFailed), state)
+			assert.Equal(t, new(string(domain.RecordingFailureReasonCancelled)), failureReason)
 			var open int
 			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL",
 				recordingID).Scan(&open))
@@ -1091,7 +1091,7 @@ func TestRecorderFailsOnUnmountedPool(t *testing.T) {
 
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureStorageUnavailable)), drops: 0}, got)
+	assert.Equal(t, recorded{state: string(domain.RecordingStateFailed), failureReason: new(string(domain.RecordingFailureReasonStorageUnavailable)), drops: 0}, got)
 }
 
 // flakyStream は、最初に開いたストリームを head だけ流して切り、2 回目からは TS を 1 回だけ流す。
@@ -1205,7 +1205,7 @@ func TestRecorderDoesNotReopenAfterPlannedEnd(t *testing.T) {
 	require.NoError(t, wait(t, done))
 	assert.Equal(t, int32(1), opened.Load())
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 }
 
 // TestRecorderWaitsBeforeReopeningShortStreams は、開いてすぐに切れ続けるストリームを、RetryInterval に 1 回までしか開き直さないことを確かめる (#305)。
@@ -1426,7 +1426,7 @@ func TestRecorderReconnects(t *testing.T) {
 	require.NoError(t, wait(t, done))
 	assert.Equal(t, int32(2), opened.Load())
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 	// 途中で切れたエラーは、録画が失敗しなかったので残さない (#1467)。
 	assert.Nil(t, f.failureDetail(t, reservationID))
 	assert.Equal(t, gapsAndLost{gaps: 1, programLost: false}, f.gapsAndLost(t, reservationID))
@@ -1471,7 +1471,7 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 			require.Never(t, func() bool {
 				got, _ := f.recording(t, reservationID)
 
-				return got.state != string(recording.StateRecording)
+				return got.state != string(domain.RecordingStateRecording)
 			}, time.Second, 10*time.Millisecond)
 
 			return stopsAt
@@ -1500,14 +1500,14 @@ func TestRecorderExtendsWhileEndIsUndecided(t *testing.T) {
 				f.clock.Advance(at.Sub(f.clock.Now()))
 				time.Sleep(100 * time.Millisecond)
 				got, _ := f.recording(t, reservationID)
-				require.Equal(t, string(recording.StateRecording), got.state, at)
+				require.Equal(t, string(domain.RecordingStateRecording), got.state, at)
 			}
 
 			stopsAt := tt.stop(t, f, reservationID)
 			f.clock.Advance(max(stopsAt.Sub(f.clock.Now()), 0))
 			require.NoError(t, wait(t, done))
 			got, _ := f.recording(t, reservationID)
-			assert.Equal(t, string(recording.StateCompleted), got.state)
+			assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 			assert.Equal(t, gapsAndLost{gaps: 0, programLost: false}, f.gapsAndLost(t, reservationID))
 		})
 	}
@@ -1536,12 +1536,12 @@ func TestRecorderKeepsRecordingWhenProgramIsLost(t *testing.T) {
 		return f.gapsAndLost(t, reservationID).programLost
 	}, waitTimeout, 10*time.Millisecond)
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateRecording), got.state)
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 
 	f.clock.Advance(time.Second)
 	require.NoError(t, wait(t, done))
 	got, _ = f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 }
 
 // TestRecorderCopiesProgramAudios は、録画を始めたときの番組の音声の構成 (#284) と映像の解像度 (#806) を録画に残し、
@@ -1654,7 +1654,7 @@ func TestRecorderRecordsGapOnResume(t *testing.T) {
 	require.NoError(t, wait(t, done))
 
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 	// 続きを録るときは、録画の開始を通知し直さない。一部のみの録画は、録画履歴に記録しない。
 	events := f.events(t)
 	kinds := make([]string, 0, len(events))
@@ -1696,7 +1696,7 @@ func TestRecorderIgnoresEmptyEarlierSegments(t *testing.T) {
 
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, recorded{state: string(recording.StateFailed), failureReason: new(string(recording.FailureTunerServerUnreachable)), drops: 0}, got)
+	assert.Equal(t, recorded{state: string(domain.RecordingStateFailed), failureReason: new(string(domain.RecordingFailureReasonTunerServerUnreachable)), drops: 0}, got)
 }
 
 // TestRecorderCopiesEpisodeToHistory は、録り終えた録画の録画履歴に、回を読むための概要と、番組のシリーズの記述子の話数と、
@@ -1828,8 +1828,8 @@ func TestRecorderEmitsEvents(t *testing.T) {
 			assert.Equal(t, tt.wantKinds, kinds)
 			last := events[len(events)-1].Payload
 			switch last["state"] {
-			case string(recording.StateFailed):
-				assert.Equal(t, string(recording.FailureTunerServerUnreachable), last["reason"])
+			case string(domain.RecordingStateFailed):
+				assert.Equal(t, string(domain.RecordingFailureReasonTunerServerUnreachable), last["reason"])
 			default:
 				// Webhook で録画のファイルを示せるよう、完了の通知にはセグメントのプール内のパスを載せる。
 				files, ok := last["files"].([]any)
@@ -1940,7 +1940,7 @@ func TestRecorderContinuesAfterHandover(t *testing.T) {
 	f.clock.Advance(time.Hour)
 	require.NoError(t, wait(t, newDone))
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateCompleted), got.state)
+	assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 	assert.Equal(t, gapsAndLost{gaps: 0, programLost: false}, f.gapsAndLost(t, reservationID))
 }
 
@@ -1991,7 +1991,7 @@ func TestRecorderTakesOverFromCrashedMikan(t *testing.T) {
 	assert.Equal(t, int64(1000), crashed.size)
 	assert.True(t, lastRenewal.Equal(crashed.endedAt), crashed.endedAt)
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 	var gapFrom time.Time
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT (gaps->0->>'from')::timestamptz FROM recordings WHERE id = $1", recordingID).Scan(&gapFrom))
 	assert.True(t, lastRenewal.Equal(gapFrom), gapFrom)
@@ -2094,7 +2094,7 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 		oldEnded bool
 		// tuner は、新しい mikan のストリームと、録画がそのストリームを使い始めるまで待つ関数を返す。
 		tuner     func() (recording.StreamOpener, func(t *testing.T))
-		wantState recording.State
+		wantState domain.RecordingState
 		wantGaps  int
 	}{
 		{
@@ -2104,7 +2104,7 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 
 				return stream, stream.wait
 			},
-			wantState: recording.StatePartial, wantGaps: 1,
+			wantState: domain.RecordingStatePartial, wantGaps: 1,
 		},
 		{
 			name: "古い mikan がまだ何も書いていないときに引き継ぎ、開けないまま終わる", oldFile: false, oldEnded: false,
@@ -2113,7 +2113,7 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 
 				return stream, stream.wait
 			},
-			wantState: recording.StateFailed, wantGaps: 0,
+			wantState: domain.RecordingStateFailed, wantGaps: 0,
 		},
 		{
 			name: "古い mikan が引き継ぎの最中に落ちた", oldFile: true, oldEnded: false,
@@ -2122,7 +2122,7 @@ func TestRecorderHandoverEdgeCases(t *testing.T) {
 
 				return stream, stream.wait
 			},
-			wantState: recording.StatePartial, wantGaps: 1,
+			wantState: domain.RecordingStatePartial, wantGaps: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -2205,7 +2205,7 @@ func TestRecorderLeavesFinishingToCurrentGeneration(t *testing.T) {
 	require.NoError(t, wait(t, done))
 
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StateRecording), got.state, "the current generation finishes the recording")
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state, "the current generation finishes the recording")
 	assert.Empty(t, f.events(t)[1:], "the old generation does not notify the completion")
 }
 
@@ -2231,7 +2231,7 @@ func TestRecorderRecordsTrailingGap(t *testing.T) {
 	require.NoError(t, wait(t, done))
 
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 	var gap struct {
 		From time.Time `json:"from"`
 		To   time.Time `json:"to"`
@@ -2292,11 +2292,11 @@ func TestRecorderRecordsLateStartAsGap(t *testing.T) {
 		name string
 		// late は、予定の開始から、mikan が割り振りを取るまでの遅れ。
 		late      time.Duration
-		wantState recording.State
+		wantState domain.RecordingState
 		wantGaps  int
 	}{
-		{name: "2 分遅れた", late: 2 * time.Minute, wantState: recording.StatePartial, wantGaps: 1},
-		{name: "遅れが 30 秒以内", late: 20 * time.Second, wantState: recording.StateCompleted, wantGaps: 0},
+		{name: "2 分遅れた", late: 2 * time.Minute, wantState: domain.RecordingStatePartial, wantGaps: 1},
+		{name: "遅れが 30 秒以内", late: 20 * time.Second, wantState: domain.RecordingStateCompleted, wantGaps: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2347,7 +2347,7 @@ func TestRecorderReselectsPoolForRemainingTime(t *testing.T) {
 
 	require.NoError(t, wait(t, done))
 	got, _ := f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 }
 
 // TestRecorderRetriesSegmentAfterStorageError は、録画の途中で新しいセグメントを作れなくても、録画を失敗にせず、
@@ -2379,7 +2379,7 @@ func TestRecorderRetriesSegmentAfterStorageError(t *testing.T) {
 	// 録画を失敗にせず、やり直している間に空きができる。
 	time.Sleep(100 * time.Millisecond)
 	got, _ := f.recording(t, reservationID)
-	require.Equal(t, string(recording.StateRecording), got.state)
+	require.Equal(t, string(domain.RecordingStateRecording), got.state)
 	free.Store(1 << 40)
 	require.Eventually(t, func() bool {
 		return f.segments(t, reservationID) == 2
@@ -2388,7 +2388,7 @@ func TestRecorderRetriesSegmentAfterStorageError(t *testing.T) {
 
 	require.NoError(t, wait(t, done))
 	got, _ = f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 }
 
 // TestRecorderRetriesSegmentOnResume は、続きを録る mikan が、最初のセグメントを作れなくても、前の mikan が録った分があれば、
@@ -2416,7 +2416,7 @@ func TestRecorderRetriesSegmentOnResume(t *testing.T) {
 	_, done = f.session(t, recorder, reservationID)
 	time.Sleep(200 * time.Millisecond)
 	got, _ := f.recording(t, reservationID)
-	require.Equal(t, string(recording.StateRecording), got.state)
+	require.Equal(t, string(domain.RecordingStateRecording), got.state)
 
 	free.Store(1 << 40)
 	require.Eventually(t, func() bool {
@@ -2426,7 +2426,7 @@ func TestRecorderRetriesSegmentOnResume(t *testing.T) {
 	f.clock.Advance(time.Hour)
 	require.NoError(t, wait(t, done))
 	got, _ = f.recording(t, reservationID)
-	assert.Equal(t, string(recording.StatePartial), got.state)
+	assert.Equal(t, string(domain.RecordingStatePartial), got.state)
 }
 
 // TestRecorderReleasesWhenUnableToRecord は、録画できない理由がこの mikan にあり、ほかに mikan が動いていれば、
@@ -2440,7 +2440,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 		name string
 		// prepare は、録画できない状態にし、Recorder と、録画が開こうとするのを待つストリームを作る。
 		prepare func(t *testing.T, f *fixture, reservationID uuid.UUID) (*recording.Recorder, *attemptedStream)
-		reason  recording.FailureReason
+		reason  domain.RecordingFailureReason
 		// detail は、理由と一緒に残すエラーの本文に含まれるはずの文字列 (#1467)。
 		detail string
 		// advance は、録画が開こうとしてから進める時間。
@@ -2455,7 +2455,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 			recorder, _ := f.newRecorderWithPeers(t, stream, nil, onePeer)
 
 			return recorder, stream
-		}, reason: recording.FailureStorageUnavailable, detail: kago.ErrPoolNotMounted.Error(), advance: 0},
+		}, reason: domain.RecordingFailureReasonStorageUnavailable, detail: kago.ErrPoolNotMounted.Error(), advance: 0},
 		{name: "チューナーサーバーにつながらないまま 30 秒が過ぎた", prepare: func(t *testing.T, f *fixture, _ uuid.UUID) (*recording.Recorder, *attemptedStream) {
 			t.Helper()
 
@@ -2463,7 +2463,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 			recorder, _ := f.newRecorderWithPeers(t, stream, nil, onePeer)
 
 			return recorder, stream
-		}, reason: recording.FailureTunerServerUnreachable, detail: connectionRefused, advance: 31 * time.Second},
+		}, reason: domain.RecordingFailureReasonTunerServerUnreachable, detail: connectionRefused, advance: 31 * time.Second},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2484,7 +2484,7 @@ func TestRecorderReleasesWhenUnableToRecord(t *testing.T) {
 
 			require.ErrorIs(t, wait(t, done), recording.ErrRecorderUnavailable)
 			got, _ := f.recording(t, reservationID)
-			assert.Equal(t, recorded{state: string(recording.StateRecording), failureReason: new(string(tt.reason)), drops: 0}, got)
+			assert.Equal(t, recorded{state: string(domain.RecordingStateRecording), failureReason: new(string(tt.reason)), drops: 0}, got)
 			detail := f.failureDetail(t, reservationID)
 			require.NotNil(t, detail)
 			assert.Contains(t, *detail, tt.detail)

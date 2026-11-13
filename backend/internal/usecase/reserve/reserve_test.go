@@ -72,7 +72,7 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 
 	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-		Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleMember, PasswordHash: nil,
+		Username: "kotatsu", DisplayName: "こたつ", Role: domain.RoleMember, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 

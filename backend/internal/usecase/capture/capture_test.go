@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -54,7 +55,7 @@ func newFixture(t *testing.T) *fixture {
 	users := map[string]uuid.UUID{}
 	for _, name := range []string{"alice", "bob"} {
 		user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-			Username: name, DisplayName: name, Role: auth.RoleViewer, PasswordHash: nil,
+			Username: name, DisplayName: name, Role: domain.RoleViewer, PasswordHash: nil,
 		})
 		require.NoError(t, err)
 		users[name] = user.ID

@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -206,7 +207,7 @@ func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !principal.Role.Can(auth.PermissionAdminister) {
+	if !principal.Role.Can(domain.PermissionAdminister) {
 		return nil, NewError(CodeForbidden, "only administrators can list users")
 	}
 	if r.userAdmin == nil {

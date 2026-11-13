@@ -28,7 +28,7 @@ const calendarMark = "kotatsu_cal_"
 
 // fakeAuthenticator は、validToken だけを受け付ける。
 type fakeAuthenticator struct {
-	role auth.Role
+	role domain.Role
 }
 
 func (f *fakeAuthenticator) Authenticate(_ context.Context, token string) (*auth.Principal, error) {
@@ -69,12 +69,12 @@ func TestHandler(t *testing.T) {
 	tests := []struct {
 		name       string
 		token      string
-		role       auth.Role
+		role       domain.Role
 		wantStatus int
 	}{
-		{name: "valid", token: validToken, role: auth.RoleMember, wantStatus: http.StatusOK},
-		{name: "viewer", token: validToken, role: auth.RoleViewer, wantStatus: http.StatusOK},
-		{name: "wrong token", token: calendarMark + "wrong", role: auth.RoleMember, wantStatus: http.StatusNotFound},
+		{name: "valid", token: validToken, role: domain.RoleMember, wantStatus: http.StatusOK},
+		{name: "viewer", token: validToken, role: domain.RoleViewer, wantStatus: http.StatusOK},
+		{name: "wrong token", token: calendarMark + "wrong", role: domain.RoleMember, wantStatus: http.StatusNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

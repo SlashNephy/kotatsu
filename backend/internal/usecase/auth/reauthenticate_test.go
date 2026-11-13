@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/totp"
 	"github.com/SlashNephy/kotatsu/internal/testutil/webauthntest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -189,7 +190,7 @@ func TestPasskeyReauthentication(t *testing.T) {
 			prepare: func(t *testing.T, f *passkeyFixture, _ *webauthntest.Authenticator, principal *auth.Principal) {
 				t.Helper()
 				other, err := auth.NewUsers(f.clock).Create(t.Context(), f.db, &auth.NewUser{
-					Username: otherName, DisplayName: otherName, Role: auth.RoleMember, PasswordHash: nil,
+					Username: otherName, DisplayName: otherName, Role: domain.RoleMember, PasswordHash: nil,
 				})
 				require.NoError(t, err)
 				principal.UserID = other.ID

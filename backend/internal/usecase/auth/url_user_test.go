@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -56,7 +57,7 @@ func TestURLUsersWhileDatabaseIsUnreachable(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, auth.RoleMember, role)
+			assert.Equal(t, domain.RoleMember, role)
 			assert.Equal(t, int64(1), users.FallbackUsed())
 		})
 	}

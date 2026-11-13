@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/webauthntest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -121,7 +122,7 @@ func TestPasskeyRegistration(t *testing.T) {
 			after: func(t *testing.T, f *passkeyFixture, _ *string, userID *uuid.UUID) {
 				t.Helper()
 				other, err := auth.NewUsers(f.clock).Create(t.Context(), f.db, &auth.NewUser{
-					Username: otherName, DisplayName: otherName, Role: auth.RoleMember, PasswordHash: nil,
+					Username: otherName, DisplayName: otherName, Role: domain.RoleMember, PasswordHash: nil,
 				})
 				require.NoError(t, err)
 				*userID = other.ID
@@ -451,7 +452,7 @@ func TestPasskeyOfAnotherUser(t *testing.T) {
 	f := newPasskeyFixture(t)
 	passkey := f.register(t, newAuthenticator(t))
 	other, err := auth.NewUsers(f.clock).Create(t.Context(), f.db, &auth.NewUser{
-		Username: otherName, DisplayName: otherName, Role: auth.RoleMember, PasswordHash: nil,
+		Username: otherName, DisplayName: otherName, Role: domain.RoleMember, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 	actor := audit.User(other.ID)

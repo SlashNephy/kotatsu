@@ -163,7 +163,7 @@ func (w *ReapPromotionsWorker) RunOnce(ctx context.Context) (int, error) {
 	}
 	errs := []error{}
 	for _, recordingID := range ids {
-		if err := r.failPromotion(ctx, recordingID, FailureStorageUnavailable); err != nil {
+		if err := r.failPromotion(ctx, recordingID, domain.RecordingFailureReasonStorageUnavailable); err != nil {
 			errs = append(errs, fmt.Errorf("recording %s: %w", recordingID, err))
 
 			continue
@@ -186,10 +186,10 @@ func ReapPromotionsPeriodicJob() *river.PeriodicJob {
 }
 
 // promote は、昇格する録画をバッファから書き出して完了にする。失敗したら、書いたファイルを消し、録画の失敗の理由も返す。
-func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID uuid.UUID) (FailureReason, error) {
+func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID uuid.UUID) (domain.RecordingFailureReason, error) {
 	// ほかの nekonote がタイムシフトのディレクトリをマウントしていれば、そちらでやり直せるよう、エラーにする。
 	if !r.store.HasTimeshiftDir() {
-		return FailureStorageUnavailable, errors.New("the timeshift directory is not configured on this instance")
+		return domain.RecordingFailureReasonStorageUnavailable, errors.New("the timeshift directory is not configured on this instance")
 	}
 	q := sqlc.New(r.pool)
 	row, err := q.GetTimeshiftPromotion(ctx, recordingID)
@@ -197,29 +197,29 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 		return "", errPromotionGone
 	}
 	if err != nil {
-		return FailureStorageUnavailable, fmt.Errorf("failed to get the timeshift promotion: %w", err)
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to get the timeshift promotion: %w", err)
 	}
 	promotion, recording := &row.TimeshiftPromotion, &row.Recording
 	settings, err := r.defaults(ctx, r.pool)
 	if err != nil {
-		return FailureStorageUnavailable, fmt.Errorf("failed to get the recording settings: %w", err)
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to get the recording settings: %w", err)
 	}
 	if len(r.store.PoolIDs()) == 0 {
-		return FailureStorageUnavailable, errors.New("no storage pool is mounted on this instance")
+		return domain.RecordingFailureReasonStorageUnavailable, errors.New("no storage pool is mounted on this instance")
 	}
 	pools, err := q.ListStoragePools(ctx)
 	if err != nil {
-		return FailureStorageUnavailable, fmt.Errorf("failed to list storage pools: %w", err)
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to list storage pools: %w", err)
 	}
 	runs, err := stream.NewTimeshiftSource(r.pool, r.store, 0).OpenRange(ctx, promotion.ServiceID, promotion.FromAt, promotion.ToAt)
 	if err != nil {
-		return FailureStorageUnavailable, fmt.Errorf("failed to open the timeshift buffer: %w", err)
+		return domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to open the timeshift buffer: %w", err)
 	}
 	if len(runs) == 0 {
 		// 番組の時間のチャンクがもうないので、書き出せない。やり直しても変わらない。
 		logger.WarnContext(ctx, "nothing to promote; the timeshift buffer has no chunk for the program")
 
-		return FailureProgramNotFound, r.failPromotion(ctx, recordingID, FailureProgramNotFound)
+		return domain.RecordingFailureReasonProgramNotFound, r.failPromotion(ctx, recordingID, domain.RecordingFailureReasonProgramNotFound)
 	}
 
 	// ファイル名は、予約の録画と同じく、番組の情報から付ける。
@@ -250,7 +250,7 @@ func (r *Recorder) promote(ctx context.Context, logger *slog.Logger, recordingID
 			logger.InfoContext(ctx, "the timeshift promotion was finished or deleted elsewhere; discarding the written files")
 		}
 
-		return FailureStorageUnavailable, err
+		return domain.RecordingFailureReasonStorageUnavailable, err
 	}
 	logger.InfoContext(ctx, "promoted the timeshift buffer to a recording", slog.Int("segments", len(written)))
 
@@ -268,7 +268,7 @@ type promotedSegment struct {
 func (r *Recorder) promoteRun(
 	ctx context.Context, logger *slog.Logger, settings *domain.RecordingSettings, pools []*kago.Pool,
 	program *sqlc.GetReservationForRecordingRow, run *stream.TimeshiftRun,
-) (*promotedSegment, FailureReason, error) {
+) (*promotedSegment, domain.RecordingFailureReason, error) {
 	estimated := uint64(max(run.To.Sub(run.From), 0)/time.Second) * estimatedBytesPerSecond
 	seg, reason, err := r.newSegment(ctx, settings, pools, program, run.From, estimated)
 	if err != nil {
@@ -279,7 +279,7 @@ func (r *Recorder) promoteRun(
 	if err := errors.Join(append(closeErrs, copyErr)...); err != nil {
 		r.removeBackfilled(logger, seg)
 
-		return nil, FailureStorageUnavailable, fmt.Errorf("failed to write the timeshift buffer: %w", err)
+		return nil, domain.RecordingFailureReasonStorageUnavailable, fmt.Errorf("failed to write the timeshift buffer: %w", err)
 	}
 
 	return &promotedSegment{segment: seg, stats: seg.analyzer.Stats(), endedAt: *run.To}, "", nil
@@ -373,7 +373,7 @@ func (r *Recorder) savePromotedSegments(
 // 番組の頭がもうバッファになければ冒頭の欠けを、バッファの穴はセグメントの間のすき間を、途切れた区間にする。
 func (r *Recorder) completePromoted(
 	ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, promotion *sqlc.TimeshiftPromotion, recordedUntil, now time.Time,
-) (State, error) {
+) (domain.RecordingState, error) {
 	files, err := q.ListRecordingFiles(ctx, recordingID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list the recording files: %w", err)
@@ -393,12 +393,12 @@ func (r *Recorder) completePromoted(
 	if err != nil {
 		return "", fmt.Errorf("failed to get the recording: %w", err)
 	}
-	state := StateCompleted
+	state := domain.RecordingStateCompleted
 	switch {
 	case len(gaps) > 0:
-		state = StatePartial
+		state = domain.RecordingStatePartial
 	case recording.Drops > 0:
-		state = StateCompletedWithErrors
+		state = domain.RecordingStateCompletedWithErrors
 	}
 	// 録画した時間の終わりは、書いたセグメントの終わりにする (設計書 5.5)。
 	err = q.FinishRecording(ctx, sqlc.FinishRecordingParams{
@@ -418,7 +418,7 @@ func (r *Recorder) completePromoted(
 
 // failPromotion は、昇格を諦め、録画を reason で失敗にして、昇格の行を消し、失敗を通知する。
 // 昇格の行がもうなければ、ほかで終えたので何もしない。
-func (r *Recorder) failPromotion(ctx context.Context, recordingID uuid.UUID, reason FailureReason) error {
+func (r *Recorder) failPromotion(ctx context.Context, recordingID uuid.UUID, reason domain.RecordingFailureReason) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		row, err := q.GetTimeshiftPromotion(ctx, recordingID)
@@ -433,14 +433,14 @@ func (r *Recorder) failPromotion(ctx context.Context, recordingID uuid.UUID, rea
 		}
 		now := r.clock.Now()
 		failure := string(reason)
-		params := sqlc.FinishRecordingParams{State: string(StateFailed), FailureReason: &failure, FailureDetail: nil, Now: &now, ID: recordingID}
+		params := sqlc.FinishRecordingParams{State: string(domain.RecordingStateFailed), FailureReason: &failure, FailureDetail: nil, Now: &now, ID: recordingID}
 		if err := q.FinishRecording(ctx, params); err != nil {
 			return fmt.Errorf("failed to finish the recording: %w", err)
 		}
 		createdBy := row.TimeshiftPromotion.CreatedBy
 
 		return r.notifyPromotion(ctx, tx, recordingID, func(payload map[string]any) error {
-			payload["state"] = string(StateFailed)
+			payload["state"] = string(domain.RecordingStateFailed)
 			payload["reason"] = failure
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingFailed, payload, audienceOf(createdBy))

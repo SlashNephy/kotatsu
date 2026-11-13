@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -43,7 +44,7 @@ func TestUserSetPassword(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	user, err := auth.NewUsers(clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
-		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+		Username: adminUsername, DisplayName: adminUsername, Role: domain.RoleAdmin, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 
@@ -126,7 +127,7 @@ func TestAdminSetupToken(t *testing.T) {
 	assert.Regexp(t, `"setup_token":"[A-Za-z0-9_-]{43}"`, logs.String())
 
 	_, err = auth.NewUsers(clocktest.NewFake(time.Now())).Create(t.Context(), pool, &auth.NewUser{
-		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+		Username: adminUsername, DisplayName: adminUsername, Role: domain.RoleAdmin, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 	_, err = issue()
@@ -157,7 +158,7 @@ func TestUserLinkOIDC(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	_, err = auth.NewUsers(clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))).Create(t.Context(), pool, &auth.NewUser{
-		Username: adminUsername, DisplayName: adminUsername, Role: auth.RoleAdmin, PasswordHash: nil,
+		Username: adminUsername, DisplayName: adminUsername, Role: domain.RoleAdmin, PasswordHash: nil,
 	})
 	require.NoError(t, err)
 

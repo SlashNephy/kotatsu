@@ -97,7 +97,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			},
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
+					state: string(domain.RecordingStateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
 					history: 1, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
@@ -109,7 +109,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			data:   faketuner.Scramble(continuousRepeat(data, 8), 0x0111, 0x0112),
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
+					state: string(domain.RecordingStateCompleted), gaps: 0, starts: []time.Time{from}, ends: []time.Time{to}, recordedFrom: from,
 					history: 0, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
@@ -119,7 +119,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			chunks: []chunk{{start: from.Add(2 * time.Minute), end: new(to.Add(time.Minute))}},
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from.Add(2 * time.Minute)}, ends: []time.Time{to},
+					state: string(domain.RecordingStatePartial), gaps: 1, starts: []time.Time{from.Add(2 * time.Minute)}, ends: []time.Time{to},
 					recordedFrom: from.Add(2 * time.Minute), history: 0, promotion: false,
 					notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
@@ -133,7 +133,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			},
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from, from.Add(5 * time.Minute)},
+					state: string(domain.RecordingStatePartial), gaps: 1, starts: []time.Time{from, from.Add(5 * time.Minute)},
 					ends: []time.Time{from.Add(3 * time.Minute), to}, recordedFrom: from, history: 0, promotion: false,
 					notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
@@ -144,7 +144,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			chunks: []chunk{{start: from.Add(-time.Minute), end: new(from.Add(5 * time.Minute))}},
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from}, ends: []time.Time{from.Add(5 * time.Minute)},
+					state: string(domain.RecordingStatePartial), gaps: 1, starts: []time.Time{from}, ends: []time.Time{from.Add(5 * time.Minute)},
 					recordedFrom: from, history: 0, promotion: false, notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
 			},
@@ -155,7 +155,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			lastWrite: from.Add(3 * time.Minute),
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StatePartial), gaps: 1, starts: []time.Time{from}, ends: []time.Time{from.Add(3 * time.Minute)},
+					state: string(domain.RecordingStatePartial), gaps: 1, starts: []time.Time{from}, ends: []time.Time{from.Add(3 * time.Minute)},
 					recordedFrom: from, history: 0, promotion: false,
 					notified: []string{string(domain.NotificationKindRecordingCompleted)}, audience: [][]uuid.UUID{{userID}},
 				}
@@ -166,7 +166,7 @@ func TestPromoteWorkerWritesTimeshiftBuffer(t *testing.T) {
 			chunks: []chunk{{start: to.Add(time.Minute), end: nil}},
 			want: func(userID uuid.UUID) *promoted {
 				return &promoted{
-					state: string(recording.StateFailed), failureReason: new(string(recording.FailureProgramNotFound)), gaps: 0,
+					state: string(domain.RecordingStateFailed), failureReason: new(string(domain.RecordingFailureReasonProgramNotFound)), gaps: 0,
 					starts: []time.Time{}, ends: []time.Time{}, recordedFrom: from, history: 0, promotion: false,
 					notified: []string{string(domain.NotificationKindRecordingFailed)}, audience: [][]uuid.UUID{{userID}},
 				}
@@ -258,11 +258,11 @@ func TestReapPromotionsWorker(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, reaped)
 	got := f.promotedOf(t, lost)
-	assert.Equal(t, string(recording.StateFailed), got.state)
-	assert.Equal(t, new(string(recording.FailureStorageUnavailable)), got.failureReason)
+	assert.Equal(t, string(domain.RecordingStateFailed), got.state)
+	assert.Equal(t, new(string(domain.RecordingFailureReasonStorageUnavailable)), got.failureReason)
 	assert.False(t, got.promotion)
 	assert.Equal(t, []string{string(domain.NotificationKindRecordingFailed)}, got.notified)
 	got = f.promotedOf(t, queued)
-	assert.Equal(t, string(recording.StateRecording), got.state)
+	assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 	assert.True(t, got.promotion)
 }

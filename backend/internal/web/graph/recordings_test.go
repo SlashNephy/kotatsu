@@ -22,7 +22,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -288,7 +287,7 @@ func TestRecordingOperations(t *testing.T) {
 
 	f, dir := newRecordingFixture(t)
 	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
-	viewerFixture := f.as(t, "viewer", auth.RoleViewer)
+	viewerFixture := f.as(t, "viewer", domain.RoleViewer)
 
 	// 視聴者は、消せず、保護できず、タグを付けられないが、再生位置は保存できる。
 	assert.Equal(t, []string{codeForbidden}, viewerFixture.query(t, deleteRecording, map[string]any{varID: recordingID}, nil))
@@ -378,7 +377,7 @@ func TestRegenerateRecordingImages(t *testing.T) {
 		RegenerateRecordingImages bool `json:"regenerateRecordingImages"`
 	}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, regenerate, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, regenerate, map[string]any{varID: recordingID}, nil))
 	missing := graph.GlobalID("Recording", uuid.New().String())
 	assert.Equal(t, []string{codeNotFound}, f.query(t, regenerate, map[string]any{varID: missing}, nil))
 
@@ -483,7 +482,7 @@ func TestReanalyzeRecording(t *testing.T) {
 		ReanalyzeRecording bool `json:"reanalyzeRecording"`
 	}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, reanalyze, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, reanalyze, map[string]any{varID: recordingID}, nil))
 	assert.Equal(t, []string{codeConflict}, f.query(t, reanalyze, map[string]any{varID: recordingNow}, nil), "a recording in progress")
 
 	require.Empty(t, f.query(t, reanalyze, map[string]any{varID: recordingID}, &got))
@@ -532,14 +531,14 @@ func TestDetectRecordingCM(t *testing.T) {
 		DetectRecordingCM bool `json:"detectRecordingCm"`
 	}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, detect, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, detect, map[string]any{varID: recordingID}, nil))
 	assert.Equal(t, []string{codeConflict}, f.query(t, detect, map[string]any{varID: recordingNow}, nil), "a recording in progress")
 	assert.Equal(t, []string{codeConflict}, f.query(t, detect, map[string]any{varID: mp4Only}, nil), "a recording without TS segments")
 	assert.Equal(t, []string{codeNotFound}, f.query(t, detect, map[string]any{varID: graph.GlobalID("Recording", uuid.New().String())}, nil))
 	assert.Empty(t, queued())
 
 	// 全体の設定は既定 (見分けない) のままでも、頼まれたら見分ける。メンバーも頼める。
-	require.Empty(t, f.as(t, "member", auth.RoleMember).query(t, detect, map[string]any{varID: recordingID}, &got))
+	require.Empty(t, f.as(t, "member", domain.RoleMember).query(t, detect, map[string]any{varID: recordingID}, &got))
 	assert.True(t, got.DetectRecordingCM)
 	assert.Equal(t, []string{jobs.QueueCM}, queued())
 
@@ -610,7 +609,7 @@ func TestRecordingCMDetection(t *testing.T) {
 		WHERE kind = 'recording_cm_detect' RETURNING id`, testNow()).Scan(&jobID))
 	_, err = f.pool.Exec(t.Context(), `INSERT INTO job_progress (job_id, attempt, ratio, remaining_ms, updated_at) VALUES ($1, 1, 0.25, 74600, $2)`, jobID, testNow())
 	require.NoError(t, err)
-	running := read(t, f.as(t, "viewer", auth.RoleViewer))
+	running := read(t, f.as(t, "viewer", domain.RoleViewer))
 	assert.Equal(t, "RUNNING", running.State)
 	require.NotNil(t, running.Progress)
 	assert.InDelta(t, 0.25, running.Progress.Ratio, 1e-9)
@@ -652,7 +651,7 @@ func TestDeleteRecordings(t *testing.T) {
 	const deleteMany = `mutation($ids: [ID!]!) { deleteRecordings(ids: $ids) { processed skipped } }`
 	ids := []string{first, second, protected, recordingNow, missing}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
 	tooMany := make([]string, 501)
 	for i := range tooMany {
 		tooMany[i] = missing
@@ -804,12 +803,12 @@ func TestRecordingFailureDetail(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		role auth.Role
+		role domain.Role
 		want *string
 	}{
-		{role: auth.RoleAdmin, want: new(detail)},
-		{role: auth.RoleMember, want: nil},
-		{role: auth.RoleViewer, want: nil},
+		{role: domain.RoleAdmin, want: new(detail)},
+		{role: domain.RoleMember, want: nil},
+		{role: domain.RoleViewer, want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.role), func(t *testing.T) {
@@ -847,12 +846,12 @@ func TestRecordingFileTuner(t *testing.T) {
 		Name  string `json:"name"`
 	}
 	tests := []struct {
-		role auth.Role
+		role domain.Role
 		want *tuner
 	}{
-		{role: auth.RoleAdmin, want: &tuner{Index: -7, Name: "tuner.example / T0"}},
-		{role: auth.RoleMember, want: nil},
-		{role: auth.RoleViewer, want: nil},
+		{role: domain.RoleAdmin, want: &tuner{Index: -7, Name: "tuner.example / T0"}},
+		{role: domain.RoleMember, want: nil},
+		{role: domain.RoleViewer, want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.role), func(t *testing.T) {
@@ -959,7 +958,7 @@ func TestContinueWatching(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"continueWatching"`
 	}
-	otherFixture := f.as(t, "other", auth.RoleMember)
+	otherFixture := f.as(t, "other", domain.RoleMember)
 	require.Empty(t, otherFixture.query(t, `{ continueWatching { name } }`, nil, &other))
 	assert.Empty(t, other.ContinueWatching)
 

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/publicnet"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -74,7 +75,7 @@ type vote struct {
 
 func viewer() *auth.Principal {
 	return &auth.Principal{
-		UserID: uuid.New(), Role: auth.RoleViewer, SessionID: uuid.New(), AuthenticatedAt: clock.Real{}.Now(), OAuthClientID: "",
+		UserID: uuid.New(), Role: domain.RoleViewer, SessionID: uuid.New(), AuthenticatedAt: clock.Real{}.Now(), OAuthClientID: "",
 	}
 }
 

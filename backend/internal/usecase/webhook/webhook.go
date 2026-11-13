@@ -50,23 +50,12 @@ var (
 	ErrNotFound = errors.New("webhook not found")
 )
 
-//go:generate go tool go-enum --values --nocomments
-
-// Format は、Webhook で送る形式。
-//
-// ENUM(
-// JSON = json // 汎用の JSON。イベントの種類と、画面に出す文の材料をそのまま送る。
-// discord // Discord の Webhook の形式。
-// slack // Slack の Incoming Webhook の形式。
-// )
-type Format string
-
 // Webhook は、管理者が設定した Webhook。署名用の秘密キーは含めない。
 type Webhook struct {
 	ID        uuid.UUID
 	Name      string
 	URL       string
-	Format    Format
+	Format    domain.WebhookFormat
 	Kinds     []domain.NotificationKind
 	Enabled   bool
 	CreatedAt time.Time
@@ -77,7 +66,7 @@ type Webhook struct {
 type Input struct {
 	Name    string
 	URL     string
-	Format  Format
+	Format  domain.WebhookFormat
 	Kinds   []domain.NotificationKind
 	Enabled bool
 }
@@ -86,7 +75,7 @@ type Input struct {
 type Changes struct {
 	Name    *string
 	URL     *string
-	Format  *Format
+	Format  *domain.WebhookFormat
 	Kinds   []domain.NotificationKind
 	Enabled *bool
 }
@@ -376,7 +365,7 @@ func newSecret() (string, error) {
 
 func webhookOf(row *sqlc.Webhook) *Webhook {
 	return &Webhook{
-		ID: row.ID, Name: row.Name, URL: row.URL, Format: Format(row.Format), Kinds: row.Kinds,
+		ID: row.ID, Name: row.Name, URL: row.URL, Format: domain.WebhookFormat(row.Format), Kinds: row.Kinds,
 		Enabled: row.Enabled, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }

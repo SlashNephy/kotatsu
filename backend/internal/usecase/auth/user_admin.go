@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
@@ -50,7 +51,7 @@ func NewUserAdmin(clk clock.Clock, recorder audit.Recorder, policy *password.Pol
 type NewAccount struct {
 	Username    string
 	DisplayName string
-	Role        Role
+	Role        domain.Role
 	// Password は、ローカルアカウントのパスワード。空なら、パスワードを持たないユーザー (OIDC やパスキーだけで使う) にする。
 	Password string
 }
@@ -58,7 +59,7 @@ type NewAccount struct {
 // UserChanges は、ユーザーの変える項目。nil の項目は変えない。
 type UserChanges struct {
 	DisplayName *string
-	Role        *Role
+	Role        *domain.Role
 }
 
 // List は、すべてのユーザーを、作った順に返す。
@@ -149,7 +150,7 @@ func (a *UserAdmin) Update(ctx context.Context, db Database, actor *audit.Actor,
 
 			return nil
 		}
-		if current.Role == RoleAdmin && current.DisabledAt == nil && next.Role != RoleAdmin && admins <= 1 {
+		if current.Role == domain.RoleAdmin && current.DisabledAt == nil && next.Role != domain.RoleAdmin && admins <= 1 {
 			return ErrLastAdmin
 		}
 		saved, err := sqlc.New(tx).UpdateUserProfile(ctx, sqlc.UpdateUserProfileParams{
@@ -191,7 +192,7 @@ func (a *UserAdmin) Disable(ctx context.Context, db Database, actor *audit.Actor
 			// 既に無効なら、何もしない。
 			return nil
 		}
-		if row.Role == string(RoleAdmin) && admins <= 1 {
+		if row.Role == string(domain.RoleAdmin) && admins <= 1 {
 			return ErrLastAdmin
 		}
 		if err := NewUsers(a.clock).Disable(ctx, tx, userID); err != nil {
@@ -256,7 +257,7 @@ func (a *UserAdmin) erase(ctx context.Context, db Database, actor *audit.Actor, 
 		if err != nil {
 			return err
 		}
-		if row.Role == string(RoleAdmin) && row.DisabledAt == nil && admins <= 1 {
+		if row.Role == string(domain.RoleAdmin) && row.DisabledAt == nil && admins <= 1 {
 			return ErrLastAdmin
 		}
 		for _, eraser := range erasers {
@@ -322,7 +323,7 @@ func (a *UserAdmin) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, a
 
 // userOf は、DB の行を User にする。
 func userOf(row *sqlc.User) (*User, error) {
-	role, err := ParseRole(row.Role)
+	role, err := domain.ParseRole(row.Role)
 	if err != nil {
 		return nil, err
 	}

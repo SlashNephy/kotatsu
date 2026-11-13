@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/secretbox"
 	"github.com/SlashNephy/kotatsu/internal/lib/totp"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -215,7 +216,7 @@ func TestLegacyRecoveryCodes(t *testing.T) {
 	require.NoError(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, strings.ToUpper(legacy)))
 	require.ErrorIs(t, f.factors.UseRecoveryCode(t.Context(), f.db, f.user.ID, legacy), auth.ErrInvalidSecondFactor)
 	// ほかのユーザーとしては使えない。
-	other, err := auth.NewUsers(f.clock).Create(t.Context(), f.db, &auth.NewUser{Username: nekoName, DisplayName: nekoName, Role: auth.RoleMember, PasswordHash: nil})
+	other, err := auth.NewUsers(f.clock).Create(t.Context(), f.db, &auth.NewUser{Username: nekoName, DisplayName: nekoName, Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	_, err = f.db.Exec(t.Context(), "UPDATE user_recovery_codes SET used_at = NULL WHERE user_id = $1", f.user.ID)
 	require.NoError(t, err)

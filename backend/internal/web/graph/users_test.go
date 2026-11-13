@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -73,7 +74,7 @@ func TestUserManagementNeedsAnAdministrator(t *testing.T) {
 		{name: "reset password", query: resetQuery, variables: map[string]any{varID: target, varValue: strongPhrase}},
 		{name: "delete user", query: deleteUserQuery, variables: map[string]any{varID: target}},
 	}
-	for _, role := range []auth.Role{auth.RoleMember, auth.RoleViewer} {
+	for _, role := range []domain.Role{domain.RoleMember, domain.RoleViewer} {
 		actor := f.as(t, "as-"+string(role), role)
 		for _, tt := range tests {
 			assert.Equal(t, []string{codeForbidden}, actor.query(t, tt.query, tt.variables, nil), "%s by %s", tt.name, role)
@@ -89,7 +90,7 @@ func TestManageUsers(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 
 	// パスワードが規定に当たれば、理由を返す。
 	assert.Equal(t, []string{tooWeak}, admin.query(t, createUserQuery, map[string]any{
@@ -219,7 +220,7 @@ func TestChangePasswordAndSessions(t *testing.T) {
 	assert.Equal(t, other.ID.String(), auditedSession)
 	assert.Equal(t, []string{codeNotFound}, f.query(t, revokeQuery, map[string]any{varID: otherID}, nil))
 	// ほかのユーザーのセッションは、失効させられない。
-	mikan := f.as(t, mikanUser, auth.RoleMember)
+	mikan := f.as(t, mikanUser, domain.RoleMember)
 	require.Empty(t, f.query(t, sessionsQuery, nil, &listed))
 	assert.Equal(t, []string{codeNotFound}, mikan.query(t, revokeQuery, map[string]any{varID: listed.Sessions[0].ID}, nil))
 
@@ -234,7 +235,7 @@ func TestRevokeOtherSessions(t *testing.T) {
 
 	f := newFixture(t, nil)
 	others := []*fixture{f.withNewSession(t), f.withNewSession(t)}
-	mikan := f.as(t, mikanUser, auth.RoleMember)
+	mikan := f.as(t, mikanUser, domain.RoleMember)
 	// 再認証を求めないことを確かめるため、直近の認証の期限を過ぎてから操作する。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 
@@ -298,7 +299,7 @@ func TestDeleteUser(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	target := graph.GlobalID("User", f.userID.String())
 
 	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, deleteUserQuery, map[string]any{varID: graph.GlobalID("User", admin.userID.String())}, nil), "yourself")
@@ -312,7 +313,7 @@ func TestDeleteUser(t *testing.T) {
 	assert.Equal(t, []string{codeNotFound}, admin.query(t, deleteUserQuery, map[string]any{varID: target}, nil), "already deleted")
 
 	admin.clock.Advance(auth.RecentAuthenticationWindow * 2)
-	other := admin.as(t, mikanUser, auth.RoleViewer)
+	other := admin.as(t, mikanUser, domain.RoleViewer)
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, deleteUserQuery, map[string]any{varID: graph.GlobalID("User", other.userID.String())}, nil))
 }
 
@@ -321,7 +322,7 @@ func TestDeleteAccount(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	viewer := f.as(t, mikanUser, auth.RoleViewer)
+	viewer := f.as(t, mikanUser, domain.RoleViewer)
 
 	var deleted struct {
 		DeleteAccount bool `json:"deleteAccount"`
@@ -342,7 +343,7 @@ func TestDeleteAccountRefusesLastAdministrator(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 
 	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, deleteAccount, nil, nil))
 }

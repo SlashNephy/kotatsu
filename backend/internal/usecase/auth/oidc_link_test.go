@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -36,7 +37,7 @@ func newOIDCLinkFixture(t *testing.T) *oidcLinkFixture {
 	t.Helper()
 
 	f := newOIDCFixture(t, auth.OIDCAutoCreate{})
-	user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: unlinkedName, DisplayName: unlinkedName, Role: auth.RoleMember, PasswordHash: nil})
+	user, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: unlinkedName, DisplayName: unlinkedName, Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	token, session, err := auth.NewSessions(&auth.SessionsOptions{Clock: f.clock}).Create(t.Context(), f.db, user.ID, f.client)
 	require.NoError(t, err)
@@ -291,7 +292,7 @@ func TestOIDCLinkHandlers(t *testing.T) {
 
 	// IdP のユーザーが、ほかのユーザーと紐付いていたら、始めたときのパスに、理由を付けて戻す。
 	f.idp.Subject = "taken-subject"
-	other, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: "other", DisplayName: "other", Role: auth.RoleMember, PasswordHash: nil})
+	other, err := f.users.Create(t.Context(), f.db, &auth.NewUser{Username: "other", DisplayName: "other", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	require.NoError(t, f.oidc.Link(t.Context(), f.db, audit.System("cli"), other.Username, "taken-subject"))
 	status, location, _ := do(http.MethodGet, begin(), "")

@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/password"
@@ -123,7 +124,7 @@ func (s *Setup) CreateAdmin(ctx context.Context, db Database, token string, admi
 			return err
 		}
 		created, err = NewUsers(s.clock).Create(ctx, tx, &NewUser{
-			Username: admin.Username, DisplayName: admin.DisplayName, Role: RoleAdmin, PasswordHash: &encoded,
+			Username: admin.Username, DisplayName: admin.DisplayName, Role: domain.RoleAdmin, PasswordHash: &encoded,
 		})
 		if err != nil {
 			return err

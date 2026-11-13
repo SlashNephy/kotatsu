@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -19,7 +20,7 @@ func TestCreateUser(t *testing.T) {
 
 	db := newDB(t)
 	users := auth.NewUsers(clocktest.NewFake(testNow()))
-	_, err := users.Create(t.Context(), db, &auth.NewUser{Username: "Alice", DisplayName: "ありす", Role: auth.RoleAdmin, PasswordHash: nil})
+	_, err := users.Create(t.Context(), db, &auth.NewUser{Username: "Alice", DisplayName: "ありす", Role: domain.RoleAdmin, PasswordHash: nil})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -27,15 +28,15 @@ func TestCreateUser(t *testing.T) {
 		user    *auth.NewUser
 		wantErr error
 	}{
-		{name: "member", user: &auth.NewUser{Username: "bob", DisplayName: "ぼぶ", Role: auth.RoleMember}},
-		{name: "same username in different case", user: &auth.NewUser{Username: "alice", DisplayName: "別人", Role: auth.RoleViewer}, wantErr: auth.ErrUsernameTaken},
-		{name: "unknown role", user: &auth.NewUser{Username: "carol", DisplayName: "きゃろる", Role: "owner"}, wantErr: auth.ErrInvalidRole},
-		{name: "empty username", user: &auth.NewUser{Username: "", DisplayName: "名無し", Role: auth.RoleViewer}, wantErr: auth.ErrInvalidUser},
-		{name: "surrounding spaces", user: &auth.NewUser{Username: " dave", DisplayName: "でいぶ", Role: auth.RoleViewer}, wantErr: auth.ErrInvalidUser},
-		{name: "control character in username", user: &auth.NewUser{Username: "fr\nank", DisplayName: "ふらんく", Role: auth.RoleViewer}, wantErr: auth.ErrInvalidUser},
-		{name: "whitespace-only display name", user: &auth.NewUser{Username: "grace", DisplayName: "\u3000 ", Role: auth.RoleViewer}, wantErr: auth.ErrInvalidUser},
+		{name: "member", user: &auth.NewUser{Username: "bob", DisplayName: "ぼぶ", Role: domain.RoleMember}},
+		{name: "same username in different case", user: &auth.NewUser{Username: "alice", DisplayName: "別人", Role: domain.RoleViewer}, wantErr: auth.ErrUsernameTaken},
+		{name: "unknown role", user: &auth.NewUser{Username: "carol", DisplayName: "きゃろる", Role: "owner"}, wantErr: domain.ErrInvalidRole},
+		{name: "empty username", user: &auth.NewUser{Username: "", DisplayName: "名無し", Role: domain.RoleViewer}, wantErr: auth.ErrInvalidUser},
+		{name: "surrounding spaces", user: &auth.NewUser{Username: " dave", DisplayName: "でいぶ", Role: domain.RoleViewer}, wantErr: auth.ErrInvalidUser},
+		{name: "control character in username", user: &auth.NewUser{Username: "fr\nank", DisplayName: "ふらんく", Role: domain.RoleViewer}, wantErr: auth.ErrInvalidUser},
+		{name: "whitespace-only display name", user: &auth.NewUser{Username: "grace", DisplayName: "\u3000 ", Role: domain.RoleViewer}, wantErr: auth.ErrInvalidUser},
 		{name: "nil", user: nil, wantErr: auth.ErrInvalidUser},
-		{name: "too long display name", user: &auth.NewUser{Username: "eve", DisplayName: strings.Repeat("長", 65), Role: auth.RoleViewer}, wantErr: auth.ErrInvalidUser},
+		{name: "too long display name", user: &auth.NewUser{Username: "eve", DisplayName: strings.Repeat("長", 65), Role: domain.RoleViewer}, wantErr: auth.ErrInvalidUser},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,7 +64,7 @@ func TestDisableUser(t *testing.T) {
 
 	db := newDB(t)
 	users := auth.NewUsers(clocktest.NewFake(testNow()))
-	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "henry", DisplayName: "へんりー", Role: auth.RoleMember})
+	user, err := users.Create(t.Context(), db, &auth.NewUser{Username: "henry", DisplayName: "へんりー", Role: domain.RoleMember})
 	require.NoError(t, err)
 
 	tests := []struct {

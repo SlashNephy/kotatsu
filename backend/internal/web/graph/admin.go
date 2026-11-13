@@ -16,7 +16,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/query"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -40,7 +39,7 @@ func administer(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if !principal.Role.Can(auth.PermissionAdminister) {
+	if !principal.Role.Can(domain.PermissionAdminister) {
 		return NewError(CodeForbidden, "only administrators can see this")
 	}
 

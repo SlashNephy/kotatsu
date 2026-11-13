@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
@@ -33,7 +34,7 @@ func (a *Authorizer) Session(next http.Handler) http.Handler {
 
 			return
 		}
-		if !principal.Role.Can(auth.PermissionWatch) {
+		if !principal.Role.Can(domain.PermissionWatch) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 
 			return
@@ -70,7 +71,7 @@ func (a *Authorizer) Signed(next http.Handler) http.Handler {
 
 			return
 		}
-		if !role.Can(auth.PermissionWatch) {
+		if !role.Can(domain.PermissionWatch) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 
 			return

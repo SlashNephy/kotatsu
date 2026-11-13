@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/logring"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -145,7 +145,7 @@ func TestLogReport(t *testing.T) {
 			f := newFixture(t, opts)
 			client := f
 			if !tt.member {
-				client = f.as(t, adminName, auth.RoleAdmin)
+				client = f.as(t, adminName, domain.RoleAdmin)
 			}
 
 			var got logReportResult

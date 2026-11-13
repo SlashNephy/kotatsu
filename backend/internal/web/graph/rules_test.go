@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
@@ -174,7 +174,7 @@ func TestRules(t *testing.T) {
 	assert.Equal(t, got, node.Node)
 
 	// 別のメンバーが変える。ルールは家族で共有する (設計書 9.7)。
-	other := f.as(t, "other", auth.RoleMember)
+	other := f.as(t, "other", domain.RoleMember)
 	var updated struct {
 		UpdateRule ruleResult `json:"updateRule"`
 	}
@@ -224,7 +224,7 @@ func TestRuleErrors(t *testing.T) {
 	}
 	require.Empty(t, f.query(t, createRule, ruleVariables("", testProgramRule(services)), &created))
 	ruleID := created.CreateRule.ID
-	viewer := f.as(t, "child", auth.RoleViewer)
+	viewer := f.as(t, "child", domain.RoleViewer)
 
 	invalid := func(modify func(*ruleInput)) map[string]any {
 		input := testProgramRule(services)
@@ -437,7 +437,7 @@ func TestBulkRules(t *testing.T) {
 		return flags
 	}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
 
 	var disabled struct {
 		SetRulesEnabled payload `json:"setRulesEnabled"`

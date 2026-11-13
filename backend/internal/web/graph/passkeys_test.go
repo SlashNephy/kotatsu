@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/webauthntest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -134,7 +135,7 @@ func TestManagePasskeysRejects(t *testing.T) {
 			prepare: func(t *testing.T, f *fixture, id string) (*fixture, string, map[string]any) {
 				t.Helper()
 
-				return f.as(t, otherUser, auth.RoleMember), renameKeyMutation, map[string]any{varID: id, varName: renamedLabel}
+				return f.as(t, otherUser, domain.RoleMember), renameKeyMutation, map[string]any{varID: id, varName: renamedLabel}
 			},
 		},
 		{
@@ -142,7 +143,7 @@ func TestManagePasskeysRejects(t *testing.T) {
 			prepare: func(t *testing.T, f *fixture, id string) (*fixture, string, map[string]any) {
 				t.Helper()
 
-				return f.as(t, otherUser, auth.RoleMember), deleteKeyMutation, map[string]any{varID: id}
+				return f.as(t, otherUser, domain.RoleMember), deleteKeyMutation, map[string]any{varID: id}
 			},
 		},
 		{

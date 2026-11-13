@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -145,7 +146,7 @@ func (a *APITokens) Authenticate(ctx context.Context, token string) (*Principal,
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up the API token: %w", err)
 	}
-	role, err := ParseRole(row.Role)
+	role, err := domain.ParseRole(row.Role)
 	if err != nil {
 		return nil, err
 	}

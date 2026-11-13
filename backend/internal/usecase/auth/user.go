@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
@@ -38,7 +39,7 @@ type User struct {
 	ID          uuid.UUID
 	Username    string
 	DisplayName string
-	Role        Role
+	Role        domain.Role
 	// DisabledAt は無効にした日時。有効なら nil。
 	DisabledAt *time.Time
 	CreatedAt  time.Time
@@ -48,7 +49,7 @@ type User struct {
 type NewUser struct {
 	Username    string
 	DisplayName string
-	Role        Role
+	Role        domain.Role
 	// PasswordHash はパスワードのハッシュ。OIDC だけでログインするユーザーでは nil。
 	PasswordHash *string
 }
@@ -121,7 +122,7 @@ func validateNewUser(user *NewUser) error {
 	if !validName(user.DisplayName, maxDisplayNameLength) {
 		errs = append(errs, fmt.Errorf("%w: display name must be 1 to %d characters without surrounding spaces or control characters", ErrInvalidUser, maxDisplayNameLength))
 	}
-	if _, err := ParseRole(string(user.Role)); err != nil {
+	if _, err := domain.ParseRole(string(user.Role)); err != nil {
 		errs = append(errs, err)
 	}
 

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -54,7 +55,7 @@ func newFixture(t *testing.T, dataDir string) *fixture {
 	for _, name := range []string{alice, bob} {
 		// 視聴者も、自分のキャプチャを残せる。
 		user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-			Username: name, DisplayName: name, Role: auth.RoleViewer, PasswordHash: nil,
+			Username: name, DisplayName: name, Role: domain.RoleViewer, PasswordHash: nil,
 		})
 		require.NoError(t, err)
 		token, _, err := sessions.Create(t.Context(), pool, user.ID, nil)

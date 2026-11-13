@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -55,7 +56,7 @@ func TestWebhooks(t *testing.T) {
 	}
 	assert.Equal(t, []string{codeForbidden}, f.query(t, createWebhook, create, nil), "members cannot create webhooks")
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var created struct {
 		CreateWebhook struct {
 			Webhook webhookResult `json:"webhook"`
@@ -107,7 +108,7 @@ func TestWebhooksRejectInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	withInput := func(modify func(map[string]any)) map[string]any {
 		input := webhookInput()
 		modify(input)

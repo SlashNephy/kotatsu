@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
@@ -50,7 +51,7 @@ func (r *Resolver) administratorActor(ctx context.Context, message string) (*aut
 	if err != nil {
 		return nil, nil, err
 	}
-	if !principal.Role.Can(auth.PermissionAdminister) {
+	if !principal.Role.Can(domain.PermissionAdminister) {
 		return nil, nil, NewError(CodeForbidden, message)
 	}
 
@@ -70,9 +71,9 @@ func userModel(user *auth.User) *model.User {
 	}
 }
 
-// roleOf は、GraphQL のロールを auth のロールにする。
-func roleOf(role model.Role) auth.Role {
-	return auth.Role(strings.ToLower(string(role)))
+// roleOf は、GraphQL のロールを domain のロールにする。
+func roleOf(role model.Role) domain.Role {
+	return domain.Role(strings.ToLower(string(role)))
 }
 
 func parseUserID(globalID string) (uuid.UUID, error) {

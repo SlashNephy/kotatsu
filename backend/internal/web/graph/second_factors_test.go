@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/totp"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -132,7 +133,7 @@ func TestManageTOTPRequiresRecentAuthentication(t *testing.T) {
 func TestViewerCanManageOwnTOTP(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t, nil).as(t, "child", auth.RoleViewer)
+	f := newFixture(t, nil).as(t, "child", domain.RoleViewer)
 	assert.Equal(t, secondFactorStatus{TOTP: false, RemainingRecoveryCodes: 0}, f.status(t))
 	var got struct {
 		BeginTotpEnrollment struct {

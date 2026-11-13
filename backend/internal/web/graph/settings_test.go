@@ -88,7 +88,7 @@ func TestSystemSettings(t *testing.T) {
 	var got struct {
 		SystemSettings systemSettings `json:"systemSettings"`
 	}
-	viewerFixture := f.as(t, "viewer", auth.RoleViewer)
+	viewerFixture := f.as(t, "viewer", domain.RoleViewer)
 	require.Empty(t, viewerFixture.query(t, settingsQuery, nil, &got))
 	assert.Equal(t, defaultSystemSettings(), got.SystemSettings)
 
@@ -99,7 +99,7 @@ func TestSystemSettings(t *testing.T) {
 		assert.Equal(t, []string{codeForbidden}, user.query(t, updateSettings, change, nil), "only administrators can change the settings")
 	}
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var updated struct {
 		UpdateSystemSettings systemSettings `json:"updateSystemSettings"`
 	}
@@ -226,7 +226,7 @@ func TestDRCSReplacements(t *testing.T) {
 	}
 
 	f := newFixture(t, nil)
-	viewerFixture := f.as(t, "viewer", auth.RoleViewer)
+	viewerFixture := f.as(t, "viewer", domain.RoleViewer)
 	var got payload
 	require.Empty(t, viewerFixture.query(t, query, nil, &got))
 	assert.Empty(t, got.DRCSReplacements, "empty by default")
@@ -234,7 +234,7 @@ func TestDRCSReplacements(t *testing.T) {
 	change := input(drcsReplacement{MD5: md5Other, Text: "♪"}, drcsReplacement{MD5: md5Upper, Text: textJi})
 	assert.Equal(t, []string{codeForbidden}, viewerFixture.query(t, update, change, nil), "only administrators can change the table")
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	require.Empty(t, admin.query(t, update, change, nil))
 	want := []drcsReplacement{{MD5: md5Lower, Text: textJi}, {MD5: md5Other, Text: "♪"}}
 	require.Empty(t, viewerFixture.query(t, query, nil, &got))
@@ -309,7 +309,7 @@ func TestUpdateChannelType(t *testing.T) {
 	change := variables(last.Type, map[string]any{fieldDisplay: " ちでじ ", fieldSortOrder: 0})
 	assert.Equal(t, []string{codeForbidden}, f.query(t, updateChannelType, change, nil), "only administrators can change channel types")
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var updated struct {
 		UpdateChannelType channelType `json:"updateChannelType"`
 	}
@@ -339,7 +339,7 @@ func TestUpdateChannelTypeRejectsInvalidInput(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	const query = `{ channelTypes { type displayName sortOrder } }`
 	var before struct {
 		ChannelTypes []channelType `json:"channelTypes"`
@@ -421,7 +421,7 @@ func TestUpdateStoragePool(t *testing.T) {
 
 		return got.SystemStatus.Pools
 	}
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	// 設定していないプールは、優先順位 0、容量の閾値 0 で、録画を消さない。
 	assert.Equal(t, []storagePool{
 		{ID: poolMain, Path: mountMain, Priority: 0, MinFreeBytes: 0, FreeBytes: new(100 << 30), TotalBytes: new(400 << 30)},
@@ -521,7 +521,7 @@ func TestUpdateService(t *testing.T) {
 	// 最後のサービスを、並び順を上書きして先頭に動かす。
 	change := variables(map[string]any{fieldSortOrder: 0})
 	assert.Equal(t, []string{codeForbidden}, f.query(t, updateService, change, nil), "only administrators can change services")
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var updated struct {
 		UpdateService serviceRow `json:"updateService"`
 	}
@@ -560,7 +560,7 @@ func TestUpdateServiceRejectsInvalidInput(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	const query = `{ services(includeHidden: true) { id name hidden sortOrder } }`
 	var before struct {
 		Services []serviceRow `json:"services"`

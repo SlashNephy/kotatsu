@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -182,7 +182,7 @@ func TestReservations(t *testing.T) {
 	assert.Equal(t, program, node.Node)
 
 	// 別のメンバーが変える。
-	other := f.as(t, "other", auth.RoleMember)
+	other := f.as(t, "other", domain.RoleMember)
 	var updated struct {
 		UpdateReservation reservationResult `json:"updateReservation"`
 	}
@@ -345,7 +345,7 @@ func TestReservationErrors(t *testing.T) {
 	f.syncEPG(t)
 	services := f.serviceIDs(t)
 	reservation := f.createProgramReservation(t, 6)
-	viewer := f.as(t, "child", auth.RoleViewer)
+	viewer := f.as(t, "child", domain.RoleViewer)
 	timeInput := func(startAt, endAt string) map[string]any {
 		return map[string]any{varInput: map[string]any{varService: services["こたつテスト1"], varStartAt: startAt, varEndAt: endAt}}
 	}
@@ -428,7 +428,7 @@ func TestBulkReservations(t *testing.T) {
 		return got
 	}
 
-	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", auth.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, deleteMany, map[string]any{varIDs: ids}, nil))
 
 	var disabled struct {
 		SetReservationsEnabled payload `json:"setReservationsEnabled"`

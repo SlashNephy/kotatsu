@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
@@ -89,7 +90,7 @@ func TestAuditEvents(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	since := f.clock.Now()
 	events := []*audit.Event{
 		{Actor: audit.UserFrom(f.userID, netip.MustParseAddr("192.168.1.10"), "kotatsu-test/1.0"), Action: actionRuleCreate, TargetType: "rule", TargetID: "r1", Summary: map[string]any{varName: animeLabel}},
@@ -101,7 +102,7 @@ func TestAuditEvents(t *testing.T) {
 		f.record(t, event)
 	}
 	// 消したユーザーの操作も、操作者のユーザーを null にして返す。
-	gone, err := auth.NewUsers(f.clock).Create(t.Context(), f.pool, &auth.NewUser{Username: "gone", DisplayName: "gone", Role: auth.RoleMember, PasswordHash: nil})
+	gone, err := auth.NewUsers(f.clock).Create(t.Context(), f.pool, &auth.NewUser{Username: "gone", DisplayName: "gone", Role: domain.RoleMember, PasswordHash: nil})
 	require.NoError(t, err)
 	f.record(t, &audit.Event{Actor: audit.User(gone.ID), Action: "guide_view.create", TargetType: "guide_view", TargetID: "g1", Summary: map[string]any{}})
 	_, err = f.pool.Exec(t.Context(), "DELETE FROM users WHERE id = $1", gone.ID)
@@ -172,7 +173,7 @@ func TestSystemStatus(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, &graph.Options{Pools: map[string]string{poolSub: mountSub, poolMain: mountMain}})
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	now := f.clock.Now()
 	alive, stopped := id.New(), id.New()
 	for _, stmt := range []struct {
@@ -252,7 +253,7 @@ func TestSystemStatusBeforeChecks(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var got struct {
 		SystemStatus struct {
 			Instances   []any `json:"instances"`
@@ -304,7 +305,7 @@ func TestStoragePoolNames(t *testing.T) {
 			var got struct {
 				StoragePoolNames []string `json:"storagePoolNames"`
 			}
-			require.Empty(t, f.as(t, "viewer", auth.RoleViewer).query(t, `{ storagePoolNames }`, nil, &got))
+			require.Empty(t, f.as(t, "viewer", domain.RoleViewer).query(t, `{ storagePoolNames }`, nil, &got))
 			assert.Equal(t, tt.want, got.StoragePoolNames)
 		})
 	}
@@ -315,7 +316,7 @@ func TestResetRecordingFailureCounts(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	failedAt := f.clock.Now().Add(-time.Hour)
 	_, err := f.pool.Exec(t.Context(), `UPDATE recording_failure_counts SET count = 3, last_failed_at = $1 WHERE reason IN ('cancelled', 'storage_full')`, failedAt)
 	require.NoError(t, err)

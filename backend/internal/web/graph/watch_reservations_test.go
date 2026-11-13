@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
 
@@ -103,7 +103,7 @@ func TestWatchReservations(t *testing.T) {
 	assert.Equal(t, time.Date(2026, 10, 10, 12, 55, 0, 0, time.UTC), list[0].NotifyAt)
 
 	// ほかのユーザーの視聴予約は見えない。
-	assert.Empty(t, f.as(t, "other", auth.RoleMember).watchReservations(t))
+	assert.Empty(t, f.as(t, "other", domain.RoleMember).watchReservations(t))
 
 	// 外すと一覧から消える。付けていない番組から外しても、そのまま返す。
 	for range 2 {
@@ -148,7 +148,7 @@ func TestWatchReservationsForViewers(t *testing.T) {
 
 	f := newFixture(t, nil)
 	f.syncEPG(t)
-	v := f.as(t, "viewer", auth.RoleViewer)
+	v := f.as(t, "viewer", domain.RoleViewer)
 
 	got, codes := v.setWatch(t, 5, true)
 	require.Empty(t, codes)
@@ -209,7 +209,7 @@ func TestWatchReservedInGuide(t *testing.T) {
 		require.Empty(t, codes)
 	}
 	// ほかのユーザーの視聴予約は、印にしない。
-	_, codes := f.as(t, "other", auth.RoleMember).setWatch(t, 6, true)
+	_, codes := f.as(t, "other", domain.RoleMember).setWatch(t, 6, true)
 	require.Empty(t, codes)
 
 	var guide struct {

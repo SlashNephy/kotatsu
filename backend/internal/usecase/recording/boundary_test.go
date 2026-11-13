@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
 // recordedSpan は、録画のセグメントが表す時間の範囲。書いている途中なら、to は nil。
@@ -133,7 +132,7 @@ func TestRecorderConsecutiveReservations(t *testing.T) {
 			f.clock.Advance(tt.switchAt.Add(margin).Sub(f.clock.Now()))
 			require.NoError(t, wait(t, firstDone))
 			got, _ := f.recording(t, first)
-			assert.Equal(t, string(recording.StateCompleted), got.state)
+			assert.Equal(t, string(domain.RecordingStateCompleted), got.state)
 			firstSpan := f.span(t, first)
 			require.NotNil(t, firstSpan.to)
 			assert.False(t, firstSpan.to.Before(tt.switchAt.Add(margin)), "the first recording ended at %v", firstSpan.to)
@@ -142,7 +141,7 @@ func TestRecorderConsecutiveReservations(t *testing.T) {
 			secondSpan := f.span(t, second)
 			assert.False(t, secondSpan.from.After(tt.switchAt), "the second recording started at %v", secondSpan.from)
 			got, _ = f.recording(t, second)
-			assert.Equal(t, string(recording.StateRecording), got.state)
+			assert.Equal(t, string(domain.RecordingStateRecording), got.state)
 			stopSecond(errStopForTest)
 			assert.ErrorIs(t, wait(t, secondDone), errStopForTest)
 		})

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
 
@@ -57,7 +58,7 @@ func TestManageCalendarFeed(t *testing.T) {
 	assert.True(t, strings.HasSuffix(first, "/reservations.ics"), first)
 	require.NotNil(t, f.calendarFeed(t))
 	// ほかのユーザーからは、自分の URL は見えない。
-	assert.Nil(t, f.as(t, otherUser, auth.RoleMember).calendarFeed(t))
+	assert.Nil(t, f.as(t, otherUser, domain.RoleMember).calendarFeed(t))
 
 	// 発行し直すと、別の URL になる。
 	assert.NotEqual(t, first, issue())

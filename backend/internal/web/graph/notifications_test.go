@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -109,7 +108,7 @@ func TestNotifications(t *testing.T) {
 
 	f := newFixture(t, nil)
 	// 視聴者も通知を受け取る。
-	other := f.as(t, "viewer", auth.RoleViewer)
+	other := f.as(t, "viewer", domain.RoleViewer)
 	f.notify(t, domain.NotificationKindRecordingStarted, map[string]any{varName: tagKotatsu})
 	f.notify(t, domain.NotificationKindRecordingCompleted, nil)
 	f.notify(t, domain.NotificationKindRecordingFailed, nil)

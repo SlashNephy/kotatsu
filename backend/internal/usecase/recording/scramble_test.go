@@ -11,7 +11,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
-	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 )
 
 // TestRecorderWarnsScrambledRecordings は、スクランブルされたまま録れた録画を、失敗にせず、警告の印を付けて完了の通知に添えることを確かめる (#1517)。
@@ -49,7 +48,7 @@ func TestRecorderWarnsScrambledRecordings(t *testing.T) {
 			require.NoError(t, wait(t, done))
 
 			got, _ := f.recording(t, reservationID)
-			assert.Equal(t, recorded{state: string(recording.StateCompleted), failureReason: nil, drops: 0}, got, "a scrambled recording must not fail")
+			assert.Equal(t, recorded{state: string(domain.RecordingStateCompleted), failureReason: nil, drops: 0}, got, "a scrambled recording must not fail")
 			assert.Equal(t, tt.wantHistory, f.historyCount(t))
 			var warning bool
 			var ratio *float64

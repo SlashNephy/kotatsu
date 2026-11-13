@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
 )
@@ -39,7 +40,7 @@ func TestAnimeRecordApps(t *testing.T) {
 	assert.Equal(t, []string{codeForbidden}, f.query(t, animeRecordApps, nil, nil), "members cannot see the apps")
 	assert.Equal(t, []string{codeForbidden}, f.query(t, updateAnimeRecordApp, input, nil), "members cannot change the apps")
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	var updated struct {
 		UpdateAnimeRecordApp animeRecordApp `json:"updateAnimeRecordApp"`
 	}
@@ -70,8 +71,8 @@ func TestAnimeRecordApps(t *testing.T) {
 func TestAnimeRecordSettings(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t, nil)
-	viewer := f.as(t, "viewer", auth.RoleViewer)
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	viewer := f.as(t, "viewer", domain.RoleViewer)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	annict := map[string]any{varDestination: destinationAnnict}
 
 	type settings struct {
@@ -163,7 +164,7 @@ func TestAnimeImportToken(t *testing.T) {
 	assert.Equal(t, []string{codeForbidden}, f.query(t, animeImportToken, nil, nil), "members cannot see the token")
 	assert.Equal(t, []string{codeForbidden}, f.query(t, updateAnimeImportToken, input, nil), "members cannot change the token")
 
-	admin := f.as(t, adminName, auth.RoleAdmin)
+	admin := f.as(t, adminName, domain.RoleAdmin)
 	type status struct {
 		Configured bool `json:"configured"`
 	}

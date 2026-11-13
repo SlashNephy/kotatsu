@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
@@ -118,7 +119,7 @@ func (r *Recorder) waitBeforeWriting(
 			return outcome
 		}
 		logger.WarnContext(ctx, "the stream was interrupted while waiting for the program; reconnecting", slog.Any("error", err))
-		result.failed(FailureStreamInterrupted, err)
+		result.failed(domain.RecordingFailureReasonStreamInterrupted, err)
 		outcome.done, outcome.err = r.waitToReopen(ctx, logger, assignment, recording, tracker, result, r.opts.RetryInterval)
 		outcome.reopen = !outcome.done
 
@@ -127,7 +128,7 @@ func (r *Recorder) waitBeforeWriting(
 		_ = stream.Close()
 		if end == endPlanned {
 			// 予定の終わり (延長の上限) まで、予約した番組が放送中にならなかった。前の番組の TS は残さない。
-			result.failed(FailureProgramNotFound, nil)
+			result.failed(domain.RecordingFailureReasonProgramNotFound, nil)
 		}
 		outcome.done, outcome.err = true, r.finish(ctx, logger, assignment, recording, end, result, false, r.clock.Now(), tracker)
 

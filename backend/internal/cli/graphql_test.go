@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
@@ -61,7 +62,7 @@ func TestTenbanServesGraphQL(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(pool.Close)
 			user, err := auth.NewUsers(new(clock.Real)).Create(t.Context(), pool, &auth.NewUser{
-				Username: "kotatsu", DisplayName: "こたつ", Role: auth.RoleViewer, PasswordHash: nil,
+				Username: "kotatsu", DisplayName: "こたつ", Role: domain.RoleViewer, PasswordHash: nil,
 			})
 			require.NoError(t, err)
 			token, _, err := auth.NewSessions(nil).Create(t.Context(), pool, user.ID, nil)

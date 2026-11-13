@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 )
@@ -58,7 +59,7 @@ func TestFileOperationsDoNotRequireRecentAuthentication(t *testing.T) {
 			f, dir := newRecordingFixture(t)
 			// DB にないファイルを消すと、River のジョブを入れるので、River のテーブルを作っておく。
 			require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
-			admin := f.as(t, adminName, auth.RoleAdmin)
+			admin := f.as(t, adminName, domain.RoleAdmin)
 			missing := f.addRecording(t, dir, missingRecordingName, "completed", 2*time.Hour)
 			require.NoError(t, os.Remove(filepath.Join(dir, missingRecordingName+".m2ts")))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, orphanFileName), []byte("orphan"), 0o600))

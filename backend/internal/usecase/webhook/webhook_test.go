@@ -44,7 +44,7 @@ func newFixture(t *testing.T) *fixture {
 
 func validInput() *webhook.Input {
 	return &webhook.Input{
-		Name: "家族の Discord", URL: "https://discord.example/api/webhooks/1/token", Format: webhook.FormatDiscord,
+		Name: "家族の Discord", URL: "https://discord.example/api/webhooks/1/token", Format: domain.WebhookFormatDiscord,
 		Kinds: []domain.NotificationKind{domain.NotificationKindRecordingFailed, domain.NotificationKindRecordingStarted}, Enabled: true,
 	}
 }
@@ -82,7 +82,7 @@ func TestCreate(t *testing.T) {
 	f := newFixture(t)
 	created, secret := f.create(t)
 	assert.Equal(t, &webhook.Webhook{
-		ID: created.ID, Name: "家族の Discord", URL: "https://discord.example/api/webhooks/1/token", Format: webhook.FormatDiscord,
+		ID: created.ID, Name: "家族の Discord", URL: "https://discord.example/api/webhooks/1/token", Format: domain.WebhookFormatDiscord,
 		// 種類は、画面に並べる順にそろえる。
 		Kinds:   []domain.NotificationKind{domain.NotificationKindRecordingStarted, domain.NotificationKindRecordingFailed},
 		Enabled: true, CreatedAt: f.clock.Now(), UpdatedAt: f.clock.Now(),
@@ -165,12 +165,12 @@ func TestUpdateAndDelete(t *testing.T) {
 	f.clock.Advance(time.Minute)
 
 	updated, err := f.store.Update(t.Context(), f.pool, audit.System("test"), created.ID, &webhook.Changes{
-		Name: nil, URL: new(" https://hooks.slack.example/services/T/B/X "), Format: new(webhook.FormatSlack),
+		Name: nil, URL: new(" https://hooks.slack.example/services/T/B/X "), Format: new(domain.WebhookFormatSlack),
 		Kinds: []domain.NotificationKind{domain.NotificationKindStorageLow, domain.NotificationKindStorageLow}, Enabled: new(false),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, &webhook.Webhook{
-		ID: created.ID, Name: created.Name, URL: "https://hooks.slack.example/services/T/B/X", Format: webhook.FormatSlack,
+		ID: created.ID, Name: created.Name, URL: "https://hooks.slack.example/services/T/B/X", Format: domain.WebhookFormatSlack,
 		Kinds: []domain.NotificationKind{domain.NotificationKindStorageLow}, Enabled: false, CreatedAt: created.CreatedAt.UTC(), UpdatedAt: f.clock.Now(),
 	}, normalizeTimes(updated))
 	// 設定を変えても、秘密キーは変えない。
