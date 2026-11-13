@@ -34,6 +34,7 @@ const tunerServerNames: Record<TunerServerKind, string> = {
   MIRAKURUN: 'Mirakurun',
   MIRAKC: 'mirakc',
   MAHIRON: 'Mahiron',
+  EDCB: 'EDCB',
   '%future added value': '-',
 };
 
@@ -185,6 +186,10 @@ function SystemStatus() {
               <Text size="sm" c="red">
                 {t('admin.system.lastError', { error: status.tunerServer.lastError })}
               </Text>
+            )}
+            {/* EDCB は時計を返さないので、測れないことを示す (#1532)。放送の時刻とのずれは、録画で測る。 */}
+            {status.tunerServer.kind === 'EDCB' && status.tunerServer.clockSkewMs == null && (
+              <Text size="sm">{t('admin.system.clockSkewUnavailable')}</Text>
             )}
             {status.tunerServer.clockSkewMs != null && (
               // 閾値を超えたら、警告の色で、閾値とともに示す (#505)。

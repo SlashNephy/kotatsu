@@ -1623,6 +1623,7 @@
       "tunerServerKindVersion": "種類: {{kind}} {{version}}",
       "lastError": "最後のエラー: {{error}}",
       "clockSkew": "時計のずれ: {{ms}}ミリ秒",
+      "clockSkewUnavailable": "時計のずれ: 測れません（EDCBは時計を返しません）",
       "clockSkewExceeded": "時計のずれ: {{ms}}ミリ秒 (閾値の{{threshold}}ミリ秒を超えています)",
       "broadcastClockSkew": "放送の時刻（TOT）とのずれ: {{ms}}ミリ秒（{{at}}に録画で測定）",
       "broadcastClockSkewExceeded": "放送の時刻（TOT）とのずれ: {{ms}}ミリ秒（{{at}}に録画で測定。閾値の{{threshold}}ミリ秒を超えています）",

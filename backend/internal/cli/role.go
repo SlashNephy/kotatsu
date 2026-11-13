@@ -29,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -124,21 +125,29 @@ func DefaultRoles() []*Role {
 	}
 }
 
+// EDCB の TunerServer は、neko の EPG の同期とチューナーの把握に渡す (#1531、#1532)。
+var (
+	_ neko.EPGSource      = new(edcb.TunerServer)
+	_ tunerstate.Upstream = new(edcb.TunerServer)
+)
+
 func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")
 
 	// 設定していなければ、interface のまま nil にする。neko は nil と比べて、EPG の同期を止める。
 	var tuner tunerserver.Client
-	// EDCB は、まだ EPG の同期にだけ使う (#1531)。チューナーの把握、録画、視聴はつないでいない (#1258)。
+	// EDCB は、まだ EPG の同期とチューナーの把握にだけ使う (#1531、#1532)。録画と視聴はつないでいない (#1258)。
 	var epgSource neko.EPGSource
+	var tunerSource tunerstate.Upstream
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
 		client, err := edcb.New(&edcb.Options{Address: deps.Config.Tuner.EDCB.Address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
 		if err != nil {
 			return err
 		}
-		epgSource = edcb.NewTunerServer(client)
-		logger.WarnContext(ctx, "EDCB is used only to sync the EPG; tuner monitoring, recording, and viewing are not yet supported",
+		server := edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: deps.Config.Tuner.EDCB.BonDrivers})
+		epgSource, tunerSource = server, server
+		logger.WarnContext(ctx, "EDCB is used only to sync the EPG and monitor the tuners; recording and viewing are not yet supported",
 			slog.String("edcb_address", deps.Config.Tuner.EDCB.Address))
 	}
 	if deps.Config.Tuner.UsesTunerServer() {
@@ -163,11 +172,12 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	deps.ClusterMetrics.MustRegister(lastFullSync)
 
 	return neko.Run(ctx, logger, &neko.Options{
-		DB:         deps.DB,
-		Clock:      deps.Clock,
-		InstanceID: deps.InstanceID,
-		Tuner:      tuner,
-		EPGSource:  epgSource,
+		DB:          deps.DB,
+		Clock:       deps.Clock,
+		InstanceID:  deps.InstanceID,
+		Tuner:       tuner,
+		EPGSource:   epgSource,
+		TunerSource: tunerSource,
 		EPG: &epg.SyncerOptions{
 			FullSyncInterval: 0, MinFullSyncInterval: 0, BatchWindow: 0, BackoffInitial: 0, BackoffMax: 0, StableAfter: 0, OnTunerEvent: nil,
 			OnFullSync: func(at time.Time) { lastFullSync.Set(float64(at.Unix())) },

@@ -14,6 +14,7 @@ const (
 	KindMirakurun Kind = "mirakurun"
 	KindMirakc    Kind = "mirakc"
 	KindMahiron   Kind = "mahiron"
+	KindEdcb      Kind = "edcb"
 )
 
 var ErrInvalidKind = errors.New("not a valid Kind")
@@ -24,6 +25,7 @@ func KindValues() []Kind {
 		KindMirakurun,
 		KindMirakc,
 		KindMahiron,
+		KindEdcb,
 	}
 }
 
@@ -43,6 +45,7 @@ var _KindValue = map[string]Kind{
 	"mirakurun": KindMirakurun,
 	"mirakc":    KindMirakc,
 	"mahiron":   KindMahiron,
+	"edcb":      KindEdcb,
 }
 
 // ParseKind attempts to convert a string to a Kind.

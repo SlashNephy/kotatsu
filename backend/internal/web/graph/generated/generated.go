@@ -8567,6 +8567,8 @@ enum TunerServerKind {
   MIRAKURUN
   MIRAKC
   MAHIRON
+  "EDCB の EpgTimerSrv (#1532)。版を名乗らない"
+  EDCB
 }
 
 """
@@ -62388,11 +62390,13 @@ var (
 		"MIRAKURUN": tunerserver.KindMirakurun,
 		"MIRAKC":    tunerserver.KindMirakc,
 		"MAHIRON":   tunerserver.KindMahiron,
+		"EDCB":      tunerserver.KindEdcb,
 	}
 	marshalOTunerServerKind2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚋtunerserverᚐKind = map[tunerserver.Kind]string{
 		tunerserver.KindMirakurun: "MIRAKURUN",
 		tunerserver.KindMirakc:    "MIRAKC",
 		tunerserver.KindMahiron:   "MAHIRON",
+		tunerserver.KindEdcb:      "EDCB",
 	}
 )
 

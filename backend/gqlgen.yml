@@ -37,6 +37,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.KindMirakc
       MAHIRON:
         value: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.KindMahiron
+      EDCB:
+        value: github.com/SlashNephy/kotatsu/internal/domain/tunerserver.KindEdcb
   KeywordMatch:
     model: github.com/SlashNephy/kotatsu/internal/domain/match.KeywordMatch
     enum_values:

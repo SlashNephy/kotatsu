@@ -428,8 +428,8 @@ func TestTunersFromRealEDCB(t *testing.T) {
 	reserves, err := client.TunerReserves(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, []*edcb.TunerReserve{
-		{TunerID: 1, TunerName: "BonDriver_LinuxMirakurun.so", ReserveIDs: []uint32{}},
-		{TunerID: 2, TunerName: "BonDriver_LinuxMirakurun.so", ReserveIDs: []uint32{}},
+		{TunerID: 1, TunerName: labBonDriver, ReserveIDs: []uint32{}},
+		{TunerID: 2, TunerName: labBonDriver, ReserveIDs: []uint32{}},
 		// 最後は、チューナーが足りない予約を集めたもの。
 		{TunerID: edcb.UnassignedTunerID, TunerName: "チューナー不足", ReserveIDs: []uint32{}},
 	}, reserves)

@@ -130,11 +130,14 @@ func (m *Monitor) Check(ctx context.Context) error {
 	}
 
 	// 時計は、Date ヘッダーが取れたときだけ比べる。取れなくても、チューナーの構成は記録する。
+	// EDCB は時計を返さないので (#1532)、比べずに、警告も出さない。
 	var skewMs *int64
 	date, err := m.upstream.ServerDate(ctx)
-	if err != nil {
+	switch {
+	case errors.Is(err, tunerserver.ErrClockUnavailable):
+	case err != nil:
 		m.logger.WarnContext(ctx, "failed to read the clock of the tuner server", slog.Any("error", err))
-	} else {
+	default:
 		skew := date.Sub(now)
 		m.warnSkew(ctx, skew)
 		skewMs = new(skew.Milliseconds())

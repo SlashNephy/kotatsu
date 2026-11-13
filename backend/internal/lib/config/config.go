@@ -220,6 +220,10 @@ type EDCB struct {
 	// TVTest は小さい番号) と重ならないようにする。
 	NetworkTVIDStart int `yaml:"network_tv_id_start"`
 	NetworkTVIDCount int `yaml:"network_tv_id_count"`
+	// BonDrivers は、Kotatsu がライブと録画に使う BonDriver の名前 (BonDriver_mirakc.dll など)。EpgTimerSrv.ini の [TVTEST] に
+	// 並べたものと同じにする。NetworkTV は、そこに並べた BonDriver しか使わないが、EpgTimerSrv はその一覧を返さないので、
+	// 設定で教える (#1532)。空なら、すべてのチューナーを使えるとみなす。
+	BonDrivers []string `yaml:"bon_drivers"`
 }
 
 const (
@@ -484,7 +488,7 @@ func Default() *Config {
 		Tuner: Tuner{
 			Kind: TunerKindMirakurun,
 			URL:  "",
-			EDCB: EDCB{Address: "", NetworkTVIDStart: DefaultEDCBNetworkTVIDStart, NetworkTVIDCount: DefaultEDCBNetworkTVIDCount},
+			EDCB: EDCB{Address: "", NetworkTVIDStart: DefaultEDCBNetworkTVIDStart, NetworkTVIDCount: DefaultEDCBNetworkTVIDCount, BonDrivers: []string{}},
 		},
 		Auth: Auth{
 			SecretKey: "",

@@ -236,33 +236,53 @@ func TestCheckRecordsDegradedWhileUnreachable(t *testing.T) {
 	assert.Equal(t, 1, notified())
 }
 
-// dateless は、Date ヘッダーを返さないチューナーサーバー (プロキシが取り除いた場合など) を再現する。
+// dateless は、時計を返さないチューナーサーバーを再現する。Date ヘッダーをプロキシが取り除いた場合や、時計を返さない EDCB (#1532)。
 type dateless struct {
 	tunerstate.Upstream
+
+	err error
 }
 
-func (dateless) ServerDate(context.Context) (time.Time, error) {
-	return time.Time{}, errors.New("the tuner server returned no valid Date header")
+func (d dateless) ServerDate(context.Context) (time.Time, error) {
+	return time.Time{}, d.err
 }
 
-// TestCheckRecordsTunersWithoutDate は、Date ヘッダーが取れなくても縮退にせず、チューナーの構成を記録することを確かめる。
+// TestCheckRecordsTunersWithoutDate は、時計が取れなくても縮退にせず、チューナーの構成を記録することを確かめる。
+// 時計を返さない種類のサーバー (EDCB) では、確かめるたびに警告を出さない。
 func TestCheckRecordsTunersWithoutDate(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t, 0)
-	client, err := mirakurun.New(&mirakurun.Options{URL: f.server.URL})
-	require.NoError(t, err)
-	monitor := tunerstate.NewMonitor(f.pool, dateless{Upstream: client}, f.clock, noGuard, slog.New(slog.DiscardHandler), nil)
-	require.NoError(t, monitor.Check(t.Context()))
+	const warning = "failed to read the clock of the tuner server"
+	tests := []struct {
+		name         string
+		err          error
+		wantWarnings int
+	}{
+		{name: "no Date header", err: errors.New("the tuner server returned no valid Date header"), wantWarnings: 1},
+		{name: "clock unavailable", err: tunerserver.ErrClockUnavailable, wantWarnings: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	assert.Len(t, f.tuners(t), 3)
-	var (
-		since *time.Time
-		skew  *int64
-	)
-	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT degraded_since, clock_skew_ms FROM tuner_server_status").Scan(&since, &skew))
-	assert.Nil(t, since)
-	assert.Nil(t, skew)
+			f := newFixture(t, 0)
+			client, err := mirakurun.New(&mirakurun.Options{URL: f.server.URL})
+			require.NoError(t, err)
+			logs := &recordingHandler{Handler: slog.DiscardHandler, mu: sync.Mutex{}, messages: []string{}}
+			monitor := tunerstate.NewMonitor(f.pool, dateless{Upstream: client, err: tt.err}, f.clock, noGuard, slog.New(logs), nil)
+			require.NoError(t, monitor.Check(t.Context()))
+
+			assert.Len(t, f.tuners(t), 3)
+			var (
+				since *time.Time
+				skew  *int64
+			)
+			require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT degraded_since, clock_skew_ms FROM tuner_server_status").Scan(&since, &skew))
+			assert.Nil(t, since)
+			assert.Nil(t, skew)
+			assert.Equal(t, tt.wantWarnings, logs.count(warning))
+		})
+	}
 }
 
 func TestCheckClearsDegradedAfterReconnect(t *testing.T) {

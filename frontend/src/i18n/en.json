@@ -1701,6 +1701,7 @@
       "tunerServerKindVersion": "Kind: {{kind}} {{version}}",
       "lastError": "Last error: {{error}}",
       "clockSkew": "Clock skew: {{ms}} ms",
+      "clockSkewUnavailable": "Clock skew: not measurable (EDCB does not report its clock)",
       "clockSkewExceeded": "Clock skew: {{ms}} ms (exceeds the threshold of {{threshold}} ms)",
       "broadcastClockSkew": "Offset from the broadcast time (TOT): {{ms}} ms (measured while recording at {{at}})",
       "broadcastClockSkewExceeded": "Offset from the broadcast time (TOT): {{ms}} ms (measured while recording at {{at}}; exceeds the threshold of {{threshold}} ms)",
