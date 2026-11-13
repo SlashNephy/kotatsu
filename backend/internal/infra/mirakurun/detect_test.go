@@ -21,6 +21,9 @@ type stubServer struct {
 	kind atomic.Value
 }
 
+// stubVersion は、スタブが Mirakurun と mirakc として名乗る版。
+const stubVersion = "4.0.0"
+
 func newStubServer(t *testing.T, kind mirakurun.ServerKind) (*stubServer, *httptest.Server) {
 	t.Helper()
 
@@ -64,7 +67,7 @@ func (s *stubServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func stubMirakurunVersion() *mirakurun.Version {
-	return &mirakurun.Version{Current: "4.0.0", Latest: "4.0.0", Server: ""}
+	return &mirakurun.Version{Current: stubVersion, Latest: stubVersion, Server: ""}
 }
 
 func TestDetect(t *testing.T) {
@@ -212,4 +215,31 @@ func TestOpenEventsInvalidatesOnFailure(t *testing.T) {
 	event, err := stream.Next()
 	require.NoError(t, err)
 	assert.Equal(t, tunerserver.EventTypeTunerChanged, event.Type)
+}
+
+// TestIdentify は、判定した種類と名乗った版を、種類に依らない型で返すことを確かめる (#1538)。
+func TestIdentify(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		kind mirakurun.ServerKind
+		want *tunerserver.Identity
+	}{
+		{kind: mirakurun.ServerKindMirakurun, want: &tunerserver.Identity{Kind: tunerserver.KindMirakurun, Version: stubVersion}},
+		{kind: mirakurun.ServerKindMirakc, want: &tunerserver.Identity{Kind: tunerserver.KindMirakc, Version: stubVersion}},
+		{kind: mirakurun.ServerKindMahiron, want: &tunerserver.Identity{Kind: tunerserver.KindMahiron, Version: "5.2.2"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.kind.String(), func(t *testing.T) {
+			t.Parallel()
+
+			_, server := newStubServer(t, tt.kind)
+			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
+			require.NoError(t, err)
+
+			got, err := client.Identify(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

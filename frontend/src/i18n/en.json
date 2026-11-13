@@ -1695,6 +1695,8 @@
       "healthy": "Healthy",
       "degraded": "Degraded",
       "degradedSince": "Degraded since {{since}}",
+      "tunerServerKind": "Kind: {{kind}}",
+      "tunerServerKindVersion": "Kind: {{kind}} {{version}}",
       "lastError": "Last error: {{error}}",
       "clockSkew": "Clock skew: {{ms}} ms",
       "clockSkewExceeded": "Clock skew: {{ms}} ms (exceeds the threshold of {{threshold}} ms)",

@@ -20,7 +20,7 @@ func (q *Queries) DeleteTuners(ctx context.Context) error {
 }
 
 const getTunerServerStatus = `-- name: GetTunerServerStatus :one
-SELECT degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at FROM tuner_server_status WHERE id
+SELECT degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at, server_kind, server_version FROM tuner_server_status WHERE id
 `
 
 type GetTunerServerStatusRow struct {
@@ -30,6 +30,8 @@ type GetTunerServerStatusRow struct {
 	CheckedAt               time.Time
 	BroadcastClockSkewMs    *int64
 	BroadcastClockCheckedAt *time.Time
+	ServerKind              *string
+	ServerVersion           *string
 }
 
 func (q *Queries) GetTunerServerStatus(ctx context.Context) (GetTunerServerStatusRow, error) {
@@ -42,6 +44,8 @@ func (q *Queries) GetTunerServerStatus(ctx context.Context) (GetTunerServerStatu
 		&i.CheckedAt,
 		&i.BroadcastClockSkewMs,
 		&i.BroadcastClockCheckedAt,
+		&i.ServerKind,
+		&i.ServerVersion,
 	)
 	return i, err
 }
@@ -132,13 +136,15 @@ func (q *Queries) SetBroadcastClockSkew(ctx context.Context, arg SetBroadcastClo
 }
 
 const upsertTunerServerStatus = `-- name: UpsertTunerServerStatus :exec
-INSERT INTO tuner_server_status (id, degraded_since, last_error, clock_skew_ms, checked_at)
-VALUES (true, $1, $2, $3, $4)
+INSERT INTO tuner_server_status (id, degraded_since, last_error, clock_skew_ms, checked_at, server_kind, server_version)
+VALUES (true, $1, $2, $3, $4, $5, $6)
 ON CONFLICT (id) DO UPDATE SET
   degraded_since = excluded.degraded_since,
   last_error = excluded.last_error,
   clock_skew_ms = excluded.clock_skew_ms,
-  checked_at = excluded.checked_at
+  checked_at = excluded.checked_at,
+  server_kind = COALESCE(excluded.server_kind, tuner_server_status.server_kind),
+  server_version = COALESCE(excluded.server_version, tuner_server_status.server_version)
 `
 
 type UpsertTunerServerStatusParams struct {
@@ -146,14 +152,19 @@ type UpsertTunerServerStatusParams struct {
 	LastError     string
 	ClockSkewMs   *int64
 	CheckedAt     time.Time
+	ServerKind    *string
+	ServerVersion *string
 }
 
+// 種類と版が NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
 func (q *Queries) UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error {
 	_, err := q.db.Exec(ctx, upsertTunerServerStatus,
 		arg.DegradedSince,
 		arg.LastError,
 		arg.ClockSkewMs,
 		arg.CheckedAt,
+		arg.ServerKind,
+		arg.ServerVersion,
 	)
 	return err
 }

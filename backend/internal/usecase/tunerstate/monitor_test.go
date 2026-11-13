@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -300,6 +301,72 @@ func TestTruncateKeepsValidUTF8(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.want, tunerstate.Truncate(tt.in, tt.maxBytes))
+		})
+	}
+}
+
+// unidentified は、種類の判定に失敗するチューナーサーバーを再現する。
+type unidentified struct {
+	tunerstate.Upstream
+}
+
+func (unidentified) Identify(context.Context) (*tunerserver.Identity, error) {
+	return nil, errors.New("the tuner server returned 500 for /api/version")
+}
+
+// TestCheckRecordsServerIdentity は、チューナーサーバーの種類と版を記録し、分からない間は最後に分かったものを残すことを確かめる (#1538)。
+func TestCheckRecordsServerIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// then は、一度記録した後に、もう一度確かめる前の変化。
+		then func(t *testing.T, f *fixture) *tunerstate.Monitor
+	}{
+		{
+			name: "identified again",
+			then: func(_ *testing.T, f *fixture) *tunerstate.Monitor { return f.monitor },
+		},
+		{
+			name: "identification fails",
+			then: func(t *testing.T, f *fixture) *tunerstate.Monitor {
+				t.Helper()
+				client, err := mirakurun.New(&mirakurun.Options{URL: f.server.URL})
+				require.NoError(t, err)
+
+				return tunerstate.NewMonitor(f.pool, unidentified{Upstream: client}, f.clock, noGuard, slog.New(slog.DiscardHandler), nil)
+			},
+		},
+		{
+			name: "unreachable",
+			then: func(_ *testing.T, f *fixture) *tunerstate.Monitor {
+				f.server.Close()
+
+				return f.monitor
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, 0)
+			identity := func() (*string, *string) {
+				var kind, version *string
+				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT server_kind, server_version FROM tuner_server_status").Scan(&kind, &version))
+
+				return kind, version
+			}
+
+			require.NoError(t, f.monitor.Check(t.Context()))
+			kind, version := identity()
+			assert.Equal(t, new("mirakurun"), kind)
+			assert.Equal(t, new("3.9.0-faketuner"), version)
+
+			require.NoError(t, tt.then(t, f).Check(t.Context()))
+			kind, version = identity()
+			assert.Equal(t, new("mirakurun"), kind)
+			assert.Equal(t, new("3.9.0-faketuner"), version)
 		})
 	}
 }

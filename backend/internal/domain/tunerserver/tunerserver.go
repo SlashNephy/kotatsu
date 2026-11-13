@@ -27,6 +27,8 @@ type Client interface {
 	Tuners(ctx context.Context) ([]*Tuner, error)
 	// ServerDate は、チューナーサーバーの時計の時刻を返す (設計書 3.7)。
 	ServerDate(ctx context.Context) (time.Time, error)
+	// Identify は、チューナーサーバーの種類と版を返す (#1538)。
+	Identify(ctx context.Context) (*Identity, error)
 	// OpenEvents は、チューナーサーバーの変化を知らせるイベントのストリームを開く。
 	OpenEvents(ctx context.Context) (EventStream, error)
 	// OpenServiceStream は、サービスのストリームを開く。返す io.ReadCloser は、読み終えたら必ず閉じる。

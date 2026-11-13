@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
@@ -232,6 +233,8 @@ func (r *Resolver) systemStatus(ctx context.Context) (*model.SystemStatus, error
 			ClockSkewMs: skewMs, ClockSkewed: skewed, ClockSkewThresholdMs: int(tunerstate.DefaultSkewThreshold.Milliseconds()),
 			CheckedAt: server.CheckedAt, BroadcastClockSkewMs: broadcastMs, BroadcastClockSkewed: broadcastSkewed,
 			BroadcastClockCheckedAt: server.BroadcastClockCheckedAt,
+			Kind:                    tunerServerKind(server.ServerKind),
+			Version:                 versionOf(server.ServerVersion),
 		}
 	}
 	tuners, err := q.ListTuners(ctx)
@@ -345,4 +348,27 @@ func (r *Resolver) resetRecordingFailureCounts(ctx context.Context, reasons []do
 	}
 
 	return r.recordingFailureCounts(ctx)
+}
+
+// tunerServerKind は、DB に記録したチューナーサーバーの種類を返す (#1538)。記録がないか、知らない種類なら nil を返す。
+// 知らない種類は、新しい版が書いた値を古い版が読んだときに起きうる。
+func tunerServerKind(value *string) *tunerserver.Kind {
+	if value == nil {
+		return nil
+	}
+	kind, err := tunerserver.ParseKind(*value)
+	if err != nil {
+		return nil
+	}
+
+	return &kind
+}
+
+// versionOf は、DB に記録したチューナーサーバーの版を返す。記録がないか、名乗らなかった (空) なら nil を返す。
+func versionOf(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	return nonEmpty(*value)
 }

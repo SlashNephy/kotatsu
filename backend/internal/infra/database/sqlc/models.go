@@ -932,6 +932,8 @@ type TunerServerStatus struct {
 	CheckedAt               time.Time
 	BroadcastClockSkewMs    *int64
 	BroadcastClockCheckedAt *time.Time
+	ServerKind              *string
+	ServerVersion           *string
 }
 
 type User struct {
