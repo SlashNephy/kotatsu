@@ -172,7 +172,7 @@ func audioComponents(descriptors []byte) []*AudioComponent {
 				ComponentType: body[1],
 				ComponentTag:  body[2],
 				IsMain:        body[5]&0x40 != 0,
-				SamplingRate:  samplingRate(body[5] >> 1 & 0x07),
+				SamplingRate:  SamplingRate(body[5] >> 1 & 0x07),
 				Languages:     []string{string(body[6:9])},
 			}
 			if multiLingual && len(body) >= audioComponentMultiLingualLength {
@@ -186,8 +186,8 @@ func audioComponents(descriptors []byte) []*AudioComponent {
 	return audios
 }
 
-// samplingRate は、音声コンポーネント記述子の sampling_rate を Hz にする。
-func samplingRate(code uint8) int {
+// SamplingRate は、音声コンポーネント記述子の sampling_rate を Hz にする。分からなければ 0 を返す。
+func SamplingRate(code uint8) int {
 	switch code {
 	case 1:
 		return 16000
