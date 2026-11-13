@@ -55,13 +55,13 @@ func streamServer(t *testing.T, ts []byte, notReady int) *fakeServer {
 	t.Helper()
 
 	s := newFakeServer(t, map[uint32]reply{
-		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false},
-		1073: {status: 1, payload: payload{}.u32(27), stream: nil, hold: false},
-		1074: {status: 1, payload: nil, stream: nil, hold: false},
-		301:  {status: 1, payload: nil, stream: ts, hold: false},
+		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false, drop: false},
+		1073: {status: 1, payload: payload{}.u32(27), stream: nil, hold: false, drop: false},
+		1074: {status: 1, payload: nil, stream: nil, hold: false, drop: false},
+		301:  {status: 1, payload: nil, stream: ts, hold: false, drop: false},
 	})
 	for range notReady {
-		s.queued[301] = append(s.queued[301], reply{status: 0, payload: nil, stream: nil, hold: false})
+		s.queued[301] = append(s.queued[301], reply{status: 0, payload: nil, stream: nil, hold: false, drop: false})
 	}
 
 	return s
@@ -141,7 +141,7 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 			t.Parallel()
 
 			s := streamServer(t, nil, 0)
-			s.queued[1073] = []reply{{status: tt.openStatus, payload: payload{}.u32(27), stream: nil, hold: false}}
+			s.queued[1073] = []reply{{status: tt.openStatus, payload: payload{}.u32(27), stream: nil, hold: false, drop: false}}
 			ids := &fakeIDs{mu: sync.Mutex{}, used: tt.busy, acquired: []edcb.ServiceKey{}, released: []int32{}}
 			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids})
 			_, err := server.OpenServiceStream(t.Context(), tt.serviceID, nil)

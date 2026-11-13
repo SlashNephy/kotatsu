@@ -32,6 +32,8 @@ type reply struct {
 	stream []byte
 	// hold は、応答を返さずに、接続が閉じられるまで待つかどうか (保留した GET_STATUS_NOTIFY2)。
 	hold bool
+	// drop は、応答を返さずに、接続を閉じるかどうか (応答の上限の時間が過ぎた GET_STATUS_NOTIFY2)。
+	drop bool
 }
 
 // request は、偽の EpgTimerSrv が受け取った要求。
@@ -94,11 +96,14 @@ func (s *fakeServer) handle(conn net.Conn) {
 	s.mu.Unlock()
 
 	if !ok {
-		r = reply{status: 203, payload: nil, stream: nil, hold: false}
+		r = reply{status: 203, payload: nil, stream: nil, hold: false, drop: false}
 	}
 	if r.hold {
 		_, _ = io.Copy(io.Discard, conn)
 
+		return
+	}
+	if r.drop {
 		return
 	}
 	res := binary.LittleEndian.AppendUint32(nil, r.status)
@@ -189,7 +194,7 @@ func TestStatusErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newFakeServer(t, map[uint32]reply{1021: {status: tt.status, payload: nil, stream: nil, hold: false}})
+			s := newFakeServer(t, map[uint32]reply{1021: {status: tt.status, payload: nil, stream: nil, hold: false, drop: false}})
 			_, err := s.client(t).Services(t.Context())
 			require.ErrorIs(t, err, tt.want)
 		})
@@ -200,7 +205,7 @@ func TestWaitNotificationStopsWithContext(t *testing.T) {
 	t.Parallel()
 
 	// 新しい通知がなければ、EpgTimerSrv は応答を保留する。待つのは ctx が終わるまで。
-	s := newFakeServer(t, map[uint32]reply{2200: {status: 0, payload: nil, stream: nil, hold: true}})
+	s := newFakeServer(t, map[uint32]reply{2200: {status: 0, payload: nil, stream: nil, hold: true, drop: false}})
 	ctx, cancel := context.WithCancel(t.Context())
 	client := s.client(t)
 	done := make(chan error, 1)
@@ -242,7 +247,7 @@ const (
 func TestServicesFromRealEDCB(t *testing.T) {
 	t.Parallel()
 
-	s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: fixture(t, "enum_service.bin"), stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: fixture(t, "enum_service.bin"), stream: nil, hold: false, drop: false}})
 	services, err := s.client(t).Services(t.Context())
 	require.NoError(t, err)
 
@@ -263,7 +268,7 @@ func TestEventsFromRealEDCB(t *testing.T) {
 	t.Parallel()
 
 	// 番組名、概要、詳細は、公開リポジトリに放送局の文章を置かないよう、同じ長さの伏せ字 (〇) に置き換えてある。
-	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: fixture(t, "enum_pg_info_ex.bin"), stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: fixture(t, "enum_pg_info_ex.bin"), stream: nil, hold: false, drop: false}})
 	jst := time.FixedZone("JST", 9*60*60)
 	nhk := edcb.ServiceKey{ONID: 32736, TSID: 32736, SID: 1024}
 	got, err := s.client(t).Events(t.Context(), &edcb.EventsQuery{
@@ -337,7 +342,7 @@ func TestEventsRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: fromHex(t, "0800000000000000"), stream: nil, hold: false}})
+			s := newFakeServer(t, map[uint32]reply{1029: {status: 1, payload: fromHex(t, "0800000000000000"), stream: nil, hold: false, drop: false}})
 			got, err := s.client(t).Events(t.Context(), tt.query)
 			require.NoError(t, err)
 			assert.Empty(t, got)
@@ -349,7 +354,7 @@ func TestEventsRequest(t *testing.T) {
 func TestNetworkTVFromRealEDCB(t *testing.T) {
 	t.Parallel()
 
-	s := newFakeServer(t, map[uint32]reply{1073: {status: 1, payload: fixture(t, "nwtv_open.bin"), stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1073: {status: 1, payload: fixture(t, "nwtv_open.bin"), stream: nil, hold: false, drop: false}})
 	pid, err := s.client(t).OpenNetworkTV(t.Context(), 900, edcb.ServiceKey{ONID: 32737, TSID: 32737, SID: 1032})
 	require.NoError(t, err)
 	assert.Equal(t, int32(27), pid)
@@ -365,9 +370,9 @@ func TestNetworkTVProcess(t *testing.T) {
 		wantPID  int32
 		wantOpen bool
 	}{
-		{name: "open", reply: reply{status: 1, payload: fixture(t, "nwtv_check_open.bin"), stream: nil, hold: false}, wantPID: 27, wantOpen: true},
+		{name: "open", reply: reply{status: 1, payload: fixture(t, "nwtv_check_open.bin"), stream: nil, hold: false, drop: false}, wantPID: 27, wantOpen: true},
 		// 開いていなければ (EDCB の予約にチューナーを取られたときも)、EpgTimerSrv は CMD_ERR (0) を返す。
-		{name: "closed", reply: reply{status: 0, payload: nil, stream: nil, hold: false}, wantPID: 0, wantOpen: false},
+		{name: "closed", reply: reply{status: 0, payload: nil, stream: nil, hold: false, drop: false}, wantPID: 0, wantOpen: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -386,7 +391,7 @@ func TestNetworkTVProcess(t *testing.T) {
 func TestCloseNetworkTV(t *testing.T) {
 	t.Parallel()
 
-	s := newFakeServer(t, map[uint32]reply{1074: {status: 1, payload: nil, stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1074: {status: 1, payload: nil, stream: nil, hold: false, drop: false}})
 	require.NoError(t, s.client(t).CloseNetworkTV(t.Context(), 900))
 	assert.Equal(t, []request{{command: 1074, body: fromHex(t, "84030000")}}, s.received())
 }
@@ -397,7 +402,7 @@ func TestRelayStream(t *testing.T) {
 	// 応答の後に、TS がそのまま続く。偽の TS は、同期バイトだけを置いた 2 パケット。
 	ts := make([]byte, 2*188)
 	ts[0], ts[188] = 0x47, 0x47
-	s := newFakeServer(t, map[uint32]reply{301: {status: 1, payload: nil, stream: ts, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{301: {status: 1, payload: nil, stream: ts, hold: false, drop: false}})
 	stream, err := s.client(t).RelayStream(t.Context(), 27)
 	require.NoError(t, err)
 	got, err := io.ReadAll(stream)
@@ -411,7 +416,7 @@ func TestRelayStreamFails(t *testing.T) {
 	t.Parallel()
 
 	// 1 つのプロセスの TS を受け取れるのは 2 つまでで、3 つ目には CMD_ERR が返る。
-	s := newFakeServer(t, map[uint32]reply{301: {status: 0, payload: nil, stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{301: {status: 0, payload: nil, stream: nil, hold: false, drop: false}})
 	_, err := s.client(t).RelayStream(t.Context(), 27)
 	require.ErrorIs(t, err, edcb.ErrFailed)
 }
@@ -420,8 +425,8 @@ func TestTunersFromRealEDCB(t *testing.T) {
 	t.Parallel()
 
 	s := newFakeServer(t, map[uint32]reply{
-		1016: {status: 1, payload: fixture(t, "enum_tuner_reserve.bin"), stream: nil, hold: false},
-		1066: {status: 1, payload: fixture(t, "enum_tuner_process_open.bin"), stream: nil, hold: false},
+		1016: {status: 1, payload: fixture(t, "enum_tuner_reserve.bin"), stream: nil, hold: false, drop: false},
+		1066: {status: 1, payload: fixture(t, "enum_tuner_process_open.bin"), stream: nil, hold: false, drop: false},
 	})
 	client := s.client(t)
 
@@ -446,7 +451,7 @@ func TestTunerProcessesWhenIdle(t *testing.T) {
 	t.Parallel()
 
 	// 起動しているチューナーがなければ、空の配列が返る。
-	s := newFakeServer(t, map[uint32]reply{1066: {status: 1, payload: fixture(t, "enum_tuner_process_idle.bin"), stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1066: {status: 1, payload: fixture(t, "enum_tuner_process_idle.bin"), stream: nil, hold: false, drop: false}})
 	processes, err := s.client(t).TunerProcesses(t.Context())
 	require.NoError(t, err)
 	assert.Empty(t, processes)
@@ -482,7 +487,7 @@ func TestNotificationsFromRealEDCB(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newFakeServer(t, map[uint32]reply{2200: {status: 1, payload: fixture(t, tt.fixture), stream: nil, hold: false}})
+			s := newFakeServer(t, map[uint32]reply{2200: {status: 1, payload: fixture(t, tt.fixture), stream: nil, hold: false, drop: false}})
 			got, err := s.client(t).WaitNotification(t.Context(), tt.count)
 			require.NoError(t, err)
 			assert.True(t, tt.want.Time.Equal(got.Time), "%v", got.Time)
@@ -500,8 +505,8 @@ func TestFilesFromRealEDCB(t *testing.T) {
 
 	chSet := fixture(t, "file_copy_chset5.bin")
 	s := newFakeServer(t, map[uint32]reply{
-		2060: {status: 1, payload: fixture(t, "file_copy2.bin"), stream: nil, hold: false},
-		1060: {status: 1, payload: chSet, stream: nil, hold: false},
+		2060: {status: 1, payload: fixture(t, "file_copy2.bin"), stream: nil, hold: false, drop: false},
+		1060: {status: 1, payload: chSet, stream: nil, hold: false, drop: false},
 	})
 	client := s.client(t)
 

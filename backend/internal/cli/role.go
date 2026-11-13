@@ -30,7 +30,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
-	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
@@ -126,39 +125,26 @@ func DefaultRoles() []*Role {
 	}
 }
 
-// EDCB の TunerServer は、neko の EPG の同期とチューナーの把握に渡す (#1531、#1532)。
-var (
-	_ neko.EPGSource      = new(edcb.TunerServer)
-	_ tunerstate.Upstream = new(edcb.TunerServer)
-)
-
 func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	logger.InfoContext(ctx, "role started")
 	defer logger.InfoContext(ctx, "role stopped")
 
 	// 設定していなければ、interface のまま nil にする。neko は nil と比べて、EPG の同期を止める。
 	var tuner tunerserver.Client
-	// EDCB は、まだ EPG の同期とチューナーの把握にだけ使う (#1531、#1532)。録画と視聴はつないでいない (#1258)。
-	var epgSource neko.EPGSource
-	var tunerSource tunerstate.Upstream
-	// 持ち主の止まった NetworkTV は、neko が閉じる (#1533)。
-	var sweeper neko.Runner
-	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
-		client, err := edcb.New(&edcb.Options{Address: deps.Config.Tuner.EDCB.Address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
-		if err != nil {
-			return err
-		}
-		server := edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: deps.Config.Tuner.EDCB.BonDrivers, NetworkTVIDs: nil})
-		epgSource, tunerSource = server, server
-		sweeper = networktv.NewSweeper(deps.DB, deps.Clock, client, logger.With(slog.String("component", "networktv")), 0)
-		logger.WarnContext(ctx, "EDCB is used only to sync the EPG and monitor the tuners; recording and viewing are not yet supported",
-			slog.String("edcb_address", deps.Config.Tuner.EDCB.Address))
-	}
 	if deps.Config.Tuner.UsesTunerServer() {
 		var err error
 		if tuner, err = newTunerClient(deps); err != nil {
 			return err
 		}
+	}
+	// EDCB では、持ち主の止まった NetworkTV を、neko が閉じる (#1533)。
+	var sweeper neko.Runner
+	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
+		client, err := newEDCBClient(deps)
+		if err != nil {
+			return err
+		}
+		sweeper = networktv.NewSweeper(deps.DB, deps.Clock, client, logger.With(slog.String("component", "networktv")), 0)
 	}
 
 	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
@@ -180,8 +166,8 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 		Clock:            deps.Clock,
 		InstanceID:       deps.InstanceID,
 		Tuner:            tuner,
-		EPGSource:        epgSource,
-		TunerSource:      tunerSource,
+		EPGSource:        nil,
+		TunerSource:      nil,
 		NetworkTVSweeper: sweeper,
 		EPG: &epg.SyncerOptions{
 			FullSyncInterval: 0, MinFullSyncInterval: 0, BatchWindow: 0, BackoffInitial: 0, BackoffMax: 0, StableAfter: 0, OnTunerEvent: nil,
@@ -272,9 +258,22 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 	return nil
 }
 
-// newTunerClient は、設定したチューナーサーバーのクライアントを返す。チューナーサーバーの実装は、ここで設定から選ぶ。
-// 今は Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) だけに対応する (設計書 3.1)。
+// newTunerClient は、設定したチューナーサーバーのクライアントを返す。チューナーサーバーの実装は、ここで設定から選ぶ (設計書 3.1)。
+// Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) と、EDCB (#1258) に対応する。
 func newTunerClient(deps *Deps) (tunerserver.Client, error) {
+	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
+		client, err := newEDCBClient(deps)
+		if err != nil {
+			return nil, err
+		}
+		edcbConfig := deps.Config.Tuner.EDCB
+		ids, err := networktv.NewIDs(deps.DB, deps.Clock, deps.InstanceID, edcbConfig.NetworkTVIDStart, edcbConfig.NetworkTVIDCount)
+		if err != nil {
+			return nil, err
+		}
+
+		return edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids}), nil
+	}
 	client, err := mirakurun.New(&mirakurun.Options{
 		URL:               deps.Config.Tuner.URL.Value(),
 		Username:          "",
@@ -290,6 +289,16 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 	if err != nil {
 		// nil の *mirakurun.Client を interface に入れると nil と比べられなくなるので、interface のまま nil を返す。
 		return nil, err
+	}
+
+	return client, nil
+}
+
+// newEDCBClient は、EpgTimerSrv の CtrlCmd のクライアントを返す。
+func newEDCBClient(deps *Deps) (*edcb.Client, error) {
+	client, err := edcb.New(&edcb.Options{Address: deps.Config.Tuner.EDCB.Address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the EDCB client: %w", err)
 	}
 
 	return client, nil

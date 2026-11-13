@@ -338,13 +338,13 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 接続するチューナーサーバーは1台だけです。
 設定するのはURLと、必要に応じてBASIC認証の資格情報です。
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
-EDCBは、まだEPGの同期とチューナーの把握にだけ使います（#1531、#1532）。録画と視聴に使えるようにする作業を進めています（#1258）。
-チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）と、Kotatsuがライブと録画に使うBonDriverの名前（`tuner.edcb.bon_drivers`、既定は空で、すべてのチューナーを使う。[3.6](#36-チューナーの把握)、#1532）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、nekoはEPGを同期し、チューナーを把握しますが、録画と視聴はチューナーサーバーがないものとして動き、nekoが起動時に警告を出します。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
+EDCBも、チューナーサーバーとして使えます（#1258）。EPGの同期、チューナーの把握、録画、タイムシフト、ライブ視聴に使います。
+チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）と、Kotatsuがライブと録画に使うBonDriverの名前（`tuner.edcb.bon_drivers`、既定は空で、すべてのチューナーを使う。[3.6](#36-チューナーの把握)、#1532）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、Mirakurun互換のサーバーと同じく、どのロールもEDCBをチューナーサーバーとして使います（#1533）。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
 
 Kotatsuは、チューナーサーバーを、サーバーの種類に依らない型とinterface（`backend/internal/domain/tunerserver`）で扱います。
 チャンネル、サービス、番組、チューナー、イベント、ストリームの開き方と、開けなかった理由（チューナーが足りない、サービスがないなど）は、この型で表します。
 サーバーのAPIの形、イベントの種類の文字列、HTTPのステータスの意味は、サーバーごとの実装が読み替えます。
-今ある実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）だけです。EDCBのEpgTimerSrvとCtrlCmdのTCPで話すクライアント（`backend/internal/infra/edcb`、#1529）は用意しましたが、サービスと番組とイベントとチューナーとストリームを、この型に読み替える実装（`edcb.TunerServer`、#1531、#1532、#1533）までで、nekoのEPGの同期とチューナーの把握にだけ渡しています。録画、タイムシフト、ライブ視聴にはまだ渡していません。CtrlCmdは、1つの接続で1つのコマンドを送る、HTTPではない独自のバイナリのプロトコルで、パスワードもTLSもありません。
+実装は、Mirakurun互換のAPIのクライアント（`backend/internal/infra/mirakurun`）と、EDCBの実装の2つです。EDCBのEpgTimerSrvとCtrlCmdのTCPで話すクライアント（`backend/internal/infra/edcb`、#1529）を使い、サービスと番組とイベントとチューナーとストリームを、この型に読み替えます（`edcb.TunerServer`、#1531、#1532、#1533）。ロゴは、まだEDCBから読まず、録画とタイムシフトのTSから集めたものを使います（#1537）。CtrlCmdは、1つの接続で1つのコマンドを送る、HTTPではない独自のバイナリのプロトコルで、パスワードもTLSもありません。
 
 EDCBのサービスと番組は、次のように読み替えます（#1531）。
 - サービスの一覧には、EpgTimerSrvのチャンネルの設定（`ChSet5.txt`、CtrlCmdの`FILE_COPY`で取ります）を使います。サービスの一覧のコマンド（`ENUM_SERVICE`）は、EPGを読み込んだサービスしか返さないからです。リモコンのキーIDだけは、`ENUM_SERVICE`から取ります。`ChSet5.txt`は、BOM付きのUTF-8かUTF-8ならそのまま、そうでなければShift_JIS（古いWindowsのEDCB）として読みます。
@@ -940,6 +940,7 @@ MirakurunからTSを受け取る方法は2通りあります。
 | サービスストリーム（`/api/services/{id}/stream`） | マージンを自由に取れます。時刻予約と同じ仕組みで録れます。 | 終了時刻をKotatsu側で判断する必要があります。 |
 
 Kotatsuはサービスストリーム（`decode=1`）で録画し、終了時刻を自分で判断します。
+EDCBでは、NetworkTVで開いたサービスのTSを、同じように録画します（[3.1](#31-接続先)、#1533）。
 
 - mikanは、開始時刻からマージンとチューニングにかかる時間（既定5秒）を引いた時刻にストリームを開きます。開始時刻からマージンを引いた時刻（予定の開始）までに届いたデータはmikanの時計で読み捨て、その後に届いたデータをすべて書き込みます。録画の先頭は、チューニングにかかる時間に関わらず、設定したマージンの分だけ番組の前になります（#847）。読み捨てる長さはストリームを開いたときに決め、経過時間で測ります。読み捨てている間にサーバーの時計が戻っても（NTPの補正など）、読み捨て続けて冒頭を失わないようにするためです。読み捨てた後は、TSパケットの区切りから書き始めます。予定の開始より後にストリームを開いたとき（つなぎ直しや引き継ぎ）は、読み捨てずに書き込みます。
 - 終了時刻は、最新のEPGから計算します。録画中のチャンネルのEIT[p/f]はMirakurunが解析し、番組の更新としてイベントで届くので、延長や繰り下げはこれで分かります。

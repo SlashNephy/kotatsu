@@ -2,6 +2,8 @@ package edcb
 
 import (
 	"context"
+	"errors"
+	"io"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
@@ -60,6 +62,11 @@ func (e *eventStream) wait(ctx context.Context, client *Client, count uint32) {
 	defer close(e.done)
 	for {
 		notification, err := client.WaitNotification(ctx, count)
+		// EpgTimerSrv は、保留した問い合わせを、応答の上限の時間 (ResponseTimeout) が過ぎると、応答せずに閉じる
+		// (EDCB の Common/TCPServer.cpp)。通知がなかっただけなので、同じ巡回カウンタで待ち直す。
+		if errors.Is(err, io.EOF) && ctx.Err() == nil {
+			continue
+		}
 		if err != nil {
 			e.err <- err
 

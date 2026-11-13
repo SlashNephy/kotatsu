@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,3 +89,48 @@ func (s *TunerServer) ServerDate(context.Context) (time.Time, error) {
 func (s *TunerServer) Identify(context.Context) (*tunerserver.Identity, error) {
 	return &tunerserver.Identity{Kind: tunerserver.KindEdcb, Version: ""}, nil
 }
+
+// Channels は、チャンネルの設定 (ChSet5.txt) のサービスを、TS ごとにまとめて返す (#1533)。
+// EDCB は物理チャンネルを返さないので、チャンネルには TSID を入れる。名前は、TS の最初のサービスのネットワーク名にする。
+func (s *TunerServer) Channels(ctx context.Context) ([]*tunerserver.Channel, error) {
+	services, err := s.Services(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries, err := s.channelEntries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	networkNames := map[tunerserver.ChannelRef]string{}
+	for _, entry := range entries {
+		ref := tunerserver.ChannelRef{Type: ChannelType(entry.ONID), Channel: strconv.Itoa(int(entry.TSID))}
+		if _, ok := networkNames[ref]; !ok {
+			networkNames[ref] = entry.NetworkName
+		}
+	}
+	channels := []*tunerserver.Channel{}
+	index := map[tunerserver.ChannelRef]*tunerserver.Channel{}
+	for _, service := range services {
+		if service == nil || service.Channel == nil {
+			continue
+		}
+		ref := *service.Channel
+		channel, ok := index[ref]
+		if !ok {
+			channel = &tunerserver.Channel{Type: ref.Type, Channel: ref.Channel, Name: s.text.Replace(networkNames[ref]), Services: []*tunerserver.Service{}}
+			index[ref] = channel
+			channels = append(channels, channel)
+		}
+		channel.Services = append(channel.Services, service)
+	}
+
+	return channels, nil
+}
+
+// ServiceLogo は、EDCB のロゴをまだ読まないので、常に tunerserver.ErrLogoUnavailable を返す。
+// tenban は、録画とタイムシフトの TS から集めたロゴを返す (#1308)。EDCB のロゴは #1537 で扱う。
+func (s *TunerServer) ServiceLogo(context.Context, int64) ([]byte, error) {
+	return nil, tunerserver.ErrLogoUnavailable
+}
+
+var _ tunerserver.Client = new(TunerServer)

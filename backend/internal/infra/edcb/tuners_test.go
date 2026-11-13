@@ -20,9 +20,9 @@ func tunerServer(t *testing.T) *fakeServer {
 	t.Helper()
 
 	return newFakeServer(t, map[uint32]reply{
-		1016: {status: 1, payload: fixture(t, "enum_tuner_reserve.bin"), stream: nil, hold: false},
-		1066: {status: 1, payload: fixture(t, "enum_tuner_process_open.bin"), stream: nil, hold: false},
-		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false},
+		1016: {status: 1, payload: fixture(t, "enum_tuner_reserve.bin"), stream: nil, hold: false, drop: false},
+		1066: {status: 1, payload: fixture(t, "enum_tuner_process_open.bin"), stream: nil, hold: false, drop: false},
+		1060: {status: 1, payload: fixture(t, "file_copy_chset5.bin"), stream: nil, hold: false, drop: false},
 	})
 }
 
@@ -67,7 +67,7 @@ func TestTunerServerTunersWhenFailed(t *testing.T) {
 			t.Parallel()
 
 			s := tunerServer(t)
-			s.queued[command] = []reply{{status: 208, payload: nil, stream: nil, hold: false}}
+			s.queued[command] = []reply{{status: 208, payload: nil, stream: nil, hold: false, drop: false}}
 			_, err := edcb.NewTunerServer(s.client(t), nil).Tuners(t.Context())
 			require.ErrorIs(t, err, edcb.ErrBusy)
 		})
@@ -87,4 +87,38 @@ func TestTunerServerClockAndIdentity(t *testing.T) {
 	assert.Equal(t, &tunerserver.Identity{Kind: tunerserver.KindEdcb, Version: ""}, identity)
 	// どちらも EpgTimerSrv に問い合わせない。
 	assert.Empty(t, s.received())
+}
+
+func TestTunerServerChannels(t *testing.T) {
+	t.Parallel()
+
+	// チャンネルの設定のサービスを、TS (TSID) ごとにまとめる。
+	s := edcbServer(t)
+	server := edcb.NewTunerServer(s.client(t), nil)
+	channels, err := server.Channels(t.Context())
+	require.NoError(t, err)
+	services, err := server.Services(t.Context())
+	require.NoError(t, err)
+	total := 0
+	for _, channel := range channels {
+		assert.Equal(t, "GR", channel.Type)
+		assert.NotEmpty(t, channel.Name)
+		for _, service := range channel.Services {
+			assert.Equal(t, tunerserver.ChannelRef{Type: channel.Type, Channel: channel.Channel}, *service.Channel)
+		}
+		total += len(channel.Services)
+	}
+	assert.Equal(t, len(services), total)
+	// NHK 総合 (東京) の TS には、NHK 総合 1 のサービスが入る。
+	ids := map[string][]int64{}
+	for _, channel := range channels {
+		for _, service := range channel.Services {
+			ids[channel.Channel] = append(ids[channel.Channel], service.ID)
+		}
+	}
+	assert.Contains(t, ids["32736"], int64(3273601024))
+	assert.NotContains(t, ids["32736"], int64(3273701032))
+
+	_, err = server.ServiceLogo(t.Context(), 3273601024)
+	require.ErrorIs(t, err, tunerserver.ErrLogoUnavailable)
 }

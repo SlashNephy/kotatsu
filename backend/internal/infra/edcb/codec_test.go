@@ -78,7 +78,7 @@ func TestServiceNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: vector(service(tt.in, nil)), stream: nil, hold: false}})
+			s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: vector(service(tt.in, nil)), stream: nil, hold: false, drop: false}})
 			got, err := s.client(t).Services(t.Context())
 			require.NoError(t, err)
 			require.Len(t, got, 1)
@@ -92,7 +92,7 @@ func TestServicesSkipUnknownTrailingFields(t *testing.T) {
 
 	// 新しい版の EpgTimerSrv が構造体の末尾に項目を足しても、知っている項目だけを読み、次の構造体から続けて読む。
 	extra := payload{}.u32(0xDEADBEEF).str("unknown")
-	s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: vector(service("A", extra), service("B", nil)), stream: nil, hold: false}})
+	s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: vector(service("A", extra), service("B", nil)), stream: nil, hold: false, drop: false}})
 	got, err := s.client(t).Services(t.Context())
 	require.NoError(t, err)
 	require.Len(t, got, 2)
@@ -122,7 +122,7 @@ func TestServicesRejectMalformed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: tt.in, stream: nil, hold: false}})
+			s := newFakeServer(t, map[uint32]reply{1021: {status: 1, payload: tt.in, stream: nil, hold: false, drop: false}})
 			_, err := s.client(t).Services(t.Context())
 			require.ErrorIs(t, err, edcb.ErrMalformed)
 		})

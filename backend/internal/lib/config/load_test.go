@@ -663,8 +663,7 @@ func TestLoadTuner(t *testing.T) {
 				Kind: config.TunerKindEDCB, URL: "",
 				EDCB: config.EDCB{Address: "192.168.1.10", NetworkTVIDStart: 2000, NetworkTVIDCount: 8, BonDrivers: []string{"BonDriver_mirakc.dll"}},
 			},
-			// EDCB は、まだチューナーサーバーとしてつないでいない (#1258)。
-			wantUses: false,
+			wantUses: true,
 		},
 		{
 			name: "環境変数で EDCB を選ぶ",
@@ -676,7 +675,7 @@ func TestLoadTuner(t *testing.T) {
 				Kind: config.TunerKindEDCB, URL: "",
 				EDCB: config.EDCB{Address: "[::1]:14510", NetworkTVIDStart: 1000, NetworkTVIDCount: 32, BonDrivers: []string{"BonDriver_A.dll", "BonDriver_B.dll"}},
 			},
-			wantUses: false,
+			wantUses: true,
 		},
 		{
 			name:     "知らない種類",
@@ -725,7 +724,7 @@ func TestLoadTuner(t *testing.T) {
 				Kind: config.TunerKindEDCB, URL: "",
 				EDCB: config.EDCB{Address: "::1", NetworkTVIDStart: 1000, NetworkTVIDCount: 32, BonDrivers: []string{}},
 			},
-			wantUses: false,
+			wantUses: true,
 		},
 		{
 			name: "URL のない Mirakurun 互換",

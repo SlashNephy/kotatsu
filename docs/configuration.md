@@ -244,7 +244,7 @@ BASIC認証が要るときは、URLに資格情報を含めてください。
 `tuner.kind`に`edcb`を選ぶときは、`tuner.url`を空にし、`tuner.edcb.address`に`192.168.1.10:4510`のように書きます。ポートを省けば4510です。
 NetworkTVのIDは、EpgTimerSrvに接続するほかのクライアント（KonomiTVは500から）と重ならない範囲にしてください。
 `tuner.edcb.bon_drivers`には、EpgTimerSrv.iniの`[TVTEST]`に並べたBonDriverの名前（`BonDriver_mirakc.dll`など）を書きます。NetworkTVは、そこに並べたBonDriverしか使いませんが、EpgTimerSrvはその一覧を返さないためです。大文字と小文字は区別しません。空なら、すべてのチューナーを使えるとみなします。
-EDCBは、まだEPGの同期とチューナーの把握にだけ使います（#1531、#1532）。録画と視聴はつないでいないので、nekoが起動時に警告を出します。
+EDCBを選ぶと、録画、タイムシフト、ライブ視聴も、EDCBのNetworkTVで受け取ります（#1533）。NetworkTVのIDは、指定した範囲から、Kotatsuのインスタンスどうしでぶつからないように配ります。
 
 ### auth
 
