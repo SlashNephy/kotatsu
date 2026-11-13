@@ -1,17 +1,26 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { generatePrograms } from '../demo/epg';
 import { createDemoEnvironment, renderWithRouter } from '../test/route';
 import { ProgramDetail } from './ProgramDetail';
 
+const now = Date.UTC(2026, 10, 11, 3, 0);
+
+// 番組の詳細は、放送が終わったか、予約できるかを実際の時計で決めるので、時計を now に止める。
+// 止めないと、選んだ番組が実際の日付で過去になったときに、予約のボタンが出ずに落ちる。
+// 待ち合わせのタイマーは本物のまま使うので、止めるのは Date だけにする。
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(now);
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
-
-const now = Date.UTC(2026, 10, 11, 3, 0);
 
 // Harness は、番組の詳細を開き閉じするボタンを置く。
 function Harness({ programId }: { programId: string }) {
