@@ -3,3 +3,6 @@ backend/testdata/ts/*.ts binary linguist-generated
 
 # frontend/scripts/build-demo-stream.sh で作る、デモの合成の映像。
 frontend/demo/*.m2ts binary linguist-generated
+
+# EDCB から取った CtrlCmd の応答 (backend/internal/infra/edcb のテストの材料)。改行を含むものも、そのまま比べる。
+backend/internal/infra/edcb/testdata/*.bin binary
