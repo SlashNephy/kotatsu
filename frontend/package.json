@@ -57,7 +57,7 @@
     "harfbuzzjs": "1.6.4",
     "jsdom": "31.0.0",
     "relay-compiler": "21.0.1",
-    "storybook": "10.6.6",
+    "storybook": "10.6.7",
     "subset-font": "2.9.0",
     "typescript": "7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.5.1",
