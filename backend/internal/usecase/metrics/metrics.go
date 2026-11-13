@@ -123,7 +123,7 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		return err
 	}
 	for _, row := range states {
-		ch <- prometheus.MustNewConstMetric(c.recordings, prometheus.GaugeValue, float64(row.Count), row.State)
+		ch <- prometheus.MustNewConstMetric(c.recordings, prometheus.GaugeValue, float64(row.Count), row.State.String())
 	}
 	reasons, err := q.CountRecordingFailures(ctx)
 	if err != nil {
@@ -143,9 +143,9 @@ func (c *DBCollector) collectRecordings(ctx context.Context, ch chan<- prometheu
 		if row.ResetAt != nil {
 			created = *row.ResetAt
 		}
-		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), created, row.Reason)
+		ch <- prometheus.MustNewConstMetricWithCreatedTimestamp(c.failuresTotal, prometheus.CounterValue, float64(row.Count), created, row.Reason.String())
 		if row.LastFailedAt != nil {
-			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason)
+			ch <- prometheus.MustNewConstMetric(c.lastFailure, prometheus.GaugeValue, float64(row.LastFailedAt.Unix()), row.Reason.String())
 		}
 	}
 	packets, err := q.SumActiveRecordingPackets(ctx)
@@ -187,7 +187,7 @@ func (c *DBCollector) collectAssignments(ctx context.Context, ch chan<- promethe
 		return err
 	}
 	for _, row := range rows {
-		ch <- prometheus.MustNewConstMetric(c.assignments, prometheus.GaugeValue, float64(row.Count), row.State)
+		ch <- prometheus.MustNewConstMetric(c.assignments, prometheus.GaugeValue, float64(row.Count), row.State.String())
 	}
 
 	return nil

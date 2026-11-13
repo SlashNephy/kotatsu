@@ -1,6 +1,6 @@
 package domain
 
-//go:generate go tool go-enum --values --nocomments
+//go:generate go tool go-enum --values --nocomments --sql
 
 // RecordingState は、録画の状態 (設計書 5.5)。
 //

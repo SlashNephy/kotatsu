@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -108,7 +109,7 @@ type InsertUserParams struct {
 	ID           uuid.UUID
 	Username     string
 	DisplayName  string
-	Role         string
+	Role         domain.Role
 	PasswordHash *string
 	CreatedAt    time.Time
 }
@@ -247,7 +248,7 @@ UPDATE users SET display_name = $1, role = $2, updated_at = $3 WHERE id = $4 RET
 
 type UpdateUserProfileParams struct {
 	DisplayName string
-	Role        string
+	Role        domain.Role
 	Now         time.Time
 	ID          uuid.UUID
 }

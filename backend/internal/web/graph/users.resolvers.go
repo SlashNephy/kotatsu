@@ -14,7 +14,7 @@ func (r *mutationResolver) CreateUser(ctx context.Context, input model.CreateUse
 	if err != nil {
 		return nil, err
 	}
-	account := &auth.NewAccount{Username: input.Username, DisplayName: input.DisplayName, Role: roleOf(input.Role), Password: ""}
+	account := &auth.NewAccount{Username: input.Username, DisplayName: input.DisplayName, Role: input.Role, Password: ""}
 	if input.Password != nil {
 		account.Password = *input.Password
 	}
@@ -38,7 +38,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, id string, input mode
 	}
 	changes := &auth.UserChanges{DisplayName: input.DisplayName, Role: nil}
 	if input.Role != nil {
-		changes.Role = new(roleOf(*input.Role))
+		changes.Role = input.Role
 	}
 	updated, err := r.userAdmin.Update(ctx, r.db, actor, userID, changes)
 	if err != nil {

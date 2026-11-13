@@ -894,11 +894,11 @@ func TestFinishRecordingCountsFailures(t *testing.T) {
 		name   string
 		before domain.RecordingState
 		after  domain.RecordingState
-		reason *string
+		reason *domain.RecordingFailureReason
 		want   int
 	}{
-		{name: "録画中から失敗", before: domain.RecordingStateRecording, after: domain.RecordingStateFailed, reason: new(string(domain.RecordingFailureReasonCancelled)), want: 1},
-		{name: "失敗から失敗", before: domain.RecordingStateFailed, after: domain.RecordingStateFailed, reason: new(string(domain.RecordingFailureReasonCancelled)), want: 0},
+		{name: "録画中から失敗", before: domain.RecordingStateRecording, after: domain.RecordingStateFailed, reason: new(domain.RecordingFailureReasonCancelled), want: 1},
+		{name: "失敗から失敗", before: domain.RecordingStateFailed, after: domain.RecordingStateFailed, reason: new(domain.RecordingFailureReasonCancelled), want: 0},
 		{name: "録画中から完了", before: domain.RecordingStateRecording, after: domain.RecordingStateCompleted, reason: nil, want: 0},
 	}
 	for _, tt := range tests {
@@ -914,7 +914,7 @@ func TestFinishRecordingCountsFailures(t *testing.T) {
 			require.NoError(t, err)
 
 			require.NoError(t, sqlc.New(f.pool).FinishRecording(t.Context(), sqlc.FinishRecordingParams{
-				State: string(tt.after), FailureReason: tt.reason, Now: &now, ID: recordingID,
+				State: tt.after, FailureReason: tt.reason, Now: &now, ID: recordingID,
 			}))
 			count, _ := f.failures(t, domain.RecordingFailureReasonCancelled)
 			assert.Equal(t, tt.want, count)

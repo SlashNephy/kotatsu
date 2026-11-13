@@ -162,7 +162,7 @@ func searchParams(filter *model.RecordingFilter) (*query.SearchRecordingsParams,
 		return params, nil
 	}
 	for _, state := range filter.States {
-		params.States = append(params.States, strings.ToLower(string(state)))
+		params.States = append(params.States, state.String())
 	}
 	for _, globalID := range filter.ServiceIds {
 		typeName, raw, err := ParseGlobalID(globalID)
@@ -400,7 +400,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 	}
 	recording := &model.Recording{
 		ID: GlobalID(recordingType, row.ID.String()), EventID: nil, Name: row.Name, Description: row.Description,
-		StartAt: row.StartAt, EndAt: row.EndAt, State: model.RecordingState(strings.ToUpper(row.State)), FailureReason: nil,
+		StartAt: row.StartAt, EndAt: row.EndAt, State: row.State, FailureReason: row.FailureReason,
 		Protected: row.Protected, Drops: row.Drops, Errors: row.Errors, Scrambled: row.Scrambled, Gaps: orEmpty(gaps),
 		ScrambleWarning: row.ScrambleWarning, ScrambledRatio: row.ScrambledRatio,
 		Audios: audios, Genres: genres, RuleName: row.RuleName, RuleKey: row.RuleID, ImageSegmentID: uuid.Nil(),
@@ -417,9 +417,6 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 	}
 	if row.EventID != nil {
 		recording.EventID = new(int(*row.EventID))
-	}
-	if row.FailureReason != nil {
-		recording.FailureReason = new(model.RecordingFailureReason(strings.ToUpper(*row.FailureReason)))
 	}
 
 	return recording, nil
@@ -710,7 +707,7 @@ const liveStatsFreshness = 30 * time.Second
 // recordingLiveStats は、録画中の録画の、書いているセグメントの様子を返す (#829)。録画中でないか、まだ書いていなければ nil。
 func (r *Resolver) recordingLiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error) {
 	var found *model.RecordingLiveStats
-	if obj.State != model.RecordingStateRecording {
+	if obj.State != domain.RecordingStateRecording {
 		return found, nil
 	}
 	recordingID, err := parseRecordingID(obj.ID)

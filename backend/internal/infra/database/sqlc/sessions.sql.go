@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -45,7 +46,7 @@ WHERE sessions.token_hash = $1
 
 type GetSessionByTokenHashRow struct {
 	Session        Session
-	Role           string
+	Role           domain.Role
 	UserDisabledAt *time.Time
 }
 

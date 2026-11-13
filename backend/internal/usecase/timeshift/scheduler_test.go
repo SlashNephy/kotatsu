@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
@@ -284,7 +285,7 @@ func TestSchedulerReplacesFinishedAssignment(t *testing.T) {
 			for _, row := range rows {
 				got = append(got, row.ServiceID)
 				assert.NotEqual(t, finishedID, row.ID, "the finished assignment is gone")
-				assert.Equal(t, "waiting", row.State, "a new assignment is waiting for mikan")
+				assert.Equal(t, domain.RecordingAssignmentStateWaiting, row.State, "a new assignment is waiting for mikan")
 			}
 			assert.Equal(t, tt.want, got)
 		})

@@ -49,7 +49,7 @@ func (u *URLUsers) Role(ctx context.Context, userID uuid.UUID) (domain.Role, err
 			return "", ErrUserUnusable
 		}
 
-		return domain.ParseRole(user.Role)
+		return user.Role, nil
 	})
 	if database.IsUnavailable(err) {
 		return "", fmt.Errorf("%w: %w", ErrDatabaseUnavailable, err)

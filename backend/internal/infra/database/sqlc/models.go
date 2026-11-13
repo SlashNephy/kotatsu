@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/jackc/pgx/v5/pgtype"
 	"uuid"
 )
@@ -220,7 +221,7 @@ type ApiToken struct {
 type AuditEvent struct {
 	ID          uuid.UUID
 	OccurredAt  time.Time
-	ActorType   string
+	ActorType   domain.AuditActorType
 	ActorUserID *uuid.UUID
 	ActorRole   *string
 	Action      string
@@ -345,9 +346,9 @@ type LoginThrottle struct {
 
 type NetworkActivity struct {
 	Hour          time.Time
-	Purpose       string
+	Purpose       netactivity.Purpose
 	Host          string
-	Initiator     string
+	Initiator     netactivity.Initiator
 	Success       bool
 	Count         int64
 	SentBytes     int64
@@ -540,8 +541,8 @@ type Recording struct {
 	DescriptionNormalized *string
 	StartAt               time.Time
 	EndAt                 time.Time
-	State                 string
-	FailureReason         *string
+	State                 domain.RecordingState
+	FailureReason         *domain.RecordingFailureReason
 	FailureDetail         *string
 	Protected             bool
 	Drops                 int64
@@ -590,7 +591,7 @@ type RecordingAssignment struct {
 	ID               uuid.UUID
 	ReservationID    uuid.UUID
 	Priority         int32
-	State            string
+	State            domain.RecordingAssignmentState
 	Generation       int64
 	Holder           *uuid.UUID
 	LeaseExpiresAt   *time.Time
@@ -614,7 +615,7 @@ type RecordingCmSection struct {
 }
 
 type RecordingFailureCount struct {
-	Reason       string
+	Reason       domain.RecordingFailureReason
 	Count        int64
 	LastFailedAt *time.Time
 	ResetAt      *time.Time
@@ -856,7 +857,7 @@ type TimeshiftAssignment struct {
 	ID               uuid.UUID
 	ServiceID        int64
 	Priority         int32
-	State            string
+	State            domain.RecordingAssignmentState
 	Generation       int64
 	Holder           *uuid.UUID
 	LeaseExpiresAt   *time.Time
@@ -937,7 +938,7 @@ type User struct {
 	ID           uuid.UUID
 	Username     string
 	DisplayName  string
-	Role         string
+	Role         domain.Role
 	PasswordHash *string
 	DisabledAt   *time.Time
 	CreatedAt    time.Time
@@ -1062,7 +1063,7 @@ type Webhook struct {
 	ID               uuid.UUID
 	Name             string
 	URL              string
-	Format           string
+	Format           domain.WebhookFormat
 	Kinds            []domain.NotificationKind
 	SecretCiphertext []byte
 	Enabled          bool

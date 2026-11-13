@@ -6,6 +6,7 @@
 package domain
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
 )
@@ -54,4 +55,44 @@ func ParseRole(name string) (Role, error) {
 		return x, nil
 	}
 	return Role(""), fmt.Errorf("%s is %w", name, ErrInvalidRole)
+}
+
+var errRoleNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *Role) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = Role("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseRole(v)
+	case []byte:
+		*x, err = ParseRole(string(v))
+	case Role:
+		*x = v
+	case *Role:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errRoleNilPtr
+		}
+		*x, err = ParseRole(*v)
+	default:
+		return errors.New("invalid type for Role")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x Role) Value() (driver.Value, error) {
+	return x.String(), nil
 }

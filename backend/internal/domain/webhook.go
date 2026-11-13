@@ -1,6 +1,6 @@
 package domain
 
-//go:generate go tool go-enum --values --nocomments
+//go:generate go tool go-enum --values --nocomments --sql
 
 // WebhookFormat は、Webhook で送る形式 (設計書 6.2)。
 //

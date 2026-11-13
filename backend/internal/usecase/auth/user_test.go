@@ -53,7 +53,7 @@ func TestCreateUser(t *testing.T) {
 			stored, err := sqlc.New(db).GetUser(t.Context(), created.ID)
 			require.NoError(t, err)
 			assert.Equal(t, tt.user.Username, stored.Username)
-			assert.Equal(t, string(tt.user.Role), stored.Role)
+			assert.Equal(t, tt.user.Role, stored.Role)
 			assert.Nil(t, stored.DisabledAt)
 		})
 	}

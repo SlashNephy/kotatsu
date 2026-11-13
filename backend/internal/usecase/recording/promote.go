@@ -402,13 +402,13 @@ func (r *Recorder) completePromoted(
 	}
 	// 録画した時間の終わりは、書いたセグメントの終わりにする (設計書 5.5)。
 	err = q.FinishRecording(ctx, sqlc.FinishRecordingParams{
-		State: string(state), FailureReason: nil, FailureDetail: nil, Now: &recordedUntil, ID: recordingID,
+		State: state, FailureReason: nil, FailureDetail: nil, Now: &recordedUntil, ID: recordingID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to finish the recording: %w", err)
 	}
 	// スクランブルの警告は、録画を終える前に判定して記録してある (#1517)。
-	recording.State = string(state)
+	recording.State = state
 	if err := history.Record(ctx, q, &recording, now); err != nil {
 		return "", err
 	}
@@ -432,15 +432,15 @@ func (r *Recorder) failPromotion(ctx context.Context, recordingID uuid.UUID, rea
 			return fmt.Errorf("failed to delete the timeshift promotion: %w", err)
 		}
 		now := r.clock.Now()
-		failure := string(reason)
-		params := sqlc.FinishRecordingParams{State: string(domain.RecordingStateFailed), FailureReason: &failure, FailureDetail: nil, Now: &now, ID: recordingID}
+		failure := reason
+		params := sqlc.FinishRecordingParams{State: domain.RecordingStateFailed, FailureReason: &failure, FailureDetail: nil, Now: &now, ID: recordingID}
 		if err := q.FinishRecording(ctx, params); err != nil {
 			return fmt.Errorf("failed to finish the recording: %w", err)
 		}
 		createdBy := row.TimeshiftPromotion.CreatedBy
 
 		return r.notifyPromotion(ctx, tx, recordingID, func(payload map[string]any) error {
-			payload["state"] = string(domain.RecordingStateFailed)
+			payload["state"] = domain.RecordingStateFailed
 			payload["reason"] = failure
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingFailed, payload, audienceOf(createdBy))

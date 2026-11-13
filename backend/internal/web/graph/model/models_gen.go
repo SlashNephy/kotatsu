@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 )
 
 // ID で引けるもの (Relay の Global Object Identification)。
@@ -589,9 +590,9 @@ type CommentSettingsInput struct {
 
 // 管理者が作るユーザー。
 type CreateUserInput struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-	Role        Role   `json:"role"`
+	Username    string      `json:"username"`
+	DisplayName string      `json:"displayName"`
+	Role        domain.Role `json:"role"`
 	// パスワード。省くと、パスワードを持たないユーザー (OIDC やパスキーだけで使う) にする。
 	Password *string `json:"password,omitempty"`
 }
@@ -600,8 +601,8 @@ type CreateWebhookInput struct {
 	// 1〜100 文字。
 	Name string `json:"name"`
 	// http か https の URL。
-	URL    string        `json:"url"`
-	Format WebhookFormat `json:"format"`
+	URL    string               `json:"url"`
+	Format domain.WebhookFormat `json:"format"`
 	// 送るイベントの種類。1 つ以上。
 	Kinds   []domain.NotificationKind `json:"kinds"`
 	Enabled bool                      `json:"enabled"`
@@ -993,15 +994,15 @@ type NetworkActivity struct {
 // 外部との通信の 1 時間ごとの集計の 1 行。
 type NetworkActivityEntry struct {
 	// 時間帯の始まり。
-	Hour    time.Time              `json:"hour"`
-	Purpose NetworkActivityPurpose `json:"purpose"`
+	Hour    time.Time           `json:"hour"`
+	Purpose netactivity.Purpose `json:"purpose"`
 	// 接続先のホスト名。視聴の内容や設定の中身が分かるものは null。
-	Host          *string                  `json:"host,omitempty"`
-	Initiator     NetworkActivityInitiator `json:"initiator"`
-	Success       bool                     `json:"success"`
-	Count         int64                    `json:"count"`
-	SentBytes     int64                    `json:"sentBytes"`
-	ReceivedBytes int64                    `json:"receivedBytes"`
+	Host          *string               `json:"host,omitempty"`
+	Initiator     netactivity.Initiator `json:"initiator"`
+	Success       bool                  `json:"success"`
+	Count         int64                 `json:"count"`
+	SentBytes     int64                 `json:"sentBytes"`
+	ReceivedBytes int64                 `json:"receivedBytes"`
 }
 
 // ログイン中のユーザーに届いた、画面内の通知 (設計書 6.2)。
@@ -1365,8 +1366,8 @@ type RecordingEdge struct {
 
 // 理由ごとの、録画の失敗の累計 (設計書 5.5)。録画を消しても減らない。
 type RecordingFailureCount struct {
-	Reason RecordingFailureReason `json:"reason"`
-	Count  int64                  `json:"count"`
+	Reason domain.RecordingFailureReason `json:"reason"`
+	Count  int64                         `json:"count"`
 	// 最後に失敗した日時。一度も失敗していないか、累計を 0 に戻してから失敗していなければ null。
 	LastFailedAt *time.Time `json:"lastFailedAt,omitempty"`
 	// 管理者が累計を 0 に戻した日時 (#1035)。戻していなければ null。
@@ -1415,9 +1416,9 @@ type RecordingFileTuner struct {
 // 録画の絞り込み。省いた条件は絞り込まない。
 type RecordingFilter struct {
 	// どれかのタグが付いた録画。
-	TagIds     []string         `json:"tagIds,omitempty"`
-	States     []RecordingState `json:"states,omitempty"`
-	ServiceIds []string         `json:"serviceIds,omitempty"`
+	TagIds     []string                `json:"tagIds,omitempty"`
+	States     []domain.RecordingState `json:"states,omitempty"`
+	ServiceIds []string                `json:"serviceIds,omitempty"`
 	// 番組名に含む文字列。大文字と小文字を区別しない。
 	Keyword *string `json:"keyword,omitempty"`
 	// 放送の開始がこの日時以降の録画。
@@ -1948,24 +1949,24 @@ type TunerServerStatus struct {
 
 // ユーザーの変える項目。省いた項目は変えない。
 type UpdateUserInput struct {
-	DisplayName *string `json:"displayName,omitempty"`
-	Role        *Role   `json:"role,omitempty"`
+	DisplayName *string      `json:"displayName,omitempty"`
+	Role        *domain.Role `json:"role,omitempty"`
 }
 
 // Webhook の変える項目。省いた項目は変えない。署名用の秘密キーは変えない。
 type UpdateWebhookInput struct {
 	Name    *string                   `json:"name,omitempty"`
 	URL     *string                   `json:"url,omitempty"`
-	Format  *WebhookFormat            `json:"format,omitempty"`
+	Format  *domain.WebhookFormat     `json:"format,omitempty"`
 	Kinds   []domain.NotificationKind `json:"kinds,omitempty"`
 	Enabled *bool                     `json:"enabled,omitempty"`
 }
 
 type User struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-	Role        Role   `json:"role"`
+	ID          string      `json:"id"`
+	Username    string      `json:"username"`
+	DisplayName string      `json:"displayName"`
+	Role        domain.Role `json:"role"`
 	// 無効にしたユーザーかどうか。無効にしたユーザーは、ログインできない。
 	Disabled  bool      `json:"disabled"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -2050,8 +2051,8 @@ type Webhook struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// 送り先の URL。Discord や Slack の URL は、それ自体が秘密のトークンを含む。
-	URL    string        `json:"url"`
-	Format WebhookFormat `json:"format"`
+	URL    string               `json:"url"`
+	Format domain.WebhookFormat `json:"format"`
 	// 送るイベントの種類。
 	Kinds     []domain.NotificationKind `json:"kinds"`
 	Enabled   bool                      `json:"enabled"`
@@ -2993,156 +2994,6 @@ func (e LogSourceKind) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 外部との通信のきっかけ。
-type NetworkActivityInitiator string
-
-const (
-	NetworkActivityInitiatorScheduled NetworkActivityInitiator = "SCHEDULED"
-	NetworkActivityInitiatorUser      NetworkActivityInitiator = "USER"
-)
-
-var AllNetworkActivityInitiator = []NetworkActivityInitiator{
-	NetworkActivityInitiatorScheduled,
-	NetworkActivityInitiatorUser,
-}
-
-func (e NetworkActivityInitiator) IsValid() bool {
-	switch e {
-	case NetworkActivityInitiatorScheduled, NetworkActivityInitiatorUser:
-		return true
-	}
-	return false
-}
-
-func (e NetworkActivityInitiator) String() string {
-	return string(e)
-}
-
-func (e *NetworkActivityInitiator) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = NetworkActivityInitiator(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid NetworkActivityInitiator", str)
-	}
-	return nil
-}
-
-func (e NetworkActivityInitiator) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *NetworkActivityInitiator) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e NetworkActivityInitiator) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 外部との通信の目的。固定の種類で、画面の題名と一文を決める。
-type NetworkActivityPurpose string
-
-const (
-	NetworkActivityPurposeJikkyoChannels    NetworkActivityPurpose = "JIKKYO_CHANNELS"
-	NetworkActivityPurposeJikkyoComments    NetworkActivityPurpose = "JIKKYO_COMMENTS"
-	NetworkActivityPurposeJikkyoKakolog     NetworkActivityPurpose = "JIKKYO_KAKOLOG"
-	NetworkActivityPurposeNicologComments   NetworkActivityPurpose = "NICOLOG_COMMENTS"
-	NetworkActivityPurposeAnimeProgramSync  NetworkActivityPurpose = "ANIME_PROGRAM_SYNC"
-	NetworkActivityPurposeAnimeMappings     NetworkActivityPurpose = "ANIME_MAPPINGS"
-	NetworkActivityPurposeAnimeWorkIDS      NetworkActivityPurpose = "ANIME_WORK_IDS"
-	NetworkActivityPurposeAnimeArtworks     NetworkActivityPurpose = "ANIME_ARTWORKS"
-	NetworkActivityPurposeAnimeRecord       NetworkActivityPurpose = "ANIME_RECORD"
-	NetworkActivityPurposeAnimeLink         NetworkActivityPurpose = "ANIME_LINK"
-	NetworkActivityPurposeAnimeImage        NetworkActivityPurpose = "ANIME_IMAGE"
-	NetworkActivityPurposeUserAvatar        NetworkActivityPurpose = "USER_AVATAR"
-	NetworkActivityPurposeOidc              NetworkActivityPurpose = "OIDC"
-	NetworkActivityPurposeHibp              NetworkActivityPurpose = "HIBP"
-	NetworkActivityPurposeMcpClientMetadata NetworkActivityPurpose = "MCP_CLIENT_METADATA"
-	NetworkActivityPurposeUpdateCheck       NetworkActivityPurpose = "UPDATE_CHECK"
-	NetworkActivityPurposeTelemetryTraces   NetworkActivityPurpose = "TELEMETRY_TRACES"
-	NetworkActivityPurposeTelemetryMetrics  NetworkActivityPurpose = "TELEMETRY_METRICS"
-	NetworkActivityPurposeWebPush           NetworkActivityPurpose = "WEB_PUSH"
-	NetworkActivityPurposeWebhook           NetworkActivityPurpose = "WEBHOOK"
-	NetworkActivityPurposeDataBroadcast     NetworkActivityPurpose = "DATA_BROADCAST"
-)
-
-var AllNetworkActivityPurpose = []NetworkActivityPurpose{
-	NetworkActivityPurposeJikkyoChannels,
-	NetworkActivityPurposeJikkyoComments,
-	NetworkActivityPurposeJikkyoKakolog,
-	NetworkActivityPurposeNicologComments,
-	NetworkActivityPurposeAnimeProgramSync,
-	NetworkActivityPurposeAnimeMappings,
-	NetworkActivityPurposeAnimeWorkIDS,
-	NetworkActivityPurposeAnimeArtworks,
-	NetworkActivityPurposeAnimeRecord,
-	NetworkActivityPurposeAnimeLink,
-	NetworkActivityPurposeAnimeImage,
-	NetworkActivityPurposeUserAvatar,
-	NetworkActivityPurposeOidc,
-	NetworkActivityPurposeHibp,
-	NetworkActivityPurposeMcpClientMetadata,
-	NetworkActivityPurposeUpdateCheck,
-	NetworkActivityPurposeTelemetryTraces,
-	NetworkActivityPurposeTelemetryMetrics,
-	NetworkActivityPurposeWebPush,
-	NetworkActivityPurposeWebhook,
-	NetworkActivityPurposeDataBroadcast,
-}
-
-func (e NetworkActivityPurpose) IsValid() bool {
-	switch e {
-	case NetworkActivityPurposeJikkyoChannels, NetworkActivityPurposeJikkyoComments, NetworkActivityPurposeJikkyoKakolog, NetworkActivityPurposeNicologComments, NetworkActivityPurposeAnimeProgramSync, NetworkActivityPurposeAnimeMappings, NetworkActivityPurposeAnimeWorkIDS, NetworkActivityPurposeAnimeArtworks, NetworkActivityPurposeAnimeRecord, NetworkActivityPurposeAnimeLink, NetworkActivityPurposeAnimeImage, NetworkActivityPurposeUserAvatar, NetworkActivityPurposeOidc, NetworkActivityPurposeHibp, NetworkActivityPurposeMcpClientMetadata, NetworkActivityPurposeUpdateCheck, NetworkActivityPurposeTelemetryTraces, NetworkActivityPurposeTelemetryMetrics, NetworkActivityPurposeWebPush, NetworkActivityPurposeWebhook, NetworkActivityPurposeDataBroadcast:
-		return true
-	}
-	return false
-}
-
-func (e NetworkActivityPurpose) String() string {
-	return string(e)
-}
-
-func (e *NetworkActivityPurpose) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = NetworkActivityPurpose(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid NetworkActivityPurpose", str)
-	}
-	return nil
-}
-
-func (e NetworkActivityPurpose) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *NetworkActivityPurpose) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e NetworkActivityPurpose) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
 // プレイヤーへの操作の種類。
 type PlayerCommandType string
 
@@ -3343,82 +3194,6 @@ func (e RecordingCMDetectionState) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// 録画に失敗した理由 (設計書 5.5)。
-type RecordingFailureReason string
-
-const (
-	// チューナーを確保できなかった
-	RecordingFailureReasonTunerUnavailable RecordingFailureReason = "TUNER_UNAVAILABLE"
-	// チューナーサーバーに接続できなかった
-	RecordingFailureReasonTunerServerUnreachable RecordingFailureReason = "TUNER_SERVER_UNREACHABLE"
-	// ストリームが中断し、再接続もできなかった
-	RecordingFailureReasonStreamInterrupted RecordingFailureReason = "STREAM_INTERRUPTED"
-	// 保存先に書き込めなかった
-	RecordingFailureReasonStorageUnavailable RecordingFailureReason = "STORAGE_UNAVAILABLE"
-	// 保存先の容量が足りなかった
-	RecordingFailureReasonStorageFull RecordingFailureReason = "STORAGE_FULL"
-	// 番組が見つからなかった
-	RecordingFailureReasonProgramNotFound RecordingFailureReason = "PROGRAM_NOT_FOUND"
-	// 録画を取り消した
-	RecordingFailureReasonCancelled RecordingFailureReason = "CANCELLED"
-	// 録画を始める時刻に、録画できる mikan がいなかった
-	RecordingFailureReasonRecorderUnavailable RecordingFailureReason = "RECORDER_UNAVAILABLE"
-)
-
-var AllRecordingFailureReason = []RecordingFailureReason{
-	RecordingFailureReasonTunerUnavailable,
-	RecordingFailureReasonTunerServerUnreachable,
-	RecordingFailureReasonStreamInterrupted,
-	RecordingFailureReasonStorageUnavailable,
-	RecordingFailureReasonStorageFull,
-	RecordingFailureReasonProgramNotFound,
-	RecordingFailureReasonCancelled,
-	RecordingFailureReasonRecorderUnavailable,
-}
-
-func (e RecordingFailureReason) IsValid() bool {
-	switch e {
-	case RecordingFailureReasonTunerUnavailable, RecordingFailureReasonTunerServerUnreachable, RecordingFailureReasonStreamInterrupted, RecordingFailureReasonStorageUnavailable, RecordingFailureReasonStorageFull, RecordingFailureReasonProgramNotFound, RecordingFailureReasonCancelled, RecordingFailureReasonRecorderUnavailable:
-		return true
-	}
-	return false
-}
-
-func (e RecordingFailureReason) String() string {
-	return string(e)
-}
-
-func (e *RecordingFailureReason) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = RecordingFailureReason(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid RecordingFailureReason", str)
-	}
-	return nil
-}
-
-func (e RecordingFailureReason) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *RecordingFailureReason) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e RecordingFailureReason) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
 // 録画のファイルの種類。
 type RecordingFileKind string
 
@@ -3528,134 +3303,6 @@ func (e *RecordingOrder) UnmarshalJSON(b []byte) error {
 }
 
 func (e RecordingOrder) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// 録画の状態 (設計書 5.5)。
-type RecordingState string
-
-const (
-	// 録画中
-	RecordingStateRecording RecordingState = "RECORDING"
-	// 完了
-	RecordingStateCompleted RecordingState = "COMPLETED"
-	// ドロップのある完了
-	RecordingStateCompletedWithErrors RecordingState = "COMPLETED_WITH_ERRORS"
-	// 途切れた区間のある一部のみ
-	RecordingStatePartial RecordingState = "PARTIAL"
-	// 失敗
-	RecordingStateFailed RecordingState = "FAILED"
-)
-
-var AllRecordingState = []RecordingState{
-	RecordingStateRecording,
-	RecordingStateCompleted,
-	RecordingStateCompletedWithErrors,
-	RecordingStatePartial,
-	RecordingStateFailed,
-}
-
-func (e RecordingState) IsValid() bool {
-	switch e {
-	case RecordingStateRecording, RecordingStateCompleted, RecordingStateCompletedWithErrors, RecordingStatePartial, RecordingStateFailed:
-		return true
-	}
-	return false
-}
-
-func (e RecordingState) String() string {
-	return string(e)
-}
-
-func (e *RecordingState) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = RecordingState(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid RecordingState", str)
-	}
-	return nil
-}
-
-func (e RecordingState) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *RecordingState) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e RecordingState) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// ユーザーのロール (設計書 9.7)。
-type Role string
-
-const (
-	// 管理者
-	RoleAdmin Role = "ADMIN"
-	// メンバー
-	RoleMember Role = "MEMBER"
-	// 視聴者
-	RoleViewer Role = "VIEWER"
-)
-
-var AllRole = []Role{
-	RoleAdmin,
-	RoleMember,
-	RoleViewer,
-}
-
-func (e Role) IsValid() bool {
-	switch e {
-	case RoleAdmin, RoleMember, RoleViewer:
-		return true
-	}
-	return false
-}
-
-func (e Role) String() string {
-	return string(e)
-}
-
-func (e *Role) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = Role(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid Role", str)
-	}
-	return nil
-}
-
-func (e Role) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *Role) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e Role) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
@@ -3953,67 +3600,6 @@ func (e *VideoFormat) UnmarshalJSON(b []byte) error {
 }
 
 func (e VideoFormat) MarshalJSON() ([]byte, error) {
-	var buf bytes.Buffer
-	e.MarshalGQL(&buf)
-	return buf.Bytes(), nil
-}
-
-// Webhook で送る形式 (設計書 6.2)。
-type WebhookFormat string
-
-const (
-	// 汎用の JSON
-	WebhookFormatJSON WebhookFormat = "JSON"
-	// Discord の Webhook
-	WebhookFormatDiscord WebhookFormat = "DISCORD"
-	// Slack の Incoming Webhook
-	WebhookFormatSLACk WebhookFormat = "SLACK"
-)
-
-var AllWebhookFormat = []WebhookFormat{
-	WebhookFormatJSON,
-	WebhookFormatDiscord,
-	WebhookFormatSLACk,
-}
-
-func (e WebhookFormat) IsValid() bool {
-	switch e {
-	case WebhookFormatJSON, WebhookFormatDiscord, WebhookFormatSLACk:
-		return true
-	}
-	return false
-}
-
-func (e WebhookFormat) String() string {
-	return string(e)
-}
-
-func (e *WebhookFormat) UnmarshalGQL(v any) error {
-	str, ok := v.(string)
-	if !ok {
-		return fmt.Errorf("enums must be strings")
-	}
-
-	*e = WebhookFormat(str)
-	if !e.IsValid() {
-		return fmt.Errorf("%s is not a valid WebhookFormat", str)
-	}
-	return nil
-}
-
-func (e WebhookFormat) MarshalGQL(w io.Writer) {
-	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
-}
-
-func (e *WebhookFormat) UnmarshalJSON(b []byte) error {
-	s, err := strconv.Unquote(string(b))
-	if err != nil {
-		return err
-	}
-	return e.UnmarshalGQL(s)
-}
-
-func (e WebhookFormat) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

@@ -7,7 +7,6 @@ import (
 	"maps"
 	"math"
 	"slices"
-	"strings"
 	"time"
 	"uuid"
 
@@ -137,7 +136,7 @@ func auditEventOf(row *domain.AuditEvent, byID map[uuid.UUID]*model.User) *model
 	event := &model.AuditEvent{
 		ID:         GlobalID(auditEventType, row.ID.String()),
 		OccurredAt: row.OccurredAt,
-		Actor:      &model.AuditActor{Type: row.ActorType, User: userOf(byID, row.ActorUserID), Role: row.ActorRole},
+		Actor:      &model.AuditActor{Type: row.ActorType.String(), User: userOf(byID, row.ActorUserID), Role: row.ActorRole},
 		Action:     row.Action,
 		TargetType: row.TargetType,
 		TargetID:   row.TargetID,
@@ -324,7 +323,7 @@ func (r *Resolver) recordingFailureCounts(ctx context.Context) ([]*model.Recordi
 	counts := make([]*model.RecordingFailureCount, 0, len(rows))
 	for _, row := range rows {
 		counts = append(counts, &model.RecordingFailureCount{
-			Reason: model.RecordingFailureReason(strings.ToUpper(row.Reason)), Count: row.Count, LastFailedAt: row.LastFailedAt, ResetAt: row.ResetAt,
+			Reason: row.Reason, Count: row.Count, LastFailedAt: row.LastFailedAt, ResetAt: row.ResetAt,
 		})
 	}
 
@@ -332,14 +331,14 @@ func (r *Resolver) recordingFailureCounts(ctx context.Context) ([]*model.Recordi
 }
 
 // resetRecordingFailureCounts は、理由 reasons の、録画の失敗の累計を 0 に戻し、戻した後の累計を返す (#1035)。
-func (r *Resolver) resetRecordingFailureCounts(ctx context.Context, reasons []model.RecordingFailureReason) ([]*model.RecordingFailureCount, error) {
+func (r *Resolver) resetRecordingFailureCounts(ctx context.Context, reasons []domain.RecordingFailureReason) ([]*model.RecordingFailureCount, error) {
 	_, actor, err := r.administratorActor(ctx, "only administrators can reset the recording failure counts")
 	if err != nil {
 		return nil, err
 	}
 	stored := make([]string, 0, len(reasons))
 	for _, reason := range reasons {
-		stored = append(stored, strings.ToLower(string(reason)))
+		stored = append(stored, reason.String())
 	}
 	if err := r.settings.ResetRecordingFailureCounts(ctx, r.db, actor, stored); err != nil {
 		return nil, settingsError(err)

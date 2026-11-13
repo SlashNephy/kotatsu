@@ -9,6 +9,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -66,7 +67,7 @@ type GetCalendarFeedUserParams struct {
 type GetCalendarFeedUserRow struct {
 	LastUsedAt *time.Time
 	UserID     uuid.UUID
-	Role       string
+	Role       domain.Role
 }
 
 // 種類 kind の秘密の値のハッシュから、発行したユーザーを引く。無効にしたユーザーの URL は使えない。

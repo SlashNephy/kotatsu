@@ -13,7 +13,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 )
@@ -174,10 +173,7 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 				return &tokenError{code: errorInvalidScope, description: "scope exceeds the grant"}
 			}
 		}
-		role, err := domain.ParseRole(row.Role)
-		if err != nil {
-			return err
-		}
+		role := row.Role
 		if err := q.MarkOAuthRefreshTokenUsed(ctx, sqlc.MarkOAuthRefreshTokenUsedParams{TokenHash: hashSecret(token), Now: &now}); err != nil {
 			return fmt.Errorf("failed to mark the refresh token used: %w", err)
 		}

@@ -553,9 +553,9 @@ func (a *applier) recording(ctx context.Context, tx pgx.Tx, r *Recording) (uuid.
 		drop = &DropLog{ErrorCount: 0, DropCount: 0, ScramblingCount: 0}
 	}
 	// Kotatsu の録画と同じく、ドロップがあればエラーありの完了にする。
-	state := "completed"
+	state := domain.RecordingStateCompleted
 	if drop.DropCount > 0 {
-		state = "completed_with_errors"
+		state = domain.RecordingStateCompletedWithErrors
 	}
 	recordingID := id.New()
 	err := q.InsertImportedRecording(ctx, sqlc.InsertImportedRecordingParams{

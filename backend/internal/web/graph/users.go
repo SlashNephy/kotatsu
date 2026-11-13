@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -64,16 +63,11 @@ func userModel(user *auth.User) *model.User {
 		ID:          GlobalID(userType, user.ID.String()),
 		Username:    user.Username,
 		DisplayName: user.DisplayName,
-		Role:        model.Role(strings.ToUpper(string(user.Role))),
+		Role:        user.Role,
 		Disabled:    user.DisabledAt != nil,
 		CreatedAt:   user.CreatedAt,
 		AvatarURL:   nil,
 	}
-}
-
-// roleOf は、GraphQL のロールを domain のロールにする。
-func roleOf(role model.Role) domain.Role {
-	return domain.Role(strings.ToLower(string(role)))
 }
 
 func parseUserID(globalID string) (uuid.UUID, error) {

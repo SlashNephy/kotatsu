@@ -1,6 +1,6 @@
 package domain
 
-//go:generate go tool go-enum --values --nocomments
+//go:generate go tool go-enum --values --nocomments --sql
 
 // AuditActorType は、監査ログの操作者の種類。
 //

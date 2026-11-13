@@ -203,7 +203,7 @@ func apply(ctx context.Context, q *sqlc.Queries, now time.Time, channels []*Chan
 	have := map[int64]bool{}
 	deleted := 0
 	for _, a := range assignments {
-		finished := a.State == string(domain.RecordingAssignmentStateFinished)
+		finished := a.State == domain.RecordingAssignmentStateFinished
 		if !finished {
 			have[a.ServiceID] = true
 		}

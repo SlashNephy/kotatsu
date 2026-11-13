@@ -8,43 +8,45 @@ import (
 	"slices"
 )
 
+//go:generate go tool go-enum --values --nocomments --sql
+
 // Purpose は、通信の目的。画面の題名と一文はこの種類ごとに決まり、通信の内容から文を作らない。
+//
+// 増やすときは、画面の文 (i18n の networkActivity.purposes) と docs/privacy.md も直す。
+// network_activity.purpose は、DB から読むときに検証するので、なくすときは、その目的の行を消すマイグレーションも足す。
+//
+// ENUM(
+// JikkyoChannels = JIKKYO_CHANNELS
+// JikkyoComments = JIKKYO_COMMENTS
+// JikkyoKakolog = JIKKYO_KAKOLOG
+// NicologComments = NICOLOG_COMMENTS
+// AnimeProgramSync = ANIME_PROGRAM_SYNC
+// AnimeMappings = ANIME_MAPPINGS
+// AnimeWorkIDs = ANIME_WORK_IDS
+// AnimeArtworks = ANIME_ARTWORKS
+// AnimeRecord = ANIME_RECORD
+// AnimeLink = ANIME_LINK
+// AnimeImage = ANIME_IMAGE
+// UserAvatar = USER_AVATAR
+// OIDC = OIDC
+// HIBP = HIBP
+// MCPClientMetadata = MCP_CLIENT_METADATA
+// UpdateCheck = UPDATE_CHECK
+// TelemetryTraces = TELEMETRY_TRACES
+// TelemetryMetrics = TELEMETRY_METRICS
+// WebPush = WEB_PUSH
+// Webhook = WEBHOOK
+// DataBroadcast = DATA_BROADCAST
+// )
 type Purpose string
 
-// 通信の目的の一覧。増やすときは、画面の文 (i18n の networkActivity.purposes) と docs/privacy.md も直す。
-const (
-	PurposeJikkyoChannels    Purpose = "JIKKYO_CHANNELS"
-	PurposeJikkyoComments    Purpose = "JIKKYO_COMMENTS"
-	PurposeJikkyoKakolog     Purpose = "JIKKYO_KAKOLOG"
-	PurposeNicologComments   Purpose = "NICOLOG_COMMENTS"
-	PurposeAnimeProgramSync  Purpose = "ANIME_PROGRAM_SYNC"
-	PurposeAnimeMappings     Purpose = "ANIME_MAPPINGS"
-	PurposeAnimeWorkIDs      Purpose = "ANIME_WORK_IDS"
-	PurposeAnimeArtworks     Purpose = "ANIME_ARTWORKS"
-	PurposeAnimeRecord       Purpose = "ANIME_RECORD"
-	PurposeAnimeLink         Purpose = "ANIME_LINK"
-	PurposeAnimeImage        Purpose = "ANIME_IMAGE"
-	PurposeUserAvatar        Purpose = "USER_AVATAR"
-	PurposeOIDC              Purpose = "OIDC"
-	PurposeHIBP              Purpose = "HIBP"
-	PurposeMCPClientMetadata Purpose = "MCP_CLIENT_METADATA"
-	PurposeUpdateCheck       Purpose = "UPDATE_CHECK"
-	PurposeTelemetryTraces   Purpose = "TELEMETRY_TRACES"
-	PurposeTelemetryMetrics  Purpose = "TELEMETRY_METRICS"
-	PurposeWebPush           Purpose = "WEB_PUSH"
-	PurposeWebhook           Purpose = "WEBHOOK"
-	PurposeDataBroadcast     Purpose = "DATA_BROADCAST"
-)
-
 // Initiator は、通信のきっかけ。
+//
+// ENUM(
+// Scheduled = SCHEDULED // 定期処理やジョブによる通信。
+// User = USER // 誰かが画面を操作したことによる通信。
+// )
 type Initiator string
-
-const (
-	// InitiatorScheduled は、定期処理やジョブによる通信。
-	InitiatorScheduled Initiator = "SCHEDULED"
-	// InitiatorUser は、誰かが画面を操作したことによる通信。
-	InitiatorUser Initiator = "USER"
-)
 
 // initiatorOf は、目的 p のきっかけを返す。
 func initiatorOf(p Purpose) Initiator {

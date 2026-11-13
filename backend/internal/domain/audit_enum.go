@@ -6,6 +6,7 @@
 package domain
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
 )
@@ -50,4 +51,44 @@ func ParseAuditActorType(name string) (AuditActorType, error) {
 		return x, nil
 	}
 	return AuditActorType(""), fmt.Errorf("%s is %w", name, ErrInvalidAuditActorType)
+}
+
+var errAuditActorTypeNilPtr = errors.New("value pointer is nil") // one per type for package clashes
+
+// Scan implements the Scanner interface.
+func (x *AuditActorType) Scan(value interface{}) (err error) {
+	if value == nil {
+		*x = AuditActorType("")
+		return
+	}
+
+	// A wider range of scannable types.
+	// driver.Value values at the top of the list for expediency
+	switch v := value.(type) {
+	case string:
+		*x, err = ParseAuditActorType(v)
+	case []byte:
+		*x, err = ParseAuditActorType(string(v))
+	case AuditActorType:
+		*x = v
+	case *AuditActorType:
+		if v == nil {
+			return errAuditActorTypeNilPtr
+		}
+		*x = *v
+	case *string:
+		if v == nil {
+			return errAuditActorTypeNilPtr
+		}
+		*x, err = ParseAuditActorType(*v)
+	default:
+		return errors.New("invalid type for AuditActorType")
+	}
+
+	return
+}
+
+// Value implements the driver Valuer interface.
+func (x AuditActorType) Value() (driver.Value, error) {
+	return x.String(), nil
 }

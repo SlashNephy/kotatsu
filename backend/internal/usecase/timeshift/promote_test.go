@@ -133,7 +133,7 @@ func TestPromoteEndedProgram(t *testing.T) {
 	assert.Equal(t, programStart.Add(30*time.Minute+noticeDelay+margin), got.TimeshiftPromotion.ToAt.UTC())
 	assert.Equal(t, &e.userID, got.TimeshiftPromotion.CreatedBy)
 	rec := got.Recording
-	assert.Equal(t, string(domain.RecordingStateRecording), rec.State)
+	assert.Equal(t, domain.RecordingStateRecording, rec.State)
 	assert.Nil(t, rec.ReservationID)
 	assert.Nil(t, rec.RuleID)
 	assert.Equal(t, new(int64(2)), rec.EventID)
