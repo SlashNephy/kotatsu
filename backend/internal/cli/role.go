@@ -24,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
 	"github.com/SlashNephy/kotatsu/internal/usecase/neko"
+	"github.com/SlashNephy/kotatsu/internal/usecase/networktv"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
@@ -140,13 +141,16 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	// EDCB は、まだ EPG の同期とチューナーの把握にだけ使う (#1531、#1532)。録画と視聴はつないでいない (#1258)。
 	var epgSource neko.EPGSource
 	var tunerSource tunerstate.Upstream
+	// 持ち主の止まった NetworkTV は、neko が閉じる (#1533)。
+	var sweeper neko.Runner
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
 		client, err := edcb.New(&edcb.Options{Address: deps.Config.Tuner.EDCB.Address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
 		if err != nil {
 			return err
 		}
-		server := edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: deps.Config.Tuner.EDCB.BonDrivers})
+		server := edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: deps.Config.Tuner.EDCB.BonDrivers, NetworkTVIDs: nil})
 		epgSource, tunerSource = server, server
+		sweeper = networktv.NewSweeper(deps.DB, deps.Clock, client, logger.With(slog.String("component", "networktv")), 0)
 		logger.WarnContext(ctx, "EDCB is used only to sync the EPG and monitor the tuners; recording and viewing are not yet supported",
 			slog.String("edcb_address", deps.Config.Tuner.EDCB.Address))
 	}
@@ -172,12 +176,13 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	deps.ClusterMetrics.MustRegister(lastFullSync)
 
 	return neko.Run(ctx, logger, &neko.Options{
-		DB:          deps.DB,
-		Clock:       deps.Clock,
-		InstanceID:  deps.InstanceID,
-		Tuner:       tuner,
-		EPGSource:   epgSource,
-		TunerSource: tunerSource,
+		DB:               deps.DB,
+		Clock:            deps.Clock,
+		InstanceID:       deps.InstanceID,
+		Tuner:            tuner,
+		EPGSource:        epgSource,
+		TunerSource:      tunerSource,
+		NetworkTVSweeper: sweeper,
 		EPG: &epg.SyncerOptions{
 			FullSyncInterval: 0, MinFullSyncInterval: 0, BatchWindow: 0, BackoffInitial: 0, BackoffMax: 0, StableAfter: 0, OnTunerEvent: nil,
 			OnFullSync: func(at time.Time) { lastFullSync.Set(float64(at.Unix())) },

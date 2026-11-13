@@ -1739,3 +1739,15 @@ CREATE TABLE job_progress (
   remaining_ms bigint CHECK (remaining_ms >= 0),
   updated_at timestamptz NOT NULL
 );
+
+-- EDCB の NetworkTV の ID の持ち主 (#1533、設計書 3.1)。ID は EpgTimerSrv 全体で 1 つの名前空間で、持ち主の概念がないので、
+-- 設定した範囲 (tuner.edcb.network_tv_id_start と _count) から、Kotatsu の中で配る。持ち主は、開いたインスタンス (instances.id)。
+-- 持ち主が止まって閉じられなかった ID は、neko が NWTV_ID_CLOSE を送ってから消す。
+CREATE TABLE edcb_network_tvs (
+  id integer PRIMARY KEY CHECK (id > 0),
+  instance_id uuid NOT NULL,
+  -- 開いたサービス。ログと調べ物のためだけに持つ。
+  network_id integer NOT NULL,
+  service_id integer NOT NULL,
+  acquired_at timestamptz NOT NULL
+);

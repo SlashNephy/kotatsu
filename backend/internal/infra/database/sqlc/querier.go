@@ -12,6 +12,8 @@ import (
 )
 
 type Querier interface {
+	// 範囲 [@start, @start + @count) のうち、空いている最も小さい ID を取る。取り合いになって空きがなくなれば、行を返さない。
+	AcquireEDCBNetworkTV(ctx context.Context, arg AcquireEDCBNetworkTVParams) (int32, error)
 	// 期限の切れたリースだけを取れる。誰も持っていないか期限が切れていれば、世代番号を 1 つ上げて取る。
 	// 他のインスタンスが期限内のリースを持っていれば、行を返さない。
 	AcquireLease(ctx context.Context, arg AcquireLeaseParams) (int64, error)
@@ -63,6 +65,7 @@ type Querier interface {
 	// 番組 (サービスと開始時刻の組) に結びついた話を、録画に写す。呼ぶ前に、録画の照合した記録を書き、前に写した話を消す。
 	CopyProgramAnimeEpisodesToRecording(ctx context.Context, arg CopyProgramAnimeEpisodesToRecordingParams) (int64, error)
 	CountAPIRecordings(ctx context.Context, keyword string) (int64, error)
+	CountEDCBNetworkTVs(ctx context.Context, arg CountEDCBNetworkTVsParams) (int64, error)
 	// /metrics に出す、状態ごとの録画の割り振りの数。
 	CountRecordingAssignmentsByState(ctx context.Context) ([]CountRecordingAssignmentsByStateRow, error)
 	// /metrics に出す、失敗の理由ごとの録画の数。
@@ -110,6 +113,7 @@ type Querier interface {
 	DeleteCalendarFeed(ctx context.Context, arg DeleteCalendarFeedParams) (int64, error)
 	// user_id のユーザーのキャプチャ id を消し、消した行を返す。ほかのユーザーのものは消さない。
 	DeleteCapture(ctx context.Context, arg DeleteCaptureParams) (Capture, error)
+	DeleteEDCBNetworkTV(ctx context.Context, arg DeleteEDCBNetworkTVParams) error
 	DeleteExpiredAnimeRecordAuthorizations(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
@@ -668,6 +672,8 @@ type Querier interface {
 	// 書きかけのチャンク。mikan が落ちるなどして残ったものを、サービスを録り直す前か、外したチャンネルのものを破棄する前に、
 	// ファイルの大きさと最後に書いた時刻で閉じる。
 	ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) ([]ListOpenTimeshiftChunksRow, error)
+	// 持ち主のインスタンスが、どのロールでも生きていない ID を返す。取った直後の ID は、登録の前の持ち主のものかもしれないので含めない。
+	ListOrphanedEDCBNetworkTVs(ctx context.Context, arg ListOrphanedEDCBNetworkTVsParams) ([]EdcbNetworkTv, error)
 	// 同じ話の、放送が終わった放送を、実況のチャンネルがあるものだけ、古い順に返す (#1361)。
 	ListOtherAnimeBroadcasts(ctx context.Context, arg ListOtherAnimeBroadcastsParams) ([]ListOtherAnimeBroadcastsRow, error)
 	ListPendingAnimeRecords(ctx context.Context, arg ListPendingAnimeRecordsParams) ([]AnimeRecord, error)
@@ -934,6 +940,7 @@ type Querier interface {
 	RecordStoragePoolMeasurement(ctx context.Context, arg RecordStoragePoolMeasurementParams) error
 	// 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
 	RecordingAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
+	ReleaseEDCBNetworkTV(ctx context.Context, arg ReleaseEDCBNetworkTVParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
 	// 止まる mikan が、引き継ぐ mikan がいないときに、割り振りを手放す。再起動した mikan が、リースが切れるのを待たずに取れる。
