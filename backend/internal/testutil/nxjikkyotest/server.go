@@ -316,9 +316,9 @@ func (s *Server) serveComment(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if send(ctx, conn, map[string]any{"ping": map[string]any{fieldContent: "rf:0"}}) != nil {
-		return
-	}
+	// rf:0 を送る前に、開いているコメントセッションに数える (#1622)。クライアントは rf:0 を受けて接続を知らせるので、
+	// 送った後に数えると、知らせを受けたテストが CommentSessions を確かめたり Chat を送ったりするのに、数えるのが間に合わないことがある。
+	// Chat を送るテストは、接続の知らせを待ってから送るので、Chat が rf:0 より先に届くことはない。
 	s.mu.Lock()
 	s.comments[conn] = struct{}{}
 	s.mu.Unlock()
@@ -327,6 +327,9 @@ func (s *Server) serveComment(w http.ResponseWriter, r *http.Request) {
 		delete(s.comments, conn)
 		s.mu.Unlock()
 	}()
+	if send(ctx, conn, map[string]any{"ping": map[string]any{fieldContent: "rf:0"}}) != nil {
+		return
+	}
 	for {
 		if _, _, err := conn.Read(ctx); err != nil {
 			return
