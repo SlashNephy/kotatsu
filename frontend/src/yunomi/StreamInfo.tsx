@@ -271,7 +271,12 @@ export function StreamInfo({
                     ? t('player.streamInfo.film', {
                         picture: pictureLabel(source.width, source.height, source.interlaced),
                       })
-                    : pictureLabel(source.width, source.height, source.interlaced)}
+                    : // WebGL2 がなく解除できないときは、インターレースの映像に、そう添える (#1617)。
+                      source.unfiltered && source.interlaced !== false
+                      ? t('player.streamInfo.unfiltered', {
+                          picture: pictureLabel(source.width, source.height, source.interlaced),
+                        })
+                      : pictureLabel(source.width, source.height, source.interlaced)}
               </dd>
             </>
           )}

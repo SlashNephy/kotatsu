@@ -141,7 +141,7 @@ describe('frameRate', () => {
 });
 
 describe('shownFrameRate', () => {
-  const picture = { width: 1440, height: 1080, interlaced: true };
+  const picture = { width: 1440, height: 1080, interlaced: true, unfiltered: false };
 
   test.each([
     {
@@ -303,7 +303,14 @@ describe('StreamMeter', () => {
     mediaEnd,
     seeking: false,
     transport: { dropped: 1, errors: 2, scrambled: 3 },
-    source: { width: 1440, height: 1080, interlaced: true, film: false, filmFps: null },
+    source: {
+      width: 1440,
+      height: 1080,
+      interlaced: true,
+      film: false,
+      filmFps: null,
+      unfiltered: false,
+    },
   });
 
   test('変換の経路の読みから、ビットレートと TS の異常と放送の映像を溜める', () => {
@@ -319,6 +326,7 @@ describe('StreamMeter', () => {
       interlaced: true,
       film: false,
       filmFps: null,
+      unfiltered: false,
     });
   });
 

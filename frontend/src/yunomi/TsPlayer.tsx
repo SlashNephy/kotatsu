@@ -12,7 +12,7 @@ import { cropStyle, noCrop, type Crop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
-import { deinterlacerCanvas, enableFilm } from './deinterlacer';
+import { createDeinterlacer, deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -78,6 +78,8 @@ type Slot = {
   film: boolean;
   // filmFps は、24p で出している間に、yadif が実際に出した 1 秒あたりのコマの数。それ以外は null。
   filmFps: number | null;
+  // unfiltered は、yadif を作れず (WebGL2 がないなど)、インターレースを解除せずに出していること (#1617)。
+  unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
   bytesRead: number;
   destroyed: boolean;
@@ -101,8 +103,7 @@ function bufferedEnd(video: HTMLVideoElement): number {
 // sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
 function sourcePicture(
   player: Mpeg2TsPlayer,
-  film: boolean,
-  filmFps: number | null,
+  { film, filmFps, unfiltered }: Pick<Slot, 'film' | 'filmFps' | 'unfiltered'>,
 ): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
@@ -117,6 +118,7 @@ function sourcePicture(
     interlaced: state.scan?.interlaced ?? null,
     film,
     filmFps,
+    unfiltered,
   };
 }
 
@@ -226,6 +228,7 @@ export function TsPlayer({
       stats: null,
       film: false,
       filmFps: null,
+      unfiltered: false,
       bytesRead: 0,
       destroyed: false,
     };
@@ -247,33 +250,41 @@ export function TsPlayer({
       return null;
     }
     const isActive = () => activeRef.current === slot;
+    const createYadif = (element: HTMLVideoElement) => {
+      const deinterlacer = new Deinterlacer(element, {
+        // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
+        // 読み込みを終えた録画では progress が来ないので、変わったときと、24p で出している間はここで知らせる。
+        onStats: (stats) => {
+          const changed = slot.film !== stats.film;
+          slot.film = stats.film;
+          slot.filmFps = stats.film ? stats.fps : null;
+          if (changed || stats.film) {
+            report();
+          }
+        },
+      });
+      // アニメのように 2:3 プルダウンで 24 コマを 60 フィールドに載せた映像は、プルダウンを見つけたら
+      // フィールドを組み直して 24p で出す (#1284)。縞が残らず、コマの間隔も元の映像どおりになる。
+      // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
+      enableFilm(deinterlacer);
+      // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
+      // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
+      deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
+
+      return deinterlacer;
+    };
     const player = new Player(slot.video, {
       wasmUrl: wasmURL,
       // iPhone のように MediaSource がなく ManagedMediaSource だけがある端末では、ManagedMediaSource で再生する (#1256)。
       preferManagedMediaSource: prefersManagedMediaSource(),
       deinterlace: true,
       deinterlacer: (element) => {
-        const deinterlacer = new Deinterlacer(element, {
-          // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
-          // 読み込みを終えた録画では progress が来ないので、変わったときと、24p で出している間はここで知らせる。
-          onStats: (stats) => {
-            const changed = slot.film !== stats.film;
-            slot.film = stats.film;
-            slot.filmFps = stats.film ? stats.fps : null;
-            if (changed || stats.film) {
-              report();
-            }
-          },
-        });
-        // アニメのように 2:3 プルダウンで 24 コマを 60 フィールドに載せた映像は、プルダウンを見つけたら
-        // フィールドを組み直して 24p で出す (#1284)。縞が残らず、コマの間隔も元の映像どおりになる。
-        // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
-        enableFilm(deinterlacer);
-        // yadif は、解除した映像を描く canvas の位置と大きさを、video に合わせて自分で決める。
-        // データ放送の中へ映像を移すときに、この canvas の大きさを変えないよう印を付ける。
-        deinterlacer.canvas.dataset[deinterlacerCanvas] = '';
+        // WebGL2 がなければ yadif を作れない。投げるとプレイヤーがエラーとして知らせ、画面はつなぎ直しを繰り返すので、
+        // 解除せずに再生を続け、再生の情報で知らせる (#1617)。印は、次の読み込みの知らせ (progress) で画面に届く。
+        const created = createDeinterlacer(() => createYadif(element));
+        slot.unfiltered = !created.available;
 
-        return deinterlacer;
+        return created.deinterlacer;
       },
     });
     player.addEventListener('statechange', (event) => {
@@ -303,7 +314,7 @@ export function TsPlayer({
                   errors: slot.stats.errors,
                   scrambled: slot.stats.scrambled,
                 },
-          source: sourcePicture(player, slot.film, slot.filmFps),
+          source: sourcePicture(player, slot),
         });
       }
     };
