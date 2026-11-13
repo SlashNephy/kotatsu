@@ -44,6 +44,8 @@ type request struct {
 type fakeServer struct {
 	listener net.Listener
 	replies  map[uint32]reply
+	// queued は、replies より先に、届いた順に返す応答。使い切ったら replies を返す。
+	queued map[uint32][]reply
 
 	mu       sync.Mutex
 	requests []request
@@ -55,7 +57,7 @@ func newFakeServer(t *testing.T, replies map[uint32]reply) *fakeServer {
 	var config net.ListenConfig
 	listener, err := config.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	s := &fakeServer{listener: listener, replies: replies, mu: sync.Mutex{}, requests: []request{}}
+	s := &fakeServer{listener: listener, replies: replies, queued: map[uint32][]reply{}, mu: sync.Mutex{}, requests: []request{}}
 	t.Cleanup(func() { _ = listener.Close() })
 	go s.serve()
 
@@ -85,9 +87,12 @@ func (s *fakeServer) handle(conn net.Conn) {
 	}
 	s.mu.Lock()
 	s.requests = append(s.requests, request{command: command, body: body})
+	r, ok := s.replies[command]
+	if queue := s.queued[command]; len(queue) > 0 {
+		r, ok, s.queued[command] = queue[0], true, queue[1:]
+	}
 	s.mu.Unlock()
 
-	r, ok := s.replies[command]
 	if !ok {
 		r = reply{status: 203, payload: nil, stream: nil, hold: false}
 	}
