@@ -104,8 +104,12 @@ func (l *recordingLeases) MarkHandover(ctx context.Context, clk clock.Clock, a *
 
 		return err
 	})
+	// 知らせられずにトランザクションを戻したら、印も付いていない。
+	if err != nil {
+		return false, err
+	}
 
-	return marked, err
+	return marked, nil
 }
 
 func (l *recordingLeases) Release(ctx context.Context, now time.Time, a *Assignment, holder uuid.UUID) error {

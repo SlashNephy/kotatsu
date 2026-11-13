@@ -259,12 +259,15 @@ func (w *Worker) handOver(ctx context.Context, active *activeSession, hasPeers b
 	a := active.assignment
 	logger := w.logger.With(slog.String("assignment_id", a.ID.String()), slog.Int64("generation", a.Generation))
 	if hasPeers {
+		// 印を付けたら、ほかの mikan はすぐに割り振りを取り、世代を進める。印を付けてから引き継ぎ待ちにすると、その間のリースの延長が
+		// 世代が進んだのを見て、リースを失ったものとして録画を止めてしまうので、先に引き継ぎ待ちにする (#1673)。
+		active.handingOver.Store(true)
 		marked, err := w.markHandover(ctx, a)
 		if err != nil {
 			logger.WarnContext(ctx, "failed to mark the recording for handover", slog.Any("error", err))
 		}
+		active.handingOver.Store(marked)
 		if marked {
-			active.handingOver.Store(true)
 			logger.InfoContext(ctx, "waiting for another mikan to take over the recording")
 			if w.waitForSuccessor(ctx, active) {
 				logger.InfoContext(ctx, "another mikan took over the recording")
