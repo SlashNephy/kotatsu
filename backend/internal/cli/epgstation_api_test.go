@@ -96,6 +96,8 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		{name: "署名付き URL", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound},
 		{name: "署名付き URL の経路にセッションの Cookie だけ", path: stream.SignedPathPrefix + missing[1:], cookie: true, bearer: false, want: http.StatusUnauthorized},
 		{name: "画面の経路にセッションの Cookie", path: "/internal/streams" + missing, cookie: true, bearer: false, want: http.StatusNotFound},
+		{name: "画面の経路の知らないパス", path: "/internal/nope", cookie: true, bearer: false, want: http.StatusNotFound},
+		{name: "GraphQL の下の知らないパス", path: "/internal/graphql/nope", cookie: true, bearer: false, want: http.StatusNotFound},
 		{name: "画面の経路に署名だけ", path: signer.Sign("/internal/streams"+missing, user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {

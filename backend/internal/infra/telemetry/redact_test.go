@@ -27,7 +27,7 @@ func TestRedactingExporter(t *testing.T) {
 		{name: "recording stream", path: "/internal/streams/recordings/42/hls/1080p/0/seg-00001.ts", wantPath: "/internal/streams/:id/:id/:id/:id/:id/:id"},
 		{name: "uuid", path: "/internal/media/recordings/01926d1e-7c3a-7b1a-9c11-2f3b4c5d6e7f/thumbnail.jpg", wantPath: "/internal/media/:id/:id/:id"},
 		{name: "username without digits", path: "/internal/media/anime-following/annict/alice/avatar", wantPath: "/internal/media/:id/:id/:id/:id"},
-		{name: "no id", path: "/graphql", wantPath: "/graphql"},
+		{name: "no id", path: "/internal/graphql", wantPath: "/internal/graphql"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
