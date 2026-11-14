@@ -139,7 +139,7 @@ func newImportEDCBCommand(opts *Options, connect func(ctx context.Context) (*con
 				return err
 			}
 			defer closePool(pool)
-			client, err := edcb.New(&edcb.Options{Address: address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
+			client, err := edcb.New(&edcb.Options{Address: address, DialTimeout: 0, RequestTimeout: 0, Dial: nil, StreamIdleTimeout: 0})
 			if err != nil {
 				return err
 			}

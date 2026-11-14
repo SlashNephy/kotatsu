@@ -13,9 +13,12 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
 // コマンド (EDCB の Common/CtrlCmdDef.h)。
@@ -50,6 +53,9 @@ const DefaultPort = "4510"
 const (
 	defaultDialTimeout    = 10 * time.Second
 	defaultRequestTimeout = 60 * time.Second
+	// DefaultStreamIdleTimeout は、TS の中継で、データが届かないまま待つ時間の上限 (#1723)。
+	// TS には PAT などが 1 秒に何度も入るので、これだけ届かなければ、接続を保ったまま止まったとみなす。Mirakurun と同じ値にする。
+	DefaultStreamIdleTimeout = 10 * time.Second
 	// maxResponseSize は、受け取る応答の本文の上限。FILE_COPY2 は、まとめて 256 MiB まで返す。
 	maxResponseSize = 512 << 20
 	// networkTVSendTCP は、NetworkTV のチューナーに TS を TCP で送らせる送信モード (SET_CH_INFO の ch)。
@@ -100,12 +106,15 @@ type Options struct {
 	RequestTimeout time.Duration
 	// Dial は、接続を張る。nil なら net.Dialer を使う。テストで差し替える。
 	Dial func(ctx context.Context, network, address string) (net.Conn, error)
+	// StreamIdleTimeout は、TS の中継 (RelayStream) で、データが届かないまま待つ時間の上限。0 なら DefaultStreamIdleTimeout。
+	StreamIdleTimeout time.Duration
 }
 
 // Client は、EpgTimerSrv の CtrlCmd を呼ぶ。複数の goroutine から使ってよい。
 type Client struct {
 	address        string
 	requestTimeout time.Duration
+	idleTimeout    time.Duration
 	dial           func(ctx context.Context, network, address string) (net.Conn, error)
 }
 
@@ -129,7 +138,12 @@ func New(opts *Options) (*Client, error) {
 		dial = dialer.DialContext
 	}
 
-	return &Client{address: address, requestTimeout: requestTimeout, dial: dial}, nil
+	idleTimeout := opts.StreamIdleTimeout
+	if idleTimeout == 0 {
+		idleTimeout = DefaultStreamIdleTimeout
+	}
+
+	return &Client{address: address, requestTimeout: requestTimeout, idleTimeout: idleTimeout, dial: dial}, nil
 }
 
 // normalizeAddress は、host:port の形にする。ポートがなければ DefaultPort を足す。
@@ -324,6 +338,8 @@ func (c *Client) CloseNetworkTV(ctx context.Context, id int32) error {
 // RelayStream は、チューナーのプロセス processID の TS を受け取る (RELAY_VIEW_STREAM)。
 // 返す io.ReadCloser は、読み終えたら必ず閉じる。ctx が終わっても閉じる。1 つのプロセスの TS を同時に受け取れるのは 2 つまでで、
 // 3 つ目は失敗する。EDCB の予約にチューナーを取られると、接続は切れないまま、予約の局の TS に変わる。
+// データが StreamIdleTimeout の間届かなければ、Read は tunerserver.ErrStreamStalled を返す。接続を保ったまま、
+// 送らなくなったことに気づくため (#1723)。
 func (c *Client) RelayStream(ctx context.Context, processID int32) (io.ReadCloser, error) {
 	conn, err := c.dial(ctx, "tcp", c.address)
 	if err != nil {
@@ -349,17 +365,31 @@ func (c *Client) RelayStream(ctx context.Context, processID int32) (io.ReadClose
 		return fail(&StatusError{Command: cmdRelayViewStream, Status: status})
 	}
 
-	return &relayStream{Conn: conn, stop: stop}, nil
+	return &relayStream{Conn: conn, stop: stop, idleTimeout: c.idleTimeout}, nil
 }
 
 // relayStream は、TS を受け取っている接続。閉じたら、ctx を見張るのもやめる。
 type relayStream struct {
 	net.Conn
 
-	stop func() bool
+	stop        func() bool
+	idleTimeout time.Duration
 }
 
 var _ io.ReadCloser = (*relayStream)(nil)
+
+// Read は、TS を読む。データが idleTimeout の間届かなければ、tunerserver.ErrStreamStalled を返す。
+func (s *relayStream) Read(p []byte) (int, error) {
+	if err := s.SetReadDeadline(time.Now().Add(s.idleTimeout)); err != nil {
+		return 0, fmt.Errorf("failed to set the read deadline: %w", err)
+	}
+	n, err := s.Conn.Read(p)
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		return n, tunerserver.ErrStreamStalled
+	}
+
+	return n, err
+}
 
 func (s *relayStream) Close() error {
 	s.stop()
