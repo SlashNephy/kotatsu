@@ -22,6 +22,8 @@ enum NotificationKind {
   ANIME_RECORD_FAILED
   "スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。"
   SCRAMBLED_RECORDINGS
+  "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違った (#1519)。管理者にだけ届く。"
+  LINEUP_CHANGED
 }
 
 """

@@ -23,6 +23,7 @@ import (
 // anime_recorded // 見たアニメを Annict や AniList に記録したことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
 // anime_record_failed // 見たアニメを記録できなかったことを知らせる (#927)。見たユーザーだけに届け、Webhook では送らない。
 // scrambled_recordings // スクランブルされたまま録れた録画が続いたことを知らせる (#1517)。B-CAS カードを確かめられるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+// lineup_changed // 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 // )
 type NotificationKind string
 

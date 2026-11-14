@@ -377,7 +377,7 @@ CREATE TABLE notification_events (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings', 'lineup_changed'
   )),
   occurred_at timestamptz NOT NULL,
   -- 画面に出す文の材料 (番組名や理由など)。種類ごとに項目が違う。
@@ -417,7 +417,7 @@ CREATE TABLE notification_preferences (
   kind text NOT NULL CHECK (kind IN (
     'recording_started', 'recording_completed', 'recording_failed',
     'reservation_conflict', 'storage_low', 'tuner_server_unreachable',
-    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings'
+    'watch_reminder', 'anime_recorded', 'anime_record_failed', 'scrambled_recordings', 'lineup_changed'
   )),
   -- 画面内の通知で受け取るかどうか。
   in_app boolean NOT NULL,

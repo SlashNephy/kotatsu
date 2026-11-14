@@ -247,6 +247,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindAnimeRecordFailed
       SCRAMBLED_RECORDINGS:
         value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindScrambledRecordings
+      LINEUP_CHANGED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.NotificationKindLineupChanged
   ReservationKind:
     model: github.com/SlashNephy/kotatsu/internal/domain.ReservationKind
     enum_values:

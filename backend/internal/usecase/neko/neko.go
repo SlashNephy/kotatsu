@@ -22,6 +22,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
@@ -197,6 +198,11 @@ func goTunerServerTasks(ctx context.Context, eg *errgroup.Group, opts *Options, 
 
 		return
 	}
+	// 放送の衛星の構成を、チューナーサーバーのサービスの一覧と比べ、食い違いを管理者に知らせる (#1519)。
+	checker := lineup.NewChecker(opts.DB, source, opts.Clock, logger.With(slog.String("component", "lineup")), 0)
+	eg.Go(func() error {
+		return checker.Run(ctx)
+	})
 	var syncerOptions epg.SyncerOptions
 	if opts.EPG != nil {
 		syncerOptions = *opts.EPG

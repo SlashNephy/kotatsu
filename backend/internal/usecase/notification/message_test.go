@@ -56,6 +56,16 @@ func TestMessage(t *testing.T) {
 			payload: map[string]any{keyName: programName, "consecutive": 2},
 			want:    "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります",
 		},
+		{
+			name: "局の顔ぶれの変化は、数が 0 の項目を書かない", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{"kind": "BS", "networkId": 4, "added": 3, "removed": 0},
+			want:    "BS のチャンネルが放送で変わりました（新しい局 3）。チューナーサーバーのチャンネルをスキャンし直してください",
+		},
+		{
+			name: "DB から読み直した局の顔ぶれの変化は、数が float64 で届く", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{"kind": "CS", "networkId": float64(6), "added": float64(1), "removed": float64(2)},
+			want:    "CS のチャンネルが放送で変わりました（新しい局 1、終わった局 2）。チューナーサーバーのチャンネルをスキャンし直してください",
+		},
 		{name: "録画の失敗", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画に失敗しました"},
 		{
 			name: "競合は、表示のタイムゾーンの日時で書く。日付をまたぐ", kind: domain.NotificationKindReservationConflict, payload: conflict, location: tokyo,

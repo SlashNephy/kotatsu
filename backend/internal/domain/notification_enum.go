@@ -26,6 +26,8 @@ const (
 	NotificationKindAnimeRecordFailed NotificationKind = "anime_record_failed"
 	// スクランブルされたまま録れた録画が続いたことを知らせる (#1517)。B-CAS カードを確かめられるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
 	NotificationKindScrambledRecordings NotificationKind = "scrambled_recordings"
+	// 放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる (#1519)。チューナーサーバーをスキャンし直せるのは管理者なので、管理者にだけ届ける。管理者が設定する Webhook でも送る。
+	NotificationKindLineupChanged NotificationKind = "lineup_changed"
 )
 
 var ErrInvalidNotificationKind = errors.New("not a valid NotificationKind")
@@ -43,6 +45,7 @@ func NotificationKindValues() []NotificationKind {
 		NotificationKindAnimeRecorded,
 		NotificationKindAnimeRecordFailed,
 		NotificationKindScrambledRecordings,
+		NotificationKindLineupChanged,
 	}
 }
 
@@ -69,6 +72,7 @@ var _NotificationKindValue = map[string]NotificationKind{
 	"anime_recorded":           NotificationKindAnimeRecorded,
 	"anime_record_failed":      NotificationKindAnimeRecordFailed,
 	"scrambled_recordings":     NotificationKindScrambledRecordings,
+	"lineup_changed":           NotificationKindLineupChanged,
 }
 
 // ParseNotificationKind attempts to convert a string to a NotificationKind.
