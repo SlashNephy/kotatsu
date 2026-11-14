@@ -10,6 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
 // このファイルは、wire が読む組み立ての宣言 (#1607)。ビルドには入らず、wire が wire_gen.go に中身を生成する。
@@ -88,5 +89,14 @@ func newJikkyoParts(deps *Deps) (*jikkyoParts, error) {
 		newJikkyoTable,
 		newJikkyoClient,
 		wire.Struct(new(jikkyoParts), "*"),
+	))
+}
+
+// newStreamParts は、変換せずに流している配信を数える部品と、止める前につなぎ直すのを待つ部品を作る。
+func newStreamParts(deps *Deps) *streamParts {
+	panic(wire.Build(
+		newStreamCounter,
+		streamapi.NewDrainer,
+		wire.Struct(new(streamParts), "*"),
 	))
 }
