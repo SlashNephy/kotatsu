@@ -33,6 +33,11 @@ func TestTransponder(t *testing.T) {
 		{name: "between transponders", kind: lineup.KindBS, kHz: 11_746_000, want: 0, wantOK: false},
 		{name: "below the first", kind: lineup.KindCS, kHz: 12_000_000, want: 0, wantOK: false},
 		{name: "above the last", kind: lineup.KindBS, kHz: 12_200_000, want: 0, wantOK: false},
+		// 計算した周波数との差が、許す誤差 (2 MHz) の内なら同じ中継器とみなし、外なら除く。
+		{name: "within the tolerance", kind: lineup.KindBS, kHz: 11_727_480 + 2_000, want: 1, wantOK: true},
+		{name: "beyond the tolerance", kind: lineup.KindBS, kHz: 11_727_480 + 2_010, want: 0, wantOK: false},
+		// 衛星でない種別は、読まない。
+		{name: "terrestrial", kind: lineup.Kind("GR"), kHz: 11_727_480, want: 0, wantOK: false},
 	}
 	for _, tt := range tests {
 		number, ok := lineup.Transponder(tt.kind, tt.kHz)
@@ -171,4 +176,26 @@ func TestComparerForget(t *testing.T) {
 	change, ok := comparer.Observe(observation(1, 101), known(141))
 	require.True(t, ok)
 	assert.Equal(t, &lineup.Change{Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0}, change)
+}
+
+// TestComparerCS は、CS も同じ規則で比べ、構成がないとき (nil) は比べないことを確かめる。
+func TestComparerCS(t *testing.T) {
+	t.Parallel()
+
+	clk := clocktest.NewFake(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
+	comparer := lineup.NewComparer(clk, interval)
+	_, ok := comparer.Observe(nil, nil)
+	require.False(t, ok)
+
+	cs := &lineup.Observation{
+		Kind: lineup.KindCS, NetworkID: 6, Version: 1,
+		Streams: []lineup.Stream{{TransportStreamID: 0x6020, FrequencyKHz: 12_291_000, Services: []lineup.Service{{ServiceID: 55, ServiceType: 0x01}, {ServiceID: 56, ServiceType: 0x01}}}},
+	}
+	known := []lineup.Known{{NetworkID: 6, ServiceID: 55}}
+	_, ok = comparer.Observe(cs, known)
+	require.False(t, ok)
+	clk.Advance(interval)
+	change, ok := comparer.Observe(cs, known)
+	require.True(t, ok)
+	assert.Equal(t, &lineup.Change{Kind: lineup.KindCS, NetworkID: 6, Added: 1, Removed: 0}, change)
 }

@@ -5,7 +5,6 @@ package lineup
 
 import (
 	"math"
-	"slices"
 	"sync"
 	"time"
 
@@ -36,19 +35,28 @@ const (
 	FrequencyToleranceMHz = 2.0
 )
 
-// uhdTransponders は、4K・8K (ISDB-S3) の中継器。構成から除く。
-func uhdTransponders() []int {
-	return []int{7, 17}
-}
+// uhdTransponderBS7 と uhdTransponderBS17 は、4K・8K (ISDB-S3) の中継器。構成から除く。
+const (
+	uhdTransponderBS7  = 7
+	uhdTransponderBS17 = 17
+)
 
 // Transponder は、kind の中継器の番号を、周波数 (kHz) から求める。表に当てはまらない周波数と、
 // 4K・8K の中継器 (BS-7、BS-17) なら false を返す。
 func Transponder(kind Kind, frequencyKHz int) (int, bool) {
 	mhz := float64(frequencyKHz) / 1000
-	first, spacing, start, step, maxNumber := bsFirstMHz, bsSpacingMHz, 1, 2, bsMaxNumber
-	if kind == KindCS {
-		first, spacing, start, step, maxNumber = csFirstMHz, csSpacingMHz, 2, 2, csMaxNumber
+	var first, spacing float64
+	var start, maxNumber int
+	switch kind {
+	case KindBS:
+		first, spacing, start, maxNumber = bsFirstMHz, bsSpacingMHz, 1, bsMaxNumber
+	case KindCS:
+		first, spacing, start, maxNumber = csFirstMHz, csSpacingMHz, 2, csMaxNumber
+	default:
+		return 0, false
 	}
+	// BS は奇数、CS は偶数の番号を使う。
+	const step = 2
 	index := int(math.Round((mhz - first) / spacing))
 	if index < 0 {
 		return 0, false
@@ -57,7 +65,7 @@ func Transponder(kind Kind, frequencyKHz int) (int, bool) {
 	if number > maxNumber || math.Abs(mhz-(first+float64(index)*spacing)) > FrequencyToleranceMHz {
 		return 0, false
 	}
-	if kind == KindBS && slices.Contains(uhdTransponders(), number) {
+	if kind == KindBS && (number == uhdTransponderBS7 || number == uhdTransponderBS17) {
 		return 0, false
 	}
 
@@ -147,6 +155,9 @@ func NewComparer(clk clock.Clock, interval time.Duration) *Comparer {
 // Observe は、読んだ構成 obs を、チューナーサーバーのテレビのサービス known と比べ、知らせる食い違いがあれば返す。
 // known は、obs と同じ種別のサービスだけでよい (ほかのネットワークのものは、無視する)。
 func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
+	if obs == nil {
+		return nil, false
+	}
 	broadcast := tvServices(obs)
 	if len(broadcast) == 0 {
 		return nil, false
