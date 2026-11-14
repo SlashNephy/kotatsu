@@ -4,6 +4,6 @@
 # renovate: datasource=repology depName=debian_13/ffmpeg versioning=loose
 ffmpeg=7.1.5
 # renovate: datasource=docker depName=docker.io/emscripten/emsdk
-emsdk=6.0.13@sha256:fb7864e398acfda863dfcea78b8bc8adad359fa60c6a0bbeb845931de64aa68a
+emsdk=7.0.0@sha256:6bd7aef93408b10bf7b36642cb7c91119b302f720b9ec2d20439f73cf07fe894
 # FFmpeg のリリースの署名鍵 (https://ffmpeg.org/download.html#releases)。取得した tarball の署名をこの鍵で確かめる。
 ffmpeg_signing_key=FCF986EA15E6E293A5644F10B4322F04D67658D8
