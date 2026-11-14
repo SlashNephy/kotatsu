@@ -35,11 +35,11 @@ type ServiceLister interface {
 
 var _ ServiceLister = tunerserver.Client(nil)
 
-// Checker は、mikan が DB に書いた衛星の構成 (broadcast_lineups) を、チューナーサーバーのテレビのサービスと定期的に比べ、
-// 食い違いを管理者に知らせる (#1519、設計書 6.2)。neko で動かす。
+// Checker は、mikan が DB に書いた衛星の構成 (broadcast_lineups) と地上波のネットワークのサービス (terrestrial_lineups) を、
+// チューナーサーバーのテレビのサービスと定期的に比べ、食い違いを管理者に知らせる (#1519、設計書 6.2)。neko で動かす。
 //
-// 比べた状態 (確かめ済みの version と、1 回目に見た食い違い) は、プロセスの中だけに持つ。再起動したら、続いている食い違いも、
-// 2 回読み直したところで、もう一度知らせる。
+// 比べた状態 (衛星の確かめ済みの version と 1 回目に見た食い違い、地上波の知らせた食い違い) は、プロセスの中だけに持つ。
+// 再起動したら、続いている食い違いも、もう一度知らせる (衛星は 2 回読み直したところで)。
 type Checker struct {
 	pool     *pgxpool.Pool
 	services ServiceLister
