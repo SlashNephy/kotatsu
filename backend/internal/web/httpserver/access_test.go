@@ -67,12 +67,12 @@ func TestAccessPolicy(t *testing.T) {
 		// Tailscale と CGNAT の共有アドレス空間は、既定では受け付けない (#1758)。
 		{
 			name: "tailscale is rejected by default", remoteAddr: "100.101.102.103", wantStatus: http.StatusForbidden,
-			wantBody: "access from 100.101.102.103 is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS).",
+			wantBody: "access from 100.101.102.103 is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS); a network outside your home also needs server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS).",
 		},
 		{name: "IPv6 unique local", remoteAddr: "[fd00::1]", wantStatus: http.StatusOK, wantIP: "fd00::1", wantOrigin: "http://" + hostName},
 		{
 			name: "public address is rejected", remoteAddr: publicAddr, wantStatus: http.StatusForbidden,
-			wantBody: "access from 203.0.113.5 is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS).",
+			wantBody: "access from 203.0.113.5 is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS); a network outside your home also needs server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS).",
 		},
 		{
 			name: "forwarded header from an untrusted address is rejected with guidance", remoteAddr: lanAddr,
@@ -159,7 +159,7 @@ func TestAccessPolicy(t *testing.T) {
 				clientIPHeader = config.Default().Server.ClientIPHeader
 			}
 			policy, err := httpserver.NewAccessPolicy(&config.Server{
-				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{trustedProxy},
 				ClientIPHeader: clientIPHeader,
 			}, slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
@@ -228,7 +228,7 @@ func TestAccessPolicyAllowedHosts(t *testing.T) {
 			t.Parallel()
 
 			policy, err := httpserver.NewAccessPolicy(&config.Server{
-				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{trustedProxy},
 				ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: tt.allowedHosts,
 			}, slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
@@ -281,7 +281,7 @@ func TestRequireSameOrigin(t *testing.T) {
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
-		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{trustedProxy},
 	}, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	handler := policy.Middleware(httpserver.RequireSameOrigin(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
@@ -321,7 +321,7 @@ func TestRequireSameOriginUpgrade(t *testing.T) {
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
-		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{trustedProxy},
 	}, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	handler := policy.Middleware(httpserver.RequireSameOriginUpgrade(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))

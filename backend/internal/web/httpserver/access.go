@@ -96,7 +96,7 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 		if !contains(p.allowed, client.IP) {
 			p.logger.WarnContext(r.Context(), "rejected a request from a disallowed address", slog.String("client", client.IP.String()))
 			http.Error(w, fmt.Sprintf(
-				"access from %s is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS).",
+				"access from %s is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS); a network outside your home also needs server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS).",
 				client.IP), http.StatusForbidden)
 
 			return

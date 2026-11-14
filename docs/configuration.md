@@ -72,6 +72,7 @@ tenbanのHTTPサーバーの設定です。
 | --- | --- | --- | --- |
 | `server.listen` | `KOTATSU_SERVER_LISTEN` | `:8080` | 待ち受けアドレス |
 | `server.allowed_networks` | `KOTATSU_SERVER_ALLOWED_NETWORKS` | プライベートアドレス | 接続を受け付ける送信元のネットワーク |
+| `server.allow_external_networks` | `KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS` | `false` | `server.allowed_networks`に、家の中のプライベートアドレスの外の範囲を書くことを許すか（危険を伴う設定） |
 | `server.trusted_proxies` | `KOTATSU_SERVER_TRUSTED_PROXIES` | なし | `X-Forwarded-For`を信頼するリバースプロキシのネットワーク |
 | `server.client_ip_header` | `KOTATSU_SERVER_CLIENT_IP_HEADER` | `X-Forwarded-For` | 信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー（`X-Forwarded-For`か`X-Real-IP`） |
 | `server.allowed_hosts` | `KOTATSU_SERVER_ALLOWED_HOSTS` | なし | 受け付ける`Host`のホスト名。空ならどれも受け付ける |
@@ -85,12 +86,15 @@ tenbanのHTTPサーバーの設定です。
 - ループバック（`127.0.0.0/8`、`::1/128`）
 - IPv6のユニークローカルアドレス（`fc00::/7`）とリンクローカルアドレス（`fe80::/10`）
 
-インターネットからの接続を受け付けるときは、`0.0.0.0/0`と`::/0`を明示してください。
+`server.allowed_networks`に、上の既定のネットワークの外の範囲（インターネット、Tailscaleの`100.64.0.0/10`など）を書くのは、家の外からKotatsuに届くようにする、危険を伴う設定です。書き間違いや、意味を知らずに広げてしまうことを防ぐため、`server.allow_external_networks`を`true`にしないと起動しません（#1759）。既定のネットワークの一部（`192.168.1.0/24`など）だけを書くときは要りません。
 
-Tailscaleが使う`100.64.0.0/10`は、既定では受け付けません（#1758）。この範囲は、tailnetを共有した相手や、同じISPのCGNAT（RFC 6598の共有アドレス空間）の中からも届くためです。Tailscale経由で使うときは、既定の範囲に`100.64.0.0/10`を足して書いてください。
+インターネットからの接続を受け付けるときは、`server.allow_external_networks`を`true`にし、`0.0.0.0/0`と`::/0`を明示してください。
+
+Tailscaleが使う`100.64.0.0/10`は、既定では受け付けません（#1758）。この範囲は、tailnetを共有した相手や、同じISPのCGNAT（RFC 6598の共有アドレス空間）の中からも届くためです。Tailscale経由で使うときは、`server.allow_external_networks`を`true`にし、既定の範囲に`100.64.0.0/10`を足して書いてください。
 
 ```yaml
 server:
+  allow_external_networks: true
   allowed_networks:
     - 10.0.0.0/8
     - 172.16.0.0/12

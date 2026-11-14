@@ -74,6 +74,10 @@ type Server struct {
 	// 既定はプライベートアドレスだけで、インターネットから受け付けるには 0.0.0.0/0 と ::/0 を明示する。
 	// 環境変数では、カンマで区切って渡す。
 	AllowedNetworks []string `yaml:"allowed_networks"`
+	// AllowExternalNetworks は、AllowedNetworks に、家の中のネットワーク (DefaultAllowedNetworks) の外の範囲を書くことを許すかどうか (#1759)。
+	// インターネットや、Tailscale と CGNAT の共有アドレス空間 (100.64.0.0/10) から接続を受け付けるのは、危険を伴う設定なので、
+	// 書き間違いや、意味を知らずに広げてしまうことを防ぐため、このフラグで明示させる。既定は false。
+	AllowExternalNetworks bool `yaml:"allow_external_networks"`
 	// TrustedProxies は、X-Forwarded-For などを信頼するリバースプロキシのネットワーク (CIDR か IP アドレス)。
 	// ここに含まれない送信元から X-Forwarded-For が届いたら、設定方法を案内するエラーを返す。
 	TrustedProxies []string `yaml:"trusted_proxies"`
@@ -456,9 +460,11 @@ func Default() *Config {
 			Listen:          ":8080",
 			AdvertiseHost:   "",
 			AllowedNetworks: DefaultAllowedNetworks(),
-			TrustedProxies:  []string{},
-			ClientIPHeader:  ClientIPHeaderXForwardedFor,
-			AllowedHosts:    []string{},
+			// 家の外のネットワークから受け付けるのは、明示させる (#1759)。
+			AllowExternalNetworks: false,
+			TrustedProxies:        []string{},
+			ClientIPHeader:        ClientIPHeaderXForwardedFor,
+			AllowedHosts:          []string{},
 		},
 		Metrics: Metrics{
 			Listen: ":9090",
@@ -525,6 +531,8 @@ func (s *Server) validate() []error {
 	}
 	if err := validateNetworks(s.AllowedNetworks); err != nil {
 		errs = append(errs, fieldError("server.allowed_networks", err))
+	} else if err := s.validateExternalNetworks(); err != nil {
+		errs = append(errs, fieldError("server.allowed_networks", err))
 	}
 	if err := validateNetworks(s.TrustedProxies); err != nil {
 		errs = append(errs, fieldError("server.trusted_proxies", err))
@@ -539,6 +547,33 @@ func (s *Server) validate() []error {
 	}
 
 	return errs
+}
+
+// validateExternalNetworks は、AllowedNetworks に家の中のネットワークの外の範囲があれば、AllowExternalNetworks で
+// 明示していることを確かめる (#1759)。
+func (s *Server) validateExternalNetworks() error {
+	if s.AllowExternalNetworks {
+		return nil
+	}
+	allowed, err := ParseNetworks(s.AllowedNetworks)
+	if err != nil {
+		return err
+	}
+	home, err := ParseNetworks(DefaultAllowedNetworks())
+	if err != nil {
+		return err
+	}
+	for i, prefix := range allowed {
+		inside := slices.ContainsFunc(home, func(network netip.Prefix) bool {
+			return network.Bits() <= prefix.Bits() && network.Contains(prefix.Addr())
+		})
+		if !inside {
+			return fmt.Errorf("%q is outside the private networks of your home; accepting connections from it is risky, "+
+				"so set server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS) to true to confirm it", s.AllowedNetworks[i])
+		}
+	}
+
+	return nil
 }
 
 // validate は値の形式を検査する。必須の項目の検査は読み込みの段階で済ませている。
