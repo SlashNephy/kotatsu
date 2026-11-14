@@ -76,12 +76,59 @@ describe('captureFileName', () => {
       want: '%unknown%-ニュース７.png',
     },
     {
+      name: '録画のファイル名と同じ Go のテンプレートの書き方を使える (#1707)',
+      template:
+        '{{.StartAt.Format "2006-01-02"}}({{weekdayJa .StartAt}}) {{.StartAt.Format "15.04.05"}} [{{.ServiceName}}] {{.Name}}',
+      want: '2026-10-16(金) 21.05.09 [NHK総合1・東京] ニュース７.png',
+    },
+    {
+      name: 'half で英数字を半角にし、Go の時刻の書き方の 1 桁と 12 時間制も使える',
+      template: '{{half .Name}} {{.StartAt.Format "06 1/2 3PM"}}',
+      want: 'ニュース7 26 10_16 9PM.png',
+    },
+    {
+      name: '空白の多い書き方と、` で囲んだ書き方も受け付ける',
+      template: '{{ .ServiceName }}{{.StartAt.Format `Jan Mon`}}',
+      want: 'NHK総合1・東京Oct Fri.png',
+    },
+    {
+      name: 'half でサービス名も半角にし、Go の時刻の書き方の長い名前と空白で埋める日も使える',
+      template: '{{half .ServiceName}} {{.StartAt.Format "January Monday _2 03 4 5 pm"}}',
+      want: 'NHK総合1・東京 October Friday 16 09 5 9 pm.png',
+    },
+    {
+      name: 'タイムゾーンと秒の端数の書き方は、当てはめずに残す',
+      template: '{{.StartAt.Format "15 MST -0700 .000"}}',
+      want: '21 MST -0700 .000.png',
+    },
+    {
+      name: '前後の空白を詰める {{- と -}} は、受け付けずに残す',
+      template: '{{.Name}} {{- .ServiceName -}}',
+      want: 'ニュース７ {{- .ServiceName -}}.png',
+    },
+    {
+      name: '受け付けない Go のテンプレートの書き方は、そのまま残す',
+      template: '{{.EventID}}{{printf "%d" 1}}-{{.Name}}',
+      want: '{{.EventID}}{{printf _%d_ 1}}-ニュース７.png',
+    },
+    {
+      name: '前の版の書き方と並べて使える',
+      template: '%date% {{.Name}}',
+      want: '2026-10-16 ニュース７.png',
+    },
+    {
       name: '空なら、既定の形',
       template: '  ',
       want: '2026-10-16 21.05.09 - NHK総合1・東京 - ニュース７.png',
     },
   ])('$name', ({ template, want }) => {
     expect(captureFileName(time, 'NHK総合1・東京', 'ニュース７🈑', template)).toBe(want);
+  });
+
+  test('番組名の中の書き方は、もう一度は当てはめない', () => {
+    expect(captureFileName(time, 'NHK', '{{.ServiceName}} %service%', '{{.Name}}')).toBe(
+      '{{.ServiceName}} %service%.png',
+    );
   });
 
   test.each([

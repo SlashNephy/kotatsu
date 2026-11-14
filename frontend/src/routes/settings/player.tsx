@@ -25,7 +25,7 @@ import {
 } from '../../yunomi/autoPictureInPicture';
 import { fullscreenLandscapeSupported, useFullscreenLandscape } from '../../yunomi/landscapeLock';
 import { touchSupported, useSwipeControlsSetting } from '../../yunomi/swipeControls';
-import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
+import { captureFileName, captureFileNameItems, captureFileNameMacros } from '../../yunomi/capture';
 import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
 import { useFieldRate } from '../../yunomi/fieldRate';
 import {
@@ -293,6 +293,7 @@ function PlayerSettings() {
               </Group>
             }
             description={t('settings.account.captureFileNameHelp', {
+              items: captureFileNameItems.join(' '),
               macros: captureFileNameMacros.join(' '),
               example: captureFileName(
                 captureExampleTime,

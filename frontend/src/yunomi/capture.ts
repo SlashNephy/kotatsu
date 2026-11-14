@@ -1,5 +1,6 @@
 // 再生中の場面を画像にする (設計書 7.5)。
 
+import { toHalfWidth } from '../futon/halfWidth';
 import { splitProgramMarks } from '../futon/programMarks';
 import { cropSource, isCropped, noCrop, type Crop } from './crop';
 import { withPNGText, type PNGText } from './pngText';
@@ -104,8 +105,25 @@ const unsafeFileNameChars = /[\\/:*?"<>|\p{Cc}]/gu;
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
 
-// captureFileNameMacros は、キャプチャのファイル名のテンプレートで使える書き方 (#500)。
-// 時刻は、端末のローカル時刻で書く。番組名は、囲み文字を外す。
+// captureFileNameItems は、キャプチャのファイル名のテンプレートの書き方 (#500、#1707)。
+// 録画のファイル名のテンプレート (設計書 4.7) と同じ、Go のテンプレートの書き方のうち、キャプチャで分かる項目だけを受け付ける。
+// .StartAt は撮った場面の時刻で、端末のローカル時刻で書く。番組名は、囲み文字を外す。
+export const captureFileNameItems = [
+  '{{.Name}}',
+  '{{half .Name}}',
+  '{{.ServiceName}}',
+  '{{half .ServiceName}}',
+  '{{.StartAt.Format "2006"}}',
+  '{{.StartAt.Format "01"}}',
+  '{{.StartAt.Format "02"}}',
+  '{{weekdayJa .StartAt}}',
+  '{{.StartAt.Format "15"}}',
+  '{{.StartAt.Format "04"}}',
+  '{{.StartAt.Format "05"}}',
+] as const;
+
+// captureFileNameMacros は、前の版の書き方 (#500)。TVTest と同じ書き方 (#814) なので、
+// TVTest から移ってくる人のために、Go のテンプレートの書き方と並べて受け付け続ける。
 export const captureFileNameMacros = [
   '%date%',
   '%time%',
@@ -117,13 +135,88 @@ export const captureFileNameMacros = [
   '%second%',
   '%service%',
   '%title%',
-  // TVTest と同じ名前も受け付け、TVTest から移ってくる人が、同じ書き方を使えるようにする (#814)。
   '%service-name%',
   '%event-name%',
 ] as const;
 
+const weekdaysJa = ['日', '月', '火', '水', '木', '金', '土'];
+const monthNames = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// goLayoutTokens は、Go の time.Format の書き方のうち、受け付けるもの。長いものから順に当てる。
+// タイムゾーンと秒の端数は、キャプチャのファイル名には要らないので、受け付けずにそのまま残す。
+const goLayoutTokens = /January|Monday|2006|Jan|Mon|_2|01|02|03|04|05|06|15|PM|pm|1|2|3|4|5/g;
+
+// formatGoLayout は、date を、Go の time.Format の layout で書く。
+export function formatGoLayout(date: Date, layout: string): string {
+  const hour12 = date.getHours() % 12 === 0 ? 12 : date.getHours() % 12;
+  const values: Record<string, string> = {
+    January: monthNames[date.getMonth()] ?? '',
+    Monday: weekdayNames[date.getDay()] ?? '',
+    '2006': String(date.getFullYear()),
+    Jan: (monthNames[date.getMonth()] ?? '').slice(0, 3),
+    Mon: (weekdayNames[date.getDay()] ?? '').slice(0, 3),
+    _2: String(date.getDate()).padStart(2, ' '),
+    '01': pad2(date.getMonth() + 1),
+    '02': pad2(date.getDate()),
+    '03': pad2(hour12),
+    '04': pad2(date.getMinutes()),
+    '05': pad2(date.getSeconds()),
+    '06': pad2(date.getFullYear() % 100),
+    '15': pad2(date.getHours()),
+    PM: date.getHours() < 12 ? 'AM' : 'PM',
+    pm: date.getHours() < 12 ? 'am' : 'pm',
+    '1': String(date.getMonth() + 1),
+    '2': String(date.getDate()),
+    '3': String(hour12),
+    '4': String(date.getMinutes()),
+    '5': String(date.getSeconds()),
+  };
+
+  return layout.replace(goLayoutTokens, (token) => values[token] ?? token);
+}
+
+// goAction は、{{ と }} の中身のうち、受け付ける形。
+// .Name、.ServiceName、half .Name、half .ServiceName、weekdayJa .StartAt、.StartAt.Format "layout" (` で囲んでもよい)。
+const goAction =
+  /^(?:(?<field>\.Name|\.ServiceName)|half\s+(?<halfField>\.Name|\.ServiceName)|weekdayJa\s+\.StartAt|\.StartAt\.Format\s+(?:"(?<layout>[^"\\]*)"|`(?<rawLayout>[^`]*)`))$/;
+
+// expandGoAction は、{{ と }} の中身 body を当てはめる。受け付けない形なら null を返す。
+function expandGoAction(body: string, date: Date, serviceName: string, program: string) {
+  const match = goAction.exec(body);
+  if (match === null) {
+    return null;
+  }
+  const { field, halfField, layout, rawLayout } = match.groups ?? {};
+  const fields: Record<string, string> = { '.Name': program, '.ServiceName': serviceName };
+  if (field !== undefined) {
+    return fields[field] ?? null;
+  }
+  if (halfField !== undefined) {
+    return toHalfWidth(fields[halfField] ?? '');
+  }
+  if (layout !== undefined || rawLayout !== undefined) {
+    return formatGoLayout(date, layout ?? rawLayout ?? '');
+  }
+
+  return weekdaysJa[date.getDay()] ?? '';
+}
+
 // captureFileName は、キャプチャのファイル名を返す (設計書 7.5)。
-// template を渡せば、その書き方 (captureFileNameMacros) で作る (#500)。空か null なら、
+// template を渡せば、その書き方 (captureFileNameItems と captureFileNameMacros) で作る (#500、#1707)。空か null なら、
 // time (Unix ミリ秒) を端末のローカル時刻で書き、サービス名と、囲み文字を外した番組名を続ける。
 export function captureFileName(
   time: number,
@@ -148,11 +241,17 @@ export function captureFileName(
       '%service-name%': serviceName,
       '%event-name%': program,
     };
+    // 両方の書き方を 1 回で当てはめ、当てはめた番組名の中の書き方を、もう一度は当てはめない。
+    // 知らない書き方はそのまま残す。前後の空白を詰める {{- と -}} も、受け付けずに残す。
     const name = template
       .trim()
-      .replace(/%[a-z-]+%/g, (macro) =>
-        macro in values ? values[macro as keyof typeof values] : macro,
-      )
+      .replace(/%[a-z-]+%|\{\{\s*(.*?)\s*\}\}/g, (written, body: string | undefined) => {
+        if (body === undefined) {
+          return written in values ? values[written as keyof typeof values] : written;
+        }
+
+        return expandGoAction(body, date, serviceName, program) ?? written;
+      })
       .replace(unsafeFileNameChars, '_')
       .trim();
     // 書き方の結果が空なら、既定の形にする。
