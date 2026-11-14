@@ -397,6 +397,8 @@
       "dataBroadcastPreloadHelp": "Speeds up data broadcasting display during live viewing. Requires an additional TS stream, which uses about 2 Mbps of bandwidth.",
       "autoPictureInPicture": "Automatically show in a separate window when switching tabs",
       "autoPictureInPictureHelp": "When you move to another tab during playback, the player is shown in a small window.",
+      "fullscreenLandscape": "Lock to landscape in fullscreen",
+      "fullscreenLandscapeHelp": "When you enter fullscreen, the device is locked to landscape. It is unlocked when you leave fullscreen. Devices and browsers that do not support it are not locked.",
       "twoFactor": "Authenticator app (two-factor authentication)",
       "totpEnabled": "An authenticator app is registered. {{count}} unused recovery codes remain.",
       "totpDisabled": "No authenticator app is registered",
@@ -1310,7 +1312,8 @@
         "none": "Original",
         "lShape": "Crop L-shaped layout",
         "pillarbox": "Remove 4:3 side bars (crops top and bottom)",
-        "stretch": "Stretch 4:3 to fit"
+        "stretch": "Stretch 4:3 to fit",
+        "fill": "Fill the screen (in fullscreen)"
       },
       "scale": "Zoom",
       "origin": "Zoom origin",

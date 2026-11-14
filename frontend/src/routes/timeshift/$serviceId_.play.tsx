@@ -85,6 +85,7 @@ import {
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useScreenCrop } from '../../yunomi/useScreenCrop';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
@@ -294,6 +295,8 @@ function Player({
   useVolumeNormalizer(video);
   useAudioDelayer(video);
   const [crop, setCrop] = useState<Crop>(noCrop);
+  // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
+  const shownCrop = useScreenCrop(crop, fullscreen.active);
   // restartAt は、指定の位置から読み直す。
   const restartAt = (seconds: number) => {
     setHandover(false);
@@ -677,7 +680,7 @@ function Player({
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
-          crop={crop}
+          crop={shownCrop}
           onCaptionText={onCaptionText}
           onLoaded={() => {
             // 最初のフレームが出たときの時刻を、base にする。
@@ -710,7 +713,7 @@ function Player({
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
-          crop={crop}
+          crop={shownCrop}
           onCaptionText={onCaptionText}
           live={false}
           startPosition={hlsStream.start}

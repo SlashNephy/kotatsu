@@ -1,7 +1,7 @@
 import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
-import { cropStyle, noCrop, type Crop } from './crop';
+import { type Crop, cropStyle, isCropped, noCrop } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
@@ -286,7 +286,11 @@ export function HlsPlayer({
   return (
     <div className={classes.frame}>
       {/* 切り抜き (#496) で拡大した映像と字幕を、枠の外に出さない。 */}
-      <div className={classes.clip}>
+      {/* 画面いっぱいに広げるときは (#1599)、枠の外まで広げ、全画面の画面の端で切る。 */}
+      <div
+        className={classes.clip}
+        data-fill={crop.fill === true && isCropped(crop) ? '' : undefined}
+      >
         <div ref={frameRef} className={classes.media} style={cropStyle(crop)} />
         {/* 蓋 (#1512) は、切り抜きの外に置き、映像が実際に出ている矩形に合わせて置く。 */}
         <div ref={cover.ref} className={classes.cover} hidden>

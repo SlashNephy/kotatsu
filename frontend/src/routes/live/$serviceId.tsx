@@ -128,6 +128,7 @@ import {
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useScreenCrop } from '../../yunomi/useScreenCrop';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
@@ -579,6 +580,8 @@ function Live({
   useResetAudioDelayOnChannel(serviceId);
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
+  // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
+  const shownCrop = useScreenCrop(crop, fullscreen.active);
   // captionEntries は、字幕の履歴 (#450)。局を変えたら、画面ごと作り直すので捨てる。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
@@ -1090,7 +1093,7 @@ function Live({
           captions={captions}
           superimpose={captionSettings.superimposeLive}
           captionStyle={captionSettings}
-          crop={crop}
+          crop={shownCrop}
           onCaptionText={onCaptionText}
           onLoaded={() => {
             if (timeshift.behind) {
@@ -1154,7 +1157,7 @@ function Live({
           captions={captions}
           superimpose={captionSettings.superimposeLive}
           captionStyle={captionSettings}
-          crop={crop}
+          crop={shownCrop}
           onCaptionText={onCaptionText}
           live={!timeshift.behind}
           startPosition={timeshift.hlsStart}

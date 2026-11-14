@@ -23,6 +23,7 @@ import {
   autoPictureInPictureSupported,
   useAutoPictureInPicture,
 } from '../../yunomi/autoPictureInPicture';
+import { fullscreenLandscapeSupported, useFullscreenLandscape } from '../../yunomi/landscapeLock';
 import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
 import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
 import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
@@ -84,6 +85,9 @@ function PlayerSettings() {
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
   const [autoPictureInPictureAvailable] = useState(autoPictureInPictureSupported);
+  const [fullscreenLandscape, setFullscreenLandscape] = useFullscreenLandscape();
+  // 画面の向きを固定できないブラウザでは、設定の項目を出さない (#1599)。
+  const [fullscreenLandscapeAvailable] = useState(fullscreenLandscapeSupported);
 
   return (
     <Stack gap="md">
@@ -249,6 +253,21 @@ function PlayerSettings() {
               description={t('settings.account.autoPictureInPictureHelp')}
               checked={autoPictureInPicture}
               onChange={(event) => setAutoPictureInPicture(event.currentTarget.checked)}
+            />
+          )}
+          {fullscreenLandscapeAvailable && (
+            <Switch
+              label={
+                <Group gap={6} component="span">
+                  {t('settings.account.fullscreenLandscape')}
+                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                    {t('settings.account.deviceOnly')}
+                  </Badge>
+                </Group>
+              }
+              description={t('settings.account.fullscreenLandscapeHelp')}
+              checked={fullscreenLandscape}
+              onChange={(event) => setFullscreenLandscape(event.currentTarget.checked)}
             />
           )}
         </Stack>

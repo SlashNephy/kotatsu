@@ -115,6 +115,7 @@ import { useVideoFrames } from '../../yunomi/useVideoFrames';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useScreenCrop } from '../../yunomi/useScreenCrop';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
@@ -636,6 +637,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   useVirtualSurround(video, surroundAvailable);
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。その場限りで、画面を開き直したら戻す。
   const [crop, setCrop] = useState<Crop>(noCrop);
+  // shownCrop は、画面に映すときの切り抜き。画面いっぱいに広げるときは、全画面の画面の比率で拡大する (#1599)。
+  const shownCrop = useScreenCrop(crop, fullscreen.active);
   // startAt は、指定の位置から読み直す。
   const startAt = (target: number) => {
     // 終わりの直前から読むと、映像のコマが届かずに失敗するので、映像が入るだけ手前から読む (#1576)。
@@ -1254,7 +1257,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
-          crop={crop}
+          crop={shownCrop}
           onCaptionText={onCaptionText}
           onLoaded={() => {
             // 最初のフレームが出たときの時刻を、base にする。
@@ -1290,7 +1293,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
-          crop={crop}
+          crop={shownCrop}
           onCaptionText={onCaptionText}
           live={false}
           startPosition={offset}
