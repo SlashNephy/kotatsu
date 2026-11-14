@@ -176,3 +176,41 @@ func TestHandleWebSocket(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "jk1", string(message))
 }
+
+// TestCanonicalPath は、CanonicalPath を掛けた echo が、http.ServeMux と同じく、崩れたパスと配下を受けるパターンの
+// 末尾のスラッシュのないパスを、同じ先へリダイレクトすることを確かめる。
+func TestCanonicalPath(t *testing.T) {
+	t.Parallel()
+
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	router := httpserver.NewRouter(slog.New(slog.DiscardHandler), ok)
+	router.Pre(httpserver.CanonicalPath("/api/"))
+	mux := http.NewServeMux()
+	mux.Handle("/api/", ok)
+	mux.Handle("/", ok)
+
+	tests := []struct {
+		name         string
+		method       string
+		target       string
+		wantStatus   int
+		wantLocation string
+	}{
+		{name: "clean", method: http.MethodGet, target: "/guide", wantStatus: http.StatusOK, wantLocation: ""},
+		{name: "trailing slash is kept", method: http.MethodGet, target: "/guide/", wantStatus: http.StatusOK, wantLocation: ""},
+		{name: "double slash", method: http.MethodGet, target: "//guide//x", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/guide/x"},
+		{name: "dot segments with query", method: http.MethodPost, target: "/a/./b/../guide?x=1", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/a/guide?x=1"},
+		{name: "escaped slash is kept", method: http.MethodGet, target: "/a%2Fb//c", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/a%2Fb/c"},
+		{name: "subtree without slash", method: http.MethodGet, target: "/api?x=1", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/api/?x=1"},
+		{name: "subtree with double slash", method: http.MethodGet, target: "//api", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/api/"},
+	}
+	for _, tt := range tests {
+		for name, handler := range map[string]http.Handler{"echo": router, "mux": mux} {
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "http://example.com"+tt.target, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code, "%s: %s", name, tt.name)
+			assert.Equal(t, tt.wantLocation, rec.Header().Get("Location"), "%s: %s", name, tt.name)
+		}
+	}
+}

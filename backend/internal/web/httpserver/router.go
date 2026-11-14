@@ -3,6 +3,8 @@ package httpserver
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
+	"path"
 	"slices"
 	"strings"
 
@@ -52,4 +54,56 @@ func Handle(router *echo.Echo, path string, handlers map[string]http.Handler, mi
 		w.Header().Set("Allow", allow)
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 	})), middleware...)
+}
+
+// CanonicalPath は、http.ServeMux と同じく、崩れたパスを整えた先へ 307 でリダイレクトする echo の Pre ミドルウェア (#1606)。
+// 二重のスラッシュや . と .. の区切りを取り除く (CONNECT は整えない)。subtrees ("/api/" など) の末尾のスラッシュを
+// 除いたパスは、mux が配下を受けるパターンに対してするのと同じく、末尾にスラッシュを付けた先へリダイレクトする。
+// echo のルートは崩れたパスに当たらないので、ルートを探す前に整える。
+func CanonicalPath(subtrees ...string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			r := c.Request()
+			escaped := r.URL.EscapedPath()
+			canonical := escaped
+			if r.Method != http.MethodConnect {
+				canonical = cleanPath(escaped)
+			}
+			if slices.Contains(subtrees, canonical+"/") {
+				canonical += "/"
+			}
+			if canonical == escaped {
+				return next(c)
+			}
+			http.Redirect(c.Response(), r, urlFromEscaped(canonical, r.URL.RawQuery).String(), http.StatusTemporaryRedirect)
+
+			return nil
+		}
+	}
+}
+
+// cleanPath は、net/http の ServeMux と同じく、パスを整える。先頭にスラッシュを付け、. と .. と二重のスラッシュを除き、末尾のスラッシュは残す。
+func cleanPath(p string) string {
+	if p == "" {
+		return "/"
+	}
+	if p[0] != '/' {
+		p = "/" + p
+	}
+	np := path.Clean(p)
+	if p[len(p)-1] == '/' && np != "/" {
+		np += "/"
+	}
+
+	return np
+}
+
+// urlFromEscaped は、net/http の ServeMux と同じく、エスケープしたままのパスとクエリから、リダイレクト先の URL を作る。
+func urlFromEscaped(escaped, rawQuery string) *url.URL {
+	unescaped, err := url.PathUnescape(escaped)
+	if err != nil {
+		unescaped = escaped
+	}
+
+	return &url.URL{Path: unescaped, RawPath: escaped, RawQuery: rawQuery}
 }
