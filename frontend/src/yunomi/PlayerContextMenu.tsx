@@ -31,6 +31,8 @@ const menuMaxHeight = 360;
 // Firefox の Shift+右クリックは、ブラウザがメニューを出すので、止めない。
 export function usePlayerContextMenu(commands: PlayerCommands): {
   onContextMenu: (event: MouseEvent<HTMLElement>) => void;
+  // openAt は、画面の座標 (x, y) にメニューを開く。長押しのまま滑らせるシーク (#1601) で、滑らせずに離したときに使う。
+  openAt: (x: number, y: number) => void;
   menu: ReactNode;
 } {
   const { t } = useTranslation();
@@ -59,13 +61,16 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
     return () => doc.removeEventListener('pointerdown', onPointerDown, true);
   }, [opened]);
 
+  const openAt = (x: number, y: number) => {
+    setPosition({ x, y });
+    setOpened(true);
+  };
   const onContextMenu = (event: MouseEvent<HTMLElement>) => {
     if (!onVideoSurface(event.target)) {
       return;
     }
     event.preventDefault();
-    setPosition({ x: event.clientX, y: event.clientY });
-    setOpened(true);
+    openAt(event.clientX, event.clientY);
   };
 
   const items = contextMenuItems(commands);
@@ -131,5 +136,5 @@ export function usePlayerContextMenu(commands: PlayerCommands): {
     </div>
   );
 
-  return { onContextMenu, menu };
+  return { onContextMenu, openAt, menu };
 }

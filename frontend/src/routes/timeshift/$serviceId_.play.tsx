@@ -88,7 +88,9 @@ import { stepBrightness } from '../../yunomi/brightness';
 import { swipeVolumeStep } from '../../yunomi/swipe';
 import { useSwipeControlsSetting, volumeChangeable } from '../../yunomi/swipeControls';
 import { useSwipeGestures } from '../../yunomi/useSwipeGestures';
+import { ScrubBubble } from '../../yunomi/ScrubBubble';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useSlideSeek } from '../../yunomi/useSlideSeek';
 import { useScreenCrop } from '../../yunomi/useScreenCrop';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useAutoPictureInPicture } from '../../yunomi/autoPictureInPicture';
@@ -524,6 +526,22 @@ function Player({
       showFlash(t('player.flash.brightness', { percent: Math.round(next * 100) }));
     },
   });
+  // 映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。滑らせている間は、シークバーのつまみを動かしている間と
+  // 同じく扱い、離したら、自分でシークしたものとして扱う。滑らせずに離したら、長押しのメニューを開く。
+  const seekLabel = (value: number) =>
+    `${formatDuration(value)} (${formatClock(broadcastTime(program.playableFrom, program.gaps, value))})`;
+  const scrub = useSlideSeek(playerBoxRef, {
+    enabled: duration > 0,
+    range: () => ({ position: currentPosition(), duration }),
+    onSlideStart: controls.hide,
+    onScrub: setSeeking,
+    onCommit: (target) => {
+      setSeeking(null);
+      seek(target);
+    },
+    onCancel: () => setSeeking(null),
+    onLongPress: contextMenu.openAt,
+  });
   const boxRef = useMergedRef(playerBoxRef, mouseRef);
   // player は、プレイヤーの今の状態 (#811)。タブの題名と OS のメディア操作は、これを読む。
   // バッファの番組には ID がないので、局と始まりの時刻で見分ける。
@@ -610,9 +628,7 @@ function Player({
           duration={duration}
           value={shown}
           previewUrl={null}
-          label={(value) =>
-            `${formatDuration(value)} (${formatClock(broadcastTime(program.playableFrom, program.gaps, value))})`
-          }
+          label={seekLabel}
           onChange={setSeeking}
           onChangeEnd={(value) => {
             setSeeking(null);
@@ -724,6 +740,9 @@ function Player({
           overlay={
             <>
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {scrub !== null && (
+                <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
+              )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
@@ -750,6 +769,9 @@ function Player({
           overlay={
             <>
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {scrub !== null && (
+                <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
+              )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {errorAlert}
