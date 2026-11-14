@@ -168,3 +168,26 @@ func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts
 	}
 	return cliNotificationParts, nil
 }
+
+// newAnimeJobParts は、nekonote で、アニメの番組と作品を結びつけ、見たアニメを記録するジョブの部品を作る。
+// inserter は、取り込んだ後の照合や、連携した後の見たいリストの取り込みのジョブを入れる River のクライアント。
+func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*animeJobParts, error) {
+	pool := poolOf(deps)
+	clock := clockOf(deps)
+	client := newSyobocalClient(deps)
+	service, err := newRecordingAnimeRecords(deps, logger, inserter)
+	if err != nil {
+		return nil, err
+	}
+	cliAnimeLogger := animeLoggerOf(logger)
+	importer := newAnimeImporter(deps, pool, clock, client, inserter, service, cliAnimeLogger)
+	matcher := newAnimeMatcher(pool, clock, client, cliAnimeLogger)
+	nicologMatcher := newNicologMatcher(deps, pool, clock, cliAnimeLogger)
+	cliAnimeJobParts := &animeJobParts{
+		importer: importer,
+		matcher:  matcher,
+		nicolog:  nicologMatcher,
+		records:  service,
+	}
+	return cliAnimeJobParts, nil
+}

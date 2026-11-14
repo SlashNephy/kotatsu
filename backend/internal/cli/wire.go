@@ -116,3 +116,19 @@ func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts
 		wire.Struct(new(notificationParts), "*"),
 	))
 }
+
+// newAnimeJobParts は、nekonote で、アニメの番組と作品を結びつけ、見たアニメを記録するジョブの部品を作る。
+// inserter は、取り込んだ後の照合や、連携した後の見たいリストの取り込みのジョブを入れる River のクライアント。
+func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*animeJobParts, error) {
+	panic(wire.Build(
+		clockOf,
+		poolOf,
+		animeLoggerOf,
+		newSyobocalClient,
+		newRecordingAnimeRecords,
+		newAnimeImporter,
+		newAnimeMatcher,
+		newNicologMatcher,
+		wire.Struct(new(animeJobParts), "*"),
+	))
+}
