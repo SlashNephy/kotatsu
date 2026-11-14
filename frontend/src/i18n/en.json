@@ -91,7 +91,8 @@
       "WATCH_REMINDER": "Watch reminder program starting",
       "ANIME_RECORDED": "An anime you watched was recorded",
       "ANIME_RECORD_FAILED": "An anime you watched could not be recorded",
-      "SCRAMBLED_RECORDINGS": "Recordings kept coming out scrambled"
+      "SCRAMBLED_RECORDINGS": "Recordings kept coming out scrambled",
+      "LINEUP_CHANGED": "Channel lineup changed"
     },
     "openExternal": "Open on the service"
   },

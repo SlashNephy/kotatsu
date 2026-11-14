@@ -2,6 +2,7 @@ package notification
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -81,6 +82,8 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 		return animeRecordMessage(kind, name, payload)
 	case domain.NotificationKindScrambledRecordings:
 		return "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります"
+	case domain.NotificationKindLineupChanged:
+		return lineupChangedMessage(field("kind"), payload)
 
 	default:
 		return string(kind)
@@ -172,4 +175,36 @@ func animeRecordMessage(kind domain.NotificationKind, name string, payload map[s
 	}
 
 	return text
+}
+
+// lineupChangedMessage は、放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる文を作る (#1519)。
+// 数が 0 の項目は書かない。
+func lineupChangedMessage(kind string, payload map[string]any) string {
+	if kind == "" {
+		kind = "衛星"
+	}
+	counts := make([]string, 0, 2)
+	for _, item := range []struct{ key, label string }{{"added", "新しい局"}, {"removed", "終わった局"}} {
+		if n := count(payload[item.key]); n > 0 {
+			counts = append(counts, fmt.Sprintf("%s %d", item.label, n))
+		}
+	}
+	text := kind + " のチャンネルが放送で変わりました"
+	if len(counts) > 0 {
+		text += "（" + strings.Join(counts, "、") + "）"
+	}
+
+	return text + "。チューナーサーバーのチャンネルをスキャンし直してください"
+}
+
+// count は、payload の数を読む。DB から読み直した payload では float64 で、作ったばかりの payload では int で届く。
+func count(value any) int {
+	switch n := value.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
 }

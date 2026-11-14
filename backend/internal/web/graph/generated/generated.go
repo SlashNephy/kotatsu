@@ -10263,6 +10263,8 @@ enum NotificationKind {
   ANIME_RECORD_FAILED
   "スクランブルされたまま録れた録画が続いた (#1517)。管理者にだけ届く。"
   SCRAMBLED_RECORDINGS
+  "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違った (#1519)。管理者にだけ届く。"
+  LINEUP_CHANGED
 }
 
 """
@@ -59779,6 +59781,7 @@ var (
 		"ANIME_RECORDED":           domain.NotificationKindAnimeRecorded,
 		"ANIME_RECORD_FAILED":      domain.NotificationKindAnimeRecordFailed,
 		"SCRAMBLED_RECORDINGS":     domain.NotificationKindScrambledRecordings,
+		"LINEUP_CHANGED":           domain.NotificationKindLineupChanged,
 	}
 	marshalNNotificationKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKind = map[domain.NotificationKind]string{
 		domain.NotificationKindRecordingStarted:       "RECORDING_STARTED",
@@ -59791,6 +59794,7 @@ var (
 		domain.NotificationKindAnimeRecorded:          "ANIME_RECORDED",
 		domain.NotificationKindAnimeRecordFailed:      "ANIME_RECORD_FAILED",
 		domain.NotificationKindScrambledRecordings:    "SCRAMBLED_RECORDINGS",
+		domain.NotificationKindLineupChanged:          "LINEUP_CHANGED",
 	}
 )
 

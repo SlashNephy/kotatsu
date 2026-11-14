@@ -89,7 +89,8 @@
       "WATCH_REMINDER": "視聴予約した番組が始まる",
       "ANIME_RECORDED": "見たアニメを記録した",
       "ANIME_RECORD_FAILED": "見たアニメを記録できなかった",
-      "SCRAMBLED_RECORDINGS": "スクランブルされたまま録れた録画が続いた"
+      "SCRAMBLED_RECORDINGS": "スクランブルされたまま録れた録画が続いた",
+      "LINEUP_CHANGED": "チャンネルの変更"
     },
     "openExternal": "記録先で開く"
   },
