@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 )
 
@@ -130,7 +131,7 @@ func (s *fakeServer) received() []request {
 func (s *fakeServer) client(t *testing.T) *edcb.Client {
 	t.Helper()
 
-	client, err := edcb.New(&edcb.Options{Address: s.listener.Addr().String(), DialTimeout: 0, RequestTimeout: 0, Dial: nil})
+	client, err := edcb.New(&edcb.Options{Address: s.listener.Addr().String(), DialTimeout: 0, RequestTimeout: 0, Dial: nil, StreamIdleTimeout: 0})
 	require.NoError(t, err)
 
 	return client
@@ -172,7 +173,7 @@ func TestNewNormalizesAddress(t *testing.T) {
 		t.Run(tt.in, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := edcb.New(&edcb.Options{Address: tt.in, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
+			client, err := edcb.New(&edcb.Options{Address: tt.in, DialTimeout: 0, RequestTimeout: 0, Dial: nil, StreamIdleTimeout: 0})
 			if tt.wantErr {
 				require.Error(t, err)
 
@@ -417,6 +418,27 @@ func TestRelayStream(t *testing.T) {
 	require.NoError(t, stream.Close())
 	assert.Equal(t, ts, got)
 	assert.Equal(t, []request{{command: 301, body: fromHex(t, "1b000000")}}, s.received())
+}
+
+// TestRelayStreamStalls は、接続を保ったまま TS が届かなくなったら、Read が tunerserver.ErrStreamStalled を返すことを確かめる (#1723)。
+// 止まった Read が予定の終わりを過ぎても抜けず、録画が止まったままにならないようにする。
+func TestRelayStreamStalls(t *testing.T) {
+	t.Parallel()
+
+	ts := make([]byte, 188)
+	ts[0] = 0x47
+	s := newFakeServer(t, map[uint32]reply{301: {status: 1, payload: nil, stream: ts, hold: true, drop: false}})
+	client, err := edcb.New(&edcb.Options{
+		Address: s.listener.Addr().String(), DialTimeout: 0, RequestTimeout: 0, Dial: nil, StreamIdleTimeout: 100 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	stream, err := client.RelayStream(t.Context(), 27)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	got, err := io.ReadAll(stream)
+	require.ErrorIs(t, err, tunerserver.ErrStreamStalled)
+	assert.Equal(t, ts, got, "the TS before the stall is read")
 }
 
 func TestRelayStreamFails(t *testing.T) {
