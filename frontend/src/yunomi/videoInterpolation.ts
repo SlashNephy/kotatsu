@@ -25,8 +25,8 @@ const slots = 3;
 const periodSamples = 12;
 // refreshSmoothing は、画面の更新の間隔を測るときに、新しい値を混ぜる割合。
 const refreshSmoothing = 0.1;
-// passthroughRatio は、コマの間隔が、画面の更新の間隔のこの倍より短ければ、補間しない割合。
-// 60p の映像を 60 Hz の画面で見るときなどは、間を埋めるコマがなく、1 コマ遅れるだけになる。
+// passthroughRatio は、コマの実時間の間隔が、画面の更新の間隔のこの倍より短ければ、補間しない割合。
+// 60p の映像を 60 Hz の画面で見るときや、30p を倍速で見るときなどは、間を埋めるコマがなく、1 コマ遅れるだけになる。
 const passthroughRatio = 1.5;
 
 type Frame = { slot: number; mediaTime: number };
@@ -86,6 +86,10 @@ export function attachVideoInterpolation(
       return false;
     }
     try {
+      // コマが出るたびに知らせる口がなければ、写す時機が分からない。
+      if (typeof video.requestVideoFrameCallback !== 'function') {
+        throw new Error('requestVideoFrameCallback is unavailable');
+      }
       const element = document.createElement('canvas');
       element.className = className;
       element.style.position = 'absolute';
@@ -227,8 +231,13 @@ export function attachVideoInterpolation(
     ) {
       return false;
     }
+    // コマの間隔は映像の時刻で測るので、再生の速さで割って、実時間の間隔にして比べる。
     const period = framePeriod(times);
-    if (period === null || period * 1_000 < refreshMs * passthroughRatio) {
+    if (
+      period === null ||
+      clock.rate <= 0 ||
+      (period / clock.rate) * 1_000 < refreshMs * passthroughRatio
+    ) {
       return false;
     }
     // 今描いたものは、次に画面を更新したときに映る。
