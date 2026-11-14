@@ -126,6 +126,7 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{name: "too short timeshift retention", changes: &settings.Changes{TimeshiftWhileWatchingRetentionSeconds: new(599)}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long timeshift retention", changes: &settings.Changes{TimeshiftWhileWatchingRetentionSeconds: new(86401)}, wantErr: settings.ErrInvalidSettings},
 		{name: "negative rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(-1)}, wantErr: settings.ErrInvalidSettings},
+		{name: "unknown CM detector", changes: &settings.Changes{CMDetector: new("join_logo_scp")}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(1441)}, wantErr: settings.ErrInvalidSettings},
 		{
 			name: "negative margin", wantErr: reserve.ErrInvalidSettings,
@@ -302,4 +303,25 @@ func TestUpdateNetworkActivity(t *testing.T) {
 	var count int
 	require.NoError(t, db.QueryRow(t.Context(), `SELECT count(*) FROM network_activity`).Scan(&count))
 	assert.Zero(t, count, "無効に戻したら、それまでの記録を消す")
+}
+
+// TestUpdateCMDetector は、CM の区間の見分け方が既定で ffmpeg で、logo に替えて戻せることを確かめる (#1505)。
+func TestUpdateCMDetector(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	actor := audit.System("test")
+
+	loaded, err := settings.Load(t.Context(), db)
+	require.NoError(t, err)
+	assert.Equal(t, settings.CMDetectorFFmpeg, loaded.CMDetector)
+	for _, want := range []string{settings.CMDetectorLogo, settings.CMDetectorFFmpeg} {
+		updated, err := store.Update(t.Context(), db, actor, &settings.Changes{CMDetector: new(want)})
+		require.NoError(t, err)
+		assert.Equal(t, want, updated.CMDetector)
+		loaded, err := settings.Load(t.Context(), db)
+		require.NoError(t, err)
+		assert.Equal(t, want, loaded.CMDetector)
+	}
 }

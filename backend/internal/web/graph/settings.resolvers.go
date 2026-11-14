@@ -40,6 +40,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		IPTVFeedsEnabled:          input.IptvFeedsEnabled,
 		RecordingDownloadsEnabled: input.RecordingDownloadsEnabled,
 		TvtplayChaptersEnabled:    input.TvtplayChaptersEnabled,
+		CMDetector:                cmDetectorName(input.CMDetector),
 		EPGStationAPIEnabled:      input.EpgstationAPIEnabled,
 		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
 		CommentSources:            optionalCommentSources(input.CommentSources),

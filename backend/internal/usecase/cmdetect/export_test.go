@@ -1,22 +1,45 @@
 package cmdetect
 
 import (
+	"context"
 	"io"
 	"log/slog"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
 // NewDetectWorkerWith は、FFmpeg の代わりに newDetector の Detector を使う DetectWorker を返す。
 func NewDetectWorkerWith(db Database, store *kago.Store, clk clock.Clock, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, nil, slog.New(slog.DiscardHandler), newDetector)
+	return newDetectWorker(db, store, clk, nil, slog.New(slog.DiscardHandler), func(context.Context) (Detector, error) { return newDetector() })
 }
 
 // NewDetectWorkerWithHook は、NewDetectWorkerWith に、見分け終えたことを受け取る hook を足したもの。
 func NewDetectWorkerWithHook(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, slog.New(slog.DiscardHandler), newDetector)
+	return newDetectWorker(db, store, clk, hook, slog.New(slog.DiscardHandler), func(context.Context) (Detector, error) { return newDetector() })
+}
+
+// NewLogoDetectorWith は、ロゴを使えないときの見分け方を fallback にした LogoDetector を返す。
+func NewLogoDetectorWith(fallback Detector) (*LogoDetector, error) {
+	d, err := NewLogoDetector(nil)
+	if err != nil {
+		return nil, err
+	}
+	d.fallback = fallback
+
+	return d, nil
+}
+
+// ComplementSections は complementSections。
+func ComplementSections(intervals []logo.Interval, times []float64, fps float64) []Section {
+	return complementSections(intervals, times, fps)
+}
+
+// FrameRate は frameRate。
+func FrameRate(s string) float64 {
+	return frameRate(s)
 }
 
 // Signals は、テストから組み立てる手掛かり。時刻は秒で、Silences は無音の区間の [始まり, 終わり] の並び。

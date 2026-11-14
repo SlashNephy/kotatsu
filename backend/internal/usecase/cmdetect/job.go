@@ -227,7 +227,7 @@ type DetectWorker struct {
 	hook   DetectedHook
 	logger *slog.Logger
 	// newDetector は、見分けに使う Detector を作る。テストでは差し替える。
-	newDetector func() (Detector, error)
+	newDetector func(ctx context.Context) (Detector, error)
 }
 
 var _ river.Worker[DetectArgs] = new(DetectWorker)
@@ -235,11 +235,37 @@ var _ river.Worker[DetectArgs] = new(DetectWorker)
 // NewDetectWorker は DetectWorker を返す。store は、このインスタンスにマウントされたプール。
 // lowerer は、FFmpeg を最低の優先度で動かす (#1511)。hook は、区間を書いたトランザクションの中で呼ぶ。nil なら呼ばない。
 // logger には、見分けの進み具合を出す。
+// 見分け方は、ジョブごとに、管理者が選んだもの (#1505) にする。
 func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, hook DetectedHook, logger *slog.Logger) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, logger, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
+	return newDetectWorker(db, store, clk, hook, logger, func(ctx context.Context) (Detector, error) {
+		name, err := selectedDetector(ctx, db)
+		if err != nil {
+			return nil, err
+		}
+		if name == LogoDetectorName {
+			return NewLogoDetector(lowerer)
+		}
+
+		return NewFFmpegDetector(lowerer)
+	})
 }
 
-func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func() (Detector, error)) *DetectWorker {
+// selectedDetector は、管理者が選んだ見分け方の名前を返す。設定の行がまだなければ、既定の FFmpegDetector にする。
+func selectedDetector(ctx context.Context, db sqlc.DBTX) (string, error) {
+	row, err := sqlc.New(db).GetSystemSettings(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return FFmpegDetectorName, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get the system settings: %w", err)
+	}
+
+	return row.CMDetector, nil
+}
+
+func newDetectWorker(
+	db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func(ctx context.Context) (Detector, error),
+) *DetectWorker {
 	return &DetectWorker{
 		WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, hook: hook, logger: logger, newDetector: newDetector,
 	}
@@ -252,7 +278,7 @@ func (w *DetectWorker) Timeout(*river.Job[DetectArgs]) time.Duration {
 // Work は、録画ごとの advisory lock を取ってから、CM の区間を見分ける。
 // セグメントをつなぐジョブと同じロックを使い、ほかの nekonote がファイルをつないだり消したりしている間は読まず、後でやり直す。
 func (w *DetectWorker) Work(ctx context.Context, job *river.Job[DetectArgs]) error {
-	detector, err := w.newDetector()
+	detector, err := w.newDetector(ctx)
 	if errors.Is(err, ErrFFmpegNotFound) {
 		return river.JobCancel(err)
 	}
@@ -485,9 +511,18 @@ func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingI
 }
 
 // RecordingSections は、録画 recordingID の CM の区間を、始まりの順に返す。見分けていなければ空のスライスを返す。
-// 区間は、録画を始めた日時からの時間。見分け方を足したら、どの見分け方の区間を返すかをここで決める。
+// 区間は、録画を始めた日時からの時間。見分け方が複数あれば、最後に見分けた見分け方の区間を返す (#1505)。
+// 管理者が見分け方を替えた後に見分け直した録画は新しい見分け方の区間に、見分け直していない録画は前の見分け方の区間になる。
 func RecordingSections(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) ([]Section, error) {
-	rows, err := sqlc.New(db).ListRecordingCMSections(ctx, sqlc.ListRecordingCMSectionsParams{RecordingID: recordingID, Detector: FFmpegDetectorName})
+	q := sqlc.New(db)
+	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return []Section{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the latest CM detection of the recording: %w", err)
+	}
+	rows, err := q.ListRecordingCMSections(ctx, sqlc.ListRecordingCMSectionsParams{RecordingID: recordingID, Detector: latest.Detector})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the CM sections of the recording: %w", err)
 	}

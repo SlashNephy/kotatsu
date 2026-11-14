@@ -54,13 +54,14 @@ type latestJob struct {
 // River は終えたジョブを消すので、ジョブがなければ、見分けた記録だけで決める。
 func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*Status, error) {
 	status := &Status{State: StateNotDetected, DetectedAt: nil, Progress: nil}
-	detectedAt, err := sqlc.New(db).GetRecordingCMDetectedAt(ctx, sqlc.GetRecordingCMDetectedAtParams{RecordingID: recordingID, Detector: FFmpegDetectorName})
+	// 見分け方が複数あれば、最後に見分けたものを使う (#1505)。区間 (RecordingSections) と同じ見分けを指す。
+	latest, err := sqlc.New(db).GetLatestRecordingCMDetection(ctx, recordingID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the CM detection of the recording: %w", err)
 	default:
-		status.DetectedAt = &detectedAt
+		status.DetectedAt = &latest.DetectedAt
 		status.State = StateDetected
 	}
 	job, found, err := lastJob(ctx, db, recordingID)

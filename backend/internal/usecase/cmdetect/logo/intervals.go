@@ -58,21 +58,22 @@ func textureLevel(m Measure, p *Params) int {
 func levelJudgement(measures []Measure, fps float64, p *Params) []bool {
 	reach := frames(p.NearWindow, fps)
 	near := make([]bool, len(measures))
-	last := math.MinInt
+	// last は、直前 (後ろからなら直後) の、出たとみなす点数以上のコマ。まだなければ -1。
+	last := -1
 	for i, m := range measures {
 		if m.Score >= p.AppearScore {
 			last = i
 		}
-		if i-last <= reach {
+		if last >= 0 && i-last <= reach {
 			near[i] = true
 		}
 	}
-	last = math.MaxInt
+	last = -1
 	for i := len(measures) - 1; i >= 0; i-- {
 		if measures[i].Score >= p.AppearScore {
 			last = i
 		}
-		if last-i <= reach {
+		if last >= 0 && last-i <= reach {
 			near[i] = true
 		}
 	}
@@ -237,6 +238,9 @@ func pullBack(intervals []Interval, measures []Measure, fps float64, p *Params) 
 		end := iv.End
 		for end > start && iv.End-end < limit && smoothed[end-1] < mid {
 			end--
+		}
+		if start >= end {
+			continue
 		}
 		out = append(out, Interval{Start: start, End: end})
 	}

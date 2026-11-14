@@ -1819,6 +1819,8 @@ type SystemSettings struct {
 	RecordingDownloadsEnabled bool `json:"recordingDownloadsEnabled"`
 	// CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。
 	TvtplayChaptersEnabled bool `json:"tvtplayChaptersEnabled"`
+	// CM の区間の見分け方 (#1505、設計書 6.1)。既定は FFMPEG。
+	CMDetector CMDetector `json:"cmDetector"`
 	// EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
 	// 無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
 	// ログインしていれば誰でも読め、画面が、API トークンを発行する操作を出すかを決めるのに使う。
@@ -1863,8 +1865,9 @@ type SystemSettingsInput struct {
 	// 変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。
 	IptvFeedsEnabled *bool `json:"iptvFeedsEnabled,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。
-	RecordingDownloadsEnabled *bool `json:"recordingDownloadsEnabled,omitempty"`
-	TvtplayChaptersEnabled    *bool `json:"tvtplayChaptersEnabled,omitempty"`
+	RecordingDownloadsEnabled *bool       `json:"recordingDownloadsEnabled,omitempty"`
+	TvtplayChaptersEnabled    *bool       `json:"tvtplayChaptersEnabled,omitempty"`
+	CMDetector                *CMDetector `json:"cmDetector,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。
 	EpgstationAPIEnabled *bool `json:"epgstationApiEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
@@ -2486,6 +2489,64 @@ func (e *AnimeWishlistStatus) UnmarshalJSON(b []byte) error {
 }
 
 func (e AnimeWishlistStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// CM の区間の見分け方 (#1505、設計書 6.1)。
+type CMDetector string
+
+const (
+	// 無音とシーンの切り替わりで見分ける。
+	CMDetectorFfmpeg CMDetector = "FFMPEG"
+	// 局ロゴが出ているかで見分ける (試験的)。ロゴを学習できない録画では、FFMPEG で見分ける。
+	CMDetectorLogo CMDetector = "LOGO"
+)
+
+var AllCMDetector = []CMDetector{
+	CMDetectorFfmpeg,
+	CMDetectorLogo,
+}
+
+func (e CMDetector) IsValid() bool {
+	switch e {
+	case CMDetectorFfmpeg, CMDetectorLogo:
+		return true
+	}
+	return false
+}
+
+func (e CMDetector) String() string {
+	return string(e)
+}
+
+func (e *CMDetector) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = CMDetector(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid CMDetector", str)
+	}
+	return nil
+}
+
+func (e CMDetector) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *CMDetector) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e CMDetector) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil
