@@ -426,11 +426,11 @@ func TestTranscoderRunVODDiscardsThePartialSegment(t *testing.T) {
 	assert.Empty(t, partial, "the temporary file of the partial segment is removed")
 }
 
-// firstPTS は、TS の最初の映像か音声 (kind) のパケットの PTS (秒) を返す。
-func firstPTS(t *testing.T, path, kind string) float64 {
+// firstPTS は、TS の最初のストリーム (stream は、映像なら "v:0"、音声なら "a:0") のパケットの PTS (秒) を返す。
+func firstPTS(t *testing.T, path, stream string) float64 {
 	t.Helper()
 
-	out, err := exec.CommandContext(t.Context(), "ffprobe", "-v", "error", "-select_streams", kind+":0", "-show_entries", "packet=pts_time",
+	out, err := exec.CommandContext(t.Context(), "ffprobe", "-v", "error", "-select_streams", stream, "-show_entries", "packet=pts_time",
 		"-read_intervals", "%+#1", "-of", "csv=p=0", path).Output()
 	require.NoError(t, err)
 	pts, err := strconv.ParseFloat(strings.TrimRight(strings.TrimSpace(string(out)), ","), 64)
@@ -447,7 +447,7 @@ func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 
 	transcoder := newTranscoder(t)
 	input := filepath.Join("..", "..", "..", "testdata", "ts", "test.ts")
-	for _, name := range []string{"360p", kyusu.PassthroughPreset} {
+	for _, name := range []string{"720p", kyusu.PassthroughPreset} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -460,8 +460,8 @@ func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 			require.NotEmpty(t, segments)
 			sort.Strings(segments)
 
-			assert.InDelta(t, firstPTS(t, input, "a"), firstPTS(t, segments[0], "a"), 0.05)
-			assert.InDelta(t, firstPTS(t, input, "v"), firstPTS(t, segments[0], "v"), 1.0/29.97)
+			assert.InDelta(t, firstPTS(t, input, "a:0"), firstPTS(t, segments[0], "a:0"), 0.05)
+			assert.InDelta(t, firstPTS(t, input, "v:0"), firstPTS(t, segments[0], "v:0"), 1.0/29.97)
 		})
 	}
 }
