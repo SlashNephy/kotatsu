@@ -74,7 +74,7 @@ extraEnv: []
 extraEnvFrom: []
 
 # config は、環境変数で渡す Kotatsu の設定 (KOTATSU_ の後ろの名前と値)。
-# 例: {TUNER_URL: http://mirakurun:40772/, SERVER_ALLOWED_NETWORKS: "10.0.0.0/8,192.168.0.0/16"}
+# 例: {TUNER_URL: http://mirakurun:40772/, SERVER_ALLOWED_PRIVATE_NETWORKS: "10.0.0.0/8,192.168.0.0/16"}
 config: {}
 
 # storage.pools は、録画の保存先プール。どのプールも、録画を書く mikan、読む tenban と kyusu、解析する nekonote にマウントする。

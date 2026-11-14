@@ -70,14 +70,14 @@ type UpdateCheck struct {
 type Server struct {
 	// Listen は待ち受けアドレス。
 	Listen string `yaml:"listen"`
-	// AllowedNetworks は、接続を受け付ける送信元のネットワーク (CIDR か IP アドレス) (設計書 9.5)。
-	// 既定はプライベートアドレスだけで、インターネットから受け付けるには 0.0.0.0/0 と ::/0 を明示する。
+	// AllowedPrivateNetworks は、接続を受け付ける、家の中のプライベートアドレスの送信元のネットワーク (CIDR か IP アドレス) (設計書 9.5、#1759)。
+	// 既定は DefaultPrivateNetworks のすべてで、家の中で受け付ける範囲を狭めるときに書き換える。家の外の範囲は書けない。
 	// 環境変数では、カンマで区切って渡す。
-	AllowedNetworks []string `yaml:"allowed_networks"`
-	// AllowExternalNetworks は、AllowedNetworks に、家の中のネットワーク (DefaultAllowedNetworks) の外の範囲を書くことを許すかどうか (#1759)。
-	// インターネットや、Tailscale と CGNAT の共有アドレス空間 (100.64.0.0/10) から接続を受け付けるのは、危険を伴う設定なので、
-	// 書き間違いや、意味を知らずに広げてしまうことを防ぐため、このフラグで明示させる。既定は false。
-	AllowExternalNetworks bool `yaml:"allow_external_networks"`
+	AllowedPrivateNetworks []string `yaml:"allowed_private_networks"`
+	// AllowedExternalNetworks は、接続を受け付ける、家の外の送信元のネットワーク (CIDR か IP アドレス) (設計書 9.5、#1759)。
+	// インターネットや、Tailscale と CGNAT の共有アドレス空間 (100.64.0.0/10) から受け付けるのは危険を伴うので、
+	// 家の中の範囲とは別の項目に書かせ、書き間違いや、意味を知らずに広げてしまうことを防ぐ。既定は空。環境変数では、カンマで区切って渡す。
+	AllowedExternalNetworks []string `yaml:"allowed_external_networks"`
 	// TrustedProxies は、X-Forwarded-For などを信頼するリバースプロキシのネットワーク (CIDR か IP アドレス)。
 	// ここに含まれない送信元から X-Forwarded-For が届いたら、設定方法を案内するエラーを返す。
 	TrustedProxies []string `yaml:"trusted_proxies"`
@@ -101,10 +101,10 @@ const (
 	ClientIPHeaderXRealIP = "X-Real-IP"
 )
 
-// DefaultAllowedNetworks は、接続を受け付ける送信元の既定値 (設計書 9.5)。
+// DefaultPrivateNetworks は、家の中のプライベートアドレスのネットワーク。接続を受け付ける送信元の既定値にする (設計書 9.5)。
 // RFC 1918 のアドレス、ループバック、IPv6 のユニークローカルアドレスとリンクローカルアドレス。
 // Tailscale が使う 100.64.0.0/10 は含めない (#1758)。tailnet を共有した相手や、同じ ISP の CGNAT (RFC 6598) の中からも届くためである。
-func DefaultAllowedNetworks() []string {
+func DefaultPrivateNetworks() []string {
 	return []string{
 		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8",
 		"::1/128", "fc00::/7", "fe80::/10",
@@ -457,14 +457,14 @@ func Default() *Config {
 	return &Config{
 		TimeZone: DefaultTimeZone,
 		Server: Server{
-			Listen:          ":8080",
-			AdvertiseHost:   "",
-			AllowedNetworks: DefaultAllowedNetworks(),
-			// 家の外のネットワークから受け付けるのは、明示させる (#1759)。
-			AllowExternalNetworks: false,
-			TrustedProxies:        []string{},
-			ClientIPHeader:        ClientIPHeaderXForwardedFor,
-			AllowedHosts:          []string{},
+			Listen:                 ":8080",
+			AdvertiseHost:          "",
+			AllowedPrivateNetworks: DefaultPrivateNetworks(),
+			// 家の外のネットワークから受け付けるのは、別の項目に書いて明示させる (#1759)。
+			AllowedExternalNetworks: []string{},
+			TrustedProxies:          []string{},
+			ClientIPHeader:          ClientIPHeaderXForwardedFor,
+			AllowedHosts:            []string{},
 		},
 		Metrics: Metrics{
 			Listen: ":9090",
@@ -523,16 +523,29 @@ func Default() *Config {
 	}
 }
 
+// ReceivableNetworks は、接続を受け付ける送信元のネットワーク (家の中と外の範囲を合わせたもの) を返す。
+func (s *Server) ReceivableNetworks() []string {
+	return slices.Concat(s.AllowedPrivateNetworks, s.AllowedExternalNetworks)
+}
+
 // validate は server の値の形式を検査する。
 func (s *Server) validate() []error {
 	errs := []error{}
 	if err := validateListen(s.Listen); err != nil {
 		errs = append(errs, fieldError("server.listen", err))
 	}
-	if err := validateNetworks(s.AllowedNetworks); err != nil {
-		errs = append(errs, fieldError("server.allowed_networks", err))
-	} else if err := s.validateExternalNetworks(); err != nil {
-		errs = append(errs, fieldError("server.allowed_networks", err))
+	if err := validateNetworks(s.AllowedPrivateNetworks); err != nil {
+		errs = append(errs, fieldError("server.allowed_private_networks", err))
+	} else if network, ok := firstOutsideHome(s.AllowedPrivateNetworks, false); ok {
+		errs = append(errs, fieldError("server.allowed_private_networks", fmt.Errorf(
+			"%q is outside the private networks of your home; to accept connections from it, "+
+				"put it in server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS)", network)))
+	}
+	if err := validateNetworks(s.AllowedExternalNetworks); err != nil {
+		errs = append(errs, fieldError("server.allowed_external_networks", err))
+	} else if network, ok := firstOutsideHome(s.AllowedExternalNetworks, true); ok {
+		errs = append(errs, fieldError("server.allowed_external_networks", fmt.Errorf(
+			"%q is a private network of your home; put it in server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS)", network)))
 	}
 	if err := validateNetworks(s.TrustedProxies); err != nil {
 		errs = append(errs, fieldError("server.trusted_proxies", err))
@@ -549,31 +562,28 @@ func (s *Server) validate() []error {
 	return errs
 }
 
-// validateExternalNetworks は、AllowedNetworks に家の中のネットワークの外の範囲があれば、AllowExternalNetworks で
-// 明示していることを確かめる (#1759)。
-func (s *Server) validateExternalNetworks() error {
-	if s.AllowExternalNetworks {
-		return nil
-	}
-	allowed, err := ParseNetworks(s.AllowedNetworks)
+// firstOutsideHome は、networks のうち、家の中のネットワーク (DefaultPrivateNetworks のどれか) に収まる (inside が true)、
+// または収まらない (inside が false) 最初の範囲を返す。家の中の範囲と同じアドレスから始まる、それより広い範囲は、収まらないとみなす。
+// networks は、validateNetworks で確かめた後に渡す。
+func firstOutsideHome(networks []string, inside bool) (string, bool) {
+	prefixes, err := ParseNetworks(networks)
 	if err != nil {
-		return err
+		return "", false
 	}
-	home, err := ParseNetworks(DefaultAllowedNetworks())
+	home, err := ParseNetworks(DefaultPrivateNetworks())
 	if err != nil {
-		return err
+		return "", false
 	}
-	for i, prefix := range allowed {
-		inside := slices.ContainsFunc(home, func(network netip.Prefix) bool {
+	for i, prefix := range prefixes {
+		contained := slices.ContainsFunc(home, func(network netip.Prefix) bool {
 			return network.Bits() <= prefix.Bits() && network.Contains(prefix.Addr())
 		})
-		if !inside {
-			return fmt.Errorf("%q is outside the private networks of your home; accepting connections from it is risky, "+
-				"so set server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS) to true to confirm it", s.AllowedNetworks[i])
+		if contained == inside {
+			return networks[i], true
 		}
 	}
 
-	return nil
+	return "", false
 }
 
 // validate は値の形式を検査する。必須の項目の検査は読み込みの段階で済ませている。

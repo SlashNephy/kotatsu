@@ -40,6 +40,11 @@ func Load(path string, lookupEnv LookupEnv) (*Config, error) {
 		}
 	}
 
+	// 前の版の server.allowed_networks は、家の中と外の 2 つの項目に分けた (#1759)。
+	// 黙って無視すると、外から届かなくなった理由が分からないので、新しい名前を案内して起動しない。
+	if _, ok := lookupEnv(envName([]string{"server", "allowed_networks"})); ok {
+		return nil, errRenamedAllowedNetworks
+	}
 	if err := applyEnv(reflect.ValueOf(cfg).Elem(), []string{}, lookupEnv); err != nil {
 		return nil, err
 	}
@@ -61,6 +66,11 @@ func loadYAML(path string, cfg *Config) error {
 		return fmt.Errorf("failed to read the config file: %w", err)
 	}
 
+	if renamed, err := hasRenamedAllowedNetworks(data); err != nil {
+		return fmt.Errorf("failed to parse the config file %s: %w", path, err)
+	} else if renamed {
+		return errRenamedAllowedNetworks
+	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	// 綴りを間違えたキーが黙って無視されないよう、未知のキーを拒否する。
 	decoder.KnownFields(true)
@@ -74,6 +84,25 @@ func loadYAML(path string, cfg *Config) error {
 	cfg.Storage.PoolOrder = order
 
 	return nil
+}
+
+// errRenamedAllowedNetworks は、前の版の server.allowed_networks が残っていることを表す (#1759)。
+var errRenamedAllowedNetworks = errors.New("server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS) was split into " +
+	"server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS) for the private networks of your home and " +
+	"server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS) for the others; move each network to one of them")
+
+// hasRenamedAllowedNetworks は、設定ファイルに、前の版の server.allowed_networks が書いてあるかどうかを返す。
+func hasRenamedAllowedNetworks(data []byte) (bool, error) {
+	var doc struct {
+		Server struct {
+			AllowedNetworks any `yaml:"allowed_networks"`
+		} `yaml:"server"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return false, err
+	}
+
+	return doc.Server.AllowedNetworks != nil, nil
 }
 
 // yamlPoolOrder は、設定ファイルの storage.pools に書いたプール ID を、書いた順に返す。

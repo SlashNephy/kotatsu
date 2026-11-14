@@ -44,9 +44,10 @@ type AccessPolicy struct {
 
 // NewAccessPolicy は、設定から AccessPolicy を作る。
 func NewAccessPolicy(cfg *config.Server, logger *slog.Logger) (*AccessPolicy, error) {
-	allowed, err := config.ParseNetworks(cfg.AllowedNetworks)
+	// 家の中と外の範囲を合わせて受け付ける (#1759)。
+	allowed, err := config.ParseNetworks(cfg.ReceivableNetworks())
 	if err != nil {
-		return nil, fmt.Errorf("invalid server.allowed_networks: %w", err)
+		return nil, fmt.Errorf("invalid server.allowed_private_networks or server.allowed_external_networks: %w", err)
 	}
 	trusted, err := config.ParseNetworks(cfg.TrustedProxies)
 	if err != nil {
@@ -96,7 +97,7 @@ func (p *AccessPolicy) Middleware(next http.Handler) http.Handler {
 		if !contains(p.allowed, client.IP) {
 			p.logger.WarnContext(r.Context(), "rejected a request from a disallowed address", slog.String("client", client.IP.String()))
 			http.Error(w, fmt.Sprintf(
-				"access from %s is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS); a network outside your home also needs server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS).",
+				"access from %s is not allowed. To allow it, add the network to server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS) if it is in your home, or to server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS) if it is not.",
 				client.IP), http.StatusForbidden)
 
 			return

@@ -59,15 +59,16 @@ v2026.11.4からの変更です。
 
 ### Tailscaleのアドレスからの接続は、既定では受け付けない
 
-`server.allowed_networks`の既定値から、Tailscaleが使う`100.64.0.0/10`を外しました（#1758）。この範囲は、tailnetを共有した相手や、同じISPのCGNAT（RFC 6598の共有アドレス空間）の中からも届くためです。
+接続元の既定の許可から、Tailscaleが使う`100.64.0.0/10`を外しました（#1758）。この範囲は、tailnetを共有した相手や、同じISPのCGNAT（RFC 6598の共有アドレス空間）の中からも届くためです。
 
-- `server.allowed_networks`を設定せずに、Tailscale経由で使っているときは、更新するとつながらなくなります。既定の範囲に`100.64.0.0/10`を足し、`server.allow_external_networks`を`true`にして設定してください。書き方は[設定](configuration.md)にあります。
+- 接続元の設定をせずに、Tailscale経由で使っているときは、更新するとつながらなくなります。`server.allowed_external_networks`（`KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS`）に`100.64.0.0/10`を書いてください。書き方は[設定](configuration.md)にあります。
 
-### 家の外のネットワークを許すときは、明示が要る
+### 接続元の設定を、家の中と外の2つの項目に分けた
 
-`server.allowed_networks`に、家の中のプライベートアドレス（RFC 1918、ループバック、IPv6のユニークローカルとリンクローカル）の外の範囲を書くときは、`server.allow_external_networks`（`KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS`）を`true`にしないと起動しないようにしました（#1759）。インターネットやTailscaleから接続を受け付けるのは危険を伴うので、書き間違いや、意味を知らずに広げてしまうことを防ぐためです。
+`server.allowed_networks`（`KOTATSU_SERVER_ALLOWED_NETWORKS`）を、家の中のネットワークの`server.allowed_private_networks`（`KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS`）と、家の外のネットワークの`server.allowed_external_networks`（`KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS`）に分けました（#1759）。家の中のネットワークは、RFC 1918、ループバック、IPv6のユニークローカルとリンクローカルです。インターネットやTailscaleから受け付けるのは危険を伴うので、家の中の範囲とは別の項目に書かせ、書き間違いや、意味を知らずに広げてしまうことを防ぐためです。
 
-- `0.0.0.0/0`や`::/0`、`100.64.0.0/10`などを書いている構成は、更新すると起動しなくなります。`server.allow_external_networks`を`true`にしてください。
+- `server.allowed_networks`が残っていると、起動しません。書いていた範囲を、家の中の範囲は`server.allowed_private_networks`へ、それ以外（`0.0.0.0/0`、`::/0`、`100.64.0.0/10`など）は`server.allowed_external_networks`へ移してください。
+- 家の中の範囲を書き直さずに、家の外の範囲だけを足すなら、`server.allowed_external_networks`だけを書けば足ります。
 
 ## v2026.11.4
 

@@ -172,7 +172,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			name: "defaults",
 			env:  map[string]string{envKeyURL: envURL},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -188,7 +188,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 			want: &config.Config{
 				TimeZone:  config.DefaultTimeZone,
-				Server:    config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:    config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:   config.Metrics{Listen: defaultMetricsListen},
 				Database:  config.Database{URL: envURL, Pooler: false},
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
@@ -205,7 +205,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				"KOTATSU_METRICS_LISTEN": ":9100",
 			},
 			want: &config.Config{
-				Server:   config.Server{Listen: "127.0.0.1:3000", AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: "127.0.0.1:3000", AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: ":9100"},
 				Database: config.Database{URL: envURL, Pooler: true},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -217,7 +217,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			name: "postgresql scheme",
 			env:  map[string]string{envKeyURL: "postgresql://db/kotatsu"},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -230,7 +230,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			yaml: "auth:\n  hibp:\n    url: https://hibp.example.com\n",
 			env:  map[string]string{envKeyURL: envURL, "KOTATSU_AUTH_HIBP_ENABLED": envTrue},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -247,7 +247,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				"KOTATSU_AUTH_OIDC_AUTO_CREATE_ADMIN_GROUPS": "admins", "KOTATSU_AUTH_OIDC_AUTO_CREATE_VIEWER_GROUPS": "family,guests",
 			},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -267,7 +267,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			yaml: "audit:\n  retention_days: 30\n  client_info_retention_days: 7\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: 30, ClientInfoRetentionDays: 7},
@@ -277,18 +277,16 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 		},
 		{
 			name: "networks from yaml and env",
-			yaml: "server:\n  allowed_networks: [0.0.0.0/0]\n",
+			yaml: "server:\n  allowed_external_networks: [0.0.0.0/0]\n",
 			env: map[string]string{
 				envKeyURL:                         envURL,
 				"KOTATSU_SERVER_TRUSTED_PROXIES":  " 10.0.0.1, 10.0.1.0/24 ,",
 				"KOTATSU_SERVER_CLIENT_IP_HEADER": "X-Real-IP",
 				"KOTATSU_SERVER_ALLOWED_HOSTS":    "tv.example.com, kotatsu.local",
-				// 家の外のネットワークを書くので、明示する (#1759)。
-				"KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS": "true",
 			},
 			want: &config.Config{
 				Server: config.Server{
-					Listen: defaultServerListen, AllowedNetworks: []string{"0.0.0.0/0"}, AllowExternalNetworks: true, TrustedProxies: []string{"10.0.0.1", "10.0.1.0/24"},
+					Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{"0.0.0.0/0"}, TrustedProxies: []string{"10.0.0.1", "10.0.1.0/24"},
 					ClientIPHeader: config.ClientIPHeaderXRealIP, AllowedHosts: []string{"tv.example.com", "kotatsu.local"},
 				},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
@@ -299,13 +297,13 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
-			// 家の中のネットワークの一部だけを書くなら、明示しなくてよい (#1759)。
-			name: "home networks without the external flag",
-			yaml: "server:\n  allowed_networks: [192.168.1.0/24, 10.1.2.3, \"fd00::/8\"]\n",
+			// 家の中で受け付ける範囲を狭める (#1759)。
+			name: "narrower private networks",
+			yaml: "server:\n  allowed_private_networks: [192.168.1.0/24, 10.1.2.3, \"fd00::/8\"]\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: &config.Config{
 				Server: config.Server{
-					Listen: defaultServerListen, AllowedNetworks: []string{"192.168.1.0/24", "10.1.2.3", "fd00::/8"}, AllowExternalNetworks: false,
+					Listen: defaultServerListen, AllowedPrivateNetworks: []string{"192.168.1.0/24", "10.1.2.3", "fd00::/8"}, AllowedExternalNetworks: []string{},
 					TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{},
 				},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
@@ -323,7 +321,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				envKeyTunerURL: tunerURL,
 			},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -339,7 +337,7 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				"KOTATSU_DATABASE_POOLER": "false",
 			},
 			want: &config.Config{
-				Server:   config.Server{Listen: defaultServerListen, AllowedNetworks: config.DefaultAllowedNetworks(), AllowExternalNetworks: false, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
+				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
 				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
@@ -971,9 +969,9 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			name: "invalid networks",
 			env: map[string]string{
 				envKeyURL:          envURL,
-				envAllowedNetworks: "10.0.0.0/8,example.com",
+				envPrivateNetworks: "10.0.0.0/8,example.com",
 			},
-			wantErrs: []string{`server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS): "example.com" must be a CIDR or an IP address`},
+			wantErrs: []string{`server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS): "example.com" must be a CIDR or an IP address`},
 		},
 		{
 			name: "invalid client ip header",
@@ -1355,38 +1353,86 @@ func nativeEnv(env map[string]string) map[string]string {
 }
 
 const (
-	// envAllowedNetworks は、接続を受け付ける送信元のネットワークの環境変数。
-	envAllowedNetworks = "KOTATSU_SERVER_ALLOWED_NETWORKS"
+	// envPrivateNetworks と envExternalNetworks は、接続を受け付ける、家の中と外の送信元のネットワークの環境変数。
+	envPrivateNetworks  = "KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS"
+	envExternalNetworks = "KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS"
+	// tailscale は、Tailscale と CGNAT の共有アドレス空間 (RFC 6598)。
+	tailscale = "100.64.0.0/10"
 	// internet は、IPv4 のインターネット全体。
 	internet = "0.0.0.0/0"
 )
 
-// TestLoadRejectsExternalNetworksWithoutFlag は、家の中のプライベートアドレスの外の範囲を server.allowed_networks に書くなら、
-// server.allow_external_networks で明示しなければ起動しないことを確かめる (#1759)。Tailscale と CGNAT の共有アドレス空間も外とみなす。
-func TestLoadRejectsExternalNetworksWithoutFlag(t *testing.T) {
+// TestLoadAddsExternalNetworks は、既定の家の中の範囲を書き直さずに、家の外の範囲を足せることを確かめる (#1759)。
+func TestLoadAddsExternalNetworks(t *testing.T) {
 	t.Parallel()
 
+	cfg, err := config.Load("", lookup(map[string]string{envKeyURL: envURL, envExternalNetworks: tailscale + ",203.0.113.0/24"}))
+	require.NoError(t, err)
+	assert.Equal(t, config.DefaultPrivateNetworks(), cfg.Server.AllowedPrivateNetworks)
+	assert.Equal(t, []string{tailscale, "203.0.113.0/24"}, cfg.Server.AllowedExternalNetworks)
+	assert.Equal(t, append(config.DefaultPrivateNetworks(), tailscale, "203.0.113.0/24"), cfg.Server.ReceivableNetworks())
+}
+
+// TestLoadRejectsMisplacedNetworks は、家の外の範囲を家の中の項目に、家の中の範囲を家の外の項目に書いたら、
+// 正しい項目を案内して起動しないことを確かめる (#1759)。Tailscale と CGNAT の共有アドレス空間は、家の外とみなす。
+func TestLoadRejectsMisplacedNetworks(t *testing.T) {
+	t.Parallel()
+
+	const (
+		outside = `server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS): "%s" is outside the private networks of your home; ` +
+			`to accept connections from it, put it in server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS)`
+		inside = `server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS): "%s" is a private network of your home; ` +
+			`put it in server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS)`
+	)
 	tests := []struct {
 		name     string
+		env      string
 		networks string
 		want     string
 	}{
-		{name: "tailscale", networks: "192.168.0.0/16,100.64.0.0/10", want: "100.64.0.0/10"},
-		{name: "the whole internet", networks: internet, want: internet},
-		{name: "IPv6 internet", networks: "::/0", want: "::/0"},
-		{name: "a public address", networks: "203.0.113.5", want: "203.0.113.5"},
-		// 家の中の範囲と同じアドレスから始まる、それより広い範囲も外とみなす。
-		{name: "a supernet of a home network", networks: "10.0.0.0/7", want: "10.0.0.0/7"},
-		{name: "a supernet of 192.168.0.0/16", networks: "192.168.0.0/15", want: "192.168.0.0/15"},
+		{name: "tailscale in the private networks", env: envPrivateNetworks, networks: "192.168.0.0/16," + tailscale, want: fmt.Sprintf(outside, tailscale)},
+		{name: "the whole internet in the private networks", env: envPrivateNetworks, networks: internet, want: fmt.Sprintf(outside, internet)},
+		{name: "IPv6 internet in the private networks", env: envPrivateNetworks, networks: "::/0", want: fmt.Sprintf(outside, "::/0")},
+		// 家の中の範囲と同じアドレスから始まる、それより広い範囲も、家の外とみなす。
+		{name: "a supernet of a home network", env: envPrivateNetworks, networks: "10.0.0.0/7", want: fmt.Sprintf(outside, "10.0.0.0/7")},
+		{name: "a supernet of 192.168.0.0/16", env: envPrivateNetworks, networks: "192.168.0.0/15", want: fmt.Sprintf(outside, "192.168.0.0/15")},
+		{name: "a home network in the external networks", env: envExternalNetworks, networks: tailscale + ",192.168.1.0/24", want: fmt.Sprintf(inside, "192.168.1.0/24")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := config.Load("", lookup(map[string]string{envKeyURL: envURL, envAllowedNetworks: tt.networks}))
+			_, err := config.Load("", lookup(map[string]string{envKeyURL: envURL, tt.env: tt.networks}))
 			require.Error(t, err)
-			assert.ErrorContains(t, err, `server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS): "`+tt.want+`" is outside the private networks of your home; `+
-				`accepting connections from it is risky, so set server.allow_external_networks (KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS) to true to confirm it`)
+			assert.ErrorContains(t, err, tt.want)
+		})
+	}
+}
+
+// TestLoadRejectsRenamedAllowedNetworks は、前の版の server.allowed_networks が残っていたら、新しい項目を案内して起動しないことを確かめる (#1759)。
+func TestLoadRejectsRenamedAllowedNetworks(t *testing.T) {
+	t.Parallel()
+
+	const want = "server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS) was split into server.allowed_private_networks"
+	tests := []struct {
+		name string
+		yaml string
+		env  map[string]string
+	}{
+		{name: "in the config file", yaml: "server:\n  allowed_networks: [192.168.0.0/16]\n", env: map[string]string{envKeyURL: envURL}},
+		{name: "in the environment", yaml: "", env: map[string]string{envKeyURL: envURL, "KOTATSU_SERVER_ALLOWED_NETWORKS": internet}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", nativePaths(tt.yaml))
+			}
+			_, err := config.Load(path, lookup(nativeEnv(tt.env)))
+			require.Error(t, err)
+			assert.ErrorContains(t, err, want)
 		})
 	}
 }

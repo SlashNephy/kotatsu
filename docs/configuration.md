@@ -71,40 +71,38 @@ tenbanのHTTPサーバーの設定です。
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
 | `server.listen` | `KOTATSU_SERVER_LISTEN` | `:8080` | 待ち受けアドレス |
-| `server.allowed_networks` | `KOTATSU_SERVER_ALLOWED_NETWORKS` | プライベートアドレス | 接続を受け付ける送信元のネットワーク |
-| `server.allow_external_networks` | `KOTATSU_SERVER_ALLOW_EXTERNAL_NETWORKS` | `false` | `server.allowed_networks`に、家の中のプライベートアドレスの外の範囲を書くことを許すか（危険を伴う設定） |
+| `server.allowed_private_networks` | `KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS` | 家の中のプライベートアドレス | 接続を受け付ける、家の中の送信元のネットワーク |
+| `server.allowed_external_networks` | `KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS` | なし | 接続を受け付ける、家の外の送信元のネットワーク（危険を伴う設定） |
 | `server.trusted_proxies` | `KOTATSU_SERVER_TRUSTED_PROXIES` | なし | `X-Forwarded-For`を信頼するリバースプロキシのネットワーク |
 | `server.client_ip_header` | `KOTATSU_SERVER_CLIENT_IP_HEADER` | `X-Forwarded-For` | 信頼済みのプロキシから届いたリクエストで、送信元を読むヘッダー（`X-Forwarded-For`か`X-Real-IP`） |
 | `server.allowed_hosts` | `KOTATSU_SERVER_ALLOWED_HOSTS` | なし | 受け付ける`Host`のホスト名。空ならどれも受け付ける |
 | `server.advertise_host` | `KOTATSU_SERVER_ADVERTISE_HOST` | なし | ほかのインスタンスからこのインスタンスに届くホスト |
 
-`server.allowed_networks`と`server.trusted_proxies`には、CIDRかIPアドレスを書きます。
+`server.allowed_private_networks`、`server.allowed_external_networks`、`server.trusted_proxies`には、CIDRかIPアドレスを書きます。
 
-`server.allowed_networks`の既定値は、次のネットワークです。
+接続を受け付ける送信元は、家の中のネットワークと、家の外のネットワークの2つの項目に分けて書きます（#1759）。Kotatsuは、両方を合わせた範囲から受け付けます。
+
+`server.allowed_private_networks`は、家の中のプライベートアドレスです。既定値は、次のネットワークのすべてです。
 
 - RFC 1918のプライベートアドレス（`10.0.0.0/8`、`172.16.0.0/12`、`192.168.0.0/16`）
 - ループバック（`127.0.0.0/8`、`::1/128`）
 - IPv6のユニークローカルアドレス（`fc00::/7`）とリンクローカルアドレス（`fe80::/10`）
 
-`server.allowed_networks`に、上の既定のネットワークの外の範囲（インターネット、Tailscaleの`100.64.0.0/10`など）を書くのは、家の外からKotatsuに届くようにする、危険を伴う設定です。書き間違いや、意味を知らずに広げてしまうことを防ぐため、`server.allow_external_networks`を`true`にしないと起動しません（#1759）。既定のネットワークの一部（`192.168.1.0/24`など）だけを書くときは要りません。
+家の中で受け付ける範囲を狭めるとき（ゲスト用のWi-FiやIoTの機器のセグメントを外すなど）は、この項目を書き換えます。上の範囲の外は書けません。
 
-インターネットからの接続を受け付けるときは、`server.allow_external_networks`を`true`にし、`0.0.0.0/0`と`::/0`を明示してください。
+`server.allowed_external_networks`は、家の外のネットワークです。既定は空です。インターネットやTailscaleから受け付けるのは、家の外からKotatsuに届くようにする、危険を伴う設定です。書き間違いや、意味を知らずに広げてしまうことを防ぐため、家の中の範囲とは別の項目に書きます。家の中の範囲は書けません。
 
-Tailscaleが使う`100.64.0.0/10`は、既定では受け付けません（#1758）。この範囲は、tailnetを共有した相手や、同じISPのCGNAT（RFC 6598の共有アドレス空間）の中からも届くためです。Tailscale経由で使うときは、`server.allow_external_networks`を`true`にし、既定の範囲に`100.64.0.0/10`を足して書いてください。
+インターネットからの接続を受け付けるときは、`server.allowed_external_networks`に`0.0.0.0/0`と`::/0`を書いてください。
+
+Tailscaleが使う`100.64.0.0/10`は、既定では受け付けません（#1758）。この範囲は、tailnetを共有した相手や、同じISPのCGNAT（RFC 6598の共有アドレス空間）の中からも届くためです。Tailscale経由で使うときは、`server.allowed_external_networks`に書いてください。家の中の範囲は、書き直さなくてもそのまま受け付けます。
 
 ```yaml
 server:
-  allow_external_networks: true
-  allowed_networks:
-    - 10.0.0.0/8
-    - 172.16.0.0/12
-    - 192.168.0.0/16
-    - 127.0.0.0/8
-    - ::1/128
-    - fc00::/7
-    - fe80::/10
+  allowed_external_networks:
     - 100.64.0.0/10
 ```
+
+環境変数なら、`KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS=100.64.0.0/10`です。
 
 `server.allowed_hosts`には、ブラウザでKotatsuを開くときのホスト名を、ポートを付けずに書きます（例：`tv.example.com,kotatsu.local`）。
 DNSリバインディングで、外部のサイトのホスト名から届いたリクエストを拒みます。
