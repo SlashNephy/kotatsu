@@ -3,6 +3,7 @@ package epgstationapi_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 )
 
@@ -44,8 +46,8 @@ func addRecording(
 	t.Helper()
 
 	id := uuid.New()
-	exec(t, pool, `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
-		VALUES ($1, $2, $3, '', $4, $5, $6, $4, $4, $4)`, id, grService, name, recordedFrom, recordedFrom.Add(time.Hour), state)
+	exec(t, pool, `INSERT INTO recordings (id, service_id, name, name_normalized, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+		VALUES ($1, $2, $3, $7, '', $4, $5, $6, $4, $4, $4)`, id, grService, name, recordedFrom, recordedFrom.Add(time.Hour), state, domain.Normalize(name))
 	for i := range segments {
 		segmentID := uuid.New()
 		exec(t, pool, `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, created_at)
@@ -82,6 +84,10 @@ func TestRecorded(t *testing.T) {
 		{name: "すべて", query: "", wantIDs: []int64{newest, middle, oldest}, wantTotal: 3},
 		{name: "区切る", query: "?offset=1&limit=1", wantIDs: []int64{middle}, wantTotal: 3},
 		{name: "番組名", query: "?keyword=こたつ", wantIDs: []int64{newest, oldest}, wantTotal: 2},
+		// 画面の検索と同じく、キーワードも番組名も正規化して比べる。% と _ は、文字そのものとして探す (#1726)。
+		{name: "全角と半角", query: "?keyword=" + url.QueryEscape("番組2"), wantIDs: []int64{middle}, wantTotal: 1},
+		{name: "ワイルドカードの文字", query: "?keyword=" + url.QueryEscape("%"), wantIDs: []int64{}, wantTotal: 0},
+		{name: "1 文字のワイルドカードの文字", query: "?keyword=" + url.QueryEscape("こたつ_"), wantIDs: []int64{}, wantTotal: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

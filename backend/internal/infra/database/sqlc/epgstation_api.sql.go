@@ -16,7 +16,7 @@ import (
 const countAPIRecordings = `-- name: CountAPIRecordings :one
 SELECT count(*) FROM recordings r
 WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
-  AND ($1::text = '' OR r.name ILIKE '%' || $1::text || '%')
+  AND ($1::text = '' OR COALESCE(r.name_normalized, r.name) ILIKE '%' || $1::text || '%')
 `
 
 func (q *Queries) CountAPIRecordings(ctx context.Context, keyword string) (int64, error) {
@@ -96,7 +96,7 @@ SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at
     ORDER BY f.started_at, f.id LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS image_segment_id
 FROM recordings r
 WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
-  AND ($1::text = '' OR r.name ILIKE '%' || $1::text || '%')
+  AND ($1::text = '' OR COALESCE(r.name_normalized, r.name) ILIKE '%' || $1::text || '%')
 ORDER BY r.recorded_from DESC, r.id DESC
 LIMIT $3 OFFSET $2
 `

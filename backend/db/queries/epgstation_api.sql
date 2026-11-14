@@ -10,14 +10,14 @@ SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at
     ORDER BY f.started_at, f.id LIMIT 1), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS image_segment_id
 FROM recordings r
 WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
-  AND (@keyword::text = '' OR r.name ILIKE '%' || @keyword::text || '%')
+  AND (@keyword::text = '' OR COALESCE(r.name_normalized, r.name) ILIKE '%' || @keyword::text || '%')
 ORDER BY r.recorded_from DESC, r.id DESC
 LIMIT @max_count OFFSET @skip;
 
 -- name: CountAPIRecordings :one
 SELECT count(*) FROM recordings r
 WHERE EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.kind = 'segment')
-  AND (@keyword::text = '' OR r.name ILIKE '%' || @keyword::text || '%');
+  AND (@keyword::text = '' OR COALESCE(r.name_normalized, r.name) ILIKE '%' || @keyword::text || '%');
 
 -- name: GetAPIRecording :one
 SELECT r.api_id, r.id, r.service_id, r.name, r.description, r.start_at, r.end_at, r.genres, r.state, r.protected,

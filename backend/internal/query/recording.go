@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 	"uuid"
 
@@ -198,8 +199,9 @@ func (q *Queries) GetRecordingIDByAPIID(ctx context.Context, apiID int64) (uuid.
 }
 
 // CountAPIRecordings は、EPGStation 互換 API の録画の数を返す。
+// keyword は、ListAPIRecordings と同じく、正規化してから探す。
 func (q *Queries) CountAPIRecordings(ctx context.Context, keyword string) (int64, error) {
-	result, err := sqlc.New(q.pool).CountAPIRecordings(ctx, keyword)
+	result, err := sqlc.New(q.pool).CountAPIRecordings(ctx, apiKeyword(keyword))
 	if err != nil {
 		return 0, err
 	}
@@ -208,8 +210,11 @@ func (q *Queries) CountAPIRecordings(ctx context.Context, keyword string) (int64
 }
 
 // ListAPIRecordings は、EPGStation 互換 API の録画を返す。
+// キーワードは、画面の録画の検索と同じく、正規化して、番組名の正規化した列から探す。% と _ は、文字そのものとして探す (#1726)。
 func (q *Queries) ListAPIRecordings(ctx context.Context, arg ListAPIRecordingsParams) ([]domain.APIRecording, error) {
-	result, err := sqlc.New(q.pool).ListAPIRecordings(ctx, sqlc.ListAPIRecordingsParams(arg))
+	params := sqlc.ListAPIRecordingsParams(arg)
+	params.Keyword = apiKeyword(arg.Keyword)
+	result, err := sqlc.New(q.pool).ListAPIRecordings(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -334,4 +339,9 @@ func (q *Queries) GetRecordingNicologPath(ctx context.Context, recordingID uuid.
 	}
 
 	return *path, nil
+}
+
+// apiKeyword は、EPGStation 互換 API の録画のキーワードを、正規化した列に当てる LIKE のパターンにする。空なら空を返す。
+func apiKeyword(keyword string) string {
+	return escapeLike(domain.Normalize(strings.TrimSpace(keyword)))
 }
