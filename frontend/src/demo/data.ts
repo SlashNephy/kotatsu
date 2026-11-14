@@ -416,6 +416,7 @@ export function createRootValue(
       iptvFeedsEnabled: true,
       // デモでは、録画のダウンロードの操作も見せる (#1762)。
       recordingDownloadsEnabled: true,
+      cmDetector: 'FFMPEG',
       tvtplayChaptersEnabled: false,
       // デモでは、API トークンを発行する操作も見せる (#1769)。
       epgstationApiEnabled: true,

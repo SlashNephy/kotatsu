@@ -22,7 +22,7 @@ import {
 } from '../../rules/transcode';
 import { mutate } from '../../settings/mutate';
 import type { recordingMutation } from './__generated__/recordingMutation.graphql';
-import type { recordingQuery } from './__generated__/recordingQuery.graphql';
+import type { CMDetector, recordingQuery } from './__generated__/recordingQuery.graphql';
 
 export const Route = createFileRoute('/admin/recording')({
   component: RecordingPage,
@@ -65,6 +65,7 @@ const query = graphql`
       }
       ruleUnmatchedGraceMinutes
       tvtplayChaptersEnabled
+      cmDetector
       updatedAt
     }
     systemStatus {
@@ -84,6 +85,8 @@ type Form = {
   joinSegments: boolean;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。既定は切る。
   detectCm: boolean;
+  // cmDetector は、CM の区間の見分け方 (#1505)。既定は FFMPEG (無音とシーンの切り替わり)。
+  cmDetector: CMDetector;
   // tvtplayChapters は、CM の区間を見分け終えたら、TvtPlay のチャプターのファイルを書くかどうか (#1737)。既定は切る。
   tvtplayChapters: boolean;
   // transcodePreset は、録画が終わったら変換するときの画質 (#1253)。空なら変換しない (既定)。
@@ -130,6 +133,7 @@ function RecordingSettings() {
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
     detectCm: defaults.detectCm,
+    cmDetector: settings.cmDetector,
     tvtplayChapters: settings.tvtplayChaptersEnabled,
     transcodePreset: defaults.transcodePreset ?? noTranscode,
     transcodeFrameRate: defaults.transcodeFrameRate,
@@ -191,6 +195,7 @@ function RecordingSettings() {
                 bundleSameEpisodes: form.ruleBundleSameEpisodes,
               },
               ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
+              cmDetector: form.cmDetector,
               tvtplayChaptersEnabled: form.tvtplayChapters,
             },
           },
@@ -289,6 +294,21 @@ function RecordingSettings() {
               description={t('admin.settings.detectCmHelp')}
               checked={form.detectCm}
               onChange={(event) => set({ detectCm: event.currentTarget.checked })}
+            />
+            <Select
+              size="sm"
+              label={t('admin.settings.cmDetector')}
+              description={t('admin.settings.cmDetectorHelp')}
+              maw={360}
+              data={[
+                { value: 'FFMPEG', label: t('admin.settings.cmDetectorFfmpeg') },
+                { value: 'LOGO', label: t('admin.settings.cmDetectorLogo') },
+              ]}
+              value={form.cmDetector}
+              onChange={(value) =>
+                (value === 'FFMPEG' || value === 'LOGO') && set({ cmDetector: value })
+              }
+              allowDeselect={false}
             />
             <Switch
               size="sm"
