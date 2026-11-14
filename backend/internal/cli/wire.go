@@ -61,3 +61,21 @@ func newAccountParts(deps *Deps, logger *slog.Logger) (*accountParts, error) {
 		wire.Struct(new(accountParts), "*"),
 	))
 }
+
+// newAccessParts は、セッションの Cookie 以外で認可するのに使う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確かめる。
+func newAccessParts(deps *Deps, logger *slog.Logger) (*accessParts, error) {
+	panic(wire.Build(
+		clockOf,
+		appSecretOf,
+		poolOf,
+		networkOf,
+		audit.NewRecorder,
+		wire.Bind(new(audit.Recorder), new(*audit.DBRecorder)),
+		newURLUsers,
+		newStreamSigner,
+		newCalendarFeeds,
+		newIPTVFeeds,
+		newAuthorizationServer,
+		wire.Struct(new(accessParts), "*"),
+	))
+}

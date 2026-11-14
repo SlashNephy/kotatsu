@@ -91,3 +91,28 @@ func newAccountParts(deps *Deps, logger *slog.Logger) (*accountParts, error) {
 	}
 	return cliAccountParts, nil
 }
+
+// newAccessParts は、セッションの Cookie 以外で認可するのに使う部品を作る。アプリの秘密キーがあるかは、newAPI が先に確かめる。
+func newAccessParts(deps *Deps, logger *slog.Logger) (*accessParts, error) {
+	pool := poolOf(deps)
+	clock := clockOf(deps)
+	urlUsers := newURLUsers(pool, clock, logger)
+	cliAppSecret := appSecretOf(deps)
+	signer, err := newStreamSigner(cliAppSecret)
+	if err != nil {
+		return nil, err
+	}
+	dbRecorder := audit.NewRecorder(clock)
+	cliCalendarFeeds := newCalendarFeeds(pool, clock, dbRecorder)
+	cliIptvFeeds := newIPTVFeeds(pool, clock, dbRecorder)
+	recorder := networkOf(deps)
+	server := newAuthorizationServer(pool, clock, recorder, dbRecorder)
+	cliAccessParts := &accessParts{
+		urlUsers:            urlUsers,
+		signer:              signer,
+		calendarFeeds:       cliCalendarFeeds,
+		iptvFeeds:           cliIptvFeeds,
+		authorizationServer: server,
+	}
+	return cliAccessParts, nil
+}
