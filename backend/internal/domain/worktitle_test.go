@@ -30,6 +30,8 @@ func TestWorkTitle(t *testing.T) {
 		// 話数のない番組名でも、枠の名前の後のかぎ括弧を作品名とする。
 		{name: "movie with quoted title", in: "映画「はんてんの約束」", want: "はんてんの約束"},
 		{name: "slot name and quote without episode", in: "土曜ドラマ「作品名」", want: work},
+		{name: "numbered day-of-week slot", in: "木ドラ24「作品名」 第1話", want: work},
+		{name: "WOWOW serial drama", in: "連続ドラマW「作品名」 第2話", want: work},
 		{name: "serial drama", in: "連続ドラマ「縁側の午後」 第12話", want: "縁側の午後"},
 		{name: "leading mark before slot name", in: "【新】土曜ドラマ「作品名」#1", want: work},
 		{name: "quoted title with suffix", in: "金曜ドラマ「作品名」SP", want: work},

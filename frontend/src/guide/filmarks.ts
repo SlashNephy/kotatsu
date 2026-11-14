@@ -25,8 +25,11 @@ export function filmarksSearchURL(
     if (genre.lv1 === dramaGenre) {
       return `https://filmarks.com/search/dramas?q=${encodeURIComponent(q)}`;
     }
-    if (genre.lv1 === movieGenre && genre.lv2 !== animeMovieSubGenre) {
-      return `https://filmarks.com/search/movies?q=${encodeURIComponent(q)}`;
+    if (genre.lv1 === movieGenre) {
+      // アニメの映画は、後ろのジャンルを見ずに出さない。
+      return genre.lv2 === animeMovieSubGenre
+        ? null
+        : `https://filmarks.com/search/movies?q=${encodeURIComponent(q)}`;
     }
   }
 

@@ -30,6 +30,17 @@ describe('filmarksSearchURL', () => {
       anime: false,
       want: 'https://filmarks.com/search/movies?q=x',
     },
+    // アニメの映画が先に並べば、後ろのジャンルがドラマでも出さない。
+    {
+      name: 'anime movie before drama',
+      genres: [
+        { lv1: 0x6, lv2: 0x2 },
+        { lv1: 0x3, lv2: 0x0 },
+      ],
+      title: 'x',
+      anime: false,
+      want: null,
+    },
     // アニメの映画と、しょぼいカレンダーの話に結びついた番組には出さない。
     { name: 'anime movie', genres: [{ lv1: 0x6, lv2: 0x2 }], title: 'x', anime: false, want: null },
     { name: 'linked anime', genres: [{ lv1: 0x3, lv2: 0x0 }], title: 'x', anime: true, want: null },
