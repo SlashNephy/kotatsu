@@ -53,6 +53,8 @@ type Analyzer struct {
 	beforeCutoff []*PIDStats
 	// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。nil なら CDT を読まない。
 	onLogo func(*Logo)
+	onNIT  func(*NIT)
+	onSDT  func(*SDT)
 }
 
 // AnalyzerOptions は Analyzer の設定。
@@ -66,6 +68,10 @@ type AnalyzerOptions struct {
 	OnTOT func(time.Time)
 	// OnLogo は、CDT でロゴを読んだときに、そのロゴを受け取る (#1308)。Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
 	OnLogo func(*Logo)
+	// OnNIT と OnSDT は、NIT と SDT のセクションを読んだときに、それを受け取る (#1519)。actual と other の両方を渡す。
+	// Write の中で呼ぶので、すぐに返す。nil なら呼ばない。
+	OnNIT func(*NIT)
+	OnSDT func(*SDT)
 }
 
 var _ io.Writer = new(Analyzer)
@@ -130,8 +136,10 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 	var cutoff *int64
 	var onTOT func(time.Time)
 	var onLogo func(*Logo)
+	var onNIT func(*NIT)
+	var onSDT func(*SDT)
 	if opts != nil {
-		index, cutoff, onTOT, onLogo = opts.Index, opts.CutoffPTS, opts.OnTOT, opts.OnLogo
+		index, cutoff, onTOT, onLogo, onNIT, onSDT = opts.Index, opts.CutoffPTS, opts.OnTOT, opts.OnLogo, opts.OnNIT, opts.OnSDT
 	}
 
 	return &Analyzer{
@@ -159,6 +167,8 @@ func NewAnalyzer(opts *AnalyzerOptions) *Analyzer {
 		cutoffPTS:          cutoff,
 		beforeCutoff:       nil,
 		onLogo:             onLogo,
+		onNIT:              onNIT,
+		onSDT:              onSDT,
 	}
 }
 
@@ -393,10 +403,11 @@ func (a *Analyzer) probeVideoFormat(pkt *packet) {
 	}
 }
 
-// handlePSI は、PAT、PMT、EIT と、OnTOT があれば TOT、OnLogo があれば CDT のパケットからセクションを組み立てて読む。
+// handlePSI は、PAT、PMT、EIT と、OnTOT があれば TOT、OnLogo があれば CDT、OnNIT があれば NIT、OnSDT があれば SDT の
+// パケットからセクションを組み立てて読む。
 func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 	pid := pkt.pid
-	if pid != patPID && pid != eitPID && (pid != totPID || a.onTOT == nil) && (pid != cdtPID || a.onLogo == nil) && !a.programs.isPMTPID(pid) {
+	if !a.readsPSI(pid) {
 		return
 	}
 
@@ -410,23 +421,55 @@ func (a *Analyzer) handlePSI(pkt *packet, dropped bool) {
 		assembler.reset()
 	}
 	assembler.feed(pkt.payloadUnitStart, pkt.payload, func(section []byte) {
-		switch pid {
-		case patPID:
-			a.programs.handlePAT(section)
-		case eitPID:
-			a.eit.handle(section)
-		case totPID:
-			if at, ok := parseTOT(section); ok {
-				a.onTOT(at)
-			}
-		case cdtPID:
-			if logo, ok := parseCDTLogo(section); ok {
-				a.onLogo(logo)
-			}
-		default:
-			a.programs.handlePMT(pid, section)
-		}
+		a.handleSection(pid, section)
 	})
+}
+
+// readsPSI は、pid のセクションを組み立てて読むかどうかを返す。受け取る先がない表は、組み立てない。
+func (a *Analyzer) readsPSI(pid uint16) bool {
+	switch pid {
+	case patPID, eitPID:
+		return true
+	case totPID:
+		return a.onTOT != nil
+	case cdtPID:
+		return a.onLogo != nil
+	case nitPID:
+		return a.onNIT != nil
+	case sdtPID:
+		return a.onSDT != nil
+	default:
+		return a.programs.isPMTPID(pid)
+	}
+}
+
+// handleSection は、pid で組み立てたセクションを読む。
+func (a *Analyzer) handleSection(pid uint16, section []byte) {
+	switch pid {
+	case patPID:
+		a.programs.handlePAT(section)
+	case eitPID:
+		a.eit.handle(section)
+	case totPID:
+		if at, ok := parseTOT(section); ok {
+			a.onTOT(at)
+		}
+	case cdtPID:
+		if logo, ok := parseCDTLogo(section); ok {
+			a.onLogo(logo)
+		}
+	case nitPID:
+		if nit, ok := parseNIT(section); ok {
+			a.onNIT(nit)
+		}
+	case sdtPID:
+		// SDT の PID は、BAT も運ぶ。BAT は parseSDT が捨てる。
+		if sdt, ok := parseSDT(section); ok {
+			a.onSDT(sdt)
+		}
+	default:
+		a.programs.handlePMT(pid, section)
+	}
 }
 
 // continuity は、continuity_counter を調べた結果。
