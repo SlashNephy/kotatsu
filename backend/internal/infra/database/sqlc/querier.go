@@ -570,6 +570,8 @@ type Querier interface {
 	// 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 	ListAssignableReservations(ctx context.Context, now time.Time) ([]ListAssignableReservationsRow, error)
 	ListAuditEvents(ctx context.Context, maxCount int32) ([]AuditEvent, error)
+	// 読んだ衛星のネットワークの構成を返す (#1519)。
+	ListBroadcastLineups(ctx context.Context) ([]BroadcastLineup, error)
 	// 人が取り消した (無効にした) 番組の予約のうち、まだ終わっていない、番組名のあるものの放送 (#1504、設計書 4.3)。
 	// 照合で、同じ放送が別のイベント ID で送り直されても、予約し直さないために使う。
 	// 録り始めに同じ回と分かって Kotatsu が無効にした予約 (#1500) も、同じ放送をもう一度予約しないよう、人が取り消したものと同じに扱う。
@@ -1135,6 +1137,8 @@ type Querier interface {
 	// Annict から取り込んだ作品を書く (#1223)。MyAnimeList の ID が変われば、AniList の ID を引き直す。
 	// 配列は NULL を持てないので、対応のない ID は 0 で渡す。
 	UpsertAnnictWorks(ctx context.Context, arg UpsertAnnictWorksParams) error
+	// ネットワークの構成を書く (#1519)。版が同じでも、読んだ時刻は書き換える。
+	UpsertBroadcastLineup(ctx context.Context, arg UpsertBroadcastLineupParams) error
 	// ユーザーの、種類 kind の URL を発行する。すでにあれば、秘密の値を差し替え、前の URL を使えなくする。
 	UpsertCalendarFeed(ctx context.Context, arg UpsertCalendarFeedParams) error
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error

@@ -233,6 +233,13 @@ type AuditEvent struct {
 	ActorClient *string
 }
 
+type BroadcastLineup struct {
+	NetworkID  int32
+	Version    int16
+	Streams    []byte
+	ObservedAt time.Time
+}
+
 type CalendarFeed struct {
 	UserID     uuid.UUID
 	Kind       string

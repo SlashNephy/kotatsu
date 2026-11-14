@@ -563,6 +563,16 @@ CREATE TABLE services (
   updated_at timestamptz NOT NULL
 );
 
+-- 放送の NIT[actual] で読んだ、衛星のネットワークの構成 (#1519)。録画とタイムシフトの TS から mikan が書き、
+-- neko が、チューナーサーバーのサービスの一覧と比べる。ネットワークごとに、最後に読んだものだけを持つ。
+CREATE TABLE broadcast_lineups (
+  network_id integer PRIMARY KEY,
+  version smallint NOT NULL,
+  -- トランスポートストリームごとの、周波数 (kHz) と、サービスリスト記述子のサービス (lineup.Stream の JSON の配列)。
+  streams jsonb NOT NULL,
+  observed_at timestamptz NOT NULL
+);
+
 -- 録画している TS の CDT から集めた、サービスのロゴ (#1308、設計書 3.1)。チューナーサーバーがロゴを返さないときに返す。
 -- ロゴはネットワークごとの logo_id で送られ、サービスとは services.logo_id で結ぶ。サービスより先に届くこともあるので、外部キーは張らない。
 CREATE TABLE service_logos (
