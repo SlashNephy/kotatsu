@@ -425,3 +425,43 @@ func TestTranscoderRunVODDiscardsThePartialSegment(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, partial, "the temporary file of the partial segment is removed")
 }
+
+// firstPTS は、TS の最初のストリーム (stream は、映像なら "v:0"、音声なら "a:0") のパケットの PTS (秒) を返す。
+func firstPTS(t *testing.T, path, stream string) float64 {
+	t.Helper()
+
+	out, err := exec.CommandContext(t.Context(), "ffprobe", "-v", "error", "-select_streams", stream, "-show_entries", "packet=pts_time",
+		"-read_intervals", "%+#1", "-of", "csv=p=0", path).Output()
+	require.NoError(t, err)
+	pts, err := strconv.ParseFloat(strings.TrimRight(strings.TrimSpace(string(out)), ","), 64)
+	require.NoError(t, err)
+
+	return pts
+}
+
+// TestTranscoderKeepsBroadcastPTS は、ライブ視聴のセグメントの PTS を、入力の放送の PTS のままにすることを確かめる (#1515)。
+// 画面は、hls.js が画面の時刻 0 に置いた PTS を、放送の時刻の起点にして「放送から N 秒」を出す。
+// 音声は、入力の最初の音声と同じ PTS から始まる。映像は、インターレースの解除とエンコードの分、1 コマより小さくずれる。
+func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
+	t.Parallel()
+
+	transcoder := newTranscoder(t)
+	input := filepath.Join("..", "..", "..", "testdata", "ts", "test.ts")
+	for _, name := range []string{"720p", kyusu.PassthroughPreset} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			preset, ok := kyusu.PresetByName(name)
+			require.True(t, ok)
+			dir := t.TempDir()
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(loadTS(t, "test.ts")), preset, kyusu.AudioFirst, dir))
+			segments, err := filepath.Glob(filepath.Join(dir, "segment*.ts"))
+			require.NoError(t, err)
+			require.NotEmpty(t, segments)
+			sort.Strings(segments)
+
+			assert.InDelta(t, firstPTS(t, input, "a:0"), firstPTS(t, segments[0], "a:0"), 0.05)
+			assert.InDelta(t, firstPTS(t, input, "v:0"), firstPTS(t, segments[0], "v:0"), 1.0/29.97)
+		})
+	}
+}
