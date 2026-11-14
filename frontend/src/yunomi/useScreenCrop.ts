@@ -18,8 +18,14 @@ export function useScreenCrop(crop: Crop, fullscreen: boolean): Crop {
     const update = () => setSize({ width: window.innerWidth, height: window.innerHeight });
     update();
     window.addEventListener('resize', update);
+    // 端末を回したときは、resize より先に向きの変化が届くことがあるので、両方で測り直す。
+    const orientation = (window.screen as Screen | undefined)?.orientation;
+    orientation?.addEventListener('change', update);
 
-    return () => window.removeEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      orientation?.removeEventListener('change', update);
+    };
   }, [following]);
 
   return screenCrop(crop, fullscreen, size.width, size.height);

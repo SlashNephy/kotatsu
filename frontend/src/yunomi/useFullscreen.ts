@@ -23,7 +23,11 @@ export function useFullscreen(boxRef: RefObject<HTMLElement | null>): {
     };
     document.addEventListener('fullscreenchange', update);
 
-    return () => document.removeEventListener('fullscreenchange', update);
+    return () => {
+      document.removeEventListener('fullscreenchange', update);
+      // 全画面のまま画面を離れても (スリープタイマーで一覧へ戻るなど)、固定した向きを残さない。
+      unlockOrientation();
+    };
   }, []);
 
   return {
