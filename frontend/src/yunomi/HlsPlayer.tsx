@@ -6,7 +6,7 @@ import { type Crop, cropStyle, isCropped, noCrop } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
-import { useInterpolation } from './frameInterpolation';
+import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
 import classes from './TsPlayer.module.css';
@@ -140,6 +140,10 @@ export function HlsPlayer({
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
   const interpolationRef = useRef<VideoInterpolation | null>(null);
+  // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
+  const [interpolationRate] = useInterpolationRate();
+  const interpolationRateRef = useRef(interpolationRate);
+  interpolationRateRef.current = interpolationRate;
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
 
@@ -164,6 +168,7 @@ export function HlsPlayer({
     // 補間の canvas は、video のすぐ後ろに入るので、字幕の canvas より下に重なる。
     const interpolation = attachVideoInterpolation(video, {
       className: classes.video ?? '',
+      maxRate: () => interpolationRateRef.current,
       onUnavailable: (error) => {
         console.warn('frame interpolation is unavailable; showing the video as it is', error);
       },

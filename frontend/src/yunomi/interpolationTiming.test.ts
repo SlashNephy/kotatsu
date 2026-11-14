@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest';
 
-import { continues, framePeriod, mediaTimeAt, pickFrames } from './interpolationTiming';
+import {
+  continues,
+  createDrawPacer,
+  framePeriod,
+  mediaTimeAt,
+  pickFrames,
+} from './interpolationTiming';
 
 describe('pickFrames', () => {
   const frames = [{ mediaTime: 1 }, { mediaTime: 1.04 }, { mediaTime: 1.08 }];
@@ -78,5 +84,32 @@ describe('continues', () => {
     { name: '大きく飛べば続きでない', previous: 1, next: 2, want: false },
   ])('$name', ({ previous, next, want }) => {
     expect(continues(previous, next)).toBe(want);
+  });
+});
+
+describe('createDrawPacer', () => {
+  // count は、refreshHz の画面で 1 秒間書き換えたときに、描いた回数を数える。
+  const count = (refreshHz: number, maxRate: number | null) => {
+    const pacer = createDrawPacer();
+    const refreshMs = 1_000 / refreshHz;
+    let drawn = 0;
+    for (let i = 0; i < refreshHz; i++) {
+      if (pacer.shouldDraw(i * refreshMs, maxRate, refreshMs)) {
+        drawn++;
+      }
+    }
+
+    return drawn;
+  };
+
+  test.each([
+    { name: '上限がなければ、書き換えごとに描く', refreshHz: 144, maxRate: null, want: 144 },
+    { name: '144 Hz で 120 なら、120 回描く', refreshHz: 144, maxRate: 120, want: 120 },
+    { name: '144 Hz で 60 なら、60 回描く', refreshHz: 144, maxRate: 60, want: 60 },
+    { name: '120 Hz で 60 なら、1 回おきに描く', refreshHz: 120, maxRate: 60, want: 60 },
+    { name: '上限が画面より速ければ、書き換えごとに描く', refreshHz: 60, maxRate: 120, want: 60 },
+  ])('$name', ({ refreshHz, maxRate, want }) => {
+    // 境目の丸めで、1 回ずれることは許す。
+    expect(Math.abs(count(refreshHz, maxRate) - want)).toBeLessThanOrEqual(1);
   });
 });

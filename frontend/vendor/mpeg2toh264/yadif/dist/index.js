@@ -1531,7 +1531,7 @@ ${A} dropped:${this.#ve}`;
     const c = this.#e;
     (this.#se?.previous !== A || this.#se.next !== e) && (i.pair(c, a.texture, h.texture, this.#w, this.#b), this.#se = { previous: A, next: e });
     const n = performance.now();
-    c.bindFramebuffer(c.FRAMEBUFFER, null), i.draw(c, o, this.#w, this.#b), this.#O += performance.now() - n, this.#y++, this.canvas.style.visibility = "visible";
+    c.bindFramebuffer(c.FRAMEBUFFER, null), i.draw(c, o, this.#w, this.#b) && (this.#O += performance.now() - n, this.#y++, this.canvas.style.visibility = "visible");
   }
   #it(e, t) {
     const i = this.#le === 0 ? 0 : t - this.#le, A = i / this.#x, r = e.cadence === "film" ? `phase ${e.phase}` : e.cadence === "field" ? `field ${e.phase}` : "frame", o = e.droppedBefore > 0 ? `, phase ${I} dropped before it` + (e.droppedBefore > 1 ? ` (${e.droppedBefore})` : "") : "";

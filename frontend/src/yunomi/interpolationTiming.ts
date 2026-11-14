@@ -71,3 +71,43 @@ export const maxFrameGap = 0.5;
 export function continues(previous: number, next: number): boolean {
   return next > previous && next - previous <= maxFrameGap;
 }
+
+// DrawPacer は、補間したコマを描く回数を、1 秒あたり maxRate までに抑える。
+export type DrawPacer = {
+  // shouldDraw は、画面の書き換えの時刻 now (ミリ秒) に描くかを返す。maxRate が null なら、いつも描く。
+  // refreshMs は、画面の書き換えの間隔。
+  shouldDraw(now: number, maxRate: number | null, refreshMs: number): boolean;
+  // reset は、次に呼ばれたときから数え直す。補間をやめたときに呼ぶ。
+  reset(): void;
+};
+
+// createDrawPacer は、描く回数を抑えるものを作る。上限の間隔で決めた時刻に、いちばん近い書き換えで描く。
+// 描いた書き換えの時刻からでなく、決めた時刻から次の時刻を決めるので、144 Hz の画面で 120 にすると、
+// 6 回に 5 回描き、平均で 120 回になる。
+export function createDrawPacer(): DrawPacer {
+  let due: number | null = null;
+
+  return {
+    shouldDraw(now, maxRate, refreshMs) {
+      if (maxRate === null || maxRate <= 0) {
+        due = null;
+
+        return true;
+      }
+      const interval = 1_000 / maxRate;
+      // 初めてか、長く描かずに遅れたら、今から数える。
+      if (due === null || now - due > interval) {
+        due = now;
+      }
+      if (now < due - refreshMs / 2) {
+        return false;
+      }
+      due += interval;
+
+      return true;
+    },
+    reset() {
+      due = null;
+    },
+  };
+}

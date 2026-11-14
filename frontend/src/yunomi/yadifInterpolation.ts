@@ -1,5 +1,6 @@
 import type { Cadence, PictureInterpolator } from '@mpeg2toh264/yadif';
 
+import { createDrawPacer } from './interpolationTiming';
 import { createInterpolator, type Interpolator } from './interpolator';
 
 // yadif が解除したコマの間を補間する (#1655、設計書 7.2)。yadif は、補間するコマを 1 枚遅らせて出し、
@@ -16,14 +17,21 @@ export type YadifInterpolation = PictureInterpolator & { destroy(): void };
 // createYadifInterpolation は、yadif に渡す補間を作る。補間の処理は、yadif が最初にコマの組を渡してきたときに、
 // そのコンテキストで作る。作れないか、途中で失敗したら、onUnavailable を呼び、以後は補間しない (yadif はそのまま出す)。
 // yadif の描画の中で投げると、yadif のループが止まるので、ここで受け止める。
+// maxRate は、補間したコマを出す回数の上限 (1 秒あたり)。null なら、画面の書き換えごとに描く。
 export function createYadifInterpolation({
   onUnavailable,
+  maxRate = () => null,
 }: {
   onUnavailable?: (error: unknown) => void;
+  maxRate?: () => number | null;
 } = {}): YadifInterpolation {
   let context: WebGL2RenderingContext | null = null;
   let interpolator: Interpolator | null = null;
   let broken = false;
+  const pacer = createDrawPacer();
+  // yadif は、補間する間、画面の書き換えごとに draw を呼ぶので、その間隔から書き換えの間隔を測る。
+  let refreshMs = 1_000 / 60;
+  let lastCallAt: number | null = null;
 
   const fail = (error: unknown) => {
     broken = true;
@@ -57,12 +65,31 @@ export function createYadifInterpolation({
     },
     draw(_gl, t, width, height) {
       if (broken || interpolator === null) {
-        return;
+        return false;
+      }
+      const now = performance.now();
+      if (lastCallAt !== null) {
+        const step = now - lastCallAt;
+        // 測り始めの値より速い画面なら、すぐ合わせる。間に補間しなかった時間 (コマをそのまま出した書き換え、
+        // 一時停止) は、書き換えの間隔に数えない。
+        if (step > 0 && step < refreshMs * 0.75) {
+          refreshMs = step;
+        } else if (step > 0 && step < refreshMs * 1.5) {
+          refreshMs += (step - refreshMs) * 0.1;
+        }
+      }
+      lastCallAt = now;
+      if (!pacer.shouldDraw(now, maxRate(), refreshMs)) {
+        return false;
       }
       try {
         interpolator.compose(t, null, width, height);
+
+        return true;
       } catch (error) {
         fail(error);
+
+        return false;
       }
     },
     destroy() {

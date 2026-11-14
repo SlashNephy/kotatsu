@@ -143,8 +143,12 @@ export interface PictureInterpolator {
      * framebuffer is, rows from the bottom, `width` by `height`.
      */
     pair(gl: WebGL2RenderingContext, previous: WebGLTexture, next: WebGLTexture, width: number, height: number): void;
-    /** Draw the picture `t` (0 to 1) of the way from the first to the second. */
-    draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): void;
+    /**
+     * Draw the picture `t` (0 to 1) of the way from the first to the second,
+     * and say whether it did: one that keeps to a rate of its own can leave the
+     * picture on the canvas as it is for a refresh.
+     */
+    draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): boolean;
 }
 /** Field information supplied by a player or another video source. */
 export interface Scan {

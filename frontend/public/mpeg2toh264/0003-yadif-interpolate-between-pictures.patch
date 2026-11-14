@@ -1,5 +1,5 @@
 diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
-index bbe4c94..1a74b46 100644
+index bbe4c94..f6f733e 100644
 --- a/packages/yadif/src/deinterlace.ts
 +++ b/packages/yadif/src/deinterlace.ts
 @@ -145,7 +145,6 @@ interface Ready {
@@ -10,7 +10,7 @@ index bbe4c94..1a74b46 100644
  
  /**
   * How the filter is getting on, and where it is being let down.
-@@ -270,6 +269,39 @@ export interface DeinterlacerOptions {
+@@ -270,6 +269,43 @@ export interface DeinterlacerOptions {
     * picture shown to the console.
     */
    debug?: boolean;
@@ -45,12 +45,16 @@ index bbe4c94..1a74b46 100644
 +    width: number,
 +    height: number,
 +  ): void;
-+  /** Draw the picture `t` (0 to 1) of the way from the first to the second. */
-+  draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): void;
++  /**
++   * Draw the picture `t` (0 to 1) of the way from the first to the second,
++   * and say whether it did: one that keeps to a rate of its own can leave the
++   * picture on the canvas as it is for a refresh.
++   */
++  draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): boolean;
  }
  
  /** Field information supplied by a player or another video source. */
-@@ -351,6 +383,11 @@ export class Deinterlacer {
+@@ -351,6 +387,11 @@ export class Deinterlacer {
    #gridAt = 0;
    /** How far ahead of its moment the last picture was shown. See #present. */
    #shownAhead = 0;
@@ -62,7 +66,7 @@ index bbe4c94..1a74b46 100644
    /** Debug only: the rAF the last picture was drawn in, and repeats dropped since. */
    #shownAt = 0;
    #droppedBefore = 0;
-@@ -430,6 +467,7 @@ export class Deinterlacer {
+@@ -430,6 +471,7 @@ export class Deinterlacer {
      this.#doubleRate = options.doubleRate ?? false;
      this.#spatialCheck = options.spatialCheck ?? true;
      this.#debug = options.debug ?? false;
@@ -70,7 +74,7 @@ index bbe4c94..1a74b46 100644
      this.#film = options.film ?? false;
      this.#onStats = options.onStats;
      this.canvas = document.createElement("canvas");
-@@ -563,9 +601,26 @@ export class Deinterlacer {
+@@ -563,9 +605,26 @@ export class Deinterlacer {
      this.#debug = debug;
    }
  
@@ -98,7 +102,7 @@ index bbe4c94..1a74b46 100644
    }
  
    #applyScheduling(): void {
-@@ -832,6 +887,7 @@ export class Deinterlacer {
+@@ -832,6 +891,7 @@ export class Deinterlacer {
          // place. Both start again from where playback actually is.
          this.#queue.length = 0;
          this.#lastScheduled = null;
@@ -106,7 +110,7 @@ index bbe4c94..1a74b46 100644
          this.#resetFieldMetrics();
        }
        const missed = this.#count(metadata.presentedFrames, stale);
-@@ -902,6 +958,7 @@ export class Deinterlacer {
+@@ -902,6 +962,7 @@ export class Deinterlacer {
          if (this.#queue.length >= FIELD_QUEUE_LENGTH) {
            this.#queue.length = 0;
            this.#lastScheduled = null;
@@ -114,7 +118,7 @@ index bbe4c94..1a74b46 100644
            this.#stats.queueResetted++;
          }
          // Timed from when the frame reaches the screen, which unlike `now`
-@@ -973,6 +1030,7 @@ export class Deinterlacer {
+@@ -973,6 +1034,7 @@ export class Deinterlacer {
      if (this.#cadence === null) this.#frames = 0;
      this.#queue.length = 0;
      this.#lastScheduled = null;
@@ -122,7 +126,7 @@ index bbe4c94..1a74b46 100644
      this.#resetFieldMetrics();
      if (scan.interlaced && fromProgressive && this.#cadence !== null)
        this.#seedFrames = CADENCE_SEED_FRAMES;
-@@ -1072,6 +1130,9 @@ export class Deinterlacer {
+@@ -1072,6 +1134,9 @@ export class Deinterlacer {
      const output = this.#outputs[slot];
      if (!output) return;
      this.#outputHead = slot;
@@ -132,7 +136,7 @@ index bbe4c94..1a74b46 100644
      // Whatever this slot held has been waiting two frames for a turn it never
      // got, and its moment is far enough past that showing it now would be a
      // step backwards. Slots are taken in order, so it can only be the oldest.
-@@ -1105,6 +1166,7 @@ export class Deinterlacer {
+@@ -1105,6 +1170,7 @@ export class Deinterlacer {
      this.#loopHandle = null;
      this.#queue.length = 0;
      this.#lastScheduled = null;
@@ -140,7 +144,7 @@ index bbe4c94..1a74b46 100644
    }
  
    #onLoop = (now: DOMHighResTimeStamp): void => {
-@@ -1158,7 +1220,7 @@ export class Deinterlacer {
+@@ -1158,7 +1224,7 @@ export class Deinterlacer {
    #present(now: number, frameAt: number): void {
      const half = this.#refreshMs / 2;
      const due = (ready: Ready) => {
@@ -149,7 +153,7 @@ index bbe4c94..1a74b46 100644
        if (ahead <= half - PRESENT_HYSTERESIS_MS) return true;
        if (ahead > half + PRESENT_HYSTERESIS_MS) return false;
        return this.#shownAhead > 0;
-@@ -1168,9 +1230,13 @@ export class Deinterlacer {
+@@ -1168,9 +1234,13 @@ export class Deinterlacer {
        this.#queue.shift();
      }
      const ready = this.#queue[0];
@@ -165,7 +169,7 @@ index bbe4c94..1a74b46 100644
      const begin = performance.now();
      const q = this.#beginGpuTimer(true);
      this.#show(ready.slot);
-@@ -1181,6 +1247,46 @@ export class Deinterlacer {
+@@ -1181,6 +1251,46 @@ export class Deinterlacer {
      this.#shownAt = frameAt;
    }
  
@@ -203,7 +207,7 @@ index bbe4c94..1a74b46 100644
 +    }
 +    const begin = performance.now();
 +    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-+    interpolator.draw(gl, t, this.#width, this.#height);
++    if (!interpolator.draw(gl, t, this.#width, this.#height)) return;
 +    this.#showMsSinceReport += performance.now() - begin;
 +    this.#showFramesSinceReport++;
 +    this.canvas.style.visibility = "visible";
@@ -212,7 +216,7 @@ index bbe4c94..1a74b46 100644
    #logShown(ready: Ready, frameAt: number): void {
      const step = this.#shownAt === 0 ? 0 : frameAt - this.#shownAt;
      const refreshes = step / this.#refreshMs;
-@@ -1534,6 +1640,7 @@ export class Deinterlacer {
+@@ -1534,6 +1644,7 @@ export class Deinterlacer {
      this.#outputs = [];
      this.#queue.length = 0;
      this.#lastScheduled = null;
@@ -220,7 +224,7 @@ index bbe4c94..1a74b46 100644
    }
  
    /**
-@@ -1574,6 +1681,7 @@ export class Deinterlacer {
+@@ -1574,6 +1685,7 @@ export class Deinterlacer {
      this.#lastMediaTime = 0;
      this.#queue.length = 0;
      this.#lastScheduled = null;
@@ -228,7 +232,7 @@ index bbe4c94..1a74b46 100644
      this.#forgetCadence();
      this.#resetFieldMetrics();
      this.#periodMs = 0;
-@@ -1621,6 +1729,7 @@ export class Deinterlacer {
+@@ -1621,6 +1733,7 @@ export class Deinterlacer {
      // rather than through a schedule that has nothing left to keep to.
      this.#queue.length = 0;
      this.#lastScheduled = null;

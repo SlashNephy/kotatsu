@@ -1,6 +1,7 @@
 import { createInterpolator, type Interpolator } from './interpolator';
 import {
   continues,
+  createDrawPacer,
   framePeriod,
   mediaTimeAt,
   pickFrames,
@@ -38,9 +39,12 @@ export function attachVideoInterpolation(
   {
     className,
     onUnavailable,
+    maxRate = () => null,
   }: {
     className: string;
     onUnavailable?: (error: unknown) => void;
+    // maxRate は、補間したコマを出す回数の上限 (1 秒あたり)。null なら、画面の書き換えごとに描く。
+    maxRate?: () => number | null;
   },
 ): VideoInterpolation {
   let enabled = false;
@@ -62,6 +66,7 @@ export function attachVideoInterpolation(
   let clock: MediaClock | null = null;
   let refreshMs = 1_000 / 60;
   let lastLoopAt = 0;
+  const pacer = createDrawPacer();
   let frameHandle: number | null = null;
   let loopHandle: number | null = null;
 
@@ -261,7 +266,10 @@ export function attachVideoInterpolation(
     } else {
       return false;
     }
-    interpolator.compose(t, null, size.width, size.height);
+    // 上限より速く描かない。描かない書き換えでは、前に描いたコマがそのまま映る。
+    if (pacer.shouldDraw(now, maxRate(), refreshMs)) {
+      interpolator.compose(t, null, size.width, size.height);
+    }
 
     return true;
   };
@@ -279,6 +287,9 @@ export function attachVideoInterpolation(
     }
     try {
       const drawn = draw(now);
+      if (!drawn) {
+        pacer.reset();
+      }
       if (canvas !== null) {
         canvas.style.visibility = drawn ? 'visible' : 'hidden';
       }

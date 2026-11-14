@@ -16,7 +16,7 @@ import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
 import { createDeinterlacer, deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { createLateWatch, useFieldRate } from './fieldRate';
-import { useInterpolation } from './frameInterpolation';
+import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -216,6 +216,10 @@ export function TsPlayer({
   const [interpolate] = useInterpolation();
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
+  // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
+  const [interpolationRate] = useInterpolationRate();
+  const interpolationRateRef = useRef(interpolationRate);
+  interpolationRateRef.current = interpolationRate;
   const fieldRateRef = useRef(fieldRate);
   fieldRateRef.current = fieldRate;
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
@@ -284,6 +288,7 @@ export function TsPlayer({
       yadif: null,
       fieldRateDropped: false,
       interpolation: createYadifInterpolation({
+        maxRate: () => interpolationRateRef.current,
         onUnavailable: (error) => {
           console.warn(
             'frame interpolation is unavailable; showing the pictures as they are',
