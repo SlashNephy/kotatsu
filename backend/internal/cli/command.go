@@ -965,19 +965,16 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	root := http.NewServeMux()
-	// 画面がセッションの Cookie で使う端点は、/internal の下にまとめる (設計書 9.1、#1605)。端点は、どれも echo のルーターで受ける (#1606)。
-	// echo のルートに当たらないパスは、画面を返さずに 404 にする。
-	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
-	root.Handle(internalPathPrefix, http.NotFoundHandler())
 	public := &publicAPI{
 		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
 	}
-	handlePublicAPI(root)
-	handleOAuth(root, authorizationServer, graphQL, logger)
-	root.Handle("/", app)
+	// echo のルートに当たらないリクエストは、画面を返す。ただし、画面がセッションの Cookie で使う端点 (/internal/*) と、
+	// ブラウザ以外から叩く端点 (/api/*) の下のパスには、画面を返さずに 404 にする (設計書 9.1、#1605)。
+	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
+	root := notFoundOrApp(app)
 	router := newRouter(logger, root, deps, calendarFeeds, public)
+	handleOAuth(router, authorizationServer, graphQL, logger)
 	handleAuth(router, sessions.Middleware(deps.DB), authRoutes)
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), mediaRoutes, "media")
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), streamRoutes, "stream")
@@ -986,9 +983,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
 
-// newRouter は、tenban の一番外側の echo のルーターを返す。移し終えたルートだけを echo のハンドラーで受け、ほかは root の mux に渡す (#1606)。
-func newRouter(logger *slog.Logger, root http.Handler, deps *Deps, calendarFeeds *auth.Feeds, public *publicAPI) *echo.Echo {
-	router := httpserver.NewRouter(logger, root)
+// newRouter は、tenban の一番外側の echo のルーターを返す (#1606)。どのルートにも当たらないリクエストは、notFound に渡す。
+// http.ServeMux と同じく、ルートを探す前に崩れたパスを整え、/api と /internal は末尾にスラッシュを付けた先へリダイレクトする。
+func newRouter(logger *slog.Logger, notFound http.Handler, deps *Deps, calendarFeeds *auth.Feeds, public *publicAPI) *echo.Echo {
+	router := httpserver.NewRouter(logger, notFound)
+	router.Pre(httpserver.CanonicalPath(apiPathPrefix, internalPathPrefix))
 	handleCalendar(router, deps, calendarFeeds)
 	handleIPTV(router, deps, public.iptvFeeds, public.opener, public.logos, public.streams, public.streamLogger)
 	handleSignedStreams(router, deps, public.authorizer, public.opener, public.streams, public.streamLogger)
@@ -1054,11 +1053,17 @@ type publicAPI struct {
 	streamLogger *slog.Logger
 }
 
-// handlePublicAPI は、前段の認証のプロキシから外す、ブラウザ以外から叩く端点 (/api/*) のうち、echo のルートに当たらないものを
-// 404 にする (設計書 9.1、#1605)。端点は、どれも echo に移した (iCalendar、IPTV、署名付きの配信、EPGStation 互換の API。#1606)。
-// 画面を返さないよう、/api の下は mux でも受ける。
-func handlePublicAPI(mux *http.ServeMux) {
-	mux.Handle(apiPathPrefix, http.NotFoundHandler())
+// notFoundOrApp は、echo のルートに当たらないリクエストに答えるハンドラーを返す。/api と /internal の下のパスは 404 にし、
+// ほかは画面 (app) を返す (設計書 9.1、#1605)。どちらの下の端点も、echo のルーターで受ける (#1606)。
+func notFoundOrApp(app http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, apiPathPrefix) || strings.HasPrefix(r.URL.Path, internalPathPrefix) {
+			http.NotFound(w, r)
+
+			return
+		}
+		app.ServeHTTP(w, r)
+	})
 }
 
 // newStreamRoutes は、映像の配信 (/internal/streams/*) のハンドラーを返す。echo のルーターで受ける (#1606)。どれも、セッションで認可する。
@@ -1199,21 +1204,27 @@ func newMediaRoutes(
 }
 
 // handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
-// MCP サーバー (/mcp、#964、設計書 9.10) を root に登録する。どれもセッションの Cookie を使わない。
+// MCP サーバー (/mcp、#964、設計書 9.10) を、echo のルーターに登録する (#1606)。どれもセッションの Cookie を使わない。
 // 同意は、ログインした後の GraphQL で行う。MCP のツールは、ログイン中のユーザーとして、同じ GraphQL のハンドラーで操作する。
-func handleOAuth(root *http.ServeMux, server *oauth.Server, graphQL http.Handler, logger *slog.Logger) {
+// メソッドの違うリクエストは、http.ServeMux のときと同じく、405 にせずに画面のハンドラー (notFound) に渡す。
+func handleOAuth(router *echo.Echo, server *oauth.Server, graphQL http.Handler, logger *slog.Logger) {
 	oauthLogger := logger.With(slog.String("component", "oauth"))
-	root.Handle("GET "+oauth.MetadataPath, server.MetadataHandler(oauthLogger))
-	root.Handle("GET "+oauth.ProtectedResourceMetadataPath, server.ProtectedResourceMetadataHandler(oauthLogger))
-	root.Handle("GET "+oauth.AuthorizePath, server.AuthorizeHandler(oauthLogger))
-	root.Handle("POST "+oauth.ExchangePath, server.TokenHandler(oauthLogger))
-	root.Handle("POST "+oauth.RevokePath, server.RevokeHandler(oauthLogger))
+	get := func(path string, handler http.Handler) {
+		// http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD のルートも登録する。
+		router.GET(path, echo.WrapHandler(handler), httpserver.Component("oauth"))
+		router.HEAD(path, echo.WrapHandler(handler), httpserver.Component("oauth"))
+	}
+	get(oauth.MetadataPath, server.MetadataHandler(oauthLogger))
+	get(oauth.ProtectedResourceMetadataPath, server.ProtectedResourceMetadataHandler(oauthLogger))
+	get(oauth.AuthorizePath, server.AuthorizeHandler(oauthLogger))
+	router.POST(oauth.ExchangePath, echo.WrapHandler(server.TokenHandler(oauthLogger)), httpserver.Component("oauth"))
+	router.POST(oauth.RevokePath, echo.WrapHandler(server.RevokeHandler(oauthLogger)), httpserver.Component("oauth"))
 	mcpHandler, err := mcpserver.NewHandler(server, graphQL, graph.Schema(), logger.With(slog.String("component", "mcp")))
 	if err != nil {
 		// ツールの GraphQL の操作は、ソースに書いた固定のものなので、ここで失敗するのはプログラムの誤り。テストで防ぐ。
 		panic(err)
 	}
-	root.Handle(oauth.ResourcePath, mcpHandler)
+	router.Any(oauth.ResourcePath, echo.WrapHandler(mcpHandler), httpserver.Component("mcp"))
 }
 
 // newStreamCounter は、tenban が変換せずに流している配信を数える StreamCounter を返し、その数を種類ごとに /metrics に出す (設計書 11.3)。
