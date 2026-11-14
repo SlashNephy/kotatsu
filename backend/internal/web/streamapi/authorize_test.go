@@ -53,8 +53,8 @@ func TestSigner(t *testing.T) {
 
 	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	userID := uuid.MustParse("0199d000-0000-7000-8000-0000000000a1")
-	signed := newSigner(t, keyMaterial).Sign(resource, userID, now.Add(stream.DefaultURLLifetime))
-	assert.Equal(t, now.Add(6*time.Hour), signed.ExpiresAt)
+	signed := newSigner(t, keyMaterial).Sign(resource, userID, now.Add(stream.LiveURLLifetime))
+	assert.Equal(t, now.Add(time.Hour), signed.ExpiresAt)
 	parsed, err := url.Parse(signed.URL)
 	require.NoError(t, err)
 	require.Equal(t, resource, parsed.Path)
@@ -107,7 +107,7 @@ func TestSigner(t *testing.T) {
 				return q
 			},
 		},
-		{name: "期限が切れた", signer: newSigner(t, keyMaterial), resource: resource, query: query.Clone, now: now.Add(6 * time.Hour), wantErr: true},
+		{name: "期限が切れた", signer: newSigner(t, keyMaterial), resource: resource, query: query.Clone, now: now.Add(time.Hour), wantErr: true},
 		{name: "秘密キーが違う", signer: newSigner(t, keyMaterial+"!"), resource: resource, query: query.Clone, now: now, wantErr: true},
 	}
 	for _, tt := range tests {
@@ -166,7 +166,7 @@ func TestAuthorizer(t *testing.T) {
 	mux.Handle(signedPattern, authorizer.Signed(ok))
 	server := httptest.NewServer(sessions.Middleware(pool)(mux))
 	t.Cleanup(server.Close)
-	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
+	expiresAt := clk.Now().Add(stream.LiveURLLifetime)
 
 	tests := []struct {
 		name       string
@@ -241,7 +241,7 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 	mux.Handle(signedPattern, authorizer.Signed(ok))
 	server := httptest.NewServer(sessions.Middleware(conn.Pool)(mux))
 	t.Cleanup(server.Close)
-	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
+	expiresAt := clk.Now().Add(stream.LiveURLLifetime)
 	signedSeen := signer.Sign(resource, viewer.ID, expiresAt).URL
 	signedUnseen := signer.Sign(resource, other.ID, expiresAt).URL
 
@@ -311,7 +311,7 @@ func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 	mux.Handle(signedPattern, authorizer.Signed(ok))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	signed := signer.Sign(resource, viewer.ID, clk.Now().Add(stream.DefaultURLLifetime)).URL
+	signed := signer.Sign(resource, viewer.ID, clk.Now().Add(stream.LiveURLLifetime)).URL
 
 	// 順に設定を変えるので、行ごとに並行させない。
 	tests := []struct {

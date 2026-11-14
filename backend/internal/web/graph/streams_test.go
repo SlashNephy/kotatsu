@@ -21,7 +21,7 @@ const (
 )
 
 // TestCreateStreamURL は、視聴者も、サービスと録画の署名付きの映像の URL を発行でき、
-// その URL が、発行したユーザーで 6 時間だけ通ることを確かめる (設計書 7.6、9.6)。
+// その URL が、発行したユーザーで、ライブなら 1 時間、録画なら録画の長さに 1 時間を足した時間だけ通ることを確かめる (設計書 7.6、9.6、#1756)。
 func TestCreateStreamURL(t *testing.T) {
 	t.Parallel()
 
@@ -33,16 +33,20 @@ func TestCreateStreamURL(t *testing.T) {
 	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
 	_, rawRecordingID, err := graph.ParseGlobalID(recordingID)
 	require.NoError(t, err)
+	// 録画の長さを 30 分にする。
+	_, err = f.pool.Exec(t.Context(), `UPDATE recordings SET end_at = start_at + interval '30 minutes' WHERE id = $1`, rawRecordingID)
+	require.NoError(t, err)
 	viewer := f.as(t, "yuzu", domain.RoleViewer)
 	require.Empty(t, f.as(t, "stream-admin", domain.RoleAdmin).query(t, enableExternalPlayerURLs, nil, nil))
 
 	tests := []struct {
-		name     string
-		target   string
-		wantPath string
+		name         string
+		target       string
+		wantPath     string
+		wantLifetime time.Duration
 	}{
-		{name: "サービス", target: graph.GlobalID("Service", "3273601024"), wantPath: "/api/streams/services/3273601024"},
-		{name: "録画", target: recordingID, wantPath: "/api/streams/recordings/" + rawRecordingID},
+		{name: "サービス", target: graph.GlobalID("Service", "3273601024"), wantPath: "/api/streams/services/3273601024", wantLifetime: time.Hour},
+		{name: "録画", target: recordingID, wantPath: "/api/streams/recordings/" + rawRecordingID, wantLifetime: 90 * time.Minute},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -55,17 +59,17 @@ func TestCreateStreamURL(t *testing.T) {
 				} `json:"createStreamURL"`
 			}
 			require.Empty(t, viewer.query(t, createStreamURL, map[string]any{varTarget: tt.target}, &got))
-			assert.Equal(t, testNow().Add(6*time.Hour), got.CreateStreamURL.ExpiresAt)
+			assert.Equal(t, testNow().Add(tt.wantLifetime), got.CreateStreamURL.ExpiresAt)
 			parsed, err := url.Parse(got.CreateStreamURL.URL)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantPath, parsed.Path)
 			assert.Empty(t, parsed.Host, "the URL is relative to the page")
 
-			userID, err := signer.Verify(parsed.Path, parsed.Query(), testNow().Add(6*time.Hour-time.Second))
+			userID, err := signer.Verify(parsed.Path, parsed.Query(), testNow().Add(tt.wantLifetime-time.Second))
 			require.NoError(t, err)
 			assert.Equal(t, viewer.userID, userID)
-			_, err = signer.Verify(parsed.Path, parsed.Query(), testNow().Add(6*time.Hour))
-			require.ErrorIs(t, err, stream.ErrInvalidSignature, "the URL expires after 6 hours")
+			_, err = signer.Verify(parsed.Path, parsed.Query(), testNow().Add(tt.wantLifetime))
+			require.ErrorIs(t, err, stream.ErrInvalidSignature, "the URL expires")
 		})
 	}
 }

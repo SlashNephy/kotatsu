@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -38,53 +39,54 @@ func (r *Resolver) createStreamURL(ctx context.Context, target string) (*model.S
 	if !system.ExternalPlayerURLsEnabled {
 		return nil, NewError(CodeForbidden, "external player URLs are disabled by the administrator")
 	}
-	resource, err := r.streamResource(ctx, target)
+	resource, lifetime, err := r.streamResource(ctx, target)
 	if err != nil {
 		return nil, err
 	}
-	signed := r.streamSigner.Sign(resource, principal.UserID, r.clock.Now().Add(stream.DefaultURLLifetime))
+	signed := r.streamSigner.Sign(resource, principal.UserID, r.clock.Now().Add(lifetime))
 
 	return &model.StreamURL{URL: signed.URL, ExpiresAt: signed.ExpiresAt}, nil
 }
 
-// streamResource は、Service か Recording の ID から、映像のパスを返す。ないものの URL は発行しない。
-func (r *Resolver) streamResource(ctx context.Context, target string) (string, error) {
+// streamResource は、Service か Recording の ID から、映像のパスと、署名付き URL の有効期限の長さを返す。ないものの URL は発行しない。
+// 期限は、ライブなら一律の長さ、録画なら録画の長さに少し足した長さにする (#1756)。録画中の録画も、予定の長さで決める。
+func (r *Resolver) streamResource(ctx context.Context, target string) (string, time.Duration, error) {
 	typeName, _, err := ParseGlobalID(target)
 	if err != nil {
-		return "", NewError(CodeBadUserInput, "invalid target ID")
+		return "", 0, NewError(CodeBadUserInput, "invalid target ID")
 	}
 	q := r.queries
 	switch typeName {
 	case serviceType:
 		serviceID, err := parseServiceGlobalID(target)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
 		exists, err := q.ServiceExists(ctx, serviceID)
 		if err != nil {
-			return "", fmt.Errorf("failed to look up the service: %w", err)
+			return "", 0, fmt.Errorf("failed to look up the service: %w", err)
 		}
 		if !exists {
-			return "", NewError(CodeNotFound, "service not found")
+			return "", 0, NewError(CodeNotFound, "service not found")
 		}
 
-		return stream.ServicePath(serviceID), nil
+		return stream.ServicePath(serviceID), stream.LiveURLLifetime, nil
 	case recordingType:
 		recordingID, err := parseRecordingID(target)
 		if err != nil {
-			return "", err
+			return "", 0, err
 		}
 		rows, err := q.ListRecordingsByIDs(ctx, []uuid.UUID{recordingID})
 		if err != nil {
-			return "", fmt.Errorf("failed to look up the recording: %w", err)
+			return "", 0, fmt.Errorf("failed to look up the recording: %w", err)
 		}
 		if len(rows) == 0 {
-			return "", NewError(CodeNotFound, "recording not found")
+			return "", 0, NewError(CodeNotFound, "recording not found")
 		}
 
-		return stream.RecordingPath(recordingID), nil
+		return stream.RecordingPath(recordingID), stream.RecordingURLLifetime(rows[0].EndAt.Sub(rows[0].StartAt)), nil
 	default:
-		return "", NewError(CodeBadUserInput, "target must be a Service or Recording ID")
+		return "", 0, NewError(CodeBadUserInput, "target must be a Service or Recording ID")
 	}
 }
 

@@ -83,7 +83,7 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 	signer, err := stream.NewSigner(testKeyMaterial)
 	require.NoError(t, err)
 	missing := "/recordings/0199d000-0000-7000-8000-000000000999"
-	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
+	expiresAt := clk.Now().Add(stream.LiveURLLifetime)
 
 	tests := []struct {
 		name   string

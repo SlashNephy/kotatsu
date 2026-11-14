@@ -1762,7 +1762,7 @@ type StreamURL struct {
 	// パスとクエリ (例: /api/streams/services/3273601024?expires=...&sig=...&user=...)。オリジンは含まないので、ページのオリジンを補って使う。
 	// 録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
 	URL string `json:"url"`
-	// 有効期限。既定では発行から 6 時間。
+	// 有効期限。録画なら録画の長さに 1 時間を足した長さ、ライブなら発行から 1 時間 (#1756)。
 	ExpiresAt time.Time `json:"expiresAt"`
 }
 

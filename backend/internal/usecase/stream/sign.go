@@ -20,8 +20,13 @@ import (
 const (
 	// signPurpose は、アプリの秘密キーから、URL の署名のキーを導くときの用途。用途ごとに別のキーを使う。
 	signPurpose = "kotatsu/stream-url/v1"
-	// DefaultURLLifetime は、署名付き URL の有効期限の既定値 (設計書 9.6)。
-	DefaultURLLifetime = 6 * time.Hour
+	// LiveURLLifetime は、ライブ視聴の署名付き URL の有効期限 (設計書 9.6、#1756)。
+	// ライブは長さが決まらないので、漏れたときに使える時間を短くするため、発行から一律で 1 時間にする。
+	// 期限は開くときにだけ確かめるので、期限の前に開いたストリームは、期限を過ぎても流れ続ける。
+	LiveURLLifetime = time.Hour
+	// RecordingURLMargin は、録画の署名付き URL の有効期限に、録画の長さへ足す時間 (設計書 9.6、#1756)。
+	// 見ている途中で一時停止やシークをして開き直しても切れないよう、録画の長さより少し長くする。
+	RecordingURLMargin = time.Hour
 
 	// 署名付き URL のクエリのキー。
 	userParam    = "user"
@@ -38,6 +43,12 @@ var (
 
 // SignedPathPrefix は、署名付き URL で配信するパスの頭。前段の認証のプロキシから外す /api の下に置く (設計書 9.1、#1605)。
 const SignedPathPrefix = "/api/streams/"
+
+// RecordingURLLifetime は、長さ length の録画の署名付き URL の有効期限を返す (#1756)。
+// 長さが負なら (番組の時刻が壊れているときなど)、0 とみなす。
+func RecordingURLLifetime(length time.Duration) time.Duration {
+	return max(length, 0) + RecordingURLMargin
+}
 
 // ServicePath は、サービスのライブ視聴の、署名付き URL のパスを返す。
 func ServicePath(serviceID int64) string {
