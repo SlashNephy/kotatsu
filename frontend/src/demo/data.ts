@@ -518,14 +518,20 @@ export function createRootValue(
     saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
       recordings.saveWatchPosition(id, positionMs),
     createStreamURL: ({ target }: { target: string }) => {
-      const found = node(target) as { streamUrl?: string } | null;
+      const found = node(target) as { streamUrl?: string; startAt?: string; endAt?: string } | null;
       if (found?.streamUrl === undefined) {
         throw new Error('the target is not found');
       }
+      // 期限は、サーバーと同じく、録画なら録画の長さに 1 時間を足した長さ、ライブなら 1 時間にする (#1756)。
+      const hour = 60 * 60 * 1000;
+      const length =
+        found.startAt !== undefined && found.endAt !== undefined
+          ? Math.max(Date.parse(found.endAt) - Date.parse(found.startAt), 0)
+          : 0;
 
       return {
         url: found.streamUrl,
-        expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + length + hour).toISOString(),
       };
     },
     updatePlayerSettings: ({
