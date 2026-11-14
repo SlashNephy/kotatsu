@@ -38,7 +38,12 @@ const sessions = vi.hoisted(
   () =>
     [] as {
       channelId: string;
-      onComment: (comment: { content: string; mail: string; at: number }) => void;
+      onComment: (comment: {
+        content: string;
+        mail: string;
+        at: number;
+        postedAt?: number;
+      }) => void;
       closed: boolean;
     }[],
 );
@@ -49,7 +54,14 @@ vi.mock('./session', () => ({
 
     constructor(
       channelId: string,
-      handlers: { onComment: (comment: { content: string; mail: string; at: number }) => void },
+      handlers: {
+        onComment: (comment: {
+          content: string;
+          mail: string;
+          at: number;
+          postedAt?: number;
+        }) => void;
+      },
     ) {
       this.entry = { channelId, onComment: handlers.onComment, closed: false };
       sessions.push(this.entry);
@@ -135,6 +147,28 @@ describe('useRecordedJikkyo', () => {
       'わこつ',
       'きたー',
     ]);
+  });
+
+  test('書き込まれた時刻が分かるコメントは、届いた時刻でなく、書き込まれた時刻の位置に流す (#1515)', async () => {
+    const recordedFrom = '2026-10-16T10:00:00Z';
+    const origin = '2026-10-16T10:00:02Z';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ channel: { id: 'jk1' }, origin, comments }))),
+    );
+    const live = { channelId: 'jk1', recordedFrom, gaps: [] };
+    const { result } = renderHook(() =>
+      useRecordedJikkyo('/internal/media/recordings/r/jikkyo.json', () => 0, true, live),
+    );
+    render(<>{result.current.overlay}</>);
+    await waitFor(() => expect(result.current.state).toEqual({ kind: 'loaded', count: 1 }));
+
+    // 基準の 60 秒後に書き込まれ、2.5 秒遅れて届いたコメントは、60 秒の位置に流す。
+    const postedAt = Date.parse(origin) + 60_000;
+    const at = postedAt + 2_500 - performance.timeOrigin;
+    act(() => sessions[0]!.onComment({ content: 'きたー', mail: '', at, postedAt }));
+
+    expect(added.at(-1)?.at(-1)).toEqual({ time: 60, content: 'きたー', mail: '' });
   });
 
   test('録画を終えたら、リアルタイムのコメントを受け取るのをやめる', () => {
