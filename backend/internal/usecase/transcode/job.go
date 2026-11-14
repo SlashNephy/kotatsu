@@ -207,14 +207,14 @@ func (w *Worker) Work(ctx context.Context, job *river.Job[Args]) error {
 		return err
 	}
 
-	return withRecordingLock(ctx, w.db, job.Args.RecordingID, func() error {
+	return WithRecordingLock(ctx, w.db, job.Args.RecordingID, func() error {
 		return w.work(ctx, encoder, job, preset)
 	})
 }
 
-// withRecordingLock は、録画 recordingID の advisory lock を取ってから fn を呼ぶ。セグメントをつなぐジョブと同じロックを使い、
+// WithRecordingLock は、録画 recordingID の advisory lock を取ってから fn を呼ぶ。セグメントをつなぐジョブと同じロックを使い、
 // 取れなければ (ほかの nekonote がファイルをつないだり消したり、変換したり CM の区間を書き換えたりしていれば)、後でやり直す。
-func withRecordingLock(ctx context.Context, db Database, recordingID uuid.UUID, fn func() error) error {
+func WithRecordingLock(ctx context.Context, db Database, recordingID uuid.UUID, fn func() error) error {
 	conn, err := db.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire a connection: %w", err)

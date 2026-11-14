@@ -7,6 +7,7 @@ import (
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -83,6 +84,10 @@ func (r *Resolver) renameRecordingFiles(ctx context.Context, globalIDs []string)
 		switch {
 		case err == nil:
 			payload.Renamed++
+			// TvtPlay のチャプターのファイルは、セグメントの名前で探されるので、付け直した名前で書き直させる (#1737)。
+			if err := tvtplay.NewEnqueuer(r.jobs).OnRenamed(ctx, r.db, plan.RecordingID); err != nil {
+				r.logger.WarnContext(ctx, "failed to enqueue the TvtPlay chapter files", "recording_id", plan.RecordingID.String(), "error", err)
+			}
 		case errors.Is(err, library.ErrRecording), errors.Is(err, library.ErrBusy), errors.Is(err, library.ErrNotFound):
 			payload.Skipped++
 		default:

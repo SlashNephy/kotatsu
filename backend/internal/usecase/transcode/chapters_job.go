@@ -157,7 +157,7 @@ func (w *ChaptersWorker) Work(ctx context.Context, job *river.Job[ChaptersArgs])
 		return err
 	}
 
-	return withRecordingLock(ctx, w.db, job.Args.RecordingID, func() error {
+	return WithRecordingLock(ctx, w.db, job.Args.RecordingID, func() error {
 		return w.work(ctx, chapterer, job.Args.RecordingID)
 	})
 }

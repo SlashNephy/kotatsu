@@ -66,6 +66,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		ExternalPlayerUrlsEnabled: system.ExternalPlayerURLsEnabled,
 		IptvFeedsEnabled:          system.IPTVFeedsEnabled,
 		RecordingDownloadsEnabled: system.RecordingDownloadsEnabled,
+		TvtplayChaptersEnabled:    system.TvtplayChaptersEnabled,
 		EpgstationAPIEnabled:      system.EPGStationAPIEnabled,
 		AnimeLinkingEnabled:       system.AnimeLinkingEnabled,
 		JikkyoEnabled:             slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),

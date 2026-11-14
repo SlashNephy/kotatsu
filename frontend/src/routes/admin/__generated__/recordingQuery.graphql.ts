@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a5d92a1f99ef222d8a5f813f2f062947>>
+ * @generated SignedSource<<e5fe555818547ccad0abd80f5966062f>>
  * @lightSyntaxTransform
  */
 
@@ -29,6 +29,7 @@ export type recordingQuery$data = {
       readonly followEventRelay: boolean;
     };
     readonly ruleUnmatchedGraceMinutes: number;
+    readonly tvtplayChaptersEnabled: boolean;
     readonly updatedAt: string | null | undefined;
   };
   readonly systemStatus: {
@@ -176,6 +177,13 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "tvtplayChaptersEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -230,16 +238,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "7aafb5682ae50c6372dc818469abe552",
+    "cacheID": "446d2866af82bc86303c21afeece5838",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "754fe8d6d635daaac1450345b6d50b66";
+(node as any).hash = "7133968621c31f8811981ed4b28588bc";
 
 export default node;

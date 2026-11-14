@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c1b8638a27a2c4229de1f3dc3e828a43>>
+ * @generated SignedSource<<e6292281c4397b95b8a60cef0959264d>>
  * @lightSyntaxTransform
  */
 
@@ -28,6 +28,7 @@ export type SystemSettingsInput = {
   ruleUnmatchedGraceMinutes?: number | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;
   timeshiftWhileWatchingRetentionSeconds?: number | null | undefined;
+  tvtplayChaptersEnabled?: boolean | null | undefined;
   watchProgressRetentionDays?: number | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {

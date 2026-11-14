@@ -1197,6 +1197,9 @@ type Querier interface {
 	UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertTranscodedRecordingFileParams) (int64, error)
 	// 種類と版が NULL なら (接続できない、判定に失敗した)、最後に分かったものを残す (#1538)。
 	UpsertTunerServerStatus(ctx context.Context, arg UpsertTunerServerStatusParams) error
+	// TvtPlay のチャプターのファイル (#1737) を、その他のファイルとして記録する。書き直したら、大きさを書き直す。
+	// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+	UpsertTvtplayChapterFile(ctx context.Context, arg UpsertTvtplayChapterFileParams) (int64, error)
 	UpsertUserTOTP(ctx context.Context, arg UpsertUserTOTPParams) error
 	UpsertWatchProgress(ctx context.Context, arg UpsertWatchProgressParams) error
 	UpsertWatchReminderMinutes(ctx context.Context, arg UpsertWatchReminderMinutesParams) (int32, error)

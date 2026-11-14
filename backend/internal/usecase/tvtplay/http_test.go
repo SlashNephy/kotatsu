@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
@@ -45,6 +46,7 @@ func newChapterFixture(t *testing.T) *chapterFixture {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	startedAt := time.Date(2026, 11, 15, 21, 0, 0, 0, time.UTC)
 	_, err = pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
 	require.NoError(t, err)
@@ -124,11 +126,7 @@ func TestChapterHandler(t *testing.T) {
 	f := newChapterFixture(t)
 	finished := f.recording(t, 30*time.Minute, `[{"from":"2026-11-15T21:01:00Z","to":"2026-11-15T21:01:30Z"}]`)
 	f.segment(t, finished, "番組/こたつ特集.m2ts")
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
-		VALUES ($1, 'ffmpeg', 1, $2)`, finished, f.startedAt)
-	require.NoError(t, err)
-	f.section(t, finished, 10*time.Second, 40*time.Second)
-	f.section(t, finished, 10*time.Minute, 11*time.Minute)
+	f.detected(t, finished, [2]time.Duration{10 * time.Second, 40 * time.Second}, [2]time.Duration{10 * time.Minute, 11 * time.Minute})
 	recording := f.recording(t, 0, `[]`)
 	f.segment(t, recording, "録画中.m2ts")
 	noSegment := f.recording(t, 30*time.Minute, `[]`)

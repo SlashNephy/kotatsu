@@ -415,6 +415,14 @@ ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXC
   transcode_frame_rate = EXCLUDED.transcode_frame_rate
 WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other';
 
+-- name: UpsertTvtplayChapterFile :execrows
+-- TvtPlay のチャプターのファイル (#1737) を、その他のファイルとして記録する。書き直したら、大きさを書き直す。
+-- ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES (@id, @recording_id, 'other', @pool_id, @path, @size, @started_at, @ended_at, @now)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other';
+
 -- name: SetRecordingFileVideo :exec
 -- セグメントの映像の形式を書く (#1310)。
 UPDATE recording_files SET video = @video WHERE id = @id;

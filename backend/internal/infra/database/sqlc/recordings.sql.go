@@ -1925,3 +1925,40 @@ func (q *Queries) UpsertTranscodedRecordingFile(ctx context.Context, arg UpsertT
 	}
 	return result.RowsAffected(), nil
 }
+
+const upsertTvtplayChapterFile = `-- name: UpsertTvtplayChapterFile :execrows
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+VALUES ($1, $2, 'other', $3, $4, $5, $6, $7, $8)
+ON CONFLICT (pool_id, path) DO UPDATE SET size = EXCLUDED.size, started_at = EXCLUDED.started_at, ended_at = EXCLUDED.ended_at
+WHERE recording_files.recording_id = EXCLUDED.recording_id AND recording_files.kind = 'other'
+`
+
+type UpsertTvtplayChapterFileParams struct {
+	ID          uuid.UUID
+	RecordingID uuid.UUID
+	PoolID      string
+	Path        string
+	Size        int64
+	StartedAt   time.Time
+	EndedAt     *time.Time
+	Now         time.Time
+}
+
+// TvtPlay のチャプターのファイル (#1737) を、その他のファイルとして記録する。書き直したら、大きさを書き直す。
+// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。
+func (q *Queries) UpsertTvtplayChapterFile(ctx context.Context, arg UpsertTvtplayChapterFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTvtplayChapterFile,
+		arg.ID,
+		arg.RecordingID,
+		arg.PoolID,
+		arg.Path,
+		arg.Size,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

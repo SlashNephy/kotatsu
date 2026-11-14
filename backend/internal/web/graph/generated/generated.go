@@ -1379,6 +1379,7 @@ type ComplexityRoot struct {
 		RuleUnmatchedGraceMinutes              func(childComplexity int) int
 		TimeshiftWhileWatching                 func(childComplexity int) int
 		TimeshiftWhileWatchingRetentionSeconds func(childComplexity int) int
+		TvtplayChaptersEnabled                 func(childComplexity int) int
 		UpdatedAt                              func(childComplexity int) int
 		WatchProgressRetentionDays             func(childComplexity int) int
 	}
@@ -7879,6 +7880,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.TimeshiftWhileWatchingRetentionSeconds(childComplexity), true
+	case "SystemSettings.tvtplayChaptersEnabled":
+		if e.ComplexityRoot.SystemSettings.TvtplayChaptersEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.TvtplayChaptersEnabled(childComplexity), true
 	case "SystemSettings.updatedAt":
 		if e.ComplexityRoot.SystemSettings.UpdatedAt == nil {
 			break
@@ -12043,6 +12050,10 @@ type SystemSettings {
   """
   recordingDownloadsEnabled: Boolean!
   """
+  CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。
+  """
+  tvtplayChaptersEnabled: Boolean!
+  """
   EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
   無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
   ログインしていれば誰でも読め、画面が、API トークンを発行する操作を出すかを決めるのに使う。
@@ -12097,6 +12108,7 @@ input SystemSettingsInput {
   iptvFeedsEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。"
   recordingDownloadsEnabled: Boolean
+  tvtplayChaptersEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。"
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
@@ -15147,6 +15159,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_iptvFeedsEnabled(ctx, field)
 	case "recordingDownloadsEnabled":
 		return ec.fieldContext_SystemSettings_recordingDownloadsEnabled(ctx, field)
+	case "tvtplayChaptersEnabled":
+		return ec.fieldContext_SystemSettings_tvtplayChaptersEnabled(ctx, field)
 	case "epgstationApiEnabled":
 		return ec.fieldContext_SystemSettings_epgstationApiEnabled(ctx, field)
 	case "animeLinkingEnabled":
@@ -42089,6 +42103,29 @@ func (ec *executionContext) fieldContext_SystemSettings_recordingDownloadsEnable
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _SystemSettings_tvtplayChaptersEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_tvtplayChaptersEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TvtplayChaptersEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_tvtplayChaptersEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _SystemSettings_epgstationApiEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -48087,7 +48124,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -48178,6 +48215,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.RecordingDownloadsEnabled = data
+		case "tvtplayChaptersEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tvtplayChaptersEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TvtplayChaptersEnabled = data
 		case "epgstationApiEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epgstationApiEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -57373,6 +57417,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "recordingDownloadsEnabled":
 			out.Values[i] = ec._SystemSettings_recordingDownloadsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tvtplayChaptersEnabled":
+			out.Values[i] = ec._SystemSettings_tvtplayChaptersEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
