@@ -92,17 +92,17 @@ var errRenamedAllowedNetworks = errors.New("server.allowed_networks (KOTATSU_SER
 	"server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS) for the others; move each network to one of them")
 
 // hasRenamedAllowedNetworks は、設定ファイルに、前の版の server.allowed_networks が書いてあるかどうかを返す。
+// 値が空 (null) でも、キーがあれば書いてあるとみなす。
 func hasRenamedAllowedNetworks(data []byte) (bool, error) {
 	var doc struct {
-		Server struct {
-			AllowedNetworks any `yaml:"allowed_networks"`
-		} `yaml:"server"`
+		Server map[string]any `yaml:"server"`
 	}
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return false, err
 	}
+	_, ok := doc.Server["allowed_networks"]
 
-	return doc.Server.AllowedNetworks != nil, nil
+	return ok, nil
 }
 
 // yamlPoolOrder は、設定ファイルの storage.pools に書いたプール ID を、書いた順に返す。

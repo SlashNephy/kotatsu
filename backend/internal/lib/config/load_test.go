@@ -1420,6 +1420,8 @@ func TestLoadRejectsRenamedAllowedNetworks(t *testing.T) {
 		env  map[string]string
 	}{
 		{name: "in the config file", yaml: "server:\n  allowed_networks: [192.168.0.0/16]\n", env: map[string]string{envKeyURL: envURL}},
+		// 値を空にしたまま残していても、案内する。
+		{name: "empty in the config file", yaml: "server:\n  allowed_networks:\n", env: map[string]string{envKeyURL: envURL}},
 		{name: "in the environment", yaml: "", env: map[string]string{envKeyURL: envURL, "KOTATSU_SERVER_ALLOWED_NETWORKS": internet}},
 	}
 	for _, tt := range tests {
