@@ -178,6 +178,32 @@ func TestComparerForget(t *testing.T) {
 	assert.Equal(t, &lineup.Change{Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0}, change)
 }
 
+// TestComparerUnconfirm は、知らせられなかった食い違いを戻すと、同じ version を次に読んだときに、間隔を待たずにもう一度知らせることを確かめる。
+func TestComparerUnconfirm(t *testing.T) {
+	t.Parallel()
+
+	clk := clocktest.NewFake(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
+	comparer := lineup.NewComparer(clk, interval)
+	_, ok := comparer.Observe(observation(1, 101), known(141))
+	require.False(t, ok)
+	clk.Advance(interval)
+	_, ok = comparer.Observe(observation(1, 101), known(141))
+	require.True(t, ok)
+	// 知らせたら、同じ version は知らせない。
+	_, ok = comparer.Observe(observation(1, 101), known(141))
+	require.False(t, ok)
+
+	// 知らせたものとは違う version を戻しても、何も変わらない。
+	comparer.Unconfirm(observation(2, 101))
+	_, ok = comparer.Observe(observation(1, 101), known(141))
+	require.False(t, ok)
+
+	comparer.Unconfirm(observation(1, 101))
+	change, ok := comparer.Observe(observation(1, 101), known(141))
+	require.True(t, ok)
+	assert.Equal(t, &lineup.Change{Kind: lineup.KindBS, NetworkID: 4, Added: 1, Removed: 0}, change)
+}
+
 // TestComparerCS は、CS も同じ規則で比べ、構成がないとき (nil) は比べないことを確かめる。
 func TestComparerCS(t *testing.T) {
 	t.Parallel()

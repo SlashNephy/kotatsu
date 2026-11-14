@@ -198,6 +198,24 @@ func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 	return change, true
 }
 
+// Unconfirm は、Observe が知らせると決めた obs を、知らせられなかったときに、まだ知らせていないことに戻す。
+// 同じ version を次に読んだら、間隔を待たずに、もう一度知らせると決める。2 回読んで信じたことは変わらないからである。
+func (c *Comparer) Unconfirm(obs *Observation) {
+	if obs == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	k := key{kind: obs.Kind, networkID: obs.NetworkID}
+	if version, ok := c.checked[k]; !ok || version != obs.Version {
+		return
+	}
+	delete(c.checked, k)
+	// 1 回目を、間隔より十分前に読んだことにする。
+	c.pending[k] = pending{version: obs.Version, seenAt: time.Time{}}
+}
+
 // Forget は、チューナーサーバーの一覧が変わったとき (スキャンし直したときなど) に、確かめ済みの version を忘れ、比べ直す。
 func (c *Comparer) Forget() {
 	c.mu.Lock()

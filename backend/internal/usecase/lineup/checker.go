@@ -105,6 +105,9 @@ func (c *Checker) Check(ctx context.Context) error {
 			slog.String("kind", string(change.Kind)), slog.Int("network_id", int(change.NetworkID)),
 			slog.Int("added", change.Added), slog.Int("removed", change.Removed))
 		if err := c.notify(ctx, q, change); err != nil {
+			// 知らせられなかったら、次の回にもう一度知らせる。
+			c.comparer.Unconfirm(obs)
+
 			return err
 		}
 	}
@@ -139,7 +142,7 @@ func (c *Checker) notify(ctx context.Context, q *sqlc.Queries, change *Change) e
 func registeredTV(services []*tunerserver.Service) []Known {
 	known := make([]Known, 0, len(services))
 	for _, service := range services {
-		if service.Type != serviceTypeTV || service.NetworkID < 0 || service.NetworkID > 0xffff ||
+		if service == nil || service.Type != serviceTypeTV || service.NetworkID < 0 || service.NetworkID > 0xffff ||
 			service.ServiceID < 0 || service.ServiceID > 0xffff {
 			continue
 		}
