@@ -9,7 +9,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/episode"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
@@ -21,10 +20,10 @@ import (
 // 外した放送からは、この設定を入れたルールだけを外す。どのルールにも一致しなくなった放送は、予約すべき集合から除き、
 // skipped が nil でなければ、外したルールと理由と一緒に入れる。bundled にある (同じ回を束ねて一部のルールを外した) 放送は、
 // 束ねた理由を優先して出す。
-// survives は、予約してある回が、この照合の後も残るかを返す。残らない予約は、比べる相手にしない (#1724)。
+// removed は、この照合で消えるルール予約の番組。消える予約は、比べる相手にしない (#1724)。
 func skipEarlierEpisodes(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped, bundled map[programKey]*skippedProgram,
-	survives func(kind domain.ReservationKind, key programKey, startAt time.Time) bool,
+	removed map[programKey]bool,
 ) error {
 	keys := []programKey{}
 	for key, d := range matched {
@@ -60,7 +59,7 @@ func skipEarlierEpisodes(
 		return nil
 	}
 
-	opponents, recorded, err := listEarlierOpponents(ctx, tx, now, candidates, slices.Sorted(maps.Keys(series)), survives)
+	opponents, recorded, err := listEarlierOpponents(ctx, tx, now, candidates, slices.Sorted(maps.Keys(series)), removed)
 	if err != nil {
 		return err
 	}
@@ -107,7 +106,7 @@ func skipEarlierEpisodes(
 // 相手は、弾かれていない (競合でない) 候補の放送、シリーズ名が series のどれかの録った回、予約してある回である。
 func listEarlierOpponents(
 	ctx context.Context, tx pgx.Tx, now time.Time, candidates map[programKey]*episode.Aired, series []string,
-	survives func(kind domain.ReservationKind, key programKey, startAt time.Time) bool,
+	removed map[programKey]bool,
 ) (map[string][]*episode.Aired, map[string][]*episode.Aired, error) {
 	rejected, err := conflictingPrograms(ctx, tx, now)
 	if err != nil {
@@ -140,11 +139,7 @@ func listEarlierOpponents(
 		return nil, nil, fmt.Errorf("failed to list the reserved episodes: %w", err)
 	}
 	for _, row := range reservedRows {
-		key := programKey{serviceID: row.ServiceID, eventID: 0}
-		if row.EventID != nil {
-			key.eventID = *row.EventID
-		}
-		if !survives(row.Kind, key, row.StartAt) {
+		if row.EventID != nil && removed[programKey{serviceID: row.ServiceID, eventID: *row.EventID}] {
 			continue
 		}
 		add(opponents, airedOf(row.Name, row.Description, row.SeriesEpisode, row.StartAt))
