@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e5fe555818547ccad0abd80f5966062f>>
+ * @generated SignedSource<<e6c706acd9be46c3bd86a9d64f84aed7>>
  * @lightSyntaxTransform
  */
 
@@ -8,9 +8,11 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type recordingQuery$variables = Record<PropertyKey, never>;
 export type recordingQuery$data = {
   readonly systemSettings: {
+    readonly cmDetector: CMDetector;
     readonly recordingDefaults: {
       readonly detectCm: boolean;
       readonly endMarginSeconds: number;
@@ -184,6 +186,13 @@ var v0 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "cmDetector",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "updatedAt",
         "storageKey": null
       }
@@ -238,16 +247,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "446d2866af82bc86303c21afeece5838",
+    "cacheID": "014a9cffb0cb79122e2e5c077e67e791",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    cmDetector\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "7133968621c31f8811981ed4b28588bc";
+(node as any).hash = "3ff755a810282c4d7b1f2be8e39f7642";
 
 export default node;

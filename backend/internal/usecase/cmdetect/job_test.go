@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -373,19 +374,50 @@ func TestDetectWorkerWithoutFFmpeg(t *testing.T) {
 func TestRecordingSections(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	recordingID := f.recording(t, "completed")
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES
-		($1, 'ffmpeg', 1, $2), ($1, 'fake', 1, $2)`, recordingID, f.clock.Now())
-	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms) VALUES
-		($1, 'ffmpeg', 600000, 690000), ($1, 'ffmpeg', 0, 59500), ($1, 'fake', 100, 200)`, recordingID)
-	require.NoError(t, err)
+	ffmpegSections := []cmdetect.Section{{Start: 0, End: 59500 * time.Millisecond}, {Start: 10 * time.Minute, End: 690 * time.Second}}
+	logoSections := []cmdetect.Section{{Start: 100 * time.Millisecond, End: 200 * time.Millisecond}}
+	tests := []struct {
+		name string
+		// ffmpegAt と logoAt は、それぞれの見分け方で見分け終えた日時の、基準からのずれ。負なら見分けていない。
+		ffmpegAt time.Duration
+		logoAt   time.Duration
+		want     []cmdetect.Section
+	}{
+		{name: "見分けていなければ空", ffmpegAt: -1, logoAt: -1, want: []cmdetect.Section{}},
+		{name: "1 つの見分け方だけなら、その区間", ffmpegAt: 0, logoAt: -1, want: ffmpegSections},
+		{name: "見分け方を替えて見分け直したら、新しい見分け方の区間 (#1505)", ffmpegAt: 0, logoAt: time.Hour, want: logoSections},
+		{name: "前の見分け方で見分け直したら、そちらの区間", ffmpegAt: 2 * time.Hour, logoAt: time.Hour, want: ffmpegSections},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 画面に出すのは、いま使っている見分け方の区間だけ。
-	got, err := cmdetect.RecordingSections(t.Context(), f.pool, recordingID)
-	require.NoError(t, err)
-	assert.Equal(t, []cmdetect.Section{{Start: 0, End: 59500 * time.Millisecond}, {Start: 10 * time.Minute, End: 690 * time.Second}}, got)
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed")
+			for _, d := range []struct {
+				name     string
+				at       time.Duration
+				sections []cmdetect.Section
+			}{{"ffmpeg", tt.ffmpegAt, ffmpegSections}, {"logo", tt.logoAt, logoSections}} {
+				if d.at < 0 {
+					continue
+				}
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, $2, 1, $3)`,
+					recordingID, d.name, f.clock.Now().Add(d.at))
+				require.NoError(t, err)
+				// 始まりの順でなく入れても、始まりの順に返す。
+				for _, s := range slices.Backward(d.sections) {
+					_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms) VALUES ($1, $2, $3, $4)`,
+						recordingID, d.name, s.Start.Milliseconds(), s.End.Milliseconds())
+					require.NoError(t, err)
+				}
+			}
+
+			got, err := cmdetect.RecordingSections(t.Context(), f.pool, recordingID)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // oneSegment は、録画の完了のイベントに載せる、セグメント 1 つの一覧。

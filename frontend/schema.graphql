@@ -840,6 +840,19 @@ type BulkOperationPayload {
   skipped: Int!
 }
 """
+CM の区間の見分け方 (#1505、設計書 6.1)。
+"""
+enum CMDetector {
+  """
+  無音とシーンの切り替わりで見分ける。
+  """
+  FFMPEG
+  """
+  局ロゴが出ているかで見分ける (試験的)。ロゴを学習できない録画では、FFMPEG で見分ける。
+  """
+  LOGO
+}
+"""
 予約を iCalendar で購読する URL (#1255、設計書 9.8)。URL の秘密の値は、発行したときにだけ返す。
 """
 type CalendarFeed {
@@ -4659,6 +4672,10 @@ type SystemSettings {
   """
   tvtplayChaptersEnabled: Boolean!
   """
+  CM の区間の見分け方 (#1505、設計書 6.1)。既定は FFMPEG。
+  """
+  cmDetector: CMDetector!
+  """
   EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
   無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
   ログインしていれば誰でも読め、画面が、API トークンを発行する操作を出すかを決めるのに使う。
@@ -4735,6 +4752,7 @@ input SystemSettingsInput {
   """
   recordingDownloadsEnabled: Boolean
   tvtplayChaptersEnabled: Boolean
+  cmDetector: CMDetector
   """
   変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。
   """

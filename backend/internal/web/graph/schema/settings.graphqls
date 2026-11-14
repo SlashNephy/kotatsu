@@ -94,6 +94,8 @@ type SystemSettings {
   CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。
   """
   tvtplayChaptersEnabled: Boolean!
+  "CM の区間の見分け方 (#1505、設計書 6.1)。既定は FFMPEG。"
+  cmDetector: CMDetector!
   """
   EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
   無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
@@ -150,6 +152,7 @@ input SystemSettingsInput {
   "変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。"
   recordingDownloadsEnabled: Boolean
   tvtplayChaptersEnabled: Boolean
+  cmDetector: CMDetector
   "変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。"
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
@@ -261,4 +264,12 @@ enum CommentSource {
   NX_JIKKYO
   "NICOLOG のニコニコ生放送の上映会のコメント"
   NICOLOG
+}
+
+"CM の区間の見分け方 (#1505、設計書 6.1)。"
+enum CMDetector {
+  "無音とシーンの切り替わりで見分ける。"
+  FFMPEG
+  "局ロゴが出ているかで見分ける (試験的)。ロゴを学習できない録画では、FFMPEG で見分ける。"
+  LOGO
 }

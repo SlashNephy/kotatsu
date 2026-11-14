@@ -374,6 +374,8 @@ CREATE TABLE system_settings (
   iptv_feeds_enabled boolean NOT NULL DEFAULT false,
   -- 録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定では保存させない。
   recording_downloads_enabled boolean NOT NULL DEFAULT false,
+  -- CM の区間の見分け方 (#1505、設計書 6.1)。ffmpeg は無音とシーンの切り替わり、logo は局ロゴ (試験的)。既定は ffmpeg。
+  cm_detector text NOT NULL DEFAULT 'ffmpeg',
   -- CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。
   -- 保存先にファイルを足すので、既定では書かない。
   tvtplay_chapters_enabled boolean NOT NULL DEFAULT false,
