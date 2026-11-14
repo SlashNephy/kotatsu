@@ -464,6 +464,38 @@ func TestFinalizeCleansUpDeletedRecording(t *testing.T) {
 	assert.NotContains(t, f.jobs(t), kindAnalyze)
 }
 
+// TestFinalizeWaitsForReaders は、録画のファイルをほかのジョブが読んでいる (録画ごとのロックを持っている) 間は、置き換えずに後でやり直すことを確かめる (#1719)。
+// 置き換えが終わるまでは、置き換えのジョブが残っていることを、ファイルを読むジョブに知らせる。
+func TestFinalizeWaitsForReaders(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID, paths := f.recording(t, overlapping(f.original))
+	require.NoError(t, f.join(t, recordingID))
+	queued := f.jobs(t)
+	require.Contains(t, queued, kindFinalize)
+	pending, err := segjoin.FinalizePending(t.Context(), f.pool, recordingID)
+	require.NoError(t, err)
+	assert.True(t, pending, "the finalization is pending after the join")
+
+	conn, err := f.pool.Acquire(t.Context())
+	require.NoError(t, err)
+	defer conn.Release()
+	_, err = conn.Exec(t.Context(), "SELECT pg_advisory_lock(hashtext('kotatsu.segjoin'), hashtext($1::text))", recordingID.String())
+	require.NoError(t, err)
+
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, f.finalize(t, queued[kindFinalize]), &snooze)
+	assert.FileExists(t, filepath.Join(f.dir, paths[0]+".joining"), "the first segment is not replaced while another job reads it")
+	assert.FileExists(t, filepath.Join(f.dir, paths[1]))
+
+	_, err = conn.Exec(t.Context(), "SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext($1::text))", recordingID.String())
+	require.NoError(t, err)
+	require.NoError(t, f.finalize(t, queued[kindFinalize]))
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[0]+".joining"))
+	assert.NoFileExists(t, filepath.Join(f.dir, paths[1]))
+}
+
 // TestJoinSnoozesWhileAnotherJoinRuns は、同じ録画をほかでつないでいる間は、つながずに後でやり直すことを確かめる (#515)。
 // 時間の上限を超えたジョブが救出され、ほかの nekonote が同じ一時ファイルを開き直して壊さないようにする。
 func TestJoinSnoozesWhileAnotherJoinRuns(t *testing.T) {

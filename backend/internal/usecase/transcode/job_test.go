@@ -32,6 +32,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 )
 
@@ -257,6 +258,43 @@ func TestWorker(t *testing.T) {
 	// 変換し直しても、記録は 1 つのまま。
 	require.NoError(t, work(t, f, encoder, recordingID, preset720p))
 	assert.Len(t, f.otherFiles(t, recordingID), 1)
+}
+
+// TestWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、変換せずに後でやり直すことを確かめる (#1719)。
+// 置き換えるまでは、DB の記録は 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
+func TestWorkerWaitsForJoinedFile(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	content := tsPackets(10)
+	recordingID := f.recording(t, content)
+	finalizeID := enqueueFinalize(t, f.pool, f.inserter, recordingID)
+	encoder := new(copyEncoder)
+
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, work(t, f, encoder, recordingID, preset720p), &snooze)
+	assert.Empty(t, encoder.presets, "nothing is encoded before the joined file replaces the first segment")
+
+	_, err := f.pool.Exec(t.Context(), "UPDATE river_job SET state = 'completed', finalized_at = now() WHERE id = $1", finalizeID)
+	require.NoError(t, err)
+	require.NoError(t, work(t, f, encoder, recordingID, preset720p))
+	assert.Equal(t, []string{preset720p}, encoder.presets)
+}
+
+// enqueueFinalize は、録画 recordingID の、つないだファイルに置き換えるジョブを投入し、その ID を返す。
+func enqueueFinalize(t *testing.T, pool *pgxpool.Pool, inserter *jobs.Client, recordingID uuid.UUID) int64 {
+	t.Helper()
+
+	tx, err := pool.Begin(t.Context())
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(context.WithoutCancel(t.Context())) }()
+	results, err := inserter.InsertManyTx(t.Context(), tx, []river.InsertManyParams{{
+		Args: segjoin.FinalizeArgs{RecordingID: recordingID, FileID: id.New(), PoolID: poolID, Path: "joined.m2ts", Removed: []segjoin.File{}}, InsertOpts: nil,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(t.Context()))
+
+	return results[0].Job.ID
 }
 
 // TestWorkerCancels は、変換できない録画では、やり直さずに取りやめることを確かめる (#1253)。

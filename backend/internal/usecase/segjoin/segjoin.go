@@ -50,6 +50,9 @@ const (
 	unmountedSnooze = 5 * time.Minute
 	// lockedSnooze は、同じ録画をほかでつないでいるときに、やり直すまで待つ時間。
 	lockedSnooze = 10 * time.Minute
+	// finalizeLockedSnooze は、ほかのジョブが録画のファイルを読んでいるときに、置き換えをやり直すまで待つ時間。
+	// 置き換えを待つ間は、変換と CM の見分けも進まないので、短くする (#1719)。
+	finalizeLockedSnooze = time.Minute
 	// foreignKeyViolation は、外部キーの制約に反したときの PostgreSQL のエラーコード。
 	foreignKeyViolation = "23503"
 )
@@ -450,11 +453,34 @@ func (w *JoinWorker) enqueue(ctx context.Context, args river.JobArgs) error {
 	})
 }
 
+// rowQuerier は、1 行を引ける DB。*pgxpool.Pool と *pgxpool.Conn が満たす。
+type rowQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// FinalizePending は、録画 recordingID の、つないだファイルへの置き換えが終わっていないかを返す。
+// 終わっていなければ、DB の記録はつないだ後の 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
+// 録画のファイルを読むジョブは、録画ごとのロックを取ったあとでこれを確かめ、終わっていなければ後でやり直す (#1719)。
+func FinalizePending(ctx context.Context, db rowQuerier, recordingID uuid.UUID) (bool, error) {
+	// River のテーブルは sqlc のスキーマにないので、直接引く。
+	var pending bool
+	err := db.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM river_job
+			WHERE kind = $1 AND args->>'recordingId' = $2::text AND state NOT IN ('completed', 'cancelled', 'discarded')
+		)`, new(FinalizeArgs).Kind(), recordingID.String()).Scan(&pending)
+	if err != nil {
+		return false, fmt.Errorf("failed to check the finalization of the joined recording: %w", err)
+	}
+
+	return pending, nil
+}
+
 // FinalizeWorker は、つないだファイルを最初のセグメントの名前に置き換え、つないだ元のファイルを消して、索引を作り直させる。
 type FinalizeWorker struct {
 	river.WorkerDefaults[FinalizeArgs]
 
 	pool     txBeginner
+	conns    connAcquirer
 	store    *kago.Store
 	inserter Inserter
 }
@@ -462,11 +488,42 @@ type FinalizeWorker struct {
 var _ river.Worker[FinalizeArgs] = new(FinalizeWorker)
 
 // NewFinalizeWorker は FinalizeWorker を返す。
-func NewFinalizeWorker(pool txBeginner, store *kago.Store, inserter Inserter) *FinalizeWorker {
-	return &FinalizeWorker{WorkerDefaults: river.WorkerDefaults[FinalizeArgs]{}, pool: pool, store: store, inserter: inserter}
+func NewFinalizeWorker(db interface {
+	txBeginner
+	connAcquirer
+}, store *kago.Store, inserter Inserter,
+) *FinalizeWorker {
+	return &FinalizeWorker{WorkerDefaults: river.WorkerDefaults[FinalizeArgs]{}, pool: db, conns: db, store: store, inserter: inserter}
 }
 
+// Work は、録画ごとの advisory lock を取ってから、つないだファイルに置き換える。
+// 録画のファイルを読むジョブ (変換、CM の見分け、解析) が読んでいる間に、ファイルを置き換えたり索引を消したりしないよう、
+// ロックが取れなければ、後でやり直す (#1719)。
 func (w *FinalizeWorker) Work(ctx context.Context, job *river.Job[FinalizeArgs]) error {
+	conn, err := w.conns.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to acquire a connection: %w", err)
+	}
+	defer conn.Release()
+	key := job.Args.RecordingID.String()
+	locked, err := sqlc.New(conn).TryLockRecordingJoin(ctx, key)
+	if err != nil {
+		return fmt.Errorf("failed to lock the recording: %w", err)
+	}
+	if !locked {
+		return river.JobSnooze(finalizeLockedSnooze)
+	}
+	defer func() {
+		if _, err := sqlc.New(conn).UnlockRecordingJoin(context.WithoutCancel(ctx), key); err != nil {
+			// 接続を閉じれば、ロックも外れる。
+			_ = conn.Conn().Close(context.WithoutCancel(ctx))
+		}
+	}()
+
+	return w.work(ctx, job)
+}
+
+func (w *FinalizeWorker) work(ctx context.Context, job *river.Job[FinalizeArgs]) error {
 	path, err := w.store.Path(job.Args.PoolID, job.Args.Path)
 	if errors.Is(err, kago.ErrPoolNotMounted) {
 		// DB はつないだ後の内容で確定しているので、取りやめずに、マウントされるのを待つ (#514)。

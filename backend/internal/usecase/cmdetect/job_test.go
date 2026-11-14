@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
 
 const (
@@ -186,6 +187,32 @@ func TestDetectWorker(t *testing.T) {
 	var detections int
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_cm_detections WHERE recording_id = $1", recordingID).Scan(&detections))
 	assert.Equal(t, 1, detections)
+}
+
+// TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。
+// 置き換えるまでは、DB の記録は 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
+func TestDetectWorkerWaitsForJoinedFile(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: 0})
+	tx, err := f.pool.Begin(t.Context())
+	require.NoError(t, err)
+	results, err := f.inserter.InsertManyTx(t.Context(), tx, []river.InsertManyParams{{
+		Args: segjoin.FinalizeArgs{RecordingID: recordingID, FileID: id.New(), PoolID: poolID, Path: segmentA, Removed: []segjoin.File{}}, InsertOpts: nil,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(t.Context()))
+	detector := &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {{Start: time.Minute, End: 2 * time.Minute}}}}
+
+	var snooze *river.JobSnoozeError
+	require.ErrorAs(t, f.detect(t, detector, recordingID), &snooze)
+	assert.Empty(t, detector.inputs, "nothing is read before the joined file replaces the first segment")
+
+	_, err = f.pool.Exec(t.Context(), "UPDATE river_job SET state = 'completed', finalized_at = now() WHERE id = $1", results[0].Job.ID)
+	require.NoError(t, err)
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 2 * time.Minute}}, f.sections(t, recordingID))
 }
 
 // progressDetector は、ファイルの名前ごとに決めた -progress のまとまりを、読んだバイト数と一緒に渡す Detector。区間は見つけない。
