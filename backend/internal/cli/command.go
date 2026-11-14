@@ -808,9 +808,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	if err != nil {
 		return nil, err
 	}
-	// 署名付き URL を発行したユーザーを引く。DB に届かない間は、覚えた結果を使う (#1084)。
-	urlUsers := auth.NewURLUsers(deps.DB, deps.Clock, logger.With(slog.String("component", "stream")))
-
 	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
 	location, err := deps.Config.Location()
 	if err != nil {
@@ -826,6 +823,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	sessions, factors, passkeys, passwordPolicy := accounts.sessions, accounts.factors, accounts.passkeys, accounts.passwordPolicy
+	access, err := newAccessParts(deps, logger)
+	if err != nil {
+		return nil, err
+	}
+	urlUsers, signer, authorizationServer := access.urlUsers, access.signer, access.authorizationServer
 	sealed, err := newSealedStores(deps, logger)
 	if err != nil {
 		return nil, err
@@ -833,11 +835,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	webhooks, webPush, animeRecords := sealed.webhooks, sealed.webPush, sealed.animeRecords
 	// subscription は、どの tenban で起きた変更も届けるため、変更の通知のチャンネルを見張る (設計書 1.4、9.1)。
 	changes, err := watch(ctx, logger, deps)
-	if err != nil {
-		return nil, err
-	}
-	// 外部プレイヤー用の映像の URL には、アプリの秘密キーから導いたキーで署名する (設計書 9.6)。
-	signer, err := stream.NewSigner(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
 		return nil, err
 	}
@@ -849,9 +846,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: jikkyoclient.NewHTTPClient(deps.Network), Clock: deps.Clock, LiveRetryDelays: nil})
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := accounts.apiTokens
-	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
-	iptvFeeds := auth.NewIPTVFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
-	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock, deps.Network), audit.NewRecorder(deps.Clock))
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
 	streams := newStreamCounter(deps)
 	drainer := streamapi.NewDrainer(streams)
@@ -867,8 +861,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		SecondFactors:     factors,
 		Passkeys:          passkeys,
 		APITokens:         apiTokens,
-		CalendarFeeds:     calendarFeeds,
-		IPTVFeeds:         iptvFeeds,
+		CalendarFeeds:     access.calendarFeeds.Feeds,
+		IPTVFeeds:         access.iptvFeeds.Feeds,
 		OAuth:             authorizationServer,
 		Players:           player.NewService(deps.DB, deps.Clock),
 		UserAdmin:         accounts.userAdmin,
@@ -966,14 +960,14 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	public := &publicAPI{
-		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
+		apiTokens: apiTokens, iptvFeeds: access.iptvFeeds.Feeds, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
 	}
 	// echo のルートに当たらないリクエストは、画面を返す。ただし、画面がセッションの Cookie で使う端点 (/internal/*) と、
 	// ブラウザ以外から叩く端点 (/api/*) の下のパスには、画面を返さずに 404 にする (設計書 9.1、#1605)。
 	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
 	root := notFoundOrApp(app)
-	router := newRouter(logger, root, deps, calendarFeeds, public)
+	router := newRouter(logger, root, deps, access.calendarFeeds.Feeds, public)
 	handleOAuth(router, authorizationServer, graphQL, logger)
 	handleAuth(router, sessions.Middleware(deps.DB), authRoutes)
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), mediaRoutes, "media")
