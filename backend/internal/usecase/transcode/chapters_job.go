@@ -252,7 +252,7 @@ func (w *ChaptersWorker) headLead(ctx context.Context, recordingID uuid.UUID, fi
 	if first < 0 {
 		return 0, river.JobCancel(errNoSegment)
 	}
-	lead := playbackPosition(tl.recordedFrom, tl.gaps, files[first].StartedAt)
+	lead := PlaybackPosition(tl.recordedFrom, tl.gaps, files[first].StartedAt)
 	opened, err := w.source.Open(ctx, recordingID)
 	if errors.Is(err, stream.ErrNotMounted) || errors.Is(err, stream.ErrNoSegment) || errors.Is(err, stream.ErrRecordingNotFound) {
 		return 0, river.JobCancel(fmt.Errorf("failed to open the recording: %w", err))

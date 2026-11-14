@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<1960d8c9c6d4cf4986d44067c561ed39>>
+ * @generated SignedSource<<c8a21ea36602cadded4095839d300bbb>>
  * @lightSyntaxTransform
  */
 
@@ -121,6 +121,7 @@ export type RecordingIdQuery$data = {
       readonly name: string;
     }>;
     readonly thumbnailUrl: string | null | undefined;
+    readonly tvtplayChapterUrl: string;
     readonly videoFormat: VideoFormat;
     readonly workTitle: string;
   } | {
@@ -639,24 +640,31 @@ v39 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "tvtplayChapterUrl",
   "storageKey": null
 },
 v40 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v41 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "recordedUntil",
   "storageKey": null
 },
 v42 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v43 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
@@ -666,7 +674,7 @@ v42 = {
   "selections": (v32/*:: as any*/),
   "storageKey": null
 },
-v43 = {
+v44 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -679,7 +687,7 @@ v43 = {
   ],
   "storageKey": null
 },
-v44 = {
+v45 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -861,6 +869,7 @@ return {
               (v38/*:: as any*/),
               (v39/*:: as any*/),
               (v40/*:: as any*/),
+              (v41/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -870,13 +879,13 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v41/*:: as any*/),
-                  (v42/*:: as any*/)
+                  (v42/*:: as any*/),
+                  (v43/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v43/*:: as any*/),
-              (v44/*:: as any*/)
+              (v44/*:: as any*/),
+              (v45/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -966,6 +975,7 @@ return {
               (v38/*:: as any*/),
               (v39/*:: as any*/),
               (v40/*:: as any*/),
+              (v41/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -975,14 +985,14 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v41/*:: as any*/),
                   (v42/*:: as any*/),
+                  (v43/*:: as any*/),
                   (v6/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v43/*:: as any*/),
-              (v44/*:: as any*/)
+              (v44/*:: as any*/),
+              (v45/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -993,16 +1003,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "9921f154500f68c4bc3a267d7ca48772",
+    "cacheID": "8472de103ca571fc4411e0a2ad89f47b",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "55d86da8da0401a184b565448b3230fc";
+(node as any).hash = "5a6104f97d452fcc830c1186d4fa3efe";
 
 export default node;

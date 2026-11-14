@@ -28,6 +28,7 @@ import {
   Files,
   Gauge,
   Lock,
+  ListVideo,
   LockOpen,
   Play,
   RefreshCw,
@@ -253,6 +254,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             streamUrl
             videoFormat
             jikkyoCommentsUrl
+            tvtplayChapterUrl
             recordedFrom
             recordedUntil
             service {
@@ -492,6 +494,22 @@ function Recording({ recordingId }: { recordingId: string }) {
                 download
               >
                 {t('recordings.download')}
+              </Button>
+            )}
+          {/* ダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (#1737)。CM の区間がなければ、飛ばすところがないので出さない。 */}
+          {segments.length > 0 &&
+            recording.state !== 'RECORDING' &&
+            recording.recordedUntil != null &&
+            data.systemSettings.recordingDownloadsEnabled &&
+            recording.cmSections.length > 0 && (
+              <Button
+                variant="default"
+                leftSection={<ListVideo size={16} aria-hidden />}
+                component="a"
+                href={recording.tvtplayChapterUrl}
+                download
+              >
+                {t('recordings.downloadTvtplayChapter')}
               </Button>
             )}
           {/* 録画を終えた録画を端末に保存し、サーバーにつながらなくても見られるようにする (#480)。 */}

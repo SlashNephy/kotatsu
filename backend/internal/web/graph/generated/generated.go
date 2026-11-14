@@ -1061,6 +1061,7 @@ type ComplexityRoot struct {
 		StreamURL                func(childComplexity int) int
 		Tags                     func(childComplexity int) int
 		ThumbnailURL             func(childComplexity int) int
+		TvtplayChapterURL        func(childComplexity int) int
 		VideoFormat              func(childComplexity int) int
 		WatchFrame               func(childComplexity int) int
 		WatchPositionMs          func(childComplexity int) int
@@ -6572,6 +6573,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.ThumbnailURL(childComplexity), true
+	case "Recording.tvtplayChapterUrl":
+		if e.ComplexityRoot.Recording.TvtplayChapterURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.TvtplayChapterURL(childComplexity), true
 	case "Recording.videoFormat":
 		if e.ComplexityRoot.Recording.VideoFormat == nil {
 			break
@@ -11216,6 +11223,11 @@ type Recording implements Node {
   "上映会のコメント (NICOLOG) を読む URL のパス (#1363)。"
   jikkyoNicologCommentsUrl: String!
   """
+  録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (.chapter) を返す URL のパス (#1737)。
+  管理者が録画のダウンロードを有効にしていなければ、取りに行っても断られる。
+  """
+  tvtplayChapterUrl: String!
+  """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
   """
@@ -14539,6 +14551,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_jikkyoOtherCommentsUrl(ctx, field)
 	case "jikkyoNicologCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoNicologCommentsUrl(ctx, field)
+	case "tvtplayChapterUrl":
+		return ec.fieldContext_Recording_tvtplayChapterUrl(ctx, field)
 	case "streamUrl":
 		return ec.fieldContext_Recording_streamUrl(ctx, field)
 	case "animeEpisodes":
@@ -37068,6 +37082,29 @@ func (ec *executionContext) fieldContext_Recording_jikkyoNicologCommentsUrl(_ co
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
 }
 
+func (ec *executionContext) _Recording_tvtplayChapterUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_tvtplayChapterUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TvtplayChapterURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_tvtplayChapterUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
+}
+
 func (ec *executionContext) _Recording_streamUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -55345,6 +55382,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "jikkyoNicologCommentsUrl":
 			out.Values[i] = ec._Recording_jikkyoNicologCommentsUrl(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "tvtplayChapterUrl":
+			out.Values[i] = ec._Recording_tvtplayChapterUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}

@@ -3552,6 +3552,11 @@ type Recording implements Node {
   """
   jikkyoNicologCommentsUrl: String!
   """
+  録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (.chapter) を返す URL のパス (#1737)。
+  管理者が録画のダウンロードを有効にしていなければ、取りに行っても断られる。
+  """
+  tvtplayChapterUrl: String!
+  """
   録画の TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。末尾に ?start=秒 を付けると、その位置から流す。
   外部プレイヤーには、createStreamURL で署名付きの URL を発行する。
   """

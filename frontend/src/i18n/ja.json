@@ -1228,6 +1228,7 @@
       "previous": "いまは、{{at}}に解析した結果（{{count}}か所）を使っています"
     },
     "download": "ダウンロード",
+    "downloadTvtplayChapter": "CM のチャプター (TvtPlay)",
     "unknownEnd": "不明",
     "play": "再生"
   },
