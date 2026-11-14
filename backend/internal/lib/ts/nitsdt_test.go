@@ -163,3 +163,30 @@ func TestParseNITSDTRejects(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzerNITSDT は、解析器が NIT と SDT のセクションを読み、OnNIT と OnSDT に渡すことを確かめる (#1519)。
+// SDT の PID が運ぶ BAT は渡さない。
+func TestAnalyzerNITSDT(t *testing.T) {
+	t.Parallel()
+
+	var nits []*ts.NIT
+	var sdts []*ts.SDT
+	analyzer := ts.NewAnalyzer(&ts.AnalyzerOptions{
+		Index: nil, CutoffPTS: nil, OnTOT: nil, OnLogo: nil,
+		OnNIT: func(n *ts.NIT) { nits = append(nits, n) },
+		OnSDT: func(s *ts.SDT) { sdts = append(sdts, s) },
+	})
+	var nitCC, sdtCC byte
+	nit := sectionOf(0x40, 4, 1, 0, 0, append(withLength(nil), withLength(nil)...))
+	sdt := sectionOf(0x42, 0x40F1, 1, 0, 0, []byte{0x00, 0x04, 0xFF})
+	bat := sectionOf(0x4A, 1, 0, 0, 0, append(withLength(nil), withLength(nil)...))
+	for _, p := range append(psiPackets(0x0010, &nitCC, nit), psiPackets(0x0011, &sdtCC, sdt, bat)...) {
+		_, err := analyzer.Write(p)
+		require.NoError(t, err)
+	}
+
+	require.Len(t, nits, 1)
+	assert.Equal(t, uint16(4), nits[0].NetworkID)
+	require.Len(t, sdts, 1)
+	assert.Equal(t, uint16(0x40F1), sdts[0].TransportStreamID)
+}

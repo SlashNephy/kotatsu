@@ -1050,7 +1050,7 @@ func CreateIndex(store *kago.Store, fileID uuid.UUID, onLogo func(*ts.Logo)) (*t
 // createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
 func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo)) (*ts.Analyzer, *os.File, error) {
 	// 索引を作れなくても、TOT とロゴは読む。
-	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo})
+	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: nil, OnSDT: nil})
 	if _, err := store.CreateSegmentDir(fileID); err != nil {
 		return noIndex, nil, err
 	}
@@ -1070,7 +1070,7 @@ func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onL
 		return noIndex, nil, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo}), file, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: nil, OnSDT: nil}), file, nil
 }
 
 // endReason は、録画を止めた理由。
