@@ -524,6 +524,8 @@ export function TsPlayer({
     active.load = ++loads;
     active.stats = null;
     active.bytesRead = 0;
+    // 新しい読み込みの起点が届くまで、前の読み込みの起点で放送からの遅れを測らない (#1733)。
+    active.origin = null;
     player.load(url).then(
       () => {
         if (!cancelled) {
