@@ -278,15 +278,17 @@ FROM notifications
 JOIN notification_events ON notification_events.id = notifications.event_id
 WHERE notifications.user_id = $1
   AND (NOT $2::boolean OR notifications.read_at IS NULL)
-  AND ($3::timestamptz IS NULL
-    OR (notifications.created_at, notifications.id) < ($3::timestamptz, $4::uuid))
+  AND ($3::text[] IS NULL OR notification_events.kind = ANY($3::text[]))
+  AND ($4::timestamptz IS NULL
+    OR (notifications.created_at, notifications.id) < ($4::timestamptz, $5::uuid))
 ORDER BY notifications.created_at DESC, notifications.id DESC
-LIMIT $5
+LIMIT $6
 `
 
 type ListNotificationsParams struct {
 	UserID     uuid.UUID
 	UnreadOnly bool
+	Kinds      []string
 	BeforeAt   *time.Time
 	BeforeID   *uuid.UUID
 	MaxCount   int32
@@ -298,11 +300,12 @@ type ListNotificationsRow struct {
 }
 
 // ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
-// before_at と before_id は、両方を渡すか、両方を NULL にする。
+// before_at と before_id は、両方を渡すか、両方を NULL にする。kinds を渡せば、その種類の通知だけを返す。
 func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error) {
 	rows, err := q.db.Query(ctx, listNotifications,
 		arg.UserID,
 		arg.UnreadOnly,
+		arg.Kinds,
 		arg.BeforeAt,
 		arg.BeforeID,
 		arg.MaxCount,

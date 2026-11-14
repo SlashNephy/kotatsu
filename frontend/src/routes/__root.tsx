@@ -19,6 +19,7 @@ import { ConnectionStatus } from '../relay/ConnectionStatus';
 import type { RootNavQuery } from './__generated__/RootNavQuery.graphql';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
+import { LineupBanner } from '../notifications/LineupBanner';
 import { WatchHost, WatchHostProvider } from '../yunomi/WatchHost';
 
 declare module '@tanstack/react-router' {
@@ -156,6 +157,10 @@ function RootLayout() {
           </AppShell.Navbar>
           <AppShell.Main className={classes.shellMain}>
             <div className={classes.content} data-fluid={fluid || undefined}>
+              {/* 衛星の局の顔ぶれの変化を、管理者に知らせる (#1519)。読めなくても、本文は出す。 */}
+              <SignedIn fallback={null}>
+                <LineupBanner />
+              </SignedIn>
               <Outlet />
               {/* 視聴の画面は、ルートの下ではなく、ここで描く (#1602)。 */}
               <WatchHost />
@@ -187,6 +192,7 @@ const rootViewerQuery = graphql`
   query RootViewerQuery {
     viewer {
       username
+      role
     }
   }
 `;

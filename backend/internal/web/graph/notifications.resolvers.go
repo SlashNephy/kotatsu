@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -22,8 +23,8 @@ func (r *mutationResolver) UpdateNotificationPreference(ctx context.Context, inp
 }
 
 // Notifications is the resolver for the notifications field.
-func (r *queryResolver) Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error) {
-	return r.listNotifications(ctx, first, after, unreadOnly)
+func (r *queryResolver) Notifications(ctx context.Context, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) (*model.NotificationConnection, error) {
+	return r.listNotifications(ctx, first, after, unreadOnly, kinds)
 }
 
 // UnreadNotificationCount is the resolver for the unreadNotificationCount field.

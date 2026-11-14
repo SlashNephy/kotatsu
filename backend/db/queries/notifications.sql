@@ -30,12 +30,13 @@ ON CONFLICT (user_id, event_id) DO NOTHING;
 
 -- name: ListNotifications :many
 -- ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
--- before_at と before_id は、両方を渡すか、両方を NULL にする。
+-- before_at と before_id は、両方を渡すか、両方を NULL にする。kinds を渡せば、その種類の通知だけを返す。
 SELECT sqlc.embed(notifications), sqlc.embed(notification_events)
 FROM notifications
 JOIN notification_events ON notification_events.id = notifications.event_id
 WHERE notifications.user_id = @user_id
   AND (NOT @unread_only::boolean OR notifications.read_at IS NULL)
+  AND (sqlc.narg(kinds)::text[] IS NULL OR notification_events.kind = ANY(sqlc.narg(kinds)::text[]))
   AND (sqlc.narg(before_at)::timestamptz IS NULL
     OR (notifications.created_at, notifications.id) < (sqlc.narg(before_at)::timestamptz, sqlc.narg(before_id)::uuid))
 ORDER BY notifications.created_at DESC, notifications.id DESC

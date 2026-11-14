@@ -27,7 +27,9 @@ type notificationCursor struct {
 }
 
 // listNotifications は、ログイン中のユーザーの通知を、新しい順に first 件まで返す。
-func (r *Resolver) listNotifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error) {
+func (r *Resolver) listNotifications(
+	ctx context.Context, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind,
+) (*model.NotificationConnection, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, err
@@ -36,7 +38,7 @@ func (r *Resolver) listNotifications(ctx context.Context, first int, after *stri
 		return nil, NewError(CodeBadUserInput, fmt.Sprintf("first must be between 1 and %d", maxNotifications))
 	}
 	// 次のページがあるかを知るため、1 件多く読む。
-	listQuery := &query.NotificationListQuery{UnreadOnly: unreadOnly, Before: nil, Limit: int32(first + 1)}
+	listQuery := &query.NotificationListQuery{UnreadOnly: unreadOnly, Before: nil, Limit: int32(first + 1), Kinds: kinds}
 	if after != nil {
 		var cursor notificationCursor
 		if err := DecodeCursor(*after, &cursor); err != nil {
