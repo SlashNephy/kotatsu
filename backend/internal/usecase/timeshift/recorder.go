@@ -470,6 +470,11 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	params := sqlc.InsertTimeshiftChunkParams{ID: chunkID, ServiceID: serviceID, Path: rel, Size: 0, StartedAt: now, Now: now}
 	err = r.writeOrDefer(ctx, logger, pending, func(ctx context.Context, q *sqlc.Queries) error {
 		return q.InsertTimeshiftChunk(ctx, params)
+	}, func() {
+		// 記録を書かずに捨てたら、DB に記録のないチャンクは誰にも消されないので、ここで消す (#1722)。
+		if err := r.store.Remove(kago.TimeshiftPoolID, rel, chunkID); err != nil {
+			logger.WarnContext(ctx, "failed to remove the timeshift chunk whose record was discarded", slog.String("path", rel), slog.Any("error", err))
+		}
 	})
 	if err != nil {
 		_ = c.file.Close()
@@ -523,7 +528,7 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 		_, err := q.CloseTimeshiftChunk(ctx, params)
 
 		return err
-	})
+	}, nil)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("failed to save the timeshift chunk size: %w", err))
 	}
@@ -609,7 +614,7 @@ func (t *programTracker) observe(ctx context.Context, analyzer *ts.Analyzer, now
 		}
 
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to record the timeshift program", slog.Any("error", err))
 	}
@@ -621,7 +626,7 @@ func (t *programTracker) endAtLastChunk(ctx context.Context) {
 		_, err := q.EndTimeshiftProgramAtLastChunk(ctx, t.serviceID)
 
 		return err
-	})
+	}, nil)
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to end the timeshift program", slog.Any("error", err))
 	}
@@ -634,7 +639,7 @@ func (t *programTracker) end(ctx context.Context, now time.Time) {
 		_, err := q.EndTimeshiftProgram(ctx, sqlc.EndTimeshiftProgramParams{EndedAt: &now, ServiceID: t.serviceID})
 
 		return err
-	})
+	}, nil)
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to end the timeshift program", slog.Any("error", err))
 	}

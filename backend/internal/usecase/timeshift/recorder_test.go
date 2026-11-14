@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -583,6 +584,57 @@ func TestTimeshiftRecorderDiscardsDeferredRecordsAfterTakeover(t *testing.T) {
 	require.Len(t, got, 1, "the deferred program change is not written")
 	assert.Equal(t, int64(3), got[0].eventID)
 	assert.Nil(t, got[0].endedAt)
+}
+
+// TestTimeshiftRecorderRemovesChunksWhoseRecordsAreDiscarded は、DB に届かない間に作ったチャンクの記録を、
+// DB が戻ったときに割り振りが消えていたので捨てたら、そのチャンクのファイルも消すことを確かめる (#1722)。
+// DB に記録のないチャンクは、破棄のジョブも、DB にないファイルの探索も見ないので、残すと誰にも消されない。
+func TestTimeshiftRecorderRemovesChunksWhoseRecordsAreDiscarded(t *testing.T) {
+	t.Parallel()
+
+	e := newRecorderEnv(t)
+	db := databasetest.NewSwitch(t, e.pool)
+	tuner := newFakeTuner(e.clk, false)
+	assignment := e.assign(t, false)
+	_, _ = session(t, e.newRecorderOn(db.Pool, tuner, nil), assignment)
+
+	tuner.next(t, nullPackets(10))
+	require.Eventually(t, func() bool { return len(chunks(t, e)) == 1 }, waitTimeout, 10*time.Millisecond)
+	db.Down()
+	// チャンクは 5 分ごとに替わる。DB に届かない間に、2 つ目のチャンクを作る。
+	for range 6 {
+		e.clk.Advance(time.Minute)
+		tuner.next(t, nullPackets(10))
+	}
+	require.Eventually(t, func() bool { return len(chunkFiles(t, e)) == 2 }, waitTimeout, 10*time.Millisecond)
+	// DB に届かない間に、neko がタイムシフトを止めた。
+	_, err := e.pool.Exec(t.Context(), "DELETE FROM timeshift_assignments WHERE id = $1", assignment.ID)
+	require.NoError(t, err)
+	db.Up()
+
+	require.Eventually(t, func() bool { return len(chunkFiles(t, e)) == 1 }, waitTimeout, 10*time.Millisecond,
+		"the chunk whose record was discarded is removed")
+	got := chunks(t, e)
+	require.Len(t, got, 1)
+	assert.Equal(t, []string{got[0].path}, chunkFiles(t, e), "the recorded chunk is kept")
+}
+
+// chunkFiles は、タイムシフトのディレクトリにあるチャンクのファイルの相対パスを返す。
+func chunkFiles(t *testing.T, e *recorderEnv) []string {
+	t.Helper()
+
+	files := []string{}
+	require.NoError(t, filepath.WalkDir(e.dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || filepath.Ext(p) != ".m2ts" {
+			return err
+		}
+		rel, err := filepath.Rel(e.dir, p)
+		files = append(files, filepath.ToSlash(rel))
+
+		return err
+	}))
+
+	return files
 }
 
 // TestTimeshiftRecorderLogsUnreachableOnce は、DB に届かない間、割り振りを確かめられないことを、毎回ではなく 1 度だけログに残すことを確かめる (#1073)。

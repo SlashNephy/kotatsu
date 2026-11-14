@@ -26,7 +26,7 @@ const databaseTimeout = 2 * time.Second
 // 積むのと残りを確かめるのは mu で守り、書くのは mu の外で行う。DB が詰まっても、読み込みのループを mu で待たせない。
 type pendingWrites struct {
 	mu     sync.Mutex
-	writes []func(ctx context.Context, q *sqlc.Queries) error
+	writes []pendingWrite
 	// flushing は、書いているところを 1 つにする。同じ書き込みを、2 つの goroutine で重ねて書かない。
 	flushing sync.Mutex
 	// assignment は、録っている割り振り。書く前に、ほかの mikan が取っていないかを、世代番号で確かめる。
@@ -35,23 +35,36 @@ type pendingWrites struct {
 	unreachable atomic.Bool
 }
 
+// pendingWrite は、積んだ書き込み。
+type pendingWrite struct {
+	write func(ctx context.Context, q *sqlc.Queries) error
+	// discard は、書かずに捨てるときの後片付け。チャンクを作った記録なら、DB に記録のないチャンクのファイルと索引を消す (#1722)。
+	// 後片付けがなければ nil。
+	discard func()
+}
+
 // newPendingWrites は、割り振り assignment を録る間の pendingWrites を返す。
 func newPendingWrites(assignment *recording.Assignment) *pendingWrites {
 	return &pendingWrites{mu: sync.Mutex{}, writes: nil, flushing: sync.Mutex{}, assignment: assignment, unreachable: atomic.Bool{}}
 }
 
-// discard は、積んだ書き込みを捨て、捨てた数を返す。
+// discard は、積んだ書き込みを捨て、捨てた数を返す。捨てた書き込みの後片付けもする。
 func (p *pendingWrites) discard() int {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	n := len(p.writes)
+	writes := slices.Clone(p.writes)
 	p.writes = p.writes[:0]
+	p.mu.Unlock()
+	for _, w := range writes {
+		if w.discard != nil {
+			w.discard()
+		}
+	}
 
-	return n
+	return len(writes)
 }
 
 // addIfWaiting は、積んだ書き込みが残っていれば、write を後ろに積んで true を返す。残っていなければ、積まずに false を返す。
-func (p *pendingWrites) addIfWaiting(write func(ctx context.Context, q *sqlc.Queries) error) bool {
+func (p *pendingWrites) addIfWaiting(write pendingWrite) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if len(p.writes) == 0 {
@@ -63,7 +76,7 @@ func (p *pendingWrites) addIfWaiting(write func(ctx context.Context, q *sqlc.Que
 }
 
 // add は、書き込みを積む。
-func (p *pendingWrites) add(write func(ctx context.Context, q *sqlc.Queries) error) {
+func (p *pendingWrites) add(write pendingWrite) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.writes = append(p.writes, write)
@@ -90,7 +103,7 @@ func (p *pendingWrites) flush(ctx context.Context, pool *pgxpool.Pool) (int, err
 	var err error
 	for _, write := range writes {
 		writeCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
-		err = write(writeCtx, q)
+		err = write.write(writeCtx, q)
 		cancel()
 		if err != nil {
 			break
@@ -106,10 +119,12 @@ func (p *pendingWrites) flush(ctx context.Context, pool *pgxpool.Pool) (int, err
 
 // writeOrDefer は、write を DB に書く。DB に届かなければ、pending に積んで nil を返す。届かない間に積んだものが残っていれば、
 // 順を守るため、書かずに積む。DB への接続が応答のないまま詰まっても、読み込みのループを長く止めないよう、databaseTimeout で打ち切る。
+// discard は、積んだ書き込みを書かずに捨てるときの後片付けで、なければ nil。
 func (r *Recorder) writeOrDefer(
-	ctx context.Context, logger *slog.Logger, pending *pendingWrites, write func(ctx context.Context, q *sqlc.Queries) error,
+	ctx context.Context, logger *slog.Logger, pending *pendingWrites, write func(ctx context.Context, q *sqlc.Queries) error, discard func(),
 ) error {
-	if pending.addIfWaiting(write) {
+	deferred := pendingWrite{write: write, discard: discard}
+	if pending.addIfWaiting(deferred) {
 		return nil
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
@@ -119,7 +134,7 @@ func (r *Recorder) writeOrDefer(
 		return err
 	}
 	logger.WarnContext(ctx, "the database is unreachable; keep recording and write the records later", slog.Any("error", err))
-	pending.add(write)
+	pending.add(deferred)
 
 	return nil
 }
@@ -136,8 +151,10 @@ func (r *Recorder) flushPending(ctx context.Context, logger *slog.Logger, pendin
 	stream, err := sqlc.New(r.pool).GetTimeshiftAssignmentStream(checkCtx, pending.assignment.ID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows) || (err == nil && stream.Generation != pending.assignment.Generation):
+		// 作ったチャンクの記録を捨てるときは、DB に記録のないチャンクのファイルと索引も消す。破棄のジョブも、DB にないファイルの探索も、
+		// タイムシフトのディレクトリを見ないので、残すと誰にも消されない (#1722)。
 		n := pending.discard()
-		logger.WarnContext(ctx, "another mikan took the timeshift assignment; discarding the records deferred while the database was unreachable",
+		logger.WarnContext(ctx, "the timeshift assignment was taken or stopped; discarding the records deferred while the database was unreachable",
 			slog.Int("writes", n))
 
 		return
