@@ -92,12 +92,13 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 
 	fallback := NewMockDetector(gomock.NewController(t))
 	want := []cmdetect.Section{{Start: time.Second, End: 2 * time.Second}}
-	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(want, nil)
 	detector, err := cmdetect.NewLogoDetectorWith(fallback)
 	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
 		t.Skip("FFmpeg is not installed")
 	}
 	require.NoError(t, err)
+	// 期待は、飛ばさないと決めてから置く。飛ばしたテストで、呼ばれなかった期待が失敗にならないようにする。
+	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(want, nil)
 
 	// 動く絵だけの合成の映像には、動かない縁 (局ロゴ) がないので、学習できない。
 	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil})
