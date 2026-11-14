@@ -148,18 +148,20 @@ func (t *programTable) handlePAT(section []byte) {
 }
 
 // handlePMT は PMT のセクションを読む。
-func (t *programTable) handlePMT(pid uint16, section []byte) {
+// 前に読んだ同じ番組の PMT と比べて、外れた ES と加わった ES の PID を返す。最初に読んだ PMT では空を返す。
+func (t *programTable) handlePMT(pid uint16, section []byte) []uint16 {
 	header := parseSectionHeader(section)
 	if header == nil || header.tableID != tableIDPMT || !header.currentNext || len(header.body) < 4 {
-		return
+		return []uint16{}
 	}
 	number := header.tableIDExtension
 	if t.pmtPIDs[number] != pid {
-		return
+		return []uint16{}
 	}
 	// 同じ PID の同じ版は読み飛ばす。PAT で PID が移ったら、版が同じでも中身が違いうるので読む (#1428)。
-	if current := t.programs[number]; current != nil && current.Version == header.version && current.PMTPID == pid {
-		return
+	previous := t.programs[number]
+	if previous != nil && previous.Version == header.version && previous.PMTPID == pid {
+		return []uint16{}
 	}
 
 	body := header.body
@@ -172,7 +174,7 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 	}
 	programInfoLength := int(body[2]&0x0F)<<8 | int(body[3])
 	if 4+programInfoLength > len(body) {
-		return
+		return []uint16{}
 	}
 	for entry := body[4+programInfoLength:]; len(entry) >= 5; {
 		streamType := entry[0]
@@ -194,6 +196,30 @@ func (t *programTable) handlePMT(pid uint16, section []byte) {
 	}
 	t.programs[number] = program
 	t.generation++
+
+	return changedStreamPIDs(previous, program)
+}
+
+// changedStreamPIDs は、previous と current の一方にだけ載っている ES の PID を、昇順に返す。previous が nil なら空を返す。
+func changedStreamPIDs(previous, current *Program) []uint16 {
+	if previous == nil {
+		return []uint16{}
+	}
+	pids := map[uint16]int{}
+	for _, s := range previous.Streams {
+		pids[s.PID] |= 1
+	}
+	for _, s := range current.Streams {
+		pids[s.PID] |= 2
+	}
+	changed := []uint16{}
+	for _, pid := range slices.Sorted(maps.Keys(pids)) {
+		if pids[pid] != 3 {
+			changed = append(changed, pid)
+		}
+	}
+
+	return changed
 }
 
 // firstVideo は、program_number が最も小さい番組の、最初の映像のストリームを返す。
