@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9889bf65142cd611eaf6b0b901a4d45f>>
+ * @generated SignedSource<<287a3f08abb1f0f41d4bf003e45e7b88>>
  * @lightSyntaxTransform
  */
 
@@ -22,6 +22,7 @@ export type SystemSettingsInput = {
   networkActivityRetentionDays?: number | null | undefined;
   notificationRetentionDays?: number | null | undefined;
   recordingDefaults?: RecordingSettingsOverridesInput | null | undefined;
+  recordingDownloadsEnabled?: boolean | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
   ruleUnmatchedGraceMinutes?: number | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;

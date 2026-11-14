@@ -21,7 +21,7 @@ import (
 // 直近 10 分以内の再認証を求める。録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
 func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {
 	const message = "only administrators can change the system settings"
-	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.ExternalPlayerUrlsEnabled != nil || input.IptvFeedsEnabled != nil ||
+	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.ExternalPlayerUrlsEnabled != nil || input.IptvFeedsEnabled != nil || input.RecordingDownloadsEnabled != nil ||
 		input.AnimeLinkingEnabled != nil || input.CommentSources != nil {
 		return r.recentAdministrator(ctx, message)
 	}
@@ -65,6 +65,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		DataBroadcastIPEnabled:    system.DataBroadcastIPEnabled,
 		ExternalPlayerUrlsEnabled: system.ExternalPlayerURLsEnabled,
 		IptvFeedsEnabled:          system.IPTVFeedsEnabled,
+		RecordingDownloadsEnabled: system.RecordingDownloadsEnabled,
 		AnimeLinkingEnabled:       system.AnimeLinkingEnabled,
 		JikkyoEnabled:             slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),
 		CommentSources:            commentSourcesOf(system.CommentSources),

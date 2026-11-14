@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
@@ -43,7 +44,21 @@ func wantIFramePTS() []int64 {
 	return []int64{129003, 174048, 219093, 264138, 309183, 354228, 399273, 444318, 489363, 534408, 579453, 624498}
 }
 
+// downloadQuery は、録画を 1 本のファイルとして保存させるクエリ。
+const downloadQuery = "?download=1"
+
+// downloadGate は、管理者が録画のダウンロードを有効にしているかを、テストの途中で変えられる (#1762)。
+type downloadGate struct {
+	disabled atomic.Bool
+}
+
+func (g *downloadGate) RecordingDownloadsEnabled(context.Context) (bool, error) {
+	return !g.disabled.Load(), nil
+}
+
 type recordingFixture struct {
+	// downloads は、録画のダウンロードを有効にしているか。既定では有効にする。
+	downloads downloadGate
 	pool      *pgxpool.Pool
 	pools     map[string]string
 	clock     *clocktest.Fake
@@ -80,7 +95,7 @@ func (f *recordingFixture) serve(t *testing.T, db *pgxpool.Pool) *httptest.Serve
 	t.Helper()
 
 	mux := http.NewServeMux()
-	mux.Handle(recordingPattern, streamapi.NewRecordingHandler(db, kago.New(f.pools, nil).WithDataDir(f.dir), slog.New(slog.DiscardHandler), pollInterval))
+	mux.Handle(recordingPattern, streamapi.NewRecordingHandler(db, kago.New(f.pools, nil).WithDataDir(f.dir), &f.downloads, slog.New(slog.DiscardHandler), pollInterval))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
@@ -317,10 +332,10 @@ func TestRecordingHandlerDownloads(t *testing.T) {
 		wantDisposition string
 	}{
 		{
-			name: "録画を終えた録画を、録画ファイルの名前で保存させる", recordingID: finished, query: "?download=1",
+			name: "録画を終えた録画を、録画ファイルの名前で保存させる", recordingID: finished, query: downloadQuery,
 			wantStatus: http.StatusOK, wantDisposition: "attachment; filename*=utf-8''%E3%81%93%E3%81%9F%E3%81%A4%E7%89%B9%E9%9B%86.m2ts",
 		},
-		{name: "録画中の録画は保存させない", recordingID: recording, query: "?download=1", wantStatus: http.StatusConflict},
+		{name: "録画中の録画は保存させない", recordingID: recording, query: downloadQuery, wantStatus: http.StatusConflict},
 		{name: "開始位置とは併せられない", recordingID: finished, query: "?download=1&start=10", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
@@ -334,6 +349,39 @@ func TestRecordingHandlerDownloads(t *testing.T) {
 			}
 			assert.Equal(t, data, got.body)
 			assert.Equal(t, tt.wantDisposition, got.disposition)
+		})
+	}
+}
+
+// TestRecordingHandlerDownloadsWhileDisabled は、管理者が録画のダウンロードを有効にしていなければ、download を断り、
+// download を付けない配信 (ブラウザ内の再生と、端末に保存) は今までどおり流すことを確かめる (#1762)。
+func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	f := newRecordingFixture(t, nil)
+	f.downloads.disabled.Store(true)
+	finished := f.recording(t, "completed")
+	f.segment(t, finished, "こたつ特集.m2ts", data, 0, false)
+
+	tests := []struct {
+		name       string
+		query      string
+		wantStatus int
+	}{
+		{name: "ダウンロードは断る", query: downloadQuery, wantStatus: http.StatusForbidden},
+		{name: "再生と端末に保存は流す", query: "", wantStatus: http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := f.get(t, finished, tt.query)
+			assert.Equal(t, tt.wantStatus, got.status)
+			if tt.wantStatus == http.StatusOK {
+				assert.Equal(t, data, got.body)
+				assert.Empty(t, got.disposition)
+			}
 		})
 	}
 }

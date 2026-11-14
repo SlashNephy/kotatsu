@@ -1813,6 +1813,10 @@ type SystemSettings struct {
 	// 無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
 	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
 	IptvFeedsEnabled bool `json:"iptvFeedsEnabled"`
+	// 録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
+	// 無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
+	// ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
+	RecordingDownloadsEnabled bool `json:"recordingDownloadsEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
 	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
@@ -1852,6 +1856,8 @@ type SystemSettingsInput struct {
 	ExternalPlayerUrlsEnabled *bool `json:"externalPlayerUrlsEnabled,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。
 	IptvFeedsEnabled *bool `json:"iptvFeedsEnabled,omitempty"`
+	// 変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。
+	RecordingDownloadsEnabled *bool `json:"recordingDownloadsEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
 	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。

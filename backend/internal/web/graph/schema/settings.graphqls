@@ -84,6 +84,12 @@ type SystemSettings {
   ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
   """
   iptvFeedsEnabled: Boolean!
+  """
+  録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
+  無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
+  ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
+  """
+  recordingDownloadsEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
@@ -131,6 +137,8 @@ input SystemSettingsInput {
   externalPlayerUrlsEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。"
   iptvFeedsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。"
+  recordingDownloadsEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"

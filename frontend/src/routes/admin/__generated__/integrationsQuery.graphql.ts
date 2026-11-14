@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a564385cf9980d65bf2adff80ec0cc8c>>
+ * @generated SignedSource<<2477a69d0059562c8d9e005ae53d0e0d>>
  * @lightSyntaxTransform
  */
 
@@ -55,6 +55,7 @@ export type integrationsQuery$data = {
     readonly iptvFeedsEnabled: boolean;
     readonly mcpEnabled: boolean;
     readonly networkActivityEnabled: boolean;
+    readonly recordingDownloadsEnabled: boolean;
   };
   readonly webhooks: ReadonlyArray<{
     readonly enabled: boolean;
@@ -120,6 +121,13 @@ v2 = [
         "args": null,
         "kind": "ScalarField",
         "name": "iptvFeedsEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "recordingDownloadsEnabled",
         "storageKey": null
       },
       {
@@ -394,16 +402,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "e86197670010144dc1e2fa5a405bc367",
+    "cacheID": "733b6c10181ca83155438d5cd2a472ec",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "183f9031b0ec56dbbb340171e92cbef7";
+(node as any).hash = "4e9a7ed960b4ca9acec5d94dd995771e";
 
 export default node;

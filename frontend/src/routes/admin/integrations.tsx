@@ -91,6 +91,7 @@ const query = graphql`
       dataBroadcastIpEnabled
       externalPlayerUrlsEnabled
       iptvFeedsEnabled
+      recordingDownloadsEnabled
       networkActivityEnabled
       animeLinkingEnabled
       commentSources
@@ -285,6 +286,16 @@ function Integrations() {
             }}
           />
         )}
+        {/* 録画を 1 本のファイルとして保存させるか (#1762)。録画を Kotatsu の外へ持ち出せるので、ここで再認証を求める。 */}
+        <SwitchSetting
+          key={`recording-downloads/${String(data.systemSettings.recordingDownloadsEnabled)}`}
+          title={t('admin.settings.recordingDownloads')}
+          label={t('admin.settings.recordingDownloadsEnabled')}
+          help={t('admin.settings.recordingDownloadsHelp')}
+          enabled={data.systemSettings.recordingDownloadsEnabled}
+          busy={gate.busy}
+          onSave={(recordingDownloadsEnabled) => saveSettings({ recordingDownloadsEnabled })}
+        />
         <SwitchSetting
           key={`iptv-feeds/${String(data.systemSettings.iptvFeedsEnabled)}`}
           title={t('admin.settings.iptvFeeds')}

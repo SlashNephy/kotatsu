@@ -38,6 +38,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		DataBroadcastIPEnabled:    input.DataBroadcastIPEnabled,
 		ExternalPlayerURLsEnabled: input.ExternalPlayerUrlsEnabled,
 		IPTVFeedsEnabled:          input.IptvFeedsEnabled,
+		RecordingDownloadsEnabled: input.RecordingDownloadsEnabled,
 		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
 		CommentSources:            optionalCommentSources(input.CommentSources),
 		DRCSReplacements:          replacements,
