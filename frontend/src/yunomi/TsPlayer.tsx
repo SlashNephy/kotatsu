@@ -151,7 +151,13 @@ function sourcePicture(
     unfiltered,
     fieldRateDropped,
     // yadif が補間するのは、24p で出すときと、コマごとに出すときだけ (#1655)。
-    interpolated: !progressive && yadif?.interpolator != null && (film || !yadif.doubleRate),
+    // 補間をやめた (作れなかった、失敗した) ときは、wants が false を返す。
+    interpolated:
+      !progressive &&
+      yadif !== null &&
+      (film
+        ? yadif.interpolator?.wants('film') === true
+        : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
   };
 }
 
@@ -333,7 +339,9 @@ export function TsPlayer({
           }
           // コマの間を補間している間 (#1655) も、yadif が出したコマの数は video の要素の数と違う。
           const scheduled =
-            stats.film || deinterlacer.doubleRate || deinterlacer.interpolator !== null;
+            stats.film ||
+            deinterlacer.doubleRate ||
+            deinterlacer.interpolator?.wants('frame') === true;
           const changed =
             slot.film !== stats.film ||
             reported.dropped !== slot.fieldRateDropped ||

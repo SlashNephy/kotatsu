@@ -157,6 +157,7 @@ type SavedState = {
   viewport: Int32Array;
   activeTexture: number;
   textures: (WebGLTexture | null)[];
+  samplers: (WebGLSampler | null)[];
   vertexArray: WebGLVertexArrayObject | null;
   blend: boolean;
   scissor: boolean;
@@ -169,9 +170,11 @@ const textureUnits = 3;
 function save(gl: WebGL2RenderingContext): SavedState {
   const activeTexture = gl.getParameter(gl.ACTIVE_TEXTURE) as number;
   const textures: (WebGLTexture | null)[] = [];
+  const samplers: (WebGLSampler | null)[] = [];
   for (let unit = 0; unit < textureUnits; unit++) {
     gl.activeTexture(gl.TEXTURE0 + unit);
     textures.push(gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null);
+    samplers.push(gl.getParameter(gl.SAMPLER_BINDING) as WebGLSampler | null);
   }
   gl.activeTexture(activeTexture);
 
@@ -181,6 +184,7 @@ function save(gl: WebGL2RenderingContext): SavedState {
     viewport: gl.getParameter(gl.VIEWPORT) as Int32Array,
     activeTexture,
     textures,
+    samplers,
     vertexArray: gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null,
     blend: gl.isEnabled(gl.BLEND),
     scissor: gl.isEnabled(gl.SCISSOR_TEST),
@@ -203,6 +207,7 @@ function restore(gl: WebGL2RenderingContext, state: SavedState): void {
   state.textures.forEach((texture, unit) => {
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.bindSampler(unit, state.samplers[unit] ?? null);
   });
   gl.activeTexture(state.activeTexture);
   gl.bindVertexArray(state.vertexArray);
@@ -255,6 +260,13 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   };
   // 描くときは頂点の属性を使わないので、空の VAO を当てて、ほかの VAO の状態に触れない。
   const vertexArray = gl.createVertexArray();
+  // 渡されるテクスチャは、最近傍で読む設定のこともある (yadif の出力)。縮めるときも、ずらして読むときも
+  // 線形に読みたいので、テクスチャの設定を変えずに、線形で読む sampler を当てる。
+  const linear = gl.createSampler();
+  gl.samplerParameteri(linear, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.samplerParameteri(linear, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.samplerParameteri(linear, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.samplerParameteri(linear, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   // sized は、今の資源を作った、元のコマの大きさ。
   let sized: { width: number; height: number } | null = null;
   let previousLuma: Target | null = null;
@@ -299,6 +311,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
     textures.forEach(([name, texture], unit) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
       gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.bindSampler(unit, linear);
       gl.uniform1i(gl.getUniformLocation(program, name), unit);
     });
   };
@@ -374,6 +387,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
       release();
       pair = null;
       gl.deleteVertexArray(vertexArray);
+      gl.deleteSampler(linear);
       gl.deleteProgram(programs.downsample);
       gl.deleteProgram(programs.estimate);
       gl.deleteProgram(programs.compose);
