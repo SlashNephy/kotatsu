@@ -119,7 +119,7 @@ func (*fakeDetector) Name() string { return "fake" }
 func (*fakeDetector) Version() int32 { return 3 }
 
 func (d *fakeDetector) Detect(_ context.Context, input *cmdetect.Input) ([]cmdetect.Section, error) {
-	d.inputs = append(d.inputs, cmdetect.Input{Path: filepath.Base(input.Path), ServiceID: input.ServiceID})
+	d.inputs = append(d.inputs, cmdetect.Input{Path: filepath.Base(input.Path), ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
 	sections, ok := d.sections[filepath.Base(input.Path)]
 	if !ok {
 		return nil, cmdetect.ErrNoVideo
@@ -331,6 +331,28 @@ func TestDetectWorkerMaterials(t *testing.T) {
 	detector.redetectable = false
 	require.NoError(t, f.detect(t, detector, recordingID))
 	assert.Equal(t, 0, materials())
+}
+
+// TestDetectWorkerProgram は、セグメントが 1 つの録画にだけ、番組表の時刻を、セグメントを書き始めた日時からの時間で渡すことを確かめる (#1506)。
+func TestDetectWorkerProgram(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	// 録画の番組は、録画を始めた日時から 30 分。セグメントは、録画を始めて 5 分後に書き始めた。
+	single := f.recording(t, "completed", segmentAt{name: segmentA, start: 5 * time.Minute})
+	detector := &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {}, segmentB: {}}, inputs: []cmdetect.Input{}}
+	require.NoError(t, f.detect(t, detector, single))
+	require.Len(t, detector.inputs, 1)
+	assert.Equal(t, &cmdetect.Program{Start: -5 * time.Minute, Duration: 30 * time.Minute}, detector.inputs[0].Program)
+
+	// セグメントが分かれた録画には、番組の窓を録画全体の時間で置く必要があるので、渡さない。
+	split := f.recording(t, "completed", segmentAt{name: "c.m2ts", start: 0}, segmentAt{name: "d.m2ts", start: 10 * time.Minute})
+	detector.sections["c.m2ts"], detector.sections["d.m2ts"] = []cmdetect.Section{}, []cmdetect.Section{}
+	detector.inputs = []cmdetect.Input{}
+	require.NoError(t, f.detect(t, detector, split))
+	require.Len(t, detector.inputs, 2)
+	assert.Nil(t, detector.inputs[0].Program)
+	assert.Nil(t, detector.inputs[1].Program)
 }
 
 // TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。
