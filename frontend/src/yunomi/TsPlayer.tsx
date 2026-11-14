@@ -32,6 +32,9 @@ type Props = {
   url: string | null;
   // handover は、URL が変わったときに、今の映像を流したまま裏で読み込み、映像が出てから切り替えるかどうか (#1083)。
   handover?: boolean;
+  // handoverScope は、裏で読み込んで切り替えてよい範囲。前の読み込みと範囲が違えば、handover でもすぐ読み直す (#1729)。
+  // ライブ視聴で、タイムシフトのバッファとライブを行き来するのは、つなぎ直しではなくシークなので、範囲を分ける。
+  handoverScope?: string;
   videoRef: RefObject<HTMLVideoElement | null>;
   // captions は、字幕と文字スーパーを出すかどうか。
   captions: boolean;
@@ -139,6 +142,7 @@ const loadModules = () =>
 export function TsPlayer({
   url,
   handover = false,
+  handoverScope = '',
   videoRef,
   captions,
   superimpose = true,
@@ -178,6 +182,10 @@ export function TsPlayer({
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
   const handoverRef = useRef(handover);
   handoverRef.current = handover;
+  const scopeRef = useRef(handoverScope);
+  scopeRef.current = handoverScope;
+  // loadedScope は、今の読み込みを始めたときの handoverScope。
+  const loadedScope = useRef(handoverScope);
   // covered は、蓋を出しているかどうか。出している間は、CM の字幕を残さないよう、字幕を消す (#1512)。
   const covered = useRef(false);
   const cover = usePlayerCover(videoRef, (shown) => {
@@ -480,7 +488,10 @@ export function TsPlayer({
     }
     let cancelled = false;
     // 今の映像が出ていれば、流したまま裏で読み込む。出ていなければ、待たせる映像がないので、すぐ読み直す。
-    if (handoverRef.current && hasPicture(active.video)) {
+    // 範囲が変わったら (シークしたら)、裏で読み込まずに、すぐ読み直す (#1729)。
+    const sameScope = loadedScope.current === scopeRef.current;
+    loadedScope.current = scopeRef.current;
+    if (handoverRef.current && sameScope && hasPicture(active.video)) {
       const slot = createSlot(media, true);
       pendingRef.current = slot;
       void attachPlayer(slot)
@@ -539,7 +550,7 @@ export function TsPlayer({
       // 裏で読み込んで切り替えるなら、前の読み込みは、次の URL を裏で読み込んで切り替えるまで流し続ける。
       // 次の実行が裏で読み込まないとき (映像が出ていない、URL がない) は、そこで止めるか読み直すので、ここでは止めない。
       // そうでなければ、前の読み込みを止めて、サーバーに無駄な読み込みをさせない。
-      if (!handoverRef.current) {
+      if (!handoverRef.current || scopeRef.current !== loadedScope.current) {
         player.stop();
       }
     };
