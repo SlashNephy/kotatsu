@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"os"
 	"path"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -323,7 +324,7 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter, p
 }
 
 // addAnimeRecordCallbacks は、Annict と AniList から戻ってくる認可のハンドラーを、記録先ごとに routes に足す (#927)。
-func addAnimeRecordCallbacks(routes authRoutes, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
+func addAnimeRecordCallbacks(routes sessionRoutes, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
 	logger = logger.With(slog.String("component", "anime_record"))
 	for _, name := range service.Destinations() {
 		routes.add(http.MethodGet, animerecord.CallbackPathPrefix+name+"/callback", animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
@@ -905,7 +906,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	})
 	mux.Handle("/internal/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
 	// ログインやログアウトなどの手続き (/internal/auth/*) は、echo のルーターで受ける (#1606)。
-	authRoutes := authRoutes{}
+	authRoutes := sessionRoutes{}
 	authRoutes.add(http.MethodPost, "/internal/auth/logout", sessions.LogoutHandler(deps.DB))
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
@@ -959,7 +960,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	registerFallbacks(deps, map[string]func() int64{
 		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "kyusu_instances": instances.FallbackUsed,
 	})
-	handleMedia(mux, deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
+	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
 	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
@@ -979,6 +980,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	root.Handle("/", app)
 	router := newRouter(logger, root, deps, calendarFeeds, public)
 	handleAuth(router, sessions.Middleware(deps.DB), authRoutes)
+	handleSessionRoutes(router, sessions.Middleware(deps.DB), mediaRoutes, "media")
 
 	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
@@ -994,28 +996,44 @@ func newRouter(logger *slog.Logger, root http.Handler, deps *Deps, calendarFeeds
 	return router
 }
 
-// authRoutes は、echo のルーターに移す、ログインやログアウトなどの手続き (/internal/auth/*) のハンドラーを、パスとメソッドで引くもの。
-type authRoutes map[string]map[string]http.Handler
+// sessionRoutes は、echo のルーターに移す、画面がセッションの Cookie で使う端点 (/internal/*) のハンドラーを、パスとメソッドで引くもの。
+// パスは echo の書き方 (:id) で書く。
+type sessionRoutes map[string]map[string]http.Handler
 
 // add は、パスとメソッドのハンドラーを足す。
-func (r authRoutes) add(method, path string, handler http.Handler) {
+func (r sessionRoutes) add(method, path string, handler http.Handler) {
 	if r[path] == nil {
 		r[path] = map[string]http.Handler{}
 	}
 	r[path][method] = handler
 }
 
-// handleAuth は、ログインやログアウトなどの手続き (/internal/auth/*) を、echo のルーターに登録する (設計書 9.1、#1606)。
-// mux のときと同じく、セッションの Cookie を読み、状態を変える POST では Origin を確かめる (設計書 9.5)。
-// GET は RequireSameOrigin を素通りするので、状態を返すものと IdP や記録先から戻るリダイレクトは、Origin を確かめずに受け付ける。
-func handleAuth(router *echo.Echo, session func(http.Handler) http.Handler, routes authRoutes) {
+// handleSessionRoutes は、routes を、セッションの Cookie を読むミドルウェア (session) で包んで、echo のルーターに登録する (#1606)。
+// component は、リクエストのロガーに付ける部品の名前。
+func handleSessionRoutes(router *echo.Echo, session func(http.Handler) http.Handler, routes sessionRoutes, component string) {
 	for path, handlers := range routes {
 		wrapped := make(map[string]http.Handler, len(handlers))
 		for method, handler := range handlers {
-			wrapped[method] = session(httpserver.RequireSameOrigin(handler))
+			wrapped[method] = session(handler)
 		}
-		httpserver.Handle(router, path, wrapped, httpserver.Component("auth"))
+		httpserver.Handle(router, path, wrapped, httpserver.Component(component))
 	}
+}
+
+// echoPattern は、http.ServeMux のパスの書き方 ({channel}) を、echo の書き方 (:channel) に直す。
+func echoPattern(pattern string) string {
+	return muxWildcardPattern.ReplaceAllString(pattern, ":$1")
+}
+
+// muxWildcardPattern は、http.ServeMux のパスの名前付きの部分 ({channel})。
+var muxWildcardPattern = regexp.MustCompile(`\{(\w+)\}`)
+
+// handleAuth は、ログインやログアウトなどの手続き (/internal/auth/*) を、echo のルーターに登録する (設計書 9.1、#1606)。
+// mux のときと同じく、セッションの Cookie を読み、状態を変える POST では Origin を確かめる (設計書 9.5)。
+// GET は RequireSameOrigin を素通りするので、状態を返すものと IdP や記録先から戻るリダイレクトは、Origin を確かめずに受け付ける。
+func handleAuth(router *echo.Echo, session func(http.Handler) http.Handler, routes sessionRoutes) {
+	sameOrigin := func(next http.Handler) http.Handler { return session(httpserver.RequireSameOrigin(next)) }
+	handleSessionRoutes(router, sameOrigin, routes, "auth")
 }
 
 // publicAPI は、/api の下の端点を登録するのに使うもの。
@@ -1119,36 +1137,38 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 	}
 }
 
-// handleMedia は、画像と実況の過去ログ (/internal/media/*) を mux に登録する。どれも、セッションで認可する。
-func handleMedia(
-	mux *http.ServeMux, deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
+// newMediaRoutes は、画像と実況の過去ログ (/internal/media/*) のハンドラーを返す。echo のルーターで受ける (#1606)。
+// 画像と過去ログは、セッションで認可する。状態を変える POST と、WebSocket の接続は、ほかのオリジンからは受け付けない。
+func newMediaRoutes(
+	deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
 	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions,
-) {
+) sessionRoutes {
+	routes := sessionRoutes{}
 	streamLogger := logger.With(slog.String("component", "stream"))
 	// サービスのロゴは、チューナーサーバーから取って中継する。
-	mux.Handle("GET /internal/media/services/{id}/logo", authorizer.Session(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
+	routes.add(http.MethodGet, "/internal/media/services/:id/logo", authorizer.Session(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
-	mux.Handle("GET /internal/media/users/{id}/avatar",
+	routes.add(http.MethodGet, "/internal/media/users/:id/avatar",
 		authorizer.Session(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")), deps.Network)))
 	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
 	animeImages := animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")), deps.Network)
-	mux.Handle("GET /internal/media/anime-works/{destination}/{workId}/image", authorizer.Session(animeImages))
+	routes.add(http.MethodGet, "/internal/media/anime-works/:destination/:workId/image", authorizer.Session(animeImages))
 	// フォロー中のユーザーのアバターも、記録先が示した URL から取って中継する (#1372)。
-	mux.Handle("GET /internal/media/anime-following/{destination}/{username}/avatar",
+	routes.add(http.MethodGet, "/internal/media/anime-following/:destination/:username/avatar",
 		authorizer.Session(http.HandlerFunc(animeImages.ServeFollowingAvatar)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
-	mux.Handle("GET /internal/media/recordings/{id}/{file}",
+	routes.add(http.MethodGet, "/internal/media/recordings/:id/:file",
 		authorizer.Session(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
-	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))
+	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))
 	// 同じ話の別の放送の過去ログも、過去ログ API から取って中継する (#1361)。
 	// 上映会のコメント (NICOLOG) も、tenban が取得して中継する (#1363)。
-	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.NicologCommentsFileName, authorizer.Session(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,
+	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.NicologCommentsFileName, authorizer.Session(jikkyoapi.NewNicologCommentsHandler(jikkyoComments,
 		nicolog.NewClient(&nicolog.Options{HTTPClient: nicolog.NewHTTPClient(deps.Network), URL: ""}))))
-	mux.Handle("GET /internal/media/recordings/{id}/"+jikkyoapi.OtherCommentsFileName, authorizer.Session(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
+	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.OtherCommentsFileName, authorizer.Session(jikkyoapi.NewOtherCommentsHandler(jikkyoComments)))
 	// ライブの実況のコメントは、tenban が NX-Jikkyo との間を中継する (設計書 7.4)。視聴者の IP アドレスを第三者に渡さないためである。
-	mux.Handle("GET "+jikkyoapi.LivePath, httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{
+	routes.add(http.MethodGet, echoPattern(jikkyoapi.LivePath), httpserver.RequireSameOriginUpgrade(jikkyoapi.NewLiveHandler(&jikkyoapi.LiveOptions{
 		Pool: deps.DB, Table: jikkyoTable, Client: jikkyoClient, Relay: jikkyo.NewRelay(jikkyoClient),
 		Sessions: func(ctx context.Context, sessionID uuid.UUID) (bool, error) {
 			return sessions.Usable(ctx, deps.DB, sessionID)
@@ -1158,14 +1178,16 @@ func handleMedia(
 	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
 	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
 	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")), deps.Network)
-	mux.Handle("POST "+databroadcastapi.RequestPath, httpserver.RequireSameOrigin(dataBroadcast.RequestHandler()))
-	mux.Handle("POST "+databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(dataBroadcast.ConnectivityHandler()))
+	routes.add(http.MethodPost, databroadcastapi.RequestPath, httpserver.RequireSameOrigin(dataBroadcast.RequestHandler()))
+	routes.add(http.MethodPost, databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(dataBroadcast.ConnectivityHandler()))
 	// キャプチャは、データディレクトリに置く (設計書 5.6、7.5)。受け取るのは状態を変えるので、ほかのオリジンからは受け付けない。
 	captureLogger := logger.With(slog.String("component", "capture"))
 	dataStore := storeOf(deps.Config)
 	captures := capture.New(dataStore, deps.Clock, captureLogger, 0)
-	mux.Handle("POST /internal/media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
-	mux.Handle("GET /internal/media/captures/{id}", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
+	routes.add(http.MethodPost, "/internal/media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
+	routes.add(http.MethodGet, "/internal/media/captures/:id", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
+
+	return routes
 }
 
 // handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
