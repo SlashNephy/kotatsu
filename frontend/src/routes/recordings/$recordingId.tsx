@@ -499,6 +499,7 @@ function Recording({ recordingId }: { recordingId: string }) {
           {/* ダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (#1737)。CM の区間がなければ、飛ばすところがないので出さない。 */}
           {segments.length > 0 &&
             recording.state !== 'RECORDING' &&
+            recording.recordedUntil != null &&
             data.systemSettings.recordingDownloadsEnabled &&
             recording.cmSections.length > 0 && (
               <Button

@@ -20,10 +20,9 @@ const (
 	// スキップのチャプターとみなす。
 	skipIn  = "ix"
 	skipOut = "ox"
+	// bom は、UTF-8 の BOM。TvtPlay は、BOM 付きの UTF-8 だけを読む。
+	bom = "\ufeff"
 )
-
-// bom は、UTF-8 の BOM。TvtPlay は、BOM 付きの UTF-8 だけを読む。
-var bom = []byte{0xef, 0xbb, 0xbf}
 
 // Timeline は、CM の区間 (録画を始めた日時からの時間) を、TS のファイルの始まりからの時間に直すのに要るもの。
 type Timeline struct {
@@ -49,7 +48,7 @@ type span struct {
 // 書式は、TvtPlay の _chwrite_test.cpp のチャプターコマンドの仕様に従う。"c-" で始め、チャプターごとに "{ミリ秒}c{名前}-" を足し、"c" で終える。
 func Build(sections []cmdetect.Section, tl *Timeline) []byte {
 	var b strings.Builder
-	b.Write(bom)
+	b.WriteString(bom)
 	b.WriteString("c-")
 	for _, s := range spans(sections, tl) {
 		writeChapter(&b, strconv.FormatInt(s.start.Milliseconds(), 10)+"c", skipIn)

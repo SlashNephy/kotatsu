@@ -53,6 +53,13 @@ func TestBuild(t *testing.T) {
 			want:     "c-1770000cix-0eox-c",
 		},
 		{
+			name:     "尺を越えた区間は尺で切り、尺より後に始まる区間は捨てる",
+			sections: []cmdetect.Section{{Start: sec(1790), End: sec(1830)}, {Start: sec(1850), End: sec(1900)}},
+			gaps:     []transcode.Gap{},
+			duration: sec(1800),
+			want:     "c-1790000cix-0eox-c",
+		},
+		{
 			name:     "途切れた区間の分を詰めた位置にする",
 			sections: []cmdetect.Section{{Start: sec(600), End: sec(660)}},
 			gaps:     []transcode.Gap{{From: from.Add(sec(100)), To: from.Add(sec(130))}},
