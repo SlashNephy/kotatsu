@@ -156,6 +156,7 @@ import {
   recordChannel,
   saveRecentChannels,
 } from '../../yunomi/recentChannels';
+import { useHostedWatch } from '../../yunomi/WatchHost';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -184,9 +185,16 @@ const recordingsQuery = graphql`
 `;
 
 // LiveServicePage は、サービスをライブ視聴する画面。ブラウザの中で変換するか、kyusu の HLS で再生する (設計書 7.1)。
+// 画面は、アプリの根元の置き場で描く (#1602)。
 function LiveServicePage() {
-  const { t } = useTranslation();
   const { serviceId } = Route.useParams();
+
+  return useHostedWatch(<LiveServiceWatch serviceId={serviceId} />);
+}
+
+// LiveServiceWatch は、サービス serviceId のライブ視聴の画面の中身。
+function LiveServiceWatch({ serviceId }: { serviceId: string }) {
+  const { t } = useTranslation();
   // 放送中の番組を出すので、画面を開いた時刻を、待たない親で決める。
   const [range, setRange] = useState(() => liveRange(Date.now()));
   // 番組が終わったら、次の番組を読み直す。読み直す間も、再生は続ける。
