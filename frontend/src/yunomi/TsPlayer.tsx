@@ -287,6 +287,10 @@ export function TsPlayer({
     const isActive = () => activeRef.current === slot;
     const createYadif = (element: HTMLVideoElement) => {
       const lateWatch = createLateWatch();
+      // reported は、最後に知らせたときの、戻した印と、yadif がコマを出す時刻を決めていたか。
+      // 戻したときと設定を切ったときは、24p でもなくなり、progress も来ない (読み込みを終えた録画) ことがあるので、
+      // 変わったことを見て知らせる。設定の切り替えは、組を直に書き換えるので、次の知らせでここが拾う。
+      let reported = { dropped: false, scheduled: false };
       const deinterlacer: Deinterlacer = new Deinterlacer(element, {
         // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
         doubleRate: fieldRateRef.current,
@@ -302,10 +306,14 @@ export function TsPlayer({
             deinterlacer.doubleRate = false;
             slot.fieldRateDropped = true;
           }
-          const changed = slot.film !== stats.film;
-          slot.film = stats.film;
           const scheduled = stats.film || deinterlacer.doubleRate;
+          const changed =
+            slot.film !== stats.film ||
+            reported.dropped !== slot.fieldRateDropped ||
+            reported.scheduled !== scheduled;
+          slot.film = stats.film;
           slot.shownFps = scheduled ? stats.fps : null;
+          reported = { dropped: slot.fieldRateDropped, scheduled };
           if (changed || scheduled) {
             report();
           }
