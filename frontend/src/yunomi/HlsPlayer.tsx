@@ -226,6 +226,14 @@ export function HlsPlayer({
       instance.on(HlsClass.Events.BUFFER_CODECS, (_event, data) => {
         codecs = { video: data.video?.codec ?? null, audio: data.audio?.codec ?? null };
       });
+      // 画面の時刻 0 に当たる放送の時刻 (#1515)。hls.js は、最初に読んだセグメントの PTS から、画面の時刻 0 に置く PTS (initPTS) を決める。
+      // kyusu はライブのセグメントの PTS を放送の PTS のままにするので、これが放送の時刻の起点になる。録画の仮想 HLS は放送の PTS ではないので使わない。
+      let origin: number | null = null;
+      instance.on(HlsClass.Events.INIT_PTS_FOUND, (_event, data) => {
+        if (live && data.id === 'main') {
+          origin = Math.round((data.initPTS * 90_000) / data.timescale);
+        }
+      });
       instance.on(HlsClass.Events.FRAG_LOADED, (_event, data) => {
         const level = instance.levels[data.frag.level];
         if (data.frag.type !== 'main' || level === undefined) {
@@ -242,6 +250,7 @@ export function HlsPlayer({
             audioCodec: level.audioCodec ?? codecs.audio,
             bandwidth: Number.isFinite(bandwidth) && bandwidth > 0 ? bandwidth : null,
           },
+          mediaOrigin: origin,
         });
       });
       instance.on(HlsClass.Events.MANIFEST_PARSED, () => {

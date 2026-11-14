@@ -589,11 +589,9 @@ function Live({
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
   const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
-  // 実況のコメントは、ブラウザの中で変換する経路でライブの端を見ている間、放送の時計で場面に合わせる (#1515)。
+  // 実況のコメントは、ライブの端を見ている間、放送の時計で場面に合わせる (#1515)。kyusu の経路も、ライブのセグメントは放送の PTS のままなので合わせられる。
   const broadcast = useBroadcastClock(
-    jikkyoEnabled && channelId !== null && visible && route.kind === 'convert' && !timeshift.behind
-      ? serviceId
-      : null,
+    jikkyoEnabled && channelId !== null && visible && !timeshift.behind ? serviceId : null,
     video,
     streamMeter.meter,
   );

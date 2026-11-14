@@ -252,6 +252,14 @@ func tsreadexArgs() []string {
 	return []string{"-x", "18/38/39", "-n", "-1", "-a", "13", "-b", "7", "-c", "5", "-u", "1", "-d", "9", "-"}
 }
 
+// ライブ視聴では、入力の放送の PTS をそのまま出力に使う (-copyts)。mpegts の muxer が PTS を遅らせない (-muxdelay と -muxpreload を 0)
+// ようにして、セグメントの PTS を放送の PTS にそろえる (#1515)。画面は、hls.js が画面の時刻 0 に置いた PTS (initPTS) を、
+// 放送の時刻の起点として、「放送から N 秒」を出す。エンコーダーを起こし直しても、PTS は放送のまま続く。
+// liveTimestampArgs は入力の前に、liveMuxArgs は出力の前に置く。
+func liveTimestampArgs() []string { return []string{"-copyts"} }
+
+func liveMuxArgs() []string { return []string{"-muxdelay", "0", "-muxpreload", "0"} }
+
 // ffmpegArgs は、FFmpeg の引数を返す。音声は、audio で選んだ tsreadex の出力の音声を 1 つだけ入れる。映像は、どのエンコーダーでも、CPU の bwdif でインターレースを解除してから縮める (設計書 7.3)。
 // bwdif は、インターレースの印のあるフレームだけを解除するので、BS4K のプログレッシブの映像は、そのまま通す。
 // 縮めた後は 8 ビットにする。BS4K の 10 ビットの映像 (HEVC Main10) をそのまま渡すと、x264 は High 10 で書き、
@@ -299,6 +307,9 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	args := make([]string, 0, 64)
 	args = append(args, "-hide_banner", "-loglevel", "warning", "-nostdin")
 	args = append(args, device...)
+	if vod == nil {
+		args = append(args, liveTimestampArgs()...)
+	}
 	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:"+audio.streamIndex(), "-map", "0:d?")
 	hls := []string{
 		"-hls_list_size", strconv.Itoa(playlistSize),
@@ -329,8 +340,11 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		"-force_key_frames", "expr:gte(t,n_forced*"+strconv.Itoa(segmentSeconds)+")",
 		"-c:a", "aac", "-b:a", strconv.Itoa(audioBitrate)+"k", "-ac", "2", "-ar", "48000",
 		"-c:d", "copy",
-		"-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds),
 	)
+	if vod == nil {
+		args = append(args, liveMuxArgs()...)
+	}
+	args = append(args, "-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds))
 
 	return append(args, hls...)
 }
@@ -344,6 +358,8 @@ func passthroughArgs(audio Audio, dir string, vod *RunOptions) []string {
 	args = append(args, "-hide_banner", "-loglevel", "warning", "-nostdin")
 	if vod != nil {
 		args = append(args, "-copyts")
+	} else {
+		args = append(args, liveTimestampArgs()...)
 	}
 	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:v:0", "-map", "0:a:"+audio.streamIndex(), "-map", "0:d?",
 		"-c:v", "copy",
@@ -357,6 +373,8 @@ func passthroughArgs(audio Audio, dir string, vod *RunOptions) []string {
 			"-f", "mpegts", "pipe:1",
 		)
 	}
+
+	args = append(args, liveMuxArgs()...)
 
 	return append(args,
 		"-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds),
