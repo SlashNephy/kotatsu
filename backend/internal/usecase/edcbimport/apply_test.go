@@ -114,6 +114,9 @@ func snapshot(now time.Time) *edcbimport.Snapshot {
 			recorded(4, "", 1, past.Add(2*time.Hour)),
 			// Kotatsu にない局の録画済みは飛ばす。
 			bsRecorded(recorded(5, "BS", 1, past)),
+			// 失敗した録画済みは、同じ局と開始の、後の正常に録れた録画済みを妨げない (#1725)。
+			recorded(6, "こたつ特集 #3", 7, past.Add(3*time.Hour)),
+			recorded(7, "こたつ特集 #3", 1, past.Add(3*time.Hour)),
 		},
 	}
 }
@@ -127,7 +130,7 @@ func TestApply(t *testing.T) {
 	// dry run では、取り込んだ数を数えるが、書き込まない。
 	plan, err := f.importer.Apply(t.Context(), f.pool, s, &edcbimport.ApplyOptions{UserID: uuid.Nil(), DryRun: true})
 	require.NoError(t, err)
-	assert.Equal(t, map[string]int{edcbimport.KindRecordedHistory: 1, edcbimport.KindRule: 1, edcbimport.KindReserve: 1}, plan.Imported)
+	assert.Equal(t, map[string]int{edcbimport.KindRecordedHistory: 2, edcbimport.KindRule: 1, edcbimport.KindReserve: 1}, plan.Imported)
 	for _, table := range []string{"rules", "reservations", "recording_history", "import_sources"} {
 		assert.Zero(t, f.count(t, table), table)
 	}
@@ -141,13 +144,13 @@ func TestApply(t *testing.T) {
 		skipped[sk.Kind] = append(skipped[sk.Kind], sk.SourceID)
 	}
 	assert.Equal(t, map[string][]int64{
-		edcbimport.KindRecordedHistory: {3, 4, 5},
+		edcbimport.KindRecordedHistory: {3, 4, 5, 6},
 		edcbimport.KindRule:            {8},
 		edcbimport.KindReserve:         {3, 4, 5},
 	}, skipped)
 	assert.Equal(t, 1, f.count(t, "rules"))
 	assert.Equal(t, 1, f.count(t, "reservations"))
-	assert.Equal(t, 1, f.count(t, "recording_history"))
+	assert.Equal(t, 2, f.count(t, "recording_history"))
 
 	// もう一度取り込んでも、二重に作らない。
 	again, err := f.importer.Apply(t.Context(), f.pool, s, &edcbimport.ApplyOptions{UserID: f.userID, DryRun: false})
