@@ -1,25 +1,16 @@
 package sleep_test
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/sleep"
-)
-
-// fakeSystem が記録する、OS に伝えたこと。
-const (
-	callInhibit = "inhibit"
-	callRelease = "release"
-	callCancel  = "cancel"
-	// callScheduleAt0355 は、03:55:00 に起こす予約を置いたこと。
-	callScheduleAt0355 = "schedule 03:55:00"
 )
 
 // baseTime は、テストの今の時刻。
@@ -116,42 +107,38 @@ func TestDecide(t *testing.T) {
 	}
 }
 
-// fakeSource は、決めた Activity か、エラーを返す。
-type fakeSource struct {
-	activity *sleep.Activity
-	err      error
+// osCall は、1 回の判定や止めたときに、OS に伝えるはずのこと。伝えたら err を返す期待を m に置き、その期待を返す。
+type osCall func(m *MockSystem, err error) any
+
+// inhibit は、スリープの抑止を取ること。
+func inhibit(m *MockSystem, err error) any {
+	return m.EXPECT().SetInhibit(true).Return(err)
 }
 
-func (s *fakeSource) Activity(context.Context, time.Time) (*sleep.Activity, error) {
-	return s.activity, s.err
+// release は、スリープの抑止をやめること。
+func release(m *MockSystem, err error) any {
+	return m.EXPECT().SetInhibit(false).Return(err)
 }
 
-// fakeSystem は、OS に伝えたことを記録する。err を入れると、どの呼び出しも失敗する。
-type fakeSystem struct {
-	calls []string
-	err   error
+// cancelWake は、起こす予約を消すこと。
+func cancelWake(m *MockSystem, err error) any {
+	return m.EXPECT().CancelWake().Return(err)
 }
 
-func (s *fakeSystem) SetInhibit(on bool) error {
-	if on {
-		s.calls = append(s.calls, callInhibit)
-	} else {
-		s.calls = append(s.calls, callRelease)
+// scheduleWake は、at に起こす予約を置くこと。
+func scheduleWake(at time.Time) osCall {
+	return func(m *MockSystem, err error) any {
+		return m.EXPECT().ScheduleWake(gomock.Cond(func(got time.Time) bool { return got.Equal(at) })).Return(err)
 	}
-
-	return s.err
 }
 
-func (s *fakeSystem) ScheduleWake(at time.Time) error {
-	s.calls = append(s.calls, "schedule "+at.Format(time.TimeOnly))
-
-	return s.err
-}
-
-func (s *fakeSystem) CancelWake() error {
-	s.calls = append(s.calls, callCancel)
-
-	return s.err
+// expectInOrder は、calls を、この順に 1 回ずつ伝えるという期待を m に置く。
+func expectInOrder(m *MockSystem, calls []osCall, err error) {
+	expected := make([]any, 0, len(calls))
+	for _, call := range calls {
+		expected = append(expected, call(m, err))
+	}
+	gomock.InOrder(expected...)
 }
 
 // TestController は、状態が変わったときだけ OS に伝えることと、伝えられなければ次の判定でもう一度試すことを確かめる。
@@ -168,66 +155,66 @@ func TestController(t *testing.T) {
 		activity *sleep.Activity
 		readErr  error
 		osErr    error
-		want     []string
+		want     []osCall
 	}
 	tests := []struct {
 		name  string
 		steps []step
 		// stop は、最後に止めたときに OS に伝えること。
-		stop []string
+		stop []osCall
 	}{
 		{
 			name: "takes the inhibition once while recording and releases it after",
 			steps: []step{
-				{advance: 0, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: time.Time{}}, want: []string{callInhibit}},
-				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 1, Encodings: 1, Viewers: 0, Airing: 0, NextStart: time.Time{}}, want: []string{}},
-				{advance: 30 * time.Second, activity: idle(), want: []string{callRelease}},
-				{advance: 30 * time.Second, activity: idle(), want: []string{}},
+				{advance: 0, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: time.Time{}}, want: []osCall{inhibit}},
+				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 1, Encodings: 1, Viewers: 0, Airing: 0, NextStart: time.Time{}}, want: []osCall{}},
+				{advance: 30 * time.Second, activity: idle(), want: []osCall{release}},
+				{advance: 30 * time.Second, activity: idle(), want: []osCall{}},
 			},
-			stop: []string{callCancel},
+			stop: []osCall{cancelWake},
 		},
 		{
 			name: "schedules the wake once and rewrites it when the next recording changes",
 			steps: []step{
-				{advance: 0, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, want: []string{callScheduleAt0355}},
-				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, want: []string{}},
-				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(2 * time.Hour)}, want: []string{"schedule 04:55:00"}},
-				{advance: 30 * time.Second, activity: idle(), want: []string{callCancel}},
+				{advance: 0, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, want: []osCall{scheduleWake(base.Add(55 * time.Minute))}},
+				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, want: []osCall{}},
+				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(2 * time.Hour)}, want: []osCall{scheduleWake(base.Add(115 * time.Minute))}},
+				{advance: 30 * time.Second, activity: idle(), want: []osCall{cancelWake}},
 			},
-			stop: []string{callCancel},
+			stop: []osCall{cancelWake},
 		},
 		{
 			name: "forgets the wake that has come without cancelling it, and releases the inhibition on stop",
 			steps: []step{
-				{advance: 0, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(20 * time.Minute)}, want: []string{"schedule 03:15:00"}},
+				{advance: 0, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(20 * time.Minute)}, want: []osCall{scheduleWake(base.Add(15 * time.Minute))}},
 				// 起こす時刻を過ぎて起き、抑止の前倒しに入った。予約は OS が使い終えているので、消さない。
-				{advance: 16 * time.Minute, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(20 * time.Minute)}, want: []string{callInhibit}},
+				{advance: 16 * time.Minute, activity: &sleep.Activity{Recordings: 0, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(20 * time.Minute)}, want: []osCall{inhibit}},
 			},
-			stop: []string{callRelease, callCancel},
+			stop: []osCall{release, cancelWake},
 		},
 		{
 			name: "retries what it could not tell the OS at the next check",
 			steps: []step{
 				{
 					advance: 0, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, osErr: errors.New("denied"),
-					want: []string{callInhibit, callScheduleAt0355},
+					want: []osCall{inhibit, scheduleWake(base.Add(55 * time.Minute))},
 				},
 				{
 					advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)},
-					want: []string{callInhibit, callScheduleAt0355},
+					want: []osCall{inhibit, scheduleWake(base.Add(55 * time.Minute))},
 				},
-				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, want: []string{}},
+				{advance: 30 * time.Second, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: base.Add(time.Hour)}, want: []osCall{}},
 			},
-			stop: []string{callRelease, callCancel},
+			stop: []osCall{release, cancelWake},
 		},
 		{
 			name: "keeps the current state when the activity cannot be read",
 			steps: []step{
-				{advance: 0, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: time.Time{}}, want: []string{callInhibit}},
-				{advance: 30 * time.Second, activity: nil, readErr: errors.New("database is down"), want: []string{}},
-				{advance: 30 * time.Second, activity: idle(), want: []string{callRelease}},
+				{advance: 0, activity: &sleep.Activity{Recordings: 1, Encodings: 0, Viewers: 0, Airing: 0, NextStart: time.Time{}}, want: []osCall{inhibit}},
+				{advance: 30 * time.Second, activity: nil, readErr: errors.New("database is down"), want: []osCall{}},
+				{advance: 30 * time.Second, activity: idle(), want: []osCall{release}},
 			},
-			stop: []string{callCancel},
+			stop: []osCall{cancelWake},
 		},
 	}
 	for _, tt := range tests {
@@ -235,20 +222,22 @@ func TestController(t *testing.T) {
 			t.Parallel()
 
 			clk := clocktest.NewFake(base)
-			source := &fakeSource{activity: nil, err: nil}
-			system := &fakeSystem{calls: []string{}, err: nil}
+			ctrl := gomock.NewController(t)
+			source := NewMockSource(ctrl)
+			system := NewMockSystem(ctrl)
 			c := sleep.NewController(source, system, clk, slog.New(slog.DiscardHandler),
 				&sleep.Options{Interval: 0, WakeLead: 5 * time.Minute, InhibitLead: 10 * time.Minute})
 			for i, s := range tt.steps {
 				clk.Advance(s.advance)
-				source.activity, source.err = s.activity, s.readErr
-				system.calls, system.err = []string{}, s.osErr
+				source.EXPECT().Activity(gomock.Any(), gomock.Any()).Return(s.activity, s.readErr)
+				expectInOrder(system, s.want, s.osErr)
 				c.Step(t.Context())
-				assert.Equal(t, s.want, system.calls, "step %d", i)
+				// 伝えなかったことがあれば、この判定で落とす。伝えるはずでないことは、伝えた時点で落ちる。
+				assert.True(t, ctrl.Satisfied(), "step %d", i)
 			}
-			system.calls, system.err = []string{}, nil
+			expectInOrder(system, tt.stop, nil)
 			c.Stop(t.Context())
-			assert.Equal(t, tt.stop, system.calls, "stop")
+			assert.True(t, ctrl.Satisfied(), "stop")
 		})
 	}
 }
