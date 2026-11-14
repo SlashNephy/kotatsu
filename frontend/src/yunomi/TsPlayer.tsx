@@ -8,6 +8,7 @@ import type {
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { audioChoices, currentAudioChoice } from './audio';
+import { brightnessStyle } from './brightness';
 import { type Crop, cropStyle, isCropped, noCrop } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
@@ -40,6 +41,8 @@ type Props = {
   captionStyle?: CaptionStyle;
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。映像と字幕をまとめて拡大する。
   crop?: Crop;
+  // brightness は、映像と字幕の明るさ (#1598)。1 ならそのまま。
+  brightness?: number;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
   onState?: (state: PlayerState) => void;
@@ -139,6 +142,7 @@ export function TsPlayer({
   superimpose = true,
   captionStyle = defaultCaptionStyle,
   crop = noCrop,
+  brightness = 1,
   onCaptionText,
   onState,
   onError,
@@ -577,7 +581,11 @@ export function TsPlayer({
         className={classes.clip}
         data-fill={crop.fill === true && isCropped(crop) ? '' : undefined}
       >
-        <div ref={mediaRef} className={classes.media} style={cropStyle(crop)} />
+        <div
+          ref={mediaRef}
+          className={classes.media}
+          style={{ ...cropStyle(crop), ...brightnessStyle(brightness) }}
+        />
         {/* 蓋 (#1512) は、切り抜きの外に置き、映像が実際に出ている矩形に合わせて置く。 */}
         <div ref={cover.ref} className={classes.cover} hidden>
           <canvas />

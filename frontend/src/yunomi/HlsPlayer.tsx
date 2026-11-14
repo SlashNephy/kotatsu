@@ -1,6 +1,7 @@
 import type Hls from 'hls.js';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
+import { brightnessStyle } from './brightness';
 import { type Crop, cropStyle, isCropped, noCrop } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
@@ -25,6 +26,8 @@ type Props = {
   captionStyle?: CaptionStyle;
   // crop は、L 字放送の切り抜きと表示の比率 (#496、#824)。映像と字幕をまとめて拡大する。
   crop?: Crop;
+  // brightness は、映像と字幕の明るさ (#1598)。1 ならそのまま。
+  brightness?: number;
   // onCaptionText は、字幕が出るたびに、その文を受け取る (#450)。字幕を出さない設定でも受け取る。
   onCaptionText?: (text: string) => void;
   // startPosition は、録画で、読み始める位置 (秒)。画質を変えたときに、それまでの位置から続けるのに使う。
@@ -75,6 +78,7 @@ export function HlsPlayer({
   superimpose = true,
   captionStyle = defaultCaptionStyle,
   crop = noCrop,
+  brightness = 1,
   onCaptionText,
   startPosition,
   onError,
@@ -291,7 +295,11 @@ export function HlsPlayer({
         className={classes.clip}
         data-fill={crop.fill === true && isCropped(crop) ? '' : undefined}
       >
-        <div ref={frameRef} className={classes.media} style={cropStyle(crop)} />
+        <div
+          ref={frameRef}
+          className={classes.media}
+          style={{ ...cropStyle(crop), ...brightnessStyle(brightness) }}
+        />
         {/* 蓋 (#1512) は、切り抜きの外に置き、映像が実際に出ている矩形に合わせて置く。 */}
         <div ref={cover.ref} className={classes.cover} hidden>
           <canvas />

@@ -114,6 +114,10 @@ import type { PlayerCover } from '../../yunomi/playerCover';
 import { useVideoFrames } from '../../yunomi/useVideoFrames';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { useDoubleTap } from '../../yunomi/useDoubleTap';
+import { stepBrightness } from '../../yunomi/brightness';
+import { swipeVolumeStep } from '../../yunomi/swipe';
+import { useSwipeControlsSetting, volumeChangeable } from '../../yunomi/swipeControls';
+import { useSwipeGestures } from '../../yunomi/useSwipeGestures';
 import { useFullscreen } from '../../yunomi/useFullscreen';
 import { useScreenCrop } from '../../yunomi/useScreenCrop';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
@@ -901,6 +905,30 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 映像の上のホイールと中クリックも、設定の操作にする (#810)。
   const mouseRef = usePlayerMouse(commands);
   // boxRef は、プレイヤーを包む要素に渡す ref。キャプチャや全画面が使う playerBoxRef と、マウスの操作の両方に渡す。
+  // 全画面で、映像の左右を縦にスワイプして、明るさと音量を変える (#1598)。端末の設定で入れたときだけ受け付ける。
+  // 明るさは、その場限りで覚えない。押したときに出した操作バーは、縦のスワイプと決めたら隠し直す。
+  const [swipeControls] = useSwipeControlsSetting();
+  const [volumeAvailable] = useState(volumeChangeable);
+  const [brightness, setBrightness] = useState(1);
+  const brightnessRef = useRef(brightness);
+  brightnessRef.current = brightness;
+  useSwipeGestures(playerBoxRef, {
+    enabled: swipeControls && fullscreen.active,
+    controlsVisible: controls.visible,
+    volumeAvailable,
+    onSwipeStart: controls.hide,
+    onStep: (band, steps) => {
+      if (band === 'volume') {
+        changeVolume(steps * swipeVolumeStep);
+
+        return;
+      }
+      const next = stepBrightness(brightnessRef.current, steps);
+      brightnessRef.current = next;
+      setBrightness(next);
+      showFlash(t('player.flash.brightness', { percent: Math.round(next * 100) }));
+    },
+  });
   const boxRef = useMergedRef(playerBoxRef, mouseRef);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
@@ -1258,6 +1286,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
+          brightness={brightness}
           onCaptionText={onCaptionText}
           onLoaded={() => {
             // 最初のフレームが出たときの時刻を、base にする。
@@ -1294,6 +1323,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
+          brightness={brightness}
           onCaptionText={onCaptionText}
           live={false}
           startPosition={offset}

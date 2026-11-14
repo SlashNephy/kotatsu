@@ -397,6 +397,8 @@
       "autoPictureInPictureHelp": "再生中にほかのタブへ移ると、視聴画面を小さなウィンドウに出します。",
       "fullscreenLandscape": "全画面で横向きに固定する",
       "fullscreenLandscapeHelp": "全画面にしたら、端末を横向きに固定します。全画面を抜けたら戻します。対応していない端末やブラウザでは、固定しません。",
+      "swipeControls": "画面の左右のスワイプで明るさと音量を変える",
+      "swipeControlsHelp": "全画面で、映像の左の端を上下になぞると明るさを、右の端をなぞると音量を変えます。音量を変えられない端末（iPad など）では、明るさだけを変えます。",
       "twoFactor": "認証アプリ（2段階認証）",
       "totpEnabled": "認証アプリを登録しています。使っていないリカバリーコードは{{count}}個です",
       "totpDisabled": "認証アプリを登録していません",
@@ -1349,6 +1351,7 @@
     },
     "flash": {
       "volume": "音量 {{percent}}%",
+      "brightness": "明るさ {{percent}}%",
       "muted": "ミュート",
       "unmuted": "ミュートを解除",
       "seekBackward": "-10 秒",
