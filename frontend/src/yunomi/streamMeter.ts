@@ -217,6 +217,8 @@ export type SourcePicture = {
   unfiltered: boolean;
   // fieldRateDropped は、表示が追いつかないので、フィールドごとの表示をやめ、コマごとに出していること (#1655)。
   fieldRateDropped: boolean;
+  // interpolated は、yadif が出すコマの間を補間していること (#1655)。フレームレートは、補間したコマも数える。
+  interpolated: boolean;
 };
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。

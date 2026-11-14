@@ -147,6 +147,7 @@ describe('shownFrameRate', () => {
     interlaced: true,
     unfiltered: false,
     fieldRateDropped: false,
+    interpolated: false,
   };
 
   test.each([
@@ -325,6 +326,7 @@ describe('StreamMeter', () => {
       shownFps: null,
       unfiltered: false,
       fieldRateDropped: false,
+      interpolated: false,
     },
   });
 
@@ -343,6 +345,7 @@ describe('StreamMeter', () => {
       shownFps: null,
       unfiltered: false,
       fieldRateDropped: false,
+      interpolated: false,
     });
     // 画面の時刻を放送の時刻に直す起点も覚える (#1515)。
     expect(meter.mediaOrigin).toBe(126_000);

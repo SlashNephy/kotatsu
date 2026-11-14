@@ -209,6 +209,26 @@ export function StreamInfo({
   const averaged = kind === 'convert' && average !== undefined;
   const rate = averaged ? average : (snapshot?.rate ?? null);
   const fps = shownFrameRate(kind === 'convert' ? source : null, snapshot?.fps ?? null);
+  // sourceLabel は、再生の情報の「放送の映像」に出す文。コマを補間しているときは、そう添える (#1655)。
+  const sourceLabel = (source: SourcePicture) => {
+    const label = source.film
+      ? t('player.streamInfo.film', {
+          picture: pictureLabel(source.width, source.height, source.interlaced),
+        })
+      : // WebGL2 がなく解除できないときは、インターレースの映像に、そう添える (#1617)。
+        source.unfiltered && source.interlaced !== false
+        ? t('player.streamInfo.unfiltered', {
+            picture: pictureLabel(source.width, source.height, source.interlaced),
+          })
+        : // 表示が追いつかず、フィールドごとの表示をやめたときは、そう添える (#1655)。
+          source.fieldRateDropped && source.interlaced !== false
+          ? t('player.streamInfo.fieldRateDropped', {
+              picture: pictureLabel(source.width, source.height, source.interlaced),
+            })
+          : pictureLabel(source.width, source.height, source.interlaced);
+
+    return source.interpolated ? t('player.streamInfo.interpolated', { label }) : label;
+  };
   // 再生している映像の大きさは、プレイリストに書いてあればそれを、なければ video から読む。
   const size =
     encoded !== null && encoded.width > 0
@@ -289,25 +309,7 @@ export function StreamInfo({
           {kind === 'convert' && (
             <>
               <dt>{t('player.streamInfo.source')}</dt>
-              <dd>
-                {source === null
-                  ? '-'
-                  : source.film
-                    ? t('player.streamInfo.film', {
-                        picture: pictureLabel(source.width, source.height, source.interlaced),
-                      })
-                    : // WebGL2 がなく解除できないときは、インターレースの映像に、そう添える (#1617)。
-                      source.unfiltered && source.interlaced !== false
-                      ? t('player.streamInfo.unfiltered', {
-                          picture: pictureLabel(source.width, source.height, source.interlaced),
-                        })
-                      : // 表示が追いつかず、フィールドごとの表示をやめたときは、そう添える (#1655)。
-                        source.fieldRateDropped && source.interlaced !== false
-                        ? t('player.streamInfo.fieldRateDropped', {
-                            picture: pictureLabel(source.width, source.height, source.interlaced),
-                          })
-                        : pictureLabel(source.width, source.height, source.interlaced)}
-              </dd>
+              <dd>{source === null ? '-' : sourceLabel(source)}</dd>
             </>
           )}
           {/* 放送からの遅れは、ブラウザの中で変換する経路で、tenban から放送の時計が届いたときだけ出す (#1515)。 */}

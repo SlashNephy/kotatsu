@@ -16,10 +16,12 @@ import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
 import { createDeinterlacer, deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { createLateWatch, useFieldRate } from './fieldRate';
+import { useInterpolation } from './frameInterpolation';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
 import classes from './TsPlayer.module.css';
+import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
 
 // wasmURL は、変換に使う WebAssembly の URL。Vite にワーカーへ埋め込ませず、明示的な URL で配信して、
 // ストリーミングコンパイルを効かせる (設計書 7.2)。
@@ -92,6 +94,8 @@ type Slot = {
   // fieldRateDropped は、表示が追いつかないので、この組ではフィールドごとの表示をやめたこと (#1655)。
   // シークしても組は変わらないのでやめたままにし、つなぎ直しなどで組を作り直したら、もう一度試す。
   fieldRateDropped: boolean;
+  // interpolation は、yadif に渡すコマの補間 (#1655)。設定で切っている間は、yadif に渡さない。
+  interpolation: YadifInterpolation;
   // unfiltered は、yadif を作れず (WebGL2 がないなど)、インターレースを解除せずに出していること (#1617)。
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
@@ -124,7 +128,8 @@ function sourcePicture(
     shownFps,
     unfiltered,
     fieldRateDropped,
-  }: Pick<Slot, 'film' | 'shownFps' | 'unfiltered' | 'fieldRateDropped'>,
+    yadif,
+  }: Pick<Slot, 'film' | 'shownFps' | 'unfiltered' | 'fieldRateDropped' | 'yadif'>,
 ): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
@@ -145,6 +150,8 @@ function sourcePicture(
     shownFps: progressive ? null : shownFps,
     unfiltered,
     fieldRateDropped,
+    // yadif が補間するのは、24p で出すときと、コマごとに出すときだけ (#1655)。
+    interpolated: !progressive && yadif?.interpolator != null && (film || !yadif.doubleRate),
   };
 }
 
@@ -199,6 +206,10 @@ export function TsPlayer({
   audioRef.current = audio;
   // fieldRate は、1080i をフィールドごとに 59.94p で表示するか (#1655)。端末ごとの設定から読む。
   const [fieldRate] = useFieldRate();
+  // interpolate は、24p と 29.97p のコマの間を補間するか (#1655)。端末ごとの設定から読む。
+  const [interpolate] = useInterpolation();
+  const interpolateRef = useRef(interpolate);
+  interpolateRef.current = interpolate;
   const fieldRateRef = useRef(fieldRate);
   fieldRateRef.current = fieldRate;
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
@@ -266,6 +277,14 @@ export function TsPlayer({
       shownFps: null,
       yadif: null,
       fieldRateDropped: false,
+      interpolation: createYadifInterpolation({
+        onUnavailable: (error) => {
+          console.warn(
+            'frame interpolation is unavailable; showing the pictures as they are',
+            error,
+          );
+        },
+      }),
       unfiltered: false,
       bytesRead: 0,
       origin: null,
@@ -298,6 +317,8 @@ export function TsPlayer({
       const deinterlacer: Deinterlacer = new Deinterlacer(element, {
         // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
         doubleRate: fieldRateRef.current,
+        // 24p と 29.97p のコマの間を補間する (#1655)。補間するコマは、yadif が 1 枚遅らせて出す。
+        interpolator: interpolateRef.current ? slot.interpolation : null,
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
         // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
         onStats: (stats) => {
@@ -310,7 +331,9 @@ export function TsPlayer({
             deinterlacer.doubleRate = false;
             slot.fieldRateDropped = true;
           }
-          const scheduled = stats.film || deinterlacer.doubleRate;
+          // コマの間を補間している間 (#1655) も、yadif が出したコマの数は video の要素の数と違う。
+          const scheduled =
+            stats.film || deinterlacer.doubleRate || deinterlacer.interpolator !== null;
           const changed =
             slot.film !== stats.film ||
             reported.dropped !== slot.fieldRateDropped ||
@@ -432,10 +455,20 @@ export function TsPlayer({
     }
   }, [fieldRate]);
 
+  // 補間の設定も、読み直さずに切り替える (#1655)。
+  useEffect(() => {
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      if (slot?.yadif != null) {
+        slot.yadif.interpolator = interpolate ? slot.interpolation : null;
+      }
+    }
+  }, [interpolate]);
+
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
     slot.destroyed = true;
     slot.player?.destroy();
+    slot.interpolation.destroy();
     slot.player = null;
     slot.captions.destroy();
     slot.container.remove();
