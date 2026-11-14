@@ -183,6 +183,7 @@ const rootViewerQuery = graphql`
   query RootViewerQuery {
     viewer {
       username
+      role
     }
   }
 `;

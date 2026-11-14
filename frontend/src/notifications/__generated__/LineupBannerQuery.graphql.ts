@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ad3e2d92cf6477d03ab9a82e6f6a83ac>>
+ * @generated SignedSource<<a6ecc2010d4fdc197f71f830beb4405f>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type LineupBannerQuery$data = {
         readonly id: string;
         readonly message: string;
         readonly occurredAt: string;
+        readonly readAt: string | null | undefined;
       };
     }>;
   };
@@ -89,6 +90,13 @@ var v0 = [
                 "kind": "ScalarField",
                 "name": "occurredAt",
                 "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "readAt",
+                "storageKey": null
               }
             ],
             "storageKey": null
@@ -118,16 +126,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "941a42f26f772caeb84857be43cba5fd",
+    "cacheID": "9d564e7b731703f57f03620f8d53599e",
     "id": null,
     "metadata": {},
     "name": "LineupBannerQuery",
     "operationKind": "query",
-    "text": "query LineupBannerQuery {\n  notifications(first: 5, unreadOnly: true, kinds: [LINEUP_CHANGED]) {\n    edges {\n      node {\n        id\n        message\n        occurredAt\n      }\n    }\n  }\n}\n"
+    "text": "query LineupBannerQuery {\n  notifications(first: 5, unreadOnly: true, kinds: [LINEUP_CHANGED]) {\n    edges {\n      node {\n        id\n        message\n        occurredAt\n        readAt\n      }\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3cb6ccba0575b0f9a205a9ecfad9ca87";
+(node as any).hash = "5130930255c47eb6838259d121cb2dc7";
 
 export default node;

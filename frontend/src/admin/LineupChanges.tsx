@@ -7,6 +7,7 @@ import { zonedFormat } from '../futon';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
 import type { LineupChangesMarkReadMutation } from './__generated__/LineupChangesMarkReadMutation.graphql';
 import type { LineupChangesQuery } from './__generated__/LineupChangesQuery.graphql';
+import { dismissLineupAlerts } from '../notifications/lineupAlerts';
 import { Section } from './Section';
 
 const dateTimeFormat = zonedFormat({
@@ -55,7 +56,19 @@ export function LineupChanges() {
       return;
     }
     marked.current = true;
-    markRead({ variables: { ids: unread }, onError: () => setError(true) });
+    // 画面の上のお知らせは、既読にし終えるのを待たずに外す。
+    dismissLineupAlerts(unread);
+    markRead({
+      variables: { ids: unread },
+      // 既読にしたことを手元のデータにも書き、画面の上のお知らせを消す。戻ってきたときに、既読にし直さない。
+      updater: (store) => {
+        const readAt = new Date().toISOString();
+        for (const id of unread) {
+          store.get(id)?.setValue(readAt, 'readAt');
+        }
+      },
+      onError: () => setError(true),
+    });
   }, [markRead, unread]);
 
   if (alerts.length === 0) {

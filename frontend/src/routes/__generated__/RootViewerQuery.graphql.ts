@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6d5ca0a5230c5f36c30113fe920bc876>>
+ * @generated SignedSource<<aba2f394a60c6e026e5214cf640a4ea8>>
  * @lightSyntaxTransform
  */
 
@@ -8,9 +8,11 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type RootViewerQuery$variables = Record<PropertyKey, never>;
 export type RootViewerQuery$data = {
   readonly viewer: {
+    readonly role: Role;
     readonly username: string;
   };
 };
@@ -25,6 +27,13 @@ var v0 = {
   "args": null,
   "kind": "ScalarField",
   "name": "username",
+  "storageKey": null
+},
+v1 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "role",
   "storageKey": null
 };
 return {
@@ -42,7 +51,8 @@ return {
         "name": "viewer",
         "plural": false,
         "selections": [
-          (v0/*:: as any*/)
+          (v0/*:: as any*/),
+          (v1/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -65,6 +75,7 @@ return {
         "plural": false,
         "selections": [
           (v0/*:: as any*/),
+          (v1/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -78,16 +89,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "4cc1d18bf55150a30bd8c98e1435d9d2",
+    "cacheID": "c049c5c10195dbba94e281c6edd12d64",
     "id": null,
     "metadata": {},
     "name": "RootViewerQuery",
     "operationKind": "query",
-    "text": "query RootViewerQuery {\n  viewer {\n    username\n    id\n  }\n}\n"
+    "text": "query RootViewerQuery {\n  viewer {\n    username\n    role\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c59aba27e4288c7d46a5269ff6a1da67";
+(node as any).hash = "e11f1e95ab4cef4a7d45a5acb0350aec";
 
 export default node;
