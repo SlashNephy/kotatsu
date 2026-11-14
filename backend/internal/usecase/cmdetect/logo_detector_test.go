@@ -91,7 +91,8 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 	t.Parallel()
 
 	fallback := NewMockDetector(gomock.NewController(t))
-	want := []cmdetect.Section{{Start: time.Second, End: 2 * time.Second}}
+	// 試験の TS は 1 秒なので、CM の割合の上限に届かない 0.1 秒の区間を返す。
+	want := []cmdetect.Section{{Start: 0, End: 100 * time.Millisecond}}
 	detector, err := cmdetect.NewLogoDetectorWith(fallback)
 	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
 		t.Skip("FFmpeg is not installed")
@@ -135,4 +136,68 @@ func TestLogoDetector(t *testing.T) {
 	// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
 	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
 	assert.InDelta(t, 25, got[0].End.Seconds(), 1, "%v", got)
+}
+
+// TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確かめる (#1508)。
+func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
+	t.Parallel()
+
+	fallback := NewMockDetector(gomock.NewController(t))
+	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{{Start: 0, End: 900 * time.Millisecond}}, nil)
+	detector, err := cmdetect.NewLogoDetectorWith(fallback)
+	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+
+	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil})
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+// TestCMRatio は、CM の割合を、映像の欠けを分母からも分子からも外して求めることを確かめる (#1508)。
+func TestCMRatio(t *testing.T) {
+	t.Parallel()
+
+	sec := func(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
+	tests := []struct {
+		name     string
+		sections []cmdetect.Section
+		missing  []cmdetect.Section
+		duration time.Duration
+		want     float64
+	}{
+		{name: "欠けがなければ、CM の秒を尺で割る", sections: []cmdetect.Section{{Start: 0, End: sec(30)}, {Start: sec(60), End: sec(90)}}, missing: []cmdetect.Section{}, duration: sec(300), want: 0.2},
+		{
+			name: "CM に掛かった欠けは、CM の秒からも尺からも外す", sections: []cmdetect.Section{{Start: sec(200), End: sec(300)}},
+			missing: []cmdetect.Section{{Start: sec(250), End: sec(300)}}, duration: sec(300), want: 0.2,
+		},
+		{name: "尺がすべて欠けなら 0", sections: []cmdetect.Section{{Start: 0, End: sec(10)}}, missing: []cmdetect.Section{{Start: 0, End: sec(10)}}, duration: sec(10), want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.InDelta(t, tt.want, cmdetect.CMRatio(tt.sections, tt.missing, tt.duration), 1e-9)
+		})
+	}
+}
+
+// TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確かめる (#1508)。
+func TestMissingSections(t *testing.T) {
+	t.Parallel()
+
+	const fps = 30.0
+	times := make([]float64, 0, 300)
+	for i := range 300 {
+		times = append(times, 50+float64(i)/fps)
+	}
+	// 5 秒の位置で、3 秒途切れる。
+	for i := range times[150:] {
+		times[150+i] += 3
+	}
+	got := cmdetect.MissingSections(times, fps)
+	require.Len(t, got, 1)
+	assert.InDelta(t, 5.0, got[0].Start.Seconds(), 1e-6)
+	assert.InDelta(t, 8.0, got[0].End.Seconds(), 1e-6)
 }

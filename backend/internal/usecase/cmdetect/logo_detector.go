@@ -28,6 +28,13 @@ const (
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
 	rawReadBuffer = 1 << 20
+	// maxCMRatio は、CM の割合の上限 (#1508)。これ以上を CM とした結果は使わない。ロゴでない縁を覚えたときや、
+	// 型が番組のロゴと合わないときは、「先頭の数秒だけ本編」のような結果が出る。CM の自動スキップがそれを信じると本編を飛ばすので、
+	// CM が残るほうを選ぶ。普通の番組の CM は 2〜3 割ほどなので、それより上に置く (仮の値)。
+	maxCMRatio = 0.5
+	// missingGap は、映像の欠けとみなすコマの時刻の空き (#1508)。放送では静止した場面でもコマは途切れないので、
+	// これだけ空いた所は、元の TS で映像をデコードできなかった所である。
+	missingGap = time.Second
 )
 
 // errLogoUnusable は、その録画ではロゴを使えないことを表す。今の見分け方 (FFmpegDetector) で見分け直す。
@@ -64,20 +71,78 @@ func (*LogoDetector) Name() string { return LogoDetectorName }
 
 func (*LogoDetector) Version() int32 { return logoDetectorVersion }
 
+// Detect は、ロゴで見分ける。ロゴを使えないか、ロゴで決めた CM の割合が上限以上なら、今の見分け方で見分け直す (#1508)。
+// 見分け直した結果も上限以上なら、CM なしにする。
 func (d *LogoDetector) Detect(ctx context.Context, input *Input) ([]Section, error) {
-	sections, err := d.detect(ctx, input)
-	if errors.Is(err, errLogoUnusable) {
-		return d.fallback.Detect(ctx, input)
-	}
-
-	return sections, err
-}
-
-func (d *LogoDetector) detect(ctx context.Context, input *Input) ([]Section, error) {
 	video, err := probeVideo(ctx, input.Path)
 	if err != nil {
 		return nil, err
 	}
+	result, err := d.detect(ctx, input, video)
+	if err == nil {
+		ratio := cmRatio(result.sections, result.missing, result.duration)
+		if ratio < maxCMRatio {
+			return result.sections, nil
+		}
+		err = fmt.Errorf("%w: %.0f%% of the recording was detected as CM", errLogoUnusable, ratio*100)
+	}
+	if !errors.Is(err, errLogoUnusable) {
+		return nil, err
+	}
+	sections, err := d.fallback.Detect(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if cmRatio(sections, []Section{}, video.duration) >= maxCMRatio {
+		return []Section{}, nil
+	}
+
+	return sections, nil
+}
+
+// logoResult は、ロゴで決めた結果。
+type logoResult struct {
+	sections []Section
+	// missing は、映像の欠け (コマの時刻が missingGap 以上空いた所)。
+	missing []Section
+	// duration は、最初のコマから最後のコマの終わりまでの長さ。
+	duration time.Duration
+}
+
+// cmRatio は、CM の割合を返す (#1508)。映像の欠けは、分母からも分子からも外す。分母が 0 以下なら 0 にする。
+func cmRatio(sections, missing []Section, duration time.Duration) float64 {
+	total := duration
+	for _, m := range missing {
+		total -= m.End - m.Start
+	}
+	if total <= 0 {
+		return 0
+	}
+	var cm time.Duration
+	for _, s := range sections {
+		cm += s.End - s.Start
+		for _, m := range missing {
+			cm -= max(min(s.End, m.End)-max(s.Start, m.Start), 0)
+		}
+	}
+
+	return float64(cm) / float64(total)
+}
+
+// missingSections は、コマごとの時刻 times (秒) から、映像の欠けを、最初のコマからの時間で返す。
+func missingSections(times []float64, fps float64) []Section {
+	out := []Section{}
+	at := func(t float64) time.Duration { return time.Duration((t - times[0]) * float64(time.Second)) }
+	for i := 1; i < len(times); i++ {
+		if time.Duration((times[i]-times[i-1])*float64(time.Second)) >= missingGap {
+			out = append(out, Section{Start: at(times[i-1] + 1/fps), End: at(times[i])})
+		}
+	}
+
+	return out
+}
+
+func (d *LogoDetector) detect(ctx context.Context, input *Input, video *videoInfo) (*logoResult, error) {
 	p := d.params
 	bandHeight := logo.Band(video.height, p)
 	top, bottom := logo.NewAccumulator(video.width, bandHeight), logo.NewAccumulator(video.width, bandHeight)
@@ -85,7 +150,7 @@ func (d *LogoDetector) detect(ctx context.Context, input *Input) ([]Section, err
 	learnFilter := fmt.Sprintf("fps=1/%f,split[a][b];[a]crop=%d:%d:0:0:exact=1[t];[b]crop=%d:%d:0:%d:exact=1[u];[t][u]vstack,format=gray",
 		interval, video.width, bandHeight, video.width, bandHeight, video.height-bandHeight)
 	half := video.width * bandHeight
-	_, err = d.frames(ctx, input.Path, []string{"-skip_frame", "nokey"}, learnFilter, 2*half, nil, func(buf []byte) {
+	_, err := d.frames(ctx, input.Path, []string{"-skip_frame", "nokey"}, learnFilter, 2*half, nil, func(buf []byte) {
 		top.Add(&logo.Gray{Width: video.width, Height: bandHeight, Pix: buf[:half]}, p.EdgeStrength)
 		bottom.Add(&logo.Gray{Width: video.width, Height: bandHeight, Pix: buf[half:]}, p.EdgeStrength)
 	})
@@ -125,7 +190,11 @@ func (d *LogoDetector) detect(ctx context.Context, input *Input) ([]Section, err
 		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
 	}
 
-	return complementSections(intervals, times, video.fps), nil
+	return &logoResult{
+		sections: complementSections(intervals, times, video.fps),
+		missing:  missingSections(times, video.fps),
+		duration: time.Duration((times[len(times)-1] - times[0] + 1/video.fps) * float64(time.Second)),
+	}, nil
 }
 
 // complementSections は、ロゴの出ていた区間 intervals の外を、CM の区間にする。times は、コマごとの時刻 (秒) で、
