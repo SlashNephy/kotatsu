@@ -241,7 +241,14 @@ export type TsPlayerReading = TsReading & {
 };
 
 // HlsSegment は、kyusu の経路で、hls.js が読み終えたセグメント。
-export type HlsSegment = { bytes: number; seconds: number; encoded: EncodedStream };
+// mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。kyusu はライブのセグメントの PTS を放送の PTS のままにするので、
+// hls.js が画面の時刻 0 に置いた PTS (initPTS) がそれに当たる。まだ分からないか、録画の再生なら null。
+export type HlsSegment = {
+  bytes: number;
+  seconds: number;
+  encoded: EncodedStream;
+  mediaOrigin: number | null;
+};
 
 // StreamMeter は、再生している経路から届く様子を溜める。画面は、これを 1 秒ごとに読む。
 export class StreamMeter {
@@ -249,7 +256,7 @@ export class StreamMeter {
   transport: TransportCounts | null = null;
   source: SourcePicture | null = null;
   encoded: EncodedStream | null = null;
-  // mediaOrigin は、ブラウザの中で変換する経路の、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。分からなければ null。
+  // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。分からなければ null。
   mediaOrigin: number | null = null;
   #base: TsReading | null = null;
 
@@ -267,6 +274,7 @@ export class StreamMeter {
   feedSegment(at: number, segment: HlsSegment) {
     this.bitrate.add(at, segment.bytes, segment.seconds);
     this.encoded = segment.encoded;
+    this.mediaOrigin = segment.mediaOrigin;
   }
 
   // reset は、経路を変えたときに、それまでの様子を捨てる。

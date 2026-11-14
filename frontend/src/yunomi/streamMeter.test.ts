@@ -351,6 +351,24 @@ describe('StreamMeter', () => {
     expect(meter.mediaOrigin).toBe(126_000);
   });
 
+  test('kyusu の経路のセグメントから、ビットレートと画質と、放送の時刻の起点を溜める (#1515)', () => {
+    const meter = new StreamMeter();
+    const encoded = {
+      width: 1280,
+      height: 720,
+      videoCodec: 'avc1',
+      audioCodec: 'mp4a',
+      bandwidth: null,
+    };
+    meter.feedSegment(1_000, { bytes: 500_000, seconds: 2, encoded, mediaOrigin: 1_859_217_000 });
+
+    expect(meter.encoded).toEqual(encoded);
+    expect(meter.mediaOrigin).toBe(1_859_217_000);
+    // 録画の仮想 HLS のように起点が分からなければ、覚えていた起点を捨てる。
+    meter.feedSegment(2_000, { bytes: 500_000, seconds: 2, encoded, mediaOrigin: null });
+    expect(meter.mediaOrigin).toBeNull();
+  });
+
   test('reset の後の最初の読みは、区切りにするだけ', () => {
     const meter = new StreamMeter();
     meter.feedTs(1_000, reading(1, 1_000_000, 1));
