@@ -116,3 +116,19 @@ func newAccessParts(deps *Deps, logger *slog.Logger) (*accessParts, error) {
 	}
 	return cliAccessParts, nil
 }
+
+// newJikkyoParts は、実況のコメントを扱う部品を作る。
+func newJikkyoParts(deps *Deps) (*jikkyoParts, error) {
+	table, err := newJikkyoTable(deps)
+	if err != nil {
+		return nil, err
+	}
+	clock := clockOf(deps)
+	recorder := networkOf(deps)
+	client := newJikkyoClient(clock, recorder)
+	cliJikkyoParts := &jikkyoParts{
+		table:  table,
+		client: client,
+	}
+	return cliJikkyoParts, nil
+}

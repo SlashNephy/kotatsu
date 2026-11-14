@@ -839,11 +839,11 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	// 実況のチャンネルの対応表と、NX-Jikkyo と過去ログ API への問い合わせ (設計書 7.4)。
-	jikkyoTable, err := jikkyo.NewTable(deps.Config.Jikkyo.Channels)
+	jikkyoParts, err := newJikkyoParts(deps)
 	if err != nil {
 		return nil, err
 	}
-	jikkyoClient := jikkyoclient.NewClient(&jikkyoclient.ClientOptions{NXJikkyoURL: "", KakologURL: "", HTTPClient: jikkyoclient.NewHTTPClient(deps.Network), Clock: deps.Clock, LiveRetryDelays: nil})
+	jikkyoTable, jikkyoClient := jikkyoParts.table, jikkyoParts.client
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := accounts.apiTokens
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。

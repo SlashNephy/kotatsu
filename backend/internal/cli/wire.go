@@ -79,3 +79,14 @@ func newAccessParts(deps *Deps, logger *slog.Logger) (*accessParts, error) {
 		wire.Struct(new(accessParts), "*"),
 	))
 }
+
+// newJikkyoParts は、実況のコメントを扱う部品を作る。
+func newJikkyoParts(deps *Deps) (*jikkyoParts, error) {
+	panic(wire.Build(
+		clockOf,
+		networkOf,
+		newJikkyoTable,
+		newJikkyoClient,
+		wire.Struct(new(jikkyoParts), "*"),
+	))
+}
