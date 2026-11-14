@@ -30,6 +30,8 @@ type Input struct {
 	Progress func(b *ffprogress.Block, read int64)
 }
 
+//go:generate go tool mockgen -typed -destination=mock_detector_test.go -package=cmdetect_test . Detector
+
 // Detector は、録画のファイルから CM の区間を見分ける。
 type Detector interface {
 	// Name は、DB に残す、見分け方の名前。

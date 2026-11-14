@@ -84,6 +84,19 @@ func TestRecordingStatus(t *testing.T) {
 			},
 		},
 		{
+			name: "見分け方を替えて見分け直したら、最後に見分けた日時を使う (#1505)",
+			setup: func(t *testing.T, f *fixture, recordingID uuid.UUID, now time.Time) {
+				t.Helper()
+				f.detected(t, recordingID, now.Add(-48*time.Hour))
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+					VALUES ($1, 'logo', 1, $2)`, recordingID, now.Add(-time.Hour))
+				require.NoError(t, err)
+			},
+			want: func(now time.Time) *cmdetect.Status {
+				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now.Add(-time.Hour)), Progress: nil}
+			},
+		},
+		{
 			name: "ジョブが動くのを待っていれば、前に見分けた日時と一緒に、待っている",
 			setup: func(t *testing.T, f *fixture, recordingID uuid.UUID, now time.Time) {
 				t.Helper()

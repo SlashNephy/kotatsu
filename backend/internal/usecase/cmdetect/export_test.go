@@ -33,8 +33,8 @@ func NewLogoDetectorWith(fallback Detector) (*LogoDetector, error) {
 }
 
 // ComplementSections は complementSections。
-func ComplementSections(intervals []logo.Interval, n int, fps float64) []Section {
-	return complementSections(intervals, n, fps)
+func ComplementSections(intervals []logo.Interval, times []float64, fps float64) []Section {
+	return complementSections(intervals, times, fps)
 }
 
 // FrameRate は frameRate。
