@@ -142,9 +142,28 @@ export function WatchHost() {
 function MiniPlayerBar({ href, onClose }: { href: string; onClose: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // frame は、視聴の画面を包む要素。プレイヤーは、つなぎ直すたびに video を作り直すので、その中の今映っている video を見張り続ける (#1730)。
+  const [frame, setFrame] = useState<HTMLElement | null>(null);
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [paused, setPaused] = useState(false);
   const open = () => void navigate({ href });
+
+  useEffect(() => {
+    if (frame === null) {
+      return;
+    }
+    const pick = () => setVideo(visibleVideo(frame));
+    pick();
+    const observer = new MutationObserver(pick);
+    observer.observe(frame, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style'],
+    });
+
+    return () => observer.disconnect();
+  }, [frame]);
 
   useEffect(() => {
     if (video === null) {
@@ -164,7 +183,7 @@ function MiniPlayerBar({ href, onClose }: { href: string; onClose: () => void })
   return (
     <div
       ref={(bar) => {
-        setVideo(bar?.parentElement?.querySelector('video') ?? null);
+        setFrame(bar?.parentElement ?? null);
       }}
       className={classes.miniControls}
     >
@@ -247,4 +266,13 @@ function noSubscribe() {
 
 function noState(): WatchState {
   return emptyState;
+}
+
+// visibleVideo は、frame の中の、今映っている video を返す。裏で読み込んでいる組 (隠してある) の video は選ばない。
+function visibleVideo(frame: HTMLElement): HTMLVideoElement | null {
+  return (
+    [...frame.querySelectorAll('video')].find(
+      (v) => v.closest('[style*="visibility: hidden"]') === null,
+    ) ?? null
+  );
 }
