@@ -35,6 +35,7 @@ import { useDataChanges } from '../changes/DataChanges';
 import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
+import { FilmarksLink } from './FilmarksLink';
 import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
@@ -111,6 +112,7 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             id
             name
             ruleKeyword
+            workTitle
             description
             startAt
             endAt
@@ -315,6 +317,11 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           </Group>
         )}
         <AnimeEpisodes episodes={program.animeEpisodes} record={{ program: program.id }} />
+        <FilmarksLink
+          genres={program.genres}
+          workTitle={program.workTitle}
+          anime={program.animeEpisodes.length > 0}
+        />
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (

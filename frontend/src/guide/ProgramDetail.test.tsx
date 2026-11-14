@@ -61,4 +61,22 @@ describe('ProgramDetail', () => {
     expect(screen.queryByText('読み込んでいます')).toBeNull();
     expect(screen.getByRole('button', { name: '録画予約済み' })).toBeTruthy();
   });
+
+  test('ドラマの番組には、作品名で Filmarks を探すリンクを出し、ほかのジャンルには出さない (#1650)', async () => {
+    const programs = generatePrograms(now);
+    const drama = programs.find((item) => item.genres.some((genre) => genre.lv1 === 3))!;
+    const news = programs.find((item) => item.genres.every((genre) => genre.lv1 === 0))!;
+    const environment = createDemoEnvironment({}, { now });
+
+    await renderWithRouter(<Harness programId={drama.id} />, environment);
+    const link = await screen.findByRole('link', { name: 'Filmarksで探す' });
+    expect(link.getAttribute('href')).toBe(
+      `https://filmarks.com/search/dramas?q=${encodeURIComponent(drama.workTitle)}`,
+    );
+    cleanup();
+
+    await renderWithRouter(<Harness programId={news.id} />, environment);
+    await screen.findByText(news.name);
+    expect(screen.queryByRole('link', { name: 'Filmarksで探す' })).toBeNull();
+  });
 });

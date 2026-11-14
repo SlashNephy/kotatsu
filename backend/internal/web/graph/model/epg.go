@@ -87,6 +87,11 @@ func (p Program) RuleKeyword() string {
 	return domain.RuleKeyword(p.Name)
 }
 
+// WorkTitle は、外部のサービスで作品を探すのに使う作品名 (#1650)。gqlgen が Program.workTitle に使う。
+func (p Program) WorkTitle() string {
+	return domain.WorkTitle(p.Name)
+}
+
 // GuideRow は、番組表の 1 列。
 type GuideRow struct {
 	Service  *Service   `json:"service"`

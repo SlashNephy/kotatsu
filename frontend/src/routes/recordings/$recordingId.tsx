@@ -67,6 +67,7 @@ import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdRe
 import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdRegenerateMutation.graphql';
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
+import { FilmarksLink } from '../../guide/FilmarksLink';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
@@ -176,6 +177,7 @@ function Recording({ recordingId }: { recordingId: string }) {
           ... on Recording {
             id
             name
+            workTitle
             description
             startAt
             endAt
@@ -536,6 +538,11 @@ function Recording({ recordingId }: { recordingId: string }) {
             ))}
           </Group>
           <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
+          <FilmarksLink
+            genres={recording.genres}
+            workTitle={recording.workTitle}
+            anime={recording.animeEpisodes.length > 0}
+          />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (

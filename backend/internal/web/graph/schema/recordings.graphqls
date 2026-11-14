@@ -166,6 +166,8 @@ type Recording implements Node {
   "番組の eventId。時刻予約の録画では null。"
   eventId: Int
   name: String!
+  "外部のサービス (Filmarks など) で作品を探すのに使う作品名 (#1650)。Program.workTitle と同じく、番組名から読む。"
+  workTitle: String!
   description: String!
   "番組の詳細。番組情報と同じく、録画を始めたときの予約から写し、放送後に確定したものに置き換える。見出しの順に並べる。"
   extended: [ExtendedItem!]!

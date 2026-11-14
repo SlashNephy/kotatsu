@@ -59,3 +59,9 @@ type Recording struct {
 var _ Node = new(Recording)
 
 func (Recording) IsNode() {}
+
+// WorkTitle は、外部のサービスで作品を探すのに使う作品名 (#1650)。gqlgen が Recording.workTitle に使う。
+// IsNode と同じく値のレシーバーにする (ポインタと混ぜると recvcheck に当たる)。
+func (r Recording) WorkTitle() string {
+	return domain.WorkTitle(r.Name)
+}
