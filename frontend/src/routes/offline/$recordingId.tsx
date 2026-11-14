@@ -36,7 +36,7 @@ import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
-import { useHostedWatch } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 
 export const Route = createFileRoute('/offline/$recordingId')({
   staticData: { fluid: true },
@@ -54,6 +54,8 @@ function OfflinePlayPage() {
 // OfflinePlayWatch は、端末に保存した録画 recordingId を再生する画面の中身。
 function OfflinePlayWatch({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
+  // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
+  const mini = useWatchMini();
   // files は、開いた録画のファイル。読み込む前は undefined、保存していなければ null。
   const [files, setFiles] = useState<OfflineFiles | null | undefined>(undefined);
   useEffect(() => {
@@ -80,9 +82,11 @@ function OfflinePlayWatch({ recordingId }: { recordingId: string }) {
 
   return (
     <Stack gap="sm">
-      <Anchor size="sm" component={Link} to="/offline">
-        {t('offline.back')}
-      </Anchor>
+      {!mini && (
+        <Anchor size="sm" component={Link} to="/offline">
+          {t('offline.back')}
+        </Anchor>
+      )}
       {files === undefined ? (
         <PageLoader />
       ) : files === null ? (

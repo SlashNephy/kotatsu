@@ -27,6 +27,7 @@ import classes from './PlayerControls.module.css';
 import { controlsAttribute } from './useControlsVisibility';
 import type { VideoState } from './useVideoState';
 import { maxVolume } from './volume';
+import { useWatchMini } from './WatchHost';
 
 export { classes as playerControlsClasses };
 
@@ -43,7 +44,13 @@ type Props = {
 };
 
 // PlayerControls は、映像の下端に重ねる操作バー。操作がなくなると隠れる (useControlsVisibility)。
+// 小さなプレイヤー (#1602) では出さない。小さなプレイヤーは、自分の操作を重ねる。
 export function PlayerControls({ visible, seek, start, status, end }: Props) {
+  const mini = useWatchMini();
+  if (mini) {
+    return null;
+  }
+
   return (
     <div className={classes.bar} data-visible={visible} {...{ [controlsAttribute]: '' }}>
       {seek}

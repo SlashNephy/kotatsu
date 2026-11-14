@@ -11,6 +11,7 @@ import {
   type CommentSettings,
   type JikkyoComment,
 } from './comments';
+import { useWatchMini } from '../yunomi/WatchHost';
 
 // baseCommentScale は、niconicomments の既定の commentScale (1920 / 683)。文字の大きさの倍率は、これに掛ける。
 const baseCommentScale = 1920 / 683;
@@ -36,11 +37,14 @@ type Props = {
 // CommentCanvas は、実況のコメントを niconicomments で映像の上に流す (設計書 7.4)。
 export function CommentCanvas({
   clock,
-  drawing,
+  drawing: drawingProp,
   settings = defaultCommentSettings,
   retainSeconds,
   ref,
 }: Props) {
+  // 小さなプレイヤー (#1602) では、コメントを流さない。受け取ったコメントは捨てず、大きく戻したら流し直す。
+  const mini = useWatchMini();
+  const drawing = drawingProp && !mini;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<NiconiComments | null>(null);
   // received は、受け取ったコメントと、niconicomments に渡す ID。設定を変えたときに、作り直した描画に足し直す。

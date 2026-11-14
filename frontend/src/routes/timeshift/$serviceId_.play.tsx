@@ -109,7 +109,7 @@ import {
   timeshiftStartPosition,
 } from '../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
-import { useHostedWatch } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -151,15 +151,19 @@ function PlayWatch({
   start: number | undefined;
 }) {
   const { t } = useTranslation();
+  // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
+  const mini = useWatchMini();
 
   return (
     <Stack gap="sm">
-      <Anchor
-        size="sm"
-        renderRoot={(props) => <Link {...props} to="/live/$serviceId" params={{ serviceId }} />}
-      >
-        {t('timeshift.backToLive')}
-      </Anchor>
+      {!mini && (
+        <Anchor
+          size="sm"
+          renderRoot={(props) => <Link {...props} to="/live/$serviceId" params={{ serviceId }} />}
+        >
+          {t('timeshift.backToLive')}
+        </Anchor>
+      )}
       {/* 同じルートのまま別のサービスや番組へ移ったときは、前の番組のエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
         resetKey={`${serviceId}:${program}`}

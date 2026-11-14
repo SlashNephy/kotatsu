@@ -8,6 +8,7 @@ import {
   type SimpleCommandId,
 } from './commands';
 import { browserStorage } from './volume';
+import { useWatchMini } from './WatchHost';
 
 // Gamepad API でのプレイヤーの操作 (#810、設計書 7.5)。テレビにつないだ PC で、ゲームパッドをリモコンの代わりに使う。
 // ボタンの番号は、Gamepad API の標準の配置 (standard mapping) で数える。割り当ては、キーと同じく端末ごとに変えられる。
@@ -261,6 +262,9 @@ export function useGamepadButtons(
 export function usePlayerGamepad(commands: PlayerCommands): void {
   const commandsRef = useRef(commands);
   commandsRef.current = commands;
+  // 小さなプレイヤー (#1602) で描いている間は、ほかの画面の操作に譲り、何もしない。
+  const miniRef = useRef(false);
+  miniRef.current = useWatchMini();
   const [map] = useGamepadMap();
   const mapRef = useRef(map);
   mapRef.current = map;
@@ -270,14 +274,14 @@ export function usePlayerGamepad(commands: PlayerCommands): void {
   useGamepadButtons(
     (button) => {
       const id = commandForButton(mapRef.current, button);
-      if (id !== null) {
+      if (id !== null && !miniRef.current) {
         lastFired.current.set(button, performance.now());
         runCommand(commandsRef.current, id);
       }
     },
     (button, heldSince, now) => {
       const id = commandForButton(mapRef.current, button);
-      if (id === null || !playerCommands[id].repeatable) {
+      if (miniRef.current || id === null || !playerCommands[id].repeatable) {
         return;
       }
       if (repeatDue(heldSince, lastFired.current.get(button) ?? heldSince, now)) {

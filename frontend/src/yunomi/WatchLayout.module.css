@@ -58,3 +58,10 @@
   grid-area: side;
   min-width: 0;
 }
+
+/* 小さなプレイヤー (#1602) では、映像だけを、小さなプレイヤーの幅いっぱいに出す。 */
+.layout[data-mini] {
+  --player-max-width: 100%;
+  display: block;
+  max-width: none;
+}

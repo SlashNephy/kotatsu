@@ -1,0 +1,52 @@
+/* 小さなプレイヤー (#1602)。画面の右下に、映像だけを小さく出す。 */
+.mini {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 190;
+  width: min(400px, calc(100vw - 32px));
+  overflow: hidden;
+  border-radius: var(--mantine-radius-md);
+  background: #000;
+  box-shadow: var(--mantine-shadow-lg);
+}
+
+.miniFrame {
+  /* 小さく描いている間は、映像への操作を受けず、上に重ねた操作で受ける。 */
+  pointer-events: none;
+}
+
+.miniControls {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+}
+
+.miniOpen {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.miniButtons {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+
+.mini:hover .miniButtons,
+.mini:focus-within .miniButtons {
+  opacity: 1;
+}
+
+/* マウスで重ねられない端末では、操作をいつも出す。 */
+@media (hover: none) {
+  .miniButtons {
+    opacity: 1;
+  }
+}
