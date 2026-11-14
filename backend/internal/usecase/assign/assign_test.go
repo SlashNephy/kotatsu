@@ -304,6 +304,20 @@ func TestAssignKeepsLongestCorePart(t *testing.T) {
 			},
 		},
 		{
+			// 負けた予約が捨てた側は、空いているので、さらに優先度の低い予約が録る。
+			name: "a lower one records the part given up by a cut one",
+			reservations: []*assign.Reservation{
+				withPriority(program(1, "27", 20, 10), 10),
+				withPriority(program(2, "26", 0, 60), 5),
+				withPriority(program(3, "25", 0, 20), 1),
+			},
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(20), PlannedEnd: at(30)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(3), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(20)},
+			},
+		},
+		{
 			// 複数の予約に負けたら、本編の残る区間のうち、最も長いものを残す (#1718)。
 			name: "the lower one keeps the longest part left by several higher ones",
 			reservations: []*assign.Reservation{

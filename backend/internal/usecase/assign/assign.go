@@ -95,23 +95,27 @@ type placed struct {
 	reservation *Reservation
 	// start と end は、録画する予定の時刻。マージンや本編を削ると縮む。
 	start, end time.Time
+	// coreStart と coreEnd は、他の予約に譲れない区間。本編を削ると、残した区間に縮む (#1718)。
+	coreStart, coreEnd time.Time
 	// rank は、置いた順。小さいほど優先度が高い。
 	rank int
 }
 
-// hardStart と hardEnd は、他の予約に譲れない区間。録画が始まった予約は、すでに録った開始マージンを含めて、録画の始まりから本編の終わりまでになる。
+// newPlaced は、予約 r をチューナーに置いた placed を返す。
+// 譲れない区間は、本編にする。録画が始まった予約は、すでに録った開始マージンを含めて、録画の始まりから本編の終わりまでにする。
 // 終了マージンは、録画の前と同じく、後の録画に譲る。録画が始まったときに戻すと、後の録画の冒頭が欠ける (#520)。
-func (p *placed) hardStart() time.Time {
-	if p.reservation.Recording {
-		return p.start
+func newPlaced(r *Reservation, rank int) *placed {
+	coreStart := r.StartAt
+	if r.Recording {
+		coreStart = r.fullStart()
 	}
 
-	return p.reservation.StartAt
+	return &placed{reservation: r, start: r.fullStart(), end: r.fullEnd(), coreStart: coreStart, coreEnd: r.EndAt, rank: rank}
 }
 
-func (p *placed) hardEnd() time.Time {
-	return p.reservation.EndAt
-}
+// hardStart と hardEnd は、他の予約に譲れない区間。本編を削った予約は、残した区間になり、捨てた側は他の予約が使える。
+func (p *placed) hardStart() time.Time { return p.coreStart }
+func (p *placed) hardEnd() time.Time   { return p.coreEnd }
 
 // Assign は、予約をチューナーに割り当てる。同じ入力からは、常に同じ結果を返す。
 //
@@ -152,8 +156,10 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 			continue
 		}
 		for _, r := range d.reservations {
-			byTuner[tuner] = append(byTuner[tuner], &placed{reservation: r, start: r.fullStart(), end: r.fullEnd(), rank: rank})
+			byTuner[tuner] = append(byTuner[tuner], newPlaced(r, rank))
 		}
+		// 置いたらすぐに本編を削り、次の需要を置くときに、捨てた側を空いているとみなせるようにする (#1718)。
+		resolveCores(byTuner[tuner])
 	}
 
 	for tuner, list := range byTuner {
@@ -282,7 +288,10 @@ type span struct {
 func union(list []*placed) []span {
 	spans := make([]span, 0, len(list))
 	for _, p := range list {
-		spans = append(spans, span{start: p.hardStart(), end: p.hardEnd()})
+		// 本編をすべて削られた予約は、何もふさがない。
+		if p.hardStart().Before(p.hardEnd()) {
+			spans = append(spans, span{start: p.hardStart(), end: p.hardEnd()})
+		}
 	}
 	slices.SortFunc(spans, func(a, b span) int { return a.start.Compare(b.start) })
 
@@ -375,7 +384,7 @@ func resolveCores(list []*placed) {
 	for i, l := range order {
 		winners := []*placed{}
 		for _, w := range order[:i] {
-			if w.reservation.channel() != l.reservation.channel() && w.start.Before(w.end) &&
+			if w.reservation.channel() != l.reservation.channel() && w.start.Before(w.end) && w.hardStart().Before(w.hardEnd()) &&
 				overlap(l.hardStart(), l.hardEnd(), w.hardStart(), w.hardEnd()) > 0 {
 				winners = append(winners, w)
 			}
@@ -394,6 +403,7 @@ func resolveCores(list []*placed) {
 		if !ok {
 			// 本編がすべて削られた。録画する時間をなくし、競合にする。
 			l.end = l.start
+			l.coreEnd = l.coreStart
 
 			continue
 		}
@@ -403,6 +413,7 @@ func resolveCores(list []*placed) {
 		if kept.end.Before(l.hardEnd()) {
 			l.end = earlier(l.end, kept.end)
 		}
+		l.coreStart, l.coreEnd = kept.start, kept.end
 		for _, w := range winners {
 			if !w.hardEnd().After(kept.start) {
 				// 録画が始まった予約も、終了マージンは、残った相手の本編に譲る (#520)。
