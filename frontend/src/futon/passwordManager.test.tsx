@@ -1,8 +1,11 @@
 import {
+  Autocomplete,
   MantineProvider,
+  MultiSelect,
   NumberInput,
   PasswordInput,
   Select,
+  TagsInput,
   Textarea,
   TextInput,
 } from '@mantine/core';
@@ -23,6 +26,9 @@ describe('パスワードマネージャーの抑止', () => {
     { name: 'Textarea', field: <Textarea label="欄" />, ignored: true },
     { name: 'NumberInput', field: <NumberInput label="欄" />, ignored: true },
     { name: 'Select', field: <Select label="欄" data={['a']} />, ignored: true },
+    { name: 'MultiSelect', field: <MultiSelect label="欄" data={['a']} />, ignored: true },
+    { name: 'TagsInput', field: <TagsInput label="欄" />, ignored: true },
+    { name: 'Autocomplete', field: <Autocomplete label="欄" data={['a']} />, ignored: true },
     { name: 'PasswordInput', field: <PasswordInput label="欄" />, ignored: false },
     {
       name: 'CredentialTextInput',
