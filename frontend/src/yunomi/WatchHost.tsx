@@ -87,10 +87,11 @@ function createWatchStore(): WatchStore {
 }
 
 // isPlaying は、container の中の映像を再生しているかを返す。止めているか、映像がなければ false。
+// 裏で読み込んでいる組の映像ではなく、今映っている映像を見る。
 function isPlaying(container: HTMLElement | null): boolean {
-  const video = container?.querySelector('video');
+  const video = container === null ? null : visibleVideo(container);
 
-  return video != null && !video.paused && !video.ended;
+  return video !== null && !video.paused && !video.ended;
 }
 
 const WatchStoreContext = createContext<WatchStore | null>(null);

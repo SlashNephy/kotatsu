@@ -108,6 +108,43 @@ describe('小さなプレイヤー', () => {
     expect(pause).toHaveBeenCalledOnce();
   });
 
+  test('小さく描いている間に映像が作り直されたら、新しい映像を止める (#1730)', async () => {
+    const { rerender } = render(<App route={<PlayerRoute playing />} />);
+    rerender(<App route={null} />);
+    const old = screen.getByTestId('host').querySelector('video');
+    // プレイヤーがつなぎ直すと、裏で読み込んだ組の映像に替え、古い映像を取り除く。読み込んでいる間は、組を隠しておく。
+    const pending = document.createElement('div');
+    pending.style.visibility = 'hidden';
+    const next = document.createElement('video');
+    Object.defineProperty(next, 'paused', { configurable: true, value: false });
+    const pause = vi.fn();
+    Object.defineProperty(next, 'pause', { configurable: true, value: pause });
+    const oldPause = vi.fn();
+    if (old !== null) {
+      Object.defineProperty(old, 'pause', { configurable: true, value: oldPause });
+    }
+    await act(async () => {
+      old?.after(pending);
+      pending.append(next);
+    });
+
+    // 隠してある組の映像は、まだ操作しない。
+    act(() => {
+      screen.getByRole('button', { name: 'player.mini.pause' }).click();
+    });
+    expect(oldPause).toHaveBeenCalledOnce();
+    expect(pause).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.style.visibility = '';
+      old?.remove();
+    });
+    act(() => {
+      screen.getByRole('button', { name: 'player.mini.pause' }).click();
+    });
+    expect(pause).toHaveBeenCalledOnce();
+  });
+
   test('止めていたら、ルートを離れたときに閉じる', () => {
     const { rerender } = render(<App route={<PlayerRoute playing={false} />} />);
     rerender(<App route={null} />);
