@@ -1,5 +1,4 @@
 import { useNavigate } from '@tanstack/react-router';
-import { useCallback } from 'react';
 
 import type { RemoteTarget } from './useRemotePlayer';
 
@@ -8,17 +7,14 @@ import type { RemoteTarget } from './useRemotePlayer';
 export function useRemoteOpen(): (target: RemoteTarget) => void {
   const navigate = useNavigate();
 
-  return useCallback(
-    (target: RemoteTarget) => {
-      if (target.kind === 'LIVE') {
-        void navigate({ to: '/live/$serviceId', params: { serviceId: target.serviceId } });
-      } else {
-        void navigate({
-          to: '/recordings/$recordingId/play',
-          params: { recordingId: target.recordingId },
-        });
-      }
-    },
-    [navigate],
-  );
+  return (target: RemoteTarget) => {
+    if (target.kind === 'LIVE') {
+      void navigate({ to: '/live/$serviceId', params: { serviceId: target.serviceId } });
+    } else {
+      void navigate({
+        to: '/recordings/$recordingId/play',
+        params: { recordingId: target.recordingId },
+      });
+    }
+  };
 }

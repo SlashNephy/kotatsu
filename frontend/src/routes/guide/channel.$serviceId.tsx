@@ -1,7 +1,7 @@
 import { Alert, Anchor, Group, Stack, Text, Title } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { CalendarX2 } from 'lucide-react';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -85,14 +85,11 @@ function ChannelGuide() {
   const [now] = useState(Date.now);
   const today = broadcastDay(now);
   const changes = useDataChanges(channelGuideChannels);
-  const days = useMemo(() => {
-    let to = today.from;
-    for (let i = 0; i < channelWeekDays; i++) {
-      to = broadcastDay(to).to;
-    }
-
-    return { from: today.from, to };
-  }, [today.from]);
+  let weekEnd = today.from;
+  for (let i = 0; i < channelWeekDays; i++) {
+    weekEnd = broadcastDay(weekEnd).to;
+  }
+  const days = { from: today.from, to: weekEnd };
   const data = useLazyLoadQuery<channelServiceIdGuideQuery>(
     graphql`
       query channelServiceIdGuideQuery($from: Time!, $to: Time!, $services: [ID!]) {
@@ -133,30 +130,27 @@ function ChannelGuide() {
     { fetchKey: changes, fetchPolicy: changes === 0 ? 'store-or-network' : 'store-and-network' },
   );
   const row = data.guide[0];
-  const columns = useMemo<ChannelDay[]>(
-    () =>
-      row === undefined
-        ? []
-        : channelWeekColumns(
-            now,
-            row.service.id,
-            (from) => dayFormat.format(from),
-            row.programs.map((program) => ({
-              id: program.id,
-              startAt: Date.parse(program.startAt),
-              endAt: Date.parse(program.endAt),
-              endUndecided: program.endUndecided,
-              name: program.name,
-              genre: program.genres[0],
-              // サブチャンネルでも、1 つのチャンネルだけを出すので、番組名を出す。
-              shared: false,
-              reserved: program.reservation?.enabled === true,
-              watchReserved: program.watchReserved,
-              recorded: program.recorded,
-            })),
-          ),
-    [row, now],
-  );
+  const columns: ChannelDay[] =
+    row === undefined
+      ? []
+      : channelWeekColumns(
+          now,
+          row.service.id,
+          (from) => dayFormat.format(from),
+          row.programs.map((program) => ({
+            id: program.id,
+            startAt: Date.parse(program.startAt),
+            endAt: Date.parse(program.endAt),
+            endUndecided: program.endUndecided,
+            name: program.name,
+            genre: program.genres[0],
+            // サブチャンネルでも、1 つのチャンネルだけを出すので、番組名を出す。
+            shared: false,
+            reserved: program.reservation?.enabled === true,
+            watchReserved: program.watchReserved,
+            recorded: program.recorded,
+          })),
+        );
   const [extendedHours] = useState(loadExtendedHours);
   useDocumentTitle(
     row === undefined ? [] : [toHalfWidth(row.service.name), t('guide.channel.title')],

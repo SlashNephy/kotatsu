@@ -1,7 +1,7 @@
 import { Alert, Anchor, Stack, Title } from '@mantine/core';
 import { Tv } from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { startTransition, Suspense, useCallback, useState } from 'react';
+import { startTransition, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -34,7 +34,7 @@ function LivePage() {
   // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。
   const [range, setRange] = useState(() => liveRange(Date.now()));
   // 放送中の番組が終わったら、時刻を決め直して読み直す (#866)。読み直す間も一覧を出したままにする。
-  const refresh = useCallback(() => startTransition(() => setRange(liveRange(Date.now()))), []);
+  const refresh = () => startTransition(() => setRange(liveRange(Date.now())));
 
   return (
     <Stack gap="sm">

@@ -24,7 +24,7 @@ import {
   VolumeX,
   MonitorSmartphone,
 } from 'lucide-react';
-import { Suspense, startTransition, useEffect, useMemo, useState } from 'react';
+import { Suspense, startTransition, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment, useSubscription } from 'react-relay';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
@@ -108,23 +108,20 @@ function RemoteControl() {
   // version は、プレイヤーの一覧の版。変わったら読み直す。tick は、選んだプレイヤーの再生位置を読み直すための数。
   const [version, setVersion] = useState(0);
   const [tick, setTick] = useState(0);
-  const config = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription remoteChangedSubscription {
-          playersChanged
-        }
-      `,
-      variables: {},
-      onNext: (response: remoteChangedSubscription['response'] | null | undefined) => {
-        if (response) {
-          startTransition(() => setVersion(response.playersChanged));
-        }
-      },
-      onError: () => {},
-    }),
-    [],
-  );
+  const config = {
+    subscription: graphql`
+      subscription remoteChangedSubscription {
+        playersChanged
+      }
+    `,
+    variables: {},
+    onNext: (response: remoteChangedSubscription['response'] | null | undefined) => {
+      if (response) {
+        startTransition(() => setVersion(response.playersChanged));
+      }
+    },
+    onError: () => {},
+  };
   useSubscription<remoteChangedSubscription>(config);
   useEffect(() => {
     const timer = setInterval(() => startTransition(() => setTick((n) => n + 1)), refreshMs);

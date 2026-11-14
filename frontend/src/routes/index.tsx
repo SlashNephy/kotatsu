@@ -1,6 +1,6 @@
 import { Alert, Anchor, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { startTransition, Suspense, useCallback, useEffect, useState } from 'react';
+import { startTransition, Suspense, useEffect, useState } from 'react';
 
 import { Dashboard, type DashboardRange } from '../home/Dashboard';
 import { useTranslation } from 'react-i18next';
@@ -41,7 +41,7 @@ function Home() {
   const [range, setRange] = useState(() => homeRange(Date.now()));
   // 放送中の番組が終わったり、予約が始まったりしたら、時刻を決め直して読み直す (#866)。
   // 読み直す間も前の中身を出したままにするため、transition の中で変える。
-  const refresh = useCallback(() => startTransition(() => setRange(homeRange(Date.now()))), []);
+  const refresh = () => startTransition(() => setRange(homeRange(Date.now())));
 
   return (
     <Stack>

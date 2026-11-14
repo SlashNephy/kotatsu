@@ -15,7 +15,7 @@ import {
 } from '@mantine/core';
 import { CalendarDays, CalendarX2, ChevronLeft, ChevronRight, Clock, Sunrise } from 'lucide-react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Suspense, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Suspense, useDeferredValue, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
@@ -171,11 +171,8 @@ function Guide() {
   const view = useDeferredValue(search.view);
   const loading = date !== search.date || view !== search.view;
   // window は、出している番組表の日。selectedFrom は、選んだ日 (読み込み中なら、これから出す日)。
-  const window = useMemo(() => {
-    const from = dayFrom(date, today.from);
-
-    return { from, to: from + day };
-  }, [date, today.from]);
+  const windowFrom = dayFrom(date, today.from);
+  const window = { from: windowFrom, to: windowFrom + day };
   const selectedFrom = dayFrom(search.date, today.from);
   // fetchKey は、番組表ビューを保存したときに、番組表とビューの一覧を取り直すための合図。
   const [fetchKey, setFetchKey] = useState(0);
@@ -273,10 +270,7 @@ function Guide() {
     data.guide.some((row) => row.service.channelType.type === channelType.type),
   );
   // pinned は、ピン留めしたサービスの ID を、ピン留めした順に並べたもの (#485)。
-  const pinned = useMemo(
-    () => data.pinnedServices.map((service) => service.id),
-    [data.pinnedServices],
-  );
+  const pinned = data.pinnedServices.map((service) => service.id);
   // URL の種別が、この日の番組表にないときは、最初の種別にする。ピン留めのタブは、ピン留めがあるときだけ選べる。
   const type =
     (search.type === pinnedTab && pinned.length > 0) ||
@@ -284,51 +278,46 @@ function Guide() {
       ? search.type
       : types[0]?.type;
   // サブチャンネルは、元のサービスと違う番組を流す時間がある日だけ列を出し、同じ番組の枠は薄くする。
-  const columns = useMemo<GuideColumn[]>(
-    () =>
-      (type === pinnedTab
-        ? // ピン留めのタブでは、ピン留めしたサービスを、ピン留めした順にそのまま並べる。
-          pinned.flatMap((id) =>
-            data.guide
-              .filter((row) => row.service.id === id)
-              // ピン留めしたサブチャンネルは、元のサービスと同じ番組の枠も、薄くせずに出す。
-              .map((row) => ({
-                ...row,
-                id,
-                programs: row.programs.map((program) => ({ ...program, shared: false })),
-              })),
-          )
-        : collapseSharedColumns(data.guide.map((row) => ({ ...row, id: row.service.id }))).filter(
-            (row) => row.service.channelType.type === type,
-          )
-      ).map((row) => ({
-        id: row.service.id,
-        name: row.service.name,
-        logoUrl: row.service.logoUrl ?? null,
-        programs: row.programs.map((program) => ({
-          id: program.id,
-          startAt: Date.parse(program.startAt),
-          endAt: Date.parse(program.endAt),
-          endUndecided: program.endUndecided,
-          name: program.name,
-          genre: program.genres[0],
-          shared: program.shared,
-          reserved: program.reservation?.enabled === true,
-          watchReserved: program.watchReserved,
-          recorded: program.recorded,
-        })),
-      })),
-    [data.guide, type, pinned],
-  );
+  const columns: GuideColumn[] = (
+    type === pinnedTab
+      ? // ピン留めのタブでは、ピン留めしたサービスを、ピン留めした順にそのまま並べる。
+        pinned.flatMap((id) =>
+          data.guide
+            .filter((row) => row.service.id === id)
+            // ピン留めしたサブチャンネルは、元のサービスと同じ番組の枠も、薄くせずに出す。
+            .map((row) => ({
+              ...row,
+              id,
+              programs: row.programs.map((program) => ({ ...program, shared: false })),
+            })),
+        )
+      : collapseSharedColumns(data.guide.map((row) => ({ ...row, id: row.service.id }))).filter(
+          (row) => row.service.channelType.type === type,
+        )
+  ).map((row) => ({
+    id: row.service.id,
+    name: row.service.name,
+    logoUrl: row.service.logoUrl ?? null,
+    programs: row.programs.map((program) => ({
+      id: program.id,
+      startAt: Date.parse(program.startAt),
+      endAt: Date.parse(program.endAt),
+      endUndecided: program.endUndecided,
+      name: program.name,
+      genre: program.genres[0],
+      shared: program.shared,
+      reserved: program.reservation?.enabled === true,
+      watchReserved: program.watchReserved,
+      recorded: program.recorded,
+    })),
+  }));
 
   // focused は、URL で指した番組 (予約から開いたときは、その予約の番組)。開いたときに、その時刻へスクロールする。
-  const focused = useMemo(() => {
-    const programs = data.guide.flatMap((row) => row.programs);
-
-    return search.reservation !== undefined
-      ? programs.find((program) => program.reservation?.id === search.reservation)
-      : programs.find((program) => program.id === search.program);
-  }, [data.guide, search.reservation, search.program]);
+  const guidePrograms = data.guide.flatMap((row) => row.programs);
+  const focused =
+    search.reservation !== undefined
+      ? guidePrograms.find((program) => program.reservation?.id === search.reservation)
+      : guidePrograms.find((program) => program.id === search.program);
   // 予約から開いたときは、その予約の番組の詳細を開き、URL を番組の ID に置き換える。番組が見つからなければ、予約を外すだけにする。
   useEffect(() => {
     if (search.reservation === undefined) {
