@@ -37,6 +37,8 @@ const (
 	ReasonNextIsClose = "next recording is near"
 )
 
+//go:generate go tool mockgen -typed -destination=mock_system_test.go -package=sleep_test . System
+
 // System は、OS にスリープの抑止と起こす予約を伝える口。
 type System interface {
 	// SetInhibit は、操作の無いことで OS が眠るのを止めるか (on)、止めるのをやめるか。
@@ -60,6 +62,8 @@ type Activity struct {
 	// NextStart は、今より後に始まる次の予約の、録画する予定の開始 (マージン込み)。なければゼロ。
 	NextStart time.Time
 }
+
+//go:generate go tool mockgen -typed -destination=mock_source_test.go -package=sleep_test . Source
 
 // Source は、判定に使う Activity を読む。
 type Source interface {
