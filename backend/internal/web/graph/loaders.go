@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 )
 
@@ -41,6 +42,8 @@ type Loaders struct {
 	ProgramRecorded *dataloader.Loader[query.ProgramSpan, bool]
 	// JikkyoAccess は、ユーザーが実況を使えるかどうか (設計書 7.4)。一覧のサービスごとに引かず、リクエストにつき 1 度だけ読む。
 	JikkyoAccess *dataloader.Loader[uuid.UUID, domain.JikkyoAccess]
+	// CMReports は、録画ごとの、最後に見分け終えた CM の見分けの添え書き (#1508)。録画の一覧の印に使う。見分けていなければ空。
+	CMReports *dataloader.Loader[uuid.UUID, cmdetect.Report]
 }
 
 // watchReservedKey は、視聴予約を引くキー。ユーザーと番組の組。
@@ -156,7 +159,24 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 		JikkyoAccess: newLoader(func(ctx context.Context, userIDs []uuid.UUID) ([]domain.JikkyoAccess, []error) {
 			return loadJikkyoAccess(ctx, q, userIDs)
 		}),
+		CMReports: newLoader(func(ctx context.Context, ids []uuid.UUID) ([]cmdetect.Report, []error) {
+			return loadCMReports(ctx, db, ids)
+		}),
 	}
+}
+
+// loadCMReports は、録画 ids ごとの、最後に見分け終えた CM の見分けの添え書きを返す (#1508)。見分けていない録画は、空の添え書きにする。
+func loadCMReports(ctx context.Context, db *pgxpool.Pool, ids []uuid.UUID) ([]cmdetect.Report, []error) {
+	byID, err := cmdetect.LatestReports(ctx, db, ids)
+	if err != nil {
+		return failAll[cmdetect.Report](len(ids), err)
+	}
+	reports := make([]cmdetect.Report, 0, len(ids))
+	for _, id := range ids {
+		reports = append(reports, byID[id])
+	}
+
+	return reports, make([]error, len(ids))
 }
 
 // loadJikkyoAccess は、ユーザーごとに、実況を使えるかどうかを読む。リクエストのユーザーは 1 人なので、まとめて引かない。

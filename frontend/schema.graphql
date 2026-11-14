@@ -3487,6 +3487,14 @@ type Recording implements Node {
   """
   cmDetection: RecordingCMDetection!
   """
+  最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧の印に使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。
+  """
+  cmDetectionNote: String
+  """
+  最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。
+  """
+  cmVideoMissingSeconds: Float!
+  """
   録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。
   """
   audios: [ProgramAudio!]!

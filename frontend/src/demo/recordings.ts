@@ -204,6 +204,8 @@ export function createRecordings(options: {
       scrambled: 0,
       // デモの録画は、どれも復号できている。
       scrambleWarning: false,
+      cmDetectionNote: null,
+      cmVideoMissingSeconds: 0,
       scrambledRatio: 0,
       streamQuality: [
         { pid: 0x100, kind: 'VIDEO', packets, drops: recording.drops, errors: 0, scrambled: 0 },

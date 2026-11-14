@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<083373caa0008c0f67b8666391232e71>>
+ * @generated SignedSource<<c77ede85c6f209b485d4fd2e46a8a0f5>>
  * @lightSyntaxTransform
  */
 
@@ -30,6 +30,8 @@ export type recordingsListQuery$data = {
   readonly recordings: {
     readonly edges: ReadonlyArray<{
       readonly node: {
+        readonly cmDetectionNote: string | null | undefined;
+        readonly cmVideoMissingSeconds: number;
         readonly drops: number;
         readonly endAt: string;
         readonly errors: number;
@@ -196,17 +198,31 @@ v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "cmDetectionNote",
   "storageKey": null
 },
 v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "cmVideoMissingSeconds",
   "storageKey": null
 },
 v17 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedFrom",
+  "storageKey": null
+},
+v18 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "recordedUntil",
+  "storageKey": null
+},
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -231,28 +247,28 @@ v17 = {
   ],
   "storageKey": null
 },
-v18 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v19 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v20 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
   "storageKey": null
 },
-v21 = {
+v23 = {
   "alias": null,
   "args": null,
   "concreteType": "PreviewFrame",
@@ -312,14 +328,14 @@ v21 = {
   ],
   "storageKey": null
 },
-v22 = {
+v24 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v23 = {
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -332,7 +348,7 @@ v23 = {
   ],
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "PageInfo",
@@ -410,6 +426,8 @@ return {
                   (v19/*:: as any*/),
                   (v20/*:: as any*/),
                   (v21/*:: as any*/),
+                  (v22/*:: as any*/),
+                  (v23/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -419,18 +437,18 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v22/*:: as any*/)
+                      (v24/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v23/*:: as any*/)
+                  (v25/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v24/*:: as any*/)
+          (v26/*:: as any*/)
         ],
         "storageKey": null
       }
@@ -490,6 +508,8 @@ return {
                   (v19/*:: as any*/),
                   (v20/*:: as any*/),
                   (v21/*:: as any*/),
+                  (v22/*:: as any*/),
+                  (v23/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -499,35 +519,35 @@ return {
                     "plural": false,
                     "selections": [
                       (v6/*:: as any*/),
-                      (v22/*:: as any*/),
+                      (v24/*:: as any*/),
                       (v5/*:: as any*/)
                     ],
                     "storageKey": null
                   },
-                  (v23/*:: as any*/)
+                  (v25/*:: as any*/)
                 ],
                 "storageKey": null
               }
             ],
             "storageKey": null
           },
-          (v24/*:: as any*/)
+          (v26/*:: as any*/)
         ],
         "storageKey": null
       }
     ]
   },
   "params": {
-    "cacheID": "13e5ac3e18cf238173acff14115e14f0",
+    "cacheID": "f228429dc80180f296dba53976c2ff6e",
     "id": null,
     "metadata": {},
     "name": "recordingsListQuery",
     "operationKind": "query",
-    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        scrambleWarning\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
+    "text": "query recordingsListQuery(\n  $first: Int!\n  $after: String\n  $filter: RecordingFilter\n  $order: RecordingOrder!\n) {\n  recordings(first: $first, after: $after, filter: $filter, order: $order) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        protected\n        drops\n        errors\n        scrambled\n        scrambleWarning\n        cmDetectionNote\n        cmVideoMissingSeconds\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n        tags {\n          id\n          name\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      endCursor\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c6694c4381455ee3b66160ae31eb7c1e";
+(node as any).hash = "b44e58f3bf88a274961088a78366ab6e";
 
 export default node;
