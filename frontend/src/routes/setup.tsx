@@ -15,7 +15,7 @@ import { Disclaimer } from '../about/Disclaimer';
 import { authApi } from '../auth/api';
 import { AuthCard } from '../auth/AuthCard';
 import { authErrorMessage } from '../auth/messages';
-import { PasswordStrength } from '../futon';
+import { CredentialTextInput, PasswordStrength } from '../futon';
 
 export const Route = createFileRoute('/setup')({
   component: Setup,
@@ -64,7 +64,7 @@ function Setup() {
             required
             autoComplete="off"
           />
-          <TextInput
+          <CredentialTextInput
             label={t('auth.username')}
             value={username}
             onChange={(e) => setUsername(e.currentTarget.value)}

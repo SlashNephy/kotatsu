@@ -1,4 +1,4 @@
-import { Alert, Button, Divider, PasswordInput, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Divider, PasswordInput, Stack, Text } from '@mantine/core';
 import { LogIn, ScanFace } from 'lucide-react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
@@ -9,6 +9,7 @@ import { AuthCard } from '../../auth/AuthCard';
 import { afterLoginURL } from '../../auth/returnTo';
 import { authErrorMessage, oidcErrorMessage } from '../../auth/messages';
 import { passkeyAvailable, verifyWithPasskey } from '../../auth/passkey';
+import { CredentialTextInput } from '../../futon';
 
 type LoginSearch = {
   // setup は、初回セットアップの直後かどうか。
@@ -110,7 +111,7 @@ function Login() {
       )}
       <form onSubmit={(event) => void submit(event)}>
         <Stack>
-          <TextInput
+          <CredentialTextInput
             label={t('auth.username')}
             value={username}
             onChange={(e) => setUsername(e.currentTarget.value)}

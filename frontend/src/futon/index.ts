@@ -10,6 +10,7 @@ export {
   type ErrorRecovery,
 } from './ErrorBoundary';
 export { PageLoader } from './PageLoader';
+export { CredentialTextInput } from './CredentialTextInput';
 export { PasswordStrength } from './PasswordStrength';
 export { formatBytes } from './format';
 export { toHalfWidth } from './halfWidth';

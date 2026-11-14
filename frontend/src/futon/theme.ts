@@ -1,4 +1,16 @@
-import { createTheme, type MantineColorsTuple } from '@mantine/core';
+import {
+  Autocomplete,
+  createTheme,
+  MultiSelect,
+  NumberInput,
+  Select,
+  TagsInput,
+  Textarea,
+  TextInput,
+  type MantineColorsTuple,
+} from '@mantine/core';
+
+import { passwordManagerIgnoreProps } from './passwordManager';
 
 // futon は、Mantine に重ねる Kotatsu 用のテーマと部品 (設計書 10.1、10.2)。
 
@@ -59,6 +71,18 @@ export const theme = createTheme({
   other: {
     // 生成り色。ライトテーマの背景に使う。
     kinari: '#fbf7ef',
+  },
+  // 文字を打つ欄は、既定でパスワードマネージャーに埋めさせない (#1709)。
+  // パスワードの欄 (PasswordInput) と、ワンタイムパスワードの欄 (PinInput) は除く。
+  // ログインのユーザー名は、CredentialTextInput で描いて、この既定を外す。
+  components: {
+    Autocomplete: Autocomplete.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
+    MultiSelect: MultiSelect.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
+    NumberInput: NumberInput.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
+    Select: Select.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
+    TagsInput: TagsInput.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
+    Textarea: Textarea.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
+    TextInput: TextInput.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
   },
 });
 
