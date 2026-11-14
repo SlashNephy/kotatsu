@@ -120,8 +120,10 @@ type liveMessage struct {
 	Kind    string `json:"kind"`
 	Content string `json:"content"`
 	UserID  string `json:"userId"`
-	ID      int64  `json:"id"`
-	Error   string `json:"error"`
+	// PostedAt は、コメントが書き込まれた時刻 (Unix ミリ秒、#1515)。届かなければ 0。
+	PostedAt int64  `json:"postedAt"`
+	ID       int64  `json:"id"`
+	Error    string `json:"error"`
 }
 
 // dial は、ユーザー user として接続する。
@@ -222,12 +224,14 @@ func TestLiveHandlerRelaysComments(t *testing.T) {
 	bob := f.dial(t, f.bob)
 	waitLiveConnected(t, bob)
 
-	f.nx.Chat(t.Context(), "こんにちは", "someone")
+	f.nx.ChatAt(t.Context(), "こんにちは", "someone", 1794647289, 933208)
 
 	for _, conn := range []*websocket.Conn{alice, bob} {
 		message := read(t, conn, commentKey)
 		assert.Equal(t, "こんにちは", message.Content)
 		assert.Equal(t, "someone", message.UserID)
+		// 書き込まれた時刻を、ミリ秒で渡す (#1515)。
+		assert.Equal(t, int64(1794647289933), message.PostedAt)
 	}
 	assert.Len(t, f.nx.WatchCookies(), 1, "受信は、視聴者の間で 1 本の接続を共有する")
 }

@@ -126,6 +126,7 @@ import {
   useCapture,
 } from '../../yunomi/PlayerTools';
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
+import { useBroadcastClock } from '../../yunomi/useBroadcastClock';
 import { onVideoSurface, useControlsVisibility } from '../../yunomi/useControlsVisibility';
 import { stepBrightness } from '../../yunomi/brightness';
 import { swipeVolumeStep } from '../../yunomi/swipe';
@@ -442,12 +443,6 @@ function Live({
   // channelName は、実況の欄に出すチャンネルの名前。NX-Jikkyo から名前を読めていなければ、サービスの名前を使う。
   const channelName =
     data.node?.__typename === 'Service' ? (data.node.jikkyo?.name ?? data.node.name) : '';
-  const jikkyo = useLiveJikkyo(
-    jikkyoEnabled ? channelId : null,
-    videoRef,
-    visible,
-    commentSettings,
-  );
   // dataBroadcastEnabled は、データ放送を出すかどうか。映像を覆うので、既定では出さない (設計書 7.4)。
   const [dataBroadcastEnabled, setDataBroadcastEnabled] = useState(false);
   const [dataBroadcastPreload] = useDataBroadcastPreload();
@@ -592,6 +587,21 @@ function Live({
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
   const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
+  // 実況のコメントは、ブラウザの中で変換する経路でライブの端を見ている間、放送の時計で場面に合わせる (#1515)。
+  const broadcast = useBroadcastClock(
+    jikkyoEnabled && channelId !== null && visible && route.kind === 'convert' && !timeshift.behind
+      ? serviceId
+      : null,
+    video,
+    streamMeter.meter,
+  );
+  const jikkyo = useLiveJikkyo(
+    jikkyoEnabled ? channelId : null,
+    videoRef,
+    visible,
+    commentSettings,
+    broadcast,
+  );
   // 音量の補正 (#499)。端末ごとの設定に合わせる。
   useVolumeNormalizer(video);
   useAudioDelayer(video);

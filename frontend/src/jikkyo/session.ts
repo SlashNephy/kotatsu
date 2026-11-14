@@ -12,7 +12,14 @@ export function jikkyoSocketURL(channelId: string, location: Location = window.l
 }
 
 // LiveComment は、届いたコメント。at は、受け取った時刻 (ミリ秒、performance.now の時計)。
-export type LiveComment = { content: string; mail: string; at: number; userId?: string };
+// postedAt は、書き込まれた時刻 (Unix ミリ秒、#1515)。tenban が知らせなければない。
+export type LiveComment = {
+  content: string;
+  mail: string;
+  at: number;
+  userId?: string;
+  postedAt?: number;
+};
 
 export type SessionStatus =
   | { kind: 'connecting' }
@@ -45,7 +52,7 @@ type Pending = { id: number; resolve: () => void; reject: (error: Error) => void
 type ServerMessage =
   | { type: 'status'; kind: 'connecting' | 'connected' }
   | { type: 'status'; kind: 'disconnected'; reason?: string; retryIn?: number }
-  | { type: 'comment'; content?: string; mail?: string; userId?: string }
+  | { type: 'comment'; content?: string; mail?: string; userId?: string; postedAt?: number }
   | { type: 'postResult'; id: number; error?: string };
 
 // JikkyoSession は、実況のチャンネル channelId のコメントを受け取り続ける。切れたら、間隔を延ばしながらつなぎ直す。
@@ -147,6 +154,9 @@ export class JikkyoSession {
           ...(message.userId === undefined || message.userId === ''
             ? {}
             : { userId: message.userId }),
+          ...(message.postedAt === undefined || message.postedAt <= 0
+            ? {}
+            : { postedAt: message.postedAt }),
         });
         break;
       case 'postResult':

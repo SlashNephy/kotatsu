@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import { appendComment, liveForce, type ListedComment } from './commentList';
 import { CommentCanvas, type CommentCanvasHandle } from './CommentCanvas';
 import { compileMute, defaultCommentSettings, type CommentSettings } from './comments';
+import { syncedCommentWait, type BroadcastNow } from './liveSync';
 import { JikkyoSession, type SessionStatus } from './session';
 
 // liveRetainSeconds は、ライブで、設定を変えて描き直すときに足し直すコメントの秒数。流れている間のコメントが収まればよい。
@@ -27,11 +28,14 @@ export function playbackDelay(video: HTMLVideoElement | null): number {
 // useLiveJikkyo は、ライブ視聴で実況のコメントを受け取って流し、投稿できるようにする (設計書 7.4)。
 // channelId が null なら、何もしない。active が false の間は、接続を閉じる。
 // settings は、コメントの表示とミュートの設定 (#488)。ミュートしたコメントは、流さず、一覧にも出さない。
+// broadcast は、映しているコマの放送からの遅れを返す (#1515)。返せれば、コメントを書き込まれた時刻の場面に合わせて流し、
+// 返せなければ (kyusu の経路や、放送の時計がまだ届かない間)、受け取った時刻に先読みの分を足して流す。
 export function useLiveJikkyo(
   channelId: string | null,
   videoRef: RefObject<HTMLVideoElement | null>,
   active: boolean,
   settings: CommentSettings = defaultCommentSettings,
+  broadcast: () => BroadcastNow | null = noBroadcast,
 ): {
   overlay: ReactNode;
   status: SessionStatus | null;
@@ -54,6 +58,8 @@ export function useLiveJikkyo(
   // ミュートは、届いたときの設定で決める。接続し直さないよう、ref で読む。
   const muted = useRef(compileMute(settings));
   muted.current = compileMute(settings);
+  const broadcastRef = useRef(broadcast);
+  broadcastRef.current = broadcast;
 
   useEffect(() => {
     if (channelId === null || !active) {
@@ -62,14 +68,17 @@ export function useLiveJikkyo(
     const session = new JikkyoSession(channelId, {
       onComment: (comment) => {
         arrivals.current.push(comment.at);
-        const time = (comment.at - origin.current) / 1000 + playbackDelay(videoRef.current);
+        const wait = commentWait(comment.postedAt, broadcastRef.current(), videoRef.current);
         const drawn = {
-          time,
+          time: (comment.at - origin.current) / 1000 + (wait ?? 0),
           content: comment.content,
           mail: comment.mail,
           ...(comment.userId === undefined ? {} : { userId: comment.userId }),
         };
-        canvas.current?.add([drawn]);
+        // 映している場面を大きく過ぎて届いたコメントは、場面と合わないので流さない。一覧には残す。
+        if (wait !== null) {
+          canvas.current?.add([drawn]);
+        }
         if (muted.current(drawn)) {
           return;
         }
@@ -155,4 +164,22 @@ export function useLiveJikkyo(
     force,
     post,
   };
+}
+
+function noBroadcast(): BroadcastNow | null {
+  return null;
+}
+
+// commentWait は、届いたコメントを、今から何秒後に流すかを返す。流さないなら null を返す。
+// 書き込まれた時刻 postedAt と放送の時計があれば、場面に合わせる (#1515)。なければ、先読みの分だけ遅らせる。
+function commentWait(
+  postedAt: number | undefined,
+  broadcast: BroadcastNow | null,
+  video: HTMLVideoElement | null,
+): number | null {
+  if (postedAt === undefined || broadcast === null) {
+    return playbackDelay(video);
+  }
+
+  return syncedCommentWait(postedAt, broadcast);
 }

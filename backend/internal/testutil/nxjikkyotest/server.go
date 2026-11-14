@@ -18,6 +18,8 @@ const (
 	fieldContent = "content"
 	fieldData    = "data"
 	fieldType    = "type"
+	fieldMail    = "mail"
+	fieldUserID  = "user_id"
 )
 
 // Post は、受け取った投稿。
@@ -101,22 +103,14 @@ func (s *Server) SetBacklog(contents ...string) {
 	s.backlog = contents
 }
 
-// Chat は、コメントセッションを開いているすべての接続にコメントを送る。
+// Chat は、コメントセッションを開いているすべての接続にコメントを送る。書き込まれた時刻は付けない。
 func (s *Server) Chat(ctx context.Context, content, userID string) {
-	data, err := json.Marshal(map[string]string{fieldContent: content, "mail": "184", "user_id": userID})
-	if err != nil {
-		return
-	}
-	data = []byte(`{"chat":` + string(data) + `}`)
-	s.mu.Lock()
-	conns := make([]*websocket.Conn, 0, len(s.comments))
-	for conn := range s.comments {
-		conns = append(conns, conn)
-	}
-	s.mu.Unlock()
-	for _, conn := range conns {
-		_ = conn.Write(ctx, websocket.MessageText, data)
-	}
+	s.broadcastChat(ctx, map[string]any{fieldContent: content, fieldMail: "184", fieldUserID: userID})
+}
+
+// ChatAt は、書き込まれた時刻 date (Unix 秒) と dateUsec (マイクロ秒) を、本物の NX-Jikkyo と同じく数で付けたコメントを送る (#1515)。
+func (s *Server) ChatAt(ctx context.Context, content, userID string, date, dateUsec int64) {
+	s.broadcastChat(ctx, map[string]any{fieldContent: content, fieldMail: "184", fieldUserID: userID, "date": date, "date_usec": dateUsec})
 }
 
 // DropAll は、すべての接続を切る。
@@ -312,7 +306,7 @@ func (s *Server) serveComment(w http.ResponseWriter, r *http.Request) {
 	backlog := append([]string{}, s.backlog...)
 	s.mu.Unlock()
 	for _, content := range backlog {
-		if send(ctx, conn, map[string]any{"chat": map[string]any{fieldContent: content, "mail": "", "user_id": "old"}}) != nil {
+		if send(ctx, conn, map[string]any{"chat": map[string]any{fieldContent: content, fieldMail: "", fieldUserID: "old"}}) != nil {
 			return
 		}
 	}
@@ -334,5 +328,23 @@ func (s *Server) serveComment(w http.ResponseWriter, r *http.Request) {
 		if _, _, err := conn.Read(ctx); err != nil {
 			return
 		}
+	}
+}
+
+// broadcastChat は、コメントセッションを開いているすべての接続に chat を送る。
+func (s *Server) broadcastChat(ctx context.Context, chat map[string]any) {
+	data, err := json.Marshal(chat)
+	if err != nil {
+		return
+	}
+	data = []byte(`{"chat":` + string(data) + `}`)
+	s.mu.Lock()
+	conns := make([]*websocket.Conn, 0, len(s.comments))
+	for conn := range s.comments {
+		conns = append(conns, conn)
+	}
+	s.mu.Unlock()
+	for _, conn := range conns {
+		_ = conn.Write(ctx, websocket.MessageText, data)
 	}
 }
