@@ -7,6 +7,11 @@
 export const blockSize = 8;
 // searchRange は、ブロックを探す範囲 (半分の解像度での画素、上下左右)。原寸では ±16 画素になる。
 export const searchRange = 8;
+// stillRatio と stillMargin は、動いていないとみなす差の割合と幅。見つけた場所の差が、ずれのないときの差の
+// stillRatio 倍より大きいか、1 画素あたり stillMargin (0〜1 の輝度) しか小さくなければ、動いていないとみなす。
+// 浮動小数点の定数として GLSL に埋めるので、小数で書く。
+export const stillRatio = 0.85;
+export const stillMargin = 0.004;
 // mismatchThreshold は、見つけたブロックの 1 画素あたりの差 (0〜1) がこれを超えたら、動きを当てにしない値。
 // 場面の切り替わりや、隠れていたものが現れた所では、どこにも似た所がないので、補間せずに近い方のコマを出す。
 export const mismatchThreshold = 0.06;
@@ -41,6 +46,8 @@ uniform sampler2D uNext;
 out vec4 color;
 const int B = ${blockSize};
 const int R = ${searchRange};
+const float stillRatio = ${stillRatio};
+const float stillMargin = ${stillMargin};
 void main() {
   ivec2 base = ivec2(gl_FragCoord.xy) * B;
   ivec2 last = textureSize(uPrevious, 0) - 1;
@@ -68,6 +75,19 @@ void main() {
         found = ivec2(dx, dy);
       }
     }
+  }
+  // 動いていない所を優先する。粒状のノイズのある平らな所では、ずれのない所とずれた所の差がノイズ程度しかなく、
+  // でたらめなずれを選ぶと、静止した所をずらして読み、じらじらしたノイズになる (#1655)。
+  // ずれのないときの差より、はっきり小さいときだけ、動きとみなす。
+  float still = 0.0;
+  for (int y = 0; y < B; y++) {
+    for (int x = 0; x < B; x++) {
+      still += abs(texelFetch(uPrevious, min(base + ivec2(x, y), last), 0).r - block[y * B + x]);
+    }
+  }
+  if (best > still * stillRatio || still - best < stillMargin * float(B * B)) {
+    best = still;
+    found = ivec2(0);
   }
   color = vec4(
     float(found.x + R) / 255.0,
