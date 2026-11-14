@@ -10,6 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 	"log/slog"
 )
 
@@ -131,4 +132,15 @@ func newJikkyoParts(deps *Deps) (*jikkyoParts, error) {
 		client: client,
 	}
 	return cliJikkyoParts, nil
+}
+
+// newStreamParts は、変換せずに流している配信を数える部品と、止める前につなぎ直すのを待つ部品を作る。
+func newStreamParts(deps *Deps) *streamParts {
+	streamCounter := newStreamCounter(deps)
+	drainer := streamapi.NewDrainer(streamCounter)
+	cliStreamParts := &streamParts{
+		streams: streamCounter,
+		drainer: drainer,
+	}
+	return cliStreamParts
 }

@@ -847,8 +847,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	updates, graphUpdates := newUpdates(logger, deps)
 	apiTokens := accounts.apiTokens
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
-	streams := newStreamCounter(deps)
-	drainer := streamapi.NewDrainer(streams)
+	streamParts := newStreamParts(deps)
+	streams, drainer := streamParts.streams, streamParts.drainer
 	// 映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) に使うチューナーサーバー。
 	tuner, err := newTunerUses(deps)
 	if err != nil {
@@ -1219,6 +1219,12 @@ func handleOAuth(router *echo.Echo, server *oauth.Server, graphQL http.Handler, 
 		panic(err)
 	}
 	router.Any(oauth.ResourcePath, echo.WrapHandler(mcpHandler), httpserver.Component("mcp"))
+}
+
+// streamParts は、tenban が変換せずに流している配信を数える部品と、tenban を止める前に、視聴者がつなぎ直すのを待つ部品 (#1085)。
+type streamParts struct {
+	streams *streamapi.StreamCounter
+	drainer *streamapi.Drainer
 }
 
 // newStreamCounter は、tenban が変換せずに流している配信を数える StreamCounter を返し、その数を種類ごとに /metrics に出す (設計書 11.3)。
