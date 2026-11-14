@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/jobprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -48,6 +49,8 @@ const (
 	timeout = 6 * time.Hour
 	// lockedSnooze は、同じ録画のファイルをほかでつないでいるときに、やり直すまで待つ時間。
 	lockedSnooze = 10 * time.Minute
+	// finalizingSnooze は、つないだファイルへの置き換えが終わっていないときに、やり直すまで待つ時間。置き換えはすぐ終わるので、短くする (#1719)。
+	finalizingSnooze = time.Minute
 	// partialSuffix は、書いている途中の MP4 に付ける拡張子。書き終えたら外す。
 	partialSuffix = ".part"
 )
@@ -233,6 +236,13 @@ func withRecordingLock(ctx context.Context, db Database, recordingID uuid.UUID, 
 			_ = conn.Conn().Close(context.WithoutCancel(ctx))
 		}
 	}()
+
+	// つないだ後、つないだファイルに置き換えるまでは、ディスクの最初のセグメントがまだつなぐ前のままなので、読まない (#1719)。
+	if pending, err := segjoin.FinalizePending(ctx, conn, recordingID); err != nil {
+		return err
+	} else if pending {
+		return river.JobSnooze(finalizingSnooze)
+	}
 
 	return fn()
 }
