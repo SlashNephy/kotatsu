@@ -78,7 +78,8 @@ WHERE rec.state = 'recording';
 -- name: ListReservedEpisodes :many
 -- 前の回を録らない (#1499) ときの「予約してある回」。録画しない状態 (無効) でも競合でもなく、まだ録り始めておらず、
 -- 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
-SELECT r.service_id, r.name, r.description, p.series_episode, r.start_at
+-- ルール予約は、同じ照合で消えるかを照合の側で確かめるので、種類と番組も返す (#1724)。
+SELECT r.service_id, r.name, r.description, p.series_episode, r.start_at, r.kind, r.event_id
 FROM reservations r
 LEFT JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
 WHERE r.enabled AND r.assignment_state <> 'conflict' AND r.end_at > @now

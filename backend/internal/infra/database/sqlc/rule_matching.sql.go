@@ -468,7 +468,7 @@ func (q *Queries) ListRecordedEpisodesBySeries(ctx context.Context, series []str
 }
 
 const listReservedEpisodes = `-- name: ListReservedEpisodes :many
-SELECT r.service_id, r.name, r.description, p.series_episode, r.start_at
+SELECT r.service_id, r.name, r.description, p.series_episode, r.start_at, r.kind, r.event_id
 FROM reservations r
 LEFT JOIN programs p ON p.service_id = r.service_id AND p.event_id = r.event_id
 WHERE r.enabled AND r.assignment_state <> 'conflict' AND r.end_at > $1
@@ -481,10 +481,13 @@ type ListReservedEpisodesRow struct {
 	Description   string
 	SeriesEpisode *int32
 	StartAt       time.Time
+	Kind          domain.ReservationKind
+	EventID       *int64
 }
 
 // 前の回を録らない (#1499) ときの「予約してある回」。録画しない状態 (無効) でも競合でもなく、まだ録り始めておらず、
 // 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
+// ルール予約は、同じ照合で消えるかを照合の側で確かめるので、種類と番組も返す (#1724)。
 func (q *Queries) ListReservedEpisodes(ctx context.Context, now time.Time) ([]ListReservedEpisodesRow, error) {
 	rows, err := q.db.Query(ctx, listReservedEpisodes, now)
 	if err != nil {
@@ -500,6 +503,8 @@ func (q *Queries) ListReservedEpisodes(ctx context.Context, now time.Time) ([]Li
 			&i.Description,
 			&i.SeriesEpisode,
 			&i.StartAt,
+			&i.Kind,
+			&i.EventID,
 		); err != nil {
 			return nil, err
 		}

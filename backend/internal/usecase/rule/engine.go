@@ -137,7 +137,7 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		// 重複の回避と、同じ回を録画済みで外した番組と、録画を理由に前の回として外した番組は、猶予の内でも残さない。
 		// 外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501、#1498、#1499)。
 		duplicates := map[programKey]*skippedProgram{}
-		desired, err := e.narrow(ctx, tx, now, matched, duplicates)
+		desired, err := e.narrow(ctx, tx, now, system.RuleUnmatchedGrace(), matched, duplicates)
 		if err != nil {
 			return err
 		}
@@ -177,15 +177,24 @@ func (e *Engine) desired(
 	if err != nil {
 		return nil, err
 	}
+	system, err := settings.Load(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 
-	return e.narrow(ctx, tx, now, matched, skipped)
+	return e.narrow(ctx, tx, now, system.RuleUnmatchedGrace(), matched, skipped)
 }
 
 // narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
 // 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回の束ね、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
+// grace は、どのルールにも一致しなくなったルール予約を残す猶予 (apply と同じ)。前の回を比べる相手から、この照合で消える予約を除くのに使う。
 func (e *Engine) narrow(
-	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
+	ctx context.Context, tx pgx.Tx, now time.Time, grace time.Duration, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
 ) (map[programKey]*desiredProgram, error) {
+	// 外した番組は、前の回を比べる相手を選ぶのにも使うので、渡されなくても集める。
+	if skipped == nil {
+		skipped = map[programKey]*skippedProgram{}
+	}
 	if err := excludeCancelledBroadcasts(ctx, tx, now, matched); err != nil {
 		return nil, err
 	}
@@ -199,7 +208,19 @@ func (e *Engine) narrow(
 	if err := bundleSameEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
 		return nil, err
 	}
-	if err := skipEarlierEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
+	// この照合で消えるルール予約は、前の回を比べる相手にしない。消える予約を理由に若い回を外すと、両方の予約が消える (#1724)。
+	// apply が消すのは、どのルールにも一致しなくなった、猶予の外のルール予約と、録画済みで外れたルール予約である (keepsUnmatched)。
+	survives := func(kind domain.ReservationKind, key programKey, startAt time.Time) bool {
+		if kind != domain.ReservationKindRule {
+			return true
+		}
+		if s := skipped[key]; s != nil && s.immediate() {
+			return false
+		}
+
+		return matched[key] != nil || startAt.Before(now.Add(grace))
+	}
+	if err := skipEarlierEpisodes(ctx, tx, now, matched, skipped, bundled, survives); err != nil {
 		return nil, err
 	}
 
