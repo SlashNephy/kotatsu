@@ -7,10 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 	"uuid"
@@ -268,7 +266,7 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 	if len(segments) == 0 {
 		return river.JobCancel(errNoSegment)
 	}
-	poolID, rel := segments[0].PoolID, outputPath(segments[0].Path, preset.Name)
+	poolID, rel := segments[0].PoolID, domain.TranscodedPath(segments[0].Path, preset.Name)
 	out, err := w.store.Path(poolID, rel)
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("%w: %w", errNoSegment, err))
@@ -458,10 +456,4 @@ func place(partial, out string, ours bool) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// outputPath は、録画の最初のセグメントのパス segment から、変換した MP4 のパスを作る。拡張子を、画質と .mp4 に変える。
-// 例: anime/foo.m2ts → anime/foo.720p.mp4
-func outputPath(segment, preset string) string {
-	return strings.TrimSuffix(segment, path.Ext(segment)) + "." + preset + ".mp4"
 }

@@ -98,7 +98,7 @@ func insertChapters(ctx context.Context, inserter Inserter, tx pgx.Tx, recording
 	return nil
 }
 
-// transcodedFiles は、録画のファイル files から、Kotatsu が変換した MP4 を返す。最初のセグメントの名前から、画質ごとに作る名前 (outputPath) の
+// transcodedFiles は、録画のファイル files から、Kotatsu が変換した MP4 を返す。最初のセグメントの名前から、画質ごとに作る名前 (domain.TranscodedPath) の
 // その他のファイルだけを選ぶ。EPGStation から取り込んだ MP4 は、録画の時間軸とそろっているか分からないので、書き換えない。
 func transcodedFiles(files []sqlc.RecordingFile) []sqlc.RecordingFile {
 	first := slices.IndexFunc(files, func(f sqlc.RecordingFile) bool { return f.Kind == kindSegment })
@@ -107,7 +107,7 @@ func transcodedFiles(files []sqlc.RecordingFile) []sqlc.RecordingFile {
 	}
 	out := []sqlc.RecordingFile{}
 	for _, preset := range domain.TranscodePresets() {
-		rel := outputPath(files[first].Path, preset)
+		rel := domain.TranscodedPath(files[first].Path, preset)
 		i := slices.IndexFunc(files, func(f sqlc.RecordingFile) bool {
 			return f.Kind == kindOther && f.PoolID == files[first].PoolID && f.Path == rel
 		})
