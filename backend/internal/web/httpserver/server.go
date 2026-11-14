@@ -157,7 +157,11 @@ const RevocationInterval = 30 * time.Second
 // 外部プレイヤーや IPTV のクライアントに渡した URL は、開くときにだけ確かめると、管理者が無効にしたり取り消したりした後も、
 // 開いたままの配信が流れ続けるので、それを止めるのに使う。
 // allowed は、確かめられないとき (DB に届かないなど) は true を返し、配信を続けさせる。
+// interval が 0 以下なら、RevocationInterval を使う。
 func StopWhenRevoked(w http.ResponseWriter, r *http.Request, next http.Handler, interval time.Duration, allowed func(ctx context.Context) bool) {
+	if interval <= 0 {
+		interval = RevocationInterval
+	}
 	ctx, cancel := context.WithCancel(r.Context())
 	controller := http.NewResponseController(w)
 	returned := make(chan struct{})

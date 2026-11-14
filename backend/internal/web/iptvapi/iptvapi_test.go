@@ -276,7 +276,10 @@ func TestStopWhenRevoked(t *testing.T) {
 			server := httptest.NewServer(mux)
 			t.Cleanup(server.Close)
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/api/iptv/"+validFeed+"/services/400141/stream.m2ts", nil)
+			// テストを終えたら、読み捨てている要求も終わらせる。
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/iptv/"+validFeed+"/services/400141/stream.m2ts", nil)
 			require.NoError(t, err)
 			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
 			client := server.Client()
