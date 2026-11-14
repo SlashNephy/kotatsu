@@ -64,11 +64,15 @@ func TestAccessPolicy(t *testing.T) {
 	}{
 		{name: "private address", remoteAddr: lanAddr, wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName},
 		{name: "loopback", remoteAddr: "127.0.0.1", wantStatus: http.StatusOK, wantIP: "127.0.0.1", wantOrigin: "http://" + hostName},
-		{name: "tailscale", remoteAddr: "100.101.102.103", wantStatus: http.StatusOK, wantIP: "100.101.102.103", wantOrigin: "http://" + hostName},
+		// Tailscale と CGNAT の共有アドレス空間は、既定では受け付けない (#1758)。
+		{
+			name: "tailscale is rejected by default", remoteAddr: tailscaleAddr, wantStatus: http.StatusForbidden,
+			wantBody: "access from 100.101.102.103 is not allowed. To allow it, add the network to server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS) if it is in your home, or to server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS) if it is not.",
+		},
 		{name: "IPv6 unique local", remoteAddr: "[fd00::1]", wantStatus: http.StatusOK, wantIP: "fd00::1", wantOrigin: "http://" + hostName},
 		{
 			name: "public address is rejected", remoteAddr: publicAddr, wantStatus: http.StatusForbidden,
-			wantBody: "access from 203.0.113.5 is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS).",
+			wantBody: "access from 203.0.113.5 is not allowed. To allow it, add the network to server.allowed_private_networks (KOTATSU_SERVER_ALLOWED_PRIVATE_NETWORKS) if it is in your home, or to server.allowed_external_networks (KOTATSU_SERVER_ALLOWED_EXTERNAL_NETWORKS) if it is not.",
 		},
 		{
 			name: "forwarded header from an untrusted address is rejected with guidance", remoteAddr: lanAddr,
@@ -155,7 +159,7 @@ func TestAccessPolicy(t *testing.T) {
 				clientIPHeader = config.Default().Server.ClientIPHeader
 			}
 			policy, err := httpserver.NewAccessPolicy(&config.Server{
-				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				Listen: listenAddr, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{trustedProxy},
 				ClientIPHeader: clientIPHeader,
 			}, slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
@@ -177,6 +181,44 @@ func TestAccessPolicy(t *testing.T) {
 			}
 			assert.Equal(t, tt.wantIP, rec.Header().Get("X-Client-IP"))
 			assert.Equal(t, tt.wantOrigin, rec.Header().Get("X-Client-Origin"))
+		})
+	}
+}
+
+// TestAccessPolicyExternalNetworks は、家の中の範囲に加えて、家の外の項目に書いた範囲からも受け付け、
+// 家の中の範囲を空にすれば、家の外の範囲からだけ受け付けることを確かめる (#1759)。
+// tailscaleAddr は、Tailscale と CGNAT の共有アドレス空間のアドレス。
+const tailscaleAddr = "100.101.102.103"
+
+func TestAccessPolicyExternalNetworks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		private    []string
+		remoteAddr string
+		wantStatus int
+	}{
+		{name: "tailscale added to the defaults", private: config.DefaultPrivateNetworks(), remoteAddr: tailscaleAddr, wantStatus: http.StatusOK},
+		{name: "home network with the defaults", private: config.DefaultPrivateNetworks(), remoteAddr: lanAddr, wantStatus: http.StatusOK},
+		{name: "internet is still rejected", private: config.DefaultPrivateNetworks(), remoteAddr: publicAddr, wantStatus: http.StatusForbidden},
+		{name: "only tailscale", private: []string{}, remoteAddr: tailscaleAddr, wantStatus: http.StatusOK},
+		{name: "home network without the private networks", private: []string{}, remoteAddr: lanAddr, wantStatus: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy, err := httpserver.NewAccessPolicy(&config.Server{
+				Listen: listenAddr, AllowedPrivateNetworks: tt.private, AllowedExternalNetworks: []string{"100.64.0.0/10"}, TrustedProxies: []string{trustedProxy},
+				ClientIPHeader: config.Default().Server.ClientIPHeader,
+			}, slog.New(slog.DiscardHandler))
+			require.NoError(t, err)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+hostName+"/", nil)
+			req.RemoteAddr = tt.remoteAddr + ":51234"
+			rec := httptest.NewRecorder()
+			policy.Middleware(clientEcho()).ServeHTTP(rec, req)
+			assert.Equal(t, tt.wantStatus, rec.Code, rec.Body.String())
 		})
 	}
 }
@@ -224,7 +266,7 @@ func TestAccessPolicyAllowedHosts(t *testing.T) {
 			t.Parallel()
 
 			policy, err := httpserver.NewAccessPolicy(&config.Server{
-				Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+				Listen: listenAddr, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{trustedProxy},
 				ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: tt.allowedHosts,
 			}, slog.New(slog.DiscardHandler))
 			require.NoError(t, err)
@@ -277,7 +319,7 @@ func TestRequireSameOrigin(t *testing.T) {
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
-		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+		Listen: listenAddr, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{trustedProxy},
 	}, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	handler := policy.Middleware(httpserver.RequireSameOrigin(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
@@ -317,7 +359,7 @@ func TestRequireSameOriginUpgrade(t *testing.T) {
 		},
 	}
 	policy, err := httpserver.NewAccessPolicy(&config.Server{
-		Listen: listenAddr, AllowedNetworks: config.DefaultAllowedNetworks(), TrustedProxies: []string{trustedProxy},
+		Listen: listenAddr, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{trustedProxy},
 	}, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 	handler := policy.Middleware(httpserver.RequireSameOriginUpgrade(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))

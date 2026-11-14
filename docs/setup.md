@@ -162,7 +162,7 @@ ingress:
     - 10.244.0.0/16
 ```
 
-コントローラーの前で送信元のアドレスが書き換わる（SNAT）構成では、送信元がノードのアドレスに見え、接続元の制限（`server.allowed_networks`）が効きません。
+コントローラーの前で送信元のアドレスが書き換わる（SNAT）構成では、送信元がノードのアドレスに見え、接続元の制限（`server.allowed_private_networks`と`server.allowed_external_networks`）が効きません。
 たとえば、コントローラーのServiceが`externalTrafficPolicy: Cluster`だと、こうなります。
 `externalTrafficPolicy: Local`にするなどして、送信元を保ってください。
 
