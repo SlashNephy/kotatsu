@@ -371,7 +371,7 @@
       "dataBroadcastPreload": "Preload data broadcasting",
       "captureFileName": "Capture file name",
       "captureFileNameDefault": "Date and time - Service name - Program name",
-      "captureFileNameHelp": "Available macros: {{macros}}. If empty, \"Date and time - Service name - Program name\" is used. Example: {{example}}",
+      "captureFileNameHelp": "Write it the same way as recording file names: {{items}}. The TVTest-style macros ({{macros}}) also work. If empty, \"Date and time - Service name - Program name\" is used. Example: {{example}}",
       "lowLatency": "Watch live with low latency",
       "superimposeLive": "Show superimposed text in live",
       "superimposeRecorded": "Show superimposed text in recordings",
