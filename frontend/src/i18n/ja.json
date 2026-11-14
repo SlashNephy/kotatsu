@@ -180,7 +180,8 @@
       "OIDC_NOT_LINKED": "このユーザーはIdPと紐付いていないので、IdPでは確かめられません",
       "OIDC_DISABLED": "IdPでのログインは設定されていません",
       "OIDC_ALREADY_LINKED": "このユーザーは、既にIdPのアカウントと紐付いています",
-      "UNAUTHENTICATED": "ログインしていません。もう一度ログインしてください"
+      "UNAUTHENTICATED": "ログインしていません。もう一度ログインしてください",
+      "DISCLAIMER_NOT_ACCEPTED": "免責事項への同意が必要です"
     },
     "oidcErrors": {
       "oidc_expired": "時間が経ったので、もう一度ログインしてください",
@@ -199,7 +200,8 @@
       "description": "最初の管理者を作ります。セットアップトークンは、Kotatsuの起動時のログか、kotatsu admin setup-tokenで確かめられます。",
       "token": "セットアップトークン",
       "submit": "管理者を作る",
-      "done": "管理者を作りました。ログインして、2段階認証を設定してください。"
+      "done": "管理者を作りました。ログインして、2段階認証を設定してください。",
+      "acceptDisclaimer": "免責事項に同意します"
     },
     "login": {
       "title": "Kotatsuへログイン",
@@ -2450,5 +2452,11 @@
     "inRepository": "ライセンスと著作権表示は、リンク先のファイルに残しています",
     "inImage": "ライセンスの文書とソースの入手先は、イメージの /usr/share/doc/kotatsu/third-party/ と、Debianのパッケージの /usr/share/doc/ に置いています",
     "loadFailed": "読み込めませんでした"
+  },
+  "disclaimer": {
+    "title": "免責事項",
+    "privateUse": "Kotatsuは、著作権法第30条第1項に定める私的使用、すなわち個人的に又は家庭内その他これに準ずる限られた範囲内における使用のためのソフトウェアです。受信した放送や録画した番組を公衆送信し、又は送信可能化するためのものではありません。",
+    "tuner": "利用者は、Kotatsuを、自らが正当な権原に基づいて使用することのできるチューナーサーバーにのみ接続するものとします。",
+    "lawful": "利用者は、Kotatsuを、法令に違反する目的又は第三者の著作権その他の権利を侵害する目的で使用してはなりません。"
   }
 }

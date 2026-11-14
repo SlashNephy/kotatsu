@@ -1,8 +1,17 @@
-import { Alert, Button, PasswordInput, Stack, TextInput } from '@mantine/core';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  PasswordInput,
+  ScrollArea,
+  Stack,
+  TextInput,
+} from '@mantine/core';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Disclaimer } from '../about/Disclaimer';
 import { authApi } from '../auth/api';
 import { AuthCard } from '../auth/AuthCard';
 import { authErrorMessage } from '../auth/messages';
@@ -12,7 +21,7 @@ export const Route = createFileRoute('/setup')({
   component: Setup,
 });
 
-// Setup は、最初の管理者を作る画面 (設計書 9.2)。
+// Setup は、最初の管理者を作る画面 (設計書 9.2)。免責事項に同意しなければ、管理者を作らない (#1712)。
 function Setup() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -20,6 +29,7 @@ function Setup() {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptDisclaimer, setAcceptDisclaimer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,7 +38,13 @@ function Setup() {
     setSubmitting(true);
     setError(null);
     try {
-      await authApi.setup({ token: token.trim(), username, displayName, password });
+      await authApi.setup({
+        token: token.trim(),
+        username,
+        displayName,
+        password,
+        acceptDisclaimer,
+      });
       await navigate({ to: '/login', search: { setup: true } });
     } catch (caught) {
       setError(authErrorMessage(t, caught));
@@ -69,6 +85,15 @@ function Setup() {
             autoComplete="new-password"
           />
           <PasswordStrength password={password} userInputs={[username, displayName]} />
+          <ScrollArea.Autosize mah={240} type="auto">
+            <Disclaimer />
+          </ScrollArea.Autosize>
+          <Checkbox
+            label={t('auth.setup.acceptDisclaimer')}
+            checked={acceptDisclaimer}
+            onChange={(e) => setAcceptDisclaimer(e.currentTarget.checked)}
+            required
+          />
           {error !== null && (
             <Alert color="red" role="alert">
               {error}

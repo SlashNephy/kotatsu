@@ -108,8 +108,13 @@ export type RegisteredPasskey = { id: string; name: string };
 
 export const authApi = {
   setupStatus: () => get<{ required: boolean }>('/internal/auth/setup'),
-  setup: (input: { token: string; username: string; displayName: string; password: string }) =>
-    post<{ username: string; next: 'login' }>('/internal/auth/setup', input),
+  setup: (input: {
+    token: string;
+    username: string;
+    displayName: string;
+    password: string;
+    acceptDisclaimer: boolean;
+  }) => post<{ username: string; next: 'login' }>('/internal/auth/setup', input),
   login: (username: string, password: string) =>
     post<LoginResult>('/internal/auth/login', { username, password }),
   totp: (code: string) => post<Completed>('/internal/auth/login/totp', { code }),

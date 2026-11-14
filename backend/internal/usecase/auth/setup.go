@@ -160,6 +160,8 @@ type setupRequest struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
 	Password    string `json:"password"`
+	// AcceptDisclaimer は、最初の管理者が免責事項に同意したかどうか。同意しなければ、管理者を作らない (#1712)。
+	AcceptDisclaimer bool `json:"acceptDisclaimer"`
 }
 
 type setupResponse struct {
@@ -199,6 +201,11 @@ func (s *Setup) CreateHandler(db Database, client func(*http.Request) *ClientInf
 		}
 		if req.Token == "" {
 			writeLoginError(w, http.StatusUnauthorized, "INVALID_SETUP_TOKEN", "the setup token is required")
+
+			return
+		}
+		if !req.AcceptDisclaimer {
+			writeLoginError(w, http.StatusBadRequest, "DISCLAIMER_NOT_ACCEPTED", "the disclaimer must be accepted")
 
 			return
 		}

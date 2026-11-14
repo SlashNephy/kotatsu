@@ -32,6 +32,7 @@ test('初回セットアップで管理者を作り、認証アプリを登録�
   await page.getByRole('textbox', { name: 'ユーザー名', exact: true }).fill(admin.username);
   await page.getByRole('textbox', { name: '表示名', exact: true }).fill(admin.displayName);
   await page.getByRole('textbox', { name: 'パスワード', exact: true }).fill(admin.password);
+  await page.getByRole('checkbox', { name: '免責事項に同意します' }).check();
   await page.getByRole('button', { name: '管理者を作る' }).click();
   await expect(page.getByText('管理者を作りました。')).toBeVisible();
 
