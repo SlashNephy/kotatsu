@@ -123,4 +123,16 @@ describe('useSwipeGestures (#1598)', () => {
     expect(onSwipeStart).not.toHaveBeenCalled();
     expect(onStep).not.toHaveBeenCalled();
   });
+
+  test('横に動かしたら、縦に戻しても何も変えない', () => {
+    const box = makeBox();
+    const { onStep, onSwipeStart } = render(box);
+
+    pointer(box, 'pointerdown', 900, 400);
+    pointer(box, 'pointermove', 900 - swipeThreshold * 2, 400);
+    pointer(box, 'pointermove', 900 - swipeThreshold * 2, 400 - swipeStep * 4);
+
+    expect(onSwipeStart).not.toHaveBeenCalled();
+    expect(onStep).not.toHaveBeenCalled();
+  });
 });
