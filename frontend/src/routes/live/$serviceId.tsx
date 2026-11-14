@@ -941,7 +941,9 @@ function Live({
   // osd は、選局したときと番組が変わったときに、番組の情報を映像に重ねて出しているか (#815)。
   // バッファを再生している間は、放送中の番組と映像の番組が違うので出さない。
   const osd = useProgramOsd(playerEvents, video !== null && !videoLoading, !timeshift.behind);
-  useDocumentTitle(documentTitle(player));
+  // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
+  const watchMini = useWatchMini();
+  useDocumentTitle(documentTitle(player), !watchMini);
   useMediaSession(
     player,
     commands,
