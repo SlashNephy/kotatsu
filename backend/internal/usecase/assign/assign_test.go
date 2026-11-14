@@ -269,6 +269,64 @@ func TestAssign(t *testing.T) {
 	}
 }
 
+// TestAssignKeepsLongestCorePart は、負けた予約が、本編の残る区間のうち最も長いものを録ることを確かめる (#1718)。
+func TestAssignKeepsLongestCorePart(t *testing.T) {
+	t.Parallel()
+
+	at := func(minute int) time.Time { return base().Add(time.Duration(minute) * time.Minute) }
+	tests := []struct {
+		name         string
+		reservations []*assign.Reservation
+		want         []*assign.Assignment
+	}{
+		{
+			// 同時に始まる優先度の高い予約に負けたら、後半を残す。前半は残らないので、勝った方の開始マージンも奪わない (#1718)。
+			name: "the lower one starting at the same time keeps its later part",
+			reservations: []*assign.Reservation{
+				program(1, "26", 0, 60),
+				withPriority(program(2, "27", 0, 30), 5),
+			},
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(60).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(30)},
+			},
+		},
+		{
+			// 優先度の高い予約を含む予約は、前と後ろのうち長い方を残す (#1718)。
+			name: "the lower one containing the higher one keeps the longer side",
+			reservations: []*assign.Reservation{
+				program(1, "26", 0, 120),
+				withPriority(program(2, "27", 5, 25), 5),
+			},
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(30), PlannedEnd: at(120).Add(margin)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(5).Add(-margin), PlannedEnd: at(30)},
+			},
+		},
+		{
+			// 複数の予約に負けたら、本編の残る区間のうち、最も長いものを残す (#1718)。
+			name: "the lower one keeps the longest part left by several higher ones",
+			reservations: []*assign.Reservation{
+				program(1, "26", 0, 100),
+				withPriority(program(2, "27", 40, 10), 5),
+				withPriority(program(3, "25", 55, 45), 5),
+			},
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: domain.AssignmentStatePartial, Tuner: 0, PlannedStart: at(0).Add(-margin), PlannedEnd: at(40)},
+				{ReservationID: reservationID(2), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(40), PlannedEnd: at(50).Add(margin)},
+				{ReservationID: reservationID(3), State: domain.AssignmentStateOK, Tuner: 0, PlannedStart: at(55).Add(-margin), PlannedEnd: at(100).Add(margin)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, assign.Assign(tt.reservations, grTuners(1)))
+		})
+	}
+}
+
 // genInput は、何本かの GR と BS のチューナーと、3 つのチャンネルにまたがる予約を作る。録画が始まった予約も混ぜる。
 func genInput(t *rapid.T) ([]*assign.Reservation, []*assign.Tuner) {
 	tunerCount := rapid.IntRange(0, 3).Draw(t, "tuners")
@@ -374,6 +432,10 @@ func checkAssignment(t *rapid.T, r *assign.Reservation, got map[uuid.UUID]*assig
 	}
 	if a.State == domain.AssignmentStateConflict {
 		return
+	}
+	// 一部のみでも、本編の一部は録る。マージンだけを録る予約は、競合にする (#1718)。
+	if !a.PlannedStart.Before(r.EndAt) || !a.PlannedEnd.After(r.StartAt) {
+		t.Fatalf("reservation %s is %s but records none of its core: %+v", r.ID, a.State, a)
 	}
 	// 割り当てたチューナーは、そのチャンネルの種別を受信できる。
 	tuner := tuners[slices.IndexFunc(tuners, func(tuner *assign.Tuner) bool { return tuner.Index == a.Tuner })]

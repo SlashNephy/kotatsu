@@ -1,0 +1,95 @@
+# 2026/11/14 18:42:02.881171 [TestAssignProperties] [rapid] draw tuners: 1
+# 2026/11/14 18:42:02.881176 [TestAssignProperties] [rapid] draw types0: []string{"GR", "BS"}
+# 2026/11/14 18:42:02.881180 [TestAssignProperties] [rapid] draw reservations: 3
+# 2026/11/14 18:42:02.881180 [TestAssignProperties] [rapid] draw channel0: "27"
+# 2026/11/14 18:42:02.881181 [TestAssignProperties] [rapid] draw start0: 0
+# 2026/11/14 18:42:02.881182 [TestAssignProperties] [rapid] draw minutes0: 1
+# 2026/11/14 18:42:02.881182 [TestAssignProperties] [rapid] draw startMargin0: 0
+# 2026/11/14 18:42:02.881183 [TestAssignProperties] [rapid] draw endMargin0: 0
+# 2026/11/14 18:42:02.881183 [TestAssignProperties] [rapid] draw priority0: 0
+# 2026/11/14 18:42:02.881184 [TestAssignProperties] [rapid] draw recording0: false
+# 2026/11/14 18:42:02.881185 [TestAssignProperties] [rapid] draw channel1: "26"
+# 2026/11/14 18:42:02.881185 [TestAssignProperties] [rapid] draw start1: 0
+# 2026/11/14 18:42:02.881186 [TestAssignProperties] [rapid] draw minutes1: 2
+# 2026/11/14 18:42:02.881186 [TestAssignProperties] [rapid] draw startMargin1: 1
+# 2026/11/14 18:42:02.881187 [TestAssignProperties] [rapid] draw endMargin1: 0
+# 2026/11/14 18:42:02.881187 [TestAssignProperties] [rapid] draw priority1: 0
+# 2026/11/14 18:42:02.881187 [TestAssignProperties] [rapid] draw recording1: false
+# 2026/11/14 18:42:02.881188 [TestAssignProperties] [rapid] draw channel2: "BS"
+# 2026/11/14 18:42:02.881188 [TestAssignProperties] [rapid] draw start2: 0
+# 2026/11/14 18:42:02.881189 [TestAssignProperties] [rapid] draw minutes2: 1
+# 2026/11/14 18:42:02.881190 [TestAssignProperties] [rapid] draw startMargin2: 0
+# 2026/11/14 18:42:02.881190 [TestAssignProperties] [rapid] draw endMargin2: 0
+# 2026/11/14 18:42:02.881190 [TestAssignProperties] [rapid] draw priority2: 0
+# 2026/11/14 18:42:02.881191 [TestAssignProperties] [rapid] draw recording2: true
+# 2026/11/14 18:42:02.881195 [TestAssignProperties] [rapid] draw shuffled: []*assign.Reservation{(*assign.Reservation)(0x27032618a750), (*assign.Reservation)(0x27032618a7e0), (*assign.Reservation)(0x27032618a870)}
+# 2026/11/14 18:42:02.881200 [TestAssignProperties] reservation 00000000-0000-0000-0000-000000000002 is partial but records none of its core: &{ReservationID:00000000-0000-0000-0000-000000000002 State:partial Tuner:0 PlannedStart:2026-10-10 11:59:59 +0000 UTC PlannedEnd:2026-10-10 12:00:00 +0000 UTC}
+# 
+v0.4.8#6607300626951236131
+0x0
+0x0
+0x1
+0x38e38e38e38e4
+0x2
+0x0
+0x38e38e38e38e4
+0x3
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1f2b5a0e61c3a6
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
