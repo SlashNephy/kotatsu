@@ -428,6 +428,8 @@ export function createRootValue(
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
+    // デモは発行した URL を記録しないので、管理者の一覧は空にする (#1757)。
+    issuedStreamUrls: () => [],
     animeRecordSettings: () => demoAnimeRecordSettings(),
     animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
     animeWishlist: () => demoAnimeWishlist(),

@@ -2121,6 +2121,16 @@
       "title": "Integrations",
       "summary": "Set up integration with MCP clients and webhooks that send notifications to services such as Discord or Slack"
     },
+    "issuedStreamUrls": {
+      "title": "Issued external player URLs",
+      "description": "URLs that have not expired, newest first. Revoking a URL stops it working before it expires, and stops any player that has it open.",
+      "empty": "No unexpired URLs",
+      "live": "Live",
+      "recording": "Recording",
+      "detail": "{{user}} · Issued {{created}} · Expires {{expires}} · Last used {{lastUsed}}",
+      "revoke": "Revoke",
+      "revoked": "The URL was revoked"
+    },
     "animeRecords": {
       "title": "Recording to Annict and AniList",
       "help": "Register Kotatsu apps so that users can record the anime they watch to Annict and AniList. Create an app on each service with the redirect URI below, then save its client ID and secret. They are used only while the Syobocal, Annict, and AniList integration is enabled.",

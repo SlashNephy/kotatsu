@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<94fafd9399f3df89228ab0d5389a265f>>
+ * @generated SignedSource<<a564385cf9980d65bf2adff80ec0cc8c>>
  * @lightSyntaxTransform
  */
 
@@ -30,6 +30,15 @@ export type integrationsQuery$data = {
     readonly configured: boolean;
     readonly destination: AnimeRecordDestination;
     readonly redirectUri: string;
+  }>;
+  readonly issuedStreamUrls: ReadonlyArray<{
+    readonly createdAt: string;
+    readonly expiresAt: string;
+    readonly id: string;
+    readonly lastUsedAt: string | null | undefined;
+    readonly live: boolean;
+    readonly targetName: string;
+    readonly userDisplayName: string;
   }>;
   readonly passkeys: ReadonlyArray<{
     readonly id: string;
@@ -66,14 +75,14 @@ var v0 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "configured",
+  "name": "id",
   "storageKey": null
 },
 v1 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "id",
+  "name": "configured",
   "storageKey": null
 },
 v2 = [
@@ -140,6 +149,60 @@ v2 = [
   {
     "alias": null,
     "args": null,
+    "concreteType": "IssuedStreamUrl",
+    "kind": "LinkedField",
+    "name": "issuedStreamUrls",
+    "plural": true,
+    "selections": [
+      (v0/*:: as any*/),
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "userDisplayName",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "targetName",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "live",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "createdAt",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "expiresAt",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "lastUsedAt",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
     "concreteType": "AnimeRecordApp",
     "kind": "LinkedField",
     "name": "animeRecordApps",
@@ -159,7 +222,7 @@ v2 = [
         "name": "clientId",
         "storageKey": null
       },
-      (v0/*:: as any*/),
+      (v1/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -178,7 +241,7 @@ v2 = [
     "name": "animeImportToken",
     "plural": false,
     "selections": [
-      (v0/*:: as any*/)
+      (v1/*:: as any*/)
     ],
     "storageKey": null
   },
@@ -236,7 +299,7 @@ v2 = [
     "name": "webhooks",
     "plural": true,
     "selections": [
-      (v1/*:: as any*/),
+      (v0/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -308,7 +371,7 @@ v2 = [
     "name": "passkeys",
     "plural": true,
     "selections": [
-      (v1/*:: as any*/)
+      (v0/*:: as any*/)
     ],
     "storageKey": null
   }
@@ -331,16 +394,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "a279befab9befc7943b492710c90adcb",
+    "cacheID": "e86197670010144dc1e2fa5a405bc367",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "c7c418874a67087d97b728aa62f580e7";
+(node as any).hash = "183f9031b0ec56dbbb340171e92cbef7";
 
 export default node;

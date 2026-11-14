@@ -2043,6 +2043,16 @@
       "title": "連携",
       "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します"
     },
+    "issuedStreamUrls": {
+      "title": "発行された外部プレイヤーのURL",
+      "description": "期限の過ぎていないURLを、新しい順に並べます。取り消すと、そのURLは期限の前でも使えなくなり、開いているプレイヤーの再生も止まります",
+      "empty": "期限の過ぎていないURLはありません",
+      "live": "ライブ",
+      "recording": "録画",
+      "detail": "{{user}} ・ 発行 {{created}} ・ 期限 {{expires}} ・ 最終利用 {{lastUsed}}",
+      "revoke": "取り消す",
+      "revoked": "URLを取り消しました"
+    },
     "animeRecords": {
       "title": "Annict、AniListへの記録",
       "help": "利用者が、見たアニメをAnnictとAniListに記録できるよう、Kotatsuのアプリを登録します。それぞれのサービスでアプリを作り、リダイレクトURIに下のURIを入れてから、クライアントIDとシークレットを保存してください。しょぼいカレンダー、Annict、AniListとの連携を有効にしている間だけ使えます。",

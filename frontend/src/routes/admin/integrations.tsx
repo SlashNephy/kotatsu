@@ -25,6 +25,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { IssuedStreamUrls } from '../../admin/IssuedStreamUrls';
 import { Section } from '../../admin/Section';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import {
@@ -53,6 +54,7 @@ import type {
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
 import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
+import type { integrationsRevokeStreamUrlMutation } from './__generated__/integrationsRevokeStreamUrlMutation.graphql';
 import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
@@ -92,6 +94,16 @@ const query = graphql`
       networkActivityEnabled
       animeLinkingEnabled
       commentSources
+    }
+    # 発行された外部プレイヤー用の URL (#1757)。
+    issuedStreamUrls {
+      id
+      userDisplayName
+      targetName
+      live
+      createdAt
+      expiresAt
+      lastUsedAt
     }
     animeRecordApps {
       destination
@@ -249,6 +261,25 @@ function Integrations() {
           busy={gate.busy}
           onSave={(externalPlayerUrlsEnabled) => saveSettings({ externalPlayerUrlsEnabled })}
         />
+        {/* 発行された外部プレイヤー用の URL を、1 本ずつ取り消せる (#1757)。権限を広げない操作なので、再認証は求めない。
+            無効にしている間も、期限の過ぎていない URL があれば出す。 */}
+        {(data.systemSettings.externalPlayerUrlsEnabled || data.issuedStreamUrls.length > 0) && (
+          <IssuedStreamUrls
+            urls={data.issuedStreamUrls}
+            busy={gate.busy}
+            onRevoke={(id) => {
+              mutate<integrationsRevokeStreamUrlMutation>(
+                environment,
+                graphql`
+                  mutation integrationsRevokeStreamUrlMutation($id: ID!) {
+                    revokeStreamUrl(id: $id)
+                  }
+                `,
+                { id },
+              ).then(() => succeed(t('admin.issuedStreamUrls.revoked')), fail);
+            }}
+          />
+        )}
         <SwitchSetting
           key={`iptv-feeds/${String(data.systemSettings.iptvFeedsEnabled)}`}
           title={t('admin.settings.iptvFeeds')}
