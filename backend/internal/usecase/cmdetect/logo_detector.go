@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -218,28 +219,59 @@ type frameLog struct {
 	tail []string
 }
 
+// showinfoFrame は、showinfo が出すコマの行の、コマの番号と時刻 (秒) の組。
+var showinfoFrame = regexp.MustCompile(`n:\s*(\d+)\s+pts:\s*\S+\s+pts_time:(-?[0-9.]+)`)
+
 // parseFrameLog は、FFmpeg の標準エラー出力から、showinfo のコマの時刻と、-progress のまとまりを読む。
+//
+// FFmpeg は、ログの頭 ([Parsed_showinfo_N @ 0x...]) と本文を別々に書くので、その間に -progress のまとまりが入ることがある。
+// そのときは、時刻の入った本文が progress=continue の行の後ろにつながる。行の頭で見分けると、その時刻を落とし、
+// コマと時刻の数が合わなくなる (#1800)。そこで、行のどこにあってもコマの番号と時刻の組を拾い、コマの番号で並べる。
+// 組を取り除いた残りは、-progress の行やほかのログとして読む。
 func parseFrameLog(r io.Reader, onBlock func(*ffprogress.Block)) *frameLog {
 	log := &frameLog{times: []float64{}, tail: []string{}}
+	byFrame := map[int]float64{}
+	last := -1
 	parser := ffprogress.NewParser(onBlock, func(line string) {
-		if strings.Contains(line, "Parsed_showinfo") {
-			if _, value, ok := strings.Cut(line, "pts_time:"); ok {
-				value, _, _ = strings.Cut(strings.TrimSpace(value), " ")
-				if t, err := strconv.ParseFloat(value, 64); err == nil {
-					log.times = append(log.times, t)
-				}
-			}
-
-			return
-		}
 		log.tail = append(log.tail, line)
 		if len(log.tail) > maxStderrLines {
 			log.tail = log.tail[1:]
 		}
 	})
-	// 読み残すと FFmpeg が書き込みで止まるので、最後まで読む。
-	_, _ = io.Copy(parser, r)
+	br := bufio.NewReader(r)
+	for {
+		line, err := br.ReadString('\n')
+		if line != "" {
+			matches := showinfoFrame.FindAllStringSubmatch(line, -1)
+			for _, m := range matches {
+				n, nerr := strconv.Atoi(m[1])
+				t, terr := strconv.ParseFloat(m[2], 64)
+				if nerr == nil && terr == nil {
+					byFrame[n] = t
+					last = max(last, n)
+				}
+			}
+			switch {
+			case len(matches) > 0:
+				_, _ = parser.Write([]byte(showinfoFrame.ReplaceAllString(line, "")))
+			case strings.Contains(line, "Parsed_showinfo"):
+				// showinfo がコマごとに出す、ほかの行 (色の情報など)。
+			default:
+				_, _ = parser.Write([]byte(line))
+			}
+		}
+		// 読み残すと FFmpeg が書き込みで止まるので、最後まで読む。
+		if err != nil {
+			break
+		}
+	}
 	parser.Flush()
+	// コマの番号の順に並べる。抜けた番号があれば飛ばすので、コマと時刻の数が合わなくなり、ロゴを使わずに見分け直す。
+	for n := 0; n <= last; n++ {
+		if t, ok := byFrame[n]; ok {
+			log.times = append(log.times, t)
+		}
+	}
 
 	return log
 }

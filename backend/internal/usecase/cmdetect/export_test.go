@@ -4,9 +4,11 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
@@ -93,4 +95,12 @@ func NewSignals(cues *ts.Cues, scenes []float64, silences [][2]float64) (*Signal
 	}
 
 	return &Signals{Silences: pairsOf(sig.silences), Scenes: sig.scenes, AudioChanges: sig.audioChanges, Duration: sig.duration}, nil
+}
+
+// ParseFrameLog は、parseFrameLog で読んだコマの時刻と、-progress のまとまりの数を返す。
+func ParseFrameLog(stderr string) ([]float64, int) {
+	blocks := 0
+	log := parseFrameLog(strings.NewReader(stderr), func(*ffprogress.Block) { blocks++ })
+
+	return log.times, blocks
 }

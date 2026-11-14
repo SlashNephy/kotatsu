@@ -136,3 +136,24 @@ func TestLogoDetector(t *testing.T) {
 	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
 	assert.InDelta(t, 25, got[0].End.Seconds(), 1, "%v", got)
 }
+
+// TestParseFrameLog は、showinfo のログの頭と本文の間に -progress のまとまりが入り、時刻の入った本文が
+// progress=continue の行の後ろにつながっても、コマの時刻を落とさないことを確かめる (#1800)。
+func TestParseFrameLog(t *testing.T) {
+	t.Parallel()
+
+	stderr := "[Parsed_showinfo_2 @ 0x1] n:   0 pts:      0 pts_time:0       duration:   3003 fmt:gray iskey:1 type:I\n" +
+		"[Parsed_showinfo_2 @ 0x1]  color_range:tv\n" +
+		// ログの頭の後ろに -progress のまとまりが入り、本文が progress=continue の行につながった。
+		"[Parsed_showinfo_2 @ 0x1] frame=1\n" +
+		"fps=0.00\n" +
+		"progress=continuen:   1 pts:   3003 pts_time:0.0333667 duration:   3003 fmt:gray iskey:0 type:P\n" +
+		"[Parsed_showinfo_2 @ 0x1] n:   2 pts:   6006 pts_time:0.0667333 duration:   3003 fmt:gray iskey:0 type:B\n" +
+		"frame=3\n" +
+		"progress=end\n"
+	times, blocks := cmdetect.ParseFrameLog(stderr)
+
+	assert.Equal(t, []float64{0, 0.0333667, 0.0667333}, times)
+	// 本文がつながった progress=continue の行も、まとまりの区切りとして読む。
+	assert.Equal(t, 2, blocks)
+}
