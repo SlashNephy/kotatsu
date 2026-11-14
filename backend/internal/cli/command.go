@@ -953,7 +953,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
-	instances, err := handleStreams(mux, deps, authorizer, opener, streams, streamLogger)
+	streamRoutes, instances, err := newStreamRoutes(deps, authorizer, opener, streams, streamLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -981,6 +981,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	router := newRouter(logger, root, deps, calendarFeeds, public)
 	handleAuth(router, sessions.Middleware(deps.DB), authRoutes)
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), mediaRoutes, "media")
+	handleSessionRoutes(router, sessions.Middleware(deps.DB), streamRoutes, "stream")
 
 	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
@@ -1054,13 +1055,14 @@ func handlePublicAPI(mux *http.ServeMux) {
 	mux.Handle(apiPathPrefix, http.NotFoundHandler())
 }
 
-// handleStreams は、映像の配信 (/internal/streams/*) を mux に登録する。どれも、セッションで認可する。
+// newStreamRoutes は、映像の配信 (/internal/streams/*) のハンドラーを返す。echo のルーターで受ける (#1606)。どれも、セッションで認可する。
 // 変換せずに流す配信を、streams に数える。EPGStation 互換の配信も、同じものに数える。
-// kyusu への中継に使うインスタンスの登録簿を返す。
-func handleStreams(
-	mux *http.ServeMux, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
+// kyusu への中継に使うインスタンスの登録簿も返す。
+func newStreamRoutes(
+	deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
-) (*kyusu.LastKnownInstances, error) {
+) (sessionRoutes, *kyusu.LastKnownInstances, error) {
+	routes := sessionRoutes{}
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
 	// 配信は、認可を通ったものだけを数える。
 	// ライブ視聴とバッファの再生の間は、視聴している間だけ録るタイムシフトのために、サービスの視聴が続いていることを記録する (設計書 5.7)。
@@ -1075,36 +1077,36 @@ func handleStreams(
 
 		return serviceID, ok
 	}
-	mux.Handle("GET /internal/streams/services/{id}", httpserver.StopOnShutdown(authorizer.Session(
+	routes.add(http.MethodGet, "/internal/streams/services/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindLive,
 			// 画面のプレイヤーに流す中継では、スクランブルされたまま届いていないかを確かめる (設計書 7.1、#1517)。
 			streamapi.NewLiveHandler(opener, streamLogger).WithScramble(scramble.NewReporter(deps.DB, deps.Clock, streamLogger)))))))
-	mux.Handle("GET /internal/streams/services/{id}/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
+	routes.add(http.MethodGet, "/internal/streams/services/:id/data-broadcast", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindDataBroadcast, streamapi.NewDataBroadcastHandler(opener, streamLogger)))))
 	// サーバー側でのトランスコードは、インスタンスの登録簿で引いた kyusu に中継する (設計書 7.3)。
 	kyusuToken, err := kyusu.NewToken(deps.Config.Auth.SecretKey.Value())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// DB に届かない間は、最後に引けた登録簿で中継を続ける (#1084)。
 	instances := kyusu.NewLastKnownInstances(registry.New(deps.DB, deps.Clock, deps.InstanceID), deps.Clock, streamLogger)
-	mux.Handle("GET /internal/streams/services/{id}/hls/{preset}/{audio}/{file}",
+	routes.add(http.MethodGet, "/internal/streams/services/:id/hls/:preset/:audio/:file",
 		authorizer.Session(watches.Track(liveWatch, kyusu.NewRelay(instances, kyusuToken, streamLogger))))
-	mux.Handle("GET /internal/streams/recordings/{id}/hls/{preset}/{audio}/{file}",
+	routes.add(http.MethodGet, "/internal/streams/recordings/:id/hls/:preset/:audio/:file",
 		authorizer.Session(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
-	mux.Handle("GET /internal/streams/timeshift/{id}/hls/{preset}/{audio}/{file}",
+	routes.add(http.MethodGet, "/internal/streams/timeshift/:id/hls/:preset/:audio/:file",
 		authorizer.Session(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
-	mux.Handle("GET /internal/streams/recordings/{id}", httpserver.StopOnShutdown(authorizer.Session(
+	routes.add(http.MethodGet, "/internal/streams/recordings/:id", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
-	mux.Handle("GET /internal/streams/timeshift/{id}", httpserver.StopOnShutdown(authorizer.Session(
+	routes.add(http.MethodGet, "/internal/streams/timeshift/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
 	// 取り込んだ録画の、TS 以外のファイルも、このインスタンスにマウントしたプールのものだけ流せる (設計書 6.3)。
-	mux.Handle("GET /internal/streams/recordings/{id}/files/{file}", httpserver.StopOnShutdown(authorizer.Session(
+	routes.add(http.MethodGet, "/internal/streams/recordings/:id/files/:file", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindRecording, streamapi.NewOtherFileHandler(deps.DB, storeOf(deps.Config), streamLogger)))))
 
-	return instances, nil
+	return routes, instances, nil
 }
 
 // handleSignedStreams は、外部プレイヤーに渡す署名付き URL の配信 (/api/streams/*) を、echo のルーターに登録する (設計書 7.6、9.6、#1605、#1606)。
