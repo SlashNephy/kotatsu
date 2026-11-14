@@ -115,3 +115,8 @@ func ParseFrameLog(stderr string) ([]float64, int) {
 
 	return log.times, blocks
 }
+
+// TrimMissing は trimMissing。
+func TrimMissing(sections, missing []Section) []Section {
+	return trimMissing(sections, missing)
+}

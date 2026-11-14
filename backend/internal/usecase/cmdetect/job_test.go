@@ -190,6 +190,54 @@ func TestDetectWorker(t *testing.T) {
 	assert.Equal(t, 1, detections)
 }
 
+// reportingDetector は、ファイルの名前ごとに決めた区間と添え書きを返す Detector (#1508)。
+type reportingDetector struct {
+	fakeDetector
+
+	reports map[string]*cmdetect.Report
+}
+
+var _ cmdetect.Reporter = new(reportingDetector)
+
+func (d *reportingDetector) DetectWithReport(ctx context.Context, input *cmdetect.Input) ([]cmdetect.Section, *cmdetect.Report, error) {
+	sections, err := d.Detect(ctx, input)
+
+	return sections, d.reports[filepath.Base(input.Path)], err
+}
+
+// TestDetectWorkerReport は、見分け方の添え書きを、セグメントをまとめて記録することを確かめる (#1508)。
+// 映像の欠けは足し合わせ、理由はセグメントの番号を付けて並べる。理由のないセグメントは並べない。
+func TestDetectWorkerReport(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, "completed",
+		segmentAt{name: segmentA, start: 0},
+		segmentAt{name: segmentB, start: 20 * time.Minute})
+	detector := &reportingDetector{
+		sections: map[string][]cmdetect.Section{segmentA: {}, segmentB: {}}, inputs: []cmdetect.Input{},
+		reports: map[string]*cmdetect.Report{
+			segmentA: {Note: "", Missing: 1500 * time.Millisecond},
+			segmentB: {Note: "the logo cannot be used", Missing: 2 * time.Second},
+		},
+	}
+	require.NoError(t, f.detect(t, detector, recordingID))
+
+	var note string
+	var missing int64
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&note, &missing))
+	assert.Equal(t, "segment 2: the logo cannot be used", note)
+	assert.Equal(t, int64(3500), missing)
+
+	// 添え書きを返さない見分け方で見分け直したら、理由と欠けを消す。
+	require.NoError(t, f.detect(t, &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {}, segmentB: {}}, inputs: []cmdetect.Input{}}, recordingID))
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&note, &missing))
+	assert.Empty(t, note)
+	assert.Zero(t, missing)
+}
+
 // TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。
 // 置き換えるまでは、DB の記録は 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
 func TestDetectWorkerWaitsForJoinedFile(t *testing.T) {

@@ -621,6 +621,8 @@ type RecordingCmDetection struct {
 	Detector        string
 	DetectorVersion int32
 	DetectedAt      time.Time
+	Note            string
+	VideoMissingMs  int64
 }
 
 type RecordingCmSection struct {

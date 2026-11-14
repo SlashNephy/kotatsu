@@ -41,3 +41,17 @@ type Detector interface {
 	// Detect は、input のファイルの CM の区間を、始まりの順に返す。見つからなければ空のスライスを返す。
 	Detect(ctx context.Context, input *Input) ([]Section, error)
 }
+
+// Report は、見分けた結果の添え書き (#1508)。DB に残し、録画の詳細に出す。
+type Report struct {
+	// Note は、いつもの見分け方で決められなかった理由。決められたら空。
+	Note string
+	// Missing は、映像の欠け (映像をデコードできなかった所) の長さの合計。
+	Missing time.Duration
+}
+
+// Reporter は、区間と一緒に、見分けた結果の添え書きを返せる Detector (#1508)。
+type Reporter interface {
+	// DetectWithReport は、Detect と同じ区間と、その添え書きを返す。
+	DetectWithReport(ctx context.Context, input *Input) ([]Section, *Report, error)
+}
