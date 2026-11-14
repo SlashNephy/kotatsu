@@ -28,4 +28,13 @@ describe('broadcastDelaySeconds', () => {
 
     expect(broadcastDelaySeconds(2, (wrap - 1) * 90_000, nearWrap, now)).toBeCloseTo(1, 6);
   });
+
+  test('PCR が先に一周しても、近いほうの差で出す', () => {
+    const wrap = 2 ** 33 / 90_000;
+    const wrapped: BroadcastClockSample = { ...clock, pcr: 1 };
+    // 画面の 0 秒は、一周する 1 秒前の PTS。組の PCR (一周した後の 1 秒) の 2 秒前の放送。
+    const now = receivedAt + 5_000 + 3_000;
+
+    expect(broadcastDelaySeconds(0, (wrap - 1) * 90_000, wrapped, now)).toBeCloseTo(5, 6);
+  });
 });

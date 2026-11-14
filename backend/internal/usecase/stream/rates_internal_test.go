@@ -157,6 +157,7 @@ func TestServiceIDOf(t *testing.T) {
 		{name: "地上波", id: 3273601024, want: 1024},
 		{name: "BS", id: 400101, want: 101},
 		{name: "負の値", id: -1, want: 0},
+		{name: "16 ビットに収まらない値", id: 70000, want: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
