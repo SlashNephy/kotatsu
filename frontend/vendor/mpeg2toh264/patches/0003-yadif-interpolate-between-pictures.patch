@@ -1,0 +1,256 @@
+diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
+index bbe4c94..f6f733e 100644
+--- a/packages/yadif/src/deinterlace.ts
++++ b/packages/yadif/src/deinterlace.ts
+@@ -145,7 +145,6 @@ interface Ready {
+   droppedBefore: number;
+ }
+ 
+-type Cadence = "frame" | "field" | "film";
+ 
+ /**
+  * How the filter is getting on, and where it is being let down.
+@@ -270,6 +269,43 @@ export interface DeinterlacerOptions {
+    * picture shown to the console.
+    */
+   debug?: boolean;
++  /** What to make the pictures between pictures with. See PictureInterpolator. */
++  interpolator?: PictureInterpolator | null;
++}
++
++/** How often pictures come out: one per frame, one per field, or film at 24p. */
++export type Cadence = "frame" | "field" | "film";
++
++/**
++ * Something that makes the pictures between two filtered pictures, such as
++ * motion-compensated frame interpolation. It is handed this filter's own
++ * context and textures, so nothing leaves the GPU: it draws onto the canvas
++ * (the default framebuffer) itself, and puts back any state it changes.
++ *
++ * Making a picture between two needs the second one already filtered, so the
++ * pictures of a cadence it wants are put up one picture late.
++ */
++export interface PictureInterpolator {
++  /** Whether to make pictures between pictures of this cadence. */
++  wants(cadence: Cadence): boolean;
++  /**
++   * The two pictures the next draws fall between: called once for each pair,
++   * before the first draw between them. Textures are held the way a
++   * framebuffer is, rows from the bottom, `width` by `height`.
++   */
++  pair(
++    gl: WebGL2RenderingContext,
++    previous: WebGLTexture,
++    next: WebGLTexture,
++    width: number,
++    height: number,
++  ): void;
++  /**
++   * Draw the picture `t` (0 to 1) of the way from the first to the second,
++   * and say whether it did: one that keeps to a rate of its own can leave the
++   * picture on the canvas as it is for a refresh.
++   */
++  draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): boolean;
+ }
+ 
+ /** Field information supplied by a player or another video source. */
+@@ -351,6 +387,11 @@ export class Deinterlacer {
+   #gridAt = 0;
+   /** How far ahead of its moment the last picture was shown. See #present. */
+   #shownAhead = 0;
++  /** What makes the pictures between pictures, and the last picture put up. */
++  #interpolator: PictureInterpolator | null = null;
++  #lastShown: Ready | null = null;
++  /** The pair the interpolator was last handed. */
++  #paired: { previous: Ready; next: Ready } | null = null;
+   /** Debug only: the rAF the last picture was drawn in, and repeats dropped since. */
+   #shownAt = 0;
+   #droppedBefore = 0;
+@@ -430,6 +471,7 @@ export class Deinterlacer {
+     this.#doubleRate = options.doubleRate ?? false;
+     this.#spatialCheck = options.spatialCheck ?? true;
+     this.#debug = options.debug ?? false;
++    this.#interpolator = options.interpolator ?? null;
+     this.#film = options.film ?? false;
+     this.#onStats = options.onStats;
+     this.canvas = document.createElement("canvas");
+@@ -563,9 +605,26 @@ export class Deinterlacer {
+     this.#debug = debug;
+   }
+ 
++  get interpolator(): PictureInterpolator | null {
++    return this.#interpolator;
++  }
++
++  set interpolator(interpolator: PictureInterpolator | null) {
++    if (interpolator === this.#interpolator) return;
++    this.#interpolator = interpolator;
++    this.#paired = null;
++    this.#applyScheduling();
++  }
++
+   /** Whether pictures are queued and put up by the loop rather than drawn on arrival. */
+   get #scheduled(): boolean {
+-    return this.#doubleRate || this.#film;
++    // A picture for every frame is queued too when the pictures between are
++    // made: they need the loop, and the next picture held back.
++    return (
++      this.#doubleRate ||
++      this.#film ||
++      (this.#interpolator?.wants("frame") ?? false)
++    );
+   }
+ 
+   #applyScheduling(): void {
+@@ -832,6 +891,7 @@ export class Deinterlacer {
+         // place. Both start again from where playback actually is.
+         this.#queue.length = 0;
+         this.#lastScheduled = null;
++        this.#lastShown = null;
+         this.#resetFieldMetrics();
+       }
+       const missed = this.#count(metadata.presentedFrames, stale);
+@@ -902,6 +962,7 @@ export class Deinterlacer {
+         if (this.#queue.length >= FIELD_QUEUE_LENGTH) {
+           this.#queue.length = 0;
+           this.#lastScheduled = null;
++          this.#lastShown = null;
+           this.#stats.queueResetted++;
+         }
+         // Timed from when the frame reaches the screen, which unlike `now`
+@@ -973,6 +1034,7 @@ export class Deinterlacer {
+     if (this.#cadence === null) this.#frames = 0;
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
++    this.#lastShown = null;
+     this.#resetFieldMetrics();
+     if (scan.interlaced && fromProgressive && this.#cadence !== null)
+       this.#seedFrames = CADENCE_SEED_FRAMES;
+@@ -1072,6 +1134,9 @@ export class Deinterlacer {
+     const output = this.#outputs[slot];
+     if (!output) return;
+     this.#outputHead = slot;
++    // The picture last put up is about to be drawn over, and with it the
++    // first of the pair the pictures between are made from.
++    if (this.#lastShown?.slot === slot) this.#lastShown = null;
+     // Whatever this slot held has been waiting two frames for a turn it never
+     // got, and its moment is far enough past that showing it now would be a
+     // step backwards. Slots are taken in order, so it can only be the oldest.
+@@ -1105,6 +1170,7 @@ export class Deinterlacer {
+     this.#loopHandle = null;
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
++    this.#lastShown = null;
+   }
+ 
+   #onLoop = (now: DOMHighResTimeStamp): void => {
+@@ -1158,7 +1224,7 @@ export class Deinterlacer {
+   #present(now: number, frameAt: number): void {
+     const half = this.#refreshMs / 2;
+     const due = (ready: Ready) => {
+-      const ahead = ready.at - now;
++      const ahead = ready.at + this.#delay(ready) - now;
+       if (ahead <= half - PRESENT_HYSTERESIS_MS) return true;
+       if (ahead > half + PRESENT_HYSTERESIS_MS) return false;
+       return this.#shownAhead > 0;
+@@ -1168,9 +1234,13 @@ export class Deinterlacer {
+       this.#queue.shift();
+     }
+     const ready = this.#queue[0];
+-    if (!ready || !due(ready)) return;
++    if (!ready || !due(ready)) {
++      if (ready) this.#interpolate(ready, now);
++      return;
++    }
+     this.#queue.shift();
+-    this.#shownAhead = ready.at - now;
++    this.#shownAhead = ready.at + this.#delay(ready) - now;
++    this.#lastShown = ready;
+     const begin = performance.now();
+     const q = this.#beginGpuTimer(true);
+     this.#show(ready.slot);
+@@ -1181,6 +1251,46 @@ export class Deinterlacer {
+     this.#shownAt = frameAt;
+   }
+ 
++  /** How late a picture goes up: one picture, when the pictures after it are made. */
++  #delay(ready: Ready): number {
++    return this.#interpolator?.wants(ready.cadence) ? ready.duration : 0;
++  }
++
++  /**
++   * Put up a picture between the last one and the next, at the moment this
++   * refresh shows. Nothing is drawn where the two are not neighbours: a new
++   * cadence, a gap, or a moment outside them.
++   */
++  #interpolate(next: Ready, now: number): void {
++    const interpolator = this.#interpolator;
++    const previous = this.#lastShown;
++    if (
++      !interpolator ||
++      !previous ||
++      previous.cadence !== next.cadence ||
++      !interpolator.wants(next.cadence)
++    )
++      return;
++    const span = next.at - previous.at;
++    if (span <= 0 || span > previous.duration * 1.5) return;
++    const t = (now - this.#delay(previous) - previous.at) / span;
++    if (t <= 0 || t >= 1) return;
++    const from = this.#outputs[previous.slot];
++    const to = this.#outputs[next.slot];
++    if (!from || !to) return;
++    const gl = this.#gl;
++    if (this.#paired?.previous !== previous || this.#paired.next !== next) {
++      interpolator.pair(gl, from.texture, to.texture, this.#width, this.#height);
++      this.#paired = { previous, next };
++    }
++    const begin = performance.now();
++    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
++    if (!interpolator.draw(gl, t, this.#width, this.#height)) return;
++    this.#showMsSinceReport += performance.now() - begin;
++    this.#showFramesSinceReport++;
++    this.canvas.style.visibility = "visible";
++  }
++
+   #logShown(ready: Ready, frameAt: number): void {
+     const step = this.#shownAt === 0 ? 0 : frameAt - this.#shownAt;
+     const refreshes = step / this.#refreshMs;
+@@ -1534,6 +1644,7 @@ export class Deinterlacer {
+     this.#outputs = [];
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
++    this.#lastShown = null;
+   }
+ 
+   /**
+@@ -1574,6 +1685,7 @@ export class Deinterlacer {
+     this.#lastMediaTime = 0;
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
++    this.#lastShown = null;
+     this.#forgetCadence();
+     this.#resetFieldMetrics();
+     this.#periodMs = 0;
+@@ -1621,6 +1733,7 @@ export class Deinterlacer {
+     // rather than through a schedule that has nothing left to keep to.
+     this.#queue.length = 0;
+     this.#lastScheduled = null;
++    this.#lastShown = null;
+     this.#resetFieldMetrics();
+     if (this.#running) this.#render(true, false, null);
+   };
+diff --git a/packages/yadif/src/index.ts b/packages/yadif/src/index.ts
+index 86ef3c8..2e6a68d 100644
+--- a/packages/yadif/src/index.ts
++++ b/packages/yadif/src/index.ts
+@@ -1,7 +1,9 @@
+ export { Deinterlacer, supportsDeinterlace } from "./deinterlace.js";
+ export type {
++  Cadence,
+   DeinterlaceStats,
+   DeinterlacerOptions,
++  PictureInterpolator,
+   Scan,
+ } from "./deinterlace.js";
+ export {

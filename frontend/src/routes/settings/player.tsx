@@ -27,6 +27,12 @@ import { fullscreenLandscapeSupported, useFullscreenLandscape } from '../../yuno
 import { touchSupported, useSwipeControlsSetting } from '../../yunomi/swipeControls';
 import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
 import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
+import { useFieldRate } from '../../yunomi/fieldRate';
+import {
+  interpolationRates,
+  useInterpolation,
+  useInterpolationRate,
+} from '../../yunomi/frameInterpolation';
 import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
@@ -84,6 +90,9 @@ function PlayerSettings() {
   const [captureTemplate, setCaptureTemplate] = useCaptureFileNameTemplate();
   const [lowLatency, setLowLatency] = useLowLatency();
   const [cmAutoSkip, setCmAutoSkip] = useCmAutoSkip();
+  const [fieldRate, setFieldRate] = useFieldRate();
+  const [interpolation, setInterpolation] = useInterpolation();
+  const [interpolationRate, setInterpolationRate] = useInterpolationRate();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   const [miniPlayer, setMiniPlayer] = useMiniPlayer();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
@@ -221,6 +230,59 @@ function PlayerSettings() {
             checked={cmAutoSkip}
             onChange={(event) => setCmAutoSkip(event.currentTarget.checked)}
           />
+          {/* 表示が追いつくかは端末によるので、端末ごとに覚える (#1655)。 */}
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.fieldRate')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={t('settings.account.fieldRateHelp')}
+            checked={fieldRate}
+            onChange={(event) => setFieldRate(event.currentTarget.checked)}
+          />
+          {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに覚える (#1655)。 */}
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.interpolation')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={t('settings.account.interpolationHelp')}
+            checked={interpolation}
+            onChange={(event) => setInterpolation(event.currentTarget.checked)}
+          />
+          {/* ブラウザは画面の書き換えの速さを教えないので、既定は、書き換えの間隔を測って合わせる (#1655)。 */}
+          <Stack gap="xs" pl="lg">
+            <Select
+              size="xs"
+              label={t('settings.account.interpolationRate')}
+              description={t('settings.account.interpolationRateHelp')}
+              disabled={!interpolation}
+              allowDeselect={false}
+              data={interpolationRates.map((rate) => ({
+                value: rate === null ? 'display' : String(rate),
+                label:
+                  rate === null
+                    ? t('settings.account.interpolationRateDisplay')
+                    : t('settings.account.interpolationRateFps', { rate }),
+              }))}
+              value={interpolationRate === null ? 'display' : String(interpolationRate)}
+              onChange={(value) =>
+                value !== null &&
+                setInterpolationRate(
+                  interpolationRates.find((rate) => String(rate) === value) ?? null,
+                )
+              }
+              maw={240}
+            />
+          </Stack>
           <TextInput
             label={
               <Group gap={6} component="span">

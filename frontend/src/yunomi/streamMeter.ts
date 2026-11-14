@@ -149,12 +149,13 @@ export function frameRate(previous: FrameCount, next: FrameCount): number | null
 }
 
 // shownFrameRate は、再生の情報に出すフレームレート。measured は video の要素のフレームの数から測った値で、
-// 24p に組み直す前の 30 コマのままなので、24p で出している間は、yadif が実際に出したコマの数を返す。
+// 24p に組み直す前、フィールドごとに分ける前の 30 コマのままなので、yadif がコマを出す時刻を決めている間
+// (24p で出すとき (#1284) と、フィールドごとに表示するとき (#1655)) は、yadif が実際に出したコマの数を返す。
 export function shownFrameRate(
   source: SourcePicture | null,
   measured: number | null,
 ): number | null {
-  return source?.filmFps ?? measured;
+  return source?.shownFps ?? measured;
 }
 
 // formatBitrate は、ビットレートを、1 Mbps 以上なら Mbps で、それより小さければ kbps で書く。
@@ -204,15 +205,20 @@ export type TransportCounts = { dropped: number; errors: number; scrambled: numb
 
 // SourcePicture は、放送の映像の大きさと走査の方式。interlaced が分からなければ null。
 // film は、yadif が 2:3 プルダウンを見つけ、24p に組み直して出していること (#1284)。
-// filmFps は、24p で出している間に、yadif が実際に出した 1 秒あたりのコマの数。それ以外は null。
+// shownFps は、yadif がコマを出す時刻を決めている間 (24p で出すときと、フィールドごとに表示するとき) に、
+// 実際に出した 1 秒あたりのコマの数。それ以外は null。
 // unfiltered は、WebGL2 がないなどで yadif を動かせず、インターレースを解除せずに出していること (#1617)。
 export type SourcePicture = {
   width: number;
   height: number;
   interlaced: boolean | null;
   film: boolean;
-  filmFps: number | null;
+  shownFps: number | null;
   unfiltered: boolean;
+  // fieldRateDropped は、表示が追いつかないので、フィールドごとの表示をやめ、コマごとに出していること (#1655)。
+  fieldRateDropped: boolean;
+  // interpolated は、yadif が出すコマの間を補間していること (#1655)。フレームレートは、補間したコマも数える。
+  interpolated: boolean;
 };
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。

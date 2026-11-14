@@ -120,6 +120,35 @@ export interface DeinterlacerOptions {
      * picture shown to the console.
      */
     debug?: boolean;
+    /** What to make the pictures between pictures with. See PictureInterpolator. */
+    interpolator?: PictureInterpolator | null;
+}
+/** How often pictures come out: one per frame, one per field, or film at 24p. */
+export type Cadence = "frame" | "field" | "film";
+/**
+ * Something that makes the pictures between two filtered pictures, such as
+ * motion-compensated frame interpolation. It is handed this filter's own
+ * context and textures, so nothing leaves the GPU: it draws onto the canvas
+ * (the default framebuffer) itself, and puts back any state it changes.
+ *
+ * Making a picture between two needs the second one already filtered, so the
+ * pictures of a cadence it wants are put up one picture late.
+ */
+export interface PictureInterpolator {
+    /** Whether to make pictures between pictures of this cadence. */
+    wants(cadence: Cadence): boolean;
+    /**
+     * The two pictures the next draws fall between: called once for each pair,
+     * before the first draw between them. Textures are held the way a
+     * framebuffer is, rows from the bottom, `width` by `height`.
+     */
+    pair(gl: WebGL2RenderingContext, previous: WebGLTexture, next: WebGLTexture, width: number, height: number): void;
+    /**
+     * Draw the picture `t` (0 to 1) of the way from the first to the second,
+     * and say whether it did: one that keeps to a rate of its own can leave the
+     * picture on the canvas as it is for a refresh.
+     */
+    draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): boolean;
 }
 /** Field information supplied by a player or another video source. */
 export interface Scan {
@@ -177,6 +206,8 @@ export declare class Deinterlacer {
     set film(film: boolean);
     get debug(): boolean;
     set debug(debug: boolean);
+    get interpolator(): PictureInterpolator | null;
+    set interpolator(interpolator: PictureInterpolator | null);
     start(): void;
     /** Take the deinterlaced picture away, leaving the element's own showing. */
     stop(): void;

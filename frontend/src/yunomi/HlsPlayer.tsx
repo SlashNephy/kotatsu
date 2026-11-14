@@ -6,9 +6,11 @@ import { type Crop, cropStyle, isCropped, noCrop } from './crop';
 import { catchUpRate } from './liveCatchUp';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
+import { useInterpolation, useInterpolationRate } from './frameInterpolation';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { HlsSegment } from './streamMeter';
 import classes from './TsPlayer.module.css';
+import { attachVideoInterpolation, type VideoInterpolation } from './videoInterpolation';
 
 type Props = {
   // url は、kyusu の HLS のプレイリストの URL。null なら、何も読まない。
@@ -133,6 +135,15 @@ export function HlsPlayer({
       coverRef.current = null;
     };
   }, [coverRef, cover.cover]);
+  // interpolation は、video に重ねた、コマの補間 (#1655)。端末ごとの設定で入れ切りする。
+  const [interpolate] = useInterpolation();
+  const interpolateRef = useRef(interpolate);
+  interpolateRef.current = interpolate;
+  const interpolationRef = useRef<VideoInterpolation | null>(null);
+  // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
+  const [interpolationRate] = useInterpolationRate();
+  const interpolationRateRef = useRef(interpolationRate);
+  interpolationRateRef.current = interpolationRate;
   // generation を変えると、hls.js を作り直して読み直す。ライブを長く一時停止してから再開したときに使う。
   const [generation, setGeneration] = useState(0);
 
@@ -154,9 +165,21 @@ export function HlsPlayer({
     renderer.setVisible(showCaptions.current && !covered.current);
     renderer.setSuperimposeVisible(superimposeRef.current);
     renderer.setStyle(styleRef.current);
+    // 補間の canvas は、video のすぐ後ろに入るので、字幕の canvas より下に重なる。
+    const interpolation = attachVideoInterpolation(video, {
+      className: classes.video ?? '',
+      maxRate: () => interpolationRateRef.current,
+      onUnavailable: (error) => {
+        console.warn('frame interpolation is unavailable; showing the video as it is', error);
+      },
+    });
+    interpolation.setEnabled(interpolateRef.current);
+    interpolationRef.current = interpolation;
     captionsRef.current = renderer;
 
     return () => {
+      interpolation.destroy();
+      interpolationRef.current = null;
       captionsRef.current?.destroy();
       captionsRef.current = null;
       videoRef.current = null;
@@ -273,6 +296,10 @@ export function HlsPlayer({
       hlsRef.current = null;
     };
   }, [videoRef, url, live, generation]);
+
+  useEffect(() => {
+    interpolationRef.current?.setEnabled(interpolate);
+  }, [interpolate]);
 
   useEffect(() => {
     captionsRef.current?.setVisible(captions && !covered.current);
