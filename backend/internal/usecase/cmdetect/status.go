@@ -40,6 +40,10 @@ type Status struct {
 	DetectedAt *time.Time
 	// Progress は、見分けているときの、今の試行の進み具合。なければ nil。
 	Progress *Progress
+	// Note は、最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。決められたか、見分けていなければ空。
+	Note string
+	// VideoMissing は、最後に見分け終えた見分けで測った、映像の欠けの長さの合計 (#1508)。
+	VideoMissing time.Duration
 }
 
 // latestJob は、録画の、最後に入れた見分けのジョブ。
@@ -53,7 +57,7 @@ type latestJob struct {
 // 最後に入れた見分けのジョブ (River の表) と、見分けた記録 (recording_cm_detections) から決める。
 // River は終えたジョブを消すので、ジョブがなければ、見分けた記録だけで決める。
 func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*Status, error) {
-	status := &Status{State: StateNotDetected, DetectedAt: nil, Progress: nil}
+	status := &Status{State: StateNotDetected, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
 	// 見分け方が複数あれば、最後に見分けたものを使う (#1505)。区間 (RecordingSections) と同じ見分けを指す。
 	latest, err := sqlc.New(db).GetLatestRecordingCMDetection(ctx, recordingID)
 	switch {
@@ -63,6 +67,8 @@ func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (
 	default:
 		status.DetectedAt = &latest.DetectedAt
 		status.State = StateDetected
+		status.Note = latest.Note
+		status.VideoMissing = time.Duration(latest.VideoMissingMs) * time.Millisecond
 	}
 	job, found, err := lastJob(ctx, db, recordingID)
 	if err != nil {

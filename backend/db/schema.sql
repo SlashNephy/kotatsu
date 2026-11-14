@@ -1070,6 +1070,10 @@ CREATE TABLE recording_cm_detections (
   detector text NOT NULL,
   detector_version integer NOT NULL,
   detected_at timestamptz NOT NULL,
+  -- いつもの見分け方で決められなかった理由 (#1508)。ロゴで決められなかったときなどに書く。決められたら空。
+  note text NOT NULL DEFAULT '',
+  -- 映像の欠け (映像をデコードできなかった所) の長さの合計 (ミリ秒、#1508)。測れない見分け方では 0。
+  video_missing_ms bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (recording_id, detector)
 );
 

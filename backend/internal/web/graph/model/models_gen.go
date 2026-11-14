@@ -1379,6 +1379,10 @@ type RecordingCMDetection struct {
 	DetectedAt *time.Time `json:"detectedAt,omitempty"`
 	// 見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。
 	Progress *JobProgress `json:"progress,omitempty"`
+	// 最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。局ロゴで決められず、今の見分け方で見分け直したときなどに返す。決められたか、見分けていなければ null。
+	Note *string `json:"note,omitempty"`
+	// 最後に見分け終えた見分けで測った、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。
+	VideoMissingSeconds float64 `json:"videoMissingSeconds"`
 }
 
 // CM とみなした区間 (#479)。録画を終えた後に、nekonote が見分ける。

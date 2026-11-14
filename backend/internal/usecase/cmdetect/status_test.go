@@ -70,7 +70,7 @@ func TestRecordingStatus(t *testing.T) {
 			name:  "見分けていず、ジョブもなければ、見分けていない",
 			setup: func(*testing.T, *fixture, uuid.UUID, time.Time) {},
 			want: func(time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateNotDetected, DetectedAt: nil, Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateNotDetected, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -80,7 +80,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.detected(t, recordingID, now.Add(-48*time.Hour))
 			},
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now.Add(-48 * time.Hour)), Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now.Add(-48 * time.Hour)), Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -88,12 +88,16 @@ func TestRecordingStatus(t *testing.T) {
 			setup: func(t *testing.T, f *fixture, recordingID uuid.UUID, now time.Time) {
 				t.Helper()
 				f.detected(t, recordingID, now.Add(-48*time.Hour))
-				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
-					VALUES ($1, 'logo', 1, $2)`, recordingID, now.Add(-time.Hour))
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at, note, video_missing_ms)
+					VALUES ($1, 'logo', 1, $2, 'the logo cannot be used', 2500)`, recordingID, now.Add(-time.Hour))
 				require.NoError(t, err)
 			},
+			// 理由と映像の欠けも、最後に見分けた見分け方のものを返す (#1508)。
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now.Add(-time.Hour)), Progress: nil}
+				return &cmdetect.Status{
+					State: cmdetect.StateDetected, DetectedAt: new(now.Add(-time.Hour)), Progress: nil,
+					Note: "the logo cannot be used", VideoMissing: 2500 * time.Millisecond,
+				}
 			},
 		},
 		{
@@ -104,7 +108,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, recordingID, "available", 0, time.Time{})
 			},
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateQueued, DetectedAt: new(now.Add(-time.Hour)), Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateQueued, DetectedAt: new(now.Add(-time.Hour)), Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -114,7 +118,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, recordingID, "retryable", 1, now.Add(-time.Minute))
 			},
 			want: func(time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateQueued, DetectedAt: nil, Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateQueued, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -127,7 +131,7 @@ func TestRecordingStatus(t *testing.T) {
 			want: func(now time.Time) *cmdetect.Status {
 				return &cmdetect.Status{State: cmdetect.StateRunning, DetectedAt: nil, Progress: &cmdetect.Progress{
 					Ratio: 0.4, Remaining: new(90 * time.Second), UpdatedAt: now,
-				}}
+				}, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -138,7 +142,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.progress(t, jobID, 1, 0.8, nil)
 			},
 			want: func(time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateRunning, DetectedAt: nil, Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateRunning, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -149,7 +153,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, recordingID, "running", 1, now.Add(-time.Minute))
 			},
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateRunning, DetectedAt: new(now.Add(-time.Hour)), Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateRunning, DetectedAt: new(now.Add(-time.Hour)), Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -161,7 +165,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.detected(t, recordingID, now)
 			},
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now), Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now), Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -172,7 +176,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, recordingID, "discarded", 3, now.Add(-time.Minute))
 			},
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateFailed, DetectedAt: new(now.Add(-time.Hour)), Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateFailed, DetectedAt: new(now.Add(-time.Hour)), Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -182,7 +186,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, recordingID, "cancelled", 1, now.Add(-time.Minute))
 			},
 			want: func(time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateFailed, DetectedAt: nil, Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateFailed, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -194,7 +198,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.detected(t, recordingID, now)
 			},
 			want: func(now time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now), Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateDetected, DetectedAt: new(now), Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 		{
@@ -204,7 +208,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, f.recording(t, "completed"), "running", 1, now.Add(-time.Minute))
 			},
 			want: func(time.Time) *cmdetect.Status {
-				return &cmdetect.Status{State: cmdetect.StateNotDetected, DetectedAt: nil, Progress: nil}
+				return &cmdetect.Status{State: cmdetect.StateNotDetected, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
 			},
 		},
 	}

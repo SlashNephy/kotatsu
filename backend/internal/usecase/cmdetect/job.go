@@ -345,8 +345,10 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	// 最後の FFmpeg が終わったら、間を空けずに書き戻す。止めたり失敗したりした後も、止める前の値のまま書く。
 	defer progress.reporter.Finish(ctx)
 	sections := []Section{}
+	report := &Report{Note: "", Missing: 0}
 	for i, segment := range segments {
-		found, err := detector.Detect(ctx, &Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i)})
+		found, segmentReport, err := detectWithReport(ctx, detector,
+			&Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i)})
 		if errors.Is(err, ErrNoVideo) {
 			// 映像のないセグメント (チューナーが絵を出す前に閉じたものなど) は、見分けるものがないので飛ばす。
 			continue
@@ -354,6 +356,7 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 		if err != nil {
 			return err
 		}
+		report.add(segmentReport, i, len(segments))
 		// 区間は、録画を始めた日時からの時間にそろえる。途切れた区間も時間に含めて数え、再生の位置にするのは画面に任せる。
 		base := segment.startedAt.Sub(recording.RecordedFrom)
 		for _, s := range found {
@@ -362,7 +365,33 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	}
 	progress.reporter.Finish(ctx)
 
-	return w.record(ctx, detector, recordingID, mergeSections(sections))
+	return w.record(ctx, detector, recordingID, mergeSections(sections), report)
+}
+
+// detectWithReport は、detector が添え書きを返せれば (Reporter)、区間と添え書きを返す。返せなければ、空の添え書きを返す (#1508)。
+func detectWithReport(ctx context.Context, detector Detector, input *Input) ([]Section, *Report, error) {
+	if reporter, ok := detector.(Reporter); ok {
+		return reporter.DetectWithReport(ctx, input)
+	}
+	sections, err := detector.Detect(ctx, input)
+
+	return sections, &Report{Note: "", Missing: 0}, err
+}
+
+// add は、i 番目 (全部で n 個) のセグメントの添え書きを足す。欠けの長さは足し合わせ、理由は、セグメントが複数あれば番号を付けて並べる。
+func (r *Report) add(segment *Report, i, n int) {
+	r.Missing += segment.Missing
+	if segment.Note == "" {
+		return
+	}
+	note := segment.Note
+	if n > 1 {
+		note = fmt.Sprintf("segment %d: %s", i+1, note)
+	}
+	if r.Note != "" {
+		r.Note += "\n"
+	}
+	r.Note += note
 }
 
 // detectProgress は、セグメントを順に見分ける進み具合 (#1511)。
@@ -473,11 +502,12 @@ func mergeSections(sections []Section) []Section {
 }
 
 // record は、見分けた記録と区間を、同じ見分け方の前の区間と置き換えて書く。
-func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingID uuid.UUID, sections []Section) error {
+func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingID uuid.UUID, sections []Section, report *Report) error {
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		err := q.UpsertRecordingCMDetection(ctx, sqlc.UpsertRecordingCMDetectionParams{
 			RecordingID: recordingID, Detector: detector.Name(), DetectorVersion: detector.Version(), Now: w.clock.Now(),
+			Note: report.Note, VideoMissingMs: report.Missing.Milliseconds(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the CM detection: %w", err)

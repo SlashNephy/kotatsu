@@ -763,7 +763,12 @@ func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recordin
 	if err != nil {
 		return nil, err
 	}
-	detection := &model.RecordingCMDetection{State: status.State, DetectedAt: status.DetectedAt, Progress: nil}
+	detection := &model.RecordingCMDetection{
+		State: status.State, DetectedAt: status.DetectedAt, Progress: nil, Note: nil, VideoMissingSeconds: status.VideoMissing.Seconds(),
+	}
+	if status.Note != "" {
+		detection.Note = &status.Note
+	}
 	if p := status.Progress; p != nil {
 		detection.Progress = &model.JobProgress{Ratio: p.Ratio, RemainingSeconds: nil, UpdatedAt: p.UpdatedAt}
 		if p.Remaining != nil {

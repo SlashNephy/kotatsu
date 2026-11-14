@@ -53,7 +53,10 @@ type LogoDetector struct {
 	params   *logo.Params
 }
 
-var _ Detector = new(LogoDetector)
+var (
+	_ Detector = new(LogoDetector)
+	_ Reporter = new(LogoDetector)
+)
 
 // NewLogoDetector は、PATH にある FFmpeg と ffprobe を使う LogoDetector を返す。見つからなければ ErrFFmpegNotFound を返す。
 func NewLogoDetector(lowerer *procprio.Lowerer) (*LogoDetector, error) {
@@ -75,36 +78,82 @@ func (*LogoDetector) Version() int32 { return logoDetectorVersion }
 // Detect は、ロゴで見分ける。ロゴを使えないか、ロゴで決めた CM の割合が上限以上なら、今の見分け方で見分け直す (#1508)。
 // 見分け直した結果も上限以上なら、CM なしにする。
 func (d *LogoDetector) Detect(ctx context.Context, input *Input) ([]Section, error) {
+	sections, _, err := d.DetectWithReport(ctx, input)
+
+	return sections, err
+}
+
+// DetectWithReport は、Detect と同じ区間と、ロゴで決められなかった理由と映像の欠けの長さを返す (#1508)。
+func (d *LogoDetector) DetectWithReport(ctx context.Context, input *Input) ([]Section, *Report, error) {
 	video, err := probeVideo(ctx, input.Path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	report := &Report{Note: "", Missing: 0}
 	// 見分け直した結果の割合は、録画の長さで割る。長さは、ロゴで測れたならコマの時刻から、測れなければ ffprobe から求める。
 	// 映像の欠けは外さない。今の見分け方の区間とは時刻の基準が違い、重なりを求められないためである。
 	duration := video.duration
 	result, err := d.detect(ctx, input, video)
 	if err == nil {
+		report.Missing = totalLength(result.missing)
 		ratio := cmRatio(result.sections, result.missing, result.duration)
 		if ratio < maxCMRatio {
-			return result.sections, nil
+			return result.sections, report, nil
 		}
 		duration = result.duration
 		err = fmt.Errorf("%w: %.0f%% of the recording was detected as CM", errLogoUnusable, ratio*100)
 	}
 	if !errors.Is(err, errLogoUnusable) {
-		return nil, err
+		return nil, nil, err
 	}
+	report.Note = err.Error()
 	sections, err := d.fallback.Detect(ctx, input)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// 長さが分からなければ (ffprobe が長さを返さない TS)、割合を確かめられないので、今の見分け方の結果をそのまま使う。
 	// 今の見分け方を選んだときと同じ結果になる。
-	if duration > 0 && cmRatio(sections, []Section{}, duration) >= maxCMRatio {
-		return []Section{}, nil
+	if duration > 0 {
+		if ratio := cmRatio(sections, []Section{}, duration); ratio >= maxCMRatio {
+			report.Note += fmt.Sprintf("; the redetected result was dropped: %.0f%% of the recording was detected as CM", ratio*100)
+
+			return []Section{}, report, nil
+		}
 	}
 
-	return sections, nil
+	return sections, report, nil
+}
+
+// totalLength は、区間の長さの合計を返す。
+func totalLength(sections []Section) time.Duration {
+	var total time.Duration
+	for _, s := range sections {
+		total += s.End - s.Start
+	}
+
+	return total
+}
+
+// trimMissing は、CM の端にかかった映像の欠けを、CM から切り落とす (#1508)。始まりが欠けの中なら欠けの終わりまで、
+// 終わりが欠けの中なら欠けの始まりまでずらし、長さが 0 以下になった区間は捨てる。CM の内側の欠けは、CM のまま残す。
+// 外すと、映像が何度も途切れる所で、CM が細かく分かれてしまうためである。
+func trimMissing(sections, missing []Section) []Section {
+	out := make([]Section, 0, len(sections))
+	for _, s := range sections {
+		for _, m := range missing {
+			if s.Start >= m.Start && s.Start < m.End {
+				s.Start = m.End
+			}
+			if s.End > m.Start && s.End <= m.End {
+				s.End = m.Start
+			}
+		}
+		if s.End > s.Start {
+			out = append(out, s)
+		}
+	}
+
+	return out
 }
 
 // logoResult は、ロゴで決めた結果。
@@ -197,9 +246,11 @@ func (d *LogoDetector) detect(ctx context.Context, input *Input, video *videoInf
 		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
 	}
 
+	missing := missingSections(times, video.fps)
+
 	return &logoResult{
-		sections: complementSections(intervals, times, video.fps),
-		missing:  missingSections(times, video.fps),
+		sections: trimMissing(complementSections(intervals, times, video.fps), missing),
+		missing:  missing,
 		duration: time.Duration((times[len(times)-1] - times[0] + 1/video.fps) * float64(time.Second)),
 	}, nil
 }
