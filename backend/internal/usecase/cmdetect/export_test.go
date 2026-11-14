@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -35,6 +36,16 @@ func NewLogoDetectorWith(fallback Detector) (*LogoDetector, error) {
 // ComplementSections は complementSections。
 func ComplementSections(intervals []logo.Interval, times []float64, fps float64) []Section {
 	return complementSections(intervals, times, fps)
+}
+
+// CMRatio は cmRatio。
+func CMRatio(sections, missing []Section, duration time.Duration) float64 {
+	return cmRatio(sections, missing, duration)
+}
+
+// MissingSections は missingSections。
+func MissingSections(times []float64, fps float64) []Section {
+	return missingSections(times, fps)
 }
 
 // FrameRate は frameRate。

@@ -2,8 +2,10 @@ package cmdetect_test
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,7 +93,8 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 	t.Parallel()
 
 	fallback := NewMockDetector(gomock.NewController(t))
-	want := []cmdetect.Section{{Start: time.Second, End: 2 * time.Second}}
+	// 試験の TS は 1 秒なので、CM の割合の上限に届かない 0.1 秒の区間を返す。
+	want := []cmdetect.Section{{Start: 0, End: 100 * time.Millisecond}}
 	detector, err := cmdetect.NewLogoDetectorWith(fallback)
 	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
 		t.Skip("FFmpeg is not installed")
@@ -120,19 +123,143 @@ func TestLogoDetector(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段には、
-	// ロゴの出ているコマと消えたコマが混ざる。右上に、白い文字のような形のロゴを、15 秒から 25 秒の間だけ消して描く。
-	path := filepath.Join(t.TempDir(), "logo.ts")
-	const filter = "geq=lum='120+90*sin(2*PI*T/3)':cb=128:cr=128,noise=alls=40:allf=t,drawbox=x=560:y=20:w=4:h=24:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=560:y=30:w=14:h=4:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=580:y=20:w=4:h=24:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=580:y=30:w=14:h=4:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=600:y=20:w=4:h=24:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=600:y=30:w=14:h=4:color=white:t=fill:enable='lt(t,15)+gte(t,25)'"
-	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=30000/1001", "-t", "40",
-		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", path)
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
-
+	path := writeLogoTS(t, 15, 25)
 	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil})
 	require.NoError(t, err)
 	require.Len(t, got, 1, "%v", got)
 	// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
 	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
 	assert.InDelta(t, 25, got[0].End.Seconds(), 1, "%v", got)
+}
+
+// writeLogoTS は、局ロゴを、出ている所、hideFrom 秒から hideTo 秒まで消えた所 (CM)、また出た所の順に描いた、40 秒の合成の TS を書く。
+//
+// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段には、
+// ロゴの出ているコマと消えたコマが混ざる。右上に、白い文字のような形のロゴを描く。
+func writeLogoTS(t *testing.T, hideFrom, hideTo int) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "logo.ts")
+	shown := fmt.Sprintf("enable='lt(t,%d)+gte(t,%d)'", hideFrom, hideTo)
+	const logoStrokes = 3
+	filters := make([]string, 0, 2+2*logoStrokes)
+	filters = append(filters, "geq=lum='120+90*sin(2*PI*T/3)':cb=128:cr=128", "noise=alls=40:allf=t")
+	for i := range logoStrokes {
+		x := 560 + i*20
+		filters = append(filters,
+			fmt.Sprintf("drawbox=x=%d:y=20:w=4:h=24:color=white:t=fill:%s", x, shown),
+			fmt.Sprintf("drawbox=x=%d:y=30:w=14:h=4:color=white:t=fill:%s", x, shown))
+	}
+	filter := strings.Join(filters, ",")
+	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=30000/1001", "-t", "40",
+		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", path)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return path
+}
+
+// TestLogoDetectorRedetectsTooMuchCM は、ロゴで決めた CM の割合が上限以上なら、ロゴの結果を使わずに今の見分け方で見分け直し、
+// それも上限以上なら CM なしにすることを確かめる (#1508)。
+func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		fallback []cmdetect.Section
+		want     []cmdetect.Section
+	}{
+		{
+			name:     "uses the redetected sections when they are below the limit",
+			fallback: []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
+			want:     []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
+		},
+		{
+			name:     "drops the redetected sections when they also reach the limit",
+			fallback: []cmdetect.Section{{Start: 5 * time.Second, End: 30 * time.Second}},
+			want:     []cmdetect.Section{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fallback := NewMockDetector(gomock.NewController(t))
+			detector, err := cmdetect.NewLogoDetectorWith(fallback)
+			if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+				t.Skip("FFmpeg is not installed")
+			}
+			require.NoError(t, err)
+			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(tt.fallback, nil)
+
+			// ロゴは 40 秒のうち 10 秒から 34 秒まで消えるので、ロゴで決めた CM の割合は 6 割になる。
+			got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確かめる (#1508)。
+func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
+	t.Parallel()
+
+	fallback := NewMockDetector(gomock.NewController(t))
+	detector, err := cmdetect.NewLogoDetectorWith(fallback)
+	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{{Start: 0, End: 900 * time.Millisecond}}, nil)
+
+	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil})
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+// TestCMRatio は、CM の割合を、映像の欠けを分母からも分子からも外して求めることを確かめる (#1508)。
+func TestCMRatio(t *testing.T) {
+	t.Parallel()
+
+	sec := func(s float64) time.Duration { return time.Duration(s * float64(time.Second)) }
+	tests := []struct {
+		name     string
+		sections []cmdetect.Section
+		missing  []cmdetect.Section
+		duration time.Duration
+		want     float64
+	}{
+		{name: "欠けがなければ、CM の秒を尺で割る", sections: []cmdetect.Section{{Start: 0, End: sec(30)}, {Start: sec(60), End: sec(90)}}, missing: []cmdetect.Section{}, duration: sec(300), want: 0.2},
+		{
+			name: "CM に掛かった欠けは、CM の秒からも尺からも外す", sections: []cmdetect.Section{{Start: sec(200), End: sec(300)}},
+			missing: []cmdetect.Section{{Start: sec(250), End: sec(300)}}, duration: sec(300), want: 0.2,
+		},
+		{name: "尺がすべて欠けなら 0", sections: []cmdetect.Section{{Start: 0, End: sec(10)}}, missing: []cmdetect.Section{{Start: 0, End: sec(10)}}, duration: sec(10), want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.InDelta(t, tt.want, cmdetect.CMRatio(tt.sections, tt.missing, tt.duration), 1e-9)
+		})
+	}
+}
+
+// TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確かめる (#1508)。
+func TestMissingSections(t *testing.T) {
+	t.Parallel()
+
+	const fps = 30.0
+	times := make([]float64, 0, 300)
+	for i := range 300 {
+		times = append(times, 50+float64(i)/fps)
+	}
+	// 5 秒の位置で、3 秒途切れる。
+	for i := range times[150:] {
+		times[150+i] += 3
+	}
+	got := cmdetect.MissingSections(times, fps)
+	require.Len(t, got, 1)
+	assert.InDelta(t, 5.0, got[0].Start.Seconds(), 1e-6)
+	assert.InDelta(t, 8.0, got[0].End.Seconds(), 1e-6)
 }
