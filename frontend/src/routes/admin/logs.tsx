@@ -12,7 +12,7 @@ import {
   TextInput,
 } from '@mantine/core';
 import { createFileRoute } from '@tanstack/react-router';
-import { memo, startTransition, useDeferredValue, useMemo, useState } from 'react';
+import { memo, startTransition, useDeferredValue, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
@@ -128,14 +128,8 @@ function Logs() {
     source.kind === 'KOTATSU'
       ? t('admin.logs.sourceKotatsu', { instance: report.instanceId.slice(0, 8) })
       : t('admin.logs.sourceTunerServer');
-  const merged = useMemo(
-    () => mergeLines(report.sources.map((source) => ({ lines: linesOf(source) }))),
-    [report.sources],
-  );
-  const filtered = useMemo(
-    () => filterLines(merged, { hidden, problemsOnly, search: deferredSearch }),
-    [merged, hidden, problemsOnly, deferredSearch],
-  );
+  const merged = mergeLines(report.sources.map((source) => ({ lines: linesOf(source) })));
+  const filtered = filterLines(merged, { hidden, problemsOnly, search: deferredSearch });
   // 絞り方を変えたら、最初の行数に戻す。
   const changeFilter = (change: () => void) => {
     change();

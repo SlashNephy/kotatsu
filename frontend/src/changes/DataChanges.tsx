@@ -1,13 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useReducer,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useContext, useEffect, useReducer, useState, type ReactNode } from 'react';
 import { graphql, useSubscription } from 'react-relay';
 
 import type { DataChangesSubscription } from './__generated__/DataChangesSubscription.graphql';
@@ -54,12 +45,9 @@ export function DataChangesProvider({ children }: { children: ReactNode }) {
   const [unread, setUnread] = useState<number | null>(null);
   const [drains, setDrains] = useState(0);
   const [scrambled, setScrambled] = useState<LiveScrambled | null>(null);
-  // 購読を作り直さないよう、変わらない関数にする。
-  const addDrain = useCallback(() => setDrains((n) => n + 1), []);
-  const value = useMemo(
-    () => ({ state, dispatch, unread, setUnread, drains, addDrain, scrambled, setScrambled }),
-    [state, unread, drains, addDrain, scrambled],
-  );
+  // 購読を作り直さないよう、変わらない関数にする。React Compiler が覚えるので、useCallback は使わない (#1684)。
+  const addDrain = () => setDrains((n) => n + 1);
+  const value = { state, dispatch, unread, setUnread, drains, addDrain, scrambled, setScrambled };
 
   return <DataChangesContext.Provider value={value}>{children}</DataChangesContext.Provider>;
 }
@@ -97,54 +85,51 @@ export function useLiveScrambledEvent(): LiveScrambled | null {
 // 映像やデータ放送の接続のために、購読の接続の数を抑える。
 export function DataChangesSubscriber() {
   const { dispatch, setUnread, addDrain, setScrambled } = useContext(DataChangesContext);
-  const config = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription DataChangesSubscription {
-          viewerEvents {
-            dataChange {
-              channel
-              version
-            }
-            viewerSettingsVersion
-            unreadNotificationCount
-            streamsDraining
-            liveStreamScrambled {
-              service
-              decidedAt
-            }
+  const config = {
+    subscription: graphql`
+      subscription DataChangesSubscription {
+        viewerEvents {
+          dataChange {
+            channel
+            version
+          }
+          viewerSettingsVersion
+          unreadNotificationCount
+          streamsDraining
+          liveStreamScrambled {
+            service
+            decidedAt
           }
         }
-      `,
-      variables: {},
-      onNext: (response: DataChangesSubscription['response'] | null | undefined) => {
-        const event = response?.viewerEvents;
-        if (!event) {
-          return;
-        }
-        const change = event.dataChange;
-        // 新しい種類がサーバーに足されても、知らない種類は無視する。
-        if (change && change.channel !== '%future added value') {
-          dispatch({ channel: change.channel, version: change.version });
-        }
-        if (event.viewerSettingsVersion != null) {
-          dispatch({ channel: 'VIEWER_SETTINGS', version: event.viewerSettingsVersion });
-        }
-        if (event.unreadNotificationCount != null) {
-          setUnread(event.unreadNotificationCount);
-        }
-        if (event.streamsDraining === true) {
-          addDrain();
-        }
-        if (event.liveStreamScrambled) {
-          setScrambled({ ...event.liveStreamScrambled });
-        }
-      },
-      // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。未読の数は分からなくなる。
-      onError: () => setUnread(null),
-    }),
-    [dispatch, setUnread, addDrain, setScrambled],
-  );
+      }
+    `,
+    variables: {},
+    onNext: (response: DataChangesSubscription['response'] | null | undefined) => {
+      const event = response?.viewerEvents;
+      if (!event) {
+        return;
+      }
+      const change = event.dataChange;
+      // 新しい種類がサーバーに足されても、知らない種類は無視する。
+      if (change && change.channel !== '%future added value') {
+        dispatch({ channel: change.channel, version: change.version });
+      }
+      if (event.viewerSettingsVersion != null) {
+        dispatch({ channel: 'VIEWER_SETTINGS', version: event.viewerSettingsVersion });
+      }
+      if (event.unreadNotificationCount != null) {
+        setUnread(event.unreadNotificationCount);
+      }
+      if (event.streamsDraining === true) {
+        addDrain();
+      }
+      if (event.liveStreamScrambled) {
+        setScrambled({ ...event.liveStreamScrambled });
+      }
+    },
+    // 切れても、画面は今の内容のまま使える。つなぎ直したときに、切れている間の変更を数える。未読の数は分からなくなる。
+    onError: () => setUnread(null),
+  };
   useSubscription<DataChangesSubscription>(config);
 
   return null;

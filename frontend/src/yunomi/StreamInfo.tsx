@@ -1,5 +1,5 @@
 import { ScrollArea, Stack, Text } from '@mantine/core';
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useSubscription } from 'react-relay';
 import type { TFunction } from 'i18next';
@@ -428,34 +428,31 @@ function LiveRatesSubscriber({
   serviceId: string;
   onRates: (rates: LiveRates | null) => void;
 }) {
-  const config = useMemo(
-    () => ({
-      subscription: graphql`
-        subscription StreamInfoLiveRatesSubscription($service: ID!) {
-          liveStreamRates(service: $service) {
-            videoBps
-            audioBps
-            otherBps
-            psiBps
-            unknownBps
-            totalBps
-            drops
-            errors
-            scrambled
-          }
+  const config = {
+    subscription: graphql`
+      subscription StreamInfoLiveRatesSubscription($service: ID!) {
+        liveStreamRates(service: $service) {
+          videoBps
+          audioBps
+          otherBps
+          psiBps
+          unknownBps
+          totalBps
+          drops
+          errors
+          scrambled
         }
-      `,
-      variables: { service: serviceId },
-      onNext: (response: StreamInfoLiveRatesSubscription['response'] | null | undefined) => {
-        if (response) {
-          onRates(response.liveStreamRates);
-        }
-      },
-      // 数えられなければ (チューナーサーバーがないなど)、内訳を出さない。
-      onError: () => onRates(null),
-    }),
-    [serviceId, onRates],
-  );
+      }
+    `,
+    variables: { service: serviceId },
+    onNext: (response: StreamInfoLiveRatesSubscription['response'] | null | undefined) => {
+      if (response) {
+        onRates(response.liveStreamRates);
+      }
+    },
+    // 数えられなければ (チューナーサーバーがないなど)、内訳を出さない。
+    onError: () => onRates(null),
+  };
   useSubscription<StreamInfoLiveRatesSubscription>(config);
 
   return null;

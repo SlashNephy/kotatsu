@@ -1,6 +1,6 @@
 import { Box, Button, Code, Group, Image, Stack, Text, TextInput } from '@mantine/core';
 import { useComputedColorScheme } from '@mantine/core';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useRelayEnvironment } from 'react-relay';
 
@@ -50,11 +50,8 @@ function UnknownDRCSRow({ glyph }: { glyph: DRCSGlyph }) {
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const valid = validDRCSText(text);
-  // 字幕が出るたびに描き直さないよう、画像は外字と色が変わったときだけ作る。
-  const image = useMemo(
-    () => drcsImage(glyph, scheme === 'dark' ? '#fff' : '#000'),
-    [glyph, scheme],
-  );
+  // 字幕が出るたびに描き直さないよう、画像は外字と色が変わったときだけ作る。React Compiler が覚える (#1684)。
+  const image = drcsImage(glyph, scheme === 'dark' ? '#fff' : '#000');
 
   const submit = (event: FormEvent) => {
     event.preventDefault();

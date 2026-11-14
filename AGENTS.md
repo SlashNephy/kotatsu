@@ -24,6 +24,11 @@
 - `backend/` と `frontend/` のタスクは、`mise run //backend:test` や `mise run //frontend:check` のように呼びます。ルートのタスクは `mise run build` のように呼びます。
 - `mise install` は、そのディレクトリの `mise.toml` のツールだけを入れます。`backend/` のツールは `mise -C backend install` で入れます。
 
+## フロントエンド
+
+- React Compiler を有効にしているので、`useMemo` と `useCallback` は新しく書きません（#1684）。値や関数をそのまま書けば、コンパイラが覚えます。
+- コンパイラが最適化を諦めたコンポーネント（描画の中で ref を読むなど）では、手で書いた `useMemo` と `useCallback` を外しません。外すと、描くたびに作り直し、それを依存に持つ effect が繰り返し走ります。外す前に、そのコンポーネントがコンパイラを通るかを確かめます。
+
 ## コミットと PR
 
 - コミットメッセージと PR のタイトルは、Conventional Commits の形式で書きます（[CONTRIBUTING.md](.github/CONTRIBUTING.md)）。PR のタイトルの種類（`feat`、`fix`、`perf`、`docs`）から、リリースノートで分けるためのラベルが付くので、変更の中身に合った種類を選びます。

@@ -1,6 +1,6 @@
 import { Chip, Group, NavLink, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
-import { startTransition, Suspense, useCallback, useState } from 'react';
+import { startTransition, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
@@ -40,7 +40,7 @@ function liveRange(now: number): Range {
 // 読み込みの間に子は描き直されて state を失うので、時間帯は、待たない親で決める。一覧は読み込みを待たず、映像を先に出す。
 export function LiveServiceList({ serviceId }: { serviceId: string }) {
   const [range, setRange] = useState(() => liveRange(Date.now()));
-  const refresh = useCallback(() => startTransition(() => setRange(liveRange(Date.now()))), []);
+  const refresh = () => startTransition(() => setRange(liveRange(Date.now())));
 
   return (
     <Suspense fallback={null}>
