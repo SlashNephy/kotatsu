@@ -1,6 +1,9 @@
 package cmdetect_test
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -72,6 +75,8 @@ func TestDecodeMaterialsRejects(t *testing.T) {
 		{name: "not gzip", data: []byte("not a material")},
 		{name: "truncated", data: data[:len(data)/2]},
 		{name: "empty", data: []byte{}},
+		{name: "a frame count that overflows", data: rawMaterial(t, `{"version":1,"segments":[{"path":"a","fps":30,"frames":922337203685477581}]}`)},
+		{name: "another format version", data: rawMaterial(t, `{"version":0,"segments":[]}`)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,4 +86,19 @@ func TestDecodeMaterialsRejects(t *testing.T) {
 			assert.Error(t, err)
 		})
 	}
+}
+
+// rawMaterial は、header の JSON だけを持つ材料を、EncodeMaterials と同じ包み方で作る。
+func rawMaterial(t *testing.T, header string) []byte {
+	t.Helper()
+
+	var out bytes.Buffer
+	zw := gzip.NewWriter(&out)
+	size, err := binary.Append(nil, binary.LittleEndian, int32(float64(len(header))))
+	require.NoError(t, err)
+	_, err = zw.Write(append(size, header...))
+	require.NoError(t, err)
+	require.NoError(t, zw.Close())
+
+	return out.Bytes()
 }
