@@ -92,6 +92,21 @@ describe('captureFileName', () => {
       want: 'NHK総合1・東京Oct Fri.png',
     },
     {
+      name: 'half でサービス名も半角にし、Go の時刻の書き方の長い名前と空白で埋める日も使える',
+      template: '{{half .ServiceName}} {{.StartAt.Format "January Monday _2 03 4 5 pm"}}',
+      want: 'NHK総合1・東京 October Friday 16 09 5 9 pm.png',
+    },
+    {
+      name: 'タイムゾーンと秒の端数の書き方は、当てはめずに残す',
+      template: '{{.StartAt.Format "15 MST -0700 .000"}}',
+      want: '21 MST -0700 .000.png',
+    },
+    {
+      name: '前後の空白を詰める {{- と -}} は、受け付けずに残す',
+      template: '{{.Name}} {{- .ServiceName -}}',
+      want: 'ニュース７ {{- .ServiceName -}}.png',
+    },
+    {
       name: '受け付けない Go のテンプレートの書き方は、そのまま残す',
       template: '{{.EventID}}{{printf "%d" 1}}-{{.Name}}',
       want: '{{.EventID}}{{printf _%d_ 1}}-ニュース７.png',

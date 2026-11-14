@@ -242,10 +242,10 @@ export function captureFileName(
       '%event-name%': program,
     };
     // 両方の書き方を 1 回で当てはめ、当てはめた番組名の中の書き方を、もう一度は当てはめない。
-    // 知らない書き方はそのまま残す。
+    // 知らない書き方はそのまま残す。前後の空白を詰める {{- と -}} も、受け付けずに残す。
     const name = template
       .trim()
-      .replace(/%[a-z-]+%|\{\{-?\s*(.*?)\s*-?\}\}/g, (written, body: string | undefined) => {
+      .replace(/%[a-z-]+%|\{\{\s*(.*?)\s*\}\}/g, (written, body: string | undefined) => {
         if (body === undefined) {
           return written in values ? values[written as keyof typeof values] : written;
         }
