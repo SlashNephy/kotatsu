@@ -267,14 +267,16 @@ func TestLogoDetectorRedetect(t *testing.T) {
 				t.Skip("FFmpeg is not installed")
 			}
 			require.NoError(t, err)
-			if !tt.wantRedetectable {
-				fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{}, nil)
-			}
+			// ロゴで決めるはずの録画でも、今の見分け方に回ったときは、落とす前に理由を出す。Windows でたまに回ることがある (#1800)。
+			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{}, nil).MaxTimes(1)
 
 			sections, report, material, err := detector.DetectWithMaterial(t.Context(),
 				&cmdetect.Input{Path: writeLogoTS(t, tt.hideFrom, tt.hideTo), ServiceID: 0, Progress: nil})
 			require.NoError(t, err)
 			require.NotNil(t, material)
+			if tt.wantRedetectable {
+				require.Empty(t, report.Note, "the logo detector fell back to the current detector")
+			}
 
 			data, err := cmdetect.EncodeMaterials([]cmdetect.SegmentMaterial{{Path: "logo.ts", Material: material}})
 			require.NoError(t, err)
