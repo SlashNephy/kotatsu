@@ -123,7 +123,7 @@ export function CmDetectionStatus({
       {(detection.videoMissingSeconds ?? 0) >= 1 && (
         <Text size="xs" c="amber.8">
           {t('recordings.cm.videoMissing', {
-            seconds: Math.round(detection.videoMissingSeconds ?? 0),
+            count: Math.round(detection.videoMissingSeconds ?? 0),
           })}
         </Text>
       )}

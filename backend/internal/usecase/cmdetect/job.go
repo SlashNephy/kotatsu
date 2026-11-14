@@ -380,6 +380,9 @@ func detectWithReport(ctx context.Context, detector Detector, input *Input) ([]S
 
 // add は、i 番目 (全部で n 個) のセグメントの添え書きを足す。欠けの長さは足し合わせ、理由は、セグメントが複数あれば番号を付けて並べる。
 func (r *Report) add(segment *Report, i, n int) {
+	if segment == nil {
+		return
+	}
 	r.Missing += segment.Missing
 	if segment.Note == "" {
 		return

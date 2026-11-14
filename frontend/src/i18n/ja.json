@@ -1227,7 +1227,7 @@
       "detectedAt": "{{at}}に解析しました",
       "previous": "いまは、{{at}}に解析した結果（{{count}}か所）を使っています",
       "note": "いつもの見分け方では決められませんでした: {{note}}",
-      "videoMissing": "映像を読めなかった所が、合わせて{{seconds}}秒あります"
+      "videoMissing": "映像を読めなかった所が、合わせて{{count}}秒あります"
     },
     "download": "ダウンロード",
     "downloadTvtplayChapter": "CM のチャプター (TvtPlay)",
