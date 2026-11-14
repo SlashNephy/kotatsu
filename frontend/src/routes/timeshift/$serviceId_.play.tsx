@@ -333,6 +333,7 @@ function Player({
     stream.restartAt(seconds);
   };
   // tenban が止まる前に知らせてきたら、今の位置から、新しい接続を張ってから切り替える (#1085)。
+  // kyusu の経路は、セグメントごとに読み、次のセグメントは止まらない tenban に届くので、つなぎ直さない (設計書 11.4、#1727)。
   const drains = useStreamsDrains();
   const seenDrains = useRef(drains);
   useEffect(() => {
@@ -340,12 +341,12 @@ function Player({
       return;
     }
     seenDrains.current = drains;
-    if (error === null) {
+    if (!hls && error === null) {
       restartAt(positionRef.current);
       setHandover(true);
     }
     // 読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
-  }, [drains, error]);
+  }, [drains, error, hls]);
   const retry = () => {
     setError(null);
     restartAt(positionRef.current);
