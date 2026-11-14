@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
+	"strings"
 	"time"
 	"uuid"
 )
@@ -135,6 +137,12 @@ type RecordingSettings struct {
 // (1080p60、720p60) は、画質ではなく、出すコマ数 (TranscodeFrameRate、#1509) で選ぶので除く。
 func TranscodePresets() []string {
 	return []string{"1080p", "720p", "540p", "360p", "1080p-hevc", "720p-hevc", "540p-hevc", "360p-hevc"}
+}
+
+// TranscodedPath は、録画の最初のセグメントのパス segment から、画質 preset で変換した MP4 のパスを作る。拡張子を、画質と .mp4 に変える。
+// 例: anime/foo.m2ts → anime/foo.720p.mp4
+func TranscodedPath(segment, preset string) string {
+	return strings.TrimSuffix(segment, path.Ext(segment)) + "." + preset + ".mp4"
 }
 
 const (

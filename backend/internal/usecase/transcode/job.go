@@ -7,10 +7,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"time"
 	"uuid"
@@ -31,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/jobprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -48,6 +47,8 @@ const (
 	timeout = 6 * time.Hour
 	// lockedSnooze は、同じ録画のファイルをほかでつないでいるときに、やり直すまで待つ時間。
 	lockedSnooze = 10 * time.Minute
+	// finalizingSnooze は、つないだファイルへの置き換えが終わっていないときに、やり直すまで待つ時間。置き換えはすぐ終わるので、短くする (#1719)。
+	finalizingSnooze = time.Minute
 	// partialSuffix は、書いている途中の MP4 に付ける拡張子。書き終えたら外す。
 	partialSuffix = ".part"
 )
@@ -234,6 +235,13 @@ func withRecordingLock(ctx context.Context, db Database, recordingID uuid.UUID, 
 		}
 	}()
 
+	// つないだ後、つないだファイルに置き換えるまでは、ディスクの最初のセグメントがまだつなぐ前のままなので、読まない (#1719)。
+	if pending, err := segjoin.FinalizePending(ctx, conn, recordingID); err != nil {
+		return err
+	} else if pending {
+		return river.JobSnooze(finalizingSnooze)
+	}
+
 	return fn()
 }
 
@@ -258,7 +266,7 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 	if len(segments) == 0 {
 		return river.JobCancel(errNoSegment)
 	}
-	poolID, rel := segments[0].PoolID, outputPath(segments[0].Path, preset.Name)
+	poolID, rel := segments[0].PoolID, domain.TranscodedPath(segments[0].Path, preset.Name)
 	out, err := w.store.Path(poolID, rel)
 	if err != nil {
 		return river.JobCancel(fmt.Errorf("%w: %w", errNoSegment, err))
@@ -448,10 +456,4 @@ func place(partial, out string, ours bool) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// outputPath は、録画の最初のセグメントのパス segment から、変換した MP4 のパスを作る。拡張子を、画質と .mp4 に変える。
-// 例: anime/foo.m2ts → anime/foo.720p.mp4
-func outputPath(segment, preset string) string {
-	return strings.TrimSuffix(segment, path.Ext(segment)) + "." + preset + ".mp4"
 }

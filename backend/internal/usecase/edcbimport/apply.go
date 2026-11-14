@@ -213,12 +213,15 @@ func (im *Importer) Apply(ctx context.Context, db Database, snapshot *Snapshot, 
 
 	seen := map[historyKey]bool{}
 	for _, f := range snapshot.Recorded {
-		// 同じ鍵が一覧の中に 2 回出れば、先のものだけを使う。下見と取り込みで件数が食い違わないようにするためである。
+		// 同じ鍵が一覧の中に 2 回出れば、録画の履歴にするもののうち、先のものだけを使う。下見と取り込みで件数が食い違わないようにするためである。
+		// 録れていない記録は、鍵をふさがない。先に失敗した記録があっても、後の正常に録れた記録を履歴にする (#1725)。
 		key := keyOf(f)
 		if seen[key] {
 			continue
 		}
-		seen[key] = true
+		if historyCandidate(f) {
+			seen[key] = true
+		}
 		if err := a.apply(ctx, KindRecordedHistory, int64(f.ID), func(tx pgx.Tx) (uuid.UUID, error) { return a.history(ctx, tx, f) }); err != nil {
 			return nil, err
 		}
@@ -256,6 +259,16 @@ func keyOf(f *edcb.RecordedFile) historyKey {
 	}
 
 	return historyKey{ServiceKey: f.ServiceKey, start: start.Truncate(time.Second)}
+}
+
+// recordedNormally は、EDCB の録画済みが、録れたものかどうかを返す。
+func recordedNormally(f *edcb.RecordedFile) bool {
+	return slices.Contains(recordedStatuses(), f.Status)
+}
+
+// historyCandidate は、EDCB の録画済みが、番組名と状態から、録画の履歴にするものかどうかを返す。
+func historyCandidate(f *edcb.RecordedFile) bool {
+	return strings.TrimSpace(f.Title) != "" && recordedNormally(f)
 }
 
 // applier は、1 回の取り込みの状態を持つ。
@@ -374,7 +387,7 @@ func (a *applier) history(ctx context.Context, tx pgx.Tx, f *edcb.RecordedFile) 
 	if strings.TrimSpace(f.Title) == "" {
 		return uuid.Nil(), skip("the recorded file has no title")
 	}
-	if !slices.Contains(recordedStatuses(), f.Status) {
+	if !recordedNormally(f) {
 		return uuid.Nil(), skip("the recording did not finish normally (status %d)", f.Status)
 	}
 	serviceID := int64(f.ONID)*serviceIDBase + int64(f.SID)

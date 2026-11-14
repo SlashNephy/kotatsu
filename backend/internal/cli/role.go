@@ -296,7 +296,7 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 
 // newEDCBClient は、EpgTimerSrv の CtrlCmd のクライアントを返す。
 func newEDCBClient(deps *Deps) (*edcb.Client, error) {
-	client, err := edcb.New(&edcb.Options{Address: deps.Config.Tuner.EDCB.Address, DialTimeout: 0, RequestTimeout: 0, Dial: nil})
+	client, err := edcb.New(&edcb.Options{Address: deps.Config.Tuner.EDCB.Address, DialTimeout: 0, RequestTimeout: 0, Dial: nil, StreamIdleTimeout: 0})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the EDCB client: %w", err)
 	}

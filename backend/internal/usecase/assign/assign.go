@@ -95,23 +95,27 @@ type placed struct {
 	reservation *Reservation
 	// start と end は、録画する予定の時刻。マージンや本編を削ると縮む。
 	start, end time.Time
+	// coreStart と coreEnd は、他の予約に譲れない区間。本編を削ると、残した区間に縮む (#1718)。
+	coreStart, coreEnd time.Time
 	// rank は、置いた順。小さいほど優先度が高い。
 	rank int
 }
 
-// hardStart と hardEnd は、他の予約に譲れない区間。録画が始まった予約は、すでに録った開始マージンを含めて、録画の始まりから本編の終わりまでになる。
+// newPlaced は、予約 r をチューナーに置いた placed を返す。
+// 譲れない区間は、本編にする。録画が始まった予約は、すでに録った開始マージンを含めて、録画の始まりから本編の終わりまでにする。
 // 終了マージンは、録画の前と同じく、後の録画に譲る。録画が始まったときに戻すと、後の録画の冒頭が欠ける (#520)。
-func (p *placed) hardStart() time.Time {
-	if p.reservation.Recording {
-		return p.start
+func newPlaced(r *Reservation, rank int) *placed {
+	coreStart := r.StartAt
+	if r.Recording {
+		coreStart = r.fullStart()
 	}
 
-	return p.reservation.StartAt
+	return &placed{reservation: r, start: r.fullStart(), end: r.fullEnd(), coreStart: coreStart, coreEnd: r.EndAt, rank: rank}
 }
 
-func (p *placed) hardEnd() time.Time {
-	return p.reservation.EndAt
-}
+// hardStart と hardEnd は、他の予約に譲れない区間。本編を削った予約は、残した区間になり、捨てた側は他の予約が使える。
+func (p *placed) hardStart() time.Time { return p.coreStart }
+func (p *placed) hardEnd() time.Time   { return p.coreEnd }
 
 // Assign は、予約をチューナーに割り当てる。同じ入力からは、常に同じ結果を返す。
 //
@@ -120,6 +124,7 @@ func (p *placed) hardEnd() time.Time {
 //  3. 先頭から順に、その種別を受信できるチューナーへ割り当てる。候補が複数あるときは、削られる録画時間が最も少ないチューナーを選ぶ。
 //     本編を削らずに済むチューナーがあればそれを選び、なければ本編の削られる時間が最も少ないものを選ぶ (一部のみ)。
 //     本編をすべて削られるチューナーしかなければ、競合とする。
+//     削られる本編は、録画がひと続きの区間なので、本編の残る区間のうち最も長いものを除いた時間で見積もる (#1718)。
 //  4. 同じチューナーで別のチャンネルの予約が隣り合い、マージンどうしが重なるときは、前の録画の終了マージンを先に削り、
 //     次に後の録画の開始マージンを削る。マージンだけで重なるなら、本編は削らない。
 //
@@ -151,8 +156,10 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 			continue
 		}
 		for _, r := range d.reservations {
-			byTuner[tuner] = append(byTuner[tuner], &placed{reservation: r, start: r.fullStart(), end: r.fullEnd(), rank: rank})
+			byTuner[tuner] = append(byTuner[tuner], newPlaced(r, rank))
 		}
+		// 置いたらすぐに本編を削り、次の需要を置くときに、捨てた側を空いているとみなせるようにする (#1718)。
+		resolveCores(byTuner[tuner])
 	}
 
 	for tuner, list := range byTuner {
@@ -259,14 +266,12 @@ func lossOn(d *demand, existing []*placed) (time.Duration, time.Duration, bool) 
 
 	var coreCut, padding time.Duration
 	for _, r := range d.reservations {
-		var cut time.Duration
-		for _, span := range hard {
-			cut += overlap(r.StartAt, r.EndAt, span.start, span.end)
-		}
-		if cut >= r.EndAt.Sub(r.StartAt) {
+		// 録画は 1 本のひと続きの区間なので、本編の残る区間のうち最も長いものだけを録る (resolveCores と同じ)。
+		kept, ok := longestGap(r.StartAt, r.EndAt, hard)
+		if !ok {
 			return 0, 0, false
 		}
-		coreCut += cut
+		coreCut += r.EndAt.Sub(r.StartAt) - kept.end.Sub(kept.start)
 		for _, p := range others {
 			padding += marginLoss(r, p)
 		}
@@ -283,7 +288,10 @@ type span struct {
 func union(list []*placed) []span {
 	spans := make([]span, 0, len(list))
 	for _, p := range list {
-		spans = append(spans, span{start: p.hardStart(), end: p.hardEnd()})
+		// 本編をすべて削られた予約は、何もふさがない。
+		if p.hardStart().Before(p.hardEnd()) {
+			spans = append(spans, span{start: p.hardStart(), end: p.hardEnd()})
+		}
 	}
 	slices.SortFunc(spans, func(a, b span) int { return a.start.Compare(b.start) })
 
@@ -298,6 +306,32 @@ func union(list []*placed) []span {
 	}
 
 	return merged
+}
+
+// longestGap は、区間 [start, end) から、重なりをまとめて並べた区間の列 spans を除いて残る区間のうち、最も長いものを返す。
+// 同じ長さなら前のものを返す。何も残らなければ false を返す。
+func longestGap(start, end time.Time, spans []span) (span, bool) {
+	var best span
+	found := false
+	consider := func(s span) {
+		if s.start.Before(s.end) && (!found || s.end.Sub(s.start) > best.end.Sub(best.start)) {
+			best, found = s, true
+		}
+	}
+	cursor := start
+	for _, s := range spans {
+		if !s.end.After(cursor) {
+			continue
+		}
+		if !s.start.Before(end) {
+			break
+		}
+		consider(span{start: cursor, end: earlier(s.start, end)})
+		cursor = later(cursor, s.end)
+	}
+	consider(span{start: cursor, end: end})
+
+	return best, found
 }
 
 // overlap は、2 つの区間の重なる長さを返す。
@@ -339,33 +373,72 @@ func conflicting(a, b *placed) bool {
 		a.start.Before(b.end) && b.start.Before(a.end)
 }
 
-// resolveCores は、本編どうしが重なる予約のうち、後から置いた方の録画する時間を、相手の本編の手前か後ろまで削る。
+// resolveCores は、本編どうしが重なる予約のうち、後から置いた方の録画する時間を、相手の本編と重ならない区間まで削る。
+// 録画は 1 本のひと続きの区間なので、本編の残る区間のうち最も長いものを残す。同じ長さなら前を残す (#1718)。
+// 録画が始まった予約は、始まりを動かせないので、録画の始まりから続く区間を残す。
 // 本編はマージンより優先するので、残った本編に重なる相手のマージンも削る。
 func resolveCores(list []*placed) {
-	for i, a := range list {
-		for _, b := range list[i+1:] {
-			if !conflicting(a, b) || overlap(a.hardStart(), a.hardEnd(), b.hardStart(), b.hardEnd()) == 0 {
-				continue
+	// 置いた順に、勝った予約の区間を確かめてから、負けた予約を削る。録画が始まった需要は先に置いてあるので、常に勝つ。
+	order := slices.Clone(list)
+	slices.SortStableFunc(order, func(a, b *placed) int { return cmp.Compare(a.rank, b.rank) })
+	for i, l := range order {
+		winners := []*placed{}
+		for _, w := range order[:i] {
+			if w.reservation.channel() != l.reservation.channel() && w.start.Before(w.end) && w.hardStart().Before(w.hardEnd()) &&
+				overlap(l.hardStart(), l.hardEnd(), w.hardStart(), w.hardEnd()) > 0 {
+				winners = append(winners, w)
 			}
-			loserIsB := b.rank > a.rank
-			if b.reservation.Recording {
-				loserIsB = false
-			}
-			if a.reservation.Recording {
-				loserIsB = true
-			}
-			if loserIsB {
-				b.start = later(b.start, a.hardEnd())
+		}
+		if len(winners) == 0 {
+			continue
+		}
+		spans := union(winners)
+		var kept span
+		var ok bool
+		if l.reservation.Recording {
+			kept, ok = gapFrom(l.hardStart(), l.hardEnd(), spans)
+		} else {
+			kept, ok = longestGap(l.hardStart(), l.hardEnd(), spans)
+		}
+		if !ok {
+			// 本編がすべて削られた。録画する時間をなくし、競合にする。
+			l.end = l.start
+			l.coreEnd = l.coreStart
+
+			continue
+		}
+		if kept.start.After(l.hardStart()) {
+			l.start = later(l.start, kept.start)
+		}
+		if kept.end.Before(l.hardEnd()) {
+			l.end = earlier(l.end, kept.end)
+		}
+		l.coreStart, l.coreEnd = kept.start, kept.end
+		for _, w := range winners {
+			if !w.hardEnd().After(kept.start) {
 				// 録画が始まった予約も、終了マージンは、残った相手の本編に譲る (#520)。
-				a.end = earlier(a.end, later(b.start, a.hardEnd()))
-			} else {
-				a.end = earlier(a.end, b.hardStart())
-				if !b.reservation.Recording {
-					b.start = later(b.start, earlier(a.end, b.hardStart()))
-				}
+				w.end = earlier(w.end, later(l.start, w.hardEnd()))
+			} else if !w.hardStart().Before(kept.end) && !w.reservation.Recording {
+				w.start = later(w.start, earlier(l.end, w.hardStart()))
 			}
 		}
 	}
+}
+
+// gapFrom は、区間 [start, end) の始まりから、spans に重なるまでの区間を返す。始まりが spans に重なれば false を返す。
+func gapFrom(start, end time.Time, spans []span) (span, bool) {
+	for _, s := range spans {
+		if !s.end.After(start) {
+			continue
+		}
+		if !s.start.After(start) {
+			return span{start: start, end: start}, false
+		}
+
+		return span{start: start, end: earlier(s.start, end)}, true
+	}
+
+	return span{start: start, end: end}, true
 }
 
 // trimMargins は、マージンが重なる予約の、前の録画の終了マージンを先に削り、次に後の録画の開始マージンを削る。

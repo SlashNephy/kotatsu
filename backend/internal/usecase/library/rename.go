@@ -32,7 +32,7 @@ const undoTimeout = 10 * time.Second
 // ErrBusy は、セグメントをつないでいる途中なので、ファイルを移せないことを表す。
 var ErrBusy = errors.New("the recording files are being joined")
 
-// RenameFile は、付け直すセグメントのファイル。
+// RenameFile は、付け直すセグメントのファイルか、変換した MP4。
 type RenameFile struct {
 	FileID uuid.UUID
 	PoolID string
@@ -44,9 +44,14 @@ type RenameFile struct {
 	Dir      string
 	Name     string
 	Sequence int
+	// Preset は、変換した MP4 (#1253) のときの画質。セグメントでは空。
+	// 変換した MP4 は、最初のセグメントの名前から作った名前で探すので、最初のセグメント (Segment) を移した先に合わせて移す (#1720)。
+	// 連番は付けず、移す先がふさがっていれば移さない。
+	Preset  string
+	Segment uuid.UUID
 }
 
-// RenamePlan は、録画のファイルの付け直し。名前が変わるセグメントだけを持つ。
+// RenamePlan は、録画のファイルの付け直し。名前が変わるセグメントと、それに合わせて移す変換した MP4 だけを持つ。
 type RenamePlan struct {
 	RecordingID uuid.UUID
 	Files       []*RenameFile
@@ -167,12 +172,46 @@ func (l *Library) plan(
 		if moves {
 			plan.Files = append(plan.Files, &RenameFile{
 				FileID: files[i].ID, PoolID: files[i].PoolID, From: files[i].Path, To: to,
-				Dir: dir, Name: name, Sequence: n,
+				Dir: dir, Name: name, Sequence: n, Preset: "", Segment: uuid.Nil(),
 			})
 		}
 	}
+	plan.Files = append(plan.Files, transcodedRenames(files, plan.Files)...)
 
 	return plan, nil
+}
+
+// transcodedRenames は、最初のセグメントを移すとき、その名前から作った名前の変換した MP4 を、移した先の名前に合わせて移す計画を返す (#1720)。
+// 変換した MP4 の記録は最初のセグメントの名前で探すので (transcode.ChaptersWorker)、移さないと、CM のチャプターを書けなくなる。
+// 取り込んだ MP4 のような、ほかの名前のファイルは移さない。
+func transcodedRenames(files []sqlc.RecordingFile, segments []*RenameFile) []*RenameFile {
+	first := slices.IndexFunc(files, func(f sqlc.RecordingFile) bool { return f.Kind == segmentKind })
+	if first < 0 {
+		return []*RenameFile{}
+	}
+	i := slices.IndexFunc(segments, func(f *RenameFile) bool { return f.FileID == files[first].ID })
+	if i < 0 {
+		return []*RenameFile{}
+	}
+	moved := segments[i]
+	renames := []*RenameFile{}
+	for _, preset := range domain.TranscodePresets() {
+		from := domain.TranscodedPath(moved.From, preset)
+		j := slices.IndexFunc(files, func(f sqlc.RecordingFile) bool {
+			return f.Kind == otherKind && f.PoolID == moved.PoolID && f.Path == from
+		})
+		if j < 0 {
+			continue
+		}
+		to := domain.TranscodedPath(moved.To, preset)
+		dir, name := path.Split(to)
+		renames = append(renames, &RenameFile{
+			FileID: files[j].ID, PoolID: moved.PoolID, From: from, To: to,
+			Dir: strings.TrimSuffix(dir, "/"), Name: name, Sequence: 1, Preset: preset, Segment: moved.FileID,
+		})
+	}
+
+	return renames
 }
 
 // destination は、セグメントのファイル from を dir/name の start 番目の連番から付け直したときに移る先と、名前が変わるかを返す。
@@ -224,19 +263,66 @@ func checkNotJoining(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) erro
 	if !locked {
 		return ErrBusy
 	}
-	// River のテーブルは sqlc のスキーマにないので、直接引く。
-	var pending bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS (
-			SELECT 1 FROM river_job
-			WHERE kind = $1 AND args->>'recordingId' = $2::text AND state NOT IN ('completed', 'cancelled', 'discarded')
-		)`, new(segjoin.FinalizeArgs).Kind(), recordingID.String()).Scan(&pending); err != nil {
-		return fmt.Errorf("failed to check the finalization of the joined recording: %w", err)
+	pending, err := segjoin.FinalizePending(ctx, tx, recordingID)
+	if err != nil {
+		return err
 	}
 	if pending {
 		return ErrBusy
 	}
 
 	return nil
+}
+
+// move は、計画のファイル file を移し、移した先を返す。セグメントは連番を付けて移し、移した先を movedTo に残す。
+// 変換した MP4 は、最初のセグメントを実際に移した先 (movedTo) から作った名前に移す。最初のセグメントを移していないときと、
+// 移す先がふさがっているときは、移さずに false を返す。連番を付けると、最初のセグメントの名前から作った名前と合わなくなる (#1720)。
+func (l *Library) move(ctx context.Context, file *RenameFile, movedTo map[uuid.UUID]string) (string, bool, error) {
+	if file.Preset == "" {
+		to, err := l.store.Rename(file.PoolID, file.From, file.Dir, file.Name, file.Sequence)
+		if err != nil {
+			return "", false, err
+		}
+		movedTo[file.FileID] = to
+
+		return to, true, nil
+	}
+	segment, ok := movedTo[file.Segment]
+	if !ok {
+		return "", false, nil
+	}
+	to := domain.TranscodedPath(segment, file.Preset)
+	if to == file.From {
+		return "", false, nil
+	}
+	if taken, err := l.taken(file.PoolID, file.From, to); err != nil || taken {
+		l.logger.WarnContext(ctx, "kept the transcoded file; its new name is taken",
+			slog.String("from", file.From), slog.String("to", to), slog.Any("error", err))
+
+		return "", false, nil
+	}
+	if err := l.store.Restore(file.PoolID, file.From, to); err != nil {
+		return "", false, err
+	}
+
+	return to, true, nil
+}
+
+// taken は、プール poolID の to を、from とは別のファイルがふさいでいるかを返す。
+// 大文字と小文字や正規化だけを変えるときは、to が from 自身として見つかるが、ふさがっているとはみなさない (#1095)。
+func (l *Library) taken(poolID, from, to string) (bool, error) {
+	exists, err := l.store.Exists(poolID, to)
+	if err != nil || !exists {
+		return exists, err
+	}
+	checker := l.store.NewChecker()
+	defer checker.Close()
+	same, err := checker.SameFile(poolID, from, to)
+	if err != nil {
+		return true, err
+	}
+
+	return !same, nil
 }
 
 // Rename は、計画 plan のとおりに、録画のセグメントのファイルを移し、記録のパスを書き換える。
@@ -263,13 +349,19 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 			}
 		}
 		renamed := []map[string]string{}
+		// movedTo は、移したセグメントの、実際に移した先。変換した MP4 は、これに合わせて移す。
+		movedTo := map[uuid.UUID]string{}
 		for _, file := range plan.Files {
-			to, err := l.store.Rename(file.PoolID, file.From, file.Dir, file.Name, file.Sequence)
+			to, ok, err := l.move(ctx, file, movedTo)
 			if err != nil {
 				return err
 			}
+			if !ok {
+				continue
+			}
 			moved = append(moved, &RenameFile{
 				FileID: file.FileID, PoolID: file.PoolID, From: file.From, To: to, Dir: file.Dir, Name: file.Name, Sequence: file.Sequence,
+				Preset: file.Preset, Segment: file.Segment,
 			})
 			if err := q.SetRecordingFilePath(ctx, sqlc.SetRecordingFilePathParams{Path: to, ID: file.FileID}); err != nil {
 				return fmt.Errorf("failed to update the recording file path: %w", err)

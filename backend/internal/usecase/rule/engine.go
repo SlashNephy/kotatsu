@@ -137,11 +137,13 @@ func (e *Engine) Run(ctx context.Context) (*Result, error) {
 		// 重複の回避と、同じ回を録画済みで外した番組と、録画を理由に前の回として外した番組は、猶予の内でも残さない。
 		// 外れた理由が、番組表の書き換えでなく録画の完了だからである (#1501、#1498、#1499)。
 		duplicates := map[programKey]*skippedProgram{}
-		desired, err := e.narrow(ctx, tx, now, matched, duplicates)
+		// 重複の回避と同じ回の束ねで外した番組は、絞り込みの中で duplicates に入る。前の回を比べる相手を選ぶのにも、
+		// apply と同じ残し方を使うので、絞り込む前に作る。
+		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, duplicates)
+		desired, err := e.narrow(ctx, tx, now, matched, duplicates, keep, result)
 		if err != nil {
 			return err
 		}
-		keep := newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, duplicates)
 		if err := e.apply(ctx, tx, now, desired, keep, result); err != nil {
 			return err
 		}
@@ -177,14 +179,25 @@ func (e *Engine) desired(
 	if err != nil {
 		return nil, err
 	}
+	system, err := settings.Load(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	// 外した番組は、前の回を比べる相手を選ぶのにも使うので、渡されなくても集める。
+	if skipped == nil {
+		skipped = map[programKey]*skippedProgram{}
+	}
 
-	return e.narrow(ctx, tx, now, matched, skipped)
+	return e.narrow(ctx, tx, now, matched, skipped, newKeepPolicy(now, system.RuleUnmatchedGrace(), rules, skipped), result)
 }
 
 // narrow は、ルールに一致した番組を、人が取り消した放送、重複の回避、イベント共有、同じ回の束ね、前の回を録らない設定で絞り込み、
 // 予約すべき番組にする。skipped を渡せば、重複の回避、同じ回の束ね、前の回を録らない設定で予約すべき集合から外した番組を、そこに入れる。
+// keep と result は、apply と同じく、どのルールにも一致しなくなったルール予約を残すかを決める。前の回を比べる相手から、
+// この照合で消える予約を除くのに使う。skipped は nil にしない (keep が同じものを見る)。
 func (e *Engine) narrow(
 	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, skipped map[programKey]*skippedProgram,
+	keep *keepPolicy, result *Result,
 ) (map[programKey]*desiredProgram, error) {
 	if err := excludeCancelledBroadcasts(ctx, tx, now, matched); err != nil {
 		return nil, err
@@ -199,7 +212,12 @@ func (e *Engine) narrow(
 	if err := bundleSameEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
 		return nil, err
 	}
-	if err := skipEarlierEpisodes(ctx, tx, now, matched, skipped, bundled); err != nil {
+	// この照合で消えるルール予約は、前の回を比べる相手にしない。消える予約を理由に若い回を外すと、両方の予約が消える (#1724)。
+	removed, err := removedRuleReservations(ctx, tx, now, matched, keep, result)
+	if err != nil {
+		return nil, err
+	}
+	if err := skipEarlierEpisodes(ctx, tx, now, matched, skipped, bundled, removed); err != nil {
 		return nil, err
 	}
 
@@ -584,20 +602,9 @@ func (e *Engine) apply(
 	ctx context.Context, tx pgx.Tx, now time.Time, desired map[programKey]*desiredProgram, keep *keepPolicy, result *Result,
 ) error {
 	q := sqlc.New(tx)
-	existing, err := q.ListFutureProgramReservations(ctx, now)
+	existing, links, err := futureReservations(ctx, q, now)
 	if err != nil {
-		return fmt.Errorf("failed to list reservations: %w", err)
-	}
-	linkRows, err := q.ListFutureReservationRules(ctx, now)
-	if err != nil {
-		return fmt.Errorf("failed to list reservation rules: %w", err)
-	}
-	links := map[uuid.UUID]map[uuid.UUID]bool{}
-	for _, row := range linkRows {
-		if links[row.ReservationID] == nil {
-			links[row.ReservationID] = map[uuid.UUID]bool{}
-		}
-		links[row.ReservationID][row.RuleID] = true
+		return err
 	}
 
 	reserved := map[programKey]bool{}
@@ -627,6 +634,53 @@ func (e *Engine) apply(
 	}
 
 	return nil
+}
+
+// futureReservations は、放送が始まっていない、番組を指定した予約と、予約ごとに結び付いたルールの ID を返す。
+func futureReservations(
+	ctx context.Context, q *sqlc.Queries, now time.Time,
+) ([]sqlc.ListFutureProgramReservationsRow, map[uuid.UUID]map[uuid.UUID]bool, error) {
+	existing, err := q.ListFutureProgramReservations(ctx, now)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list reservations: %w", err)
+	}
+	linkRows, err := q.ListFutureReservationRules(ctx, now)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list reservation rules: %w", err)
+	}
+	links := map[uuid.UUID]map[uuid.UUID]bool{}
+	for _, row := range linkRows {
+		if links[row.ReservationID] == nil {
+			links[row.ReservationID] = map[uuid.UUID]bool{}
+		}
+		links[row.ReservationID][row.RuleID] = true
+	}
+
+	return existing, links, nil
+}
+
+// removedRuleReservations は、この照合の apply が消すルール予約の番組を返す。予約すべき集合 matched にない番組のルール予約を、
+// apply と同じ keepsUnmatched で確かめる (#1724)。
+func removedRuleReservations(
+	ctx context.Context, tx pgx.Tx, now time.Time, matched map[programKey]*desiredProgram, keep *keepPolicy, result *Result,
+) (map[programKey]bool, error) {
+	existing, links, err := futureReservations(ctx, sqlc.New(tx), now)
+	if err != nil {
+		return nil, err
+	}
+	removed := map[programKey]bool{}
+	for i := range existing {
+		row := &existing[i]
+		key := programKey{serviceID: row.ServiceID, eventID: *row.EventID}
+		if row.Kind != domain.ReservationKindRule || matched[key] != nil {
+			continue
+		}
+		if !keepsUnmatched(row, links[row.ID], keep, result) {
+			removed[key] = true
+		}
+	}
+
+	return removed, nil
 }
 
 // reconcile は、既存の予約 1 件を、予約すべき集合に合わせる。d は、その番組が集合になければ nil。

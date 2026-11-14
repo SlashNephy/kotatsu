@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jobprogress"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
 
 const (
@@ -41,6 +42,8 @@ const (
 	detectTimeout = 30 * time.Minute
 	// lockedSnooze は、同じ録画のファイルをほかでつないでいるときに、やり直すまで待つ時間。
 	lockedSnooze = 10 * time.Minute
+	// finalizingSnooze は、つないだファイルへの置き換えが終わっていないときに、やり直すまで待つ時間。置き換えはすぐ終わるので、短くする (#1719)。
+	finalizingSnooze = time.Minute
 	// foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。見分けている間に録画が消されたときに返る。
 	foreignKeyViolation = "23503"
 	// detectKey は、録画の完了のイベントの、CM の区間を見分けるかどうかのキー。
@@ -259,6 +262,13 @@ func (w *DetectWorker) Work(ctx context.Context, job *river.Job[DetectArgs]) err
 			_ = conn.Conn().Close(context.WithoutCancel(ctx))
 		}
 	}()
+
+	// つないだ後、つないだファイルに置き換えるまでは、ディスクの最初のセグメントがまだつなぐ前のままなので、読まない (#1719)。
+	if pending, err := segjoin.FinalizePending(ctx, conn, job.Args.RecordingID); err != nil {
+		return err
+	} else if pending {
+		return river.JobSnooze(finalizingSnooze)
+	}
 
 	return w.work(ctx, detector, job)
 }
