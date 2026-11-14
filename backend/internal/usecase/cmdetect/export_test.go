@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"strings"
-
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
