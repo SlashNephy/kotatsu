@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/coder/websocket"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,4 +143,36 @@ func TestHandle(t *testing.T) {
 			assert.Equal(t, tt.wantAllow, rec.Header().Get("Allow"), "%s: %s", name, tt.name)
 		}
 	}
+}
+
+// TestHandleWebSocket は、Handle で登録した net/http のハンドラーが、echo の応答を通して WebSocket の接続を受け入れられる
+// (Hijack できる) ことを確かめる。実況のコメントの中継 (/internal/media/jikkyo/:channel/ws) が使う。
+func TestHandleWebSocket(t *testing.T) {
+	t.Parallel()
+
+	router := httpserver.NewRouter(slog.New(slog.DiscardHandler), http.NotFoundHandler())
+	httpserver.Handle(router, "/ws/:channel", map[string]http.Handler{
+		http.MethodGet: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer func() { _ = conn.CloseNow() }()
+			_ = conn.Write(r.Context(), websocket.MessageText, []byte(r.PathValue("channel")))
+		}),
+	})
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	conn, resp, err := websocket.Dial(t.Context(), "ws"+server.URL[len("http"):]+"/ws/jk1", nil)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
+	// 接続できたときの応答の本文は、websocket.Dial が空にしている。
+	if resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+	defer func() { _ = conn.CloseNow() }()
+	_, message, err := conn.Read(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "jk1", string(message))
 }
