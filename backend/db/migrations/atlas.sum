@@ -1,4 +1,4 @@
-h1:mIt8XIgsqi3to183BI2FnHljXWq3sEcNNwU44Q5x9lw=
+h1:LwRaYhkbmTMmrHrqwycMRJXdbjpgHrP0GQoPMbLLGhc=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -121,3 +121,4 @@ h1:mIt8XIgsqi3to183BI2FnHljXWq3sEcNNwU44Q5x9lw=
 20261114140854_add_stream_urls.sql h1:sv5NTs+DtjVufnAmBJGfSEG5tOzP9CSS5tnQ46cJL2w=
 20261114153515_add_recording_downloads_enabled.sql h1:aH3ZNOI8OmtcU8IMblCjNpPfaZAyQN0vYiOQl9hQgMo=
 20261114155118_add_epgstation_api_enabled.sql h1:sLtYOOgSmBnji+Dg/j8Y1jNRr/j7XJ4qnP27p2YDAhs=
+20261114182309_add_tvtplay_chapters_enabled.sql h1:7MCR5iq5ys5RLDs+mxguj8EIU8eShMWO//v30NRmzxg=

@@ -200,6 +200,22 @@ type DetectedHook interface {
 	OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error
 }
 
+// DetectedHooks は、見分け終えたことを、並べた順にどれにも渡す。
+type DetectedHooks []DetectedHook
+
+var _ DetectedHook = DetectedHooks{}
+
+// OnDetected は、並べた順に OnDetected を呼ぶ。失敗したら、そこで止めて返す。
+func (hooks DetectedHooks) OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	for _, hook := range hooks {
+		if err := hook.OnDetected(ctx, tx, recordingID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // DetectWorker は、録画のセグメントごとに CM の区間を見分け、録画を始めた日時からの時間にそろえて DB に書く。
 type DetectWorker struct {
 	river.WorkerDefaults[DetectArgs]

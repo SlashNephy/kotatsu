@@ -234,14 +234,17 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter))
 	// 引き継ぎや再起動で分かれた録画のファイルは、録画が終わったら 1 つにつなぐ (設計書 5.4)。
 	// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。
+	// つないだら、管理者が有効にしていれば、TvtPlay のチャプターのファイルを、つないだセグメントで書き直させる (#1737)。
 	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
-		logger.With(slog.String("component", "segjoin")), 0))
+		logger.With(slog.String("component", "segjoin")), 0).WithJoinedHook(tvtplay.NewEnqueuer(inserter)))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
 	// 録画を終えたら、CM の区間を見分ける (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	// 録画の後処理の FFmpeg は、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
 	lowerer := procprio.New(logger.With(slog.String("component", "procprio")))
-	// CM の区間を見分け終えたら、変換した MP4 にチャプターを書くジョブを入れる (#1510)。
-	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock, lowerer, transcode.NewChaptersEnqueuer(inserter),
+	// CM の区間を見分け終えたら、変換した MP4 にチャプターを書くジョブ (#1510) と、管理者が有効にしていれば、
+	// TS のセグメントの隣に TvtPlay のチャプターのファイルを書くジョブ (#1737) を入れる。
+	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock, lowerer,
+		cmdetect.DetectedHooks{transcode.NewChaptersEnqueuer(inserter), tvtplay.NewEnqueuer(inserter)},
 		logger.With(slog.String("component", "cmdetect"))))
 	// 録画を終えた後の変換 (#1253)。映像のエンコーダーは、kyusu と同じ設定を使う。CM の区間があれば、変換し終えたらチャプターを書くジョブを入れる。
 	// 変換の進み具合は、ジョブの画面に出し、詰まったときに見分けられるようログにも出す (#1511)。
@@ -249,6 +252,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 		logger.With(slog.String("component", "transcode")), func() (transcode.Encoder, error) {
 			return transcode.NewFFmpegEncoder(&deps.Config.Kyusu, lowerer)
 		}))
+	// TS のセグメントの隣に、TvtPlay のチャプターのファイルを書く (#1737)。
+	river.AddWorker(workers, tvtplay.NewWriteWorker(deps.DB, storeOf(deps.Config), deps.Clock))
 	// 変換した MP4 に、CM の区間の境目をチャプターとして書く (#1510)。
 	river.AddWorker(workers, transcode.NewChaptersWorker(deps.DB, storeOf(deps.Config), deps.Clock, func() (transcode.Chapterer, error) {
 		return transcode.NewFFmpegChapterer(lowerer)

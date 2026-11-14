@@ -1817,6 +1817,8 @@ type SystemSettings struct {
 	// 無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
 	// ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
 	RecordingDownloadsEnabled bool `json:"recordingDownloadsEnabled"`
+	// CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。
+	TvtplayChaptersEnabled bool `json:"tvtplayChaptersEnabled"`
 	// EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
 	// 無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
 	// ログインしていれば誰でも読め、画面が、API トークンを発行する操作を出すかを決めるのに使う。
@@ -1862,6 +1864,7 @@ type SystemSettingsInput struct {
 	IptvFeedsEnabled *bool `json:"iptvFeedsEnabled,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。
 	RecordingDownloadsEnabled *bool `json:"recordingDownloadsEnabled,omitempty"`
+	TvtplayChaptersEnabled    *bool `json:"tvtplayChaptersEnabled,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。
 	EpgstationAPIEnabled *bool `json:"epgstationApiEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。

@@ -87,6 +87,9 @@ type System struct {
 	// RecordingDownloadsEnabled は、録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
 	// 録画を Kotatsu の外へ持ち出す機能なので、管理者が有効にしたときだけ使わせる。端末に保存 (設計書 7.8) は、Kotatsu の中でだけ再生するので含めない。
 	RecordingDownloadsEnabled bool
+	// TvtplayChaptersEnabled は、CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか
+	// (#1737、設計書 6.1)。保存先にファイルを足すので、既定は false。
+	TvtplayChaptersEnabled bool
 	// EPGStationAPIEnabled は、EPGStation 互換の API を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
 	// API は、トークンを持っている人なら誰でも映像を読めるので、管理者が有効にしたときだけ提供する。
 	EPGStationAPIEnabled bool
@@ -191,6 +194,7 @@ type Changes struct {
 	ExternalPlayerURLsEnabled    *bool
 	IPTVFeedsEnabled             *bool
 	RecordingDownloadsEnabled    *bool
+	TvtplayChaptersEnabled       *bool
 	EPGStationAPIEnabled         *bool
 	AnimeLinkingEnabled          *bool
 	CommentSources               *[]string
@@ -383,6 +387,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			ExternalPlayerURLsEnabled:              valueOr(changes.ExternalPlayerURLsEnabled, current.ExternalPlayerURLsEnabled),
 			IPTVFeedsEnabled:                       valueOr(changes.IPTVFeedsEnabled, current.IPTVFeedsEnabled),
 			RecordingDownloadsEnabled:              valueOr(changes.RecordingDownloadsEnabled, current.RecordingDownloadsEnabled),
+			TvtplayChaptersEnabled:                 valueOr(changes.TvtplayChaptersEnabled, current.TvtplayChaptersEnabled),
 			EPGStationAPIEnabled:                   valueOr(changes.EPGStationAPIEnabled, current.EPGStationAPIEnabled),
 			AnimeLinkingEnabled:                    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
 			CommentSources:                         valueOr(changes.CommentSources, current.CommentSources),
@@ -417,6 +422,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"externalPlayerUrlsEnabled":    change(current.ExternalPlayerURLsEnabled, updated.ExternalPlayerURLsEnabled),
 				"iptvFeedsEnabled":             change(current.IPTVFeedsEnabled, updated.IPTVFeedsEnabled),
 				"recordingDownloadsEnabled":    change(current.RecordingDownloadsEnabled, updated.RecordingDownloadsEnabled),
+				"tvtplayChaptersEnabled":       change(current.TvtplayChaptersEnabled, updated.TvtplayChaptersEnabled),
 				"epgstationApiEnabled":         change(current.EPGStationAPIEnabled, updated.EPGStationAPIEnabled),
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
@@ -597,6 +603,7 @@ func defaults() *System {
 		ExternalPlayerURLsEnabled: false,
 		IPTVFeedsEnabled:          false,
 		RecordingDownloadsEnabled: false,
+		TvtplayChaptersEnabled:    false,
 		EPGStationAPIEnabled:      false,
 		AnimeLinkingEnabled:       false,
 		CommentSources:            []string{},
@@ -636,6 +643,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		ExternalPlayerURLsEnabled: row.ExternalPlayerURLsEnabled,
 		IPTVFeedsEnabled:          row.IPTVFeedsEnabled,
 		RecordingDownloadsEnabled: row.RecordingDownloadsEnabled,
+		TvtplayChaptersEnabled:    row.TvtplayChaptersEnabled,
 		EPGStationAPIEnabled:      row.EPGStationAPIEnabled,
 		AnimeLinkingEnabled:       row.AnimeLinkingEnabled,
 		CommentSources:            row.CommentSources,

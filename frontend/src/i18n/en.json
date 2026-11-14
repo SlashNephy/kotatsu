@@ -2021,6 +2021,8 @@
       "joinSegments": "Join split recording files into one",
       "joinSegmentsHelp": "When a recording's files are split by an update or restart, they are joined into one file after the recording ends. If the overlaps do not match, the files are left split.",
       "detectCm": "Detect commercial breaks after recording",
+      "tvtplayChapters": "Write TvtPlay chapter files after detecting commercial breaks",
+      "tvtplayChaptersHelp": "Puts a chapter file (.chapter) that skips commercials in the chapters folder next to the recording file. TvtPlay for TVTest skips commercials when it opens the recording. Existing files with the same name are not overwritten.",
       "detectCmHelp": "Reads the recording with FFmpeg and marks the sections considered commercials on the seek bar. Recordings whose reservation or rule chooses Detect or Don't detect follow that setting. Turning this off keeps sections already detected.",
       "transcodeHelp": "After recording, transcode the recording to MP4 and add it as an other file (the original TS is kept). Rules and reservations can choose this too. nekonote transcodes with FFmpeg, using the same encoder setting as kyusu.",
       "transcodeFrameRateHelp": "How many frames per second an interlaced broadcast is transcoded to. Auto measures several places in the recording before transcoding, and uses 30 fps for anime, film (24p), and 30p, and 60 fps for live action (60i). Progressive video such as 720p or BS4K keeps its frame rate. Rules and reservations can choose this too.",

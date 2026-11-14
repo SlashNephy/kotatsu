@@ -7,6 +7,7 @@ import (
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -79,7 +80,8 @@ func (r *Resolver) renameRecordingFiles(ctx context.Context, globalIDs []string)
 	}
 	payload := &model.RenameRecordingFilesPayload{Renamed: 0, Skipped: len(ids) - len(plans), Failed: 0}
 	for _, plan := range plans {
-		err := r.library.Rename(ctx, r.db, actor, plan)
+		// TvtPlay のチャプターのファイルは、セグメントの名前で探されるので、付け直した名前で書き直させる (#1737)。
+		err := r.library.Rename(ctx, r.db, actor, plan, tvtplay.NewEnqueuer(r.jobs))
 		switch {
 		case err == nil:
 			payload.Renamed++

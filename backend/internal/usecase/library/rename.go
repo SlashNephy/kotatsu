@@ -329,7 +329,27 @@ func (l *Library) taken(poolID, from, to string) (bool, error) {
 // 生成物は、セグメントのファイルの ID で置くので移さない。
 // 移す先に同じ名前があれば連番を付ける。録画中と、セグメントをつないでいる途中の録画は移さない。監査ログに残す。
 // 記録を書き換えられなければ、移したファイルを元に戻す。同じプールの中だけで移す。
-func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, plan *RenamePlan) error {
+// RenamedHook は、名前を付け直した記録を書いたトランザクションの中で、付け直したことを受け取る。
+// セグメントの名前で探されるもの (TvtPlay のチャプターのファイル、#1737) を、付け直した名前で作り直させるのに使う。
+type RenamedHook interface {
+	OnRenamed(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error
+}
+
+// notifyRenamed は、録画 recordingID の名前を付け直したことを、hooks に並べた順に渡す。moved が false (移したファイルがない) なら渡さない。
+func notifyRenamed(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID, moved bool, hooks []RenamedHook) error {
+	if !moved {
+		return nil
+	}
+	for _, hook := range hooks {
+		if err := hook.OnRenamed(ctx, tx, recordingID); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, plan *RenamePlan, hooks ...RenamedHook) error {
 	moved := []*RenameFile{}
 	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
@@ -367,6 +387,10 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 				return fmt.Errorf("failed to update the recording file path: %w", err)
 			}
 			renamed = append(renamed, map[string]string{"from": file.From, "to": to})
+		}
+
+		if err := notifyRenamed(ctx, tx, plan.RecordingID, len(moved) > 0, hooks); err != nil {
+			return err
 		}
 
 		return l.record(ctx, tx, actor, "recording.renamed", &recording, map[string]any{"files": renamed})

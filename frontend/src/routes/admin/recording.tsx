@@ -64,6 +64,7 @@ const query = graphql`
         bundleSameEpisodes
       }
       ruleUnmatchedGraceMinutes
+      tvtplayChaptersEnabled
       updatedAt
     }
     systemStatus {
@@ -83,6 +84,8 @@ type Form = {
   joinSegments: boolean;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。既定は切る。
   detectCm: boolean;
+  // tvtplayChapters は、CM の区間を見分け終えたら、TvtPlay のチャプターのファイルを書くかどうか (#1737)。既定は切る。
+  tvtplayChapters: boolean;
   // transcodePreset は、録画が終わったら変換するときの画質 (#1253)。空なら変換しない (既定)。
   transcodePreset: string;
   // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。既定は auto。
@@ -127,6 +130,7 @@ function RecordingSettings() {
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
     detectCm: defaults.detectCm,
+    tvtplayChapters: settings.tvtplayChaptersEnabled,
     transcodePreset: defaults.transcodePreset ?? noTranscode,
     transcodeFrameRate: defaults.transcodeFrameRate,
     ruleAvoidDuplicates: settings.ruleDefaults.avoidDuplicates,
@@ -187,6 +191,7 @@ function RecordingSettings() {
                 bundleSameEpisodes: form.ruleBundleSameEpisodes,
               },
               ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
+              tvtplayChaptersEnabled: form.tvtplayChapters,
             },
           },
         );
@@ -284,6 +289,13 @@ function RecordingSettings() {
               description={t('admin.settings.detectCmHelp')}
               checked={form.detectCm}
               onChange={(event) => set({ detectCm: event.currentTarget.checked })}
+            />
+            <Switch
+              size="sm"
+              label={t('admin.settings.tvtplayChapters')}
+              description={t('admin.settings.tvtplayChaptersHelp')}
+              checked={form.tvtplayChapters}
+              onChange={(event) => set({ tvtplayChapters: event.currentTarget.checked })}
             />
             <Select
               size="sm"
