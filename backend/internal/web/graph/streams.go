@@ -16,12 +16,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
 // createStreamURL は、サービスか録画の、署名付きの映像の URL を発行する (設計書 7.6、9.6)。
-// 映像を見ることは誰にでも許されているので、ログインしていれば発行する。
+// 映像を見ることは誰にでも許されているので、管理者が外部プレイヤー用の URL を有効にしていれば (#1755)、ログインしている人に発行する。
 func (r *Resolver) createStreamURL(ctx context.Context, target string) (*model.StreamURL, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -29,6 +30,13 @@ func (r *Resolver) createStreamURL(ctx context.Context, target string) (*model.S
 	}
 	if r.streamSigner == nil {
 		return nil, errors.New("stream URL signer is not configured")
+	}
+	system, err := settings.Load(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	if !system.ExternalPlayerURLsEnabled {
+		return nil, NewError(CodeForbidden, "external player URLs are disabled by the administrator")
 	}
 	resource, err := r.streamResource(ctx, target)
 	if err != nil {

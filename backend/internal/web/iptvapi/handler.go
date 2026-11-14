@@ -15,6 +15,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 // PathPrefix は、ライブ視聴の M3U、番組表の XMLTV、配信、ロゴのパスの頭。この後ろに秘密の値が続く (#1324)。
@@ -43,6 +44,13 @@ type Authenticator interface {
 
 var _ Authenticator = new(auth.Feeds)
 
+// URLGate は、管理者が IPTV のクライアント用の URL を有効にしているかを返す (#1755)。*settings.URLGate が満たす。
+type URLGate interface {
+	IPTVFeedsEnabled(ctx context.Context) (bool, error)
+}
+
+var _ URLGate = new(settings.URLGate)
+
 // Queries は、サービスと番組を読む。*query.Queries が満たす。
 type Queries interface {
 	ListGuideServices(ctx context.Context, arg query.ListGuideServicesParams) ([]domain.Service, error)
@@ -54,6 +62,7 @@ var _ Queries = new(query.Queries)
 // Handler は、M3U と XMLTV を返し、ストリームとロゴのリクエストを認証する。
 type Handler struct {
 	auth    Authenticator
+	gate    URLGate
 	queries Queries
 	clock   clock.Clock
 	// origin は、リクエストが届いたオリジン (scheme://host)。M3U と XMLTV には、ストリームとロゴの絶対 URL を書く。
@@ -61,8 +70,8 @@ type Handler struct {
 }
 
 // NewHandler は Handler を返す。ログは、リクエストのロガー (echo.Context.Logger) に書く (#1606)。
-func NewHandler(authenticator Authenticator, queries Queries, clk clock.Clock, origin func(r *http.Request) string) *Handler {
-	return &Handler{auth: authenticator, queries: queries, clock: clk, origin: origin}
+func NewHandler(authenticator Authenticator, gate URLGate, queries Queries, clk clock.Clock, origin func(r *http.Request) string) *Handler {
+	return &Handler{auth: authenticator, gate: gate, queries: queries, clock: clk, origin: origin}
 }
 
 // Authenticate は、パスの秘密の値 (:token) で認証し、発行したユーザーとして next を呼ぶ echo のミドルウェア。
@@ -73,6 +82,18 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c *echo.Context) error {
 		w, r := c.Response(), c.Request()
 		ctx := r.Context()
+		// 管理者が IPTV のクライアント用の URL を無効にしている間は、取り消していない URL も断る (#1755)。
+		enabled, err := h.gate.IPTVFeedsEnabled(ctx)
+		if err != nil {
+			fail(ctx, c.Logger(), w, "failed to load whether IPTV feeds are enabled", err)
+
+			return nil
+		}
+		if !enabled {
+			http.NotFound(w, r)
+
+			return nil
+		}
 		principal, err := h.auth.Authenticate(ctx, c.Param("token"))
 		if errors.Is(err, auth.ErrUnauthenticated) {
 			http.NotFound(w, r)

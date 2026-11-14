@@ -1352,6 +1352,8 @@ type ComplexityRoot struct {
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
+		ExternalPlayerUrlsEnabled              func(childComplexity int) int
+		IptvFeedsEnabled                       func(childComplexity int) int
 		JikkyoEnabled                          func(childComplexity int) int
 		McpEnabled                             func(childComplexity int) int
 		NetworkActivityEnabled                 func(childComplexity int) int
@@ -7710,6 +7712,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.DrcsReplacements(childComplexity), true
+	case "SystemSettings.externalPlayerUrlsEnabled":
+		if e.ComplexityRoot.SystemSettings.ExternalPlayerUrlsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.ExternalPlayerUrlsEnabled(childComplexity), true
+	case "SystemSettings.iptvFeedsEnabled":
+		if e.ComplexityRoot.SystemSettings.IptvFeedsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.IptvFeedsEnabled(childComplexity), true
 	case "SystemSettings.jikkyoEnabled":
 		if e.ComplexityRoot.SystemSettings.JikkyoEnabled == nil {
 			break
@@ -9455,6 +9469,7 @@ extend type Mutation {
   """
   ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
   URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  管理者が IPTV のクライアント用の URL を有効にしていなければ (SystemSettings.iptvFeedsEnabled)、FORBIDDEN を返す (#1755)。
   """
   createIptvFeed: CreatedIptvFeed!
   "IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。"
@@ -11909,6 +11924,18 @@ type SystemSettings {
   ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
   """
   dataBroadcastIpEnabled: Boolean!
+  """
+  外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
+  無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  externalPlayerUrlsEnabled: Boolean!
+  """
+  IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
+  無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  iptvFeedsEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
@@ -11952,6 +11979,10 @@ input SystemSettingsInput {
   mcpEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。"
   dataBroadcastIpEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとして映像を見られるようになるため。"
+  externalPlayerUrlsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。"
+  iptvFeedsEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
@@ -12149,6 +12180,7 @@ type StreamURL {
 extend type Mutation {
   """
   サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  管理者が外部プレイヤー用の URL を有効にしていなければ (SystemSettings.externalPlayerUrlsEnabled)、FORBIDDEN を返す (#1755)。
   target には、Service か Recording の ID を渡す。
   """
   createStreamURL(target: ID!): StreamURL!
@@ -14938,6 +14970,10 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_mcpEnabled(ctx, field)
 	case "dataBroadcastIpEnabled":
 		return ec.fieldContext_SystemSettings_dataBroadcastIpEnabled(ctx, field)
+	case "externalPlayerUrlsEnabled":
+		return ec.fieldContext_SystemSettings_externalPlayerUrlsEnabled(ctx, field)
+	case "iptvFeedsEnabled":
+		return ec.fieldContext_SystemSettings_iptvFeedsEnabled(ctx, field)
 	case "animeLinkingEnabled":
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
 	case "jikkyoEnabled":
@@ -41535,6 +41571,52 @@ func (ec *executionContext) fieldContext_SystemSettings_dataBroadcastIpEnabled(_
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _SystemSettings_externalPlayerUrlsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_externalPlayerUrlsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExternalPlayerUrlsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_externalPlayerUrlsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_iptvFeedsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_iptvFeedsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IptvFeedsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_iptvFeedsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _SystemSettings_animeLinkingEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -47510,7 +47592,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -47580,6 +47662,20 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.DataBroadcastIPEnabled = data
+		case "externalPlayerUrlsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("externalPlayerUrlsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExternalPlayerUrlsEnabled = data
+		case "iptvFeedsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("iptvFeedsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IptvFeedsEnabled = data
 		case "animeLinkingEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("animeLinkingEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -56672,6 +56768,16 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "dataBroadcastIpEnabled":
 			out.Values[i] = ec._SystemSettings_dataBroadcastIpEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "externalPlayerUrlsEnabled":
+			out.Values[i] = ec._SystemSettings_externalPlayerUrlsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "iptvFeedsEnabled":
+			out.Values[i] = ec._SystemSettings_iptvFeedsEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -10,6 +10,7 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,7 +19,9 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
@@ -149,8 +152,11 @@ func TestAuthorizer(t *testing.T) {
 	token, _, err := sessions.Create(t.Context(), pool, viewer.ID, nil)
 	require.NoError(t, err)
 
+	setExternalPlayerURLsEnabled(t, pool, clk, true)
+
 	signer := newSigner(t, keyMaterial)
-	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)), clk)
+	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)),
+		settings.NewURLGate(pool, clk, slog.New(slog.DiscardHandler)), clk)
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -221,8 +227,11 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 	revoked, revokedSession, err := sessions.Create(t.Context(), pool, viewer.ID, nil)
 	require.NoError(t, err)
 
+	setExternalPlayerURLsEnabled(t, pool, clk, true)
+
 	signer := newSigner(t, keyMaterial)
-	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(conn.Pool, clk, slog.New(slog.DiscardHandler)), clk)
+	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(conn.Pool, clk, slog.New(slog.DiscardHandler)),
+		settings.NewURLGate(conn.Pool, clk, slog.New(slog.DiscardHandler)), clk)
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -276,6 +285,63 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, get(t, tt.path, tt.cookie))
 		})
 	}
+}
+
+// TestAuthorizerFollowsExternalPlayerURLsSetting は、管理者が外部プレイヤー用の URL を有効にしている間だけ、
+// 署名付き URL で映像を見られることを確かめる (#1755)。無効にしたら、期限の前に発行した URL も、その場で断る。
+func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
+	t.Parallel()
+
+	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
+	pool, err := database.Open(t.Context(), databasetest.New(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	viewer, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{Username: "yuzu", DisplayName: "ゆず", Role: domain.RoleViewer, PasswordHash: nil})
+	require.NoError(t, err)
+
+	signer := newSigner(t, keyMaterial)
+	authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)),
+		settings.NewURLGate(pool, clk, slog.New(slog.DiscardHandler)), clk)
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	mux := http.NewServeMux()
+	mux.Handle(signedPattern, authorizer.Signed(ok))
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	signed := signer.Sign(resource, viewer.ID, clk.Now().Add(stream.DefaultURLLifetime)).URL
+
+	// 順に設定を変えるので、行ごとに並行させない。
+	tests := []struct {
+		name       string
+		enabled    *bool
+		wantStatus int
+	}{
+		{name: "既定では無効", enabled: nil, wantStatus: http.StatusForbidden},
+		{name: "有効にした", enabled: new(true), wantStatus: http.StatusOK},
+		{name: "無効に戻した", enabled: new(false), wantStatus: http.StatusForbidden},
+	}
+	for _, tt := range tests {
+		if tt.enabled != nil {
+			setExternalPlayerURLsEnabled(t, pool, clk, *tt.enabled)
+		}
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+signed, nil)
+		require.NoError(t, err)
+		resp, err := httpclienttest.New(t).Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, tt.wantStatus, resp.StatusCode, tt.name)
+	}
+}
+
+// setExternalPlayerURLsEnabled は、管理者が外部プレイヤー用の URL を有効にするか無効にする (#1755)。
+func setExternalPlayerURLsEnabled(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, enabled bool) {
+	t.Helper()
+
+	_, err := settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"),
+		&settings.Changes{ExternalPlayerURLsEnabled: &enabled})
+	require.NoError(t, err)
 }
 
 // mustQuery は、URL のクエリの部分を返す。

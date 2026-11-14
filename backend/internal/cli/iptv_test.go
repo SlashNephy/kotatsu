@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 // TestTenbanServesIPTV は、tenban が、echo のルーターで IPTV の M3U と XMLTV を返すことを確かめる (#1606)。
@@ -27,6 +28,9 @@ func TestTenbanServesIPTV(t *testing.T) {
 	})
 	require.NoError(t, err)
 	token, _, err := auth.NewIPTVFeeds(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID)
+	require.NoError(t, err)
+	// IPTV のクライアント用の URL は、管理者が有効にしている間だけ受け付ける (#1755)。
+	_, err = settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{IPTVFeedsEnabled: new(true)})
 	require.NoError(t, err)
 
 	tests := []struct {

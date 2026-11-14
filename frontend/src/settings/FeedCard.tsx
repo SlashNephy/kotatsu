@@ -35,6 +35,8 @@ type Props = {
   feed: FeedItem | null | undefined;
   // issued は、発行した直後にだけ分かる URL。出していなければ null。
   issued: IssuedUrl[] | null;
+  // disabledMessage は、管理者が発行を無効にしているときに出す説明 (#1755)。渡すと、発行のボタンを出さず、取り消しだけを許す。
+  disabledMessage?: string | undefined;
   onCloseIssued: () => void;
   onCreate: () => void;
   onRevoke: () => void;
@@ -50,6 +52,7 @@ export function FeedCard({
   createLabel,
   feed,
   issued,
+  disabledMessage,
   onCloseIssued,
   onCreate,
   onRevoke,
@@ -105,6 +108,11 @@ export function FeedCard({
             </Stack>
           </Alert>
         )}
+        {disabledMessage !== undefined && (
+          <Alert color="gray" role="status">
+            {disabledMessage}
+          </Alert>
+        )}
         {feed == null ? (
           <Text size="sm" c="dimmed">
             {emptyMessage}
@@ -119,9 +127,11 @@ export function FeedCard({
           </Text>
         )}
         <Group gap="xs">
-          <Button size="compact-sm" onClick={onCreate}>
-            {feed == null ? createLabel : t('settings.account.recreateFeed')}
-          </Button>
+          {disabledMessage === undefined && (
+            <Button size="compact-sm" onClick={onCreate}>
+              {feed == null ? createLabel : t('settings.account.recreateFeed')}
+            </Button>
+          )}
           {feed != null && (
             <Button size="compact-sm" variant="default" color="red" onClick={onRevoke}>
               {t('settings.account.revokeFeed')}

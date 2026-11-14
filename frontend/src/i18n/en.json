@@ -446,6 +446,7 @@
       "iptvPlaylist": "Channel list (M3U)",
       "iptvGuide": "Program guide (XMLTV)",
       "noIptvFeed": "No IPTV feed URL has been issued",
+      "iptvFeedDisabled": "An administrator has turned off IPTV client URLs. The URL you issued cannot be used now. You can still revoke it.",
       "createIptvFeed": "Issue IPTV feed URLs",
       "apiTokenIssued": "The API token has been issued. It is shown only now. Save it somewhere safe.",
       "copy": "Copy",
@@ -2026,6 +2027,12 @@
       "dataBroadcastIp": "Data broadcast communication",
       "dataBroadcastIpEnabled": "Relay interactive data broadcast communication",
       "dataBroadcastIpHelp": "Kotatsu's server relays the requests that data broadcast documents send to the internet, such as polls and prize entries. They may include receiver information such as the postal code. Requests to addresses inside your LAN are refused.",
+      "externalPlayerUrls": "External player URLs",
+      "externalPlayerUrlsEnabled": "Issue URLs to open in VLC or mpv",
+      "externalPlayerUrlsHelp": "Lets users issue URLs to open recordings and live channels in an external player. Anyone who has a URL can open it until it expires. Turning this off also stops URLs that were already issued, before they expire.",
+      "iptvFeeds": "IPTV client URLs",
+      "iptvFeedsEnabled": "Issue URLs to watch in Kodi or Jellyfin",
+      "iptvFeedsHelp": "Lets users issue, from the security settings, URLs that serve the live channel list and guide to IPTV clients. Anyone who has a URL can use it until it is revoked. Turning this off also stops URLs that were already issued.",
       "commentSource": {
         "NX_JIKKYO": {
           "title": "Niconico Jikkyo",

@@ -15,12 +15,14 @@ import (
 )
 
 // systemSettingsAdministrator は、全体の設定を変える管理者を確かめ、操作者を返す。
-// MCP のクライアントとの連携、データ放送の通信の中継 (#501)、しょぼいカレンダー、Annict、AniList との連携、ニコニコ実況を変えるときだけ、
-// 外部のサービスに読ませたり、受信機の情報を外部のサーバーへ送らせたり、外部へ問い合わせ始めたりするかどうかを決める操作なので、
+// MCP のクライアントとの連携、データ放送の通信の中継 (#501)、外部プレイヤーと IPTV のクライアント用の URL (#1755)、
+// しょぼいカレンダー、Annict、AniList との連携、ニコニコ実況を変えるときだけ、
+// 外部のサービスに読ませたり、受信機の情報を外部のサーバーへ送らせたり、URL を持つ人に映像を見せたり、外部へ問い合わせ始めたりするかどうかを決める操作なので、
 // 直近 10 分以内の再認証を求める。録画やルールの既定値、保持期間は、第三者に影響しないので求めない (設計書 9.5)。
 func (r *Resolver) systemSettingsAdministrator(ctx context.Context, input model.SystemSettingsInput) (*auth.Principal, *audit.Actor, error) {
 	const message = "only administrators can change the system settings"
-	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.AnimeLinkingEnabled != nil || input.CommentSources != nil {
+	if input.McpEnabled != nil || input.DataBroadcastIPEnabled != nil || input.ExternalPlayerUrlsEnabled != nil || input.IptvFeedsEnabled != nil ||
+		input.AnimeLinkingEnabled != nil || input.CommentSources != nil {
 		return r.recentAdministrator(ctx, message)
 	}
 
@@ -59,13 +61,15 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 			FollowEventRelay:    system.Rule.FollowEventRelay,
 			BundleSameEpisodes:  system.Rule.BundleSameEpisodes,
 		},
-		McpEnabled:             system.MCPEnabled,
-		DataBroadcastIPEnabled: system.DataBroadcastIPEnabled,
-		AnimeLinkingEnabled:    system.AnimeLinkingEnabled,
-		JikkyoEnabled:          slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),
-		CommentSources:         commentSourcesOf(system.CommentSources),
-		DrcsReplacements:       drcsReplacementsOf(system.DRCSReplacements),
-		TimeshiftWhileWatching: system.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: system.TimeshiftWhileWatchingRetentionSeconds,
+		McpEnabled:                system.MCPEnabled,
+		DataBroadcastIPEnabled:    system.DataBroadcastIPEnabled,
+		ExternalPlayerUrlsEnabled: system.ExternalPlayerURLsEnabled,
+		IptvFeedsEnabled:          system.IPTVFeedsEnabled,
+		AnimeLinkingEnabled:       system.AnimeLinkingEnabled,
+		JikkyoEnabled:             slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),
+		CommentSources:            commentSourcesOf(system.CommentSources),
+		DrcsReplacements:          drcsReplacementsOf(system.DRCSReplacements),
+		TimeshiftWhileWatching:    system.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: system.TimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: system.RuleUnmatchedGraceMinutes,
 		UpdatedAt:                 system.UpdatedAt,
 	}

@@ -72,6 +72,18 @@ type SystemSettings {
   ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
   """
   dataBroadcastIpEnabled: Boolean!
+  """
+  外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
+  無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  externalPlayerUrlsEnabled: Boolean!
+  """
+  IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
+  無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  iptvFeedsEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
@@ -115,6 +127,10 @@ input SystemSettingsInput {
   mcpEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。"
   dataBroadcastIpEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとして映像を見られるようになるため。"
+  externalPlayerUrlsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。"
+  iptvFeedsEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"

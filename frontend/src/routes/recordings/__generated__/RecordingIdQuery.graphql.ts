@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<749fba1da3da28f9aadc0847c16aa0d4>>
+ * @generated SignedSource<<097082daff910e826c989d2285e0215c>>
  * @lightSyntaxTransform
  */
 
@@ -128,6 +128,9 @@ export type RecordingIdQuery$data = {
     // value in case none of the concrete values match.
     readonly __typename: "%other";
   } | null | undefined;
+  readonly systemSettings: {
+    readonly externalPlayerUrlsEnabled: boolean;
+  };
   readonly tags: ReadonlyArray<{
     readonly name: string;
   }>;
@@ -158,130 +161,148 @@ v1 = {
 v2 = {
   "alias": null,
   "args": null,
+  "concreteType": "SystemSettings",
+  "kind": "LinkedField",
+  "name": "systemSettings",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "externalPlayerUrlsEnabled",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v3 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "name",
   "storageKey": null
 },
-v3 = [
+v4 = [
   {
     "kind": "Variable",
     "name": "id",
     "variableName": "id"
   }
 ],
-v4 = {
+v5 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "__typename",
   "storageKey": null
 },
-v5 = {
+v6 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "id",
   "storageKey": null
 },
-v6 = {
+v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "workTitle",
   "storageKey": null
 },
-v7 = {
+v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "description",
   "storageKey": null
 },
-v8 = {
+v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "startAt",
   "storageKey": null
 },
-v9 = {
+v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "endAt",
   "storageKey": null
 },
-v10 = {
+v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v11 = {
+v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "failureReason",
   "storageKey": null
 },
-v12 = {
+v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "failureDetail",
   "storageKey": null
 },
-v13 = {
+v14 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "protected",
   "storageKey": null
 },
-v14 = {
+v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "drops",
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "errors",
   "storageKey": null
 },
-v16 = {
+v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambled",
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambleWarning",
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambledRatio",
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "kind",
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "StreamQuality",
@@ -296,7 +317,7 @@ v20 = {
       "name": "pid",
       "storageKey": null
     },
-    (v19/*:: as any*/),
+    (v20/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -304,9 +325,9 @@ v20 = {
       "name": "packets",
       "storageKey": null
     },
-    (v14/*:: as any*/),
     (v15/*:: as any*/),
     (v16/*:: as any*/),
+    (v17/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -324,14 +345,14 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "from",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -339,7 +360,7 @@ v22 = {
   "name": "gaps",
   "plural": true,
   "selections": [
-    (v21/*:: as any*/),
+    (v22/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -350,7 +371,7 @@ v22 = {
   ],
   "storageKey": null
 },
-v23 = {
+v24 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingCMSection",
@@ -358,11 +379,11 @@ v23 = {
   "name": "cmSections",
   "plural": true,
   "selections": [
-    (v21/*:: as any*/)
+    (v22/*:: as any*/)
   ],
   "storageKey": null
 },
-v24 = {
+v25 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingCMDetection",
@@ -370,7 +391,7 @@ v24 = {
   "name": "cmDetection",
   "plural": false,
   "selections": [
-    (v10/*:: as any*/),
+    (v11/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -406,35 +427,35 @@ v24 = {
   ],
   "storageKey": null
 },
-v25 = {
+v26 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "programLost",
   "storageKey": null
 },
-v26 = {
+v27 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "broadcastStartedAt",
   "storageKey": null
 },
-v27 = {
+v28 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "broadcastEndedAt",
   "storageKey": null
 },
-v28 = {
+v29 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "notBroadcast",
   "storageKey": null
 },
-v29 = {
+v30 = {
   "alias": null,
   "args": null,
   "concreteType": "Genre",
@@ -459,7 +480,7 @@ v29 = {
   ],
   "storageKey": null
 },
-v30 = {
+v31 = {
   "alias": null,
   "args": null,
   "concreteType": "AnimeEpisode",
@@ -558,86 +579,86 @@ v30 = {
   ],
   "storageKey": null
 },
-v31 = [
-  (v5/*:: as any*/)
+v32 = [
+  (v6/*:: as any*/)
 ],
-v32 = {
+v33 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
   "kind": "LinkedField",
   "name": "rule",
   "plural": false,
-  "selections": (v31/*:: as any*/),
-  "storageKey": null
-},
-v33 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "ruleName",
+  "selections": (v32/*:: as any*/),
   "storageKey": null
 },
 v34 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "name": "ruleName",
   "storageKey": null
 },
 v35 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "streamUrl",
+  "name": "thumbnailUrl",
   "storageKey": null
 },
 v36 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "videoFormat",
+  "name": "streamUrl",
   "storageKey": null
 },
 v37 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "jikkyoCommentsUrl",
+  "name": "videoFormat",
   "storageKey": null
 },
 v38 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "jikkyoCommentsUrl",
   "storageKey": null
 },
 v39 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v40 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "recordedUntil",
   "storageKey": null
 },
 v41 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v42 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
   "kind": "LinkedField",
   "name": "jikkyo",
   "plural": false,
-  "selections": (v31/*:: as any*/),
+  "selections": (v32/*:: as any*/),
   "storageKey": null
 },
-v42 = {
+v43 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -645,12 +666,12 @@ v42 = {
   "name": "tags",
   "plural": true,
   "selections": [
-    (v5/*:: as any*/),
-    (v2/*:: as any*/)
+    (v6/*:: as any*/),
+    (v3/*:: as any*/)
   ],
   "storageKey": null
 },
-v43 = {
+v44 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -658,7 +679,7 @@ v43 = {
   "name": "files",
   "plural": true,
   "selections": [
-    (v19/*:: as any*/),
+    (v20/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -741,7 +762,7 @@ v43 = {
           "name": "index",
           "storageKey": null
         },
-        (v2/*:: as any*/)
+        (v3/*:: as any*/)
       ],
       "storageKey": null
     },
@@ -774,6 +795,7 @@ return {
         ],
         "storageKey": null
       },
+      (v2/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -782,25 +804,24 @@ return {
         "name": "tags",
         "plural": true,
         "selections": [
-          (v2/*:: as any*/)
+          (v3/*:: as any*/)
         ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v3/*:: as any*/),
+        "args": (v4/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v4/*:: as any*/),
+          (v5/*:: as any*/),
           {
             "kind": "InlineFragment",
             "selections": [
-              (v5/*:: as any*/),
-              (v2/*:: as any*/),
               (v6/*:: as any*/),
+              (v3/*:: as any*/),
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
@@ -813,8 +834,8 @@ return {
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
-              (v20/*:: as any*/),
-              (v22/*:: as any*/),
+              (v19/*:: as any*/),
+              (v21/*:: as any*/),
               (v23/*:: as any*/),
               (v24/*:: as any*/),
               (v25/*:: as any*/),
@@ -823,7 +844,7 @@ return {
               (v28/*:: as any*/),
               (v29/*:: as any*/),
               (v30/*:: as any*/),
-              (v32/*:: as any*/),
+              (v31/*:: as any*/),
               (v33/*:: as any*/),
               (v34/*:: as any*/),
               (v35/*:: as any*/),
@@ -831,6 +852,7 @@ return {
               (v37/*:: as any*/),
               (v38/*:: as any*/),
               (v39/*:: as any*/),
+              (v40/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -839,14 +861,14 @@ return {
                 "name": "service",
                 "plural": false,
                 "selections": [
-                  (v2/*:: as any*/),
-                  (v40/*:: as any*/),
-                  (v41/*:: as any*/)
+                  (v3/*:: as any*/),
+                  (v41/*:: as any*/),
+                  (v42/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v42/*:: as any*/),
-              (v43/*:: as any*/)
+              (v43/*:: as any*/),
+              (v44/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -873,10 +895,11 @@ return {
         "plural": false,
         "selections": [
           (v1/*:: as any*/),
-          (v5/*:: as any*/)
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       },
+      (v2/*:: as any*/),
       {
         "alias": null,
         "args": null,
@@ -885,26 +908,25 @@ return {
         "name": "tags",
         "plural": true,
         "selections": [
-          (v2/*:: as any*/),
-          (v5/*:: as any*/)
+          (v3/*:: as any*/),
+          (v6/*:: as any*/)
         ],
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v3/*:: as any*/),
+        "args": (v4/*:: as any*/),
         "concreteType": null,
         "kind": "LinkedField",
         "name": "node",
         "plural": false,
         "selections": [
-          (v4/*:: as any*/),
           (v5/*:: as any*/),
+          (v6/*:: as any*/),
           {
             "kind": "InlineFragment",
             "selections": [
-              (v2/*:: as any*/),
-              (v6/*:: as any*/),
+              (v3/*:: as any*/),
               (v7/*:: as any*/),
               (v8/*:: as any*/),
               (v9/*:: as any*/),
@@ -917,8 +939,8 @@ return {
               (v16/*:: as any*/),
               (v17/*:: as any*/),
               (v18/*:: as any*/),
-              (v20/*:: as any*/),
-              (v22/*:: as any*/),
+              (v19/*:: as any*/),
+              (v21/*:: as any*/),
               (v23/*:: as any*/),
               (v24/*:: as any*/),
               (v25/*:: as any*/),
@@ -927,7 +949,7 @@ return {
               (v28/*:: as any*/),
               (v29/*:: as any*/),
               (v30/*:: as any*/),
-              (v32/*:: as any*/),
+              (v31/*:: as any*/),
               (v33/*:: as any*/),
               (v34/*:: as any*/),
               (v35/*:: as any*/),
@@ -935,6 +957,7 @@ return {
               (v37/*:: as any*/),
               (v38/*:: as any*/),
               (v39/*:: as any*/),
+              (v40/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -943,15 +966,15 @@ return {
                 "name": "service",
                 "plural": false,
                 "selections": [
-                  (v2/*:: as any*/),
-                  (v40/*:: as any*/),
+                  (v3/*:: as any*/),
                   (v41/*:: as any*/),
-                  (v5/*:: as any*/)
+                  (v42/*:: as any*/),
+                  (v6/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v42/*:: as any*/),
-              (v43/*:: as any*/)
+              (v43/*:: as any*/),
+              (v44/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -962,16 +985,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "f1ecd3122351bb264688595ad923168c",
+    "cacheID": "9ceec2d7554c6229c9c8f1d56a19e15f",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "153b50b3c299b39981d47c0592b0e021";
+(node as any).hash = "633dd2273ede55c3b9007d3783c8b5f8";
 
 export default node;

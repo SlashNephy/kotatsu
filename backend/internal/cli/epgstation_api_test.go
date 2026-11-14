@@ -17,6 +17,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -62,6 +63,9 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 	session, _, err := auth.NewSessions(nil).Create(t.Context(), pool, user.ID, nil)
 	require.NoError(t, err)
 	token, _, err := auth.NewAPITokens(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID, "kiririn")
+	require.NoError(t, err)
+	// 外部プレイヤー用の署名付き URL は、管理者が有効にしている間だけ受け付ける (#1755)。
+	_, err = settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{ExternalPlayerURLsEnabled: new(true)})
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())

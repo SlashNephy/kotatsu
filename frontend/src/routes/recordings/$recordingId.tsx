@@ -169,6 +169,10 @@ function Recording({ recordingId }: { recordingId: string }) {
         viewer {
           role
         }
+        # 外部プレイヤー用の URL は、管理者が有効にしているときだけ発行できる (#1755)。
+        systemSettings {
+          externalPlayerUrlsEnabled
+        }
         tags {
           name
         }
@@ -468,8 +472,11 @@ function Recording({ recordingId }: { recordingId: string }) {
               {t('recordings.play')}
             </Button>
           )}
-          {/* 外部プレイヤー用の URL は、TS のセグメントを流す。セグメントのない取り込んだ録画では出さない。 */}
-          {segments.length > 0 && <ExternalStreamURL target={recording.id} />}
+          {/* 外部プレイヤー用の URL は、TS のセグメントを流す。セグメントのない取り込んだ録画では出さない。
+              管理者が外部プレイヤー用の URL を有効にしていなければ出さない (#1755)。 */}
+          {segments.length > 0 && data.systemSettings.externalPlayerUrlsEnabled && (
+            <ExternalStreamURL target={recording.id} />
+          )}
           {/* 録画を終えた録画を、セグメントをつないだ 1 つのファイルとして保存させる。録画中は長さが決まらないので出さない。 */}
           {segments.length > 0 && recording.state !== 'RECORDING' && (
             <Button

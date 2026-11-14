@@ -47,6 +47,16 @@ func services() []domain.Service {
 	}
 }
 
+// fakeGate は、管理者が IPTV のクライアント用の URL を有効にしているかを返す。
+type fakeGate struct {
+	enabled bool
+	err     error
+}
+
+func (g fakeGate) IPTVFeedsEnabled(context.Context) (bool, error) {
+	return g.enabled, g.err
+}
+
 type fakeAuth struct{}
 
 func (fakeAuth) Authenticate(_ context.Context, token string) (*auth.Principal, error) {
@@ -154,25 +164,31 @@ func TestGuide(t *testing.T) {
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
+	// enabledGate は、管理者が IPTV のクライアント用の URL を有効にしている状態。
+	enabledGate := fakeGate{enabled: true, err: nil}
 	tests := []struct {
 		name        string
+		gate        fakeGate
 		path        string
 		wantStatus  int
 		contentType string
 		contains    string
 	}{
-		{name: "playlist", path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusOK, contentType: "audio/x-mpegurl; charset=utf-8", contains: base + "/services/400141/stream.m2ts"},
-		{name: "guide", path: "/api/iptv/" + validFeed + "/guide.xml", wantStatus: http.StatusOK, contentType: "application/xml; charset=utf-8", contains: `channel="400141"`},
-		{name: "wrong value", path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
-		{name: "user who cannot watch", path: "/api/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
-		{name: "authentication failure", path: "/api/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
+		{name: "playlist", gate: enabledGate, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusOK, contentType: "audio/x-mpegurl; charset=utf-8", contains: base + "/services/400141/stream.m2ts"},
+		{name: "guide", gate: enabledGate, path: "/api/iptv/" + validFeed + "/guide.xml", wantStatus: http.StatusOK, contentType: "application/xml; charset=utf-8", contains: `channel="400141"`},
+		{name: "wrong value", gate: enabledGate, path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
+		{name: "user who cannot watch", gate: enabledGate, path: "/api/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
+		{name: "authentication failure", gate: enabledGate, path: "/api/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
+		// 管理者が無効にしている間は、正しい秘密の値でも、URL があることを知らせないよう 404 を返す (#1755)。
+		{name: "disabled by the administrator", gate: fakeGate{enabled: false, err: nil}, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusNotFound},
+		{name: "setting unreadable", gate: fakeGate{enabled: false, err: errors.New("database is down")}, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			queries := new(fakeQueries)
-			h := iptvapi.NewHandler(fakeAuth{}, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
+			h := iptvapi.NewHandler(fakeAuth{}, tt.gate, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
 			router := httpserver.NewRouter(slog.New(slog.DiscardHandler), http.NotFoundHandler())
 			router.GET(iptvapi.PlaylistRoute, h.Playlist, h.Authenticate)
 			router.GET(iptvapi.GuideRoute, h.Guide, h.Authenticate)

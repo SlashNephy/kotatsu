@@ -16,6 +16,9 @@ const (
 	iptvFeedQuery          = `{ iptvFeed { createdAt lastUsedAt } calendarFeed { createdAt } }`
 	createIptvFeedMutation = `mutation { createIptvFeed { playlistPath guidePath iptvFeed { createdAt } } }`
 	deleteIptvFeedMutation = `mutation { deleteIptvFeed }`
+	// enableIptvFeeds と disableIptvFeeds は、管理者が IPTV のクライアント用の URL を有効にするか無効にする (#1755)。
+	enableIptvFeeds  = `mutation { updateSystemSettings(input: {iptvFeedsEnabled: true}) { iptvFeedsEnabled } }`
+	disableIptvFeeds = `mutation { updateSystemSettings(input: {iptvFeedsEnabled: false}) { iptvFeedsEnabled } }`
 )
 
 type feeds struct {
@@ -37,6 +40,7 @@ func TestManageIptvFeed(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
+	require.Empty(t, f.as(t, "iptv-admin", domain.RoleAdmin).query(t, enableIptvFeeds, nil, nil))
 	assert.Nil(t, f.feeds(t).IptvFeed, "nothing is issued yet")
 
 	issue := func() (string, string) {
@@ -82,7 +86,31 @@ func TestCreateIptvFeedRequiresRecentAuthentication(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
+	require.Empty(t, f.as(t, "iptv-admin", domain.RoleAdmin).query(t, enableIptvFeeds, nil, nil))
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	assert.Equal(t, []string{codeReauthRequired}, f.query(t, createIptvFeedMutation, nil, nil))
+	assert.Nil(t, f.feeds(t).IptvFeed)
+}
+
+// TestIptvFeedWhileDisabled は、管理者が IPTV のクライアント用の URL を有効にしていなければ発行せず、
+// 有効にしていた間に発行した URL は、無効の間も取り消せることを確かめる (#1755)。既定では無効にする。
+func TestIptvFeedWhileDisabled(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	admin := f.as(t, "iptv-admin", domain.RoleAdmin)
+	assert.Equal(t, []string{codeForbidden}, f.query(t, createIptvFeedMutation, nil, nil), "disabled by default")
+	assert.Nil(t, f.feeds(t).IptvFeed)
+
+	require.Empty(t, admin.query(t, enableIptvFeeds, nil, nil))
+	require.Empty(t, f.query(t, createIptvFeedMutation, nil, nil))
+	require.Empty(t, admin.query(t, disableIptvFeeds, nil, nil))
+	assert.Equal(t, []string{codeForbidden}, f.query(t, createIptvFeedMutation, nil, nil))
+
+	var deleted struct {
+		DeleteIptvFeed bool `json:"deleteIptvFeed"`
+	}
+	require.Empty(t, f.query(t, deleteIptvFeedMutation, nil, &deleted))
+	assert.True(t, deleted.DeleteIptvFeed)
 	assert.Nil(t, f.feeds(t).IptvFeed)
 }

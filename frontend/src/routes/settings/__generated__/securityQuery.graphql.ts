@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3c5216dbbd1ab5410e425103688a3742>>
+ * @generated SignedSource<<e31d9e550ac73aebc73d1d1e55df6b7d>>
  * @lightSyntaxTransform
  */
 
@@ -33,6 +33,9 @@ export type securityQuery$data = {
   readonly secondFactors: {
     readonly remainingRecoveryCodes: number;
     readonly totp: boolean;
+  };
+  readonly systemSettings: {
+    readonly iptvFeedsEnabled: boolean;
   };
   readonly viewer: {
     readonly username: string;
@@ -146,6 +149,24 @@ v9 = {
 v10 = {
   "alias": null,
   "args": null,
+  "concreteType": "SystemSettings",
+  "kind": "LinkedField",
+  "name": "systemSettings",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "iptvFeedsEnabled",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v11 = {
+  "alias": null,
+  "args": null,
   "concreteType": "ApiToken",
   "kind": "LinkedField",
   "name": "apiTokens",
@@ -176,7 +197,8 @@ return {
       (v6/*:: as any*/),
       (v8/*:: as any*/),
       (v9/*:: as any*/),
-      (v10/*:: as any*/)
+      (v10/*:: as any*/),
+      (v11/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -204,20 +226,21 @@ return {
       (v6/*:: as any*/),
       (v8/*:: as any*/),
       (v9/*:: as any*/),
-      (v10/*:: as any*/)
+      (v10/*:: as any*/),
+      (v11/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "d4440f0c9e9184bac002e54aabd09ef0",
+    "cacheID": "8a2d149313b46de80e37f4430e8a5cb0",
     "id": null,
     "metadata": {},
     "name": "securityQuery",
     "operationKind": "query",
-    "text": "query securityQuery {\n  viewer {\n    username\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  iptvFeed {\n    createdAt\n    lastUsedAt\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
+    "text": "query securityQuery {\n  viewer {\n    username\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  iptvFeed {\n    createdAt\n    lastUsedAt\n  }\n  systemSettings {\n    iptvFeedsEnabled\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f7c836df4cf6bdfa3d0d60d8eaffb595";
+(node as any).hash = "0c4f79a3ba8a4f4becede1b9cc983453";
 
 export default node;

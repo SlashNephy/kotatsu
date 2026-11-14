@@ -853,6 +853,8 @@ type SystemSetting struct {
 	NetworkActivityRetentionDays           int32
 	MCPEnabled                             bool
 	DataBroadcastIPEnabled                 bool
+	ExternalPlayerURLsEnabled              bool
+	IPTVFeedsEnabled                       bool
 	AnimeLinkingEnabled                    bool
 	CommentSources                         []string
 	RuleDefaults                           []byte

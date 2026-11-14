@@ -411,6 +411,9 @@ export function createRootValue(
       },
       // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
       dataBroadcastIpEnabled: false,
+      // デモでは、外部プレイヤーと IPTV のクライアントの URL を発行する操作も見せる (#1755)。
+      externalPlayerUrlsEnabled: true,
+      iptvFeedsEnabled: true,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
       animeLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。

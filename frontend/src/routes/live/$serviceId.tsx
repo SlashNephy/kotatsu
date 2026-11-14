@@ -365,6 +365,8 @@ function Live({
         # データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。
         systemSettings {
           dataBroadcastIpEnabled
+          # 外部プレイヤー用の URL は、管理者が有効にしているときだけ発行できる (#1755)。
+          externalPlayerUrlsEnabled
           # 視聴している間だけ録るなら、バッファができるのを待って読み直す (#1408)。
           timeshiftWhileWatching
         }
@@ -1348,12 +1350,14 @@ function Live({
                         {t('live.programDetail')}
                       </Menu.Item>
                     )}
-                    <Menu.Item
-                      leftSection={<ExternalLink size={14} aria-hidden />}
-                      onClick={() => setExternalOpen(true)}
-                    >
-                      {t('streamURL.open')}
-                    </Menu.Item>
+                    {data.systemSettings.externalPlayerUrlsEnabled && (
+                      <Menu.Item
+                        leftSection={<ExternalLink size={14} aria-hidden />}
+                        onClick={() => setExternalOpen(true)}
+                      >
+                        {t('streamURL.open')}
+                      </Menu.Item>
+                    )}
                     {service.timeshiftPrograms.length > 0 && (
                       <Menu.Item
                         leftSection={<History size={14} aria-hidden />}

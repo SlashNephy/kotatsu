@@ -1790,6 +1790,14 @@ type SystemSettings struct {
 	// データ放送の文書の双方向の通信 (投票やプレゼントの応募など) を、tenban が中継するかどうか (#501)。既定は false。
 	// ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
 	DataBroadcastIPEnabled bool `json:"dataBroadcastIpEnabled"`
+	// 外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
+	// 無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+	ExternalPlayerUrlsEnabled bool `json:"externalPlayerUrlsEnabled"`
+	// IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
+	// 無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+	// ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+	IptvFeedsEnabled bool `json:"iptvFeedsEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
 	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
@@ -1825,6 +1833,10 @@ type SystemSettingsInput struct {
 	McpEnabled   *bool              `json:"mcpEnabled,omitempty"`
 	// 変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。
 	DataBroadcastIPEnabled *bool `json:"dataBroadcastIpEnabled,omitempty"`
+	// 変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとして映像を見られるようになるため。
+	ExternalPlayerUrlsEnabled *bool `json:"externalPlayerUrlsEnabled,omitempty"`
+	// 変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。
+	IptvFeedsEnabled *bool `json:"iptvFeedsEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
 	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。

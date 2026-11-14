@@ -22,6 +22,8 @@ sql:
           pid_stats: PIDStats
           mcp_enabled: MCPEnabled
           data_broadcast_ip_enabled: DataBroadcastIPEnabled
+          external_player_urls_enabled: ExternalPlayerURLsEnabled
+          iptv_feeds_enabled: IPTVFeedsEnabled
         overrides:
           - column: reservations.kind
             go_type:

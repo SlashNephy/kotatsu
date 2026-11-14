@@ -70,7 +70,7 @@ const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
   (kind) => !personalKinds.includes(kind),
 );
 
-// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、ニコニコ実況、しょぼいカレンダー、Annict、AniList、
+// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、外部プレイヤーと IPTV のクライアントの URL、ニコニコ実況、しょぼいカレンダー、Annict、AniList、
 // 通知を送る Webhook) を変える、管理者向けの画面 (設計書 3.8、6.2、7.4、10.3)。
 function IntegrationsPage() {
   const { t } = useTranslation();
@@ -87,6 +87,8 @@ const query = graphql`
     systemSettings {
       mcpEnabled
       dataBroadcastIpEnabled
+      externalPlayerUrlsEnabled
+      iptvFeedsEnabled
       networkActivityEnabled
       animeLinkingEnabled
       commentSources
@@ -235,6 +237,26 @@ function Integrations() {
           enabled={data.systemSettings.dataBroadcastIpEnabled}
           busy={gate.busy}
           onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
+        />
+
+        {/* 外の道具に渡す URL を発行させるか (#1755)。URL を持つ人が映像を見られるようになるので、ここで再認証を求める。 */}
+        <SwitchSetting
+          key={`external-player-urls/${String(data.systemSettings.externalPlayerUrlsEnabled)}`}
+          title={t('admin.settings.externalPlayerUrls')}
+          label={t('admin.settings.externalPlayerUrlsEnabled')}
+          help={t('admin.settings.externalPlayerUrlsHelp')}
+          enabled={data.systemSettings.externalPlayerUrlsEnabled}
+          busy={gate.busy}
+          onSave={(externalPlayerUrlsEnabled) => saveSettings({ externalPlayerUrlsEnabled })}
+        />
+        <SwitchSetting
+          key={`iptv-feeds/${String(data.systemSettings.iptvFeedsEnabled)}`}
+          title={t('admin.settings.iptvFeeds')}
+          label={t('admin.settings.iptvFeedsEnabled')}
+          help={t('admin.settings.iptvFeedsHelp')}
+          enabled={data.systemSettings.iptvFeedsEnabled}
+          busy={gate.busy}
+          onSave={(iptvFeedsEnabled) => saveSettings({ iptvFeedsEnabled })}
         />
 
         {/* 実況のコメントのソースごとのオプトイン (#1405)。外部と通信し始めるので、ここで再認証を求める (設計書 0.3、7.4)。 */}

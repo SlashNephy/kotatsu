@@ -15,6 +15,7 @@ type StreamURL {
 extend type Mutation {
   """
   サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  管理者が外部プレイヤー用の URL を有効にしていなければ (SystemSettings.externalPlayerUrlsEnabled)、FORBIDDEN を返す (#1755)。
   target には、Service か Recording の ID を渡す。
   """
   createStreamURL(target: ID!): StreamURL!

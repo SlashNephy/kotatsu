@@ -16,6 +16,8 @@ import (
 const (
 	createStreamURL = `mutation($target: ID!) { createStreamURL(target: $target) { url expiresAt } }`
 	varTarget       = "target"
+	// enableExternalPlayerURLs は、管理者が外部プレイヤー用の URL を有効にする (#1755)。
+	enableExternalPlayerURLs = `mutation { updateSystemSettings(input: {externalPlayerUrlsEnabled: true}) { externalPlayerUrlsEnabled } }`
 )
 
 // TestCreateStreamURL は、視聴者も、サービスと録画の署名付きの映像の URL を発行でき、
@@ -32,6 +34,7 @@ func TestCreateStreamURL(t *testing.T) {
 	_, rawRecordingID, err := graph.ParseGlobalID(recordingID)
 	require.NoError(t, err)
 	viewer := f.as(t, "yuzu", domain.RoleViewer)
+	require.Empty(t, f.as(t, "stream-admin", domain.RoleAdmin).query(t, enableExternalPlayerURLs, nil, nil))
 
 	tests := []struct {
 		name     string
@@ -75,6 +78,7 @@ func TestCreateStreamURLRejectsTarget(t *testing.T) {
 	require.NoError(t, err)
 	f := newFixture(t, &graph.Options{StreamSigner: signer})
 	f.syncEPG(t)
+	require.Empty(t, f.as(t, "stream-admin", domain.RoleAdmin).query(t, enableExternalPlayerURLs, nil, nil))
 
 	tests := []struct {
 		name   string
@@ -91,6 +95,33 @@ func TestCreateStreamURLRejectsTarget(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, []string{tt.want}, f.query(t, createStreamURL, map[string]any{varTarget: tt.target}, nil))
+		})
+	}
+}
+
+// TestCreateStreamURLWhileDisabled は、管理者が外部プレイヤー用の URL を有効にしていなければ、
+// 管理者にも URL を発行しないことを確かめる (#1755)。既定では無効にする。
+func TestCreateStreamURLWhileDisabled(t *testing.T) {
+	t.Parallel()
+
+	signer, err := stream.NewSigner("kotatsu-graph-test-application-key-0123456789")
+	require.NoError(t, err)
+	f := newFixture(t, &graph.Options{StreamSigner: signer})
+	f.syncEPG(t)
+
+	tests := []struct {
+		name string
+		as   *fixture
+	}{
+		{name: "管理者", as: f.as(t, "stream-admin", domain.RoleAdmin)},
+		{name: "視聴者", as: f.as(t, "yuzu", domain.RoleViewer)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.as.query(t, createStreamURL, map[string]any{varTarget: graph.GlobalID("Service", "3273601024")}, nil)
+			assert.Equal(t, []string{codeForbidden}, got)
 		})
 	}
 }
