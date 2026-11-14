@@ -573,6 +573,17 @@ CREATE TABLE broadcast_lineups (
   observed_at timestamptz NOT NULL
 );
 
+-- 放送の SDT[actual] で読んだ、地上波のネットワークのテレビのサービス (#1519)。録画とタイムシフトの TS から mikan が書き、
+-- neko が、チューナーサーバーのサービスの一覧と比べる。ネットワークごとに、最後に読んだものだけを持つ。
+CREATE TABLE terrestrial_lineups (
+  network_id integer PRIMARY KEY,
+  transport_stream_id integer NOT NULL,
+  version smallint NOT NULL,
+  -- サービス記述子のあるサービスの、service_id と service_type (lineup.Service の JSON の配列)。
+  services jsonb NOT NULL,
+  observed_at timestamptz NOT NULL
+);
+
 -- 録画している TS の CDT から集めた、サービスのロゴ (#1308、設計書 3.1)。チューナーサーバーがロゴを返さないときに返す。
 -- ロゴはネットワークごとの logo_id で送られ、サービスとは services.logo_id で結ぶ。サービスより先に届くこともあるので、外部キーは張らない。
 CREATE TABLE service_logos (

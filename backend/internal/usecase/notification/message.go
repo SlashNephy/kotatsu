@@ -83,7 +83,7 @@ func MessageEscaped(kind domain.NotificationKind, payload map[string]any, locati
 	case domain.NotificationKindScrambledRecordings:
 		return "スクランブルされたまま録れた録画が続いています。チューナーサーバーの B-CAS カードが読めていない可能性があります"
 	case domain.NotificationKindLineupChanged:
-		return lineupChangedMessage(field("kind"), payload)
+		return lineupChangedMessage(field("kind"), field("channel"), payload)
 
 	default:
 		return string(kind)
@@ -177,24 +177,32 @@ func animeRecordMessage(kind domain.NotificationKind, name string, payload map[s
 	return text
 }
 
-// lineupChangedMessage は、放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる文を作る (#1519)。
-// 数が 0 の項目は書かない。
-func lineupChangedMessage(kind string, payload map[string]any) string {
-	if kind == "" {
-		kind = "衛星"
-	}
+// lineupChangedMessage は、放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる文を作る (#1519)。
+// 衛星はネットワーク全体の変化を、地上波 (kind が GR) はチャンネル channel で受かる局の食い違いを書く。数が 0 の項目は書かない。
+func lineupChangedMessage(kind, channel string, payload map[string]any) string {
 	counts := make([]string, 0, 2)
 	for _, item := range []struct{ key, label string }{{"added", "新しい局"}, {"removed", "終わった局"}} {
 		if n := count(payload[item.key]); n > 0 {
 			counts = append(counts, fmt.Sprintf("%s %d", item.label, n))
 		}
 	}
-	text := kind + " のチャンネルが放送で変わりました"
+	detail := ""
 	if len(counts) > 0 {
-		text += "（" + strings.Join(counts, "、") + "）"
+		detail = "（" + strings.Join(counts, "、") + "）"
+	}
+	if kind == "GR" {
+		where := "地上波"
+		if channel != "" {
+			where = "地上波の " + channel + "ch"
+		}
+
+		return where + " で受かる局が、チューナーサーバーの登録と食い違っています" + detail + "。再スキャンすれば、新しい局を選べるようになります"
+	}
+	if kind == "" {
+		kind = "衛星"
 	}
 
-	return text + "。チューナーサーバーのチャンネルをスキャンし直してください"
+	return kind + " のチャンネルが放送で変わりました" + detail + "。チューナーサーバーのチャンネルをスキャンし直してください"
 }
 
 // count は、payload の数を読む。DB から読み直した payload では float64 で、作ったばかりの payload では int で届く。

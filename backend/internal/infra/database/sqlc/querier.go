@@ -782,6 +782,8 @@ type Querier interface {
 	ListSyobocalTitlesByKey(ctx context.Context, titleKey string) ([]ListSyobocalTitlesByKeyRow, error)
 	// タグを、付いている録画の数と一緒に、名前の順で返す。
 	ListTags(ctx context.Context) ([]ListTagsRow, error)
+	// 読んだ地上波のネットワークのサービスを返す (#1519)。
+	ListTerrestrialLineups(ctx context.Context) ([]TerrestrialLineup, error)
 	ListTimeshiftAssignments(ctx context.Context) ([]TimeshiftAssignment, error)
 	// タイムシフトで録るチャンネルの、バッファにある範囲。管理の画面とメトリクスに使う。チャンクのないサービスは返さない。
 	// 範囲は、最も古いチャンクの始まりから、最新のチャンクの終わりまで。書いている途中のチャンクは、今まで録れているものとする。
@@ -1171,6 +1173,8 @@ type Querier interface {
 	UpsertTOTPEnrollment(ctx context.Context, arg UpsertTOTPEnrollmentParams) error
 	// 名前のタグを作り、ID を返す。すでにあれば、そのタグの ID を返す。
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)
+	// 地上波のネットワークのサービスを書く (#1519)。版が同じでも、読んだ時刻は書き換える。
+	UpsertTerrestrialLineup(ctx context.Context, arg UpsertTerrestrialLineupParams) error
 	UpsertTimeshiftChannel(ctx context.Context, arg UpsertTimeshiftChannelParams) error
 	// 録画を変換した MP4 を、その他のファイルとして記録する (#1253)。変換し直したら、大きさとコマ数 (#1509) を書き直す。
 	// ほかの録画のファイルか、セグメントがそのパスを使っていれば、何もせず 0 行を返す。

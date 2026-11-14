@@ -22,6 +22,9 @@ import (
 // 知らせるのは、同じ version の食い違いを DefaultRecheckInterval あけて 2 回読んだときなので、それより十分短くする。
 const DefaultCheckInterval = 10 * time.Minute
 
+// kindTerrestrial は、地上波の知らせの種別。
+const kindTerrestrial = "GR"
+
 // systemStatusURL は、知らせを押したときに開く、システムの状態の画面のパス。
 const systemStatusURL = "/admin/system"
 
@@ -32,11 +35,11 @@ type ServiceLister interface {
 
 var _ ServiceLister = tunerserver.Client(nil)
 
-// Checker は、mikan が DB に書いた衛星の構成 (broadcast_lineups) を、チューナーサーバーのテレビのサービスと定期的に比べ、
-// 食い違いを管理者に知らせる (#1519、設計書 6.2)。neko で動かす。
+// Checker は、mikan が DB に書いた衛星の構成 (broadcast_lineups) と地上波のネットワークのサービス (terrestrial_lineups) を、
+// チューナーサーバーのテレビのサービスと定期的に比べ、食い違いを管理者に知らせる (#1519、設計書 6.2)。neko で動かす。
 //
-// 比べた状態 (確かめ済みの version と、1 回目に見た食い違い) は、プロセスの中だけに持つ。再起動したら、続いている食い違いも、
-// 2 回読み直したところで、もう一度知らせる。
+// 比べた状態 (衛星の確かめ済みの version と 1 回目に見た食い違い、地上波の知らせた食い違い) は、プロセスの中だけに持つ。
+// 再起動したら、続いている食い違いも、もう一度知らせる (衛星は 2 回読み直したところで)。
 type Checker struct {
 	pool     *pgxpool.Pool
 	services ServiceLister
@@ -46,6 +49,8 @@ type Checker struct {
 	comparer *Comparer
 	// known は、前に比べたチューナーサーバーのテレビのサービスの集合の指紋。変わったら (スキャンし直したら)、比べ直す。
 	known string
+	// terrestrial は、地上波のネットワークごとの、知らせた食い違い。同じ食い違いを繰り返し知らせない。
+	terrestrial map[uint16]string
 }
 
 // NewChecker は、Checker を返す。interval が 0 以下なら DefaultCheckInterval を使う。
@@ -56,7 +61,7 @@ func NewChecker(pool *pgxpool.Pool, services ServiceLister, clk clock.Clock, log
 
 	return &Checker{
 		pool: pool, services: services, clock: clk, logger: logger, interval: interval,
-		comparer: NewComparer(clk, DefaultRecheckInterval), known: "",
+		comparer: NewComparer(clk, DefaultRecheckInterval), known: "", terrestrial: map[uint16]string{},
 	}
 }
 
@@ -83,7 +88,19 @@ func (c *Checker) Check(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to list the services of the tuner server: %w", err)
 	}
-	known := registeredTV(services)
+	if len(services) == 0 {
+		return nil
+	}
+	q := sqlc.New(c.pool)
+	if err := c.checkSatellites(ctx, q, registeredTV(services)); err != nil {
+		return err
+	}
+
+	return c.checkTerrestrial(ctx, q, services)
+}
+
+// checkSatellites は、衛星の構成を、チューナーサーバーの衛星のテレビのサービス known と比べる。known がなければ比べない。
+func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []Known) error {
 	if len(known) == 0 {
 		return nil
 	}
@@ -91,7 +108,6 @@ func (c *Checker) Check(ctx context.Context) error {
 		c.comparer.Forget()
 		c.known = fingerprint
 	}
-	q := sqlc.New(c.pool)
 	observations, err := Load(ctx, q)
 	if err != nil {
 		return fmt.Errorf("failed to load the broadcast lineups: %w", err)
@@ -104,7 +120,10 @@ func (c *Checker) Check(ctx context.Context) error {
 		c.logger.InfoContext(ctx, "the broadcast lineup differs from the tuner server",
 			slog.String("kind", string(change.Kind)), slog.Int("network_id", int(change.NetworkID)),
 			slog.Int("added", change.Added), slog.Int("removed", change.Removed))
-		if err := c.notify(ctx, q, change); err != nil {
+		payload := map[string]any{
+			"kind": string(change.Kind), "networkId": int(change.NetworkID), "added": change.Added, "removed": change.Removed,
+		}
+		if err := c.notify(ctx, q, payload); err != nil {
 			// 知らせられなかったら、次の回にもう一度知らせる。
 			c.comparer.Unconfirm(obs)
 
@@ -115,8 +134,103 @@ func (c *Checker) Check(ctx context.Context) error {
 	return nil
 }
 
-// notify は、食い違い change を、有効な管理者に知らせる。管理者がいなければ知らせない。
-func (c *Checker) notify(ctx context.Context, q *sqlc.Queries, change *Change) error {
+// checkTerrestrial は、地上波のネットワークのサービスを、チューナーサーバーの同じネットワークのテレビのサービスと比べる (#1519)。
+// 違えば覚えて知らせ、同じになれば忘れる。続いている間は、同じ食い違いを繰り返し知らせない。
+// チューナーサーバーにないネットワークは比べない (スキャンし直して、チャンネルを消したときなど)。
+func (c *Checker) checkTerrestrial(ctx context.Context, q *sqlc.Queries, services []*tunerserver.Service) error {
+	observations, err := LoadTerrestrial(ctx, q)
+	if err != nil {
+		return fmt.Errorf("failed to load the terrestrial lineups: %w", err)
+	}
+	registered, channels := registeredTerrestrial(services)
+	for _, obs := range observations {
+		known, ok := registered[obs.NetworkID]
+		if !ok {
+			delete(c.terrestrial, obs.NetworkID)
+
+			continue
+		}
+		added, removed := diffServices(obs.Services, known)
+		if len(added) == 0 && len(removed) == 0 {
+			delete(c.terrestrial, obs.NetworkID)
+
+			continue
+		}
+		difference := fmt.Sprint(added, removed)
+		if c.terrestrial[obs.NetworkID] == difference {
+			continue
+		}
+		c.logger.InfoContext(ctx, "the terrestrial services differ from the tuner server",
+			slog.Int("network_id", int(obs.NetworkID)), slog.String("channel", channels[obs.NetworkID]),
+			slog.Int("added", len(added)), slog.Int("removed", len(removed)))
+		payload := map[string]any{
+			"kind": kindTerrestrial, "networkId": int(obs.NetworkID), "channel": channels[obs.NetworkID],
+			"added": len(added), "removed": len(removed),
+		}
+		if err := c.notify(ctx, q, payload); err != nil {
+			return err
+		}
+		c.terrestrial[obs.NetworkID] = difference
+	}
+
+	return nil
+}
+
+// registeredTerrestrial は、チューナーサーバーの地上波のサービスを、ネットワークごとのテレビのサービスの集合と、
+// ネットワークのチャンネルにまとめる。テレビのサービスがなくても、ネットワークがあれば空の集合を返す。
+func registeredTerrestrial(services []*tunerserver.Service) (map[uint16]map[uint16]bool, map[uint16]string) {
+	registered := map[uint16]map[uint16]bool{}
+	channels := map[uint16]string{}
+	for _, service := range services {
+		if service == nil || service.NetworkID < 0 || service.NetworkID > 0xffff || service.ServiceID < 0 || service.ServiceID > 0xffff {
+			continue
+		}
+		networkID := uint16(service.NetworkID)
+		if !isTerrestrial(networkID) {
+			continue
+		}
+		if registered[networkID] == nil {
+			registered[networkID] = map[uint16]bool{}
+		}
+		if service.Type == serviceTypeTV {
+			registered[networkID][uint16(service.ServiceID)] = true
+		}
+		if service.Channel != nil && channels[networkID] == "" {
+			channels[networkID] = service.Channel.Channel
+		}
+	}
+
+	return registered, channels
+}
+
+// diffServices は、放送のテレビのサービス broadcast と、チューナーサーバーの known の食い違いを、service_id の昇順で返す。
+func diffServices(broadcast []Service, known map[uint16]bool) ([]uint16, []uint16) {
+	onAir := map[uint16]bool{}
+	for _, service := range broadcast {
+		if service.ServiceType == serviceTypeTV {
+			onAir[service.ServiceID] = true
+		}
+	}
+	added := []uint16{}
+	for id := range onAir {
+		if !known[id] {
+			added = append(added, id)
+		}
+	}
+	removed := []uint16{}
+	for id := range known {
+		if !onAir[id] {
+			removed = append(removed, id)
+		}
+	}
+	slices.Sort(added)
+	slices.Sort(removed)
+
+	return added, removed
+}
+
+// notify は、食い違いの材料 payload を、有効な管理者に知らせる。管理者がいなければ知らせない。
+func (c *Checker) notify(ctx context.Context, q *sqlc.Queries, payload map[string]any) error {
 	admins, err := q.ListActiveAdminIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to list the administrators: %w", err)
@@ -125,10 +239,7 @@ func (c *Checker) notify(ctx context.Context, q *sqlc.Queries, change *Change) e
 		// 宛先を空にすると全員に届くので、管理者がいなければ知らせない。
 		return nil
 	}
-	payload := map[string]any{
-		"kind": string(change.Kind), "networkId": int(change.NetworkID),
-		"added": change.Added, "removed": change.Removed, "url": systemStatusURL,
-	}
+	payload["url"] = systemStatusURL
 	err = notification.EmitTo(ctx, c.pool, c.clock, domain.NotificationKindLineupChanged, payload,
 		&notification.Audience{UserIDs: admins, ByRule: false})
 	if err != nil {

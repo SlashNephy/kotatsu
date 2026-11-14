@@ -145,6 +145,8 @@ type Recorder struct {
 	logos *servicelogo.Collector
 	// lineups は、録画している TS の NIT から集める、衛星のネットワークの構成 (#1519)。
 	lineups *lineup.Collector
+	// terrestrial は、録画している TS の SDT[actual] から集める、地上波のネットワークのサービス (#1519)。
+	terrestrial *lineup.TerrestrialCollector
 }
 
 // broadcastSkew は、TOT で測った時計の差と、測った時刻。
@@ -177,6 +179,7 @@ func NewRecorder(
 		pool: pool, clock: clk, tuner: tuner, store: store, defaults: defaults, location: location, logger: logger, opts: o,
 		broadcastSkew: atomic.Pointer[broadcastSkew]{}, savedBroadcastSkew: atomic.Pointer[broadcastSkew]{},
 		logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger),
+		terrestrial: lineup.NewTerrestrialCollector(clk, logger),
 	}
 }
 
@@ -999,7 +1002,7 @@ func (r *Recorder) newSegment(
 	}
 	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
-	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT, r.logos.Observe, r.lineups.Observe)
+	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -1045,15 +1048,19 @@ func poolsFrom(rows []sqlc.StoragePool, mounted []string, poolID string) []*kago
 
 // CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
 // 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。タイムシフトのチャンクも、同じ作りの索引を書く。
-// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。onNIT は、NIT を読んだときに呼ぶ (#1519)。nil なら呼ばない。
-func CreateIndex(store *kago.Store, fileID uuid.UUID, onLogo func(*ts.Logo), onNIT func(*ts.NIT)) (*ts.Analyzer, *os.File, error) {
-	return createIndex(store, fileID, nil, onLogo, onNIT)
+// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。onNIT と onSDT は、NIT と SDT を読んだときに呼ぶ (#1519)。nil なら呼ばない。
+func CreateIndex(
+	store *kago.Store, fileID uuid.UUID, onLogo func(*ts.Logo), onNIT func(*ts.NIT), onSDT func(*ts.SDT),
+) (*ts.Analyzer, *os.File, error) {
+	return createIndex(store, fileID, nil, onLogo, onNIT, onSDT)
 }
 
 // createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
-func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo), onNIT func(*ts.NIT)) (*ts.Analyzer, *os.File, error) {
+func createIndex(
+	store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo), onNIT func(*ts.NIT), onSDT func(*ts.SDT),
+) (*ts.Analyzer, *os.File, error) {
 	// 索引を作れなくても、TOT とロゴは読む。
-	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: nil})
+	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: onSDT})
 	if _, err := store.CreateSegmentDir(fileID); err != nil {
 		return noIndex, nil, err
 	}
@@ -1073,7 +1080,7 @@ func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onL
 		return noIndex, nil, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: nil}), file, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: onSDT}), file, nil
 }
 
 // endReason は、録画を止めた理由。
@@ -1681,6 +1688,7 @@ func (seg *segment) syncAndClose(ctx context.Context, logger *slog.Logger) []err
 func (r *Recorder) saveLogos(ctx context.Context, q *sqlc.Queries, _ uuid.UUID) error {
 	r.logos.Flush(ctx, q)
 	r.lineups.Flush(ctx, q)
+	r.terrestrial.Flush(ctx, q)
 
 	return nil
 }
@@ -2149,6 +2157,7 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 	w.writeBroadcastSkew(dbCtx)
 	w.recorder.logos.Flush(dbCtx, sqlc.New(w.recorder.pool))
 	w.recorder.lineups.Flush(dbCtx, sqlc.New(w.recorder.pool))
+	w.recorder.terrestrial.Flush(dbCtx, sqlc.New(w.recorder.pool))
 }
 
 // writeBroadcastSkew は、前に書いてから TOT で測り直していれば、放送の時刻と OS の時計の差を書く (#1309)。
