@@ -3150,8 +3150,9 @@ type Query {
   networkActivity: NetworkActivity!
   """
   ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。
+  kinds を渡せば、その種類の通知だけを返す (画面の上のお知らせ、#1519)。
   """
-  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false): NotificationConnection!
+  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false, kinds: [NotificationKind!]): NotificationConnection!
   """
   ログイン中のユーザーの未読の通知の数。
   """

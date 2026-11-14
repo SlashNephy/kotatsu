@@ -102,6 +102,37 @@ func (f *fixture) unreadCount(t *testing.T) int {
 	return got.UnreadNotificationCount
 }
 
+// TestNotificationsByKind は、通知を種類で絞って返すことを確かめる (画面の上のお知らせ、#1519)。
+func TestNotificationsByKind(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, nil)
+	f.notify(t, domain.NotificationKindStorageLow, nil)
+	f.notify(t, domain.NotificationKindRecordingFailed, nil)
+	f.notify(t, domain.NotificationKindStorageLow, nil)
+
+	query := `query($kinds: [NotificationKind!]) { notifications(first: 10, kinds: $kinds) { edges { node { kind } } } }`
+	tests := []struct {
+		name  string
+		kinds any
+		want  []string
+	}{
+		{name: "1 つの種類", kinds: []string{kindStorageLow}, want: []string{kindStorageLow, kindStorageLow}},
+		{name: "2 つの種類", kinds: []string{kindStorageLow, kindRecordingFailed}, want: []string{kindStorageLow, kindRecordingFailed, kindStorageLow}},
+		{name: "渡さなければ、すべての種類", kinds: nil, want: []string{kindStorageLow, kindRecordingFailed, kindStorageLow}},
+		{name: "空なら、すべての種類", kinds: []string{}, want: []string{kindStorageLow, kindRecordingFailed, kindStorageLow}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var page notificationPage
+			require.Empty(t, f.query(t, query, map[string]any{"kinds": tt.kinds}, &page))
+			assert.Equal(t, tt.want, page.kinds())
+		})
+	}
+}
+
 // TestNotifications は、ログイン中のユーザーが自分の通知を読み、既読にできることを確かめる (設計書 6.2)。
 func TestNotifications(t *testing.T) {
 	t.Parallel()

@@ -9,6 +9,7 @@ import { AdminPage } from '../../admin/AdminPage';
 import { ActiveRecordings } from '../../admin/ActiveRecordings';
 import { ChannelInspector } from '../../admin/ChannelInspector';
 import { FailureCounts } from '../../admin/FailureCounts';
+import { LineupChanges } from '../../admin/LineupChanges';
 import { Section } from '../../admin/Section';
 import { useDataChanges } from '../../changes/DataChanges';
 import type { systemQuery, TunerServerKind } from './__generated__/systemQuery.graphql';
@@ -147,6 +148,11 @@ function SystemStatus() {
           </Text>
         </Alert>
       )}
+
+      {/* 衛星の局の顔ぶれが、チューナーサーバーと食い違ったという知らせ (#1519)。 */}
+      <Suspense fallback={null}>
+        <LineupChanges />
+      </Suspense>
 
       <Section title={t('admin.system.tunerServer')}>
         {status.tunerServer == null ? (

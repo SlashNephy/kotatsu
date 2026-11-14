@@ -81,8 +81,11 @@ input NotificationPreferenceInput {
 }
 
 extend type Query {
-  "ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。"
-  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false): NotificationConnection!
+  """
+  ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。
+  kinds を渡せば、その種類の通知だけを返す (画面の上のお知らせ、#1519)。
+  """
+  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false, kinds: [NotificationKind!]): NotificationConnection!
   "ログイン中のユーザーの未読の通知の数。"
   unreadNotificationCount: Int!
   "ログイン中のユーザーの通知設定を、すべての種類について返す。設定していない種類は、どの通知先でも受け取る。"

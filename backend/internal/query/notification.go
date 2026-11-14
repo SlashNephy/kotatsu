@@ -17,6 +17,8 @@ type NotificationListQuery struct {
 	Before *domain.NotificationPosition
 	// Limit は、返す件数の上限。1 以上にする。
 	Limit int32
+	// Kinds は、返す通知の種類。空ならすべての種類を返す。
+	Kinds []domain.NotificationKind
 }
 
 // ListNotifications は、ユーザーの通知を、新しい順に返す。
@@ -24,7 +26,13 @@ func (q *Queries) ListNotifications(ctx context.Context, userID uuid.UUID, query
 	if query.Limit < 1 {
 		return nil, domain.ErrInvalidNotificationLimit
 	}
-	params := sqlc.ListNotificationsParams{UserID: userID, UnreadOnly: query.UnreadOnly, BeforeAt: nil, BeforeID: nil, MaxCount: query.Limit}
+	params := sqlc.ListNotificationsParams{UserID: userID, UnreadOnly: query.UnreadOnly, Kinds: nil, BeforeAt: nil, BeforeID: nil, MaxCount: query.Limit}
+	if len(query.Kinds) > 0 {
+		params.Kinds = make([]string, 0, len(query.Kinds))
+		for _, kind := range query.Kinds {
+			params.Kinds = append(params.Kinds, string(kind))
+		}
+	}
 	if query.Before != nil {
 		params.BeforeAt, params.BeforeID = &query.Before.CreatedAt, &query.Before.ID
 	}

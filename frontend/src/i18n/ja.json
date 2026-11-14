@@ -92,7 +92,10 @@
       "SCRAMBLED_RECORDINGS": "スクランブルされたまま録れた録画が続いた",
       "LINEUP_CHANGED": "チャンネルの変更"
     },
-    "openExternal": "記録先で開く"
+    "openExternal": "記録先で開く",
+    "lineup": {
+      "open": "システムの状態を開く"
+    }
   },
   "watch": {
     "reserve": "視聴予約（放送の少し前に知らせます）",
@@ -1703,7 +1706,13 @@
       "animeChannelsDisabled": "連携は無効です。「連携」の画面で有効にすると、この対応で照合します",
       "animeChannelNone": "対応なし",
       "syobocalChannel": "しょぼいカレンダーのChID",
-      "annictChannel": "Annictのチャンネル"
+      "annictChannel": "Annictのチャンネル",
+      "lineup": {
+        "title": "チャンネルの変更",
+        "description": "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
+        "occurredAt": "日時",
+        "message": "内容"
+      }
     },
     "users": {
       "title": "ユーザー",

@@ -94,7 +94,10 @@
       "SCRAMBLED_RECORDINGS": "Recordings kept coming out scrambled",
       "LINEUP_CHANGED": "Channel lineup changed"
     },
-    "openExternal": "Open on the service"
+    "openExternal": "Open on the service",
+    "lineup": {
+      "open": "Open system status"
+    }
   },
   "watch": {
     "reserve": "Watch reminder (notifies you shortly before the broadcast)",
@@ -1781,7 +1784,13 @@
       "animeChannelsDisabled": "Linking is disabled. Enable it on the Integrations page to match programs with this mapping",
       "animeChannelNone": "None",
       "syobocalChannel": "Syobocal channel ID",
-      "annictChannel": "Annict channel"
+      "annictChannel": "Annict channel",
+      "lineup": {
+        "title": "Channel lineup changes",
+        "description": "The satellite stations on the air no longer match the channels of the tuner server. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
+        "occurredAt": "Time",
+        "message": "Details"
+      }
     },
     "users": {
       "title": "Users",

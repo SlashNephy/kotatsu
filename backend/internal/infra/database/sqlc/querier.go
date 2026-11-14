@@ -662,7 +662,7 @@ type Querier interface {
 	// audience が NULL でなければ、その中のユーザーだけにする。by_rule なら、ルール予約の録画の通知を受け取らないユーザーを除く。
 	ListNotificationRecipients(ctx context.Context, arg ListNotificationRecipientsParams) ([]uuid.UUID, error)
 	// ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
-	// before_at と before_id は、両方を渡すか、両方を NULL にする。
+	// before_at と before_id は、両方を渡すか、両方を NULL にする。kinds を渡せば、その種類の通知だけを返す。
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
 	// ユーザーの連携を、新しい順に返す。
 	ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error)

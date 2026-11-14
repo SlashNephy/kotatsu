@@ -956,7 +956,7 @@ type ComplexityRoot struct {
 		NetworkActivity         func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
-		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool) int
+		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) int
 		OauthAuthorization      func(childComplexity int, query string) int
 		OauthGrants             func(childComplexity int) int
 		OldestArchivedProgramAt func(childComplexity int) int
@@ -1670,7 +1670,7 @@ type QueryResolver interface {
 	LogReport(ctx context.Context) (*model.LogReport, error)
 	MissingRecordings(ctx context.Context) ([]*model.MissingRecording, error)
 	NetworkActivity(ctx context.Context) (*model.NetworkActivity, error)
-	Notifications(ctx context.Context, first int, after *string, unreadOnly bool) (*model.NotificationConnection, error)
+	Notifications(ctx context.Context, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) (*model.NotificationConnection, error)
 	UnreadNotificationCount(ctx context.Context) (int, error)
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
 	OauthGrants(ctx context.Context) ([]*model.OAuthGrant, error)
@@ -5923,7 +5923,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Notifications(childComplexity, args["first"].(int), args["after"].(*string), args["unreadOnly"].(bool)), true
+		return e.ComplexityRoot.Query.Notifications(childComplexity, args["first"].(int), args["after"].(*string), args["unreadOnly"].(bool), args["kinds"].([]domain.NotificationKind)), true
 	case "Query.oauthAuthorization":
 		if e.ComplexityRoot.Query.OauthAuthorization == nil {
 			break
@@ -10322,8 +10322,11 @@ input NotificationPreferenceInput {
 }
 
 extend type Query {
-  "ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。"
-  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false): NotificationConnection!
+  """
+  ログイン中のユーザーの通知を、新しい順に first 件まで返す。unreadOnly なら未読だけを返す。
+  kinds を渡せば、その種類の通知だけを返す (画面の上のお知らせ、#1519)。
+  """
+  notifications(first: Int! = 50, after: String, unreadOnly: Boolean! = false, kinds: [NotificationKind!]): NotificationConnection!
   "ログイン中のユーザーの未読の通知の数。"
   unreadNotificationCount: Int!
   "ログイン中のユーザーの通知設定を、すべての種類について返す。設定していない種類は、どの通知先でも受け取る。"
@@ -16967,6 +16970,14 @@ func (ec *executionContext) field_Query_notifications_args(ctx context.Context, 
 		return nil, err
 	}
 	args["unreadOnly"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "kinds",
+		func(ctx context.Context, v any) ([]domain.NotificationKind, error) {
+			return ec.unmarshalONotificationKind2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐNotificationKindᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["kinds"] = arg3
 	return args, nil
 }
 
@@ -34051,7 +34062,7 @@ func (ec *executionContext) _Query_notifications(ctx context.Context, field grap
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Notifications(ctx, fc.Args["first"].(int), fc.Args["after"].(*string), fc.Args["unreadOnly"].(bool))
+			return ec.Resolvers.Query().Notifications(ctx, fc.Args["first"].(int), fc.Args["after"].(*string), fc.Args["unreadOnly"].(bool), fc.Args["kinds"].([]domain.NotificationKind))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.NotificationConnection) graphql.Marshaler {
