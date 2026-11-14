@@ -78,6 +78,8 @@ type Recorder struct {
 	logos *servicelogo.Collector
 	// lineups は、タイムシフトで録る TS の NIT から集める、衛星のネットワークの構成 (#1519)。BS と CS をずっと録っていれば、常に読める。
 	lineups *lineup.Collector
+	// terrestrial は、タイムシフトで録る TS の SDT[actual] から集める、地上波のネットワークのサービス (#1519)。
+	terrestrial *lineup.TerrestrialCollector
 }
 
 // NewRecorder は Recorder を返す。store には、タイムシフトのディレクトリとデータディレクトリが要る。opts は nil でもよい。
@@ -96,7 +98,7 @@ func NewRecorder(pool *pgxpool.Pool, clk clock.Clock, tuner recording.StreamOpen
 		}
 	}
 
-	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger)}
+	return &Recorder{pool: pool, clock: clk, tuner: tuner, store: store, logger: logger, opts: o, logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger), terrestrial: lineup.NewTerrestrialCollector(clk, logger)}
 }
 
 // Session は、Worker に渡す Session を返す。
@@ -460,7 +462,7 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	}
 	// 索引は、データディレクトリの、チャンクの ID のディレクトリに置く。作れなくても、録り続ける。
 	chunkID := id.New()
-	analyzer, indexFile, indexErr := recording.CreateIndex(r.store, chunkID, r.logos.Observe, r.lineups.Observe)
+	analyzer, indexFile, indexErr := recording.CreateIndex(r.store, chunkID, r.logos.Observe, r.lineups.Observe, r.terrestrial.Observe)
 	if indexErr != nil {
 		logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -530,6 +532,7 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 		logoCtx, cancel := context.WithTimeout(ctx, databaseTimeout)
 		r.logos.Flush(logoCtx, sqlc.New(r.pool))
 		r.lineups.Flush(logoCtx, sqlc.New(r.pool))
+		r.terrestrial.Flush(logoCtx, sqlc.New(r.pool))
 		cancel()
 	}
 	if err := errors.Join(errs...); err != nil {

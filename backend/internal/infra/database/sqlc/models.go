@@ -869,6 +869,14 @@ type Tag struct {
 	CreatedAt time.Time
 }
 
+type TerrestrialLineup struct {
+	NetworkID         int32
+	TransportStreamID int32
+	Version           int16
+	Services          []byte
+	ObservedAt        time.Time
+}
+
 type TimeshiftAssignment struct {
 	ID               uuid.UUID
 	ServiceID        int64

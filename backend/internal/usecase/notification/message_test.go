@@ -22,6 +22,14 @@ const (
 	evening         = "2026-10-10T12:00:00Z"
 )
 
+// keyAdded と keyRemoved は、局の顔ぶれの変化の数の項目 (#1519)。
+const (
+	keyLineupKind = "kind"
+	keyNetworkID  = "networkId"
+	keyAdded      = "added"
+	keyRemoved    = "removed"
+)
+
 func TestMessage(t *testing.T) {
 	t.Parallel()
 
@@ -58,12 +66,17 @@ func TestMessage(t *testing.T) {
 		},
 		{
 			name: "局の顔ぶれの変化は、数が 0 の項目を書かない", kind: domain.NotificationKindLineupChanged, location: tokyo,
-			payload: map[string]any{"kind": "BS", "networkId": 4, "added": 3, "removed": 0},
+			payload: map[string]any{keyLineupKind: "BS", keyNetworkID: 4, keyAdded: 3, keyRemoved: 0},
 			want:    "BS のチャンネルが放送で変わりました（新しい局 3）。チューナーサーバーのチャンネルをスキャンし直してください",
 		},
 		{
+			name: "地上波は、チャンネルで受かる局の食い違いを書く", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{keyLineupKind: "GR", "channel": "27", keyNetworkID: 32736, keyAdded: 1, keyRemoved: 0},
+			want:    "地上波の 27ch で受かる局が、チューナーサーバーの登録と食い違っています（新しい局 1）。再スキャンすれば、新しい局を選べるようになります",
+		},
+		{
 			name: "DB から読み直した局の顔ぶれの変化は、数が float64 で届く", kind: domain.NotificationKindLineupChanged, location: tokyo,
-			payload: map[string]any{"kind": "CS", "networkId": float64(6), "added": float64(1), "removed": float64(2)},
+			payload: map[string]any{keyLineupKind: "CS", keyNetworkID: float64(6), keyAdded: float64(1), keyRemoved: float64(2)},
 			want:    "CS のチャンネルが放送で変わりました（新しい局 1、終わった局 2）。チューナーサーバーのチャンネルをスキャンし直してください",
 		},
 		{name: "録画の失敗", kind: domain.NotificationKindRecordingFailed, payload: map[string]any{keyName: programName}, location: tokyo, want: "「こたつ特集」の録画に失敗しました"},
