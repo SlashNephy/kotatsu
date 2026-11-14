@@ -102,6 +102,11 @@ type Program implements Node {
   話数まで入れると、その話にしか一致しないため。正規化した番組名のひと続きの部分なので、この番組自身にも一致する。
   """
   ruleKeyword: String!
+  """
+  外部のサービス (Filmarks など) で作品を探すのに使う作品名 (#1650)。ドラマや映画の放送枠の名前 (土曜ドラマ、ドラマ24 など) を除き、
+  続くかぎ括弧の中を作品名とする。枠の名前がなければ ruleKeyword と同じ。番組名のひと続きの部分になるとは限らない。
+  """
+  workTitle: String!
   description: String!
   extended: [ExtendedItem!]!
   genres: [Genre!]!

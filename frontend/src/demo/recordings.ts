@@ -207,6 +207,7 @@ export function createRecordings(options: {
       audios: program.audios,
       videoFormat: program.service.videoFormat,
       genres: program.genres,
+      workTitle: program.workTitle,
       animeEpisodes: demoAnimeEpisodes(program),
       rule: () => (recording.rule === undefined ? null : ruleView(recording.rule.id)),
       // ruleName は、ルールを消しても残る、録画したときのルールの名前。

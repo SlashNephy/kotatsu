@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<9cc7f4214fb148f4f566ed4c0791fde6>>
+ * @generated SignedSource<<092e2b3844de95b59c91d7a8bbd9d14f>>
  * @lightSyntaxTransform
  */
 
@@ -79,6 +79,7 @@ export type ProgramDetailQuery$data = {
     };
     readonly startAt: string;
     readonly watchReserved: boolean;
+    readonly workTitle: string;
   } | {
     // This will never be '%other', but we need some
     // value in case none of the concrete values match.
@@ -147,52 +148,59 @@ v7 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "description",
+  "name": "workTitle",
   "storageKey": null
 },
 v8 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "startAt",
+  "name": "description",
   "storageKey": null
 },
 v9 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endAt",
+  "name": "startAt",
   "storageKey": null
 },
 v10 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "endUndecided",
+  "name": "endAt",
   "storageKey": null
 },
 v11 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "isFree",
+  "name": "endUndecided",
   "storageKey": null
 },
 v12 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "archived",
+  "name": "isFree",
   "storageKey": null
 },
 v13 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "eventId",
+  "name": "archived",
   "storageKey": null
 },
 v14 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "eventId",
+  "storageKey": null
+},
+v15 = {
   "alias": null,
   "args": null,
   "concreteType": "Service",
@@ -217,15 +225,15 @@ v14 = {
       "name": "timeshiftPrograms",
       "plural": true,
       "selections": [
-        (v13/*:: as any*/),
-        (v8/*:: as any*/)
+        (v14/*:: as any*/),
+        (v9/*:: as any*/)
       ],
       "storageKey": null
     }
   ],
   "storageKey": null
 },
-v15 = {
+v16 = {
   "alias": null,
   "args": null,
   "concreteType": "Recording",
@@ -237,7 +245,7 @@ v15 = {
   ],
   "storageKey": null
 },
-v16 = {
+v17 = {
   "alias": null,
   "args": null,
   "concreteType": "Genre",
@@ -262,7 +270,7 @@ v16 = {
   ],
   "storageKey": null
 },
-v17 = {
+v18 = {
   "alias": null,
   "args": null,
   "concreteType": "AnimeEpisode",
@@ -361,7 +369,7 @@ v17 = {
   ],
   "storageKey": null
 },
-v18 = {
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "ExtendedItem",
@@ -386,49 +394,49 @@ v18 = {
   ],
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchReserved",
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "enabled",
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "kind",
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v23 = {
+v24 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "plannedStartAt",
   "storageKey": null
 },
-v24 = {
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "plannedEndAt",
   "storageKey": null
 },
-v25 = {
+v26 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
@@ -488,6 +496,7 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
+              (v20/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -497,8 +506,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v4/*:: as any*/),
-                  (v20/*:: as any*/),
                   (v21/*:: as any*/),
+                  (v22/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -507,9 +516,9 @@ return {
                     "name": "assignment",
                     "plural": false,
                     "selections": [
-                      (v22/*:: as any*/),
                       (v23/*:: as any*/),
                       (v24/*:: as any*/),
+                      (v25/*:: as any*/),
                       {
                         "args": null,
                         "kind": "FragmentSpread",
@@ -518,7 +527,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v25/*:: as any*/)
+                  (v26/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -580,6 +589,7 @@ return {
               (v17/*:: as any*/),
               (v18/*:: as any*/),
               (v19/*:: as any*/),
+              (v20/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -589,8 +599,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v4/*:: as any*/),
-                  (v20/*:: as any*/),
                   (v21/*:: as any*/),
+                  (v22/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -599,9 +609,9 @@ return {
                     "name": "assignment",
                     "plural": false,
                     "selections": [
-                      (v22/*:: as any*/),
                       (v23/*:: as any*/),
                       (v24/*:: as any*/),
+                      (v25/*:: as any*/),
                       {
                         "alias": null,
                         "args": null,
@@ -631,7 +641,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v25/*:: as any*/)
+                  (v26/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -645,16 +655,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "a74aaa6b114ed5eddc74d784d576173a",
+    "cacheID": "2e3ceb80c20b3e7ae57b310d4a2dd101",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "9b8d5972a9ab7bee91de94fda4f6a3e8";
+(node as any).hash = "38d3c3311054488479e436230af518d0";
 
 export default node;

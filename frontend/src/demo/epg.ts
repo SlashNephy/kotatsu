@@ -36,6 +36,7 @@ export type DemoProgram = {
   isFree: boolean;
   name: string;
   ruleKeyword: string;
+  workTitle: string;
   description: string;
   extended: { heading: string; text: string }[];
   genres: Genre[];
@@ -582,6 +583,7 @@ export function generatePrograms(now: number): DemoProgram[] {
         isFree: true,
         name: template.name(episode),
         ruleKeyword: template.title ?? template.name(episode),
+        workTitle: demoWorkTitle(template.title ?? template.name(episode)),
         description: template.description,
         extended: [
           {
@@ -722,4 +724,10 @@ export function matchProgram(program: DemoProgram, conditions: ProgramConditions
   }
 
   return true;
+}
+
+// demoWorkTitle は、tenban が番組名から読む、外部のサービスで探す作品名 (Program.workTitle。#1650) を真似る。
+// 雛形の作品名に、放送枠の名前と、かぎ括弧で囲んだ作品名があれば (連続ドラマ「縁側の午後」)、括弧の中を返す。
+function demoWorkTitle(title: string): string {
+  return /^[^「]+「([^」]+)」$/.exec(title)?.[1] ?? title;
 }

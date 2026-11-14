@@ -556,6 +556,7 @@
       "reserveError": "Couldn't reserve. Please try again later",
       "openRecording": "Open recording",
       "playTimeshift": "Play from time shift",
+      "searchFilmarks": "Search on Filmarks",
       "searchSameName": "Search by the same title"
     },
     "view": {

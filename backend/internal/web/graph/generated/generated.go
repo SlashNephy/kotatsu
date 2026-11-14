@@ -890,6 +890,7 @@ type ComplexityRoot struct {
 		SharedFrom    func(childComplexity int) int
 		StartAt       func(childComplexity int) int
 		WatchReserved func(childComplexity int) int
+		WorkTitle     func(childComplexity int) int
 	}
 
 	ProgramAudio struct {
@@ -1044,6 +1045,7 @@ type ComplexityRoot struct {
 		VideoFormat              func(childComplexity int) int
 		WatchFrame               func(childComplexity int) int
 		WatchPositionMs          func(childComplexity int) int
+		WorkTitle                func(childComplexity int) int
 	}
 
 	RecordingCMDetection struct {
@@ -5564,6 +5566,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.WatchReserved(childComplexity), true
+	case "Program.workTitle":
+		if e.ComplexityRoot.Program.WorkTitle == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.WorkTitle(childComplexity), true
 
 	case "ProgramAudio.componentType":
 		if e.ComplexityRoot.ProgramAudio.ComponentType == nil {
@@ -6472,6 +6480,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.WatchPositionMs(childComplexity), true
+	case "Recording.workTitle":
+		if e.ComplexityRoot.Recording.WorkTitle == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.WorkTitle(childComplexity), true
 
 	case "RecordingCMDetection.detectedAt":
 		if e.ComplexityRoot.RecordingCMDetection.DetectedAt == nil {
@@ -9787,6 +9801,11 @@ type Program implements Node {
   話数まで入れると、その話にしか一致しないため。正規化した番組名のひと続きの部分なので、この番組自身にも一致する。
   """
   ruleKeyword: String!
+  """
+  外部のサービス (Filmarks など) で作品を探すのに使う作品名 (#1650)。ドラマや映画の放送枠の名前 (土曜ドラマ、ドラマ24 など) を除き、
+  続くかぎ括弧の中を作品名とする。枠の名前がなければ ruleKeyword と同じ。番組名のひと続きの部分になるとは限らない。
+  """
+  workTitle: String!
   description: String!
   extended: [ExtendedItem!]!
   genres: [Genre!]!
@@ -10969,6 +10988,8 @@ type Recording implements Node {
   "番組の eventId。時刻予約の録画では null。"
   eventId: Int
   name: String!
+  "外部のサービス (Filmarks など) で作品を探すのに使う作品名 (#1650)。Program.workTitle と同じく、番組名から読む。"
+  workTitle: String!
   description: String!
   "番組の詳細。番組情報と同じく、録画を始めたときの予約から写し、放送後に確定したものに置き換える。見出しの順に並べる。"
   extended: [ExtendedItem!]!
@@ -14079,6 +14100,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_name(ctx, field)
 	case "ruleKeyword":
 		return ec.fieldContext_Program_ruleKeyword(ctx, field)
+	case "workTitle":
+		return ec.fieldContext_Program_workTitle(ctx, field)
 	case "description":
 		return ec.fieldContext_Program_description(ctx, field)
 	case "extended":
@@ -14183,6 +14206,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_eventId(ctx, field)
 	case "name":
 		return ec.fieldContext_Recording_name(ctx, field)
+	case "workTitle":
+		return ec.fieldContext_Recording_workTitle(ctx, field)
 	case "description":
 		return ec.fieldContext_Recording_description(ctx, field)
 	case "extended":
@@ -31931,6 +31956,29 @@ func (ec *executionContext) fieldContext_Program_ruleKeyword(_ context.Context, 
 	return graphql.NewScalarFieldContext("Program", field, true, false, "String")
 }
 
+func (ec *executionContext) _Program_workTitle(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_workTitle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkTitle(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_workTitle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, true, false, "String")
+}
+
 func (ec *executionContext) _Program_description(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35390,6 +35438,29 @@ func (ec *executionContext) _Recording_name(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_Recording_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
+}
+
+func (ec *executionContext) _Recording_workTitle(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_workTitle(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.WorkTitle(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_workTitle(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, false, "String")
 }
 
 func (ec *executionContext) _Recording_description(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
@@ -53398,6 +53469,11 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "workTitle":
+			out.Values[i] = ec._Program_workTitle(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "description":
 			out.Values[i] = ec._Program_description(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -54199,6 +54275,11 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			}
 		case "name":
 			out.Values[i] = ec._Recording_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "workTitle":
+			out.Values[i] = ec._Recording_workTitle(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
