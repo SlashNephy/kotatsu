@@ -87,7 +87,7 @@ describe('useSlideSeek (#1601)', () => {
     expect(view.result.current).toBeNull();
   });
 
-  test('滑らせずに離したら、押した位置で長押しのメニューを開き、ブラウザのメニューは止める', () => {
+  test('滑らせずに離したら、マウスの互換のイベントが届き終えてから、押した位置で長押しのメニューを開く', () => {
     const box = makeBox();
     const { onCommit, onLongPress } = render(box);
 
@@ -95,24 +95,23 @@ describe('useSlideSeek (#1601)', () => {
     act(() => {
       vi.advanceTimersByTime(slideSeekHoldMs);
     });
+    // ブラウザが長押しで出すメニューは止める。
     const contextmenu = pointer(box, 'contextmenu', 300, 200);
     expect(contextmenu.defaultPrevented).toBe(true);
     act(() => {
       pointer(box, 'pointerup', 300, 200);
     });
+    // 離した直後に届くマウスの互換のイベントは、止めずに通す (メニューの項目を押せなくしない)。
+    const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    document.body.dispatchEvent(mousedown);
+    expect(mousedown.defaultPrevented).toBe(false);
+    expect(onLongPress).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
 
     expect(onLongPress).toHaveBeenCalledWith(300, 200);
     expect(onCommit).not.toHaveBeenCalled();
-    // 離した後に届くマウスの互換のイベントは、開いたメニューを閉じないよう止める。
-    const mousedown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
-    document.body.dispatchEvent(mousedown);
-    expect(mousedown.defaultPrevented).toBe(true);
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-    const later = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
-    document.body.dispatchEvent(later);
-    expect(later.defaultPrevented).toBe(false);
   });
 
   test('滑らせている間に取り消されたら (着信など)、元に戻す', () => {
@@ -178,5 +177,38 @@ describe('useSlideSeek (#1601)', () => {
 
     expect(onScrub).not.toHaveBeenCalled();
     expect(onLongPress).not.toHaveBeenCalled();
+  });
+
+  test('滑らせている間に使えなくなったら、元に戻す', () => {
+    const box = makeBox();
+    const ref = { current: box };
+    const onScrub = vi.fn();
+    const onCancel = vi.fn();
+    const view = renderHook(
+      ({ enabled }) =>
+        useSlideSeek(ref, {
+          enabled,
+          range: () => ({ position: 600, duration: 3600 }),
+          onSlideStart: vi.fn(),
+          onScrub,
+          onCommit: vi.fn(),
+          onCancel,
+          onLongPress: vi.fn(),
+        }),
+      { initialProps: { enabled: true } },
+    );
+
+    pointer(box, 'pointerdown', 500);
+    act(() => {
+      vi.advanceTimersByTime(slideSeekHoldMs);
+    });
+    act(() => {
+      pointer(box, 'pointermove', 500 + slideSeekThreshold + 100);
+    });
+    expect(onScrub).toHaveBeenCalled();
+    view.rerender({ enabled: false });
+
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(view.result.current).toBeNull();
   });
 });

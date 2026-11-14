@@ -22,9 +22,10 @@ describe('SlideSeekTracker (#1601)', () => {
     expect(tracker.move(100)).toBeCloseTo(slideSeekSecondsPerWidth / 10);
   });
 
-  test('録画の長さを超えて進めない', () => {
+  test('録画の長さを超えて進めず、戻す向きにすぐ効く', () => {
     const tracker = new SlideSeekTracker(0, 3590, 3600, 1000);
     tracker.move(slideSeekThreshold);
     expect(tracker.move(900)).toBe(3600);
+    expect(tracker.move(800)).toBeCloseTo(3600 - slideSeekSecondsPerWidth / 10);
   });
 });

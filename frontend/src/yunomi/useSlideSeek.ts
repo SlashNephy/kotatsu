@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { SlideSeekTracker, slideSeekHoldMs, slideSeekMoveLimit } from './slideSeek';
+
+// longPressMenuDelayMs は、滑らせずに離してから、長押しのメニューを開くまでの時間。指を離した後に届く、
+// マウスの互換のイベントを待つ。
+const longPressMenuDelayMs = 250;
 import { onVideoSurface } from './useControlsVisibility';
 
 export type SlideSeekOptions = {
@@ -20,7 +24,7 @@ export type SlideSeekOptions = {
 };
 
 // useSlideSeek は、プレイヤーを包む要素 box で、映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。
-// 長押しのメニュー (Android) は、ブラウザが長押しで出す contextmenu を止め、滑らせずに離したときに開く。
+// 長押しのメニュー (Android) は、ブラウザが長押しで出す contextmenu を止め、滑らせずに離した少し後に開く。
 // 滑らせている間の行き先を返す。滑らせていなければ null。
 export function useSlideSeek(
   box: RefObject<HTMLElement | null>,
@@ -40,6 +44,7 @@ export function useSlideSeek(
     let timer: ReturnType<typeof setTimeout> | null = null;
     let tracker: SlideSeekTracker | null = null;
     let target: number | null = null;
+    let menuTimer: ReturnType<typeof setTimeout> | null = null;
 
     const reset = () => {
       if (timer !== null) {
@@ -106,9 +111,12 @@ export function useSlideSeek(
         latest.current.onCommit(target);
       } else if (tracker !== null) {
         // 指を離した後に、ブラウザがマウスの互換のイベント (mousedown、click) を送ることがある。開いたメニューが、
-        // それをメニューの外のクリックとみなして閉じないよう、1 度だけ止める。
-        swallowCompatMouseEvents(element.ownerDocument);
-        latest.current.onLongPress(start.x, start.y);
+        // それをメニューの外のクリックとみなして閉じたり、指の下のメニューの項目を押したりしないよう、届き終えてから開く。
+        const { x, y } = start;
+        menuTimer = setTimeout(() => {
+          menuTimer = null;
+          latest.current.onLongPress(x, y);
+        }, longPressMenuDelayMs);
       }
       reset();
     };
@@ -136,7 +144,14 @@ export function useSlideSeek(
     element.addEventListener('contextmenu', onContextMenu, true);
 
     return () => {
+      // 滑らせている間に使えなくなったら (ライブのバッファが使えなくなったなど)、元に戻す。
+      if (target !== null) {
+        latest.current.onCancel();
+      }
       reset();
+      if (menuTimer !== null) {
+        clearTimeout(menuTimer);
+      }
       element.removeEventListener('pointerdown', onPointerDown);
       element.removeEventListener('pointermove', onPointerMove);
       element.removeEventListener('pointerup', onPointerUp);
@@ -146,30 +161,4 @@ export function useSlideSeek(
   }, [box, options.enabled]);
 
   return scrub;
-}
-
-// compatMouseEventsMs は、指を離した後に、マウスの互換のイベントが届くのを待つ時間。
-const compatMouseEventsMs = 800;
-
-// swallowCompatMouseEvents は、指を離した後に届く、マウスの互換のイベント (mousedown、mouseup、click) を、
-// compatMouseEventsMs の間、1 度だけ止める。
-function swallowCompatMouseEvents(doc: Document): void {
-  const types = ['mousedown', 'mouseup', 'click'] as const;
-  const swallow = (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.type === 'click') {
-      stop();
-    }
-  };
-  const stop = () => {
-    clearTimeout(timer);
-    for (const type of types) {
-      doc.removeEventListener(type, swallow, true);
-    }
-  };
-  for (const type of types) {
-    doc.addEventListener(type, swallow, true);
-  }
-  const timer = setTimeout(stop, compatMouseEventsMs);
 }
