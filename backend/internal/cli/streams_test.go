@@ -35,6 +35,7 @@ func TestTenbanServesStreams(t *testing.T) {
 	const (
 		live      = "/internal/streams/services/3273601024"
 		recording = "/internal/streams/recordings/0199d000-0000-7000-8000-000000000999"
+		// timeshift は、kyusu へ中継する HLS のバッファの ID (<サービス>-<時刻>)。直に流すバッファは、サービスの ID と ?from= で選ぶ。
 		timeshift = "/internal/streams/timeshift/3273601024-1763000000"
 	)
 
@@ -56,6 +57,8 @@ func TestTenbanServesStreams(t *testing.T) {
 		{name: "recording HLS", method: http.MethodGet, path: recording + "/hls/720p/0/index.m3u8", session: session, wantStatus: http.StatusServiceUnavailable, wantAllow: ""},
 		// :file と :id は、包んだハンドラーが r.PathValue で読む。読めない形なら 400 になる。
 		{name: "recording file with invalid file ID", method: http.MethodGet, path: recording + "/files/a.txt", session: session, wantStatus: http.StatusBadRequest, wantAllow: ""},
+		{name: "timeshift without from", method: http.MethodGet, path: "/internal/streams/timeshift/3273601024", session: session, wantStatus: http.StatusBadRequest, wantAllow: ""},
+		{name: "recording file", method: http.MethodGet, path: recording + "/files/0199d000-0000-7000-8000-000000000001", session: session, wantStatus: http.StatusNotFound, wantAllow: ""},
 		{name: "timeshift with invalid ID", method: http.MethodGet, path: "/internal/streams/timeshift/3273601024-x", session: session, wantStatus: http.StatusBadRequest, wantAllow: ""},
 		{name: "timeshift HLS", method: http.MethodGet, path: timeshift + "/hls/720p/0/index.m3u8", session: session, wantStatus: http.StatusServiceUnavailable, wantAllow: ""},
 		{name: "POST to live", method: http.MethodPost, path: live, session: session, wantStatus: http.StatusMethodNotAllowed, wantAllow: "GET, HEAD"},
