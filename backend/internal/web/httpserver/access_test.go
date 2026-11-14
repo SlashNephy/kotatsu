@@ -64,7 +64,11 @@ func TestAccessPolicy(t *testing.T) {
 	}{
 		{name: "private address", remoteAddr: lanAddr, wantStatus: http.StatusOK, wantIP: lanAddr, wantOrigin: "http://" + hostName},
 		{name: "loopback", remoteAddr: "127.0.0.1", wantStatus: http.StatusOK, wantIP: "127.0.0.1", wantOrigin: "http://" + hostName},
-		{name: "tailscale", remoteAddr: "100.101.102.103", wantStatus: http.StatusOK, wantIP: "100.101.102.103", wantOrigin: "http://" + hostName},
+		// Tailscale と CGNAT の共有アドレス空間は、既定では受け付けない (#1758)。
+		{
+			name: "tailscale is rejected by default", remoteAddr: "100.101.102.103", wantStatus: http.StatusForbidden,
+			wantBody: "access from 100.101.102.103 is not allowed. To allow it, add the network to server.allowed_networks (KOTATSU_SERVER_ALLOWED_NETWORKS).",
+		},
 		{name: "IPv6 unique local", remoteAddr: "[fd00::1]", wantStatus: http.StatusOK, wantIP: "fd00::1", wantOrigin: "http://" + hostName},
 		{
 			name: "public address is rejected", remoteAddr: publicAddr, wantStatus: http.StatusForbidden,
