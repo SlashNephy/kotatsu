@@ -21,6 +21,8 @@ const (
 	appHTML = "<!doctype html>"
 	// notFoundBody は、http.NotFound の応答の本文。
 	notFoundBody = "404 page not found"
+	// appStatus は、画面を返したことを表す、仮の状態コード。画面をビルドしたかで、実際の応答が変わる。
+	appStatus = -1
 	// guidePath は、画面のパスの例。
 	guidePath = "/guide"
 )
@@ -40,8 +42,8 @@ func TestTenbanRoutesRoot(t *testing.T) {
 		wantLocation string
 		wantBody     string
 	}{
-		{name: "app", method: http.MethodGet, path: "/", wantStatus: http.StatusOK, wantLocation: "", wantBody: appHTML},
-		{name: "app route", method: http.MethodGet, path: guidePath, wantStatus: http.StatusOK, wantLocation: "", wantBody: appHTML},
+		{name: "app", method: http.MethodGet, path: "/", wantStatus: appStatus, wantLocation: "", wantBody: appHTML},
+		{name: "app route", method: http.MethodGet, path: guidePath, wantStatus: appStatus, wantLocation: "", wantBody: appHTML},
 		{name: "app with POST", method: http.MethodPost, path: guidePath, wantStatus: http.StatusMethodNotAllowed, wantLocation: "", wantBody: "method not allowed"},
 		{name: "double slash before app", method: http.MethodGet, path: "/" + guidePath, wantStatus: http.StatusTemporaryRedirect, wantLocation: guidePath, wantBody: `<a href="/guide">Temporary Redirect</a>.`},
 		{name: "dot segments with query", method: http.MethodGet, path: "/a/../guide?x=1", wantStatus: http.StatusTemporaryRedirect, wantLocation: "/guide?x=1", wantBody: `<a href="/guide?x=1">Temporary Redirect</a>.`},
@@ -57,11 +59,11 @@ func TestTenbanRoutesRoot(t *testing.T) {
 		{name: "protected resource metadata", method: http.MethodGet, path: oauth.ProtectedResourceMetadataPath, wantStatus: http.StatusNotFound, wantLocation: "", wantBody: notFoundBody},
 		{name: "authorize", method: http.MethodGet, path: oauth.AuthorizePath, wantStatus: http.StatusNotFound, wantLocation: "", wantBody: notFoundBody},
 		{name: "token", method: http.MethodPost, path: oauth.ExchangePath, wantStatus: http.StatusNotFound, wantLocation: "", wantBody: notFoundBody},
-		{name: "token with GET", method: http.MethodGet, path: oauth.ExchangePath, wantStatus: http.StatusOK, wantLocation: "", wantBody: appHTML},
+		{name: "token with GET", method: http.MethodGet, path: oauth.ExchangePath, wantStatus: appStatus, wantLocation: "", wantBody: appHTML},
 		{name: "revoke", method: http.MethodPost, path: oauth.RevokePath, wantStatus: http.StatusNotFound, wantLocation: "", wantBody: notFoundBody},
 		{name: "MCP without token", method: http.MethodPost, path: oauth.ResourcePath, wantStatus: http.StatusNotFound, wantLocation: "", wantBody: notFoundBody},
 		{name: "MCP with GET", method: http.MethodGet, path: oauth.ResourcePath, wantStatus: http.StatusNotFound, wantLocation: "", wantBody: notFoundBody},
-		{name: "under MCP", method: http.MethodGet, path: oauth.ResourcePath + "/x", wantStatus: http.StatusOK, wantLocation: "", wantBody: appHTML},
+		{name: "under MCP", method: http.MethodGet, path: oauth.ResourcePath + "/x", wantStatus: appStatus, wantLocation: "", wantBody: appHTML},
 	}
 	client := httpclienttest.New(t)
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
@@ -79,6 +81,18 @@ func TestTenbanRoutesRoot(t *testing.T) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			first, _, _ := strings.Cut(strings.TrimSpace(string(body)), "\n")
+			if tt.wantStatus == appStatus {
+				// 画面をビルドしていなければ (CI のテストなど)、画面のハンドラーは 503 で、ビルドしていないことを返す。
+				if resp.StatusCode == http.StatusServiceUnavailable {
+					assert.Equal(t, "the frontend is not built", first, tt.name)
+
+					return
+				}
+				assert.Equal(t, http.StatusOK, resp.StatusCode, tt.name)
+				assert.Equal(t, appHTML, first, tt.name)
+
+				return
+			}
 			assert.Equal(t, tt.wantStatus, resp.StatusCode, tt.name)
 			assert.Equal(t, tt.wantLocation, resp.Header.Get("Location"), tt.name)
 			assert.Equal(t, tt.wantBody, first, tt.name)
