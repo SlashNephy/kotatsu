@@ -99,7 +99,9 @@ func TestParseSDT(t *testing.T) {
 		return append(b, length...)
 	}
 	name := testNameBytes()
-	serviceDescriptor := append([]byte{0x01, 0x00, byte(len(name) & 0xFF)}, name...)
+	// 事業者名も、サービス名と同じ文字列にする。
+	serviceDescriptor := append([]byte{0x01, byte(len(name) & 0xFF)}, name...)
+	serviceDescriptor = append(append(serviceDescriptor, byte(len(name)&0xFF)), name...)
 	body := make([]byte, 0, 64)
 	body = append(body, 0x7F, 0xE0, 0xFF)
 	body = append(body, service(0x0400, descriptor(0x48, serviceDescriptor...))...)
@@ -112,7 +114,7 @@ func TestParseSDT(t *testing.T) {
 	assert.Equal(t, uint16(0x7FE0), sdt.TransportStreamID)
 	assert.Equal(t, uint16(0x7FE0), sdt.OriginalNetworkID)
 	require.Len(t, sdt.Services, 2)
-	assert.Equal(t, &ts.SDTService{ServiceID: 0x0400, HasServiceDescriptor: true, ServiceType: 1, ProviderName: "", Name: testName}, sdt.Services[0])
+	assert.Equal(t, &ts.SDTService{ServiceID: 0x0400, HasServiceDescriptor: true, ServiceType: 1, ProviderName: testName, Name: testName}, sdt.Services[0])
 	assert.False(t, sdt.Services[1].HasServiceDescriptor)
 
 	other, ok := ts.ParseSDTForTest(sectionOf(0x46, 0x7FE1, 0, 0, 0, []byte{0x7F, 0xE0, 0xFF}))
@@ -138,6 +140,13 @@ func TestParseNITSDTRejects(t *testing.T) {
 		{name: "broken CRC", section: brokenCRC, nit: false},
 		{name: "descriptors overflow", section: overflow, nit: false},
 		{name: "NIT without loops", section: sectionOf(0x40, 1, 0, 0, 0, []byte{0xF0}), nit: true},
+		// 衛星分配システム記述子の周波数が BCD でない。
+		{
+			name: "frequency is not BCD",
+			section: sectionOf(0x40, 4, 0, 0, 0, append(withLength(nil), withLength(append(
+				[]byte{0x40, 0x10, 0x00, 0x04}, withLength(descriptor(0x43, 0xFF, 0xFF, 0xFF, 0xFF))...))...)),
+			nit: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
