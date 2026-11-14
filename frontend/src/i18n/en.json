@@ -1275,7 +1275,11 @@
       "detectedAt": "Detected at {{at}}",
       "previous": "Using the result detected at {{at}} ({{count}} breaks)",
       "previous_one": "Using the result detected at {{at}} ({{count}} break)",
-      "previous_other": "Using the result detected at {{at}} ({{count}} breaks)"
+      "previous_other": "Using the result detected at {{at}} ({{count}} breaks)",
+      "note": "Could not detect in the usual way: {{note}}",
+      "videoMissing": "The video could not be decoded for {{count}} seconds in total",
+      "videoMissing_one": "The video could not be decoded for {{count}} second in total",
+      "videoMissing_other": "The video could not be decoded for {{count}} seconds in total"
     },
     "download": "Download",
     "downloadTvtplayChapter": "CM chapters (TvtPlay)",

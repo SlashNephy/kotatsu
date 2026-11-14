@@ -105,3 +105,8 @@ func NewSignals(cues *ts.Cues, scenes []float64, silences [][2]float64) (*Signal
 
 	return &Signals{Silences: pairsOf(sig.silences), Scenes: sig.scenes, AudioChanges: sig.audioChanges, Duration: sig.duration}, nil
 }
+
+// TrimMissing は trimMissing。
+func TrimMissing(sections, missing []Section) []Section {
+	return trimMissing(sections, missing)
+}

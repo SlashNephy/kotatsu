@@ -1225,7 +1225,9 @@
       "none": "CMは見つかりませんでした",
       "failed": "解析できませんでした。管理者は、ジョブの画面で理由を確かめられます",
       "detectedAt": "{{at}}に解析しました",
-      "previous": "いまは、{{at}}に解析した結果（{{count}}か所）を使っています"
+      "previous": "いまは、{{at}}に解析した結果（{{count}}か所）を使っています",
+      "note": "いつもの見分け方では決められませんでした: {{note}}",
+      "videoMissing": "映像を読めなかった所が、合わせて{{count}}秒あります"
     },
     "download": "ダウンロード",
     "downloadTvtplayChapter": "CM のチャプター (TvtPlay)",

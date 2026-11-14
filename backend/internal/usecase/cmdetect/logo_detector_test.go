@@ -124,8 +124,10 @@ func TestLogoDetector(t *testing.T) {
 	require.NoError(t, err)
 
 	path := writeLogoTS(t, 15, 25)
-	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil})
+	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil})
 	require.NoError(t, err)
+	// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
+	assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
 	require.Len(t, got, 1, "%v", got)
 	// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
 	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
@@ -168,16 +170,20 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 		name     string
 		fallback []cmdetect.Section
 		want     []cmdetect.Section
+		// dropped は、見分け直した結果も捨てたことを、理由に書くか。
+		dropped bool
 	}{
 		{
 			name:     "uses the redetected sections when they are below the limit",
 			fallback: []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
 			want:     []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
+			dropped:  false,
 		},
 		{
 			name:     "drops the redetected sections when they also reach the limit",
 			fallback: []cmdetect.Section{{Start: 5 * time.Second, End: 30 * time.Second}},
 			want:     []cmdetect.Section{},
+			dropped:  true,
 		},
 	}
 	for _, tt := range tests {
@@ -193,9 +199,16 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(tt.fallback, nil)
 
 			// ロゴは 40 秒のうち 10 秒から 34 秒まで消えるので、ロゴで決めた CM の割合は 6 割になる。
-			got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil})
+			got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+			// ロゴの結果を捨てた理由を残す (#1508)。
+			assert.Contains(t, report.Note, "of the recording was detected as CM")
+			if tt.dropped {
+				assert.Contains(t, report.Note, "the redetected result was dropped")
+			} else {
+				assert.NotContains(t, report.Note, "the redetected result was dropped")
+			}
 		})
 	}
 }
@@ -241,6 +254,34 @@ func TestCMRatio(t *testing.T) {
 			t.Parallel()
 
 			assert.InDelta(t, tt.want, cmdetect.CMRatio(tt.sections, tt.missing, tt.duration), 1e-9)
+		})
+	}
+}
+
+// TestTrimMissing は、CM の端にかかった映像の欠けを CM から切り落とし、CM の内側の欠けは残すことを確かめる (#1508)。
+func TestTrimMissing(t *testing.T) {
+	t.Parallel()
+
+	sec := func(from, to int) cmdetect.Section {
+		return cmdetect.Section{Start: time.Duration(from) * time.Second, End: time.Duration(to) * time.Second}
+	}
+	tests := []struct {
+		name     string
+		sections []cmdetect.Section
+		missing  []cmdetect.Section
+		want     []cmdetect.Section
+	}{
+		{name: "no missing video", sections: []cmdetect.Section{sec(10, 20)}, missing: []cmdetect.Section{}, want: []cmdetect.Section{sec(10, 20)}},
+		{name: "the start in a gap moves to the end of the gap", sections: []cmdetect.Section{sec(10, 20)}, missing: []cmdetect.Section{sec(8, 12)}, want: []cmdetect.Section{sec(12, 20)}},
+		{name: "the end in a gap moves to the start of the gap", sections: []cmdetect.Section{sec(10, 20)}, missing: []cmdetect.Section{sec(18, 25)}, want: []cmdetect.Section{sec(10, 18)}},
+		{name: "a gap inside the CM stays in the CM", sections: []cmdetect.Section{sec(10, 20)}, missing: []cmdetect.Section{sec(14, 16)}, want: []cmdetect.Section{sec(10, 20)}},
+		{name: "a CM entirely in a gap is dropped", sections: []cmdetect.Section{sec(10, 20), sec(30, 40)}, missing: []cmdetect.Section{sec(5, 25)}, want: []cmdetect.Section{sec(30, 40)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, cmdetect.TrimMissing(tt.sections, tt.missing))
 		})
 	}
 }

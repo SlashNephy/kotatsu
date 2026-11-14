@@ -1069,9 +1069,11 @@ type ComplexityRoot struct {
 	}
 
 	RecordingCMDetection struct {
-		DetectedAt func(childComplexity int) int
-		Progress   func(childComplexity int) int
-		State      func(childComplexity int) int
+		DetectedAt          func(childComplexity int) int
+		Note                func(childComplexity int) int
+		Progress            func(childComplexity int) int
+		State               func(childComplexity int) int
+		VideoMissingSeconds func(childComplexity int) int
 	}
 
 	RecordingCMSection struct {
@@ -6612,6 +6614,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingCMDetection.DetectedAt(childComplexity), true
+	case "RecordingCMDetection.note":
+		if e.ComplexityRoot.RecordingCMDetection.Note == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.Note(childComplexity), true
 	case "RecordingCMDetection.progress":
 		if e.ComplexityRoot.RecordingCMDetection.Progress == nil {
 			break
@@ -6624,6 +6632,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingCMDetection.State(childComplexity), true
+	case "RecordingCMDetection.videoMissingSeconds":
+		if e.ComplexityRoot.RecordingCMDetection.VideoMissingSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.VideoMissingSeconds(childComplexity), true
 
 	case "RecordingCMSection.from":
 		if e.ComplexityRoot.RecordingCMSection.From == nil {
@@ -11128,6 +11142,10 @@ type RecordingCMDetection {
   detectedAt: Time
   "見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。"
   progress: JobProgress
+  "最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。局ロゴで決められず、今の見分け方で見分け直したときなどに返す。決められたか、見分けていなければ null。"
+  note: String
+  "最後に見分け終えた見分けで測った、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。"
+  videoMissingSeconds: Float!
 }
 
 """
@@ -14599,6 +14617,10 @@ func (ec *executionContext) childFields_RecordingCMDetection(ctx context.Context
 		return ec.fieldContext_RecordingCMDetection_detectedAt(ctx, field)
 	case "progress":
 		return ec.fieldContext_RecordingCMDetection_progress(ctx, field)
+	case "note":
+		return ec.fieldContext_RecordingCMDetection_note(ctx, field)
+	case "videoMissingSeconds":
+		return ec.fieldContext_RecordingCMDetection_videoMissingSeconds(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingCMDetection", field.Name)
 }
@@ -37272,6 +37294,52 @@ func (ec *executionContext) fieldContext_RecordingCMDetection_progress(_ context
 	return fc, nil
 }
 
+func (ec *executionContext) _RecordingCMDetection_note(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_note(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Note, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_note(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMDetection", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingCMDetection_videoMissingSeconds(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_videoMissingSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VideoMissingSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_videoMissingSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMDetection", field, false, false, "Float")
+}
+
 func (ec *executionContext) _RecordingCMSection_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMSection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -55536,6 +55604,16 @@ func (ec *executionContext) _RecordingCMDetection(ctx context.Context, sel ast.S
 		case "progress":
 			out.Values[i] = ec._RecordingCMDetection_progress(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "note":
+			out.Values[i] = ec._RecordingCMDetection_note(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "videoMissingSeconds":
+			out.Values[i] = ec._RecordingCMDetection_videoMissingSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
