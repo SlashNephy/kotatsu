@@ -39,6 +39,7 @@ type urlUser struct {
 }
 
 // urlTouchInterval は、URL が開かれた日時を書き直す間隔。開くたびに書かないようにする。
+// 流している間も、確かめ直すたびに (StreamURLActiveWindow より十分に短く) 書き直すので、使われ続けている URL が分かる。
 const urlTouchInterval = time.Minute
 
 // NewURLUsers は URLUsers を返す。logger には、DB に届かずに覚えた結果を使ったことを出す。
@@ -48,34 +49,21 @@ func NewURLUsers(db sqlc.DBTX, clk clock.Clock, logger *slog.Logger) *URLUsers {
 
 // Role は、URL の記録 urlID から、URL を発行したユーザーのロールを返す。記録がないか (取り消したか)、記録のユーザーが userID でないか、
 // ユーザーを無効にしたなら ErrUserUnusable を返す。DB に届かず、覚えた結果もなければ、ErrDatabaseUnavailable を包んで返す。
+// あわせて、記録に使われた日時を残す。開くときと、流している間に確かめ直すときに呼ぶので、使われ続けている URL が分かる (#1757)。
+// 書き込みを減らすため urlTouchInterval ごとにしか書かず、DB から引けたときだけ、短い上限の時間で書く。書けなくても配信は止めない。
 func (u *URLUsers) Role(ctx context.Context, urlID, userID uuid.UUID) (domain.Role, error) {
-	found, err := u.lookup(ctx, urlID)
+	found, fromCache, err := u.lookup(ctx, urlID)
 	if err != nil {
 		return "", err
 	}
 	if found.userID != userID {
 		return "", ErrUserUnusable
 	}
+	if !fromCache {
+		u.touch(ctx, urlID, found.lastUsedAt)
+	}
 
 	return found.role, nil
-}
-
-// Touch は、URL の記録 urlID に、開かれた日時を残す。書き込みを減らすため、urlTouchInterval ごとにしか書き直さない。
-// 配信を止めないよう、書けなくても呼び出し側は配信を続ける。
-func (u *URLUsers) Touch(ctx context.Context, urlID uuid.UUID) error {
-	found, err := u.lookup(ctx, urlID)
-	if err != nil {
-		return err
-	}
-	now := u.clock.Now()
-	if found.lastUsedAt != nil && now.Sub(*found.lastUsedAt) < urlTouchInterval {
-		return nil
-	}
-	if err := sqlc.New(u.db).TouchStreamURL(ctx, sqlc.TouchStreamURLParams{ID: urlID, Now: &now}); err != nil {
-		return fmt.Errorf("failed to record the stream URL use: %w", err)
-	}
-
-	return nil
 }
 
 // Forget は、ユーザー userID の URL について覚えた結果を忘れる。ユーザーを無効にしたときや、ロールを変えたときに呼ぶ。
@@ -93,8 +81,8 @@ func (u *URLUsers) FallbackUsed() int64 {
 	return u.fallback.Used()
 }
 
-func (u *URLUsers) lookup(ctx context.Context, urlID uuid.UUID) (urlUser, error) {
-	found, _, err := u.fallback.Load(ctx, urlID, func(ctx context.Context) (urlUser, error) {
+func (u *URLUsers) lookup(ctx context.Context, urlID uuid.UUID) (urlUser, bool, error) {
+	found, fromCache, err := u.fallback.Load(ctx, urlID, func(ctx context.Context) (urlUser, error) {
 		row, err := sqlc.New(u.db).GetStreamURLUser(ctx, urlID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return urlUser{}, ErrUserUnusable
@@ -106,8 +94,20 @@ func (u *URLUsers) lookup(ctx context.Context, urlID uuid.UUID) (urlUser, error)
 		return urlUser{userID: row.UserID, role: row.Role, lastUsedAt: row.LastUsedAt}, nil
 	})
 	if database.IsUnavailable(err) {
-		return urlUser{}, fmt.Errorf("%w: %w", ErrDatabaseUnavailable, err)
+		return urlUser{}, false, fmt.Errorf("%w: %w", ErrDatabaseUnavailable, err)
 	}
 
-	return found, err
+	return found, fromCache, err
+}
+
+// touch は、URL の記録 urlID に、使われた日時を残す。前に残した日時 lastUsedAt から urlTouchInterval が経っていなければ書かない。
+func (u *URLUsers) touch(ctx context.Context, urlID uuid.UUID, lastUsedAt *time.Time) {
+	now := u.clock.Now()
+	if lastUsedAt != nil && now.Sub(*lastUsedAt) < urlTouchInterval {
+		return
+	}
+	touchCtx, cancel := context.WithTimeout(ctx, database.FallbackQueryTimeout)
+	defer cancel()
+	// 一覧に出すだけの日時なので、書けなくても配信は止めない。
+	_ = sqlc.New(u.db).TouchStreamURL(touchCtx, sqlc.TouchStreamURLParams{ID: urlID, Now: &now})
 }

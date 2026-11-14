@@ -1461,7 +1461,7 @@ type IssuedStreamUrl {
   createdAt: Time!
   expiresAt: Time!
   """
-  最後に開かれた日時。1 分ごとにしか書き直さない。開かれていなければ null。
+  最後に使われた日時。開いたときと、流している間に、1 分ごとにしか書き直さない。開かれていなければ null。
   """
   lastUsedAt: Time
 }
@@ -2201,7 +2201,7 @@ type Mutation {
   createStreamURL(target: ID!): StreamURL!
   """
   発行した外部プレイヤー用の URL を取り消す (#1757)。管理者だけが使える。取り消した URL は、期限の前でも使えなくなり、開いたままの配信も止まる。
-  権限を広げない操作なので、再認証は求めない。記録がないか、期限が過ぎていれば NOT_FOUND を返す。
+  権限を広げない操作なので、再認証は求めない。記録がなければ NOT_FOUND を返す。
   """
   revokeStreamUrl(id: ID!): Boolean!
   """
@@ -3333,6 +3333,7 @@ type Query {
   transcoding: Transcoding!
   """
   期限の過ぎていない、発行した外部プレイヤー用の URL の記録を、新しい順に返す (#1757)。管理者だけが使える。
+  期限の前に開き、期限を過ぎても流れ続けている URL (直近 10 分に使われたもの) も返す。
   """
   issuedStreamUrls: [IssuedStreamUrl!]!
   """

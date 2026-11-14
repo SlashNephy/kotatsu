@@ -168,6 +168,8 @@ function Integrations() {
   const [message, setMessage] = useState<Message | null>(null);
   // secret は、作った Webhook の署名用の秘密キー。作ったときにしか返らないので、ここで出す。
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
+  // revoking は、外部プレイヤーの URL を取り消している途中かどうか (#1757)。続けて押して、同じ URL を二度取り消さないようにする。
+  const [revoking, setRevoking] = useState(false);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
   const succeed = (text: string) => {
@@ -266,8 +268,9 @@ function Integrations() {
         {(data.systemSettings.externalPlayerUrlsEnabled || data.issuedStreamUrls.length > 0) && (
           <IssuedStreamUrls
             urls={data.issuedStreamUrls}
-            busy={gate.busy}
+            busy={gate.busy || revoking}
             onRevoke={(id) => {
+              setRevoking(true);
               mutate<integrationsRevokeStreamUrlMutation>(
                 environment,
                 graphql`
@@ -276,7 +279,9 @@ function Integrations() {
                   }
                 `,
                 { id },
-              ).then(() => succeed(t('admin.issuedStreamUrls.revoked')), fail);
+              )
+                .then(() => succeed(t('admin.issuedStreamUrls.revoked')), fail)
+                .finally(() => setRevoking(false));
             }}
           />
         )}

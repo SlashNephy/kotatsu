@@ -120,8 +120,9 @@ type Querier interface {
 	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
 	DeleteExpiredOAuthTokens(ctx context.Context, arg DeleteExpiredOAuthTokensParams) (int64, error)
 	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
-	// 期限の過ぎた URL の記録を消す。発行するときに呼ぶ。
-	DeleteExpiredStreamURLs(ctx context.Context, now time.Time) error
+	// 期限の過ぎた URL の記録を消す。発行するときに呼ぶ。期限の前に開き、期限を過ぎても流れ続けている配信の記録は、
+	// 流している間は使われた日時が書き直され続けるので、active_since より後に使われていれば消さない。
+	DeleteExpiredStreamURLs(ctx context.Context, arg DeleteExpiredStreamURLsParams) error
 	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
 	// プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。
 	DeleteExpiredWebPushSubscription(ctx context.Context, arg DeleteExpiredWebPushSubscriptionParams) error
@@ -785,8 +786,9 @@ type Querier interface {
 	// /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
 	ListStoragePoolMeasurements(ctx context.Context) ([]ListStoragePoolMeasurementsRow, error)
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)
-	// 期限の過ぎていない URL の記録を、新しい順に、発行したユーザーと一緒に返す。
-	ListStreamURLs(ctx context.Context, now time.Time) ([]ListStreamURLsRow, error)
+	// 期限の過ぎていない URL と、期限を過ぎても流れ続けている (active_since より後に使われた) URL の記録を、
+	// 新しい順に、発行したユーザーと一緒に返す。
+	ListStreamURLs(ctx context.Context, arg ListStreamURLsParams) ([]ListStreamURLsRow, error)
 	ListSyobocalLookups(ctx context.Context, arg ListSyobocalLookupsParams) ([]SyobocalLookup, error)
 	ListSyobocalPrograms(ctx context.Context, arg ListSyobocalProgramsParams) ([]SyobocalProgram, error)
 	ListSyobocalTitlesByKey(ctx context.Context, titleKey string) ([]ListSyobocalTitlesByKeyRow, error)

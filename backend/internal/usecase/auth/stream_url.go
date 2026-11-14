@@ -26,8 +26,14 @@ const (
 	liveResourcePrefix = "/api/streams/services/"
 )
 
-// ErrStreamURLNotFound は、URL の記録がないか、期限が過ぎたことを表す。
+// ErrStreamURLNotFound は、URL の記録がないことを表す。
 var ErrStreamURLNotFound = errors.New("stream URL not found")
+
+// StreamURLActiveWindow は、期限を過ぎた URL を、まだ流れ続けているとみなす、最後に使われてからの時間 (#1757)。
+// 期限は開くときにだけ確かめるので、期限の前に開いた配信は、期限を過ぎても流れ続ける。流している間は、確かめ直すたびに
+// (最長で urlTouchInterval ごとに) 使われた日時を書き直すので、それより十分に長くする。この時間の内に使われた記録は、
+// 期限が過ぎても消さず、一覧に出して取り消せるようにする。
+const StreamURLActiveWindow = 10 * time.Minute
 
 // IssuedStreamURL は、発行した外部プレイヤー用の署名付き URL の記録 (#1757)。URL そのものは持たない。
 type IssuedStreamURL struct {
@@ -66,13 +72,13 @@ func NewStreamURLs(db Database, clk clock.Clock, recorder audit.Recorder, users 
 	return &StreamURLs{db: db, clock: clk, recorder: recorder, users: users}
 }
 
-// Create は、発行した URL を記録し、監査ログに残す。あわせて、期限の過ぎた記録を消す。
+// Create は、発行した URL を記録し、監査ログに残す。あわせて、期限が過ぎ、流れ続けてもいない記録を消す。
 func (s *StreamURLs) Create(ctx context.Context, actor *audit.Actor, issued *NewStreamURL) error {
 	now := s.clock.Now()
 
 	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
-		if err := q.DeleteExpiredStreamURLs(ctx, now); err != nil {
+		if err := q.DeleteExpiredStreamURLs(ctx, sqlc.DeleteExpiredStreamURLsParams{Now: now, ActiveSince: now.Add(-StreamURLActiveWindow)}); err != nil {
 			return fmt.Errorf("failed to delete the expired stream URLs: %w", err)
 		}
 		err := q.CreateStreamURL(ctx, sqlc.CreateStreamURLParams{
@@ -89,9 +95,10 @@ func (s *StreamURLs) Create(ctx context.Context, actor *audit.Actor, issued *New
 	})
 }
 
-// List は、期限の過ぎていない URL の記録を、新しい順に返す。
+// List は、期限の過ぎていない URL と、期限を過ぎても流れ続けている URL の記録を、新しい順に返す。
 func (s *StreamURLs) List(ctx context.Context) ([]*IssuedStreamURL, error) {
-	rows, err := sqlc.New(s.db).ListStreamURLs(ctx, s.clock.Now())
+	now := s.clock.Now()
+	rows, err := sqlc.New(s.db).ListStreamURLs(ctx, sqlc.ListStreamURLsParams{Now: now, ActiveSince: now.Add(-StreamURLActiveWindow)})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the stream URLs: %w", err)
 	}

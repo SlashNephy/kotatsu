@@ -109,8 +109,6 @@ func (a *Authorizer) Signed(next http.Handler) http.Handler {
 
 			return
 		}
-		// 開かれた日時は、一覧で見せるだけなので、残せなくても配信は止めない。
-		_ = a.users.Touch(r.Context(), verified.URLID)
 		httpserver.StopWhenRevoked(w, r, next, a.recheck, func(ctx context.Context) bool {
 			return a.stillAllowed(ctx, verified)
 		})

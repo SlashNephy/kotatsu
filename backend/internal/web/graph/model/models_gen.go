@@ -812,7 +812,7 @@ type IssuedStreamURL struct {
 	Live      bool      `json:"live"`
 	CreatedAt time.Time `json:"createdAt"`
 	ExpiresAt time.Time `json:"expiresAt"`
-	// 最後に開かれた日時。1 分ごとにしか書き直さない。開かれていなければ null。
+	// 最後に使われた日時。開いたときと、流している間に、1 分ごとにしか書き直さない。開かれていなければ null。
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
