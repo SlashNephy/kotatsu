@@ -18,6 +18,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { ErrorBoundary, formatBytes, PageLoader, useDocumentTitle, zonedFormat } from '../futon';
 import { useDataChanges } from '../changes/DataChanges';
 import { useLazyLoadQuery } from '../relay/useLazyLoadQuery';
+import { settingsErrorMessage } from '../settings/errors';
 import { mutate } from '../settings/mutate';
 import type {
   networkActivityQuery,
@@ -120,11 +121,14 @@ function NetworkActivityContent() {
     { fetchKey: `${fetchKey}:${adminChanges}`, fetchPolicy: 'store-and-network' },
   );
   const [saving, setSaving] = useState(false);
+  // error は、記録の切り替えに失敗したときの知らせ。通信が切れたときやセッションが切れたときに出す (#1732)。
+  const [error, setError] = useState<string | null>(null);
   const activity = data.networkActivity;
 
   const setEnabled = (enabled: boolean) => {
     setSaving(true);
-    void mutate<networkActivityMutation>(
+    setError(null);
+    mutate<networkActivityMutation>(
       environment,
       graphql`
         mutation networkActivityMutation($input: SystemSettingsInput!) {
@@ -134,10 +138,12 @@ function NetworkActivityContent() {
         }
       `,
       { input: { networkActivityEnabled: enabled } },
-    ).finally(() => {
-      setSaving(false);
-      setFetchKey((key) => key + 1);
-    });
+    )
+      .catch((caught: unknown) => setError(settingsErrorMessage(t, caught)))
+      .finally(() => {
+        setSaving(false);
+        setFetchKey((key) => key + 1);
+      });
   };
 
   return (
@@ -151,6 +157,11 @@ function NetworkActivityContent() {
             disabled={saving}
             onChange={(event) => setEnabled(event.currentTarget.checked)}
           />
+          {error !== null && (
+            <Alert color="red" role="alert" mt="sm" withCloseButton onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
         </Card>
       )}
 
