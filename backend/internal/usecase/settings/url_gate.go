@@ -60,6 +60,17 @@ func (g *URLGate) RecordingDownloadsEnabled(ctx context.Context) (bool, error) {
 	return system.RecordingDownloadsEnabled, nil
 }
 
+// EPGStationAPIEnabled は、EPGStation 互換の API を提供するかどうかを返す (#1769)。
+// DB に届かず、覚えた設定もなければ、ErrDatabaseUnavailable を包んで返す。
+func (g *URLGate) EPGStationAPIEnabled(ctx context.Context) (bool, error) {
+	system, err := g.load(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return system.EPGStationAPIEnabled, nil
+}
+
 // FallbackUsed は、DB に届かずに、覚えた設定を使った回数を返す。
 func (g *URLGate) FallbackUsed() int64 {
 	return g.fallback.Used()

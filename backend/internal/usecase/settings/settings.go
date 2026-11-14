@@ -87,6 +87,9 @@ type System struct {
 	// RecordingDownloadsEnabled は、録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
 	// 録画を Kotatsu の外へ持ち出す機能なので、管理者が有効にしたときだけ使わせる。端末に保存 (設計書 7.8) は、Kotatsu の中でだけ再生するので含めない。
 	RecordingDownloadsEnabled bool
+	// EPGStationAPIEnabled は、EPGStation 互換の API を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
+	// API は、トークンを持っている人なら誰でも映像を読めるので、管理者が有効にしたときだけ提供する。
+	EPGStationAPIEnabled bool
 	// AnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
 	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
 	AnimeLinkingEnabled bool
@@ -188,6 +191,7 @@ type Changes struct {
 	ExternalPlayerURLsEnabled    *bool
 	IPTVFeedsEnabled             *bool
 	RecordingDownloadsEnabled    *bool
+	EPGStationAPIEnabled         *bool
 	AnimeLinkingEnabled          *bool
 	CommentSources               *[]string
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
@@ -379,6 +383,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			ExternalPlayerURLsEnabled:              valueOr(changes.ExternalPlayerURLsEnabled, current.ExternalPlayerURLsEnabled),
 			IPTVFeedsEnabled:                       valueOr(changes.IPTVFeedsEnabled, current.IPTVFeedsEnabled),
 			RecordingDownloadsEnabled:              valueOr(changes.RecordingDownloadsEnabled, current.RecordingDownloadsEnabled),
+			EPGStationAPIEnabled:                   valueOr(changes.EPGStationAPIEnabled, current.EPGStationAPIEnabled),
 			AnimeLinkingEnabled:                    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
 			CommentSources:                         valueOr(changes.CommentSources, current.CommentSources),
 			DrcsReplacements:                       replacementsEncoded,
@@ -412,6 +417,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"externalPlayerUrlsEnabled":    change(current.ExternalPlayerURLsEnabled, updated.ExternalPlayerURLsEnabled),
 				"iptvFeedsEnabled":             change(current.IPTVFeedsEnabled, updated.IPTVFeedsEnabled),
 				"recordingDownloadsEnabled":    change(current.RecordingDownloadsEnabled, updated.RecordingDownloadsEnabled),
+				"epgstationApiEnabled":         change(current.EPGStationAPIEnabled, updated.EPGStationAPIEnabled),
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
@@ -591,6 +597,7 @@ func defaults() *System {
 		ExternalPlayerURLsEnabled: false,
 		IPTVFeedsEnabled:          false,
 		RecordingDownloadsEnabled: false,
+		EPGStationAPIEnabled:      false,
 		AnimeLinkingEnabled:       false,
 		CommentSources:            []string{},
 		DRCSReplacements:          map[string]string{},
@@ -629,6 +636,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		ExternalPlayerURLsEnabled: row.ExternalPlayerURLsEnabled,
 		IPTVFeedsEnabled:          row.IPTVFeedsEnabled,
 		RecordingDownloadsEnabled: row.RecordingDownloadsEnabled,
+		EPGStationAPIEnabled:      row.EPGStationAPIEnabled,
 		AnimeLinkingEnabled:       row.AnimeLinkingEnabled,
 		CommentSources:            row.CommentSources,
 		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),

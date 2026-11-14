@@ -416,6 +416,8 @@ export function createRootValue(
       iptvFeedsEnabled: true,
       // デモでは、録画のダウンロードの操作も見せる (#1762)。
       recordingDownloadsEnabled: true,
+      // デモでは、API トークンを発行する操作も見せる (#1769)。
+      epgstationApiEnabled: true,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
       animeLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。

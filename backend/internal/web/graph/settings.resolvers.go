@@ -39,6 +39,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		ExternalPlayerURLsEnabled: input.ExternalPlayerUrlsEnabled,
 		IPTVFeedsEnabled:          input.IptvFeedsEnabled,
 		RecordingDownloadsEnabled: input.RecordingDownloadsEnabled,
+		EPGStationAPIEnabled:      input.EpgstationAPIEnabled,
 		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
 		CommentSources:            optionalCommentSources(input.CommentSources),
 		DRCSReplacements:          replacements,

@@ -128,6 +128,8 @@ const query = graphql`
     # IPTV のクライアント用の URL は、管理者が有効にしているときだけ発行できる (#1755)。
     systemSettings {
       iptvFeedsEnabled
+      # API トークンは、管理者が EPGStation 互換の API を有効にしているときだけ発行できる (#1769)。
+      epgstationApiEnabled
     }
     apiTokens {
       id
@@ -217,6 +219,7 @@ function Security() {
 
             <ApiTokens
               tokens={data.apiTokens}
+              enabled={data.systemSettings.epgstationApiEnabled}
               onChanged={refresh}
               run={run}
               fail={fail}

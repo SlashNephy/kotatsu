@@ -374,6 +374,8 @@ CREATE TABLE system_settings (
   iptv_feeds_enabled boolean NOT NULL DEFAULT false,
   -- 録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定では保存させない。
   recording_downloads_enabled boolean NOT NULL DEFAULT false,
+  -- EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定では提供しない。
+  epgstation_api_enabled boolean NOT NULL DEFAULT false,
   -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   anime_linking_enabled boolean NOT NULL DEFAULT false,

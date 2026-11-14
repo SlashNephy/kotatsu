@@ -39,6 +39,8 @@ export type ApiTokenItem = {
 
 type Props = {
   tokens: readonly ApiTokenItem[];
+  // enabled は、管理者が EPGStation 互換の API を有効にしているかどうか (#1769)。
+  enabled: boolean;
   onChanged: () => void;
   run: ReturnType<typeof useReauthGate>['run'];
   fail: (error: unknown) => void;
@@ -47,7 +49,8 @@ type Props = {
 
 // ApiTokens は、読み取り専用の API トークン (#431、設計書 9.8) の一覧と、発行、取り消し。
 // 発行は、そのユーザーとして読むことを許すので、再認証してから行う。トークンそのものは、発行した直後にだけ出す。
-export function ApiTokens({ tokens, onChanged, run, fail, environment }: Props) {
+// 管理者が API を無効にしている間は発行させない (#1769)。発行済みのトークンがあれば、使えないことを示し、取り消しだけを許す。
+export function ApiTokens({ tokens, enabled, onChanged, run, fail, environment }: Props) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [issued, setIssued] = useState<string | null>(null);
@@ -69,6 +72,10 @@ export function ApiTokens({ tokens, onChanged, run, fail, environment }: Props) 
       setName('');
       onChanged();
     }, fail);
+
+  if (!enabled && tokens.length === 0 && issued === null) {
+    return null;
+  }
 
   return (
     <Card withBorder>
@@ -153,19 +160,26 @@ export function ApiTokens({ tokens, onChanged, run, fail, environment }: Props) 
             </Button>
           </Group>
         ))}
-        <Group gap="xs" align="flex-end">
-          <TextInput
-            size="xs"
-            label={t('settings.account.newApiTokenName')}
-            placeholder={t('settings.account.newApiTokenPlaceholder')}
-            maxLength={64}
-            value={name}
-            onChange={(event) => setName(event.currentTarget.value)}
-          />
-          <Button size="compact-sm" disabled={name.trim() === ''} onClick={create}>
-            {t('settings.account.createApiToken')}
-          </Button>
-        </Group>
+        {!enabled && (
+          <Alert color="gray" role="status">
+            {t('settings.account.apiTokensDisabled')}
+          </Alert>
+        )}
+        {enabled && (
+          <Group gap="xs" align="flex-end">
+            <TextInput
+              size="xs"
+              label={t('settings.account.newApiTokenName')}
+              placeholder={t('settings.account.newApiTokenPlaceholder')}
+              maxLength={64}
+              value={name}
+              onChange={(event) => setName(event.currentTarget.value)}
+            />
+            <Button size="compact-sm" disabled={name.trim() === ''} onClick={create}>
+              {t('settings.account.createApiToken')}
+            </Button>
+          </Group>
+        )}
       </Stack>
     </Card>
   );

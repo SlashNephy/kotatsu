@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<8d849abf4bfc0ffce640c1c00c0b730f>>
+ * @generated SignedSource<<f6a1c35556312062dc22fa5ce8f73fc4>>
  * @lightSyntaxTransform
  */
 
@@ -15,6 +15,7 @@ export type SystemSettingsInput = {
   commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
+  epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;
   iptvFeedsEnabled?: boolean | null | undefined;
   mcpEnabled?: boolean | null | undefined;

@@ -90,6 +90,12 @@ type SystemSettings {
   ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
   """
   recordingDownloadsEnabled: Boolean!
+  """
+  EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
+  無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
+  ログインしていれば誰でも読め、画面が、API トークンを発行する操作を出すかを決めるのに使う。
+  """
+  epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
@@ -139,6 +145,8 @@ input SystemSettingsInput {
   iptvFeedsEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。"
   recordingDownloadsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。"
+  epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"

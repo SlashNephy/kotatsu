@@ -38,10 +38,19 @@ func (f *fixture) listAPITokens(t *testing.T) []apiToken {
 }
 
 // TestManageAPITokens は、ログイン中のユーザーが、API トークンを発行し、一覧し、取り消せることを確かめる (#431)。
+// enableEPGStationAPI は、管理者が EPGStation 互換の API を有効にする (#1769)。
+func (f *fixture) enableEPGStationAPI(t *testing.T) {
+	t.Helper()
+
+	require.Empty(t, f.as(t, "epgstation-admin", domain.RoleAdmin).query(t,
+		`mutation { updateSystemSettings(input: {epgstationApiEnabled: true}) { epgstationApiEnabled } }`, nil, nil))
+}
+
 func TestManageAPITokens(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t, nil)
+	f.enableEPGStationAPI(t)
 	assert.Empty(t, f.listAPITokens(t))
 
 	var created struct {
@@ -76,17 +85,24 @@ func TestCreateAPITokenRejects(t *testing.T) {
 		name      string
 		variables map[string]any
 		stale     bool
-		want      string
+		// disabled は、管理者が EPGStation 互換の API を有効にしていないかどうか (#1769)。
+		disabled bool
+		want     string
 	}{
 		{name: "空の名前", variables: map[string]any{varName: "  "}, stale: false, want: codeBadUserInput},
 		{name: "長すぎる名前", variables: map[string]any{varName: strings.Repeat("あ", 65)}, stale: false, want: codeBadUserInput},
 		{name: "直近の認証がない", variables: map[string]any{varName: clientName}, stale: true, want: codeReauthRequired},
+		// 使えないトークンは発行しない。既定では無効にする。
+		{name: "管理者が API を有効にしていない", variables: map[string]any{varName: clientName}, disabled: true, want: codeForbidden},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			f := newFixture(t, nil)
+			if !tt.disabled {
+				f.enableEPGStationAPI(t)
+			}
 			if tt.stale {
 				f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 			}

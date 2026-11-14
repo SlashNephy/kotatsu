@@ -1340,8 +1340,9 @@ func handleEPGStationAPI(
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
+	// 管理者が有効にしている間だけ提供する (#1769)。無効の間は、API があることを知らせないよう、トークンを確かめる前に 404 を返す。
 	protect := func(next http.Handler) echo.HandlerFunc {
-		return echo.WrapHandler(tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next)))
+		return echo.WrapHandler(epgstationapi.RequireEnabled(urlGate, tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next))))
 	}
 	prefix := epgstationPathPrefix + "api/"
 	routes := map[string]http.Handler{
@@ -1351,9 +1352,11 @@ func handleEPGStationAPI(
 		"channels/:id/logo": streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger),
 		"schedules":         http.HandlerFunc(h.Schedules),
 		// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
-		"streams/live/:id/m2ts": streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))),
-		"recorded":              http.HandlerFunc(h.Recorded),
-		"recorded/:id":          http.HandlerFunc(h.RecordedItem),
+		// 開いたままのライブの TS も、管理者が無効にしたか、トークンを取り消したら止める (#1769)。
+		"streams/live/:id/m2ts": streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(
+			epgstationapi.StopWhenRevoked(urlGate, tokens, streamapi.NewLiveHandler(opener, streamLogger)))),
+		"recorded":     http.HandlerFunc(h.Recorded),
+		"recorded/:id": http.HandlerFunc(h.RecordedItem),
 		// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
 		"videos/:id": streams.Count(streamapi.StreamKindRecording, httpserver.StopOnShutdown(
 			h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0), ""))),
