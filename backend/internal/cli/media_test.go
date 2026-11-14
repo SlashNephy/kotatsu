@@ -44,7 +44,6 @@ func TestTenbanServesMedia(t *testing.T) {
 		{name: "logo HEAD", method: http.MethodHead, path: logo, session: session, wantStatus: http.StatusServiceUnavailable, wantAllow: ""},
 		{name: "logo with invalid ID", method: http.MethodGet, path: "/internal/media/services/abc/logo", session: session, wantStatus: http.StatusBadRequest, wantAllow: ""},
 		{name: "thumbnail of missing recording", method: http.MethodGet, path: missing + "thumbnail.jpg", session: session, wantStatus: http.StatusNotFound, wantAllow: ""},
-		// 実況の過去ログのファイル名は、録画の画像の :file より先に当たる。
 		{name: "jikkyo of missing recording", method: http.MethodGet, path: missing + "jikkyo.json", session: session, wantStatus: http.StatusNotFound, wantAllow: ""},
 		{name: "capture without session", method: http.MethodGet, path: "/internal/media/captures/0199d000-0000-7000-8000-000000000999", session: "", wantStatus: http.StatusUnauthorized, wantAllow: ""},
 		// 状態を変える POST と WebSocket の接続は、Origin がなければ受け付けない。
@@ -57,6 +56,22 @@ func TestTenbanServesMedia(t *testing.T) {
 		{name: "unknown path", method: http.MethodGet, path: "/internal/media/nope", session: session, wantStatus: http.StatusNotFound, wantAllow: ""},
 	}
 	client := httpclienttest.New(t)
+	// 実況の過去ログのファイル名は、録画の画像の :file より先に当たる。どちらも、ない録画には 404 を返すので、
+	// 画像のハンドラーだけが先に付ける Cache-Control で、どちらが答えたかを見分ける。
+	t.Run("jikkyo file name wins over image file", func(t *testing.T) {
+		t.Parallel()
+
+		for file, want := range map[string]string{"thumbnail.jpg": "no-store", "jikkyo.json": ""} {
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+missing+file, http.NoBody)
+			require.NoError(t, err)
+			req.Header.Set("Cookie", auth.CookieName+"="+session)
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode, file)
+			assert.Equal(t, want, resp.Header.Get("Cache-Control"), file)
+		}
+	})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
