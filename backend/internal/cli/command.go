@@ -852,8 +852,6 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	calendarFeeds := auth.NewCalendarFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	iptvFeeds := auth.NewIPTVFeeds(deps.DB, deps.Clock, audit.NewRecorder(deps.Clock))
 	authorizationServer := oauth.NewServer(deps.DB, deps.Clock, oauth.NewFetcher(deps.Clock, deps.Network), audit.NewRecorder(deps.Clock))
-	mux := http.NewServeMux()
-	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
 	// 変換せずに流す配信を数える。tenban を止める前に、視聴者がつなぎ直したかを、これで見る (#1085)。
 	streams := newStreamCounter(deps)
 	drainer := streamapi.NewDrainer(streams)
@@ -904,7 +902,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Updates:           graphUpdates,
 		Logs:              newLogReport(deps, sealed, location, tuner.logs),
 	})
-	mux.Handle("/internal/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
+	// 変更の購読 (SSE) は終わらないので、停止を始めたら打ち切る。
+	graphQLHandler := httpserver.StopEventStreamsOnShutdown(graphQL)
 	// ログインやログアウトなどの手続き (/internal/auth/*) は、echo のルーターで受ける (#1606)。
 	authRoutes := sessionRoutes{}
 	authRoutes.add(http.MethodPost, "/internal/auth/logout", sessions.LogoutHandler(deps.DB))
@@ -961,16 +960,16 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "kyusu_instances": instances.FallbackUsed,
 	})
 	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
-	api := sessions.Middleware(deps.DB)(mux)
 
 	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
 		return nil, err
 	}
 	root := http.NewServeMux()
-	// 画面がセッションの Cookie で使う端点は、/internal の下にまとめる (設計書 9.1、#1605)。知らないパスは、画面を返さずに 404 にする。
+	// 画面がセッションの Cookie で使う端点は、/internal の下にまとめる (設計書 9.1、#1605)。端点は、どれも echo のルーターで受ける (#1606)。
+	// echo のルートに当たらないパスは、画面を返さずに 404 にする。
 	// kyusu のロールの間の経路 (/internal/kyusu/*) は、外側の mux に登録するので、ここには届かない。
-	root.Handle(internalPathPrefix, api)
+	root.Handle(internalPathPrefix, http.NotFoundHandler())
 	public := &publicAPI{
 		apiTokens: apiTokens, iptvFeeds: iptvFeeds, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
@@ -982,6 +981,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	handleAuth(router, sessions.Middleware(deps.DB), authRoutes)
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), mediaRoutes, "media")
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), streamRoutes, "stream")
+	handleGraphQL(router, sessions.Middleware(deps.DB), graphQLHandler)
 
 	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
@@ -1019,6 +1019,12 @@ func handleSessionRoutes(router *echo.Echo, session func(http.Handler) http.Hand
 		}
 		httpserver.Handle(router, path, wrapped, httpserver.Component(component))
 	}
+}
+
+// handleGraphQL は、GraphQL (/internal/graphql) を echo のルーターに登録する (#1606)。セッションの Cookie を読む。
+// メソッドの扱いは GraphQL のハンドラーに任せるので (GET でのクエリは受け付けない。設計書 9.5)、どのメソッドも渡す。
+func handleGraphQL(router *echo.Echo, session func(http.Handler) http.Handler, graphQL http.Handler) {
+	router.Any("/internal/graphql", echo.WrapHandler(session(graphQL)), httpserver.Component("graphql"))
 }
 
 // echoPattern は、http.ServeMux のパスの書き方 ({channel}) を、echo の書き方 (:channel) に直す。
