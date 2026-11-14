@@ -53,7 +53,8 @@ func TestSigner(t *testing.T) {
 
 	now := time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC)
 	userID := uuid.MustParse("0199d000-0000-7000-8000-0000000000a1")
-	signed := newSigner(t, keyMaterial).Sign(resource, userID, now.Add(stream.LiveURLLifetime))
+	urlID := uuid.MustParse("0199d000-0000-7000-8000-0000000000b1")
+	signed := newSigner(t, keyMaterial).Sign(resource, userID, urlID, now.Add(stream.LiveURLLifetime))
 	assert.Equal(t, now.Add(time.Hour), signed.ExpiresAt)
 	parsed, err := url.Parse(signed.URL)
 	require.NoError(t, err)
@@ -121,7 +122,7 @@ func TestSigner(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, userID, got)
+			assert.Equal(t, &stream.Verified{UserID: userID, URLID: urlID}, got)
 		})
 	}
 }
@@ -176,15 +177,15 @@ func TestAuthorizer(t *testing.T) {
 	}{
 		{name: "画面の経路にログイン中のセッション", path: sessionPath, cookie: token, wantStatus: http.StatusOK},
 		{name: "画面の経路に認証がない", path: sessionPath, cookie: "", wantStatus: http.StatusUnauthorized},
-		{name: "画面の経路に署名だけ", path: signer.Sign(sessionPath, viewer.ID, expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
-		{name: "署名付き URL", path: signer.Sign(resource, viewer.ID, expiresAt).URL + "&start=60", cookie: "", wantStatus: http.StatusOK},
+		{name: "画面の経路に署名だけ", path: signer.Sign(sessionPath, viewer.ID, uuid.New(), expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
+		{name: "署名付き URL", path: issue(t, pool, clk, signer, viewer.ID, expiresAt) + "&start=60", cookie: "", wantStatus: http.StatusOK},
 		{name: "署名付き URL の経路にセッションだけ", path: resource, cookie: token, wantStatus: http.StatusUnauthorized},
 		{name: "署名付き URL の経路に認証がない", path: resource, cookie: "", wantStatus: http.StatusUnauthorized},
-		{name: "無効にしたユーザーの署名付き URL", path: signer.Sign(resource, disabled.ID, expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
-		{name: "いないユーザーの署名付き URL", path: signer.Sign(resource, uuid.New(), expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
+		{name: "無効にしたユーザーの署名付き URL", path: issue(t, pool, clk, signer, disabled.ID, expiresAt), cookie: "", wantStatus: http.StatusUnauthorized},
+		{name: "いないユーザーの署名付き URL", path: signer.Sign(resource, uuid.New(), uuid.New(), expiresAt).URL, cookie: "", wantStatus: http.StatusUnauthorized},
 		{
 			name: "別のリソースの署名付き URL", cookie: "", wantStatus: http.StatusUnauthorized,
-			path: resource + "?" + mustQuery(t, signer.Sign("/api/streams/services/3273601025", viewer.ID, expiresAt).URL),
+			path: resource + "?" + mustQuery(t, signer.Sign("/api/streams/services/3273601025", viewer.ID, uuid.New(), expiresAt).URL),
 		},
 	}
 	for _, tt := range tests {
@@ -242,8 +243,8 @@ func TestAuthorizerWhileDatabaseIsUnreachable(t *testing.T) {
 	server := httptest.NewServer(sessions.Middleware(conn.Pool)(mux))
 	t.Cleanup(server.Close)
 	expiresAt := clk.Now().Add(stream.LiveURLLifetime)
-	signedSeen := signer.Sign(resource, viewer.ID, expiresAt).URL
-	signedUnseen := signer.Sign(resource, other.ID, expiresAt).URL
+	signedSeen := issue(t, pool, clk, signer, viewer.ID, expiresAt)
+	signedUnseen := issue(t, pool, clk, signer, other.ID, expiresAt)
 
 	get := func(t *testing.T, path, cookie string) int {
 		t.Helper()
@@ -311,7 +312,7 @@ func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 	mux.Handle(signedPattern, authorizer.Signed(ok))
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	signed := signer.Sign(resource, viewer.ID, clk.Now().Add(stream.LiveURLLifetime)).URL
+	signed := issue(t, pool, clk, signer, viewer.ID, clk.Now().Add(stream.LiveURLLifetime))
 
 	// 順に設定を変えるので、行ごとに並行させない。
 	tests := []struct {
@@ -337,7 +338,7 @@ func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 }
 
 // TestAuthorizerStopsOpenStreams は、署名付き URL で流している間に、管理者が外部プレイヤー用の URL を無効にするか、
-// URL を発行したユーザーを無効にしたら、開いたままの配信も止めることを確かめる (#1755)。
+// URL を取り消すか (#1757)、URL を発行したユーザーを無効にしたら、開いたままの配信も止めることを確かめる (#1755)。
 func TestAuthorizerStopsOpenStreams(t *testing.T) {
 	t.Parallel()
 
@@ -350,6 +351,15 @@ func TestAuthorizerStopsOpenStreams(t *testing.T) {
 			revoke: func(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, _ uuid.UUID) {
 				t.Helper()
 				setExternalPlayerURLsEnabled(t, pool, clk, false)
+			},
+		},
+		{
+			// 管理者が URL を取り消すと、URL の記録が消える (#1757)。
+			name: "URL を取り消した",
+			revoke: func(t *testing.T, pool *pgxpool.Pool, _ *clocktest.Fake, _ uuid.UUID) {
+				t.Helper()
+				_, err := pool.Exec(t.Context(), "DELETE FROM stream_urls")
+				require.NoError(t, err)
 			},
 		},
 		{
@@ -405,7 +415,7 @@ func TestAuthorizerStopsOpenStreams(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
-				server.URL+signer.Sign(resource, viewer.ID, clk.Now().Add(stream.LiveURLLifetime)).URL, nil)
+				server.URL+issue(t, pool, clk, signer, viewer.ID, clk.Now().Add(stream.LiveURLLifetime)), nil)
 			require.NoError(t, err)
 			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
 			client := httpclienttest.New(t)
@@ -427,6 +437,19 @@ func TestAuthorizerStopsOpenStreams(t *testing.T) {
 			}
 		})
 	}
+}
+
+// issue は、userID が resource を expiresAt まで見られる URL の記録を作り、その記録で署名した URL を返す (#1757)。
+func issue(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, signer *stream.Signer, userID uuid.UUID, expiresAt time.Time) string {
+	t.Helper()
+
+	urlID := uuid.New()
+	err := auth.NewStreamURLs(pool, clk, audit.NewRecorder(clk), nil).Create(t.Context(), audit.User(userID), &auth.NewStreamURL{
+		ID: urlID, UserID: userID, Resource: resource, TargetName: "こたつテスト1", ExpiresAt: expiresAt,
+	})
+	require.NoError(t, err)
+
+	return signer.Sign(resource, userID, urlID, expiresAt).URL
 }
 
 // setExternalPlayerURLsEnabled は、管理者が外部プレイヤー用の URL を有効にするか無効にする (#1755)。

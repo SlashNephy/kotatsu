@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"time"
-	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -62,11 +61,12 @@ func (a *Authorizer) Session(next http.Handler) http.Handler {
 // リクエストを next に渡すミドルウェアを返す。セッションは見ない。
 // 発行した後に無効にしたユーザーの URL は、期限の前でも使えない。
 // 管理者が外部プレイヤー用の URL を無効にしている間は、期限の前の URL も断る (#1755)。
-// 開いた後に、管理者が無効にしたり、ユーザーを無効にしたりしたら、開いたままの配信も止める。期限は開くときにだけ確かめる。
+// 取り消した URL (記録を消した URL。#1757) も、期限の前に断る。
+// 開いた後に、管理者が無効にしたり、URL を取り消したり、ユーザーを無効にしたりしたら、開いたままの配信も止める。期限は開くときにだけ確かめる。
 // DB に届かない間は、DB が止まる前に引けたユーザーと設定に限って、覚えた結果で認可する (#1084)。
 func (a *Authorizer) Signed(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID, err := a.signer.Verify(r.URL.Path, r.URL.Query(), a.clock.Now())
+		verified, err := a.signer.Verify(r.URL.Path, r.URL.Query(), a.clock.Now())
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 
@@ -88,7 +88,7 @@ func (a *Authorizer) Signed(next http.Handler) http.Handler {
 
 			return
 		}
-		role, err := a.users.Role(r.Context(), userID)
+		role, err := a.users.Role(r.Context(), verified.URLID, verified.UserID)
 		if errors.Is(err, auth.ErrUserUnusable) {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 
@@ -109,20 +109,23 @@ func (a *Authorizer) Signed(next http.Handler) http.Handler {
 
 			return
 		}
+		// 開かれた日時は、一覧で見せるだけなので、残せなくても配信は止めない。
+		_ = a.users.Touch(r.Context(), verified.URLID)
 		httpserver.StopWhenRevoked(w, r, next, a.recheck, func(ctx context.Context) bool {
-			return a.stillAllowed(ctx, userID)
+			return a.stillAllowed(ctx, verified)
 		})
 	})
 }
 
 // stillAllowed は、署名付き URL で配信している間に、配信を続けてよいかを返す。管理者が外部プレイヤー用の URL を無効にしたか、
-// URL を発行したユーザーを無効にしたか、視聴を許さないロールにしたら false を返す。確かめられないときは、配信を続けさせる。
-func (a *Authorizer) stillAllowed(ctx context.Context, userID uuid.UUID) bool {
+// URL を取り消したか (#1757)、URL を発行したユーザーを無効にしたか、視聴を許さないロールにしたら false を返す。
+// 確かめられないときは、配信を続けさせる。
+func (a *Authorizer) stillAllowed(ctx context.Context, verified *stream.Verified) bool {
 	enabled, err := a.gate.ExternalPlayerURLsEnabled(ctx)
 	if err == nil && !enabled {
 		return false
 	}
-	role, err := a.users.Role(ctx, userID)
+	role, err := a.users.Role(ctx, verified.URLID, verified.UserID)
 	if errors.Is(err, auth.ErrUserUnusable) {
 		return false
 	}

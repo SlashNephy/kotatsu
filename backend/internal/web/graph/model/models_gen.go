@@ -801,6 +801,21 @@ type IptvFeed struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// 発行した外部プレイヤー用の署名付き URL の記録 (#1757、設計書 7.6)。URL そのものは持たない。管理者だけが読める。
+type IssuedStreamURL struct {
+	ID string `json:"id"`
+	// 発行したユーザーの表示名。
+	UserDisplayName string `json:"userDisplayName"`
+	// 発行したときのサービス名か録画の名前。
+	TargetName string `json:"targetName"`
+	// ライブ視聴の URL かどうか。false なら録画の URL。
+	Live      bool      `json:"live"`
+	CreatedAt time.Time `json:"createdAt"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	// 最後に開かれた日時。1 分ごとにしか書き直さない。開かれていなければ null。
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
 // NX-Jikkyo の実況のチャンネル。
 type JikkyoChannel struct {
 	// jk1 などの ID。tenban の実況の中継の URL に使う。

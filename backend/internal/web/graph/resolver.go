@@ -59,6 +59,8 @@ type Resolver struct {
 	passwords         *auth.Passwords
 	sessions          *auth.Sessions
 	urlUsers          *auth.URLUsers
+	// streamURLs は、発行した外部プレイヤー用の署名付き URL を記録し、管理者に一覧させ、取り消させる (#1757)。
+	streamURLs *auth.StreamURLs
 	// recorder は、ほかの部品を通さずにリゾルバが直接残す監査ログ (セッションの失効など)。
 	recorder  audit.Recorder
 	settings  *settings.Store

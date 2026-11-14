@@ -65,9 +65,9 @@ func TestCreateStreamURL(t *testing.T) {
 			assert.Equal(t, tt.wantPath, parsed.Path)
 			assert.Empty(t, parsed.Host, "the URL is relative to the page")
 
-			userID, err := signer.Verify(parsed.Path, parsed.Query(), testNow().Add(tt.wantLifetime-time.Second))
+			verified, err := signer.Verify(parsed.Path, parsed.Query(), testNow().Add(tt.wantLifetime-time.Second))
 			require.NoError(t, err)
-			assert.Equal(t, viewer.userID, userID)
+			assert.Equal(t, viewer.userID, verified.UserID)
 			_, err = signer.Verify(parsed.Path, parsed.Query(), testNow().Add(tt.wantLifetime))
 			require.ErrorIs(t, err, stream.ErrInvalidSignature, "the URL expires")
 		})

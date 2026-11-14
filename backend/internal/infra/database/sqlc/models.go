@@ -814,6 +814,16 @@ type StoragePool struct {
 	MeasuredAt   *time.Time
 }
 
+type StreamUrl struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Resource   string
+	TargetName string
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	LastUsedAt *time.Time
+}
+
 type SyobocalLookup struct {
 	ChannelID int32
 	DayStart  time.Time
