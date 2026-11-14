@@ -383,6 +383,8 @@
       "cmAutoSkipHelp": "When playback of a recording enters a section detected as commercials, jump to its end. Detection can be wrong. Sections you pick yourself, such as with the seek bar, are not skipped.",
       "fieldRate": "Show 1080i field by field",
       "fieldRateHelp": "Shows interlaced broadcasts at 59.94p, one picture per field, for smoother motion. Applies when the browser converts the stream itself. On devices that cannot keep up, playback falls back to one picture per frame (29.97p).",
+      "interpolation": "Interpolate frames for smoother motion",
+      "interpolationHelp": "Inserts frames estimated from motion between the frames of 30 or 24 fps video, timed to your display's refresh. Currently applies to qualities converted on the server (1080p and so on). The picture is delayed by one frame (about 0.03 to 0.04 seconds); if speech looks out of sync, delay the audio with the audio sync setting. Fast motion and scene changes may show artifacts.",
       "deviceOnly": "Not synced across devices",
       "dataBroadcastZipcode": "Postal code for data broadcasting",
       "dataBroadcastZipcodeHelp": "Passed to data broadcasting that selects a region by postal code, such as weather and news. Enter 7 digits. Leave empty to not pass it.",

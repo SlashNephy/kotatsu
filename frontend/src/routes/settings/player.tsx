@@ -28,6 +28,7 @@ import { touchSupported, useSwipeControlsSetting } from '../../yunomi/swipeContr
 import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
 import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
 import { useFieldRate } from '../../yunomi/fieldRate';
+import { useInterpolation } from '../../yunomi/frameInterpolation';
 import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
@@ -86,6 +87,7 @@ function PlayerSettings() {
   const [lowLatency, setLowLatency] = useLowLatency();
   const [cmAutoSkip, setCmAutoSkip] = useCmAutoSkip();
   const [fieldRate, setFieldRate] = useFieldRate();
+  const [interpolation, setInterpolation] = useInterpolation();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   const [miniPlayer, setMiniPlayer] = useMiniPlayer();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
@@ -236,6 +238,20 @@ function PlayerSettings() {
             description={t('settings.account.fieldRateHelp')}
             checked={fieldRate}
             onChange={(event) => setFieldRate(event.currentTarget.checked)}
+          />
+          {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに覚える (#1655)。 */}
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.interpolation')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={t('settings.account.interpolationHelp')}
+            checked={interpolation}
+            onChange={(event) => setInterpolation(event.currentTarget.checked)}
           />
           <TextInput
             label={
