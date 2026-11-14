@@ -71,6 +71,12 @@ func TestPCRClock(t *testing.T) {
 			feeds:   []feed{{pcr: 10, receivedAt: 100}, {pcr: 41, receivedAt: 131.5}, {pcr: 72, receivedAt: 162}},
 			wantPCR: 72, wantReceivedAt: 162,
 		},
+		// 区切り 2 つ分より長く途切れたら、前の区切りの組も使わない。
+		{
+			name:    "a long gap drops the previous window",
+			feeds:   []feed{{pcr: 10, receivedAt: 100}, {pcr: 80, receivedAt: 171}},
+			wantPCR: 80, wantReceivedAt: 171,
+		},
 		// 選局で PCR が戻ったら、前の組を捨てて結び直す。
 		{
 			name:    "a rewind resyncs",
@@ -151,4 +157,36 @@ func TestPCRClockSplitChunks(t *testing.T) {
 	// 2 つ目の PCR は、最後の塊で読めたので、その塊の時刻と組にする。
 	assert.InDelta(t, 21, pair.PCR, 1e-6)
 	assert.True(t, at(100.2).Equal(pair.ReceivedAt))
+}
+
+// TestPCRClockResyncs は、パケットの境目でない所から始まる塊や、途中で切れたパケットがあっても、同期し直して PCR を読むことを確かめる。
+func TestPCRClockResyncs(t *testing.T) {
+	t.Parallel()
+
+	first := pcrAt(videoPID, pcrSeconds(30))
+	second := pcrAt(videoPID, pcrSeconds(31))
+	tests := []struct {
+		name   string
+		chunks [][]byte
+	}{
+		// 最初の塊が、パケットの途中から始まる。
+		{name: "starts mid-packet", chunks: [][]byte{first[100:], second[:50], second[50:]}},
+		// 途中で切れたパケットの後に、次のパケットが続く。
+		{name: "a truncated packet", chunks: [][]byte{first[:120], second}},
+		// 1 バイトずれた塊が続く。
+		{name: "shifted by one byte", chunks: [][]byte{{0x00}, first, second[:187], second[187:]}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := ts.NewPCRClock(programNum, 30*time.Second)
+			for _, chunk := range tt.chunks {
+				clock.Write(chunk, at(100))
+			}
+			pair, ok := clock.Pair()
+			require.True(t, ok)
+			assert.InDelta(t, 31, pair.PCR, 1e-6)
+		})
+	}
 }

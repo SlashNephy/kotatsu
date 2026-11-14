@@ -73,6 +73,7 @@ func NewPCRClock(serviceID uint16, window time.Duration) *PCRClock {
 // 塊の中の PCR は、どれも receivedAt と組にする。塊の最後の PCR ほど「受け取った時刻 − PCR」が小さく出るので、自然に選ばれる。
 func (c *PCRClock) Write(chunk []byte, receivedAt time.Time) {
 	c.rotate(receivedAt)
+	// 前の塊の残り (sync byte から始まる) に、この塊の頭を足して 1 つのパケットにする。
 	if len(c.rest) > 0 {
 		need := PacketSize - len(c.rest)
 		if len(chunk) < need {
@@ -81,9 +82,12 @@ func (c *PCRClock) Write(chunk []byte, receivedAt time.Time) {
 			return
 		}
 		c.rest = append(c.rest, chunk[:need]...)
-		c.handle(c.rest, receivedAt)
+		// 次のパケットの頭が sync byte でなければ、残りは途中で切れたものだったので捨て、この塊の頭から同期し直す。
+		if len(chunk) == need || chunk[need] == syncByte {
+			c.handle(c.rest, receivedAt)
+			chunk = chunk[need:]
+		}
 		c.rest = c.rest[:0]
-		chunk = chunk[need:]
 	}
 	for len(chunk) >= PacketSize {
 		// 同期が外れていたら、次の sync byte まで読み飛ばす。
@@ -94,6 +98,10 @@ func (c *PCRClock) Write(chunk []byte, receivedAt time.Time) {
 		}
 		c.handle(chunk[:PacketSize], receivedAt)
 		chunk = chunk[PacketSize:]
+	}
+	// 残りは、sync byte から始まる所だけを取っておく。
+	for len(chunk) > 0 && chunk[0] != syncByte {
+		chunk = chunk[1:]
 	}
 	c.rest = append(c.rest, chunk...)
 }
@@ -118,8 +126,13 @@ func (c *PCRClock) rotate(now time.Time) {
 
 		return
 	}
-	if now.Sub(c.windowStart) >= c.window {
+	elapsed := now.Sub(c.windowStart)
+	if elapsed >= c.window {
 		c.previous = c.current
+		// 区切り 2 つ分より長く途切れたら、前の区切りの組も古いので使わない。
+		if elapsed >= 2*c.window {
+			c.previous = nil
+		}
 		c.current = nil
 		c.windowStart = now
 	}
