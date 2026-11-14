@@ -118,7 +118,9 @@ import { stepBrightness } from '../../yunomi/brightness';
 import { swipeVolumeStep } from '../../yunomi/swipe';
 import { useSwipeControlsSetting, volumeChangeable } from '../../yunomi/swipeControls';
 import { useSwipeGestures } from '../../yunomi/useSwipeGestures';
+import { ScrubBubble } from '../../yunomi/ScrubBubble';
 import { useFullscreen } from '../../yunomi/useFullscreen';
+import { useSlideSeek } from '../../yunomi/useSlideSeek';
 import { useScreenCrop } from '../../yunomi/useScreenCrop';
 import { useAutoplayBlocked } from '../../yunomi/useAutoplayBlocked';
 import { useVideoLoading } from '../../yunomi/useVideoLoading';
@@ -929,6 +931,24 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
       showFlash(t('player.flash.brightness', { percent: Math.round(next * 100) }));
     },
   });
+  // 映像を長押ししたまま横に滑らせて、再生位置を動かす (#1601)。滑らせている間は、シークバーのつまみを動かしている間と
+  // 同じく扱い、離したら、自分でシークしたものとして扱う。滑らせずに離したら、長押しのメニューを開く。
+  const seekLabel = (value: number) =>
+    recording === null
+      ? formatDuration(value)
+      : `${formatDuration(value)} (${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, value))})`;
+  const scrub = useSlideSeek(playerBoxRef, {
+    enabled: duration > 0,
+    range: () => ({ position: currentPosition(), duration }),
+    onSlideStart: controls.hide,
+    onScrub: setSeeking,
+    onCommit: (target) => {
+      setSeeking(null);
+      seek(target);
+    },
+    onCancel: () => setSeeking(null),
+    onLongPress: contextMenu.openAt,
+  });
   const boxRef = useMergedRef(playerBoxRef, mouseRef);
   // player は、プレイヤーの今の状態 (#811)。タブの題名、OS のメディア操作、ほかの端末は、どれもこれを読む。
   const player = {
@@ -1175,9 +1195,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           duration={duration}
           value={shown}
           previewUrl={recording.previewUrl}
-          label={(value) =>
-            `${formatDuration(value)} (${formatClock(broadcastTime(recording.recordedFrom, recording.gaps, value))})`
-          }
+          label={seekLabel}
           onChange={setSeeking}
           onChangeEnd={(value) => {
             setSeeking(null);
@@ -1299,6 +1317,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <>
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {scrub !== null && (
+                <ScrubBubble
+                  seconds={scrub}
+                  label={seekLabel(scrub)}
+                  previewUrl={recording.previewUrl}
+                />
+              )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {skipButton}
@@ -1331,6 +1356,13 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             <>
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {scrub !== null && (
+                <ScrubBubble
+                  seconds={scrub}
+                  label={seekLabel(scrub)}
+                  previewUrl={recording.previewUrl}
+                />
+              )}
               {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
               {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
               {skipButton}

@@ -1,0 +1,33 @@
+/* 映像を長押ししたまま滑らせている間 (#1601) に、行き先を映像の上の中央に出す吹き出し。
+   シークバーの吹き出しと同じく、テーマによらず黒地に白い文字にする。 */
+.bubble {
+  position: absolute;
+  inset-block-start: 12%;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 200px;
+  pointer-events: none;
+}
+
+.frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  background-color: #000;
+  background-repeat: no-repeat;
+}
+
+.label {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.8);
+  color: #fff;
+  font-size: var(--mantine-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
