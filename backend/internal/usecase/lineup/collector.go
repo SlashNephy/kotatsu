@@ -71,6 +71,9 @@ func NewCollector(clk clock.Clock, logger *slog.Logger) *Collector {
 // Observe は、解析器が読んだ NIT を受け取る。ts.AnalyzerOptions.OnNIT に渡す。解析器の中で呼ばれるので、DB には書かない。
 // 衛星の NIT[actual] だけを使う。
 func (c *Collector) Observe(nit *ts.NIT) {
+	if nit == nil {
+		return
+	}
 	kind, ok := KindOf(nit.NetworkID)
 	if !ok || !nit.Actual || nit.SectionNumber > nit.LastSectionNumber {
 		return
@@ -110,6 +113,11 @@ func (c *Collector) Observe(nit *ts.NIT) {
 func (c *Collector) Flush(ctx context.Context, q *sqlc.Queries) {
 	c.mu.Lock()
 	pending := c.pending
+	if len(pending) == 0 {
+		c.mu.Unlock()
+
+		return
+	}
 	c.pending = map[uint16]*Observation{}
 	c.mu.Unlock()
 
