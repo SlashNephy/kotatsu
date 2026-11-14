@@ -1327,7 +1327,7 @@ func handleIPTV(
 		router.Add(method, iptvapi.PlaylistRoute, h.Playlist, middlewares...)
 		router.Add(method, iptvapi.GuideRoute, h.Guide, middlewares...)
 		router.Add(method, iptvapi.StreamRoute, echo.WrapHandler(
-			streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, iptvLogger)))), middlewares...)
+			streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(h.StopWhenRevoked(streamapi.NewLiveHandler(opener, iptvLogger))))), middlewares...)
 		router.Add(method, iptvapi.LogoRoute, echo.WrapHandler(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), iptvLogger)), middlewares...)
 	}
 }

@@ -1,6 +1,7 @@
 package streamapi_test
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -332,6 +333,99 @@ func TestAuthorizerFollowsExternalPlayerURLsSetting(t *testing.T) {
 		require.NoError(t, err)
 		resp.Body.Close()
 		assert.Equal(t, tt.wantStatus, resp.StatusCode, tt.name)
+	}
+}
+
+// TestAuthorizerStopsOpenStreams は、署名付き URL で流している間に、管理者が外部プレイヤー用の URL を無効にするか、
+// URL を発行したユーザーを無効にしたら、開いたままの配信も止めることを確かめる (#1755)。
+func TestAuthorizerStopsOpenStreams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		revoke func(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, userID uuid.UUID)
+	}{
+		{
+			name: "管理者が無効にした",
+			revoke: func(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, _ uuid.UUID) {
+				t.Helper()
+				setExternalPlayerURLsEnabled(t, pool, clk, false)
+			},
+		},
+		{
+			name: "ユーザーを無効にした",
+			revoke: func(t *testing.T, pool *pgxpool.Pool, clk *clocktest.Fake, userID uuid.UUID) {
+				t.Helper()
+				require.NoError(t, auth.NewUsers(clk).Disable(t.Context(), pool, userID))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
+			pool, err := database.Open(t.Context(), databasetest.New(t))
+			require.NoError(t, err)
+			t.Cleanup(pool.Close)
+			require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+			viewer, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{Username: "kinkan", DisplayName: "きんかん", Role: domain.RoleViewer, PasswordHash: nil})
+			require.NoError(t, err)
+			setExternalPlayerURLsEnabled(t, pool, clk, true)
+
+			signer := newSigner(t, keyMaterial)
+			authorizer := streamapi.NewAuthorizer(signer, auth.NewURLUsers(pool, clk, slog.New(slog.DiscardHandler)),
+				settings.NewURLGate(pool, clk, slog.New(slog.DiscardHandler)), clk)
+			authorizer.SetRecheckInterval(10 * time.Millisecond)
+			streaming := make(chan struct{})
+			stopped := make(chan struct{})
+			flow := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer close(stopped)
+				flusher, _ := w.(http.Flusher)
+				once := false
+				for {
+					select {
+					case <-r.Context().Done():
+						return
+					case <-time.After(5 * time.Millisecond):
+					}
+					if _, err := io.WriteString(w, "ts"); err != nil {
+						return
+					}
+					flusher.Flush()
+					if !once {
+						once = true
+						close(streaming)
+					}
+				}
+			})
+			mux := http.NewServeMux()
+			mux.Handle(signedPattern, authorizer.Signed(flow))
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+				server.URL+signer.Sign(resource, viewer.ID, clk.Now().Add(stream.DefaultURLLifetime)).URL, nil)
+			require.NoError(t, err)
+			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			client := httpclienttest.New(t)
+			go func() {
+				res, err := client.Do(req)
+				if err != nil {
+					return
+				}
+				defer res.Body.Close()
+				_, _ = io.Copy(io.Discard, res.Body)
+			}()
+
+			<-streaming
+			tt.revoke(t, pool, clk, viewer.ID)
+			select {
+			case <-stopped:
+			case <-time.After(5 * time.Second):
+				t.Fatal("the stream kept flowing after the URL became unusable")
+			}
+		})
 	}
 }
 

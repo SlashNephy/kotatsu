@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
@@ -213,6 +214,90 @@ func TestHandler(t *testing.T) {
 				// 放送中の番組と、これから 7 日の番組を引く。
 				assert.Equal(t, testNow().Add(-time.Hour), queries.from)
 				assert.Equal(t, testNow().Add(7*24*time.Hour), queries.to)
+			}
+		})
+	}
+}
+
+// switchGate は、管理者が IPTV のクライアント用の URL を有効にしているかを、テストの途中で変えられる。
+type switchGate struct {
+	enabled atomic.Bool
+}
+
+func (g *switchGate) IPTVFeedsEnabled(context.Context) (bool, error) {
+	return g.enabled.Load(), nil
+}
+
+// TestStopWhenRevoked は、IPTV のストリームを流している間に、管理者が無効にしたら、流しているストリームも止め、
+// 使えるうちは止めないことを確かめる (#1755)。
+func TestStopWhenRevoked(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		disable  bool
+		wantStop bool
+	}{
+		{name: "管理者が無効にした", disable: true, wantStop: true},
+		{name: "使えるうちは流し続ける", disable: false, wantStop: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gate := new(switchGate)
+			gate.enabled.Store(true)
+			h := iptvapi.NewHandler(fakeAuth{}, gate, new(fakeQueries), clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
+			h.SetRecheckInterval(10 * time.Millisecond)
+			streaming := make(chan struct{})
+			stopped := make(chan struct{})
+			flow := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer close(stopped)
+				flusher, _ := w.(http.Flusher)
+				once := false
+				for {
+					select {
+					case <-r.Context().Done():
+						return
+					case <-time.After(5 * time.Millisecond):
+					}
+					if _, err := io.WriteString(w, "ts"); err != nil {
+						return
+					}
+					flusher.Flush()
+					if !once {
+						once = true
+						close(streaming)
+					}
+				}
+			})
+			mux := http.NewServeMux()
+			mux.Handle("GET /api/iptv/{token}/services/{id}/stream.m2ts", h.StopWhenRevoked(flow))
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/api/iptv/"+validFeed+"/services/400141/stream.m2ts", nil)
+			require.NoError(t, err)
+			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			client := server.Client()
+			go func() {
+				resp, err := client.Do(req)
+				if err != nil {
+					return
+				}
+				defer resp.Body.Close()
+				_, _ = io.Copy(io.Discard, resp.Body)
+			}()
+
+			<-streaming
+			if tt.disable {
+				gate.enabled.Store(false)
+			}
+			select {
+			case <-stopped:
+				assert.True(t, tt.wantStop, "the stream stopped while it was still allowed")
+			case <-time.After(500 * time.Millisecond):
+				assert.False(t, tt.wantStop, "the stream kept flowing after IPTV feeds were disabled")
 			}
 		})
 	}

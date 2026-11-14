@@ -16,6 +16,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // PathPrefix は、ライブ視聴の M3U、番組表の XMLTV、配信、ロゴのパスの頭。この後ろに秘密の値が続く (#1324)。
@@ -67,11 +68,13 @@ type Handler struct {
 	clock   clock.Clock
 	// origin は、リクエストが届いたオリジン (scheme://host)。M3U と XMLTV には、ストリームとロゴの絶対 URL を書く。
 	origin func(r *http.Request) string
+	// recheck は、ストリームを流している間に、続けてよいかを確かめ直す間隔。
+	recheck time.Duration
 }
 
 // NewHandler は Handler を返す。ログは、リクエストのロガー (echo.Context.Logger) に書く (#1606)。
 func NewHandler(authenticator Authenticator, gate URLGate, queries Queries, clk clock.Clock, origin func(r *http.Request) string) *Handler {
-	return &Handler{auth: authenticator, gate: gate, queries: queries, clock: clk, origin: origin}
+	return &Handler{auth: authenticator, gate: gate, queries: queries, clock: clk, origin: origin, recheck: httpserver.RevocationInterval}
 }
 
 // Authenticate は、パスの秘密の値 (:token) で認証し、発行したユーザーとして next を呼ぶ echo のミドルウェア。
@@ -115,6 +118,32 @@ func (h *Handler) Authenticate(next echo.HandlerFunc) echo.HandlerFunc {
 
 		return next(c)
 	}
+}
+
+// StopWhenRevoked は、ストリーム next を流している間、管理者が IPTV のクライアント用の URL を無効にしたか、
+// URL を取り消したか、発行したユーザーがライブ視聴を見られなくなったら、流しているストリームも止める (#1755)。
+// 秘密の値は、パスの :token から読む。確かめられないとき (DB に届かないなど) は、流し続ける。
+func (h *Handler) StopWhenRevoked(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.PathValue("token")
+		httpserver.StopWhenRevoked(w, r, next, h.recheck, func(ctx context.Context) bool {
+			return h.stillAllowed(ctx, token)
+		})
+	})
+}
+
+// stillAllowed は、秘密の値 token の URL で、ストリームを流し続けてよいかを返す。確かめられないときは true を返す。
+func (h *Handler) stillAllowed(ctx context.Context, token string) bool {
+	enabled, err := h.gate.IPTVFeedsEnabled(ctx)
+	if err == nil && !enabled {
+		return false
+	}
+	principal, err := h.auth.Authenticate(ctx, token)
+	if errors.Is(err, auth.ErrUnauthenticated) {
+		return false
+	}
+
+	return err != nil || principal.Role.Can(domain.PermissionWatch)
 }
 
 // services は、番組表に出すサービス (非表示と、映像も音声も流さないサービスを除く) を返す。

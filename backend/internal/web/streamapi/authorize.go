@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
+	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // Authorizer は、映像と画像のリクエストを、セッションか署名付き URL のどちらか一方で認可する (設計書 9.1、9.6、#1605)。
@@ -20,6 +23,8 @@ type Authorizer struct {
 	users  *auth.URLUsers
 	gate   URLGate
 	clock  clock.Clock
+	// recheck は、署名付き URL で配信している間に、続けてよいかを確かめ直す間隔。
+	recheck time.Duration
 }
 
 // URLGate は、管理者が外部プレイヤー用の署名付き URL を有効にしているかを返す (#1755)。*settings.URLGate が満たす。
@@ -31,7 +36,7 @@ var _ URLGate = new(settings.URLGate)
 
 // NewAuthorizer は Authorizer を返す。
 func NewAuthorizer(signer *stream.Signer, users *auth.URLUsers, gate URLGate, clk clock.Clock) *Authorizer {
-	return &Authorizer{signer: signer, users: users, gate: gate, clock: clk}
+	return &Authorizer{signer: signer, users: users, gate: gate, clock: clk, recheck: httpserver.RevocationInterval}
 }
 
 // Session は、ログイン中のセッション (Sessions.Middleware が context に持たせる) のユーザーが視聴を許されていれば、
@@ -57,6 +62,7 @@ func (a *Authorizer) Session(next http.Handler) http.Handler {
 // リクエストを next に渡すミドルウェアを返す。セッションは見ない。
 // 発行した後に無効にしたユーザーの URL は、期限の前でも使えない。
 // 管理者が外部プレイヤー用の URL を無効にしている間は、期限の前の URL も断る (#1755)。
+// 開いた後に、管理者が無効にしたり、ユーザーを無効にしたりしたら、開いたままの配信も止める。期限は開くときにだけ確かめる。
 // DB に届かない間は、DB が止まる前に引けたユーザーと設定に限って、覚えた結果で認可する (#1084)。
 func (a *Authorizer) Signed(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +109,23 @@ func (a *Authorizer) Signed(next http.Handler) http.Handler {
 
 			return
 		}
-		next.ServeHTTP(w, r)
+		httpserver.StopWhenRevoked(w, r, next, a.recheck, func(ctx context.Context) bool {
+			return a.stillAllowed(ctx, userID)
+		})
 	})
+}
+
+// stillAllowed は、署名付き URL で配信している間に、配信を続けてよいかを返す。管理者が外部プレイヤー用の URL を無効にしたか、
+// URL を発行したユーザーを無効にしたか、視聴を許さないロールにしたら false を返す。確かめられないときは、配信を続けさせる。
+func (a *Authorizer) stillAllowed(ctx context.Context, userID uuid.UUID) bool {
+	enabled, err := a.gate.ExternalPlayerURLsEnabled(ctx)
+	if err == nil && !enabled {
+		return false
+	}
+	role, err := a.users.Role(ctx, userID)
+	if errors.Is(err, auth.ErrUserUnusable) {
+		return false
+	}
+
+	return err != nil || role.Can(domain.PermissionWatch)
 }
