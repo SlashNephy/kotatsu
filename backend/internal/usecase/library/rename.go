@@ -268,7 +268,10 @@ func (l *Library) move(ctx context.Context, file *RenameFile, movedTo map[uuid.U
 		return "", false, nil
 	}
 	to := domain.TranscodedPath(segment, file.Preset)
-	if exists, err := l.store.Exists(file.PoolID, to); err != nil || exists || to == file.From {
+	if to == file.From {
+		return "", false, nil
+	}
+	if taken, err := l.taken(file.PoolID, file.From, to); err != nil || taken {
 		l.logger.WarnContext(ctx, "kept the transcoded file; its new name is taken",
 			slog.String("from", file.From), slog.String("to", to), slog.Any("error", err))
 
@@ -279,6 +282,23 @@ func (l *Library) move(ctx context.Context, file *RenameFile, movedTo map[uuid.U
 	}
 
 	return to, true, nil
+}
+
+// taken は、プール poolID の to を、from とは別のファイルがふさいでいるかを返す。
+// 大文字と小文字や正規化だけを変えるときは、to が from 自身として見つかるが、ふさがっているとはみなさない (#1095)。
+func (l *Library) taken(poolID, from, to string) (bool, error) {
+	exists, err := l.store.Exists(poolID, to)
+	if err != nil || !exists {
+		return exists, err
+	}
+	checker := l.store.NewChecker()
+	defer checker.Close()
+	same, err := checker.SameFile(poolID, from, to)
+	if err != nil {
+		return true, err
+	}
+
+	return !same, nil
 }
 
 // Rename は、計画 plan のとおりに、録画のセグメントのファイルを移し、記録のパスを書き換える。

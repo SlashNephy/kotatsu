@@ -130,6 +130,43 @@ func TestRenameMovesTranscodedFiles(t *testing.T) {
 	}
 }
 
+// TestRenameMovesTranscodedFileToTheSameFileWithAnotherName は、正規化だけが違う名前に付け直すとき、変換した MP4 の移す先が
+// 自分自身として見つかっても、ふさがっているとみなさずに、記録を付け直すことを確かめる (#1720、#1095)。
+// 正規化を区別するファイルシステムでは、HFS+ の代わりに、ハードリンクを置く。
+func TestRenameMovesTranscodedFileToTheSameFileWithAnotherName(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	const (
+		want       = "2026-10-10 1100 こたつテスト1 ガイド.m2ts"
+		transcoded = "2026-10-10 1100 こたつテスト1 ガイド.720p.mp4"
+	)
+	nfd := norm.NFD.String(want)
+	nfdTranscoded := norm.NFD.String(transcoded)
+	recordingID := f.segmented(t, time.Hour, false, segment{pool: poolID, path: nfd, exists: true})
+	_, err := f.pool.Exec(t.Context(), "UPDATE recordings SET name = 'ガイド' WHERE id = $1", recordingID)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(f.dir, nfdTranscoded), []byte("mp4"), 0o600))
+	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+		VALUES ($1, $2, 'other', $3, $4, 3, $5, $5, $5)`, id.New(), recordingID, poolID, nfdTranscoded, f.clock.Now())
+	require.NoError(t, err)
+	for from, to := range map[string]string{nfd: want, nfdTranscoded: transcoded} {
+		if _, err := os.Stat(filepath.Join(f.dir, to)); err != nil {
+			require.NoError(t, os.Link(filepath.Join(f.dir, from), filepath.Join(f.dir, to)))
+		}
+	}
+
+	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+	require.NoError(t, err)
+	require.Len(t, plans, 1)
+	require.NoError(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]))
+	rows, err := f.pool.Query(t.Context(), "SELECT path FROM recording_files WHERE recording_id = $1", recordingID)
+	require.NoError(t, err)
+	paths, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{want, transcoded}, paths)
+}
+
 // TestRenameSkipsJoining は、セグメントをつないでいる途中の録画は付け直さないことを確かめる。
 func TestRenameSkipsJoining(t *testing.T) {
 	t.Parallel()
