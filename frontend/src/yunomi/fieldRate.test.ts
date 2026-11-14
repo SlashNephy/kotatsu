@@ -39,6 +39,7 @@ describe('createLateWatch', () => {
       reports: lateSequence([0, ...Array<number>(lateSeconds).fill(slow)]).map((late) => ({
         late,
         film: false,
+        playbackRate: 1,
       })),
       want: true,
     },
@@ -47,6 +48,7 @@ describe('createLateWatch', () => {
       reports: lateSequence([0, ...Array<number>(lateSeconds - 1).fill(slow)]).map((late) => ({
         late,
         film: false,
+        playbackRate: 1,
       })),
       want: false,
     },
@@ -55,6 +57,7 @@ describe('createLateWatch', () => {
       reports: lateSequence([0, ...Array<number>(lateSeconds * 2).fill(fine)]).map((late) => ({
         late,
         film: false,
+        playbackRate: 1,
       })),
       want: false,
     },
@@ -65,7 +68,7 @@ describe('createLateWatch', () => {
         ...Array<number>(lateSeconds - 1).fill(slow),
         0,
         ...Array<number>(lateSeconds - 1).fill(slow),
-      ]).map((late) => ({ late, film: false })),
+      ]).map((late) => ({ late, film: false, playbackRate: 1 })),
       want: false,
     },
     {
@@ -73,17 +76,36 @@ describe('createLateWatch', () => {
       reports: lateSequence([0, ...Array<number>(lateSeconds).fill(slow)]).map((late) => ({
         late,
         film: true,
+        playbackRate: 1,
       })),
+      want: false,
+    },
+    {
+      // 60 Hz の画面で 1.1 倍にすると、1 秒に 6 フィールドほど出しきれない。端末が遅いのではないので数えない。
+      name: '等速でない間は数えない',
+      reports: lateSequence([0, ...Array<number>(lateSeconds).fill(slow)]).map((late) => ({
+        late,
+        film: false,
+        playbackRate: 1.1,
+      })),
+      want: false,
+    },
+    {
+      name: '等速に戻ったら、そこから数え直す',
+      reports: lateSequence([0, ...Array<number>(lateSeconds * 2 - 1).fill(slow)]).map(
+        (late, i) => ({ late, film: false, playbackRate: i <= lateSeconds ? 2 : 1 }),
+      ),
       want: false,
     },
     {
       // 最初の知らせは、それまでの累計なので、1 秒の数としては使わない。
       name: '最初の知らせの累計は数えない',
       reports: [
-        { late: slow * 100, film: false },
+        { late: slow * 100, film: false, playbackRate: 1 },
         ...lateSequence(Array<number>(lateSeconds - 1).fill(slow)).map((late) => ({
           late: slow * 100 + late,
           film: false,
+          playbackRate: 1,
         })),
       ],
       want: false,
@@ -95,8 +117,9 @@ describe('createLateWatch', () => {
         ...lateSequence([0, ...Array<number>(lateSeconds - 1).fill(slow)]).map((late) => ({
           late,
           film: false,
+          playbackRate: 1,
         })),
-        { late: 0, film: false },
+        { late: 0, film: false, playbackRate: 1 },
       ],
       want: false,
     },
@@ -109,9 +132,9 @@ describe('createLateWatch', () => {
   test('reset の後は、前の累計を引かずに数え直す', () => {
     const watch = createLateWatch();
     for (const late of lateSequence([0, ...Array<number>(lateSeconds - 1).fill(slow)])) {
-      watch.observe({ late, film: false });
+      watch.observe({ late, film: false, playbackRate: 1 });
     }
     watch.reset();
-    expect(watch.observe({ late: slow * 100, film: false })).toBe(false);
+    expect(watch.observe({ late: slow * 100, film: false, playbackRate: 1 })).toBe(false);
   });
 });

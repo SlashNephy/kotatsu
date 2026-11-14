@@ -89,7 +89,8 @@ type Slot = {
   shownFps: number | null;
   // yadif は、作ったデインタレーサー。作れなかったか、まだ作っていなければ null。
   yadif: Deinterlacer | null;
-  // fieldRateDropped は、表示が追いつかないので、この読み込みではフィールドごとの表示をやめたこと (#1655)。
+  // fieldRateDropped は、表示が追いつかないので、この組ではフィールドごとの表示をやめたこと (#1655)。
+  // シークしても組は変わらないのでやめたままにし、つなぎ直しなどで組を作り直したら、もう一度試す。
   fieldRateDropped: boolean;
   // unfiltered は、yadif を作れず (WebGL2 がないなど)、インターレースを解除せずに出していること (#1617)。
   unfiltered: boolean;
@@ -292,11 +293,11 @@ export function TsPlayer({
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
         // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
         onStats: (stats) => {
-          // 表示が追いつかない端末では、コマが間に合わずにかえってがたつくので、この読み込みではコマごとの表示に戻す。
+          // 表示が追いつかない端末では、コマが間に合わずにかえってがたつくので、この組ではコマごとの表示に戻す。
           // 設定で切っている間は数えず、入れ直したら、そこから数え直す。
           if (!deinterlacer.doubleRate) {
             lateWatch.reset();
-          } else if (lateWatch.observe(stats)) {
+          } else if (lateWatch.observe({ ...stats, playbackRate: element.playbackRate })) {
             console.warn('fields are shown late; showing a picture for every frame instead', stats);
             deinterlacer.doubleRate = false;
             slot.fieldRateDropped = true;

@@ -51,31 +51,34 @@ export function useFieldRate(): [boolean, (enabled: boolean) => void] {
 }
 
 // lateFieldsPerSecond は、1 秒あたりにこれ以上のコマが間に合わなければ、その秒は追いつかなかったとみなす数。
-// 60 Hz の画面で 59.94 フィールドを出すと、十数秒に 1 コマはずれるので、数コマは見逃す。
+// 60 Hz の画面で 59.94 フィールドを出すと、画面の更新とずれて、ときどき間に合わないコマが出るので、数コマは見逃す。
 export const lateFieldsPerSecond = 6;
 // lateSeconds は、追いつかない秒がこれだけ続いたら、フィールドごとの表示をやめる秒数。
 export const lateSeconds = 5;
 
 // LateReport は、yadif が 1 秒ごとに知らせる統計のうち、追いつかないかを決めるのに使うもの。
-// late は読み込みの始まりからの累計で、読み直すと 0 に戻る。
+// late は読み込みの始まりからの累計で、読み直すと 0 に戻る。playbackRate は、そのときの再生の速さ。
 export type LateReport = {
   late: number;
   film: boolean;
+  playbackRate: number;
 };
 
 // createLateWatch は、yadif の統計を受け取り、フィールドごとの表示が追いつかないかを見張るものを作る。
 // observe は、追いつかない秒が lateSeconds 続いたら true を返す。
 // 24p で出している間 (#1284) は、フィールドごとに表示していないので数えない。
+// 等速でない間 (早送り、倍速、低遅延の 1.1 倍) も数えない。1 秒あたりのフィールドが画面の更新より多くなり、
+// 端末が遅くなくても間に合わないコマが出るからで、等速に戻ったら数え直す。
 export function createLateWatch(): { observe(report: LateReport): boolean; reset(): void } {
   let previous: number | null = null;
   let streak = 0;
 
   return {
-    observe({ late, film }) {
+    observe({ late, film, playbackRate }) {
       // 読み直すと累計が 0 に戻るので、減ったら、そこから数え直す。
       const delta = previous === null || late < previous ? 0 : late - previous;
       previous = late;
-      if (film) {
+      if (film || playbackRate !== 1) {
         streak = 0;
 
         return false;
