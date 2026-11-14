@@ -405,6 +405,20 @@ SELECT DISTINCT ON (recording_id) recording_id, note, video_missing_ms
 FROM recording_cm_detections WHERE recording_id = ANY(@recording_ids::uuid[])
 ORDER BY recording_id, detected_at DESC, detector;
 
+-- name: UpsertRecordingCMMaterial :exec
+-- 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。
+INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
+VALUES (@recording_id, @detector, @format_version, @data, @now)
+ON CONFLICT (recording_id, detector) DO UPDATE SET format_version = EXCLUDED.format_version, data = EXCLUDED.data, created_at = EXCLUDED.created_at;
+
+-- name: DeleteRecordingCMMaterial :exec
+-- 録画の CM の区間を見分けた材料を消す (#1507)。材料を残せなかった回に、前の材料を使い続けないようにする。
+DELETE FROM recording_cm_materials WHERE recording_id = @recording_id AND detector = @detector;
+
+-- name: GetRecordingCMMaterial :one
+-- 録画の CM の区間を見分けた材料を返す (#1507)。なければ行を返さない。
+SELECT format_version, data FROM recording_cm_materials WHERE recording_id = @recording_id AND detector = @detector;
+
 -- name: ListLiveThumbnailRecordings :many
 -- 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
 SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @started_before ORDER BY recorded_from, id;

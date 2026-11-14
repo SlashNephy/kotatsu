@@ -57,8 +57,9 @@ type LogoDetector struct {
 }
 
 var (
-	_ Detector = new(LogoDetector)
-	_ Reporter = new(LogoDetector)
+	_ Detector         = new(LogoDetector)
+	_ Reporter         = new(LogoDetector)
+	_ MaterialDetector = new(LogoDetector)
 )
 
 // NewLogoDetector は、PATH にある FFmpeg と ffprobe を使う LogoDetector を返す。見つからなければ ErrFFmpegNotFound を返す。
@@ -88,31 +89,37 @@ func (d *LogoDetector) Detect(ctx context.Context, input *Input) ([]Section, err
 
 // DetectWithReport は、Detect と同じ区間と、ロゴで決められなかった理由と映像の欠けの長さを返す (#1508)。
 func (d *LogoDetector) DetectWithReport(ctx context.Context, input *Input) ([]Section, *Report, error) {
+	sections, report, _, err := d.DetectWithMaterial(ctx, input)
+
+	return sections, report, err
+}
+
+// DetectWithMaterial は、DetectWithReport と同じ結果と、読み直さずに判定し直すための材料を返す (#1507)。
+// ロゴを学習できなかったか、コマと時刻の数が合わなかった回は、材料を返さない (nil)。読み直したほうがよいからである。
+func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]Section, *Report, *Material, error) {
 	video, err := probeVideo(ctx, input.Path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
+	}
+	material, err := d.measure(ctx, input, video)
+	if err != nil && !errors.Is(err, errLogoUnusable) {
+		return nil, nil, nil, err
 	}
 	report := &Report{Note: "", Missing: 0}
 	// 見分け直した結果の割合は、録画の長さで割る。長さは、ロゴで測れたならコマの時刻から、測れなければ ffprobe から求める。
 	// 映像の欠けは外さない。今の見分け方の区間とは時刻の基準が違い、重なりを求められないためである。
 	duration := video.duration
-	result, err := d.detect(ctx, input, video)
 	if err == nil {
-		report.Missing = totalLength(result.missing) + result.edgeMissing
-		ratio := cmRatio(result.sections, result.missing, result.duration)
-		if ratio < maxCMRatio {
-			return result.sections, report, nil
+		var sections []Section
+		sections, duration, err = d.decide(material, report)
+		if err == nil {
+			return sections, report, material, nil
 		}
-		duration = result.duration
-		err = fmt.Errorf("%w: %.0f%% of the recording was detected as CM (%s)", errLogoUnusable, ratio*100, result.detail(d.params))
-	}
-	if !errors.Is(err, errLogoUnusable) {
-		return nil, nil, err
 	}
 	report.Note = err.Error()
 	sections, err := d.fallback.Detect(ctx, input)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// 長さが分からなければ (ffprobe が長さを返さない TS)、割合を確かめられないので、今の見分け方の結果をそのまま使う。
 	// 今の見分け方を選んだときと同じ結果になる。
@@ -120,11 +127,39 @@ func (d *LogoDetector) DetectWithReport(ctx context.Context, input *Input) ([]Se
 		if ratio := cmRatio(sections, []Section{}, duration); ratio >= maxCMRatio {
 			report.Note += fmt.Sprintf("; the redetected result was dropped: %.0f%% of the recording was detected as CM", ratio*100)
 
-			return []Section{}, report, nil
+			return []Section{}, report, material, nil
 		}
 	}
 
-	return sections, report, nil
+	return sections, report, material, nil
+}
+
+// Redetect は、材料から、読み直さずに判定し直す (#1507)。ロゴで決められなければ (ロゴの出ていた区間がないか、
+// CM の割合が上限以上なら)、今の見分け方で読み直す必要があるので、ok を false にする。
+func (d *LogoDetector) Redetect(material *Material) ([]Section, *Report, bool) {
+	report := &Report{Note: "", Missing: 0}
+	sections, _, err := d.decide(material, report)
+	if err != nil {
+		return nil, nil, false
+	}
+
+	return sections, report, true
+}
+
+// decide は、材料からロゴで決める。決められれば、区間を返し、report に映像の欠けの長さを書く。
+// 決められなければ、errLogoUnusable を包んだ理由と、見分け直した結果の割合を割る長さ (コマの時刻から求めたもの) を返す。
+func (d *LogoDetector) decide(material *Material, report *Report) ([]Section, time.Duration, error) {
+	result, err := d.evaluate(material)
+	if err != nil {
+		return nil, material.Duration, err
+	}
+	report.Missing = totalLength(result.missing) + result.edgeMissing
+	ratio := cmRatio(result.sections, result.missing, result.duration)
+	if ratio < maxCMRatio {
+		return result.sections, result.duration, nil
+	}
+
+	return nil, result.duration, fmt.Errorf("%w: %.0f%% of the recording was detected as CM (%s)", errLogoUnusable, ratio*100, result.detail(d.params))
 }
 
 // totalLength は、区間の長さの合計を返す。
@@ -289,7 +324,21 @@ func missingSections(times []float64, fps float64) []Section {
 	return out
 }
 
-func (d *LogoDetector) detect(ctx context.Context, input *Input, video *videoInfo) (*logoResult, error) {
+// Material は、1 つのファイルをロゴで見分けた材料 (#1507)。数値だけなので、DB に残して、読み直さずに判定し直せる。
+type Material struct {
+	// Fps は、コマの速さ。Duration は、ffprobe で読んだファイルの長さ (分からなければ 0)。
+	Fps      float64
+	Duration time.Duration
+	// Corner と Box は、当てた型の隅と枠。理由の詳細に書く。
+	Corner logo.Corner
+	Box    logo.Box
+	// Times は、コマごとの時刻 (秒)。Measures は、コマごとの測り。同じ数だけある。
+	Times    []float64
+	Measures []logo.Measure
+}
+
+// measure は、ロゴを学習し、全コマを測って、材料を返す。ロゴを学習できなければ、errLogoUnusable を包んで返す。
+func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoInfo) (*Material, error) {
 	p := d.params
 	bandHeight := logo.Band(video.height, p)
 	top, bottom := logo.NewAccumulator(video.width, bandHeight), logo.NewAccumulator(video.width, bandHeight)
@@ -332,19 +381,29 @@ func (d *LogoDetector) detect(ctx context.Context, input *Input, video *videoInf
 	if len(times) != len(measures) {
 		return nil, fmt.Errorf("%w: %d frames but %d timestamps", errLogoUnusable, len(measures), len(times))
 	}
-	intervals := logo.Intervals(measures, video.fps, p)
+	if len(times) == 0 {
+		return nil, ErrNoVideo
+	}
+
+	return &Material{
+		Fps: video.fps, Duration: video.duration, Corner: learned.Corner, Box: learned.Box, Times: times, Measures: measures,
+	}, nil
+}
+
+// evaluate は、材料から、ロゴの出ていた区間を出し、その外を CM にする。ロゴの出ていた区間が 1 つもなければ、errLogoUnusable を包んで返す。
+func (d *LogoDetector) evaluate(m *Material) (*logoResult, error) {
+	intervals := logo.Intervals(m.Measures, m.Fps, d.params)
 	if len(intervals) == 0 {
 		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
 	}
-
-	missing := missingSections(times, video.fps)
+	missing := missingSections(m.Times, m.Fps)
 
 	return &logoResult{
-		sections:    trimMissing(complementSections(intervals, times, video.fps), missing),
+		sections:    trimMissing(complementSections(intervals, m.Times, m.Fps), missing),
 		missing:     missing,
-		duration:    time.Duration((times[len(times)-1] - times[0] + 1/video.fps) * float64(time.Second)),
-		edgeMissing: edgeMissing(times, video),
-		corner:      learned.Corner, box: learned.Box, measures: measures, intervals: intervals, times: times, fps: video.fps,
+		duration:    time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second)),
+		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration}),
+		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil
 }
 

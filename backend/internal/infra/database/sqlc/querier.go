@@ -150,6 +150,8 @@ type Querier interface {
 	DeletePrograms(ctx context.Context, arg []DeleteProgramsParams) *DeleteProgramsBatchResults
 	DeleteRecording(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) error
+	// 録画の CM の区間を見分けた材料を消す (#1507)。材料を残せなかった回に、前の材料を使い続けないようにする。
+	DeleteRecordingCMMaterial(ctx context.Context, arg DeleteRecordingCMMaterialParams) error
 	// 見分け直す前に、同じ見分け方の CM の区間を消す。
 	DeleteRecordingCMSections(ctx context.Context, arg DeleteRecordingCMSectionsParams) error
 	// 録画のファイルの記録を消す。セグメントを 1 つにつないだあとで、つないだ元のセグメントと索引の記録を消すのに使う。
@@ -331,6 +333,8 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// 録画の CM の区間を見分けた材料を返す (#1507)。なければ行を返さない。
+	GetRecordingCMMaterial(ctx context.Context, arg GetRecordingCMMaterialParams) (GetRecordingCMMaterialRow, error)
 	// 録画の回を読むための、番組のシリーズの記述子の話数と、録画が 1 つの話に結びついたときの TID と話数。
 	// 録画の話が 1 つだけで、1 話分のときに限る (ListRecordedEpisodes とそろえる)。
 	GetRecordingEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingEpisodeSourceRow, error)
@@ -1177,6 +1181,8 @@ type Querier interface {
 	UpsertRecordingAnimeMatch(ctx context.Context, arg UpsertRecordingAnimeMatchParams) error
 	// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
 	UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error
+	// 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。
+	UpsertRecordingCMMaterial(ctx context.Context, arg UpsertRecordingCMMaterialParams) error
 	// 録画中の録画の、書いているセグメントの様子を書く (#829)。
 	UpsertRecordingLiveStats(ctx context.Context, arg UpsertRecordingLiveStatsParams) error
 	UpsertRecordingNicologFile(ctx context.Context, arg UpsertRecordingNicologFileParams) error

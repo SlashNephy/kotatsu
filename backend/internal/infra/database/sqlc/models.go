@@ -625,6 +625,14 @@ type RecordingCmDetection struct {
 	VideoMissingMs  int64
 }
 
+type RecordingCmMaterial struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	FormatVersion int32
+	Data          []byte
+	CreatedAt     time.Time
+}
+
 type RecordingCmSection struct {
 	RecordingID   uuid.UUID
 	Detector      string

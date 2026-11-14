@@ -132,6 +132,21 @@ func (q *Queries) CountRecordingSegments(ctx context.Context, arg CountRecording
 	return i, err
 }
 
+const deleteRecordingCMMaterial = `-- name: DeleteRecordingCMMaterial :exec
+DELETE FROM recording_cm_materials WHERE recording_id = $1 AND detector = $2
+`
+
+type DeleteRecordingCMMaterialParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+// 録画の CM の区間を見分けた材料を消す (#1507)。材料を残せなかった回に、前の材料を使い続けないようにする。
+func (q *Queries) DeleteRecordingCMMaterial(ctx context.Context, arg DeleteRecordingCMMaterialParams) error {
+	_, err := q.db.Exec(ctx, deleteRecordingCMMaterial, arg.RecordingID, arg.Detector)
+	return err
+}
+
 const deleteRecordingCMSections = `-- name: DeleteRecordingCMSections :exec
 DELETE FROM recording_cm_sections WHERE recording_id = $1 AND detector = $2
 `
@@ -439,6 +454,28 @@ func (q *Queries) GetRecording(ctx context.Context, id uuid.UUID) (Recording, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getRecordingCMMaterial = `-- name: GetRecordingCMMaterial :one
+SELECT format_version, data FROM recording_cm_materials WHERE recording_id = $1 AND detector = $2
+`
+
+type GetRecordingCMMaterialParams struct {
+	RecordingID uuid.UUID
+	Detector    string
+}
+
+type GetRecordingCMMaterialRow struct {
+	FormatVersion int32
+	Data          []byte
+}
+
+// 録画の CM の区間を見分けた材料を返す (#1507)。なければ行を返さない。
+func (q *Queries) GetRecordingCMMaterial(ctx context.Context, arg GetRecordingCMMaterialParams) (GetRecordingCMMaterialRow, error) {
+	row := q.db.QueryRow(ctx, getRecordingCMMaterial, arg.RecordingID, arg.Detector)
+	var i GetRecordingCMMaterialRow
+	err := row.Scan(&i.FormatVersion, &i.Data)
 	return i, err
 }
 
@@ -1895,6 +1932,32 @@ func (q *Queries) UpsertRecordingCMDetection(ctx context.Context, arg UpsertReco
 		arg.Now,
 		arg.Note,
 		arg.VideoMissingMs,
+	)
+	return err
+}
+
+const upsertRecordingCMMaterial = `-- name: UpsertRecordingCMMaterial :exec
+INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (recording_id, detector) DO UPDATE SET format_version = EXCLUDED.format_version, data = EXCLUDED.data, created_at = EXCLUDED.created_at
+`
+
+type UpsertRecordingCMMaterialParams struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	FormatVersion int32
+	Data          []byte
+	Now           time.Time
+}
+
+// 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。
+func (q *Queries) UpsertRecordingCMMaterial(ctx context.Context, arg UpsertRecordingCMMaterialParams) error {
+	_, err := q.db.Exec(ctx, upsertRecordingCMMaterial,
+		arg.RecordingID,
+		arg.Detector,
+		arg.FormatVersion,
+		arg.Data,
+		arg.Now,
 	)
 	return err
 }

@@ -55,3 +55,11 @@ type Reporter interface {
 	// DetectWithReport は、Detect と同じ区間と、その添え書きを返す。
 	DetectWithReport(ctx context.Context, input *Input) ([]Section, *Report, error)
 }
+
+// MaterialDetector は、見分けた材料を残し、材料から読み直さずに判定し直せる Detector (#1507)。
+type MaterialDetector interface {
+	// DetectWithMaterial は、区間と添え書きと、判定し直すための材料を返す。材料を残せない回は nil を返す。
+	DetectWithMaterial(ctx context.Context, input *Input) ([]Section, *Report, *Material, error)
+	// Redetect は、材料から判定し直す。材料だけでは決められなければ、ok を false にする。
+	Redetect(material *Material) (sections []Section, report *Report, ok bool)
+}

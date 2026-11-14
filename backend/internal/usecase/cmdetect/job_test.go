@@ -28,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
@@ -236,6 +237,100 @@ func TestDetectWorkerReport(t *testing.T) {
 		"SELECT note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&note, &missing))
 	assert.Empty(t, note)
 	assert.Zero(t, missing)
+}
+
+// materialDetector は、ファイルの名前ごとに決めた区間と材料を返し、材料からは redetected の区間を返す Detector (#1507)。
+type materialDetector struct {
+	fakeDetector
+
+	// redetected は、材料から判定し直したときに返す区間。redetectable が false なら、材料だけでは決められないとする。
+	redetected   []cmdetect.Section
+	redetectable bool
+	redetects    int
+}
+
+var _ cmdetect.MaterialDetector = new(materialDetector)
+
+func (d *materialDetector) DetectWithMaterial(
+	ctx context.Context, input *cmdetect.Input,
+) ([]cmdetect.Section, *cmdetect.Report, *cmdetect.Material, error) {
+	sections, err := d.Detect(ctx, input)
+	material := &cmdetect.Material{
+		Fps: 30, Duration: time.Second, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 1, H: 1},
+		Times: []float64{0}, Measures: []logo.Measure{{Score: 0.5, Brightness: 0, Texture: 0}},
+	}
+
+	return sections, &cmdetect.Report{Note: "", Missing: 0}, material, err
+}
+
+func (d *materialDetector) Redetect(*cmdetect.Material) ([]cmdetect.Section, *cmdetect.Report, bool) {
+	d.redetects++
+	if !d.redetectable {
+		return nil, nil, false
+	}
+
+	return d.redetected, &cmdetect.Report{Note: "", Missing: 0}, true
+}
+
+// TestDetectWorkerMaterials は、見分けた材料を残し、次に見分けるときは、読み直さずに材料から判定し直すことを確かめる (#1507)。
+// 材料だけで決められないか、セグメントが変わったか、形式の版が違えば、読み直す。
+func TestDetectWorkerMaterials(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: 0}, segmentAt{name: segmentB, start: 20 * time.Minute})
+	detector := &materialDetector{
+		sections: map[string][]cmdetect.Section{
+			segmentA: {{Start: time.Minute, End: 2 * time.Minute}}, segmentB: {},
+		}, inputs: []cmdetect.Input{},
+		redetected:   []cmdetect.Section{{Start: 3 * time.Minute, End: 4 * time.Minute}},
+		redetectable: true,
+		redetects:    0,
+	}
+	materials := func() int {
+		t.Helper()
+		var count int
+		require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_cm_materials WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&count))
+
+		return count
+	}
+
+	// 1 回目は読み、材料を残す。
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 2)
+	assert.Equal(t, 1, materials())
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 2 * time.Minute}}, f.sections(t, recordingID))
+
+	// 2 回目は読まずに、材料から判定し直す。どちらのセグメントも、材料からの区間になる。
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 2)
+	assert.Equal(t, 2, detector.redetects)
+	assert.Equal(t, [][2]time.Duration{{3 * time.Minute, 4 * time.Minute}, {23 * time.Minute, 24 * time.Minute}}, f.sections(t, recordingID))
+
+	// 材料だけで決められなければ、読み直す。
+	detector.redetectable = false
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 4)
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 2 * time.Minute}}, f.sections(t, recordingID))
+
+	// 形式の版が違う材料は使わずに、読み直す。
+	detector.redetectable = true
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_cm_materials SET format_version = 0 WHERE recording_id = $1", recordingID)
+	require.NoError(t, err)
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 6)
+
+	// セグメントが変わった (大きさが変わった) ら、材料を使わずに読み直す。
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET size = size + 1 WHERE recording_id = $1 AND path = $2", recordingID, segmentB)
+	require.NoError(t, err)
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 8)
+
+	// 映像のないセグメントがあって材料が揃わなければ、前の材料を消す。
+	delete(detector.sections, segmentB)
+	detector.redetectable = false
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Equal(t, 0, materials())
 }
 
 // TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。

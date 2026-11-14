@@ -244,6 +244,54 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 	}
 }
 
+// TestLogoDetectorRedetect は、ロゴで見分けた回の材料から判定し直すと、読み直したのと同じ区間と欠けになることを確かめる (#1507)。
+// 縮めて読み戻した材料でも変わらないことと、ロゴの結果を捨てる録画では、材料だけでは決められないことも確かめる。
+func TestLogoDetectorRedetect(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		hideFrom, hideTo int
+		wantRedetectable bool
+	}{
+		{name: "a recording decided by the logo", hideFrom: 15, hideTo: 25, wantRedetectable: true},
+		{name: "a recording whose logo result is dropped", hideFrom: 10, hideTo: 34, wantRedetectable: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fallback := NewMockDetector(gomock.NewController(t))
+			detector, err := cmdetect.NewLogoDetectorWith(fallback)
+			if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+				t.Skip("FFmpeg is not installed")
+			}
+			require.NoError(t, err)
+			if !tt.wantRedetectable {
+				fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{}, nil)
+			}
+
+			sections, report, material, err := detector.DetectWithMaterial(t.Context(),
+				&cmdetect.Input{Path: writeLogoTS(t, tt.hideFrom, tt.hideTo), ServiceID: 0, Progress: nil})
+			require.NoError(t, err)
+			require.NotNil(t, material)
+
+			data, err := cmdetect.EncodeMaterials([]cmdetect.SegmentMaterial{{Path: "logo.ts", Material: material}})
+			require.NoError(t, err)
+			decoded, err := cmdetect.DecodeMaterials(data)
+			require.NoError(t, err)
+			for _, m := range []*cmdetect.Material{material, decoded[0].Material} {
+				got, gotReport, ok := detector.Redetect(m)
+				assert.Equal(t, tt.wantRedetectable, ok)
+				if ok {
+					assert.Equal(t, sections, got)
+					assert.Equal(t, report.Missing, gotReport.Missing)
+				}
+			}
+		})
+	}
+}
+
 // TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確かめる (#1508)。
 func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	t.Parallel()

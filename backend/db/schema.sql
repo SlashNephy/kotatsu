@@ -1089,6 +1089,17 @@ CREATE TABLE recording_cm_sections (
   CHECK (end_offset_ms > start_offset_ms)
 );
 
+-- CM の区間を見分けた材料 (#1507)。デコードで得た数値 (コマの時刻、ロゴの点数など) を縮めて残し、規則を変えても録画を読み直さずに判定し直す。
+-- 録画と見分け方ごとに 1 件で、見分け直したら置き換える。data の形式は format_version で見分け、違う版は使わずに読み直す。
+CREATE TABLE recording_cm_materials (
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  detector text NOT NULL,
+  format_version integer NOT NULL,
+  data bytea NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (recording_id, detector)
+);
+
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
 
