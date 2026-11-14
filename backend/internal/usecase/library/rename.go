@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
@@ -250,6 +251,29 @@ func (l *Library) recordUnrestoredPath(ctx context.Context, db Database, file *R
 	}
 }
 
+// checkNotJoining は、録画 recordingID のセグメントを、つないでいる途中でないことを確かめる。途中なら ErrBusy を返す (#1721)。
+// つなぐジョブと同じ録画ごとのロックを、トランザクションの終わりまで取る。つないで DB の記録を 1 本にしてから、
+// つないだファイルに置き換えるまでも、つないだ元のファイルを消すのを待っているので、途中とみなす。
+// 最初のセグメントの名前が変わらず、2 つ目以降だけを移すときも、置き換えのジョブが消すはずの元のファイルを動かさないようにする。
+func checkNotJoining(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	locked, err := sqlc.New(tx).TryLockRecordingJoinXact(ctx, recordingID.String())
+	if err != nil {
+		return fmt.Errorf("failed to lock the recording: %w", err)
+	}
+	if !locked {
+		return ErrBusy
+	}
+	pending, err := segjoin.FinalizePending(ctx, tx, recordingID)
+	if err != nil {
+		return err
+	}
+	if pending {
+		return ErrBusy
+	}
+
+	return nil
+}
+
 // move は、計画のファイル file を移し、移した先を返す。セグメントは連番を付けて移し、移した先を movedTo に残す。
 // 変換した MP4 は、最初のセグメントを実際に移した先 (movedTo) から作った名前に移す。最初のセグメントを移していないときと、
 // 移す先がふさがっているときは、移さずに false を返す。連番を付けると、最初のセグメントの名前から作った名前と合わなくなる (#1720)。
@@ -315,6 +339,9 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 		}
 		if recording.State == stateRecording {
 			return ErrRecording
+		}
+		if err := checkNotJoining(ctx, tx, plan.RecordingID); err != nil {
+			return err
 		}
 		for _, file := range plan.Files {
 			if joining, _ := l.store.Exists(file.PoolID, file.From+joiningSuffix); joining {

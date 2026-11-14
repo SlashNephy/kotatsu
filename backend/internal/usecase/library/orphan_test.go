@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
-	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
@@ -39,7 +38,6 @@ func orphanFixture(t *testing.T) *fixture {
 	t.Helper()
 
 	f := newFixture(t)
-	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
 	f.recording(t, completed, false)
 	write := func(root, rel string) {
 		path := filepath.Join(root, rel)

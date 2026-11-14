@@ -1806,6 +1806,19 @@ func (q *Queries) TryLockRecordingJoin(ctx context.Context, recordingID string) 
 	return locked, err
 }
 
+const tryLockRecordingJoinXact = `-- name: TryLockRecordingJoinXact :one
+SELECT pg_try_advisory_xact_lock(hashtext('kotatsu.segjoin'), hashtext($1::text)) AS locked
+`
+
+// TryLockRecordingJoin と同じ録画ごとのロックを、トランザクションの終わりまで取る。取れなければ false を返す。
+// ファイル名の付け直しのように、トランザクションの中でファイルを動かすときに使う (#1721)。
+func (q *Queries) TryLockRecordingJoinXact(ctx context.Context, recordingID string) (bool, error) {
+	row := q.db.QueryRow(ctx, tryLockRecordingJoinXact, recordingID)
+	var locked bool
+	err := row.Scan(&locked)
+	return locked, err
+}
+
 const unlockRecordingJoin = `-- name: UnlockRecordingJoin :one
 SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext($1::text)) AS unlocked
 `

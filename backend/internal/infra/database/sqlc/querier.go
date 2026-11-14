@@ -1105,6 +1105,9 @@ type Querier interface {
 	TryLockLoginKey(ctx context.Context, key string) (bool, error)
 	// 録画のセグメントをつなぐ間、ほかの nekonote が同じ録画をつながないよう、セッションの advisory lock を取る。取れなければ false を返す。
 	TryLockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
+	// TryLockRecordingJoin と同じ録画ごとのロックを、トランザクションの終わりまで取る。取れなければ false を返す。
+	// ファイル名の付け直しのように、トランザクションの中でファイルを動かすときに使う (#1721)。
+	TryLockRecordingJoinXact(ctx context.Context, recordingID string) (bool, error)
 	UnlockRecordingJoin(ctx context.Context, recordingID string) (bool, error)
 	UnpinService(ctx context.Context, arg UnpinServiceParams) error
 	UpdateAnimeWatchProgress(ctx context.Context, arg UpdateAnimeWatchProgressParams) error

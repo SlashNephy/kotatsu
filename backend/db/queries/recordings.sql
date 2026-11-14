@@ -255,6 +255,11 @@ LIMIT 1;
 -- 録画のセグメントをつなぐ間、ほかの nekonote が同じ録画をつながないよう、セッションの advisory lock を取る。取れなければ false を返す。
 SELECT pg_try_advisory_lock(hashtext('kotatsu.segjoin'), hashtext(@recording_id::text)) AS locked;
 
+-- name: TryLockRecordingJoinXact :one
+-- TryLockRecordingJoin と同じ録画ごとのロックを、トランザクションの終わりまで取る。取れなければ false を返す。
+-- ファイル名の付け直しのように、トランザクションの中でファイルを動かすときに使う (#1721)。
+SELECT pg_try_advisory_xact_lock(hashtext('kotatsu.segjoin'), hashtext(@recording_id::text)) AS locked;
+
 -- name: UnlockRecordingJoin :one
 SELECT pg_advisory_unlock(hashtext('kotatsu.segjoin'), hashtext(@recording_id::text)) AS unlocked;
 

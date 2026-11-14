@@ -1,6 +1,7 @@
 package library_test
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
@@ -181,6 +183,60 @@ func TestRenameSkipsJoining(t *testing.T) {
 	require.ErrorIs(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]), library.ErrBusy)
 	_, err = os.Stat(filepath.Join(f.dir, oldName))
 	assert.NoError(t, err)
+}
+
+// TestRenameSkipsWhileJoining は、セグメントをつないでいる間 (録画ごとのロックを持っている間) と、つないだ後、
+// つないだファイルに置き換えるまでの間は、付け直さないことを確かめる (#1721)。
+// 最初のセグメントの名前が変わらず、2 つ目以降だけを移すときも、置き換えのジョブが消すはずの元のファイルを動かさない。
+func TestRenameSkipsWhileJoining(t *testing.T) {
+	t.Parallel()
+
+	const first = "2026-10-10 1100 こたつテスト1 録画.m2ts"
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, f *fixture, recordingID uuid.UUID)
+	}{
+		{
+			name: "locked by the join",
+			setup: func(t *testing.T, f *fixture, recordingID uuid.UUID) {
+				t.Helper()
+
+				conn, err := f.pool.Acquire(t.Context())
+				require.NoError(t, err)
+				t.Cleanup(conn.Release)
+				_, err = conn.Exec(t.Context(), "SELECT pg_advisory_lock(hashtext('kotatsu.segjoin'), hashtext($1::text))", recordingID.String())
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "waiting for the finalization",
+			setup: func(t *testing.T, f *fixture, recordingID uuid.UUID) {
+				t.Helper()
+
+				args, err := json.Marshal(segjoin.FinalizeArgs{RecordingID: recordingID, FileID: id.New(), PoolID: poolID, Path: first, Removed: []segjoin.File{}})
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), "INSERT INTO river_job (kind, args, max_attempts, queue) VALUES ($1, $2, 25, 'media')",
+					new(segjoin.FinalizeArgs).Kind(), args)
+				require.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.segmentedAt(t, first, split2)
+			tt.setup(t, f, recordingID)
+			plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+			require.NoError(t, err)
+			require.Len(t, plans, 1)
+			require.Len(t, plans[0].Files, 1, "only the second segment moves")
+
+			require.ErrorIs(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]), library.ErrBusy)
+			assert.FileExists(t, filepath.Join(f.dir, split2))
+		})
+	}
 }
 
 // TestRenameAdvancesSequenceOnCollision は、移す先がふさがっているとき、分かれた録画の連番を (2) (2) のように重ねず、
