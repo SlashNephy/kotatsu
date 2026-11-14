@@ -20,6 +20,7 @@ import type { RootNavQuery } from './__generated__/RootNavQuery.graphql';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
 import classes from './__root.module.css';
 import { LineupBanner } from '../notifications/LineupBanner';
+import { WatchHost, WatchHostProvider } from '../yunomi/WatchHost';
 
 declare module '@tanstack/react-router' {
   interface StaticDataRouteOption {
@@ -86,15 +87,32 @@ function RootLayout() {
   // データの変更は、ヘッダーで購読し、画面全体に配る (#503)。
   return (
     <DataChangesProvider>
-      <AppShell
-        // ステータスバーの下まで描くときは、その分だけヘッダーを高くする (#425)。本文の上の余白も、この高さに揃う。
-        header={{ height: 'calc(64px + env(safe-area-inset-top))' }}
-        navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: true } }}
-        padding="md"
-      >
-        <AppShell.Header className={classes.shellHeader}>
-          <SignedIn
-            fallback={
+      <WatchHostProvider>
+        <AppShell
+          // ステータスバーの下まで描くときは、その分だけヘッダーを高くする (#425)。本文の上の余白も、この高さに揃う。
+          header={{ height: 'calc(64px + env(safe-area-inset-top))' }}
+          navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !opened, desktop: true } }}
+          padding="md"
+        >
+          <AppShell.Header className={classes.shellHeader}>
+            <SignedIn
+              fallback={
+                <Group
+                  h="100%"
+                  px="md"
+                  justify="space-between"
+                  wrap="nowrap"
+                  className={classes.header}
+                  data-fluid={fluid || undefined}
+                >
+                  {brand}
+                  <Group gap="md" wrap="nowrap">
+                    <OfflineShortcut />
+                    <ColorSchemeToggle />
+                  </Group>
+                </Group>
+              }
+            >
               <Group
                 h="100%"
                 px="md"
@@ -103,62 +121,53 @@ function RootLayout() {
                 className={classes.header}
                 data-fluid={fluid || undefined}
               >
-                {brand}
+                <Group gap="lg" wrap="nowrap">
+                  <Burger
+                    opened={opened}
+                    onClick={toggle}
+                    hiddenFrom="sm"
+                    size="sm"
+                    aria-label={t('nav.menu')}
+                  />
+                  {brand}
+                  <Group gap="md" component="nav" visibleFrom="sm">
+                    <NavLinks size="sm" />
+                  </Group>
+                </Group>
                 <Group gap="md" wrap="nowrap">
-                  <OfflineShortcut />
-                  <ColorSchemeToggle />
+                  <DataChangesSubscriber />
+                  <ConnectionStatus />
+                  <HeaderSearch />
+                  <NotificationBell />
+                  <UserMenu />
                 </Group>
               </Group>
-            }
-          >
-            <Group
-              h="100%"
-              px="md"
-              justify="space-between"
-              wrap="nowrap"
-              className={classes.header}
-              data-fluid={fluid || undefined}
-            >
-              <Group gap="lg" wrap="nowrap">
-                <Burger
-                  opened={opened}
-                  onClick={toggle}
-                  hiddenFrom="sm"
-                  size="sm"
-                  aria-label={t('nav.menu')}
-                />
-                {brand}
-                <Group gap="md" component="nav" visibleFrom="sm">
-                  <NavLinks size="sm" />
-                </Group>
-              </Group>
-              <Group gap="md" wrap="nowrap">
-                <DataChangesSubscriber />
-                <ConnectionStatus />
-                <HeaderSearch />
-                <NotificationBell />
-                <UserMenu />
-              </Group>
-            </Group>
-          </SignedIn>
-        </AppShell.Header>
-        <AppShell.Navbar className={classes.shellNavbar} component="nav" aria-label={t('nav.menu')}>
-          <SignedIn fallback={null}>
-            <Stack gap="sm">
-              <NavLinks onClick={close} />
-            </Stack>
-          </SignedIn>
-        </AppShell.Navbar>
-        <AppShell.Main className={classes.shellMain}>
-          <div className={classes.content} data-fluid={fluid || undefined}>
-            {/* 衛星の局の顔ぶれの変化を、管理者に知らせる (#1519)。読めなくても、本文は出す。 */}
-            <SignedIn fallback={null}>
-              <LineupBanner />
             </SignedIn>
-            <Outlet />
-          </div>
-        </AppShell.Main>
-      </AppShell>
+          </AppShell.Header>
+          <AppShell.Navbar
+            className={classes.shellNavbar}
+            component="nav"
+            aria-label={t('nav.menu')}
+          >
+            <SignedIn fallback={null}>
+              <Stack gap="sm">
+                <NavLinks onClick={close} />
+              </Stack>
+            </SignedIn>
+          </AppShell.Navbar>
+          <AppShell.Main className={classes.shellMain}>
+            <div className={classes.content} data-fluid={fluid || undefined}>
+              {/* 衛星の局の顔ぶれの変化を、管理者に知らせる (#1519)。読めなくても、本文は出す。 */}
+              <SignedIn fallback={null}>
+                <LineupBanner />
+              </SignedIn>
+              <Outlet />
+              {/* 視聴の画面は、ルートの下ではなく、ここで描く (#1602)。 */}
+              <WatchHost />
+            </div>
+          </AppShell.Main>
+        </AppShell>
+      </WatchHostProvider>
     </DataChangesProvider>
   );
 }

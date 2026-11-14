@@ -109,6 +109,7 @@ import {
   timeshiftStartPosition,
 } from '../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
+import { useHostedWatch } from '../../yunomi/WatchHost';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -131,11 +132,25 @@ export const Route = createFileRoute('/timeshift/$serviceId_/play')({
 });
 
 // PlayPage は、タイムシフトのバッファにある番組を、頭から再生する画面 (設計書 5.7)。
-// バッファは、ブラウザの中で変換する経路だけで再生する。
+// バッファは、ブラウザの中で変換する経路だけで再生する。画面は、アプリの根元の置き場で描く (#1602)。
 function PlayPage() {
-  const { t } = useTranslation();
   const { serviceId } = Route.useParams();
   const { program, t: start } = Route.useSearch();
+
+  return useHostedWatch(<PlayWatch serviceId={serviceId} program={program} start={start} />);
+}
+
+// PlayWatch は、サービス serviceId の、program に始まった番組を、位置 start (秒) から再生する画面の中身。
+function PlayWatch({
+  serviceId,
+  program,
+  start,
+}: {
+  serviceId: string;
+  program: string;
+  start: number | undefined;
+}) {
+  const { t } = useTranslation();
 
   return (
     <Stack gap="sm">
