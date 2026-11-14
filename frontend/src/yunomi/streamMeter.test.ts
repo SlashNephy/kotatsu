@@ -141,18 +141,31 @@ describe('frameRate', () => {
 });
 
 describe('shownFrameRate', () => {
-  const picture = { width: 1440, height: 1080, interlaced: true, unfiltered: false };
+  const picture = {
+    width: 1440,
+    height: 1080,
+    interlaced: true,
+    unfiltered: false,
+    fieldRateDropped: false,
+  };
 
   test.each([
     {
       name: '24p で出している間は、video の要素の数ではなく、実際に出したコマの数を返す',
-      source: { ...picture, film: true, filmFps: 24 },
+      source: { ...picture, film: true, shownFps: 24 },
       measured: 29.97,
       want: 24,
     },
     {
-      name: '24p で出していなければ、video の要素から測った値を返す',
-      source: { ...picture, film: false, filmFps: null },
+      // video の要素は 1 コマを 1 つと数えるので、フィールドごとに表示しても 29.97 のままになる (#1655)。
+      name: 'フィールドごとに表示している間は、実際に出したコマの数を返す',
+      source: { ...picture, film: false, shownFps: 59.94 },
+      measured: 29.97,
+      want: 59.94,
+    },
+    {
+      name: 'yadif がコマを出す時刻を決めていなければ、video の要素から測った値を返す',
+      source: { ...picture, film: false, shownFps: null },
       measured: 29.97,
       want: 29.97,
     },
@@ -309,8 +322,9 @@ describe('StreamMeter', () => {
       height: 1080,
       interlaced: true,
       film: false,
-      filmFps: null,
+      shownFps: null,
       unfiltered: false,
+      fieldRateDropped: false,
     },
   });
 
@@ -326,8 +340,9 @@ describe('StreamMeter', () => {
       height: 1080,
       interlaced: true,
       film: false,
-      filmFps: null,
+      shownFps: null,
       unfiltered: false,
+      fieldRateDropped: false,
     });
     // 画面の時刻を放送の時刻に直す起点も覚える (#1515)。
     expect(meter.mediaOrigin).toBe(126_000);

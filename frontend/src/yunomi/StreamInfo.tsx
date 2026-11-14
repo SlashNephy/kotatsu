@@ -301,7 +301,12 @@ export function StreamInfo({
                       ? t('player.streamInfo.unfiltered', {
                           picture: pictureLabel(source.width, source.height, source.interlaced),
                         })
-                      : pictureLabel(source.width, source.height, source.interlaced)}
+                      : // 表示が追いつかず、フィールドごとの表示をやめたときは、そう添える (#1655)。
+                        source.fieldRateDropped && source.interlaced !== false
+                        ? t('player.streamInfo.fieldRateDropped', {
+                            picture: pictureLabel(source.width, source.height, source.interlaced),
+                          })
+                        : pictureLabel(source.width, source.height, source.interlaced)}
               </dd>
             </>
           )}

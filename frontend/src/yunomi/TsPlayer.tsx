@@ -5,6 +5,7 @@ import type {
   PrivateStream,
   Stats,
 } from '@mpeg2toh264/player';
+import type { Deinterlacer } from '@mpeg2toh264/yadif';
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { audioChoices, currentAudioChoice } from './audio';
@@ -14,6 +15,7 @@ import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
 import { createDeinterlacer, deinterlacerCanvas, enableFilm } from './deinterlacer';
+import { createLateWatch, useFieldRate } from './fieldRate';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -82,8 +84,13 @@ type Slot = {
   stats: Stats | null;
   // film は、yadif が 2:3 プルダウンを見つけ、24p で出していること (#1284)。
   film: boolean;
-  // filmFps は、24p で出している間に、yadif が実際に出した 1 秒あたりのコマの数。それ以外は null。
-  filmFps: number | null;
+  // shownFps は、yadif がコマを出す時刻を決めている間 (24p で出すときと、フィールドごとに表示するとき) に、
+  // 実際に出した 1 秒あたりのコマの数。video の要素が数えるコマの数と違うので、再生の情報にはこちらを出す。それ以外は null。
+  shownFps: number | null;
+  // yadif は、作ったデインタレーサー。作れなかったか、まだ作っていなければ null。
+  yadif: Deinterlacer | null;
+  // fieldRateDropped は、表示が追いつかないので、この読み込みではフィールドごとの表示をやめたこと (#1655)。
+  fieldRateDropped: boolean;
   // unfiltered は、yadif を作れず (WebGL2 がないなど)、インターレースを解除せずに出していること (#1617)。
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
@@ -111,7 +118,12 @@ function bufferedEnd(video: HTMLVideoElement): number {
 // sourcePicture は、今の位置で映している放送の映像の大きさと走査の方式を、yadif が持つ映像の切り替わりの表から読む。
 function sourcePicture(
   player: Mpeg2TsPlayer,
-  { film, filmFps, unfiltered }: Pick<Slot, 'film' | 'filmFps' | 'unfiltered'>,
+  {
+    film,
+    shownFps,
+    unfiltered,
+    fieldRateDropped,
+  }: Pick<Slot, 'film' | 'shownFps' | 'unfiltered' | 'fieldRateDropped'>,
 ): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
@@ -125,8 +137,9 @@ function sourcePicture(
     height: state.codedSize.height,
     interlaced: state.scan?.interlaced ?? null,
     film,
-    filmFps,
+    shownFps,
     unfiltered,
+    fieldRateDropped,
   };
 }
 
@@ -179,6 +192,10 @@ export function TsPlayer({
   handlers.current = { onState, onError, onLoaded, onAudio, onVideo, onReading };
   const audioRef = useRef(audio);
   audioRef.current = audio;
+  // fieldRate は、1080i をフィールドごとに 59.94p で表示するか (#1655)。端末ごとの設定から読む。
+  const [fieldRate] = useFieldRate();
+  const fieldRateRef = useRef(fieldRate);
+  fieldRateRef.current = fieldRate;
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
   const handoverRef = useRef(handover);
   handoverRef.current = handover;
@@ -241,7 +258,9 @@ export function TsPlayer({
       load: 0,
       stats: null,
       film: false,
-      filmFps: null,
+      shownFps: null,
+      yadif: null,
+      fieldRateDropped: false,
       unfiltered: false,
       bytesRead: 0,
       origin: null,
@@ -266,18 +285,32 @@ export function TsPlayer({
     }
     const isActive = () => activeRef.current === slot;
     const createYadif = (element: HTMLVideoElement) => {
-      const deinterlacer = new Deinterlacer(element, {
+      const lateWatch = createLateWatch();
+      const deinterlacer: Deinterlacer = new Deinterlacer(element, {
+        // 1080i を、フィールドごとに 1 コマにして 59.94p で出す (#1655)。放送そのものの動きのなめらかさになる。
+        doubleRate: fieldRateRef.current,
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
-        // 読み込みを終えた録画では progress が来ないので、変わったときと、24p で出している間はここで知らせる。
+        // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
         onStats: (stats) => {
+          // 表示が追いつかない端末では、コマが間に合わずにかえってがたつくので、この読み込みではコマごとの表示に戻す。
+          // 設定で切っている間は数えず、入れ直したら、そこから数え直す。
+          if (!deinterlacer.doubleRate) {
+            lateWatch.reset();
+          } else if (lateWatch.observe(stats)) {
+            console.warn('fields are shown late; showing a picture for every frame instead', stats);
+            deinterlacer.doubleRate = false;
+            slot.fieldRateDropped = true;
+          }
           const changed = slot.film !== stats.film;
           slot.film = stats.film;
-          slot.filmFps = stats.film ? stats.fps : null;
-          if (changed || stats.film) {
+          const scheduled = stats.film || deinterlacer.doubleRate;
+          slot.shownFps = scheduled ? stats.fps : null;
+          if (changed || scheduled) {
             report();
           }
         },
       });
+      slot.yadif = deinterlacer;
       // アニメのように 2:3 プルダウンで 24 コマを 60 フィールドに載せた映像は、プルダウンを見つけたら
       // フィールドを組み直して 24p で出す (#1284)。縞が残らず、コマの間隔も元の映像どおりになる。
       // プルダウンでない映像は、これまでどおり yadif で解除する。浮動小数点の描画先を持たない GPU では使えないので、そのままにする。
@@ -374,6 +407,17 @@ export function TsPlayer({
 
     return player;
   };
+
+  // 設定を変えたら、読み直さずに、映している組と裏で読み込んでいる組の表示を切り替える (#1655)。
+  // 追いつかずにやめた組も、設定を入れ直したら、もう一度フィールドごとに表示する。
+  useEffect(() => {
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      if (slot?.yadif != null) {
+        slot.yadif.doubleRate = fieldRate;
+        slot.fieldRateDropped = false;
+      }
+    }
+  }, [fieldRate]);
 
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
