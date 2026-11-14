@@ -25,6 +25,11 @@
   overflow: hidden;
 }
 
+/* 全画面で画面いっぱいに広げるときは (#1599)、16:9 の枠の外まで映像と字幕を出し、画面の端で切る。 */
+:fullscreen .clip[data-fill] {
+  overflow: visible;
+}
+
 /* 映像と字幕を置く要素。React に持たせずに、video と字幕の canvas を入れる。 */
 .media {
   /* 字幕の canvas を、映像に重ねる。 */

@@ -395,6 +395,8 @@
       "dataBroadcastPreloadHelp": "ライブ視聴中にデータ放送の表示を高速化します。追加のTSストリームが必要であるため、2 Mbps程度の通信が発生します。",
       "autoPictureInPicture": "タブを切り替えたら、自動で別のウィンドウに出す",
       "autoPictureInPictureHelp": "再生中にほかのタブへ移ると、視聴画面を小さなウィンドウに出します。",
+      "fullscreenLandscape": "全画面で横向きに固定する",
+      "fullscreenLandscapeHelp": "全画面にしたら、端末を横向きに固定します。全画面を抜けたら戻します。対応していない端末やブラウザでは、固定しません。",
       "twoFactor": "認証アプリ（2段階認証）",
       "totpEnabled": "認証アプリを登録しています。使っていないリカバリーコードは{{count}}個です",
       "totpDisabled": "認証アプリを登録していません",
@@ -1248,7 +1250,8 @@
         "none": "そのまま",
         "lShape": "L 字放送を切り抜く",
         "pillarbox": "4:3 の左右の黒い縁を消す（上下が切れる）",
-        "stretch": "4:3 を横に伸ばして合わせる"
+        "stretch": "4:3 を横に伸ばして合わせる",
+        "fill": "画面いっぱいに広げる（全画面のとき）"
       },
       "scale": "拡大率",
       "origin": "拡大の起点",
