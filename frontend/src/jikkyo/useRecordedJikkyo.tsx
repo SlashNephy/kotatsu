@@ -243,7 +243,9 @@ export function useRecordedJikkyo(
     return () => controller.abort();
   }, [url]);
 
-  // 録画中の間は、リアルタイムのコメントを受け取り、届いた時刻の放送に当たる位置に流す。見えていない間は、接続を閉じる。
+  // 録画中の間は、リアルタイムのコメントを受け取り、書き込まれた時刻の放送に当たる位置に流す (#1515)。過去ログと同じく、
+  // 書き込まれた時刻を使うので、届くまでの遅れの分だけ後ろにずれない。tenban が書き込まれた時刻を知らせなければ、届いた時刻にする。
+  // 見えていない間は、接続を閉じる。
   // origin は、過去ログの時刻の基準。リアルタイムのコメントも、同じ基準の位置に流す。
   const origin = useRef(new Map<string, string>());
   const liveRef = useRef(live);
@@ -261,8 +263,9 @@ export function useRecordedJikkyo(
         }
         const base = origin.current.get(url) ?? current.recordedFrom;
         // received.at は performance.now の時計なので、壁時計に直す。
+        const at = received.postedAt ?? performance.timeOrigin + received.at;
         const comment = {
-          time: recordingPosition(base, current.gaps, performance.timeOrigin + received.at),
+          time: recordingPosition(base, current.gaps, at),
           content: received.content,
           mail: received.mail,
           ...(received.userId === undefined ? {} : { userId: received.userId }),
