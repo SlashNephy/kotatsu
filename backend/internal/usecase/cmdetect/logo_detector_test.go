@@ -331,6 +331,31 @@ func TestLogoDetail(t *testing.T) {
 		"scores >=0.40: 20%, 0.20-0.40: 20%, <0.20: 60%; CM by the logo (median score): 0.0-2.0s (0.10) 5.0-10.0s (0.05)", got)
 }
 
+// TestLogoDetailLimitsSections は、理由の詳細に書く CM の区間を 10 個までにし、残りを「...」にすることと、
+// コマがなければその旨を書くことを確かめる (#1508)。
+func TestLogoDetailLimitsSections(t *testing.T) {
+	t.Parallel()
+
+	// 1 コマおきにロゴが出ているので、CM は 0, 2, 4, ... 番目の 1 コマずつで、12 個ある。
+	const frames = 24
+	measures := make([]logo.Measure, 0, frames)
+	times := make([]float64, 0, frames)
+	intervals := []logo.Interval{}
+	for i := range frames {
+		measures = append(measures, logo.Measure{Score: 0, Brightness: 0, Texture: 0})
+		times = append(times, float64(i))
+		if i%2 == 1 {
+			intervals = append(intervals, logo.Interval{Start: i, End: i + 1})
+		}
+	}
+	got := cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 0, Y: 0, W: 1, H: 1}, measures, intervals, times, 1)
+	assert.Equal(t, 10, strings.Count(got, "s (0.00)"), got)
+	assert.True(t, strings.HasSuffix(got, " ..."), got)
+
+	assert.Equal(t, "no frame was measured",
+		cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 0, Y: 0, W: 1, H: 1}, []logo.Measure{}, []logo.Interval{}, []float64{}, 1))
+}
+
 // TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確かめる (#1508)。
 func TestMissingSections(t *testing.T) {
 	t.Parallel()
