@@ -133,12 +133,16 @@ function sourcePicture(
     return null;
   }
 
+  // プログレッシブの区間では、yadif はコマをそのまま出し、統計も知らせないので、前の区間の値が残る。
+  // そこでは video の要素から測った値を使う。
+  const progressive = state.scan?.interlaced === false;
+
   return {
     width: state.codedSize.width,
     height: state.codedSize.height,
     interlaced: state.scan?.interlaced ?? null,
     film,
-    shownFps,
+    shownFps: progressive ? null : shownFps,
     unfiltered,
     fieldRateDropped,
   };
