@@ -45,6 +45,7 @@ var errLogoUnusable = errors.New("the logo cannot be used for this recording")
 // 録画のキーフレームの上下の帯から、ロゴの枠と型を学習し (logo.Learn、logo.NewTemplate)、全コマのロゴの枠を切り出して、
 // ロゴの出ていた区間を出す (logo.Intervals)。ロゴの出ていない所を CM とみなす。型は保存せず、録画ごとに学習する。
 // ロゴを学習できない録画 (局ロゴのない通販の枠など) と、ロゴの出ていた区間が 1 つもない録画では、今の見分け方 (FFmpegDetector) で見分ける。
+// ロゴで決めた CM の割合が上限 (maxCMRatio) 以上の録画も、今の見分け方で見分け直し、それも上限以上なら CM なしにする (#1508)。
 // FFmpeg は、子プロセスとして、OS の最低の優先度で動かす (#1511)。
 type LogoDetector struct {
 	lowerer  *procprio.Lowerer
@@ -78,12 +79,16 @@ func (d *LogoDetector) Detect(ctx context.Context, input *Input) ([]Section, err
 	if err != nil {
 		return nil, err
 	}
+	// 見分け直した結果の割合は、録画の長さで割る。長さは、ロゴで測れたならコマの時刻から、測れなければ ffprobe から求める。
+	// 映像の欠けは外さない。今の見分け方の区間とは時刻の基準が違い、重なりを求められないためである。
+	duration := video.duration
 	result, err := d.detect(ctx, input, video)
 	if err == nil {
 		ratio := cmRatio(result.sections, result.missing, result.duration)
 		if ratio < maxCMRatio {
 			return result.sections, nil
 		}
+		duration = result.duration
 		err = fmt.Errorf("%w: %.0f%% of the recording was detected as CM", errLogoUnusable, ratio*100)
 	}
 	if !errors.Is(err, errLogoUnusable) {
@@ -93,7 +98,9 @@ func (d *LogoDetector) Detect(ctx context.Context, input *Input) ([]Section, err
 	if err != nil {
 		return nil, err
 	}
-	if cmRatio(sections, []Section{}, video.duration) >= maxCMRatio {
+	// 長さが分からなければ (ffprobe が長さを返さない TS)、割合を確かめられないので、今の見分け方の結果をそのまま使う。
+	// 今の見分け方を選んだときと同じ結果になる。
+	if duration > 0 && cmRatio(sections, []Section{}, duration) >= maxCMRatio {
 		return []Section{}, nil
 	}
 

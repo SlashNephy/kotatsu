@@ -2,8 +2,10 @@ package cmdetect_test
 
 import (
 	"errors"
+	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,21 +123,81 @@ func TestLogoDetector(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段には、
-	// ロゴの出ているコマと消えたコマが混ざる。右上に、白い文字のような形のロゴを、15 秒から 25 秒の間だけ消して描く。
-	path := filepath.Join(t.TempDir(), "logo.ts")
-	const filter = "geq=lum='120+90*sin(2*PI*T/3)':cb=128:cr=128,noise=alls=40:allf=t,drawbox=x=560:y=20:w=4:h=24:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=560:y=30:w=14:h=4:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=580:y=20:w=4:h=24:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=580:y=30:w=14:h=4:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=600:y=20:w=4:h=24:color=white:t=fill:enable='lt(t,15)+gte(t,25)',drawbox=x=600:y=30:w=14:h=4:color=white:t=fill:enable='lt(t,15)+gte(t,25)'"
-	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=30000/1001", "-t", "40",
-		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", path)
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, string(out))
-
+	path := writeLogoTS(t, 15, 25)
 	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil})
 	require.NoError(t, err)
 	require.Len(t, got, 1, "%v", got)
 	// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
 	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
 	assert.InDelta(t, 25, got[0].End.Seconds(), 1, "%v", got)
+}
+
+// writeLogoTS は、局ロゴを、出ている所、hideFrom 秒から hideTo 秒まで消えた所 (CM)、また出た所の順に描いた、40 秒の合成の TS を書く。
+//
+// 背景は、3 秒の周期で明るさが変わる灰色に、コマごとに変わる雑音を足したもの。縁の向きはコマごとに変わり、明るさの段には、
+// ロゴの出ているコマと消えたコマが混ざる。右上に、白い文字のような形のロゴを描く。
+func writeLogoTS(t *testing.T, hideFrom, hideTo int) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "logo.ts")
+	shown := fmt.Sprintf("enable='lt(t,%d)+gte(t,%d)'", hideFrom, hideTo)
+	const logoStrokes = 3
+	filters := make([]string, 0, 2+2*logoStrokes)
+	filters = append(filters, "geq=lum='120+90*sin(2*PI*T/3)':cb=128:cr=128", "noise=alls=40:allf=t")
+	for i := range logoStrokes {
+		x := 560 + i*20
+		filters = append(filters,
+			fmt.Sprintf("drawbox=x=%d:y=20:w=4:h=24:color=white:t=fill:%s", x, shown),
+			fmt.Sprintf("drawbox=x=%d:y=30:w=14:h=4:color=white:t=fill:%s", x, shown))
+	}
+	filter := strings.Join(filters, ",")
+	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=30000/1001", "-t", "40",
+		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", path)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	return path
+}
+
+// TestLogoDetectorRedetectsTooMuchCM は、ロゴで決めた CM の割合が上限以上なら、ロゴの結果を使わずに今の見分け方で見分け直し、
+// それも上限以上なら CM なしにすることを確かめる (#1508)。
+func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		fallback []cmdetect.Section
+		want     []cmdetect.Section
+	}{
+		{
+			name:     "uses the redetected sections when they are below the limit",
+			fallback: []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
+			want:     []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
+		},
+		{
+			name:     "drops the redetected sections when they also reach the limit",
+			fallback: []cmdetect.Section{{Start: 5 * time.Second, End: 30 * time.Second}},
+			want:     []cmdetect.Section{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fallback := NewMockDetector(gomock.NewController(t))
+			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(tt.fallback, nil)
+			detector, err := cmdetect.NewLogoDetectorWith(fallback)
+			if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+				t.Skip("FFmpeg is not installed")
+			}
+			require.NoError(t, err)
+
+			// ロゴは 40 秒のうち 10 秒から 34 秒まで消えるので、ロゴで決めた CM の割合は 6 割になる。
+			got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確かめる (#1508)。
