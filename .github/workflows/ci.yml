@@ -128,6 +128,8 @@ jobs:
 
   # Linux 以外の配布先 (Windows、macOS) でも、DB を使わないテストを動かす (#1099)。
   # DB のサービスコンテナーは Linux のランナーでしか動かないので、DB を使うテストは飛ばす。FFmpeg と tsreadex を使うテストも、ないので飛ばす。
+  # macOS のテストは、smoke-os の macOS のジョブの中で流す (#1691)。macOS (arm64) のランナーは空きがないと 15 分で取り消されるので、
+  # 取る回数を 1 回に減らす。
   test-os:
     needs: changes
     if: needs.changes.outputs.go == 'true'
@@ -137,7 +139,6 @@ jobs:
       matrix:
         os:
           - windows-latest
-          - macos-latest
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -384,8 +385,9 @@ jobs:
 
   # 配るアーカイブを Windows と macOS のランナーで開き、バイナリが起動して、画面と埋め込んだファイルを返すことを確かめる (#1523、設計書 11.6)。
   # macOS のランナーは混むと長く待たされ、PR を止めてしまうので、必須のチェック (ci) には入れない。赤くなったら、その OS で壊れたということなので、見て直す。
+  # macOS では、Go を変えたときに、DB を使わないテスト (test-os と同じもの) もこのジョブで流す (#1691)。
   smoke-os:
-    needs: archives
+    needs: [changes, archives]
     name: smoke (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -398,9 +400,9 @@ jobs:
             archive: darwin_arm64.tar.gz
             sleep: macos
     runs-on: ${{ matrix.os }}
-    # 時間の上限は、測った時間 (ジョブは 1 分半ほど、PostgreSQL の用意は 15 秒まで、起動の段は 20 秒ほど) にゆとりを足したもの。
-    # 固まった段で、ジョブ全体の上限を使い切らないよう、段ごとにも上限を設ける。
-    timeout-minutes: 20
+    # 時間の上限は、測った時間 (ジョブは 1 分半ほど、PostgreSQL の用意は 15 秒まで、起動の段は 20 秒ほど、macOS のテストは 3 分半ほど) に
+    # ゆとりを足したもの。固まった段で、ジョブ全体の上限を使い切らないよう、段ごとにも上限を設ける。
+    timeout-minutes: 30
     permissions:
       contents: read
     defaults:
@@ -453,6 +455,24 @@ jobs:
           ARCHIVE: ${{ matrix.archive }}
           EXPECTED_COMMIT: ${{ github.sha }}
         run: scripts/ci-smoke-archive.sh "$(ls "$ARCHIVES"/kotatsu_*_"$ARCHIVE")" "$ARCHIVES/smoke-assets.txt"
+      # macOS のテストは、起動を確かめた後に流す。起動を確かめるのに使った PostgreSQL は使わず、test-os と同じく DB を使うテストは飛ばす。
+      - uses: actions/cache@v6.1.0
+        if: ${{ !cancelled() && runner.os == 'macOS' && needs.changes.outputs.go == 'true' }}
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/Library/Caches/go-build
+          key: go-test-os-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-${{ github.sha }}
+          restore-keys: |
+            go-test-os-${{ runner.os }}-${{ hashFiles('backend/go.sum') }}-
+            go-test-os-${{ runner.os }}-
+      - name: Test (macOS)
+        if: ${{ !cancelled() && runner.os == 'macOS' && needs.changes.outputs.go == 'true' }}
+        timeout-minutes: 15
+        working-directory: backend
+        env:
+          KOTATSU_TEST_SKIP_DATABASE: "1"
+        run: go test ./...
 
   actions-lock:
     runs-on: ubuntu-latest
