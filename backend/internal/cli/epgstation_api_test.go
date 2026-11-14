@@ -173,12 +173,14 @@ func TestTenbanHidesEPGStationAPIWhileDisabled(t *testing.T) {
 	require.NoError(t, err)
 	token, _, err := auth.NewAPITokens(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID, "kiririn")
 	require.NoError(t, err)
-	get := func(t *testing.T) int {
+	get := func(t *testing.T, bearer string) int {
 		t.Helper()
 
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+epgstationVersionPath, http.NoBody)
 		require.NoError(t, err)
-		req.Header.Set("Authorization", "Bearer "+token)
+		if bearer != "" {
+			req.Header.Set("Authorization", "Bearer "+bearer)
+		}
 		resp, err := httpclienttest.New(t).Do(req)
 		require.NoError(t, err)
 		_ = resp.Body.Close()
@@ -201,6 +203,8 @@ func TestTenbanHidesEPGStationAPIWhileDisabled(t *testing.T) {
 			_, err := settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{EPGStationAPIEnabled: tt.enabled})
 			require.NoError(t, err)
 		}
-		assert.Equal(t, tt.wantStatus, get(t), tt.name)
+		assert.Equal(t, tt.wantStatus, get(t, token), tt.name)
 	}
+	// 無効の間は、トークンを確かめる前に 404 を返すので、トークンがなくても 401 にしない。
+	assert.Equal(t, http.StatusNotFound, get(t, ""), "without a token while disabled")
 }
