@@ -24,6 +24,7 @@ import {
   useAutoPictureInPicture,
 } from '../../yunomi/autoPictureInPicture';
 import { fullscreenLandscapeSupported, useFullscreenLandscape } from '../../yunomi/landscapeLock';
+import { touchSupported, useSwipeControlsSetting } from '../../yunomi/swipeControls';
 import { captureFileName, captureFileNameMacros } from '../../yunomi/capture';
 import { useCmAutoSkip } from '../../yunomi/cmAutoSkip';
 import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
@@ -88,6 +89,9 @@ function PlayerSettings() {
   const [fullscreenLandscape, setFullscreenLandscape] = useFullscreenLandscape();
   // 画面の向きを固定できないブラウザでは、設定の項目を出さない (#1599)。
   const [fullscreenLandscapeAvailable] = useState(fullscreenLandscapeSupported);
+  const [swipeControls, setSwipeControls] = useSwipeControlsSetting();
+  // タッチで操作できない端末では、スワイプの設定の項目を出さない (#1598)。
+  const [swipeControlsAvailable] = useState(touchSupported);
 
   return (
     <Stack gap="md">
@@ -268,6 +272,21 @@ function PlayerSettings() {
               description={t('settings.account.fullscreenLandscapeHelp')}
               checked={fullscreenLandscape}
               onChange={(event) => setFullscreenLandscape(event.currentTarget.checked)}
+            />
+          )}
+          {swipeControlsAvailable && (
+            <Switch
+              label={
+                <Group gap={6} component="span">
+                  {t('settings.account.swipeControls')}
+                  <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                    {t('settings.account.deviceOnly')}
+                  </Badge>
+                </Group>
+              }
+              description={t('settings.account.swipeControlsHelp')}
+              checked={swipeControls}
+              onChange={(event) => setSwipeControls(event.currentTarget.checked)}
             />
           )}
         </Stack>

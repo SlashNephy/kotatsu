@@ -399,6 +399,8 @@
       "autoPictureInPictureHelp": "When you move to another tab during playback, the player is shown in a small window.",
       "fullscreenLandscape": "Lock to landscape in fullscreen",
       "fullscreenLandscapeHelp": "When you enter fullscreen, the device is locked to landscape. It is unlocked when you leave fullscreen. Devices and browsers that do not support it are not locked.",
+      "swipeControls": "Swipe the edges to change brightness and volume",
+      "swipeControlsHelp": "In fullscreen, swipe up or down on the left edge of the video to change the brightness, and on the right edge to change the volume. On devices where the volume cannot be changed (such as iPad), only the brightness changes.",
       "twoFactor": "Authenticator app (two-factor authentication)",
       "totpEnabled": "An authenticator app is registered. {{count}} unused recovery codes remain.",
       "totpDisabled": "No authenticator app is registered",
@@ -1411,6 +1413,7 @@
     },
     "flash": {
       "volume": "Volume {{percent}}%",
+      "brightness": "Brightness {{percent}}%",
       "muted": "Muted",
       "unmuted": "Unmuted",
       "seekBackward": "-10 s",

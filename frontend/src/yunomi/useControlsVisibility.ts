@@ -30,6 +30,8 @@ export function onVideoSurface(target: EventTarget | null): boolean {
 
 export type ControlsVisibility = {
   visible: boolean;
+  // hide は、操作バーをすぐに隠す。映像を縦にスワイプしたとき (#1598)、押したときに出した操作バーを隠し直すのに使う。
+  hide: () => void;
   // containerProps は、プレイヤーを包む要素に渡す。
   containerProps: {
     onPointerMove: (event: PointerEvent<HTMLElement>) => void;
@@ -110,6 +112,7 @@ export function useControlsVisibility({ playing }: { playing: boolean }): Contro
 
   return {
     visible,
+    hide: () => setTimedOut(true),
     containerProps: {
       onPointerMove: (event) => {
         container.current = event.currentTarget;
