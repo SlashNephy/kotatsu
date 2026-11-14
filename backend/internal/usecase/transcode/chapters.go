@@ -42,13 +42,13 @@ type chapterTimeline struct {
 	duration time.Duration
 }
 
-// playbackPosition は、日時 at に当たる、録画の始まりからの再生の時間を返す。途切れた区間の分の映像はファイルにないので、
+// PlaybackPosition は、日時 at に当たる、録画の始まりからの再生の時間を返す。途切れた区間の分の映像はファイルにないので、
 // それより前に終わった区間の長さを引く。区間の中の日時は、区間の始まりの位置にする。
 // recordedFrom より前の区間 (遅れて録り始めたときの、冒頭の欠け) は、位置の基準の前なので引かない。
 // web の再生画面が CM の区間を再生位置に直す recordingPosition (frontend/src/yunomi/position.ts、#1427) と同じ対応にし、
 // 画面で飛ばす位置と、MP4 のチャプターの位置をそろえる (設計書 7.2)。
 // ただし、FFmpeg は PTS が 10 秒を超えて飛んだところだけを詰めるので、10 秒以下の途切れは MP4 に残り、その後のチャプターは早く入る (既知の制約)。
-func playbackPosition(recordedFrom time.Time, gaps []Gap, at time.Time) time.Duration {
+func PlaybackPosition(recordedFrom time.Time, gaps []Gap, at time.Time) time.Duration {
 	var missing time.Duration
 	for _, gap := range gaps {
 		from := gap.From
@@ -75,7 +75,7 @@ func playbackPosition(recordedFrom time.Time, gaps []Gap, at time.Time) time.Dur
 // 本編を作らずに前後の CM を 1 つにし、先頭か末尾の本編が minChapter 以下なら、CM を端まで延ばす。
 func buildChapters(sections []cmdetect.Section, tl *chapterTimeline) []Chapter {
 	toMP4 := func(offset time.Duration) time.Duration {
-		at := playbackPosition(tl.recordedFrom, tl.gaps, tl.recordedFrom.Add(offset)) - tl.head
+		at := PlaybackPosition(tl.recordedFrom, tl.gaps, tl.recordedFrom.Add(offset)) - tl.head
 
 		return min(at, tl.duration)
 	}

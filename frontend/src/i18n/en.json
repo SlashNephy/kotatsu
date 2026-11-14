@@ -1278,6 +1278,7 @@
       "previous_other": "Using the result detected at {{at}} ({{count}} breaks)"
     },
     "download": "Download",
+    "downloadTvtplayChapter": "CM chapters (TvtPlay)",
     "unknownEnd": "Unknown",
     "play": "Play",
     "filtersActive_one": "Filters ({{count}} condition)",

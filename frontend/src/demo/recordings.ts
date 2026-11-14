@@ -238,6 +238,8 @@ export function createRecordings(options: {
       jikkyoCommentsUrl: demoCommentsPath,
       jikkyoOtherCommentsUrl: `${demoCommentsPath}.others`,
       jikkyoNicologCommentsUrl: `${demoCommentsPath}.nicolog`,
+      // デモでは録画のダウンロードを有効にしないので、チャプターのボタンは出ない。
+      tvtplayChapterUrl: `/internal/media/recordings/${recording.id}/tvtplay.chapter`,
       // 録画の長さを、映像を繰り返して流す Service Worker (demo/stream-sw.js) に伝え、録画の終わりで流し終えさせる。
       // 録画中の録画は、終わりが決まっていないので、終わらずに流す。
       streamUrl:

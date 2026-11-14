@@ -75,6 +75,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
@@ -949,7 +950,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "url_gate": urlGate.FallbackUsed,
 		"kyusu_instances": instances.FallbackUsed,
 	})
-	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
+	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions, urlGate)
 
 	app, err := spa.NewHandler(webui.App(), logger.With(slog.String("component", "spa")))
 	if err != nil {
@@ -1145,7 +1146,7 @@ func registerFallbacks(deps *Deps, used map[string]func() int64) {
 // 画像と過去ログは、セッションで認可する。状態を変える POST と、WebSocket の接続は、ほかのオリジンからは受け付けない。
 func newMediaRoutes(
 	deps *Deps, logger *slog.Logger, authorizer *streamapi.Authorizer, logos streamapi.LogoFetcher,
-	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions,
+	jikkyoTable *jikkyo.Table, jikkyoClient *jikkyoclient.Client, sessions *auth.Sessions, urlGate *settings.URLGate,
 ) sessionRoutes {
 	routes := sessionRoutes{}
 	streamLogger := logger.With(slog.String("component", "stream"))
@@ -1163,6 +1164,9 @@ func newMediaRoutes(
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/:file",
 		authorizer.Session(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
+	// 録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (#1737)。
+	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+tvtplay.ChapterFileName,
+		authorizer.Session(tvtplay.NewChapterHandler(deps.DB, urlGate, logger.With(slog.String("component", "tvtplay")))))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))

@@ -23,6 +23,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
@@ -415,6 +416,7 @@ func recordingModel(row *domain.Recording) (*model.Recording, error) {
 		JikkyoCommentsURL:        "/internal/media/recordings/" + row.ID.String() + "/" + jikkyoapi.CommentsFileName,
 		JikkyoOtherCommentsURL:   "/internal/media/recordings/" + row.ID.String() + "/" + jikkyoapi.OtherCommentsFileName,
 		JikkyoNicologCommentsURL: "/internal/media/recordings/" + row.ID.String() + "/" + jikkyoapi.NicologCommentsFileName,
+		TvtplayChapterURL:        "/internal/media/recordings/" + row.ID.String() + "/" + tvtplay.ChapterFileName,
 		ServiceKey:               row.ServiceID,
 		VideoResolution:          row.VideoResolution,
 		FailureDetailText:        row.FailureDetail,

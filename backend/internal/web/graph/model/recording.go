@@ -43,6 +43,7 @@ type Recording struct {
 	JikkyoCommentsURL        string                         `json:"jikkyoCommentsUrl"`
 	JikkyoOtherCommentsURL   string                         `json:"jikkyoOtherCommentsUrl"`
 	JikkyoNicologCommentsURL string                         `json:"jikkyoNicologCommentsUrl"`
+	TvtplayChapterURL        string                         `json:"tvtplayChapterUrl"`
 	// ServiceKey は、Mirakurun のサービス ID。スキーマには出さない。
 	ServiceKey int64 `json:"-"`
 	// VideoResolution は、録画を始めたときの番組の映像の解像度。分からなければ nil。スキーマには出さず、videoFormat のリゾルバーで使う。
