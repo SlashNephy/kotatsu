@@ -938,13 +938,16 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		authRoutes.add(http.MethodPost, path, handler)
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
-	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
+	// 外部プレイヤーと IPTV のクライアントに渡す URL は、管理者が有効にしている間だけ受け付ける (#1755)。
+	urlGate := settings.NewURLGate(deps.DB, deps.Clock, logger.With(slog.String("component", "url_gate")))
+	authorizer := streamapi.NewAuthorizer(signer, urlUsers, urlGate, deps.Clock)
 	streamRoutes, instances, err := newStreamRoutes(deps, authorizer, opener, streams, streamLogger)
 	if err != nil {
 		return nil, err
 	}
 	registerFallbacks(deps, map[string]func() int64{
-		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "kyusu_instances": instances.FallbackUsed,
+		"session": sessions.FallbackUsed, "signed_url": urlUsers.FallbackUsed, "url_gate": urlGate.FallbackUsed,
+		"kyusu_instances": instances.FallbackUsed,
 	})
 	mediaRoutes := newMediaRoutes(deps, logger, authorizer, logos, jikkyoTable, jikkyoClient, sessions)
 
@@ -953,7 +956,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	public := &publicAPI{
-		apiTokens: apiTokens, iptvFeeds: access.iptvFeeds.Feeds, authorizer: authorizer,
+		apiTokens: apiTokens, iptvFeeds: access.iptvFeeds.Feeds, urlGate: urlGate, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
 	}
 	// echo のルートに当たらないリクエストは、画面を返す。ただし、画面がセッションの Cookie で使う端点 (/internal/*) と、
@@ -976,7 +979,7 @@ func newRouter(logger *slog.Logger, notFound http.Handler, deps *Deps, calendarF
 	router := httpserver.NewRouter(logger, notFound)
 	router.Pre(httpserver.CanonicalPath(apiPathPrefix, internalPathPrefix))
 	handleCalendar(router, deps, calendarFeeds)
-	handleIPTV(router, deps, public.iptvFeeds, public.opener, public.logos, public.streams, public.streamLogger)
+	handleIPTV(router, deps, public.iptvFeeds, public.urlGate, public.opener, public.logos, public.streams, public.streamLogger)
 	handleSignedStreams(router, deps, public.authorizer, public.opener, public.streams, public.streamLogger)
 	handleEPGStationAPI(router, deps, public.apiTokens, public.opener, public.logos, public.streams, public.streamLogger)
 
@@ -1033,6 +1036,7 @@ func handleAuth(router *echo.Echo, session func(http.Handler) http.Handler, rout
 type publicAPI struct {
 	apiTokens    *auth.APITokens
 	iptvFeeds    *auth.Feeds
+	urlGate      *settings.URLGate
 	authorizer   *streamapi.Authorizer
 	opener       streamapi.ServiceOpener
 	logos        streamapi.LogoFetcher
@@ -1310,10 +1314,10 @@ func newTunerUses(deps *Deps) (*tunerUses, error) {
 // handleIPTV は、ライブ視聴の M3U と番組表の XMLTV (#1324、設計書 9.8) と、そこから参照するストリームとロゴを mux に登録する。
 // IPTV のクライアントは Cookie を送れないので、パスの秘密の値だけで認証する。ストリームは、EPGStation 互換の API と同じく無変換の TS にする。
 func handleIPTV(
-	router *echo.Echo, deps *Deps, feeds *auth.Feeds, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
+	router *echo.Echo, deps *Deps, feeds *auth.Feeds, gate iptvapi.URLGate, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
 	streams *streamapi.StreamCounter, logger *slog.Logger,
 ) {
-	h := iptvapi.NewHandler(feeds, query.New(deps.DB), deps.Clock, func(r *http.Request) string { return clientInfo(r).Origin() })
+	h := iptvapi.NewHandler(feeds, gate, query.New(deps.DB), deps.Clock, func(r *http.Request) string { return clientInfo(r).Origin() })
 	// 配信とロゴのハンドラーは、ほかの配信と共有するので、ロガーを渡したまま包む。:id は、包んだハンドラーに r.PathValue("id") で渡る。
 	iptvLogger := logger.With(slog.String("component", "iptv"))
 	// echo の Group にミドルウェアを掛けると、見つからないパスを受けるルートも足されて、ほかのパスが mux に届かなくなる。
@@ -1323,7 +1327,7 @@ func handleIPTV(
 		router.Add(method, iptvapi.PlaylistRoute, h.Playlist, middlewares...)
 		router.Add(method, iptvapi.GuideRoute, h.Guide, middlewares...)
 		router.Add(method, iptvapi.StreamRoute, echo.WrapHandler(
-			streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, iptvLogger)))), middlewares...)
+			streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(h.StopWhenRevoked(streamapi.NewLiveHandler(opener, iptvLogger))))), middlewares...)
 		router.Add(method, iptvapi.LogoRoute, echo.WrapHandler(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), iptvLogger)), middlewares...)
 	}
 }

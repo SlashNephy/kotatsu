@@ -8,20 +8,24 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/query"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
 // createStreamURL は、サービスか録画の、署名付きの映像の URL を発行する (設計書 7.6、9.6)。
-// 映像を見ることは誰にでも許されているので、ログインしていれば発行する。
+// 映像を見ることは誰にでも許されているので、管理者が外部プレイヤー用の URL を有効にしていれば (#1755)、ログインしている人に発行する。
 func (r *Resolver) createStreamURL(ctx context.Context, target string) (*model.StreamURL, error) {
 	principal, err := viewer(ctx)
 	if err != nil {
@@ -30,53 +34,84 @@ func (r *Resolver) createStreamURL(ctx context.Context, target string) (*model.S
 	if r.streamSigner == nil {
 		return nil, errors.New("stream URL signer is not configured")
 	}
+	system, err := settings.Load(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	if !system.ExternalPlayerURLsEnabled {
+		return nil, NewError(CodeForbidden, "external player URLs are disabled by the administrator")
+	}
 	resource, err := r.streamResource(ctx, target)
 	if err != nil {
 		return nil, err
 	}
-	signed := r.streamSigner.Sign(resource, principal.UserID, r.clock.Now().Add(stream.DefaultURLLifetime))
+	// URL ごとに記録を残し、署名に記録の ID を含める。管理者は、記録を消して、この URL だけを取り消せる (#1757)。
+	urlID := id.New()
+	signed := r.streamSigner.Sign(resource.path, principal.UserID, urlID, r.clock.Now().Add(resource.lifetime))
+	err = r.streamURLs.Create(ctx, actorOf(ctx, principal), &auth.NewStreamURL{
+		ID: urlID, UserID: principal.UserID, Resource: resource.path, TargetName: resource.name, ExpiresAt: signed.ExpiresAt,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &model.StreamURL{URL: signed.URL, ExpiresAt: signed.ExpiresAt}, nil
 }
 
-// streamResource は、Service か Recording の ID から、映像のパスを返す。ないものの URL は発行しない。
-func (r *Resolver) streamResource(ctx context.Context, target string) (string, error) {
+// streamTarget は、署名付き URL を発行する対象。
+type streamTarget struct {
+	// path は、映像のパス。
+	path string
+	// name は、URL の記録に残す、サービス名か録画の名前 (#1757)。
+	name string
+	// lifetime は、署名付き URL の有効期限の長さ。
+	lifetime time.Duration
+}
+
+// streamResource は、Service か Recording の ID から、署名付き URL を発行する対象を返す。ないものの URL は発行しない。
+// 期限は、ライブなら一律の長さ、録画なら録画の長さに少し足した長さにする (#1756)。録画中の録画も、予定の長さで決める。
+func (r *Resolver) streamResource(ctx context.Context, target string) (*streamTarget, error) {
 	typeName, _, err := ParseGlobalID(target)
 	if err != nil {
-		return "", NewError(CodeBadUserInput, "invalid target ID")
+		return nil, NewError(CodeBadUserInput, "invalid target ID")
 	}
 	q := r.queries
 	switch typeName {
 	case serviceType:
 		serviceID, err := parseServiceGlobalID(target)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		exists, err := q.ServiceExists(ctx, serviceID)
+		services, err := q.ListGuideServices(ctx, query.ListGuideServicesParams{
+			IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{serviceID},
+		})
 		if err != nil {
-			return "", fmt.Errorf("failed to look up the service: %w", err)
+			return nil, fmt.Errorf("failed to look up the service: %w", err)
 		}
-		if !exists {
-			return "", NewError(CodeNotFound, "service not found")
+		if len(services) == 0 {
+			return nil, NewError(CodeNotFound, "service not found")
 		}
 
-		return stream.ServicePath(serviceID), nil
+		return &streamTarget{path: stream.ServicePath(serviceID), name: services[0].Name, lifetime: stream.LiveURLLifetime}, nil
 	case recordingType:
 		recordingID, err := parseRecordingID(target)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		rows, err := q.ListRecordingsByIDs(ctx, []uuid.UUID{recordingID})
 		if err != nil {
-			return "", fmt.Errorf("failed to look up the recording: %w", err)
+			return nil, fmt.Errorf("failed to look up the recording: %w", err)
 		}
 		if len(rows) == 0 {
-			return "", NewError(CodeNotFound, "recording not found")
+			return nil, NewError(CodeNotFound, "recording not found")
 		}
 
-		return stream.RecordingPath(recordingID), nil
+		return &streamTarget{
+			path: stream.RecordingPath(recordingID), name: rows[0].Name,
+			lifetime: stream.RecordingURLLifetime(rows[0].EndAt.Sub(rows[0].StartAt)),
+		}, nil
 	default:
-		return "", NewError(CodeBadUserInput, "target must be a Service or Recording ID")
+		return nil, NewError(CodeBadUserInput, "target must be a Service or Recording ID")
 	}
 }
 

@@ -205,6 +205,7 @@ func NewHandler(opts *Options) http.Handler {
 		passwords:        o.Passwords,
 		sessions:         o.Sessions,
 		urlUsers:         o.URLUsers,
+		streamURLs:       auth.NewStreamURLs(o.DB, o.Clock, o.Recorder, o.URLUsers),
 		recorder:         o.Recorder,
 		settings:         o.Settings,
 		timeshift:        timeshift.NewChannels(o.Clock, o.Recorder),

@@ -1442,6 +1442,30 @@ type IptvFeed {
   lastUsedAt: Time
 }
 """
+発行した外部プレイヤー用の署名付き URL の記録 (#1757、設計書 7.6)。URL そのものは持たない。管理者だけが読める。
+"""
+type IssuedStreamUrl {
+  id: ID!
+  """
+  発行したユーザーの表示名。
+  """
+  userDisplayName: String!
+  """
+  発行したときのサービス名か録画の名前。
+  """
+  targetName: String!
+  """
+  ライブ視聴の URL かどうか。false なら録画の URL。
+  """
+  live: Boolean!
+  createdAt: Time!
+  expiresAt: Time!
+  """
+  最後に使われた日時。開いたときと、流している間に、1 分ごとにしか書き直さない。開かれていなければ null。
+  """
+  lastUsedAt: Time
+}
+"""
 NX-Jikkyo の実況のチャンネル。
 """
 type JikkyoChannel {
@@ -1928,6 +1952,7 @@ type Mutation {
   """
   ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
   URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  管理者が IPTV のクライアント用の URL を有効にしていなければ (SystemSettings.iptvFeedsEnabled)、FORBIDDEN を返す (#1755)。
   """
   createIptvFeed: CreatedIptvFeed!
   """
@@ -2170,9 +2195,15 @@ type Mutation {
   updateStoragePool(id: String!, input: StoragePoolInput!): StoragePool!
   """
   サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  管理者が外部プレイヤー用の URL を有効にしていなければ (SystemSettings.externalPlayerUrlsEnabled)、FORBIDDEN を返す (#1755)。
   target には、Service か Recording の ID を渡す。
   """
   createStreamURL(target: ID!): StreamURL!
+  """
+  発行した外部プレイヤー用の URL を取り消す (#1757)。管理者だけが使える。取り消した URL は、期限の前でも使えなくなり、開いたままの配信も止まる。
+  権限を広げない操作なので、再認証は求めない。記録がなければ NOT_FOUND を返す。
+  """
+  revokeStreamUrl(id: ID!): Boolean!
   """
   サービス serviceId をタイムシフトで録るチャンネルにし、保持時間を retentionSeconds (600〜86400 秒) にする。既に録っていれば、保持時間だけを変える。
   管理者だけが使える (設計書 9.7)。第三者に影響しない操作なので、再認証は求めない (設計書 9.5)。
@@ -3300,6 +3331,11 @@ type Query {
   サーバー側でのトランスコードを使えるかと、選べる画質。
   """
   transcoding: Transcoding!
+  """
+  期限の過ぎていない、発行した外部プレイヤー用の URL の記録を、新しい順に返す (#1757)。管理者だけが使える。
+  期限の前に開き、期限を過ぎても流れ続けている URL (直近 10 分に使われたもの) も返す。
+  """
+  issuedStreamUrls: [IssuedStreamUrl!]!
   """
   この tenban にタイムシフトのディレクトリ (storage.timeshift_dir) が設定されていて、タイムシフトを使えるかどうか。
   false なら、チャンネルを足せない。管理者だけが使える (設計書 9.7)。
@@ -4508,7 +4544,7 @@ type StreamURL {
   """
   url: String!
   """
-  有効期限。既定では発行から 6 時間。
+  有効期限。録画なら録画の長さに 1 時間を足した長さ、ライブなら発行から 1 時間 (#1756)。
   """
   expiresAt: Time!
 }
@@ -4596,6 +4632,18 @@ type SystemSettings {
   """
   dataBroadcastIpEnabled: Boolean!
   """
+  外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
+  無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  externalPlayerUrlsEnabled: Boolean!
+  """
+  IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
+  無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  iptvFeedsEnabled: Boolean!
+  """
   しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
   """
   animeLinkingEnabled: Boolean!
@@ -4653,6 +4701,14 @@ input SystemSettingsInput {
   変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。
   """
   dataBroadcastIpEnabled: Boolean
+  """
+  変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとして映像を見られるようになるため。
+  """
+  externalPlayerUrlsEnabled: Boolean
+  """
+  変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。
+  """
+  iptvFeedsEnabled: Boolean
   """
   変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
   """

@@ -6,6 +6,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -62,6 +63,14 @@ func (r *mutationResolver) CreateIptvFeed(ctx context.Context) (*model.CreatedIp
 	// ライブ視聴を見られないユーザーには、配信しても見られないので発行しない。
 	if !principal.Role.Can(domain.PermissionWatch) {
 		return nil, NewError(CodeForbidden, "only users who can watch can create an IPTV feed")
+	}
+	// 管理者が IPTV のクライアント用の URL を有効にしていなければ、発行しない (#1755)。
+	system, err := settings.Load(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	if !system.IPTVFeedsEnabled {
+		return nil, NewError(CodeForbidden, "IPTV feeds are disabled by the administrator")
 	}
 	// URL を持つ人は、そのユーザーとしてライブ視聴を見られるので、API トークンと同じく直前の再認証を求める (設計書 9.5)。
 	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {

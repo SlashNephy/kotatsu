@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"uuid"
@@ -45,6 +46,16 @@ func services() []domain.Service {
 			RemoteControlKeyID: nil, LogoID: nil, Hidden: false, SortOrder: nil,
 		},
 	}
+}
+
+// fakeGate は、管理者が IPTV のクライアント用の URL を有効にしているかを返す。
+type fakeGate struct {
+	enabled bool
+	err     error
+}
+
+func (g fakeGate) IPTVFeedsEnabled(context.Context) (bool, error) {
+	return g.enabled, g.err
 }
 
 type fakeAuth struct{}
@@ -154,25 +165,31 @@ func TestGuide(t *testing.T) {
 func TestHandler(t *testing.T) {
 	t.Parallel()
 
+	// enabledGate は、管理者が IPTV のクライアント用の URL を有効にしている状態。
+	enabledGate := fakeGate{enabled: true, err: nil}
 	tests := []struct {
 		name        string
+		gate        fakeGate
 		path        string
 		wantStatus  int
 		contentType string
 		contains    string
 	}{
-		{name: "playlist", path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusOK, contentType: "audio/x-mpegurl; charset=utf-8", contains: base + "/services/400141/stream.m2ts"},
-		{name: "guide", path: "/api/iptv/" + validFeed + "/guide.xml", wantStatus: http.StatusOK, contentType: "application/xml; charset=utf-8", contains: `channel="400141"`},
-		{name: "wrong value", path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
-		{name: "user who cannot watch", path: "/api/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
-		{name: "authentication failure", path: "/api/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
+		{name: "playlist", gate: enabledGate, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusOK, contentType: "audio/x-mpegurl; charset=utf-8", contains: base + "/services/400141/stream.m2ts"},
+		{name: "guide", gate: enabledGate, path: "/api/iptv/" + validFeed + "/guide.xml", wantStatus: http.StatusOK, contentType: "application/xml; charset=utf-8", contains: `channel="400141"`},
+		{name: "wrong value", gate: enabledGate, path: "/api/iptv/kotatsu_iptv_wrong/channels.m3u", wantStatus: http.StatusNotFound},
+		{name: "user who cannot watch", gate: enabledGate, path: "/api/iptv/" + unwatchableFeed + "/guide.xml", wantStatus: http.StatusNotFound},
+		{name: "authentication failure", gate: enabledGate, path: "/api/iptv/broken/guide.xml", wantStatus: http.StatusInternalServerError},
+		// 管理者が無効にしている間は、正しい秘密の値でも、URL があることを知らせないよう 404 を返す (#1755)。
+		{name: "disabled by the administrator", gate: fakeGate{enabled: false, err: nil}, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusNotFound},
+		{name: "setting unreadable", gate: fakeGate{enabled: false, err: errors.New("database is down")}, path: "/api/iptv/" + validFeed + "/channels.m3u", wantStatus: http.StatusInternalServerError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			queries := new(fakeQueries)
-			h := iptvapi.NewHandler(fakeAuth{}, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
+			h := iptvapi.NewHandler(fakeAuth{}, tt.gate, queries, clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
 			router := httpserver.NewRouter(slog.New(slog.DiscardHandler), http.NotFoundHandler())
 			router.GET(iptvapi.PlaylistRoute, h.Playlist, h.Authenticate)
 			router.GET(iptvapi.GuideRoute, h.Guide, h.Authenticate)
@@ -197,6 +214,93 @@ func TestHandler(t *testing.T) {
 				// 放送中の番組と、これから 7 日の番組を引く。
 				assert.Equal(t, testNow().Add(-time.Hour), queries.from)
 				assert.Equal(t, testNow().Add(7*24*time.Hour), queries.to)
+			}
+		})
+	}
+}
+
+// switchGate は、管理者が IPTV のクライアント用の URL を有効にしているかを、テストの途中で変えられる。
+type switchGate struct {
+	enabled atomic.Bool
+}
+
+func (g *switchGate) IPTVFeedsEnabled(context.Context) (bool, error) {
+	return g.enabled.Load(), nil
+}
+
+// TestStopWhenRevoked は、IPTV のストリームを流している間に、管理者が無効にしたら、流しているストリームも止め、
+// 使えるうちは止めないことを確かめる (#1755)。
+func TestStopWhenRevoked(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		disable  bool
+		wantStop bool
+	}{
+		{name: "管理者が無効にした", disable: true, wantStop: true},
+		{name: "使えるうちは流し続ける", disable: false, wantStop: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gate := new(switchGate)
+			gate.enabled.Store(true)
+			h := iptvapi.NewHandler(fakeAuth{}, gate, new(fakeQueries), clocktest.NewFake(testNow()), func(*http.Request) string { return "https://kotatsu.test" })
+			h.SetRecheckInterval(10 * time.Millisecond)
+			streaming := make(chan struct{})
+			stopped := make(chan struct{})
+			flow := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				defer close(stopped)
+				flusher, _ := w.(http.Flusher)
+				once := false
+				for {
+					select {
+					case <-r.Context().Done():
+						return
+					case <-time.After(5 * time.Millisecond):
+					}
+					if _, err := io.WriteString(w, "ts"); err != nil {
+						return
+					}
+					flusher.Flush()
+					if !once {
+						once = true
+						close(streaming)
+					}
+				}
+			})
+			mux := http.NewServeMux()
+			mux.Handle("GET /api/iptv/{token}/services/{id}/stream.m2ts", h.StopWhenRevoked(flow))
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			// テストを終えたら、読み捨てている要求も終わらせる。
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/iptv/"+validFeed+"/services/400141/stream.m2ts", nil)
+			require.NoError(t, err)
+			// 流し続けるので、要求して読み捨てるのは別の goroutine にする。
+			client := server.Client()
+			go func() {
+				resp, err := client.Do(req)
+				if err != nil {
+					return
+				}
+				defer resp.Body.Close()
+				_, _ = io.Copy(io.Discard, resp.Body)
+			}()
+
+			<-streaming
+			if tt.disable {
+				gate.enabled.Store(false)
+			}
+			select {
+			case <-stopped:
+				assert.True(t, tt.wantStop, "the stream stopped while it was still allowed")
+			case <-time.After(500 * time.Millisecond):
+				assert.False(t, tt.wantStop, "the stream kept flowing after IPTV feeds were disabled")
 			}
 		})
 	}

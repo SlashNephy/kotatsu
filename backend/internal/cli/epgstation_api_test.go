@@ -5,7 +5,10 @@ import (
 	"log/slog"
 	"net/http"
 	"testing"
+	"time"
+	"uuid"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -63,6 +67,9 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 	require.NoError(t, err)
 	token, _, err := auth.NewAPITokens(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID, "kiririn")
 	require.NoError(t, err)
+	// 外部プレイヤー用の署名付き URL は、管理者が有効にしている間だけ受け付ける (#1755)。
+	_, err = settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{ExternalPlayerURLsEnabled: new(true)})
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := cli.NewCommand(opts)
@@ -79,7 +86,7 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 	signer, err := stream.NewSigner(testKeyMaterial)
 	require.NoError(t, err)
 	missing := "/recordings/0199d000-0000-7000-8000-000000000999"
-	expiresAt := clk.Now().Add(stream.DefaultURLLifetime)
+	expiresAt := clk.Now().Add(stream.LiveURLLifetime)
 
 	tests := []struct {
 		name   string
@@ -105,17 +112,17 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 		// 録画の ID は、包んだハンドラーが r.PathValue("id") で読む。数でなければ 400 になる。
 		{name: "録画の ID が数でない", path: "/api/epgstation/api/recorded/abc", cookie: false, bearer: true, want: http.StatusBadRequest},
 		{name: "前の EPGStation 互換のパス", path: "/api/version", cookie: false, bearer: true, want: http.StatusNotFound},
-		{name: "署名付き URL", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound},
-		{name: "署名付き URL を HEAD で", path: signer.Sign(stream.SignedPathPrefix+missing[1:], user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusNotFound, head: true},
+		{name: "署名付き URL", path: issueSigned(t, pool, signer, stream.SignedPathPrefix+missing[1:], user.ID, expiresAt), cookie: false, bearer: false, want: http.StatusNotFound},
+		{name: "署名付き URL を HEAD で", path: issueSigned(t, pool, signer, stream.SignedPathPrefix+missing[1:], user.ID, expiresAt), cookie: false, bearer: false, want: http.StatusNotFound, head: true},
 		// 配信のハンドラーは、r.PathValue("id") で録画とサービスを読む。読めなければ 400 になる。
 		// この tenban にはチューナーサーバーがないので、ライブ視聴は 503 になる。
-		{name: "署名付き URL のライブ視聴", path: signer.Sign(stream.SignedPathPrefix+"services/3273601024", user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusServiceUnavailable},
-		{name: "署名付き URL の録画の ID が違う形", path: signer.Sign(stream.SignedPathPrefix+"recordings/abc", user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusBadRequest},
+		{name: "署名付き URL のライブ視聴", path: issueSigned(t, pool, signer, stream.SignedPathPrefix+"services/3273601024", user.ID, expiresAt), cookie: false, bearer: false, want: http.StatusServiceUnavailable},
+		{name: "署名付き URL の録画の ID が違う形", path: issueSigned(t, pool, signer, stream.SignedPathPrefix+"recordings/abc", user.ID, expiresAt), cookie: false, bearer: false, want: http.StatusBadRequest},
 		{name: "署名付き URL の経路にセッションの Cookie だけ", path: stream.SignedPathPrefix + missing[1:], cookie: true, bearer: false, want: http.StatusUnauthorized},
 		{name: "画面の経路にセッションの Cookie", path: "/internal/streams" + missing, cookie: true, bearer: false, want: http.StatusNotFound},
 		{name: "画面の経路の知らないパス", path: "/internal/nope", cookie: true, bearer: false, want: http.StatusNotFound},
 		{name: "GraphQL の下の知らないパス", path: "/internal/graphql/nope", cookie: true, bearer: false, want: http.StatusNotFound},
-		{name: "画面の経路に署名だけ", path: signer.Sign("/internal/streams"+missing, user.ID, expiresAt).URL, cookie: false, bearer: false, want: http.StatusUnauthorized},
+		{name: "画面の経路に署名だけ", path: signer.Sign("/internal/streams"+missing, user.ID, uuid.New(), expiresAt).URL, cookie: false, bearer: false, want: http.StatusUnauthorized},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -139,4 +146,18 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 			assert.Equal(t, tt.want, resp.StatusCode)
 		})
 	}
+}
+
+// issueSigned は、userID が resource を expiresAt まで見られる URL の記録を作り、その記録で署名した URL を返す (#1757)。
+func issueSigned(t *testing.T, pool *pgxpool.Pool, signer *stream.Signer, resource string, userID uuid.UUID, expiresAt time.Time) string {
+	t.Helper()
+
+	clk := new(clock.Real)
+	urlID := uuid.New()
+	err := auth.NewStreamURLs(pool, clk, audit.NewRecorder(clk), nil).Create(t.Context(), audit.User(userID), &auth.NewStreamURL{
+		ID: urlID, UserID: userID, Resource: resource, TargetName: "こたつテスト1", ExpiresAt: expiresAt,
+	})
+	require.NoError(t, err)
+
+	return signer.Sign(resource, userID, urlID, expiresAt).URL
 }

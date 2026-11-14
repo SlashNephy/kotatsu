@@ -78,6 +78,12 @@ type System struct {
 	// DataBroadcastIPEnabled は、データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定は false。
 	// 中継すると、文書が送る受信機の情報 (郵便番号など) が、放送局などの外部のサーバーに届く。
 	DataBroadcastIPEnabled bool
+	// ExternalPlayerURLsEnabled は、外部プレイヤー用の署名付き URL を発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
+	// URL は期限まで誰が開いても使えるので、漏れたときの影響を小さくするため、管理者が有効にしたときだけ使わせる。
+	ExternalPlayerURLsEnabled bool
+	// IPTVFeedsEnabled は、IPTV のクライアント用の URL を発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
+	// URL は取り消すまで使えるので、漏れたときの影響を小さくするため、管理者が有効にしたときだけ使わせる。
+	IPTVFeedsEnabled bool
 	// AnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
 	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
 	AnimeLinkingEnabled bool
@@ -176,6 +182,8 @@ type Changes struct {
 	Rule                         *RuleChanges
 	MCPEnabled                   *bool
 	DataBroadcastIPEnabled       *bool
+	ExternalPlayerURLsEnabled    *bool
+	IPTVFeedsEnabled             *bool
 	AnimeLinkingEnabled          *bool
 	CommentSources               *[]string
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
@@ -364,6 +372,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			NetworkActivityEnabled: networkEnabled, NetworkActivityEnabledAt: networkEnabledAt, NetworkActivityRetentionDays: retention.networkActivity,
 			RuleDefaults: ruleEncoded, MCPEnabled: valueOr(changes.MCPEnabled, current.MCPEnabled),
 			DataBroadcastIPEnabled:                 valueOr(changes.DataBroadcastIPEnabled, current.DataBroadcastIPEnabled),
+			ExternalPlayerURLsEnabled:              valueOr(changes.ExternalPlayerURLsEnabled, current.ExternalPlayerURLsEnabled),
+			IPTVFeedsEnabled:                       valueOr(changes.IPTVFeedsEnabled, current.IPTVFeedsEnabled),
 			AnimeLinkingEnabled:                    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
 			CommentSources:                         valueOr(changes.CommentSources, current.CommentSources),
 			DrcsReplacements:                       replacementsEncoded,
@@ -394,6 +404,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"rule":                         change(current.Rule, updated.Rule),
 				"mcpEnabled":                   change(current.MCPEnabled, updated.MCPEnabled),
 				"dataBroadcastIpEnabled":       change(current.DataBroadcastIPEnabled, updated.DataBroadcastIPEnabled),
+				"externalPlayerUrlsEnabled":    change(current.ExternalPlayerURLsEnabled, updated.ExternalPlayerURLsEnabled),
+				"iptvFeedsEnabled":             change(current.IPTVFeedsEnabled, updated.IPTVFeedsEnabled),
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
@@ -567,13 +579,15 @@ func defaults() *System {
 		NotificationRetentionDays:  DefaultNotificationRetentionDays,
 		WatchProgressRetentionDays: DefaultWatchProgressRetentionDays,
 		NetworkActivityEnabled:     false, NetworkActivityEnabledAt: nil, NetworkActivityRetentionDays: DefaultNetworkActivityRetentionDays,
-		Rule:                   defaultRuleDefaults(),
-		MCPEnabled:             false,
-		DataBroadcastIPEnabled: false,
-		AnimeLinkingEnabled:    false,
-		CommentSources:         []string{},
-		DRCSReplacements:       map[string]string{},
-		TimeshiftWhileWatching: false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
+		Rule:                      defaultRuleDefaults(),
+		MCPEnabled:                false,
+		DataBroadcastIPEnabled:    false,
+		ExternalPlayerURLsEnabled: false,
+		IPTVFeedsEnabled:          false,
+		AnimeLinkingEnabled:       false,
+		CommentSources:            []string{},
+		DRCSReplacements:          map[string]string{},
+		TimeshiftWhileWatching:    false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: DefaultRuleUnmatchedGraceMinutes,
 		UpdatedAt:                 nil,
 	}
@@ -602,12 +616,14 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		NotificationRetentionDays:  int(row.NotificationRetentionDays),
 		WatchProgressRetentionDays: int(row.WatchProgressRetentionDays),
 		NetworkActivityEnabled:     row.NetworkActivityEnabled, NetworkActivityEnabledAt: row.NetworkActivityEnabledAt, NetworkActivityRetentionDays: int(row.NetworkActivityRetentionDays),
-		Rule:                   resolveRule(rule),
-		MCPEnabled:             row.MCPEnabled,
-		DataBroadcastIPEnabled: row.DataBroadcastIPEnabled,
-		AnimeLinkingEnabled:    row.AnimeLinkingEnabled,
-		CommentSources:         row.CommentSources,
-		TimeshiftWhileWatching: row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
+		Rule:                      resolveRule(rule),
+		MCPEnabled:                row.MCPEnabled,
+		DataBroadcastIPEnabled:    row.DataBroadcastIPEnabled,
+		ExternalPlayerURLsEnabled: row.ExternalPlayerURLsEnabled,
+		IPTVFeedsEnabled:          row.IPTVFeedsEnabled,
+		AnimeLinkingEnabled:       row.AnimeLinkingEnabled,
+		CommentSources:            row.CommentSources,
+		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
 		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),
 		UpdatedAt:                 &row.UpdatedAt,
 	}, nil

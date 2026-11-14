@@ -411,6 +411,9 @@ export function createRootValue(
       },
       // デモには tenban がないので、データ放送の文書の通信は中継しない (#501)。
       dataBroadcastIpEnabled: false,
+      // デモでは、外部プレイヤーと IPTV のクライアントの URL を発行する操作も見せる (#1755)。
+      externalPlayerUrlsEnabled: true,
+      iptvFeedsEnabled: true,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
       animeLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
@@ -425,6 +428,8 @@ export function createRootValue(
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
+    // デモは発行した URL を記録しないので、管理者の一覧は空にする (#1757)。
+    issuedStreamUrls: () => [],
     animeRecordSettings: () => demoAnimeRecordSettings(),
     animeRecordApps: () => demoAnimeRecordApps(window.location.origin),
     animeWishlist: () => demoAnimeWishlist(),
@@ -515,14 +520,20 @@ export function createRootValue(
     saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
       recordings.saveWatchPosition(id, positionMs),
     createStreamURL: ({ target }: { target: string }) => {
-      const found = node(target) as { streamUrl?: string } | null;
+      const found = node(target) as { streamUrl?: string; startAt?: string; endAt?: string } | null;
       if (found?.streamUrl === undefined) {
         throw new Error('the target is not found');
       }
+      // 期限は、サーバーと同じく、録画なら録画の長さに 1 時間を足した長さ、ライブなら 1 時間にする (#1756)。
+      const hour = 60 * 60 * 1000;
+      const length =
+        found.startAt !== undefined && found.endAt !== undefined
+          ? Math.max(Date.parse(found.endAt) - Date.parse(found.startAt), 0)
+          : 0;
 
       return {
         url: found.streamUrl,
-        expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + length + hour).toISOString(),
       };
     },
     updatePlayerSettings: ({

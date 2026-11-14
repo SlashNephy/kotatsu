@@ -148,3 +148,54 @@ func Listen(ctx context.Context, addr string) (net.Listener, error) {
 
 	return ln, nil
 }
+
+// RevocationInterval は、StopWhenRevoked が、配信を続けてよいかを確かめ直す間隔。
+const RevocationInterval = 30 * time.Second
+
+// StopWhenRevoked は、next で配信している間、interval ごとに allowed を呼び、false を返したら、
+// リクエストの context を取りやめ、書き込みも打ち切って配信を終わらせる (#1755)。
+// 外部プレイヤーや IPTV のクライアントに渡した URL は、開くときにだけ確かめると、管理者が無効にしたり取り消したりした後も、
+// 開いたままの配信が流れ続けるので、それを止めるのに使う。
+// allowed は、確かめられないとき (DB に届かないなど) は true を返し、配信を続けさせる。
+// interval が 0 以下なら、RevocationInterval を使う。
+func StopWhenRevoked(w http.ResponseWriter, r *http.Request, next http.Handler, interval time.Duration, allowed func(ctx context.Context) bool) {
+	if interval <= 0 {
+		interval = RevocationInterval
+	}
+	ctx, cancel := context.WithCancel(r.Context())
+	controller := http.NewResponseController(w)
+	returned := make(chan struct{})
+	watched := make(chan struct{})
+	// 応答を触るのは、この関数が返るまでにする。見張りが終わるのを待ってから返す。
+	defer func() {
+		close(returned)
+		cancel()
+		<-watched
+	}()
+	go func() {
+		defer close(watched)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			if allowed(ctx) {
+				continue
+			}
+			cancel()
+			timer := time.NewTimer(stopWriteGrace)
+			defer timer.Stop()
+			select {
+			case <-returned:
+			case <-timer.C:
+				_ = controller.SetWriteDeadline(time.Now())
+			}
+
+			return
+		}
+	}()
+	next.ServeHTTP(w, r.WithContext(ctx))
+}

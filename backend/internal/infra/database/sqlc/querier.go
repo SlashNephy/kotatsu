@@ -94,6 +94,7 @@ type Querier interface {
 	CreateOAuthToken(ctx context.Context, arg CreateOAuthTokenParams) error
 	CreatePlayer(ctx context.Context, arg CreatePlayerParams) error
 	CreatePlayerCommand(ctx context.Context, arg CreatePlayerCommandParams) (int64, error)
+	CreateStreamURL(ctx context.Context, arg CreateStreamURLParams) error
 	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
 	DeleteAllNetworkActivity(ctx context.Context) error
@@ -119,6 +120,9 @@ type Querier interface {
 	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
 	DeleteExpiredOAuthTokens(ctx context.Context, arg DeleteExpiredOAuthTokensParams) (int64, error)
 	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
+	// 期限の過ぎた URL の記録を消す。発行するときに呼ぶ。期限の前に開き、期限を過ぎても流れ続けている配信の記録は、
+	// 流している間は使われた日時が書き直され続けるので、active_since より後に使われていれば消さない。
+	DeleteExpiredStreamURLs(ctx context.Context, arg DeleteExpiredStreamURLsParams) error
 	DeleteExpiredWebAuthnCeremonies(ctx context.Context, now time.Time) (int64, error)
 	// プッシュサービスが失効を返した購読を消す。送った後に、同じ端末が購読し直していたら (鍵が変わっていたら)、消さない。
 	DeleteExpiredWebPushSubscription(ctx context.Context, arg DeleteExpiredWebPushSubscriptionParams) error
@@ -182,6 +186,8 @@ type Querier interface {
 	// 見たいリストの通知 (#1234) が付けた、放送の前の視聴予約のうち、(service_ids[i], event_ids[i]) の組にないものを消す。
 	// 作品が見たいリストから外れた、見終えた、通知をやめたときに消すため。手で付けたものと、視聴ルールが付けたものは消さない。
 	DeleteStaleWishlistWatchReservations(ctx context.Context, arg DeleteStaleWishlistWatchReservationsParams) (int64, error)
+	// URL の記録を消し、監査ログに残すため、発行したユーザーと対象の名前を返す。
+	DeleteStreamURL(ctx context.Context, id uuid.UUID) (DeleteStreamURLRow, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	// neko が、チューナーを渡すため、またはチャンネルの設定がなくなったために、割り振りを取り消す。状態によらず消す。
 	DeleteTimeshiftAssignment(ctx context.Context, serviceID int64) (int64, error)
@@ -366,6 +372,8 @@ type Querier interface {
 	GetSleepActivity(ctx context.Context, now time.Time) (GetSleepActivityRow, error)
 	// プールの容量の閾値。設定していなければ 0 を返す。
 	GetStoragePoolThreshold(ctx context.Context, id string) (int64, error)
+	// URL の記録から、発行したユーザーを引く。無効にしたユーザーの URL は使えない。
+	GetStreamURLUser(ctx context.Context, id uuid.UUID) (GetStreamURLUserRow, error)
 	// 取り込んだタイトルの、最も新しい更新日時を返す。1 つも取り込んでいなければ、行を返さない。
 	GetSyobocalTitlesLastUpdate(ctx context.Context) (*time.Time, error)
 	GetSystemSettings(ctx context.Context) (SystemSetting, error)
@@ -778,6 +786,9 @@ type Querier interface {
 	// /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
 	ListStoragePoolMeasurements(ctx context.Context) ([]ListStoragePoolMeasurementsRow, error)
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)
+	// 期限の過ぎていない URL と、期限を過ぎても流れ続けている (active_since より後に使われた) URL の記録を、
+	// 新しい順に、発行したユーザーと一緒に返す。
+	ListStreamURLs(ctx context.Context, arg ListStreamURLsParams) ([]ListStreamURLsRow, error)
 	ListSyobocalLookups(ctx context.Context, arg ListSyobocalLookupsParams) ([]SyobocalLookup, error)
 	ListSyobocalPrograms(ctx context.Context, arg ListSyobocalProgramsParams) ([]SyobocalProgram, error)
 	ListSyobocalTitlesByKey(ctx context.Context, titleKey string) ([]ListSyobocalTitlesByKeyRow, error)
@@ -1097,6 +1108,7 @@ type Querier interface {
 	TouchOAuthGrant(ctx context.Context, arg TouchOAuthGrantParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	TouchStreamURL(ctx context.Context, arg TouchStreamURLParams) error
 	// ライブ視聴が続いていることを記録する。視聴している間だけ録る設定が切れていれば、何も書かず、行を返さない。
 	// 視聴が新しく始まったかどうかを返す。始まったら、neko に知らせて、次の見直しを待たずに録り始める。
 	TouchTimeshiftWatch(ctx context.Context, arg TouchTimeshiftWatchParams) (bool, error)

@@ -8,13 +8,14 @@ type StreamURL {
   録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
   """
   url: String!
-  "有効期限。既定では発行から 6 時間。"
+  "有効期限。録画なら録画の長さに 1 時間を足した長さ、ライブなら発行から 1 時間 (#1756)。"
   expiresAt: Time!
 }
 
 extend type Mutation {
   """
   サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  管理者が外部プレイヤー用の URL を有効にしていなければ (SystemSettings.externalPlayerUrlsEnabled)、FORBIDDEN を返す (#1755)。
   target には、Service か Recording の ID を渡す。
   """
   createStreamURL(target: ID!): StreamURL!
@@ -129,4 +130,37 @@ type LiveStreamScrambled {
   service: ID!
   "決めた日時。"
   decidedAt: Time!
+}
+
+"""
+発行した外部プレイヤー用の署名付き URL の記録 (#1757、設計書 7.6)。URL そのものは持たない。管理者だけが読める。
+"""
+type IssuedStreamUrl {
+  id: ID!
+  "発行したユーザーの表示名。"
+  userDisplayName: String!
+  "発行したときのサービス名か録画の名前。"
+  targetName: String!
+  "ライブ視聴の URL かどうか。false なら録画の URL。"
+  live: Boolean!
+  createdAt: Time!
+  expiresAt: Time!
+  "最後に使われた日時。開いたときと、流している間に、1 分ごとにしか書き直さない。開かれていなければ null。"
+  lastUsedAt: Time
+}
+
+extend type Query {
+  """
+  期限の過ぎていない、発行した外部プレイヤー用の URL の記録を、新しい順に返す (#1757)。管理者だけが使える。
+  期限の前に開き、期限を過ぎても流れ続けている URL (直近 10 分に使われたもの) も返す。
+  """
+  issuedStreamUrls: [IssuedStreamUrl!]!
+}
+
+extend type Mutation {
+  """
+  発行した外部プレイヤー用の URL を取り消す (#1757)。管理者だけが使える。取り消した URL は、期限の前でも使えなくなり、開いたままの配信も止まる。
+  権限を広げない操作なので、再認証は求めない。記録がなければ NOT_FOUND を返す。
+  """
+  revokeStreamUrl(id: ID!): Boolean!
 }

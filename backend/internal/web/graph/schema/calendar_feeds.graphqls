@@ -57,6 +57,7 @@ extend type Mutation {
   """
   ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
   URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  管理者が IPTV のクライアント用の URL を有効にしていなければ (SystemSettings.iptvFeedsEnabled)、FORBIDDEN を返す (#1755)。
   """
   createIptvFeed: CreatedIptvFeed!
   "IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。"

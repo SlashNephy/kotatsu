@@ -499,6 +499,16 @@ type ComplexityRoot struct {
 		LastUsedAt func(childComplexity int) int
 	}
 
+	IssuedStreamUrl struct {
+		CreatedAt       func(childComplexity int) int
+		ExpiresAt       func(childComplexity int) int
+		ID              func(childComplexity int) int
+		LastUsedAt      func(childComplexity int) int
+		Live            func(childComplexity int) int
+		TargetName      func(childComplexity int) int
+		UserDisplayName func(childComplexity int) int
+	}
+
 	JikkyoChannel struct {
 		Force   func(childComplexity int) int
 		ID      func(childComplexity int) int
@@ -683,6 +693,7 @@ type ComplexityRoot struct {
 		RetryJob                      func(childComplexity int, id string) int
 		RevokeOtherSessions           func(childComplexity int) int
 		RevokeSession                 func(childComplexity int, id string) int
+		RevokeStreamURL               func(childComplexity int, id string) int
 		SaveWatchPosition             func(childComplexity int, id string, positionMs int64) int
 		SendPlayerCommand             func(childComplexity int, id string, command model.PlayerCommandInput) int
 		SetRecordingProtected         func(childComplexity int, id string, protected bool) int
@@ -956,6 +967,7 @@ type ComplexityRoot struct {
 		Guide                   func(childComplexity int, from time.Time, to time.Time, services []string, view *string) int
 		GuideViews              func(childComplexity int) int
 		IptvFeed                func(childComplexity int) int
+		IssuedStreamUrls        func(childComplexity int) int
 		JobCounts               func(childComplexity int) int
 		Jobs                    func(childComplexity int, state model.JobState, first int, after *string) int
 		LogReport               func(childComplexity int) int
@@ -1352,6 +1364,8 @@ type ComplexityRoot struct {
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
+		ExternalPlayerUrlsEnabled              func(childComplexity int) int
+		IptvFeedsEnabled                       func(childComplexity int) int
 		JikkyoEnabled                          func(childComplexity int) int
 		McpEnabled                             func(childComplexity int) int
 		NetworkActivityEnabled                 func(childComplexity int) int
@@ -1602,6 +1616,7 @@ type MutationResolver interface {
 	UpdateService(ctx context.Context, id string, input model.ServiceInput) (*model.Service, error)
 	UpdateStoragePool(ctx context.Context, id string, input model.StoragePoolInput) (*model.StoragePool, error)
 	CreateStreamURL(ctx context.Context, target string) (*model.StreamURL, error)
+	RevokeStreamURL(ctx context.Context, id string) (bool, error)
 	SetTimeshiftChannel(ctx context.Context, serviceID string, retentionSeconds *int) (*model.TimeshiftChannel, error)
 	RemoveTimeshiftChannel(ctx context.Context, serviceID string) (string, error)
 	PromoteTimeshiftProgram(ctx context.Context, serviceID string, startAt time.Time) (*model.TimeshiftPromotion, error)
@@ -1702,6 +1717,7 @@ type QueryResolver interface {
 	SystemSettings(ctx context.Context) (*model.SystemSettings, error)
 	SkippedDuplicates(ctx context.Context) ([]*model.SkippedDuplicate, error)
 	Transcoding(ctx context.Context) (*model.Transcoding, error)
+	IssuedStreamUrls(ctx context.Context) ([]*model.IssuedStreamURL, error)
 	TimeshiftAvailable(ctx context.Context) (bool, error)
 	TimeshiftChannels(ctx context.Context) ([]*model.TimeshiftChannel, error)
 	TimeshiftProgram(ctx context.Context, serviceID string, startAt time.Time) (*model.TimeshiftProgram, error)
@@ -3386,6 +3402,49 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.IptvFeed.LastUsedAt(childComplexity), true
 
+	case "IssuedStreamUrl.createdAt":
+		if e.ComplexityRoot.IssuedStreamUrl.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.CreatedAt(childComplexity), true
+	case "IssuedStreamUrl.expiresAt":
+		if e.ComplexityRoot.IssuedStreamUrl.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.ExpiresAt(childComplexity), true
+	case "IssuedStreamUrl.id":
+		if e.ComplexityRoot.IssuedStreamUrl.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.ID(childComplexity), true
+	case "IssuedStreamUrl.lastUsedAt":
+		if e.ComplexityRoot.IssuedStreamUrl.LastUsedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.LastUsedAt(childComplexity), true
+	case "IssuedStreamUrl.live":
+		if e.ComplexityRoot.IssuedStreamUrl.Live == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.Live(childComplexity), true
+	case "IssuedStreamUrl.targetName":
+		if e.ComplexityRoot.IssuedStreamUrl.TargetName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.TargetName(childComplexity), true
+	case "IssuedStreamUrl.userDisplayName":
+		if e.ComplexityRoot.IssuedStreamUrl.UserDisplayName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.IssuedStreamUrl.UserDisplayName(childComplexity), true
+
 	case "JikkyoChannel.force":
 		if e.ComplexityRoot.JikkyoChannel.Force == nil {
 			break
@@ -4494,6 +4553,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeSession(childComplexity, args["id"].(string)), true
+	case "Mutation.revokeStreamUrl":
+		if e.ComplexityRoot.Mutation.RevokeStreamURL == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_revokeStreamUrl_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RevokeStreamURL(childComplexity, args["id"].(string)), true
 	case "Mutation.saveWatchPosition":
 		if e.ComplexityRoot.Mutation.SaveWatchPosition == nil {
 			break
@@ -5893,6 +5963,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.IptvFeed(childComplexity), true
+	case "Query.issuedStreamUrls":
+		if e.ComplexityRoot.Query.IssuedStreamUrls == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.IssuedStreamUrls(childComplexity), true
 	case "Query.jobCounts":
 		if e.ComplexityRoot.Query.JobCounts == nil {
 			break
@@ -7710,6 +7786,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.DrcsReplacements(childComplexity), true
+	case "SystemSettings.externalPlayerUrlsEnabled":
+		if e.ComplexityRoot.SystemSettings.ExternalPlayerUrlsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.ExternalPlayerUrlsEnabled(childComplexity), true
+	case "SystemSettings.iptvFeedsEnabled":
+		if e.ComplexityRoot.SystemSettings.IptvFeedsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.IptvFeedsEnabled(childComplexity), true
 	case "SystemSettings.jikkyoEnabled":
 		if e.ComplexityRoot.SystemSettings.JikkyoEnabled == nil {
 			break
@@ -9455,6 +9543,7 @@ extend type Mutation {
   """
   ライブ視聴の一覧と番組表を配信する URL を発行する。すでにあれば発行し直し、前の URL は使えなくなる。直近 10 分以内の認証が要る。
   URL を持つ人は、そのユーザーとしてライブ視聴と番組表を見られるようになる。視聴できるユーザーだけが発行できる。
+  管理者が IPTV のクライアント用の URL を有効にしていなければ (SystemSettings.iptvFeedsEnabled)、FORBIDDEN を返す (#1755)。
   """
   createIptvFeed: CreatedIptvFeed!
   "IPTV の配信の URL を取り消す。発行していなければ NOT_FOUND を返す。"
@@ -11909,6 +11998,18 @@ type SystemSettings {
   ログインしていれば誰でも読め、ライブ視聴の画面が、データ放送に通信の機能を渡すかを決めるのに使う。
   """
   dataBroadcastIpEnabled: Boolean!
+  """
+  外部プレイヤー (VLC や mpv) 用の署名付きの映像の URL を、発行し、受け付けるかどうか (#1755、設計書 7.6)。既定は false。
+  無効の間は、createStreamURL が FORBIDDEN を返し、発行済みの URL も期限の前に断る。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  externalPlayerUrlsEnabled: Boolean!
+  """
+  IPTV のクライアント (Kodi、Jellyfin、Plex など) 用の URL を、発行し、受け付けるかどうか (#1755、設計書 9.8)。既定は false。
+  無効の間は、createIptvFeed が FORBIDDEN を返し、取り消していない URL も断る。取り消す (deleteIptvFeed) ことはできる。
+  ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
+  """
+  iptvFeedsEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
@@ -11952,6 +12053,10 @@ input SystemSettingsInput {
   mcpEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。文書が送る受信機の情報 (郵便番号など) が、外部のサーバーに届くようになるため。"
   dataBroadcastIpEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとして映像を見られるようになるため。"
+  externalPlayerUrlsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。"
+  iptvFeedsEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
@@ -12142,13 +12247,14 @@ type StreamURL {
   録画の URL には、署名を変えずに start (録画の始まりからの秒) を足して、再生を始める位置を指定できる。
   """
   url: String!
-  "有効期限。既定では発行から 6 時間。"
+  "有効期限。録画なら録画の長さに 1 時間を足した長さ、ライブなら発行から 1 時間 (#1756)。"
   expiresAt: Time!
 }
 
 extend type Mutation {
   """
   サービス (ライブ視聴) か録画 (再生) の、署名付きの映像の URL を発行する。誰でも使える。
+  管理者が外部プレイヤー用の URL を有効にしていなければ (SystemSettings.externalPlayerUrlsEnabled)、FORBIDDEN を返す (#1755)。
   target には、Service か Recording の ID を渡す。
   """
   createStreamURL(target: ID!): StreamURL!
@@ -12263,6 +12369,39 @@ type LiveStreamScrambled {
   service: ID!
   "決めた日時。"
   decidedAt: Time!
+}
+
+"""
+発行した外部プレイヤー用の署名付き URL の記録 (#1757、設計書 7.6)。URL そのものは持たない。管理者だけが読める。
+"""
+type IssuedStreamUrl {
+  id: ID!
+  "発行したユーザーの表示名。"
+  userDisplayName: String!
+  "発行したときのサービス名か録画の名前。"
+  targetName: String!
+  "ライブ視聴の URL かどうか。false なら録画の URL。"
+  live: Boolean!
+  createdAt: Time!
+  expiresAt: Time!
+  "最後に使われた日時。開いたときと、流している間に、1 分ごとにしか書き直さない。開かれていなければ null。"
+  lastUsedAt: Time
+}
+
+extend type Query {
+  """
+  期限の過ぎていない、発行した外部プレイヤー用の URL の記録を、新しい順に返す (#1757)。管理者だけが使える。
+  期限の前に開き、期限を過ぎても流れ続けている URL (直近 10 分に使われたもの) も返す。
+  """
+  issuedStreamUrls: [IssuedStreamUrl!]!
+}
+
+extend type Mutation {
+  """
+  発行した外部プレイヤー用の URL を取り消す (#1757)。管理者だけが使える。取り消した URL は、期限の前でも使えなくなり、開いたままの配信も止まる。
+  権限を広げない操作なので、再認証は求めない。記録がなければ NOT_FOUND を返す。
+  """
+  revokeStreamUrl(id: ID!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/timeshift.graphqls", Input: `"""
@@ -13590,6 +13729,26 @@ func (ec *executionContext) childFields_IptvFeed(ctx context.Context, field grap
 		return ec.fieldContext_IptvFeed_lastUsedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type IptvFeed", field.Name)
+}
+
+func (ec *executionContext) childFields_IssuedStreamUrl(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_IssuedStreamUrl_id(ctx, field)
+	case "userDisplayName":
+		return ec.fieldContext_IssuedStreamUrl_userDisplayName(ctx, field)
+	case "targetName":
+		return ec.fieldContext_IssuedStreamUrl_targetName(ctx, field)
+	case "live":
+		return ec.fieldContext_IssuedStreamUrl_live(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_IssuedStreamUrl_createdAt(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_IssuedStreamUrl_expiresAt(ctx, field)
+	case "lastUsedAt":
+		return ec.fieldContext_IssuedStreamUrl_lastUsedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type IssuedStreamUrl", field.Name)
 }
 
 func (ec *executionContext) childFields_JikkyoChannel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14938,6 +15097,10 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_mcpEnabled(ctx, field)
 	case "dataBroadcastIpEnabled":
 		return ec.fieldContext_SystemSettings_dataBroadcastIpEnabled(ctx, field)
+	case "externalPlayerUrlsEnabled":
+		return ec.fieldContext_SystemSettings_externalPlayerUrlsEnabled(ctx, field)
+	case "iptvFeedsEnabled":
+		return ec.fieldContext_SystemSettings_iptvFeedsEnabled(ctx, field)
 	case "animeLinkingEnabled":
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
 	case "jikkyoEnabled":
@@ -16167,6 +16330,20 @@ func (ec *executionContext) field_Mutation_retryJob_args(ctx context.Context, ra
 }
 
 func (ec *executionContext) field_Mutation_revokeSession_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_revokeStreamUrl_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -23676,6 +23853,167 @@ func (ec *executionContext) fieldContext_IptvFeed_lastUsedAt(_ context.Context, 
 	return graphql.NewScalarFieldContext("IptvFeed", field, false, false, "Time")
 }
 
+func (ec *executionContext) _IssuedStreamUrl_id(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "ID")
+}
+
+func (ec *executionContext) _IssuedStreamUrl_userDisplayName(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_userDisplayName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserDisplayName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_userDisplayName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "String")
+}
+
+func (ec *executionContext) _IssuedStreamUrl_targetName(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_targetName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TargetName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_targetName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "String")
+}
+
+func (ec *executionContext) _IssuedStreamUrl_live(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_live(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Live, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_live(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _IssuedStreamUrl_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "Time")
+}
+
+func (ec *executionContext) _IssuedStreamUrl_expiresAt(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "Time")
+}
+
+func (ec *executionContext) _IssuedStreamUrl_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *model.IssuedStreamURL) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_IssuedStreamUrl_lastUsedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastUsedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_IssuedStreamUrl_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("IssuedStreamUrl", field, false, false, "Time")
+}
+
 func (ec *executionContext) _JikkyoChannel_id(ctx context.Context, field graphql.CollectedField, obj *model.JikkyoChannel) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -28468,6 +28806,50 @@ func (ec *executionContext) fieldContext_Mutation_createStreamURL(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_createStreamURL_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_revokeStreamUrl(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_revokeStreamUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RevokeStreamURL(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_revokeStreamUrl(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_revokeStreamUrl_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -35092,6 +35474,38 @@ func (ec *executionContext) fieldContext_Query_transcoding(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_issuedStreamUrls(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_issuedStreamUrls(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().IssuedStreamUrls(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.IssuedStreamURL) graphql.Marshaler {
+			return ec.marshalNIssuedStreamUrl2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIssuedStreamURLᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_issuedStreamUrls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_IssuedStreamUrl(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_timeshiftAvailable(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -41535,6 +41949,52 @@ func (ec *executionContext) fieldContext_SystemSettings_dataBroadcastIpEnabled(_
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _SystemSettings_externalPlayerUrlsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_externalPlayerUrlsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExternalPlayerUrlsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_externalPlayerUrlsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_iptvFeedsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_iptvFeedsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IptvFeedsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_iptvFeedsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _SystemSettings_animeLinkingEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -47510,7 +47970,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -47580,6 +48040,20 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.DataBroadcastIPEnabled = data
+		case "externalPlayerUrlsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("externalPlayerUrlsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExternalPlayerUrlsEnabled = data
+		case "iptvFeedsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("iptvFeedsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.IptvFeedsEnabled = data
 		case "animeLinkingEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("animeLinkingEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -51093,6 +51567,69 @@ func (ec *executionContext) _IptvFeed(ctx context.Context, sel ast.SelectionSet,
 	return out
 }
 
+var issuedStreamUrlImplementors = []string{"IssuedStreamUrl"}
+
+func (ec *executionContext) _IssuedStreamUrl(ctx context.Context, sel ast.SelectionSet, obj *model.IssuedStreamURL) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, issuedStreamUrlImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IssuedStreamUrl")
+		case "id":
+			out.Values[i] = ec._IssuedStreamUrl_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userDisplayName":
+			out.Values[i] = ec._IssuedStreamUrl_userDisplayName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "targetName":
+			out.Values[i] = ec._IssuedStreamUrl_targetName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "live":
+			out.Values[i] = ec._IssuedStreamUrl_live(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._IssuedStreamUrl_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._IssuedStreamUrl_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "lastUsedAt":
+			out.Values[i] = ec._IssuedStreamUrl_lastUsedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var jikkyoChannelImplementors = []string{"JikkyoChannel"}
 
 func (ec *executionContext) _JikkyoChannel(ctx context.Context, sel ast.SelectionSet, obj *model.JikkyoChannel) graphql.Marshaler {
@@ -52404,6 +52941,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "createStreamURL":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createStreamURL(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revokeStreamUrl":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_revokeStreamUrl(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -54371,6 +54915,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_transcoding(ctx, field)
+				})
+		case "issuedStreamUrls":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_issuedStreamUrls(ctx, field)
 				})
 		case "timeshiftAvailable":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -56672,6 +57222,16 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "dataBroadcastIpEnabled":
 			out.Values[i] = ec._SystemSettings_dataBroadcastIpEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "externalPlayerUrlsEnabled":
+			out.Values[i] = ec._SystemSettings_externalPlayerUrlsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "iptvFeedsEnabled":
+			out.Values[i] = ec._SystemSettings_iptvFeedsEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -59383,6 +59943,30 @@ func (ec *executionContext) marshalNIptvFeed2ᚖgithubᚗcomᚋSlashNephyᚋkota
 		return graphql.Null
 	}
 	return ec._IptvFeed(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNIssuedStreamUrl2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIssuedStreamURLᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.IssuedStreamURL) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNIssuedStreamUrl2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIssuedStreamURL(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNIssuedStreamUrl2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐIssuedStreamURL(ctx context.Context, sel ast.SelectionSet, v *model.IssuedStreamURL) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "IssuedStreamUrl!")
+		return graphql.Null
+	}
+	return ec._IssuedStreamUrl(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNJob2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Job) graphql.Marshaler {

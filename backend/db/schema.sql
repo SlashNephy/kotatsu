@@ -107,6 +107,23 @@ CREATE TABLE api_tokens (
 
 CREATE INDEX api_tokens_user_id_idx ON api_tokens (user_id);
 
+-- 発行した外部プレイヤー用の署名付き URL (#1757、設計書 7.6、9.6)。管理者が一覧して、1 本ずつ取り消せるようにする。
+-- URL の署名には id を含め、行がなくなった (取り消した) URL は、期限の前でも断る。期限の過ぎた行は、次に発行するときに消す。
+CREATE TABLE stream_urls (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- resource は、署名したパス (/api/streams/services/... か /api/streams/recordings/...)。
+  resource text NOT NULL,
+  -- target_name は、一覧に出す、発行したときのサービス名か録画の名前。
+  target_name text NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  -- 最後に開かれた日時。書き込みを減らすため、一定の間隔でしか更新しない。開かれていなければ NULL。
+  last_used_at timestamptz
+);
+
+CREATE INDEX stream_urls_expires_at_idx ON stream_urls (expires_at);
+
 -- calendar_feeds は、Cookie を送れないアプリに配信する URL の秘密の値 (設計書 9.8)。ユーザーと種類ごとに 1 つだけ持つ。
 -- 種類は、予約の iCalendar (calendar。#1255) と、ライブ視聴の M3U と番組表の XMLTV (iptv。#1324)。用途ごとに別の値にし、別々に取り消せる。
 -- 秘密の値そのものは持たず、SHA-256 だけを持つ。発行し直すと、前の URL は使えなくなる。
@@ -351,6 +368,10 @@ CREATE TABLE system_settings (
   mcp_enabled boolean NOT NULL DEFAULT false,
   -- データ放送の文書の双方向の通信を、tenban が中継するかどうか (#501)。既定では中継しない。
   data_broadcast_ip_enabled boolean NOT NULL DEFAULT false,
+  -- 外部プレイヤー用の署名付き URL を発行し、受け付けるかどうか (#1755、設計書 7.6)。既定では発行しない。
+  external_player_urls_enabled boolean NOT NULL DEFAULT false,
+  -- IPTV のクライアント用の URL を発行し、受け付けるかどうか (#1755、設計書 9.8)。既定では発行しない。
+  iptv_feeds_enabled boolean NOT NULL DEFAULT false,
   -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   anime_linking_enabled boolean NOT NULL DEFAULT false,

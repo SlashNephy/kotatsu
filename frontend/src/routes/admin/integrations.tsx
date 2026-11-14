@@ -25,6 +25,7 @@ import { graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { AdminPage } from '../../admin/AdminPage';
+import { IssuedStreamUrls } from '../../admin/IssuedStreamUrls';
 import { Section } from '../../admin/Section';
 import { authApi, type OIDCStatus } from '../../auth/api';
 import {
@@ -53,6 +54,7 @@ import type {
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
 import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
+import type { integrationsRevokeStreamUrlMutation } from './__generated__/integrationsRevokeStreamUrlMutation.graphql';
 import type { integrationsWebhookUpdateMutation } from './__generated__/integrationsWebhookUpdateMutation.graphql';
 
 const oidcDisabled: OIDCStatus = { enabled: false, displayName: '', linked: false };
@@ -70,7 +72,7 @@ const kinds = (Object.keys(notificationKinds) as NotificationKindName[]).filter(
   (kind) => !personalKinds.includes(kind),
 );
 
-// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、ニコニコ実況、しょぼいカレンダー、Annict、AniList、
+// IntegrationsPage は、外部のサービスとの連携 (MCP のクライアント、データ放送の通信の中継、外部プレイヤーと IPTV のクライアントの URL、ニコニコ実況、しょぼいカレンダー、Annict、AniList、
 // 通知を送る Webhook) を変える、管理者向けの画面 (設計書 3.8、6.2、7.4、10.3)。
 function IntegrationsPage() {
   const { t } = useTranslation();
@@ -87,9 +89,21 @@ const query = graphql`
     systemSettings {
       mcpEnabled
       dataBroadcastIpEnabled
+      externalPlayerUrlsEnabled
+      iptvFeedsEnabled
       networkActivityEnabled
       animeLinkingEnabled
       commentSources
+    }
+    # 発行された外部プレイヤー用の URL (#1757)。
+    issuedStreamUrls {
+      id
+      userDisplayName
+      targetName
+      live
+      createdAt
+      expiresAt
+      lastUsedAt
     }
     animeRecordApps {
       destination
@@ -154,6 +168,8 @@ function Integrations() {
   const [message, setMessage] = useState<Message | null>(null);
   // secret は、作った Webhook の署名用の秘密キー。作ったときにしか返らないので、ここで出す。
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
+  // revoking は、外部プレイヤーの URL を取り消している途中かどうか (#1757)。続けて押して、同じ URL を二度取り消さないようにする。
+  const [revoking, setRevoking] = useState(false);
   const fail = (caught: unknown) =>
     setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
   const succeed = (text: string) => {
@@ -235,6 +251,48 @@ function Integrations() {
           enabled={data.systemSettings.dataBroadcastIpEnabled}
           busy={gate.busy}
           onSave={(dataBroadcastIpEnabled) => saveSettings({ dataBroadcastIpEnabled })}
+        />
+
+        {/* 外の道具に渡す URL を発行させるか (#1755)。URL を持つ人が映像を見られるようになるので、ここで再認証を求める。 */}
+        <SwitchSetting
+          key={`external-player-urls/${String(data.systemSettings.externalPlayerUrlsEnabled)}`}
+          title={t('admin.settings.externalPlayerUrls')}
+          label={t('admin.settings.externalPlayerUrlsEnabled')}
+          help={t('admin.settings.externalPlayerUrlsHelp')}
+          enabled={data.systemSettings.externalPlayerUrlsEnabled}
+          busy={gate.busy}
+          onSave={(externalPlayerUrlsEnabled) => saveSettings({ externalPlayerUrlsEnabled })}
+        />
+        {/* 発行された外部プレイヤー用の URL を、1 本ずつ取り消せる (#1757)。権限を広げない操作なので、再認証は求めない。
+            無効にしている間も、期限の過ぎていない URL があれば出す。 */}
+        {(data.systemSettings.externalPlayerUrlsEnabled || data.issuedStreamUrls.length > 0) && (
+          <IssuedStreamUrls
+            urls={data.issuedStreamUrls}
+            busy={gate.busy || revoking}
+            onRevoke={(id) => {
+              setRevoking(true);
+              mutate<integrationsRevokeStreamUrlMutation>(
+                environment,
+                graphql`
+                  mutation integrationsRevokeStreamUrlMutation($id: ID!) {
+                    revokeStreamUrl(id: $id)
+                  }
+                `,
+                { id },
+              )
+                .then(() => succeed(t('admin.issuedStreamUrls.revoked')), fail)
+                .finally(() => setRevoking(false));
+            }}
+          />
+        )}
+        <SwitchSetting
+          key={`iptv-feeds/${String(data.systemSettings.iptvFeedsEnabled)}`}
+          title={t('admin.settings.iptvFeeds')}
+          label={t('admin.settings.iptvFeedsEnabled')}
+          help={t('admin.settings.iptvFeedsHelp')}
+          enabled={data.systemSettings.iptvFeedsEnabled}
+          busy={gate.busy}
+          onSave={(iptvFeedsEnabled) => saveSettings({ iptvFeedsEnabled })}
         />
 
         {/* 実況のコメントのソースごとのオプトイン (#1405)。外部と通信し始めるので、ここで再認証を求める (設計書 0.3、7.4)。 */}

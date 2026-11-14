@@ -1,13 +1,17 @@
 package streamapi
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
+	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
 
 // Authorizer は、映像と画像のリクエストを、セッションか署名付き URL のどちらか一方で認可する (設計書 9.1、9.6、#1605)。
@@ -16,12 +20,22 @@ import (
 type Authorizer struct {
 	signer *stream.Signer
 	users  *auth.URLUsers
+	gate   URLGate
 	clock  clock.Clock
+	// recheck は、署名付き URL で配信している間に、続けてよいかを確かめ直す間隔。
+	recheck time.Duration
 }
 
+// URLGate は、管理者が外部プレイヤー用の署名付き URL を有効にしているかを返す (#1755)。*settings.URLGate が満たす。
+type URLGate interface {
+	ExternalPlayerURLsEnabled(ctx context.Context) (bool, error)
+}
+
+var _ URLGate = new(settings.URLGate)
+
 // NewAuthorizer は Authorizer を返す。
-func NewAuthorizer(signer *stream.Signer, users *auth.URLUsers, clk clock.Clock) *Authorizer {
-	return &Authorizer{signer: signer, users: users, clock: clk}
+func NewAuthorizer(signer *stream.Signer, users *auth.URLUsers, gate URLGate, clk clock.Clock) *Authorizer {
+	return &Authorizer{signer: signer, users: users, gate: gate, clock: clk, recheck: httpserver.RevocationInterval}
 }
 
 // Session は、ログイン中のセッション (Sessions.Middleware が context に持たせる) のユーザーが視聴を許されていれば、
@@ -46,16 +60,35 @@ func (a *Authorizer) Session(next http.Handler) http.Handler {
 // Signed は、リクエストのパスに対する署名を確かめ、URL を発行したユーザーが視聴を許されていれば、
 // リクエストを next に渡すミドルウェアを返す。セッションは見ない。
 // 発行した後に無効にしたユーザーの URL は、期限の前でも使えない。
-// DB に届かない間は、DB が止まる前に引けたユーザーに限って、覚えた結果で認可する (#1084)。
+// 管理者が外部プレイヤー用の URL を無効にしている間は、期限の前の URL も断る (#1755)。
+// 取り消した URL (記録を消した URL。#1757) も、期限の前に断る。
+// 開いた後に、管理者が無効にしたり、URL を取り消したり、ユーザーを無効にしたりしたら、開いたままの配信も止める。期限は開くときにだけ確かめる。
+// DB に届かない間は、DB が止まる前に引けたユーザーと設定に限って、覚えた結果で認可する (#1084)。
 func (a *Authorizer) Signed(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID, err := a.signer.Verify(r.URL.Path, r.URL.Query(), a.clock.Now())
+		verified, err := a.signer.Verify(r.URL.Path, r.URL.Query(), a.clock.Now())
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 
 			return
 		}
-		role, err := a.users.Role(r.Context(), userID)
+		enabled, err := a.gate.ExternalPlayerURLsEnabled(r.Context())
+		if errors.Is(err, settings.ErrDatabaseUnavailable) {
+			http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+
+			return
+		}
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+
+			return
+		}
+		if !enabled {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+
+			return
+		}
+		role, err := a.users.Role(r.Context(), verified.URLID, verified.UserID)
 		if errors.Is(err, auth.ErrUserUnusable) {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 
@@ -76,6 +109,24 @@ func (a *Authorizer) Signed(next http.Handler) http.Handler {
 
 			return
 		}
-		next.ServeHTTP(w, r)
+		httpserver.StopWhenRevoked(w, r, next, a.recheck, func(ctx context.Context) bool {
+			return a.stillAllowed(ctx, verified)
+		})
 	})
+}
+
+// stillAllowed は、署名付き URL で配信している間に、配信を続けてよいかを返す。管理者が外部プレイヤー用の URL を無効にしたか、
+// URL を取り消したか (#1757)、URL を発行したユーザーを無効にしたか、視聴を許さないロールにしたら false を返す。
+// 確かめられないときは、配信を続けさせる。
+func (a *Authorizer) stillAllowed(ctx context.Context, verified *stream.Verified) bool {
+	enabled, err := a.gate.ExternalPlayerURLsEnabled(ctx)
+	if err == nil && !enabled {
+		return false
+	}
+	role, err := a.users.Role(ctx, verified.URLID, verified.UserID)
+	if errors.Is(err, auth.ErrUserUnusable) {
+		return false
+	}
+
+	return err != nil || role.Can(domain.PermissionWatch)
 }

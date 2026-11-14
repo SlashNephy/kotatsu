@@ -125,6 +125,10 @@ const query = graphql`
       createdAt
       lastUsedAt
     }
+    # IPTV のクライアント用の URL は、管理者が有効にしているときだけ発行できる (#1755)。
+    systemSettings {
+      iptvFeedsEnabled
+    }
     apiTokens {
       id
       name
@@ -229,6 +233,7 @@ function Security() {
 
             <IptvFeed
               feed={data.iptvFeed}
+              enabled={data.systemSettings.iptvFeedsEnabled}
               onChanged={refresh}
               run={run}
               fail={fail}

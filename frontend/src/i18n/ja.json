@@ -444,6 +444,7 @@
       "iptvPlaylist": "チャンネルの一覧（M3U）",
       "iptvGuide": "番組表（XMLTV）",
       "noIptvFeed": "IPTVの配信のURLは発行していません",
+      "iptvFeedDisabled": "管理者が、IPTVのクライアントのURLを無効にしています。発行済みのURLは、いまは使えません。取り消すことはできます",
       "createIptvFeed": "IPTVの配信のURLを発行",
       "apiTokenIssued": "APIトークンを発行しました。このトークンは、今だけ表示します。安全な場所に控えてください",
       "copy": "コピー",
@@ -1948,6 +1949,12 @@
       "dataBroadcastIp": "データ放送の通信",
       "dataBroadcastIpEnabled": "データ放送の双方向の通信を中継する",
       "dataBroadcastIpHelp": "投票やプレゼントの応募など、データ放送の文書がインターネットへ送るリクエストを、Kotatsuのサーバーが中継します。送る内容には、受信機の郵便番号などが入ることがあります。LANの中のアドレスへは中継しません",
+      "externalPlayerUrls": "外部プレイヤーのURL",
+      "externalPlayerUrlsEnabled": "VLCやmpvで開くURLを発行する",
+      "externalPlayerUrlsHelp": "録画の詳細とライブ視聴の画面から、外部プレイヤーで開くURLを発行できるようにします。URLは期限まで、持っている人なら誰でも開けます。無効にすると、発行済みのURLも期限の前に使えなくなります",
+      "iptvFeeds": "IPTVのクライアントのURL",
+      "iptvFeedsEnabled": "KodiやJellyfinで見るURLを発行する",
+      "iptvFeedsHelp": "セキュリティの設定の画面から、ライブ視聴の一覧と番組表をIPTVのクライアントに配信するURLを発行できるようにします。URLは取り消すまで、持っている人なら誰でも使えます。無効にすると、発行済みのURLも使えなくなります",
       "commentSource": {
         "NX_JIKKYO": {
           "title": "ニコニコ実況",
@@ -2035,6 +2042,16 @@
     "integrations": {
       "title": "連携",
       "summary": "MCPのクライアントとの連携と、DiscordやSlackなどに通知を送るWebhookを設定します"
+    },
+    "issuedStreamUrls": {
+      "title": "発行された外部プレイヤーのURL",
+      "description": "期限の過ぎていないURLを、新しい順に並べます。取り消すと、そのURLは期限の前でも使えなくなり、開いているプレイヤーの再生も止まります",
+      "empty": "期限の過ぎていないURLはありません",
+      "live": "ライブ",
+      "recording": "録画",
+      "detail": "{{user}} ・ 発行 {{created}} ・ 期限 {{expires}} ・ 最終利用 {{lastUsed}}",
+      "revoke": "取り消す",
+      "revoked": "URLを取り消しました"
     },
     "animeRecords": {
       "title": "Annict、AniListへの記録",
