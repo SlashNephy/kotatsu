@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
@@ -211,6 +212,33 @@ func (l *Library) recordUnrestoredPath(ctx context.Context, db Database, file *R
 	}
 }
 
+// checkNotJoining は、録画 recordingID のセグメントを、つないでいる途中でないことを確かめる。途中なら ErrBusy を返す (#1721)。
+// つなぐジョブと同じ録画ごとのロックを、トランザクションの終わりまで取る。つないで DB の記録を 1 本にしてから、
+// つないだファイルに置き換えるまでも、つないだ元のファイルを消すのを待っているので、途中とみなす。
+// 最初のセグメントの名前が変わらず、2 つ目以降だけを移すときも、置き換えのジョブが消すはずの元のファイルを動かさないようにする。
+func checkNotJoining(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	locked, err := sqlc.New(tx).TryLockRecordingJoinXact(ctx, recordingID.String())
+	if err != nil {
+		return fmt.Errorf("failed to lock the recording: %w", err)
+	}
+	if !locked {
+		return ErrBusy
+	}
+	// River のテーブルは sqlc のスキーマにないので、直接引く。
+	var pending bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM river_job
+			WHERE kind = $1 AND args->>'recordingId' = $2::text AND state NOT IN ('completed', 'cancelled', 'discarded')
+		)`, new(segjoin.FinalizeArgs).Kind(), recordingID.String()).Scan(&pending); err != nil {
+		return fmt.Errorf("failed to check the finalization of the joined recording: %w", err)
+	}
+	if pending {
+		return ErrBusy
+	}
+
+	return nil
+}
+
 // Rename は、計画 plan のとおりに、録画のセグメントのファイルを移し、記録のパスを書き換える。
 // 生成物は、セグメントのファイルの ID で置くので移さない。
 // 移す先に同じ名前があれば連番を付ける。録画中と、セグメントをつないでいる途中の録画は移さない。監査ログに残す。
@@ -225,6 +253,9 @@ func (l *Library) Rename(ctx context.Context, db Database, actor *audit.Actor, p
 		}
 		if recording.State == stateRecording {
 			return ErrRecording
+		}
+		if err := checkNotJoining(ctx, tx, plan.RecordingID); err != nil {
+			return err
 		}
 		for _, file := range plan.Files {
 			if joining, _ := l.store.Exists(file.PoolID, file.From+joiningSuffix); joining {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -54,6 +55,8 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
+	// ファイル名の付け直しと DB にないファイルの探索は、セグメントをつなぐジョブ (River) を見る。
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	clk := clocktest.NewFake(time.Date(2026, 10, 10, 12, 0, 0, 0, time.UTC))
 	_, err = pool.Exec(t.Context(), "INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)")
 	require.NoError(t, err)
