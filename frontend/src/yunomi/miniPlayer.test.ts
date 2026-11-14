@@ -1,6 +1,8 @@
-import { describe, expect, test } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, test } from 'vitest';
 
-import { loadMiniPlayer, saveMiniPlayer } from './miniPlayer';
+import { loadMiniPlayer, saveMiniPlayer, useMiniPlayer } from './miniPlayer';
+import { browserStorage } from './volume';
 
 // memoryStorage は、テストの localStorage の代わり。
 function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> {
@@ -35,5 +37,33 @@ describe('miniPlayer', () => {
       },
     };
     expect(loadMiniPlayer(broken)).toBe(true);
+  });
+});
+
+describe('useMiniPlayer', () => {
+  afterEach(() => {
+    saveMiniPlayer(browserStorage(), true);
+  });
+
+  test('変えたら、同じタブの中の画面も追う', () => {
+    const { result } = renderHook(() => useMiniPlayer());
+    const other = renderHook(() => useMiniPlayer());
+    expect(result.current[0]).toBe(true);
+
+    act(() => {
+      result.current[1](false);
+    });
+    expect(result.current[0]).toBe(false);
+    expect(other.result.current[0]).toBe(false);
+  });
+
+  test('ほかのタブで変えたら、追う', () => {
+    const { result } = renderHook(() => useMiniPlayer());
+
+    act(() => {
+      saveMiniPlayer(browserStorage(), false);
+      window.dispatchEvent(new StorageEvent('storage'));
+    });
+    expect(result.current[0]).toBe(false);
   });
 });

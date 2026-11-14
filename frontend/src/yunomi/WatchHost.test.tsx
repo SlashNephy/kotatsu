@@ -93,6 +93,21 @@ describe('小さなプレイヤー', () => {
     expect(screen.getByTestId('host').textContent).toBe('');
   });
 
+  test('小さなプレイヤーの一時停止のボタンで、映像を止める', () => {
+    const { rerender } = render(<App route={<PlayerRoute playing />} />);
+    const video = screen.getByTestId('host').querySelector('video');
+    const pause = vi.fn();
+    if (video !== null) {
+      Object.defineProperty(video, 'pause', { configurable: true, value: pause });
+    }
+    rerender(<App route={null} />);
+
+    act(() => {
+      screen.getByRole('button', { name: 'player.mini.pause' }).click();
+    });
+    expect(pause).toHaveBeenCalledOnce();
+  });
+
   test('止めていたら、ルートを離れたときに閉じる', () => {
     const { rerender } = render(<App route={<PlayerRoute playing={false} />} />);
     rerender(<App route={null} />);
