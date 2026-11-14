@@ -104,6 +104,8 @@ type serverMessage struct {
 	Content string `json:"content,omitempty"`
 	Mail    string `json:"mail,omitempty"`
 	UserID  string `json:"userId,omitempty"`
+	// PostedAt は、コメントが書き込まれた時刻 (Unix ミリ秒、#1515)。分からなければ 0 で、送らない。
+	PostedAt int64 `json:"postedAt,omitempty"`
 	// postResult のときの項目。
 	ID    int64  `json:"id,omitempty"`
 	Error string `json:"error,omitempty"`
@@ -237,7 +239,7 @@ func (v *liveViewer) messageOf(event *jikkyo.Event) *serverMessage {
 	if event.Status != nil {
 		return &serverMessage{
 			Type: "status", Kind: string(event.Status.Kind), Reason: event.Status.Reason, RetryIn: event.Status.RetryIn,
-			Content: "", Mail: "", UserID: "", ID: 0, Error: "",
+			Content: "", Mail: "", UserID: "", PostedAt: 0, ID: 0, Error: "",
 		}
 	}
 	if own := v.ownUserID.Load(); own != nil && *own != "" && *own == event.Comment.UserID {
@@ -246,7 +248,7 @@ func (v *liveViewer) messageOf(event *jikkyo.Event) *serverMessage {
 
 	return &serverMessage{
 		Type: "comment", Kind: "", Reason: "", RetryIn: 0,
-		Content: event.Comment.Content, Mail: event.Comment.Mail, UserID: event.Comment.UserID, ID: 0, Error: "",
+		Content: event.Comment.Content, Mail: event.Comment.Mail, UserID: event.Comment.UserID, PostedAt: unixMilli(event.Comment.PostedAt), ID: 0, Error: "",
 	}
 }
 
@@ -349,7 +351,7 @@ func (v *liveViewer) send(ctx context.Context, text string) string {
 
 func (v *liveViewer) writePostResult(ctx context.Context, id int64, code string) {
 	_ = v.write(ctx, &serverMessage{
-		Type: "postResult", Kind: "", Reason: "", RetryIn: 0, Content: "", Mail: "", UserID: "", ID: id, Error: code,
+		Type: "postResult", Kind: "", Reason: "", RetryIn: 0, Content: "", Mail: "", UserID: "", PostedAt: 0, ID: id, Error: code,
 	})
 }
 
@@ -366,4 +368,13 @@ func (v *liveViewer) write(ctx context.Context, message *serverMessage) error {
 	}
 
 	return nil
+}
+
+// unixMilli は、t を Unix ミリ秒にする。零値なら 0 にする。
+func unixMilli(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+
+	return t.UnixMilli()
 }

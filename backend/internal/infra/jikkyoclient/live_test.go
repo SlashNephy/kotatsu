@@ -22,6 +22,7 @@ const (
 type liveRecorder struct {
 	mu       sync.Mutex
 	comments []string
+	posted   []time.Time
 	statuses []jikkyoclient.LiveStatus
 }
 
@@ -32,6 +33,7 @@ func (r *liveRecorder) options(receive bool, cookie string) *jikkyoclient.LiveOp
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			r.comments = append(r.comments, comment.Content)
+			r.posted = append(r.posted, comment.PostedAt)
 		},
 		OnStatus: func(status *jikkyoclient.LiveStatus) {
 			r.mu.Lock()
@@ -46,6 +48,13 @@ func (r *liveRecorder) gotComments() []string {
 	defer r.mu.Unlock()
 
 	return append([]string{}, r.comments...)
+}
+
+func (r *liveRecorder) gotPosted() []time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]time.Time{}, r.posted...)
 }
 
 func (r *liveRecorder) count(kind jikkyoclient.LiveStatusKind) int {
@@ -93,6 +102,24 @@ func TestLiveSessionReceivesCommentsAfterCaughtUp(t *testing.T) {
 	assert.Equal(t, []string{""}, nx.WatchCookies())
 	// 座席を保ち、ping に答える。
 	require.Eventually(t, func() bool { return nx.KeepSeats() > 0 && nx.Pongs() > 0 }, liveTimeout, liveTick)
+}
+
+// TestLiveSessionPostedAt は、コメントの書き込まれた時刻を、date と date_usec から読むことを確かめる (#1515)。
+// 時刻のないコメントも捨てず、零値の時刻で渡す。
+func TestLiveSessionPostedAt(t *testing.T) {
+	t.Parallel()
+
+	nx := nxjikkyotest.New(t)
+	recorder := new(liveRecorder)
+	openLive(t, nx, recorder.options(true, ""))
+	require.Eventually(t, func() bool { return recorder.count(jikkyoclient.LiveStatusKindConnected) == 1 }, liveTimeout, liveTick)
+
+	nx.ChatAt(t.Context(), "時刻つき", "someone", 1794647289, 933208)
+	nx.Chat(t.Context(), "時刻なし", "someone")
+
+	require.Eventually(t, func() bool { return len(recorder.gotComments()) == 2 }, liveTimeout, liveTick)
+	assert.Equal(t, []string{"時刻つき", "時刻なし"}, recorder.gotComments())
+	assert.Equal(t, []time.Time{time.Unix(1794647289, 933208000), {}}, recorder.gotPosted())
 }
 
 // TestLiveSessionToleratesKeepInterval は、NX-Jikkyo が知らせる間隔がどんな値でも、落ちずにつながり続けることを確かめる。

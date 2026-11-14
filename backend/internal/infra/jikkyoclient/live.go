@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -77,6 +78,8 @@ type LiveComment struct {
 	Content string
 	Mail    string
 	UserID  string
+	// PostedAt は、コメントが書き込まれた時刻 (NX-Jikkyo の date と date_usec、#1515)。届かなければ零値。
+	PostedAt time.Time
 }
 
 // LiveOptions は、LiveSession の設定。
@@ -419,9 +422,11 @@ type liveCommentMessage struct {
 		Content string `json:"content"`
 	} `json:"ping"`
 	Chat *struct {
-		Content string `json:"content"`
-		Mail    string `json:"mail"`
-		UserID  string `json:"user_id"`
+		Content  string  `json:"content"`
+		Mail     string  `json:"mail"`
+		UserID   string  `json:"user_id"`
+		Date     flexInt `json:"date"`
+		DateUsec flexInt `json:"date_usec"`
 	} `json:"chat"`
 }
 
@@ -470,7 +475,10 @@ func (c *liveConnection) runComment(ctx context.Context, threadID, threadKey str
 			continue
 		}
 		if handler := c.session.opts.OnComment; handler != nil {
-			handler(&LiveComment{Content: message.Chat.Content, Mail: message.Chat.Mail, UserID: message.Chat.UserID})
+			handler(&LiveComment{
+				Content: message.Chat.Content, Mail: message.Chat.Mail, UserID: message.Chat.UserID,
+				PostedAt: postedAt(int64(message.Chat.Date), int64(message.Chat.DateUsec)),
+			})
 		}
 	}
 }
@@ -600,4 +608,26 @@ func (c *Client) liveBase() *url.URL {
 
 func (c *Client) liveURL(channelID, kind string) string {
 	return c.liveBase().JoinPath("api", "v1", "channels", channelID, "ws", kind).String()
+}
+
+// postedAt は、コメントの date (Unix 秒) と date_usec (マイクロ秒) から、書き込まれた時刻を返す。date がなければ零値。
+func postedAt(date, micros int64) time.Time {
+	if date <= 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(date, micros*int64(time.Microsecond))
+}
+
+// flexInt は、数でも、数を書いた文字列でも読める整数。NX-Jikkyo は、同じ項目を、ライブでは数で、過去ログでは文字列で返す。
+// 読めない値は 0 にし、コメントそのものは捨てない。
+type flexInt int64
+
+func (n *flexInt) UnmarshalJSON(data []byte) error {
+	*n = 0
+	if value, err := strconv.ParseInt(strings.Trim(string(data), `"`), 10, 64); err == nil {
+		*n = flexInt(value)
+	}
+
+	return nil
 }

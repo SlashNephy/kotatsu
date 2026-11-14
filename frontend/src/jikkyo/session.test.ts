@@ -88,6 +88,13 @@ describe('JikkyoSession', () => {
       mail: '184 shita',
       userId: 'a:b',
     });
+    // 書き込まれた時刻があれば、添える (#1515)。
+    sockets[0]!.emit('message', {
+      type: 'comment',
+      content: '時刻つき',
+      mail: '184',
+      postedAt: 1794647289933,
+    });
     sockets[0]!.emit('message', {
       type: 'status',
       kind: 'disconnected',
@@ -97,6 +104,7 @@ describe('JikkyoSession', () => {
 
     expect(comments).toEqual([
       { content: 'こんにちは', mail: '184 shita', at: 1234, userId: 'a:b' },
+      { content: '時刻つき', mail: '184', at: 1234, postedAt: 1794647289933 },
     ]);
     expect(statuses.slice(1)).toEqual([
       { kind: 'connected' },
