@@ -3,6 +3,7 @@ package streamapi_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -28,6 +29,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/httpclienttest"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -50,10 +52,12 @@ const downloadQuery = "?download=1"
 // downloadGate は、管理者が録画のダウンロードを有効にしているかを、テストの途中で変えられる (#1762)。
 type downloadGate struct {
 	disabled atomic.Bool
+	// err は、設定を読めなかったことを表す。nil なら読める。
+	err error
 }
 
 func (g *downloadGate) RecordingDownloadsEnabled(context.Context) (bool, error) {
-	return !g.disabled.Load(), nil
+	return !g.disabled.Load(), g.err
 }
 
 type recordingFixture struct {
@@ -382,6 +386,33 @@ func TestRecordingHandlerDownloadsWhileDisabled(t *testing.T) {
 				assert.Equal(t, data, got.body)
 				assert.Empty(t, got.disposition)
 			}
+		})
+	}
+}
+
+// TestRecordingHandlerDownloadsWithoutSettings は、録画のダウンロードを有効にしているかを読めなければ、download を断ることを確かめる (#1762)。
+// DB に届かず、覚えた設定もなければ 503、そのほかの誤りなら 500 を返す。
+func TestRecordingHandlerDownloadsWithoutSettings(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "DB に届かない", err: fmt.Errorf("lookup: %w", settings.ErrDatabaseUnavailable), wantStatus: http.StatusServiceUnavailable},
+		{name: "そのほかの誤り", err: errors.New("broken"), wantStatus: http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newRecordingFixture(t, nil)
+			f.downloads.err = tt.err
+			finished := f.recording(t, "completed")
+			f.segment(t, finished, "こたつ特集.m2ts", data, 0, false)
+			assert.Equal(t, tt.wantStatus, f.get(t, finished, downloadQuery).status)
 		})
 	}
 }
