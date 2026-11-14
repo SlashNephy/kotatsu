@@ -166,7 +166,7 @@ func TestSetupHandlers(t *testing.T) {
 		return rec.Code, string(got)
 	}
 	body := func(token, phrase string) string {
-		return `{"token":"` + token + `","username":"admin","displayName":"管理者","password":"` + phrase + `"}`
+		return `{"token":"` + token + `","username":"admin","displayName":"管理者","password":"` + phrase + `","acceptDisclaimer":true}`
 	}
 
 	code, got := serve(status, http.MethodGet, "")
@@ -183,6 +183,8 @@ func TestSetupHandlers(t *testing.T) {
 		{name: "wrong token", body: body("wrong", adminPhrase), wantStatus: http.StatusUnauthorized, want: rejectedSetupCode},
 		// トークンがなければ、パスワードの規定に当たるかどうかも見せない。
 		{name: "wrong token and weak password", body: body("wrong", "kotatsukotatsu"), wantStatus: http.StatusUnauthorized, want: rejectedSetupCode},
+		// 免責事項に同意しなければ、管理者を作らない。
+		{name: "disclaimer not accepted", body: `{"token":"` + token + `","username":"admin","displayName":"管理者","password":"` + adminPhrase + `"}`, wantStatus: http.StatusBadRequest, want: `"code":"DISCLAIMER_NOT_ACCEPTED"`},
 		{name: "weak password", body: body(token, "kotatsukotatsu"), wantStatus: http.StatusBadRequest, want: `{"error":{"code":"WEAK_PASSWORD","reason":"too_weak"}}`},
 		{name: "created", body: body(token, adminPhrase), wantStatus: http.StatusCreated, want: `{"username":"admin","next":"login"}`},
 		{name: "already done", body: body(token, adminPhrase), wantStatus: http.StatusConflict, want: `"code":"SETUP_DONE"`},

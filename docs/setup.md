@@ -256,7 +256,7 @@ docker compose logs kotatsu | grep setup_token
 kubectl exec deploy/kotatsu-tenban -- kotatsu admin setup-token
 ```
 
-ブラウザで`http://<ホスト>:8080/setup`を開き、トークンを入力して管理者を作ってください。
+ブラウザで`http://<ホスト>:8080/setup`を開き、トークンを入力し、[免責事項](../README.md#免責事項)に同意して管理者を作ってください。
 作った管理者でログインすると、認証アプリの登録を求められます。
 
 ## HTTPSについて

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
+import { Disclaimer } from '../about/Disclaimer';
 import { LicenseList } from '../about/LicenseList';
 import {
   bundledData,
@@ -39,7 +40,7 @@ const query = graphql`
   }
 `;
 
-// AboutPage は、Kotatsu の版とライセンス、同梱するソフトウェアとそのライセンスの文書を出す (設計書 10.3、付録 B、#1604)。
+// AboutPage は、Kotatsu の版とライセンス、免責事項 (#1712)、同梱するソフトウェアとそのライセンスの文書を出す (設計書 10.3、付録 B、#1604)。
 function AboutPage() {
   const { t } = useTranslation();
   useDocumentTitle([t('about.title')]);
@@ -120,6 +121,10 @@ function AboutContent() {
             {repositoryURL}
           </Anchor>
         </Stack>
+      </Card>
+
+      <Card withBorder>
+        <Disclaimer />
       </Card>
 
       <Text size="sm">{t('about.description')}</Text>

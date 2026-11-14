@@ -182,7 +182,8 @@
       "OIDC_NOT_LINKED": "This user is not linked to the IdP, so it cannot be verified with the IdP",
       "OIDC_DISABLED": "Login with an IdP is not configured",
       "OIDC_ALREADY_LINKED": "This user is already linked to an IdP account",
-      "UNAUTHENTICATED": "Not logged in. Please log in again."
+      "UNAUTHENTICATED": "Not logged in. Please log in again.",
+      "DISCLAIMER_NOT_ACCEPTED": "You must accept the disclaimer"
     },
     "oidcErrors": {
       "oidc_expired": "Too much time has passed. Please log in again.",
@@ -201,7 +202,8 @@
       "description": "Create the first administrator. You can find the setup token in Kotatsu's startup log or with kotatsu admin setup-token.",
       "token": "Setup token",
       "submit": "Create administrator",
-      "done": "The administrator has been created. Log in and set up two-factor authentication."
+      "done": "The administrator has been created. Log in and set up two-factor authentication.",
+      "acceptDisclaimer": "I accept the disclaimer"
     },
     "login": {
       "title": "Log in to Kotatsu",
@@ -2528,5 +2530,11 @@
     "inRepository": "The license and copyright notice are kept in the linked file",
     "inImage": "License texts and source locations are in /usr/share/doc/kotatsu/third-party/ and, for Debian packages, /usr/share/doc/ in the image",
     "loadFailed": "Could not load"
+  },
+  "disclaimer": {
+    "title": "Disclaimer",
+    "privateUse": "Kotatsu is software intended for private use, that is, use by an individual, within a household, or within a similarly limited circle, as provided in Article 30, Paragraph 1 of the Copyright Act of Japan. It is not intended for transmitting received broadcasts or recorded programs to the public, or for making them available for transmission.",
+    "tuner": "Users shall connect Kotatsu only to tuner servers that they are lawfully entitled to use.",
+    "lawful": "Users shall not use Kotatsu for any purpose that violates laws or regulations, or that infringes the copyrights or other rights of third parties."
   }
 }
