@@ -3,6 +3,8 @@ package httpserver
 import (
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/labstack/echo/v5"
 )
@@ -28,4 +30,26 @@ func Component(name string) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+// Handle は、net/http のハンドラーを、パスとメソッドごとに echo のルーターへ登録する (#1606)。
+// http.ServeMux と同じく、GET のハンドラーは HEAD にも答え、パスに当たってメソッドの違うリクエストには、Allow を付けて 405 を返す。
+// echo は、メソッドの違うリクエストを、RouteNotFound (移し終えていない mux) に渡してしまうからである。
+func Handle(router *echo.Echo, path string, handlers map[string]http.Handler, middleware ...echo.MiddlewareFunc) {
+	allowed := make([]string, 0, len(handlers)+1)
+	for method, handler := range handlers {
+		allowed = append(allowed, method)
+		router.Add(method, path, echo.WrapHandler(handler), middleware...)
+		if _, ok := handlers[http.MethodHead]; method == http.MethodGet && !ok {
+			allowed = append(allowed, http.MethodHead)
+			router.Add(http.MethodHead, path, echo.WrapHandler(handler), middleware...)
+		}
+	}
+	slices.Sort(allowed)
+	allow := strings.Join(allowed, ", ")
+	// メソッドを決めたルートは、Any のルートより先に当たる。
+	router.Any(path, echo.WrapHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Allow", allow)
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+	})), middleware...)
 }

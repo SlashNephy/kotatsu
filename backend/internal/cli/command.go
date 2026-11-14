@@ -322,11 +322,11 @@ func newAnimeRecords(deps *Deps, logger *slog.Logger, inserter anime.Inserter, p
 	})
 }
 
-// handleAnimeRecordCallbacks は、Annict と AniList から戻ってくる認可のハンドラーを、記録先ごとに mux に登録する (#927)。
-func handleAnimeRecordCallbacks(mux *http.ServeMux, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
+// addAnimeRecordCallbacks は、Annict と AniList から戻ってくる認可のハンドラーを、記録先ごとに routes に足す (#927)。
+func addAnimeRecordCallbacks(routes authRoutes, deps *Deps, service *animerecord.Service, logger *slog.Logger) {
 	logger = logger.With(slog.String("component", "anime_record"))
 	for _, name := range service.Destinations() {
-		mux.Handle("GET "+animerecord.CallbackPathPrefix+name+"/callback", animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
+		routes.add(http.MethodGet, animerecord.CallbackPathPrefix+name+"/callback", animerecordapi.CallbackHandler(service, deps.DB, clientInfo, name, logger))
 	}
 }
 
@@ -904,7 +904,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Logs:              newLogReport(deps, sealed, location, tuner.logs),
 	})
 	mux.Handle("/internal/graphql", httpserver.StopEventStreamsOnShutdown(graphQL))
-	mux.Handle("POST /internal/auth/logout", httpserver.RequireSameOrigin(sessions.LogoutHandler(deps.DB)))
+	// ログインやログアウトなどの手続き (/internal/auth/*) は、echo のルーターで受ける (#1606)。
+	authRoutes := authRoutes{}
+	authRoutes.add(http.MethodPost, "/internal/auth/logout", sessions.LogoutHandler(deps.DB))
 	logins := auth.NewLogins(&auth.LoginsOptions{
 		Clock:         deps.Clock,
 		Recorder:      audit.NewRecorder(deps.Clock),
@@ -917,36 +919,36 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		VerificationWait:           0,
 	})
 	setup := auth.NewSetup(deps.Clock, audit.NewRecorder(deps.Clock), passwordPolicy, logger.With(slog.String("component", "setup")))
-	mux.Handle("GET /internal/auth/setup", setup.StatusHandler(deps.DB))
+	authRoutes.add(http.MethodGet, "/internal/auth/setup", setup.StatusHandler(deps.DB))
 	// 重要な操作ができるか。画面が、重要な操作の入力を始める前に確かめる (設計書 9.5)。
-	mux.Handle("GET /internal/auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
+	authRoutes.add(http.MethodGet, "/internal/auth/reauth", auth.ReauthenticationStatusHandler(deps.Clock))
 	// OIDC でのログイン (設計書 9.4)。IdP からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
 	oidc := newOIDC(deps.Clock, logger, deps.Config, sessions, deps.Network)
-	mux.Handle("GET /internal/auth/oidc", oidc.StatusHandler(deps.DB))
-	mux.Handle("GET "+auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
+	authRoutes.add(http.MethodGet, "/internal/auth/oidc", oidc.StatusHandler(deps.DB))
+	authRoutes.add(http.MethodGet, auth.OIDCCallbackPath, oidc.CallbackHandler(deps.DB, clientInfo))
 	// Annict と AniList から戻ってくる認可 (#927)。記録先からのリダイレクトは GET なので、Origin を確かめずに受け付ける。
-	handleAnimeRecordCallbacks(mux, deps, animeRecords, logger)
-	for pattern, handler := range map[string]http.Handler{
-		"POST /internal/auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
-		"POST /internal/auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
-		"POST /internal/auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
-		"POST /internal/auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),
-		"POST /internal/auth/login/totp/enrollment":         logins.EnrollmentHandler(deps.DB),
-		"POST /internal/auth/login/totp/enrollment/confirm": logins.EnrollmentConfirmHandler(deps.DB, clientInfo),
-		"POST /internal/auth/login/passkey":                 logins.PasskeySecondFactorHandler(deps.DB, clientInfo),
-		"POST /internal/auth/login/passkey/confirm":         logins.PasskeySecondFactorConfirmHandler(deps.DB, clientInfo),
-		"POST /internal/auth/passkey/login":                 logins.PasskeyLoginHandler(deps.DB, clientInfo),
-		"POST /internal/auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
-		"POST /internal/auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
-		"POST /internal/auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
-		"POST /internal/auth/oidc":                          oidc.BeginHandler(deps.DB, clientInfo),
-		"POST /internal/auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
-		"POST /internal/auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
-		"POST /internal/auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
-		"POST /internal/auth/reauth/oidc":                   oidc.ReauthenticationHandler(deps.DB, clientInfo),
-		"POST /internal/auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
+	addAnimeRecordCallbacks(authRoutes, deps, animeRecords, logger)
+	for path, handler := range map[string]http.Handler{
+		"/internal/auth/setup":                         setup.CreateHandler(deps.DB, clientInfo),
+		"/internal/auth/login":                         logins.PasswordHandler(deps.DB, clientInfo),
+		"/internal/auth/login/totp":                    logins.TOTPHandler(deps.DB, clientInfo),
+		"/internal/auth/login/recovery-code":           logins.RecoveryCodeHandler(deps.DB, clientInfo),
+		"/internal/auth/login/totp/enrollment":         logins.EnrollmentHandler(deps.DB),
+		"/internal/auth/login/totp/enrollment/confirm": logins.EnrollmentConfirmHandler(deps.DB, clientInfo),
+		"/internal/auth/login/passkey":                 logins.PasskeySecondFactorHandler(deps.DB, clientInfo),
+		"/internal/auth/login/passkey/confirm":         logins.PasskeySecondFactorConfirmHandler(deps.DB, clientInfo),
+		"/internal/auth/passkey/login":                 logins.PasskeyLoginHandler(deps.DB, clientInfo),
+		"/internal/auth/passkey/login/confirm":         logins.PasskeyLoginConfirmHandler(deps.DB, clientInfo),
+		"/internal/auth/passkey/registration":          passkeys.RegistrationHandler(deps.DB, clientInfo),
+		"/internal/auth/passkey/registration/confirm":  passkeys.RegistrationConfirmHandler(deps.DB, clientInfo),
+		"/internal/auth/oidc":                          oidc.BeginHandler(deps.DB, clientInfo),
+		"/internal/auth/reauth":                        logins.ReauthenticateHandler(deps.DB, clientInfo),
+		"/internal/auth/reauth/passkey":                logins.PasskeyReauthenticationHandler(deps.DB, clientInfo),
+		"/internal/auth/reauth/passkey/confirm":        logins.PasskeyReauthenticationConfirmHandler(deps.DB, clientInfo),
+		"/internal/auth/reauth/oidc":                   oidc.ReauthenticationHandler(deps.DB, clientInfo),
+		"/internal/auth/oidc/link":                     oidc.LinkHandler(deps.DB, clientInfo),
 	} {
-		mux.Handle(pattern, httpserver.RequireSameOrigin(handler))
+		authRoutes.add(http.MethodPost, path, handler)
 	}
 	streamLogger := logger.With(slog.String("component", "stream"))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, deps.Clock)
@@ -976,6 +978,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	handleOAuth(root, authorizationServer, graphQL, logger)
 	root.Handle("/", app)
 	router := newRouter(logger, root, deps, calendarFeeds, public)
+	handleAuth(router, sessions.Middleware(deps.DB), authRoutes)
 
 	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
 }
@@ -989,6 +992,30 @@ func newRouter(logger *slog.Logger, root http.Handler, deps *Deps, calendarFeeds
 	handleEPGStationAPI(router, deps, public.apiTokens, public.opener, public.logos, public.streams, public.streamLogger)
 
 	return router
+}
+
+// authRoutes は、echo のルーターに移す、ログインやログアウトなどの手続き (/internal/auth/*) のハンドラーを、パスとメソッドで引くもの。
+type authRoutes map[string]map[string]http.Handler
+
+// add は、パスとメソッドのハンドラーを足す。
+func (r authRoutes) add(method, path string, handler http.Handler) {
+	if r[path] == nil {
+		r[path] = map[string]http.Handler{}
+	}
+	r[path][method] = handler
+}
+
+// handleAuth は、ログインやログアウトなどの手続き (/internal/auth/*) を、echo のルーターに登録する (設計書 9.1、#1606)。
+// mux のときと同じく、セッションの Cookie を読み、状態を変える POST では Origin を確かめる (設計書 9.5)。
+// GET は RequireSameOrigin を素通りするので、状態を返すものと IdP や記録先から戻るリダイレクトは、Origin を確かめずに受け付ける。
+func handleAuth(router *echo.Echo, session func(http.Handler) http.Handler, routes authRoutes) {
+	for path, handlers := range routes {
+		wrapped := make(map[string]http.Handler, len(handlers))
+		for method, handler := range handlers {
+			wrapped[method] = session(httpserver.RequireSameOrigin(handler))
+		}
+		httpserver.Handle(router, path, wrapped, httpserver.Component("auth"))
+	}
 }
 
 // publicAPI は、/api の下の端点を登録するのに使うもの。

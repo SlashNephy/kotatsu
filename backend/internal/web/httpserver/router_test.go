@@ -102,3 +102,44 @@ func TestRouter(t *testing.T) {
 	require.Len(t, logs.attrs, 1)
 	assert.Equal(t, map[string]string{"component": "moved", "name": "a"}, logs.attrs[0])
 }
+
+func TestHandle(t *testing.T) {
+	t.Parallel()
+
+	const both = "/both"
+	ok := func(status int) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(status) })
+	}
+	router := httpserver.NewRouter(slog.New(slog.DiscardHandler), ok(http.StatusTeapot))
+	httpserver.Handle(router, both, map[string]http.Handler{http.MethodGet: ok(http.StatusOK), http.MethodPost: ok(http.StatusCreated)})
+	httpserver.Handle(router, "/post", map[string]http.Handler{http.MethodPost: ok(http.StatusCreated)})
+
+	// 移す前の http.ServeMux と同じ応答を返すことを確かめる。
+	mux := http.NewServeMux()
+	mux.Handle("GET /both", ok(http.StatusOK))
+	mux.Handle("POST /both", ok(http.StatusCreated))
+	mux.Handle("POST /post", ok(http.StatusCreated))
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		wantStatus int
+		wantAllow  string
+	}{
+		{name: "GET", method: http.MethodGet, path: both, wantStatus: http.StatusOK, wantAllow: ""},
+		{name: "HEAD answers like GET", method: http.MethodHead, path: both, wantStatus: http.StatusOK, wantAllow: ""},
+		{name: "POST to both", method: http.MethodPost, path: both, wantStatus: http.StatusCreated, wantAllow: ""},
+		{name: "other method", method: http.MethodDelete, path: both, wantStatus: http.StatusMethodNotAllowed, wantAllow: "GET, HEAD, POST"},
+		{name: "GET to POST only", method: http.MethodGet, path: "/post", wantStatus: http.StatusMethodNotAllowed, wantAllow: "POST"},
+		{name: "OPTIONS to POST only", method: http.MethodOptions, path: "/post", wantStatus: http.StatusMethodNotAllowed, wantAllow: "POST"},
+	}
+	for _, tt := range tests {
+		for name, handler := range map[string]http.Handler{"echo": router, "mux": mux} {
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, nil))
+			assert.Equal(t, tt.wantStatus, rec.Code, "%s: %s", name, tt.name)
+			assert.Equal(t, tt.wantAllow, rec.Header().Get("Allow"), "%s: %s", name, tt.name)
+		}
+	}
+}
