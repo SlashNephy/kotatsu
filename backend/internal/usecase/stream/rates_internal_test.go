@@ -124,20 +124,47 @@ func TestLiveRatesWatcher(t *testing.T) {
 	// チューナーを奪わない優先度で開く。
 	assert.Equal(t, &tunerserver.StreamOptions{Decode: true, Priority: ratesPriority}, opener.opts)
 	// 最初の間隔で、TS の全体を読み終えているとは限らないので、映像と音声が数えられるまで読む。
+	// 放送の時計 (#1515) も、PCR を読めたら載せる。
 	var seen *LiveRates
 	for r := range rates {
 		seen = r
-		if r.BPS.Video > 0 && r.BPS.Audio > 0 {
+		if r.BPS.Video > 0 && r.BPS.Audio > 0 && r.Clock != nil {
 			break
 		}
 	}
 	require.NotNil(t, seen)
 	assert.Positive(t, seen.BPS.Video)
 	assert.Positive(t, seen.BPS.Audio)
+	require.NotNil(t, seen.Clock)
+	assert.Positive(t, seen.Clock.PCR)
+	assert.False(t, seen.Clock.ReceivedAt.IsZero())
+	assert.False(t, seen.ServerTime.Before(seen.Clock.ReceivedAt))
 
 	cancel()
 	// ctx が終わったら、チャネルを閉じる。
 	for range rates {
+	}
+}
+
+func TestServiceIDOf(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		id   int64
+		want uint16
+	}{
+		{name: "地上波", id: 3273601024, want: 1024},
+		{name: "BS", id: 400101, want: 101},
+		{name: "負の値", id: -1, want: 0},
+		{name: "16 ビットに収まらない値", id: 70000, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, serviceIDOf(tt.id))
+		})
 	}
 }
 

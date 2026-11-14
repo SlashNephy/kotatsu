@@ -1304,7 +1304,9 @@
       "samplingRate": "{{khz}} kHz",
       "bandwidth": "推定した帯域",
       "transport": "TS の異常",
-      "transportCounts": "ドロップ {{dropped}}、エラー {{errors}}、スクランブル {{scrambled}}"
+      "transportCounts": "ドロップ {{dropped}}、エラー {{errors}}、スクランブル {{scrambled}}",
+      "broadcastDelay": "放送から",
+      "broadcastDelaySeconds": "{{seconds}} 秒"
     },
     "commands": {
       "togglePlay": "再生と一時停止",

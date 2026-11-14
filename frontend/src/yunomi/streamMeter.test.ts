@@ -300,6 +300,7 @@ describe('StreamMeter', () => {
   const reading = (load: number, bytesRead: number, mediaEnd: number) => ({
     load,
     bytesRead,
+    mediaOrigin: 126_000,
     mediaEnd,
     seeking: false,
     transport: { dropped: 1, errors: 2, scrambled: 3 },
@@ -328,12 +329,15 @@ describe('StreamMeter', () => {
       filmFps: null,
       unfiltered: false,
     });
+    // 画面の時刻を放送の時刻に直す起点も覚える (#1515)。
+    expect(meter.mediaOrigin).toBe(126_000);
   });
 
   test('reset の後の最初の読みは、区切りにするだけ', () => {
     const meter = new StreamMeter();
     meter.feedTs(1_000, reading(1, 1_000_000, 1));
     meter.reset();
+    expect(meter.mediaOrigin).toBeNull();
     meter.feedTs(2_000, reading(1, 3_000_000, 2));
 
     expect(meter.bitrate.rate(2_000)).toBeNull();

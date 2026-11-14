@@ -230,6 +230,8 @@ export type EncodedStream = {
 export type TsPlayerReading = TsReading & {
   transport: TransportCounts | null;
   source: SourcePicture | null;
+  // mediaOrigin は、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。まだ分からなければ null。
+  mediaOrigin: number | null;
 };
 
 // HlsSegment は、kyusu の経路で、hls.js が読み終えたセグメント。
@@ -241,6 +243,8 @@ export class StreamMeter {
   transport: TransportCounts | null = null;
   source: SourcePicture | null = null;
   encoded: EncodedStream | null = null;
+  // mediaOrigin は、ブラウザの中で変換する経路の、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。分からなければ null。
+  mediaOrigin: number | null = null;
   #base: TsReading | null = null;
 
   feedTs(at: number, reading: TsPlayerReading) {
@@ -251,6 +255,7 @@ export class StreamMeter {
     }
     this.transport = reading.transport;
     this.source = reading.source;
+    this.mediaOrigin = reading.mediaOrigin;
   }
 
   feedSegment(at: number, segment: HlsSegment) {
@@ -264,6 +269,7 @@ export class StreamMeter {
     this.transport = null;
     this.source = null;
     this.encoded = null;
+    this.mediaOrigin = null;
     this.#base = null;
   }
 }

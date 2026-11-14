@@ -454,6 +454,15 @@ type AuditEventFilter struct {
 	Until *time.Time `json:"until,omitempty"`
 }
 
+// 放送の時計 (#1515)。PCR と、それを含む TS を tenban が受け取った時刻の組。受け取った時刻から PCR を引いた量が最も小さい組を送る。
+// 映しているコマの放送の時刻は、receivedAt + (コマの PTS − pcr) で出せる。
+type BroadcastClock struct {
+	// PCR の基準部 (90 kHz) を秒にしたもの。
+	Pcr float64 `json:"pcr"`
+	// PCR を含む TS を tenban が受け取った時刻。
+	ReceivedAt time.Time `json:"receivedAt"`
+}
+
 // まとめて行った操作の結果 (#471)。
 type BulkOperationPayload struct {
 	// 操作した数。
@@ -911,6 +920,10 @@ type LiveStreamRates struct {
 	Drops     int64 `json:"drops"`
 	Errors    int64 `json:"errors"`
 	Scrambled int64 `json:"scrambled"`
+	// 放送の時計 (#1515)。まだ PCR を読めていなければ null。
+	BroadcastClock *BroadcastClock `json:"broadcastClock,omitempty"`
+	// 内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで測る (#1515)。
+	ServerTime time.Time `json:"serverTime"`
 }
 
 // ライブのサービスが、スクランブルされたまま届くと決めたこと (設計書 7.1、#1517)。viewerEvents で届く。

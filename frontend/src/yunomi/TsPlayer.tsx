@@ -85,6 +85,8 @@ type Slot = {
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
   bytesRead: number;
+  // origin は、この読み込みで、画面の時刻 0 に当たる放送の時刻 (90 kHz の刻み、#1515)。まだ分からなければ null。
+  origin: number | null;
   destroyed: boolean;
 };
 
@@ -234,6 +236,7 @@ export function TsPlayer({
       filmFps: null,
       unfiltered: false,
       bytesRead: 0,
+      origin: null,
       destroyed: false,
     };
     // 壊れた音声のフレームなどで、映像の要素が復号に失敗すると、ブラウザは再生を止める。止まると読み込みの止まりも
@@ -308,6 +311,7 @@ export function TsPlayer({
         handlers.current.onReading?.({
           load: slot.load,
           bytesRead: slot.bytesRead,
+          mediaOrigin: slot.origin,
           mediaEnd: bufferedEnd(slot.video),
           seeking: player.state === 'seeking',
           transport:
@@ -322,6 +326,11 @@ export function TsPlayer({
         });
       }
     };
+    // 画面の時刻を放送の時刻に直すために、読み込みごとの起点を控える (#1515)。
+    player.addEventListener('origin', (event) => {
+      slot.origin = event.detail.ticks;
+      report();
+    });
     player.addEventListener('progress', (event) => {
       slot.bytesRead = event.detail.bytesRead;
       report();
@@ -483,6 +492,7 @@ export function TsPlayer({
           slot.load = ++loads;
           slot.stats = null;
           slot.bytesRead = 0;
+          slot.origin = null;
           await next.load(url);
           // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);

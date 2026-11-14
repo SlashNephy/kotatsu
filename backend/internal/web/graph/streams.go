@@ -168,17 +168,7 @@ func (r *Resolver) subscribeLiveStreamRates(ctx context.Context, service string)
 		defer close(out)
 		for rate := range rates {
 			select {
-			case out <- &model.LiveStreamRates{
-				VideoBps:   int(rate.BPS.Video),
-				AudioBps:   int(rate.BPS.Audio),
-				OtherBps:   int(rate.BPS.Other),
-				PsiBps:     int(rate.BPS.PSI),
-				UnknownBps: int(rate.BPS.Unknown),
-				TotalBps:   int(rate.TotalBPS),
-				Drops:      rate.Drops,
-				Errors:     rate.Errors,
-				Scrambled:  rate.Scrambled,
-			}:
+			case out <- liveStreamRatesOf(rate):
 			case <-ctx.Done():
 				return
 			}
@@ -241,4 +231,26 @@ func (r *Resolver) subscribeLiveStreamScrambled(ctx context.Context) (<-chan *mo
 	}()
 
 	return out, nil
+}
+
+// liveStreamRatesOf は、ライブのサービスの内訳を、GraphQL の型にする。
+func liveStreamRatesOf(rate *stream.LiveRates) *model.LiveStreamRates {
+	rates := &model.LiveStreamRates{
+		VideoBps:       int(rate.BPS.Video),
+		AudioBps:       int(rate.BPS.Audio),
+		OtherBps:       int(rate.BPS.Other),
+		PsiBps:         int(rate.BPS.PSI),
+		UnknownBps:     int(rate.BPS.Unknown),
+		TotalBps:       int(rate.TotalBPS),
+		Drops:          rate.Drops,
+		Errors:         rate.Errors,
+		Scrambled:      rate.Scrambled,
+		BroadcastClock: nil,
+		ServerTime:     rate.ServerTime,
+	}
+	if rate.Clock != nil {
+		rates.BroadcastClock = &model.BroadcastClock{Pcr: rate.Clock.PCR, ReceivedAt: rate.Clock.ReceivedAt}
+	}
+
+	return rates
 }
