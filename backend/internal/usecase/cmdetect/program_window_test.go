@@ -83,3 +83,26 @@ func TestClipIntervals(t *testing.T) {
 	got := cmdetect.ClipIntervals([]logo.Interval{{Start: 0, End: 8}, {Start: 10, End: 50}, {Start: 60, End: 95}, {Start: 96, End: 100}}, times, 6, 90)
 	assert.Equal(t, []logo.Interval{{Start: 6, End: 8}, {Start: 10, End: 50}, {Start: 60, End: 90}}, got)
 }
+
+// TestDropShortSections は、15 秒の CM になりえない短い区間を、ファイルの端に接しているか、ほかの CM に続いていなければ捨てることを確かめる (#1506)。
+func TestDropShortSections(t *testing.T) {
+	t.Parallel()
+
+	sec := func(from, to float64) cmdetect.Section {
+		return cmdetect.Section{Start: time.Duration(from * float64(time.Second)), End: time.Duration(to * float64(time.Second))}
+	}
+	got := cmdetect.DropShortSections([]cmdetect.Section{
+		sec(0, 5),       // 先頭に接する区間は、短くても残す。
+		sec(100, 106),   // 本編の中の孤立した 6 秒は捨てる。
+		sec(200, 350),   // 150 秒の CM は残す。
+		sec(351, 361),   // CM に続く 10 秒 (提供や告知) は残す。
+		sec(362, 367),   // それにさらに続く 5 秒も残す。
+		sec(500, 513.9), // 15 秒に 1 秒以上足りない区間は捨てる。
+		sec(600, 614),   // 15 秒から 1 秒のずれの内なら残す。
+		sec(1795, 1800), // 末尾に接する区間は残す。
+	}, 1800*time.Second)
+
+	assert.Equal(t, []cmdetect.Section{
+		sec(0, 5), sec(200, 350), sec(351, 361), sec(362, 367), sec(600, 614), sec(1795, 1800),
+	}, got)
+}

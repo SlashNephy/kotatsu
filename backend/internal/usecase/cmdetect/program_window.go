@@ -117,3 +117,50 @@ func clipIntervals(intervals []logo.Interval, times []float64, start, end float6
 
 	return out
 }
+
+const (
+	// minCMSection は、ほかの CM に続かない区間を CM とみなす最短 (#1506 の「捨てる短い区間」)。CM は 15 秒の倍数なので、
+	// 許すずれ (1 秒) を引いた長さに届かない区間は、本当の CM になりえない。本番のアニメの録画では、明るい場面で局ロゴが見えにくくなり、
+	// 本編の中に 2〜11 秒の区間が 14 個出たが、どれも本編だった。
+	minCMSection = 14 * time.Second
+	// cmAdjacency は、短い区間が、ほかの CM に続くとみなす隙間。CM に続く短い区間は、提供や局の告知かもしれないので残す。
+	cmAdjacency = 2 * time.Second
+)
+
+// dropShortSections は、CM の区間のうち、minCMSection より短く、ファイルの端 (0 と duration) に接しておらず、
+// ほかの残す区間から cmAdjacency の内にもないものを捨てる (#1506)。端の区間は、前後の番組の CM が途中から入るので、長さを問わない。
+func dropShortSections(sections []Section, duration time.Duration) []Section {
+	keep := make([]bool, len(sections))
+	for i, s := range sections {
+		keep[i] = s.End-s.Start >= minCMSection || s.Start <= 0 || s.End >= duration
+	}
+	// 残す区間に続く短い区間も残す。続いた区間にさらに続くものもあるので、増えなくなるまで繰り返す。
+	for changed := true; changed; {
+		changed = false
+		for i := range sections {
+			if keep[i] {
+				continue
+			}
+			for j := range sections {
+				if keep[j] && gap(sections[i], sections[j]) <= cmAdjacency {
+					keep[i], changed = true, true
+
+					break
+				}
+			}
+		}
+	}
+	out := make([]Section, 0, len(sections))
+	for i, s := range sections {
+		if keep[i] {
+			out = append(out, s)
+		}
+	}
+
+	return out
+}
+
+// gap は、2 つの区間の隙間を返す。重なっていれば 0。
+func gap(a, b Section) time.Duration {
+	return max(b.Start-a.End, a.Start-b.End, 0)
+}

@@ -404,11 +404,12 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 		}
 	}
 	missing := missingSections(m.Times, m.Fps)
+	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 
 	return &logoResult{
-		sections:    trimMissing(complementSections(intervals, m.Times, m.Fps), missing),
+		sections:    dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration),
 		missing:     missing,
-		duration:    time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second)),
+		duration:    duration,
 		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration}),
 		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil

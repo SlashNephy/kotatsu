@@ -123,7 +123,7 @@ func TestLogoDetector(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	path := writeLogoTS(t, 15, 25)
+	path := writeLogoTS(t, 15, 30)
 	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil})
 	require.NoError(t, err)
 	// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
@@ -131,7 +131,7 @@ func TestLogoDetector(t *testing.T) {
 	require.Len(t, got, 1, "%v", got)
 	// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
 	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
-	assert.InDelta(t, 25, got[0].End.Seconds(), 1, "%v", got)
+	assert.InDelta(t, 30, got[0].End.Seconds(), 1, "%v", got)
 }
 
 // TestParseFrameLog は、showinfo のログの頭と本文の間に -progress のまとまりが入り、時刻の入った本文が
@@ -254,7 +254,7 @@ func TestLogoDetectorRedetect(t *testing.T) {
 		hideFrom, hideTo int
 		wantRedetectable bool
 	}{
-		{name: "a recording decided by the logo", hideFrom: 15, hideTo: 25, wantRedetectable: true},
+		{name: "a recording decided by the logo", hideFrom: 15, hideTo: 30, wantRedetectable: true},
 		{name: "a recording whose logo result is dropped", hideFrom: 10, hideTo: 34, wantRedetectable: false},
 	}
 	for _, tt := range tests {

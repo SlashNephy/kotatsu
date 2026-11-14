@@ -147,3 +147,8 @@ func ProgramWindow(intervals []logo.Interval, times []float64, fps float64, prog
 func ClipIntervals(intervals []logo.Interval, times []float64, start, end float64) []logo.Interval {
 	return clipIntervals(intervals, times, start, end)
 }
+
+// DropShortSections は dropShortSections。
+func DropShortSections(sections []Section, duration time.Duration) []Section {
+	return dropShortSections(sections, duration)
+}
