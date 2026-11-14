@@ -157,3 +157,13 @@ func TestParseFrameLog(t *testing.T) {
 	// 本文がつながった progress=continue の行も、まとまりの区切りとして読む。
 	assert.Equal(t, 2, blocks)
 }
+
+// TestParseFrameLogHugeFrameNumber は、ログに紛れた大きなコマの番号で、長く回らずに読み終えることを確かめる。
+// 番号が抜けた分は、コマと時刻の数が合わなくなるので、呼ぶ側がロゴを使わずに見分け直す。
+func TestParseFrameLogHugeFrameNumber(t *testing.T) {
+	t.Parallel()
+
+	times, _ := cmdetect.ParseFrameLog("[Parsed_showinfo_2 @ 0x1] n:   0 pts:      0 pts_time:0 duration:   3003\n" +
+		"[Parsed_showinfo_2 @ 0x1] n:9223372036854775806 pts:   3003 pts_time:0.0333667 duration:   3003\n")
+	assert.Equal(t, []float64{0, 0.0333667}, times)
+}

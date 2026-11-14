@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -231,7 +233,6 @@ var showinfoFrame = regexp.MustCompile(`n:\s*(\d+)\s+pts:\s*\S+\s+pts_time:(-?[0
 func parseFrameLog(r io.Reader, onBlock func(*ffprogress.Block)) *frameLog {
 	log := &frameLog{times: []float64{}, tail: []string{}}
 	byFrame := map[int]float64{}
-	last := -1
 	parser := ffprogress.NewParser(onBlock, func(line string) {
 		log.tail = append(log.tail, line)
 		if len(log.tail) > maxStderrLines {
@@ -248,7 +249,6 @@ func parseFrameLog(r io.Reader, onBlock func(*ffprogress.Block)) *frameLog {
 				t, terr := strconv.ParseFloat(m[2], 64)
 				if nerr == nil && terr == nil {
 					byFrame[n] = t
-					last = max(last, n)
 				}
 			}
 			switch {
@@ -266,11 +266,11 @@ func parseFrameLog(r io.Reader, onBlock func(*ffprogress.Block)) *frameLog {
 		}
 	}
 	parser.Flush()
-	// コマの番号の順に並べる。抜けた番号があれば飛ばすので、コマと時刻の数が合わなくなり、ロゴを使わずに見分け直す。
-	for n := 0; n <= last; n++ {
-		if t, ok := byFrame[n]; ok {
-			log.times = append(log.times, t)
-		}
+	// コマの番号の順に並べる。番号の範囲を回すと、ログに紛れた大きな番号で長く回るので、拾った番号だけを並べ替える。
+	// 抜けた番号があれば、コマと時刻の数が合わなくなり、ロゴを使わずに見分け直す。
+	frames := slices.Sorted(maps.Keys(byFrame))
+	for _, n := range frames {
+		log.times = append(log.times, byFrame[n])
 	}
 
 	return log
