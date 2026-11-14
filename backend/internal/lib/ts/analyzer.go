@@ -468,7 +468,15 @@ func (a *Analyzer) handleSection(pid uint16, section []byte) {
 			a.onSDT(sdt)
 		}
 	default:
-		a.programs.handlePMT(pid, section)
+		// PMT から外れた ES と、加わった ES は、continuity_counter を数え直す。
+		// 放送局は、番組の境目で解説放送の音声などを PMT から外し、戻すときに continuity_counter を 0 から始め直す。
+		// discontinuity_indicator は立たないが、パケットは欠けていないので、ドロップと数えない。
+		for _, changed := range a.programs.handlePMT(pid, section) {
+			if state := a.pids[changed]; state != nil {
+				state.lastCC = -1
+				state.duplicated = false
+			}
+		}
 	}
 }
 

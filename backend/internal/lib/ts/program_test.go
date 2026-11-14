@@ -302,3 +302,88 @@ func TestAnalyzerProgramsComponentTag(t *testing.T) {
 		})
 	}
 }
+
+// TestAnalyzerContinuityAcrossPMTChanges は、PMT から外れた ES が戻ったとき、continuity_counter を数え直すことを確かめる。
+// 放送局は、番組の境目で解説放送の音声などを PMT から外し、戻すときに continuity_counter を 0 から始め直す。
+// discontinuity_indicator は立たないが、パケットは欠けていないので、ドロップと数えない。
+func TestAnalyzerContinuityAcrossPMTChanges(t *testing.T) {
+	t.Parallel()
+
+	video := esEntry{streamType: 0x02, pid: 0x0100}
+	audio := esEntry{streamType: 0x0F, pid: 0x0110}
+	second := esEntry{streamType: 0x0F, pid: 0x0111}
+	caption := esEntry{streamType: 0x06, pid: 0x0130}
+	pat := map[uint16]uint16{programNum: pmtPID}
+
+	tests := []struct {
+		name string
+		// build は、PAT と最初の PMT (video、audio、second) の後に続くパケットを作る。
+		build      func(pmtCC *byte) [][]byte
+		wantSecond int64
+		wantAudio  int64
+	}{
+		{
+			name: "an ES re-added to the PMT restarts its counter",
+			build: func(pmtCC *byte) [][]byte {
+				pkts := [][]byte{esPacket(second.pid, 13, false, true), esPacket(second.pid, 14, false, true)}
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(1, video, audio))...)
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(2, video, audio, second))...)
+
+				return append(pkts, esPacket(second.pid, 0, false, true), esPacket(second.pid, 1, false, true))
+			},
+			wantSecond: 0,
+		},
+		{
+			// PMT に戻る前に ES のパケットが届いても、外れた時点で数え直しているので、ドロップと数えない。
+			name: "an ES resuming before the PMT re-adds it restarts its counter",
+			build: func(pmtCC *byte) [][]byte {
+				pkts := [][]byte{esPacket(second.pid, 14, false, true)}
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(1, video, audio))...)
+				pkts = append(pkts, esPacket(second.pid, 0, false, true))
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(2, video, audio, second))...)
+
+				return append(pkts, esPacket(second.pid, 1, false, true))
+			},
+			wantSecond: 0,
+		},
+		{
+			name: "an ES gap after the re-added PMT is still a drop",
+			build: func(pmtCC *byte) [][]byte {
+				pkts := psiPackets(pmtPID, pmtCC, pmtSection(1, video, audio))
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(2, video, audio, second))...)
+
+				return append(pkts, esPacket(second.pid, 0, false, true), esPacket(second.pid, 5, false, true))
+			},
+			wantSecond: 1,
+		},
+		{
+			// 構成が変わっても、PMT に載り続けた ES は数え直さない。
+			name: "an ES kept in an updated PMT keeps its counter",
+			build: func(pmtCC *byte) [][]byte {
+				pkts := [][]byte{esPacket(audio.pid, 3, false, true)}
+				pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(1, video, audio, second, caption))...)
+
+				return append(pkts, esPacket(audio.pid, 9, false, true))
+			},
+			wantAudio: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patCC, pmtCC := new(byte), new(byte)
+			pkts := psiPackets(0, patCC, patSection(0, pat))
+			pkts = append(pkts, psiPackets(pmtPID, pmtCC, pmtSection(0, video, audio, second))...)
+			pkts = append(pkts, tt.build(pmtCC)...)
+
+			analyzer := ts.NewAnalyzer(nil)
+			_, err := analyzer.Write(join(pkts))
+			require.NoError(t, err)
+
+			stats := analyzer.Stats()
+			assert.Equal(t, tt.wantSecond, statsOf(stats, second.pid).Drops, "second audio drops")
+			assert.Equal(t, tt.wantAudio, statsOf(stats, audio.pid).Drops, "audio drops")
+		})
+	}
+}
