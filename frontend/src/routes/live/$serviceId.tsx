@@ -1155,7 +1155,9 @@ function Live({
                 : null
           }
           // シークしたときは、すぐに読み直す。ライブのつなぎ直しは、裏で読み込んでから切り替える。
+          // バッファからライブに戻るのもシークなので、範囲を分けて、すぐ読み直す (#1729)。
           handover={!timeshift.behind}
+          handoverScope={timeshift.behind ? 'buffer' : 'live'}
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
