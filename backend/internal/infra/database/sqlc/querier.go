@@ -763,6 +763,7 @@ type Querier interface {
 	ListReservationsUsingTunersBetween(ctx context.Context, arg ListReservationsUsingTunersBetweenParams) ([]ListReservationsUsingTunersBetweenRow, error)
 	// 前の回を録らない (#1499) ときの「予約してある回」。録画しない状態 (無効) でも競合でもなく、まだ録り始めておらず、
 	// 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
+	// 同じ照合で消えるルール予約を照合の側で除くので、番組も返す (#1724)。
 	ListReservedEpisodes(ctx context.Context, now time.Time) ([]ListReservedEpisodesRow, error)
 	// 視聴ルールが作った視聴予約のうち、番組の放送が始まっていないもの。照合で、一致しなくなったものを消すのに使う。
 	ListRuleWatchReservations(ctx context.Context, now time.Time) ([]ListRuleWatchReservationsRow, error)
