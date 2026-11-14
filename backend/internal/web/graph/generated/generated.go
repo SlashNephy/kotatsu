@@ -292,6 +292,11 @@ type ComplexityRoot struct {
 		Node   func(childComplexity int) int
 	}
 
+	BroadcastClock struct {
+		Pcr        func(childComplexity int) int
+		ReceivedAt func(childComplexity int) int
+	}
+
 	BulkOperationPayload struct {
 		Processed func(childComplexity int) int
 		Skipped   func(childComplexity int) int
@@ -563,15 +568,17 @@ type ComplexityRoot struct {
 	}
 
 	LiveStreamRates struct {
-		AudioBps   func(childComplexity int) int
-		Drops      func(childComplexity int) int
-		Errors     func(childComplexity int) int
-		OtherBps   func(childComplexity int) int
-		PsiBps     func(childComplexity int) int
-		Scrambled  func(childComplexity int) int
-		TotalBps   func(childComplexity int) int
-		UnknownBps func(childComplexity int) int
-		VideoBps   func(childComplexity int) int
+		AudioBps       func(childComplexity int) int
+		BroadcastClock func(childComplexity int) int
+		Drops          func(childComplexity int) int
+		Errors         func(childComplexity int) int
+		OtherBps       func(childComplexity int) int
+		PsiBps         func(childComplexity int) int
+		Scrambled      func(childComplexity int) int
+		ServerTime     func(childComplexity int) int
+		TotalBps       func(childComplexity int) int
+		UnknownBps     func(childComplexity int) int
+		VideoBps       func(childComplexity int) int
 	}
 
 	LiveStreamScrambled struct {
@@ -2698,6 +2705,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AuditEventEdge.Node(childComplexity), true
 
+	case "BroadcastClock.pcr":
+		if e.ComplexityRoot.BroadcastClock.Pcr == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BroadcastClock.Pcr(childComplexity), true
+	case "BroadcastClock.receivedAt":
+		if e.ComplexityRoot.BroadcastClock.ReceivedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.BroadcastClock.ReceivedAt(childComplexity), true
+
 	case "BulkOperationPayload.processed":
 		if e.ComplexityRoot.BulkOperationPayload.Processed == nil {
 			break
@@ -3627,6 +3647,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LiveStreamRates.AudioBps(childComplexity), true
+	case "LiveStreamRates.broadcastClock":
+		if e.ComplexityRoot.LiveStreamRates.BroadcastClock == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.BroadcastClock(childComplexity), true
 	case "LiveStreamRates.drops":
 		if e.ComplexityRoot.LiveStreamRates.Drops == nil {
 			break
@@ -3657,6 +3683,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LiveStreamRates.Scrambled(childComplexity), true
+	case "LiveStreamRates.serverTime":
+		if e.ComplexityRoot.LiveStreamRates.ServerTime == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LiveStreamRates.ServerTime(childComplexity), true
 	case "LiveStreamRates.totalBps":
 		if e.ComplexityRoot.LiveStreamRates.TotalBps == nil {
 			break
@@ -12197,6 +12229,21 @@ type LiveStreamRates {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+  "放送の時計 (#1515)。まだ PCR を読めていなければ null。"
+  broadcastClock: BroadcastClock
+  "内訳を送る時点のサーバーの時計。画面は、端末の時計との差を、これで測る (#1515)。"
+  serverTime: Time!
+}
+
+"""
+放送の時計 (#1515)。PCR と、それを含む TS を tenban が受け取った時刻の組。受け取った時刻から PCR を引いた量が最も小さい組を送る。
+映しているコマの放送の時刻は、receivedAt + (コマの PTS − pcr) で出せる。
+"""
+type BroadcastClock {
+  "PCR の基準部 (90 kHz) を秒にしたもの。"
+  pcr: Float!
+  "PCR を含む TS を tenban が受け取った時刻。"
+  receivedAt: Time!
 }
 
 extend type Subscription {
@@ -13131,6 +13178,16 @@ func (ec *executionContext) childFields_AuditEventEdge(ctx context.Context, fiel
 	return nil, fmt.Errorf("no field named %q was found under type AuditEventEdge", field.Name)
 }
 
+func (ec *executionContext) childFields_BroadcastClock(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "pcr":
+		return ec.fieldContext_BroadcastClock_pcr(ctx, field)
+	case "receivedAt":
+		return ec.fieldContext_BroadcastClock_receivedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type BroadcastClock", field.Name)
+}
+
 func (ec *executionContext) childFields_BulkOperationPayload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "processed":
@@ -13691,6 +13748,10 @@ func (ec *executionContext) childFields_LiveStreamRates(ctx context.Context, fie
 		return ec.fieldContext_LiveStreamRates_errors(ctx, field)
 	case "scrambled":
 		return ec.fieldContext_LiveStreamRates_scrambled(ctx, field)
+	case "broadcastClock":
+		return ec.fieldContext_LiveStreamRates_broadcastClock(ctx, field)
+	case "serverTime":
+		return ec.fieldContext_LiveStreamRates_serverTime(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type LiveStreamRates", field.Name)
 }
@@ -20951,6 +21012,52 @@ func (ec *executionContext) fieldContext_AuditEventEdge_node(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _BroadcastClock_pcr(ctx context.Context, field graphql.CollectedField, obj *model.BroadcastClock) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BroadcastClock_pcr(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Pcr, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BroadcastClock_pcr(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BroadcastClock", field, false, false, "Float")
+}
+
+func (ec *executionContext) _BroadcastClock_receivedAt(ctx context.Context, field graphql.CollectedField, obj *model.BroadcastClock) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_BroadcastClock_receivedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ReceivedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_BroadcastClock_receivedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("BroadcastClock", field, false, false, "Time")
+}
+
 func (ec *executionContext) _BulkOperationPayload_processed(ctx context.Context, field graphql.CollectedField, obj *model.BulkOperationPayload) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -24753,6 +24860,61 @@ func (ec *executionContext) _LiveStreamRates_scrambled(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_LiveStreamRates_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _LiveStreamRates_broadcastClock(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_broadcastClock(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BroadcastClock, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BroadcastClock) graphql.Marshaler {
+			return ec.marshalOBroadcastClock2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBroadcastClock(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_broadcastClock(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LiveStreamRates",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BroadcastClock(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LiveStreamRates_serverTime(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamRates) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LiveStreamRates_serverTime(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ServerTime, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LiveStreamRates_serverTime(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LiveStreamRates", field, false, false, "Time")
 }
 
 func (ec *executionContext) _LiveStreamScrambled_service(ctx context.Context, field graphql.CollectedField, obj *model.LiveStreamScrambled) (ret graphql.Marshaler) {
@@ -49466,6 +49628,44 @@ func (ec *executionContext) _AuditEventEdge(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var broadcastClockImplementors = []string{"BroadcastClock"}
+
+func (ec *executionContext) _BroadcastClock(ctx context.Context, sel ast.SelectionSet, obj *model.BroadcastClock) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, broadcastClockImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("BroadcastClock")
+		case "pcr":
+			out.Values[i] = ec._BroadcastClock_pcr(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "receivedAt":
+			out.Values[i] = ec._BroadcastClock_receivedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var bulkOperationPayloadImplementors = []string{"BulkOperationPayload"}
 
 func (ec *executionContext) _BulkOperationPayload(ctx context.Context, sel ast.SelectionSet, obj *model.BulkOperationPayload) graphql.Marshaler {
@@ -51403,6 +51603,16 @@ func (ec *executionContext) _LiveStreamRates(ctx context.Context, sel ast.Select
 			}
 		case "scrambled":
 			out.Values[i] = ec._LiveStreamRates_scrambled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "broadcastClock":
+			out.Values[i] = ec._LiveStreamRates_broadcastClock(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "serverTime":
+			out.Values[i] = ec._LiveStreamRates_serverTime(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -61789,6 +61999,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	_ = ctx
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOBroadcastClock2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBroadcastClock(ctx context.Context, sel ast.SelectionSet, v *model.BroadcastClock) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._BroadcastClock(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {

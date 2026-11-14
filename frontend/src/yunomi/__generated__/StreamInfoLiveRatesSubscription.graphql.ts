@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3f281622584c215d0b92ad37dd11cf76>>
+ * @generated SignedSource<<36e6d5c107efb8af43a8cd004d987e63>>
  * @lightSyntaxTransform
  */
 
@@ -14,11 +14,16 @@ export type StreamInfoLiveRatesSubscription$variables = {
 export type StreamInfoLiveRatesSubscription$data = {
   readonly liveStreamRates: {
     readonly audioBps: number;
+    readonly broadcastClock: {
+      readonly pcr: number;
+      readonly receivedAt: string;
+    } | null | undefined;
     readonly drops: number;
     readonly errors: number;
     readonly otherBps: number;
     readonly psiBps: number;
     readonly scrambled: number;
+    readonly serverTime: string;
     readonly totalBps: number;
     readonly unknownBps: number;
     readonly videoBps: number;
@@ -114,6 +119,38 @@ v1 = [
         "kind": "ScalarField",
         "name": "scrambled",
         "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "concreteType": "BroadcastClock",
+        "kind": "LinkedField",
+        "name": "broadcastClock",
+        "plural": false,
+        "selections": [
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "pcr",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "receivedAt",
+            "storageKey": null
+          }
+        ],
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "serverTime",
+        "storageKey": null
       }
     ],
     "storageKey": null
@@ -137,16 +174,16 @@ return {
     "selections": (v1/*:: as any*/)
   },
   "params": {
-    "cacheID": "f38e8831f0bae2d15b1a64a15194dc0c",
+    "cacheID": "e2478ce8f50650ed31d2b32f6d3533bf",
     "id": null,
     "metadata": {},
     "name": "StreamInfoLiveRatesSubscription",
     "operationKind": "subscription",
-    "text": "subscription StreamInfoLiveRatesSubscription(\n  $service: ID!\n) {\n  liveStreamRates(service: $service) {\n    videoBps\n    audioBps\n    otherBps\n    psiBps\n    unknownBps\n    totalBps\n    drops\n    errors\n    scrambled\n  }\n}\n"
+    "text": "subscription StreamInfoLiveRatesSubscription(\n  $service: ID!\n) {\n  liveStreamRates(service: $service) {\n    videoBps\n    audioBps\n    otherBps\n    psiBps\n    unknownBps\n    totalBps\n    drops\n    errors\n    scrambled\n    broadcastClock {\n      pcr\n      receivedAt\n    }\n    serverTime\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "5413ab4bf8abf4781f491233100d4759";
+(node as any).hash = "79c59b535e95cb3be3aa460a5056d12d";
 
 export default node;

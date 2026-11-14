@@ -28,6 +28,7 @@ import {
   type TransportCounts,
   type TsPlayerReading,
 } from './streamMeter';
+import { broadcastDelaySeconds, type BroadcastClockSample } from './broadcastDelay';
 import classes from './StreamInfo.module.css';
 
 // useStreamMeter は、再生している経路から届く様子を溜める StreamMeter を作る (#828)。
@@ -61,7 +62,12 @@ type Snapshot = {
   encoded: EncodedStream | null;
   video: VideoStats | null;
   fps: number | null;
+  // delay は、映しているコマが放送から遅れている秒数 (#1515)。出せなければ null。
+  delay: number | null;
 };
+
+// maxDelaySeconds は、放送からの遅れとして出す上限。これを超える値は、組と画面の時刻の取り違えとみなして出さない。
+const maxDelaySeconds = 3_600;
 
 // snapshotIntervalMs は、様子を読み直す間隔。
 const snapshotIntervalMs = 1_000;
@@ -130,6 +136,8 @@ export function StreamInfo({
 }: Props) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  // clock は、tenban から届いた最新の放送の時計 (#1515)。届いた端末の時刻も添える。
+  const clock = useRef<BroadcastClockSample | null>(null);
   useEffect(() => {
     const frames: FrameCount[] = [];
     const update = () => {
@@ -160,6 +168,7 @@ export function StreamInfo({
         encoded: meter.encoded,
         video: video === null ? null : readVideoStats(video),
         fps: first === undefined || last === undefined ? null : frameRate(first, last),
+        delay: delayOf(video, meter.mediaOrigin, clock.current, now),
       });
     };
     update();
@@ -231,7 +240,23 @@ export function StreamInfo({
           </Text>
           {!averaged && <Sparkline values={snapshot?.history ?? []} />}
         </div>
-        {serviceId !== undefined && <LiveRatesSubscriber serviceId={serviceId} onRates={setLive} />}
+        {serviceId !== undefined && (
+          <LiveRatesSubscriber
+            serviceId={serviceId}
+            onRates={(rates) => {
+              setLive(rates);
+              clock.current =
+                rates?.broadcastClock == null
+                  ? null
+                  : {
+                      pcr: rates.broadcastClock.pcr,
+                      receivedAt: Date.parse(rates.broadcastClock.receivedAt),
+                      serverTime: Date.parse(rates.serverTime),
+                      arrivedAt: Date.now(),
+                    };
+            }}
+          />
+        )}
         {kinds !== null && (
           <div>
             <Text size="xs" c="dimmed">
@@ -277,6 +302,17 @@ export function StreamInfo({
                           picture: pictureLabel(source.width, source.height, source.interlaced),
                         })
                       : pictureLabel(source.width, source.height, source.interlaced)}
+              </dd>
+            </>
+          )}
+          {/* 放送からの遅れは、ブラウザの中で変換する経路で、tenban から放送の時計が届いたときだけ出す (#1515)。 */}
+          {snapshot?.delay != null && (
+            <>
+              <dt>{t('player.streamInfo.broadcastDelay')}</dt>
+              <dd>
+                {t('player.streamInfo.broadcastDelaySeconds', {
+                  seconds: snapshot.delay.toFixed(1),
+                })}
               </dd>
             </>
           )}
@@ -441,6 +477,11 @@ function LiveRatesSubscriber({
           drops
           errors
           scrambled
+          broadcastClock {
+            pcr
+            receivedAt
+          }
+          serverTime
         }
       }
     `,
@@ -456,4 +497,19 @@ function LiveRatesSubscriber({
   useSubscription<StreamInfoLiveRatesSubscription>(config);
 
   return null;
+}
+
+// delayOf は、映しているコマが放送から遅れている秒数を返す (#1515)。映像、画面の時刻の起点、放送の時計のどれかがなければ null。
+function delayOf(
+  video: HTMLVideoElement | null,
+  mediaOrigin: number | null,
+  clock: BroadcastClockSample | null,
+  now: number,
+): number | null {
+  if (video === null || mediaOrigin === null || clock === null) {
+    return null;
+  }
+  const delay = broadcastDelaySeconds(video.currentTime, mediaOrigin, clock, now);
+
+  return Math.abs(delay) > maxDelaySeconds ? null : delay;
 }

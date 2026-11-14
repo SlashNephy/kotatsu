@@ -1366,7 +1366,9 @@
       "samplingRate": "{{khz}} kHz",
       "bandwidth": "Estimated bandwidth",
       "transport": "TS errors",
-      "transportCounts": "Drops {{dropped}}, errors {{errors}}, scrambled {{scrambled}}"
+      "transportCounts": "Drops {{dropped}}, errors {{errors}}, scrambled {{scrambled}}",
+      "broadcastDelay": "Behind broadcast",
+      "broadcastDelaySeconds": "{{seconds}} s"
     },
     "commands": {
       "togglePlay": "Play / pause",
