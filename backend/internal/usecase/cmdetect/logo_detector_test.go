@@ -286,6 +286,76 @@ func TestTrimMissing(t *testing.T) {
 	}
 }
 
+// TestEdgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマからファイルの終わりまでの欠けを、1 秒以上のときだけ数えることを確かめる (#1508)。
+func TestEdgeMissing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		times    []float64
+		duration time.Duration
+		want     time.Duration
+	}{
+		{name: "no frames", times: []float64{}, duration: 10 * time.Second, want: 0},
+		{name: "short gaps at both ends are not missing", times: []float64{0.5, 1, 9}, duration: 10 * time.Second, want: 0},
+		{name: "a long head gap", times: []float64{3, 4, 9}, duration: 10 * time.Second, want: 3 * time.Second},
+		{name: "a long tail gap", times: []float64{0, 1, 4}, duration: 10 * time.Second, want: 5 * time.Second},
+		{name: "both ends", times: []float64{2, 3, 4}, duration: 10 * time.Second, want: 7 * time.Second},
+		{name: "the tail is not counted without the duration", times: []float64{2, 3, 4}, duration: 0, want: 2 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 1 コマは 1 秒とする。
+			assert.Equal(t, tt.want, cmdetect.EdgeMissing(tt.times, 1, tt.duration))
+		})
+	}
+}
+
+// TestLogoDetail は、ロゴの結果を捨てた理由の詳細に、型の在り処と大きさ、ロゴが出ていたコマの割合、点数の分布、
+// ロゴで CM とした区間とその中の点数の中央値を書くことを確かめる (#1508)。
+func TestLogoDetail(t *testing.T) {
+	t.Parallel()
+
+	// 10 コマのうち、2〜5 コマ目だけロゴが出ていた。CM は 0〜2 コマ目と 5〜10 コマ目。
+	scores := []float64{0.1, 0.0, 0.5, 0.6, 0.3, 0.25, 0.0, 0.1, 0.05, 0.0}
+	measures := make([]logo.Measure, 0, len(scores))
+	for _, score := range scores {
+		measures = append(measures, logo.Measure{Score: score, Brightness: 0, Texture: 0})
+	}
+	times := []float64{10, 11, 12, 13, 14, 15, 16, 17, 18, 19}
+	got := cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 1700, Y: 40, W: 120, H: 60}, measures, []logo.Interval{{Start: 2, End: 5}}, times, 1)
+
+	assert.Equal(t, "logo at top-right x=1700 y=40 w=120 h=60; logo shown in 30% of the frames; "+
+		"scores >=0.40: 20%, 0.20-0.40: 20%, <0.20: 60%; CM by the logo (median score): 0.0-2.0s (0.10) 5.0-10.0s (0.05)", got)
+}
+
+// TestLogoDetailLimitsSections は、理由の詳細に書く CM の区間を 10 個までにし、残りを「...」にすることと、
+// コマがなければその旨を書くことを確かめる (#1508)。
+func TestLogoDetailLimitsSections(t *testing.T) {
+	t.Parallel()
+
+	// 1 コマおきにロゴが出ているので、CM は 0, 2, 4, ... 番目の 1 コマずつで、12 個ある。
+	const frames = 24
+	measures := make([]logo.Measure, 0, frames)
+	times := make([]float64, 0, frames)
+	intervals := []logo.Interval{}
+	for i := range frames {
+		measures = append(measures, logo.Measure{Score: 0, Brightness: 0, Texture: 0})
+		times = append(times, float64(i))
+		if i%2 == 1 {
+			intervals = append(intervals, logo.Interval{Start: i, End: i + 1})
+		}
+	}
+	got := cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 0, Y: 0, W: 1, H: 1}, measures, intervals, times, 1)
+	assert.Equal(t, 10, strings.Count(got, "s (0.00)"), got)
+	assert.True(t, strings.HasSuffix(got, " ..."), got)
+
+	assert.Equal(t, "no frame was measured",
+		cmdetect.LogoDetail(logo.TopRight, logo.Box{X: 0, Y: 0, W: 1, H: 1}, []logo.Measure{}, []logo.Interval{}, []float64{}, 1))
+}
+
 // TestMissingSections は、コマの時刻が 1 秒以上空いた所を、映像の欠けとして返すことを確かめる (#1508)。
 func TestMissingSections(t *testing.T) {
 	t.Parallel()

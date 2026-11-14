@@ -102,6 +102,16 @@ func (r *recordingResolver) CMDetection(ctx context.Context, obj *model.Recordin
 	return r.recordingCMDetection(ctx, obj)
 }
 
+// CMDetectionNote is the resolver for the cmDetectionNote field.
+func (r *recordingResolver) CMDetectionNote(ctx context.Context, obj *model.Recording) (*string, error) {
+	return r.recordingCMDetectionNote(ctx, obj)
+}
+
+// CMVideoMissingSeconds is the resolver for the cmVideoMissingSeconds field.
+func (r *recordingResolver) CMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error) {
+	return r.recordingCMVideoMissingSeconds(ctx, obj)
+}
+
 // VideoFormat is the resolver for the videoFormat field.
 func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
 	return r.recordingVideoFormat(ctx, obj)

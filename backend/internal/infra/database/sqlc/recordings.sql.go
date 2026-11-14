@@ -1005,6 +1005,39 @@ func (q *Queries) ListFinishedRecordingSegments(ctx context.Context) ([]ListFini
 	return items, nil
 }
 
+const listLatestRecordingCMDetectionNotes = `-- name: ListLatestRecordingCMDetectionNotes :many
+SELECT DISTINCT ON (recording_id) recording_id, note, video_missing_ms
+FROM recording_cm_detections WHERE recording_id = ANY($1::uuid[])
+ORDER BY recording_id, detected_at DESC, detector
+`
+
+type ListLatestRecordingCMDetectionNotesRow struct {
+	RecordingID    uuid.UUID
+	Note           string
+	VideoMissingMs int64
+}
+
+// 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。
+func (q *Queries) ListLatestRecordingCMDetectionNotes(ctx context.Context, recordingIds []uuid.UUID) ([]ListLatestRecordingCMDetectionNotesRow, error) {
+	rows, err := q.db.Query(ctx, listLatestRecordingCMDetectionNotes, recordingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLatestRecordingCMDetectionNotesRow{}
+	for rows.Next() {
+		var i ListLatestRecordingCMDetectionNotesRow
+		if err := rows.Scan(&i.RecordingID, &i.Note, &i.VideoMissingMs); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLiveThumbnailRecordings = `-- name: ListLiveThumbnailRecordings :many
 SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= $1 ORDER BY recorded_from, id
 `

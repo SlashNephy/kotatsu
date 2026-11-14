@@ -110,3 +110,18 @@ func NewSignals(cues *ts.Cues, scenes []float64, silences [][2]float64) (*Signal
 func TrimMissing(sections, missing []Section) []Section {
 	return trimMissing(sections, missing)
 }
+
+// EdgeMissing は edgeMissing。
+func EdgeMissing(times []float64, fps float64, duration time.Duration) time.Duration {
+	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration})
+}
+
+// LogoDetail は、ロゴの結果を捨てた理由の詳細を、既定のパラメーターで返す。
+func LogoDetail(corner logo.Corner, box logo.Box, measures []logo.Measure, intervals []logo.Interval, times []float64, fps float64) string {
+	r := &logoResult{
+		sections: []Section{}, missing: []Section{}, duration: 0, edgeMissing: 0,
+		corner: corner, box: box, measures: measures, intervals: intervals, times: times, fps: fps,
+	}
+
+	return r.detail(logo.DefaultParams())
+}

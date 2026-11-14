@@ -1025,7 +1025,9 @@ type ComplexityRoot struct {
 		BroadcastEndedAt         func(childComplexity int) int
 		BroadcastStartedAt       func(childComplexity int) int
 		CMDetection              func(childComplexity int) int
+		CMDetectionNote          func(childComplexity int) int
 		CMSections               func(childComplexity int) int
+		CMVideoMissingSeconds    func(childComplexity int) int
 		Description              func(childComplexity int) int
 		Drops                    func(childComplexity int) int
 		EndAt                    func(childComplexity int) int
@@ -1746,6 +1748,8 @@ type RecordingResolver interface {
 
 	CMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error)
 	CMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error)
+	CMDetectionNote(ctx context.Context, obj *model.Recording) (*string, error)
+	CMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error)
 
 	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
 
@@ -6361,12 +6365,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.CMDetection(childComplexity), true
+	case "Recording.cmDetectionNote":
+		if e.ComplexityRoot.Recording.CMDetectionNote == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.CMDetectionNote(childComplexity), true
 	case "Recording.cmSections":
 		if e.ComplexityRoot.Recording.CMSections == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Recording.CMSections(childComplexity), true
+	case "Recording.cmVideoMissingSeconds":
+		if e.ComplexityRoot.Recording.CMVideoMissingSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.CMVideoMissingSeconds(childComplexity), true
 	case "Recording.description":
 		if e.ComplexityRoot.Recording.Description == nil {
 			break
@@ -11206,6 +11222,10 @@ type Recording implements Node {
   cmSections: [RecordingCMSection!]!
   "CM の区間の見分けの状態 (#1571)。見分けを待っているか、見分けているか、見分け終えたか、失敗したかを返す。"
   cmDetection: RecordingCMDetection!
+  "最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧の印に使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。"
+  cmDetectionNote: String
+  "最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
+  cmVideoMissingSeconds: Float!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -14557,6 +14577,10 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_cmSections(ctx, field)
 	case "cmDetection":
 		return ec.fieldContext_Recording_cmDetection(ctx, field)
+	case "cmDetectionNote":
+		return ec.fieldContext_Recording_cmDetectionNote(ctx, field)
+	case "cmVideoMissingSeconds":
+		return ec.fieldContext_Recording_cmVideoMissingSeconds(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
 	case "videoFormat":
@@ -36592,6 +36616,52 @@ func (ec *executionContext) fieldContext_Recording_cmDetection(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Recording_cmDetectionNote(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_cmDetectionNote(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().CMDetectionNote(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_cmDetectionNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, true, "String")
+}
+
+func (ec *executionContext) _Recording_cmVideoMissingSeconds(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_cmVideoMissingSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().CMVideoMissingSeconds(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_cmVideoMissingSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, true, "Float")
+}
+
 func (ec *executionContext) _Recording_audios(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -55437,6 +55507,18 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_cmDetection(ctx, field, obj)
+				})
+		case "cmDetectionNote":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_cmDetectionNote(ctx, field, obj)
+				})
+		case "cmVideoMissingSeconds":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_cmVideoMissingSeconds(ctx, field, obj)
 				})
 		case "audios":
 			out.Values[i] = ec._Recording_audios(ctx, field, obj)
