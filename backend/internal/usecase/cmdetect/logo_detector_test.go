@@ -170,16 +170,20 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 		name     string
 		fallback []cmdetect.Section
 		want     []cmdetect.Section
+		// dropped は、見分け直した結果も捨てたことを、理由に書くか。
+		dropped bool
 	}{
 		{
 			name:     "uses the redetected sections when they are below the limit",
 			fallback: []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
 			want:     []cmdetect.Section{{Start: 10 * time.Second, End: 25 * time.Second}},
+			dropped:  false,
 		},
 		{
 			name:     "drops the redetected sections when they also reach the limit",
 			fallback: []cmdetect.Section{{Start: 5 * time.Second, End: 30 * time.Second}},
 			want:     []cmdetect.Section{},
+			dropped:  true,
 		},
 	}
 	for _, tt := range tests {
@@ -200,6 +204,11 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 			// ロゴの結果を捨てた理由を残す (#1508)。
 			assert.Contains(t, report.Note, "of the recording was detected as CM")
+			if tt.dropped {
+				assert.Contains(t, report.Note, "the redetected result was dropped")
+			} else {
+				assert.NotContains(t, report.Note, "the redetected result was dropped")
+			}
 		})
 	}
 }
