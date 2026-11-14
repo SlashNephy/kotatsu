@@ -255,6 +255,15 @@ export type Notification =
     id: number;
     duration: number;
 }
+/**
+ * The source timestamp, in 90 kHz ticks, that media time zero stands for.
+ * Sent once per load, when the first fragment fixes it.
+ */
+ | {
+    type: "origin";
+    id: number;
+    ticks: number;
+}
 /** Throw away everything buffered; a seek is about to refill it. */
  | {
     type: "reset";

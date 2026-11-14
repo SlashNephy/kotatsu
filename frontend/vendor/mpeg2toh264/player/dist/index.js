@@ -585,7 +585,7 @@ class _ extends EventTarget {
     if (!this.#s) {
       const e = new Worker(new URL(
         /* @vite-ignore */
-        "" + new URL("assets/worker-cVEuwozd.js", import.meta.url).href,
+        "" + new URL("assets/worker-CYFLA1oX.js", import.meta.url).href,
         import.meta.url
       ), {
         type: "module"
@@ -623,6 +623,9 @@ class _ extends EventTarget {
           break;
         case "seekable":
           this.#E = t.duration, this.#a?.setDuration(t.duration), this.#l("seekable", { duration: t.duration });
+          break;
+        case "origin":
+          this.#l("origin", { ticks: t.ticks });
           break;
         case "reset":
           this.#p(), this.#a?.reset();

@@ -142,6 +142,15 @@ export interface Mpeg2TsPlayerEventMap {
         duration: number;
     }>;
     /**
+     * The source timestamp, in 90 kHz ticks, that media time zero stands for:
+     * the element's `currentTime` is the seconds since this PTS, across wraps.
+     * Arrives once per load, when the first fragment fixes it; a new load (a
+     * reconnect, another channel) settles its own.
+     */
+    origin: CustomEvent<{
+        ticks: number;
+    }>;
+    /**
      * A step of the load happened, and this is how long it took to get there.
      * Every mark of one load is measured from the `load()` that started it, so
      * listening to this is enough to see where the time before the first frame
