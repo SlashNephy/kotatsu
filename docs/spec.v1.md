@@ -338,6 +338,7 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 接続するチューナーサーバーは1台だけです。
 設定するのはURLと、必要に応じてBASIC認証の資格情報です。
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
+Kotatsuは、スクランブルを解除する機能を持ちません。カードリーダーも扱いません。スクランブルされたまま届いたパケットは、解除せずに数えるだけです。録画では警告を付け（[5.5](#55-録画の状態)）、ライブ視聴では理由を出して止めます（[7.1](#71-再生経路)、#1517）。
 EDCBも、チューナーサーバーとして使えます（#1258）。EPGの同期、チューナーの把握、録画、タイムシフト、ライブ視聴に使います。
 チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）と、Kotatsuがライブと録画に使うBonDriverの名前（`tuner.edcb.bon_drivers`、既定は空で、すべてのチューナーを使う。[3.6](#36-チューナーの把握)、#1532）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、Mirakurun互換のサーバーと同じく、どのロールもEDCBをチューナーサーバーとして使います（#1533）。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
 
