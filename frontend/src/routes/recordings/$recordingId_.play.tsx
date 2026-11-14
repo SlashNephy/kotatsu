@@ -140,6 +140,7 @@ import { resumePosition } from '../../yunomi/resume';
 import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
+import { useHostedWatch } from '../../yunomi/WatchHost';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -159,10 +160,17 @@ export const Route = createFileRoute('/recordings/$recordingId_/play')({
 });
 
 // PlayPage は、録画を再生する画面。ブラウザの中で変換するか、kyusu の HLS で再生する (設計書 7.1)。
+// 画面は、アプリの根元の置き場で描く (#1602)。
 function PlayPage() {
-  const { t } = useTranslation();
   const { recordingId } = Route.useParams();
   const { t: start } = Route.useSearch();
+
+  return useHostedWatch(<PlayWatch recordingId={recordingId} start={start} />);
+}
+
+// PlayWatch は、録画 recordingId を、位置 start (秒) から再生する画面の中身。
+function PlayWatch({ recordingId, start }: { recordingId: string; start: number | undefined }) {
+  const { t } = useTranslation();
 
   return (
     <Stack gap="sm">

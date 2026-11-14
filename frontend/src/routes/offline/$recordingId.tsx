@@ -36,6 +36,7 @@ import { useVideoLoading } from '../../yunomi/useVideoLoading';
 import { useVideoState } from '../../yunomi/useVideoState';
 import { useWakeLock } from '../../yunomi/useWakeLock';
 import { WatchHeading, WatchLayout } from '../../yunomi/WatchLayout';
+import { useHostedWatch } from '../../yunomi/WatchHost';
 
 export const Route = createFileRoute('/offline/$recordingId')({
   staticData: { fluid: true },
@@ -43,10 +44,16 @@ export const Route = createFileRoute('/offline/$recordingId')({
 });
 
 // OfflinePlayPage は、端末に保存した録画を再生する画面 (#480、設計書 7.8)。サーバーにつながらなくても見られるよう、
-// GraphQL を読まず、保存した TS をブラウザの中で変換して流す (設計書 7.2)。
+// GraphQL を読まず、保存した TS をブラウザの中で変換して流す (設計書 7.2)。画面は、アプリの根元の置き場で描く (#1602)。
 function OfflinePlayPage() {
-  const { t } = useTranslation();
   const { recordingId } = Route.useParams();
+
+  return useHostedWatch(<OfflinePlayWatch recordingId={recordingId} />);
+}
+
+// OfflinePlayWatch は、端末に保存した録画 recordingId を再生する画面の中身。
+function OfflinePlayWatch({ recordingId }: { recordingId: string }) {
+  const { t } = useTranslation();
   // files は、開いた録画のファイル。読み込む前は undefined、保存していなければ null。
   const [files, setFiles] = useState<OfflineFiles | null | undefined>(undefined);
   useEffect(() => {

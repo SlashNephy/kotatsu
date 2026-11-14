@@ -25,6 +25,7 @@ import '../i18n';
 import { createRootValue } from '../demo/data';
 import { createEventHub } from '../demo/events';
 import { createExecutor } from '../demo/executor';
+import { WatchHost, WatchHostProvider } from '../yunomi/WatchHost';
 
 // Respond は、画面が送った GraphQL の操作に応える。undefined を返すと、応答を返さず待たせる。
 // Promise を返すと、それが決まったときに応える。応答の順序を入れ替えるテストに使う。
@@ -118,7 +119,15 @@ export async function renderRoute(
   url: string,
   environment: Environment,
 ) {
-  const root = createRootRoute({ component: Outlet });
+  // 視聴の画面は、アプリと同じく、ルートの隣の置き場で描く (#1602)。
+  const root = createRootRoute({
+    component: () => (
+      <WatchHostProvider>
+        <Outlet />
+        <WatchHost />
+      </WatchHostProvider>
+    ),
+  });
   // ルートのモジュールの Route をそのまま書き換える。テストのファイルはそれぞれ別にモジュールを読むので、ほかのテストには残らない。
   route.update({
     id,
