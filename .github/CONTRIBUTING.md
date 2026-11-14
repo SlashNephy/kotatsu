@@ -9,6 +9,11 @@ Kotatsuに関心を持っていただき、ありがとうございます。
 - 使い方の質問は、[Discussions](https://github.com/SlashNephy/kotatsu/discussions)へお願いします。
 - 脆弱性は、Issueではなく、[セキュリティポリシー](SECURITY.md)に沿って非公開で知らせてください。
 
+## 受け付けない変更
+
+スクランブルを解除する機能と、カードリーダーを扱う機能を足す変更は受け付けません。Issueでの提案も同じです。
+Kotatsuは、これらの機能を持ちません（[設計書 3.1](../docs/spec.v1.md#31-接続先)）。
+
 ## 開発の準備
 
 手元で動かす手順は、[開発](../docs/development.md)にまとめています。
