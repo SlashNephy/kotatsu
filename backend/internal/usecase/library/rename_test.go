@@ -14,6 +14,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
@@ -70,6 +71,63 @@ func TestRename(t *testing.T) {
 	plans, err = f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
 	require.NoError(t, err)
 	assert.Empty(t, plans)
+}
+
+// TestRenameMovesTranscodedFiles は、最初のセグメントを付け直すとき、その名前から作った名前の変換した MP4 も、
+// 付け直した名前に合わせて移すことを確かめる (#1720)。取り込んだ MP4 のような、ほかの名前のファイルは移さない。
+// 移す先がふさがっていれば、変換した MP4 は移さず、セグメントだけを付け直す。
+func TestRenameMovesTranscodedFiles(t *testing.T) {
+	t.Parallel()
+
+	const (
+		want       = "2026-10-10 1100 こたつテスト1 録画.m2ts"
+		transcoded = "古い名前.720p.mp4"
+		moved      = "2026-10-10 1100 こたつテスト1 録画.720p.mp4"
+		imported   = "古い名前.mp4"
+	)
+	tests := []struct {
+		name  string
+		taken bool
+		want  []string
+	}{
+		{name: "moved", taken: false, want: []string{want, moved, imported}},
+		{name: "kept when the new name is taken", taken: true, want: []string{want, transcoded, imported}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			recordingID := f.segmentedAt(t, oldName)
+			for _, other := range []string{transcoded, imported} {
+				require.NoError(t, os.WriteFile(filepath.Join(f.dir, other), []byte("mp4"), 0o600))
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
+					VALUES ($1, $2, 'other', $3, $4, 3, $5, $5, $5)`, id.New(), recordingID, poolID, other, f.clock.Now())
+				require.NoError(t, err)
+			}
+			if tt.taken {
+				require.NoError(t, os.WriteFile(filepath.Join(f.dir, moved), []byte("someone else's"), 0o600))
+			}
+			plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+			require.NoError(t, err)
+			require.Len(t, plans, 1)
+			got := make([][2]string, 0, len(plans[0].Files))
+			for _, file := range plans[0].Files {
+				got = append(got, [2]string{file.From, file.To})
+			}
+			assert.Equal(t, [][2]string{{oldName, want}, {transcoded, moved}}, got)
+
+			require.NoError(t, f.library.Rename(t.Context(), f.pool, audit.User(f.userID), plans[0]))
+			rows, err := f.pool.Query(t.Context(), "SELECT path FROM recording_files WHERE recording_id = $1 ORDER BY kind DESC, path", recordingID)
+			require.NoError(t, err)
+			paths, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			require.NoError(t, err)
+			assert.ElementsMatch(t, tt.want, paths)
+			for _, p := range tt.want {
+				assert.FileExists(t, filepath.Join(f.dir, p))
+			}
+		})
+	}
 }
 
 // TestRenameSkipsJoining は、セグメントをつないでいる途中の録画は付け直さないことを確かめる。
