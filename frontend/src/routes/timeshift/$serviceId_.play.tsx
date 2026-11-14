@@ -581,7 +581,9 @@ function Player({
     dataBroadcast: false,
     keyGroups: [],
   } satisfies PlayerSnapshot;
-  useDocumentTitle(documentTitle(player));
+  // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
+  const watchMini = useWatchMini();
+  useDocumentTitle(documentTitle(player), !watchMini);
   useMediaSession(player, commands, autoPictureInPicture);
 
   // resumeAfterCut は、配信が切れたら、知らせを出さずに今の位置から読み直す (#1083)。続けて切れるなら、エラーを出して利用者に任せる。

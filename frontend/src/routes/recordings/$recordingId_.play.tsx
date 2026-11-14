@@ -981,7 +981,9 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     keyGroups: [],
   } satisfies PlayerSnapshot;
   const playerEvents = usePlayerEvents(player);
-  useDocumentTitle(documentTitle(player));
+  // 小さなプレイヤーで描いている間は、開いている別の画面のタイトルを変えない (#1731)。
+  const watchMini = useWatchMini();
+  useDocumentTitle(documentTitle(player), !watchMini);
   useMediaSession(
     player,
     commands,
