@@ -1,13 +1,17 @@
 package tvtplay_test
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 	"uuid"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -162,4 +166,70 @@ func TestWriteWorkerWhileDisabled(t *testing.T) {
 
 	assert.NoDirExists(t, filepath.Join(dir, "chapters"))
 	assert.Equal(t, []string{"chapters/old.chapter"}, f.otherFiles(t, recordingID))
+}
+
+// TestWriteWorkerSkipsGaps は、途切れた区間を挟むセグメント (つないだセグメント) では、ファイルにない区間の分を詰めた位置にすることを確かめる。
+func TestWriteWorkerSkipsGaps(t *testing.T) {
+	t.Parallel()
+
+	f := newChapterFixture(t)
+	f.enable(t, true)
+	dir := t.TempDir()
+	// 1 分から 1 分 30 秒まで途切れた、つないだ 1 本のセグメント。
+	recordingID := f.recording(t, 30*time.Minute, `[{"from":"2026-11-15T21:01:00Z","to":"2026-11-15T21:01:30Z"}]`)
+	f.segmentAt(t, recordingID, "a.m2ts", 0, 30*time.Minute)
+	f.detected(t, recordingID, [2]time.Duration{10 * time.Minute, 11 * time.Minute}, [2]time.Duration{29*time.Minute + 50*time.Second, 30 * time.Minute})
+
+	f.work(t, dir, recordingID)
+
+	assert.Equal(t, "\xef\xbb\xbfc-570000cix-630000cox-1760000cix-0eox-c", readFile(t, filepath.Join(dir, "chapters", "a.chapter")))
+}
+
+// inserter は、投入したジョブの引数を覚える。
+type inserter struct {
+	args []river.JobArgs
+}
+
+func (i *inserter) InsertManyTx(_ context.Context, _ pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error) {
+	for _, p := range params {
+		i.args = append(i.args, p.Args)
+	}
+
+	return []*rivertype.JobInsertResult{}, nil
+}
+
+// TestEnqueuer は、管理者が有効にしていれば、見分け終えたとき、つないだとき、名前を付け直したときにジョブを投入し、
+// 無効なら投入しないことを確かめる。
+func TestEnqueuer(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		enabled *bool
+		want    int
+	}{
+		{name: "設定の行がなければ、既定の無効として投入しない", enabled: nil, want: 0},
+		{name: "無効なら投入しない", enabled: new(false), want: 0},
+		{name: "有効なら、どの契機でも投入する", enabled: new(true), want: 3},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newChapterFixture(t)
+			if tt.enabled != nil {
+				f.enable(t, *tt.enabled)
+			}
+			recordingID := f.recording(t, time.Minute, `[]`)
+			ins := &inserter{}
+			e := tvtplay.NewEnqueuer(ins)
+			require.NoError(t, pgx.BeginFunc(t.Context(), f.pool, func(tx pgx.Tx) error {
+				return errors.Join(e.OnDetected(t.Context(), tx, recordingID), e.OnJoined(t.Context(), tx, recordingID), e.OnRenamed(t.Context(), tx, recordingID))
+			}))
+			assert.Len(t, ins.args, tt.want)
+			for _, args := range ins.args {
+				assert.Equal(t, tvtplay.WriteArgs{RecordingID: recordingID}, args)
+			}
+		})
+	}
 }

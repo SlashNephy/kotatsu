@@ -176,6 +176,15 @@ type JoinWorker struct {
 	inserter Inserter
 	logger   *slog.Logger
 	window   int
+	// joined は、つないだことを受け取る。nil なら呼ばない。
+	joined JoinedHook
+}
+
+// JoinedHook は、セグメントをつないだ記録を書いたトランザクションの中で、つないだことを受け取る。
+// つなぐと、最初のセグメントの長さが変わり、ほかのセグメントの記録が消えるので、セグメントごとに作ったもの (TvtPlay のチャプターのファイル、#1737) を
+// 作り直させるのに使う。
+type JoinedHook interface {
+	OnJoined(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error
 }
 
 // txBeginner は、トランザクションを始められる DB。*pgxpool.Pool が満たす。
@@ -200,8 +209,15 @@ func NewJoinWorker(db interface {
 ) *JoinWorker {
 	return &JoinWorker{
 		WorkerDefaults: river.WorkerDefaults[JoinArgs]{},
-		db:             db, pool: db, conns: db, store: store, inserter: inserter, logger: logger, window: window,
+		db:             db, pool: db, conns: db, store: store, inserter: inserter, logger: logger, window: window, joined: nil,
 	}
+}
+
+// WithJoinedHook は、つないだことを hook に渡すようにした w を返す。
+func (w *JoinWorker) WithJoinedHook(hook JoinedHook) *JoinWorker {
+	w.joined = hook
+
+	return w
 }
 
 func (w *JoinWorker) Timeout(*river.Job[JoinArgs]) time.Duration {
@@ -324,6 +340,11 @@ func (w *JoinWorker) commit(
 		args := FinalizeArgs{RecordingID: recordingID, FileID: first.ID, PoolID: first.PoolID, Path: first.Path, Removed: removed}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}}); err != nil {
 			return fmt.Errorf("failed to enqueue the finalization: %w", err)
+		}
+		if w.joined != nil {
+			if err := w.joined.OnJoined(ctx, tx, recordingID); err != nil {
+				return err
+			}
 		}
 
 		return nil

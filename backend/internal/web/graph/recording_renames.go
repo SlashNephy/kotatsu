@@ -80,14 +80,11 @@ func (r *Resolver) renameRecordingFiles(ctx context.Context, globalIDs []string)
 	}
 	payload := &model.RenameRecordingFilesPayload{Renamed: 0, Skipped: len(ids) - len(plans), Failed: 0}
 	for _, plan := range plans {
-		err := r.library.Rename(ctx, r.db, actor, plan)
+		// TvtPlay のチャプターのファイルは、セグメントの名前で探されるので、付け直した名前で書き直させる (#1737)。
+		err := r.library.Rename(ctx, r.db, actor, plan, tvtplay.NewEnqueuer(r.jobs))
 		switch {
 		case err == nil:
 			payload.Renamed++
-			// TvtPlay のチャプターのファイルは、セグメントの名前で探されるので、付け直した名前で書き直させる (#1737)。
-			if err := tvtplay.NewEnqueuer(r.jobs).OnRenamed(ctx, r.db, plan.RecordingID); err != nil {
-				r.logger.WarnContext(ctx, "failed to enqueue the TvtPlay chapter files", "recording_id", plan.RecordingID.String(), "error", err)
-			}
 		case errors.Is(err, library.ErrRecording), errors.Is(err, library.ErrBusy), errors.Is(err, library.ErrNotFound):
 			payload.Skipped++
 		default:

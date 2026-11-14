@@ -234,8 +234,9 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter))
 	// 引き継ぎや再起動で分かれた録画のファイルは、録画が終わったら 1 つにつなぐ (設計書 5.4)。
 	// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。
+	// つないだら、管理者が有効にしていれば、TvtPlay のチャプターのファイルを、つないだセグメントで書き直させる (#1737)。
 	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
-		logger.With(slog.String("component", "segjoin")), 0))
+		logger.With(slog.String("component", "segjoin")), 0).WithJoinedHook(tvtplay.NewEnqueuer(inserter)))
 	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
 	// 録画を終えたら、CM の区間を見分ける (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 	// 録画の後処理の FFmpeg は、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。

@@ -2,6 +2,7 @@ package tvtplay
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -20,6 +21,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/library"
+	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 )
 
@@ -70,13 +73,18 @@ func (WriteArgs) InsertOpts() river.InsertOpts {
 	}
 }
 
-// Enqueuer は、CM の区間を見分け終えたときと、録画のファイルの名前を付け直したときに、管理者が有効にしていれば、
-// チャプターのファイルを書くジョブを投入する。
+// Enqueuer は、CM の区間を見分け終えたとき、セグメントをつないだとき、録画のファイルの名前を付け直したときに、管理者が有効にしていれば、
+// チャプターのファイルを書くジョブを投入する。どれも、録画ごとのロックを持ったトランザクションの中で呼ばれるので、
+// 動いているジョブが古い記録を読んで書き終えた後に、このジョブが重複として捨てられることはない。
 type Enqueuer struct {
 	inserter Inserter
 }
 
-var _ cmdetect.DetectedHook = new(Enqueuer)
+var (
+	_ cmdetect.DetectedHook = new(Enqueuer)
+	_ segjoin.JoinedHook    = new(Enqueuer)
+	_ library.RenamedHook   = new(Enqueuer)
+)
 
 // NewEnqueuer は Enqueuer を返す。
 func NewEnqueuer(inserter Inserter) *Enqueuer {
@@ -96,16 +104,16 @@ func (e *Enqueuer) OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.U
 	return nil
 }
 
-// OnRenamed は、録画 recordingID のファイルの名前を付け直した後に、ジョブを投入する。チャプターのファイルは、セグメントの名前で探されるので、
-// 付け直した名前で書き直し、前の名前のものを消す。
-func (e *Enqueuer) OnRenamed(ctx context.Context, db transcode.Database, recordingID uuid.UUID) error {
-	if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		return e.OnDetected(ctx, tx, recordingID)
-	}); err != nil {
-		return fmt.Errorf("failed to enqueue the TvtPlay chapter files after renaming: %w", err)
-	}
+// OnJoined は、セグメントをつないだトランザクション tx の中で、ジョブを投入する (segjoin.JoinedHook)。
+// つないだセグメントの長さで書き直し、消えたセグメントのものを消す。
+func (e *Enqueuer) OnJoined(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	return e.OnDetected(ctx, tx, recordingID)
+}
 
-	return nil
+// OnRenamed は、名前を付け直したトランザクション tx の中で、ジョブを投入する (library.RenamedHook)。
+// チャプターのファイルは、セグメントの名前で探されるので、付け直した名前で書き直し、前の名前のものを消す。
+func (e *Enqueuer) OnRenamed(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	return e.OnDetected(ctx, tx, recordingID)
 }
 
 // WriteWorker は、CM の区間から、録画の TS のセグメントごとに、TvtPlay のチャプターのファイルを書く (#1737)。
@@ -163,6 +171,10 @@ func (w *WriteWorker) work(ctx context.Context, recordingID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+	gaps := []transcode.Gap{}
+	if err := json.Unmarshal(recording.Gaps, &gaps); err != nil {
+		return fmt.Errorf("failed to decode the recording gaps: %w", err)
+	}
 
 	written := map[string]bool{}
 	for i := range files {
@@ -171,7 +183,8 @@ func (w *WriteWorker) work(ctx context.Context, recordingID uuid.UUID) error {
 			continue
 		}
 		shifted := segmentSections(sections, recording.RecordedFrom, segment)
-		tl := &Timeline{RecordedFrom: segment.StartedAt, Gaps: []transcode.Gap{}, Duration: segment.EndedAt.Sub(segment.StartedAt)}
+		// つないだセグメントのように、途切れた区間を挟むセグメントでは、ファイルにない区間の分を詰める。
+		tl := &Timeline{RecordedFrom: segment.StartedAt, Gaps: gaps, Duration: transcode.PlaybackPosition(segment.StartedAt, gaps, *segment.EndedAt)}
 		if len(spans(shifted, tl)) == 0 {
 			continue
 		}
@@ -207,11 +220,7 @@ func (w *WriteWorker) write(ctx context.Context, recordingID uuid.UUID, segment 
 			return false, nil
 		}
 	}
-	if err := w.store.WriteFile(segment.PoolID, rel, content); errors.Is(err, kago.ErrPoolNotMounted) {
-		return false, nil
-	} else if err != nil {
-		return false, fmt.Errorf("failed to write the chapter file: %w", err)
-	}
+	// 先に記録してから書く。書けずにやり直したときに、自分の書いたファイルを、記録のないファイルと取り違えないためである。
 	n, err := sqlc.New(w.db).UpsertTvtplayChapterFile(ctx, sqlc.UpsertTvtplayChapterFileParams{
 		ID: id.New(), RecordingID: recordingID, PoolID: segment.PoolID, Path: rel, Size: int64(len(content)),
 		StartedAt: segment.StartedAt, EndedAt: segment.EndedAt, Now: w.clock.Now(),
@@ -220,8 +229,13 @@ func (w *WriteWorker) write(ctx context.Context, recordingID uuid.UUID, segment 
 		return false, fmt.Errorf("failed to record the chapter file: %w", err)
 	}
 	if n == 0 {
-		// 書いている間に、ほかの録画がその名前を記録した。
+		// ほかの録画のファイルが、その名前を記録している。
 		return false, nil
+	}
+	if err := w.store.WriteFile(segment.PoolID, rel, content); errors.Is(err, kago.ErrPoolNotMounted) {
+		return true, nil
+	} else if err != nil {
+		return false, fmt.Errorf("failed to write the chapter file: %w", err)
 	}
 
 	return true, nil
