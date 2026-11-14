@@ -32,6 +32,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/history"
+	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
@@ -142,6 +143,8 @@ type Recorder struct {
 	savedBroadcastSkew atomic.Pointer[broadcastSkew]
 	// logos は、録画している TS の CDT から集めたロゴ (#1308)。書いているセグメントの様子と一緒に書く。
 	logos *servicelogo.Collector
+	// lineups は、録画している TS の NIT から集める、衛星のネットワークの構成 (#1519)。
+	lineups *lineup.Collector
 }
 
 // broadcastSkew は、TOT で測った時計の差と、測った時刻。
@@ -173,7 +176,7 @@ func NewRecorder(
 	return &Recorder{
 		pool: pool, clock: clk, tuner: tuner, store: store, defaults: defaults, location: location, logger: logger, opts: o,
 		broadcastSkew: atomic.Pointer[broadcastSkew]{}, savedBroadcastSkew: atomic.Pointer[broadcastSkew]{},
-		logos: servicelogo.NewCollector(clk, logger),
+		logos: servicelogo.NewCollector(clk, logger), lineups: lineup.NewCollector(clk, logger),
 	}
 }
 
@@ -996,7 +999,7 @@ func (r *Recorder) newSegment(
 	}
 	// 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリに置く。作れなくても、録画は続ける。
 	fileID := id.New()
-	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT, r.logos.Observe)
+	analyzer, indexFile, indexErr := createIndex(r.store, fileID, r.observeTOT, r.logos.Observe, r.lineups.Observe)
 	if indexErr != nil {
 		r.logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
@@ -1042,15 +1045,15 @@ func poolsFrom(rows []sqlc.StoragePool, mounted []string, poolID string) []*kago
 
 // CreateIndex は、store のデータディレクトリの、ファイル fileID のディレクトリに索引を作り、索引を書く解析器を返す。
 // 索引を作れなければ、索引を書かない解析器と、そのエラーを返す。タイムシフトのチャンクも、同じ作りの索引を書く。
-// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。nil なら呼ばない。
-func CreateIndex(store *kago.Store, fileID uuid.UUID, onLogo func(*ts.Logo)) (*ts.Analyzer, *os.File, error) {
-	return createIndex(store, fileID, nil, onLogo)
+// onLogo は、CDT でロゴを読んだときに呼ぶ (#1308)。onNIT は、NIT を読んだときに呼ぶ (#1519)。nil なら呼ばない。
+func CreateIndex(store *kago.Store, fileID uuid.UUID, onLogo func(*ts.Logo), onNIT func(*ts.NIT)) (*ts.Analyzer, *os.File, error) {
+	return createIndex(store, fileID, nil, onLogo, onNIT)
 }
 
 // createIndex は、CreateIndex と同じく索引を書く解析器を返す。onTOT は、TOT を読んだときに呼ぶ (#1309)。nil なら呼ばない。
-func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo)) (*ts.Analyzer, *os.File, error) {
+func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onLogo func(*ts.Logo), onNIT func(*ts.NIT)) (*ts.Analyzer, *os.File, error) {
 	// 索引を作れなくても、TOT とロゴは読む。
-	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: nil, OnSDT: nil})
+	noIndex := ts.NewAnalyzer(&ts.AnalyzerOptions{Index: nil, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: nil})
 	if _, err := store.CreateSegmentDir(fileID); err != nil {
 		return noIndex, nil, err
 	}
@@ -1070,7 +1073,7 @@ func createIndex(store *kago.Store, fileID uuid.UUID, onTOT func(time.Time), onL
 		return noIndex, nil, err
 	}
 
-	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: nil, OnSDT: nil}), file, nil
+	return ts.NewAnalyzer(&ts.AnalyzerOptions{Index: writer, CutoffPTS: nil, OnTOT: onTOT, OnLogo: onLogo, OnNIT: onNIT, OnSDT: nil}), file, nil
 }
 
 // endReason は、録画を止めた理由。
@@ -1677,6 +1680,7 @@ func (seg *segment) syncAndClose(ctx context.Context, logger *slog.Logger) []err
 // 見るためだけなので、書けなくても録画の失敗にしない。書けなかったロゴは、次に書くときに書き直す。
 func (r *Recorder) saveLogos(ctx context.Context, q *sqlc.Queries, _ uuid.UUID) error {
 	r.logos.Flush(ctx, q)
+	r.lineups.Flush(ctx, q)
 
 	return nil
 }
@@ -2144,6 +2148,7 @@ func (w *liveStatsWriter) maybeWrite(ctx context.Context, stats *ts.Stats) {
 	}
 	w.writeBroadcastSkew(dbCtx)
 	w.recorder.logos.Flush(dbCtx, sqlc.New(w.recorder.pool))
+	w.recorder.lineups.Flush(dbCtx, sqlc.New(w.recorder.pool))
 }
 
 // writeBroadcastSkew は、前に書いてから TOT で測り直していれば、放送の時刻と OS の時計の差を書く (#1309)。

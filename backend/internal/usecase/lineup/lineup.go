@@ -74,17 +74,17 @@ func Transponder(kind Kind, frequencyKHz int) (int, bool) {
 
 // Stream は、NIT[actual] で読んだ、1 つのトランスポートストリーム。
 type Stream struct {
-	TransportStreamID uint16
+	TransportStreamID uint16 `json:"transportStreamId"`
 	// FrequencyKHz は、衛星分配システム記述子の周波数。
-	FrequencyKHz int
+	FrequencyKHz int `json:"frequencyKHz"`
 	// Services は、サービスリスト記述子に並ぶサービスの、service_id と service_type。
-	Services []Service
+	Services []Service `json:"services"`
 }
 
 // Service は、サービスの service_id と service_type。
 type Service struct {
-	ServiceID   uint16
-	ServiceType uint8
+	ServiceID   uint16 `json:"serviceId"`
+	ServiceType uint8  `json:"serviceType"`
 }
 
 // Observation は、ある時点で読んだ、1 つのネットワークの NIT[actual] の構成。
@@ -93,6 +93,9 @@ type Observation struct {
 	NetworkID uint16
 	Version   uint8
 	Streams   []Stream
+	// ObservedAt は、放送から読んだ時刻。零値なら、比べた時刻を使う。DB に書いたものを読み直して比べるときは、
+	// 読み直した時刻ではなく、放送から読んだ時刻で、間隔をあけて 2 回読んだかを決める。
+	ObservedAt time.Time
 }
 
 // Known は、チューナーサーバーが返すテレビのサービス。
@@ -176,7 +179,10 @@ func (c *Comparer) Observe(obs *Observation, known []Known) (*Change, bool) {
 
 		return nil, false
 	}
-	now := c.clock.Now()
+	now := obs.ObservedAt
+	if now.IsZero() {
+		now = c.clock.Now()
+	}
 	first, ok := c.pending[k]
 	if !ok || first.version != obs.Version {
 		c.pending[k] = pending{version: obs.Version, seenAt: now}

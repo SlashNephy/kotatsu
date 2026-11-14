@@ -58,7 +58,7 @@ func (f *fixture) addChunk(t *testing.T, store *timeshiftStore, serviceID int64,
 	defer root.Close()
 	require.NoError(t, root.MkdirAll(filepath.Dir(rel), 0o755))
 	require.NoError(t, root.WriteFile(rel, data, 0o600))
-	analyzer, index, err := recording.CreateIndex(store.store, chunkID, nil)
+	analyzer, index, err := recording.CreateIndex(store.store, chunkID, nil, nil)
 	require.NoError(t, err)
 	_, err = analyzer.Write(data)
 	require.NoError(t, err)
