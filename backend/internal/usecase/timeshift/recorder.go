@@ -394,8 +394,9 @@ func (r *Recorder) copyChunks(ctx context.Context, logger *slog.Logger, stream i
 	defer func() {
 		if current != nil {
 			endedAt := r.clock.Now()
-			r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, endedAt)
-			state.lastChunkEnd = endedAt
+			if r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, endedAt) {
+				state.lastChunkEnd = endedAt
+			}
 		}
 	}()
 	buf := make([]byte, readPackets*ts.PacketSize)
@@ -426,8 +427,9 @@ func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, state 
 	now := r.clock.Now()
 	if current != nil && now.Sub(current.startedAt) >= r.opts.ChunkDuration {
 		// ctx が終わっても、書き終えたチャンクを閉じずに残さない。
-		r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, now)
-		state.lastChunkEnd = now
+		if r.closeChunk(context.WithoutCancel(ctx), logger, state.pending, current, now) {
+			state.lastChunkEnd = now
+		}
 		current = nil
 	}
 	if current == nil {
@@ -445,11 +447,45 @@ func (r *Recorder) writePackets(ctx context.Context, logger *slog.Logger, state 
 // chunk は、書いているチャンクのファイルと、その索引。
 type chunk struct {
 	id        uuid.UUID
+	rel       string
 	file      *os.File
 	indexFile *os.File
 	analyzer  *ts.Analyzer
 	startedAt time.Time
 	size      int64
+
+	// mu は、closed と discarded を守る。チャンクを閉じるのは読み込みのループ、記録を捨てるのは見張りの goroutine である。
+	mu sync.Mutex
+	// closed は、ファイルと索引を閉じたかどうか。discarded は、作った記録を書かずに捨てたかどうか。
+	// 両方が立ったら、DB に記録のないチャンクのファイルと索引を消す。開いているうちに消すと、Windows では消せず、
+	// NFS では索引のディレクトリが消えないので、閉じてから消す (#1722)。
+	closed, discarded bool
+}
+
+// markClosed は、ファイルと索引を閉じたことを記録し、作った記録を捨てていたら true を返す。
+func (c *chunk) markClosed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closed = true
+
+	return c.discarded
+}
+
+// markDiscarded は、作った記録を捨てたことを記録し、もう閉じていたら true を返す。
+func (c *chunk) markDiscarded() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.discarded = true
+
+	return c.closed
+}
+
+// removeDiscarded は、記録を捨てたチャンクのファイルと索引を消す。DB に記録のないチャンクは、破棄のジョブも、
+// DB にないファイルの探索も見ないので、残すと誰にも消されない (#1722)。
+func (r *Recorder) removeDiscarded(ctx context.Context, logger *slog.Logger, c *chunk) {
+	if err := r.store.Remove(kago.TimeshiftPoolID, c.rel, c.id); err != nil {
+		logger.WarnContext(ctx, "failed to remove the timeshift chunk whose record was discarded", slog.String("path", c.rel), slog.Any("error", err))
+	}
 }
 
 // createChunk は、タイムシフトのディレクトリの、サービスのディレクトリにチャンクのファイルを作り、索引を作って、DB に記録する。
@@ -466,14 +502,17 @@ func (r *Recorder) createChunk(ctx context.Context, logger *slog.Logger, pending
 	if indexErr != nil {
 		logger.WarnContext(ctx, "failed to create the index; recording without it", slog.String("path", rel), slog.Any("error", indexErr))
 	}
-	c := &chunk{id: chunkID, file: file, indexFile: indexFile, analyzer: analyzer, startedAt: now, size: 0}
+	c := &chunk{
+		id: chunkID, rel: rel, file: file, indexFile: indexFile, analyzer: analyzer, startedAt: now, size: 0,
+		mu: sync.Mutex{}, closed: false, discarded: false,
+	}
 	params := sqlc.InsertTimeshiftChunkParams{ID: chunkID, ServiceID: serviceID, Path: rel, Size: 0, StartedAt: now, Now: now}
 	err = r.writeOrDefer(ctx, logger, pending, func(ctx context.Context, q *sqlc.Queries) error {
 		return q.InsertTimeshiftChunk(ctx, params)
 	}, func() {
-		// 記録を書かずに捨てたら、DB に記録のないチャンクは誰にも消されないので、ここで消す (#1722)。
-		if err := r.store.Remove(kago.TimeshiftPoolID, rel, chunkID); err != nil {
-			logger.WarnContext(ctx, "failed to remove the timeshift chunk whose record was discarded", slog.String("path", rel), slog.Any("error", err))
+		// 記録を書かずに捨てたら、チャンクを閉じてから消す。もう閉じていれば、ここで消す (#1722)。
+		if c.markDiscarded() {
+			r.removeDiscarded(ctx, logger, c)
 		}
 	})
 	if err != nil {
@@ -507,7 +546,8 @@ func (c *chunk) write(p []byte) error {
 
 // closeChunk は、チャンクのファイルと索引を書き終え、DB に大きさと終わりの時刻を記録する。
 // 閉じられなくても、次のチャンクに書き続けるので、ログに残すだけにする。
-func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending *pendingWrites, c *chunk, endedAt time.Time) {
+// 作った記録を捨てていたチャンクは、記録せずにファイルと索引を消し、false を返す。録れた最後の時刻にはしない (#1722)。
+func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending *pendingWrites, c *chunk, endedAt time.Time) bool {
 	errs := []error{}
 	if err := c.file.Sync(); err != nil {
 		errs = append(errs, fmt.Errorf("failed to sync the timeshift chunk: %w", err))
@@ -522,6 +562,11 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 		if err := c.indexFile.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("failed to close the index file: %w", err))
 		}
+	}
+	if c.markClosed() {
+		r.removeDiscarded(ctx, logger, c)
+
+		return false
 	}
 	params := sqlc.CloseTimeshiftChunkParams{Size: c.size, EndedAt: &endedAt, ID: c.id}
 	err := r.writeOrDefer(ctx, logger, pending, func(ctx context.Context, q *sqlc.Queries) error {
@@ -543,6 +588,8 @@ func (r *Recorder) closeChunk(ctx context.Context, logger *slog.Logger, pending 
 	if err := errors.Join(errs...); err != nil {
 		logger.WarnContext(ctx, "failed to close the timeshift chunk", slog.String("chunk_id", c.id.String()), slog.Any("error", err))
 	}
+
+	return true
 }
 
 // programTracker は、EIT[p/f] の放送中の番組を追い、替わった時刻を timeshift_programs に記録する。
