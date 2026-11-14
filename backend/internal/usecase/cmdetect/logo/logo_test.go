@@ -336,3 +336,48 @@ func TestMeasure(t *testing.T) {
 		})
 	}
 }
+
+// TestLearnBottomRight は、下の帯の隅のロゴも見つけ、枠をコマの座標で返すことを確かめる。
+func TestLearnBottomRight(t *testing.T) {
+	t.Parallel()
+
+	p := logo.DefaultParams()
+	rng := newRNG(1314)
+	frames := make([]*logo.Gray, 0, 120)
+	below := logo.Box{X: 860, Y: frameH - 50, W: 56, H: 20}
+	for range 120 {
+		c := newCanvas(randomBlocks, rng)
+		for i := range 3 {
+			x := below.X + i*20
+			c.fill(logo.Box{X: x, Y: below.Y, W: 4, H: below.H})
+			c.fill(logo.Box{X: x, Y: below.Y + 8, W: 14, H: 4})
+		}
+		frames = append(frames, c.img)
+	}
+	result, _, err := learn(t, frames, p)
+	require.NoError(t, err)
+	assert.Equal(t, logo.BottomRight, result.Corner)
+	b := result.Box
+	assert.LessOrEqual(t, b.Y, below.Y)
+	assert.GreaterOrEqual(t, b.Y+b.H, below.Y+below.H)
+	assert.LessOrEqual(t, b.Y+b.H, frameH)
+}
+
+// TestNewTemplateTooFewPoints は、型の点が少なすぎれば、その回はロゴを使わないことを確かめる。
+func TestNewTemplateTooFewPoints(t *testing.T) {
+	t.Parallel()
+
+	p := logo.DefaultParams()
+	p.MinTemplatePoints = 100000
+	rng := newRNG(1516)
+	frames := make([]*logo.Gray, 0, 120)
+	for range 120 {
+		c := newCanvas(randomBlocks, rng)
+		c.drawLogo()
+		frames = append(frames, c.img)
+	}
+	result, top, err := learn(t, frames, p)
+	require.NoError(t, err)
+	_, err = logo.NewTemplate(top.Crop(result.Box), result.Box, frameW, frameH, p)
+	assert.ErrorIs(t, err, logo.ErrFewPoints)
+}
