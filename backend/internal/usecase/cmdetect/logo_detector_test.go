@@ -104,7 +104,7 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(want, nil)
 
 	// 動く絵だけの合成の映像には、動かない縁 (局ロゴ) がないので、学習できない。
-	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil})
+	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil, Program: nil})
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 	assert.Equal(t, cmdetect.LogoDetectorName, detector.Name())
@@ -124,7 +124,7 @@ func TestLogoDetector(t *testing.T) {
 	require.NoError(t, err)
 
 	path := writeLogoTS(t, 15, 25)
-	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil})
+	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil})
 	require.NoError(t, err)
 	// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
 	assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
@@ -230,7 +230,7 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(tt.fallback, nil)
 
 			// ロゴは 40 秒のうち 10 秒から 34 秒まで消えるので、ロゴで決めた CM の割合は 6 割になる。
-			got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil})
+			got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil, Program: nil})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 			// ロゴの結果を捨てた理由を残す (#1508)。
@@ -271,7 +271,7 @@ func TestLogoDetectorRedetect(t *testing.T) {
 			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{}, nil).MaxTimes(1)
 
 			sections, report, material, err := detector.DetectWithMaterial(t.Context(),
-				&cmdetect.Input{Path: writeLogoTS(t, tt.hideFrom, tt.hideTo), ServiceID: 0, Progress: nil})
+				&cmdetect.Input{Path: writeLogoTS(t, tt.hideFrom, tt.hideTo), ServiceID: 0, Progress: nil, Program: nil})
 			require.NoError(t, err)
 			require.NotNil(t, material)
 			if tt.wantRedetectable {
@@ -283,7 +283,7 @@ func TestLogoDetectorRedetect(t *testing.T) {
 			decoded, err := cmdetect.DecodeMaterials(data)
 			require.NoError(t, err)
 			for _, m := range []*cmdetect.Material{material, decoded[0].Material} {
-				got, gotReport, ok := detector.Redetect(m)
+				got, gotReport, ok := detector.Redetect(m, nil)
 				assert.Equal(t, tt.wantRedetectable, ok)
 				if ok {
 					assert.Equal(t, sections, got)
@@ -306,7 +306,7 @@ func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	require.NoError(t, err)
 	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{{Start: 0, End: 900 * time.Millisecond}}, nil)
 
-	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil})
+	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil, Program: nil})
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }

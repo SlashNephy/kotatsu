@@ -28,6 +28,8 @@ type Input struct {
 	// Progress は、FFmpeg の -progress のまとまり b と、それまでにファイルから FFmpeg に流したバイト数 read を受け取る (#1511)。
 	// nil なら受け取らない。
 	Progress func(b *ffprogress.Block, read int64)
+	// Program は、録画した番組の、番組表の時刻 (#1506)。分からないか、使わないときは nil。
+	Program *Program
 }
 
 //go:generate go tool mockgen -typed -destination=mock_detector_test.go -package=cmdetect_test . Detector
@@ -60,6 +62,6 @@ type Reporter interface {
 type MaterialDetector interface {
 	// DetectWithMaterial は、区間と添え書きと、判定し直すための材料を返す。材料を残せない回は nil を返す。
 	DetectWithMaterial(ctx context.Context, input *Input) ([]Section, *Report, *Material, error)
-	// Redetect は、材料から判定し直す。材料だけでは決められなければ、ok を false にする。
-	Redetect(material *Material) (sections []Section, report *Report, ok bool)
+	// Redetect は、材料から判定し直す。program は、Input.Program と同じ番組の時刻。材料だけでは決められなければ、ok を false にする。
+	Redetect(material *Material, program *Program) (sections []Section, report *Report, ok bool)
 }

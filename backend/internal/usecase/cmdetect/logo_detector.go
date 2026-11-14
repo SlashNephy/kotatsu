@@ -111,7 +111,7 @@ func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]
 	duration := video.duration
 	if err == nil {
 		var sections []Section
-		sections, duration, err = d.decide(material, report)
+		sections, duration, err = d.decide(material, input.Program, report)
 		if err == nil {
 			return sections, report, material, nil
 		}
@@ -136,9 +136,9 @@ func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]
 
 // Redetect は、材料から、読み直さずに判定し直す (#1507)。ロゴで決められなければ (ロゴの出ていた区間がないか、
 // CM の割合が上限以上なら)、今の見分け方で読み直す必要があるので、ok を false にする。
-func (d *LogoDetector) Redetect(material *Material) ([]Section, *Report, bool) {
+func (d *LogoDetector) Redetect(material *Material, program *Program) ([]Section, *Report, bool) {
 	report := &Report{Note: "", Missing: 0}
-	sections, _, err := d.decide(material, report)
+	sections, _, err := d.decide(material, program, report)
 	if err != nil {
 		return nil, nil, false
 	}
@@ -148,8 +148,8 @@ func (d *LogoDetector) Redetect(material *Material) ([]Section, *Report, bool) {
 
 // decide は、材料からロゴで決める。決められれば、区間を返し、report に映像の欠けの長さを書く。
 // 決められなければ、errLogoUnusable を包んだ理由と、見分け直した結果の割合を割る長さ (コマの時刻から求めたもの) を返す。
-func (d *LogoDetector) decide(material *Material, report *Report) ([]Section, time.Duration, error) {
-	result, err := d.evaluate(material)
+func (d *LogoDetector) decide(material *Material, program *Program, report *Report) ([]Section, time.Duration, error) {
+	result, err := d.evaluate(material, program)
 	if err != nil {
 		return nil, material.Duration, err
 	}
@@ -391,10 +391,17 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 }
 
 // evaluate は、材料から、ロゴの出ていた区間を出し、その外を CM にする。ロゴの出ていた区間が 1 つもなければ、errLogoUnusable を包んで返す。
-func (d *LogoDetector) evaluate(m *Material) (*logoResult, error) {
+// 番組の時刻 program が分かれば、番組の尺の窓を置き、窓の外のロゴを前後の番組のものとして捨てる (#1506 の手順 1)。
+func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, error) {
 	intervals := logo.Intervals(m.Measures, m.Fps, d.params)
 	if len(intervals) == 0 {
 		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
+	}
+	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
+		intervals = clipIntervals(intervals, m.Times, w.start, w.end)
+		if len(intervals) == 0 {
+			return nil, fmt.Errorf("%w: no frame shows the logo in the program window", errLogoUnusable)
+		}
 	}
 	missing := missingSections(m.Times, m.Fps)
 

@@ -263,7 +263,7 @@ func (d *materialDetector) DetectWithMaterial(
 	return sections, &cmdetect.Report{Note: "", Missing: 0}, material, err
 }
 
-func (d *materialDetector) Redetect(*cmdetect.Material) ([]cmdetect.Section, *cmdetect.Report, bool) {
+func (d *materialDetector) Redetect(*cmdetect.Material, *cmdetect.Program) ([]cmdetect.Section, *cmdetect.Report, bool) {
 	d.redetects++
 	if !d.redetectable {
 		return nil, nil, false

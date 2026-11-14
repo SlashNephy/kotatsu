@@ -342,7 +342,7 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	}
 
 	// 材料が残っていれば、読み直さずに判定し直す (#1507)。
-	if found, report, ok := w.redetect(ctx, detector, recordingID, segments); ok {
+	if found, report, ok := w.redetect(ctx, detector, &recording, segments); ok {
 		w.logger.InfoContext(ctx, "redetected the CM sections from the materials", slog.String("recording_id", recordingID.String()))
 
 		return w.record(ctx, detector, recordingID, w.align(recording.RecordedFrom, segments, found), report)
@@ -356,7 +356,7 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	materials := make([]SegmentMaterial, 0, len(segments))
 	for i, segment := range segments {
 		sections, segmentReport, material, err := detectWithMaterial(ctx, detector,
-			&Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i)})
+			&Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i), Program: programOf(&recording, segments, i)})
 		if errors.Is(err, ErrNoVideo) {
 			// 映像のないセグメント (チューナーが絵を出す前に閉じたものなど) は、見分けるものがないので飛ばす。
 			continue
@@ -385,6 +385,17 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	return nil
 }
 
+// programOf は、i 番目のセグメントに渡す、番組表の時刻を返す (#1506)。番組の窓は録画全体の時間で置く必要があるので、
+// セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする。番組が始まるはずの時刻は、番組表の始まりを、
+// セグメントを書き始めた日時からの時間にしたもの。
+func programOf(recording *sqlc.Recording, segments []segment, i int) *Program {
+	if len(segments) != 1 || !recording.EndAt.After(recording.StartAt) {
+		return nil
+	}
+
+	return &Program{Start: recording.StartAt.Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt)}
+}
+
 // align は、セグメントごとの区間を、録画を始めた日時からの時間にそろえて、1 つにまとめる。
 // 途切れた区間も時間に含めて数え、再生の位置にするのは画面に任せる。
 func (w *DetectWorker) align(recordedFrom time.Time, segments []segment, found [][]Section) []Section {
@@ -402,12 +413,12 @@ func (w *DetectWorker) align(recordedFrom time.Time, segments []segment, found [
 // redetect は、録画の材料が残っていて、どのセグメントも材料から決められれば、読み直さずに判定し直した区間を返す (#1507)。
 // 材料がない、形式の版が違う、壊れている、セグメントが変わった (つないだ、名前を変えた)、ロゴで決められないセグメントがある、
 // のどれかなら、ok を false にして、読み直させる。
-func (w *DetectWorker) redetect(ctx context.Context, detector Detector, recordingID uuid.UUID, segments []segment) ([][]Section, *Report, bool) {
+func (w *DetectWorker) redetect(ctx context.Context, detector Detector, recording *sqlc.Recording, segments []segment) ([][]Section, *Report, bool) {
 	md, ok := detector.(MaterialDetector)
 	if !ok {
 		return nil, nil, false
 	}
-	row, err := sqlc.New(w.db).GetRecordingCMMaterial(ctx, sqlc.GetRecordingCMMaterialParams{RecordingID: recordingID, Detector: detector.Name()})
+	row, err := sqlc.New(w.db).GetRecordingCMMaterial(ctx, sqlc.GetRecordingCMMaterialParams{RecordingID: recording.ID, Detector: detector.Name()})
 	if err != nil || row.FormatVersion != materialFormatVersion {
 		return nil, nil, false
 	}
@@ -421,7 +432,7 @@ func (w *DetectWorker) redetect(ctx context.Context, detector Detector, recordin
 		if materials[i].Path != segment.key {
 			return nil, nil, false
 		}
-		sections, segmentReport, ok := md.Redetect(materials[i].Material)
+		sections, segmentReport, ok := md.Redetect(materials[i].Material, programOf(recording, segments, i))
 		if !ok {
 			return nil, nil, false
 		}

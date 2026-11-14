@@ -135,3 +135,15 @@ func LogoDetail(corner logo.Corner, box logo.Box, measures []logo.Measure, inter
 
 	return r.detail(logo.DefaultParams())
 }
+
+// ProgramWindow は programWindow。
+func ProgramWindow(intervals []logo.Interval, times []float64, fps float64, program *Program) (float64, float64, bool) {
+	w, ok := programWindow(intervals, times, fps, program)
+
+	return w.start, w.end, ok
+}
+
+// ClipIntervals は clipIntervals。
+func ClipIntervals(intervals []logo.Interval, times []float64, start, end float64) []logo.Interval {
+	return clipIntervals(intervals, times, start, end)
+}
