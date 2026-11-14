@@ -37,12 +37,30 @@ describe('useDocumentTitle', () => {
     // 視聴の画面を閉じても、番組表のタイトルのままにする。
     watch.unmount();
     expect(document.title).toBe('番組表 | Kotatsu');
+    // 閉じた視聴の画面のタイトルには戻さない。
     guide.unmount();
+    expect(document.title).toBe('Kotatsu');
+  });
+
+  test('小さなプレイヤーに切り替わる前に開いた画面を離れても、番組名に戻さない (#1775)', () => {
+    const watch = renderHook(({ enabled }) => useDocumentTitle(['ニュース7'], enabled), {
+      initialProps: { enabled: true },
+    });
     expect(document.title).toBe('ニュース7 | Kotatsu');
+
+    // 録画の一覧へ移ると、一覧が先にタイトルを付け、その後で視聴の画面が小さなプレイヤーになる。
+    const recordings = renderHook(() => useDocumentTitle(['録画']));
+    watch.rerender({ enabled: false });
+    expect(document.title).toBe('録画 | Kotatsu');
+
+    // タイトルを付けないホームへ戻る。
+    recordings.unmount();
+    expect(document.title).toBe('Kotatsu');
+    watch.unmount();
   });
 
   test('enabled が false の間は、タイトルを変えない (#1731)', () => {
-    document.title = '番組表 | Kotatsu';
+    const guide = renderHook(() => useDocumentTitle(['番組表']));
     const { rerender, unmount } = renderHook(
       ({ parts, enabled }) => useDocumentTitle(parts, enabled),
       {
@@ -60,5 +78,6 @@ describe('useDocumentTitle', () => {
     expect(document.title).toBe('天気予報 | Kotatsu');
     unmount();
     expect(document.title).toBe('番組表 | Kotatsu');
+    guide.unmount();
   });
 });
