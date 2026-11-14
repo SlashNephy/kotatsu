@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"testing"
 
@@ -30,9 +31,17 @@ const textPlain = "text/plain; charset=utf-8"
 func startTenban(t *testing.T) (string, *pgxpool.Pool) {
 	t.Helper()
 
+	return startTenbanWithEnv(t, nil)
+}
+
+// startTenbanWithEnv は、startTenban と同じく tenban を動かす。extra の環境変数を足す (チューナーサーバーの接続先など)。
+func startTenbanWithEnv(t *testing.T, extra map[string]string) (string, *pgxpool.Pool) {
+	t.Helper()
+
 	dbConfig := databasetest.New(t)
 	env := testEnv()
 	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+	maps.Copy(env, extra)
 	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
 	opts.LookupEnv = func(key string) (string, bool) {
 		v, ok := env[key]
