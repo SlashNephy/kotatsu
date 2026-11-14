@@ -36,7 +36,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/infra/power"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
-	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
 	"github.com/SlashNephy/kotatsu/internal/infra/telemetry"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/infra/workids"
@@ -261,36 +260,21 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
-	animeLogger := logger.With(slog.String("component", "anime"))
-	// アニメと特撮の番組を、しょぼいカレンダーで作品と話に結びつける。EPG が変わったとき、定期的な照合し直し、放送が終わった後の確定で照合する。
-	// しょぼいカレンダーへの問い合わせの間隔は、このプロセスの取り込みと照合のジョブすべてで共有する。
-	syobocalClient := syobocal.NewClient(&syobocal.Options{
-		HTTPClient: netactivity.NewClient(deps.Network, netactivity.PurposeAnimeProgramSync, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}),
-		URL:        "", Interval: 0,
-	})
-	// 見たアニメを、ユーザーが連携した Annict と AniList に記録する (#927)。
-	animeRecords, err := newAnimeRecords(deps, logger, inserter, netactivity.PurposeAnimeRecord)
+	// 番組を、しょぼいカレンダーで作品と話に結びつけ、上映会のコメント (NICOLOG) とも結びつける。見たアニメは、ユーザーが連携した
+	// Annict と AniList に記録する (#927)。
+	animeJobs, err := newAnimeJobParts(deps, logger, inserter)
 	if err != nil {
 		return nil, nil, err
 	}
-	// 管理者が Annict のトークンを設定していれば、Annict と AniList から作品 ID の対応を作る (#1223)。
-	importer := anime.NewImporter(deps.DB, deps.Clock, animeDataClient(deps.Config, deps.Network), syobocalClient, inserter, animeLogger).WithWorkIDs(&anime.WorkIDOptions{
-		Fetcher: workids.NewClient(&workids.Options{
-			HTTPClient: workids.NewHTTPClient(deps.Network, netactivity.PurposeAnimeWorkIDs), AnnictBaseURL: deps.Config.AnimeRecords.AnnictURL, AniListBaseURL: deps.Config.AnimeRecords.AniListURL,
-			JikanBaseURL: deps.Config.AnimeRecords.JikanURL,
-		}),
-		Tokens: animeRecords, AnnictInterval: anime.DefaultAnnictRequestInterval, AniListInterval: anime.DefaultAniListRequestInterval,
-	})
-	river.AddWorker(workers, anime.NewImportWorker(importer))
-	river.AddWorker(workers, anime.NewMatchWorker(anime.NewMatcher(deps.DB, deps.Clock, syobocalClient, animeLogger)))
-	river.AddWorker(workers, anime.NewNicologWorker(anime.NewNicologMatcher(deps.DB, deps.Clock,
-		nicolog.NewClient(&nicolog.Options{HTTPClient: nicolog.NewHTTPClient(deps.Network), URL: ""}), anime.DefaultNicologRequestInterval, animeLogger)))
-	river.AddWorker(workers, animerecord.NewRecordWorker(animeRecords, deps.DB))
-	river.AddWorker(workers, animerecord.NewPruneWorker(animeRecords, deps.DB))
+	river.AddWorker(workers, anime.NewImportWorker(animeJobs.importer))
+	river.AddWorker(workers, anime.NewMatchWorker(animeJobs.matcher))
+	river.AddWorker(workers, anime.NewNicologWorker(animeJobs.nicolog))
+	river.AddWorker(workers, animerecord.NewRecordWorker(animeJobs.records, deps.DB))
+	river.AddWorker(workers, animerecord.NewPruneWorker(animeJobs.records, deps.DB))
 	// ユーザーが Annict と AniList で「見たい」「見てる」にした作品を、記録の連携のトークンで取り込む (#928)。
-	river.AddWorker(workers, animerecord.NewWishlistWorker(animeRecords, deps.DB))
+	river.AddWorker(workers, animerecord.NewWishlistWorker(animeJobs.records, deps.DB))
 	// フォロー中のユーザーの視聴状況を、画面を開いたときに、記録の連携のトークンで取得する (#1372)。
-	river.AddWorker(workers, animerecord.NewFollowingWorker(animeRecords, deps.DB))
+	river.AddWorker(workers, animerecord.NewFollowingWorker(animeJobs.records, deps.DB))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
