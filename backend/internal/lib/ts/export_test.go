@@ -24,3 +24,13 @@ func ParseTOTForTest(section []byte) (time.Time, bool) {
 func ParseCDTLogoForTest(section []byte) (*Logo, bool) {
 	return parseCDTLogo(section)
 }
+
+// ParseNITForTest は、テストから parseNIT を呼ぶためのもの。
+func ParseNITForTest(section []byte) (*NIT, bool) {
+	return parseNIT(section)
+}
+
+// ParseSDTForTest は、テストから parseSDT を呼ぶためのもの。
+func ParseSDTForTest(section []byte) (*SDT, bool) {
+	return parseSDT(section)
+}
