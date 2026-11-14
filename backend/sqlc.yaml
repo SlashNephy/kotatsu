@@ -24,6 +24,7 @@ sql:
           data_broadcast_ip_enabled: DataBroadcastIPEnabled
           external_player_urls_enabled: ExternalPlayerURLsEnabled
           iptv_feeds_enabled: IPTVFeedsEnabled
+          epgstation_api_enabled: EPGStationAPIEnabled
         overrides:
           - column: reservations.kind
             go_type:

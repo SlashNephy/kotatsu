@@ -172,6 +172,8 @@ function Recording({ recordingId }: { recordingId: string }) {
         # 外部プレイヤー用の URL は、管理者が有効にしているときだけ発行できる (#1755)。
         systemSettings {
           externalPlayerUrlsEnabled
+          # 録画のダウンロードは、管理者が有効にしているときだけ使える (#1762)。
+          recordingDownloadsEnabled
         }
         tags {
           name
@@ -477,18 +479,21 @@ function Recording({ recordingId }: { recordingId: string }) {
           {segments.length > 0 && data.systemSettings.externalPlayerUrlsEnabled && (
             <ExternalStreamURL target={recording.id} />
           )}
-          {/* 録画を終えた録画を、セグメントをつないだ 1 つのファイルとして保存させる。録画中は長さが決まらないので出さない。 */}
-          {segments.length > 0 && recording.state !== 'RECORDING' && (
-            <Button
-              variant="default"
-              leftSection={<Download size={16} aria-hidden />}
-              component="a"
-              href={`${recording.streamUrl}?download=1`}
-              download
-            >
-              {t('recordings.download')}
-            </Button>
-          )}
+          {/* 録画を終えた録画を、セグメントをつないだ 1 つのファイルとして保存させる。録画中は長さが決まらないので出さない。
+              管理者が録画のダウンロードを有効にしていなければ出さない (#1762)。 */}
+          {segments.length > 0 &&
+            recording.state !== 'RECORDING' &&
+            data.systemSettings.recordingDownloadsEnabled && (
+              <Button
+                variant="default"
+                leftSection={<Download size={16} aria-hidden />}
+                component="a"
+                href={`${recording.streamUrl}?download=1`}
+                download
+              >
+                {t('recordings.download')}
+              </Button>
+            )}
           {/* 録画を終えた録画を端末に保存し、サーバーにつながらなくても見られるようにする (#480)。 */}
           {segments.length > 0 &&
             recording.state !== 'RECORDING' &&

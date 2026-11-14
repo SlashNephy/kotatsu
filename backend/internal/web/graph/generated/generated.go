@@ -1364,6 +1364,7 @@ type ComplexityRoot struct {
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
+		EpgstationAPIEnabled                   func(childComplexity int) int
 		ExternalPlayerUrlsEnabled              func(childComplexity int) int
 		IptvFeedsEnabled                       func(childComplexity int) int
 		JikkyoEnabled                          func(childComplexity int) int
@@ -1372,6 +1373,7 @@ type ComplexityRoot struct {
 		NetworkActivityRetentionDays           func(childComplexity int) int
 		NotificationRetentionDays              func(childComplexity int) int
 		RecordingDefaults                      func(childComplexity int) int
+		RecordingDownloadsEnabled              func(childComplexity int) int
 		RuleDefaults                           func(childComplexity int) int
 		RuleUnmatchedGraceMinutes              func(childComplexity int) int
 		TimeshiftWhileWatching                 func(childComplexity int) int
@@ -7786,6 +7788,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.DrcsReplacements(childComplexity), true
+	case "SystemSettings.epgstationApiEnabled":
+		if e.ComplexityRoot.SystemSettings.EpgstationAPIEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.EpgstationAPIEnabled(childComplexity), true
 	case "SystemSettings.externalPlayerUrlsEnabled":
 		if e.ComplexityRoot.SystemSettings.ExternalPlayerUrlsEnabled == nil {
 			break
@@ -7834,6 +7842,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.RecordingDefaults(childComplexity), true
+	case "SystemSettings.recordingDownloadsEnabled":
+		if e.ComplexityRoot.SystemSettings.RecordingDownloadsEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.RecordingDownloadsEnabled(childComplexity), true
 	case "SystemSettings.ruleDefaults":
 		if e.ComplexityRoot.SystemSettings.RuleDefaults == nil {
 			break
@@ -12010,6 +12024,18 @@ type SystemSettings {
   ログインしていれば誰でも読め、画面が、URL を発行する操作を出すかを決めるのに使う。
   """
   iptvFeedsEnabled: Boolean!
+  """
+  録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定は false。
+  無効の間は、録画の配信が download を断る。端末に保存 (設計書 7.8) は含めない。
+  ログインしていれば誰でも読め、画面が、ダウンロードの操作を出すかを決めるのに使う。
+  """
+  recordingDownloadsEnabled: Boolean!
+  """
+  EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
+  無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
+  ログインしていれば誰でも読め、画面が、API トークンを発行する操作を出すかを決めるのに使う。
+  """
+  epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
   """
@@ -12057,6 +12083,10 @@ input SystemSettingsInput {
   externalPlayerUrlsEnabled: Boolean
   "変えるには、直近 10 分以内の認証が要る。URL を持つ人が、そのユーザーとしてライブ視聴を見られるようになるため。"
   iptvFeedsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。"
+  recordingDownloadsEnabled: Boolean
+  "変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。"
+  epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
@@ -15101,6 +15131,10 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_externalPlayerUrlsEnabled(ctx, field)
 	case "iptvFeedsEnabled":
 		return ec.fieldContext_SystemSettings_iptvFeedsEnabled(ctx, field)
+	case "recordingDownloadsEnabled":
+		return ec.fieldContext_SystemSettings_recordingDownloadsEnabled(ctx, field)
+	case "epgstationApiEnabled":
+		return ec.fieldContext_SystemSettings_epgstationApiEnabled(ctx, field)
 	case "animeLinkingEnabled":
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
 	case "jikkyoEnabled":
@@ -41995,6 +42029,52 @@ func (ec *executionContext) fieldContext_SystemSettings_iptvFeedsEnabled(_ conte
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _SystemSettings_recordingDownloadsEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_recordingDownloadsEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RecordingDownloadsEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_recordingDownloadsEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_epgstationApiEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_epgstationApiEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpgstationAPIEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_epgstationApiEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _SystemSettings_animeLinkingEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -47970,7 +48050,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -48054,6 +48134,20 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.IptvFeedsEnabled = data
+		case "recordingDownloadsEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("recordingDownloadsEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.RecordingDownloadsEnabled = data
+		case "epgstationApiEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epgstationApiEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EpgstationAPIEnabled = data
 		case "animeLinkingEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("animeLinkingEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -57232,6 +57326,16 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "iptvFeedsEnabled":
 			out.Values[i] = ec._SystemSettings_iptvFeedsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recordingDownloadsEnabled":
+			out.Values[i] = ec._SystemSettings_recordingDownloadsEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "epgstationApiEnabled":
+			out.Values[i] = ec._SystemSettings_epgstationApiEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e31d9e550ac73aebc73d1d1e55df6b7d>>
+ * @generated SignedSource<<d9ff0b461bcb4cfb7f7780ee643cfc9e>>
  * @lightSyntaxTransform
  */
 
@@ -35,6 +35,7 @@ export type securityQuery$data = {
     readonly totp: boolean;
   };
   readonly systemSettings: {
+    readonly epgstationApiEnabled: boolean;
     readonly iptvFeedsEnabled: boolean;
   };
   readonly viewer: {
@@ -160,6 +161,13 @@ v10 = {
       "kind": "ScalarField",
       "name": "iptvFeedsEnabled",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "epgstationApiEnabled",
+      "storageKey": null
     }
   ],
   "storageKey": null
@@ -231,16 +239,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "8a2d149313b46de80e37f4430e8a5cb0",
+    "cacheID": "d769c91de99e1a136e9b694cb9a19b5b",
     "id": null,
     "metadata": {},
     "name": "securityQuery",
     "operationKind": "query",
-    "text": "query securityQuery {\n  viewer {\n    username\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  iptvFeed {\n    createdAt\n    lastUsedAt\n  }\n  systemSettings {\n    iptvFeedsEnabled\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
+    "text": "query securityQuery {\n  viewer {\n    username\n    id\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n  calendarFeed {\n    createdAt\n    lastUsedAt\n  }\n  iptvFeed {\n    createdAt\n    lastUsedAt\n  }\n  systemSettings {\n    iptvFeedsEnabled\n    epgstationApiEnabled\n  }\n  apiTokens {\n    id\n    name\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "0c4f79a3ba8a4f4becede1b9cc983453";
+(node as any).hash = "75ce3692603d776c6849c6957c967d3e";
 
 export default node;

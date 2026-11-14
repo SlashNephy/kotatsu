@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, epgstation_api_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -30,6 +30,8 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.DataBroadcastIPEnabled,
 		&i.ExternalPlayerURLsEnabled,
 		&i.IPTVFeedsEnabled,
+		&i.RecordingDownloadsEnabled,
+		&i.EPGStationAPIEnabled,
 		&i.AnimeLinkingEnabled,
 		&i.CommentSources,
 		&i.RuleDefaults,
@@ -76,7 +78,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, epgstation_api_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -101,6 +103,8 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.DataBroadcastIPEnabled,
 		&i.ExternalPlayerURLsEnabled,
 		&i.IPTVFeedsEnabled,
+		&i.RecordingDownloadsEnabled,
+		&i.EPGStationAPIEnabled,
 		&i.AnimeLinkingEnabled,
 		&i.CommentSources,
 		&i.RuleDefaults,
@@ -158,12 +162,12 @@ UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   notification_retention_days = $3, watch_progress_retention_days = $4, network_activity_enabled = $5,
   network_activity_enabled_at = $6, network_activity_retention_days = $7, rule_defaults = $8, mcp_enabled = $9,
   data_broadcast_ip_enabled = $10, external_player_urls_enabled = $11,
-  iptv_feeds_enabled = $12, anime_linking_enabled = $13, comment_sources = $14,
-  drcs_replacements = $15, timeshift_while_watching = $16,
-  timeshift_while_watching_retention_seconds = $17,
-  rule_unmatched_grace_minutes = $18, updated_at = $19
+  iptv_feeds_enabled = $12, recording_downloads_enabled = $13, epgstation_api_enabled = $14, anime_linking_enabled = $15, comment_sources = $16,
+  drcs_replacements = $17, timeshift_while_watching = $18,
+  timeshift_while_watching_retention_seconds = $19,
+  rule_unmatched_grace_minutes = $20, updated_at = $21
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, epgstation_api_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
@@ -179,6 +183,8 @@ type UpdateSystemSettingsParams struct {
 	DataBroadcastIPEnabled                 bool
 	ExternalPlayerURLsEnabled              bool
 	IPTVFeedsEnabled                       bool
+	RecordingDownloadsEnabled              bool
+	EPGStationAPIEnabled                   bool
 	AnimeLinkingEnabled                    bool
 	CommentSources                         []string
 	DrcsReplacements                       []byte
@@ -202,6 +208,8 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.DataBroadcastIPEnabled,
 		arg.ExternalPlayerURLsEnabled,
 		arg.IPTVFeedsEnabled,
+		arg.RecordingDownloadsEnabled,
+		arg.EPGStationAPIEnabled,
 		arg.AnimeLinkingEnabled,
 		arg.CommentSources,
 		arg.DrcsReplacements,
@@ -224,6 +232,8 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.DataBroadcastIPEnabled,
 		&i.ExternalPlayerURLsEnabled,
 		&i.IPTVFeedsEnabled,
+		&i.RecordingDownloadsEnabled,
+		&i.EPGStationAPIEnabled,
 		&i.AnimeLinkingEnabled,
 		&i.CommentSources,
 		&i.RuleDefaults,

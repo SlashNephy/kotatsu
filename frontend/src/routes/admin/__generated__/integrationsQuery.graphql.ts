@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<a564385cf9980d65bf2adff80ec0cc8c>>
+ * @generated SignedSource<<2e783d82acb906d7931b5b836d1833c8>>
  * @lightSyntaxTransform
  */
 
@@ -51,10 +51,12 @@ export type integrationsQuery$data = {
     readonly animeLinkingEnabled: boolean;
     readonly commentSources: ReadonlyArray<CommentSource>;
     readonly dataBroadcastIpEnabled: boolean;
+    readonly epgstationApiEnabled: boolean;
     readonly externalPlayerUrlsEnabled: boolean;
     readonly iptvFeedsEnabled: boolean;
     readonly mcpEnabled: boolean;
     readonly networkActivityEnabled: boolean;
+    readonly recordingDownloadsEnabled: boolean;
   };
   readonly webhooks: ReadonlyArray<{
     readonly enabled: boolean;
@@ -120,6 +122,20 @@ v2 = [
         "args": null,
         "kind": "ScalarField",
         "name": "iptvFeedsEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "recordingDownloadsEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "epgstationApiEnabled",
         "storageKey": null
       },
       {
@@ -394,16 +410,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "e86197670010144dc1e2fa5a405bc367",
+    "cacheID": "e0efad40072c896c1b2a7d8b04eccba4",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "183f9031b0ec56dbbb340171e92cbef7";
+(node as any).hash = "47e312694f16915193f9e9cd84fd00cc";
 
 export default node;

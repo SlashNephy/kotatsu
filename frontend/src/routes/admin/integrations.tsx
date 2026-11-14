@@ -91,6 +91,8 @@ const query = graphql`
       dataBroadcastIpEnabled
       externalPlayerUrlsEnabled
       iptvFeedsEnabled
+      recordingDownloadsEnabled
+      epgstationApiEnabled
       networkActivityEnabled
       animeLinkingEnabled
       commentSources
@@ -285,6 +287,26 @@ function Integrations() {
             }}
           />
         )}
+        {/* 録画を 1 本のファイルとして保存させるか (#1762)。録画を Kotatsu の外へ持ち出せるので、ここで再認証を求める。 */}
+        <SwitchSetting
+          key={`recording-downloads/${String(data.systemSettings.recordingDownloadsEnabled)}`}
+          title={t('admin.settings.recordingDownloads')}
+          label={t('admin.settings.recordingDownloadsEnabled')}
+          help={t('admin.settings.recordingDownloadsHelp')}
+          enabled={data.systemSettings.recordingDownloadsEnabled}
+          busy={gate.busy}
+          onSave={(recordingDownloadsEnabled) => saveSettings({ recordingDownloadsEnabled })}
+        />
+        {/* EPGStation 互換の API を提供するか (#1769)。トークンを持つ人が映像を見られるので、ここで再認証を求める。 */}
+        <SwitchSetting
+          key={`epgstation-api/${String(data.systemSettings.epgstationApiEnabled)}`}
+          title={t('admin.settings.epgstationApi')}
+          label={t('admin.settings.epgstationApiEnabled')}
+          help={t('admin.settings.epgstationApiHelp')}
+          enabled={data.systemSettings.epgstationApiEnabled}
+          busy={gate.busy}
+          onSave={(epgstationApiEnabled) => saveSettings({ epgstationApiEnabled })}
+        />
         <SwitchSetting
           key={`iptv-feeds/${String(data.systemSettings.iptvFeedsEnabled)}`}
           title={t('admin.settings.iptvFeeds')}

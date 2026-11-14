@@ -941,7 +941,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 外部プレイヤーと IPTV のクライアントに渡す URL は、管理者が有効にしている間だけ受け付ける (#1755)。
 	urlGate := settings.NewURLGate(deps.DB, deps.Clock, logger.With(slog.String("component", "url_gate")))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, urlGate, deps.Clock)
-	streamRoutes, instances, err := newStreamRoutes(deps, authorizer, opener, streams, streamLogger)
+	streamRoutes, instances, err := newStreamRoutes(deps, authorizer, urlGate, opener, streams, streamLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -980,8 +980,8 @@ func newRouter(logger *slog.Logger, notFound http.Handler, deps *Deps, calendarF
 	router.Pre(httpserver.CanonicalPath(apiPathPrefix, internalPathPrefix))
 	handleCalendar(router, deps, calendarFeeds)
 	handleIPTV(router, deps, public.iptvFeeds, public.urlGate, public.opener, public.logos, public.streams, public.streamLogger)
-	handleSignedStreams(router, deps, public.authorizer, public.opener, public.streams, public.streamLogger)
-	handleEPGStationAPI(router, deps, public.apiTokens, public.opener, public.logos, public.streams, public.streamLogger)
+	handleSignedStreams(router, deps, public.authorizer, public.urlGate, public.opener, public.streams, public.streamLogger)
+	handleEPGStationAPI(router, deps, public.apiTokens, public.urlGate, public.opener, public.logos, public.streams, public.streamLogger)
 
 	return router
 }
@@ -1061,7 +1061,7 @@ func notFoundOrApp(app http.Handler) http.Handler {
 // 変換せずに流す配信を、streams に数える。EPGStation 互換の配信も、同じものに数える。
 // kyusu への中継に使うインスタンスの登録簿も返す。
 func newStreamRoutes(
-	deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
+	deps *Deps, authorizer *streamapi.Authorizer, urlGate *settings.URLGate, opener streamapi.ServiceOpener,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) (sessionRoutes, *kyusu.LastKnownInstances, error) {
 	routes := sessionRoutes{}
@@ -1100,7 +1100,7 @@ func newStreamRoutes(
 		authorizer.Session(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	routes.add(http.MethodGet, "/internal/streams/recordings/:id", httpserver.StopOnShutdown(authorizer.Session(
-		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0)))))
 	// タイムシフトのバッファは、このインスタンスにタイムシフトのディレクトリを設定したときだけ流せる (設計書 7.2)。
 	routes.add(http.MethodGet, "/internal/streams/timeshift/:id", httpserver.StopOnShutdown(authorizer.Session(
 		watches.Track(liveWatch, streams.Count(streamapi.StreamKindTimeshift, streamapi.NewTimeshiftHandler(deps.DB, storeOf(deps.Config), streamLogger, 0))))))
@@ -1116,13 +1116,13 @@ func newStreamRoutes(
 // 視聴している間だけ録るタイムシフトの記録 (設計書 5.7) には数えない。変換せずに流すので、streams には数える。
 // 配信のハンドラーは、ほかの配信と共有するので、ロガーを渡したまま包む。:id は、包んだハンドラーに r.PathValue("id") で渡る。
 func handleSignedStreams(
-	router *echo.Echo, deps *Deps, authorizer *streamapi.Authorizer, opener streamapi.ServiceOpener,
+	router *echo.Echo, deps *Deps, authorizer *streamapi.Authorizer, urlGate *settings.URLGate, opener streamapi.ServiceOpener,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
 	live := echo.WrapHandler(httpserver.StopOnShutdown(authorizer.Signed(
 		streams.Count(streamapi.StreamKindLive, streamapi.NewLiveHandler(opener, streamLogger)))))
 	recording := echo.WrapHandler(httpserver.StopOnShutdown(authorizer.Signed(
-		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0)))))
+		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0)))))
 	// http.ServeMux の GET のパターンは HEAD にも答えたので、HEAD のルートも登録する。
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		router.Add(method, stream.SignedPathPrefix+"services/:id", live, httpserver.Component("stream"))
@@ -1336,12 +1336,13 @@ func handleIPTV(
 // セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
 // ハンドラーは net/http のまま包み、:id は r.PathValue("id") で渡る。用意していない API も、認証を通してから 404 にする。
 func handleEPGStationAPI(
-	router *echo.Echo, deps *Deps, tokens *auth.APITokens, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
+	router *echo.Echo, deps *Deps, tokens *auth.APITokens, urlGate *settings.URLGate, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
+	// 管理者が有効にしている間だけ提供する (#1769)。無効の間は、API があることを知らせないよう、トークンを確かめる前に 404 を返す。
 	protect := func(next http.Handler) echo.HandlerFunc {
-		return echo.WrapHandler(tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next)))
+		return echo.WrapHandler(epgstationapi.RequireEnabled(urlGate, tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next))))
 	}
 	prefix := epgstationPathPrefix + "api/"
 	routes := map[string]http.Handler{
@@ -1351,12 +1352,14 @@ func handleEPGStationAPI(
 		"channels/:id/logo": streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger),
 		"schedules":         http.HandlerFunc(h.Schedules),
 		// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
-		"streams/live/:id/m2ts": streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(streamapi.NewLiveHandler(opener, streamLogger))),
-		"recorded":              http.HandlerFunc(h.Recorded),
-		"recorded/:id":          http.HandlerFunc(h.RecordedItem),
+		// 開いたままのライブの TS も、管理者が無効にしたか、トークンを取り消したら止める (#1769)。
+		"streams/live/:id/m2ts": streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(
+			epgstationapi.StopWhenRevoked(urlGate, tokens, streamapi.NewLiveHandler(opener, streamLogger)))),
+		"recorded":     http.HandlerFunc(h.Recorded),
+		"recorded/:id": http.HandlerFunc(h.RecordedItem),
 		// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。
 		"videos/:id": streams.Count(streamapi.StreamKindRecording, httpserver.StopOnShutdown(
-			h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), streamLogger, 0), ""))),
+			h.WithRecording(streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0), ""))),
 		"thumbnails/:id": h.WithRecording(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger), thumbnail.ThumbnailFileName),
 	}
 	for path, handler := range routes {

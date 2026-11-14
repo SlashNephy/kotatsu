@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -15,6 +16,14 @@ func (r *mutationResolver) CreateAPIToken(ctx context.Context, name string) (*mo
 	principal, err := viewer(ctx)
 	if err != nil {
 		return nil, err
+	}
+	// 管理者が EPGStation 互換の API を有効にしていなければ、使えないトークンを発行しない (#1769)。
+	system, err := settings.Load(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	if !system.EPGStationAPIEnabled {
+		return nil, NewError(CodeForbidden, "the EPGStation-compatible API is disabled by the administrator")
 	}
 	// トークンは、ログインと同じく、そのユーザーとして読むことを許すので、直前の再認証を求める (設計書 9.5)。
 	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {

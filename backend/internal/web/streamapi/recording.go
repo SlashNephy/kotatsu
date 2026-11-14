@@ -1,6 +1,7 @@
 package streamapi
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"math"
@@ -13,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -23,15 +25,23 @@ import (
 // 引き継ぎで重なった区間は切り詰める。録画中の録画は、ファイルの末尾まで読んだら、ファイルが伸びるのを待ちながら流し続ける。
 type RecordingHandler struct {
 	source *stream.RecordingSource
+	gate   DownloadGate
 	logger *slog.Logger
 }
+
+// DownloadGate は、管理者が録画のダウンロードを有効にしているかを返す (#1762)。*settings.URLGate が満たす。
+type DownloadGate interface {
+	RecordingDownloadsEnabled(ctx context.Context) (bool, error)
+}
+
+var _ DownloadGate = new(settings.URLGate)
 
 var _ http.Handler = new(RecordingHandler)
 
 // NewRecordingHandler は RecordingHandler を返す。store は、このインスタンスにマウントされたプール。
-// pollInterval が 0 なら 500 ミリ秒にする。
-func NewRecordingHandler(pool *pgxpool.Pool, store *kago.Store, logger *slog.Logger, pollInterval time.Duration) *RecordingHandler {
-	return &RecordingHandler{source: stream.NewRecordingSource(pool, store, pollInterval), logger: logger}
+// gate で、download を受け付けるかを確かめる。pollInterval が 0 なら 500 ミリ秒にする。
+func NewRecordingHandler(pool *pgxpool.Pool, store *kago.Store, gate DownloadGate, logger *slog.Logger, pollInterval time.Duration) *RecordingHandler {
+	return &RecordingHandler{source: stream.NewRecordingSource(pool, store, pollInterval), gate: gate, logger: logger}
 }
 
 func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +74,11 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// download を付けたら、録画ファイルの名前で保存させる (#474)。録画中の録画は、長さが決まらないので保存させない。
+	// 管理者が録画のダウンロードを有効にしていなければ、保存させない (#1762)。
 	download := r.URL.Query().Has("download")
+	if download && !h.downloadsEnabled(w, r) {
+		return
+	}
 	if download && r.URL.Query().Has("start") {
 		http.Error(w, "start cannot be combined with download; the whole recording is downloaded", http.StatusBadRequest)
 
@@ -94,6 +108,27 @@ func (h *RecordingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := recording.Write(r.Context(), w, pos); err != nil && r.Context().Err() == nil {
 		h.logger.WarnContext(r.Context(), "failed to stream the recording", slog.String("recording_id", recordingID.String()), slog.Any("error", err))
 	}
+}
+
+// downloadsEnabled は、管理者が録画のダウンロードを有効にしているかを確かめる。有効でなければ、応答を書いて false を返す。
+func (h *RecordingHandler) downloadsEnabled(w http.ResponseWriter, r *http.Request) bool {
+	enabled, err := h.gate.RecordingDownloadsEnabled(r.Context())
+	switch {
+	case errors.Is(err, settings.ErrDatabaseUnavailable):
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+
+		return false
+	case err != nil:
+		h.internalError(w, r, err)
+
+		return false
+	case !enabled:
+		http.Error(w, "recording downloads are disabled by the administrator", http.StatusForbidden)
+
+		return false
+	}
+
+	return true
 }
 
 // serveContent は、録画を終えた録画を、長さの決まった 1 本のファイルとして返す。Range に答えるので、外部プレイヤーがシークできる (#535)。

@@ -865,6 +865,8 @@ type SystemSetting struct {
 	DataBroadcastIPEnabled                 bool
 	ExternalPlayerURLsEnabled              bool
 	IPTVFeedsEnabled                       bool
+	RecordingDownloadsEnabled              bool
+	EPGStationAPIEnabled                   bool
 	AnimeLinkingEnabled                    bool
 	CommentSources                         []string
 	RuleDefaults                           []byte

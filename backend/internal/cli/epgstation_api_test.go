@@ -68,7 +68,7 @@ func TestTenbanServesEPGStationAPI(t *testing.T) {
 	token, _, err := auth.NewAPITokens(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID, "kiririn")
 	require.NoError(t, err)
 	// 外部プレイヤー用の署名付き URL は、管理者が有効にしている間だけ受け付ける (#1755)。
-	_, err = settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{ExternalPlayerURLsEnabled: new(true)})
+	_, err = settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{ExternalPlayerURLsEnabled: new(true), EPGStationAPIEnabled: new(true)})
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -160,4 +160,51 @@ func issueSigned(t *testing.T, pool *pgxpool.Pool, signer *stream.Signer, resour
 	require.NoError(t, err)
 
 	return signer.Sign(resource, userID, urlID, expiresAt).URL
+}
+
+// TestTenbanHidesEPGStationAPIWhileDisabled は、管理者が EPGStation 互換の API を有効にしていなければ、
+// 正しいトークンでも、API があることを知らせないよう 404 を返し、有効にしたら答えることを確かめる (#1769)。
+func TestTenbanHidesEPGStationAPIWhileDisabled(t *testing.T) {
+	t.Parallel()
+
+	base, pool := startTenban(t)
+	clk := new(clock.Real)
+	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{Username: "epgstation", DisplayName: "EPGStation", Role: domain.RoleMember, PasswordHash: nil})
+	require.NoError(t, err)
+	token, _, err := auth.NewAPITokens(pool, clk, audit.NewRecorder(clk)).Create(t.Context(), audit.User(user.ID), user.ID, "kiririn")
+	require.NoError(t, err)
+	get := func(t *testing.T, bearer string) int {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+epgstationVersionPath, http.NoBody)
+		require.NoError(t, err)
+		if bearer != "" {
+			req.Header.Set("Authorization", "Bearer "+bearer)
+		}
+		resp, err := httpclienttest.New(t).Do(req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+
+		return resp.StatusCode
+	}
+
+	// 順に設定を変えるので、行ごとに並行させない。
+	tests := []struct {
+		name       string
+		enabled    *bool
+		wantStatus int
+	}{
+		{name: "既定では無効", enabled: nil, wantStatus: http.StatusNotFound},
+		{name: "有効にした", enabled: new(true), wantStatus: http.StatusOK},
+		{name: "無効に戻した", enabled: new(false), wantStatus: http.StatusNotFound},
+	}
+	for _, tt := range tests {
+		if tt.enabled != nil {
+			_, err := settings.NewStore(clk, audit.NewRecorder(clk)).Update(t.Context(), pool, audit.System("test"), &settings.Changes{EPGStationAPIEnabled: tt.enabled})
+			require.NoError(t, err)
+		}
+		assert.Equal(t, tt.wantStatus, get(t, token), tt.name)
+	}
+	// 無効の間は、トークンを確かめる前に 404 を返すので、トークンがなくても 401 にしない。
+	assert.Equal(t, http.StatusNotFound, get(t, ""), "without a token while disabled")
 }
