@@ -7,6 +7,7 @@ import (
 
 	"github.com/goforj/wire"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -98,5 +99,20 @@ func newStreamParts(deps *Deps) *streamParts {
 		newStreamCounter,
 		streamapi.NewDrainer,
 		wire.Struct(new(streamParts), "*"),
+	))
+}
+
+// newNotificationParts は、nekonote で通知を配る部品を作る。inserter は、配るときにジョブを入れる River のクライアント。
+func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts, error) {
+	panic(wire.Build(
+		clockOf,
+		appSecretOf,
+		poolOf,
+		audit.NewRecorder,
+		wire.Bind(new(audit.Recorder), new(*audit.DBRecorder)),
+		newWebhookStore,
+		newWebPush,
+		newDispatcher,
+		wire.Struct(new(notificationParts), "*"),
 	))
 }

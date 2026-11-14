@@ -200,25 +200,18 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	if err != nil {
 		return nil, nil, err
 	}
-	webhooks, err := webhook.NewStore(deps.Clock, audit.NewRecorder(deps.Clock), deps.Config.Auth.SecretKey.Value())
-	if err != nil {
-		return nil, nil, err
-	}
 	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
 	location, err := deps.Config.Location()
 	if err != nil {
 		return nil, nil, err
 	}
-	webPush, err := webpush.NewService(deps.Clock, deps.Config.Auth.SecretKey.Value())
+	notifications, err := newNotificationParts(deps, inserter)
 	if err != nil {
 		return nil, nil, err
 	}
-	dispatcher := notification.NewDispatcher(deps.DB, deps.Clock,
-		webhook.NewEnqueuer(inserter), webpush.NewEnqueuer(inserter), segjoin.NewEnqueuer(inserter),
-		cmdetect.NewEnqueuer(inserter, deps.Clock), transcode.NewEnqueuer(inserter))
-	river.AddWorker(workers, notification.NewDispatchWorker(dispatcher))
-	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, webhooks, deps.Clock, location, deps.Network))
-	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient(deps.Network)))
+	river.AddWorker(workers, notification.NewDispatchWorker(notifications.dispatcher))
+	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, notifications.webhooks, deps.Clock, location, deps.Network))
+	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, notifications.webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient(deps.Network)))
 
 	// 保存先プールの容量は、このインスタンスにマウントされたプールについて調べる (設計書 6.1)。
 	manager := capacity.NewManager(deps.DB, deps.Clock, storeOf(deps.Config), audit.NewRecorder(deps.Clock),
