@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { LinkifiedText, toHalfWidth, zonedFormat } from '../futon';
 import { ServiceLabel } from '../guide/ServiceLabel';
+import { useWatchMini } from './WatchHost';
 import classes from './WatchLayout.module.css';
 
 const dateTimeFormat = zonedFormat({
@@ -44,14 +45,23 @@ type Props = {
 
 // WatchLayout は、ライブ視聴と録画の再生の画面の並び。YouTube と同じく、映像の下に番組の情報を、右の列に実況と一覧を置く。
 // 狭い画面では、右の列の中身を、番組の情報の下に並べる。
+// 小さなプレイヤー (#1602) では、映像だけを出す。映像の位置は変えず、プレイヤーを作り直さない。
 export function WatchLayout({ player, info, side }: Props) {
+  const mini = useWatchMini();
+
   return (
-    <div className={classes.layout} data-side={side === null ? undefined : true}>
+    <div
+      className={classes.layout}
+      data-side={side === null || mini ? undefined : true}
+      data-mini={mini || undefined}
+    >
       <div className={classes.player}>{player}</div>
-      <Stack gap="xs" className={classes.info}>
-        {info}
-      </Stack>
-      {side !== null && (
+      {!mini && (
+        <Stack gap="xs" className={classes.info}>
+          {info}
+        </Stack>
+      )}
+      {!mini && side !== null && (
         <Stack gap="md" className={classes.side}>
           {side}
         </Stack>

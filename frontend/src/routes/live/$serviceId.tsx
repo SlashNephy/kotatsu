@@ -156,7 +156,7 @@ import {
   recordChannel,
   saveRecentChannels,
 } from '../../yunomi/recentChannels';
-import { useHostedWatch } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -195,6 +195,8 @@ function LiveServicePage() {
 // LiveServiceWatch は、サービス serviceId のライブ視聴の画面の中身。
 function LiveServiceWatch({ serviceId }: { serviceId: string }) {
   const { t } = useTranslation();
+  // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
+  const mini = useWatchMini();
   // 放送中の番組を出すので、画面を開いた時刻を、待たない親で決める。
   const [range, setRange] = useState(() => liveRange(Date.now()));
   // 番組が終わったら、次の番組を読み直す。読み直す間も、再生は続ける。
@@ -202,9 +204,11 @@ function LiveServiceWatch({ serviceId }: { serviceId: string }) {
 
   return (
     <Stack gap="sm">
-      <Anchor component={Link} to="/live" size="sm">
-        {t('live.back')}
-      </Anchor>
+      {!mini && (
+        <Anchor component={Link} to="/live" size="sm">
+          {t('live.back')}
+        </Anchor>
+      )}
       {/* 同じルートのまま別のサービスへ移ったときは、前のサービスのエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
         resetKey={serviceId}

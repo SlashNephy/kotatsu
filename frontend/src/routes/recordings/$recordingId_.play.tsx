@@ -140,7 +140,7 @@ import { resumePosition } from '../../yunomi/resume';
 import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
-import { useHostedWatch } from '../../yunomi/WatchHost';
+import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -171,17 +171,21 @@ function PlayPage() {
 // PlayWatch は、録画 recordingId を、位置 start (秒) から再生する画面の中身。
 function PlayWatch({ recordingId, start }: { recordingId: string; start: number | undefined }) {
   const { t } = useTranslation();
+  // 小さなプレイヤー (#1602) では、戻るリンクを出さず、映像だけにする。
+  const mini = useWatchMini();
 
   return (
     <Stack gap="sm">
-      <Anchor
-        size="sm"
-        renderRoot={(props) => (
-          <Link {...props} to="/recordings/$recordingId" params={{ recordingId }} />
-        )}
-      >
-        {t('player.backToRecording')}
-      </Anchor>
+      {!mini && (
+        <Anchor
+          size="sm"
+          renderRoot={(props) => (
+            <Link {...props} to="/recordings/$recordingId" params={{ recordingId }} />
+          )}
+        >
+          {t('player.backToRecording')}
+        </Anchor>
+      )}
       {/* 同じルートのまま別の録画へ移ったときは、前の録画のエラーを残さず読み直す (#1453)。 */}
       <ErrorBoundary
         resetKey={recordingId}

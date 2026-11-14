@@ -18,6 +18,7 @@ import type { DataBroadcastSource } from './route';
 import { fitMedia } from './mediaFit';
 import { createSettler, useSettledFalse } from './settleDelay';
 import classes from './TsPlayer.module.css';
+import { useWatchMini } from './WatchHost';
 
 // RemoteKey は、リモコンのボタン。値は web-bml の AribKeyCode (content.ts) と同じにする。
 export const RemoteKey = {
@@ -513,11 +514,13 @@ export function useDataBroadcast(
     browser.content.processKeyUp(key);
   };
 
+  const mini = useWatchMini();
   const element = (
     <div
       ref={setLayer}
       className={classes.dataBroadcast}
-      hidden={url === null || !shown || invisible}
+      // 小さなプレイヤー (#1602) では、映像だけを出す。文書は閉じずに隠し、大きく戻したら出し直す。
+      hidden={url === null || !shown || invisible || mini}
       style={{
         // 文書は、決まった大きさで描かれるので、層の大きさに合わせて拡大する。
         ['--data-broadcast-width' as string]: `${resolution.width}px`,

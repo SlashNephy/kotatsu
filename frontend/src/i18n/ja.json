@@ -461,7 +461,9 @@
       "oidc": "{{name}}との紐付け",
       "oidcDescription": "{{name}}のアカウントと紐付けると、{{name}}でこのユーザーとしてログインできます",
       "oidcLink": "{{name}}と紐付ける",
-      "oidcLinked": "{{name}}のアカウントと紐付けました"
+      "oidcLinked": "{{name}}のアカウントと紐付けました",
+      "miniPlayer": "画面を移っても、小さなプレイヤーで再生を続ける",
+      "miniPlayerHelp": "再生中に視聴の画面から別の画面へ移ったら、画面の右下の小さなプレイヤーで再生を続けます。止めていたら閉じます"
     },
     "password": {
       "title": "パスワードの変更",
@@ -1457,6 +1459,12 @@
     "description": {
       "show": "もっと見る",
       "hide": "閉じる"
+    },
+    "mini": {
+      "open": "視聴の画面に戻る",
+      "play": "再生",
+      "pause": "一時停止",
+      "close": "閉じる"
     }
   },
   "drcs": {

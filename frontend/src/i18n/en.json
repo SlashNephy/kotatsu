@@ -471,7 +471,9 @@
       "revokeOthersConfirm_one": "The {{count}} other device will be logged out. That device will need to log in again.",
       "revokeOthersConfirm_other": "All {{count}} devices other than this one will be logged out. Those devices will need to log in again.",
       "revokedOthers_one": "Logged out {{count}} device",
-      "revokedOthers_other": "Logged out {{count}} devices"
+      "revokedOthers_other": "Logged out {{count}} devices",
+      "miniPlayer": "Keep playing in a mini player when you leave the page",
+      "miniPlayerHelp": "When you move to another page while playing, playback continues in a small player at the bottom right. If playback is paused, the player closes"
     },
     "password": {
       "title": "Change password",
@@ -1519,6 +1521,12 @@
     "description": {
       "show": "Show more",
       "hide": "Show less"
+    },
+    "mini": {
+      "open": "Back to the player",
+      "play": "Play",
+      "pause": "Pause",
+      "close": "Close"
     }
   },
   "drcs": {
