@@ -1375,6 +1375,9 @@ func TestLoadRejectsExternalNetworksWithoutFlag(t *testing.T) {
 		{name: "the whole internet", networks: internet, want: internet},
 		{name: "IPv6 internet", networks: "::/0", want: "::/0"},
 		{name: "a public address", networks: "203.0.113.5", want: "203.0.113.5"},
+		// 家の中の範囲と同じアドレスから始まる、それより広い範囲も外とみなす。
+		{name: "a supernet of a home network", networks: "10.0.0.0/7", want: "10.0.0.0/7"},
+		{name: "a supernet of 192.168.0.0/16", networks: "192.168.0.0/15", want: "192.168.0.0/15"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
