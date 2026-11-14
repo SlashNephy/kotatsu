@@ -646,6 +646,8 @@ type Querier interface {
 	// 止まった直後の行も含めて、すべてのインスタンスを返す。システムの状態の画面で、止まったインスタンスも示すため。
 	ListInstances(ctx context.Context) ([]Instance, error)
 	ListJobProgress(ctx context.Context, jobIds []int64) ([]JobProgress, error)
+	// 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。
+	ListLatestRecordingCMDetectionNotes(ctx context.Context, recordingIds []uuid.UUID) ([]ListLatestRecordingCMDetectionNotesRow, error)
 	// 番組名のキーごと、サービスごとの、最後に録画した番組の終了時刻。
 	ListLatestRecordingHistory(ctx context.Context, titleKeys []string) ([]ListLatestRecordingHistoryRow, error)
 	ListLeases(ctx context.Context) ([]Lease, error)

@@ -399,6 +399,12 @@ ORDER BY start_offset_ms;
 -- 録画の CM の区間を最後に見分け終えた見分け方と日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
 SELECT detector, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = @recording_id ORDER BY detected_at DESC, detector LIMIT 1;
 
+-- name: ListLatestRecordingCMDetectionNotes :many
+-- 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。
+SELECT DISTINCT ON (recording_id) recording_id, note, video_missing_ms
+FROM recording_cm_detections WHERE recording_id = ANY(@recording_ids::uuid[])
+ORDER BY recording_id, detected_at DESC, detector;
+
 -- name: ListLiveThumbnailRecordings :many
 -- 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。
 SELECT id FROM recordings WHERE state = 'recording' AND recorded_from <= @started_before ORDER BY recorded_from, id;

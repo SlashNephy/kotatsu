@@ -634,6 +634,65 @@ func TestRecordingCMDetection(t *testing.T) {
 	assert.True(t, testNow().Equal(*detected.DetectedAt))
 }
 
+// TestRecordingCMReport は、録画の一覧で、録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返すことを確かめる (#1508)。
+// 見分けていない録画と、理由のない録画は、理由を null にする。
+func TestRecordingCMReport(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}})
+	f.syncEPG(t)
+	// 録画の詳細の見分けの状態は、River の表からジョブを引くので、表を作っておく。
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	noted := f.addRecording(t, dir, "注記あり", "completed", 3*time.Hour)
+	clean := f.addRecording(t, dir, "注記なし", "completed", 2*time.Hour)
+	undetected := f.addRecording(t, dir, "見分けていない", "completed", time.Hour)
+	detect := func(globalID, detector, note string, missingMs int64, at time.Time) {
+		t.Helper()
+		_, rawID, err := graph.ParseGlobalID(globalID)
+		require.NoError(t, err)
+		_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at, note, video_missing_ms)
+			VALUES ($1, $2, 1, $3, $4, $5)`, rawID, detector, at, note, missingMs)
+		require.NoError(t, err)
+	}
+	// 前に見分けた結果は使わず、最後に見分けた結果を使う。
+	detect(noted, "ffmpeg", "", 0, testNow().Add(-time.Hour))
+	detect(noted, "logo", "the logo cannot be used", 7500, testNow())
+	detect(clean, "logo", "", 0, testNow())
+
+	var got struct {
+		Recordings struct {
+			Edges []struct {
+				Node struct {
+					ID                    string  `json:"id"`
+					CMDetectionNote       *string `json:"cmDetectionNote"`
+					CMVideoMissingSeconds float64 `json:"cmVideoMissingSeconds"`
+					CMDetection           struct {
+						Note                *string `json:"note"`
+						VideoMissingSeconds float64 `json:"videoMissingSeconds"`
+					} `json:"cmDetection"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"recordings"`
+	}
+	require.Empty(t, f.query(t, `{ recordings(first: 10) { edges { node { id cmDetectionNote cmVideoMissingSeconds cmDetection { note videoMissingSeconds } } } } }`,
+		nil, &got))
+	byID := map[string]int{}
+	for i, edge := range got.Recordings.Edges {
+		byID[edge.Node.ID] = i
+		// 一覧の項目は、録画の詳細の見分けの状態と同じ値を返す。
+		assert.Equal(t, edge.Node.CMDetection.Note, edge.Node.CMDetectionNote)
+		assert.InDelta(t, edge.Node.CMDetection.VideoMissingSeconds, edge.Node.CMVideoMissingSeconds, 1e-9)
+	}
+	require.Len(t, byID, 3)
+	n := got.Recordings.Edges[byID[noted]].Node
+	assert.Equal(t, new("the logo cannot be used"), n.CMDetectionNote)
+	assert.InDelta(t, 7.5, n.CMVideoMissingSeconds, 1e-9)
+	assert.Nil(t, got.Recordings.Edges[byID[clean]].Node.CMDetectionNote)
+	assert.Nil(t, got.Recordings.Edges[byID[undetected]].Node.CMDetectionNote)
+	assert.Zero(t, got.Recordings.Edges[byID[undetected]].Node.CMVideoMissingSeconds)
+}
+
 // TestDeleteRecordings は、録画をまとめて消し、保護した録画、録画中の録画、見つからない録画は飛ばして数えることを確かめる (#471)。
 func TestDeleteRecordings(t *testing.T) {
 	t.Parallel()

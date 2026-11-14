@@ -1227,6 +1227,8 @@
       "detectedAt": "{{at}}に解析しました",
       "previous": "いまは、{{at}}に解析した結果（{{count}}か所）を使っています",
       "note": "いつもの見分け方では決められませんでした: {{note}}",
+      "listNote": "CMの見分けに注記があります",
+      "listVideoMissing": "映像を読めなかった所があります",
       "videoMissing": "映像を読めなかった所が、合わせて{{count}}秒あります"
     },
     "download": "ダウンロード",

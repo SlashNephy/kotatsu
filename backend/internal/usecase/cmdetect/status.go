@@ -125,3 +125,18 @@ func lastJob(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*latestJ
 
 	return &job, true, nil
 }
+
+// LatestReports は、録画 recordingIDs ごとの、最後に見分け終えた見分けの添え書きを、まとめて引く (#1508)。録画の一覧の印に使う。
+// 見分けていない録画は、結果に含めない。
+func LatestReports(ctx context.Context, db sqlc.DBTX, recordingIDs []uuid.UUID) (map[uuid.UUID]Report, error) {
+	rows, err := sqlc.New(db).ListLatestRecordingCMDetectionNotes(ctx, recordingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the CM detection notes: %w", err)
+	}
+	reports := make(map[uuid.UUID]Report, len(rows))
+	for _, row := range rows {
+		reports[row.RecordingID] = Report{Note: row.Note, Missing: time.Duration(row.VideoMissingMs) * time.Millisecond}
+	}
+
+	return reports, nil
+}

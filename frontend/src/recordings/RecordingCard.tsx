@@ -1,5 +1,5 @@
 import { AspectRatio, Box, Card, Group, Progress, Stack, Text, Tooltip } from '@mantine/core';
-import { TriangleAlert } from 'lucide-react';
+import { Scissors, TriangleAlert, VideoOff } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -39,9 +39,17 @@ export type RecordingCardData = {
   scrambled?: unknown;
   // scrambleWarning は、スクランブルされたまま録れたという警告の印 (#1517)。
   scrambleWarning?: boolean | null;
+  // cmDetectionNote は、CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。あれば印を出す。
+  cmDetectionNote?: string | null;
+  // cmVideoMissingSeconds は、CM の見分けで測った映像の欠けの長さの合計の秒 (#1508)。
+  cmVideoMissingSeconds?: number | null;
   // tags は、録画の一覧でだけ渡す。
   tags?: readonly { id: string; name: string }[];
 };
+
+// listedVideoMissingSeconds は、録画の一覧で映像の欠けの印を出す長さ (秒、#1508)。
+// 短すぎると、ほとんど気付かない一瞬の欠けにも印が出すぎるので、録画の詳細 (1 秒) より長くする。
+export const listedVideoMissingSeconds = 5;
 
 const dateTimeFormat = zonedFormat({
   month: 'numeric',
@@ -181,6 +189,35 @@ export function RecordingCard({ recording }: { recording: RecordingCardData }) {
                 <RecordingStateBadge state={recording.state} size="xs" />
               )}
             {recording.scrambleWarning === true && <ScrambleBadge size="xs" />}
+            {/* CM の見分けで、いつもの見分け方で決められなかったか、映像の欠けが長ければ、印を出す (#1508)。 */}
+            {recording.cmDetectionNote != null && recording.cmDetectionNote !== '' && (
+              <Tooltip
+                label={t('recordings.cm.note', { note: recording.cmDetectionNote })}
+                multiline
+                maw={320}
+              >
+                <Scissors
+                  size={14}
+                  color="var(--mantine-color-amber-6)"
+                  role="img"
+                  aria-label={t('recordings.cm.listNote')}
+                />
+              </Tooltip>
+            )}
+            {(recording.cmVideoMissingSeconds ?? 0) >= listedVideoMissingSeconds && (
+              <Tooltip
+                label={t('recordings.cm.videoMissing', {
+                  count: Math.round(recording.cmVideoMissingSeconds ?? 0),
+                })}
+              >
+                <VideoOff
+                  size={14}
+                  color="var(--mantine-color-amber-6)"
+                  role="img"
+                  aria-label={t('recordings.cm.listVideoMissing')}
+                />
+              </Tooltip>
+            )}
           </Group>
         </Box>
         <Text size="xs" c="dimmed" mt="xs">
