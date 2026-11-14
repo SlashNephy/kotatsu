@@ -12,11 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/cli"
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 )
 
 const (
@@ -160,6 +164,65 @@ func TestNekonotePrunesAuditEvents(t *testing.T) {
 			var count int
 			err := pool.QueryRow(t.Context(), "SELECT count(*) FROM audit_events").Scan(&count)
 			pruned = err == nil && count == 1
+		}
+	}
+
+	cancel()
+	assert.NoError(t, <-done)
+}
+
+// TestNekonoteDispatchesNotifications は、既定の nekonote が、記録された通知するイベントを、ユーザーの画面内の通知に配ることを確かめる (設計書 6.2)。
+func TestNekonoteDispatchesNotifications(t *testing.T) {
+	t.Parallel()
+
+	dbConfig := databasetest.New(t)
+	env := testEnv()
+	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+
+	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
+	opts.LookupEnv = func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}
+	opts.Roles = filterRoles(opts.Roles, roleNekonote)
+
+	migrateCmd := cli.NewCommand(opts)
+	migrateCmd.SetArgs([]string{subcommandMigrate})
+	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
+
+	pool, err := database.Open(t.Context(), dbConfig)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	clk := new(clock.Real)
+	user, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
+		Username: "notified", DisplayName: "Notified", Role: domain.RoleViewer, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+	require.NoError(t, notification.Emit(t.Context(), pool, clk, domain.NotificationKindStorageLow, map[string]any{"pool": "default"}))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{roleNekonote})
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.ExecuteContext(ctx)
+	}()
+
+	// 配りの定期ジョブは起動時にも走るので、イベントがユーザーの通知になるのを待つ。
+	deadline := time.After(30 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for delivered := false; !delivered; {
+		select {
+		case err := <-done:
+			t.Fatalf("nekonote stopped before dispatching: %v", err)
+		case <-deadline:
+			t.Fatal("nekonote did not dispatch the notification event in time")
+		case <-ticker.C:
+			var count int
+			err := pool.QueryRow(t.Context(), "SELECT count(*) FROM notifications WHERE user_id = $1", user.ID).Scan(&count)
+			delivered = err == nil && count == 1
 		}
 	}
 

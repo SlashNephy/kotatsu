@@ -7,6 +7,7 @@
 package cli
 
 import (
+	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
@@ -143,4 +144,27 @@ func newStreamParts(deps *Deps) *streamParts {
 		drainer: drainer,
 	}
 	return cliStreamParts
+}
+
+// newNotificationParts は、nekonote で通知を配る部品を作る。inserter は、配るときにジョブを入れる River のクライアント。
+func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts, error) {
+	pool := poolOf(deps)
+	clock := clockOf(deps)
+	dispatcher := newDispatcher(pool, clock, inserter)
+	dbRecorder := audit.NewRecorder(clock)
+	cliAppSecret := appSecretOf(deps)
+	store, err := newWebhookStore(clock, dbRecorder, cliAppSecret)
+	if err != nil {
+		return nil, err
+	}
+	service, err := newWebPush(clock, cliAppSecret)
+	if err != nil {
+		return nil, err
+	}
+	cliNotificationParts := &notificationParts{
+		dispatcher: dispatcher,
+		webhooks:   store,
+		webPush:    service,
+	}
+	return cliNotificationParts, nil
 }
