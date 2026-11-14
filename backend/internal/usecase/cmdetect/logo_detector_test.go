@@ -185,12 +185,12 @@ func TestLogoDetectorRedetectsTooMuchCM(t *testing.T) {
 			t.Parallel()
 
 			fallback := NewMockDetector(gomock.NewController(t))
-			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(tt.fallback, nil)
 			detector, err := cmdetect.NewLogoDetectorWith(fallback)
 			if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
 				t.Skip("FFmpeg is not installed")
 			}
 			require.NoError(t, err)
+			fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(tt.fallback, nil)
 
 			// ロゴは 40 秒のうち 10 秒から 34 秒まで消えるので、ロゴで決めた CM の割合は 6 割になる。
 			got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: writeLogoTS(t, 10, 34), ServiceID: 0, Progress: nil})
@@ -205,12 +205,12 @@ func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	t.Parallel()
 
 	fallback := NewMockDetector(gomock.NewController(t))
-	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{{Start: 0, End: 900 * time.Millisecond}}, nil)
 	detector, err := cmdetect.NewLogoDetectorWith(fallback)
 	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
 		t.Skip("FFmpeg is not installed")
 	}
 	require.NoError(t, err)
+	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{{Start: 0, End: 900 * time.Millisecond}}, nil)
 
 	got, err := detector.Detect(t.Context(), &cmdetect.Input{Path: "../../../testdata/ts/test-mpeg2-480i-motion.ts", ServiceID: 0, Progress: nil})
 	require.NoError(t, err)
