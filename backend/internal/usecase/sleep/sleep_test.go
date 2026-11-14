@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
@@ -233,7 +234,7 @@ func TestController(t *testing.T) {
 				expectInOrder(system, s.want, s.osErr)
 				c.Step(t.Context())
 				// 伝えなかったことがあれば、この判定で落とす。伝えるはずでないことは、伝えた時点で落ちる。
-				assert.True(t, ctrl.Satisfied(), "step %d", i)
+				require.True(t, ctrl.Satisfied(), "step %d", i)
 			}
 			expectInOrder(system, tt.stop, nil)
 			c.Stop(t.Context())
