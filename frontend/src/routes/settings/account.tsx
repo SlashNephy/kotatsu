@@ -142,12 +142,19 @@ function AnimeRecords() {
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   // 戻ってきたときの結果は、一度出したら URL から外す。読み直したときに、もう一度出さないため。
   const clearSearch = () => void navigate({ search: {}, replace: true });
-  const run = (operation: () => Promise<void>) => {
+  // run は、operation を動かし、成功したかを返す。失敗したら、理由を出す。
+  const run = (operation: () => Promise<void>): Promise<boolean> => {
     setError(null);
     setSaved(false);
     setRunning(true);
-    operation()
-      .catch((caught: unknown) => setError(settingsErrorMessage(t, caught)))
+
+    return operation()
+      .then(() => true)
+      .catch((caught: unknown) => {
+        setError(settingsErrorMessage(t, caught));
+
+        return false;
+      })
       .finally(() => setRunning(false));
   };
 
@@ -324,6 +331,8 @@ function RecordOnDeviceSwitch() {
 }
 
 // RecordSettings は、見たと判定する割合と、作品の状態を変える条件 (既定ではどれも変えない) を変える。
+// 保存のボタンは置かず、変えたらすぐ保存する (#1740)。割合は、打っている途中の値 (100 を打つ途中の 1 や 10) を
+// 保存しないよう、欄を離れたときか Enter で、1〜100 に収まっていれば保存する。
 function RecordSettings({
   initial,
   busy,
@@ -333,76 +342,102 @@ function RecordSettings({
   initial: AnimeRecordSettingsInput;
   busy: boolean;
   saved: boolean;
-  onSave: (input: AnimeRecordSettingsInput) => void;
+  onSave: (input: AnimeRecordSettingsInput) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState(initial);
-  const changed =
-    input.thresholdPercent !== initial.thresholdPercent ||
-    input.watchingOnFirst !== initial.watchingOnFirst ||
-    input.watchingOnEpisode !== initial.watchingOnEpisode ||
-    input.watchedOnLast !== initial.watchedOnLast ||
-    input.notifyWishlist !== initial.notifyWishlist;
+  const [threshold, setThreshold] = useState<number | string>(initial.thresholdPercent);
+  const thresholdValid =
+    typeof threshold === 'number' &&
+    Number.isInteger(threshold) &&
+    threshold >= 1 &&
+    threshold <= 100;
+  // 保存に失敗したら、チェックを保存してある値 (initial) に戻す。割合は打った値のまま残し、
+  // 保存してある値と比べるので、もう一度欄を離れれば保存し直せる。
+  // 保存の途中は、次の変更を受け付けない (欄も押せなくする)。重ねて送ると、後から届いた古い値で上書きしかねないため。
+  const change = (next: AnimeRecordSettingsInput) => {
+    if (busy) {
+      return;
+    }
+    setInput(next);
+    void onSave(next).then((ok) => {
+      if (!ok) {
+        setInput(initial);
+      }
+    });
+  };
+  const commitThreshold = () => {
+    if (thresholdValid && threshold !== input.thresholdPercent) {
+      change({ ...input, thresholdPercent: threshold });
+    }
+  };
 
   return (
     <Card withBorder>
       <Stack gap="sm">
-        <Title order={3} size="h5">
-          {t('animeRecords.settingsTitle')}
-        </Title>
+        <Group justify="space-between" gap="sm">
+          <Title order={3} size="h5">
+            {t('animeRecords.settingsTitle')}
+          </Title>
+          {/* 入れ直しを求めている間は、前の保存を「保存しました」と出さない。 */}
+          {saved && !busy && thresholdValid && (
+            <Text size="sm" c="teal" role="status">
+              {t('admin.saved')}
+            </Text>
+          )}
+        </Group>
         <NumberInput
           label={t('animeRecords.threshold')}
           description={t('animeRecords.thresholdHelp')}
+          error={thresholdValid ? undefined : t('animeRecords.thresholdInvalid')}
           min={1}
           max={100}
+          allowDecimal={false}
           suffix="%"
           maw={240}
-          value={input.thresholdPercent}
-          onChange={(value) =>
-            setInput({ ...input, thresholdPercent: typeof value === 'number' ? value : 0 })
-          }
+          value={threshold}
+          disabled={busy}
+          onChange={setThreshold}
+          onBlur={commitThreshold}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              commitThreshold();
+            }
+          }}
         />
         <Text size="sm" fw={500}>
           {t('animeRecords.statusTitle')}
         </Text>
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.watchingOnFirst')}
           checked={input.watchingOnFirst}
-          onChange={(event) => setInput({ ...input, watchingOnFirst: event.currentTarget.checked })}
+          onChange={(event) => change({ ...input, watchingOnFirst: event.currentTarget.checked })}
         />
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.watchingOnEpisode')}
           checked={input.watchingOnEpisode}
-          onChange={(event) =>
-            setInput({ ...input, watchingOnEpisode: event.currentTarget.checked })
-          }
+          onChange={(event) => change({ ...input, watchingOnEpisode: event.currentTarget.checked })}
         />
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.watchedOnLast')}
           description={t('animeRecords.statusHelp')}
           checked={input.watchedOnLast}
-          onChange={(event) => setInput({ ...input, watchedOnLast: event.currentTarget.checked })}
+          onChange={(event) => change({ ...input, watchedOnLast: event.currentTarget.checked })}
         />
         {/* 見たいリストの作品の放送を、視聴予約で通知する (#1234)。 */}
         <Text size="sm" fw={500}>
           {t('animeRecords.notifyTitle')}
         </Text>
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.notifyWishlist')}
           description={t('animeRecords.notifyWishlistHelp')}
           checked={input.notifyWishlist === true}
-          onChange={(event) => setInput({ ...input, notifyWishlist: event.currentTarget.checked })}
+          onChange={(event) => change({ ...input, notifyWishlist: event.currentTarget.checked })}
         />
-        <Group justify="flex-end" gap="sm">
-          {saved && !changed && (
-            <Text size="sm" c="teal" role="status">
-              {t('admin.saved')}
-            </Text>
-          )}
-          <Button size="compact-sm" disabled={!changed || busy} onClick={() => onSave(input)}>
-            {t('admin.save')}
-          </Button>
-        </Group>
       </Stack>
     </Card>
   );

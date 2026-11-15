@@ -71,12 +71,12 @@ func newFinalizeWorker(pool *pgxpool.Pool, store *kago.Store, inserter *jobs.Cli
 
 // newCMDetectWorker は、録画を終えたら、CM の区間を見分ける Worker を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
 // 見分け終えたら、変換した MP4 にチャプターを書くジョブ (#1510) と、管理者が有効にしていれば、TS のセグメントの隣に
-// TvtPlay のチャプターのファイルを書くジョブ (#1737) を入れる。
+// TvtPlay のチャプターのファイルを書くジョブ (#1737) と、代表画像を CM の区間の外から選び直すジョブ (#1810) を入れる。
 func newCMDetectWorker(
 	pool *pgxpool.Pool, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, inserter *jobs.Client, logger *slog.Logger,
 ) *cmdetect.DetectWorker {
 	return cmdetect.NewDetectWorker(pool, store, clk, lowerer,
-		cmdetect.DetectedHooks{transcode.NewChaptersEnqueuer(inserter), tvtplay.NewEnqueuer(inserter)},
+		cmdetect.DetectedHooks{transcode.NewChaptersEnqueuer(inserter), tvtplay.NewEnqueuer(inserter), thumbnail.NewCMEnqueuer(inserter)},
 		logger.With(slog.String("component", "cmdetect")))
 }
 

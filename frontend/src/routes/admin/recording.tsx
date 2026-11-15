@@ -76,6 +76,14 @@ const query = graphql`
   }
 `;
 
+const saveMutation = graphql`
+  mutation recordingMutation($input: SystemSettingsInput!) {
+    updateSystemSettings(input: $input) {
+      updatedAt
+    }
+  }
+`;
+
 type Form = {
   poolId: string;
   fileNameTemplate: string;
@@ -101,6 +109,49 @@ type Form = {
   // ruleUnmatchedGraceMinutes は、ルールから外れた予約を、消さずに残す放送前の時間 (分。#1501)。
   ruleUnmatchedGraceMinutes: number | string;
 };
+
+// Autosaved は、変えたらすぐ保存する項目 (切り替えと、選ぶ項目。#1740)。
+type Autosaved = Pick<
+  Form,
+  | 'poolId'
+  | 'joinSegments'
+  | 'detectCm'
+  | 'cmDetector'
+  | 'tvtplayChapters'
+  | 'transcodePreset'
+  | 'transcodeFrameRate'
+  | 'ruleAvoidDuplicates'
+  | 'ruleFollowEventRelay'
+  | 'ruleBundleSameEpisodes'
+>;
+
+// autosaveInput は、変えた項目 patch だけを送る入力にする。省いた項目は、サーバーが変えない。
+function autosaveInput(patch: Partial<Autosaved>): recordingMutation['variables']['input'] {
+  return {
+    recordingDefaults: {
+      ...(patch.poolId !== undefined && { poolId: patch.poolId }),
+      ...(patch.joinSegments !== undefined && { joinSegments: patch.joinSegments }),
+      ...(patch.detectCm !== undefined && { detectCm: patch.detectCm }),
+      ...(patch.transcodePreset !== undefined && { transcodePreset: patch.transcodePreset }),
+      ...(patch.transcodeFrameRate !== undefined && {
+        transcodeFrameRate: patch.transcodeFrameRate,
+      }),
+    },
+    ruleDefaults: {
+      ...(patch.ruleAvoidDuplicates !== undefined && {
+        avoidDuplicates: patch.ruleAvoidDuplicates,
+      }),
+      ...(patch.ruleFollowEventRelay !== undefined && {
+        followEventRelay: patch.ruleFollowEventRelay,
+      }),
+      ...(patch.ruleBundleSameEpisodes !== undefined && {
+        bundleSameEpisodes: patch.ruleBundleSameEpisodes,
+      }),
+    },
+    ...(patch.cmDetector !== undefined && { cmDetector: patch.cmDetector }),
+    ...(patch.tvtplayChapters !== undefined && { tvtplayChaptersEnabled: patch.tvtplayChapters }),
+  };
+}
 
 // sameForm は、2 つのフォームの値が同じかどうかを返す。
 function sameForm(a: Form, b: Form): boolean {
@@ -152,6 +203,30 @@ function RecordingSettings() {
   ];
   const valid = form.fileNameTemplate.trim() !== '' && numbers.every((n) => typeof n === 'number');
 
+  // autosave は、切り替えと選ぶ項目を、変えたらすぐ、その項目だけ保存する (#1740)。数と文字の欄は、打っている途中の値を
+  // 保存しないよう、保存のボタンで保存する。ほかの欄の書きかけは送らない。失敗したら、変える前の値に戻す。
+  const autosave = (patch: Partial<Autosaved>) => {
+    const previous: Partial<Autosaved> = {};
+    for (const key of Object.keys(patch) as (keyof Autosaved)[]) {
+      Object.assign(previous, { [key]: form[key] });
+    }
+    set(patch);
+    setMessage(null);
+    action.run(
+      async () => {
+        await mutate<recordingMutation>(environment, saveMutation, {
+          input: autosaveInput(patch),
+        });
+        setMessage({ ok: true, text: t('admin.saved') });
+        startTransition(() => setFetchKey((key) => key + 1));
+      },
+      (caught) => {
+        set(previous);
+        setMessage({ ok: false, text: settingsErrorMessage(t, caught) });
+      },
+    );
+  };
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setMessage(null);
@@ -164,42 +239,32 @@ function RecordingSettings() {
     action.run(
       async () => {
         // この画面の項目だけを送る。省いた項目 (保持期間や MCP) は、サーバーが変えない。
-        await mutate<recordingMutation>(
-          environment,
-          graphql`
-            mutation recordingMutation($input: SystemSettingsInput!) {
-              updateSystemSettings(input: $input) {
-                updatedAt
-              }
-            }
-          `,
-          {
-            input: {
-              recordingDefaults: {
-                poolId: form.poolId,
-                fileNameTemplate,
-                startMarginSeconds: Number(form.startMarginSeconds),
-                endMarginSeconds: Number(form.endMarginSeconds),
-                priority: Number(form.priority),
-                joinSegments: form.joinSegments,
-                detectCm: form.detectCm,
-                transcodePreset: form.transcodePreset,
-                transcodeFrameRate: form.transcodeFrameRate,
-              },
-              ruleDefaults: {
-                avoidDuplicates: form.ruleAvoidDuplicates,
-                ...(typeof form.ruleDuplicateWindowDays === 'number'
-                  ? { duplicateWindowDays: form.ruleDuplicateWindowDays }
-                  : { clearDuplicateWindowDays: true }),
-                followEventRelay: form.ruleFollowEventRelay,
-                bundleSameEpisodes: form.ruleBundleSameEpisodes,
-              },
-              ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
-              cmDetector: form.cmDetector,
-              tvtplayChaptersEnabled: form.tvtplayChapters,
+        await mutate<recordingMutation>(environment, saveMutation, {
+          input: {
+            recordingDefaults: {
+              poolId: form.poolId,
+              fileNameTemplate,
+              startMarginSeconds: Number(form.startMarginSeconds),
+              endMarginSeconds: Number(form.endMarginSeconds),
+              priority: Number(form.priority),
+              joinSegments: form.joinSegments,
+              detectCm: form.detectCm,
+              transcodePreset: form.transcodePreset,
+              transcodeFrameRate: form.transcodeFrameRate,
             },
+            ruleDefaults: {
+              avoidDuplicates: form.ruleAvoidDuplicates,
+              ...(typeof form.ruleDuplicateWindowDays === 'number'
+                ? { duplicateWindowDays: form.ruleDuplicateWindowDays }
+                : { clearDuplicateWindowDays: true }),
+              followEventRelay: form.ruleFollowEventRelay,
+              bundleSameEpisodes: form.ruleBundleSameEpisodes,
+            },
+            ruleUnmatchedGraceMinutes: Number(form.ruleUnmatchedGraceMinutes),
+            cmDetector: form.cmDetector,
+            tvtplayChaptersEnabled: form.tvtplayChapters,
           },
-        );
+        });
         setMessage({ ok: true, text: t('admin.saved') });
         startTransition(() => setFetchKey((key) => key + 1));
       },
@@ -230,6 +295,7 @@ function RecordingSettings() {
               {t('admin.settings.recordingDefaultsNote')}
             </Text>
             <Select
+              disabled={action.busy}
               size="xs"
               maw={480}
               label={t('admin.settings.pool')}
@@ -240,7 +306,7 @@ function RecordingSettings() {
                 ...data.systemStatus.pools.map((pool) => ({ value: pool.id, label: pool.id })),
               ]}
               value={form.poolId}
-              onChange={(value) => set({ poolId: value ?? autoPool })}
+              onChange={(value) => autosave({ poolId: value ?? autoPool })}
             />
             <FileNameTemplateField
               label={t('admin.settings.fileNameTemplate')}
@@ -282,20 +348,23 @@ function RecordingSettings() {
               onChange={(value) => set({ priority: value })}
             />
             <Switch
+              disabled={action.busy}
               size="sm"
               label={t('admin.settings.joinSegments')}
               description={t('admin.settings.joinSegmentsHelp')}
               checked={form.joinSegments}
-              onChange={(event) => set({ joinSegments: event.currentTarget.checked })}
+              onChange={(event) => autosave({ joinSegments: event.currentTarget.checked })}
             />
             <Switch
+              disabled={action.busy}
               size="sm"
               label={t('admin.settings.detectCm')}
               description={t('admin.settings.detectCmHelp')}
               checked={form.detectCm}
-              onChange={(event) => set({ detectCm: event.currentTarget.checked })}
+              onChange={(event) => autosave({ detectCm: event.currentTarget.checked })}
             />
             <Select
+              disabled={action.busy}
               size="sm"
               label={t('admin.settings.cmDetector')}
               description={t('admin.settings.cmDetectorHelp')}
@@ -306,18 +375,20 @@ function RecordingSettings() {
               ]}
               value={form.cmDetector}
               onChange={(value) =>
-                (value === 'FFMPEG' || value === 'LOGO') && set({ cmDetector: value })
+                (value === 'FFMPEG' || value === 'LOGO') && autosave({ cmDetector: value })
               }
               allowDeselect={false}
             />
             <Switch
+              disabled={action.busy}
               size="sm"
               label={t('admin.settings.tvtplayChapters')}
               description={t('admin.settings.tvtplayChaptersHelp')}
               checked={form.tvtplayChapters}
-              onChange={(event) => set({ tvtplayChapters: event.currentTarget.checked })}
+              onChange={(event) => autosave({ tvtplayChapters: event.currentTarget.checked })}
             />
             <Select
+              disabled={action.busy}
               size="sm"
               label={t('rules.transcode')}
               description={t('admin.settings.transcodeHelp')}
@@ -325,18 +396,19 @@ function RecordingSettings() {
               data={transcodeOptions(t, transcodePresets)}
               value={optionOfPreset(form.transcodePreset)}
               onChange={(value) =>
-                value !== null && set({ transcodePreset: presetOfOption(value) })
+                value !== null && autosave({ transcodePreset: presetOfOption(value) })
               }
               allowDeselect={false}
             />
             <Select
+              disabled={action.busy}
               size="sm"
               label={t('rules.transcodeFrameRate')}
               description={t('admin.settings.transcodeFrameRateHelp')}
               maw={360}
               data={frameRateOptions(t)}
               value={form.transcodeFrameRate}
-              onChange={(value) => value !== null && set({ transcodeFrameRate: value })}
+              onChange={(value) => value !== null && autosave({ transcodeFrameRate: value })}
               allowDeselect={false}
             />
           </Stack>
@@ -352,10 +424,11 @@ function RecordingSettings() {
             </Text>
             <Group gap="xs" align="flex-end">
               <Switch
+                disabled={action.busy}
                 size="sm"
                 label={t('rules.avoidDuplicates')}
                 checked={form.ruleAvoidDuplicates}
-                onChange={(event) => set({ ruleAvoidDuplicates: event.currentTarget.checked })}
+                onChange={(event) => autosave({ ruleAvoidDuplicates: event.currentTarget.checked })}
               />
               {form.ruleAvoidDuplicates && (
                 <NumberInput
@@ -373,16 +446,20 @@ function RecordingSettings() {
               )}
             </Group>
             <Switch
+              disabled={action.busy}
               size="sm"
               label={t('rules.followEventRelay')}
               checked={form.ruleFollowEventRelay}
-              onChange={(event) => set({ ruleFollowEventRelay: event.currentTarget.checked })}
+              onChange={(event) => autosave({ ruleFollowEventRelay: event.currentTarget.checked })}
             />
             <Switch
+              disabled={action.busy}
               size="sm"
               label={t('rules.bundleSameEpisodes')}
               checked={form.ruleBundleSameEpisodes}
-              onChange={(event) => set({ ruleBundleSameEpisodes: event.currentTarget.checked })}
+              onChange={(event) =>
+                autosave({ ruleBundleSameEpisodes: event.currentTarget.checked })
+              }
             />
           </Stack>
         </Card>

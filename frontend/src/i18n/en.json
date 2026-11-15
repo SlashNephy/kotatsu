@@ -2442,6 +2442,7 @@
     "settingsTitle": "Recording settings",
     "threshold": "Share to count as watched",
     "thresholdHelp": "Record once the time you actually played reaches this share of the program length",
+    "thresholdInvalid": "Enter a whole number from 1 to 100",
     "statusTitle": "Change the work status",
     "watchingOnFirst": "Set to \"Watching\" after the first episode ([新])",
     "watchingOnEpisode": "Set to \"Watching\" after any episode except the last ([終])",
