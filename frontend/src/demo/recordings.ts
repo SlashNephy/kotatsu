@@ -135,7 +135,13 @@ export function createRecordings(options: {
       const previous =
         recording.cm.detectedAt === null ? null : new Date(recording.cm.detectedAt).toISOString();
       if (elapsed < cmQueuedMs) {
-        return { state: 'QUEUED', detectedAt: previous, progress: null };
+        return {
+          state: 'QUEUED',
+          detectedAt: previous,
+          progress: null,
+          note: null,
+          videoMissingSeconds: 0,
+        };
       }
       if (elapsed < cmQueuedMs + cmRunningMs) {
         const running = elapsed - cmQueuedMs;
@@ -143,6 +149,8 @@ export function createRecordings(options: {
         return {
           state: 'RUNNING',
           detectedAt: previous,
+          note: null,
+          videoMissingSeconds: 0,
           progress: {
             ratio: Math.min(0.99, running / cmRunningMs),
             // 始まってすぐは、本物と同じく、残り時間を計算しているところとする。
@@ -155,11 +163,19 @@ export function createRecordings(options: {
     }
 
     return recording.cm.detectedAt === null
-      ? { state: 'NOT_DETECTED', detectedAt: null, progress: null }
+      ? {
+          state: 'NOT_DETECTED',
+          detectedAt: null,
+          progress: null,
+          note: null,
+          videoMissingSeconds: 0,
+        }
       : {
           state: 'DETECTED',
           detectedAt: new Date(recording.cm.detectedAt).toISOString(),
           progress: null,
+          note: null,
+          videoMissingSeconds: 0,
         };
   };
 
@@ -188,6 +204,8 @@ export function createRecordings(options: {
       scrambled: 0,
       // デモの録画は、どれも復号できている。
       scrambleWarning: false,
+      cmDetectionNote: null,
+      cmVideoMissingSeconds: 0,
       scrambledRatio: 0,
       streamQuality: [
         { pid: 0x100, kind: 'VIDEO', packets, drops: recording.drops, errors: 0, scrambled: 0 },

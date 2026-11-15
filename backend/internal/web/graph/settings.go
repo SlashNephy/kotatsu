@@ -67,6 +67,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		IptvFeedsEnabled:          system.IPTVFeedsEnabled,
 		RecordingDownloadsEnabled: system.RecordingDownloadsEnabled,
 		TvtplayChaptersEnabled:    system.TvtplayChaptersEnabled,
+		CMDetector:                cmDetectorOf(system.CMDetector),
 		EpgstationAPIEnabled:      system.EPGStationAPIEnabled,
 		AnimeLinkingEnabled:       system.AnimeLinkingEnabled,
 		JikkyoEnabled:             slices.Contains(system.CommentSources, domain.CommentSourceNXJikkyo),
@@ -168,4 +169,25 @@ func optionalCommentSources(sources []model.CommentSource) *[]string {
 	}
 
 	return &converted
+}
+
+// cmDetectorOf は、設定の見分け方の名前を、GraphQL の値にする。知らない名前は、既定の FFMPEG にする。
+func cmDetectorOf(name string) model.CMDetector {
+	if name == settings.CMDetectorLogo {
+		return model.CMDetectorLogo
+	}
+
+	return model.CMDetectorFfmpeg
+}
+
+// cmDetectorName は、GraphQL の見分け方を、設定の名前にする。nil なら nil を返す (変えない)。
+func cmDetectorName(detector *model.CMDetector) *string {
+	switch {
+	case detector == nil:
+		return nil
+	case *detector == model.CMDetectorLogo:
+		return new(settings.CMDetectorLogo)
+	default:
+		return new(settings.CMDetectorFFmpeg)
+	}
 }

@@ -376,9 +376,10 @@ SELECT s.sid FROM recordings r JOIN services s ON s.id = r.service_id WHERE r.id
 
 -- name: UpsertRecordingCMDetection :exec
 -- 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
-INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
-VALUES (@recording_id, @detector, @detector_version, @now)
-ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at;
+INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at, note, video_missing_ms)
+VALUES (@recording_id, @detector, @detector_version, @now, @note, @video_missing_ms)
+ON CONFLICT (recording_id, detector) DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at,
+  note = EXCLUDED.note, video_missing_ms = EXCLUDED.video_missing_ms;
 
 -- name: DeleteRecordingCMSections :exec
 -- 見分け直す前に、同じ見分け方の CM の区間を消す。
@@ -394,9 +395,29 @@ SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
 WHERE recording_id = @recording_id AND detector = @detector
 ORDER BY start_offset_ms;
 
--- name: GetRecordingCMDetectedAt :one
--- 録画の CM の区間を、見分け方 detector で最後に見分け終えた日時を返す (#1571)。見分けていなければ行を返さない。
-SELECT detected_at FROM recording_cm_detections WHERE recording_id = @recording_id AND detector = @detector;
+-- name: GetLatestRecordingCMDetection :one
+-- 録画の CM の区間を最後に見分け終えた見分け方と日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
+SELECT detector, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = @recording_id ORDER BY detected_at DESC, detector LIMIT 1;
+
+-- name: ListLatestRecordingCMDetectionNotes :many
+-- 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。
+SELECT DISTINCT ON (recording_id) recording_id, note, video_missing_ms
+FROM recording_cm_detections WHERE recording_id = ANY(@recording_ids::uuid[])
+ORDER BY recording_id, detected_at DESC, detector;
+
+-- name: UpsertRecordingCMMaterial :exec
+-- 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。
+INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
+VALUES (@recording_id, @detector, @format_version, @data, @now)
+ON CONFLICT (recording_id, detector) DO UPDATE SET format_version = EXCLUDED.format_version, data = EXCLUDED.data, created_at = EXCLUDED.created_at;
+
+-- name: DeleteRecordingCMMaterial :exec
+-- 録画の CM の区間を見分けた材料を消す (#1507)。材料を残せなかった回に、前の材料を使い続けないようにする。
+DELETE FROM recording_cm_materials WHERE recording_id = @recording_id AND detector = @detector;
+
+-- name: GetRecordingCMMaterial :one
+-- 録画の CM の区間を見分けた材料を返す (#1507)。なければ行を返さない。
+SELECT format_version, data FROM recording_cm_materials WHERE recording_id = @recording_id AND detector = @detector;
 
 -- name: ListLiveThumbnailRecordings :many
 -- 録画中の代表画像を作り直す録画 (#1236)。録画中で、録り始めてから started_before より前のものを返す。

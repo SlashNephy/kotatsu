@@ -94,6 +94,8 @@ const query = graphql`
           errors
           scrambled
           scrambleWarning
+          cmDetectionNote
+          cmVideoMissingSeconds
           recordedFrom
           recordedUntil
           gaps {

@@ -374,6 +374,8 @@ CREATE TABLE system_settings (
   iptv_feeds_enabled boolean NOT NULL DEFAULT false,
   -- 録画の詳細の「ダウンロード」で、録画を 1 本のファイルとして保存させるかどうか (#1762、設計書 7.6)。既定では保存させない。
   recording_downloads_enabled boolean NOT NULL DEFAULT false,
+  -- CM の区間の見分け方 (#1505、設計書 6.1)。ffmpeg は無音とシーンの切り替わり、logo は局ロゴ (試験的)。既定は ffmpeg。
+  cm_detector text NOT NULL DEFAULT 'ffmpeg',
   -- CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。
   -- 保存先にファイルを足すので、既定では書かない。
   tvtplay_chapters_enabled boolean NOT NULL DEFAULT false,
@@ -1068,6 +1070,10 @@ CREATE TABLE recording_cm_detections (
   detector text NOT NULL,
   detector_version integer NOT NULL,
   detected_at timestamptz NOT NULL,
+  -- いつもの見分け方で決められなかった理由 (#1508)。ロゴで決められなかったときなどに書く。決められたら空。
+  note text NOT NULL DEFAULT '',
+  -- 映像の欠け (映像をデコードできなかった所) の長さの合計 (ミリ秒、#1508)。測れない見分け方では 0。
+  video_missing_ms bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (recording_id, detector)
 );
 
@@ -1081,6 +1087,17 @@ CREATE TABLE recording_cm_sections (
   PRIMARY KEY (recording_id, detector, start_offset_ms),
   FOREIGN KEY (recording_id, detector) REFERENCES recording_cm_detections (recording_id, detector) ON DELETE CASCADE,
   CHECK (end_offset_ms > start_offset_ms)
+);
+
+-- CM の区間を見分けた材料 (#1507)。デコードで得た数値 (コマの時刻、ロゴの点数など) を縮めて残し、規則を変えても録画を読み直さずに判定し直す。
+-- 録画と見分け方ごとに 1 件で、見分け直したら置き換える。data の形式は format_version で見分け、違う版は使わずに読み直す。
+CREATE TABLE recording_cm_materials (
+  recording_id uuid NOT NULL REFERENCES recordings (id) ON DELETE CASCADE,
+  detector text NOT NULL,
+  format_version integer NOT NULL,
+  data bytea NOT NULL,
+  created_at timestamptz NOT NULL,
+  PRIMARY KEY (recording_id, detector)
 );
 
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。

@@ -621,6 +621,16 @@ type RecordingCmDetection struct {
 	Detector        string
 	DetectorVersion int32
 	DetectedAt      time.Time
+	Note            string
+	VideoMissingMs  int64
+}
+
+type RecordingCmMaterial struct {
+	RecordingID   uuid.UUID
+	Detector      string
+	FormatVersion int32
+	Data          []byte
+	CreatedAt     time.Time
 }
 
 type RecordingCmSection struct {
@@ -866,6 +876,7 @@ type SystemSetting struct {
 	ExternalPlayerURLsEnabled              bool
 	IPTVFeedsEnabled                       bool
 	RecordingDownloadsEnabled              bool
+	CMDetector                             string
 	TvtplayChaptersEnabled                 bool
 	EPGStationAPIEnabled                   bool
 	AnimeLinkingEnabled                    bool

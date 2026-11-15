@@ -1025,7 +1025,9 @@ type ComplexityRoot struct {
 		BroadcastEndedAt         func(childComplexity int) int
 		BroadcastStartedAt       func(childComplexity int) int
 		CMDetection              func(childComplexity int) int
+		CMDetectionNote          func(childComplexity int) int
 		CMSections               func(childComplexity int) int
+		CMVideoMissingSeconds    func(childComplexity int) int
 		Description              func(childComplexity int) int
 		Drops                    func(childComplexity int) int
 		EndAt                    func(childComplexity int) int
@@ -1069,9 +1071,11 @@ type ComplexityRoot struct {
 	}
 
 	RecordingCMDetection struct {
-		DetectedAt func(childComplexity int) int
-		Progress   func(childComplexity int) int
-		State      func(childComplexity int) int
+		DetectedAt          func(childComplexity int) int
+		Note                func(childComplexity int) int
+		Progress            func(childComplexity int) int
+		State               func(childComplexity int) int
+		VideoMissingSeconds func(childComplexity int) int
 	}
 
 	RecordingCMSection struct {
@@ -1362,6 +1366,7 @@ type ComplexityRoot struct {
 	SystemSettings struct {
 		AnimeLinkingEnabled                    func(childComplexity int) int
 		ArchiveRetentionDays                   func(childComplexity int) int
+		CMDetector                             func(childComplexity int) int
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
@@ -1743,6 +1748,8 @@ type RecordingResolver interface {
 
 	CMSections(ctx context.Context, obj *model.Recording) ([]*model.RecordingCMSection, error)
 	CMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error)
+	CMDetectionNote(ctx context.Context, obj *model.Recording) (*string, error)
+	CMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error)
 
 	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
 
@@ -6358,12 +6365,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.CMDetection(childComplexity), true
+	case "Recording.cmDetectionNote":
+		if e.ComplexityRoot.Recording.CMDetectionNote == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.CMDetectionNote(childComplexity), true
 	case "Recording.cmSections":
 		if e.ComplexityRoot.Recording.CMSections == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Recording.CMSections(childComplexity), true
+	case "Recording.cmVideoMissingSeconds":
+		if e.ComplexityRoot.Recording.CMVideoMissingSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.CMVideoMissingSeconds(childComplexity), true
 	case "Recording.description":
 		if e.ComplexityRoot.Recording.Description == nil {
 			break
@@ -6611,6 +6630,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingCMDetection.DetectedAt(childComplexity), true
+	case "RecordingCMDetection.note":
+		if e.ComplexityRoot.RecordingCMDetection.Note == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.Note(childComplexity), true
 	case "RecordingCMDetection.progress":
 		if e.ComplexityRoot.RecordingCMDetection.Progress == nil {
 			break
@@ -6623,6 +6648,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingCMDetection.State(childComplexity), true
+	case "RecordingCMDetection.videoMissingSeconds":
+		if e.ComplexityRoot.RecordingCMDetection.VideoMissingSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingCMDetection.VideoMissingSeconds(childComplexity), true
 
 	case "RecordingCMSection.from":
 		if e.ComplexityRoot.RecordingCMSection.From == nil {
@@ -7778,6 +7809,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.ArchiveRetentionDays(childComplexity), true
+	case "SystemSettings.cmDetector":
+		if e.ComplexityRoot.SystemSettings.CMDetector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.CMDetector(childComplexity), true
 	case "SystemSettings.commentSources":
 		if e.ComplexityRoot.SystemSettings.CommentSources == nil {
 			break
@@ -11121,6 +11158,10 @@ type RecordingCMDetection {
   detectedAt: Time
   "見分けているときの進み具合 (#1511)。今の試行で書いたものがなければ null。"
   progress: JobProgress
+  "最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。局ロゴで決められず、今の見分け方で見分け直したときなどに返す。決められたか、見分けていなければ null。"
+  note: String
+  "最後に見分け終えた見分けで測った、映像の欠け (映像をデコードできなかった所) の長さの合計の秒 (#1508)。測れない見分け方と、見分けていなければ 0。"
+  videoMissingSeconds: Float!
 }
 
 """
@@ -11181,6 +11222,10 @@ type Recording implements Node {
   cmSections: [RecordingCMSection!]!
   "CM の区間の見分けの状態 (#1571)。見分けを待っているか、見分けているか、見分け終えたか、失敗したかを返す。"
   cmDetection: RecordingCMDetection!
+  "最後に見分け終えた CM の見分けで、いつもの見分け方で決められなかった理由 (#1508)。録画の一覧の印に使う。決められたか、見分けていなければ null。cmDetection.note と同じ値を、一覧の録画をまとめて引く。"
+  cmDetectionNote: String
+  "最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
+  cmVideoMissingSeconds: Float!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -12053,6 +12098,8 @@ type SystemSettings {
   CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか (#1737、設計書 6.1)。既定は false。
   """
   tvtplayChaptersEnabled: Boolean!
+  "CM の区間の見分け方 (#1505、設計書 6.1)。既定は FFMPEG。"
+  cmDetector: CMDetector!
   """
   EPGStation 互換の API (/api/epgstation/*) を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
   無効の間は、API が 404 を返し、createApiToken が FORBIDDEN を返す。発行済みのトークンは、取り消す (deleteApiToken) ことはできる。
@@ -12109,6 +12156,7 @@ input SystemSettingsInput {
   "変えるには、直近 10 分以内の認証が要る。録画を Kotatsu の外へ持ち出せるようになるため。"
   recordingDownloadsEnabled: Boolean
   tvtplayChaptersEnabled: Boolean
+  cmDetector: CMDetector
   "変えるには、直近 10 分以内の認証が要る。トークンを持つ人が、そのユーザーとして映像を見られるようになるため。"
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
@@ -12220,6 +12268,14 @@ enum CommentSource {
   NX_JIKKYO
   "NICOLOG のニコニコ生放送の上映会のコメント"
   NICOLOG
+}
+
+"CM の区間の見分け方 (#1505、設計書 6.1)。"
+enum CMDetector {
+  "無音とシーンの切り替わりで見分ける。"
+  FFMPEG
+  "局ロゴが出ているかで見分ける (試験的)。ロゴを学習できない録画では、FFMPEG で見分ける。"
+  LOGO
 }
 `, BuiltIn: false},
 	{Name: "../schema/skipped_duplicates.graphqls", Input: `"""
@@ -14521,6 +14577,10 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_cmSections(ctx, field)
 	case "cmDetection":
 		return ec.fieldContext_Recording_cmDetection(ctx, field)
+	case "cmDetectionNote":
+		return ec.fieldContext_Recording_cmDetectionNote(ctx, field)
+	case "cmVideoMissingSeconds":
+		return ec.fieldContext_Recording_cmVideoMissingSeconds(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
 	case "videoFormat":
@@ -14581,6 +14641,10 @@ func (ec *executionContext) childFields_RecordingCMDetection(ctx context.Context
 		return ec.fieldContext_RecordingCMDetection_detectedAt(ctx, field)
 	case "progress":
 		return ec.fieldContext_RecordingCMDetection_progress(ctx, field)
+	case "note":
+		return ec.fieldContext_RecordingCMDetection_note(ctx, field)
+	case "videoMissingSeconds":
+		return ec.fieldContext_RecordingCMDetection_videoMissingSeconds(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingCMDetection", field.Name)
 }
@@ -15161,6 +15225,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_recordingDownloadsEnabled(ctx, field)
 	case "tvtplayChaptersEnabled":
 		return ec.fieldContext_SystemSettings_tvtplayChaptersEnabled(ctx, field)
+	case "cmDetector":
+		return ec.fieldContext_SystemSettings_cmDetector(ctx, field)
 	case "epgstationApiEnabled":
 		return ec.fieldContext_SystemSettings_epgstationApiEnabled(ctx, field)
 	case "animeLinkingEnabled":
@@ -36550,6 +36616,52 @@ func (ec *executionContext) fieldContext_Recording_cmDetection(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Recording_cmDetectionNote(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_cmDetectionNote(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().CMDetectionNote(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_cmDetectionNote(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, true, "String")
+}
+
+func (ec *executionContext) _Recording_cmVideoMissingSeconds(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_cmVideoMissingSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().CMVideoMissingSeconds(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_cmVideoMissingSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, true, "Float")
+}
+
 func (ec *executionContext) _Recording_audios(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37250,6 +37362,52 @@ func (ec *executionContext) fieldContext_RecordingCMDetection_progress(_ context
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _RecordingCMDetection_note(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_note(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Note, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_note(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMDetection", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingCMDetection_videoMissingSeconds(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingCMDetection_videoMissingSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VideoMissingSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingCMDetection_videoMissingSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingCMDetection", field, false, false, "Float")
 }
 
 func (ec *executionContext) _RecordingCMSection_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMSection) (ret graphql.Marshaler) {
@@ -42124,6 +42282,29 @@ func (ec *executionContext) _SystemSettings_tvtplayChaptersEnabled(ctx context.C
 }
 func (ec *executionContext) fieldContext_SystemSettings_tvtplayChaptersEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_cmDetector(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_cmDetector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CMDetector, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.CMDetector) graphql.Marshaler {
+			return ec.marshalNCMDetector2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_cmDetector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "CMDetector")
 }
 
 func (ec *executionContext) _SystemSettings_epgstationApiEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
@@ -48124,7 +48305,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -48222,6 +48403,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.TvtplayChaptersEnabled = data
+		case "cmDetector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cmDetector"))
+			data, err := ec.unmarshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CMDetector = data
 		case "epgstationApiEnabled":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("epgstationApiEnabled"))
 			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
@@ -55320,6 +55508,18 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_cmDetection(ctx, field, obj)
 				})
+		case "cmDetectionNote":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_cmDetectionNote(ctx, field, obj)
+				})
+		case "cmVideoMissingSeconds":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_cmVideoMissingSeconds(ctx, field, obj)
+				})
 		case "audios":
 			out.Values[i] = ec._Recording_audios(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -55486,6 +55686,16 @@ func (ec *executionContext) _RecordingCMDetection(ctx context.Context, sel ast.S
 		case "progress":
 			out.Values[i] = ec._RecordingCMDetection_progress(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "note":
+			out.Values[i] = ec._RecordingCMDetection_note(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "videoMissingSeconds":
+			out.Values[i] = ec._RecordingCMDetection_videoMissingSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -57422,6 +57632,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "tvtplayChaptersEnabled":
 			out.Values[i] = ec._SystemSettings_tvtplayChaptersEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cmDetector":
+			out.Values[i] = ec._SystemSettings_cmDetector(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -59488,6 +59703,16 @@ func (ec *executionContext) marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlash
 		return graphql.Null
 	}
 	return ec._BulkOperationPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCMDetector2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx context.Context, v any) (model.CMDetector, error) {
+	var res model.CMDetector
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCMDetector2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx context.Context, sel ast.SelectionSet, v model.CMDetector) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {
@@ -62785,6 +63010,22 @@ func (ec *executionContext) marshalOBroadcastClock2ᚖgithubᚗcomᚋSlashNephy�
 		return graphql.Null
 	}
 	return ec._BroadcastClock(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx context.Context, v any) (*model.CMDetector, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.CMDetector)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx context.Context, sel ast.SelectionSet, v *model.CMDetector) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCalendarFeed(ctx context.Context, sel ast.SelectionSet, v *model.CalendarFeed) graphql.Marshaler {

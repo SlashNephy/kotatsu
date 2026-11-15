@@ -35,6 +35,8 @@ type span struct {
 
 // signals は、録画のファイルから読んだ手掛かり。時刻は、ファイルの最初の映像からの秒。
 type signals struct {
+	// origin は、ファイルの最初の映像の PTS (90kHz の刻み)。局ロゴの見分け方の時刻と、基準をそろえるのに使う (#1506)。
+	origin int64
 	// silences は、無音の区間。
 	silences []span
 	// scenes は、シーンが切り替わった時刻。

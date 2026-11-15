@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 	"uuid"
@@ -27,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
@@ -117,7 +119,7 @@ func (*fakeDetector) Name() string { return "fake" }
 func (*fakeDetector) Version() int32 { return 3 }
 
 func (d *fakeDetector) Detect(_ context.Context, input *cmdetect.Input) ([]cmdetect.Section, error) {
-	d.inputs = append(d.inputs, cmdetect.Input{Path: filepath.Base(input.Path), ServiceID: input.ServiceID})
+	d.inputs = append(d.inputs, cmdetect.Input{Path: filepath.Base(input.Path), ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
 	sections, ok := d.sections[filepath.Base(input.Path)]
 	if !ok {
 		return nil, cmdetect.ErrNoVideo
@@ -187,6 +189,170 @@ func TestDetectWorker(t *testing.T) {
 	var detections int
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_cm_detections WHERE recording_id = $1", recordingID).Scan(&detections))
 	assert.Equal(t, 1, detections)
+}
+
+// reportingDetector は、ファイルの名前ごとに決めた区間と添え書きを返す Detector (#1508)。
+type reportingDetector struct {
+	fakeDetector
+
+	reports map[string]*cmdetect.Report
+}
+
+var _ cmdetect.Reporter = new(reportingDetector)
+
+func (d *reportingDetector) DetectWithReport(ctx context.Context, input *cmdetect.Input) ([]cmdetect.Section, *cmdetect.Report, error) {
+	sections, err := d.Detect(ctx, input)
+
+	return sections, d.reports[filepath.Base(input.Path)], err
+}
+
+// TestDetectWorkerReport は、見分け方の添え書きを、セグメントをまとめて記録することを確かめる (#1508)。
+// 映像の欠けは足し合わせ、理由はセグメントの番号を付けて並べる。理由のないセグメントは並べない。
+func TestDetectWorkerReport(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, "completed",
+		segmentAt{name: segmentA, start: 0},
+		segmentAt{name: segmentB, start: 20 * time.Minute})
+	detector := &reportingDetector{
+		sections: map[string][]cmdetect.Section{segmentA: {}, segmentB: {}}, inputs: []cmdetect.Input{},
+		reports: map[string]*cmdetect.Report{
+			segmentA: {Note: "", Missing: 1500 * time.Millisecond},
+			segmentB: {Note: "the logo cannot be used", Missing: 2 * time.Second},
+		},
+	}
+	require.NoError(t, f.detect(t, detector, recordingID))
+
+	var note string
+	var missing int64
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&note, &missing))
+	assert.Equal(t, "segment 2: the logo cannot be used", note)
+	assert.Equal(t, int64(3500), missing)
+
+	// 添え書きを返さない見分け方で見分け直したら、理由と欠けを消す。
+	require.NoError(t, f.detect(t, &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {}, segmentB: {}}, inputs: []cmdetect.Input{}}, recordingID))
+	require.NoError(t, f.pool.QueryRow(t.Context(),
+		"SELECT note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&note, &missing))
+	assert.Empty(t, note)
+	assert.Zero(t, missing)
+}
+
+// materialDetector は、ファイルの名前ごとに決めた区間と材料を返し、材料からは redetected の区間を返す Detector (#1507)。
+type materialDetector struct {
+	fakeDetector
+
+	// redetected は、材料から判定し直したときに返す区間。redetectable が false なら、材料だけでは決められないとする。
+	redetected   []cmdetect.Section
+	redetectable bool
+	redetects    int
+}
+
+var _ cmdetect.MaterialDetector = new(materialDetector)
+
+func (d *materialDetector) DetectWithMaterial(
+	ctx context.Context, input *cmdetect.Input,
+) ([]cmdetect.Section, *cmdetect.Report, *cmdetect.Material, error) {
+	sections, err := d.Detect(ctx, input)
+	material := &cmdetect.Material{
+		Fps: 30, Duration: time.Second, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 1, H: 1},
+		Times: []float64{0}, Measures: []logo.Measure{{Score: 0.5, Brightness: 0, Texture: 0}},
+	}
+
+	return sections, &cmdetect.Report{Note: "", Missing: 0}, material, err
+}
+
+func (d *materialDetector) Redetect(*cmdetect.Material, *cmdetect.Program) ([]cmdetect.Section, *cmdetect.Report, bool) {
+	d.redetects++
+	if !d.redetectable {
+		return nil, nil, false
+	}
+
+	return d.redetected, &cmdetect.Report{Note: "", Missing: 0}, true
+}
+
+// TestDetectWorkerMaterials は、見分けた材料を残し、次に見分けるときは、読み直さずに材料から判定し直すことを確かめる (#1507)。
+// 材料だけで決められないか、セグメントが変わったか、形式の版が違えば、読み直す。
+func TestDetectWorkerMaterials(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: 0}, segmentAt{name: segmentB, start: 20 * time.Minute})
+	detector := &materialDetector{
+		sections: map[string][]cmdetect.Section{
+			segmentA: {{Start: time.Minute, End: 2 * time.Minute}}, segmentB: {},
+		}, inputs: []cmdetect.Input{},
+		redetected:   []cmdetect.Section{{Start: 3 * time.Minute, End: 4 * time.Minute}},
+		redetectable: true,
+		redetects:    0,
+	}
+	materials := func() int {
+		t.Helper()
+		var count int
+		require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT count(*) FROM recording_cm_materials WHERE recording_id = $1 AND detector = 'fake'", recordingID).Scan(&count))
+
+		return count
+	}
+
+	// 1 回目は読み、材料を残す。
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 2)
+	assert.Equal(t, 1, materials())
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 2 * time.Minute}}, f.sections(t, recordingID))
+
+	// 2 回目は読まずに、材料から判定し直す。どちらのセグメントも、材料からの区間になる。
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 2)
+	assert.Equal(t, 2, detector.redetects)
+	assert.Equal(t, [][2]time.Duration{{3 * time.Minute, 4 * time.Minute}, {23 * time.Minute, 24 * time.Minute}}, f.sections(t, recordingID))
+
+	// 材料だけで決められなければ、読み直す。
+	detector.redetectable = false
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 4)
+	assert.Equal(t, [][2]time.Duration{{time.Minute, 2 * time.Minute}}, f.sections(t, recordingID))
+
+	// 形式の版が違う材料は使わずに、読み直す。
+	detector.redetectable = true
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_cm_materials SET format_version = 0 WHERE recording_id = $1", recordingID)
+	require.NoError(t, err)
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 6)
+
+	// セグメントが変わった (大きさが変わった) ら、材料を使わずに読み直す。
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET size = size + 1 WHERE recording_id = $1 AND path = $2", recordingID, segmentB)
+	require.NoError(t, err)
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Len(t, detector.inputs, 8)
+
+	// 映像のないセグメントがあって材料が揃わなければ、前の材料を消す。
+	delete(detector.sections, segmentB)
+	detector.redetectable = false
+	require.NoError(t, f.detect(t, detector, recordingID))
+	assert.Equal(t, 0, materials())
+}
+
+// TestDetectWorkerProgram は、セグメントが 1 つの録画にだけ、番組表の時刻を、セグメントを書き始めた日時からの時間で渡すことを確かめる (#1506)。
+func TestDetectWorkerProgram(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	// 録画の番組は、録画を始めた日時から 30 分。セグメントは、録画を始めて 5 分後に書き始めた。
+	single := f.recording(t, "completed", segmentAt{name: segmentA, start: 5 * time.Minute})
+	detector := &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {}, segmentB: {}}, inputs: []cmdetect.Input{}}
+	require.NoError(t, f.detect(t, detector, single))
+	require.Len(t, detector.inputs, 1)
+	assert.Equal(t, &cmdetect.Program{Start: -5 * time.Minute, Duration: 30 * time.Minute}, detector.inputs[0].Program)
+
+	// セグメントが分かれた録画には、番組の窓を録画全体の時間で置く必要があるので、渡さない。
+	split := f.recording(t, "completed", segmentAt{name: "c.m2ts", start: 0}, segmentAt{name: "d.m2ts", start: 10 * time.Minute})
+	detector.sections["c.m2ts"], detector.sections["d.m2ts"] = []cmdetect.Section{}, []cmdetect.Section{}
+	detector.inputs = []cmdetect.Input{}
+	require.NoError(t, f.detect(t, detector, split))
+	require.Len(t, detector.inputs, 2)
+	assert.Nil(t, detector.inputs[0].Program)
+	assert.Nil(t, detector.inputs[1].Program)
 }
 
 // TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。
@@ -373,19 +539,50 @@ func TestDetectWorkerWithoutFFmpeg(t *testing.T) {
 func TestRecordingSections(t *testing.T) {
 	t.Parallel()
 
-	f := newFixture(t)
-	recordingID := f.recording(t, "completed")
-	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES
-		($1, 'ffmpeg', 1, $2), ($1, 'fake', 1, $2)`, recordingID, f.clock.Now())
-	require.NoError(t, err)
-	_, err = f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms) VALUES
-		($1, 'ffmpeg', 600000, 690000), ($1, 'ffmpeg', 0, 59500), ($1, 'fake', 100, 200)`, recordingID)
-	require.NoError(t, err)
+	ffmpegSections := []cmdetect.Section{{Start: 0, End: 59500 * time.Millisecond}, {Start: 10 * time.Minute, End: 690 * time.Second}}
+	logoSections := []cmdetect.Section{{Start: 100 * time.Millisecond, End: 200 * time.Millisecond}}
+	tests := []struct {
+		name string
+		// ffmpegAt と logoAt は、それぞれの見分け方で見分け終えた日時の、基準からのずれ。負なら見分けていない。
+		ffmpegAt time.Duration
+		logoAt   time.Duration
+		want     []cmdetect.Section
+	}{
+		{name: "見分けていなければ空", ffmpegAt: -1, logoAt: -1, want: []cmdetect.Section{}},
+		{name: "1 つの見分け方だけなら、その区間", ffmpegAt: 0, logoAt: -1, want: ffmpegSections},
+		{name: "見分け方を替えて見分け直したら、新しい見分け方の区間 (#1505)", ffmpegAt: 0, logoAt: time.Hour, want: logoSections},
+		{name: "前の見分け方で見分け直したら、そちらの区間", ffmpegAt: 2 * time.Hour, logoAt: time.Hour, want: ffmpegSections},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 画面に出すのは、いま使っている見分け方の区間だけ。
-	got, err := cmdetect.RecordingSections(t.Context(), f.pool, recordingID)
-	require.NoError(t, err)
-	assert.Equal(t, []cmdetect.Section{{Start: 0, End: 59500 * time.Millisecond}, {Start: 10 * time.Minute, End: 690 * time.Second}}, got)
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed")
+			for _, d := range []struct {
+				name     string
+				at       time.Duration
+				sections []cmdetect.Section
+			}{{"ffmpeg", tt.ffmpegAt, ffmpegSections}, {"logo", tt.logoAt, logoSections}} {
+				if d.at < 0 {
+					continue
+				}
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, $2, 1, $3)`,
+					recordingID, d.name, f.clock.Now().Add(d.at))
+				require.NoError(t, err)
+				// 始まりの順でなく入れても、始まりの順に返す。
+				for _, s := range slices.Backward(d.sections) {
+					_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms) VALUES ($1, $2, $3, $4)`,
+						recordingID, d.name, s.Start.Milliseconds(), s.End.Milliseconds())
+					require.NoError(t, err)
+				}
+			}
+
+			got, err := cmdetect.RecordingSections(t.Context(), f.pool, recordingID)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // oneSegment は、録画の完了のイベントに載せる、セグメント 1 つの一覧。

@@ -227,7 +227,7 @@ type DetectWorker struct {
 	hook   DetectedHook
 	logger *slog.Logger
 	// newDetector は、見分けに使う Detector を作る。テストでは差し替える。
-	newDetector func() (Detector, error)
+	newDetector func(ctx context.Context) (Detector, error)
 }
 
 var _ river.Worker[DetectArgs] = new(DetectWorker)
@@ -235,11 +235,37 @@ var _ river.Worker[DetectArgs] = new(DetectWorker)
 // NewDetectWorker は DetectWorker を返す。store は、このインスタンスにマウントされたプール。
 // lowerer は、FFmpeg を最低の優先度で動かす (#1511)。hook は、区間を書いたトランザクションの中で呼ぶ。nil なら呼ばない。
 // logger には、見分けの進み具合を出す。
+// 見分け方は、ジョブごとに、管理者が選んだもの (#1505) にする。
 func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, hook DetectedHook, logger *slog.Logger) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, logger, func() (Detector, error) { return NewFFmpegDetector(lowerer) })
+	return newDetectWorker(db, store, clk, hook, logger, func(ctx context.Context) (Detector, error) {
+		name, err := selectedDetector(ctx, db)
+		if err != nil {
+			return nil, err
+		}
+		if name == LogoDetectorName {
+			return NewLogoDetector(lowerer)
+		}
+
+		return NewFFmpegDetector(lowerer)
+	})
 }
 
-func newDetectWorker(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func() (Detector, error)) *DetectWorker {
+// selectedDetector は、管理者が選んだ見分け方の名前を返す。設定の行がまだなければ、既定の FFmpegDetector にする。
+func selectedDetector(ctx context.Context, db sqlc.DBTX) (string, error) {
+	row, err := sqlc.New(db).GetSystemSettings(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return FFmpegDetectorName, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to get the system settings: %w", err)
+	}
+
+	return row.CMDetector, nil
+}
+
+func newDetectWorker(
+	db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func(ctx context.Context) (Detector, error),
+) *DetectWorker {
 	return &DetectWorker{
 		WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, hook: hook, logger: logger, newDetector: newDetector,
 	}
@@ -252,7 +278,7 @@ func (w *DetectWorker) Timeout(*river.Job[DetectArgs]) time.Duration {
 // Work は、録画ごとの advisory lock を取ってから、CM の区間を見分ける。
 // セグメントをつなぐジョブと同じロックを使い、ほかの nekonote がファイルをつないだり消したりしている間は読まず、後でやり直す。
 func (w *DetectWorker) Work(ctx context.Context, job *river.Job[DetectArgs]) error {
-	detector, err := w.newDetector()
+	detector, err := w.newDetector(ctx)
 	if errors.Is(err, ErrFFmpegNotFound) {
 		return river.JobCancel(err)
 	}
@@ -315,12 +341,22 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 		return err
 	}
 
+	// 材料が残っていれば、読み直さずに判定し直す (#1507)。
+	if found, report, ok := w.redetect(ctx, detector, &recording, segments); ok {
+		w.logger.InfoContext(ctx, "redetected the CM sections from the materials", slog.String("recording_id", recordingID.String()))
+
+		return w.record(ctx, detector, recordingID, w.align(recording.RecordedFrom, segments, found), report)
+	}
+
 	progress := w.progress(ctx, job, segments)
 	// 最後の FFmpeg が終わったら、間を空けずに書き戻す。止めたり失敗したりした後も、止める前の値のまま書く。
 	defer progress.reporter.Finish(ctx)
-	sections := []Section{}
+	found := make([][]Section, len(segments))
+	report := &Report{Note: "", Missing: 0}
+	materials := make([]SegmentMaterial, 0, len(segments))
 	for i, segment := range segments {
-		found, err := detector.Detect(ctx, &Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i)})
+		sections, segmentReport, material, err := detectWithMaterial(ctx, detector,
+			&Input{Path: segment.path, ServiceID: serviceID(sid), Progress: progress.observer(ctx, segments, i), Program: programOf(&recording, segments, i)})
 		if errors.Is(err, ErrNoVideo) {
 			// 映像のないセグメント (チューナーが絵を出す前に閉じたものなど) は、見分けるものがないので飛ばす。
 			continue
@@ -328,15 +364,145 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 		if err != nil {
 			return err
 		}
-		// 区間は、録画を始めた日時からの時間にそろえる。途切れた区間も時間に含めて数え、再生の位置にするのは画面に任せる。
-		base := segment.startedAt.Sub(recording.RecordedFrom)
-		for _, s := range found {
-			sections = append(sections, Section{Start: max(base+s.Start, 0), End: max(base+s.End, 0)})
+		report.add(segmentReport, i, len(segments))
+		found[i] = sections
+		if material != nil {
+			materials = append(materials, SegmentMaterial{Path: segment.key, Material: material})
 		}
 	}
 	progress.reporter.Finish(ctx)
 
-	return w.record(ctx, detector, recordingID, mergeSections(sections))
+	if err := w.record(ctx, detector, recordingID, w.align(recording.RecordedFrom, segments, found), report); err != nil {
+		return err
+	}
+	// 材料は、すべてのセグメントのものが揃ったときだけ残す。書けなくても、見分けは失敗にしない (#1507)。
+	if _, ok := detector.(MaterialDetector); ok {
+		if err := w.recordMaterials(ctx, detector, recordingID, segments, materials); err != nil {
+			w.logger.WarnContext(ctx, "failed to record the CM detection materials", slog.String("recording_id", recordingID.String()), slog.Any("error", err))
+		}
+	}
+
+	return nil
+}
+
+// programOf は、i 番目のセグメントに渡す、番組表の時刻を返す (#1506)。番組の窓は録画全体の時間で置く必要があるので、
+// セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする。番組が始まるはずの時刻は、番組表の始まりを、
+// セグメントを書き始めた日時からの時間にしたもの。
+func programOf(recording *sqlc.Recording, segments []segment, i int) *Program {
+	if len(segments) != 1 || !recording.EndAt.After(recording.StartAt) {
+		return nil
+	}
+
+	return &Program{Start: recording.StartAt.Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt)}
+}
+
+// align は、セグメントごとの区間を、録画を始めた日時からの時間にそろえて、1 つにまとめる。
+// 途切れた区間も時間に含めて数え、再生の位置にするのは画面に任せる。
+func (w *DetectWorker) align(recordedFrom time.Time, segments []segment, found [][]Section) []Section {
+	sections := []Section{}
+	for i, segment := range segments {
+		base := segment.startedAt.Sub(recordedFrom)
+		for _, s := range found[i] {
+			sections = append(sections, Section{Start: max(base+s.Start, 0), End: max(base+s.End, 0)})
+		}
+	}
+
+	return mergeSections(sections)
+}
+
+// redetect は、録画の材料が残っていて、どのセグメントも材料から決められれば、読み直さずに判定し直した区間を返す (#1507)。
+// 材料がない、形式の版が違う、壊れている、セグメントが変わった (つないだ、名前を変えた)、ロゴで決められないセグメントがある、
+// のどれかなら、ok を false にして、読み直させる。
+func (w *DetectWorker) redetect(ctx context.Context, detector Detector, recording *sqlc.Recording, segments []segment) ([][]Section, *Report, bool) {
+	md, ok := detector.(MaterialDetector)
+	if !ok {
+		return nil, nil, false
+	}
+	row, err := sqlc.New(w.db).GetRecordingCMMaterial(ctx, sqlc.GetRecordingCMMaterialParams{RecordingID: recording.ID, Detector: detector.Name()})
+	if err != nil || row.FormatVersion != materialFormatVersion {
+		return nil, nil, false
+	}
+	materials, err := DecodeMaterials(row.Data)
+	if err != nil || len(materials) != len(segments) {
+		return nil, nil, false
+	}
+	found := make([][]Section, len(segments))
+	report := &Report{Note: "", Missing: 0}
+	for i, segment := range segments {
+		if materials[i].Path != segment.key {
+			return nil, nil, false
+		}
+		sections, segmentReport, ok := md.Redetect(materials[i].Material, programOf(recording, segments, i))
+		if !ok {
+			return nil, nil, false
+		}
+		report.add(segmentReport, i, len(segments))
+		found[i] = sections
+	}
+
+	return found, report, true
+}
+
+// recordMaterials は、すべてのセグメントの材料が揃っていれば残し、揃っていなければ前の材料を消す (#1507)。
+// 映像のないセグメントがあるか、ロゴを使えなかったセグメントがあれば、揃わない。読み直したほうがよいからである。
+func (w *DetectWorker) recordMaterials(
+	ctx context.Context, detector Detector, recordingID uuid.UUID, segments []segment, materials []SegmentMaterial,
+) error {
+	q := sqlc.New(w.db)
+	if len(materials) != len(segments) {
+		if err := q.DeleteRecordingCMMaterial(ctx, sqlc.DeleteRecordingCMMaterialParams{RecordingID: recordingID, Detector: detector.Name()}); err != nil {
+			return fmt.Errorf("failed to delete the previous CM detection material: %w", err)
+		}
+
+		return nil
+	}
+	data, err := EncodeMaterials(materials)
+	if err != nil {
+		return err
+	}
+	err = q.UpsertRecordingCMMaterial(ctx, sqlc.UpsertRecordingCMMaterialParams{
+		RecordingID: recordingID, Detector: detector.Name(), FormatVersion: materialFormatVersion, Data: data, Now: w.clock.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to record the CM detection material: %w", err)
+	}
+
+	return nil
+}
+
+// detectWithMaterial は、detector が材料を返せれば (MaterialDetector)、区間と添え書きと材料を返す (#1507)。
+// 添え書きだけ返せれば (Reporter)、材料を nil にする。どちらも返せなければ、空の添え書きを返す (#1508)。
+func detectWithMaterial(ctx context.Context, detector Detector, input *Input) ([]Section, *Report, *Material, error) {
+	if md, ok := detector.(MaterialDetector); ok {
+		return md.DetectWithMaterial(ctx, input)
+	}
+	if reporter, ok := detector.(Reporter); ok {
+		sections, report, err := reporter.DetectWithReport(ctx, input)
+
+		return sections, report, nil, err
+	}
+	sections, err := detector.Detect(ctx, input)
+
+	return sections, &Report{Note: "", Missing: 0}, nil, err
+}
+
+// add は、i 番目 (全部で n 個) のセグメントの添え書きを足す。欠けの長さは足し合わせ、理由は、セグメントが複数あれば番号を付けて並べる。
+func (r *Report) add(segment *Report, i, n int) {
+	if segment == nil {
+		return
+	}
+	r.Missing += segment.Missing
+	if segment.Note == "" {
+		return
+	}
+	note := segment.Note
+	if n > 1 {
+		note = fmt.Sprintf("segment %d: %s", i+1, note)
+	}
+	if r.Note != "" {
+		r.Note += "\n"
+	}
+	r.Note += note
 }
 
 // detectProgress は、セグメントを順に見分ける進み具合 (#1511)。
@@ -390,7 +556,9 @@ func serviceID(sid int64) uint16 {
 
 // segment は、見分けるセグメントのファイル。
 type segment struct {
-	path      string
+	path string
+	// key は、材料 (#1507) と突き合わせる、セグメントのファイルの名前。保存先プールとパスと大きさで、つないだり名前を変えたりしたら変わる。
+	key       string
 	startedAt time.Time
 	// size は、ファイルの大きさ (バイト)。進み具合に使う。
 	size int64
@@ -415,7 +583,9 @@ func (w *DetectWorker) segments(files []sqlc.RecordingFile) ([]segment, error) {
 		if err != nil {
 			return nil, err
 		}
-		segments = append(segments, segment{path: path, startedAt: file.StartedAt, size: file.Size})
+		segments = append(segments, segment{
+			path: path, key: fmt.Sprintf("%s/%s#%d", file.PoolID, file.Path, file.Size), startedAt: file.StartedAt, size: file.Size,
+		})
 	}
 	if len(segments) == 0 {
 		return nil, river.JobCancel(errNoSegment)
@@ -447,11 +617,12 @@ func mergeSections(sections []Section) []Section {
 }
 
 // record は、見分けた記録と区間を、同じ見分け方の前の区間と置き換えて書く。
-func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingID uuid.UUID, sections []Section) error {
+func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingID uuid.UUID, sections []Section, report *Report) error {
 	err := pgx.BeginFunc(ctx, w.db, func(tx pgx.Tx) error {
 		q := sqlc.New(tx)
 		err := q.UpsertRecordingCMDetection(ctx, sqlc.UpsertRecordingCMDetectionParams{
 			RecordingID: recordingID, Detector: detector.Name(), DetectorVersion: detector.Version(), Now: w.clock.Now(),
+			Note: report.Note, VideoMissingMs: report.Missing.Milliseconds(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to record the CM detection: %w", err)
@@ -485,9 +656,18 @@ func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingI
 }
 
 // RecordingSections は、録画 recordingID の CM の区間を、始まりの順に返す。見分けていなければ空のスライスを返す。
-// 区間は、録画を始めた日時からの時間。見分け方を足したら、どの見分け方の区間を返すかをここで決める。
+// 区間は、録画を始めた日時からの時間。見分け方が複数あれば、最後に見分けた見分け方の区間を返す (#1505)。
+// 管理者が見分け方を替えた後に見分け直した録画は新しい見分け方の区間に、見分け直していない録画は前の見分け方の区間になる。
 func RecordingSections(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) ([]Section, error) {
-	rows, err := sqlc.New(db).ListRecordingCMSections(ctx, sqlc.ListRecordingCMSectionsParams{RecordingID: recordingID, Detector: FFmpegDetectorName})
+	q := sqlc.New(db)
+	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return []Section{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the latest CM detection of the recording: %w", err)
+	}
+	rows, err := q.ListRecordingCMSections(ctx, sqlc.ListRecordingCMSectionsParams{RecordingID: recordingID, Detector: latest.Detector})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list the CM sections of the recording: %w", err)
 	}

@@ -28,7 +28,11 @@ type Input struct {
 	// Progress は、FFmpeg の -progress のまとまり b と、それまでにファイルから FFmpeg に流したバイト数 read を受け取る (#1511)。
 	// nil なら受け取らない。
 	Progress func(b *ffprogress.Block, read int64)
+	// Program は、録画した番組の、番組表の時刻 (#1506)。分からないか、使わないときは nil。
+	Program *Program
 }
+
+//go:generate go tool mockgen -typed -destination=mock_detector_test.go -package=cmdetect_test . Detector
 
 // Detector は、録画のファイルから CM の区間を見分ける。
 type Detector interface {
@@ -38,4 +42,26 @@ type Detector interface {
 	Version() int32
 	// Detect は、input のファイルの CM の区間を、始まりの順に返す。見つからなければ空のスライスを返す。
 	Detect(ctx context.Context, input *Input) ([]Section, error)
+}
+
+// Report は、見分けた結果の添え書き (#1508)。DB に残し、録画の詳細に出す。
+type Report struct {
+	// Note は、いつもの見分け方で決められなかった理由。決められたら空。
+	Note string
+	// Missing は、映像の欠け (映像をデコードできなかった所) の長さの合計。
+	Missing time.Duration
+}
+
+// Reporter は、区間と一緒に、見分けた結果の添え書きを返せる Detector (#1508)。
+type Reporter interface {
+	// DetectWithReport は、Detect と同じ区間と、その添え書きを返す。
+	DetectWithReport(ctx context.Context, input *Input) ([]Section, *Report, error)
+}
+
+// MaterialDetector は、見分けた材料を残し、材料から読み直さずに判定し直せる Detector (#1507)。
+type MaterialDetector interface {
+	// DetectWithMaterial は、区間と添え書きと、判定し直すための材料を返す。材料を残せない回は nil を返す。
+	DetectWithMaterial(ctx context.Context, input *Input) ([]Section, *Report, *Material, error)
+	// Redetect は、材料から判定し直す。program は、Input.Program と同じ番組の時刻。材料だけでは決められなければ、ok を false にする。
+	Redetect(material *Material, program *Program) (sections []Section, report *Report, ok bool)
 }

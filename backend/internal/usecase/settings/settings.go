@@ -50,6 +50,14 @@ const (
 	maxDuplicateWindowDays = 3650
 )
 
+// CM の区間の見分け方の名前 (#1505)。cmdetect の見分け方 (Detector) の名前と同じにする。
+const (
+	// CMDetectorFFmpeg は、無音とシーンの切り替わりで見分ける、今までの見分け方。既定にする。
+	CMDetectorFFmpeg = "ffmpeg"
+	// CMDetectorLogo は、局ロゴが出ているかで見分ける、試験的な見分け方。
+	CMDetectorLogo = "logo"
+)
+
 // ErrInvalidSettings は、設定の値が正しくないことを表す。
 var ErrInvalidSettings = errors.New("invalid system settings")
 
@@ -90,6 +98,8 @@ type System struct {
 	// TvtplayChaptersEnabled は、CM の区間を見分け終えたら、TS のセグメントの隣の chapters フォルダーに、TvtPlay のチャプターのファイルを書くかどうか
 	// (#1737、設計書 6.1)。保存先にファイルを足すので、既定は false。
 	TvtplayChaptersEnabled bool
+	// CMDetector は、CM の区間の見分け方の名前 (#1505、設計書 6.1)。CMDetectorFFmpeg (既定) か CMDetectorLogo。
+	CMDetector string
 	// EPGStationAPIEnabled は、EPGStation 互換の API を提供し、API トークンを発行させるかどうか (#1769、設計書 9.8)。既定は false。
 	// API は、トークンを持っている人なら誰でも映像を読めるので、管理者が有効にしたときだけ提供する。
 	EPGStationAPIEnabled bool
@@ -195,6 +205,7 @@ type Changes struct {
 	IPTVFeedsEnabled             *bool
 	RecordingDownloadsEnabled    *bool
 	TvtplayChaptersEnabled       *bool
+	CMDetector                   *string
 	EPGStationAPIEnabled         *bool
 	AnimeLinkingEnabled          *bool
 	CommentSources               *[]string
@@ -309,6 +320,9 @@ func validateRetentionChanges(changes *Changes) error {
 			return err
 		}
 	}
+	if detector := changes.CMDetector; detector != nil && *detector != CMDetectorFFmpeg && *detector != CMDetectorLogo {
+		return fmt.Errorf("%w: cmDetector must be %q or %q", ErrInvalidSettings, CMDetectorFFmpeg, CMDetectorLogo)
+	}
 	if days := changes.NetworkActivityRetentionDays; days != nil && *days < 1 {
 		return fmt.Errorf("%w: networkActivityRetentionDays must be at least 1", ErrInvalidSettings)
 	}
@@ -388,6 +402,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			IPTVFeedsEnabled:                       valueOr(changes.IPTVFeedsEnabled, current.IPTVFeedsEnabled),
 			RecordingDownloadsEnabled:              valueOr(changes.RecordingDownloadsEnabled, current.RecordingDownloadsEnabled),
 			TvtplayChaptersEnabled:                 valueOr(changes.TvtplayChaptersEnabled, current.TvtplayChaptersEnabled),
+			CMDetector:                             valueOr(changes.CMDetector, current.CMDetector),
 			EPGStationAPIEnabled:                   valueOr(changes.EPGStationAPIEnabled, current.EPGStationAPIEnabled),
 			AnimeLinkingEnabled:                    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
 			CommentSources:                         valueOr(changes.CommentSources, current.CommentSources),
@@ -423,6 +438,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"iptvFeedsEnabled":             change(current.IPTVFeedsEnabled, updated.IPTVFeedsEnabled),
 				"recordingDownloadsEnabled":    change(current.RecordingDownloadsEnabled, updated.RecordingDownloadsEnabled),
 				"tvtplayChaptersEnabled":       change(current.TvtplayChaptersEnabled, updated.TvtplayChaptersEnabled),
+				"cmDetector":                   change(current.CMDetector, updated.CMDetector),
 				"epgstationApiEnabled":         change(current.EPGStationAPIEnabled, updated.EPGStationAPIEnabled),
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
@@ -604,6 +620,7 @@ func defaults() *System {
 		IPTVFeedsEnabled:          false,
 		RecordingDownloadsEnabled: false,
 		TvtplayChaptersEnabled:    false,
+		CMDetector:                CMDetectorFFmpeg,
 		EPGStationAPIEnabled:      false,
 		AnimeLinkingEnabled:       false,
 		CommentSources:            []string{},
@@ -644,6 +661,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		IPTVFeedsEnabled:          row.IPTVFeedsEnabled,
 		RecordingDownloadsEnabled: row.RecordingDownloadsEnabled,
 		TvtplayChaptersEnabled:    row.TvtplayChaptersEnabled,
+		CMDetector:                row.CMDetector,
 		EPGStationAPIEnabled:      row.EPGStationAPIEnabled,
 		AnimeLinkingEnabled:       row.AnimeLinkingEnabled,
 		CommentSources:            row.CommentSources,

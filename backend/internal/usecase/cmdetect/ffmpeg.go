@@ -73,6 +73,22 @@ func (*FFmpegDetector) Name() string { return FFmpegDetectorName }
 func (*FFmpegDetector) Version() int32 { return ffmpegDetectorVersion }
 
 func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, error) {
+	sig, err := d.signals(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	spans := findSections(sig)
+	sections := make([]Section, 0, len(spans))
+	for _, s := range spans {
+		sections = append(sections, Section{Start: seconds(s.start), End: seconds(s.end)})
+	}
+
+	return sections, nil
+}
+
+// signals は、録画のファイルを FFmpeg で読み、無音の区間、シーンの切り替わり、音声の構成の変化を返す。
+// 局ロゴの見分け方も、境目の候補を作るのに使う (#1506)。
+func (d *FFmpegDetector) signals(ctx context.Context, input *Input) (*signals, error) {
 	file, err := sharedfile.Open(input.Path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the recording file: %w", err)
@@ -114,17 +130,7 @@ func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, e
 		return nil, fmt.Errorf("failed to detect CM sections with FFmpeg: %w: %s", err, strings.Join(log.tail, "; "))
 	}
 
-	sig, err := newSignals(scanner.Cues(), out.scenes, log.silences)
-	if err != nil {
-		return nil, err
-	}
-	spans := findSections(sig)
-	sections := make([]Section, 0, len(spans))
-	for _, s := range spans {
-		sections = append(sections, Section{Start: seconds(s.start), End: seconds(s.end)})
-	}
-
-	return sections, nil
+	return newSignals(scanner.Cues(), out.scenes, log.silences)
 }
 
 // ffmpegOutput は、FFmpeg の標準出力から読んだ、シーンが切り替わった時刻 (秒、PTS のまま)。
@@ -215,6 +221,7 @@ func newSignals(cues *ts.Cues, scenes []float64, silences []span) (*signals, err
 	fromSeconds := func(t float64) float64 { return fromPTS(int64(math.Round(t * ts.PTSClock))) }
 
 	sig := &signals{
+		origin:       base,
 		silences:     make([]span, 0, len(silences)),
 		scenes:       make([]float64, 0, len(scenes)),
 		audioChanges: make([]float64, 0, len(cues.AudioChanges)),

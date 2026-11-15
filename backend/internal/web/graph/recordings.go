@@ -763,7 +763,12 @@ func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recordin
 	if err != nil {
 		return nil, err
 	}
-	detection := &model.RecordingCMDetection{State: status.State, DetectedAt: status.DetectedAt, Progress: nil}
+	detection := &model.RecordingCMDetection{
+		State: status.State, DetectedAt: status.DetectedAt, Progress: nil, Note: nil, VideoMissingSeconds: status.VideoMissing.Seconds(),
+	}
+	if status.Note != "" {
+		detection.Note = &status.Note
+	}
 	if p := status.Progress; p != nil {
 		detection.Progress = &model.JobProgress{Ratio: p.Ratio, RemainingSeconds: nil, UpdatedAt: p.UpdatedAt}
 		if p.Remaining != nil {
@@ -772,6 +777,33 @@ func (r *Resolver) recordingCMDetection(ctx context.Context, obj *model.Recordin
 	}
 
 	return detection, nil
+}
+
+// recordingCMReport は、録画の、最後に見分け終えた CM の見分けの添え書きを、一覧の録画とまとめて引く (#1508)。
+func recordingCMReport(ctx context.Context, obj *model.Recording) (cmdetect.Report, error) {
+	recordingID, err := parseRecordingID(obj.ID)
+	if err != nil {
+		return cmdetect.Report{Note: "", Missing: 0}, err
+	}
+
+	return loadersFrom(ctx).CMReports.Load(ctx, recordingID)()
+}
+
+// recordingCMDetectionNote は、録画の一覧の印に使う、いつもの見分け方で決められなかった理由を返す。なければ nil (#1508)。
+func (r *Resolver) recordingCMDetectionNote(ctx context.Context, obj *model.Recording) (*string, error) {
+	report, err := recordingCMReport(ctx, obj)
+	if err != nil || report.Note == "" {
+		return nil, err
+	}
+
+	return &report.Note, nil
+}
+
+// recordingCMVideoMissingSeconds は、録画の一覧の印に使う、映像の欠けの長さの合計の秒を返す (#1508)。
+func (r *Resolver) recordingCMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error) {
+	report, err := recordingCMReport(ctx, obj)
+
+	return report.Missing.Seconds(), err
 }
 
 // segmentVideoOf は、セグメントの映像の形式の JSON (#1310) を GraphQL の形にする。なければ nil を返す。

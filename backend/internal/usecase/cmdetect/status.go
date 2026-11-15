@@ -40,6 +40,10 @@ type Status struct {
 	DetectedAt *time.Time
 	// Progress は、見分けているときの、今の試行の進み具合。なければ nil。
 	Progress *Progress
+	// Note は、最後に見分け終えた見分けで、いつもの見分け方で決められなかった理由 (#1508)。決められたか、見分けていなければ空。
+	Note string
+	// VideoMissing は、最後に見分け終えた見分けで測った、映像の欠けの長さの合計 (#1508)。
+	VideoMissing time.Duration
 }
 
 // latestJob は、録画の、最後に入れた見分けのジョブ。
@@ -53,15 +57,18 @@ type latestJob struct {
 // 最後に入れた見分けのジョブ (River の表) と、見分けた記録 (recording_cm_detections) から決める。
 // River は終えたジョブを消すので、ジョブがなければ、見分けた記録だけで決める。
 func RecordingStatus(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*Status, error) {
-	status := &Status{State: StateNotDetected, DetectedAt: nil, Progress: nil}
-	detectedAt, err := sqlc.New(db).GetRecordingCMDetectedAt(ctx, sqlc.GetRecordingCMDetectedAtParams{RecordingID: recordingID, Detector: FFmpegDetectorName})
+	status := &Status{State: StateNotDetected, DetectedAt: nil, Progress: nil, Note: "", VideoMissing: 0}
+	// 見分け方が複数あれば、最後に見分けたものを使う (#1505)。区間 (RecordingSections) と同じ見分けを指す。
+	latest, err := sqlc.New(db).GetLatestRecordingCMDetection(ctx, recordingID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 	case err != nil:
 		return nil, fmt.Errorf("failed to get the CM detection of the recording: %w", err)
 	default:
-		status.DetectedAt = &detectedAt
+		status.DetectedAt = &latest.DetectedAt
 		status.State = StateDetected
+		status.Note = latest.Note
+		status.VideoMissing = time.Duration(latest.VideoMissingMs) * time.Millisecond
 	}
 	job, found, err := lastJob(ctx, db, recordingID)
 	if err != nil {
@@ -117,4 +124,19 @@ func lastJob(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) (*latestJ
 	}
 
 	return &job, true, nil
+}
+
+// LatestReports は、録画 recordingIDs ごとの、最後に見分け終えた見分けの添え書きを、まとめて引く (#1508)。録画の一覧の印に使う。
+// 見分けていない録画は、結果に含めない。
+func LatestReports(ctx context.Context, db sqlc.DBTX, recordingIDs []uuid.UUID) (map[uuid.UUID]Report, error) {
+	rows, err := sqlc.New(db).ListLatestRecordingCMDetectionNotes(ctx, recordingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load the CM detection notes: %w", err)
+	}
+	reports := make(map[uuid.UUID]Report, len(rows))
+	for _, row := range rows {
+		reports[row.RecordingID] = Report{Note: row.Note, Missing: time.Duration(row.VideoMissingMs) * time.Millisecond}
+	}
+
+	return reports, nil
 }

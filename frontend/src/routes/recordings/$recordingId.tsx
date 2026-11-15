@@ -217,6 +217,8 @@ function Recording({ recordingId }: { recordingId: string }) {
             cmDetection {
               state
               detectedAt
+              note
+              videoMissingSeconds
               progress {
                 ratio
                 remainingSeconds

@@ -15,6 +15,10 @@ export type CmDetectionValue = {
     | { readonly ratio: number; readonly remainingSeconds: number | null | undefined }
     | null
     | undefined;
+  // note は、いつもの見分け方で決められなかった理由 (#1508)。決められたら null。
+  readonly note?: string | null | undefined;
+  // videoMissingSeconds は、映像を読めなかった所の長さの合計の秒 (#1508)。
+  readonly videoMissingSeconds?: number | undefined;
 };
 
 // cmPollInterval は、見分けを待っている間と、見分けている間に、状態を読み直す間隔 (ミリ秒)。
@@ -108,6 +112,19 @@ export function CmDetectionStatus({
       {(detection.state === 'NOT_DETECTED' || detection.state === '%future added value') && (
         <Text size="sm" c="dimmed">
           {t('recordings.cm.notDetected')}
+        </Text>
+      )}
+      {/* いつもの見分け方で決められなかったときは、その理由を出す (#1508)。何か書いてあること自体が、精度が出ていない合図になる。 */}
+      {detection.note != null && detection.note !== '' && (
+        <Text size="xs" c="amber.8" style={{ whiteSpace: 'pre-line' }}>
+          {t('recordings.cm.note', { note: detection.note })}
+        </Text>
+      )}
+      {(detection.videoMissingSeconds ?? 0) >= 1 && (
+        <Text size="xs" c="amber.8">
+          {t('recordings.cm.videoMissing', {
+            count: Math.round(detection.videoMissingSeconds ?? 0),
+          })}
         </Text>
       )}
       {/* 見分け直している間と、見分け直しに失敗した後は、前に見分けた区間を使っていると添える。 */}
