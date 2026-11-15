@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -186,5 +187,25 @@ func newStorageJobParts(deps *Deps, logger *slog.Logger) (*storageJobParts, erro
 		newPromoteWorker,
 		newReapPromotionsWorker,
 		wire.Struct(new(storageJobParts), "*"),
+	))
+}
+
+// newMediaHandlers は、画像とファイル (/internal/media/*) のハンドラーのうち、Deps と互いだけで組めるものを作る。
+// urlGate は、録画のダウンロードを有効にしているかを確かめる部品で、newAPI が作って渡す。
+func newMediaHandlers(deps *Deps, logger *slog.Logger, urlGate *settings.URLGate) *mediaHandlers {
+	panic(wire.Build(
+		clockOf,
+		poolOf,
+		mediaStoreOf,
+		captureLoggerOf,
+		newAvatarHandler,
+		newAnimeImageHandler,
+		newThumbnailImageHandler,
+		newTvtplayChapterHandler,
+		newDataBroadcastRelay,
+		newCaptures,
+		newCaptureUploadHandler,
+		newCaptureImageHandler,
+		wire.Struct(new(mediaHandlers), "*"),
 	))
 }
