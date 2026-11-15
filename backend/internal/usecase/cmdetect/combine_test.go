@@ -122,6 +122,20 @@ func TestCombineSectionsNotice(t *testing.T) {
 			shown:  [][2]float64{{0, 300}, {305, 600}},
 			want:   [][2]float64{{300, 305}},
 		},
+		{
+			// ロゴが少し見える 5 秒が 2 つ続いても、告知を続けて CM に入れ、本編へ戻るときの減点を避けることはできない。
+			name:   "two notices in a row do not skip the penalty for returning to the program",
+			bounds: []float64{300, 305, 310},
+			shown:  [][2]float64{{0, 301.5}, {305, 306.5}, {310, 600}},
+			want:   [][2]float64{},
+		},
+		{
+			// 15 秒の CM の中に、10 秒の所で境目の候補があっても、頭の 10 秒を提供に取らない。
+			name:   "a sponsor and a notice do not take the head of a 15-second CM",
+			bounds: []float64{300, 310, 315},
+			shown:  [][2]float64{{0, 300}, {315, 600}},
+			want:   [][2]float64{{300, 315}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

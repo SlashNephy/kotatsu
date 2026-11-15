@@ -45,7 +45,7 @@ const (
 // 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを引く。
 // 本編の直後の 10 秒前後の区間で、次が CM か録画の終わりのものは、提供として本編の側に数え、加点する。
 // 5 秒か 10 秒の区間は、告知として、長さが合うほど足す。本編の直後の告知の後に、CM を挟まずに本編へ戻るときは、大きく引く。
-// 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。告知、番組の頭の切れ目などの細かい規則は、まだ入れていない。
+// 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。番組の頭の切れ目、ロゴの点数の変化などの細かい規則は、まだ入れていない。
 func combineSections(bounds []boundary, duration float64, logo []span) []span {
 	points := make([]float64, 0, len(bounds)+2)
 	points = append(points, 0)
@@ -161,7 +161,7 @@ func (sc *combineScorer) solve(points []float64) *combineTable {
 
 // relax は、i 番目から j 番目の候補までの区間を、本編、提供、告知、CM のそれぞれとみなして、表を更新する。
 // 提供の後は、CM か録画の終わりしか続けられない。提供と本編の直後の告知の前は、本編でなければならない。
-// 本編の直後の告知から、CM を挟まずに本編へ戻るときは、大きく引く。CM の後の告知は、CM の続きとして数える。
+// 本編の直後の告知から、CM を挟まずに本編へ戻るときは、大きく引く。CM の後の告知だけを、CM の続きとして数える。
 func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 	a, b := points[i], points[j]
 	// best は、i 番目の候補で終わる状態のうち、from に含まれるものの最高点と、その状態。penalty は、状態ごとに引く点。
@@ -196,7 +196,9 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 	if v, ok := sc.notice(a, b); ok {
 		base, prev := best(none, stateProgram)
 		update(stateNotice, base, prev, v)
-		base, prev = best(none, stateCM, stateSponsor, stateNotice)
+		// CM の後の告知だけを、CM の続きとして数える。本編の直後の告知や提供の後から告知で CM へ移ると、
+		// 告知から本編へ戻るときの減点を避けたり、本当の CM の頭を提供に取ったりできてしまうため。
+		base, prev = best(none, stateCM)
 		update(stateCM, base, prev, v)
 	}
 	// 端に接しない CM は、CM の最長より遠くの候補からは始められない。
