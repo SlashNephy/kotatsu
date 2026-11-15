@@ -35,6 +35,7 @@ import {
 } from './benchmarkResults';
 import { measureEstimate } from './estimateBenchmark';
 import { TsPlayer } from './TsPlayer';
+import { useCloseWatch } from './WatchHost';
 
 // loadTimeoutMs は、再生を始めるまで待つ時間。これを過ぎたら、その回は測れなかったものとする。
 const loadTimeoutMs = 15_000;
@@ -148,6 +149,7 @@ export function DeviceBenchmark() {
     observer.current.observe(element);
   };
   const abort = useRef<AbortController | null>(null);
+  const closeWatch = useCloseWatch();
 
   // 画面を離れたら、測るのをやめる。
   useEffect(() => () => abort.current?.abort(), []);
@@ -220,6 +222,8 @@ export function DeviceBenchmark() {
 
   const start = async () => {
     abort.current?.abort();
+    // 小さなプレイヤーで再生を続けていると、GPU を取り合って結果が濁るので、閉じてから試す。
+    closeWatch();
     const controller = new AbortController();
     abort.current = controller;
     setReport(null);

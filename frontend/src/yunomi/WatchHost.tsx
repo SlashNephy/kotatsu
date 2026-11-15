@@ -105,6 +105,14 @@ export function useWatchMini(): boolean {
   return useContext(WatchMiniContext);
 }
 
+// useCloseWatch は、視聴の画面 (小さなプレイヤーを含む) を閉じる関数を返す。置き場の外では何もしない。
+// 「この端末で試す」(#1771) が、ほかの再生と重ならないように、試し始める前に閉じる。
+export function useCloseWatch(): () => void {
+  const store = useContext(WatchStoreContext);
+
+  return () => store?.close();
+}
+
 // WatchHostProvider は、視聴の画面の置き場を用意する。ルートの Outlet と WatchHost の両方を包む。
 export function WatchHostProvider({ children }: { children: ReactNode }) {
   const [store] = useState(createWatchStore);

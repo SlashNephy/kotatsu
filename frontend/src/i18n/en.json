@@ -391,7 +391,7 @@
       "interpolationRateFps": "{{rate}} per second",
       "benchmark": {
         "title": "Test this device",
-        "help": "Plays a synthetic video briefly in each display mode and measures whether frames are shown in time. It takes about two minutes; keep this page open while it runs. The results are only shown on this page and are not sent anywhere.",
+        "help": "Plays a synthetic video briefly in each display mode and measures whether frames are shown in time. It takes about two minutes. Any mini player is closed first; keep this page open while it runs. The results are only shown on this page and are not sent anywhere.",
         "start": "Test",
         "cancel": "Cancel",
         "progress": "Display modes tested",
