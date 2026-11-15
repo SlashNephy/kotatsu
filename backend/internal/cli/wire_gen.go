@@ -208,3 +208,32 @@ func newPruneJobParts(deps *Deps) *pruneJobParts {
 	}
 	return cliPruneJobParts
 }
+
+// newMediaJobParts は、録画の後処理のジョブの Worker を作る。inserter は、後のジョブを入れる River のクライアント。
+func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *mediaJobParts {
+	pool := poolOf(deps)
+	store := mediaStoreOf(deps)
+	clock := clockOf(deps)
+	generateWorker := newThumbnailWorker(deps, pool, store, clock)
+	liveWorker := newLiveThumbnailWorker(pool, inserter, clock)
+	analyzeWorker := newAnalyzeWorker(pool, store, clock, inserter)
+	joinWorker := newJoinWorker(pool, store, inserter, logger)
+	finalizeWorker := newFinalizeWorker(pool, store, inserter)
+	lowerer := newLowerer(logger)
+	detectWorker := newCMDetectWorker(pool, store, clock, lowerer, inserter, logger)
+	worker := newTranscodeWorker(deps, pool, store, clock, inserter, lowerer, logger)
+	writeWorker := newTvtplayWorker(pool, store, clock)
+	chaptersWorker := newChaptersWorker(pool, store, clock, lowerer)
+	cliMediaJobParts := &mediaJobParts{
+		thumbnails:     generateWorker,
+		liveThumbnails: liveWorker,
+		analyze:        analyzeWorker,
+		join:           joinWorker,
+		finalize:       finalizeWorker,
+		cmDetect:       detectWorker,
+		transcode:      worker,
+		tvtplay:        writeWorker,
+		chapters:       chaptersWorker,
+	}
+	return cliMediaJobParts
+}

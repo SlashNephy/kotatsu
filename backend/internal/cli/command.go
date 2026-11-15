@@ -46,16 +46,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/lib/logring"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
-	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/query"
-	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
-	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
@@ -67,13 +64,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/scramble"
-	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
-	"github.com/SlashNephy/kotatsu/internal/usecase/transcode"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
@@ -198,39 +193,17 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, recording.NewPromoteWorker(deps.DB, deps.Clock, storeOf(deps.Config), settings.RecordingDefaults, location,
 		logger.With(slog.String("component", "timeshift_promote"))))
 	river.AddWorker(workers, recording.NewReapPromotionsWorker(deps.DB, deps.Clock, logger.With(slog.String("component", "timeshift_promote"))))
-	// 録画を終えたら、代表画像とプレビュー画像を作る (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
-	river.AddWorker(workers, thumbnail.NewGenerateWorker(deps.DB, storeOf(deps.Config), deps.Clock,
-		!deps.Config.Thumbnail.DisablePreview))
-	// 録画中の録画は、一定の間隔で、今の様子の代表画像を作り直す (#1236)。
-	river.AddWorker(workers, thumbnail.NewLiveWorker(deps.DB, inserter, deps.Clock))
-	// 取り込んだ録画は、録画ファイルを読み直して索引と集計を作ってから、画像を作るジョブに渡す (設計書 6.3)。
-	river.AddWorker(workers, analysis.NewAnalyzeWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter))
-	// 引き継ぎや再起動で分かれた録画のファイルは、録画が終わったら 1 つにつなぐ (設計書 5.4)。
-	// つないだあとは、索引と集計を作り直すために、解析のジョブに渡す。
-	// つないだら、管理者が有効にしていれば、TvtPlay のチャプターのファイルを、つないだセグメントで書き直させる (#1737)。
-	river.AddWorker(workers, segjoin.NewJoinWorker(deps.DB, storeOf(deps.Config), inserter,
-		logger.With(slog.String("component", "segjoin")), 0).WithJoinedHook(tvtplay.NewEnqueuer(inserter)))
-	river.AddWorker(workers, segjoin.NewFinalizeWorker(deps.DB, storeOf(deps.Config), inserter))
-	// 録画を終えたら、CM の区間を見分ける (設計書 6.1)。FFmpeg がなければ、ジョブが理由を残して取りやめる。
-	// 録画の後処理の FFmpeg は、OS の最低の優先度で動かし、ライブ視聴の変換 (kyusu) に CPU を譲る (#1511)。
-	lowerer := procprio.New(logger.With(slog.String("component", "procprio")))
-	// CM の区間を見分け終えたら、変換した MP4 にチャプターを書くジョブ (#1510) と、管理者が有効にしていれば、
-	// TS のセグメントの隣に TvtPlay のチャプターのファイルを書くジョブ (#1737) を入れる。
-	river.AddWorker(workers, cmdetect.NewDetectWorker(deps.DB, storeOf(deps.Config), deps.Clock, lowerer,
-		cmdetect.DetectedHooks{transcode.NewChaptersEnqueuer(inserter), tvtplay.NewEnqueuer(inserter)},
-		logger.With(slog.String("component", "cmdetect"))))
-	// 録画を終えた後の変換 (#1253)。映像のエンコーダーは、kyusu と同じ設定を使う。CM の区間があれば、変換し終えたらチャプターを書くジョブを入れる。
-	// 変換の進み具合は、ジョブの画面に出し、詰まったときに見分けられるようログにも出す (#1511)。
-	river.AddWorker(workers, transcode.NewWorker(deps.DB, storeOf(deps.Config), deps.Clock, inserter,
-		logger.With(slog.String("component", "transcode")), func() (transcode.Encoder, error) {
-			return transcode.NewFFmpegEncoder(&deps.Config.Kyusu, lowerer)
-		}))
-	// TS のセグメントの隣に、TvtPlay のチャプターのファイルを書く (#1737)。
-	river.AddWorker(workers, tvtplay.NewWriteWorker(deps.DB, storeOf(deps.Config), deps.Clock))
-	// 変換した MP4 に、CM の区間の境目をチャプターとして書く (#1510)。
-	river.AddWorker(workers, transcode.NewChaptersWorker(deps.DB, storeOf(deps.Config), deps.Clock, func() (transcode.Chapterer, error) {
-		return transcode.NewFFmpegChapterer(lowerer)
-	}))
+	// 録画の後処理 (代表画像、解析、セグメントのつなぎ、CM の区間の見分け、変換、チャプター)。組み方は mediajobs.go に置く。
+	media := newMediaJobParts(deps, logger, inserter)
+	river.AddWorker(workers, media.thumbnails)
+	river.AddWorker(workers, media.liveThumbnails)
+	river.AddWorker(workers, media.analyze)
+	river.AddWorker(workers, media.join)
+	river.AddWorker(workers, media.finalize)
+	river.AddWorker(workers, media.cmDetect)
+	river.AddWorker(workers, media.transcode)
+	river.AddWorker(workers, media.tvtplay)
+	river.AddWorker(workers, media.chapters)
 	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
 	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
