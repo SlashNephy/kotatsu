@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 )
 
@@ -110,9 +111,14 @@ func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts
 		poolOf,
 		audit.NewRecorder,
 		wire.Bind(new(audit.Recorder), new(*audit.DBRecorder)),
+		locationOf,
 		newWebhookStore,
 		newWebPush,
 		newDispatcher,
+		notification.NewDispatchWorker,
+		newWebhookDeliverWorker,
+		newWebPushDeliverWorker,
+		newWatchNotifyWorker,
 		wire.Struct(new(notificationParts), "*"),
 	))
 }
@@ -142,6 +148,8 @@ func newPruneJobParts(deps *Deps) *pruneJobParts {
 		newNotificationPruneWorker,
 		newWatchProgressPruneWorker,
 		newNetworkActivityPruneWorker,
+		newSessionPruneWorker,
+		newOAuthPruneWorker,
 		wire.Struct(new(pruneJobParts), "*"),
 	))
 }
@@ -163,5 +171,20 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 		newTvtplayWorker,
 		newChaptersWorker,
 		wire.Struct(new(mediaJobParts), "*"),
+	))
+}
+
+// newStorageJobParts は、保存先プールの容量と、タイムシフトのバッファを扱うジョブの Worker を作る。
+func newStorageJobParts(deps *Deps, logger *slog.Logger) (*storageJobParts, error) {
+	panic(wire.Build(
+		clockOf,
+		poolOf,
+		mediaStoreOf,
+		locationOf,
+		newCapacityCheckWorker,
+		newTimeshiftPruneWorker,
+		newPromoteWorker,
+		newReapPromotionsWorker,
+		wire.Struct(new(storageJobParts), "*"),
 	))
 }

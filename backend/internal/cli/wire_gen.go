@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 	"log/slog"
 )
@@ -151,20 +152,29 @@ func newNotificationParts(deps *Deps, inserter *jobs.Client) (*notificationParts
 	pool := poolOf(deps)
 	clock := clockOf(deps)
 	dispatcher := newDispatcher(pool, clock, inserter)
+	dispatchWorker := notification.NewDispatchWorker(dispatcher)
 	dbRecorder := audit.NewRecorder(clock)
 	cliAppSecret := appSecretOf(deps)
 	store, err := newWebhookStore(clock, dbRecorder, cliAppSecret)
 	if err != nil {
 		return nil, err
 	}
+	location, err := locationOf(deps)
+	if err != nil {
+		return nil, err
+	}
+	deliverWorker := newWebhookDeliverWorker(deps, pool, store, clock, location)
 	service, err := newWebPush(clock, cliAppSecret)
 	if err != nil {
 		return nil, err
 	}
+	webpushDeliverWorker := newWebPushDeliverWorker(deps, pool, service, clock, location)
+	notifyWorker := newWatchNotifyWorker(pool, clock)
 	cliNotificationParts := &notificationParts{
-		dispatcher: dispatcher,
-		webhooks:   store,
-		webPush:    service,
+		dispatch:        dispatchWorker,
+		webhookDelivery: deliverWorker,
+		webPushDelivery: webpushDeliverWorker,
+		watchNotify:     notifyWorker,
 	}
 	return cliNotificationParts, nil
 }
@@ -197,11 +207,15 @@ func newPruneJobParts(deps *Deps) *pruneJobParts {
 	pool := poolOf(deps)
 	clock := clockOf(deps)
 	pruneWorker := newAuditPruneWorker(deps, pool, clock)
+	pruneSessionsWorker := newSessionPruneWorker(pool, clock)
+	oauthPruneWorker := newOAuthPruneWorker(pool, clock)
 	notificationPruneWorker := newNotificationPruneWorker(pool, clock)
 	pruneProgressWorker := newWatchProgressPruneWorker(pool, clock)
 	networkactivityPruneWorker := newNetworkActivityPruneWorker(pool, clock)
 	cliPruneJobParts := &pruneJobParts{
 		audit:           pruneWorker,
+		sessions:        pruneSessionsWorker,
+		oauth:           oauthPruneWorker,
 		notifications:   notificationPruneWorker,
 		watchProgress:   pruneProgressWorker,
 		networkActivity: networkactivityPruneWorker,
@@ -236,4 +250,26 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 		chapters:       chaptersWorker,
 	}
 	return cliMediaJobParts
+}
+
+// newStorageJobParts は、保存先プールの容量と、タイムシフトのバッファを扱うジョブの Worker を作る。
+func newStorageJobParts(deps *Deps, logger *slog.Logger) (*storageJobParts, error) {
+	pool := poolOf(deps)
+	clock := clockOf(deps)
+	store := mediaStoreOf(deps)
+	checkWorker := newCapacityCheckWorker(pool, clock, store, logger)
+	pruneWorker := newTimeshiftPruneWorker(pool, clock, store, logger)
+	location, err := locationOf(deps)
+	if err != nil {
+		return nil, err
+	}
+	promoteWorker := newPromoteWorker(pool, clock, store, location, logger)
+	reapPromotionsWorker := newReapPromotionsWorker(pool, clock, logger)
+	cliStorageJobParts := &storageJobParts{
+		capacity:       checkWorker,
+		timeshiftPrune: pruneWorker,
+		promote:        promoteWorker,
+		reapPromotions: reapPromotionsWorker,
+	}
+	return cliStorageJobParts, nil
 }
