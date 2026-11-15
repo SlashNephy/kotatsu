@@ -211,6 +211,12 @@ void main() {
 // 動く背景の上の、止まったテロップの縁のように、1 つのブロックに動く所と止まった所が入ると、ブロックのずれで
 // 止まった所までずらして読み、テロップの色を周りへにじませる (#1655)。画素ごとに、合う方を選んで防ぐ。
 export const stillPreference = 0.1;
+// stillMatch は、ずらさずに読んだ方を選ぶのに、その値が、ずらして読んだ 2 画素のどちらかに近いことを求める、
+// 色の差の幅 (下の端と上の端)。テロップの縁では、ずらして読んだ片方が、止まったテロップか背景をそのまま見ている。
+// 止まった背景の上を細い物 (流れる文字など) が動くときは、ずらして読んだ 2 画素がどちらも動く物を見ていて、
+// ずらさずに読んだ 2 画素は背景で一致する。この条件がないと、動く物を背景で消してしまう。
+export const stillMatchLow = 0.05;
+export const stillMatchHigh = 0.15;
 
 // 時刻 uT (0 なら前のコマ、1 なら後のコマ) のコマを作る。動きは、ブロックの間を線形に補う。
 // 動きを当てにできない所は、近い方のコマをそのまま出す。境目がくっきりしないよう、閾値の前後でなだらかに混ぜる。
@@ -238,10 +244,16 @@ void main() {
   vec4 nextStill = texture(uNext, uv);
   float movedDiff = dot(abs(previousMoved.rgb - nextMoved.rgb), vec3(1.0));
   float stillDiff = dot(abs(previousStill.rgb - nextStill.rgb), vec3(1.0));
+  vec4 still = mix(previousStill, nextStill, uT);
+  float stillMatch = min(
+    dot(abs(still.rgb - previousMoved.rgb), vec3(1.0)),
+    dot(abs(still.rgb - nextMoved.rgb), vec3(1.0))
+  );
   vec4 interpolated = mix(
     mix(previousMoved, nextMoved, uT),
-    mix(previousStill, nextStill, uT),
-    smoothstep(0.0, ${stillPreference}, movedDiff - stillDiff)
+    still,
+    smoothstep(0.0, ${stillPreference}, movedDiff - stillDiff) *
+      (1.0 - smoothstep(${stillMatchLow}, ${stillMatchHigh}, stillMatch))
   );
   vec4 nearest = uT < 0.5 ? previousStill : nextStill;
   float unreliable = max(
