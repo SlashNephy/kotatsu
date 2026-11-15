@@ -35,6 +35,7 @@ import {
 } from '../../yunomi/frameInterpolation';
 import { useCaptureFileNameTemplate } from '../../yunomi/captureFileNameTemplate';
 import { DataBroadcastStorageReset } from '../../yunomi/DataBroadcastStorageReset';
+import { DeviceBenchmark } from '../../yunomi/DeviceBenchmark';
 import { DataBroadcastZipcodeInput } from '../../yunomi/DataBroadcastZipcodeInput';
 import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLowLatency } from '../../yunomi/liveCatchUp';
@@ -369,6 +370,9 @@ function PlayerSettings() {
           )}
         </Stack>
       </Card>
+
+      {/* 補間やフィールドごとの表示を入れてよいかを、この端末で試す (#1771)。 */}
+      <DeviceBenchmark />
 
       <ShortcutKeysCard />
 

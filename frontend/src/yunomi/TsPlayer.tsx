@@ -5,7 +5,7 @@ import type {
   PrivateStream,
   Stats,
 } from '@mpeg2toh264/player';
-import type { Deinterlacer } from '@mpeg2toh264/yadif';
+import type { Deinterlacer, DeinterlaceStats } from '@mpeg2toh264/yadif';
 import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'react';
 
 import { audioChoices, currentAudioChoice } from './audio';
@@ -16,7 +16,11 @@ import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
 import { createDeinterlacer, deinterlacerCanvas, enableFilm } from './deinterlacer';
 import { createLateWatch, useFieldRate } from './fieldRate';
-import { useInterpolation, useInterpolationRate } from './frameInterpolation';
+import {
+  type InterpolationRate,
+  useInterpolation,
+  useInterpolationRate,
+} from './frameInterpolation';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -70,6 +74,18 @@ type Props = {
   onReading?: (reading: TsPlayerReading) => void;
   // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
   coverRef?: RefObject<PlayerCover | null>;
+  // settings は、端末ごとの設定 (フィールドごとの表示、コマの補間、補間したコマを出す回数の上限) の代わりに使う値 (#1771)。
+  // 「この端末で試す」が、利用者の設定を書き換えずに、経路ごとに表示を切り替えるために使う。省いた値は、設定から読む。
+  settings?: PlayerSettingsOverride;
+  // onDeinterlaceStats は、yadif が統計を知らせるたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
+  onDeinterlaceStats?: (stats: DeinterlaceStats, fieldRateDropped: boolean) => void;
+};
+
+// PlayerSettingsOverride は、TsPlayer が端末ごとの設定の代わりに使う値 (#1771)。
+export type PlayerSettingsOverride = {
+  fieldRate?: boolean;
+  interpolate?: boolean;
+  interpolationRate?: InterpolationRate;
 };
 
 // Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
@@ -191,6 +207,8 @@ export function TsPlayer({
   audio = null,
   onReading,
   coverRef,
+  settings,
+  onDeinterlaceStats,
 }: Props) {
   // active は、映っている組。pending は、切り替えるために裏で読み込んでいる組。
   const activeRef = useRef<Slot | null>(null);
@@ -206,18 +224,38 @@ export function TsPlayer({
   const styleRef = useRef(captionStyle);
   styleRef.current = captionStyle;
   const [ready, setReady] = useState(false);
-  const handlers = useRef({ onState, onError, onLoaded, onAudio, onVideo, onReading });
-  handlers.current = { onState, onError, onLoaded, onAudio, onVideo, onReading };
+  const handlers = useRef({
+    onState,
+    onError,
+    onLoaded,
+    onAudio,
+    onVideo,
+    onReading,
+    onDeinterlaceStats,
+  });
+  handlers.current = {
+    onState,
+    onError,
+    onLoaded,
+    onAudio,
+    onVideo,
+    onReading,
+    onDeinterlaceStats,
+  };
   const audioRef = useRef(audio);
   audioRef.current = audio;
   // fieldRate は、1080i をフィールドごとに 59.94p で表示するか (#1655)。端末ごとの設定から読む。
-  const [fieldRate] = useFieldRate();
+  const [savedFieldRate] = useFieldRate();
+  const fieldRate = settings?.fieldRate ?? savedFieldRate;
   // interpolate は、24p と 29.97p のコマの間を補間するか (#1655)。端末ごとの設定から読む。
-  const [interpolate] = useInterpolation();
+  const [savedInterpolate] = useInterpolation();
+  const interpolate = settings?.interpolate ?? savedInterpolate;
   const interpolateRef = useRef(interpolate);
   interpolateRef.current = interpolate;
   // interpolationRate は、補間したコマを出す回数の上限。描くたびに読むので、ref で渡す。
-  const [interpolationRate] = useInterpolationRate();
+  const [savedInterpolationRate] = useInterpolationRate();
+  const interpolationRate =
+    settings?.interpolationRate === undefined ? savedInterpolationRate : settings.interpolationRate;
   const interpolationRateRef = useRef(interpolationRate);
   interpolationRateRef.current = interpolationRate;
   const fieldRateRef = useRef(fieldRate);
@@ -353,6 +391,9 @@ export function TsPlayer({
             reported.scheduled !== scheduled;
           slot.film = stats.film;
           slot.shownFps = scheduled ? stats.fps : null;
+          if (isActive()) {
+            handlers.current.onDeinterlaceStats?.(stats, slot.fieldRateDropped);
+          }
           reported = { dropped: slot.fieldRateDropped, scheduled };
           if (changed || scheduled) {
             report();
