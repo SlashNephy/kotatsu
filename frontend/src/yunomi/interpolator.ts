@@ -18,11 +18,11 @@ export const stillRatio = 0.85;
 export const stillMargin = 0.004;
 // mismatchThreshold は、見つけたブロックの 1 画素あたりの差 (0〜1) がこれを超えたら、動きを当てにしない値。
 // 場面の切り替わりや、隠れていたものが現れた所では、どこにも似た所がないので、補間せずに近い方のコマを出す。
-export const mismatchThreshold = 0.06;
+export const mismatchThreshold = 0.1;
 // sceneCutRatio は、動きを当てにしないブロックの割合がこれを超えたら、2 コマの間で場面が切り替わったとみなす値。
 // 切り替わりでも、前後の場面で偶然似たブロックは閾値を下回り、前の場面の断片を新しい場面に混ぜてしまう (#1655)。
 // 切り替わったとみなしたら、コマ全体を近い方のコマにする。
-export const sceneCutRatio = 0.4;
+export const sceneCutRatio = 0.3;
 
 const vertexShader = `#version 300 es
 void main() {
@@ -206,6 +206,12 @@ void main() {
 }
 `;
 
+// stillPreference は、画素ごとに、ずらさずに読んだ前後の 2 画素を選ぶ、色の差 (RGB の差の和、0〜3) の幅。
+// ずらして読んだ 2 画素より、ずらさずに読んだ 2 画素の方が、この幅だけ近ければ、ずらさずに読んだ方を使う。
+// 動く背景の上の、止まったテロップの縁のように、1 つのブロックに動く所と止まった所が入ると、ブロックのずれで
+// 止まった所までずらして読み、テロップの色を周りへにじませる (#1655)。画素ごとに、合う方を選んで防ぐ。
+export const stillPreference = 0.1;
+
 // 時刻 uT (0 なら前のコマ、1 なら後のコマ) のコマを作る。動きは、ブロックの間を線形に補う。
 // 動きを当てにできない所は、近い方のコマをそのまま出す。境目がくっきりしないよう、閾値の前後でなだらかに混ぜる。
 // 場面が切り替わったときは、コマ全体を近い方のコマにする。
@@ -226,12 +232,18 @@ void main() {
   vec4 m = texture(uVectors, uv);
   // ずれは、動きを推し量った輝度の画素なので、その大きさで割って、テクスチャの座標にする。
   vec2 motion = (m.rg * 255.0 - R) / uLumaSize;
+  vec4 previousMoved = texture(uPrevious, uv - uT * motion);
+  vec4 nextMoved = texture(uNext, uv + (1.0 - uT) * motion);
+  vec4 previousStill = texture(uPrevious, uv);
+  vec4 nextStill = texture(uNext, uv);
+  float movedDiff = dot(abs(previousMoved.rgb - nextMoved.rgb), vec3(1.0));
+  float stillDiff = dot(abs(previousStill.rgb - nextStill.rgb), vec3(1.0));
   vec4 interpolated = mix(
-    texture(uPrevious, uv - uT * motion),
-    texture(uNext, uv + (1.0 - uT) * motion),
-    uT
+    mix(previousMoved, nextMoved, uT),
+    mix(previousStill, nextStill, uT),
+    smoothstep(0.0, ${stillPreference}, movedDiff - stillDiff)
   );
-  vec4 nearest = uT < 0.5 ? texture(uPrevious, uv) : texture(uNext, uv);
+  vec4 nearest = uT < 0.5 ? previousStill : nextStill;
   float unreliable = max(
     smoothstep(threshold * 0.7, threshold * 1.3, m.b),
     texelFetch(uScene, ivec2(0), 0).r
