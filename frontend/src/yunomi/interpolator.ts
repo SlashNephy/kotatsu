@@ -7,6 +7,10 @@
 export const blockSize = 8;
 // searchRange は、ブロックを探す範囲 (半分の解像度での画素、上下左右)。原寸では ±16 画素になる。
 export const searchRange = 8;
+// coarsePad は、1/4 の解像度で粗く探すときに、ブロックの周りに足して比べる幅 (1/4 の解像度での画素)。
+// 棚や水玉のような細かい繰り返しの模様では、ブロックだけを比べると、1 周期ずれた所を選びやすい。
+// 周りも比べると、模様の外の手掛かりで正しいずれを選べる。
+export const coarsePad = 2;
 // stillRatio と stillMargin は、動いていないとみなす差の割合と幅。見つけた場所の差が、ずれのないときの差の
 // stillRatio 倍より大きいか、1 画素あたり stillMargin (0〜1 の輝度) しか小さくなければ、動いていないとみなす。
 // 浮動小数点の定数として GLSL に埋めるので、小数で書く。
@@ -36,25 +40,38 @@ void main() {
 }
 `;
 
-// ブロックごとに、後のコマのブロックが前のコマのどこから来たかを総当たりで探す。
-// RGBA8 に、ずれ (dx, dy) に searchRange を足したものと、1 画素あたりの差を入れる。浮動小数点の描画先に頼らない。
-const estimateShader = `#version 300 es
+// 輝度を、さらに半分の解像度にする。線形に読むので、2×2 の平均になる。
+const reduceShader = `#version 300 es
+precision highp float;
+uniform sampler2D uSource;
+uniform vec2 uOutputSize;
+out vec4 color;
+void main() {
+  color = vec4(texture(uSource, gl_FragCoord.xy / uOutputSize).r, 0.0, 0.0, 1.0);
+}
+`;
+
+// 動きは 2 段で探す。半分の解像度での総当たりは、内蔵 GPU (UHD Graphics 770) で 1 回 47ms かかり、
+// 24p の 1 コマの間にも終わらないため (#1655)。
+// まず 1/4 の解像度で、ブロックとその周り (coarsePad) を、範囲の全体で総当たりして比べる。画素が 1/4 なので軽い。
+// RGBA8 に、ずれ (dx, dy) に coarseRange を足したものを入れる。
+const coarseRange = searchRange / 2;
+const coarseShader = `#version 300 es
 precision highp float;
 precision highp int;
 uniform sampler2D uPrevious;
 uniform sampler2D uNext;
 out vec4 color;
-const int B = ${blockSize};
-const int R = ${searchRange};
-const float stillRatio = ${stillRatio};
-const float stillMargin = ${stillMargin};
+const int B = ${blockSize / 2};
+const int W = B + 2 * ${coarsePad};
+const int R = ${coarseRange};
 void main() {
-  ivec2 base = ivec2(gl_FragCoord.xy) * B;
+  ivec2 base = ivec2(gl_FragCoord.xy) * B - ${coarsePad};
   ivec2 last = textureSize(uPrevious, 0) - 1;
-  float block[B * B];
-  for (int y = 0; y < B; y++) {
-    for (int x = 0; x < B; x++) {
-      block[y * B + x] = texelFetch(uNext, min(base + ivec2(x, y), last), 0).r;
+  float block[W * W];
+  for (int y = 0; y < W; y++) {
+    for (int x = 0; x < W; x++) {
+      block[y * W + x] = texelFetch(uNext, clamp(base + ivec2(x, y), ivec2(0), last), 0).r;
     }
   }
   float best = 1e9;
@@ -62,18 +79,84 @@ void main() {
   for (int dy = -R; dy <= R; dy++) {
     for (int dx = -R; dx <= R; dx++) {
       float sad = 0.0;
-      for (int y = 0; y < B; y++) {
-        for (int x = 0; x < B; x++) {
+      for (int y = 0; y < W; y++) {
+        for (int x = 0; x < W; x++) {
           ivec2 q = clamp(base + ivec2(x, y) - ivec2(dx, dy), ivec2(0), last);
-          sad += abs(texelFetch(uPrevious, q, 0).r - block[y * B + x]);
+          sad += abs(texelFetch(uPrevious, q, 0).r - block[y * W + x]);
         }
       }
       // 差が同じくらいなら、動きの小さい方を選ぶ。平らな所で、でたらめな動きを拾わないため。
-      sad += 0.002 * float(abs(dx) + abs(dy));
+      // 1 画素あたりの重みは、半分の解像度で探す段と同じにする (ずれ 1 は、半分の解像度の 2 画素)。
+      sad += 0.002 / 32.0 * float(W * W) * float(abs(dx) + abs(dy));
       if (sad < best) {
         best = sad;
         found = ivec2(dx, dy);
       }
+    }
+  }
+  color = vec4(vec2(found + R) / 255.0, 0.0, 1.0);
+}
+`;
+
+// 次に半分の解像度で、粗く見つけたずれを 2 倍にした所の周り (±1) と、上下左右のブロックが粗く見つけたずれを試して、
+// 最も合うものを選ぶ。隣のずれも試すのは、粗い解像度で小さな物の動きを取り違えたブロックを、隣から直すため。
+// RGBA8 に、ずれ (dx, dy) に searchRange を足したものと、1 画素あたりの差を入れる。浮動小数点の描画先に頼らない。
+const estimateShader = `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D uPrevious;
+uniform sampler2D uNext;
+uniform sampler2D uCoarse;
+out vec4 color;
+const int B = ${blockSize};
+const int R = ${searchRange};
+const int CR = ${coarseRange};
+const float stillRatio = ${stillRatio};
+const float stillMargin = ${stillMargin};
+float block[B * B];
+ivec2 base;
+ivec2 last;
+float sadAt(ivec2 d) {
+  float sad = 0.0;
+  for (int y = 0; y < B; y++) {
+    for (int x = 0; x < B; x++) {
+      ivec2 q = clamp(base + ivec2(x, y) - d, ivec2(0), last);
+      sad += abs(texelFetch(uPrevious, q, 0).r - block[y * B + x]);
+    }
+  }
+  return sad;
+}
+ivec2 coarseAt(ivec2 cell) {
+  ivec2 cells = textureSize(uCoarse, 0) - 1;
+  vec2 v = texelFetch(uCoarse, clamp(cell, ivec2(0), cells), 0).rg;
+  return (ivec2(round(v * 255.0)) - CR) * 2;
+}
+void main() {
+  ivec2 cell = ivec2(gl_FragCoord.xy);
+  base = cell * B;
+  last = textureSize(uPrevious, 0) - 1;
+  for (int y = 0; y < B; y++) {
+    for (int x = 0; x < B; x++) {
+      block[y * B + x] = texelFetch(uNext, min(base + ivec2(x, y), last), 0).r;
+    }
+  }
+  float best = 1e9;
+  ivec2 found = ivec2(0);
+  ivec2 center = coarseAt(cell);
+  ivec2 neighbors[4] = ivec2[4](
+    coarseAt(cell + ivec2(-1, 0)),
+    coarseAt(cell + ivec2(1, 0)),
+    coarseAt(cell + ivec2(0, -1)),
+    coarseAt(cell + ivec2(0, 1))
+  );
+  for (int i = 0; i < 13; i++) {
+    ivec2 d = i < 9 ? center + ivec2(i % 3 - 1, i / 3 - 1) : neighbors[i - 9];
+    d = clamp(d, ivec2(-R), ivec2(R));
+    // 差が同じくらいなら、動きの小さい方を選ぶ。平らな所で、でたらめな動きを拾わないため。
+    float sad = sadAt(d) + 0.002 * float(abs(d.x) + abs(d.y));
+    if (sad < best) {
+      best = sad;
+      found = d;
     }
   }
   // 動いていない所を優先する。粒状のノイズのある平らな所では、ずれのない所とずれた所の差がノイズ程度しかなく、
@@ -140,6 +223,8 @@ export type Interpolator = {
 
 type Programs = {
   downsample: WebGLProgram;
+  reduce: WebGLProgram;
+  coarse: WebGLProgram;
   estimate: WebGLProgram;
   compose: WebGLProgram;
 };
@@ -275,6 +360,8 @@ function deleteTarget(gl: WebGL2RenderingContext, target: Target): void {
 export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   const programs: Programs = {
     downsample: compile(gl, downsampleShader),
+    reduce: compile(gl, reduceShader),
+    coarse: compile(gl, coarseShader),
     estimate: compile(gl, estimateShader),
     compose: compile(gl, composeShader),
   };
@@ -291,18 +378,24 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   let sized: { width: number; height: number } | null = null;
   let previousLuma: Target | null = null;
   let nextLuma: Target | null = null;
+  let previousQuarter: Target | null = null;
+  let nextQuarter: Target | null = null;
+  let coarse: Target | null = null;
   let vectors: Target | null = null;
   // pair は、最後に estimate した 2 コマ。
   let pair: { previous: WebGLTexture; next: WebGLTexture } | null = null;
 
   const release = () => {
-    for (const target of [previousLuma, nextLuma, vectors]) {
+    for (const target of [previousLuma, nextLuma, previousQuarter, nextQuarter, coarse, vectors]) {
       if (target !== null) {
         deleteTarget(gl, target);
       }
     }
     previousLuma = null;
     nextLuma = null;
+    previousQuarter = null;
+    nextQuarter = null;
+    coarse = null;
     vectors = null;
     sized = null;
   };
@@ -316,13 +409,14 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
     const halfHeight = Math.ceil(height / 2);
     previousLuma = createTarget(gl, halfWidth, halfHeight, gl.R8, gl.NEAREST);
     nextLuma = createTarget(gl, halfWidth, halfHeight, gl.R8, gl.NEAREST);
-    vectors = createTarget(
-      gl,
-      Math.ceil(halfWidth / blockSize),
-      Math.ceil(halfHeight / blockSize),
-      gl.RGBA8,
-      gl.LINEAR,
-    );
+    const quarterWidth = Math.ceil(halfWidth / 2);
+    const quarterHeight = Math.ceil(halfHeight / 2);
+    previousQuarter = createTarget(gl, quarterWidth, quarterHeight, gl.R8, gl.NEAREST);
+    nextQuarter = createTarget(gl, quarterWidth, quarterHeight, gl.R8, gl.NEAREST);
+    const cellsX = Math.ceil(halfWidth / blockSize);
+    const cellsY = Math.ceil(halfHeight / blockSize);
+    coarse = createTarget(gl, cellsX, cellsY, gl.RGBA8, gl.NEAREST);
+    vectors = createTarget(gl, cellsX, cellsY, gl.RGBA8, gl.LINEAR);
     sized = { width, height };
   };
 
@@ -355,24 +449,35 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
       try {
         prepare();
         resize(width, height);
-        if (previousLuma === null || nextLuma === null || vectors === null) {
+        if (
+          previousLuma === null ||
+          nextLuma === null ||
+          previousQuarter === null ||
+          nextQuarter === null ||
+          coarse === null ||
+          vectors === null
+        ) {
           return;
         }
-        for (const [source, target] of [
-          [previous, previousLuma],
-          [next, nextLuma],
+        for (const [program, source, target] of [
+          [programs.downsample, previous, previousLuma],
+          [programs.downsample, next, nextLuma],
+          [programs.reduce, previousLuma.texture, previousQuarter],
+          [programs.reduce, nextLuma.texture, nextQuarter],
         ] as const) {
-          bind(programs.downsample, [['uSource', source]]);
-          gl.uniform2f(
-            gl.getUniformLocation(programs.downsample, 'uOutputSize'),
-            target.width,
-            target.height,
-          );
+          bind(program, [['uSource', source]]);
+          gl.uniform2f(gl.getUniformLocation(program, 'uOutputSize'), target.width, target.height);
           drawTo(target, target.width, target.height);
         }
+        bind(programs.coarse, [
+          ['uPrevious', previousQuarter.texture],
+          ['uNext', nextQuarter.texture],
+        ]);
+        drawTo(coarse, coarse.width, coarse.height);
         bind(programs.estimate, [
           ['uPrevious', previousLuma.texture],
           ['uNext', nextLuma.texture],
+          ['uCoarse', coarse.texture],
         ]);
         drawTo(vectors, vectors.width, vectors.height);
         pair = { previous, next };
@@ -409,6 +514,8 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
       gl.deleteVertexArray(vertexArray);
       gl.deleteSampler(linear);
       gl.deleteProgram(programs.downsample);
+      gl.deleteProgram(programs.reduce);
+      gl.deleteProgram(programs.coarse);
       gl.deleteProgram(programs.estimate);
       gl.deleteProgram(programs.compose);
     },
