@@ -12,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/streamapi"
 	"log/slog"
 )
@@ -272,4 +273,31 @@ func newStorageJobParts(deps *Deps, logger *slog.Logger) (*storageJobParts, erro
 		reapPromotions: reapPromotionsWorker,
 	}
 	return cliStorageJobParts, nil
+}
+
+// newMediaHandlers は、画像とファイル (/internal/media/*) のハンドラーのうち、Deps と互いだけで組めるものを作る。
+// urlGate は、録画のダウンロードを有効にしているかを確かめる部品で、newAPI が作って渡す。
+func newMediaHandlers(deps *Deps, logger *slog.Logger, urlGate *settings.URLGate) *mediaHandlers {
+	pool := poolOf(deps)
+	handler := newAvatarHandler(deps, pool, logger)
+	animeimageHandler := newAnimeImageHandler(deps, pool, logger)
+	store := mediaStoreOf(deps)
+	imageHandler := newThumbnailImageHandler(pool, store, logger)
+	chapterHandler := newTvtplayChapterHandler(pool, urlGate, logger)
+	clock := clockOf(deps)
+	relay := newDataBroadcastRelay(deps, pool, clock, logger)
+	cliCaptureLogger := captureLoggerOf(logger)
+	captures := newCaptures(store, clock, cliCaptureLogger)
+	uploadHandler := newCaptureUploadHandler(pool, captures, cliCaptureLogger)
+	captureapiImageHandler := newCaptureImageHandler(pool, store, cliCaptureLogger)
+	cliMediaHandlers := &mediaHandlers{
+		avatars:       handler,
+		animeImages:   animeimageHandler,
+		thumbnails:    imageHandler,
+		tvtplay:       chapterHandler,
+		dataBroadcast: relay,
+		captureUpload: uploadHandler,
+		captureImage:  captureapiImageHandler,
+	}
+	return cliMediaHandlers
 }

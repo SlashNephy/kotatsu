@@ -52,7 +52,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
-	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
@@ -71,11 +70,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
-	"github.com/SlashNephy/kotatsu/internal/web/animeimage"
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
-	"github.com/SlashNephy/kotatsu/internal/web/avatar"
 	"github.com/SlashNephy/kotatsu/internal/web/calendarapi"
-	"github.com/SlashNephy/kotatsu/internal/web/captureapi"
 	"github.com/SlashNephy/kotatsu/internal/web/databroadcastapi"
 	"github.com/SlashNephy/kotatsu/internal/web/epgstationapi"
 	"github.com/SlashNephy/kotatsu/internal/web/graph"
@@ -1075,23 +1071,24 @@ func newMediaRoutes(
 ) sessionRoutes {
 	routes := sessionRoutes{}
 	streamLogger := logger.With(slog.String("component", "stream"))
+	// Deps と互いだけで組めるハンドラーは、wire で組む (#1607)。組み方は mediahandlers.go に置く。
+	handlers := newMediaHandlers(deps, logger, urlGate)
 	// サービスのロゴは、チューナーサーバーから取って中継する。
 	routes.add(http.MethodGet, "/internal/media/services/:id/logo", authorizer.Session(streamapi.NewLogoHandler(logos, servicelogo.NewStore(deps.DB), streamLogger)))
 	// ユーザーのアイコンは、IdP から取って中継する (#778)。
 	routes.add(http.MethodGet, "/internal/media/users/:id/avatar",
-		authorizer.Session(avatar.NewHandler(deps.DB, deps.Config.Auth.OIDC.Issuer, logger.With(slog.String("component", "avatar")), deps.Network)))
+		authorizer.Session(handlers.avatars))
 	// 見たいリストの作品の画像は、記録先が示した URL から取って中継する (#1235)。
-	animeImages := animeimage.NewHandler(deps.DB, logger.With(slog.String("component", "anime_image")), deps.Network)
-	routes.add(http.MethodGet, "/internal/media/anime-works/:destination/:workId/image", authorizer.Session(animeImages))
+	routes.add(http.MethodGet, "/internal/media/anime-works/:destination/:workId/image", authorizer.Session(handlers.animeImages))
 	// フォロー中のユーザーのアバターも、記録先が示した URL から取って中継する (#1372)。
 	routes.add(http.MethodGet, "/internal/media/anime-following/:destination/:username/avatar",
-		authorizer.Session(http.HandlerFunc(animeImages.ServeFollowingAvatar)))
+		authorizer.Session(http.HandlerFunc(handlers.animeImages.ServeFollowingAvatar)))
 	// 録画の代表画像とプレビュー画像も、このインスタンスにマウントしたプールのものだけ配信できる。
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/:file",
-		authorizer.Session(thumbnail.NewImageHandler(deps.DB, storeOf(deps.Config), streamLogger)))
+		authorizer.Session(handlers.thumbnails))
 	// 録画をダウンロードした TS と組で使う、TvtPlay の CM のチャプターのファイル (#1737)。
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+tvtplay.ChapterFileName,
-		authorizer.Session(tvtplay.NewChapterHandler(deps.DB, urlGate, logger.With(slog.String("component", "tvtplay")))))
+		authorizer.Session(handlers.tvtplay))
 	// 録画の時間帯の実況の過去ログは、過去ログ API から取って中継する (設計書 7.4)。
 	jikkyoComments := jikkyoapi.NewCommentsHandler(deps.DB, jikkyoTable, jikkyoClient, deps.Clock, logger.With(slog.String("component", "jikkyo")))
 	routes.add(http.MethodGet, "/internal/media/recordings/:id/"+jikkyoapi.CommentsFileName, authorizer.Session(jikkyoComments))
@@ -1110,15 +1107,11 @@ func newMediaRoutes(
 	})))
 	// データ放送の文書の双方向の通信は、管理者が有効にしたときだけ、tenban が中継する (#501、設計書 7.4)。
 	// 外部へ送るのは、ログイン中のユーザーの操作に限るので、セッションでだけ受け付け、ほかのオリジンからは受け付けない。
-	dataBroadcast := databroadcastapi.New(deps.DB, deps.Clock, logger.With(slog.String("component", "data_broadcast")), deps.Network)
-	routes.add(http.MethodPost, databroadcastapi.RequestPath, httpserver.RequireSameOrigin(dataBroadcast.RequestHandler()))
-	routes.add(http.MethodPost, databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(dataBroadcast.ConnectivityHandler()))
+	routes.add(http.MethodPost, databroadcastapi.RequestPath, httpserver.RequireSameOrigin(handlers.dataBroadcast.RequestHandler()))
+	routes.add(http.MethodPost, databroadcastapi.ConnectivityPath, httpserver.RequireSameOrigin(handlers.dataBroadcast.ConnectivityHandler()))
 	// キャプチャは、データディレクトリに置く (設計書 5.6、7.5)。受け取るのは状態を変えるので、ほかのオリジンからは受け付けない。
-	captureLogger := logger.With(slog.String("component", "capture"))
-	dataStore := storeOf(deps.Config)
-	captures := capture.New(dataStore, deps.Clock, captureLogger, 0)
-	routes.add(http.MethodPost, "/internal/media/captures", httpserver.RequireSameOrigin(captureapi.NewUploadHandler(deps.DB, captures, captureLogger)))
-	routes.add(http.MethodGet, "/internal/media/captures/:id", captureapi.NewImageHandler(deps.DB, dataStore, captureLogger))
+	routes.add(http.MethodPost, "/internal/media/captures", httpserver.RequireSameOrigin(handlers.captureUpload))
+	routes.add(http.MethodGet, "/internal/media/captures/:id", handlers.captureImage)
 
 	return routes
 }
