@@ -34,10 +34,18 @@ func TestMaterialsRoundTrip(t *testing.T) {
 			Times: []float64{0}, Measures: []logo.Measure{{Score: 0.3, Brightness: 100, Texture: 5}},
 		}},
 	}
+	// 1 つ目のセグメントには、今の見分け方の境目の候補がある (#1506)。2 つ目は、材料を読めなかった回とする。
+	cmdetect.SetMaterialBounds(want[0].Material, []float64{12.1, 72.7, 216.9}, 1817.3, -0.418)
 	data, err := cmdetect.EncodeMaterials(want)
 	require.NoError(t, err)
 	got, err := cmdetect.DecodeMaterials(data)
 	require.NoError(t, err)
+	ats, duration, offset := cmdetect.MaterialBounds(got[0].Material)
+	assert.Equal(t, []float64{12.1, 72.7, 216.9}, ats)
+	assert.InDelta(t, 1817.3, duration, 1e-9)
+	assert.InDelta(t, -0.418, offset, 1e-9)
+	ats, _, _ = cmdetect.MaterialBounds(got[1].Material)
+	assert.Nil(t, ats)
 
 	require.Len(t, got, len(want))
 	for i := range want {

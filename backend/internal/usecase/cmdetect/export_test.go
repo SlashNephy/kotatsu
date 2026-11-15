@@ -123,7 +123,7 @@ func TrimMissing(sections, missing []Section) []Section {
 
 // EdgeMissing は edgeMissing。
 func EdgeMissing(times []float64, fps float64, duration time.Duration) time.Duration {
-	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration})
+	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration, start: 0})
 }
 
 // LogoDetail は、ロゴの結果を捨てた理由の詳細を、既定のパラメーターで返す。
@@ -151,4 +151,45 @@ func ClipIntervals(intervals []logo.Interval, times []float64, start, end float6
 // DropShortSections は dropShortSections。
 func DropShortSections(sections []Section, duration time.Duration) []Section {
 	return dropShortSections(sections, duration)
+}
+
+// CombineSections は、境目の候補の時刻 (秒) と、録画の長さ、ロゴの出ていた区間から、combineSections の CM の区間を秒の組で返す。
+func CombineSections(bounds []float64, duration float64, shown [][2]float64) [][2]float64 {
+	bs := make([]boundary, 0, len(bounds))
+	for _, at := range bounds {
+		bs = append(bs, boundary{at: at, cut: true})
+	}
+	logoSpans := make([]span, 0, len(shown))
+	for _, s := range shown {
+		logoSpans = append(logoSpans, span{start: s[0], end: s[1]})
+	}
+	sections := combineSections(bs, duration, logoSpans)
+	out := make([][2]float64, 0, len(sections))
+	for _, s := range sections {
+		out = append(out, [2]float64{s.start, s.end})
+	}
+
+	return out
+}
+
+// SetMaterialBounds は、材料に、今の見分け方の境目の候補 (切り替わりのあるもの) と、その基準での長さと、時刻の差を入れる。
+func SetMaterialBounds(m *Material, ats []float64, duration, offset float64) {
+	m.bounds = make([]boundary, 0, len(ats))
+	for _, at := range ats {
+		m.bounds = append(m.bounds, boundary{at: at, cut: true})
+	}
+	m.boundsDuration, m.offset = duration, offset
+}
+
+// MaterialBounds は、材料の境目の候補の時刻と、その基準での長さと、時刻の差を返す。候補がなければ nil。
+func MaterialBounds(m *Material) ([]float64, float64, float64) {
+	if m.bounds == nil {
+		return nil, m.boundsDuration, m.offset
+	}
+	ats := make([]float64, 0, len(m.bounds))
+	for _, b := range m.bounds {
+		ats = append(ats, b.at)
+	}
+
+	return ats, m.boundsDuration, m.offset
 }

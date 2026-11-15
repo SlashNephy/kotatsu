@@ -54,6 +54,8 @@ type LogoDetector struct {
 	lowerer  *procprio.Lowerer
 	fallback Detector
 	params   *logo.Params
+	// signalsOf は、今の見分け方の材料 (無音などの境目の候補) を読む (#1506)。nil なら読まず、ロゴの区間の外を CM にする。
+	signalsOf func(ctx context.Context, input *Input) (*signals, error)
 }
 
 var (
@@ -72,7 +74,7 @@ func NewLogoDetector(lowerer *procprio.Lowerer) (*LogoDetector, error) {
 		return nil, fmt.Errorf("%w: %w", ErrFFmpegNotFound, err)
 	}
 
-	return &LogoDetector{lowerer: lowerer, fallback: fallback, params: logo.DefaultParams()}, nil
+	return &LogoDetector{lowerer: lowerer, fallback: fallback, params: logo.DefaultParams(), signalsOf: fallback.signals}, nil
 }
 
 func (*LogoDetector) Name() string { return LogoDetectorName }
@@ -335,6 +337,11 @@ type Material struct {
 	// Times は、コマごとの時刻 (秒)。Measures は、コマごとの測り。同じ数だけある。
 	Times    []float64
 	Measures []logo.Measure
+	// bounds は、今の見分け方の材料から作った境目の候補 (#1506)。boundsDuration は、その基準での録画の長さ。
+	// offset は、コマの時刻に足すと、今の見分け方の基準 (ファイルの最初の映像からの秒) になる量。材料を読めなかった回は、bounds が nil。
+	bounds         []boundary
+	boundsDuration float64
+	offset         float64
 }
 
 // measure は、ロゴを学習し、全コマを測って、材料を返す。ロゴを学習できなければ、errLogoUnusable を包んで返す。
@@ -385,9 +392,25 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 		return nil, ErrNoVideo
 	}
 
-	return &Material{
+	material := &Material{
 		Fps: video.fps, Duration: video.duration, Corner: learned.Corner, Box: learned.Box, Times: times, Measures: measures,
-	}, nil
+		bounds: nil, boundsDuration: 0, offset: 0,
+	}
+	// 今の見分け方の材料を読み、無音の境目で CM を選べるようにする (#1506)。読めなければ (音声のない録画など)、
+	// ロゴの区間の外を CM にする。止められたときだけは、止める。
+	if d.signalsOf != nil {
+		sig, err := d.signalsOf(ctx, input)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if err == nil {
+			material.bounds, material.boundsDuration = boundaries(sig), sig.duration
+			// コマの時刻は、ファイルの始まりを 0 に寄せたもの。今の見分け方の基準は、最初の映像の PTS を 0 にしたもの。
+			material.offset = video.start - sig.origin
+		}
+	}
+
+	return material, nil
 }
 
 // evaluate は、材料から、ロゴの出ていた区間を出し、その外を CM にする。ロゴの出ていた区間が 1 つもなければ、errLogoUnusable を包んで返す。
@@ -405,12 +428,16 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	}
 	missing := missingSections(m.Times, m.Fps)
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
+	sections := dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration)
+	if m.bounds != nil {
+		sections = trimMissing(m.combine(intervals), missing)
+	}
 
 	return &logoResult{
-		sections:    dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration),
+		sections:    sections,
 		missing:     missing,
 		duration:    duration,
-		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration}),
+		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, start: 0}),
 		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil
 }
@@ -434,6 +461,36 @@ func edgeMissing(times []float64, video *videoInfo) time.Duration {
 	}
 
 	return total
+}
+
+// combine は、ロゴの出ていた区間と、今の見分け方の境目の候補から、本編と CM の並びを選び、CM の区間を、
+// 最初のコマからの時間で返す (#1506)。
+func (m *Material) combine(intervals []logo.Interval) []Section {
+	// ロゴの区間を、今の見分け方の基準の秒にする。
+	toSignal := func(frame int) float64 {
+		t := m.Times[len(m.Times)-1] + 1/m.Fps
+		if frame < len(m.Times) {
+			t = m.Times[frame]
+		}
+
+		return t + m.offset
+	}
+	shown := make([]span, 0, len(intervals))
+	for _, iv := range intervals {
+		shown = append(shown, span{start: toSignal(iv.Start), end: toSignal(iv.End)})
+	}
+	// CM の区間を、最初のコマからの時間に戻す。最初のコマより前と、最後のコマの後ろは切る。
+	origin := m.Times[0] + m.offset
+	last := m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps
+	sections := []Section{}
+	for _, s := range combineSections(m.bounds, m.boundsDuration, shown) {
+		start, end := max(s.start-origin, 0), min(s.end-origin, last)
+		if end > start {
+			sections = append(sections, Section{Start: seconds(start), End: seconds(end)})
+		}
+	}
+
+	return sections
 }
 
 // complementSections は、ロゴの出ていた区間 intervals の外を、CM の区間にする。times は、コマごとの時刻 (秒) で、
@@ -587,12 +644,14 @@ type videoInfo struct {
 	height   int
 	fps      float64
 	duration time.Duration
+	// start は、ffprobe で読んだファイルの始まりの時刻 (秒、PTS のまま)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
+	start float64
 }
 
 // probeVideo は、ffprobe で、path の最初の映像の大きさと速さと、録画の長さを読む。
 func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 	out, err := exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0",
-		"-show_entries", "stream=width,height,avg_frame_rate:format=duration", "-of", "json", path).Output()
+		"-show_entries", "stream=width,height,avg_frame_rate:format=duration,start_time", "-of", "json", path).Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to probe the recording with ffprobe: %w", err)
 	}
@@ -603,7 +662,8 @@ func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 			AvgFrameRate string `json:"avg_frame_rate"`
 		} `json:"streams"`
 		Format struct {
-			Duration string `json:"duration"`
+			Duration  string `json:"duration"`
+			StartTime string `json:"start_time"`
 		} `json:"format"`
 	}
 	if err := json.Unmarshal(out, &probed); err != nil {
@@ -618,8 +678,9 @@ func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 		return nil, fmt.Errorf("%w: unknown frame rate %q", ErrNoVideo, s.AvgFrameRate)
 	}
 	seconds, _ := strconv.ParseFloat(probed.Format.Duration, 64)
+	start, _ := strconv.ParseFloat(probed.Format.StartTime, 64)
 
-	return &videoInfo{width: s.Width, height: s.Height, fps: fps, duration: time.Duration(seconds * float64(time.Second))}, nil
+	return &videoInfo{width: s.Width, height: s.Height, fps: fps, duration: time.Duration(seconds * float64(time.Second)), start: start}, nil
 }
 
 // frameRate は、ffprobe の "30000/1001" の形の速さを数にする。読めなければ 0 を返す。

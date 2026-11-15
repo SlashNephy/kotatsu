@@ -16,7 +16,7 @@ import (
 
 // materialFormatVersion は、材料の形式の版 (#1507)。形式を変えたら上げる。違う版の材料は使わずに、読み直して書き直す。
 // 判定の規則の版 (Detector.Version) とは別に持つので、規則の版が上がっただけなら、材料から判定し直せる。
-const materialFormatVersion = 1
+const materialFormatVersion = 2
 
 const (
 	// scoreScale は、ロゴの点数を int16 にするときの倍率。点数は -1〜1 なので、1e-4 の刻みで収まる。
@@ -51,6 +51,17 @@ type materialSegmentInfo struct {
 	Box        [4]int  `json:"box"`
 	Frames     int     `json:"frames"`
 	FirstUs    int64   `json:"firstUs"`
+	// Bounds は、今の見分け方の境目の候補 (秒と、切り替わりがあったか)。BoundsDuration と Offset は、Material の同じ名前の値 (#1506)。
+	// 材料を読めなかった回は、Bounds が null。
+	Bounds         []materialBound `json:"bounds"`
+	BoundsDuration float64         `json:"boundsDuration"`
+	Offset         float64         `json:"offset"`
+}
+
+// materialBound は、境目の候補。
+type materialBound struct {
+	At  float64 `json:"at"`
+	Cut bool    `json:"cut"`
 }
 
 // EncodeMaterials は、録画の材料を、DB に残すバイト列にする (#1507)。
@@ -67,6 +78,7 @@ func EncodeMaterials(segments []SegmentMaterial) ([]byte, error) {
 		header.Segments = append(header.Segments, materialSegmentInfo{
 			Path: s.Path, Fps: m.Fps, DurationUs: m.Duration.Microseconds(), Corner: int(m.Corner),
 			Box: [4]int{m.Box.X, m.Box.Y, m.Box.W, m.Box.H}, Frames: len(m.Times), FirstUs: micros(m.Times[0]),
+			Bounds: encodeBounds(m.bounds), BoundsDuration: m.boundsDuration, Offset: m.offset,
 		})
 		// 差は、丸めたマイクロ秒どうしの差にして、足し戻したときに誤差が溜まらないようにする。
 		previous := math.Round(m.Times[0] * 1e6)
@@ -140,6 +152,7 @@ func DecodeMaterials(data []byte) ([]SegmentMaterial, error) {
 			Fps: info.Fps, Duration: time.Duration(info.DurationUs) * time.Microsecond, Corner: logo.Corner(info.Corner),
 			Box:   logo.Box{X: info.Box[0], Y: info.Box[1], W: info.Box[2], H: info.Box[3]},
 			Times: make([]float64, 0, info.Frames), Measures: make([]logo.Measure, info.Frames),
+			bounds: decodeBounds(info.Bounds), boundsDuration: info.BoundsDuration, offset: info.Offset,
 		}
 		at := info.FirstUs
 		m.Times = append(m.Times, float64(at)/1e6)
@@ -219,3 +232,29 @@ func (r *materialReader) int16() int16 {
 }
 
 func (r *materialReader) uint16() uint16 { return binary.LittleEndian.Uint16(r.take(2)) }
+
+// encodeBounds は、境目の候補を JSON の形にする。nil は nil のまま (材料を読めなかった回) にする。
+func encodeBounds(bounds []boundary) []materialBound {
+	if bounds == nil {
+		return nil
+	}
+	out := make([]materialBound, 0, len(bounds))
+	for _, b := range bounds {
+		out = append(out, materialBound{At: b.at, Cut: b.cut})
+	}
+
+	return out
+}
+
+// decodeBounds は、encodeBounds の逆。
+func decodeBounds(bounds []materialBound) []boundary {
+	if bounds == nil {
+		return nil
+	}
+	out := make([]boundary, 0, len(bounds))
+	for _, b := range bounds {
+		out = append(out, boundary{at: b.At, cut: b.Cut})
+	}
+
+	return out
+}
