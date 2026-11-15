@@ -1,5 +1,5 @@
 diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
-index 4704c00..e1b2122 100644
+index 4704c00..37f9a03 100644
 --- a/packages/yadif/src/deinterlace.ts
 +++ b/packages/yadif/src/deinterlace.ts
 @@ -271,6 +271,8 @@ export interface DeinterlacerOptions {
@@ -287,7 +287,7 @@ index 4704c00..e1b2122 100644
 +  #fitCanvas(): void {
 +    const width = this.#width;
 +    const height = this.#height;
-+    if (width === 0 || height === 0) return;
++    if (width === 0 || height === 0 || this.#lost) return;
 +    let output: { width: number; height: number } | null = null;
 +    if (this.#scaler && this.#box && this.#box.width > 0 && this.#box.height > 0) {
 +      try {

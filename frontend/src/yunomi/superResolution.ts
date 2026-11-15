@@ -87,9 +87,13 @@ export function upscaleSize(
 }
 
 // maxDimension は、gl が描ける一辺の上限 (テクスチャと viewport の小さい方)。
+// コンテキストを失っていると、getParameter は null を返すので、0 (描けない) とする。
 function maxDimension(gl: WebGL2RenderingContext): number {
-  const texture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
-  const viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
+  const texture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number | null;
+  const viewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array | null;
+  if (texture === null || viewport === null) {
+    return 0;
+  }
 
   return Math.min(texture, viewport[0] ?? texture, viewport[1] ?? texture);
 }
@@ -136,17 +140,23 @@ export function createYadifUpscaler({
       if (broken) {
         return null;
       }
-      const size = upscaleSize(
-        { width, height },
-        { width: boxWidth, height: boxHeight },
-        zoom(),
-        maxDimension(gl),
-      );
-      if (size === null) {
-        output = null;
-      }
+      try {
+        const size = upscaleSize(
+          { width, height },
+          { width: boxWidth, height: boxHeight },
+          zoom(),
+          maxDimension(gl),
+        );
+        if (size === null) {
+          output = null;
+        }
 
-      return size;
+        return size;
+      } catch (error) {
+        fail(error);
+
+        return null;
+      }
     },
     draw(gl, texture, flipped, width, height, outputWidth, outputHeight) {
       if (broken) {

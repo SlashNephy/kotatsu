@@ -148,6 +148,29 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.output()).toEqual({ width: 3840, height: 2160 });
   });
 
+  test('コンテキストを失っていれば (上限が読めなければ)、拡大しない', () => {
+    const lost = {
+      getParameter: () => null,
+    } as unknown as WebGL2RenderingContext;
+    const onUnavailable = vi.fn();
+    const upscaler = createYadifUpscaler({ create: fakeUpscaler, onUnavailable });
+
+    expect(upscaler.size(lost, 1440, 1080, 3840, 2160)).toBeNull();
+    expect(onUnavailable).not.toHaveBeenCalled();
+  });
+
+  test('コンテキストが変われば、前の処理を片付けて作り直す', () => {
+    const first = fakeUpscaler();
+    const second = fakeUpscaler();
+    const create = vi.fn().mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const upscaler = createYadifUpscaler({ create });
+    upscaler.draw(fakeContext(), texture, false, 1440, 1080, 3840, 2160);
+    upscaler.draw(fakeContext(), texture, false, 1440, 1080, 3840, 2160);
+
+    expect(first.destroy).toHaveBeenCalledTimes(1);
+    expect(second.draw).toHaveBeenCalledTimes(1);
+  });
+
   test('拡大しない大きさになれば、拡大している大きさを null に戻す', () => {
     const upscaler = createYadifUpscaler({ create: fakeUpscaler });
     const gl = fakeContext();

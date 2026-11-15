@@ -555,9 +555,10 @@ export function TsPlayer({
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
     slot.destroyed = true;
-    slot.player?.destroy();
+    // 補間と拡大の GL の資源は、yadif がコンテキストを手放す (プレイヤーを捨てるとき) より先に片付ける。
     slot.interpolation.destroy();
     slot.upscaler.destroy();
+    slot.player?.destroy();
     slot.player = null;
     slot.captions.destroy();
     slot.container.remove();
