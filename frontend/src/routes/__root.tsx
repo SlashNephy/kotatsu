@@ -62,8 +62,8 @@ function RootLayout() {
   });
   useThemeColor();
   // タブの favicon とヘッダーのロゴは、この端末で選んだアイコンにする (#1665)。
-  useAppFavicon();
   const [appIcon] = useAppIcon();
+  useAppFavicon(appIcon);
   // アプリのアイコンと名前は、押すとホームを開く。アイコンは飾りなので、読み上げない。
   const brand = (
     <Title order={1} size="h3">

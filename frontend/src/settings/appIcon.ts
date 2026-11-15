@@ -44,6 +44,9 @@ const storageKey = 'kotatsu.appIcon';
 // changeEvent は、同じタブの中で変えたことを知らせるイベント。storage イベントは、ほかのタブにしか届かない。
 const changeEvent = 'kotatsu:app-icon';
 
+// unsaved は、端末に覚えられなかったときに、このタブの中だけで使う組。覚えられたら、端末の値に戻す。
+let unsaved: AppIconId | null = null;
+
 function isAppIconId(value: string): value is AppIconId {
   return (appIconIds as readonly string[]).includes(value);
 }
@@ -64,31 +67,42 @@ export function loadAppIcon(storage: Pick<Storage, 'getItem'> | null): AppIconId
 
 // saveAppIcon は、選んだアイコンを覚え、同じタブの中の画面に知らせる。覚えられなくても、今の画面には効かせる。
 export function saveAppIcon(storage: Pick<Storage, 'setItem'> | null, id: AppIconId): void {
+  // 覚えられなければ、このタブの中だけで使う。次に開いたときは、端末に覚えた組 (なければ既定) に戻る。
+  unsaved = id;
   try {
-    storage?.setItem(storageKey, id);
+    if (storage !== null) {
+      storage.setItem(storageKey, id);
+      unsaved = null;
+    }
   } catch {
-    // 覚えられなければ、次に開いたときは既定に戻るだけ。
+    // unsaved に残した組を使う。
   }
   window.dispatchEvent(new Event(changeEvent));
 }
 
 function subscribe(onChange: () => void): () => void {
-  window.addEventListener('storage', onChange);
+  // ほかのタブで選び直したら、そちらに従う。
+  const onStorage = () => {
+    unsaved = null;
+    onChange();
+  };
+  window.addEventListener('storage', onStorage);
   window.addEventListener(changeEvent, onChange);
 
   return () => {
-    window.removeEventListener('storage', onChange);
+    window.removeEventListener('storage', onStorage);
     window.removeEventListener(changeEvent, onChange);
   };
 }
 
-function getSnapshot(): AppIconId {
-  return loadAppIcon(browserStorage());
+// currentAppIcon は、このタブで使う組。覚えられなかった組があれば、それを使う。
+export function currentAppIcon(): AppIconId {
+  return unsaved ?? loadAppIcon(browserStorage());
 }
 
 // useAppIcon は、この端末で選んだアイコンと、それを変える関数を返す。ほかのタブで変えても追う。
 export function useAppIcon(): [AppIconId, (next: AppIconId) => void] {
-  const id = useSyncExternalStore(subscribe, getSnapshot);
+  const id = useSyncExternalStore(subscribe, currentAppIcon);
 
   return [id, (next) => saveAppIcon(browserStorage(), next)];
 }
@@ -107,9 +121,8 @@ export function applyFavicon(href: string): void {
   }
 }
 
-// useAppFavicon は、選んだアイコンの favicon を、ページに当て続ける。すべての画面の枠 (RootLayout) で呼ぶ。
-export function useAppFavicon(): void {
-  const [id] = useAppIcon();
+// useAppFavicon は、組 id の favicon を、ページに当て続ける。すべての画面の枠 (RootLayout) で、useAppIcon の値を渡して呼ぶ。
+export function useAppFavicon(id: AppIconId): void {
   const href = appIconUrls(id).favicon;
   useEffect(() => {
     applyFavicon(href);
