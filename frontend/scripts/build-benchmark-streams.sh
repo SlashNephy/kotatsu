@@ -11,8 +11,10 @@
 # ブラウザの中で、時刻を進めながら繰り返して流す (src/yunomi/benchmarkStream.ts)。30 コマは、プルダウンの 5 コマの周期と
 # GOP の 15 コマで割り切れるので、つなぎ目でも周期が崩れない。GOP は閉じる。音声は入れない。
 #
-# 絵は、画面全体を横に流す (1 秒に約 96 画素)。止まった所が多いと、フィルムの絵が変わっても違うとみなすブロック
+# 絵は、画面全体を横に流す (1 秒に 96 画素)。止まった所が多いと、フィルムの絵が変わっても違うとみなすブロック
 # (yadif は 16 個から) が足りず、yadif がプルダウンを見つけられない。
+# 繰り返しの継ぎ目で絵が元の位置へ飛ぶと、見ていて酔うので、幅 96 画素の止まった絵を横に 15 枚並べた模様にし、
+# 1 回の繰り返し (1.001 秒) でちょうど 96 画素だけ流す。継ぎ目でも同じ絵につながり、同じ向きに流れ続ける。
 # film の絵は、平らな色の面 (smptehdbars) にする。testsrc2 のような細かい絵では、2:3 プルダウンで繰り返すフィールドにも
 # 符号化の誤差が乗り、yadif が同じとみなすブロック (違うのが 2 個まで) に収まらなかった。-q:v 3 (約 22 Mbps) にして、
 # 手元で同じ基準で数えると同じとみなせても、ブラウザの中では見つけられなかった。平らな色の面なら、13 Mbps でも見つけられる。
@@ -35,8 +37,18 @@ encode() {
     -f mpegts -mpegts_m2ts_mode 0 "${output}"
 }
 
-encode 'testsrc2=size=1440x1080:rate=60000/1001,scroll=horizontal=0.0011' 'tinterlace=mode=interleave_top' \
+# tiled は、幅 96 画素の source の最初の絵を止め、横に 15 枚並べて 1440 画素にし、1 枚の絵ごとに step 画素ずつ流す
+# lavfi の入力を返す。scroll の速さは、幅に対する割合で渡す。
+tiled() {
+  local source="$1" rate="$2" step="$3" labels=''
+  for i in $(seq 0 14); do labels+="[t${i}]"; done
+  echo "${source}=size=96x1080:rate=${rate},trim=end_frame=1,loop=loop=-1:size=1,setpts=N/(${rate})/TB,split=15${labels};${labels}hstack=inputs=15,scroll=horizontal=${step}/1440"
+}
+
+# interlaced は、1 回の繰り返しに 60 枚の絵 (フィールド) があるので 1.6 画素ずつ、
+# film は、24 枚のフィルムの絵があるので 4 画素ずつ流す。
+encode "$(tiled testsrc2 60000/1001 1.6)" 'tinterlace=mode=interleave_top' \
   '-b:v 13M -minrate 13M -maxrate 13M -bufsize 9781248' public/benchmark/interlaced.m2ts
-encode 'smptehdbars=size=1440x1080:rate=24000/1001,scroll=horizontal=0.0028' 'telecine=first_field=top:pattern=23' \
+encode "$(tiled smptehdbars 24000/1001 4)" 'telecine=first_field=top:pattern=23' \
   '-b:v 13M -minrate 13M -maxrate 13M -bufsize 9781248' public/benchmark/film.m2ts
 ls -l public/benchmark
