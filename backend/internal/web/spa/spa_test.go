@@ -133,3 +133,22 @@ func TestContentSecurityPolicy(t *testing.T) {
 		assert.NotContains(t, value, "'unsafe-eval'", name)
 	}
 }
+
+// TestDevicePageCannotBeFramed は、デバイス認可の承認の画面 (/device) を、外のサイトの枠に入れさせないことを、
+// 実際の応答のヘッダーで確かめる (#1527)。枠に入れられると、承認のボタンを押させる細工 (クリックジャッキング) ができてしまう。
+func TestDevicePageCannotBeFramed(t *testing.T) {
+	t.Parallel()
+
+	handler, err := spa.NewHandler(builtApp(), slog.New(slog.DiscardHandler))
+	require.NoError(t, err)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/device?user_code=ABCD-EFGH", nil))
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	directives := map[string]string{}
+	for directive := range strings.SplitSeq(rec.Header().Get("Content-Security-Policy"), "; ") {
+		name, value, _ := strings.Cut(directive, " ")
+		directives[name] = value
+	}
+	assert.Equal(t, "'none'", directives["frame-ancestors"])
+}

@@ -274,7 +274,7 @@ export default defineConfig(({ mode }) => ({
       // ブラウザ以外から叩く端点 (EPGStation 互換の API、予約の iCalendar、IPTV、署名付き URL の配信、#1605) も、
       // 開発サーバーから確かめられるようにする。
       '/api': { target: devAPI, changeOrigin: false },
-      // MCP のクライアントにトークンを発行する認可サーバー (#963) も、開発サーバーから確かめられるようにする。
+      // MCP のクライアントとキーボードの無い端末にトークンを発行する認可サーバー (#963、#1527) も、開発サーバーから確かめられるようにする。
       '/oauth': { target: devAPI, changeOrigin: false },
       '/.well-known': { target: devAPI, changeOrigin: false },
       // MCP サーバー (#964) も、開発サーバーから確かめられるようにする。

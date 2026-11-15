@@ -49,6 +49,10 @@ func (s *Server) Authenticate(ctx context.Context, token, resource string) (*aut
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to look up the access token: %w", err)
 	}
+	if row.Kind != grantKindMCP {
+		// 端末のトークンは、EPGStation 互換の API にしか使えない。
+		return nil, nil, auth.ErrUnauthenticated
+	}
 	if !sameResource(resource, row.Resource) {
 		return nil, nil, ErrWrongAudience
 	}

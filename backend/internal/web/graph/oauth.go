@@ -69,6 +69,16 @@ func (r *Resolver) oauthError(ctx context.Context, err error) error {
 		return NewError(CodeNotFound, "OAuth grant not found")
 	case errors.Is(err, oauth.ErrInvalidScopeChoice):
 		return NewError(CodeBadUserInput, "the chosen scopes are not requested or not allowed")
+	case errors.Is(err, oauth.ErrDeviceDisabled):
+		return NewError(CodeNotFound, "device authorization is disabled")
+	case errors.Is(err, oauth.ErrInvalidUserCode):
+		return NewError(CodeBadUserInput, "invalid user code")
+	case errors.Is(err, oauth.ErrDeviceCodeNotFound):
+		return NewError(CodeNotFound, "device code not found")
+	case errors.Is(err, oauth.ErrDeviceApprovedByOther):
+		return NewError(CodeConflict, "the device code is approved by another user")
+	case errors.Is(err, oauth.ErrTokenCannotApprove):
+		return NewError(CodeForbidden, "a device cannot be approved with a token")
 	default:
 		return err
 	}
@@ -76,9 +86,13 @@ func (r *Resolver) oauthError(ctx context.Context, err error) error {
 
 func oauthGrantOf(grant *oauth.GrantRecord) *model.OAuthGrant {
 	return &model.OAuthGrant{
-		ID: GlobalID(oauthGrantType, grant.ID.String()), ClientID: grant.ClientID, ClientName: grant.ClientName,
+		ID: GlobalID(oauthGrantType, grant.ID.String()), Device: grant.Device, ClientID: grant.ClientID, ClientName: grant.ClientName,
 		Scopes: grant.Scopes, CreatedAt: grant.CreatedAt, LastUsedAt: grant.LastUsedAt,
 	}
+}
+
+func deviceAuthorizationOf(device *oauth.DeviceAuthorization) *model.DeviceAuthorization {
+	return &model.DeviceAuthorization{DeviceName: device.DeviceName, UserCode: device.UserCode, Approved: device.Approved}
 }
 
 func parseOAuthGrantID(globalID string) (uuid.UUID, error) {

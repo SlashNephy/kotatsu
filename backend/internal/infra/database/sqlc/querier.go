@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/SlashNephy/kotatsu/internal/domain"
 	"uuid"
 )
 
@@ -40,6 +41,7 @@ type Querier interface {
 	// 見たいリストの Annict の作品の画像を、引いた高画質の画像にする (#1315)。
 	// 1 つの作品に作品 ID の対応が複数あれば、取り込むとき (InsertAnimeWishlistEntries) と同じ順で 1 つを選ぶ。
 	ApplyAnimeArtworks(ctx context.Context) error
+	ApproveOAuthDeviceCode(ctx context.Context, arg ApproveOAuthDeviceCodeParams) error
 	// 放送の終わりが before より前の番組を、最大 batch_size 件だけ program_archives へ移す。
 	// 終了時刻が未定の番組は、開始時刻が before より前なら移す。猶予 (既定 24 時間) より長い番組は無いからである。
 	// 同じ番組を移し直すことは通常ないが、移した後に上流から同じ番組が届き、また移すときは新しい内容で上書きする。
@@ -87,9 +89,12 @@ type Querier interface {
 	// ルールごとに、一致した予約のうち、終わっていないものの件数を数える。無効な予約も数える。予約のないルールは返さない。
 	CountUpcomingReservationsByRules(ctx context.Context, arg CountUpcomingReservationsByRulesParams) ([]CountUpcomingReservationsByRulesRow, error)
 	CountUserPasskeys(ctx context.Context, userID uuid.UUID) (int64, error)
+	// 有効な (期限の前で、受け取られていない) コードの数を、全体と、接続元ごとに数える。
+	CountValidOAuthDeviceCodes(ctx context.Context, arg CountValidOAuthDeviceCodesParams) (CountValidOAuthDeviceCodesRow, error)
 	CountWatchRules(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) error
 	CreateOAuthAuthorizationCode(ctx context.Context, arg CreateOAuthAuthorizationCodeParams) error
+	CreateOAuthDeviceCode(ctx context.Context, arg CreateOAuthDeviceCodeParams) error
 	CreateOAuthGrant(ctx context.Context, arg CreateOAuthGrantParams) error
 	CreateOAuthToken(ctx context.Context, arg CreateOAuthTokenParams) error
 	CreatePlayer(ctx context.Context, arg CreatePlayerParams) error
@@ -118,6 +123,8 @@ type Querier interface {
 	DeleteExpiredAnimeRecordAuthorizations(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredLoginChallenges(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredOAuthAuthorizationCodes(ctx context.Context, arg DeleteExpiredOAuthAuthorizationCodesParams) (int64, error)
+	// 期限を過ぎてから時間の経ったコードと、受け取られたコードを消す。期限の直後は、問い合わせに expired_token を返せるよう残す。
+	DeleteExpiredOAuthDeviceCodes(ctx context.Context, arg DeleteExpiredOAuthDeviceCodesParams) (int64, error)
 	DeleteExpiredOAuthTokens(ctx context.Context, arg DeleteExpiredOAuthTokensParams) (int64, error)
 	DeleteExpiredOIDCLogins(ctx context.Context, now time.Time) (int64, error)
 	// 期限の過ぎた URL の記録を消す。発行するときに呼ぶ。期限の前に開き、期限を過ぎても流れ続けている配信の記録は、
@@ -139,6 +146,7 @@ type Querier interface {
 	// 配り終えた通知のイベントのうち、before より前に起きたものを、max_count 件まで消す。ユーザーごとの通知も一緒に消える。
 	// まだ配っていないイベントは消さない。
 	DeleteNotificationEventsBefore(ctx context.Context, arg DeleteNotificationEventsBeforeParams) (int64, error)
+	// MCP のクライアントの連携を取り消す。端末の連携は、RevokeOAuthDeviceGrant で取り消す。
 	DeleteOAuthGrant(ctx context.Context, id uuid.UUID) error
 	// トークンがすべて期限を過ぎて消えた連携を消す。リフレッシュトークンを 30 日使わなかった連携は、ここで終わる。
 	DeleteOAuthGrantsWithoutTokens(ctx context.Context, arg DeleteOAuthGrantsWithoutTokensParams) (int64, error)
@@ -209,7 +217,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id uuid.UUID) (int64, error)
 	// ユーザーの、第二要素の確認を待つログインをすべて消す。パスワードを設定したときと、無効にしたときに使う。
 	DeleteUserLoginChallenges(ctx context.Context, userID uuid.UUID) error
-	// ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
+	// ユーザーの MCP のクライアントの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
 	DeleteUserOAuthGrant(ctx context.Context, arg DeleteUserOAuthGrantParams) (DeleteUserOAuthGrantRow, error)
 	DeleteUserPasskey(ctx context.Context, arg DeleteUserPasskeyParams) (int64, error)
 	DeleteUserTOTP(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -243,6 +251,9 @@ type Querier interface {
 	EndTimeshiftProgramAtLastChunk(ctx context.Context, serviceID int64) (int64, error)
 	// 種別が無ければ既定値で足す。管理者が変えた表示名と並び順は上書きしない。
 	EnsureChannelType(ctx context.Context, arg EnsureChannelTypeParams) error
+	// まだ承認していない有効なコードのうち、いちばん古いものを失効させる。source_network を渡せば、その接続元のものに限る。
+	// 失効させたコードは、期限を過ぎたものと同じく、問い合わせに expired_token を返す。
+	ExpireOldestPendingOAuthDeviceCode(ctx context.Context, arg ExpireOldestPendingOAuthDeviceCodeParams) (int64, error)
 	// 番組の終わりが before より前に過ぎても「録画中」のままで、録画している割り振り (終わっていないもの) もない録画を、失敗にする。
 	// 録画していた mikan がいなくなったか、予約を消して割り振りが消えたもので、ほかに録画を終える人がいない (#516)。
 	// 録画した時間の終わりは、書いたセグメントの終わりにする。失敗にした録画は、同じ文で失敗の累計に足す (#960)。
@@ -262,6 +273,8 @@ type Querier interface {
 	GetAPIRecording(ctx context.Context, apiID int64) (GetAPIRecordingRow, error)
 	// トークンのハッシュから、発行したユーザーを引く。無効にしたユーザーのトークンは使えない。
 	GetAPITokenUser(ctx context.Context, tokenHash []byte) (GetAPITokenUserRow, error)
+	// 取り消していない端末の連携の、ユーザーの今のロールを引く。無効にしたユーザーの連携は返さない。
+	GetActiveOAuthDeviceGrantRole(ctx context.Context, id uuid.UUID) (domain.Role, error)
 	// 予約した番組が放送されなかったときに、その時間に放送されていた番組の名前。番組表か、アーカイブから引く。
 	// eventId は日をまたいで使い回されるので、録画の予定の時間 (window_start〜window_end) に重なる番組に絞る。
 	GetAiredProgramName(ctx context.Context, arg GetAiredProgramNameParams) (string, error)
@@ -306,8 +319,12 @@ type Querier interface {
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
 	GetNotificationEvent(ctx context.Context, id uuid.UUID) (NotificationEvent, error)
-	// アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
+	// アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、取り消した連携のものと、無効にしたユーザーのものは返さない。
 	GetOAuthAccessToken(ctx context.Context, arg GetOAuthAccessTokenParams) (GetOAuthAccessTokenRow, error)
+	// コードを承認したユーザーの、今のロールと、無効にしたかを引く。
+	GetOAuthDeviceApprover(ctx context.Context, id uuid.UUID) (GetOAuthDeviceApproverRow, error)
+	// 承認の画面に出す、有効なコードを引く。
+	GetOAuthDeviceCodeByUserCode(ctx context.Context, arg GetOAuthDeviceCodeByUserCodeParams) (GetOAuthDeviceCodeByUserCodeRow, error)
 	// 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 	GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error)
 	GetOIDCIdentity(ctx context.Context, arg GetOIDCIdentityParams) (UserOidcIdentity, error)
@@ -678,7 +695,7 @@ type Querier interface {
 	// ユーザーの通知を、新しい順に返す。before_at と before_id より前 (古い) の通知だけを返し、ページを送る。
 	// before_at と before_id は、両方を渡すか、両方を NULL にする。kinds を渡せば、その種類の通知だけを返す。
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
-	// ユーザーの連携を、新しい順に返す。
+	// ユーザーの連携を、新しい順に返す。取り消した端末の連携は返さない。
 	ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error)
 	// 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
 	ListOpenRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error)
@@ -882,7 +899,13 @@ type Querier interface {
 	// 手で記録するとき (#1232)、同じユーザーの記録を作るのを、トランザクションの終わりまで待ち合わせる。
 	// 番組によらない記録は、頼んだ日時ごとに別の行になり、一意キーでは重なりを防げないので、二度押しやほかのタブからの記録で二重に作らない。
 	LockManualAnimeRecords(ctx context.Context, userKey string) error
-	// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。
+	// 端末の問い合わせのコードを、ほかの問い合わせと重ならないようロックして引く。
+	LockOAuthDeviceCode(ctx context.Context, deviceCodeHash []byte) (LockOAuthDeviceCodeRow, error)
+	// 承認するコードを、ほかの承認と重ならないようロックして引く。
+	LockOAuthDeviceCodeByUserCode(ctx context.Context, arg LockOAuthDeviceCodeByUserCodeParams) (LockOAuthDeviceCodeByUserCodeRow, error)
+	// コードの数を数えてから足すまでを、ほかの発行と重ねない。重ねると、上限を超えて足せてしまう。
+	LockOAuthDeviceCodes(ctx context.Context) error
+	// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。取り消した端末の連携のものは返さない。
 	LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (LockOAuthRefreshTokenRow, error)
 	// 録画を変える前に、ロックして読む。
 	LockRecording(ctx context.Context, id uuid.UUID) (Recording, error)
@@ -909,6 +932,7 @@ type Querier interface {
 	MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error)
 	MarkNotificationEventDispatched(ctx context.Context, arg MarkNotificationEventDispatchedParams) error
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) (int64, error)
+	MarkOAuthDeviceCodeUsed(ctx context.Context, arg MarkOAuthDeviceCodeUsedParams) error
 	MarkOAuthRefreshTokenUsed(ctx context.Context, arg MarkOAuthRefreshTokenUsedParams) error
 	// 止まる mikan が、割り振りに引き継ぎ待ちの印を付ける (設計書 5.4)。
 	MarkRecordingHandover(ctx context.Context, arg MarkRecordingHandoverParams) (int64, error)
@@ -996,7 +1020,11 @@ type Querier interface {
 	ResetRecordingFailureCounts(ctx context.Context, arg ResetRecordingFailureCountsParams) ([]ResetRecordingFailureCountsRow, error)
 	// セグメントを閉じたときに、書いているセグメントの様子を 0 に戻す。閉じたセグメントの数は、録画とファイルに足す。
 	ResetRecordingLiveStats(ctx context.Context, arg ResetRecordingLiveStatsParams) error
+	// 端末の連携を取り消す。行は消さず、取り消した日時を書く。系統のトークンは、期限を過ぎてから消える。
+	RevokeOAuthDeviceGrant(ctx context.Context, arg RevokeOAuthDeviceGrantParams) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
+	// ユーザーの端末の連携を取り消し、取り消した端末を返す。ほかのユーザーの連携と、取り消し済みの連携は取り消さない。
+	RevokeUserOAuthDeviceGrant(ctx context.Context, arg RevokeUserOAuthDeviceGrantParams) (RevokeUserOAuthDeviceGrantRow, error)
 	// ユーザーのセッションをまとめて失効させる。keep_id のセッション (パスワードを変えた本人の今のセッション) は残す。
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
 	// 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
@@ -1115,6 +1143,7 @@ type Querier interface {
 	TimeshiftChannelExists(ctx context.Context, serviceID int64) (bool, error)
 	TouchAPIToken(ctx context.Context, arg TouchAPITokenParams) error
 	TouchCalendarFeed(ctx context.Context, arg TouchCalendarFeedParams) error
+	TouchOAuthDeviceCodePoll(ctx context.Context, arg TouchOAuthDeviceCodePollParams) error
 	TouchOAuthGrant(ctx context.Context, arg TouchOAuthGrantParams) error
 	// 最後に使われた日時を更新する。stale_before より前に更新したセッションだけを書き換え、書き込みを減らす。
 	TouchSession(ctx context.Context, arg TouchSessionParams) error

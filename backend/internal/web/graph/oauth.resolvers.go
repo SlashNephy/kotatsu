@@ -81,6 +81,28 @@ func (r *mutationResolver) DeleteOAuthGrant(ctx context.Context, id string) (str
 	return id, nil
 }
 
+// ApproveDeviceAuthorization is the resolver for the approveDeviceAuthorization field.
+func (r *mutationResolver) ApproveDeviceAuthorization(ctx context.Context, userCode string) (*model.DeviceAuthorization, error) {
+	if r.oauth == nil {
+		return nil, errOAuthUnavailable
+	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// 承認すると、端末がこのユーザーとして番組表と録画を読み、映像を見られるようになるので、API トークンの発行と同じく、
+	// 直前の再認証を求める (設計書 9.5)。トークンには認証した日時がないので、トークンからは承認できない。
+	if err := auth.RequireRecentAuthentication(ctx, r.clock); err != nil {
+		return nil, err
+	}
+	approved, err := r.oauth.ApproveDevice(ctx, actorOf(ctx, principal), principal, userCode)
+	if err != nil {
+		return nil, r.oauthError(ctx, err)
+	}
+
+	return deviceAuthorizationOf(approved), nil
+}
+
 // OauthGrants is the resolver for the oauthGrants field.
 func (r *queryResolver) OauthGrants(ctx context.Context) ([]*model.OAuthGrant, error) {
 	if r.oauth == nil {
@@ -126,4 +148,25 @@ func (r *queryResolver) OauthAuthorization(ctx context.Context, query string) (*
 	return &model.OAuthAuthorizationCheck{
 		Authorization: oauthAuthorizationOf(req, oauth.AllowedScopes(principal.Role)), ErrorRedirectURL: nil,
 	}, nil
+}
+
+// DeviceAuthorization is the resolver for the deviceAuthorization field.
+func (r *queryResolver) DeviceAuthorization(ctx context.Context, userCode string) (*model.DeviceAuthorization, error) {
+	if r.oauth == nil {
+		return nil, errOAuthUnavailable
+	}
+	principal, err := viewer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	device, err := r.oauth.LookupDevice(ctx, principal, userCode)
+	// 有効なコードがなければ、null を返す。
+	if errors.Is(err, oauth.ErrDeviceCodeNotFound) {
+		err = nil
+	}
+	if err != nil || device == nil {
+		return nil, r.oauthError(ctx, err)
+	}
+
+	return deviceAuthorizationOf(device), nil
 }

@@ -18,7 +18,7 @@ const (
 	pruneBatchSize = 1000
 )
 
-// Prune は、期限を過ぎた認可コードとトークンと、トークンがなくなった連携を、pruneBatchSize 件ずつ区切って消し、消した数を返す。
+// Prune は、期限を過ぎた認可コード、端末のコード、トークンと、トークンがなくなった連携を、pruneBatchSize 件ずつ区切って消し、消した数を返す。
 // 使い済みのリフレッシュトークンも、使い回しを見つけるため、期限までは残しておく。
 func Prune(ctx context.Context, db sqlc.DBTX, clk clock.Clock) (int64, error) {
 	now := clk.Now()
@@ -29,6 +29,12 @@ func Prune(ctx context.Context, db sqlc.DBTX, clk clock.Clock) (int64, error) {
 		},
 		func() (int64, error) {
 			return q.DeleteExpiredOAuthTokens(ctx, sqlc.DeleteExpiredOAuthTokensParams{Now: now, MaxCount: pruneBatchSize})
+		},
+		// 端末のコードは、期限の直後は問い合わせに expired_token を返せるよう、有効期間と同じだけ残してから消す。
+		func() (int64, error) {
+			return q.DeleteExpiredOAuthDeviceCodes(ctx, sqlc.DeleteExpiredOAuthDeviceCodesParams{
+				ExpiredBefore: now.Add(-DeviceCodeLifetime), MaxCount: pruneBatchSize,
+			})
 		},
 		// 引き換えた直後の連携は、トークンを作るのと同じトランザクションで作るので、トークンがないことはない。念のため、作ってから 1 日は残す。
 		func() (int64, error) {

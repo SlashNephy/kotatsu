@@ -404,6 +404,12 @@ type ComplexityRoot struct {
 		Reservation func(childComplexity int) int
 	}
 
+	DeviceAuthorization struct {
+		Approved   func(childComplexity int) int
+		DeviceName func(childComplexity int) int
+		UserCode   func(childComplexity int) int
+	}
+
 	DrcsReplacement struct {
 		Md5  func(childComplexity int) int
 		Text func(childComplexity int) int
@@ -628,6 +634,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		ApproveDeviceAuthorization    func(childComplexity int, userCode string) int
 		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
 		BeginTotpEnrollment           func(childComplexity int) int
@@ -800,6 +807,7 @@ type ComplexityRoot struct {
 		ClientID   func(childComplexity int) int
 		ClientName func(childComplexity int) int
 		CreatedAt  func(childComplexity int) int
+		Device     func(childComplexity int) int
 		ID         func(childComplexity int) int
 		LastUsedAt func(childComplexity int) int
 		Scopes     func(childComplexity int) int
@@ -961,6 +969,7 @@ type ComplexityRoot struct {
 		CapturesAvailable       func(childComplexity int) int
 		ChannelTypes            func(childComplexity int) int
 		ContinueWatching        func(childComplexity int, first int) int
+		DeviceAuthorization     func(childComplexity int, userCode string) int
 		DrcsReplacements        func(childComplexity int) int
 		FileNameTemplateHelp    func(childComplexity int) int
 		GoModuleLicenses        func(childComplexity int) int
@@ -1584,6 +1593,7 @@ type MutationResolver interface {
 	ApproveOAuthAuthorization(ctx context.Context, query string, scopes []string) (string, error)
 	DenyOAuthAuthorization(ctx context.Context, query string) (string, error)
 	DeleteOAuthGrant(ctx context.Context, id string) (string, error)
+	ApproveDeviceAuthorization(ctx context.Context, userCode string) (*model.DeviceAuthorization, error)
 	DeleteOrphanFiles(ctx context.Context, files []*model.OrphanFileInput) (*model.DeleteOrphanFilesPayload, error)
 	RenamePasskey(ctx context.Context, id string, name string) (*model.Passkey, error)
 	DeletePasskey(ctx context.Context, id string) (string, error)
@@ -1706,6 +1716,7 @@ type QueryResolver interface {
 	NotificationPreferences(ctx context.Context) ([]*model.NotificationPreference, error)
 	OauthGrants(ctx context.Context) ([]*model.OAuthGrant, error)
 	OauthAuthorization(ctx context.Context, query string) (*model.OAuthAuthorizationCheck, error)
+	DeviceAuthorization(ctx context.Context, userCode string) (*model.DeviceAuthorization, error)
 	OrphanFiles(ctx context.Context) ([]*model.OrphanFile, error)
 	Passkeys(ctx context.Context) ([]*model.Passkey, error)
 	PinnedServices(ctx context.Context) ([]*model.Service, error)
@@ -3098,6 +3109,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.DeleteReservationPayload.Reservation(childComplexity), true
 
+	case "DeviceAuthorization.approved":
+		if e.ComplexityRoot.DeviceAuthorization.Approved == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeviceAuthorization.Approved(childComplexity), true
+	case "DeviceAuthorization.deviceName":
+		if e.ComplexityRoot.DeviceAuthorization.DeviceName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeviceAuthorization.DeviceName(childComplexity), true
+	case "DeviceAuthorization.userCode":
+		if e.ComplexityRoot.DeviceAuthorization.UserCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DeviceAuthorization.UserCode(childComplexity), true
+
 	case "DrcsReplacement.md5":
 		if e.ComplexityRoot.DrcsReplacement.Md5 == nil {
 			break
@@ -3909,6 +3939,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.MissingRecording.Segments(childComplexity), true
 
+	case "Mutation.approveDeviceAuthorization":
+		if e.ComplexityRoot.Mutation.ApproveDeviceAuthorization == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_approveDeviceAuthorization_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ApproveDeviceAuthorization(childComplexity, args["userCode"].(string)), true
 	case "Mutation.approveOAuthAuthorization":
 		if e.ComplexityRoot.Mutation.ApproveOAuthAuthorization == nil {
 			break
@@ -5201,6 +5242,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.OAuthGrant.CreatedAt(childComplexity), true
+	case "OAuthGrant.device":
+		if e.ComplexityRoot.OAuthGrant.Device == nil {
+			break
+		}
+
+		return e.ComplexityRoot.OAuthGrant.Device(childComplexity), true
 	case "OAuthGrant.id":
 		if e.ComplexityRoot.OAuthGrant.ID == nil {
 			break
@@ -5932,6 +5979,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
+	case "Query.deviceAuthorization":
+		if e.ComplexityRoot.Query.DeviceAuthorization == nil {
+			break
+		}
+
+		args, err := ec.field_Query_deviceAuthorization_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.DeviceAuthorization(childComplexity, args["userCode"].(string)), true
 	case "Query.drcsReplacements":
 		if e.ComplexityRoot.Query.DrcsReplacements == nil {
 			break
@@ -10557,13 +10615,27 @@ type OAuthAuthorizationCheck {
 }
 
 """
-連携中の MCP のクライアント (#965、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
+デバイス認可 (RFC 8628) で、キーボードの無い端末が求めた接続 (#1527、設計書 9.9)。承認の画面に出す。
+"""
+type DeviceAuthorization {
+  "端末が名乗った名前。自己申告で、確かめていない。空なら、画面が既定の名前を出す。"
+  deviceName: String!
+  "ハイフンで区切った user_code。端末の画面に出ているものと見比べてもらう。"
+  userCode: String!
+  "ログイン中のユーザーが承認済みかどうか。"
+  approved: Boolean!
+}
+
+"""
+連携中の MCP のクライアントと、デバイス認可で承認した端末 (#965、#1527、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
 """
 type OAuthGrant {
   id: ID!
-  "クライアントの ID。クライアントのメタデータの URL (CIMD)。"
+  "デバイス認可で承認した端末かどうか。端末なら clientId は端末が名乗った ID で、URL とは限らない。"
+  device: Boolean!
+  "クライアントの ID。MCP のクライアントでは、クライアントのメタデータの URL (CIMD)。"
   clientId: String!
-  "同意したときのクライアントの名前。"
+  "同意したときのクライアントの名前。端末なら、端末が名乗った名前で、空のこともある。"
   clientName: String!
   "同意したスコープ。"
   scopes: [String!]!
@@ -10581,6 +10653,11 @@ extend type Query {
   MCP が無効なら NOT_FOUND を返す。
   """
   oauthAuthorization(query: String!): OAuthAuthorizationCheck!
+  """
+  承認の画面に出すため、user_code の端末の接続を引く。何も変えない。有効なものがなければ null を返す。
+  user_code の字数か字が正しくなければ BAD_USER_INPUT を、EPGStation 互換の API が無効なら NOT_FOUND を返す。
+  """
+  deviceAuthorization(userCode: String!): DeviceAuthorization
 }
 
 extend type Mutation {
@@ -10592,8 +10669,15 @@ extend type Mutation {
   approveOAuthAuthorization(query: String!, scopes: [String!]!): String!
   "認可のリクエストを断り、access_denied を付けてクライアントへ戻す URL を返す。"
   denyOAuthAuthorization(query: String!): String!
-  "MCP のクライアントとの連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。"
+  """
+  MCP のクライアントとの連携か、端末の連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。
+  """
   deleteOAuthGrant(id: ID!): ID!
+  """
+  user_code の端末の接続を承認する。トークンは、端末が受け取りに来たときに作る。何度呼んでも同じ。直近 10 分以内の認証が要る。
+  有効なものがなければ NOT_FOUND を、ほかのユーザーが承認済みなら CONFLICT を返す。
+  """
+  approveDeviceAuthorization(userCode: String!): DeviceAuthorization!
 }
 `, BuiltIn: false},
 	{Name: "../schema/orphan_files.graphqls", Input: `"""
@@ -13651,6 +13735,18 @@ func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type DeleteReservationPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_DeviceAuthorization(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "deviceName":
+		return ec.fieldContext_DeviceAuthorization_deviceName(ctx, field)
+	case "userCode":
+		return ec.fieldContext_DeviceAuthorization_userCode(ctx, field)
+	case "approved":
+		return ec.fieldContext_DeviceAuthorization_approved(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DeviceAuthorization", field.Name)
+}
+
 func (ec *executionContext) childFields_DrcsReplacement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "md5":
@@ -14237,6 +14333,8 @@ func (ec *executionContext) childFields_OAuthGrant(ctx context.Context, field gr
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_OAuthGrant_id(ctx, field)
+	case "device":
+		return ec.fieldContext_OAuthGrant_device(ctx, field)
 	case "clientId":
 		return ec.fieldContext_OAuthGrant_clientId(ctx, field)
 	case "clientName":
@@ -15672,6 +15770,20 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 // endregion ************************** internal!.gotpl ***************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_approveDeviceAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userCode",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["userCode"] = arg0
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_approveOAuthAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -17224,6 +17336,20 @@ func (ec *executionContext) field_Query_continueWatching_args(ctx context.Contex
 		return nil, err
 	}
 	args["first"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_deviceAuthorization_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userCode",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["userCode"] = arg0
 	return args, nil
 }
 
@@ -22750,6 +22876,75 @@ func (ec *executionContext) fieldContext_DeleteReservationPayload_reservation(_ 
 	return fc, nil
 }
 
+func (ec *executionContext) _DeviceAuthorization_deviceName(ctx context.Context, field graphql.CollectedField, obj *model.DeviceAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeviceAuthorization_deviceName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DeviceName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeviceAuthorization_deviceName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeviceAuthorization", field, false, false, "String")
+}
+
+func (ec *executionContext) _DeviceAuthorization_userCode(ctx context.Context, field graphql.CollectedField, obj *model.DeviceAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeviceAuthorization_userCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeviceAuthorization_userCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeviceAuthorization", field, false, false, "String")
+}
+
+func (ec *executionContext) _DeviceAuthorization_approved(ctx context.Context, field graphql.CollectedField, obj *model.DeviceAuthorization) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DeviceAuthorization_approved(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Approved, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DeviceAuthorization_approved(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DeviceAuthorization", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _DrcsReplacement_md5(ctx context.Context, field graphql.CollectedField, obj *model.DrcsReplacement) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27193,6 +27388,50 @@ func (ec *executionContext) fieldContext_Mutation_deleteOAuthGrant(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_approveDeviceAuthorization(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_approveDeviceAuthorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ApproveDeviceAuthorization(ctx, fc.Args["userCode"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DeviceAuthorization) graphql.Marshaler {
+			return ec.marshalNDeviceAuthorization2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDeviceAuthorization(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_approveDeviceAuthorization(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeviceAuthorization(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_approveDeviceAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteOrphanFiles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -31007,6 +31246,29 @@ func (ec *executionContext) _OAuthGrant_id(ctx context.Context, field graphql.Co
 }
 func (ec *executionContext) fieldContext_OAuthGrant_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("OAuthGrant", field, false, false, "ID")
+}
+
+func (ec *executionContext) _OAuthGrant_device(ctx context.Context, field graphql.CollectedField, obj *model.OAuthGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_OAuthGrant_device(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Device, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_OAuthGrant_device(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("OAuthGrant", field, false, false, "Boolean")
 }
 
 func (ec *executionContext) _OAuthGrant_clientId(ctx context.Context, field graphql.CollectedField, obj *model.OAuthGrant) (ret graphql.Marshaler) {
@@ -34893,6 +35155,50 @@ func (ec *executionContext) fieldContext_Query_oauthAuthorization(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_oauthAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_deviceAuthorization(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_deviceAuthorization(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().DeviceAuthorization(ctx, fc.Args["userCode"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DeviceAuthorization) graphql.Marshaler {
+			return ec.marshalODeviceAuthorization2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDeviceAuthorization(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_deviceAuthorization(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DeviceAuthorization(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_deviceAuthorization_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -51259,6 +51565,49 @@ func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel a
 	return out
 }
 
+var deviceAuthorizationImplementors = []string{"DeviceAuthorization"}
+
+func (ec *executionContext) _DeviceAuthorization(ctx context.Context, sel ast.SelectionSet, obj *model.DeviceAuthorization) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, deviceAuthorizationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DeviceAuthorization")
+		case "deviceName":
+			out.Values[i] = ec._DeviceAuthorization_deviceName(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userCode":
+			out.Values[i] = ec._DeviceAuthorization_userCode(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "approved":
+			out.Values[i] = ec._DeviceAuthorization_approved(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var drcsReplacementImplementors = []string{"DrcsReplacement"}
 
 func (ec *executionContext) _DrcsReplacement(ctx context.Context, sel ast.SelectionSet, obj *model.DrcsReplacement) graphql.Marshaler {
@@ -53021,6 +53370,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "approveDeviceAuthorization":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_approveDeviceAuthorization(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteOrphanFiles":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteOrphanFiles(ctx, field)
@@ -53970,6 +54326,11 @@ func (ec *executionContext) _OAuthGrant(ctx context.Context, sel ast.SelectionSe
 			out.Values[i] = graphql.MarshalString("OAuthGrant")
 		case "id":
 			out.Values[i] = ec._OAuthGrant_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "device":
+			out.Values[i] = ec._OAuthGrant_device(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -55158,6 +55519,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_oauthAuthorization(ctx, field)
+				})
+		case "deviceAuthorization":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_deviceAuthorization(ctx, field)
 				})
 		case "orphanFiles":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -59940,6 +60307,14 @@ func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋS
 	return ec._DeleteReservationPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDeviceAuthorization2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDeviceAuthorization(ctx context.Context, sel ast.SelectionSet, v *model.DeviceAuthorization) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DeviceAuthorization!")
+		return graphql.Null
+	}
+	return ec._DeviceAuthorization(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -63092,6 +63467,13 @@ func (ec *executionContext) marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋko
 		return graphql.Null
 	}
 	return ec._DataChange(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODeviceAuthorization2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDeviceAuthorization(ctx context.Context, sel ast.SelectionSet, v *model.DeviceAuthorization) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DeviceAuthorization(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx context.Context, v any) ([]*model.DrcsReplacementInput, error) {

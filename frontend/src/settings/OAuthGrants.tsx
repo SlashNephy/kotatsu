@@ -17,6 +17,8 @@ const dateTimeFormat = zonedFormat({
 
 export type OAuthGrantItem = {
   id: string;
+  // device は、デバイス認可で承認した端末 (#1527) かどうか。端末の clientId は URL とは限らない。
+  device: boolean;
   clientId: string;
   clientName: string;
   scopes: readonly string[];
@@ -42,7 +44,21 @@ export function clientHost(clientId: string): string {
   }
 }
 
-// OAuthGrants は、連携中の MCP のクライアント (#965、設計書 9.9) の一覧と、取り消し。
+// scopeLabel は、スコープの表示名のキーを返す。
+function scopeLabel(
+  scope: string,
+): 'oauth.scopeWrite' | 'oauth.scopeEPGStation' | 'oauth.scopeRead' {
+  switch (scope) {
+    case 'mcp:write':
+      return 'oauth.scopeWrite';
+    case 'epgstation:read':
+      return 'oauth.scopeEPGStation';
+    default:
+      return 'oauth.scopeRead';
+  }
+}
+
+// OAuthGrants は、連携中の MCP のクライアントと端末 (#965、#1527、設計書 9.9) の一覧と、取り消し。
 // 取り消しは、権限を広げず、乗っ取られた後の被害を抑える操作なので、再認証を求めない。
 export function OAuthGrants({ grants, onChanged, run, fail, environment }: Props) {
   const { t } = useTranslation();
@@ -66,16 +82,18 @@ export function OAuthGrants({ grants, onChanged, run, fail, environment }: Props
             <Stack gap={2} miw={0} flex={1}>
               <Group gap={6} wrap="nowrap" miw={0}>
                 <Text size="sm" truncate>
-                  {grant.clientName}
+                  {grant.device && grant.clientName === '' ? t('device.unnamed') : grant.clientName}
                 </Text>
                 <Text size="xs" c="dimmed" truncate>
-                  {clientHost(grant.clientId)}
+                  {grant.device
+                    ? t('settings.account.oauthGrantDevice')
+                    : clientHost(grant.clientId)}
                 </Text>
               </Group>
               <Group gap={4}>
                 {grant.scopes.map((scope) => (
                   <Badge key={scope} size="xs" variant="light">
-                    {t(scope === 'mcp:write' ? 'oauth.scopeWrite' : 'oauth.scopeRead')}
+                    {t(scopeLabel(scope))}
                   </Badge>
                 ))}
               </Group>

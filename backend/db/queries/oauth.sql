@@ -13,28 +13,28 @@ WHERE c.code_hash = @code_hash AND c.expires_at > @now AND u.id = c.user_id AND 
 RETURNING c.user_id, c.client_id, c.client_name, c.redirect_uri, c.code_challenge, c.scopes, c.resource;
 
 -- name: CreateOAuthGrant :exec
-INSERT INTO oauth_grants (id, user_id, client_id, client_name, scopes, resource, created_at, last_used_at)
-VALUES (@id, @user_id, @client_id, @client_name, @scopes, @resource, @now, NULL);
+INSERT INTO oauth_grants (id, user_id, kind, client_id, client_name, scopes, resource, created_at, last_used_at, revoked_at)
+VALUES (@id, @user_id, @kind, @client_id, @client_name, @scopes, @resource, @now, NULL, NULL);
 
 -- name: CreateOAuthToken :exec
 INSERT INTO oauth_tokens (token_hash, grant_id, kind, created_at, expires_at, used_at)
 VALUES (@token_hash, @grant_id, @kind, @now, @expires_at, NULL);
 
 -- name: GetOAuthAccessToken :one
--- アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
-SELECT g.id AS grant_id, g.client_id, g.client_name, g.scopes, g.resource, g.last_used_at, u.id AS user_id, u.role
+-- アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、取り消した連携のものと、無効にしたユーザーのものは返さない。
+SELECT g.id AS grant_id, g.kind, g.client_id, g.client_name, g.scopes, g.resource, g.last_used_at, u.id AS user_id, u.role
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
 JOIN users u ON u.id = g.user_id
-WHERE t.token_hash = @token_hash AND t.kind = 'access' AND t.expires_at > @now AND u.disabled_at IS NULL;
+WHERE t.token_hash = @token_hash AND t.kind = 'access' AND t.expires_at > @now AND g.revoked_at IS NULL AND u.disabled_at IS NULL;
 
 -- name: LockOAuthRefreshToken :one
--- リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。
-SELECT t.used_at, t.expires_at, g.id AS grant_id, g.user_id, g.client_id, g.scopes, g.resource, u.role, u.disabled_at AS user_disabled_at
+-- リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。取り消した端末の連携のものは返さない。
+SELECT t.used_at, t.expires_at, g.id AS grant_id, g.kind, g.user_id, g.client_id, g.scopes, g.resource, u.role, u.disabled_at AS user_disabled_at
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
 JOIN users u ON u.id = g.user_id
-WHERE t.token_hash = @token_hash AND t.kind = 'refresh'
+WHERE t.token_hash = @token_hash AND t.kind = 'refresh' AND g.revoked_at IS NULL
 FOR UPDATE OF t;
 
 -- name: MarkOAuthRefreshTokenUsed :exec
@@ -44,11 +44,12 @@ UPDATE oauth_tokens SET used_at = @now WHERE token_hash = @token_hash;
 UPDATE oauth_grants SET last_used_at = @now WHERE id = @id;
 
 -- name: DeleteOAuthGrant :exec
-DELETE FROM oauth_grants WHERE id = @id;
+-- MCP のクライアントの連携を取り消す。端末の連携は、RevokeOAuthDeviceGrant で取り消す。
+DELETE FROM oauth_grants WHERE id = @id AND kind = 'mcp';
 
 -- name: GetOAuthTokenForRevocation :one
 -- 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
-SELECT t.kind, t.grant_id
+SELECT t.kind, t.grant_id, g.kind AS grant_kind
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
 WHERE t.token_hash = @token_hash AND g.client_id = @client_id;
@@ -76,10 +77,10 @@ WHERE id IN (
 );
 
 -- name: ListOAuthGrants :many
--- ユーザーの連携を、新しい順に返す。
-SELECT id, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants
-WHERE user_id = @user_id ORDER BY created_at DESC, id;
+-- ユーザーの連携を、新しい順に返す。取り消した端末の連携は返さない。
+SELECT id, kind, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants
+WHERE user_id = @user_id AND revoked_at IS NULL ORDER BY created_at DESC, id;
 
 -- name: DeleteUserOAuthGrant :one
--- ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
-DELETE FROM oauth_grants WHERE id = @id AND user_id = @user_id RETURNING client_id, client_name;
+-- ユーザーの MCP のクライアントの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
+DELETE FROM oauth_grants WHERE id = @id AND user_id = @user_id AND kind = 'mcp' RETURNING client_id, client_name;

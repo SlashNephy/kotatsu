@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<40f587368f204748e7751f758fba1002>>
+ * @generated SignedSource<<f97d7d32326228419cd500b77e760d5d>>
  * @lightSyntaxTransform
  */
 
@@ -14,6 +14,7 @@ export type sessionsQuery$data = {
     readonly clientId: string;
     readonly clientName: string;
     readonly createdAt: string;
+    readonly device: boolean;
     readonly id: string;
     readonly lastUsedAt: string | null | undefined;
     readonly scopes: ReadonlyArray<string>;
@@ -102,6 +103,13 @@ v2 = [
         "alias": null,
         "args": null,
         "kind": "ScalarField",
+        "name": "device",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
         "name": "clientId",
         "storageKey": null
       },
@@ -149,16 +157,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "3604e3f660e7a79b8b7daff6a53b52ea",
+    "cacheID": "8d082d51bfeccd996b64821900d196a2",
     "id": null,
     "metadata": {},
     "name": "sessionsQuery",
     "operationKind": "query",
-    "text": "query sessionsQuery {\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n  oauthGrants {\n    id\n    clientId\n    clientName\n    scopes\n    createdAt\n    lastUsedAt\n  }\n}\n"
+    "text": "query sessionsQuery {\n  sessions {\n    id\n    current\n    createdAt\n    lastSeenAt\n    userAgent\n    sourceIp\n  }\n  oauthGrants {\n    id\n    device\n    clientId\n    clientName\n    scopes\n    createdAt\n    lastUsedAt\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "ed4c0ed2a23649bdf4bba2cabf887fab";
+(node as any).hash = "f337edee6214b5c3b53ad63745eedeb6";
 
 export default node;

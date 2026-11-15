@@ -1218,6 +1218,23 @@ type DeleteReservationPayload {
   reservation: Reservation
 }
 """
+デバイス認可 (RFC 8628) で、キーボードの無い端末が求めた接続 (#1527、設計書 9.9)。承認の画面に出す。
+"""
+type DeviceAuthorization {
+  """
+  端末が名乗った名前。自己申告で、確かめていない。空なら、画面が既定の名前を出す。
+  """
+  deviceName: String!
+  """
+  ハイフンで区切った user_code。端末の画面に出ているものと見比べてもらう。
+  """
+  userCode: String!
+  """
+  ログイン中のユーザーが承認済みかどうか。
+  """
+  approved: Boolean!
+}
+"""
 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
 """
 type DrcsReplacement {
@@ -2018,9 +2035,14 @@ type Mutation {
   """
   denyOAuthAuthorization(query: String!): String!
   """
-  MCP のクライアントとの連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。
+  MCP のクライアントとの連携か、端末の連携を取り消し、取り消した連携の ID を返す。連携のトークンもまとめて使えなくなる。
   """
   deleteOAuthGrant(id: ID!): ID!
+  """
+  user_code の端末の接続を承認する。トークンは、端末が受け取りに来たときに作る。何度呼んでも同じ。直近 10 分以内の認証が要る。
+  有効なものがなければ NOT_FOUND を、ほかのユーザーが承認済みなら CONFLICT を返す。
+  """
+  approveDeviceAuthorization(userCode: String!): DeviceAuthorization!
   """
   DB にないファイルを確かめ直して消す。管理者だけが使える。監査ログに残す。
   """
@@ -2587,16 +2609,20 @@ type OAuthAuthorizationCheck {
   errorRedirectUrl: String
 }
 """
-連携中の MCP のクライアント (#965、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
+連携中の MCP のクライアントと、デバイス認可で承認した端末 (#965、#1527、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
 """
 type OAuthGrant {
   id: ID!
   """
-  クライアントの ID。クライアントのメタデータの URL (CIMD)。
+  デバイス認可で承認した端末かどうか。端末なら clientId は端末が名乗った ID で、URL とは限らない。
+  """
+  device: Boolean!
+  """
+  クライアントの ID。MCP のクライアントでは、クライアントのメタデータの URL (CIMD)。
   """
   clientId: String!
   """
-  同意したときのクライアントの名前。
+  同意したときのクライアントの名前。端末なら、端末が名乗った名前で、空のこともある。
   """
   clientName: String!
   """
@@ -3237,6 +3263,11 @@ type Query {
   MCP が無効なら NOT_FOUND を返す。
   """
   oauthAuthorization(query: String!): OAuthAuthorizationCheck!
+  """
+  承認の画面に出すため、user_code の端末の接続を引く。何も変えない。有効なものがなければ null を返す。
+  user_code の字数か字が正しくなければ BAD_USER_INPUT を、EPGStation 互換の API が無効なら NOT_FOUND を返す。
+  """
+  deviceAuthorization(userCode: String!): DeviceAuthorization
   """
   DB にないファイルを、プールとパスの順に返す。管理者だけが使える。
   このインスタンスにマウントしたプールと、データディレクトリだけを調べる。

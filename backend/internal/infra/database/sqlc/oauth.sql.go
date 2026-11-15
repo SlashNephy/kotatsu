@@ -89,13 +89,14 @@ func (q *Queries) CreateOAuthAuthorizationCode(ctx context.Context, arg CreateOA
 }
 
 const createOAuthGrant = `-- name: CreateOAuthGrant :exec
-INSERT INTO oauth_grants (id, user_id, client_id, client_name, scopes, resource, created_at, last_used_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
+INSERT INTO oauth_grants (id, user_id, kind, client_id, client_name, scopes, resource, created_at, last_used_at, revoked_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, NULL)
 `
 
 type CreateOAuthGrantParams struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
+	Kind       string
 	ClientID   string
 	ClientName string
 	Scopes     []string
@@ -107,6 +108,7 @@ func (q *Queries) CreateOAuthGrant(ctx context.Context, arg CreateOAuthGrantPara
 	_, err := q.db.Exec(ctx, createOAuthGrant,
 		arg.ID,
 		arg.UserID,
+		arg.Kind,
 		arg.ClientID,
 		arg.ClientName,
 		arg.Scopes,
@@ -179,9 +181,10 @@ func (q *Queries) DeleteExpiredOAuthTokens(ctx context.Context, arg DeleteExpire
 }
 
 const deleteOAuthGrant = `-- name: DeleteOAuthGrant :exec
-DELETE FROM oauth_grants WHERE id = $1
+DELETE FROM oauth_grants WHERE id = $1 AND kind = 'mcp'
 `
 
+// MCP のクライアントの連携を取り消す。端末の連携は、RevokeOAuthDeviceGrant で取り消す。
 func (q *Queries) DeleteOAuthGrant(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteOAuthGrant, id)
 	return err
@@ -220,7 +223,7 @@ func (q *Queries) DeleteOAuthToken(ctx context.Context, tokenHash []byte) error 
 }
 
 const deleteUserOAuthGrant = `-- name: DeleteUserOAuthGrant :one
-DELETE FROM oauth_grants WHERE id = $1 AND user_id = $2 RETURNING client_id, client_name
+DELETE FROM oauth_grants WHERE id = $1 AND user_id = $2 AND kind = 'mcp' RETURNING client_id, client_name
 `
 
 type DeleteUserOAuthGrantParams struct {
@@ -233,7 +236,7 @@ type DeleteUserOAuthGrantRow struct {
 	ClientName string
 }
 
-// ユーザーの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
+// ユーザーの MCP のクライアントの連携を取り消し、取り消したクライアントを返す。ほかのユーザーの連携は取り消さない。
 func (q *Queries) DeleteUserOAuthGrant(ctx context.Context, arg DeleteUserOAuthGrantParams) (DeleteUserOAuthGrantRow, error) {
 	row := q.db.QueryRow(ctx, deleteUserOAuthGrant, arg.ID, arg.UserID)
 	var i DeleteUserOAuthGrantRow
@@ -242,11 +245,11 @@ func (q *Queries) DeleteUserOAuthGrant(ctx context.Context, arg DeleteUserOAuthG
 }
 
 const getOAuthAccessToken = `-- name: GetOAuthAccessToken :one
-SELECT g.id AS grant_id, g.client_id, g.client_name, g.scopes, g.resource, g.last_used_at, u.id AS user_id, u.role
+SELECT g.id AS grant_id, g.kind, g.client_id, g.client_name, g.scopes, g.resource, g.last_used_at, u.id AS user_id, u.role
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
 JOIN users u ON u.id = g.user_id
-WHERE t.token_hash = $1 AND t.kind = 'access' AND t.expires_at > $2 AND u.disabled_at IS NULL
+WHERE t.token_hash = $1 AND t.kind = 'access' AND t.expires_at > $2 AND g.revoked_at IS NULL AND u.disabled_at IS NULL
 `
 
 type GetOAuthAccessTokenParams struct {
@@ -256,6 +259,7 @@ type GetOAuthAccessTokenParams struct {
 
 type GetOAuthAccessTokenRow struct {
 	GrantID    uuid.UUID
+	Kind       string
 	ClientID   string
 	ClientName string
 	Scopes     []string
@@ -265,12 +269,13 @@ type GetOAuthAccessTokenRow struct {
 	Role       domain.Role
 }
 
-// アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、無効にしたユーザーのものは返さない。
+// アクセストークンから、連携と、そのユーザーを引く。期限を過ぎたものと、取り消した連携のものと、無効にしたユーザーのものは返さない。
 func (q *Queries) GetOAuthAccessToken(ctx context.Context, arg GetOAuthAccessTokenParams) (GetOAuthAccessTokenRow, error) {
 	row := q.db.QueryRow(ctx, getOAuthAccessToken, arg.TokenHash, arg.Now)
 	var i GetOAuthAccessTokenRow
 	err := row.Scan(
 		&i.GrantID,
+		&i.Kind,
 		&i.ClientID,
 		&i.ClientName,
 		&i.Scopes,
@@ -283,7 +288,7 @@ func (q *Queries) GetOAuthAccessToken(ctx context.Context, arg GetOAuthAccessTok
 }
 
 const getOAuthTokenForRevocation = `-- name: GetOAuthTokenForRevocation :one
-SELECT t.kind, t.grant_id
+SELECT t.kind, t.grant_id, g.kind AS grant_kind
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
 WHERE t.token_hash = $1 AND g.client_id = $2
@@ -295,25 +300,27 @@ type GetOAuthTokenForRevocationParams struct {
 }
 
 type GetOAuthTokenForRevocationRow struct {
-	Kind    string
-	GrantID uuid.UUID
+	Kind      string
+	GrantID   uuid.UUID
+	GrantKind string
 }
 
 // 失効させるトークンの種類と連携を引く。ほかのクライアントのトークンは返さない。
 func (q *Queries) GetOAuthTokenForRevocation(ctx context.Context, arg GetOAuthTokenForRevocationParams) (GetOAuthTokenForRevocationRow, error) {
 	row := q.db.QueryRow(ctx, getOAuthTokenForRevocation, arg.TokenHash, arg.ClientID)
 	var i GetOAuthTokenForRevocationRow
-	err := row.Scan(&i.Kind, &i.GrantID)
+	err := row.Scan(&i.Kind, &i.GrantID, &i.GrantKind)
 	return i, err
 }
 
 const listOAuthGrants = `-- name: ListOAuthGrants :many
-SELECT id, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants
-WHERE user_id = $1 ORDER BY created_at DESC, id
+SELECT id, kind, client_id, client_name, scopes, created_at, last_used_at FROM oauth_grants
+WHERE user_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC, id
 `
 
 type ListOAuthGrantsRow struct {
 	ID         uuid.UUID
+	Kind       string
 	ClientID   string
 	ClientName string
 	Scopes     []string
@@ -321,7 +328,7 @@ type ListOAuthGrantsRow struct {
 	LastUsedAt *time.Time
 }
 
-// ユーザーの連携を、新しい順に返す。
+// ユーザーの連携を、新しい順に返す。取り消した端末の連携は返さない。
 func (q *Queries) ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]ListOAuthGrantsRow, error) {
 	rows, err := q.db.Query(ctx, listOAuthGrants, userID)
 	if err != nil {
@@ -333,6 +340,7 @@ func (q *Queries) ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]List
 		var i ListOAuthGrantsRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.Kind,
 			&i.ClientID,
 			&i.ClientName,
 			&i.Scopes,
@@ -350,11 +358,11 @@ func (q *Queries) ListOAuthGrants(ctx context.Context, userID uuid.UUID) ([]List
 }
 
 const lockOAuthRefreshToken = `-- name: LockOAuthRefreshToken :one
-SELECT t.used_at, t.expires_at, g.id AS grant_id, g.user_id, g.client_id, g.scopes, g.resource, u.role, u.disabled_at AS user_disabled_at
+SELECT t.used_at, t.expires_at, g.id AS grant_id, g.kind, g.user_id, g.client_id, g.scopes, g.resource, u.role, u.disabled_at AS user_disabled_at
 FROM oauth_tokens t
 JOIN oauth_grants g ON g.id = t.grant_id
 JOIN users u ON u.id = g.user_id
-WHERE t.token_hash = $1 AND t.kind = 'refresh'
+WHERE t.token_hash = $1 AND t.kind = 'refresh' AND g.revoked_at IS NULL
 FOR UPDATE OF t
 `
 
@@ -362,6 +370,7 @@ type LockOAuthRefreshTokenRow struct {
 	UsedAt         *time.Time
 	ExpiresAt      time.Time
 	GrantID        uuid.UUID
+	Kind           string
 	UserID         uuid.UUID
 	ClientID       string
 	Scopes         []string
@@ -370,7 +379,7 @@ type LockOAuthRefreshTokenRow struct {
 	UserDisabledAt *time.Time
 }
 
-// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。
+// リフレッシュトークンと、その連携を、入れ替えが重ならないようロックして引く。取り消した端末の連携のものは返さない。
 func (q *Queries) LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (LockOAuthRefreshTokenRow, error) {
 	row := q.db.QueryRow(ctx, lockOAuthRefreshToken, tokenHash)
 	var i LockOAuthRefreshTokenRow
@@ -378,6 +387,7 @@ func (q *Queries) LockOAuthRefreshToken(ctx context.Context, tokenHash []byte) (
 		&i.UsedAt,
 		&i.ExpiresAt,
 		&i.GrantID,
+		&i.Kind,
 		&i.UserID,
 		&i.ClientID,
 		&i.Scopes,

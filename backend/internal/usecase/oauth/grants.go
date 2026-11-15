@@ -20,7 +20,9 @@ var ErrGrantNotFound = errors.New("OAuth grant not found")
 
 // GrantRecord は、ユーザーの連携の記録。トークンそのものは持たない。
 type GrantRecord struct {
-	ID         uuid.UUID
+	ID uuid.UUID
+	// Device は、デバイス認可で承認した端末の連携かどうか。端末なら ClientName は端末が名乗った名前。
+	Device     bool
 	ClientID   string
 	ClientName string
 	Scopes     []string
@@ -29,6 +31,7 @@ type GrantRecord struct {
 }
 
 // ListGrants は、ユーザーの連携を、新しい順に返す。MCP を無効にしていても返す。取り消せるようにするためである。
+// 取り消した端末の連携は返さない。
 func (s *Server) ListGrants(ctx context.Context, userID uuid.UUID) ([]*GrantRecord, error) {
 	rows, err := sqlc.New(s.db).ListOAuthGrants(ctx, userID)
 	if err != nil {
@@ -37,7 +40,7 @@ func (s *Server) ListGrants(ctx context.Context, userID uuid.UUID) ([]*GrantReco
 	grants := make([]*GrantRecord, 0, len(rows))
 	for _, row := range rows {
 		grants = append(grants, &GrantRecord{
-			ID: row.ID, ClientID: row.ClientID, ClientName: row.ClientName, Scopes: row.Scopes,
+			ID: row.ID, Device: row.Kind == grantKindDevice, ClientID: row.ClientID, ClientName: row.ClientName, Scopes: row.Scopes,
 			CreatedAt: row.CreatedAt, LastUsedAt: row.LastUsedAt,
 		})
 	}
@@ -46,10 +49,17 @@ func (s *Server) ListGrants(ctx context.Context, userID uuid.UUID) ([]*GrantReco
 }
 
 // DeleteGrant は、ユーザーの連携を取り消す。連携のトークンもまとめて使えなくなる。
-// ほかのユーザーの連携なら ErrGrantNotFound を返す。取り消したことは監査ログに残す。
+// MCP のクライアントの連携は行を消し、端末の連携は行を残して取り消した日時を書く。
+// ほかのユーザーの連携か、取り消し済みの端末の連携なら ErrGrantNotFound を返す。取り消したことは監査ログに残す。
 func (s *Server) DeleteGrant(ctx context.Context, actor *audit.Actor, userID, grantID uuid.UUID) error {
 	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
-		row, err := sqlc.New(tx).DeleteUserOAuthGrant(ctx, sqlc.DeleteUserOAuthGrantParams{ID: grantID, UserID: userID})
+		q := sqlc.New(tx)
+		now := s.clock.Now()
+		device, err := q.RevokeUserOAuthDeviceGrant(ctx, sqlc.RevokeUserOAuthDeviceGrantParams{Now: &now, ID: grantID, UserID: userID})
+		row := sqlc.DeleteUserOAuthGrantRow(device)
+		if errors.Is(err, pgx.ErrNoRows) {
+			row, err = q.DeleteUserOAuthGrant(ctx, sqlc.DeleteUserOAuthGrantParams{ID: grantID, UserID: userID})
+		}
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrGrantNotFound
 		}

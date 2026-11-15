@@ -675,6 +675,16 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
+// デバイス認可 (RFC 8628) で、キーボードの無い端末が求めた接続 (#1527、設計書 9.9)。承認の画面に出す。
+type DeviceAuthorization struct {
+	// 端末が名乗った名前。自己申告で、確かめていない。空なら、画面が既定の名前を出す。
+	DeviceName string `json:"deviceName"`
+	// ハイフンで区切った user_code。端末の画面に出ているものと見比べてもらう。
+	UserCode string `json:"userCode"`
+	// ログイン中のユーザーが承認済みかどうか。
+	Approved bool `json:"approved"`
+}
+
 // 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
 type DrcsReplacement struct {
 	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。
@@ -1111,12 +1121,14 @@ type OAuthAuthorizationCheck struct {
 	ErrorRedirectURL *string `json:"errorRedirectUrl,omitempty"`
 }
 
-// 連携中の MCP のクライアント (#965、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
+// 連携中の MCP のクライアントと、デバイス認可で承認した端末 (#965、#1527、設計書 9.9)。同意してトークンに引き換えるたびに 1 つできる。
 type OAuthGrant struct {
 	ID string `json:"id"`
-	// クライアントの ID。クライアントのメタデータの URL (CIMD)。
+	// デバイス認可で承認した端末かどうか。端末なら clientId は端末が名乗った ID で、URL とは限らない。
+	Device bool `json:"device"`
+	// クライアントの ID。MCP のクライアントでは、クライアントのメタデータの URL (CIMD)。
 	ClientID string `json:"clientId"`
-	// 同意したときのクライアントの名前。
+	// 同意したときのクライアントの名前。端末なら、端末が名乗った名前で、空のこともある。
 	ClientName string `json:"clientName"`
 	// 同意したスコープ。
 	Scopes    []string  `json:"scopes"`

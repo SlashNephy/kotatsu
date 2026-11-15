@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5"
@@ -52,12 +53,14 @@ type tokenResponse struct {
 }
 
 // TokenHandler は、トークンのエンドポイント (POST /oauth/token) のハンドラーを返す。
-// 認可コードとリフレッシュトークンを、アクセストークンとリフレッシュトークンに引き換える。
-// クライアントは公開クライアントなので、クライアントの認証はせず、client_id と PKCE で確かめる。
+// 認可コード、端末の device_code (RFC 8628 3.4) とリフレッシュトークンを、アクセストークンとリフレッシュトークンに引き換える。
+// クライアントは公開クライアントなので、クライアントの認証はせず、client_id と PKCE (認可コード) か device_code で確かめる。
+// 認可コードは MCP を、device_code は EPGStation 互換の API を、管理者が有効にしているときだけ受け付ける。
 func (s *Server) TokenHandler(logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !s.serveEnabled(w, r, logger) {
+		gates, ok := s.serveAnyEnabled(w, r, logger)
+		if !ok {
 			return
 		}
 		form, err := readForm(w, r)
@@ -67,13 +70,15 @@ func (s *Server) TokenHandler(logger *slog.Logger) http.Handler {
 			return
 		}
 		var resp *tokenResponse
-		switch form.Get("grant_type") {
-		case grantTypeAuthorizationCode:
+		switch grantType := form.Get("grant_type"); {
+		case grantType == grantTypeAuthorizationCode && gates.mcp:
 			resp, err = s.exchangeCode(r.Context(), form)
-		case grantTypeRefreshToken:
-			resp, err = s.refresh(r.Context(), form, logger)
+		case grantType == grantTypeDeviceCode && gates.device:
+			resp, err = s.exchangeDeviceCode(r.Context(), form)
+		case grantType == grantTypeRefreshToken:
+			resp, err = s.refresh(r.Context(), form, gates, logger)
 		default:
-			err = &tokenError{code: errorUnsupportedGrantType, description: "grant_type must be authorization_code or refresh_token"}
+			err = &tokenError{code: errorUnsupportedGrantType, description: "grant_type is not supported"}
 		}
 		if err != nil {
 			if tokenErr := (*tokenError)(nil); errors.As(err, &tokenErr) {
@@ -117,7 +122,7 @@ func (s *Server) exchangeCode(ctx context.Context, form url.Values) (*tokenRespo
 		q := sqlc.New(tx)
 		grantID := id.New()
 		err := q.CreateOAuthGrant(ctx, sqlc.CreateOAuthGrantParams{
-			ID: grantID, UserID: code.UserID, ClientID: code.ClientID, ClientName: code.ClientName,
+			ID: grantID, UserID: code.UserID, Kind: grantKindMCP, ClientID: code.ClientID, ClientName: code.ClientName,
 			Scopes: code.Scopes, Resource: code.Resource, Now: now,
 		})
 		if err != nil {
@@ -136,7 +141,8 @@ func (s *Server) exchangeCode(ctx context.Context, form url.Values) (*tokenRespo
 
 // refresh は、リフレッシュトークンを入れ替え、新しいトークンを返す。使い済みのリフレッシュトークンがもう一度来たら、
 // 盗まれたものが使われたとみなし、連携ごと取り消す (OAuth 2.1 4.3.1、RFC 9700 4.14.2)。
-func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logger) (*tokenResponse, error) {
+// MCP のクライアントの連携は MCP を、端末の連携は EPGStation 互換の API を、管理者が有効にしているときだけ入れ替える。
+func (s *Server) refresh(ctx context.Context, form url.Values, gates *serverGates, logger *slog.Logger) (*tokenResponse, error) {
 	var resp *tokenResponse
 	var reused *uuid.UUID
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
@@ -151,12 +157,14 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 			return fmt.Errorf("failed to look up the refresh token: %w", err)
 		}
 		switch {
+		case !gates.allows(row.Kind):
+			return invalidGrant("the refresh token is invalid")
 		case form.Get("client_id") != row.ClientID:
 			return invalidGrant("client_id does not match the refresh token")
 		case row.UsedAt != nil:
 			// ロックしたまま取り消し、見つけたことと取り消すことの間に、ほかの入れ替えを挟ませない。
-			if err := q.DeleteOAuthGrant(ctx, row.GrantID); err != nil {
-				return fmt.Errorf("failed to revoke the OAuth grant: %w", err)
+			if err := revokeGrant(ctx, q, row.Kind, row.GrantID, now); err != nil {
+				return err
 			}
 			reused = &row.GrantID
 
@@ -177,7 +185,7 @@ func (s *Server) refresh(ctx context.Context, form url.Values, logger *slog.Logg
 		if err := q.MarkOAuthRefreshTokenUsed(ctx, sqlc.MarkOAuthRefreshTokenUsedParams{TokenHash: hashSecret(token), Now: &now}); err != nil {
 			return fmt.Errorf("failed to mark the refresh token used: %w", err)
 		}
-		resp, err = s.issue(ctx, q, row.GrantID, narrowScopes(row.Scopes, role))
+		resp, err = s.issue(ctx, q, row.GrantID, grantScopes(row.Kind, row.Scopes, role))
 
 		return err
 	})
@@ -222,10 +230,11 @@ func (s *Server) issue(ctx context.Context, q *sqlc.Queries, grantID uuid.UUID, 
 // RevokeHandler は、失効のエンドポイント (POST /oauth/revoke、RFC 7009) のハンドラーを返す。
 // リフレッシュトークンなら連携ごと取り消し、アクセストークンならそのトークンだけを消す。
 // 知らないトークンでも、ほかのクライアントのトークンでも、成功を返す (RFC 7009 2.2)。
+// 取り消しは権限を広げないので、MCP と EPGStation 互換の API のどちらかを有効にしていれば受け付ける。
 func (s *Server) RevokeHandler(logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if !s.serveEnabled(w, r, logger) {
+		if _, ok := s.serveAnyEnabled(w, r, logger); !ok {
 			return
 		}
 		form, err := readForm(w, r)
@@ -260,14 +269,25 @@ func (s *Server) revoke(ctx context.Context, token, clientID string) error {
 		return fmt.Errorf("failed to look up the OAuth token: %w", err)
 	}
 	if row.Kind == tokenKindRefresh {
-		if err := q.DeleteOAuthGrant(ctx, row.GrantID); err != nil {
-			return fmt.Errorf("failed to revoke the OAuth grant: %w", err)
-		}
-
-		return nil
+		return revokeGrant(ctx, q, row.GrantKind, row.GrantID, s.clock.Now())
 	}
 	if err := q.DeleteOAuthToken(ctx, hashSecret(token)); err != nil {
 		return fmt.Errorf("failed to revoke the OAuth token: %w", err)
+	}
+
+	return nil
+}
+
+// revokeGrant は、連携を取り消す。MCP のクライアントの連携は行を消し、端末の連携は行を残して取り消した日時を書く。
+func revokeGrant(ctx context.Context, q *sqlc.Queries, kind string, grantID uuid.UUID, now time.Time) error {
+	var err error
+	if kind == grantKindDevice {
+		err = q.RevokeOAuthDeviceGrant(ctx, sqlc.RevokeOAuthDeviceGrantParams{Now: &now, ID: grantID})
+	} else {
+		err = q.DeleteOAuthGrant(ctx, grantID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to revoke the OAuth grant: %w", err)
 	}
 
 	return nil
@@ -292,7 +312,12 @@ func readForm(w http.ResponseWriter, r *http.Request) (url.Values, error) {
 }
 
 func writeTokenError(w http.ResponseWriter, err *tokenError) {
-	writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.code, "error_description": err.description})
+	writeErrorStatus(w, http.StatusBadRequest, err)
+}
+
+// writeErrorStatus は、エラーを、RFC 6749 5.2 の形の JSON にして、status で返す。
+func writeErrorStatus(w http.ResponseWriter, status int, err *tokenError) {
+	writeJSON(w, status, map[string]string{"error": err.code, "error_description": err.description})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -155,18 +155,55 @@ CREATE TABLE oauth_authorization_codes (
   expires_at timestamptz NOT NULL
 );
 
--- MCP のクライアントとの連携 (#963、設計書 9.9)。認可コードをトークンと引き換えたときに作り、
--- そこから入れ替えていくトークンの系統をまとめる。取り消すと行を消し、系統のトークンもまとめて消える。
+-- キーボードの無い端末のデバイス認可 (RFC 8628、#1527、設計書 9.9)。端末が求めたときに作り、ログイン中のユーザーが承認したら、
+-- 端末が受け取りに来たときにトークンを作って、使用済みにする。device_code そのものは持たず、SHA-256 だけを保存する。
+CREATE TABLE oauth_device_codes (
+  device_code_hash bytea PRIMARY KEY,
+  -- user_code は、ハイフンを除いて正規化した 8 字。人が承認の画面で打ち、見比べる。
+  user_code text NOT NULL UNIQUE,
+  -- client_id と device_name は、端末が自分で名乗るもので、確かめていない。
+  client_id text NOT NULL,
+  device_name text NOT NULL,
+  scopes text[] NOT NULL,
+  -- resource は、トークンを使ってよい EPGStation 互換の API の URL。
+  resource text NOT NULL,
+  -- source_network は、求めた接続元。IPv4 ならアドレス、IPv6 なら /64。接続元ごとのコードの数の上限に使う。
+  source_network cidr NOT NULL,
+  created_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL,
+  -- 端末が最後に問い合わせた日時。間隔を守らない問い合わせに slow_down を返すのに使う。
+  last_polled_at timestamptz,
+  -- 承認したユーザーと日時。承認していなければ NULL。
+  approved_by uuid REFERENCES users (id) ON DELETE CASCADE,
+  approved_at timestamptz,
+  -- 端末がトークンを受け取った日時。受け取っていなければ NULL。
+  used_at timestamptz,
+  CHECK ((approved_by IS NULL) = (approved_at IS NULL)),
+  CHECK (used_at IS NULL OR approved_at IS NOT NULL)
+);
+
+CREATE INDEX oauth_device_codes_expires_at_idx ON oauth_device_codes (expires_at);
+CREATE INDEX oauth_device_codes_source_network_idx ON oauth_device_codes (source_network);
+
+-- MCP のクライアントと、デバイス認可で承認した端末との連携 (#963、#1527、設計書 9.9)。認可コードか device_code を
+-- トークンと引き換えたときに作り、そこから入れ替えていくトークンの系統をまとめる。
+-- MCP のクライアントの連携は、取り消すと行を消し、系統のトークンもまとめて消える。
+-- 端末の連携は、取り消しても行を消さず、取り消した日時を書く。系統のトークンが期限を過ぎて消えたら、行も消す。
 CREATE TABLE oauth_grants (
   id uuid PRIMARY KEY,
   user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  -- kind は、MCP のクライアント (mcp) か、デバイス認可で承認した端末 (device) か。
+  kind text NOT NULL DEFAULT 'mcp' CHECK (kind IN ('mcp', 'device')),
   client_id text NOT NULL,
   client_name text NOT NULL,
   scopes text[] NOT NULL,
   resource text NOT NULL,
   created_at timestamptz NOT NULL,
   -- 最後にアクセストークンを使った日時。書き込みを減らすため、一定の間隔でしか更新しない。使われていなければ NULL。
-  last_used_at timestamptz
+  last_used_at timestamptz,
+  -- 端末の連携を取り消した日時。取り消していなければ NULL。
+  revoked_at timestamptz,
+  CHECK (kind = 'device' OR revoked_at IS NULL)
 );
 
 CREATE INDEX oauth_grants_user_id_idx ON oauth_grants (user_id);

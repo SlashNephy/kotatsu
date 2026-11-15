@@ -94,6 +94,7 @@ function Sessions() {
         }
         oauthGrants {
           id
+          device
           clientId
           clientName
           scopes

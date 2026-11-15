@@ -878,7 +878,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	public := &publicAPI{
-		apiTokens: apiTokens, iptvFeeds: access.iptvFeeds.Feeds, urlGate: urlGate, authorizer: authorizer,
+		apiTokens: apiTokens, iptvFeeds: access.iptvFeeds.Feeds, devices: authorizationServer, urlGate: urlGate, authorizer: authorizer,
 		opener: opener, logos: logos, streams: streams, streamLogger: streamLogger,
 	}
 	// echo のルートに当たらないリクエストは、画面を返す。ただし、画面がセッションの Cookie で使う端点 (/internal/*) と、
@@ -903,7 +903,7 @@ func newRouter(logger *slog.Logger, notFound http.Handler, deps *Deps, calendarF
 	handleCalendar(router, deps, calendarFeeds)
 	handleIPTV(router, deps, public.iptvFeeds, public.urlGate, public.opener, public.logos, public.streams, public.streamLogger)
 	handleSignedStreams(router, deps, public.authorizer, public.urlGate, public.opener, public.streams, public.streamLogger)
-	handleEPGStationAPI(router, deps, public.apiTokens, public.urlGate, public.opener, public.logos, public.streams, public.streamLogger)
+	handleEPGStationAPI(router, deps, epgstationapi.NewCredentials(public.apiTokens, public.devices), public.urlGate, public.opener, public.logos, public.streams, public.streamLogger)
 
 	return router
 }
@@ -956,8 +956,10 @@ func handleAuth(router *echo.Echo, session func(http.Handler) http.Handler, rout
 
 // publicAPI は、/api の下の端点を登録するのに使うもの。
 type publicAPI struct {
-	apiTokens    *auth.APITokens
-	iptvFeeds    *auth.Feeds
+	apiTokens *auth.APITokens
+	iptvFeeds *auth.Feeds
+	// devices は、デバイス認可で端末に発行したトークンを確かめる (#1527)。
+	devices      *oauth.Server
 	urlGate      *settings.URLGate
 	authorizer   *streamapi.Authorizer
 	opener       streamapi.ServiceOpener
@@ -1116,7 +1118,7 @@ func newMediaRoutes(
 	return routes
 }
 
-// handleOAuth は、MCP のクライアントにトークンを発行する認可サーバーのエンドポイント (#963、設計書 9.9) と、
+// handleOAuth は、MCP のクライアントと、キーボードの無い端末にトークンを発行する認可サーバーのエンドポイント (#963、#1527、設計書 9.9) と、
 // MCP サーバー (/mcp、#964、設計書 9.10) を、echo のルーターに登録する (#1606)。どれもセッションの Cookie を使わない。
 // 同意は、ログインした後の GraphQL で行う。MCP のツールは、ログイン中のユーザーとして、同じ GraphQL のハンドラーで操作する。
 // メソッドの違うリクエストは、http.ServeMux のときと同じく、405 にせずに画面のハンドラー (notFound) に渡す。
@@ -1132,6 +1134,8 @@ func handleOAuth(router *echo.Echo, server *oauth.Server, graphQL http.Handler, 
 	get(oauth.AuthorizePath, server.AuthorizeHandler(oauthLogger))
 	router.POST(oauth.ExchangePath, echo.WrapHandler(server.TokenHandler(oauthLogger)), httpserver.Component("oauth"))
 	router.POST(oauth.RevokePath, echo.WrapHandler(server.RevokeHandler(oauthLogger)), httpserver.Component("oauth"))
+	// キーボードの無い端末のデバイス認可 (RFC 8628、#1527)。資格なしで呼べる。承認は、ログインした後の画面 (/device) の GraphQL で行う。
+	router.POST(oauth.DeviceAuthorizationPath, echo.WrapHandler(server.DeviceAuthorizationHandler(oauthLogger)), httpserver.Component("oauth"))
 	mcpHandler, err := mcpserver.NewHandler(server, graphQL, graph.Schema(), logger.With(slog.String("component", "mcp")))
 	if err != nil {
 		// ツールの GraphQL の操作は、ソースに書いた固定のものなので、ここで失敗するのはプログラムの誤り。テストで防ぐ。
@@ -1255,16 +1259,17 @@ func handleIPTV(
 }
 
 // handleEPGStationAPI は、EPGStation 互換の読み取り専用 API (/api/epgstation/api/*) を、echo のルーターに登録する (#431、設計書 9.1、#1606)。
-// セッションの Cookie は使わず、API トークン (Bearer) だけで認証する (設計書 9.8)。トークンがなければ 401 を返す。
+// セッションの Cookie は使わず、API トークンか、デバイス認可で端末に発行したトークン (Bearer) だけで認証する (設計書 9.8、9.9)。
+// トークンがなければ 401 を返す。
 // ハンドラーは net/http のまま包み、:id は r.PathValue("id") で渡る。用意していない API も、認証を通してから 404 にする。
 func handleEPGStationAPI(
-	router *echo.Echo, deps *Deps, tokens *auth.APITokens, urlGate *settings.URLGate, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
+	router *echo.Echo, deps *Deps, credentials *epgstationapi.Credentials, urlGate *settings.URLGate, opener streamapi.ServiceOpener, logos streamapi.LogoFetcher,
 	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
 ) {
 	h := epgstationapi.New(deps.DB, storeOf(deps.Config), streamLogger)
 	// 管理者が有効にしている間だけ提供する (#1769)。無効の間は、API があることを知らせないよう、トークンを確かめる前に 404 を返す。
 	protect := func(next http.Handler) echo.HandlerFunc {
-		return echo.WrapHandler(epgstationapi.RequireEnabled(urlGate, tokens.BearerMiddleware(auth.RequirePermission(domain.PermissionWatch)(next))))
+		return echo.WrapHandler(epgstationapi.RequireEnabled(urlGate, credentials.Middleware(auth.RequirePermission(domain.PermissionWatch)(next))))
 	}
 	prefix := epgstationPathPrefix + "api/"
 	routes := map[string]http.Handler{
@@ -1276,7 +1281,7 @@ func handleEPGStationAPI(
 		// mode は、EPGStation のエンコードの設定の番号。Kotatsu は無変換の TS だけを返すので、読まない。
 		// 開いたままのライブの TS も、管理者が無効にしたか、トークンを取り消したら止める (#1769)。
 		"streams/live/:id/m2ts": streams.Count(streamapi.StreamKindLive, httpserver.StopOnShutdown(
-			epgstationapi.StopWhenRevoked(urlGate, tokens, streamapi.NewLiveHandler(opener, streamLogger)))),
+			epgstationapi.StopWhenRevoked(urlGate, credentials, streamapi.NewLiveHandler(opener, streamLogger)))),
 		"recorded":     http.HandlerFunc(h.Recorded),
 		"recorded/:id": http.HandlerFunc(h.RecordedItem),
 		// 動画とサムネイルは、録画の ID を読み替えて、録画の配信と代表画像の配信につなぐ。動画は Range に答える。

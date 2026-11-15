@@ -410,15 +410,33 @@ type OauthAuthorizationCode struct {
 	ExpiresAt     time.Time
 }
 
+type OauthDeviceCode struct {
+	DeviceCodeHash []byte
+	UserCode       string
+	ClientID       string
+	DeviceName     string
+	Scopes         []string
+	Resource       string
+	SourceNetwork  netip.Prefix
+	CreatedAt      time.Time
+	ExpiresAt      time.Time
+	LastPolledAt   *time.Time
+	ApprovedBy     *uuid.UUID
+	ApprovedAt     *time.Time
+	UsedAt         *time.Time
+}
+
 type OauthGrant struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
+	Kind       string
 	ClientID   string
 	ClientName string
 	Scopes     []string
 	Resource   string
 	CreatedAt  time.Time
 	LastUsedAt *time.Time
+	RevokedAt  *time.Time
 }
 
 type OauthToken struct {
