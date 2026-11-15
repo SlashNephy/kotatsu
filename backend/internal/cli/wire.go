@@ -145,3 +145,23 @@ func newPruneJobParts(deps *Deps) *pruneJobParts {
 		wire.Struct(new(pruneJobParts), "*"),
 	))
 }
+
+// newMediaJobParts は、録画の後処理のジョブの Worker を作る。inserter は、後のジョブを入れる River のクライアント。
+func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *mediaJobParts {
+	panic(wire.Build(
+		clockOf,
+		poolOf,
+		mediaStoreOf,
+		newLowerer,
+		newThumbnailWorker,
+		newLiveThumbnailWorker,
+		newAnalyzeWorker,
+		newJoinWorker,
+		newFinalizeWorker,
+		newCMDetectWorker,
+		newTranscodeWorker,
+		newTvtplayWorker,
+		newChaptersWorker,
+		wire.Struct(new(mediaJobParts), "*"),
+	))
+}
