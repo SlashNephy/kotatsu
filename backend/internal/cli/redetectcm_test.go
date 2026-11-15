@@ -127,3 +127,77 @@ func TestAdminRedetectCM(t *testing.T) {
 		assert.Equal(t, tt.want, out.String(), tt.name)
 	}
 }
+
+// TestAdminRedetectCMWithLogo は、管理者がロゴの見分け方を選んでいれば、その版で古さを決めることと、
+// 材料が今の形式の版でなければ、読み直す録画として数えることを確かめる (#1814)。ロゴの見分け方の今の版は 1。
+func TestAdminRedetectCMWithLogo(t *testing.T) {
+	t.Parallel()
+
+	dbConfig := databasetest.New(t)
+	env := testEnv()
+	env["KOTATSU_DATABASE_URL"] = dbConfig.URL.Value()
+	env["KOTATSU_STORAGE_POOLS"] = "main=" + t.TempDir()
+	env["KOTATSU_STORAGE_DATA_DIR"] = t.TempDir()
+	opts := cli.DefaultOptions(slog.New(slog.DiscardHandler))
+	opts.LookupEnv = func(key string) (string, bool) {
+		v, ok := env[key]
+
+		return v, ok
+	}
+	migrateCmd := cli.NewCommand(opts)
+	migrateCmd.SetArgs([]string{subcommandMigrate})
+	require.NoError(t, migrateCmd.ExecuteContext(t.Context()))
+	pool, err := database.Open(t.Context(), dbConfig)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	base := time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)
+	for _, sql := range []string{
+		"INSERT INTO channel_types (type, display_name, sort_order) VALUES ('GR', '地上波', 10)",
+		`INSERT INTO services (id, network_id, sid, name, name_normalized, service_type, channel_type, channel, created_at, updated_at)
+			VALUES (3273601024, 32736, 1024, 'こたつテスト1', 'こたつテスト1', 1, 'GR', '27', '2026-11-15T12:00:00Z', '2026-11-15T12:00:00Z')`,
+		`INSERT INTO system_settings (id, recording_defaults, archive_retention_days, cm_detector, updated_at)
+			VALUES (1, '{}', 0, 'logo', '2026-11-15T12:00:00Z')`,
+	} {
+		_, err := pool.Exec(t.Context(), sql)
+		require.NoError(t, err)
+	}
+	// 録画ごとに、ロゴで見分けた版と、残した材料の形式の版 (0 なら材料なし)。
+	recordings := []struct {
+		name           string
+		version        int
+		materialFormat int
+	}{
+		{name: "今の形式の材料", version: 0, materialFormat: 4},
+		{name: "古い形式の材料", version: 0, materialFormat: 3},
+		{name: "今の版", version: 1, materialFormat: 4},
+	}
+	ids := make([]string, len(recordings))
+	for i, recording := range recordings {
+		recordingID := id.New()
+		ids[i] = recordingID.String()
+		startAt := base.Add(time.Duration(i) * time.Hour)
+		_, err := pool.Exec(t.Context(), `INSERT INTO recordings (id, service_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+			VALUES ($1, 3273601024, $2, '', $3, $3, 'completed', $3, $3, $3)`, recordingID, recording.name, startAt)
+		require.NoError(t, err)
+		_, err = pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+			VALUES ($1, $2, $3, $4)`, recordingID, detectorLogo, recording.version, startAt)
+		require.NoError(t, err)
+		if recording.materialFormat != 0 {
+			_, err := pool.Exec(t.Context(), `INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
+				VALUES ($1, $2, $3, '\x00', $4)`, recordingID, detectorLogo, recording.materialFormat, startAt)
+			require.NoError(t, err)
+		}
+	}
+
+	var out bytes.Buffer
+	cmd := cli.NewCommand(opts)
+	cmd.SetArgs([]string{subcommandAdmin, "redetect-cm", flagDryRun})
+	cmd.SetOut(&out)
+	require.NoError(t, cmd.ExecuteContext(t.Context()))
+	assert.Equal(t,
+		"2 recordings would be redetected by logo version 1 (1 from the materials, 1 by reading the recordings)\n"+
+			fmt.Sprintf("%s\t%s\tlogo v0\tmaterials\t今の形式の材料\n", base.Format(time.RFC3339), ids[0])+
+			fmt.Sprintf("%s\t%s\tlogo v0\tread\t古い形式の材料\n", base.Add(time.Hour).Format(time.RFC3339), ids[1]),
+		out.String())
+}

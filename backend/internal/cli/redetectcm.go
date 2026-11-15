@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"time"
+	"uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
@@ -23,8 +24,8 @@ func newRedetectCMCommand(opts *Options, connect func(ctx context.Context) (*con
 		Use:   "redetect-cm",
 		Short: "Queue CM detection jobs for recordings detected by an older version of the detector",
 		Long: "Queue CM detection jobs for recordings whose latest CM sections were detected by an older version of the " +
-			"selected detector. Recordings with materials are redetected from them without reading the recordings again; " +
-			"the others are read again, so run this where the pools are mounted. The jobs run one at a time.",
+			"selected detector. The jobs run one at a time on nekonote: recordings with materials are redetected from them " +
+			"without reading the recordings again, and the others are read again.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, pool, err := connect(cmd.Context())
@@ -51,15 +52,13 @@ func newRedetectCMCommand(opts *Options, connect func(ctx context.Context) (*con
 			if err != nil {
 				return err
 			}
-			queued := 0
+			ids := make([]uuid.UUID, 0, len(recordings))
 			for _, recording := range recordings {
-				inserted, err := cmdetect.Enqueue(cmd.Context(), pool, inserter, opts.Clock, recording.RecordingID)
-				if err != nil {
-					return err
-				}
-				if inserted {
-					queued++
-				}
+				ids = append(ids, recording.RecordingID)
+			}
+			queued, err := cmdetect.EnqueueMany(cmd.Context(), pool, inserter, opts.Clock, ids)
+			if err != nil {
+				return err
 			}
 			_, err = fmt.Fprintf(out, "queued %d of %d recordings (%d were already queued)\n", queued, len(recordings), len(recordings)-queued)
 

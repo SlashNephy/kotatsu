@@ -9,10 +9,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 )
 
-// selectableDetectors は、管理者が選べる見分け方を返す (#1814)。名前と版を読むだけなので、作らずに型の値で返す。
+// selectableDetectors は、管理者が選べる見分け方を返す (#1814)。名前と版を読むだけなので、FFmpeg を探さずに、ゼロ値で返す。
 // 見分け方を足したら、ここにも足す。
 func selectableDetectors() []Detector {
-	return []Detector{(*FFmpegDetector)(nil), (*LogoDetector)(nil)}
+	return []Detector{new(FFmpegDetector), new(LogoDetector)}
 }
 
 // currentVersion は、名前が name の見分け方の、今の版を返す。知らない名前なら false を返す。
