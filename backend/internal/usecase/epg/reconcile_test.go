@@ -902,6 +902,7 @@ func TestSyncAllRecordsProgramRewrites(t *testing.T) {
 				"SELECT event_id, field, before, after, observed_at FROM program_rewrites WHERE service_id = $1 ORDER BY event_id, field",
 				serviceID())
 			require.NoError(t, err)
+			defer rows.Close()
 			got := []string{}
 			for rows.Next() {
 				var (

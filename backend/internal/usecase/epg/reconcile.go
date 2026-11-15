@@ -800,12 +800,12 @@ func recordRewrites(ctx context.Context, q *sqlc.Queries, diff *programDiff, now
 	if len(params) == 0 {
 		return nil
 	}
-	var batchErr error
-	q.InsertProgramRewrites(ctx, params).Exec(func(_ int, err error) {
-		if err != nil && batchErr == nil {
-			batchErr = fmt.Errorf("failed to record a program rewrite: %w", err)
+	errs := []error{}
+	q.InsertProgramRewrites(ctx, params).Exec(func(i int, err error) {
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to record a rewrite of program %d/%d: %w", params[i].ServiceID, params[i].EventID, err))
 		}
 	})
 
-	return batchErr
+	return errors.Join(errs...)
 }
