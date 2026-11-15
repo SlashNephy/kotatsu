@@ -60,7 +60,7 @@ export function QualitySelect({
       return t('player.originalShort');
     }
     if (name === passthrough) {
-      return t('player.passthrough');
+      return 'HEVC 2160p';
     }
     const codec = currentCodec === 'HEVC' ? 'HEVC' : 'H.264';
 

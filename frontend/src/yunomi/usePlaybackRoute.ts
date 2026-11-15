@@ -37,6 +37,8 @@ export function usePlaybackRoute(
   currentCodec: string | null;
   // automatic は、画質を自動で上げ下げしてよいか (利用者が手で選んでいないか)。
   automatic: boolean;
+  // lowerAvailable は、今の段より下の段を選べるか。手で選んだ画質が重いときに「自動」を勧めるかに使う。
+  lowerAvailable: boolean;
   setQuality: (quality: string) => void;
   // stepDownForDecode は、デコードが追いつかないときに 1 段下げ、新しい段の名前を返す。
   // その段より上へは、タブを開いている間は上げない。手で選んでいるときと、下げる段が無いときは null。
@@ -66,6 +68,8 @@ export function usePlaybackRoute(
     current,
     currentCodec: preset?.codec ?? null,
     automatic: !manual,
+    lowerAvailable:
+      available.length >= 2 && current !== null && decodeStepDown(current, rungs) !== null,
     setQuality: (quality) => {
       setRequested(quality);
       saveQuality(browserStorage(), quality);

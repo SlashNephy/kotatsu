@@ -12,7 +12,11 @@ export const hintClearMs = 30_000;
 type Notice = { kind: 'down'; name: string; at: number } | { kind: 'manual'; at: number };
 
 // Playback は、usePlaybackRoute のうち、段を下げるのに使う部分。
-type Playback = { automatic: boolean; stepDownForDecode: () => string | null };
+type Playback = {
+  automatic: boolean;
+  lowerAvailable: boolean;
+  stepDownForDecode: () => string | null;
+};
 
 // useAdaptiveQuality は、映像だけの遅れを飛び直しで直し (どの画面でも)、stepDown なら、デコードが追いつかない端末で段を下げる (#1513)。
 // 段を下げるのは、ライブと追っかけだけ。画質が「自動」なら 1 段下げて理由を出し、手で選んでいれば動かさずに「自動」を勧める。
@@ -30,7 +34,10 @@ export function useAdaptiveQuality(
       ? {
           onHeavy: () => {
             if (!playback.automatic) {
-              setNotice({ kind: 'manual', at: Date.now() });
+              // 「自動」にしても下げる段が無ければ、勧めない。
+              if (playback.lowerAvailable) {
+                setNotice({ kind: 'manual', at: Date.now() });
+              }
 
               return;
             }
@@ -42,6 +49,11 @@ export function useAdaptiveQuality(
         }
       : {},
   );
+
+  // 「自動」に切り替えたら、「自動」を勧める表示はすぐ消す。
+  if (notice?.kind === 'manual' && playback.automatic) {
+    setNotice(null);
+  }
 
   // 同じ状態が続けば、知らせを出し直して、消すまでの時間を延ばす。
   useEffect(() => {

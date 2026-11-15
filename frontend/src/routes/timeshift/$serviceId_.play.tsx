@@ -385,6 +385,7 @@ function Player({
     video,
     {
       automatic: playback.automatic,
+      lowerAvailable: playback.lowerAvailable,
       stepDownForDecode: () => {
         const next = playback.stepDownForDecode();
         if (next !== null) {

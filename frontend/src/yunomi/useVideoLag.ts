@@ -49,7 +49,8 @@ export function useVideoLag(
 ): VideoLag {
   const controllerRef = useRef<VideoLagController | null>(null);
   const heavy = useEffectEvent(() => onHeavy?.());
-  const judging = onHeavy !== undefined;
+  // 段を下げてよいかが再生の途中で変わっても (追っかけ再生の録画を終えたなど)、制御を作り直さない。
+  const judging = useEffectEvent(() => onHeavy !== undefined);
 
   useEffect(() => {
     if (video === null) {
@@ -123,7 +124,7 @@ export function useVideoLag(
       } else {
         controller.forgetQuality();
       }
-      if (judging && controller.heavy(now)) {
+      if (judging() && controller.heavy(now)) {
         controller.reset();
         heavy();
       }
@@ -143,7 +144,7 @@ export function useVideoLag(
         controllerRef.current = null;
       }
     };
-  }, [video, judging]);
+  }, [video]);
 
   return {
     speedUpAllowed: () => controllerRef.current?.speedUpAllowed(performance.now()) ?? true,

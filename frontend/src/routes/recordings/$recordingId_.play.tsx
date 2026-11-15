@@ -740,6 +740,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     video,
     {
       automatic: playback.automatic,
+      lowerAvailable: playback.lowerAvailable,
       stepDownForDecode: () => {
         const next = playback.stepDownForDecode();
         if (next !== null) {

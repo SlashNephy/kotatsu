@@ -198,8 +198,12 @@ export function createVideoLagController(options: VideoLagOptions): VideoLagCont
     },
     quality(now, total, dropped) {
       const last = samples.at(-1);
-      // 累計が戻ったら (作り直した video)、前の記録と比べない。
-      if (last !== undefined && (total < last.total || dropped < last.dropped)) {
+      // 累計が戻ったら (作り直した video)、前の記録と比べない。窓より長く間が空いたときも (スリープ、タイマーの間引き)、
+      // 空いた間をならして割合を薄めないよう、前の記録と比べない。
+      if (
+        last !== undefined &&
+        (total < last.total || dropped < last.dropped || now - last.at >= params.dropWindowMs)
+      ) {
         samples = [];
       }
       samples.push({ at: now, total, dropped });

@@ -209,6 +209,16 @@ describe('重さの判定', () => {
     expect(controller.heavy(10_100)).toBe(false);
   });
 
+  test('窓より長く間が空いたら、その前の記録と比べない', () => {
+    const controller = started();
+    // 空く前は捨てていない。空いた後の 9 秒に 300 コマ出し、すべて捨てた。
+    controller.quality(0, 0, 0);
+    controller.quality(30_000, 300, 0);
+    controller.quality(39_000, 600, 300);
+
+    expect(controller.heavy(39_000)).toBe(true);
+  });
+
   test('数えたものを捨てたら、重くなくなる', () => {
     const controller = started();
     jumpEvery(controller, params.heavyJumps, 1_000);
