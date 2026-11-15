@@ -1,0 +1,149 @@
+diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
+index f6f733e..fbb6000 100644
+--- a/packages/yadif/src/deinterlace.ts
++++ b/packages/yadif/src/deinterlace.ts
+@@ -831,11 +831,11 @@ export class Deinterlacer {
+     const columns: string[] = [];
+     const metrics = this.#detector.metrics;
+     for (let index = 0; index < FIELD_METRICS.phase; index++) {
+-      const max = metrics[index * 4] ?? 0;
++      const signed = metrics[index * 4] ?? 0;
+       const differing = metrics[index * 4 + 1] ?? 0;
+       const mean = metrics[index * 4 + 2] ?? 0;
+       columns.push(
+-        `${max.toFixed(3)},${differing.toString().padStart(4)},${mean.toFixed(3)}`,
++        `${signed.toFixed(4)},${differing.toString().padStart(4)},${mean.toFixed(3)}`,
+       );
+     }
+     const counts = this.#phaseCounts
+diff --git a/packages/yadif/src/film-shader.ts b/packages/yadif/src/film-shader.ts
+index 5c530ff..7671c0d 100644
+--- a/packages/yadif/src/film-shader.ts
++++ b/packages/yadif/src/film-shader.ts
+@@ -22,10 +22,11 @@
+  */
+ 
+ /**
+- * The texels of the field-metrics texture. Each comparison texel is `(max,
+- * differing, mean, blocks)`: the largest block mean absolute luma difference,
+- * how many blocks were over the threshold, the mean over all blocks, and how
+- * many blocks there were. The `phase` texel is `(phase, run)`.
++ * The texels of the field-metrics texture. Each comparison texel is `(signed,
++ * differing, mean, blocks)`: the mean signed luma difference over the whole
++ * field, how many blocks were over the threshold, the mean absolute
++ * difference over all blocks, and how many blocks there were. The `phase`
++ * texel is `(phase, run)`.
+  *
+  * Only the two comparisons against the next frame are measured per frame;
+  * the rest are earlier ones moved along by METRICS.
+@@ -55,6 +56,19 @@ export const FIELD_METRICS_SIZE = 7;
+ export const SAME_BLOCKS_MAX = 2;
+ export const DIFFERENT_BLOCKS_MIN = 16;
+ 
++/**
++ * The mean signed luma difference over a whole field beyond which the two
++ * fields are told apart however few blocks differ: a little under one code
++ * value. A fade moves every block the same way, so a fade laid over the
++ * interlaced picture after the pulldown leaves each block under the block
++ * threshold, which loosens once a cadence holds, while every field is from a
++ * moment of its own; put back together, the fields of a frame would stripe
++ * the flat areas. Encoder noise on a field that does repeat is spread both
++ * ways and stays well under this, even through a fade made before the
++ * pulldown.
++ */
++export const FIELD_SIGNED_MEAN_MAX = 0.004;
++
+ /** The phases whose frame holds two film frames; the first is the repeat. */
+ export const FILM_DUPLICATE_PHASE = 1;
+ export const FILM_MIXED_PHASE = 2;
+@@ -104,10 +118,10 @@ float luma(vec3 c)
+   return dot(c, vec3(0.2126, 0.7152, 0.0722));
+ }
+ 
+-vec4 measure(float diff, float total, float threshold)
++vec4 measure(float diff, float signedDiff, float total, float threshold)
+ {
+   diff /= total;
+-  return vec4(diff, diff > threshold ? 1.0 : 0.0, diff, 1.0);
++  return vec4(signedDiff / total, diff > threshold ? 1.0 : 0.0, diff, 1.0);
+ }
+ 
+ void main()
+@@ -121,6 +135,8 @@ void main()
+   // Even and odd frame lines, summed apart.
+   float diffEven = 0.0;
+   float diffOdd = 0.0;
++  float signedEven = 0.0;
++  float signedOdd = 0.0;
+   int totalEven = 0;
+   int totalOdd = 0;
+ 
+@@ -133,6 +149,7 @@ void main()
+         float b = luma(texelFetch(uB, p, 0).rgb);
+ 
+         diffEven += abs(a - b);
++        signedEven += a - b;
+         totalEven += 1;
+       }
+       p.y += 1;
+@@ -141,6 +158,7 @@ void main()
+         float b = luma(texelFetch(uB, p, 0).rgb);
+ 
+         diffOdd += abs(a - b);
++        signedOdd += a - b;
+         totalOdd += 1;
+       }
+     }
+@@ -149,8 +167,8 @@ void main()
+   float run = texelFetch(uFieldMetrics, ivec2(${FIELD_METRICS.phase}, 0), 0)[1];
+   float threshold = run == 0.0 ? 0.025 : (run <= 10.0 ? 0.11 : 0.15);
+ 
+-  vec4 even = measure(diffEven, float(totalEven), threshold);
+-  vec4 odd = measure(diffOdd, float(totalOdd), threshold);
++  vec4 even = measure(diffEven, signedEven, float(totalEven), threshold);
++  vec4 odd = measure(diffOdd, signedOdd, float(totalOdd), threshold);
+   outFirst = uFirst == 0 ? even : odd;
+   outSecond = uFirst == 0 ? odd : even;
+ }
+@@ -188,12 +206,8 @@ void main()
+       ivec2 p = base + ivec2(x, y);
+ 
+       if (p.x < uSize.x && p.y < uSize.y) {
+-        vec4 value = texelFetch(uSecond, p, 0);
+-        second[0] = max(second[0], value[0]);
+-        second.yzw += value.yzw;
+-        value = texelFetch(uFirst, p, 0);
+-        first[0] = max(first[0], value[0]);
+-        first.yzw += value.yzw;
++        second += texelFetch(uSecond, p, 0);
++        first += texelFetch(uFirst, p, 0);
+       }
+     }
+   }
+@@ -236,17 +250,21 @@ vec4 previous(int metric) {
+   return texelFetch(uPrevious, ivec2(metric, 0), 0);
+ }
+ 
+-/** Fold what REDUCTION left into one texel. */
++/**
++ * Fold what REDUCTION left into one texel. Two fields apart by more than
++ * FIELD_SIGNED_MEAN_MAX on average count every block as differing.
++ */
+ vec4 fold(sampler2D reduced) {
+   vec4 sum = vec4(0.0);
+   for (int y = 0; y < uSize.y; ++y) {
+     for (int x = 0; x < uSize.x; ++x) {
+-      vec4 value = texelFetch(reduced, ivec2(x, y), 0);
+-      sum[0] = max(sum[0], value[0]);
+-      sum.yzw += value.yzw;
++      sum += texelFetch(reduced, ivec2(x, y), 0);
+     }
+   }
+-  return vec4(sum[0], sum[1], sum[2] / max(sum[3], 1.0), sum[3]);
++  float blocks = max(sum[3], 1.0);
++  float signedMean = sum[0] / blocks;
++  float differing = abs(signedMean) > ${FIELD_SIGNED_MEAN_MAX} ? sum[3] : sum[1];
++  return vec4(signedMean, differing, sum[2] / blocks, sum[3]);
+ }
+ 
+ bool same(float differing) {

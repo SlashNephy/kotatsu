@@ -21,10 +21,11 @@
  * fields in capture order.
  */
 /**
- * The texels of the field-metrics texture. Each comparison texel is `(max,
- * differing, mean, blocks)`: the largest block mean absolute luma difference,
- * how many blocks were over the threshold, the mean over all blocks, and how
- * many blocks there were. The `phase` texel is `(phase, run)`.
+ * The texels of the field-metrics texture. Each comparison texel is `(signed,
+ * differing, mean, blocks)`: the mean signed luma difference over the whole
+ * field, how many blocks were over the threshold, the mean absolute
+ * difference over all blocks, and how many blocks there were. The `phase`
+ * texel is `(phase, run)`.
  *
  * Only the two comparisons against the next frame are measured per frame;
  * the rest are earlier ones moved along by METRICS.
@@ -51,6 +52,18 @@ export declare const FIELD_METRICS_SIZE = 7;
  */
 export declare const SAME_BLOCKS_MAX = 2;
 export declare const DIFFERENT_BLOCKS_MIN = 16;
+/**
+ * The mean signed luma difference over a whole field beyond which the two
+ * fields are told apart however few blocks differ: a little under one code
+ * value. A fade moves every block the same way, so a fade laid over the
+ * interlaced picture after the pulldown leaves each block under the block
+ * threshold, which loosens once a cadence holds, while every field is from a
+ * moment of its own; put back together, the fields of a frame would stripe
+ * the flat areas. Encoder noise on a field that does repeat is spread both
+ * ways and stays well under this, even through a fade made before the
+ * pulldown.
+ */
+export declare const FIELD_SIGNED_MEAN_MAX = 0.004;
 /** The phases whose frame holds two film frames; the first is the repeat. */
 export declare const FILM_DUPLICATE_PHASE = 1;
 export declare const FILM_MIXED_PHASE = 2;
@@ -84,7 +97,7 @@ export declare const REDUCTION_UNIFORMS: {
 };
 export declare const REDUCTION_FACTOR = 8;
 /** Fold a square of texels of both comparisons into one texel each. */
-export declare const REDUCTION_FRAGMENT_SHADER = "#version 300 es\nprecision highp float;\n\nuniform sampler2D uSecond;\nuniform sampler2D uFirst;\n\nuniform ivec2 uSize;\n\nlayout(location = 0) out vec4 outSecond;\nlayout(location = 1) out vec4 outFirst;\n\nvoid main()\n{\n  ivec2 dst = ivec2(gl_FragCoord.xy);\n  ivec2 base = dst * 8;\n\n  vec4 second = vec4(0.0);\n  vec4 first = vec4(0.0);\n\n  for (int y = 0; y < 8; ++y) {\n    for (int x = 0; x < 8; ++x) {\n      ivec2 p = base + ivec2(x, y);\n\n      if (p.x < uSize.x && p.y < uSize.y) {\n        vec4 value = texelFetch(uSecond, p, 0);\n        second[0] = max(second[0], value[0]);\n        second.yzw += value.yzw;\n        value = texelFetch(uFirst, p, 0);\n        first[0] = max(first[0], value[0]);\n        first.yzw += value.yzw;\n      }\n    }\n  }\n\n  outSecond = second;\n  outFirst = first;\n}\n";
+export declare const REDUCTION_FRAGMENT_SHADER = "#version 300 es\nprecision highp float;\n\nuniform sampler2D uSecond;\nuniform sampler2D uFirst;\n\nuniform ivec2 uSize;\n\nlayout(location = 0) out vec4 outSecond;\nlayout(location = 1) out vec4 outFirst;\n\nvoid main()\n{\n  ivec2 dst = ivec2(gl_FragCoord.xy);\n  ivec2 base = dst * 8;\n\n  vec4 second = vec4(0.0);\n  vec4 first = vec4(0.0);\n\n  for (int y = 0; y < 8; ++y) {\n    for (int x = 0; x < 8; ++x) {\n      ivec2 p = base + ivec2(x, y);\n\n      if (p.x < uSize.x && p.y < uSize.y) {\n        second += texelFetch(uSecond, p, 0);\n        first += texelFetch(uFirst, p, 0);\n      }\n    }\n  }\n\n  outSecond = second;\n  outFirst = first;\n}\n";
 export declare const METRICS_UNIFORMS: {
     readonly previous: "uPrevious";
     readonly second: "uSecond";
