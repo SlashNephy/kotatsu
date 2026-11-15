@@ -45,6 +45,9 @@ const (
 	jpegQuality = 80
 	// thumbnailAttempts は、代表画像を取り出せなかったときに、後ろの I フレームで試し直す回数。
 	thumbnailAttempts = 3
+	// avoidMargin は、代表画像に選ばない区間 (Options.Avoid) の前後に足す余白。CM の区間の境目は無音で決めるので、
+	// 境目のすぐ外の I フレームには、CM の絵が残っていることがある (#1810)。
+	avoidMargin = time.Second
 	// LiveThumbnailLag は、録画中の録画の代表画像 (#1236) を、書いた終わりからどれだけ前の I フレームから作るか。
 	// 終わりの I フレームは、GOP の続きをまだ書いていないことがあるので、少し前にする。
 	LiveThumbnailLag = 10 * time.Second
@@ -150,6 +153,14 @@ type Options struct {
 	// Latest は、代表画像を、録画の長さの ThumbnailPosition の位置ではなく、書いた終わりの近くから作るかどうか。
 	// 録画中の録画の、今の様子を示すのに使う (#1236)。
 	Latest bool
+	// Avoid は、代表画像に選ばない区間 (CM の区間、#1810)。時間は、Segment.Start と同じく最初のセグメントの始まりからで、
+	// 途切れた区間も含めて数える。区間の外に I フレームがなければ、区間を気にせずに選ぶ。Latest では使わない。
+	Avoid []Span
+}
+
+// Span は、録画の始まりからの時間の区間 [Start, End)。
+type Span struct {
+	Start, End time.Duration
 }
 
 // Generator は、録画の代表画像とプレビュー画像を作る。
@@ -160,7 +171,7 @@ type Generator struct {
 
 // NewGenerator は Generator を返す。opts が nil なら、プレビュー画像も、既定の間隔で作る。
 func NewGenerator(extractor Extractor, opts *Options) *Generator {
-	o := Options{Preview: true, Interval: DefaultInterval, Latest: false}
+	o := Options{Preview: true, Interval: DefaultInterval, Latest: false, Avoid: nil}
 	if opts != nil {
 		o = *opts
 	}
@@ -175,8 +186,10 @@ func NewGenerator(extractor Extractor, opts *Options) *Generator {
 type keyframe struct {
 	segment int
 	offset  int64
-	// at は、録画の始まりからの時間。
+	// at は、録画の始まりからの時間。途切れた区間を含めない (再生の時間)。
 	at time.Duration
+	// wall は、録画の始まりからの時間。途切れた区間も含めて数える (CM の区間と同じ数え方)。
+	wall time.Duration
 }
 
 // Generate は、セグメントの索引から I フレームを選び、代表画像と、設定していればプレビュー画像を作る。
@@ -202,16 +215,25 @@ func (g *Generator) Generate(ctx context.Context, segments []Segment) (*Result, 
 }
 
 // thumbnail は、録画の ThumbnailPosition の位置に最も近い I フレームから、代表画像を作る。
+// Avoid の区間 (CM) にかかる I フレームは選ばず、区間の外で最も近いものにする (#1810)。
 // 取り出せなければ、後ろの I フレームで試し直す。Latest なら、書いた終わりの LiveThumbnailLag 前に最も近い I フレームから作り、
 // 取り出せなければ、前の I フレームで試し直す (後ろは、まだ書き終えていないことがあるため)。
 func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, error) {
 	duration := keyframes[len(keyframes)-1].at
-	start, step := nearest(keyframes, time.Duration(float64(duration)*ThumbnailPosition)), 1
+	target, step := time.Duration(float64(duration)*ThumbnailPosition), 1
+	usable := func(int) bool { return true }
 	if g.opts.Latest {
-		start, step = nearest(keyframes, max(duration-LiveThumbnailLag, 0)), -1
+		target, step = max(duration-LiveThumbnailLag, 0), -1
+	} else if outside := g.outsideAvoid(keyframes); slices.Contains(outside, true) {
+		usable = func(i int) bool { return outside[i] }
 	}
+	start := nearest(keyframes, target, usable)
 	errs := []error{}
-	for i, attempt := start, 0; i >= 0 && i < len(keyframes) && attempt < thumbnailAttempts; i, attempt = i+step, attempt+1 {
+	for i, attempt := start, 0; i >= 0 && i < len(keyframes) && attempt < thumbnailAttempts; i += step {
+		if !usable(i) {
+			continue
+		}
+		attempt++
 		frame, err := g.extract(ctx, segments, keyframes[i], SizeThumbnail)
 		if err == nil {
 			return frame, nil
@@ -225,6 +247,18 @@ func (g *Generator) thumbnail(ctx context.Context, segments []Segment, keyframes
 	return nil, fmt.Errorf("%w: %w", ErrNoFrame, errors.Join(errs...))
 }
 
+// outsideAvoid は、I フレームごとに、Avoid のどの区間 (前後に avoidMargin を足したもの) にもかからないかを返す。
+func (g *Generator) outsideAvoid(keyframes []keyframe) []bool {
+	outside := make([]bool, len(keyframes))
+	for i := range keyframes {
+		outside[i] = !slices.ContainsFunc(g.opts.Avoid, func(span Span) bool {
+			return keyframes[i].wall >= span.Start-avoidMargin && keyframes[i].wall < span.End+avoidMargin
+		})
+	}
+
+	return outside
+}
+
 // preview は、一定間隔の I フレームから取り出したコマを、1 枚のタイル画像にまとめる。
 // 間隔は Interval を下限に、コマが MaxFrames に収まるよう広げる。取り出せなかったコマは飛ばす。
 func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes []keyframe) ([]byte, *Manifest, error) {
@@ -235,7 +269,7 @@ func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes [
 	last := -1
 	errs := []error{}
 	for target := time.Duration(0); target <= duration && len(frames) < MaxFrames; target += interval {
-		i := nearest(keyframes, target)
+		i := nearest(keyframes, target, func(int) bool { return true })
 		// I フレームの間隔が、コマの間隔より広ければ、同じ I フレームを二度使わない。
 		if i == last {
 			continue
@@ -294,7 +328,7 @@ func keyframesOf(segments []Segment) []keyframe {
 		index := segments[i].Index
 		for _, entry := range index {
 			at := segments[i].Start + time.Duration(ts.PTSDiff(index[0].PTS, entry.PTS))*time.Second/ts.PTSClock
-			keyframes = append(keyframes, keyframe{segment: i, offset: entry.Offset, at: at})
+			keyframes = append(keyframes, keyframe{segment: i, offset: entry.Offset, at: at, wall: at})
 		}
 	}
 	slices.SortStableFunc(keyframes, func(a, b keyframe) int { return cmp.Compare(a.at, b.at) })
@@ -314,11 +348,12 @@ func keyframesOf(segments []Segment) []keyframe {
 	return keyframes
 }
 
-// nearest は、時間 target に最も近い I フレームの添え字を返す。keyframes は時間の順に並んでいる。
-func nearest(keyframes []keyframe, target time.Duration) int {
-	best := 0
+// nearest は、usable な I フレームのうち、時間 target に最も近いものの添え字を返す。usable なものがなければ -1 を返す。
+// keyframes は時間の順に並んでいる。
+func nearest(keyframes []keyframe, target time.Duration, usable func(int) bool) int {
+	best := -1
 	for i := range keyframes {
-		if (keyframes[i].at - target).Abs() < (keyframes[best].at - target).Abs() {
+		if usable(i) && (best < 0 || (keyframes[i].at-target).Abs() < (keyframes[best].at-target).Abs()) {
 			best = i
 		}
 	}

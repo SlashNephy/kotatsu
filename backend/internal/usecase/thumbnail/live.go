@@ -50,7 +50,7 @@ func (w *LiveWorker) Work(ctx context.Context, _ *river.Job[LiveArgs]) error {
 		}
 		params := make([]river.InsertManyParams, 0, len(ids))
 		for _, id := range ids {
-			params = append(params, river.InsertManyParams{Args: GenerateArgs{RecordingID: id, Live: true}, InsertOpts: nil})
+			params = append(params, river.InsertManyParams{Args: GenerateArgs{RecordingID: id, Live: true, ThumbnailOnly: false}, InsertOpts: nil})
 		}
 		if _, err := w.inserter.InsertManyTx(ctx, tx, params); err != nil {
 			return fmt.Errorf("failed to insert the live thumbnail jobs: %w", err)

@@ -54,6 +54,9 @@ type GenerateArgs struct {
 	// Live なら、録画中の録画の、今の様子の代表画像だけを作る (#1236)。プレビュー画像は、録画を終えてから作る。
 	// 録画を終えた録画では、何もしない (録画を終えたときのジョブが作り直す)。
 	Live bool `json:"live,omitempty"`
+	// ThumbnailOnly なら、代表画像だけを作り直し、プレビュー画像はそのままにする。CM の区間を見分け終えたときに、
+	// 代表画像を CM の区間から外すのに使う (#1810)。
+	ThumbnailOnly bool `json:"thumbnailOnly,omitempty"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(GenerateArgs)
@@ -119,14 +122,15 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 		return err
 	}
 	q := sqlc.New(w.db)
-	if err := w.checkRecording(ctx, q, &job.Args); err != nil {
+	recording, err := w.checkRecording(ctx, q, &job.Args)
+	if err != nil {
 		return err
 	}
 	files, err := q.ListRecordingFiles(ctx, job.Args.RecordingID)
 	if err != nil {
 		return fmt.Errorf("failed to list the recording files: %w", err)
 	}
-	segments, err := w.segments(files)
+	segments, startedAt, err := w.segments(files)
 	if err != nil {
 		return err
 	}
@@ -134,7 +138,10 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	if !ok {
 		return river.JobCancel(errNoSegment)
 	}
-	opts := &Options{Preview: w.preview && !job.Args.Live, Interval: 0, Latest: job.Args.Live}
+	opts, err := w.options(ctx, q, &job.Args, startedAt.Sub(recording.RecordedFrom))
+	if err != nil {
+		return err
+	}
 	result, err := NewGenerator(extractor, opts).Generate(ctx, segments)
 	if errors.Is(err, ErrNoKeyframe) {
 		return river.JobCancel(err)
@@ -170,21 +177,63 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	return nil
 }
 
-// checkRecording は、録画がまだあるかを確かめる。録画中の録画の画像 (Live) なら、まだ録画中かも確かめる。
+// checkRecording は、録画がまだあるかを確かめ、録画を返す。録画中の録画の画像 (Live) なら、まだ録画中かも確かめる。
 // なければ、ジョブを取りやめるエラーを返す。
-func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, args *GenerateArgs) error {
+func (w *GenerateWorker) checkRecording(ctx context.Context, q *sqlc.Queries, args *GenerateArgs) (*sqlc.Recording, error) {
 	recording, err := q.GetRecording(ctx, args.RecordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return river.JobCancel(errRecordingNotFound)
+		return nil, river.JobCancel(errRecordingNotFound)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to get the recording: %w", err)
+		return nil, fmt.Errorf("failed to get the recording: %w", err)
 	}
 	if args.Live && recording.State != stateRecording {
-		return river.JobCancel(errNotRecording)
+		return nil, river.JobCancel(errNotRecording)
 	}
 
-	return nil
+	return &recording, nil
+}
+
+// options は、ジョブの引数から、画像の作り方を決める。録画を終えた録画では、CM の区間を避けて代表画像を選ぶ (#1810)。
+// shift は、使える最初のセグメントの始まりの、録画を始めた日時からの時間。
+func (w *GenerateWorker) options(ctx context.Context, q *sqlc.Queries, args *GenerateArgs, shift time.Duration) (*Options, error) {
+	opts := &Options{Preview: w.preview && !args.Live && !args.ThumbnailOnly, Interval: 0, Latest: args.Live, Avoid: nil}
+	if args.Live {
+		return opts, nil
+	}
+	avoid, err := cmSpans(ctx, q, args.RecordingID, shift)
+	if err != nil {
+		return nil, err
+	}
+	opts.Avoid = avoid
+
+	return opts, nil
+}
+
+// cmSpans は、録画の CM の区間 (最後に見分けた見分け方のもの、設計書 6.1) を、代表画像に選ばない区間にして返す (#1810)。
+// CM の区間は録画を始めた日時からの時間なので、画像の時間 (使える最初のセグメントの始まりから) にするため、shift を引く。
+// 見分けていなければ空のスライスを返す。
+func cmSpans(ctx context.Context, q *sqlc.Queries, recordingID uuid.UUID, shift time.Duration) ([]Span, error) {
+	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return []Span{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the latest CM detection of the recording: %w", err)
+	}
+	rows, err := q.ListRecordingCMSections(ctx, sqlc.ListRecordingCMSectionsParams{RecordingID: recordingID, Detector: latest.Detector})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the CM sections of the recording: %w", err)
+	}
+	spans := make([]Span, 0, len(rows))
+	for _, row := range rows {
+		spans = append(spans, Span{
+			Start: time.Duration(row.StartOffsetMs)*time.Millisecond - shift,
+			End:   time.Duration(row.EndOffsetMs)*time.Millisecond - shift,
+		})
+	}
+
+	return spans, nil
 }
 
 // ImageSegment は、録画の代表画像とプレビュー画像を置くセグメントのファイルの ID を返す。
@@ -210,8 +259,8 @@ func HasContent(kind string, size int64, endedAt *time.Time) bool {
 // segments は、録画のファイルから、索引のあるセグメントを、始まりの順に読む。このインスタンスにマウントされていないプールのものは使えない。
 // 索引は、データディレクトリの、セグメントのファイルの ID のディレクトリにあるものを、そのセグメントの索引とする。
 // EPGStation から取り込んだ録画では、複数のセグメントの始まりが同じことがあるので、始まりでは対応付けない。
-// コマの時間は、使える最初のセグメントの始まりからの時間にする。
-func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, error) {
+// コマの時間は、使える最初のセグメントの始まりからの時間にする。その始まりの日時も返す。
+func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, time.Time, error) {
 	segments := []Segment{}
 	var startedAt *time.Time
 	for i := range files {
@@ -224,14 +273,14 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, error)
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, time.Time{}, err
 		}
 		entries, err := readIndex(w.store, kago.IndexLocation(file.ID))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return nil, time.Time{}, err
 		}
 		if startedAt == nil {
 			startedAt = &file.StartedAt
@@ -239,10 +288,10 @@ func (w *GenerateWorker) segments(files []sqlc.RecordingFile) ([]Segment, error)
 		segments = append(segments, Segment{Path: segmentPath, Start: file.StartedAt.Sub(*startedAt), Index: entries})
 	}
 	if len(segments) == 0 {
-		return nil, river.JobCancel(errNoSegment)
+		return nil, time.Time{}, river.JobCancel(errNoSegment)
 	}
 
-	return segments, nil
+	return segments, *startedAt, nil
 }
 
 // readIndex は、索引を読む。なければ os.ErrNotExist を包んで返す。
@@ -322,7 +371,7 @@ func EnqueueGenerate(ctx context.Context, db Beginner, inserter Inserter, record
 		return false, fmt.Errorf("failed to begin a transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID, Live: false}, InsertOpts: nil}})
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false}, InsertOpts: nil}})
 	if err != nil {
 		return false, fmt.Errorf("failed to insert the thumbnail job: %w", err)
 	}
@@ -331,4 +380,26 @@ func EnqueueGenerate(ctx context.Context, db Beginner, inserter Inserter, record
 	}
 
 	return len(results) == 1 && !results[0].UniqueSkippedAsDuplicate, nil
+}
+
+// CMEnqueuer は、CM の区間を見分け終えたときに、代表画像だけを作り直すジョブを投入する (#1810)。
+// 代表画像は、CM の区間を避けて選ぶ。見分ける前に作った代表画像が CM の絵なら、見分けた区間で選び直させる。
+// CM の区間を書いたトランザクションの中で呼ばれる (cmdetect.DetectedHook。cmdetect がこのパッケージを使うので、ここでは表明できない)。
+type CMEnqueuer struct {
+	inserter Inserter
+}
+
+// NewCMEnqueuer は CMEnqueuer を返す。
+func NewCMEnqueuer(inserter Inserter) *CMEnqueuer {
+	return &CMEnqueuer{inserter: inserter}
+}
+
+// OnDetected は、録画 recordingID の代表画像だけを作り直すジョブを投入する。代表画像は 1 枚なので、選び直しても軽い。
+func (e *CMEnqueuer) OnDetected(ctx context.Context, tx pgx.Tx, recordingID uuid.UUID) error {
+	args := GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true}
+	if _, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}}); err != nil {
+		return fmt.Errorf("failed to enqueue the thumbnail job: %w", err)
+	}
+
+	return nil
 }

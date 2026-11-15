@@ -323,3 +323,40 @@ func TestGenerateLatest(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateAvoidsCM は、代表画像を、CM の区間 (前後に 1 秒の余白を足したもの) にかからない I フレームのうち、
+// ThumbnailPosition に最も近いものから作ることを確かめる (#1810)。
+func TestGenerateAvoidsCM(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		avoid  []thumbnail.Span
+		broken map[byte]bool
+		latest bool
+		// want は、代表画像にした I フレームの通し番号。
+		want int
+	}{
+		// 1 秒ごとの 30 個の I フレーム (0〜29 秒) の 25% は 7.25 秒で、7 秒の I フレーム (通し番号 8)。
+		{name: "CM の区間がなければ 25% の位置", avoid: nil, broken: nil, latest: false, want: 8},
+		{name: "CM の区間の外なら動かさない", avoid: []thumbnail.Span{{Start: 20 * time.Second, End: 25 * time.Second}}, broken: nil, latest: false, want: 8},
+		// 余白を足した 4〜11 秒を避け、7.25 秒に近い 11 秒 (3 秒の I フレームより近い) を選ぶ。
+		{name: "CM の区間にかかれば外の近いものにずらす", avoid: []thumbnail.Span{{Start: 5 * time.Second, End: 10 * time.Second}}, broken: nil, latest: false, want: 12},
+		{name: "前の方が近ければ前にずらす", avoid: []thumbnail.Span{{Start: 7 * time.Second, End: 15 * time.Second}}, broken: nil, latest: false, want: 6},
+		// 余白を足した 6〜10 秒を避けて 5 秒を選び、取り出せなければ、後ろの 6〜9 秒を飛ばして 10 秒で試し直す。
+		{name: "試し直しも CM の区間を飛ばす", avoid: []thumbnail.Span{{Start: 7 * time.Second, End: 9 * time.Second}}, broken: map[byte]bool{6: true}, latest: false, want: 11},
+		{name: "全部が CM なら気にせずに選ぶ", avoid: []thumbnail.Span{{Start: 0, End: 30 * time.Second}}, broken: nil, latest: false, want: 8},
+		// 録画中は、終わりの 10 秒前 (19 秒、通し番号 20) から作り、CM の区間を使わない。通し番号 13 以上は色で見分けられないので、
+		// 選び直すと 13 未満になる区間にする (避ければ 7 秒、通し番号 8)。
+		{name: "録画中の代表画像には使わない", avoid: []thumbnail.Span{{Start: 9 * time.Second, End: 30 * time.Second}}, broken: nil, latest: true, want: 13},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			generator := thumbnail.NewGenerator(&fakeExtractor{broken: tt.broken}, &thumbnail.Options{Preview: false, Interval: 0, Latest: tt.latest, Avoid: tt.avoid})
+			result, err := generator.Generate(t.Context(), []thumbnail.Segment{segment(t, 0, 30, time.Second, 0)})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, marker(decode(t, result.Thumbnail), thumbnail.ThumbnailWidth/2, thumbnail.ThumbnailHeight/2))
+		})
+	}
+}
