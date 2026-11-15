@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { toGlobalId, toRawId } from './readableId';
+import { readableParams, toGlobalId, toRawId } from './readableId';
 
 // GraphQL の ID は、tenban の GlobalID と同じく、`型名:ID` を base64url (埋め草なし) にしたもの。
 const serviceId = 'U2VydmljZTozMjczNjAxMDI0'; // Service:3273601024
@@ -22,6 +22,33 @@ describe('toRawId', () => {
     },
     { name: '型が違えばそのまま', type: 'Rule' as const, id: recordingId, want: recordingId },
     { name: 'GraphQL の ID でなければそのまま', type: 'Rule' as const, id: 'new', want: 'new' },
+    {
+      name: 'ルールは UUID にする',
+      type: 'Rule' as const,
+      id: 'UnVsZTowMWExM2FkMS0yZDYwLTdiN2ItOWYxZC0xZGQxYjNmYTNmOTE',
+      want: '01a13ad1-2d60-7b7b-9f1d-1dd1b3fa3f91',
+    },
+    {
+      name: '視聴ルールは UUID にする',
+      type: 'WatchRule' as const,
+      id: 'V2F0Y2hSdWxlOjAxYTEzYWQxLTJkNjAtN2I3Yi05ZjFkLTFkZDFiM2ZhM2Y5MQ',
+      want: '01a13ad1-2d60-7b7b-9f1d-1dd1b3fa3f91',
+    },
+    // 型名が合っても、中身が素の ID の形でなければそのまま (Service:abc)。
+    {
+      name: '中身が素の ID でなければそのまま',
+      type: 'Service' as const,
+      id: 'U2VydmljZTphYmM',
+      want: 'U2VydmljZTphYmM',
+    },
+    // 長さが 4 で割って 1 余る値は、base64 として読めない。
+    { name: '読めない base64url はそのまま', type: 'Service' as const, id: 'abcde', want: 'abcde' },
+    {
+      name: 'base64url で使わない字を含めばそのまま',
+      type: 'Service' as const,
+      id: 'U2Vy=',
+      want: 'U2Vy=',
+    },
   ])('$name', ({ type, id, want }) => {
     expect(toRawId(type, id)).toBe(want);
   });
@@ -66,5 +93,13 @@ describe('toGlobalId', () => {
   it('素の ID と GraphQL の ID を行き来できる', () => {
     expect(toGlobalId('Service', toRawId('Service', serviceId))).toBe(serviceId);
     expect(toGlobalId('Recording', toRawId('Recording', recordingId))).toBe(recordingId);
+  });
+});
+
+describe('readableParams', () => {
+  it('URL の素の ID を GraphQL の ID にし、GraphQL の ID を素の ID に戻す', () => {
+    const params = readableParams('serviceId', 'Service');
+    expect(params.parse({ serviceId: '3273601024' })).toEqual({ serviceId });
+    expect(params.stringify({ serviceId })).toEqual({ serviceId: '3273601024' });
   });
 });
