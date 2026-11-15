@@ -667,6 +667,7 @@ func RecordingSections(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID)
 // RecordingSectionsWithOrigin は、RecordingSections に、区間の時刻の基準を足して返す。
 // fromFirstPES は、区間の時刻が、セグメントの最初の映像の PES を 0 にしたものなら true (版 1 の今の見分け方、#1811)。
 // それ以外は、セグメントの最初の I フレーム (再生の時間の 0) を 0 にしたもの。見分け直すまで、前の基準の区間が残る。
+// 局ロゴの見分け方 (今の見分け方に回った回を含む) は、この基準を入れたのと同じリリースで出したので、版 1 から最初の I フレームを 0 にする。
 func RecordingSectionsWithOrigin(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) ([]Section, bool, error) {
 	q := sqlc.New(db)
 	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)
