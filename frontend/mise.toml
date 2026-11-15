@@ -24,6 +24,10 @@ run = "./scripts/build-mpeg2toh264.sh"
 depends = ["install"]
 run = "./scripts/build-demo-stream.sh"
 
+# 「この端末で試す」(#1771) で流す合成の映像を作る。FFmpeg は、静的なデモの映像と同じ版を使う。
+[tasks.benchmark-streams]
+run = "./scripts/build-benchmark-streams.sh"
+
 # ブラウザ内で MPEG-2 をそのままデコードする方式を測る道具 (#1516、bench/wasm-decode/README.md)。
 # FFmpeg は mise.wasm-decode-bench.toml で固定しているので、MISE_ENV=wasm-decode-bench を付けて実行する。
 # WASM の FFmpeg を、bench/wasm-decode/SOURCE の版から組む。引数で組み方の名前を絞れる。
