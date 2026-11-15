@@ -15,6 +15,7 @@ import { ColorSchemeToggle, ErrorBoundary, useDocumentTitle, useThemeColor } fro
 import { NotificationBell } from '../notifications/NotificationBell';
 import { HeaderSearch } from '../search/HeaderSearch';
 import { useOfflineRecordings } from '../offline/store';
+import { appIconUrls, useAppFavicon, useAppIcon } from '../settings/appIcon';
 import { ConnectionStatus } from '../relay/ConnectionStatus';
 import type { RootNavQuery } from './__generated__/RootNavQuery.graphql';
 import type { RootViewerQuery } from './__generated__/RootViewerQuery.graphql';
@@ -60,6 +61,9 @@ function RootLayout() {
     select: (matches) => matches.some((match) => match.staticData.fluid),
   });
   useThemeColor();
+  // タブの favicon とヘッダーのロゴは、この端末で選んだアイコンにする (#1665)。
+  useAppFavicon();
+  const [appIcon] = useAppIcon();
   // アプリのアイコンと名前は、押すとホームを開く。アイコンは飾りなので、読み上げない。
   const brand = (
     <Title order={1} size="h3">
@@ -73,7 +77,7 @@ function RootLayout() {
         className={classes.brand}
       >
         <img
-          src={`${import.meta.env.BASE_URL}icons/icon.svg`}
+          src={appIconUrls(appIcon).app}
           alt=""
           width={36}
           height={36}

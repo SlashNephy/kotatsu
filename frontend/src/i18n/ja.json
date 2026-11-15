@@ -329,6 +329,18 @@
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
+    "appIcon": {
+      "title": "アイコン",
+      "help": "ブラウザのタブ (favicon) とヘッダーのロゴに出す絵を選びます。選んだらすぐ替わります。",
+      "installedNote": "ホーム画面やアプリの一覧に入れた (インストールした) アプリのアイコンは替わりません。",
+      "choices": {
+        "default": "三毛猫とみかん (既定)",
+        "mike-night": "三毛猫と夜の部屋",
+        "mike-sunset": "三毛猫と夕焼け",
+        "chatora-night": "茶トラと夜の部屋",
+        "chatora-sunset": "茶トラと夕焼け"
+      }
+    },
     "pages": {
       "player": {
         "title": "プレイヤー",
@@ -337,6 +349,10 @@
       "guide": {
         "title": "番組表",
         "summary": "番組表の密度や、ジャンルの色を変えます"
+      },
+      "icon": {
+        "title": "アイコン",
+        "summary": "ブラウザのタブとヘッダーに出すアイコンを、この端末で選びます"
       },
       "security": {
         "title": "セキュリティ",
