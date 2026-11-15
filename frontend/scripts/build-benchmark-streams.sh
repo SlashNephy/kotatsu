@@ -13,9 +13,10 @@
 #
 # 絵は、画面全体を横に流す (1 秒に約 96 画素)。止まった所が多いと、フィルムの絵が変わっても違うとみなすブロック
 # (yadif は 16 個から) が足りず、yadif がプルダウンを見つけられない。
-# interlaced は、放送並みの 13 Mbps にする。film は、画質を -q:v 3 (約 22 Mbps) にする。放送並みに絞ると、
-# 2:3 プルダウンで繰り返すフィールドにも符号化の誤差が乗り、同じとみなすブロック (違うのが 2 個まで) に収まらず、
-# プルダウンを見つけられない。film は放送より重めの映像なので、変換の負荷は放送より少し大きく出る。
+# film の絵は、平らな色の面 (smptehdbars) にする。testsrc2 のような細かい絵では、2:3 プルダウンで繰り返すフィールドにも
+# 符号化の誤差が乗り、yadif が同じとみなすブロック (違うのが 2 個まで) に収まらなかった。-q:v 3 (約 22 Mbps) にして、
+# 手元で同じ基準で数えると同じとみなせても、ブラウザの中では見つけられなかった。平らな色の面なら、13 Mbps でも見つけられる。
+# どちらも、放送と同じくらいの 13 Mbps で符号化する。
 # ffmpeg は、静的なデモの映像と同じ mise.demo-stream.toml の版を使い、-bitexact で同じファイルを作る。
 set -euo pipefail
 
@@ -37,5 +38,5 @@ encode() {
 encode 'testsrc2=size=1440x1080:rate=60000/1001,scroll=horizontal=0.0011' 'tinterlace=mode=interleave_top' \
   '-b:v 13M -minrate 13M -maxrate 13M -bufsize 9781248' public/benchmark/interlaced.m2ts
 encode 'smptehdbars=size=1440x1080:rate=24000/1001,scroll=horizontal=0.0028' 'telecine=first_field=top:pattern=23' \
-  '-q:v 3' public/benchmark/film.m2ts
+  '-b:v 13M -minrate 13M -maxrate 13M -bufsize 9781248' public/benchmark/film.m2ts
 ls -l public/benchmark
