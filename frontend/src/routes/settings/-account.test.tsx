@@ -16,7 +16,8 @@ type Settings = {
 };
 
 // serve は、記録の設定を返し、保存を受けたら送った値を覚えて返す Relay の環境と、送った値の一覧を作る。
-function serve() {
+// fails が true の間は、保存を断る。
+function serve(fails = { value: false }) {
   let settings: Settings = {
     thresholdPercent: 80,
     watchingOnFirst: false,
@@ -27,6 +28,11 @@ function serve() {
   const sent: Settings[] = [];
   const environment = createTestEnvironment((request, variables) => {
     if (request.name === 'accountSettingsMutation') {
+      if (fails.value) {
+        sent.push(variables.input as Settings);
+
+        return new Error('unavailable');
+      }
       settings = variables.input as Settings;
       sent.push(settings);
 
@@ -84,5 +90,25 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
 
     expect(sent).toEqual([]);
     expect(screen.getByText('1〜100 の整数で入れてください')).toBeTruthy();
+  });
+
+  test('保存に失敗したら、チェックを戻し、割合はもう一度欄を離れれば保存し直す', async () => {
+    const fails = { value: true };
+    const { environment, sent } = serve(fails);
+    await renderRoute(Route, '/settings/account', '/settings/account', environment);
+    const first = await screen.findByRole('checkbox', {
+      name: '第1話（[新]）を見たら「見てる」にする',
+    });
+    await act(async () => fireEvent.click(first));
+    expect(first).toHaveProperty('checked', false);
+
+    const threshold = screen.getByRole('textbox', { name: '見たとみなす割合' });
+    fireEvent.change(threshold, { target: { value: '50' } });
+    await act(async () => fireEvent.blur(threshold));
+    fails.value = false;
+    await act(async () => fireEvent.blur(threshold));
+
+    expect(sent.map((input) => input.thresholdPercent)).toEqual([80, 50, 50]);
+    expect(await screen.findByRole('status')).toHaveProperty('textContent', '保存しました');
   });
 });

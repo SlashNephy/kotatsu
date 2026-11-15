@@ -142,12 +142,19 @@ function AnimeRecords() {
   const refresh = () => startTransition(() => setFetchKey((key) => key + 1));
   // 戻ってきたときの結果は、一度出したら URL から外す。読み直したときに、もう一度出さないため。
   const clearSearch = () => void navigate({ search: {}, replace: true });
-  const run = (operation: () => Promise<void>) => {
+  // run は、operation を動かし、成功したかを返す。失敗したら、理由を出す。
+  const run = (operation: () => Promise<void>): Promise<boolean> => {
     setError(null);
     setSaved(false);
     setRunning(true);
-    operation()
-      .catch((caught: unknown) => setError(settingsErrorMessage(t, caught)))
+
+    return operation()
+      .then(() => true)
+      .catch((caught: unknown) => {
+        setError(settingsErrorMessage(t, caught));
+
+        return false;
+      })
       .finally(() => setRunning(false));
   };
 
@@ -335,7 +342,7 @@ function RecordSettings({
   initial: AnimeRecordSettingsInput;
   busy: boolean;
   saved: boolean;
-  onSave: (input: AnimeRecordSettingsInput) => void;
+  onSave: (input: AnimeRecordSettingsInput) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState(initial);
@@ -345,12 +352,18 @@ function RecordSettings({
     Number.isInteger(threshold) &&
     threshold >= 1 &&
     threshold <= 100;
+  // 保存に失敗したら、チェックを保存してある値 (initial) に戻す。割合は打った値のまま残し、
+  // 保存してある値と比べるので、もう一度欄を離れれば保存し直せる。
   const change = (next: AnimeRecordSettingsInput) => {
     setInput(next);
-    onSave(next);
+    void onSave(next).then((ok) => {
+      if (!ok) {
+        setInput(initial);
+      }
+    });
   };
   const commitThreshold = () => {
-    if (thresholdValid && threshold !== input.thresholdPercent) {
+    if (thresholdValid && threshold !== initial.thresholdPercent) {
       change({ ...input, thresholdPercent: threshold });
     }
   };
