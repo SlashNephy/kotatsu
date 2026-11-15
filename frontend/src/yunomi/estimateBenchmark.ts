@@ -43,8 +43,22 @@ function upload(gl: WebGL2RenderingContext, pixels: Uint8Array<ArrayBuffer>): We
 
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-// measureEstimate は、推し量る処理の時間を測る。WebGL2 がなければ null。
-export async function measureEstimate(): Promise<EstimateTiming | null> {
+// measureEstimate は、推し量る処理の時間を測る。WebGL2 がないか、測れなければ null。signal で止めると投げる。
+export async function measureEstimate(signal?: AbortSignal): Promise<EstimateTiming | null> {
+  try {
+    return await measure(signal);
+  } catch (error) {
+    if (signal?.aborted === true) {
+      throw error;
+    }
+    // シェーダーを作れないなど、推し量れない端末では、再生の結果だけを出す。
+    console.warn('failed to measure the interpolation estimate', error);
+
+    return null;
+  }
+}
+
+async function measure(signal?: AbortSignal): Promise<EstimateTiming | null> {
   const canvas = document.createElement('canvas');
   canvas.width = 1;
   canvas.height = 1;
@@ -75,7 +89,12 @@ export async function measureEstimate(): Promise<EstimateTiming | null> {
         gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
         interpolator.estimate(textures[0], textures[1], width, height);
         gl.endQuery(timer.TIME_ELAPSED_EXT);
-        while (!(gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) as boolean)) {
+        // コンテキストを失うと、問い合わせは答えを返さなくなるので、待つのをやめる。
+        while (!(gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) as boolean | null)) {
+          signal?.throwIfAborted();
+          if (gl.isContextLost()) {
+            return null;
+          }
           await nextFrame();
         }
         const disjoint = gl.getParameter(timer.GPU_DISJOINT_EXT) as boolean;

@@ -396,6 +396,7 @@
         "cancel": "Cancel",
         "progress": "Display modes tested",
         "running": "Testing {{scenario}} ({{done}}/{{total}})",
+        "preparing": "Preparing ({{done}}/{{total}})",
         "failed": "The test could not be run.",
         "scenario": "Display mode",
         "fps": "Frames per second",

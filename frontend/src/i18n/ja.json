@@ -394,6 +394,7 @@
         "cancel": "やめる",
         "progress": "試している表示の仕方",
         "running": "{{scenario}}を試しています（{{done}}/{{total}}）",
+        "preparing": "準備しています（{{done}}/{{total}}）",
         "failed": "試せませんでした。",
         "scenario": "表示の仕方",
         "fps": "1秒あたりのコマ",

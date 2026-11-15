@@ -58,13 +58,23 @@ type Collector = {
   loaded: (() => void) | null;
 };
 
+// sleep は、ms だけ待つ。signal で止めたら、すぐに投げる。
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, ms);
-    signal.addEventListener('abort', () => {
+    if (signal.aborted) {
+      reject(signal.reason);
+
+      return;
+    }
+    const onAbort = () => {
       clearTimeout(timer);
       reject(signal.reason);
-    });
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
   });
 
 // measureRefreshInterval は、画面の書き換えの間隔の中央値 (ミリ秒) を測る。
@@ -229,7 +239,8 @@ export function DeviceBenchmark() {
           setProgress({ done, total });
         }
       }
-      const estimate = await measureEstimate();
+      const estimate = await measureEstimate(controller.signal);
+      controller.signal.throwIfAborted();
       setReport({
         userAgent: navigator.userAgent,
         renderer: rendererName(),
@@ -289,11 +300,16 @@ export function DeviceBenchmark() {
                 aria-label={t('settings.account.benchmark.progress')}
               />
               <Text size="xs" c="dimmed" role="status">
-                {t('settings.account.benchmark.running', {
-                  scenario: mounted === null ? '' : label(mounted.scenario.id),
-                  done: progress.done,
-                  total: progress.total,
-                })}
+                {mounted === null
+                  ? t('settings.account.benchmark.preparing', {
+                      done: progress.done,
+                      total: progress.total,
+                    })
+                  : t('settings.account.benchmark.running', {
+                      scenario: label(mounted.scenario.id),
+                      done: progress.done,
+                      total: progress.total,
+                    })}
               </Text>
               <div
                 ref={playerBox}

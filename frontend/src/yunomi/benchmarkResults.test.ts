@@ -111,8 +111,8 @@ describe('judge', () => {
       want: false,
     },
     {
-      name: 'コマは出せても、遅れが 0.5 を超えて増えれば追いつかない',
-      target: scenario({ id: 'framesInterpolated', fps: 59, latePerSecond: 1.2 }),
+      name: 'コマは出せても、遅れが 1 を超えて増えれば追いつかない',
+      target: scenario({ id: 'framesInterpolated', fps: 59, latePerSecond: 1.6 }),
       refresh: 1000 / 60,
       want: false,
     },

@@ -134,8 +134,9 @@ export function summarizeScenario(
 // 41.7 fps と 54.9 fps、2 段で探す版は、どちらも 60 fps だった (60Hz の画面)。その間に置く。
 export const smoothRatio = 0.95;
 // lateMargin は、補間ありの経路で、補間なしの経路より増えてもよい、1 秒あたりの間に合わなかったコマの数。
-// 上と同じ測定で、総当たりの版は 0.8 から 5.6 増え、2 段の版は増えなかった。
-export const lateMargin = 0.5;
+// 上と同じ測定で、総当たりの版は 0.8 から 5.6 増え、2 段の版は 0 から 0.4 増えた。2 段の版がぶれで落ちないよう広めに取る。
+// 総当たりの版の 0.8 は通るが、そのときはコマの数で落ちる。
+export const lateMargin = 1;
 // fieldRate は、フィールドごとの表示で目指す、1 秒あたりのコマの数。
 const fieldRate = 60_000 / 1_001;
 
