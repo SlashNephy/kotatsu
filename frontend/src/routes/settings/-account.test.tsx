@@ -54,7 +54,9 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
 
     await act(async () => fireEvent.click(first));
 
-    expect(sent).toEqual([expect.objectContaining({ watchingOnFirst: true, thresholdPercent: 80 })]);
+    expect(sent).toEqual([
+      expect.objectContaining({ watchingOnFirst: true, thresholdPercent: 80 }),
+    ]);
     expect(await screen.findByRole('status')).toHaveProperty('textContent', '保存しました');
   });
 

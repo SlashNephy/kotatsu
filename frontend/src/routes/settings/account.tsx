@@ -362,7 +362,8 @@ function RecordSettings({
           <Title order={3} size="h5">
             {t('animeRecords.settingsTitle')}
           </Title>
-          {saved && !busy && (
+          {/* 入れ直しを求めている間は、前の保存を「保存しました」と出さない。 */}
+          {saved && !busy && thresholdValid && (
             <Text size="sm" c="teal" role="status">
               {t('admin.saved')}
             </Text>
