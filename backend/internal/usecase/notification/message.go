@@ -240,7 +240,7 @@ func texts(value any) []string {
 
 		return result
 	default:
-		return nil
+		return []string{}
 	}
 }
 
