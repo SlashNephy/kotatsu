@@ -354,7 +354,11 @@ function RecordSettings({
     threshold <= 100;
   // 保存に失敗したら、チェックを保存してある値 (initial) に戻す。割合は打った値のまま残し、
   // 保存してある値と比べるので、もう一度欄を離れれば保存し直せる。
+  // 保存の途中は、次の変更を受け付けない (欄も押せなくする)。重ねて送ると、後から届いた古い値で上書きしかねないため。
   const change = (next: AnimeRecordSettingsInput) => {
+    if (busy) {
+      return;
+    }
     setInput(next);
     void onSave(next).then((ok) => {
       if (!ok) {
@@ -363,7 +367,7 @@ function RecordSettings({
     });
   };
   const commitThreshold = () => {
-    if (thresholdValid && threshold !== initial.thresholdPercent) {
+    if (thresholdValid && threshold !== input.thresholdPercent) {
       change({ ...input, thresholdPercent: threshold });
     }
   };
@@ -392,6 +396,7 @@ function RecordSettings({
           suffix="%"
           maw={240}
           value={threshold}
+          disabled={busy}
           onChange={setThreshold}
           onBlur={commitThreshold}
           onKeyDown={(event) => {
@@ -404,16 +409,19 @@ function RecordSettings({
           {t('animeRecords.statusTitle')}
         </Text>
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.watchingOnFirst')}
           checked={input.watchingOnFirst}
           onChange={(event) => change({ ...input, watchingOnFirst: event.currentTarget.checked })}
         />
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.watchingOnEpisode')}
           checked={input.watchingOnEpisode}
           onChange={(event) => change({ ...input, watchingOnEpisode: event.currentTarget.checked })}
         />
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.watchedOnLast')}
           description={t('animeRecords.statusHelp')}
           checked={input.watchedOnLast}
@@ -424,6 +432,7 @@ function RecordSettings({
           {t('animeRecords.notifyTitle')}
         </Text>
         <Checkbox
+          disabled={busy}
           label={t('animeRecords.notifyWishlist')}
           description={t('animeRecords.notifyWishlistHelp')}
           checked={input.notifyWishlist === true}

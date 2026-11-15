@@ -244,8 +244,12 @@ function TimeshiftWhileWatching({
   ) => void;
 }) {
   const { t } = useTranslation();
-  // 切り替えた値は、読み直した値 (enabled) が変わるまで出す。保存した後は読み直した値を、ほかの管理者が変えたときもその値を出す。
+  // 切り替えた値は、読み直した値 (enabled) が変わるまで出す。
   const [toggled, setToggled] = useState({ value: enabled, base: enabled });
+  // 読み直した値が変わったら (保存した、ほかの管理者が変えた)、切り替えた値を捨てて、読み直した値から始め直す。
+  if (toggled.base !== enabled) {
+    setToggled({ value: enabled, base: enabled });
+  }
   const checked = toggled.base === enabled ? toggled.value : enabled;
   const [hours, setHours] = useState<number | string>(retentionHours(retentionSeconds));
 

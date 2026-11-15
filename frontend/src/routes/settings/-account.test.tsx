@@ -111,4 +111,41 @@ describe('記録の設定を、変えたらすぐ保存する (#1740)', () => {
     expect(sent.map((input) => input.thresholdPercent)).toEqual([80, 50, 50]);
     expect(await screen.findByRole('status')).toHaveProperty('textContent', '保存しました');
   });
+
+  test('保存の途中は、次の変更を受け付けない', async () => {
+    const sent: unknown[] = [];
+    // 保存には応えず、保存の途中のままにする。
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'accountSettingsMutation') {
+        sent.push(variables.input);
+
+        return undefined;
+      }
+
+      return {
+        data: {
+          animeRecordSettings: {
+            enabled: true,
+            thresholdPercent: 80,
+            watchingOnFirst: false,
+            watchingOnEpisode: false,
+            watchedOnLast: false,
+            notifyWishlist: false,
+            destinations: [],
+          },
+        },
+      };
+    });
+    await renderRoute(Route, '/settings/account', '/settings/account', environment);
+    await act(async () =>
+      fireEvent.click(
+        await screen.findByRole('checkbox', { name: '第1話（[新]）を見たら「見てる」にする' }),
+      ),
+    );
+    const last = screen.getByRole('checkbox', { name: /^最終話（\[終\]）を見たら/ });
+
+    expect(last).toHaveProperty('disabled', true);
+    await act(async () => fireEvent.click(last));
+    expect(sent).toHaveLength(1);
+  });
 });

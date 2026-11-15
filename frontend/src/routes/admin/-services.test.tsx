@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { commitLocalUpdate } from 'relay-runtime';
 import { afterEach, describe, expect, test } from 'vitest';
 
 import { createTestEnvironment, renderRoute } from '../../test/route';
@@ -67,6 +68,32 @@ describe('番組表に出さない印は、変えたらすぐ保存する (#1740
 
     await act(async () => fireEvent.click(toggle));
     await screen.findByRole('alert');
+
+    expect(screen.getByRole('switch', { name: '出さない' })).toHaveProperty('checked', false);
+  });
+
+  test('保存した後に、ほかの管理者が戻した値を読み直したら、その値を出す', async () => {
+    let hidden = false;
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'servicesServiceMutation') {
+        hidden = (variables.input as { hidden: boolean }).hidden;
+
+        return {
+          data: { updateService: { id: 'U2VydmljZTox', hidden, sortOrder: null } },
+        };
+      }
+
+      return servicesResponse(hidden);
+    });
+    await renderRoute(Route, '/admin/services', '/admin/services', environment);
+    await act(async () => fireEvent.click(await screen.findByRole('switch', { name: '出さない' })));
+    await screen.findByRole('status');
+
+    act(() =>
+      commitLocalUpdate(environment, (store) => {
+        store.get('U2VydmljZTox')?.setValue(false, 'hidden');
+      }),
+    );
 
     expect(screen.getByRole('switch', { name: '出さない' })).toHaveProperty('checked', false);
   });

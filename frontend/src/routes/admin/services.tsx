@@ -366,6 +366,10 @@ function ServiceEditor({
   const { t } = useTranslation();
   // 切り替えた値は、読み直した値 (service.hidden) が変わるまで出す。
   const [toggled, setToggled] = useState({ value: service.hidden, base: service.hidden });
+  // 読み直した値が変わったら (保存した、ほかの管理者が変えた)、切り替えた値を捨てて、読み直した値から始め直す。
+  if (toggled.base !== service.hidden) {
+    setToggled({ value: service.hidden, base: service.hidden });
+  }
   const hidden = toggled.base === service.hidden ? toggled.value : service.hidden;
   const [sortOrder, setSortOrder] = useState<number | string>(service.sortOrder ?? '');
   const order = typeof sortOrder === 'number' ? sortOrder : null;
