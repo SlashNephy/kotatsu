@@ -151,25 +151,32 @@ function ServiceSettings() {
           <Stack gap="xs">
             {data.services.map((service) => (
               <ServiceEditor
-                key={`${service.id}/${service.hidden}/${service.sortOrder}`}
+                key={`${service.id}/${service.sortOrder}`}
                 service={service}
-                onSave={(input) =>
-                  action.run(async () => {
-                    await mutate<servicesServiceMutation>(
-                      environment,
-                      graphql`
-                        mutation servicesServiceMutation($id: ID!, $input: ServiceInput!) {
-                          updateService(id: $id, input: $input) {
-                            id
-                            hidden
-                            sortOrder
+                busy={action.busy}
+                onSave={(input, revert = () => {}) =>
+                  action.run(
+                    async () => {
+                      await mutate<servicesServiceMutation>(
+                        environment,
+                        graphql`
+                          mutation servicesServiceMutation($id: ID!, $input: ServiceInput!) {
+                            updateService(id: $id, input: $input) {
+                              id
+                              hidden
+                              sortOrder
+                            }
                           }
-                        }
-                      `,
-                      { id: service.id, input },
-                    );
-                    done();
-                  }, fail)
+                        `,
+                        { id: service.id, input },
+                      );
+                      done();
+                    },
+                    (caught) => {
+                      revert();
+                      fail(caught);
+                    },
+                  )
                 }
               />
             ))}
@@ -335,9 +342,11 @@ function AnimeChannelEditor({
 }
 
 // ServiceEditor は、サービスの、番組表に出さない印と並び順の上書きを変える行。
+// 番組表に出さない印は、変えたらすぐ、それだけを保存する (#1740)。並び順は、打っている途中の値を保存しないよう、保存のボタンで保存する。
 // 並び順を空にして保存すると、上書きを消して、リモコンのキーの順に戻す。
 function ServiceEditor({
   service,
+  busy,
   onSave,
 }: {
   service: {
@@ -348,10 +357,16 @@ function ServiceEditor({
     sortOrder: number | null | undefined;
     channelType: { displayName: string };
   };
-  onSave: (input: { hidden: boolean; sortOrder?: number; resetSortOrder: boolean }) => void;
+  busy: boolean;
+  onSave: (
+    input: { hidden?: boolean; sortOrder?: number; resetSortOrder: boolean },
+    revert?: () => void,
+  ) => void;
 }) {
   const { t } = useTranslation();
-  const [hidden, setHidden] = useState(service.hidden);
+  // 切り替えた値は、読み直した値 (service.hidden) が変わるまで出す。
+  const [toggled, setToggled] = useState({ value: service.hidden, base: service.hidden });
+  const hidden = toggled.base === service.hidden ? toggled.value : service.hidden;
   const [sortOrder, setSortOrder] = useState<number | string>(service.sortOrder ?? '');
   const order = typeof sortOrder === 'number' ? sortOrder : null;
 
@@ -370,7 +385,14 @@ function ServiceEditor({
         pb={6}
         label={t('admin.system.serviceHidden')}
         checked={hidden}
-        onChange={(event) => setHidden(event.currentTarget.checked)}
+        disabled={busy}
+        onChange={(event) => {
+          const value = event.currentTarget.checked;
+          setToggled({ value, base: service.hidden });
+          onSave({ hidden: value, resetSortOrder: false }, () =>
+            setToggled({ value: service.hidden, base: service.hidden }),
+          );
+        }}
       />
       <NumberInput
         size="xs"
@@ -388,9 +410,7 @@ function ServiceEditor({
         mb={2}
         onClick={() =>
           onSave(
-            order === null
-              ? { hidden, resetSortOrder: true }
-              : { hidden, sortOrder: order, resetSortOrder: false },
+            order === null ? { resetSortOrder: true } : { sortOrder: order, resetSortOrder: false },
           )
         }
       >
