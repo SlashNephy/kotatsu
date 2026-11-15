@@ -165,6 +165,7 @@ func newAdminCommand(opts *Options, connect func(ctx context.Context) (*config.C
 	})
 
 	adminCmd.AddCommand(newReanalyzeCommand(opts, connect))
+	adminCmd.AddCommand(newRedetectCMCommand(opts, connect))
 
 	return adminCmd
 }

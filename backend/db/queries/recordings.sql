@@ -405,6 +405,29 @@ SELECT DISTINCT ON (recording_id) recording_id, note, video_missing_ms
 FROM recording_cm_detections WHERE recording_id = ANY(@recording_ids::uuid[])
 ORDER BY recording_id, detected_at DESC, detector;
 
+-- name: ListOutdatedRecordingCMDetections :many
+-- 最後に見分け終えた見分けが、見分け方 @detector の版 @detector_version より古い録画を、放送の古い順に返す (#1814)。
+-- @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式の版
+-- @material_format_version の材料が残っていて、録画を読み直さずに判定し直せそうかどうか。
+SELECT r.id AS recording_id, r.name, r.start_at, d.detector, d.detector_version,
+  EXISTS (
+    SELECT 1 FROM recording_cm_materials m
+    WHERE m.recording_id = d.recording_id AND m.detector = @detector AND m.format_version = @material_format_version
+  ) AS has_material
+FROM recording_cm_detections d
+JOIN recordings r ON r.id = d.recording_id
+WHERE NOT EXISTS (
+    -- 同じ録画で、後に見分けた見分けがあれば、最後のものではない (GetLatestRecordingCMDetection と同じ並び)。
+    SELECT 1 FROM recording_cm_detections n
+    WHERE n.recording_id = d.recording_id
+      AND (n.detected_at > d.detected_at OR (n.detected_at = d.detected_at AND n.detector < d.detector))
+  )
+  AND (
+    (d.detector = @detector AND d.detector_version < @detector_version)
+    OR (@include_other_detectors::boolean AND d.detector <> @detector)
+  )
+ORDER BY r.start_at, r.id;
+
 -- name: UpsertRecordingCMMaterial :exec
 -- 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。
 INSERT INTO recording_cm_materials (recording_id, detector, format_version, data, created_at)
