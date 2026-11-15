@@ -202,7 +202,7 @@ void main() {
       counted += 1.0;
     }
   }
-  color = vec4(step(${sceneCutRatio}, unreliable / counted), 0.0, 0.0, 1.0);
+  color = vec4(float(unreliable / counted > ${sceneCutRatio}), 0.0, 0.0, 1.0);
 }
 `;
 
