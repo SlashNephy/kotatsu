@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"time"
 	"uuid"
 
@@ -138,7 +139,8 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 	if !ok {
 		return river.JobCancel(errNoSegment)
 	}
-	opts, err := w.options(ctx, q, &job.Args, startedAt.Sub(recording.RecordedFrom))
+	shift := startedAt.Sub(recording.RecordedFrom)
+	opts, err := w.options(ctx, q, &job.Args, shift)
 	if err != nil {
 		return err
 	}
@@ -147,6 +149,9 @@ func (w *GenerateWorker) Work(ctx context.Context, job *river.Job[GenerateArgs])
 		return river.JobCancel(err)
 	}
 	if err != nil {
+		return err
+	}
+	if err := w.reselect(ctx, q, extractor, &job.Args, segments, shift, opts.Avoid, result); err != nil {
 		return err
 	}
 	// 作っている間に録画を終えていたら、録画を終えたときのジョブが作る画像を、今の様子で上書きしない。
@@ -208,6 +213,31 @@ func (w *GenerateWorker) options(ctx context.Context, q *sqlc.Queries, args *Gen
 	opts.Avoid = avoid
 
 	return opts, nil
+}
+
+// reselect は、作っている間に CM の区間を見分け直していたら、新しい区間で代表画像だけを選び直し、result に入れる (#1810)。
+// プレビュー画像を作っている間に見分け終えると、見分けた後に入れた代表画像だけのジョブ (CMEnqueuer) が先に書き終え、
+// このジョブが古い区間で選んだ代表画像で上書きしかねないため。録画中の代表画像 (Live) では何もしない。
+func (w *GenerateWorker) reselect(
+	ctx context.Context, q *sqlc.Queries, extractor Extractor, args *GenerateArgs, segments []Segment, shift time.Duration, used []Span, result *Result,
+) error {
+	if args.Live {
+		return nil
+	}
+	avoid, err := cmSpans(ctx, q, args.RecordingID, shift)
+	if err != nil {
+		return err
+	}
+	if slices.Equal(avoid, used) {
+		return nil
+	}
+	again, err := NewGenerator(extractor, &Options{Preview: false, Interval: 0, Latest: false, Avoid: avoid}).Generate(ctx, segments)
+	if err != nil {
+		return err
+	}
+	result.Thumbnail = again.Thumbnail
+
+	return nil
 }
 
 // cmSpans は、録画の CM の区間 (最後に見分けた見分け方のもの、設計書 6.1) を、代表画像に選ばない区間にして返す (#1810)。

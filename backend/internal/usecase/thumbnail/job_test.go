@@ -120,7 +120,7 @@ func (f *jobFixture) generate(t *testing.T, recordingID uuid.UUID, preview bool,
 	t.Helper()
 
 	worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, preview, newExtractor)
-	job := &river.Job[thumbnail.GenerateArgs]{JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID}}
+	job := &river.Job[thumbnail.GenerateArgs]{JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: false}}
 
 	return worker.Work(t.Context(), job)
 }
@@ -416,6 +416,20 @@ type cmDetection struct {
 	sections []cmSection
 }
 
+// detect は、録画 recordingID を detection のとおりに見分けたことにする。
+func (f *jobFixture) detect(ctx context.Context, t *testing.T, recordingID uuid.UUID, detection *cmDetection) {
+	t.Helper()
+
+	_, err := f.pool.Exec(ctx, `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
+		VALUES ($1, $2, 1, $3)`, recordingID, detection.detector, f.clock.Now().Add(detection.at))
+	require.NoError(t, err)
+	for _, section := range detection.sections {
+		_, err := f.pool.Exec(ctx, `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms)
+			VALUES ($1, $2, $3, $4)`, recordingID, detection.detector, section.start*1000, section.end*1000)
+		require.NoError(t, err)
+	}
+}
+
 // TestGenerateWorkerAvoidsCM は、最後に見分けた見分け方の CM の区間を避けて、代表画像を作ることを確かめる (#1810)。
 // 区間は録画を始めた日時からの時間なので、セグメントが録画を始めた日時より後に始まれば、その分ずらして比べる。
 func TestGenerateWorkerAvoidsCM(t *testing.T) {
@@ -452,14 +466,7 @@ func TestGenerateWorkerAvoidsCM(t *testing.T) {
 			_, err := f.pool.Exec(t.Context(), `UPDATE recording_files SET started_at = started_at + $2 WHERE id = $1`, f.segmentID, tt.lateStart)
 			require.NoError(t, err)
 			for _, detection := range tt.detections {
-				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
-					VALUES ($1, $2, 1, $3)`, recordingID, detection.detector, f.clock.Now().Add(detection.at))
-				require.NoError(t, err)
-				for _, section := range detection.sections {
-					_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_sections (recording_id, detector, start_offset_ms, end_offset_ms)
-						VALUES ($1, $2, $3, $4)`, recordingID, detection.detector, section.start*1000, section.end*1000)
-					require.NoError(t, err)
-				}
+				f.detect(t.Context(), t, recordingID, &detection)
 			}
 
 			require.NoError(t, f.generate(t, recordingID, false, fake))
@@ -468,18 +475,60 @@ func TestGenerateWorkerAvoidsCM(t *testing.T) {
 	}
 }
 
-// TestGenerateWorkerThumbnailOnly は、代表画像だけを作り直すジョブ (#1810) が、プレビュー画像を作らないことを確かめる。
+// TestGenerateWorkerThumbnailOnly は、代表画像だけを作り直すジョブ (#1810) が、見分けた CM の区間を避けて代表画像を選び直し、
+// 前に作ったプレビュー画像には触らないことを確かめる。
 func TestGenerateWorkerThumbnailOnly(t *testing.T) {
 	t.Parallel()
 
 	f := newJobFixture(t)
 	recordingID := f.recording(t, 30)
+	require.NoError(t, f.generate(t, recordingID, true, fake))
+	require.Equal(t, 8, f.thumbnailMarker(t))
+	// 前に作ったプレビュー画像を、作り直せば必ず変わる中身にしておく。
+	previewPath := filepath.Join(f.dataRoot, f.segmentID.String(), thumbnail.PreviewFileName)
+	previous := []byte("the previous preview")
+	require.NoError(t, os.WriteFile(previewPath, previous, 0o600))
+
+	f.detect(t.Context(), t, recordingID, &cmDetection{detector: detectorFFmpeg, at: 0, sections: []cmSection{{start: 5, end: 10}}})
 	worker := thumbnail.NewGenerateWorkerWith(f.pool, f.store, f.clock, true, fake)
 	require.NoError(t, worker.Work(t.Context(), &river.Job[thumbnail.GenerateArgs]{
 		JobRow: new(rivertype.JobRow), Args: thumbnail.GenerateArgs{RecordingID: recordingID, Live: false, ThumbnailOnly: true},
 	}))
-	assert.True(t, f.hasThumbnail(t))
-	assert.NoFileExists(t, filepath.Join(f.dataRoot, f.segmentID.String(), thumbnail.PreviewFileName))
+	assert.Equal(t, 12, f.thumbnailMarker(t))
+	after, err := os.ReadFile(previewPath)
+	require.NoError(t, err)
+	assert.Equal(t, previous, after, "the preview is left as it was")
+}
+
+// detectingExtractor は、最初に呼ばれたときに、録画の CM の区間を見分けたことにする。画像を作っている間に見分け終えたときを再現する。
+type detectingExtractor struct {
+	fakeExtractor
+
+	t           *testing.T
+	f           *jobFixture
+	recordingID uuid.UUID
+	detected    bool
+}
+
+func (e *detectingExtractor) Extract(ctx context.Context, r io.Reader, size thumbnail.Size) ([]byte, error) {
+	if !e.detected {
+		e.f.detect(ctx, e.t, e.recordingID, &cmDetection{detector: detectorFFmpeg, at: 0, sections: []cmSection{{start: 5, end: 10}}})
+		e.detected = true
+	}
+
+	return e.fakeExtractor.Extract(ctx, r, size)
+}
+
+// TestGenerateWorkerReselectsAfterDetection は、画像を作っている間に CM の区間を見分け終えたら、書く前に、新しい区間で代表画像を
+// 選び直すことを確かめる (#1810)。見分けた後に入れた代表画像だけのジョブが先に書き終えても、古い区間の代表画像で上書きしない。
+func TestGenerateWorkerReselectsAfterDetection(t *testing.T) {
+	t.Parallel()
+
+	f := newJobFixture(t)
+	recordingID := f.recording(t, 30)
+	extractor := &detectingExtractor{broken: nil, t: t, f: f, recordingID: recordingID, detected: false}
+	require.NoError(t, f.generate(t, recordingID, true, func() (thumbnail.Extractor, error) { return extractor, nil }))
+	assert.Equal(t, 12, f.thumbnailMarker(t))
 }
 
 // TestCMEnqueuer は、CM の区間を見分け終えたら、代表画像だけを作り直すジョブを入れることを確かめる (#1810)。

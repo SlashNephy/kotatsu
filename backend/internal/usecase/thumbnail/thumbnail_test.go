@@ -360,3 +360,33 @@ func TestGenerateAvoidsCM(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateAvoidsCMAcrossGap は、CM の区間を、途切れた区間も含めて数えた時間 (CM の区間と同じ数え方) で比べることを確かめる (#1810)。
+// 再生の時間は途切れた区間を詰めるので、途切れた後の I フレームは、再生の時間と数え方が食い違う。
+func TestGenerateAvoidsCMAcrossGap(t *testing.T) {
+	t.Parallel()
+
+	// 0〜1 秒の I フレームのあと、100 秒から 10 個 (再生の時間では 2〜11 秒) 続く。25% は再生の時間の 2.75 秒で、
+	// 101 秒の I フレーム (通し番号 4)。
+	segments := []thumbnail.Segment{segment(t, 0, 2, time.Second, 0), segment(t, 100*time.Second, 10, time.Second, 2)}
+	tests := []struct {
+		name  string
+		avoid []thumbnail.Span
+		want  int
+	}{
+		{name: "CM の区間がなければ 25% の位置", avoid: nil, want: 4},
+		// 余白を足した 100〜104 秒を避け、再生の時間で 2.75 秒に近い 1 秒 (通し番号 2) を選ぶ。
+		{name: "途切れた後の区間を避ける", avoid: []thumbnail.Span{{Start: 101 * time.Second, End: 103 * time.Second}}, want: 2},
+		// 再生の時間の 2〜4 秒にあたる区間は、途切れた区間も含めて数えると、どの I フレームにもかからない。
+		{name: "再生の時間では比べない", avoid: []thumbnail.Span{{Start: 2 * time.Second, End: 4 * time.Second}}, want: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			generator := thumbnail.NewGenerator(&fakeExtractor{broken: nil}, &thumbnail.Options{Preview: false, Interval: 0, Latest: false, Avoid: tt.avoid})
+			result, err := generator.Generate(t.Context(), segments)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, marker(decode(t, result.Thumbnail), thumbnail.ThumbnailWidth/2, thumbnail.ThumbnailHeight/2))
+		})
+	}
+}
