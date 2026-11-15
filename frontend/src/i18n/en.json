@@ -1128,6 +1128,7 @@
     "detectCmDefault": "Use the global default",
     "detectCmOn": "Detect",
     "detectCmOff": "Don't detect",
+    "cmDetector": "How to detect commercial breaks",
     "transcode": "Transcode after recording",
     "transcodeHelp": "After recording, transcode the recording to MP4 and add it as an other file. The original TS is kept.",
     "transcodeDefault": "Follow the recording defaults",

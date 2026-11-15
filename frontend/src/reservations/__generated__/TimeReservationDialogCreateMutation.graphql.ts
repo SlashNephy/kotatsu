@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b04b15f34f1c595435e97f54ccb07d25>>
+ * @generated SignedSource<<d324f804c3c1f0f926f4010f4efcc09e>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type TimeReservationInput = {
   endAt: string;
   name?: string;
@@ -16,6 +17,7 @@ export type TimeReservationInput = {
   startAt: string;
 };
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
