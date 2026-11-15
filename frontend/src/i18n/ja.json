@@ -387,6 +387,36 @@
       "interpolationRateHelp": "画面の書き換えが速い端末で、GPUの負荷を抑えたいときに選びます。ブラウザは画面の書き換えの速さを教えないので、既定では、書き換えの間隔を測って合わせます。",
       "interpolationRateDisplay": "画面の書き換えに合わせる",
       "interpolationRateFps": "1秒に{{rate}}回",
+      "benchmark": {
+        "title": "この端末で試す",
+        "help": "合成の映像を、表示の仕方ごとに短く再生し、コマが間に合うかを測ります。2分ほどかかります。測っている間は、この画面を開いたままにしてください。結果はこの画面に出すだけで、どこにも送りません。",
+        "start": "試す",
+        "cancel": "やめる",
+        "progress": "試している表示の仕方",
+        "running": "{{scenario}}を試しています（{{done}}/{{total}}）",
+        "failed": "試せませんでした。",
+        "scenario": "表示の仕方",
+        "fps": "1秒あたりのコマ",
+        "late": "間に合わなかったコマ（1秒あたり）",
+        "lateDifference": "（補間なしより {{difference}}）",
+        "summary": "画面の書き換えの間隔: {{refresh}} ms　補間の推定: {{estimate}}",
+        "estimate": {
+          "gpu": "{{ms}} ms（GPUの時間）",
+          "readback": "{{ms}} ms（読み戻しまでの時間。GPUの時間より小さく出ることがあります）"
+        },
+        "copy": "結果をコピー",
+        "copied": "コピーしました",
+        "verdict": "判定",
+        "smooth": "なめらか",
+        "notSmooth": "追いつかない",
+        "scenarios": {
+          "fields": "1080i をフィールドごとに表示（59.94p）",
+          "frames": "1080i をコマごとに表示（29.97p）",
+          "framesInterpolated": "コマごとの表示を補間",
+          "film": "プルダウンを組み直して表示（24p）",
+          "filmInterpolated": "組み直した 24p を補間"
+        }
+      },
       "deviceOnly": "端末間同期なし",
       "dataBroadcastZipcode": "データ放送の郵便番号",
       "dataBroadcastZipcodeHelp": "天気やニュースなど、郵便番号で地域を選ぶデータ放送に渡します。7桁の数字で入れてください。空にすると渡しません",
