@@ -1,5 +1,5 @@
 diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
-index fbb6000..cfd3968 100644
+index fbb6000..4704c00 100644
 --- a/packages/yadif/src/deinterlace.ts
 +++ b/packages/yadif/src/deinterlace.ts
 @@ -460,6 +460,11 @@ export class Deinterlacer {
@@ -39,11 +39,25 @@ index fbb6000..cfd3968 100644
    }
  
    #resetFieldMetrics(): void {
-@@ -943,6 +950,20 @@ export class Deinterlacer {
+@@ -911,6 +918,9 @@ export class Deinterlacer {
+       }
+       if (metadata.mozTiming) this.#periodMs = metadata.mozTiming.periodMs;
+       else if (!stale && elapsed > 0) this.#measure(elapsed);
++      // The frame filtered on this callback is the one that arrived on the
++      // last, whatever was missed in between.
++      const filteredMediaTime = this.#lastMediaTime;
+       this.#lastMediaTime = metadata.mediaTime;
+       const at = performance.now();
+       // Frames stopped arriving for a while -- a pause, a stall, a tab in the
+@@ -943,6 +953,28 @@ export class Deinterlacer {
            this.#collectPhase();
            this.#detect();
            this.#continueCadence(metadata.mediaTime);
-+        } else if (missed > 0 && this.#cadence !== null) {
++        } else if (
++          missed > 0 &&
++          this.#frames === HISTORY &&
++          this.#cadence !== null
++        ) {
 +          // A missed frame is a gap in what was seen, not in the film: the
 +          // cycle runs on through it. The element misses frames most often
 +          // just as a broadcast cuts from soft pulldown back to interlaced
@@ -56,7 +70,23 @@ index fbb6000..cfd3968 100644
 +            this.#seedFrames = CADENCE_SEED_FRAMES;
 +            this.#seedAfterGap = true;
 +          }
-+          this.#continueCadence(metadata.mediaTime);
++          // The phase is counted from where the cycle was seen, as of the
++          // frame after the one filtered; on this callback that frame was
++          // missed, so count from the one filtered instead of the one that
++          // arrived after the gap.
++          this.#continueCadence(filteredMediaTime + BROADCAST_FRAME_SECONDS);
          } else {
            this.#resetFieldMetrics();
          }
+@@ -1036,8 +1068,10 @@ export class Deinterlacer {
+     this.#lastScheduled = null;
+     this.#lastShown = null;
+     this.#resetFieldMetrics();
+-    if (scan.interlaced && fromProgressive && this.#cadence !== null)
++    if (scan.interlaced && fromProgressive && this.#cadence !== null) {
+       this.#seedFrames = CADENCE_SEED_FRAMES;
++      this.#seedAfterGap = false;
++    }
+     if (scan.interlaced) {
+       if (this.#scheduled) this.#startLoop();
+     } else {
