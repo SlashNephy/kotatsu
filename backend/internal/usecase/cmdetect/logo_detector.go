@@ -27,7 +27,7 @@ import (
 const (
 	// LogoDetectorName と logoDetectorVersion は、LogoDetector の名前と版。規則や値を変えたら版を上げる。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 1
+	logoDetectorVersion = 2
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
@@ -162,7 +162,7 @@ func (d *LogoDetector) decide(material *Material, program *Program, report *Repo
 		return nil, material.Duration, err
 	}
 	report.Missing = totalLength(result.missing) + result.edgeMissing
-	ratio := cmRatio(result.sections, result.missing, result.duration)
+	ratio := cmRatio(clipSections(result.sections, result.scope), clipSections(result.missing, result.scope), result.scope.End-result.scope.Start)
 	if ratio < maxCMRatio {
 		return shiftSections(result.sections, material.playbackShift()), result.duration, nil
 	}
@@ -234,6 +234,9 @@ type logoResult struct {
 	missing []Section
 	// duration は、最初のコマから最後のコマの終わりまでの長さ。
 	duration time.Duration
+	// scope は、CM の割合を数える範囲 (最初のコマからの時間)。番組の窓を置いたら窓、置かなければ録画全体 (#1506)。
+	// 窓の外は前後の番組なので、CM にするのは当然で、割合に数えると、遅れて始まった放送で上限を超えてしまう。
+	scope Section
 	// edgeMissing は、ファイルの始まりから最初のコマまでと、最後のコマの終わりからファイルの終わりまでの欠けの長さ (#1508)。
 	// それぞれ missingGap 以上のときだけ数える。区間の時刻は最初のコマから数えるので、missing には入れない。
 	edgeMissing time.Duration
@@ -344,6 +347,18 @@ func cmRatio(sections, missing []Section, duration time.Duration) float64 {
 	return float64(cm) / float64(total)
 }
 
+// clipSections は、区間を scope に収める。scope の外の部分は切り、長さがなくなった区間は捨てる。
+func clipSections(sections []Section, scope Section) []Section {
+	out := make([]Section, 0, len(sections))
+	for _, s := range sections {
+		if start, end := max(s.Start, scope.Start), min(s.End, scope.End); end > start {
+			out = append(out, Section{Start: start, End: end})
+		}
+	}
+
+	return out
+}
+
 // missingSections は、コマごとの時刻 times (秒) から、映像の欠けを、最初のコマからの時間で返す。
 func missingSections(times []float64, fps float64) []Section {
 	out := []Section{}
@@ -452,14 +467,16 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	if len(intervals) == 0 {
 		return nil, fmt.Errorf("%w: no frame shows the logo", errLogoUnusable)
 	}
+	missing := missingSections(m.Times, m.Fps)
+	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
+	scope := Section{Start: 0, End: duration}
 	if w, ok := programWindow(intervals, m.Times, m.Fps, program); ok {
 		intervals = clipIntervals(intervals, m.Times, w.start, w.end)
 		if len(intervals) == 0 {
 			return nil, fmt.Errorf("%w: no frame shows the logo in the program window", errLogoUnusable)
 		}
+		scope = Section{Start: seconds(w.start), End: seconds(w.end)}
 	}
-	missing := missingSections(m.Times, m.Fps)
-	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	sections := dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration)
 	if m.bounds != nil {
 		if shown, ok := m.logoInCMChains(intervals); ok {
@@ -472,6 +489,7 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 		sections:    sections,
 		missing:     missing,
 		duration:    duration,
+		scope:       scope,
 		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, firstFrame: -1}),
 		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil

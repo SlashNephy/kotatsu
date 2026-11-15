@@ -355,6 +355,43 @@ func TestDetectWorkerProgram(t *testing.T) {
 	assert.Nil(t, detector.inputs[1].Program)
 }
 
+// TestDetectWorkerProgramStart は、番組が遅れて始まった録画では、実際に放送中になった日時を番組の始まりにすることを確かめる (#1506)。
+// 時刻どおりの放送と、録画を番組の途中から始めた録画では、番組表の始まりのままにする。
+func TestDetectWorkerProgramStart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// segmentStart は、セグメントを書き始めた日時の、番組表の始まりからの時間。
+		segmentStart time.Duration
+		// broadcastStarted は、実際に放送中になった日時の、番組表の始まりからの時間。nil なら記録していない。
+		broadcastStarted *time.Duration
+		// want は、番組の始まりの、セグメントを書き始めた日時からの時間。
+		want time.Duration
+	}{
+		{name: "放送中になった日時を記録していなければ、番組表の始まり", segmentStart: 0, broadcastStarted: nil, want: 0},
+		{name: "見つけるまでの数秒の遅れは、番組表の始まり", segmentStart: 0, broadcastStarted: new(3 * time.Second), want: 0},
+		{name: "遅れて始まった放送は、放送中になった日時", segmentStart: 0, broadcastStarted: new(45 * time.Minute), want: 45 * time.Minute},
+		// 録画を番組の 10 分後から始めると、放送中になったのを見つけるのは、録画を始めた直後になる。
+		{name: "録画を番組の途中から始めたら、番組表の始まり", segmentStart: 10 * time.Minute, broadcastStarted: new(10*time.Minute + 3*time.Second), want: -10 * time.Minute},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newFixture(t)
+			recordingID := f.recording(t, "completed", segmentAt{name: segmentA, start: tt.segmentStart})
+			if tt.broadcastStarted != nil {
+				_, err := f.pool.Exec(t.Context(), "UPDATE recordings SET broadcast_started_at = start_at + $2 WHERE id = $1", recordingID, *tt.broadcastStarted)
+				require.NoError(t, err)
+			}
+			detector := &fakeDetector{sections: map[string][]cmdetect.Section{segmentA: {}}, inputs: []cmdetect.Input{}}
+			require.NoError(t, f.detect(t, detector, recordingID))
+			require.Len(t, detector.inputs, 1)
+			assert.Equal(t, &cmdetect.Program{Start: tt.want, Duration: 30 * time.Minute}, detector.inputs[0].Program)
+		})
+	}
+}
+
 // TestDetectWorkerWaitsForJoinedFile は、セグメントをつないだ後、つないだファイルに置き換えるまでは、見分けずに後でやり直すことを確かめる (#1719)。
 // 置き換えるまでは、DB の記録は 1 本でも、ディスクの最初のセグメントはまだつなぐ前のままである。
 func TestDetectWorkerWaitsForJoinedFile(t *testing.T) {

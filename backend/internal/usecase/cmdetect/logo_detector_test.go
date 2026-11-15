@@ -294,6 +294,51 @@ func TestLogoDetectorRedetect(t *testing.T) {
 	}
 }
 
+// TestLogoDetectorCountsCMInProgramWindow は、番組の窓を置いたら、CM の割合を窓の中だけで数えることを確かめる (#1506)。
+// 窓の外は前後の番組なので、遅れて始まった放送で、前の番組が録画の大半を占めても、ロゴの結果を捨てない。
+func TestLogoDetectorCountsCMInProgramWindow(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		program *cmdetect.Program
+		// wantRedetectable は、材料だけで決められるか (ロゴの結果を使うか)。
+		wantRedetectable bool
+	}{
+		// 前の 24 秒にロゴがないので、録画全体では CM が 6 割になり、上限を超える。
+		{name: "窓がなければ、録画全体で数えて捨てる", program: nil, wantRedetectable: false},
+		// 25 秒から 14 秒の番組の窓には、ロゴが出続けているので、窓の中の CM はない。
+		{name: "窓を置いたら、窓の中だけで数える", program: &cmdetect.Program{Start: 25 * time.Second, Duration: 14 * time.Second}, wantRedetectable: true},
+	}
+	fallback := NewMockDetector(gomock.NewController(t))
+	detector, err := cmdetect.NewLogoDetectorWith(fallback)
+	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return([]cmdetect.Section{}, nil).AnyTimes()
+	_, _, material, err := detector.DetectWithMaterial(t.Context(),
+		&cmdetect.Input{Path: writeLogoTS(t, 0, 24), ServiceID: 0, Progress: nil, Program: nil})
+	require.NoError(t, err)
+	require.NotNil(t, material)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, _, ok := detector.Redetect(material, tt.program)
+			require.Equal(t, tt.wantRedetectable, ok)
+			if ok {
+				// 窓の前 (前の番組) は CM になり、窓の中に CM はない。窓の後ろの残りも、窓の外なので CM になる。
+				require.NotEmpty(t, got)
+				assert.Equal(t, time.Duration(0), got[0].Start)
+				assert.InDelta(t, 24, got[0].End.Seconds(), 1)
+				for _, section := range got[1:] {
+					assert.GreaterOrEqual(t, section.Start, 37*time.Second, "no CM inside the program window")
+				}
+			}
+		})
+	}
+}
+
 // TestLogoDetectorDropsTooMuchCM は、ロゴを使えずに見分け直した結果も、CM の割合が上限以上なら、CM なしにすることを確かめる (#1508)。
 func TestLogoDetectorDropsTooMuchCM(t *testing.T) {
 	t.Parallel()
