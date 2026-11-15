@@ -109,6 +109,21 @@ describe('ルールの一覧', () => {
     );
   });
 
+  test('視聴ルールのタブへ移ると、探す語と絞り込みと並べ替えを URL から外す', async () => {
+    const { environment } = await setup();
+    const { router } = await renderRoute(
+      Route,
+      '/rules/',
+      '/rules?q=こたつ&state=enabled&sort=name&order=desc',
+      environment,
+    );
+    await waitFor(() => expect(shownRules()).toEqual(['こたつ探偵']));
+
+    fireEvent.click(screen.getByRole('tab', { name: '視聴ルール' }));
+
+    await waitFor(() => expect(router.state.location.search).toEqual({ watch: true }));
+  });
+
   test('並べ替えを URL から読み、向きを変えられる', async () => {
     const { environment } = await setup();
     const { router } = await renderRoute(Route, '/rules/', '/rules?sort=name', environment);

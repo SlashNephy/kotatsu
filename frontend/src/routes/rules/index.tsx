@@ -323,7 +323,9 @@ function Rules() {
             value={search.state ?? 'all'}
             allowDeselect={false}
             onChange={(value) =>
-              update({ state: value === 'all' ? undefined : (value as RuleStateFilter) })
+              update({
+                state: value === null || value === 'all' ? undefined : (value as RuleStateFilter),
+              })
             }
             w={140}
           />
@@ -340,7 +342,8 @@ function Rules() {
             allowDeselect={false}
             onChange={(value) =>
               update({
-                reservations: value === 'all' ? undefined : (value as RuleReservationFilter),
+                reservations:
+                  value === null || value === 'all' ? undefined : (value as RuleReservationFilter),
               })
             }
             w={200}
@@ -392,7 +395,19 @@ function Rules() {
             variant="default"
             disabled={visible.length === 0}
             onClick={() =>
-              setSelected(allShownSelected ? new Set() : new Set(visible.map((rule) => rule.id)))
+              setSelected((current) => {
+                // 一覧に出しているルールだけを、選ぶか外す。隠れているルールの選び方は変えない。
+                const next = new Set(current);
+                for (const rule of visible) {
+                  if (allShownSelected) {
+                    next.delete(rule.id);
+                  } else {
+                    next.add(rule.id);
+                  }
+                }
+
+                return next;
+              })
             }
           >
             {t(allShownSelected ? 'rules.deselectShown' : 'rules.selectShown', {

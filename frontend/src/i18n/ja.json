@@ -996,7 +996,7 @@
     "select": "選ぶ",
     "selectDone": "選ぶのをやめる",
     "selectShown": "表示中の{{count}}件を選ぶ",
-    "deselectShown": "選ぶのを解除",
+    "deselectShown": "表示中の選択を外す",
     "filter": {
       "search": "名前、メモ、キーワードで探す",
       "state": "状態で絞り込む",

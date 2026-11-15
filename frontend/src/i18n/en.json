@@ -1024,7 +1024,7 @@
     "select": "Select",
     "selectDone": "Stop selecting",
     "selectShown": "Select {{count}} shown",
-    "deselectShown": "Clear selection",
+    "deselectShown": "Deselect shown",
     "filter": {
       "search": "Search names, memos and keywords",
       "state": "Filter by state",
