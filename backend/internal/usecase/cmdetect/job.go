@@ -48,6 +48,9 @@ const (
 	foreignKeyViolation = "23503"
 	// detectKey は、録画の完了のイベントの、CM の区間を見分けるかどうかのキー。
 	detectKey = "detectCm"
+	// delayedBroadcast は、番組が遅れて始まったとみなす、実際に放送中になった日時の遅れ (#1506、programStart)。
+	// 放送中になったのを見つけるまでの遅れ (数秒) より十分に長くする。
+	delayedBroadcast = time.Minute
 	// mergeGap は、セグメントをまたいで続く CM の区間を 1 つにまとめる間隔。引き継ぎで重ねて録った区間では、同じ CM が両方に入る。
 	mergeGap = time.Second
 )
@@ -428,15 +431,30 @@ func (w *DetectWorker) work(ctx context.Context, detector Detector, job *river.J
 	return nil
 }
 
-// programOf は、i 番目のセグメントに渡す、番組表の時刻を返す (#1506)。番組の窓は録画全体の時間で置く必要があるので、
-// セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする。番組が始まるはずの時刻は、番組表の始まりを、
-// セグメントを書き始めた日時からの時間にしたもの。
+// programOf は、i 番目のセグメントに渡す、番組の時刻を返す (#1506)。番組の窓は録画全体の時間で置く必要があるので、
+// セグメントが 1 つの録画だけに渡し、分かれた録画では nil にする。番組が始まるはずの時刻は、番組の始まり (programStart) を、
+// セグメントを書き始めた日時からの時間にしたもの。尺は、番組表の終わり − 始まり。
 func programOf(recording *sqlc.Recording, segments []segment, i int) *Program {
 	if len(segments) != 1 || !recording.EndAt.After(recording.StartAt) {
 		return nil
 	}
 
-	return &Program{Start: recording.StartAt.Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt)}
+	return &Program{Start: programStart(recording, segments[i].startedAt).Sub(segments[i].startedAt), Duration: recording.EndAt.Sub(recording.StartAt)}
+}
+
+// programStart は、番組が始まった日時を返す。番組が遅れて始まった録画 (前の番組の延長など) では、実際に放送中になった日時
+// (BroadcastStartedAt) にし、それ以外は番組表の始まりにする。
+//
+// 実際に放送中になった日時は、録画中に EIT[p/f] で放送中になったのを最初に見つけた日時なので、番組表の時刻どおりの放送でも
+// 数秒遅れる。録画を番組の途中から始めた回では、録画を始めた直後になり、本当の始まりではない。そこで、番組表の始まりと、
+// 録画を始めた日時 (recordedFrom) のどちらよりも delayedBroadcast を超えて遅いときだけ、遅れて始まったとみなして使う。
+func programStart(recording *sqlc.Recording, recordedFrom time.Time) time.Time {
+	started := recording.BroadcastStartedAt
+	if started == nil || started.Sub(recording.StartAt) <= delayedBroadcast || started.Sub(recordedFrom) <= delayedBroadcast {
+		return recording.StartAt
+	}
+
+	return *started
 }
 
 // align は、セグメントごとの区間を、録画を始めた日時からの時間にそろえて、1 つにまとめる。
