@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"math"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -20,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
+	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
@@ -397,16 +399,18 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 		bounds: nil, boundsDuration: 0, offset: 0,
 	}
 	// 今の見分け方の材料を読み、無音の境目で CM を選べるようにする (#1506)。読めなければ (音声のない録画など)、
-	// ロゴの区間の外を CM にする。止められたときだけは、止める。
-	if d.signalsOf != nil {
-		sig, err := d.signalsOf(ctx, input)
+	// ロゴの区間の外を CM にする。止められたときだけは、止める。ファイルの始まりが分からなければ、時刻をそろえられないので読まない。
+	// 進み具合は、全コマを読む間だけ出すので、材料を読む間は出さない。
+	if d.signalsOf != nil && video.start >= 0 {
+		sig, err := d.signalsOf(ctx, &Input{Path: input.Path, ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		if err == nil {
 			material.bounds, material.boundsDuration = boundaries(sig), sig.duration
 			// コマの時刻は、ファイルの始まりを 0 に寄せたもの。今の見分け方の基準は、最初の映像の PTS を 0 にしたもの。
-			material.offset = video.start - sig.origin
+			// PTS は 33 ビットで一周するので、差は一周を考えて求める。
+			material.offset = signalOffset(video.start, sig.origin)
 		}
 	}
 
@@ -437,7 +441,7 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 		sections:    sections,
 		missing:     missing,
 		duration:    duration,
-		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, start: 0}),
+		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, start: -1}),
 		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil
 }
@@ -461,6 +465,12 @@ func edgeMissing(times []float64, video *videoInfo) time.Duration {
 	}
 
 	return total
+}
+
+// signalOffset は、ファイルの始まり start と最初の映像 origin (どちらも PTS の刻み) から、局ロゴの見分け方のコマの時刻に足すと、
+// 今の見分け方の基準 (最初の映像の PTS を 0 にした秒) になる量を返す。PTS は 33 ビットで一周するので、差は一周を考えて求める。
+func signalOffset(start, origin int64) float64 {
+	return float64(ts.PTSDiff(origin, start)) / ts.PTSClock
 }
 
 // combine は、ロゴの出ていた区間と、今の見分け方の境目の候補から、本編と CM の並びを選び、CM の区間を、
@@ -644,8 +654,9 @@ type videoInfo struct {
 	height   int
 	fps      float64
 	duration time.Duration
-	// start は、ffprobe で読んだファイルの始まりの時刻 (秒、PTS のまま)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
-	start float64
+	// start は、ffprobe で読んだファイルの始まりの時刻 (PTS の 90kHz の刻み)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
+	// 分からなければ -1。
+	start int64
 }
 
 // probeVideo は、ffprobe で、path の最初の映像の大きさと速さと、録画の長さを読む。
@@ -678,7 +689,11 @@ func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 		return nil, fmt.Errorf("%w: unknown frame rate %q", ErrNoVideo, s.AvgFrameRate)
 	}
 	seconds, _ := strconv.ParseFloat(probed.Format.Duration, 64)
-	start, _ := strconv.ParseFloat(probed.Format.StartTime, 64)
+	// ファイルの始まりが分からなければ (ffprobe が N/A を返す TS)、-1 にして、今の見分け方の材料と組み合わせない。
+	start := int64(-1)
+	if t, err := strconv.ParseFloat(probed.Format.StartTime, 64); err == nil && t >= 0 {
+		start = int64(math.Round(t * ts.PTSClock))
+	}
 
 	return &videoInfo{width: s.Width, height: s.Height, fps: fps, duration: time.Duration(seconds * float64(time.Second)), start: start}, nil
 }

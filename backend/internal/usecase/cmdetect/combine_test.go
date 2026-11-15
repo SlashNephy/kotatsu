@@ -71,3 +71,27 @@ func TestCombineSections(t *testing.T) {
 		})
 	}
 }
+
+// TestSignalOffset は、局ロゴの見分け方の時刻を今の見分け方の基準にそろえる量を、PTS が一周しても正しく求めることを確かめる (#1506)。
+func TestSignalOffset(t *testing.T) {
+	t.Parallel()
+
+	const wrap = int64(1) << 33
+	tests := []struct {
+		name          string
+		start, origin int64
+		want          float64
+	}{
+		// ファイルの始まり (音声の最初のパケット) は、最初の映像より 0.268 秒前。
+		{name: "the file starts before the first video", start: 4099328151, origin: 4099352259, want: -0.26786666666666664},
+		// ファイルの始まりの後で PTS が一周し、最初の映像の PTS が小さくなった。
+		{name: "the PTS wraps between the start and the first video", start: wrap - 9000, origin: 9000, want: -0.2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.InDelta(t, tt.want, cmdetect.SignalOffset(tt.start, tt.origin), 1e-9)
+		})
+	}
+}

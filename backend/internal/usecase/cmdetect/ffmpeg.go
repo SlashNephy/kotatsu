@@ -221,7 +221,7 @@ func newSignals(cues *ts.Cues, scenes []float64, silences []span) (*signals, err
 	fromSeconds := func(t float64) float64 { return fromPTS(int64(math.Round(t * ts.PTSClock))) }
 
 	sig := &signals{
-		origin:       float64(base) / ts.PTSClock,
+		origin:       base,
 		silences:     make([]span, 0, len(silences)),
 		scenes:       make([]float64, 0, len(scenes)),
 		audioChanges: make([]float64, 0, len(cues.AudioChanges)),
