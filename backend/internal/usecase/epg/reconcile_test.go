@@ -842,3 +842,79 @@ func TestSyncDoesNotInferSharedEventsOnSatellite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM programs WHERE mirakurun_id = $1 AND end_at = $2", otherProgram, start.Add(30*time.Minute)))
 }
+
+// TestSyncAllRecordsProgramRewrites は、放送前の番組の、番組名と概要の書き換えを記録することを確かめる (#1558)。
+func TestSyncAllRecordsProgramRewrites(t *testing.T) {
+	t.Parallel()
+
+	const original = "偽のチューナーサーバーが合成した番組です。"
+	tests := []struct {
+		name   string
+		change func(t *testing.T, fake *faketuner.Server)
+		// want は、記録に残る (event_id, field, before, after) の組。
+		want []string
+	}{
+		{
+			name: "放送前の番組の番組名の書き換えを記録する",
+			change: func(t *testing.T, fake *faketuner.Server) {
+				t.Helper()
+				require.NoError(t, fake.RenameProgram(programID(6), "新しい番組名"))
+			},
+			want: []string{"6 name こたつテスト1 テスト番組 6 → 新しい番組名"},
+		},
+		{
+			name: "放送前の番組の概要の書き換えを記録する",
+			change: func(t *testing.T, fake *faketuner.Server) {
+				t.Helper()
+				require.NoError(t, fake.ChangeProgramDescription(programID(4), "新しい概要"))
+			},
+			want: []string{"4 description " + original + " → 新しい概要"},
+		},
+		{
+			name: "放送中の番組の書き換えは記録しない",
+			change: func(t *testing.T, fake *faketuner.Server) {
+				t.Helper()
+				require.NoError(t, fake.RenameProgram(programID(3), "新しい番組名"))
+			},
+			want: []string{},
+		},
+		{
+			name: "番組名と概要以外の変更は記録しない",
+			change: func(t *testing.T, fake *faketuner.Server) {
+				t.Helper()
+				require.NoError(t, fake.RescheduleProgram(programID(6), testNow().Add(3*time.Hour), time.Hour))
+			},
+			want: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t, nil)
+			_, err := f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+			tt.change(t, f.fake)
+			_, err = f.reconciler.SyncAll(t.Context())
+			require.NoError(t, err)
+
+			rows, err := f.pool.Query(t.Context(),
+				"SELECT event_id, field, before, after, observed_at FROM program_rewrites WHERE service_id = $1 ORDER BY event_id, field",
+				serviceID())
+			require.NoError(t, err)
+			got := []string{}
+			for rows.Next() {
+				var (
+					eventID           int64
+					field, before, to string
+					observedAt        time.Time
+				)
+				require.NoError(t, rows.Scan(&eventID, &field, &before, &to, &observedAt))
+				assert.True(t, observedAt.Equal(testNow()))
+				got = append(got, fmt.Sprintf("%d %s %s → %s", eventID, field, before, to))
+			}
+			require.NoError(t, rows.Err())
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
