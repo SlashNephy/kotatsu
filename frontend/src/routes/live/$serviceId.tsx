@@ -109,6 +109,7 @@ import { useLiveCatchUp, useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerAudio } from '../../yunomi/usePlayerAudio';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
+import { useAdaptiveQuality } from '../../yunomi/useAdaptiveQuality';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
@@ -427,7 +428,8 @@ function Live({
   // videoFormat は、放送中の番組の映像の種類。BS4K と 8K では、経路の選び方が変わる (#806)。
   const videoFormat =
     data.node?.__typename === 'Service' ? toVideoFormat(data.node.videoFormat) : 'HD';
-  const { route, choices, quality, setQuality } = usePlaybackRoute(data.transcoding, videoFormat);
+  const playback = usePlaybackRoute(data.transcoding, videoFormat);
+  const { route, choices, quality, setQuality } = playback;
   // BS4K と 8K のデータ放送は、BML でなく HTML5 で作られていて、web-bml では描けないので出さない (設計書 7.4)。
   const dataBroadcastAvailable = videoFormat === 'HD';
   const {
@@ -465,10 +467,13 @@ function Live({
   // 低遅延モードなら、貯める量を止まり方と届き方から決め、再生の速さで寄せて、放送からの遅れを小さくする (#495、#1514)。
   const [lowLatency] = useLowLatency();
   // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。バッファを再生している間は追いつかない。
+  // 映像だけの遅れを飛び直しで直し、デコードが追いつかなければ、画質が「自動」の間は段を下げる (#1513)。
+  // 段を下げるのは、ライブを流している間だけ。バッファの再生でも飛び直しはする。
+  const adaptive = useAdaptiveQuality(video, playback, { stepDown: !timeshift.behind });
   const liveCatchUp = useLiveCatchUp(
     video,
     lowLatency && route.kind === 'convert' && !timeshift.behind,
-    { pictureInPicture: pip.container !== null },
+    { pictureInPicture: pip.container !== null, videoLag: adaptive.videoLag },
   );
   // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
   const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
@@ -592,7 +597,7 @@ function Live({
   }, [drains, route.kind, disconnection]);
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
   // タイムシフトのバッファは測れないので、バッファへ移ったときと、放送中の位置へ戻ったときに、それまでの分を捨てる。
-  const streamMeter = useStreamMeter(`${quality}:${timeshift.behind}`);
+  const streamMeter = useStreamMeter(`${playback.current}:${timeshift.behind}`);
   // 実況のコメントは、ライブの端を見ている間、放送の時計で場面に合わせる (#1515)。kyusu の経路も、ライブのセグメントは放送の PTS のままなので合わせられる。
   const broadcast = useBroadcastClock(
     jikkyoEnabled && channelId !== null && visible && !timeshift.behind ? serviceId : null,
@@ -1079,6 +1084,8 @@ function Live({
             <QualitySelect
               choices={choices}
               quality={quality}
+              current={playback.current}
+              currentCodec={playback.currentCodec}
               onChange={(next) => {
                 restartBehind();
                 setQuality(next);
@@ -1193,6 +1200,7 @@ function Live({
                 next={nextProgram}
               />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {adaptive.notice}
               {scrub !== null && (
                 <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
               )}
@@ -1258,6 +1266,7 @@ function Live({
                 next={nextProgram}
               />
               {flash !== null && <PlayerFlash>{flash}</PlayerFlash>}
+              {adaptive.notice}
               {scrub !== null && (
                 <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
               )}
@@ -1445,9 +1454,10 @@ function Live({
                   label: t('player.streamInfo.tab'),
                   content: (
                     <StreamInfo
+                      videoLag={adaptive.videoLag}
                       meter={streamMeter.meter}
                       video={video}
-                      quality={quality}
+                      quality={playback.current}
                       kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                       audios={program?.audios ?? null}
                       serviceId={serviceId}

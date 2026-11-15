@@ -8,6 +8,7 @@ import {
   saveLiveBufferFloor,
   type LiveBufferStatus,
 } from './liveBuffer';
+import type { VideoLag } from './useVideoLag';
 import { browserStorage } from './volume';
 
 // ライブの低遅延モード (#495、#1514、設計書 7.2、7.3)。貯める量 (目標量) を、止まり方と届き方から決め、
@@ -40,10 +41,14 @@ export type LiveCatchUp = {
 // useLiveCatchUp は、enabled の間、video のバッファを測って目標量を決め、再生の速さで寄せる。
 // 制御 (目標量と下限) は、画面を開いている間は、画質を変えたり、つなぎ直したりして video が変わっても引き継ぐ。
 // pictureInPicture は、別のウィンドウに出しているか。出している間は、タブが隠れても見えているとみなす。
+// videoLag は、映像だけの遅れの制御 (#1513)。映像だけ遅れている間は速めず、自分で飛び直して起きた詰まりは数えない。
 export function useLiveCatchUp(
   video: HTMLVideoElement | null,
   enabled: boolean,
-  { pictureInPicture }: { pictureInPicture: boolean },
+  {
+    pictureInPicture,
+    videoLag,
+  }: { pictureInPicture: boolean; videoLag?: Pick<VideoLag, 'speedUpAllowed' | 'excusesStall'> },
 ): LiveCatchUp {
   const [controller] = useState(() =>
     createLiveBufferController({
@@ -55,6 +60,8 @@ export function useLiveCatchUp(
 
   // 別のウィンドウに出したり戻したりしても、制御を作り直さない。作り直すと、追っかけをやめて飛び、詰まりもしばらく数えなくなる。
   const inPictureInPicture = useEffectEvent(() => pictureInPicture);
+  const speedUpAllowed = useEffectEvent(() => videoLag?.speedUpAllowed() ?? true);
+  const excusesStall = useEffectEvent(() => videoLag?.excusesStall() ?? false);
   // 出し入れしたら、前の到着時刻を忘れる。隠れたタブで戻したときに、絞られた間隔を数えないため。
   useEffect(() => {
     controller.forgetArrival();
@@ -111,7 +118,7 @@ export function useLiveCatchUp(
         buffer,
         // タブが隠れている間は、速めたまま戻らないおそれがあるので、遅くせず、変える回数を減らす寄せ方にする。
         conservative: conservativeBrowser || !visible(),
-        speedUpAllowed: true,
+        speedUpAllowed: speedUpAllowed(),
       });
       if (decision.jump) {
         video.currentTime = Math.max(bufferedTail(video) - controller.target, video.currentTime);
@@ -136,8 +143,9 @@ export function useLiveCatchUp(
     }
 
     // 止まったら、待たずに目標量を決め直す。一時停止とシークで止まったのは数えない。
+    // 映像だけの遅れを直そうと自分で飛び直して起きた詰まりも数えない。数えると、遅れを直すたびに目標量が増える。
     const onWaiting = () => {
-      if (!video.paused && !video.seeking) {
+      if (!video.paused && !video.seeking && !excusesStall()) {
         controller.stall(performance.now());
       }
     };

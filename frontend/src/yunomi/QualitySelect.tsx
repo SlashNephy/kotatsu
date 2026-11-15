@@ -10,6 +10,7 @@ import { audioDelayStepMs, maxAudioDelayMs, useAudioDelay, useResetAudioDelay } 
 import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTimer';
 import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
+import { autoQuality } from './autoQuality';
 
 // passthrough は、BS4K の映像を変換せずに送る kyusu の画質の名前 (#806)。
 const passthrough = 'source';
@@ -17,15 +18,30 @@ const passthrough = 'source';
 type Props = {
   choices: string[];
   quality: string | null;
+  // current と currentCodec は、今の経路の画質の名前と、kyusu の経路の映像のコーデック。「自動」の行に添える。
+  current?: string | null;
+  currentCodec?: string | null;
   onChange: (quality: string) => void;
 };
 
 // QualitySelect は、画質のメニュー。オリジナルはブラウザの中での変換、それ以外は kyusu の画質 (設計書 7.1)。
-export function QualitySelect({ choices, quality, onChange }: Props) {
+// 「自動」の行には、今の形式と高さを添える (#1513)。
+export function QualitySelect({
+  choices,
+  quality,
+  current = null,
+  currentCodec = null,
+  onChange,
+}: Props) {
   const { t } = useTranslation();
   // qualityLabel は、画質の名前を、メニューに出す文に変える。kyusu の HEVC の画質は、末尾に -hevc が付く。
   // t を引数で渡すと、i18next の型の展開が深くなりすぎるので、ここで閉じ込める。
   const qualityLabel = (name: string): string => {
+    if (name === autoQuality) {
+      return current === null
+        ? t('player.auto')
+        : t('player.autoWith', { detail: autoDetail(current) });
+    }
     if (name === original) {
       return t('player.original');
     }
@@ -37,6 +53,18 @@ export function QualitySelect({ choices, quality, onChange }: Props) {
     }
 
     return t('player.preset', { name });
+  };
+  // autoDetail は、「自動」の行に添える、今の形式と高さ (例: H.264 540p)。
+  const autoDetail = (name: string): string => {
+    if (name === original) {
+      return t('player.originalShort');
+    }
+    if (name === passthrough) {
+      return t('player.passthrough');
+    }
+    const codec = currentCodec === 'HEVC' ? 'HEVC' : 'H.264';
+
+    return `${codec} ${name.endsWith('-hevc') ? name.slice(0, -'-hevc'.length) : name}`;
   };
   // 選べるものが 1 つしかなければ、メニューを出さない。
   if (choices.length < 2) {
