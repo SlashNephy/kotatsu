@@ -610,6 +610,8 @@
       "openRecording": "Open recording",
       "playTimeshift": "Play from time shift",
       "searchFilmarks": "Search on Filmarks",
+      "searchTver": "Search on TVer",
+      "searchNhkOne": "Search on NHK ONE",
       "searchSameName": "Search by the same title"
     },
     "view": {

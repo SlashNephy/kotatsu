@@ -69,6 +69,7 @@ import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdR
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { FilmarksLink } from '../../guide/FilmarksLink';
+import { StreamingLink } from '../../guide/StreamingLink';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
@@ -261,6 +262,9 @@ function Recording({ recordingId }: { recordingId: string }) {
             recordedUntil
             service {
               name
+              channelType {
+                type
+              }
               logoUrl
               jikkyo {
                 id
@@ -575,6 +579,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             workTitle={recording.workTitle}
             anime={recording.animeEpisodes.length > 0}
           />
+          <StreamingLink service={recording.service} workTitle={recording.workTitle} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (

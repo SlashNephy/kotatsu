@@ -600,6 +600,8 @@
       "openRecording": "録画を見る",
       "playTimeshift": "追っかけ再生",
       "searchFilmarks": "Filmarksで探す",
+      "searchTver": "TVerで探す",
+      "searchNhkOne": "NHK ONEで探す",
       "searchSameName": "同じ番組名で探す"
     },
     "view": {
