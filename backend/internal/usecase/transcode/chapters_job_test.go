@@ -131,15 +131,23 @@ func (f *fixture) transcoded(t *testing.T, recordingID uuid.UUID, name string, c
 	require.NoError(t, err)
 }
 
-// detect は、CM の区間を見分けるジョブが書くのと同じく、録画の CM の区間 (FFmpegDetector のもの) を sections に置き換え、
+// detect は、CM の区間を見分けるジョブが書くのと同じく、録画の CM の区間 (今の版の FFmpegDetector のもの) を sections に置き換え、
 // 同じトランザクションの中で、見分け終えたことを ChaptersEnqueuer に渡す。
 func (f *fixture) detect(t *testing.T, recordingID uuid.UUID, sections ...cmdetect.Section) {
 	t.Helper()
 
+	f.detectVersion(t, recordingID, new(cmdetect.FFmpegDetector).Version(), sections...)
+}
+
+// detectVersion は、detect を、FFmpegDetector の版 version で見分けたものとして行う。
+func (f *fixture) detectVersion(t *testing.T, recordingID uuid.UUID, version int32, sections ...cmdetect.Section) {
+	t.Helper()
+
 	require.NoError(t, pgx.BeginFunc(t.Context(), f.pool, func(tx pgx.Tx) error {
 		_, err := tx.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at)
-			VALUES ($1, $2, 1, $3) ON CONFLICT (recording_id, detector) DO UPDATE SET detected_at = EXCLUDED.detected_at`,
-			recordingID, cmdetect.FFmpegDetectorName, f.clock.Now())
+			VALUES ($1, $2, $3, $4) ON CONFLICT (recording_id, detector)
+			DO UPDATE SET detector_version = EXCLUDED.detector_version, detected_at = EXCLUDED.detected_at`,
+			recordingID, cmdetect.FFmpegDetectorName, version, f.clock.Now())
 		if err != nil {
 			return err
 		}
@@ -399,6 +407,7 @@ func ffprobeFirstPTS(t *testing.T, path string) (int64, int64) {
 
 // TestChaptersEndToEnd は、本物の FFmpeg で、GOP の途中から録り始めた録画を変換し、チャプターを書いて、
 // チャプターの時刻が、変換で捨てた先頭と、MP4 で映像が音声より遅れて始まる分を詰めたものになることを確かめる (#1510)。
+// 区間の時刻の基準 (最初の I フレームか、版 1 の今の見分け方の最初の映像の PES か) ごとに確かめる (#1811)。
 // FFmpeg のない環境 (CI など) では飛ばす。
 func TestChaptersEndToEnd(t *testing.T) {
 	t.Parallel()
@@ -441,31 +450,46 @@ func TestChaptersEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, work(t, f, encoder, recordingID, "360p"))
 	require.Len(t, f.chaptersJobs(t), 1)
-	require.NoError(t, runChapters(t.Context(), f, chapterer, recordingID))
 
-	// CM の区間は、ファイルの最初の映像からの時間。MP4 は、最初の I フレームを、映像の始まり (音声の始まりより後) に置く。
 	firstVideo, firstKey := ffprobeFirstPTS(t, filepath.Join(f.dir, segmentName))
 	require.Greater(t, firstKey, firstVideo, "the recording starts in the middle of a GOP")
-	mp4 := probe(t, filepath.Join(f.dir, output360p))
-	var videoStart int64
-	for _, s := range mp4.Streams {
-		if s.CodecType == "video" {
-			videoStart = millis(t, s.StartTime)
-		}
-	}
-	require.Positive(t, videoStart, "the audio starts before the video")
 	skipped := (firstKey - firstVideo) * 1000 / ts.PTSClock
-	start, end := cm.Start.Milliseconds()-skipped+videoStart, cm.End.Milliseconds()-skipped+videoStart
-	duration := millis(t, mp4.Format.Duration)
-	got := mp4.chapters(t)
-	require.Len(t, got, 3)
-	assert.Equal(t, []string{"本編", "CM", "本編"}, []string{got[0].title, got[1].title, got[2].title})
-	// ミリ秒に切り捨てて書くので、1 ミリ秒までずれてよい。
-	assert.Zero(t, got[0].start)
-	assert.InDelta(t, start, got[0].end, 1)
-	assert.InDelta(t, start, got[1].start, 1)
-	assert.InDelta(t, end, got[1].end, 1)
-	assert.InDelta(t, end, got[2].start, 1)
-	assert.InDelta(t, duration, got[2].end, 1)
-	t.Logf("skipped %d ms, video starts at %d ms, CM chapter [%d, %d] ms", skipped, videoStart, got[1].start, got[1].end)
+	tests := []struct {
+		name    string
+		version int32
+		// lead は、CM の区間の時刻のうち、最初の I フレームより前にあって MP4 に入らない長さ (ミリ秒)。
+		lead int64
+	}{
+		// 今の版の区間は、最初の I フレームからの時間 (#1811)。
+		{name: "sections from the first I frame", version: new(cmdetect.FFmpegDetector).Version(), lead: 0},
+		// 版 1 の区間は、ファイルの最初の映像の PES からの時間。
+		{name: "sections from the first video PES", version: 1, lead: skipped},
+	}
+	for _, tt := range tests {
+		f.detectVersion(t, recordingID, tt.version, cm)
+		require.NoError(t, runChapters(t.Context(), f, chapterer, recordingID))
+
+		// MP4 は、最初の I フレームを、映像の始まり (音声の始まりより後) に置く。
+		mp4 := probe(t, filepath.Join(f.dir, output360p))
+		var videoStart int64
+		for _, s := range mp4.Streams {
+			if s.CodecType == "video" {
+				videoStart = millis(t, s.StartTime)
+			}
+		}
+		require.Positive(t, videoStart, "the audio starts before the video")
+		start, end := cm.Start.Milliseconds()-tt.lead+videoStart, cm.End.Milliseconds()-tt.lead+videoStart
+		duration := millis(t, mp4.Format.Duration)
+		got := mp4.chapters(t)
+		require.Len(t, got, 3, tt.name)
+		assert.Equal(t, []string{"本編", "CM", "本編"}, []string{got[0].title, got[1].title, got[2].title}, tt.name)
+		// ミリ秒に切り捨てて書くので、1 ミリ秒までずれてよい。
+		assert.Zero(t, got[0].start, tt.name)
+		assert.InDelta(t, start, got[0].end, 1, tt.name)
+		assert.InDelta(t, start, got[1].start, 1, tt.name)
+		assert.InDelta(t, end, got[1].end, 1, tt.name)
+		assert.InDelta(t, end, got[2].start, 1, tt.name)
+		assert.InDelta(t, duration, got[2].end, 1, tt.name)
+		t.Logf("%s: skipped %d ms, video starts at %d ms, CM chapter [%d, %d] ms", tt.name, skipped, videoStart, got[1].start, got[1].end)
+	}
 }

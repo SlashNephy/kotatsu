@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
@@ -95,6 +96,51 @@ func TestSignalOffset(t *testing.T) {
 			t.Parallel()
 
 			assert.InDelta(t, tt.want, cmdetect.SignalOffset(tt.first, tt.origin, tt.firstTime), 1e-9)
+		})
+	}
+}
+
+// TestToPlayback は、局ロゴの見分け方の区間 (最初のコマからの時間) を、再生の時間 (録画の索引の最初の I フレームが 0) に直すことを確かめる (#1811)。
+func TestToPlayback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		firstTime  float64
+		offset     float64
+		withBounds bool
+		sections   [][2]float64
+		want       [][2]float64
+	}{
+		{
+			// 本番の録画: FFmpeg がデコードした最初のコマは、索引の最初の I フレームより 0.5 秒前。
+			// コマの時刻は 0.1335 秒から始まり、今の見分け方の基準 (索引の最初の I フレーム) への差は -0.634 秒。
+			name: "the first frame is before the first indexed I frame", firstTime: 0.1335, offset: -0.634, withBounds: true,
+			sections: [][2]float64{{0.2, 1}, {60, 75}},
+			want:     [][2]float64{{0, 0.4995}, {59.4995, 74.4995}},
+		},
+		{
+			name: "the first frame is the first indexed I frame", firstTime: 0.567, offset: -0.567, withBounds: true,
+			sections: [][2]float64{{60, 75}},
+			want:     [][2]float64{{60, 75}},
+		},
+		{
+			// 今の見分け方の材料を読めなかった回は、基準が分からないので、ずらさない。
+			name: "without the bounds", firstTime: 0.1335, offset: 0, withBounds: false,
+			sections: [][2]float64{{60, 75}},
+			want:     [][2]float64{{60, 75}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := cmdetect.ToPlayback(tt.firstTime, tt.offset, tt.withBounds, tt.sections)
+			require.Len(t, got, len(tt.want))
+			for i := range got {
+				assert.InDelta(t, tt.want[i][0], got[i][0], 1e-6)
+				assert.InDelta(t, tt.want[i][1], got[i][1], 1e-6)
+			}
 		})
 	}
 }

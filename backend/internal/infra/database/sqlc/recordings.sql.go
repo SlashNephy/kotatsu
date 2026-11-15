@@ -363,22 +363,24 @@ func (q *Queries) GetAiredProgramName(ctx context.Context, arg GetAiredProgramNa
 }
 
 const getLatestRecordingCMDetection = `-- name: GetLatestRecordingCMDetection :one
-SELECT detector, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 ORDER BY detected_at DESC, detector LIMIT 1
+SELECT detector, detector_version, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = $1 ORDER BY detected_at DESC, detector LIMIT 1
 `
 
 type GetLatestRecordingCMDetectionRow struct {
-	Detector       string
-	DetectedAt     time.Time
-	Note           string
-	VideoMissingMs int64
+	Detector        string
+	DetectorVersion int32
+	DetectedAt      time.Time
+	Note            string
+	VideoMissingMs  int64
 }
 
-// 録画の CM の区間を最後に見分け終えた見分け方と日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
+// 録画の CM の区間を最後に見分け終えた見分け方と、その版と、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
 func (q *Queries) GetLatestRecordingCMDetection(ctx context.Context, recordingID uuid.UUID) (GetLatestRecordingCMDetectionRow, error) {
 	row := q.db.QueryRow(ctx, getLatestRecordingCMDetection, recordingID)
 	var i GetLatestRecordingCMDetectionRow
 	err := row.Scan(
 		&i.Detector,
+		&i.DetectorVersion,
 		&i.DetectedAt,
 		&i.Note,
 		&i.VideoMissingMs,

@@ -659,22 +659,31 @@ func (w *DetectWorker) record(ctx context.Context, detector Detector, recordingI
 // 区間は、録画を始めた日時からの時間。見分け方が複数あれば、最後に見分けた見分け方の区間を返す (#1505)。
 // 管理者が見分け方を替えた後に見分け直した録画は新しい見分け方の区間に、見分け直していない録画は前の見分け方の区間になる。
 func RecordingSections(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) ([]Section, error) {
+	sections, _, err := RecordingSectionsWithOrigin(ctx, db, recordingID)
+
+	return sections, err
+}
+
+// RecordingSectionsWithOrigin は、RecordingSections に、区間の時刻の基準を足して返す。
+// fromFirstPES は、区間の時刻が、セグメントの最初の映像の PES を 0 にしたものなら true (版 1 の今の見分け方、#1811)。
+// それ以外は、セグメントの最初の I フレーム (再生の時間の 0) を 0 にしたもの。見分け直すまで、前の基準の区間が残る。
+func RecordingSectionsWithOrigin(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID) ([]Section, bool, error) {
 	q := sqlc.New(db)
 	latest, err := q.GetLatestRecordingCMDetection(ctx, recordingID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return []Section{}, nil
+		return []Section{}, false, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get the latest CM detection of the recording: %w", err)
+		return nil, false, fmt.Errorf("failed to get the latest CM detection of the recording: %w", err)
 	}
 	rows, err := q.ListRecordingCMSections(ctx, sqlc.ListRecordingCMSectionsParams{RecordingID: recordingID, Detector: latest.Detector})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list the CM sections of the recording: %w", err)
+		return nil, false, fmt.Errorf("failed to list the CM sections of the recording: %w", err)
 	}
 	sections := make([]Section, 0, len(rows))
 	for _, row := range rows {
 		sections = append(sections, Section{Start: time.Duration(row.StartOffsetMs) * time.Millisecond, End: time.Duration(row.EndOffsetMs) * time.Millisecond})
 	}
 
-	return sections, nil
+	return sections, latest.Detector == FFmpegDetectorName && latest.DetectorVersion < firstKeyframeFFmpegVersion, nil
 }

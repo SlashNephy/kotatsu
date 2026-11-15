@@ -189,7 +189,7 @@ func (w *ChaptersWorker) work(ctx context.Context, chapterer Chapterer, recordin
 	if len(transcoded) == 0 {
 		return nil
 	}
-	sections, err := cmdetect.RecordingSections(ctx, w.db, recordingID)
+	sections, fromFirstPES, err := cmdetect.RecordingSectionsWithOrigin(ctx, w.db, recordingID)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (w *ChaptersWorker) work(ctx context.Context, chapterer Chapterer, recordin
 	}
 	var lead time.Duration
 	if len(sections) > 0 {
-		if lead, err = w.headLead(ctx, recordingID, files, tl); err != nil {
+		if lead, err = w.headLead(ctx, recordingID, files, tl, fromFirstPES); err != nil {
 			return err
 		}
 	}
@@ -242,17 +242,24 @@ func (w *ChaptersWorker) work(ctx context.Context, chapterer Chapterer, recordin
 
 // headLead は、CM の区間の時間軸のうち、変換が流し始める最初の I フレームより前にあって MP4 に入らない長さを返す。
 //
-// CM の区間は、セグメントごとに、そのファイルの最初の映像の PES (ts.CueScanner の FirstVideoPTS) を、セグメントの始まりの日時に置いて数える。
+// CM の区間は、セグメントごとに、そのファイルの最初の I フレーム (ts.CueScanner の FirstKeyframePTS) を、セグメントの始まりの日時に置いて数える。
+// 版 1 の今の見分け方の区間 (fromFirstPES) だけは、最初の映像の PES (FirstVideoPTS) を置いて数えている (#1811)。
 // 変換は、録画を最初の I フレームから流す (stream.Recording.Seek(0))。GOP の途中から録り始めたセグメントでは、それより前の映像と音声を捨てる。
 // MP4 の時間は、その I フレームを MP4 の最初の映像のコマ (MP4Info.VideoStart) に置いて数える。そこで、MP4 の時間は、
-// 再生の時間から、最初のセグメントの始まりの再生の時間と、最初の映像から最初の I フレームまでの長さを引き、VideoStart を足して求める。
-// ここでは、VideoStart を足す前の分を返す。索引がなく、最初の I フレームが分からなければ、最初の映像から流したものとみなす。
-func (w *ChaptersWorker) headLead(ctx context.Context, recordingID uuid.UUID, files []sqlc.RecordingFile, tl *chapterTimeline) (time.Duration, error) {
+// 再生の時間から、最初のセグメントの始まりの再生の時間を引き、VideoStart を足して求める。fromFirstPES なら、最初の映像から
+// 最初の I フレームまでの長さも引く。ここでは、VideoStart を足す前の分を返す。索引がなく、最初の I フレームが分からなければ、
+// 最初の映像から流したものとみなす。
+func (w *ChaptersWorker) headLead(
+	ctx context.Context, recordingID uuid.UUID, files []sqlc.RecordingFile, tl *chapterTimeline, fromFirstPES bool,
+) (time.Duration, error) {
 	first := slices.IndexFunc(files, func(f sqlc.RecordingFile) bool { return f.Kind == kindSegment && f.Size > 0 })
 	if first < 0 {
 		return 0, river.JobCancel(errNoSegment)
 	}
 	lead := PlaybackPosition(tl.recordedFrom, tl.gaps, files[first].StartedAt)
+	if !fromFirstPES {
+		return lead, nil
+	}
 	opened, err := w.source.Open(ctx, recordingID)
 	if errors.Is(err, stream.ErrNotMounted) || errors.Is(err, stream.ErrNoSegment) || errors.Is(err, stream.ErrRecordingNotFound) {
 		return 0, river.JobCancel(fmt.Errorf("failed to open the recording: %w", err))

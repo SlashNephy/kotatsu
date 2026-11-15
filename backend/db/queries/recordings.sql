@@ -396,8 +396,8 @@ WHERE recording_id = @recording_id AND detector = @detector
 ORDER BY start_offset_ms;
 
 -- name: GetLatestRecordingCMDetection :one
--- 録画の CM の区間を最後に見分け終えた見分け方と日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
-SELECT detector, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = @recording_id ORDER BY detected_at DESC, detector LIMIT 1;
+-- 録画の CM の区間を最後に見分け終えた見分け方と、その版と、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
+SELECT detector, detector_version, detected_at, note, video_missing_ms FROM recording_cm_detections WHERE recording_id = @recording_id ORDER BY detected_at DESC, detector LIMIT 1;
 
 -- name: ListLatestRecordingCMDetectionNotes :many
 -- 録画ごとに、最後に見分け終えた見分けの、決められなかった理由と映像の欠けの長さを返す (#1508)。録画の一覧の印に使う。見分けていない録画は返さない。

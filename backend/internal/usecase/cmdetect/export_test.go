@@ -229,3 +229,23 @@ func ProgramEdges(sections [][2]float64, bounds []float64, duration float64, pro
 
 	return out
 }
+
+// ToPlayback は、最初のコマが firstTime 秒の材料 (時刻の差 offset、今の見分け方の材料を読めたかは withBounds) で、
+// 最初のコマからの区間 (秒の組) を、再生の時間に直して返す。
+func ToPlayback(firstTime, offset float64, withBounds bool, sections [][2]float64) [][2]float64 {
+	m := &Material{Fps: 30, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: []float64{firstTime}, Measures: []logo.Measure{}}
+	if withBounds {
+		SetMaterialBounds(m, []float64{}, 0, offset)
+	}
+	in := make([]Section, 0, len(sections))
+	for _, s := range sections {
+		in = append(in, Section{Start: seconds(s[0]), End: seconds(s[1])})
+	}
+	shifted := shiftSections(in, m.playbackShift())
+	out := make([][2]float64, 0, len(shifted))
+	for _, s := range shifted {
+		out = append(out, [2]float64{s.Start.Seconds(), s.End.Seconds()})
+	}
+
+	return out
+}
