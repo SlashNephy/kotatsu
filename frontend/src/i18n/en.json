@@ -1284,6 +1284,14 @@
     "ruleFilter": "Recorded by rule \"{{name}}\"",
     "ruleFilterClear": "Clear rule filter",
     "deletedRule": "Deleted rule",
+    "nextEpisodes": {
+      "title": "Next episodes",
+      "createRule": "Create a rule for this series",
+      "reserve": "Reserve",
+      "reserveProgram": "Reserve {{name}}",
+      "reserved": "Reserved",
+      "reserveError": "Could not reserve the program"
+    },
     "recordedByRule": "Recorded by rule \"{{name}}\"",
     "failureDetail": "Error details (shown only to administrators)",
     "recordedByDeletedRule": "Recorded by deleted rule \"{{name}}\"",

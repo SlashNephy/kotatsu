@@ -76,6 +76,7 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
 import { failureKey } from '../../recordings/failureReason';
 import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
+import { NextEpisodes } from '../../recordings/NextEpisodes';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
   component: RecordingPage,
@@ -153,8 +154,8 @@ function RecordingPage() {
   );
 }
 
-// recordingChannels は、録画の詳細に関わるデータの種類。
-const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS'];
+// recordingChannels は、録画の詳細に関わるデータの種類。予約が変われば、続きの放送 (#1564) から予約した放送が外れる。
+const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS', 'RESERVATIONS'];
 
 function Recording({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
@@ -260,10 +261,23 @@ function Recording({ recordingId }: { recordingId: string }) {
             recordedFrom
             recordedUntil
             service {
+              id
               name
               logoUrl
               jikkyo {
                 id
+              }
+            }
+            # 録画のシリーズの続きの放送 (設計書 4.4、#1564)。
+            nextEpisodes {
+              id
+              name
+              startAt
+              ruleKeyword
+              service {
+                id
+                name
+                logoUrl
               }
             }
             tags {
@@ -628,6 +642,11 @@ function Recording({ recordingId }: { recordingId: string }) {
               <LinkifiedText text={toHalfWidth(recording.description)} />
             </Text>
           )}
+          <NextEpisodes
+            episodes={recording.nextEpisodes}
+            serviceId={recording.service.id}
+            canEdit={canEdit}
+          />
           <Card withBorder>
             <Stack gap={4}>
               <CardHeading icon={Gauge}>{t('recordings.quality')}</CardHeading>
