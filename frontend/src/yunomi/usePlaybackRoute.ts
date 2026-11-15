@@ -22,9 +22,12 @@ import { browserStorage } from './volume';
 
 // usePlaybackRoute は、端末の能力と kyusu の有無と放送の映像の種類から再生の経路を決め、利用者が画質を選べるようにする (設計書 7.1)。
 // 選んだ画質は端末ごとに覚え、次に開いたときも使う。「自動」(覚えていないときも) なら、デコードが追いつかないときに段を下げる (#1513)。
+// inheritCap は、ほかの画面で下げた段の上限を、開いたときに引き継ぐか。段を下げる画面 (ライブ、追っかけ再生、放送中の番組の
+// タイムシフト) でだけ引き継ぎ、録画を終えた録画の再生では引き継がない。開いた後に変わっても (録画を終えたなど)、経路は変えない。
 export function usePlaybackRoute(
   transcoding: Transcoding,
   format: VideoFormat,
+  { inheritCap = true }: { inheritCap?: boolean } = {},
 ): {
   route: PlaybackRoute;
   // choices は、画質のメニューに出す選択肢。選べる画質が 2 つ以上あれば、先頭に「自動」を置く。
@@ -47,7 +50,7 @@ export function usePlaybackRoute(
   // 端末の能力は、画面を開いている間は変わらないので、最初に一度だけ調べる。
   const [capabilities] = useState(() => detectCapabilities());
   const [requested, setRequested] = useState(() => loadQuality(browserStorage()));
-  const [cap, setCap] = useState(loadDecodeCap);
+  const [cap, setCap] = useState(() => (inheritCap ? loadDecodeCap() : null));
   const available = qualities(capabilities, transcoding, format);
   const rungs = ladder(available, transcoding.presets);
   const manual =

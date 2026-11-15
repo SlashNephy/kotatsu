@@ -266,7 +266,10 @@ function Player({
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   useWakeLock(!videoState.paused);
   // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
-  const playback = usePlaybackRoute(transcoding, toVideoFormat(program.service.videoFormat));
+  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる放送中の番組でだけ引き継ぐ (#1513)。
+  const playback = usePlaybackRoute(transcoding, toVideoFormat(program.service.videoFormat), {
+    inheritCap: program.endAt == null,
+  });
   const { route, choices, quality, setQuality } = playback;
   const hls = route.kind === 'kyusu';
   const {

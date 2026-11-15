@@ -334,9 +334,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 再生している間は、画面を消さない。
   useWakeLock(!videoState.paused);
   // BS4K と 8K の録画では、経路の選び方が変わる (#806)。
+  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる追っかけ再生でだけ引き継ぐ (#1513)。
   const playback = usePlaybackRoute(
     data.transcoding,
     data.node?.__typename === 'Recording' ? toVideoFormat(data.node.videoFormat) : 'HD',
+    { inheritCap: data.node?.__typename === 'Recording' && data.node.recordedUntil == null },
   );
   const { route, choices, quality, setQuality } = playback;
   const {
