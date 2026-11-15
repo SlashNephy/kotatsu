@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"math"
 	"os/exec"
 	"regexp"
 	"slices"
@@ -406,16 +405,15 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 	// 今の見分け方の材料を読み、無音の境目で CM を選べるようにする (#1506)。読めなければ (音声のない録画など)、
 	// ロゴの区間の外を CM にする。止められたときだけは、止める。ファイルの始まりが分からなければ、時刻をそろえられないので読まない。
 	// 進み具合は、全コマを読む間だけ出すので、材料を読む間は出さない。
-	if d.signalsOf != nil && video.start >= 0 {
+	if d.signalsOf != nil && video.firstFrame >= 0 {
 		sig, err := d.signalsOf(ctx, &Input{Path: input.Path, ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		if err == nil {
 			material.bounds, material.boundsDuration = boundaries(sig), sig.duration
-			// コマの時刻は、ファイルの始まりを 0 に寄せたもの。今の見分け方の基準は、最初の映像の PTS を 0 にしたもの。
-			// PTS は 33 ビットで一周するので、差は一周を考えて求める。
-			material.offset = signalOffset(video.start, sig.origin)
+			// 今の見分け方の基準は、最初の映像の PES の PTS を 0 にしたもの。最初のコマ (最初の I フレーム) は、それより後ろにある。
+			material.offset = signalOffset(video.firstFrame, sig.origin, times[0])
 		}
 	}
 
@@ -449,7 +447,7 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 		sections:    sections,
 		missing:     missing,
 		duration:    duration,
-		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, start: -1}),
+		edgeMissing: edgeMissing(m.Times, &videoInfo{width: 0, height: 0, fps: m.Fps, duration: m.Duration, firstFrame: -1}),
 		corner:      m.Corner, box: m.Box, measures: m.Measures, intervals: intervals, times: m.Times, fps: m.Fps,
 	}, nil
 }
@@ -475,10 +473,12 @@ func edgeMissing(times []float64, video *videoInfo) time.Duration {
 	return total
 }
 
-// signalOffset は、ファイルの始まり start と最初の映像 origin (どちらも PTS の刻み) から、局ロゴの見分け方のコマの時刻に足すと、
-// 今の見分け方の基準 (最初の映像の PTS を 0 にした秒) になる量を返す。PTS は 33 ビットで一周するので、差は一周を考えて求める。
-func signalOffset(start, origin int64) float64 {
-	return float64(ts.PTSDiff(origin, start)) / ts.PTSClock
+// signalOffset は、局ロゴの見分け方のコマの時刻に足すと、今の見分け方の基準 (最初の映像の PES の PTS を 0 にした秒) になる量を返す。
+// first は最初のコマの PTS、origin は最初の映像の PES の PTS (どちらも PTS の刻み)、firstTime は最初のコマの、コマの時刻。
+// コマの時刻の 0 (FFmpeg がパイプの入力の始まりとしたもの) は、ffprobe で読むファイルの始まりと 0.3 秒ほどずれることがあるので、
+// 最初のコマの PTS どうしでそろえる。PTS は 33 ビットで一周するので、差は一周を考えて求める。
+func signalOffset(first, origin int64, firstTime float64) float64 {
+	return float64(ts.PTSDiff(origin, first))/ts.PTSClock - firstTime
 }
 
 // maxLogoInCMChains は、無音の境目が 15 秒の倍数で続く並び (今の見分け方が CM とするもの) のうち、ロゴが出ていた秒の割合の上限。
@@ -694,15 +694,15 @@ type videoInfo struct {
 	height   int
 	fps      float64
 	duration time.Duration
-	// start は、ffprobe で読んだファイルの始まりの時刻 (PTS の 90kHz の刻み)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
+	// firstFrame は、ffprobe で読んだ最初のコマの PTS (90kHz の刻み)。今の見分け方の材料と、時刻の基準をそろえるのに使う (#1506)。
 	// 分からなければ -1。
-	start int64
+	firstFrame int64
 }
 
-// probeVideo は、ffprobe で、path の最初の映像の大きさと速さと、録画の長さを読む。
+// probeVideo は、ffprobe で、path の最初の映像の大きさと速さと、録画の長さと、最初のコマの PTS を読む。
 func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 	out, err := exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0",
-		"-show_entries", "stream=width,height,avg_frame_rate:format=duration,start_time", "-of", "json", path).Output()
+		"-show_entries", "stream=width,height,avg_frame_rate:format=duration", "-of", "json", path).Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to probe the recording with ffprobe: %w", err)
 	}
@@ -713,8 +713,7 @@ func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 			AvgFrameRate string `json:"avg_frame_rate"`
 		} `json:"streams"`
 		Format struct {
-			Duration  string `json:"duration"`
-			StartTime string `json:"start_time"`
+			Duration string `json:"duration"`
 		} `json:"format"`
 	}
 	if err := json.Unmarshal(out, &probed); err != nil {
@@ -729,13 +728,29 @@ func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 		return nil, fmt.Errorf("%w: unknown frame rate %q", ErrNoVideo, s.AvgFrameRate)
 	}
 	seconds, _ := strconv.ParseFloat(probed.Format.Duration, 64)
-	// ファイルの始まりが分からなければ (ffprobe が N/A を返す TS)、-1 にして、今の見分け方の材料と組み合わせない。
-	start := int64(-1)
-	if t, err := strconv.ParseFloat(probed.Format.StartTime, 64); err == nil && t >= 0 {
-		start = int64(math.Round(t * ts.PTSClock))
+
+	return &videoInfo{
+		width: s.Width, height: s.Height, fps: fps, duration: time.Duration(seconds * float64(time.Second)),
+		firstFrame: probeFirstFrame(ctx, path),
+	}, nil
+}
+
+// probeFirstFrame は、ffprobe で、path の最初の映像の、最初にデコードできたコマの PTS (90kHz の刻み) を読む。
+// 読めなければ (止められた、PTS が N/A など)、-1 を返し、今の見分け方の材料と組み合わせない。
+// 頭の 2 秒だけを読む。最初の I フレームより前の PES はデコードできないので、最初のコマは、局ロゴの見分け方の最初のコマと同じになる。
+func probeFirstFrame(ctx context.Context, path string) int64 {
+	out, err := exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0", "-read_intervals", "%+2",
+		"-show_entries", "frame=pts", "-of", "csv=p=0", path).Output()
+	if err != nil {
+		return -1
+	}
+	line, _, _ := strings.Cut(string(out), "\n")
+	pts, err := strconv.ParseInt(strings.Trim(strings.TrimSpace(line), ","), 10, 64)
+	if err != nil || pts < 0 {
+		return -1
 	}
 
-	return &videoInfo{width: s.Width, height: s.Height, fps: fps, duration: time.Duration(seconds * float64(time.Second)), start: start}, nil
+	return pts
 }
 
 // frameRate は、ffprobe の "30000/1001" の形の速さを数にする。読めなければ 0 を返す。

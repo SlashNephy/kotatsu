@@ -16,7 +16,7 @@ import (
 
 // materialFormatVersion は、材料の形式の版 (#1507)。形式を変えたら上げる。違う版の材料は使わずに、読み直して書き直す。
 // 判定の規則の版 (Detector.Version) とは別に持つので、規則の版が上がっただけなら、材料から判定し直せる。
-const materialFormatVersion = 2
+const materialFormatVersion = 3
 
 const (
 	// scoreScale は、ロゴの点数を int16 にするときの倍率。点数は -1〜1 なので、1e-4 の刻みで収まる。

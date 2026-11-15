@@ -80,19 +80,21 @@ func TestSignalOffset(t *testing.T) {
 	const wrap = int64(1) << 33
 	tests := []struct {
 		name          string
-		start, origin int64
+		first, origin int64
+		firstTime     float64
 		want          float64
 	}{
-		// ファイルの始まり (音声の最初のパケット) は、最初の映像より 0.268 秒前。
-		{name: "the file starts before the first video", start: 4099328151, origin: 4099352259, want: -0.26786666666666664},
-		// ファイルの始まりの後で PTS が一周し、最初の映像の PTS が小さくなった。
-		{name: "the PTS wraps between the start and the first video", start: wrap - 9000, origin: 9000, want: -0.2},
+		// 本番の録画: 最初の映像の PES は、最初のコマ (I フレーム) より 0.467 秒前。FFmpeg は最初のコマに 0.567 秒を付けた。
+		// コマの時刻 t の所は、最初の映像の PES から t − 0.567 + 0.467 秒になる。
+		{name: "the first video PES is before the first frame", first: 6830340175, origin: 6830298175, firstTime: 0.567, want: 0.46666666666666673 - 0.567},
+		// 最初の映像の PES の後で PTS が一周し、最初のコマの PTS が小さくなった。
+		{name: "the PTS wraps between the first video PES and the first frame", first: 9000, origin: wrap - 9000, firstTime: 0.1, want: 0.1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.InDelta(t, tt.want, cmdetect.SignalOffset(tt.start, tt.origin), 1e-9)
+			assert.InDelta(t, tt.want, cmdetect.SignalOffset(tt.first, tt.origin, tt.firstTime), 1e-9)
 		})
 	}
 }

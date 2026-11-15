@@ -123,7 +123,7 @@ func TrimMissing(sections, missing []Section) []Section {
 
 // EdgeMissing は edgeMissing。
 func EdgeMissing(times []float64, fps float64, duration time.Duration) time.Duration {
-	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration, start: -1})
+	return edgeMissing(times, &videoInfo{width: 0, height: 0, fps: fps, duration: duration, firstFrame: -1})
 }
 
 // LogoDetail は、ロゴの結果を捨てた理由の詳細を、既定のパラメーターで返す。
@@ -195,8 +195,8 @@ func MaterialBounds(m *Material) ([]float64, float64, float64) {
 }
 
 // SignalOffset は signalOffset。
-func SignalOffset(start, origin int64) float64 {
-	return signalOffset(start, origin)
+func SignalOffset(first, origin int64, firstTime float64) float64 {
+	return signalOffset(first, origin, firstTime)
 }
 
 // LogoInCMChains は、境目の候補 (切り替わりのあるもの) とロゴの出ていた区間 (コマの番号) から、logoInCMChains を返す。
