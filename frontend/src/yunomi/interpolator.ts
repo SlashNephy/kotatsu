@@ -19,6 +19,10 @@ export const stillMargin = 0.004;
 // mismatchThreshold は、見つけたブロックの 1 画素あたりの差 (0〜1) がこれを超えたら、動きを当てにしない値。
 // 場面の切り替わりや、隠れていたものが現れた所では、どこにも似た所がないので、補間せずに近い方のコマを出す。
 export const mismatchThreshold = 0.06;
+// sceneCutRatio は、動きを当てにしないブロックの割合がこれを超えたら、2 コマの間で場面が切り替わったとみなす値。
+// 切り替わりでも、前後の場面で偶然似たブロックは閾値を下回り、前の場面の断片を新しい場面に混ぜてしまう (#1655)。
+// 切り替わったとみなしたら、コマ全体を近い方のコマにする。
+export const sceneCutRatio = 0.4;
 
 const vertexShader = `#version 300 es
 void main() {
@@ -181,13 +185,36 @@ void main() {
 }
 `;
 
+// 動きを当てにしないブロックの割合を数え、場面が切り替わったかを 1×1 に書く。
+// 1 画素で数えるので、ブロックを縦横 1 つおきに数える。すべて数えると、内蔵 GPU で 1ms ほどかかる。
+const sceneShader = `#version 300 es
+precision highp float;
+precision highp int;
+uniform sampler2D uVectors;
+out vec4 color;
+void main() {
+  ivec2 cells = textureSize(uVectors, 0);
+  float unreliable = 0.0;
+  float counted = 0.0;
+  for (int y = 0; y < cells.y; y += 2) {
+    for (int x = 0; x < cells.x; x += 2) {
+      unreliable += step(${mismatchThreshold}, texelFetch(uVectors, ivec2(x, y), 0).b);
+      counted += 1.0;
+    }
+  }
+  color = vec4(step(${sceneCutRatio}, unreliable / counted), 0.0, 0.0, 1.0);
+}
+`;
+
 // 時刻 uT (0 なら前のコマ、1 なら後のコマ) のコマを作る。動きは、ブロックの間を線形に補う。
 // 動きを当てにできない所は、近い方のコマをそのまま出す。境目がくっきりしないよう、閾値の前後でなだらかに混ぜる。
+// 場面が切り替わったときは、コマ全体を近い方のコマにする。
 const composeShader = `#version 300 es
 precision highp float;
 uniform sampler2D uPrevious;
 uniform sampler2D uNext;
 uniform sampler2D uVectors;
+uniform sampler2D uScene;
 uniform float uT;
 uniform vec2 uOutputSize;
 uniform vec2 uLumaSize;
@@ -205,7 +232,10 @@ void main() {
     uT
   );
   vec4 nearest = uT < 0.5 ? texture(uPrevious, uv) : texture(uNext, uv);
-  float unreliable = smoothstep(threshold * 0.7, threshold * 1.3, m.b);
+  float unreliable = max(
+    smoothstep(threshold * 0.7, threshold * 1.3, m.b),
+    texelFetch(uScene, ivec2(0), 0).r
+  );
   color = vec4(mix(interpolated.rgb, nearest.rgb, unreliable), 1.0);
 }
 `;
@@ -226,6 +256,7 @@ type Programs = {
   reduce: WebGLProgram;
   coarse: WebGLProgram;
   estimate: WebGLProgram;
+  scene: WebGLProgram;
   compose: WebGLProgram;
 };
 
@@ -270,7 +301,7 @@ type SavedState = {
 };
 
 // textureUnits は、補間が使うテクスチャのユニットの数。
-const textureUnits = 3;
+const textureUnits = 4;
 
 function save(gl: WebGL2RenderingContext): SavedState {
   const activeTexture = gl.getParameter(gl.ACTIVE_TEXTURE) as number;
@@ -363,6 +394,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
     reduce: compile(gl, reduceShader),
     coarse: compile(gl, coarseShader),
     estimate: compile(gl, estimateShader),
+    scene: compile(gl, sceneShader),
     compose: compile(gl, composeShader),
   };
   // 描くときは頂点の属性を使わないので、空の VAO を当てて、ほかの VAO の状態に触れない。
@@ -382,11 +414,20 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   let nextQuarter: Target | null = null;
   let coarse: Target | null = null;
   let vectors: Target | null = null;
+  let scene: Target | null = null;
   // pair は、最後に estimate した 2 コマ。
   let pair: { previous: WebGLTexture; next: WebGLTexture } | null = null;
 
   const release = () => {
-    for (const target of [previousLuma, nextLuma, previousQuarter, nextQuarter, coarse, vectors]) {
+    for (const target of [
+      previousLuma,
+      nextLuma,
+      previousQuarter,
+      nextQuarter,
+      coarse,
+      vectors,
+      scene,
+    ]) {
       if (target !== null) {
         deleteTarget(gl, target);
       }
@@ -397,6 +438,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
     nextQuarter = null;
     coarse = null;
     vectors = null;
+    scene = null;
     sized = null;
   };
 
@@ -417,6 +459,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
     const cellsY = Math.ceil(halfHeight / blockSize);
     coarse = createTarget(gl, cellsX, cellsY, gl.RGBA8, gl.NEAREST);
     vectors = createTarget(gl, cellsX, cellsY, gl.RGBA8, gl.LINEAR);
+    scene = createTarget(gl, 1, 1, gl.RGBA8, gl.NEAREST);
     sized = { width, height };
   };
 
@@ -455,7 +498,8 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
           previousQuarter === null ||
           nextQuarter === null ||
           coarse === null ||
-          vectors === null
+          vectors === null ||
+          scene === null
         ) {
           return;
         }
@@ -480,13 +524,15 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
           ['uCoarse', coarse.texture],
         ]);
         drawTo(vectors, vectors.width, vectors.height);
+        bind(programs.scene, [['uVectors', vectors.texture]]);
+        drawTo(scene, 1, 1);
         pair = { previous, next };
       } finally {
         restore(gl, state);
       }
     },
     compose(t, framebuffer, width, height) {
-      if (pair === null || vectors === null || previousLuma === null) {
+      if (pair === null || vectors === null || scene === null || previousLuma === null) {
         return;
       }
       const luma = previousLuma;
@@ -497,6 +543,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
           ['uPrevious', pair.previous],
           ['uNext', pair.next],
           ['uVectors', vectors.texture],
+          ['uScene', scene.texture],
         ]);
         gl.uniform1f(gl.getUniformLocation(programs.compose, 'uT'), t);
         gl.uniform2f(gl.getUniformLocation(programs.compose, 'uOutputSize'), width, height);
@@ -517,6 +564,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
       gl.deleteProgram(programs.reduce);
       gl.deleteProgram(programs.coarse);
       gl.deleteProgram(programs.estimate);
+      gl.deleteProgram(programs.scene);
       gl.deleteProgram(programs.compose);
     },
   };
