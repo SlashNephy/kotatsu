@@ -198,3 +198,15 @@ func MaterialBounds(m *Material) ([]float64, float64, float64) {
 func SignalOffset(start, origin int64) float64 {
 	return signalOffset(start, origin)
 }
+
+// LogoInCMChains は、境目の候補 (切り替わりのあるもの) とロゴの出ていた区間 (コマの番号) から、logoInCMChains を返す。
+// コマは 1 秒ごとで、時刻の差は 0 とする。
+func LogoInCMChains(bounds []float64, frames int, intervals []logo.Interval) (float64, bool) {
+	m := &Material{Fps: 1, Duration: 0, Corner: logo.TopRight, Box: logo.Box{X: 0, Y: 0, W: 0, H: 0}, Times: make([]float64, frames), Measures: []logo.Measure{}}
+	for i := range m.Times {
+		m.Times[i] = float64(i)
+	}
+	SetMaterialBounds(m, bounds, float64(frames), 0)
+
+	return m.logoInCMChains(intervals)
+}

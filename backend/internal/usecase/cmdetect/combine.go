@@ -26,8 +26,14 @@ const (
 	// combineSponsor は、提供 (番組の終わりに出す、スポンサーの表示) の長さ。局ロゴを消して出すことが多い。
 	combineSponsor = 10.0
 	// combineSponsorBonus は、本編の直後の提供で、次が CM か録画の終わりのときに足す点 (提供の加点)。
-	// 10 秒の CM とみなした点 (尺違いの減点だけ) を、ロゴのない 10 秒の本編の点が上回るようにする。
-	combineSponsorBonus = 10.0
+	// 本編の直後の 10 秒は、提供とも告知とも読めるが、番組の終わりに提供を出してから CM に入る並びが多いので、提供を先に採る。
+	// ロゴのない 10 秒の本編の点 (-10) に足して、10 秒の告知の点 (10) を上回るようにする。
+	combineSponsorBonus = 25.0
+	// combineNoticeWeight は、告知 (局の短い番宣。5 秒か 10 秒) で、長さの合った 1 秒ごとに足す点 (告知の重み)。
+	combineNoticeWeight = 1.0
+	// combineNoticeReturn は、本編の直後の告知の後に、CM を挟まずに本編へ戻るときに引く点。告知の重み × 10 秒と尺違いの減点の和で、
+	// 告知だけで本編へ戻る所を、告知としては認めず、尺の合わない CM と同じ扱いにする。
+	combineNoticeReturn = combineNoticeWeight*10 + combineMismatch
 )
 
 // combineSections は、無音の境目の候補 bounds (boundaries の結果) と、局ロゴが出ていた区間 logo から、本編と CM の並びのうち、
@@ -38,6 +44,7 @@ const (
 // 本編の区間は、ロゴが見えた秒を足し、ロゴがなかった秒を引く。CM の区間は、15 秒の倍数への合い方で足し、ロゴが見えた秒を大きく引く。
 // 録画の端に接する CM は、前後の番組の CM が途中から入るので、長さを問わず、ロゴが見えた秒だけを引く。
 // 本編の直後の 10 秒前後の区間で、次が CM か録画の終わりのものは、提供として本編の側に数え、加点する。
+// 5 秒か 10 秒の区間は、告知として、長さが合うほど足す。本編の直後の告知の後に、CM を挟まずに本編へ戻るときは、大きく引く。
 // 本編と CM の並びは、境目の候補を順にたどる動的計画法で選ぶ。告知、番組の頭の切れ目などの細かい規則は、まだ入れていない。
 func combineSections(bounds []boundary, duration float64, logo []span) []span {
 	points := make([]float64, 0, len(bounds)+2)
@@ -54,11 +61,12 @@ func combineSections(bounds []boundary, duration float64, logo []span) []span {
 	return mergeAdjacent(table.trace(points))
 }
 
-// 動的計画法の状態。直前の区間が、本編、CM、提供のどれで終わったか。
+// 動的計画法の状態。直前の区間が、本編、CM、提供、本編の直後の告知のどれで終わったか。
 const (
 	stateProgram = iota
 	stateCM
 	stateSponsor
+	stateNotice
 	stateCount
 )
 
@@ -101,6 +109,20 @@ func (sc *combineScorer) cm(a, b float64) (float64, bool) {
 	return combineCMWeight*length*f - combineMismatch*(1-f) - combineLogoPenalty*s, true
 }
 
+// notice は、[a, b) を告知とみなした点。5 秒か 10 秒に合わなければ ok を false にする。録画の端に接する区間は、CM として扱う。
+func (sc *combineScorer) notice(a, b float64) (float64, bool) {
+	if a <= 0 || b >= sc.duration {
+		return 0, false
+	}
+	length := b - a
+	g := max(1-math.Abs(length-5)/combineTolerance, 1-math.Abs(length-10)/combineTolerance)
+	if g <= 0 {
+		return 0, false
+	}
+
+	return combineNoticeWeight*length*g - combineMismatch*(1-g) - combineLogoPenalty*sc.shown(a, b), true
+}
+
 // sponsor は、[a, b) を提供とみなした点。10 秒前後でなければ ok を false にする。
 func (sc *combineScorer) sponsor(a, b float64) (float64, bool) {
 	if math.Abs(b-a-combineSponsor) > combineTolerance {
@@ -110,21 +132,24 @@ func (sc *combineScorer) sponsor(a, b float64) (float64, bool) {
 	return sc.program(a, b) + combineSponsorBonus, true
 }
 
-// combineTable は、動的計画法の表。best[j][k] は、j 番目の候補で、直前の区間が k で終わる並びの最高点、
-// from[j][k] は、その区間の始まりの候補。
+// combineTable は、動的計画法の表。best[j][k] は、j 番目の候補で、直前の区間が k で終わる並びの最高点。
+// from[j][k] と prev[j][k] は、その区間の始まりの候補と、その候補で終わっていた区間の状態。
 type combineTable struct {
 	best [][stateCount]float64
 	from [][stateCount]int
+	prev [][stateCount]int
 }
 
-// solve は、境目の候補 points を順にたどり、表を作る。提供の後は、CM か録画の終わりしか続けられない。提供の前は、本編でなければならない。
+// solve は、境目の候補 points を順にたどり、表を作る。
 func (sc *combineScorer) solve(points []float64) *combineTable {
 	n := len(points)
-	t := &combineTable{best: make([][stateCount]float64, n), from: make([][stateCount]int, n)}
+	t := &combineTable{best: make([][stateCount]float64, n), from: make([][stateCount]int, n), prev: make([][stateCount]int, n)}
 	for j := range n {
-		t.best[j] = [stateCount]float64{math.Inf(-1), math.Inf(-1), math.Inf(-1)}
+		for k := range stateCount {
+			t.best[j][k] = math.Inf(-1)
+		}
 	}
-	t.best[0] = [stateCount]float64{0, 0, math.Inf(-1)}
+	t.best[0][stateProgram], t.best[0][stateCM] = 0, 0
 	for j := 1; j < n; j++ {
 		for i := j - 1; i >= 0; i-- {
 			sc.relax(t, points, i, j)
@@ -134,61 +159,73 @@ func (sc *combineScorer) solve(points []float64) *combineTable {
 	return t
 }
 
-// relax は、i 番目から j 番目の候補までの区間を、本編、提供、CM のそれぞれとみなして、表を更新する。
+// relax は、i 番目から j 番目の候補までの区間を、本編、提供、告知、CM のそれぞれとみなして、表を更新する。
+// 提供の後は、CM か録画の終わりしか続けられない。提供と本編の直後の告知の前は、本編でなければならない。
+// 本編の直後の告知から、CM を挟まずに本編へ戻るときは、大きく引く。CM の後の告知は、CM の続きとして数える。
 func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
-	anyState := max(t.best[i][stateProgram], t.best[i][stateCM], t.best[i][stateSponsor])
-	if math.IsInf(anyState, -1) {
-		return
-	}
 	a, b := points[i], points[j]
-	update := func(k int, v float64) {
-		if v > t.best[j][k] {
-			t.best[j][k], t.from[j][k] = v, i
+	// best は、i 番目の候補で終わる状態のうち、from に含まれるものの最高点と、その状態。penalty は、状態ごとに引く点。
+	best := func(penalty [stateCount]float64, from ...int) (float64, int) {
+		v, k := math.Inf(-1), -1
+		for _, c := range from {
+			if x := t.best[i][c] - penalty[c]; x > v {
+				v, k = x, c
+			}
+		}
+
+		return v, k
+	}
+	update := func(k int, base float64, prev int, score float64) {
+		if prev < 0 || math.IsInf(base, -1) {
+			return
+		}
+		if v := base + score; v > t.best[j][k] {
+			t.best[j][k], t.from[j][k], t.prev[j][k] = v, i, prev
 		}
 	}
-	update(stateProgram, max(t.best[i][stateProgram], t.best[i][stateCM])+sc.program(a, b))
+	none := [stateCount]float64{}
+	returning := [stateCount]float64{}
+	returning[stateNotice] = combineNoticeReturn
+
+	base, prev := best(returning, stateProgram, stateCM, stateNotice)
+	update(stateProgram, base, prev, sc.program(a, b))
 	if v, ok := sc.sponsor(a, b); ok {
-		update(stateSponsor, t.best[i][stateProgram]+v)
+		base, prev := best(none, stateProgram)
+		update(stateSponsor, base, prev, v)
+	}
+	if v, ok := sc.notice(a, b); ok {
+		base, prev := best(none, stateProgram)
+		update(stateNotice, base, prev, v)
+		base, prev = best(none, stateCM, stateSponsor, stateNotice)
+		update(stateCM, base, prev, v)
 	}
 	// 端に接しない CM は、CM の最長より遠くの候補からは始められない。
 	if a > 0 && b < sc.duration && b-a > combineMaxCM+combineTolerance {
 		return
 	}
 	if v, ok := sc.cm(a, b); ok {
-		update(stateCM, anyState+v)
+		base, prev := best(none, stateProgram, stateCM, stateSponsor, stateNotice)
+		update(stateCM, base, prev, v)
 	}
 }
 
-// trace は、末尾から遡り、CM の区間を始まりの順に返す。区間ごとに、その始まりの候補で最高点だった状態から来たとみなす。
-// 提供の始まりは本編、本編の始まりは提供でないものに限る。
+// trace は、末尾から遡り、CM の区間 (告知を含む) を始まりの順に返す。録画の終わりは、本編、CM、提供のどれで終わってもよい。
+// 本編の直後の告知で終わる並びは、録画の終わりなら CM と同じに扱う。
 func (t *combineTable) trace(points []float64) []span {
-	argmax := func(i int, allowed ...int) int {
-		k := allowed[0]
-		for _, c := range allowed[1:] {
-			if t.best[i][c] > t.best[i][k] {
-				k = c
-			}
+	j := len(points) - 1
+	k := stateProgram
+	for _, c := range []int{stateCM, stateSponsor, stateNotice} {
+		if t.best[j][c] > t.best[j][k] {
+			k = c
 		}
-
-		return k
 	}
 	sections := []span{}
-	j := len(points) - 1
-	k := argmax(j, stateProgram, stateCM, stateSponsor)
 	for j > 0 {
 		i := t.from[j][k]
-		if k == stateCM {
+		if k == stateCM || k == stateNotice {
 			sections = append(sections, span{start: points[i], end: points[j]})
 		}
-		switch k {
-		case stateSponsor:
-			k = stateProgram
-		case stateProgram:
-			k = argmax(i, stateProgram, stateCM)
-		default:
-			k = argmax(i, stateProgram, stateCM, stateSponsor)
-		}
-		j = i
+		j, k = i, t.prev[j][k]
 	}
 	slices.Reverse(sections)
 

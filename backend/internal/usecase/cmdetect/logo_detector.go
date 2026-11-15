@@ -434,6 +434,9 @@ func (d *LogoDetector) evaluate(m *Material, program *Program) (*logoResult, err
 	duration := time.Duration((m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps) * float64(time.Second))
 	sections := dropShortSections(trimMissing(complementSections(intervals, m.Times, m.Fps), missing), duration)
 	if m.bounds != nil {
+		if shown, ok := m.logoInCMChains(intervals); ok {
+			return nil, fmt.Errorf("%w: the logo stays in %.0f%% of the CMs found by the silences", errLogoUnusable, shown*100)
+		}
 		sections = trimMissing(m.combine(intervals), missing)
 	}
 
@@ -473,10 +476,33 @@ func signalOffset(start, origin int64) float64 {
 	return float64(ts.PTSDiff(origin, start)) / ts.PTSClock
 }
 
-// combine は、ロゴの出ていた区間と、今の見分け方の境目の候補から、本編と CM の並びを選び、CM の区間を、
-// 最初のコマからの時間で返す (#1506)。
-func (m *Material) combine(intervals []logo.Interval) []Section {
-	// ロゴの区間を、今の見分け方の基準の秒にする。
+// maxLogoInCMChains は、無音の境目が 15 秒の倍数で続く並び (今の見分け方が CM とするもの) のうち、ロゴが出ていた秒の割合の上限。
+// これを超えれば、局ロゴでないもの (CM の間も出し続ける時刻の表示など) を覚えたとみなし、ロゴを使わずに見分け直す (#1506、#1508)。
+// CM の割合の上限 (maxCMRatio) は、CM が多すぎる結果を捨てるが、ロゴが CM の間も出続けて CM を見落とす結果は捨てられない。
+const maxLogoInCMChains = 0.8
+
+// logoInCMChains は、無音の境目が 15 秒の倍数で続く並びのうち、ロゴが出ていた秒の割合を返す。並びの長さの合計が、
+// 15 秒の CM 2 本分に満たなければ、確かめられないので ok を false にする。割合が上限を超えたときだけ ok を true にする。
+func (m *Material) logoInCMChains(intervals []logo.Interval) (float64, bool) {
+	shown := m.signalSpans(intervals)
+	var total, covered float64
+	for _, c := range findChains(m.bounds) {
+		a, b := m.bounds[c.first].at, m.bounds[c.last].at
+		total += b - a
+		for _, s := range shown {
+			covered += max(0, min(s.end, b)-max(s.start, a))
+		}
+	}
+	if total < minCMs*cmUnit {
+		return 0, false
+	}
+	ratio := covered / total
+
+	return ratio, ratio > maxLogoInCMChains
+}
+
+// signalSpans は、ロゴの出ていた区間を、今の見分け方の基準の秒にする。
+func (m *Material) signalSpans(intervals []logo.Interval) []span {
 	toSignal := func(frame int) float64 {
 		t := m.Times[len(m.Times)-1] + 1/m.Fps
 		if frame < len(m.Times) {
@@ -489,6 +515,15 @@ func (m *Material) combine(intervals []logo.Interval) []Section {
 	for _, iv := range intervals {
 		shown = append(shown, span{start: toSignal(iv.Start), end: toSignal(iv.End)})
 	}
+
+	return shown
+}
+
+// combine は、ロゴの出ていた区間と、今の見分け方の境目の候補から、本編と CM の並びを選び、CM の区間を、
+// 最初のコマからの時間で返す (#1506)。
+func (m *Material) combine(intervals []logo.Interval) []Section {
+	// ロゴの区間を、今の見分け方の基準の秒にする。
+	shown := m.signalSpans(intervals)
 	// CM の区間を、最初のコマからの時間に戻す。最初のコマより前と、最後のコマの後ろは切る。
 	origin := m.Times[0] + m.offset
 	last := m.Times[len(m.Times)-1] - m.Times[0] + 1/m.Fps

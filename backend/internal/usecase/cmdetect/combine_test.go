@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
+	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
 
 // TestCombineSections は、無音の境目の候補と局ロゴの区間から、本編と CM の並びを選ぶことを確かめる (#1506)。
@@ -92,6 +93,66 @@ func TestSignalOffset(t *testing.T) {
 			t.Parallel()
 
 			assert.InDelta(t, tt.want, cmdetect.SignalOffset(tt.start, tt.origin), 1e-9)
+		})
+	}
+}
+
+// TestCombineSectionsNotice は、告知 (5 秒) を、その後に CM が続くときだけ CM の側に数えることを確かめる (#1506)。
+func TestCombineSectionsNotice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		bounds []float64
+		shown  [][2]float64
+		want   [][2]float64
+	}{
+		{
+			// 本編の直後の 5 秒の告知 (このあとすぐ、など) の後に、15 秒の CM が続く。
+			name:   "a notice before CMs is a CM",
+			bounds: []float64{300, 305, 320, 335},
+			shown:  [][2]float64{{0, 300}, {335.4, 600}},
+			want:   [][2]float64{{300, 335}},
+		},
+		{
+			// 本編の間の、無音に挟まれたロゴのない 5 秒は、告知としては認めず、尺の合わない CM と同じ扱いにする (仕様どおり)。
+			// ロゴなしの重みを尺違いの減点と釣り合わせているので、3 秒より長いロゴのない所は、CM になる。
+			name:   "a notice alone between the program parts is treated like a CM that does not fit",
+			bounds: []float64{300, 305},
+			shown:  [][2]float64{{0, 300}, {305, 600}},
+			want:   [][2]float64{{300, 305}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, cmdetect.CombineSections(tt.bounds, 600, tt.shown))
+		})
+	}
+}
+
+// TestLogoInCMChains は、無音の境目が 15 秒の倍数で続く並びの間もロゴが出続けていれば、ロゴでないものを覚えたとみなすことを確かめる (#1506)。
+func TestLogoInCMChains(t *testing.T) {
+	t.Parallel()
+
+	// 無音の境目が 100 秒から 15 秒ごとに 4 本続く (60 秒の CM の並び)。
+	bounds := []float64{100, 115, 130, 145, 160}
+	tests := []struct {
+		name      string
+		intervals []logo.Interval
+		wantOK    bool
+	}{
+		{name: "the logo disappears in the CMs", intervals: []logo.Interval{{Start: 0, End: 100}, {Start: 160, End: 600}}, wantOK: false},
+		// CM の間も時刻の表示のように出続けるものを覚えた。
+		{name: "the logo stays in the CMs", intervals: []logo.Interval{{Start: 0, End: 600}}, wantOK: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, ok := cmdetect.LogoInCMChains(bounds, 600, tt.intervals)
+			assert.Equal(t, tt.wantOK, ok)
 		})
 	}
 }
