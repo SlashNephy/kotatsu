@@ -71,6 +71,24 @@ describe('続きの放送 (#1564)', () => {
     expect(screen.queryByRole('button', { name: '霧笛の港 #4を予約' })).toBeNull();
   });
 
+  test('予約できなければ、理由を出し、予約のボタンを残す', async () => {
+    // 番組がもう予約されているなどで、サーバーが断る。
+    const environment = createTestEnvironment(() => ({
+      data: { createProgramReservation: null },
+      errors: [{ message: 'conflict' }],
+    }));
+    await renderWithRouter(
+      <NextEpisodes episodes={episodes} serviceId="Service:こたつテスト1" canEdit />,
+      environment,
+    );
+
+    fireEvent.click(screen.getAllByRole('button', { name: '霧笛の港 #4を予約' })[0]!);
+
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', '予約できませんでした');
+    expect(screen.queryByText('予約済み')).toBeNull();
+    expect(screen.getAllByRole('button', { name: '霧笛の港 #4を予約' })).toHaveLength(2);
+  });
+
   test('ルールは、録画の局の放送の作品名と局を条件にして、ルールの作成画面で開く', async () => {
     const { router } = await renderWithRouter(
       <NextEpisodes episodes={episodes} serviceId="Service:こたつテスト1" canEdit />,

@@ -89,7 +89,9 @@ export function NextEpisodes({
 
           return;
         }
-        setReserved((current) => [...current, episode]);
+        setReserved((current) =>
+          current.some((other) => other.id === episode.id) ? current : [...current, episode],
+        );
       },
       onError: () => {
         setBusy(null);

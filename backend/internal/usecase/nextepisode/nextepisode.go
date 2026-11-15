@@ -150,7 +150,9 @@ func Find(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, now time.Tim
 	return Pick(candidates, reserved, recorded), nil
 }
 
-// sourceOf は、録画の回を読む元を作る。記述子の話数は、番組表の番組を先に、なければアーカイブの番組を使う。
+// sourceOf は、録画の回を読む元を作る。記述子の話数は、アーカイブの番組を先に、なければ番組表の番組を使う。
+// 番組表の番組は (サービス, eventId) だけで引くので、eventId が使い回されると、後の別の番組に当たる。
+// アーカイブは開始の時刻でも絞るので、録画の番組に確かに当たる。
 func sourceOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *episode.Source {
 	extended := map[string]string{}
 	// 詳細を読めなくても、番組名と概要から回を読む。
@@ -159,10 +161,10 @@ func sourceOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *episode.Source {
 	}
 	src := &episode.Source{
 		Name: row.Name, Description: row.Description, Extended: domain.NormalizeExtended(extended),
-		SeriesEpisode: row.ProgramSeriesEpisode, Anime: nil,
+		SeriesEpisode: row.ArchivedSeriesEpisode, Anime: nil,
 	}
 	if src.SeriesEpisode == nil {
-		src.SeriesEpisode = row.ArchivedSeriesEpisode
+		src.SeriesEpisode = row.ProgramSeriesEpisode
 	}
 	if row.SyobocalTid != nil && row.CountStart != nil {
 		src.Anime = &episode.Anime{TID: *row.SyobocalTid, Count: *row.CountStart}

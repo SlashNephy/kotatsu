@@ -231,3 +231,31 @@ func TestFindWithoutEpisode(t *testing.T) {
 		})
 	}
 }
+
+// TestFindReadsArchivedSeriesEpisode は、番組名に話数のない録画の話数を、録画の番組 (アーカイブ) の記述子の話数から読み、
+// eventId を使い回した番組表の後の番組の記述子の話数では読まないことを確かめる。
+func TestFindReadsArchivedSeriesEpisode(t *testing.T) {
+	t.Parallel()
+
+	reused := fakeProgram(fakeGRNetwork, fakeGRService, 900, time.Hour, "別の番組")
+	reused.Series = &faketuner.Series{ID: 1, Repeat: 0, Pattern: 0, ExpiresAt: 0, Episode: 9, LastEpisode: 0, Name: ""}
+	f := newFindFixture(t, []*faketuner.Program{
+		reused,
+		fakeProgram(fakeGRNetwork, fakeGRService, 901, 2*time.Hour, "霧笛の港 #4"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 902, 3*time.Hour, "霧笛の港 #10"),
+	})
+	serviceID := faketuner.ServiceItemID(fakeGRNetwork, fakeGRService)
+	start := findNow().Add(-48 * time.Hour)
+	recording := id.New()
+	f.exec(t, `INSERT INTO recordings (id, service_id, event_id, name, description, start_at, end_at, state, recorded_from, created_at, updated_at)
+		VALUES ($1, $2, 900, '霧笛の港', '', $3, $4, 'completed', $3, $3, $3)`, recording, serviceID, start, start.Add(30*time.Minute))
+	f.exec(t, `INSERT INTO program_archives (service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description,
+		name_normalized, description_normalized, extended, genres, related_items, series_episode, created_at, updated_at, archived_at)
+		VALUES ($1, 900, 0, $2, $3, false, true, '霧笛の港', '', '霧笛の港', '', '{}', '[]', '[]', 3, $2, $2, $2)`,
+		serviceID, start, start.Add(30*time.Minute))
+
+	got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+	require.NoError(t, err)
+
+	assert.Equal(t, []int64{901, 902}, eventIDs(got))
+}
