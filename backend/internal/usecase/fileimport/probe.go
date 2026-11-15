@@ -227,6 +227,8 @@ func videoPrograms(analyzer *ts.Analyzer) []uint16 {
 }
 
 // events は、analyzers が読んだ EIT[p/f] で、サービス serviceID の放送中か次とされた番組を、読んだ順に返す。
+// 同じ番組を後の analyzer でも読めば、前に読めなかった項目を埋める。番組名や開始は、放送の直前まで載らないことがあるので、
+// 頭で次の番組として読んだときには空でも、終わりで放送中として読めば埋まる。
 func events(analyzers []*ts.Analyzer, serviceID uint16) []*Event {
 	result := []*Event{}
 	for _, analyzer := range analyzers {
@@ -235,7 +237,7 @@ func events(analyzers []*ts.Analyzer, serviceID uint16) []*Event {
 			continue
 		}
 		for _, eventID := range []*uint16{pf.Present, pf.Following} {
-			if eventID == nil || slices.ContainsFunc(result, func(e *Event) bool { return e.EventID == *eventID }) {
+			if eventID == nil {
 				continue
 			}
 			event := &Event{EventID: *eventID, Name: "", Description: "", Extended: []*ts.ExtendedItem{}, Start: nil, Duration: nil}
@@ -245,11 +247,35 @@ func events(analyzers []*ts.Analyzer, serviceID uint16) []*Event {
 			if et := analyzer.EventTime(serviceID, *eventID); et != nil {
 				event.Start, event.Duration = et.Start, et.Duration
 			}
+			if i := slices.IndexFunc(result, func(e *Event) bool { return e.EventID == *eventID }); i >= 0 {
+				mergeEvent(result[i], event)
+
+				continue
+			}
 			result = append(result, event)
 		}
 	}
 
 	return result
+}
+
+// mergeEvent は、dst の空の項目を、後で読んだ同じ番組 src の項目で埋める。
+func mergeEvent(dst, src *Event) {
+	if dst.Name == "" {
+		dst.Name = src.Name
+	}
+	if dst.Description == "" {
+		dst.Description = src.Description
+	}
+	if len(dst.Extended) == 0 {
+		dst.Extended = src.Extended
+	}
+	if dst.Start == nil {
+		dst.Start = src.Start
+	}
+	if dst.Duration == nil {
+		dst.Duration = src.Duration
+	}
 }
 
 // Program は、サービスの番組のうち、録った範囲 (from から until) に最も長く重なるものを返す。

@@ -129,3 +129,57 @@ func TestServiceProgram(t *testing.T) {
 		})
 	}
 }
+
+// TestReadProbeTail は、頭で読み切れない大きなファイルでは、終わりも読み、同じ番組を 1 つにまとめることを確かめる (#1734)。
+func TestReadProbeTail(t *testing.T) {
+	t.Parallel()
+
+	data := loadTestTS(t)
+	// 頭で読む上限 (32 MiB) を超えるよう、null パケットを挟む。
+	null := make([]byte, ts.PacketSize)
+	null[0], null[1], null[2], null[3] = 0x47, 0x1F, 0xFF, 0x10
+	file := append(bytes.Clone(data), bytes.Repeat(null, (40<<20)/ts.PacketSize)...)
+	file = append(file, data...)
+
+	got, err := fileimport.ReadProbe(bytes.NewReader(file), int64(len(file)))
+	require.NoError(t, err)
+	require.Len(t, got.Services, 1)
+	require.Len(t, got.Services[0].Events, 1)
+	assert.Equal(t, "テスト番組", got.Services[0].Events[0].Name)
+	require.NotNil(t, got.RecordedUntil)
+}
+
+// TestMergeEvent は、頭で読めなかった番組の項目を、終わりで読んだ同じ番組の項目で埋め、読めた項目は変えないことを確かめる (#1734)。
+func TestMergeEvent(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 11, 9, 23, 45, 0, 0, jst())
+	full := &fileimport.Event{
+		EventID: 2, Name: "録った番組", Description: "概要", Extended: []*ts.ExtendedItem{{Heading: "出演者", Text: "こたつ"}},
+		Start: &start, Duration: new(30 * time.Minute),
+	}
+	tests := []struct {
+		name string
+		dst  *fileimport.Event
+		want *fileimport.Event
+	}{
+		{
+			name: "頭で次の番組として読み、名前と時刻がなかった",
+			dst:  &fileimport.Event{EventID: 2, Name: "", Description: "", Extended: []*ts.ExtendedItem{}, Start: nil, Duration: nil},
+			want: full,
+		},
+		{
+			name: "頭で読めた項目は残す",
+			dst:  &fileimport.Event{EventID: 2, Name: "先の名前", Description: "", Extended: []*ts.ExtendedItem{}, Start: nil, Duration: nil},
+			want: &fileimport.Event{EventID: 2, Name: "先の名前", Description: full.Description, Extended: full.Extended, Start: full.Start, Duration: full.Duration},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fileimport.MergeEvent(tt.dst, full)
+			assert.Equal(t, tt.want, tt.dst)
+		})
+	}
+}
