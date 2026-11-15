@@ -132,3 +132,16 @@ func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*
 		wire.Struct(new(animeJobParts), "*"),
 	))
 }
+
+// newPruneJobParts は、保持期間を過ぎたものを消すジョブの Worker を作る。
+func newPruneJobParts(deps *Deps) *pruneJobParts {
+	panic(wire.Build(
+		clockOf,
+		poolOf,
+		newAuditPruneWorker,
+		newNotificationPruneWorker,
+		newWatchProgressPruneWorker,
+		newNetworkActivityPruneWorker,
+		wire.Struct(new(pruneJobParts), "*"),
+	))
+}
