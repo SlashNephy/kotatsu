@@ -1850,7 +1850,7 @@
       "annictChannel": "Annict channel",
       "lineup": {
         "title": "Channel lineup changes",
-        "description": "The satellite stations on the air no longer match the channels of the tuner server. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
+        "description": "The stations on the air no longer match the channels of the tuner server, or some channels keep failing to tune. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
         "occurredAt": "Time",
         "message": "Details"
       }

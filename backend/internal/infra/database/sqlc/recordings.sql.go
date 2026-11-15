@@ -1507,12 +1507,21 @@ func (q *Queries) ListRecordingsWithoutNormalized(ctx context.Context, maxCount 
 }
 
 const listTuningOutcomes = `-- name: ListTuningOutcomes :many
-SELECT s.channel_type, s.channel, r.recorded_from, (r.state <> 'failed')::boolean AS received
-FROM recordings r
-JOIN services s ON s.id = r.service_id
-WHERE r.recorded_from >= $1
-  AND (r.state IN ('completed', 'completed_with_errors', 'partial') OR (r.state = 'failed' AND r.failure_reason = 'tuning_refused'))
-ORDER BY r.recorded_from, r.id
+SELECT outcomes.channel_type::text AS channel_type, outcomes.channel::text AS channel,
+  outcomes.recorded_from::timestamptz AS recorded_from, outcomes.received::boolean AS received
+FROM (
+  SELECT s.channel_type, s.channel, r.recorded_from, r.state <> 'failed' AS received
+  FROM recordings r
+  JOIN services s ON s.id = r.service_id
+  WHERE r.recorded_from >= $1
+    AND (r.state IN ('completed', 'completed_with_errors', 'partial') OR (r.state = 'failed' AND r.failure_reason = 'tuning_refused'))
+  UNION ALL
+  SELECT s.channel_type, s.channel, h.start_at, true
+  FROM recording_history h
+  JOIN services s ON s.id = h.service_id
+  WHERE h.recording_id IS NULL AND NOT h.imported AND h.start_at >= $1
+) AS outcomes
+ORDER BY outcomes.recorded_from
 `
 
 type ListTuningOutcomesRow struct {
@@ -1523,7 +1532,8 @@ type ListTuningOutcomesRow struct {
 }
 
 // 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
-// 選局を断られて失敗したもの (tuning_refused) を、チャンネルごとに始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+// 選局を断られて失敗したもの (tuning_refused) を、始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+// 消した録画も、録画履歴 (設計書 4.4) に残っていれば、受信できたものに数える。消した録画を抜くと、その前後の失敗が続いて見えるため。
 func (q *Queries) ListTuningOutcomes(ctx context.Context, since time.Time) ([]ListTuningOutcomesRow, error) {
 	rows, err := q.db.Query(ctx, listTuningOutcomes, since)
 	if err != nil {

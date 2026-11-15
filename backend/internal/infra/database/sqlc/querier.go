@@ -828,7 +828,8 @@ type Querier interface {
 	ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitlesForBroadcastLookupParams) ([]int32, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	// 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
-	// 選局を断られて失敗したもの (tuning_refused) を、チャンネルごとに始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+	// 選局を断られて失敗したもの (tuning_refused) を、始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+	// 消した録画も、録画履歴 (設計書 4.4) に残っていれば、受信できたものに数える。消した録画を抜くと、その前後の失敗が続いて見えるため。
 	ListTuningOutcomes(ctx context.Context, since time.Time) ([]ListTuningOutcomesRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)
