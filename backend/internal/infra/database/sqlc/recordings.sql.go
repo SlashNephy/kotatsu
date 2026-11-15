@@ -1142,6 +1142,78 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 	return items, nil
 }
 
+const listOutdatedRecordingCMDetections = `-- name: ListOutdatedRecordingCMDetections :many
+SELECT r.id AS recording_id, r.name, r.start_at, d.detector, d.detector_version,
+  EXISTS (
+    SELECT 1 FROM recording_cm_materials m
+    WHERE m.recording_id = d.recording_id AND m.detector = $1 AND m.format_version = $2
+  ) AS has_material
+FROM recording_cm_detections d
+JOIN recordings r ON r.id = d.recording_id
+WHERE NOT EXISTS (
+    -- 同じ録画で、後に見分けた見分けがあれば、最後のものではない (GetLatestRecordingCMDetection と同じ並び)。
+    SELECT 1 FROM recording_cm_detections n
+    WHERE n.recording_id = d.recording_id
+      AND (n.detected_at > d.detected_at OR (n.detected_at = d.detected_at AND n.detector < d.detector))
+  )
+  AND (
+    (d.detector = $1 AND d.detector_version < $3)
+    OR ($4::boolean AND d.detector <> $1)
+  )
+ORDER BY r.start_at, r.id
+`
+
+type ListOutdatedRecordingCMDetectionsParams struct {
+	Detector              string
+	MaterialFormatVersion int32
+	DetectorVersion       int32
+	IncludeOtherDetectors bool
+}
+
+type ListOutdatedRecordingCMDetectionsRow struct {
+	RecordingID     uuid.UUID
+	Name            string
+	StartAt         time.Time
+	Detector        string
+	DetectorVersion int32
+	HasMaterial     bool
+}
+
+// 最後に見分け終えた見分けが、見分け方 @detector の版 @detector_version より古い録画を、放送の古い順に返す (#1814)。
+// @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式の版
+// @material_format_version の材料が残っていて、録画を読み直さずに判定し直せそうかどうか。
+func (q *Queries) ListOutdatedRecordingCMDetections(ctx context.Context, arg ListOutdatedRecordingCMDetectionsParams) ([]ListOutdatedRecordingCMDetectionsRow, error) {
+	rows, err := q.db.Query(ctx, listOutdatedRecordingCMDetections,
+		arg.Detector,
+		arg.MaterialFormatVersion,
+		arg.DetectorVersion,
+		arg.IncludeOtherDetectors,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOutdatedRecordingCMDetectionsRow{}
+	for rows.Next() {
+		var i ListOutdatedRecordingCMDetectionsRow
+		if err := rows.Scan(
+			&i.RecordingID,
+			&i.Name,
+			&i.StartAt,
+			&i.Detector,
+			&i.DetectorVersion,
+			&i.HasMaterial,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordingCMSections = `-- name: ListRecordingCMSections :many
 SELECT start_offset_ms, end_offset_ms FROM recording_cm_sections
 WHERE recording_id = $1 AND detector = $2

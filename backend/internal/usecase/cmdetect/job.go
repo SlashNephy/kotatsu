@@ -113,6 +113,49 @@ func Enqueue(ctx context.Context, db Beginner, inserter Inserter, clk clock.Cloc
 	return true, nil
 }
 
+// enqueueBatch は、EnqueueMany が 1 つのトランザクションで投入するジョブの数の上限。
+const enqueueBatch = 500
+
+// EnqueueMany は、録画 recordingIDs の CM の区間を見分けるジョブをまとめて投入し、入れた数を返す (#1814)。
+// 待っている録画には重ねて入れない。録画の詳細が見分けを待っていると出せるよう、入れたトランザクションごとに 1 度だけ、
+// 録画の変更を知らせる。途中で失敗したら、それまでに入れた数と一緒にエラーを返す。
+func EnqueueMany(ctx context.Context, db Beginner, inserter Inserter, clk clock.Clock, recordingIDs []uuid.UUID) (int, error) {
+	inserted := 0
+	for start := 0; start < len(recordingIDs); start += enqueueBatch {
+		ids := recordingIDs[start:min(start+enqueueBatch, len(recordingIDs))]
+		params := make([]river.InsertManyParams, 0, len(ids))
+		for _, id := range ids {
+			params = append(params, river.InsertManyParams{Args: DetectArgs{RecordingID: id}, InsertOpts: nil})
+		}
+		batch := 0
+		err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+			results, err := inserter.InsertManyTx(ctx, tx, params)
+			if err != nil {
+				return fmt.Errorf("failed to insert the CM detection jobs: %w", err)
+			}
+			for _, result := range results {
+				if !result.UniqueSkippedAsDuplicate {
+					batch++
+				}
+			}
+			if batch == 0 {
+				return nil
+			}
+			if _, err := notify.Publish(ctx, tx, clk, notify.RecordingsChannel); err != nil {
+				return err
+			}
+
+			return nil
+		})
+		if err != nil {
+			return inserted, errors.Join(err, fmt.Errorf("enqueued %d of %d recordings", inserted, len(recordingIDs)))
+		}
+		inserted += batch
+	}
+
+	return inserted, nil
+}
+
 // Inserter は、ジョブをトランザクションの中で投入する。*jobs.Client が満たす。
 type Inserter interface {
 	InsertManyTx(ctx context.Context, tx pgx.Tx, params []river.InsertManyParams) ([]*rivertype.JobInsertResult, error)

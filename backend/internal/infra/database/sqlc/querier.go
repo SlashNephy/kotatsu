@@ -689,6 +689,10 @@ type Querier interface {
 	ListOrphanedEDCBNetworkTVs(ctx context.Context, arg ListOrphanedEDCBNetworkTVsParams) ([]EdcbNetworkTv, error)
 	// 同じ話の、放送が終わった放送を、実況のチャンネルがあるものだけ、古い順に返す (#1361)。
 	ListOtherAnimeBroadcasts(ctx context.Context, arg ListOtherAnimeBroadcastsParams) ([]ListOtherAnimeBroadcastsRow, error)
+	// 最後に見分け終えた見分けが、見分け方 @detector の版 @detector_version より古い録画を、放送の古い順に返す (#1814)。
+	// @include_other_detectors なら、ほかの見分け方で最後に見分けた録画も返す。has_material は、@detector の形式の版
+	// @material_format_version の材料が残っていて、録画を読み直さずに判定し直せそうかどうか。
+	ListOutdatedRecordingCMDetections(ctx context.Context, arg ListOutdatedRecordingCMDetectionsParams) ([]ListOutdatedRecordingCMDetectionsRow, error)
 	ListPendingAnimeRecords(ctx context.Context, arg ListPendingAnimeRecordsParams) ([]AnimeRecord, error)
 	// 配っていないイベントを、古い順に引き、ロックする。ほかの nekonote が同じイベントを配らないよう、ロック中の行は飛ばす。
 	ListPendingNotificationEvents(ctx context.Context, maxCount int32) ([]NotificationEvent, error)
