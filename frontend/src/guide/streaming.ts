@@ -21,10 +21,11 @@ export function streamingSearch(service: Service, title: string): StreamingSearc
   if (q === '') {
     return null;
   }
-  if (isNHK(service.name)) {
+  const type = service.channelType.type;
+  if (isNHK(service.name) && (type === 'GR' || type === 'BS')) {
     return { service: 'nhk', url: `https://www.web.nhk/search?query=${encodeURIComponent(q)}` };
   }
-  if (service.channelType.type === 'GR') {
+  if (type === 'GR' && !isNHK(service.name)) {
     return { service: 'tver', url: `https://tver.jp/search/${encodeURIComponent(q)}` };
   }
 

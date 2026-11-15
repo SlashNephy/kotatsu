@@ -38,6 +38,12 @@ describe('streamingSearch', () => {
       want: null,
     },
     {
+      name: 'NHK で始まる名前でも、地上波と BS でなければ出さない',
+      service: { name: 'NHKワールド', channelType: { type: 'SKY' } },
+      title: 'x',
+      want: null,
+    },
+    {
       name: '作品名が空なら出さない',
       service: { name: 'フジテレビ', channelType: { type: 'GR' } },
       title: '  ',
