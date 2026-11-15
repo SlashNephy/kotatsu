@@ -1,5 +1,5 @@
-import { ScrollArea, Stack, Text } from '@mantine/core';
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { Button, Group, ScrollArea, Stack, Text } from '@mantine/core';
+import { useEffect, useEffectEvent, useRef, useState, type PointerEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { graphql, useSubscription } from 'react-relay';
 import type { TFunction } from 'i18next';
@@ -29,6 +29,8 @@ import {
   type TsPlayerReading,
 } from './streamMeter';
 import { broadcastDelaySeconds, type BroadcastClockSample } from './broadcastDelay';
+import type { LiveCatchUp } from './liveCatchUp';
+import type { LiveBufferStatus } from './liveBuffer';
 import classes from './StreamInfo.module.css';
 
 // useStreamMeter は、再生している経路から届く様子を溜める StreamMeter を作る (#828)。
@@ -64,6 +66,8 @@ type Snapshot = {
   fps: number | null;
   // delay は、映しているコマが放送から遅れている秒数 (#1515)。出せなければ null。
   delay: number | null;
+  // liveBuffer は、ライブの低遅延モードの制御の様子 (#1514)。制御していなければ null。
+  liveBuffer: LiveBufferStatus | null;
 };
 
 // maxDelaySeconds は、放送からの遅れとして出す上限。これを超える値は、組と画面の時刻の取り違えとみなして出さない。
@@ -115,6 +119,8 @@ type Props = {
   serviceId?: string;
   // recordedKinds は、録画の、PID の種類ごとの平均のビットレート (#1156)。分からなければ null。
   recordedKinds?: KindBitrates | null;
+  // liveCatchUp は、ライブの低遅延モードの制御 (#1514)。渡せば、目標量と覚えた下限などを出し、下限を捨てるボタンを出す。
+  liveCatchUp?: LiveCatchUp;
   // height は、枠の高さ。CSS の長さで渡す。
   height?: string | number;
 };
@@ -132,12 +138,15 @@ export function StreamInfo({
   transport: recordedTransport,
   serviceId,
   recordedKinds,
+  liveCatchUp,
   height = 240,
 }: Props) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   // clock は、tenban から届いた最新の放送の時計 (#1515)。届いた端末の時刻も添える。
   const clock = useRef<BroadcastClockSample | null>(null);
+  // readLiveBuffer は、低遅延モードの制御の様子を読む。画面を描き直すたびに読み直しの間隔を作り直さないよう、effect の外から読む。
+  const readLiveBuffer = useEffectEvent(() => liveCatchUp?.status() ?? null);
   useEffect(() => {
     const frames: FrameCount[] = [];
     const update = () => {
@@ -169,6 +178,7 @@ export function StreamInfo({
         video: video === null ? null : readVideoStats(video),
         fps: first === undefined || last === undefined ? null : frameRate(first, last),
         delay: delayOf(video, meter.mediaOrigin, clock.current, now),
+        liveBuffer: readLiveBuffer(),
       });
     };
     update();
@@ -190,6 +200,7 @@ export function StreamInfo({
         }
       : (recordedKinds ?? null);
   const stats = snapshot?.video ?? null;
+  const liveBuffer = snapshot?.liveBuffer ?? null;
   const encoded = snapshot?.encoded ?? null;
   const source = snapshot?.source ?? null;
   // TS の異常の数は、録画では録画しながら数えた数を、ブラウザ内での変換ではプレイヤーが数えた数を、
@@ -367,6 +378,44 @@ export function StreamInfo({
           </dd>
           <dt>{t('player.stats.rate')}</dt>
           <dd>{stats === null ? '-' : `${stats.rate}×`}</dd>
+          {liveBuffer !== null && (
+            <>
+              <dt>{t('player.streamInfo.liveBufferTarget')}</dt>
+              <dd>{t('player.stats.seconds', { seconds: liveBuffer.target.toFixed(1) })}</dd>
+              <dt>{t('player.streamInfo.liveBufferFloor')}</dt>
+              <dd>
+                <Group gap="xs" wrap="nowrap">
+                  {t('player.stats.seconds', { seconds: liveBuffer.floor.toFixed(1) })}
+                  {/* 回線を繋ぎ替えた直後に、前の経路の値のまま遅れるのを解くため、覚えた下限を捨てられるようにする。 */}
+                  {liveBuffer.learned && (
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      onClick={() => {
+                        liveCatchUp?.forgetFloor();
+                        setSnapshot((prev) =>
+                          prev === null
+                            ? prev
+                            : { ...prev, liveBuffer: liveCatchUp?.status() ?? null },
+                        );
+                      }}
+                    >
+                      {t('player.streamInfo.liveBufferForget')}
+                    </Button>
+                  )}
+                </Group>
+              </dd>
+              <dt>{t('player.streamInfo.liveBufferGap')}</dt>
+              <dd>{t('player.stats.seconds', { seconds: liveBuffer.maxGap.toFixed(1) })}</dd>
+              <dt>{t('player.streamInfo.liveBufferRateChanges')}</dt>
+              <dd>
+                {t('player.streamInfo.liveBufferCounts', {
+                  changes: liveBuffer.rateChanges,
+                  stalls: liveBuffer.stalls,
+                })}
+              </dd>
+            </>
+          )}
         </dl>
       </Stack>
     </ScrollArea>

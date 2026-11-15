@@ -462,10 +462,14 @@ function Live({
   );
   // seeking は、シークバーを動かしている間の位置。
   const [seeking, setSeeking] = useState<number | null>(null);
-  // 低遅延モードなら、放送からの遅れが広がったときに、少し速く再生して追いつく (#495)。
+  // 低遅延モードなら、貯める量を止まり方と届き方から決め、再生の速さで寄せて、放送からの遅れを小さくする (#495、#1514)。
   const [lowLatency] = useLowLatency();
   // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。バッファを再生している間は追いつかない。
-  useLiveCatchUp(video, lowLatency && route.kind === 'convert' && !timeshift.behind);
+  const liveCatchUp = useLiveCatchUp(
+    video,
+    lowLatency && route.kind === 'convert' && !timeshift.behind,
+    { pictureInPicture: pip.container !== null },
+  );
   // dataBroadcastUsed は、このページでデータ放送を出したことがあるか。一度出したら、消しても受け取りを続け、次はすぐに出す。
   const [dataBroadcastUsed, setDataBroadcastUsed] = useState(false);
   if (dataBroadcastEnabled && !dataBroadcastUsed) {
@@ -1447,6 +1451,7 @@ function Live({
                       kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                       audios={program?.audios ?? null}
                       serviceId={serviceId}
+                      liveCatchUp={liveCatchUp}
                       // タイムシフトのバッファは、プレイヤーが先まで読むので測れない。平均も分からないので出さない。
                       {...(timeshift.behind ? { average: null } : {})}
                       height={watchCommentsHeight}

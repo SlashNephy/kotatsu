@@ -1,22 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { catchUpRate, liveLag, loadLowLatency, nextPlaybackRate } from './liveCatchUp';
-
-describe('nextPlaybackRate', () => {
-  test.each([
-    { name: '遅れが 3 秒を超えたら、追いつき始める', lag: 3.5, current: 1, want: catchUpRate },
-    {
-      name: '追いついている間は、1 秒まで縮むまで続ける',
-      lag: 2,
-      current: catchUpRate,
-      want: catchUpRate,
-    },
-    { name: '1 秒まで縮んだら、元の速さに戻す', lag: 1, current: catchUpRate, want: 1 },
-    { name: '追いついていなければ、3 秒までの遅れは許す', lag: 2, current: 1, want: 1 },
-  ])('$name', ({ lag, current, want }) => {
-    expect(nextPlaybackRate(lag, current)).toBe(want);
-  });
-});
+import { liveLag, loadLowLatency } from './liveCatchUp';
 
 describe('liveLag', () => {
   // ranges は、読み込んだ映像の範囲 (秒)。
