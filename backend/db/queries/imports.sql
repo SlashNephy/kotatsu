@@ -22,3 +22,19 @@ VALUES (@id, NULL, @service_id, sqlc.narg(event_id), @name, @description, @name_
 -- 取り込んだ録画のファイルを記録する。書き終えたファイルなので、大きさと終わりも記録する。
 INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, created_at)
 VALUES (@id, @recording_id, @kind, @pool_id, @path, @size, @started_at, @ended_at, @now);
+
+-- name: RecordingFileExistsAt :one
+-- プールのパスのファイルが、もう録画のファイルとして記録されているか (#1734)。Kotatsu が録った録画と、取り込んだ録画を、取り込み直さない。
+SELECT EXISTS (SELECT 1 FROM recording_files WHERE pool_id = @pool_id AND path = @path);
+
+-- name: InsertFileImportedRecording :exec
+-- プールにあった TS から取り込んだ録画を記録する (#1734)。予約とは結び付けない。録った範囲は、ファイルの中の TOT から求めたもの。
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+VALUES (@id, NULL, @service_id, sqlc.narg(event_id), @name, @description, @extended, @name_normalized, @description_normalized,
+  @start_at, @end_at, 'completed', NULL, false, 0, 0, 0, @recorded_from, @recorded_until, @now, @now);
+
+-- name: InsertExternalRecordingFile :exec
+-- プールにあった TS を、Kotatsu が書いていないファイル (external) として、録画のセグメントに記録する (#1734)。
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, external, created_at)
+VALUES (@id, @recording_id, 'segment', @pool_id, @path, @size, @started_at, @ended_at, true, @now);

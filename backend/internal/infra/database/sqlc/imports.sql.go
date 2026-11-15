@@ -31,6 +31,80 @@ func (q *Queries) GetImportedTarget(ctx context.Context, arg GetImportedTargetPa
 	return target_id, err
 }
 
+const insertExternalRecordingFile = `-- name: InsertExternalRecordingFile :exec
+INSERT INTO recording_files (id, recording_id, kind, pool_id, path, size, started_at, ended_at, external, created_at)
+VALUES ($1, $2, 'segment', $3, $4, $5, $6, $7, true, $8)
+`
+
+type InsertExternalRecordingFileParams struct {
+	ID          uuid.UUID
+	RecordingID uuid.UUID
+	PoolID      string
+	Path        string
+	Size        int64
+	StartedAt   time.Time
+	EndedAt     *time.Time
+	Now         time.Time
+}
+
+// プールにあった TS を、Kotatsu が書いていないファイル (external) として、録画のセグメントに記録する (#1734)。
+func (q *Queries) InsertExternalRecordingFile(ctx context.Context, arg InsertExternalRecordingFileParams) error {
+	_, err := q.db.Exec(ctx, insertExternalRecordingFile,
+		arg.ID,
+		arg.RecordingID,
+		arg.PoolID,
+		arg.Path,
+		arg.Size,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.Now,
+	)
+	return err
+}
+
+const insertFileImportedRecording = `-- name: InsertFileImportedRecording :exec
+INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized,
+  start_at, end_at, state, failure_reason, protected, drops, errors, scrambled, recorded_from, recorded_until, created_at, updated_at)
+VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, 'completed', NULL, false, 0, 0, 0, $11, $12, $13, $13)
+`
+
+type InsertFileImportedRecordingParams struct {
+	ID                    uuid.UUID
+	ServiceID             int64
+	EventID               *int64
+	Name                  string
+	Description           string
+	Extended              []byte
+	NameNormalized        *string
+	DescriptionNormalized *string
+	StartAt               time.Time
+	EndAt                 time.Time
+	RecordedFrom          time.Time
+	RecordedUntil         *time.Time
+	Now                   time.Time
+}
+
+// プールにあった TS から取り込んだ録画を記録する (#1734)。予約とは結び付けない。録った範囲は、ファイルの中の TOT から求めたもの。
+func (q *Queries) InsertFileImportedRecording(ctx context.Context, arg InsertFileImportedRecordingParams) error {
+	_, err := q.db.Exec(ctx, insertFileImportedRecording,
+		arg.ID,
+		arg.ServiceID,
+		arg.EventID,
+		arg.Name,
+		arg.Description,
+		arg.Extended,
+		arg.NameNormalized,
+		arg.DescriptionNormalized,
+		arg.StartAt,
+		arg.EndAt,
+		arg.RecordedFrom,
+		arg.RecordedUntil,
+		arg.Now,
+	)
+	return err
+}
+
 const insertImportSource = `-- name: InsertImportSource :exec
 INSERT INTO import_sources (source, kind, source_id, target_id, created_at)
 VALUES ($1, $2, $3, $4, $5)
@@ -159,4 +233,21 @@ func (q *Queries) ListServiceIDs(ctx context.Context) ([]int64, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordingFileExistsAt = `-- name: RecordingFileExistsAt :one
+SELECT EXISTS (SELECT 1 FROM recording_files WHERE pool_id = $1 AND path = $2)
+`
+
+type RecordingFileExistsAtParams struct {
+	PoolID string
+	Path   string
+}
+
+// プールのパスのファイルが、もう録画のファイルとして記録されているか (#1734)。Kotatsu が録った録画と、取り込んだ録画を、取り込み直さない。
+func (q *Queries) RecordingFileExistsAt(ctx context.Context, arg RecordingFileExistsAtParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordingFileExistsAt, arg.PoolID, arg.Path)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }

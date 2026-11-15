@@ -436,6 +436,10 @@ type Querier interface {
 	// キャプチャを記録する (設計書 7.5)。録画が見つからなければ (撮った後に消されたなど)、録画の参照と再生位置を NULL にする。
 	InsertCapture(ctx context.Context, arg InsertCaptureParams) (Capture, error)
 	InsertEPGChange(ctx context.Context, arg InsertEPGChangeParams) error
+	// プールにあった TS を、Kotatsu が書いていないファイル (external) として、録画のセグメントに記録する (#1734)。
+	InsertExternalRecordingFile(ctx context.Context, arg InsertExternalRecordingFileParams) error
+	// プールにあった TS から取り込んだ録画を記録する (#1734)。予約とは結び付けない。録った範囲は、ファイルの中の TOT から求めたもの。
+	InsertFileImportedRecording(ctx context.Context, arg InsertFileImportedRecordingParams) error
 	InsertGuideView(ctx context.Context, arg InsertGuideViewParams) error
 	InsertImportSource(ctx context.Context, arg InsertImportSourceParams) error
 	// 取り込んだ、録画を終えた録画を記録する。予約とは結び付けない。
@@ -608,6 +612,7 @@ type Querier interface {
 	ListContinueWatching(ctx context.Context, arg ListContinueWatchingParams) ([]ListContinueWatchingRow, error)
 	// 容量の管理で消せる録画を、古い順に返す。プール pool_id にファイルを持ち、保護されておらず、録画中でなく、
 	// すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。古いほうから skip 件を飛ばす。
+	// プールにあった TS を取り込んだファイル (external) は、録画を消しても残すので、それしか持たない録画は、消しても空かない (#1734)。
 	ListDeletableRecordings(ctx context.Context, arg ListDeletableRecordingsParams) ([]ListDeletableRecordingsRow, error)
 	// 見たいリストを取り込み直す時期が来た連携 (#928) を返す。一度も問い合わせていない連携と、前に取り込めてから
 	// succeeded_before より前に問い合わせた連携と、取り込めなかったときは、問い合わせ直す日時が now を過ぎた連携。
@@ -967,6 +972,8 @@ type Querier interface {
 	RecordStoragePoolMeasurement(ctx context.Context, arg RecordStoragePoolMeasurementParams) error
 	// 割り振りが残っているかどうか。予約を消すと、割り振りも一緒に消える。
 	RecordingAssignmentExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// プールのパスのファイルが、もう録画のファイルとして記録されているか (#1734)。Kotatsu が録った録画と、取り込んだ録画を、取り込み直さない。
+	RecordingFileExistsAt(ctx context.Context, arg RecordingFileExistsAtParams) (bool, error)
 	ReleaseEDCBNetworkTV(ctx context.Context, arg ReleaseEDCBNetworkTVParams) error
 	// 期限をすぐに切れさせて、他のインスタンスがすぐに取れるようにする。世代番号は残す。
 	ReleaseLease(ctx context.Context, arg ReleaseLeaseParams) error
