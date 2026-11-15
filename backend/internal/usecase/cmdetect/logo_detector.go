@@ -27,7 +27,7 @@ import (
 const (
 	// LogoDetectorName と logoDetectorVersion は、LogoDetector の名前と版。規則や値を変えたら版を上げる。
 	LogoDetectorName    = "logo"
-	logoDetectorVersion = 1
+	logoDetectorVersion = 2
 	// ffprobeCommand は、PATH から探す ffprobe のコマンドの名前。FFmpeg に付いてくる。
 	ffprobeCommand = "ffprobe"
 	// rawReadBuffer は、FFmpeg が出す生のコマを読むバッファの大きさ。
