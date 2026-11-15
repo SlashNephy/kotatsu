@@ -136,7 +136,7 @@ describe('ルールから外れた予約を残す時間 (#1501)', () => {
 });
 
 describe('ルールを作るときの既定値の同じ回の束ね (#1498)', () => {
-  test('読み込んだ値から始め、切ったら切ったことを保存する', async () => {
+  test('読み込んだ値から始め、切ったらすぐ切ったことを保存する', async () => {
     let sent: unknown = null;
     const environment = createTestEnvironment((request, variables) => {
       if (request.name === 'recordingMutation') {
@@ -154,8 +154,8 @@ describe('ルールを作るときの既定値の同じ回の束ね (#1498)', ()
     });
     expect(bundle).toHaveProperty('checked', true);
 
-    fireEvent.click(bundle);
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    // 切り替えは、保存のボタンを押さなくても、その項目だけをすぐ保存する (#1740)。
+    await act(async () => fireEvent.click(bundle));
     await screen.findByRole('status');
 
     expect(sent).toBe(false);
@@ -163,7 +163,7 @@ describe('ルールを作るときの既定値の同じ回の束ね (#1498)', ()
 });
 
 describe('変換のコマ数 (#1509)', () => {
-  test('読んだ全体の既定値を出し、選んだコマ数を保存する', async () => {
+  test('読んだ全体の既定値を出し、選んだコマ数をすぐ保存する', async () => {
     let sent: unknown = null;
     const environment = createTestEnvironment((request, variables) => {
       if (request.name === 'recordingMutation') {
@@ -180,10 +180,54 @@ describe('変換のコマ数 (#1509)', () => {
     expect(frameRate).toHaveProperty('value', '自動（映像から30か60を選ぶ）');
 
     fireEvent.click(frameRate);
-    fireEvent.click(await screen.findByRole('option', { name: '60コマ/秒' }));
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: '保存' })));
+    await act(async () =>
+      fireEvent.click(await screen.findByRole('option', { name: '60コマ/秒' })),
+    );
     await screen.findByRole('status');
 
     expect(sent).toBe('60');
+  });
+});
+
+describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740)', () => {
+  test('変えた項目だけを送り、ほかの欄の書きかけは送らない', async () => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    fireEvent.change(await screen.findByRole('textbox', { name: '優先度' }), {
+      target: { value: '3' },
+    });
+
+    await act(async () =>
+      fireEvent.click(screen.getByRole('switch', { name: /^録画が終わったらCMの区間を解析する/ })),
+    );
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([{ recordingDefaults: { detectCm: true }, ruleDefaults: {} }]);
+    // 書きかけの優先度は、保存せずに残す。
+    expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '3');
+  });
+
+  test('保存に失敗したら、変える前に戻す', async () => {
+    const environment = createTestEnvironment((request) =>
+      request.name === 'recordingMutation' ? new Error('unavailable') : settingsResponse(),
+    );
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const detectCm = await screen.findByRole('switch', {
+      name: /^録画が終わったらCMの区間を解析する/,
+    });
+
+    await act(async () => fireEvent.click(detectCm));
+    await screen.findByRole('alert');
+
+    expect(detectCm).toHaveProperty('checked', false);
   });
 });

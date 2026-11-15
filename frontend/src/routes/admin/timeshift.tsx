@@ -195,31 +195,32 @@ function TimeshiftSettings() {
       </Section>
 
       <TimeshiftWhileWatching
-        key={`${String(data.systemSettings.timeshiftWhileWatching)}/${data.systemSettings.timeshiftWhileWatchingRetentionSeconds}`}
+        key={data.systemSettings.timeshiftWhileWatchingRetentionSeconds}
         enabled={data.systemSettings.timeshiftWhileWatching}
         retentionSeconds={data.systemSettings.timeshiftWhileWatchingRetentionSeconds}
         busy={action.busy}
-        onSave={(enabled, retentionSeconds) =>
-          action.run(async () => {
-            await mutate<timeshiftWhileWatchingMutation>(
-              environment,
-              graphql`
-                mutation timeshiftWhileWatchingMutation($input: SystemSettingsInput!) {
-                  updateSystemSettings(input: $input) {
-                    timeshiftWhileWatching
-                    timeshiftWhileWatchingRetentionSeconds
+        onSave={(input, revert) =>
+          action.run(
+            async () => {
+              await mutate<timeshiftWhileWatchingMutation>(
+                environment,
+                graphql`
+                  mutation timeshiftWhileWatchingMutation($input: SystemSettingsInput!) {
+                    updateSystemSettings(input: $input) {
+                      timeshiftWhileWatching
+                      timeshiftWhileWatchingRetentionSeconds
+                    }
                   }
-                }
-              `,
-              {
-                input: {
-                  timeshiftWhileWatching: enabled,
-                  timeshiftWhileWatchingRetentionSeconds: retentionSeconds,
-                },
-              },
-            );
-            done();
-          }, fail)
+                `,
+                { input },
+              );
+              done();
+            },
+            (caught) => {
+              revert();
+              fail(caught);
+            },
+          )
         }
       />
     </Stack>
@@ -227,6 +228,7 @@ function TimeshiftSettings() {
 }
 
 // TimeshiftWhileWatching は、ライブ視聴しているサービスを、視聴している間だけ録るかどうかと、その保持時間を変える (設計書 5.7、#1408)。
+// 録るかどうかは、変えたらすぐ、それだけを保存する (#1740)。保持時間は、打っている途中の値を保存しないよう、保存のボタンで保存する。
 function TimeshiftWhileWatching({
   enabled,
   retentionSeconds,
@@ -236,10 +238,19 @@ function TimeshiftWhileWatching({
   enabled: boolean;
   retentionSeconds: number;
   busy: boolean;
-  onSave: (enabled: boolean, retentionSeconds: number) => void;
+  onSave: (
+    input: { timeshiftWhileWatching?: boolean; timeshiftWhileWatchingRetentionSeconds?: number },
+    revert: () => void,
+  ) => void;
 }) {
   const { t } = useTranslation();
-  const [checked, setChecked] = useState(enabled);
+  // 切り替えた値は、読み直した値 (enabled) が変わるまで出す。
+  const [toggled, setToggled] = useState({ value: enabled, base: enabled });
+  // 読み直した値が変わったら (保存した、ほかの管理者が変えた)、切り替えた値を捨てて、読み直した値から始め直す。
+  if (toggled.base !== enabled) {
+    setToggled({ value: enabled, base: enabled });
+  }
+  const checked = toggled.base === enabled ? toggled.value : enabled;
   const [hours, setHours] = useState<number | string>(retentionHours(retentionSeconds));
 
   return (
@@ -249,7 +260,14 @@ function TimeshiftWhileWatching({
         label={t('admin.timeshift.whileWatchingLabel')}
         description={t('admin.timeshift.whileWatchingHelp')}
         checked={checked}
-        onChange={(event) => setChecked(event.currentTarget.checked)}
+        disabled={busy}
+        onChange={(event) => {
+          const value = event.currentTarget.checked;
+          setToggled({ value, base: enabled });
+          onSave({ timeshiftWhileWatching: value }, () =>
+            setToggled({ value: enabled, base: enabled }),
+          );
+        }}
         maw={560}
       />
       <Group gap="xs" align="flex-end">
@@ -267,7 +285,12 @@ function TimeshiftWhileWatching({
           size="compact-sm"
           mb={2}
           disabled={typeof hours !== 'number' || hours < 1 || hours > maxRetentionHours || busy}
-          onClick={() => onSave(checked, Number(hours) * secondsPerHour)}
+          onClick={() =>
+            onSave(
+              { timeshiftWhileWatchingRetentionSeconds: Number(hours) * secondsPerHour },
+              () => {},
+            )
+          }
         >
           {t('admin.save')}
         </Button>

@@ -2362,6 +2362,7 @@
     "settingsTitle": "記録の設定",
     "threshold": "見たとみなす割合",
     "thresholdHelp": "番組の長さのうち、実際に再生した長さがこの割合に届いたら記録します",
+    "thresholdInvalid": "1〜100 の整数で入れてください",
     "statusTitle": "作品の状態を変える",
     "watchingOnFirst": "第1話（[新]）を見たら「見てる」にする",
     "watchingOnEpisode": "最終話（[終]）以外を見たら「見てる」にする",
