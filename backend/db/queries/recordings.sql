@@ -505,3 +505,13 @@ RETURNING consecutive, notified_at;
 -- name: MarkScrambleAlertNotified :exec
 -- スクランブルされたまま録れた録画を、管理者に知らせた日時を記録する。
 UPDATE scramble_alerts SET notified_at = @now, updated_at = @now WHERE id;
+
+-- name: ListTuningOutcomes :many
+-- 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
+-- 選局を断られて失敗したもの (tuning_refused) を、チャンネルごとに始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+SELECT s.channel_type, s.channel, r.recorded_from, (r.state <> 'failed')::boolean AS received
+FROM recordings r
+JOIN services s ON s.id = r.service_id
+WHERE r.recorded_from >= @since
+  AND (r.state IN ('completed', 'completed_with_errors', 'partial') OR (r.state = 'failed' AND r.failure_reason = 'tuning_refused'))
+ORDER BY r.recorded_from, r.id;

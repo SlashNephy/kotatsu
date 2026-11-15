@@ -2078,7 +2078,12 @@ func streamFailure(err error) domain.RecordingFailureReason {
 	if errors.Is(err, tunerserver.ErrStreamOpenTimeout) {
 		return domain.RecordingFailureReasonTunerUnavailable
 	}
-	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りないほか、上流のチューナーにつなげないこともある。
+	// チューナーサーバーが選局を断った (サービスかチャンネルがないか、選局に失敗した)。チューナーの空きがないときと分けて、
+	// 続けて選局できないチャンネルの判定に数える (#1519)。
+	if errors.Is(err, tunerserver.ErrNotFound) || errors.Is(err, tunerserver.ErrTuningFailed) {
+		return domain.RecordingFailureReasonTuningRefused
+	}
+	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りない (503) ほか、リバースプロキシが返した 502 などもある。
 	// まだ一度も開いていないので、中断とはせず、チューナーを確保できなかったとみなす。
 	if errors.Is(err, tunerserver.ErrRefused) {
 		return domain.RecordingFailureReasonTunerUnavailable

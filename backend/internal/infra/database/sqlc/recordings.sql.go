@@ -1506,6 +1506,49 @@ func (q *Queries) ListRecordingsWithoutNormalized(ctx context.Context, maxCount 
 	return items, nil
 }
 
+const listTuningOutcomes = `-- name: ListTuningOutcomes :many
+SELECT s.channel_type, s.channel, r.recorded_from, (r.state <> 'failed')::boolean AS received
+FROM recordings r
+JOIN services s ON s.id = r.service_id
+WHERE r.recorded_from >= $1
+  AND (r.state IN ('completed', 'completed_with_errors', 'partial') OR (r.state = 'failed' AND r.failure_reason = 'tuning_refused'))
+ORDER BY r.recorded_from, r.id
+`
+
+type ListTuningOutcomesRow struct {
+	ChannelType  string
+	Channel      string
+	RecordedFrom time.Time
+	Received     bool
+}
+
+// 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
+// 選局を断られて失敗したもの (tuning_refused) を、チャンネルごとに始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+func (q *Queries) ListTuningOutcomes(ctx context.Context, since time.Time) ([]ListTuningOutcomesRow, error) {
+	rows, err := q.db.Query(ctx, listTuningOutcomes, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTuningOutcomesRow{}
+	for rows.Next() {
+		var i ListTuningOutcomesRow
+		if err := rows.Scan(
+			&i.ChannelType,
+			&i.Channel,
+			&i.RecordedFrom,
+			&i.Received,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markRecordingNotBroadcast = `-- name: MarkRecordingNotBroadcast :exec
 UPDATE recordings SET not_broadcast = true, aired_event_id = $1, updated_at = $2 WHERE id = $3
 `

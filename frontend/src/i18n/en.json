@@ -1243,6 +1243,7 @@
       "CANCELLED": "The recording was cancelled",
       "RECORDER_UNAVAILABLE": "No mikan was available to record when the recording was due to start",
       "TUNER_PREEMPTED": "A reservation in EDCB took the tuner during the recording, and Kotatsu could not reconnect",
+      "TUNING_REFUSED": "The tuner server refused to tune (the channel does not exist, or tuning failed)",
       "unknown": "Recording failed"
     },
     "quality": "Recording quality",

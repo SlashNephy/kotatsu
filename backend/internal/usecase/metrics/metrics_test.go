@@ -155,6 +155,7 @@ kotatsu_recording_failures_total{reason="storage_unavailable"} 0
 kotatsu_recording_failures_total{reason="stream_interrupted"} 0
 kotatsu_recording_failures_total{reason="tuner_server_unreachable"} 0
 kotatsu_recording_failures_total{reason="tuner_preempted"} 0
+kotatsu_recording_failures_total{reason="tuning_refused"} 0
 kotatsu_recording_failures_total{reason="tuner_unavailable"} 0
 # HELP kotatsu_recording_last_failure_timestamp_seconds Time when a recording last failed, by failure reason.
 # TYPE kotatsu_recording_last_failure_timestamp_seconds gauge
