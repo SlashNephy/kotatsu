@@ -1,0 +1,62 @@
+diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
+index fbb6000..cfd3968 100644
+--- a/packages/yadif/src/deinterlace.ts
++++ b/packages/yadif/src/deinterlace.ts
+@@ -460,6 +460,11 @@ export class Deinterlacer {
+   #cadence: { mediaTime: number; phase: number } | null = null;
+   /** How many of the coming frames take their phase from `#cadence`. */
+   #seedFrames = 0;
++  /**
++   * Whether the frames being seeded follow a missed frame rather than
++   * progressive pictures, so that the first of them is not one of those.
++   */
++  #seedAfterGap = false;
+   #debugRenderState: DebugRenderState | null = null;
+   #debugText = "";
+   /** Debug only: frames given each phase (0 for none), and repeats dropped. */
+@@ -758,6 +763,7 @@ export class Deinterlacer {
+   #forgetCadence(): void {
+     this.#cadence = null;
+     this.#seedFrames = 0;
++    this.#seedAfterGap = false;
+   }
+ 
+   /**
+@@ -773,7 +779,7 @@ export class Deinterlacer {
+     }
+     // The first frame filtered is still the last progressive picture.
+     const phase =
+-      this.#seedFrames === CADENCE_SEED_FRAMES
++      this.#seedFrames === CADENCE_SEED_FRAMES && !this.#seedAfterGap
+         ? WHOLE_PHASE
+         : ((this.#cadence.phase -
+             1 +
+@@ -784,6 +790,7 @@ export class Deinterlacer {
+     this.#knownAge = 0;
+     this.#detector.seed(phase, FILM_LOCK_FRAMES);
+     this.#seedFrames--;
++    if (this.#seedFrames === 0) this.#seedAfterGap = false;
+   }
+ 
+   #resetFieldMetrics(): void {
+@@ -943,6 +950,20 @@ export class Deinterlacer {
+           this.#collectPhase();
+           this.#detect();
+           this.#continueCadence(metadata.mediaTime);
++        } else if (missed > 0 && this.#cadence !== null) {
++          // A missed frame is a gap in what was seen, not in the film: the
++          // cycle runs on through it. The element misses frames most often
++          // just as a broadcast cuts from soft pulldown back to interlaced
++          // frames, and a stretch of those can be over before the cycle is
++          // found again from nothing. Carry it over the gap the way it is
++          // carried over progressive pictures, while the comparisons reach
++          // back past the gap.
++          this.#resetFieldMetrics();
++          if (this.#seedFrames !== CADENCE_SEED_FRAMES) {
++            this.#seedFrames = CADENCE_SEED_FRAMES;
++            this.#seedAfterGap = true;
++          }
++          this.#continueCadence(metadata.mediaTime);
+         } else {
+           this.#resetFieldMetrics();
+         }
