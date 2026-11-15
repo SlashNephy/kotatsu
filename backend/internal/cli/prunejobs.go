@@ -8,15 +8,19 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networkactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
+	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 )
 
 // pruneJobParts は、保持期間を過ぎたものを消すジョブの Worker (#1607)。
 type pruneJobParts struct {
 	audit           *audit.PruneWorker
+	sessions        *auth.PruneSessionsWorker
+	oauth           *oauth.PruneWorker
 	notifications   *notification.PruneWorker
 	watchProgress   *library.PruneProgressWorker
 	networkActivity *networkactivity.PruneWorker
@@ -64,4 +68,14 @@ func newNetworkActivityPruneWorker(pool *pgxpool.Pool, clk clock.Clock) *network
 
 		return time.Duration(system.NetworkActivityRetentionDays) * 24 * time.Hour, nil
 	})
+}
+
+// newSessionPruneWorker は、期限を過ぎたセッションを消す Worker を作る。
+func newSessionPruneWorker(pool *pgxpool.Pool, clk clock.Clock) *auth.PruneSessionsWorker {
+	return auth.NewPruneSessionsWorker(pool, clk)
+}
+
+// newOAuthPruneWorker は、MCP のクライアントに発行した、期限を過ぎた認可コードとトークンを消す Worker を作る (#963)。
+func newOAuthPruneWorker(pool *pgxpool.Pool, clk clock.Clock) *oauth.PruneWorker {
+	return oauth.NewPruneWorker(pool, clk)
 }

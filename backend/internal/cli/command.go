@@ -71,8 +71,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 	"github.com/SlashNephy/kotatsu/internal/usecase/watch"
-	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
-	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 	"github.com/SlashNephy/kotatsu/internal/web/animeimage"
 	"github.com/SlashNephy/kotatsu/internal/web/animerecordapi"
 	"github.com/SlashNephy/kotatsu/internal/web/avatar"
@@ -153,12 +151,11 @@ func DefaultOptions(logger *slog.Logger) *Options {
 // jobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。ジョブを足したら、ここに登録する。
 func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
 	workers := river.NewWorkers()
-	// 保持期間を過ぎたものを消す (#551、#963、#1366、#1369)。期間は、設定と、画面から変えられる値で決める。
+	// 保持期間を過ぎたものを消す (#551、#963、#1366、#1369)。期間は、設定と、画面から変えられる値で決める。組み方は prunejobs.go に置く。
 	prune := newPruneJobParts(deps)
 	river.AddWorker(workers, prune.audit)
-	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
-	// MCP のクライアントに発行した、期限を過ぎた認可コードとトークンを消す (#963)。
-	river.AddWorker(workers, oauth.NewPruneWorker(deps.DB, deps.Clock))
+	river.AddWorker(workers, prune.sessions)
+	river.AddWorker(workers, prune.oauth)
 	river.AddWorker(workers, prune.notifications)
 	river.AddWorker(workers, prune.watchProgress)
 	river.AddWorker(workers, prune.networkActivity)
@@ -169,30 +166,24 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	if err != nil {
 		return nil, nil, err
 	}
-	// 表示のタイムゾーンは設定で決める (設計書 8.1)。
-	location, err := deps.Config.Location()
-	if err != nil {
-		return nil, nil, err
-	}
+	// 通知を配り、Webhook と Web Push で送る。視聴予約は、放送の少し前に通知する (設計書 4.8)。組み方は notifications.go に置く。
 	notifications, err := newNotificationParts(deps, inserter)
 	if err != nil {
 		return nil, nil, err
 	}
-	river.AddWorker(workers, notification.NewDispatchWorker(notifications.dispatcher))
-	river.AddWorker(workers, webhook.NewDeliverWorker(deps.DB, notifications.webhooks, deps.Clock, location, deps.Network))
-	river.AddWorker(workers, webpush.NewDeliverWorker(deps.DB, notifications.webPush, deps.Clock, webPushSubject(deps.Config), location, webpush.NewHTTPClient(deps.Network)))
-
-	// 保存先プールの容量は、このインスタンスにマウントされたプールについて調べる (設計書 6.1)。
-	manager := capacity.NewManager(deps.DB, deps.Clock, storeOf(deps.Config), audit.NewRecorder(deps.Clock),
-		logger.With(slog.String("component", "capacity")))
-	river.AddWorker(workers, capacity.NewCheckWorker(manager))
-	// タイムシフトのバッファは、保持時間を過ぎたチャンクを捨てる (設計書 5.7)。タイムシフトのディレクトリがなければ、何もしない。
-	river.AddWorker(workers, timeshift.NewPruneWorker(deps.DB, deps.Clock, storeOf(deps.Config),
-		logger.With(slog.String("component", "timeshift"))))
-	// タイムシフトのバッファにある、放送の終わった番組を、録画に書き出す (設計書 5.7)。
-	river.AddWorker(workers, recording.NewPromoteWorker(deps.DB, deps.Clock, storeOf(deps.Config), settings.RecordingDefaults, location,
-		logger.With(slog.String("component", "timeshift_promote"))))
-	river.AddWorker(workers, recording.NewReapPromotionsWorker(deps.DB, deps.Clock, logger.With(slog.String("component", "timeshift_promote"))))
+	river.AddWorker(workers, notifications.dispatch)
+	river.AddWorker(workers, notifications.webhookDelivery)
+	river.AddWorker(workers, notifications.webPushDelivery)
+	river.AddWorker(workers, notifications.watchNotify)
+	// 保存先プールの容量と、タイムシフトのバッファ (設計書 5.7、6.1)。組み方は storagejobs.go に置く。
+	storage, err := newStorageJobParts(deps, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	river.AddWorker(workers, storage.capacity)
+	river.AddWorker(workers, storage.timeshiftPrune)
+	river.AddWorker(workers, storage.promote)
+	river.AddWorker(workers, storage.reapPromotions)
 	// 録画の後処理 (代表画像、解析、セグメントのつなぎ、CM の区間の見分け、変換、チャプター)。組み方は mediajobs.go に置く。
 	media := newMediaJobParts(deps, logger, inserter)
 	river.AddWorker(workers, media.thumbnails)
@@ -204,8 +195,6 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.transcode)
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
-	// 視聴予約は、放送の少し前に、予約したユーザーに通知する。通知を押すと、そのサービスのライブ視聴を開く (設計書 4.8)。
-	river.AddWorker(workers, watch.NewNotifyWorker(watch.NewNotifier(deps.DB, deps.Clock, graph.ServiceLiveURL)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	// 番組を、しょぼいカレンダーで作品と話に結びつけ、上映会のコメント (NICOLOG) とも結びつける。見たアニメは、ユーザーが連携した
 	// Annict と AniList に記録する (#927)。
