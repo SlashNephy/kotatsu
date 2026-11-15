@@ -34,6 +34,9 @@ const (
 	errorAuthorizationPending = "authorization_pending"
 	errorSlowDown             = "slow_down"
 	errorExpiredToken         = "expired_token"
+	paramDeviceName           = "device_name"
+	paramScope                = "scope"
+	errorInvalidRequest       = "invalid_request"
 	// normalizedCode は、ABCD-EFGH を正規化した user_code。
 	normalizedCode = "ABCDEFGH"
 	// perSourceCap は、接続元ごとのコードの上限。
@@ -84,7 +87,7 @@ func (f *deviceFixture) requestCode(t *testing.T, remoteAddr string) (int, map[s
 	t.Helper()
 
 	return postFrom(t, f.server.DeviceAuthorizationHandler(slog.New(slog.DiscardHandler)), oauth.DeviceAuthorizationPath, remoteAddr, url.Values{
-		paramClientID: {testDeviceID}, "device_name": {"リビングのテレビ"},
+		paramClientID: {testDeviceID}, paramDeviceName: {"リビングのテレビ"},
 	})
 }
 
@@ -493,4 +496,85 @@ func TestDeviceDisabled(t *testing.T) {
 	require.ErrorIs(t, err, auth.ErrUnauthenticated)
 	_, err = f.server.LookupDevice(t.Context(), f.member, userCode)
 	require.ErrorIs(t, err, oauth.ErrDeviceDisabled)
+}
+
+// TestDeviceAuthorizationRequestErrors は、デバイス認可のリクエストの誤りに、400 で答えることを確かめる。
+func TestDeviceAuthorizationRequestErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		form url.Values
+		want string
+	}{
+		{name: "client_id がない", form: url.Values{paramDeviceName: {"テレビ"}}, want: errorInvalidRequest},
+		{name: "client_id が UTF-8 でない", form: url.Values{paramClientID: {"\xff"}}, want: errorInvalidRequest},
+		{name: "名前が長すぎる", form: url.Values{paramClientID: {testDeviceID}, paramDeviceName: {strings.Repeat("あ", oauth.MaxDeviceNameLength+1)}}, want: errorInvalidRequest},
+		{name: "MCP のスコープだけを求める", form: url.Values{paramClientID: {testDeviceID}, paramScope: {"mcp:read"}}, want: errorInvalidScope},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newDeviceFixture(t)
+			status, body := postFrom(t, f.server.DeviceAuthorizationHandler(slog.New(slog.DiscardHandler)), oauth.DeviceAuthorizationPath, testSource, tt.form)
+			assert.Equal(t, http.StatusBadRequest, status)
+			assert.Equal(t, tt.want, body["error"])
+		})
+	}
+}
+
+// TestDeviceOnlyGates は、MCP を無効にして EPGStation 互換の API だけを有効にしたら、メタデータにデバイス認可だけを載せ、
+// 認可コードは受け付けないことを確かめる。
+func TestDeviceOnlyGates(t *testing.T) {
+	t.Parallel()
+
+	f := newDeviceFixture(t)
+	setMCPEnabled(t, f.db, false)
+
+	rec := httptest.NewRecorder()
+	f.server.MetadataHandler(slog.New(slog.DiscardHandler)).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, testOrigin+oauth.MetadataPath, http.NoBody))
+	require.Equal(t, http.StatusOK, rec.Code)
+	metadata := decodeBody(t, rec)
+	assert.Equal(t, testOrigin+"/oauth/device_authorization", metadata["device_authorization_endpoint"])
+	assert.NotContains(t, metadata, "authorization_endpoint")
+	assert.Equal(t, []any{grantDeviceCode, grantRefreshToken}, metadata["grant_types_supported"])
+	assert.Equal(t, []any{oauth.ScopeEPGStation}, metadata["scopes_supported"])
+
+	status, body := postFrom(t, f.server.TokenHandler(slog.New(slog.DiscardHandler)), oauth.ExchangePath, testSource, url.Values{
+		paramGrantType: {grantAuthorizationCode}, paramCode: {"kotatsu_ac_x"}, paramClientID: {f.clientID},
+	})
+	assert.Equal(t, http.StatusBadRequest, status)
+	assert.Equal(t, "unsupported_grant_type", body["error"])
+}
+
+// TestRevokeDeviceGrant は、端末のリフレッシュトークンを失効のエンドポイントで失効させたら、行を残して取り消した日時を書き、
+// トークンを使えなくすることを確かめる。期限を過ぎた端末のコードは、有効期間と同じだけ残してから消す。
+func TestRevokeDeviceGrant(t *testing.T) {
+	t.Parallel()
+
+	f := newDeviceFixture(t)
+	deviceCode, userCode := f.issue(t)
+	_, err := f.server.ApproveDevice(t.Context(), audit.User(f.member.UserID), f.member, userCode)
+	require.NoError(t, err)
+	_, body := f.poll(t, deviceCode)
+	access, _ := body["access_token"].(string)
+	refresh, _ := body[grantRefreshToken].(string)
+
+	status, _ := postFrom(t, f.server.RevokeHandler(slog.New(slog.DiscardHandler)), oauth.RevokePath, testSource, url.Values{
+		"token": {refresh}, paramClientID: {testDeviceID},
+	})
+	require.Equal(t, http.StatusOK, status)
+	_, _, err = f.server.AuthenticateDevice(t.Context(), access, testEPGResource)
+	require.ErrorIs(t, err, auth.ErrUnauthenticated)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM oauth_grants WHERE kind = 'device' AND revoked_at IS NOT NULL"))
+
+	// 受け取られたコードは、有効期間が過ぎるまで残し、その後に消す。
+	_, err = oauth.Prune(t.Context(), f.db, f.clock)
+	require.NoError(t, err)
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM oauth_device_codes"))
+	f.clock.Advance(2 * oauth.DeviceCodeLifetime)
+	_, err = oauth.Prune(t.Context(), f.db, f.clock)
+	require.NoError(t, err)
+	assert.Zero(t, f.count(t, "SELECT count(*) FROM oauth_device_codes"))
 }

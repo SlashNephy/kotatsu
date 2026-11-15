@@ -1,31 +1,41 @@
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
-import type { RequestParameters, Variables } from 'relay-runtime';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import type { GraphQLResponse, RequestParameters, Variables } from 'relay-runtime';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { authApi } from '../auth/api';
 import { normalizeUserCode } from '../auth/userCode';
+import { GraphQLRequestError } from '../relay/requestError';
 import { createTestEnvironment, renderRoute } from '../test/route';
 import { Route } from './device';
 
 type DeviceAuthorization = { deviceName: string; userCode: string; approved: boolean } | null;
 
 // deviceServer は、承認の画面が送る GraphQL の操作に応える。sent は、送られた操作の名前と変数。
-function deviceServer(device: DeviceAuthorization) {
+// device は、引いた user_code の端末を返す。conflict なら、承認にほかのユーザーが承認済みと答える。
+function deviceServer(
+  device: DeviceAuthorization | ((userCode: string) => DeviceAuthorization),
+  { conflict = false }: { conflict?: boolean } = {},
+) {
   const sent: { name: string; variables: Variables }[] = [];
-  const environment = createTestEnvironment((request: RequestParameters, variables: Variables) => {
-    sent.push({ name: request.name, variables });
-    if (request.name === 'deviceApproveMutation') {
-      return { data: { approveDeviceAuthorization: { approved: true } } };
-    }
+  const environment = createTestEnvironment(
+    (request: RequestParameters, variables: Variables): GraphQLResponse | Error => {
+      sent.push({ name: request.name, variables });
+      if (request.name === 'deviceApproveMutation') {
+        return conflict
+          ? new GraphQLRequestError('approved by another user', 200, 'CONFLICT')
+          : { data: { approveDeviceAuthorization: { approved: true } } };
+      }
 
-    return {
-      data: {
-        deviceAuthorization: device,
-        secondFactors: { totp: false, remainingRecoveryCodes: 0 },
-        passkeys: [],
-      },
-    };
-  });
+      return {
+        data: {
+          deviceAuthorization:
+            typeof device === 'function' ? device(String(variables.userCode)) : device,
+          secondFactors: { totp: false, remainingRecoveryCodes: 0 },
+          passkeys: [],
+        },
+      };
+    },
+  );
 
   return { environment, sent };
 }
@@ -102,6 +112,39 @@ describe('承認の画面 (#1527)', () => {
     await waitFor(() =>
       expect(sent).toEqual([{ name: 'deviceQuery', variables: { userCode: 'ABCD-EFGH' } }]),
     );
+  });
+});
+
+describe('承認の画面の、承認済みと断られたとき (#1527)', () => {
+  test('ほかのユーザーが承認済みなら、そう伝える', async () => {
+    const { environment } = deviceServer(livingRoomTV, { conflict: true });
+    await renderRoute(Route, '/device', '/device?user_code=ABCD-EFGH', environment);
+
+    fireEvent.click(await screen.findByRole('button', { name: '承認する' }));
+
+    expect(await screen.findByText(/ほかのユーザーが承認済み/)).toBeTruthy();
+  });
+
+  test('承認した後に別のコードへ移ったら、承認済みの表示を残さない', async () => {
+    const { environment } = deviceServer((userCode) => ({
+      deviceName: userCode === 'ABCD-EFGH' ? 'リビングのテレビ' : '寝室のテレビ',
+      userCode,
+      approved: false,
+    }));
+    const { router } = await renderRoute(
+      Route,
+      '/device',
+      '/device?user_code=ABCD-EFGH',
+      environment,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: '承認する' }));
+    expect(await screen.findByText(/承認しました/)).toBeTruthy();
+
+    await act(() => router.navigate({ to: '/device', search: { user_code: 'JKLM-NPQR' } }));
+
+    expect(await screen.findByText('寝室のテレビ')).toBeTruthy();
+    expect(screen.queryByText(/承認しました/)).toBeNull();
+    expect(await screen.findByRole('button', { name: '承認する' })).toBeTruthy();
   });
 });
 

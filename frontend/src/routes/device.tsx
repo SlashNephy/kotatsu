@@ -48,14 +48,20 @@ function DevicePage() {
   return (
     <AuthCard title={t('device.title')}>
       {userCode === null ? (
-        <UserCodeForm initial={search.user_code ?? ''} invalid={search.user_code !== undefined} />
+        <UserCodeForm
+          // 打ち直すたびに、入力と誤りの表示を作り直す。
+          key={search.user_code ?? ''}
+          initial={search.user_code ?? ''}
+          invalid={search.user_code !== undefined}
+        />
       ) : (
         <ErrorBoundary
           resetKey={userCode}
           fallback={(error) => <DeviceError error={error} userCode={userCode} />}
         >
           <Suspense fallback={<PageLoader />}>
-            <Confirm userCode={userCode} />
+            {/* コードが変わったら、承認済みの表示と本人確認を作り直す。 */}
+            <Confirm key={userCode} userCode={userCode} />
           </Suspense>
         </ErrorBoundary>
       )}
@@ -192,7 +198,12 @@ function Confirm({ userCode }: { userCode: string }) {
         );
         setApproved(response.approveDeviceAuthorization.approved);
       },
-      (caught) => setError(settingsErrorMessage(t, caught)),
+      (caught) =>
+        setError(
+          graphQLErrorDetails(caught).code === 'CONFLICT'
+            ? t('device.approvedByOther')
+            : settingsErrorMessage(t, caught),
+        ),
     );
 
   return (

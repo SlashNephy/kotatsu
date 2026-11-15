@@ -219,7 +219,7 @@ func (s *Server) DeviceAuthorizationHandler(logger *slog.Logger) http.Handler {
 // parseDeviceRequest は、デバイス認可のリクエストを確かめる。
 func parseDeviceRequest(r *http.Request, form url.Values) (*deviceRequest, error) {
 	clientID := form.Get("client_id")
-	if clientID == "" || len(clientID) > maxDeviceClientIDLength || strings.ContainsFunc(clientID, unicode.IsControl) {
+	if clientID == "" || len(clientID) > maxDeviceClientIDLength || !utf8.ValidString(clientID) || strings.ContainsFunc(clientID, unicode.IsControl) {
 		return nil, &tokenError{code: errorInvalidRequest, description: "client_id is required and must be printable"}
 	}
 	name := strings.TrimSpace(form.Get("device_name"))

@@ -2302,6 +2302,7 @@
     "cancel": "Cancel",
     "approved": "Approved. Go back to the device; it will connect in a few seconds.",
     "notFound": "No device is waiting with the code {{code}}. It may have expired or been mistyped. Check the device's screen.",
+    "approvedByOther": "Another user has already approved this code. Check the device's screen.",
     "enterAgain": "Enter the code again",
     "disabled": "Devices cannot connect because the administrator has not enabled the EPGStation-compatible API."
   },
