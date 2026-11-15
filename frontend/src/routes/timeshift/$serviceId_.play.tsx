@@ -342,7 +342,8 @@ function Player({
     }
     seenDrains.current = drains;
     if (!hls && error === null) {
-      restartAt(positionRef.current);
+      // 裏で読み込んでいる間も、映っている映像で位置を進める (#1728)。
+      stream.restartAt(positionRef.current, true);
       setHandover(true);
     }
     // 読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
@@ -749,11 +750,12 @@ function Player({
           crop={shownCrop}
           brightness={brightness}
           onCaptionText={onCaptionText}
-          onLoaded={() => {
-            // 最初のフレームが出たときの時刻を、base にする。
-            stream.onLoaded();
+          onLoaded={(handed) => {
+            // 最初のフレームが出たときの時刻を、base にする。裏で読み込んで切り替えたら、TsPlayer が渡す時刻にする。
+            stream.onLoaded(handed);
             setError(null);
           }}
+          handoverTarget={stream.handoverTarget}
           onError={resumeAfterCut}
           onState={onConvertState}
           onAudio={audio.onAudio}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { parseStreamStart, playbackPosition, skipJump } from './position';
+import { advanceTarget, parseStreamStart, playbackPosition, skipJump } from './position';
+import type { HandoverLoaded } from './TsPlayer';
 
 // SeekableStream は、位置を指定して読み直す TS の配信 (録画やタイムシフトのバッファ) の、再生位置の追い方 (設計書 7.2)。
 export type SeekableStream = {
@@ -10,14 +11,17 @@ export type SeekableStream = {
   position: number;
   // positionRef は、描画を待たずに読む再生位置。
   positionRef: { current: number };
-  // restartAt は、指定の位置から読み直す。
-  restartAt: (seconds: number) => void;
+  // restartAt は、指定の位置から読み直す。handover なら、裏で読み込んでいる間も、映っている映像で位置を進める (#1728)。
+  restartAt: (seconds: number, handover?: boolean) => void;
   // currentPosition は、video の時刻から求め直した今の再生位置。timeupdate より細かく要るときに使う。
   currentPosition: () => number;
   // positionOf は、video の時刻 t に当たる再生位置。読み込んだ範囲の終わりを位置に直すのに使う。
   positionOf: (t: number) => number;
   // onLoaded は、最初のフレームが出たときに呼ぶ。そのときの video の時刻を、位置の基準にする。
-  onLoaded: () => void;
+  // 裏で読み込んで切り替えたときは、TsPlayer が渡す時刻を基準にする。
+  onLoaded: (handover?: HandoverLoaded) => void;
+  // handoverTarget は、裏で読み込んだ映像を、切り替える前に進める先の video の時刻 (TsPlayer の handoverTarget)。
+  handoverTarget: (base: number) => number | null;
 };
 
 // useSeekableStream は、streamUrl に start=秒 を付けて流す配信の、再生位置を追う。
@@ -36,7 +40,8 @@ export function useSeekableStream(
   // streamStart は、配信が実際に流し始めた位置。分かるまでは offset を使う。
   const [streamStart, setStreamStart] = useState<{ key: string; at: number } | null>(null);
   const streamKey = `${offset}:${loads}`;
-  const startedAt = streamStart?.key === streamKey ? streamStart.at : offset;
+  const settled = streamStart?.key === streamKey;
+  const startedAt = settled ? streamStart.at : offset;
   const separator = streamUrl.includes('?') ? '&' : '?';
   const start = `${streamUrl}${separator}start=${offset.toFixed(1)}`;
   useEffect(() => {
@@ -61,11 +66,14 @@ export function useSeekableStream(
   const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
   const [position, setPosition] = useState(initial);
   const positionRef = useRef(initial);
+  // handoverFrom は、裏で読み込んでいる間 (#1728) の、映っている映像の読み込みが流し始めた位置。
+  // 新しい読み込みの起点は、切り替えるまで使わない。
+  const handoverFrom = useRef<number | null>(null);
   const converted = (current: number) => {
     base.current = skipJump(base.current, lastVideoTime.current, current);
     lastVideoTime.current = current;
 
-    return playbackPosition(startedAt, base.current, current);
+    return playbackPosition(handoverFrom.current ?? startedAt, base.current, current);
   };
   useEffect(() => {
     if (video === null || !enabled) {
@@ -97,8 +105,11 @@ export function useSeekableStream(
     url: `${start}#${loads}`,
     position,
     positionRef,
-    restartAt: (seconds) => {
-      phase.current = 'loading';
+    restartAt: (seconds, handover = false) => {
+      // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める。
+      const tracking = handover && phase.current === 'playing';
+      handoverFrom.current = tracking ? startedAt : null;
+      phase.current = tracking ? 'playing' : 'loading';
       positionRef.current = seconds;
       setPosition(seconds);
       setOffset(seconds);
@@ -109,8 +120,22 @@ export function useSeekableStream(
         ? positionRef.current
         : converted(video.currentTime),
     positionOf: (t) => playbackPosition(startedAt, base.current, t),
-    onLoaded: () => {
+    onLoaded: (handover) => {
+      const switched = handover !== undefined && handoverFrom.current !== null;
+      handoverFrom.current = null;
+      if (switched) {
+        base.current = handover.base;
+        // 切り替える前に進めた分を、途切れた区間を越えたとみなさない。
+        lastVideoTime.current = handover.current;
+        phase.current = 'playing';
+
+        return;
+      }
       phase.current = 'awaitingBase';
     },
+    handoverTarget: (first) =>
+      handoverFrom.current === null || !settled || video === null
+        ? null
+        : advanceTarget(first, startedAt, converted(video.currentTime)),
   };
 }
