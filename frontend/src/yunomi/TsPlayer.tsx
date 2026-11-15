@@ -10,7 +10,7 @@ import { useEffect, useRef, type ReactNode, useState, type RefObject } from 'rea
 
 import { audioChoices, currentAudioChoice } from './audio';
 import { brightnessStyle } from './brightness';
-import { type Crop, cropStyle, isCropped, noCrop } from './crop';
+import { type Crop, cropStyle, isCropped, noCrop, scales } from './crop';
 import { createCaptions, type Captions } from './captions';
 import { defaultCaptionStyle, type CaptionStyle } from './captionStyle';
 import { prefersManagedMediaSource } from './capabilities';
@@ -24,6 +24,7 @@ import {
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
+import { createYadifUpscaler, useSuperResolution, type YadifUpscaler } from './superResolution';
 import classes from './TsPlayer.module.css';
 import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
 
@@ -74,7 +75,7 @@ type Props = {
   onReading?: (reading: TsPlayerReading) => void;
   // coverRef は、映像の上に重ねる蓋 (#1512) を出し入れする口を受け取る。
   coverRef?: RefObject<PlayerCover | null>;
-  // settings は、端末ごとの設定 (フィールドごとの表示、コマの補間、補間したコマを出す回数の上限) の代わりに使う値 (#1771)。
+  // settings は、端末ごとの設定 (フィールドごとの表示、コマの補間、補間したコマを出す回数の上限、映像の拡大) の代わりに使う値 (#1771)。
   // 「この端末で試す」が、利用者の設定を書き換えずに、経路ごとに表示を切り替えるために使う。省いた値は、設定から読む。
   settings?: PlayerSettingsOverride;
   // onDeinterlaceStats は、yadif が統計を知らせるたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
@@ -86,6 +87,7 @@ export type PlayerSettingsOverride = {
   fieldRate?: boolean;
   interpolate?: boolean;
   interpolationRate?: InterpolationRate;
+  superResolution?: boolean;
 };
 
 // Slot は、映像を 1 本読み込むための、video と変換のプレイヤーと字幕の組。切り替えのときだけ、裏でもう 1 つ作る (#1083)。
@@ -112,6 +114,8 @@ type Slot = {
   fieldRateDropped: boolean;
   // interpolation は、yadif に渡すコマの補間 (#1655)。設定で切っている間は、yadif に渡さない。
   interpolation: YadifInterpolation;
+  // upscaler は、yadif に渡す映像の拡大 (#1654)。設定で切っている間は、yadif に渡さない。
+  upscaler: YadifUpscaler;
   // unfiltered は、yadif を作れず (WebGL2 がないなど)、インターレースを解除せずに出していること (#1617)。
   unfiltered: boolean;
   // bytesRead は、この読み込みで読んだバイト数。
@@ -145,7 +149,8 @@ function sourcePicture(
     unfiltered,
     fieldRateDropped,
     yadif,
-  }: Pick<Slot, 'film' | 'shownFps' | 'unfiltered' | 'fieldRateDropped' | 'yadif'>,
+    upscaler,
+  }: Pick<Slot, 'film' | 'shownFps' | 'unfiltered' | 'fieldRateDropped' | 'yadif' | 'upscaler'>,
 ): SourcePicture | null {
   const timeline = player.deinterlacer?.videoTimeline ?? [];
   const now = player.video.currentTime;
@@ -174,6 +179,8 @@ function sourcePicture(
       (film
         ? yadif.interpolator?.wants('film') === true
         : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
+    // 拡大して描いている大きさ (#1654)。設定を切っている間と、元の大きさ以下に映している間は null。
+    upscaled: yadif !== null && yadif.scaler === upscaler ? upscaler.output() : null,
   };
 }
 
@@ -260,6 +267,14 @@ export function TsPlayer({
   interpolationRateRef.current = interpolationRate;
   const fieldRateRef = useRef(fieldRate);
   fieldRateRef.current = fieldRate;
+  // superResolution は、解除したコマを、描く大きさへ拡大して描くか (#1654)。端末ごとの設定から読む。
+  const [savedSuperResolution] = useSuperResolution();
+  const superResolution = settings?.superResolution ?? savedSuperResolution;
+  const superResolutionRef = useRef(superResolution);
+  superResolutionRef.current = superResolution;
+  // zoom は、切り抜き (#496) の拡大率。拡大する大きさを決めるたびに読むので、ref で渡す。
+  const zoomRef = useRef(scales(crop));
+  zoomRef.current = scales(crop);
   // handover は、URL が変わったときにだけ読む。変えただけで読み直さないよう、ref で持つ。
   const handoverRef = useRef(handover);
   handoverRef.current = handover;
@@ -334,6 +349,12 @@ export function TsPlayer({
           );
         },
       }),
+      upscaler: createYadifUpscaler({
+        zoom: () => zoomRef.current,
+        onUnavailable: (error) => {
+          console.warn('upscaling is unavailable; showing the pictures as they are', error);
+        },
+      }),
       unfiltered: false,
       bytesRead: 0,
       origin: null,
@@ -368,6 +389,8 @@ export function TsPlayer({
         doubleRate: fieldRateRef.current,
         // 24p と 29.97p のコマの間を補間する (#1655)。補間するコマは、yadif が 1 枚遅らせて出す。
         interpolator: interpolateRef.current ? slot.interpolation : null,
+        // 解除したコマを、映像を描く矩形の端末の画素の大きさへ拡大して描く (#1654)。
+        scaler: superResolutionRef.current ? slot.upscaler : null,
         // 2:3 プルダウンを見つけて 24p で出しているかを、再生の情報に出す (#1284)。
         // 読み込みを終えた録画では progress が来ないので、変わったときと、yadif がコマを出す時刻を決めている間はここで知らせる。
         onStats: (stats) => {
@@ -518,11 +541,23 @@ export function TsPlayer({
     }
   }, [interpolate]);
 
+  // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
+  // yadif は、同じものを渡し直すと、大きさを決め直す。
+  const { scale: cropScale, stretchX: cropStretchX } = crop;
+  useEffect(() => {
+    for (const slot of [activeRef.current, pendingRef.current]) {
+      if (slot?.yadif != null) {
+        slot.yadif.scaler = superResolution ? slot.upscaler : null;
+      }
+    }
+  }, [superResolution, cropScale, cropStretchX]);
+
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {
     slot.destroyed = true;
     slot.player?.destroy();
     slot.interpolation.destroy();
+    slot.upscaler.destroy();
     slot.player = null;
     slot.captions.destroy();
     slot.container.remove();

@@ -219,6 +219,8 @@ export type SourcePicture = {
   fieldRateDropped: boolean;
   // interpolated は、yadif が出すコマの間を補間していること (#1655)。フレームレートは、補間したコマも数える。
   interpolated: boolean;
+  // upscaled は、yadif が解除したコマを拡大して描いている大きさ (#1654)。拡大していなければ null。
+  upscaled: { width: number; height: number } | null;
 };
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。

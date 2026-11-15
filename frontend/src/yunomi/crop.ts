@@ -45,7 +45,7 @@ export function isCropped(crop: Crop): boolean {
 }
 
 // scales は、横と縦の倍率を返す。
-function scales(crop: Crop): { x: number; y: number } {
+export function scales(crop: Crop): { x: number; y: number } {
   return { x: crop.scale * (crop.stretchX ?? 1), y: crop.scale };
 }
 

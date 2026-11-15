@@ -227,7 +227,16 @@ export function StreamInfo({
             })
           : pictureLabel(source.width, source.height, source.interlaced);
 
-    return source.interpolated ? t('player.streamInfo.interpolated', { label }) : label;
+    const shown = source.interpolated ? t('player.streamInfo.interpolated', { label }) : label;
+
+    // 拡大して描いているときは、描いている大きさを添える (#1654)。
+    return source.upscaled === null
+      ? shown
+      : t('player.streamInfo.upscaled', {
+          label: shown,
+          width: source.upscaled.width,
+          height: source.upscaled.height,
+        });
   };
   // 再生している映像の大きさは、プレイリストに書いてあればそれを、なければ video から読む。
   const size =

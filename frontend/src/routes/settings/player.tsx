@@ -41,6 +41,7 @@ import { useDataBroadcastPreload } from '../../yunomi/dataBroadcastPreload';
 import { useLowLatency } from '../../yunomi/liveCatchUp';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMiniPlayer } from '../../yunomi/miniPlayer';
+import { useSuperResolution } from '../../yunomi/superResolution';
 
 // captionBackgrounds は、字幕の背景の選択肢 (#491)。broadcast は放送の指定どおり、ほかは黒の不透明度。
 const captionBackgrounds = ['broadcast', '0', '0.25', '0.5', '0.75', '1'];
@@ -94,6 +95,7 @@ function PlayerSettings() {
   const [fieldRate, setFieldRate] = useFieldRate();
   const [interpolation, setInterpolation] = useInterpolation();
   const [interpolationRate, setInterpolationRate] = useInterpolationRate();
+  const [superResolution, setSuperResolution] = useSuperResolution();
   const [autoPictureInPicture, setAutoPictureInPicture] = useAutoPictureInPicture();
   const [miniPlayer, setMiniPlayer] = useMiniPlayer();
   // 自動で別のウィンドウに出せないブラウザでは、設定の項目を出さない (#492)。
@@ -244,6 +246,20 @@ function PlayerSettings() {
             description={t('settings.account.fieldRateHelp')}
             checked={fieldRate}
             onChange={(event) => setFieldRate(event.currentTarget.checked)}
+          />
+          {/* GPU の負荷と、拡大する大きさは端末の画面によるので、端末ごとに覚える (#1654)。 */}
+          <Switch
+            label={
+              <Group gap={6} component="span">
+                {t('settings.account.superResolution')}
+                <Badge size="sm" variant="light" color="gray" tt="none" component="span">
+                  {t('settings.account.deviceOnly')}
+                </Badge>
+              </Group>
+            }
+            description={t('settings.account.superResolutionHelp')}
+            checked={superResolution}
+            onChange={(event) => setSuperResolution(event.currentTarget.checked)}
           />
           {/* GPU の負荷と、作ったコマの崩れ方は端末と映像によるので、端末ごとに覚える (#1655)。 */}
           <Switch
