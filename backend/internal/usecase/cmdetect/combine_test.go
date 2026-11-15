@@ -136,6 +136,36 @@ func TestCombineSectionsNotice(t *testing.T) {
 			shown:  [][2]float64{{0, 300}, {315, 600}},
 			want:   [][2]float64{{300, 315}},
 		},
+		{
+			// 提供が 2 枚続いて 15.5 秒になっても、本編の側に数える (本当の CM は、ほぼちょうど 15 秒)。
+			name:   "two sponsor cards in a row are not a CM",
+			bounds: []float64{300, 315.5, 330.5, 345.5},
+			shown:  [][2]float64{{0, 300}, {345.8, 600}},
+			want:   [][2]float64{{315.5, 345.5}},
+		},
+		{
+			// 本番の録画の並び: ロゴの出た本編の終わり (290〜300) の後に、提供 2 枚 (15.5 秒)、見逃し配信の案内 (3.9 秒) が続き、
+			// 5.8 秒の番宣から CM に入る。ロゴの出た本編の終わりを提供に取らず、提供を本編の側に、案内からを CM にする。
+			name:   "a sponsor after the program with the logo, followed by a notice before CMs",
+			bounds: []float64{290, 300, 315.5, 319.4, 325.2, 340.2, 355.2, 370.2, 385.2, 400.2},
+			shown:  [][2]float64{{0, 299.8}, {400.5, 600}},
+			want:   [][2]float64{{315.5, 400.2}},
+		},
+		{
+			// 本番の録画の並び: 本編のロゴが、境目の候補のない所 (300) で消え、10 秒後の境目から 15.3 秒の CM が続く。
+			// ロゴのない所の後の区間は、提供にせず、CM にする。
+			name:   "a CM after a part without the logo is not a sponsor",
+			bounds: []float64{290, 310.2, 325.5, 340.5},
+			shown:  [][2]float64{{0, 300}, {340.8, 600}},
+			want:   [][2]float64{{310.2, 340.5}},
+		},
+		{
+			// 本編の直後でも、ちょうど 15 秒の区間は CM にする。
+			name:   "a 15-second CM right after the program is a CM",
+			bounds: []float64{300, 315, 330},
+			shown:  [][2]float64{{0, 300}, {330.4, 600}},
+			want:   [][2]float64{{300, 330}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

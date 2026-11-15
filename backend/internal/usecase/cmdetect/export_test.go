@@ -210,3 +210,22 @@ func LogoInCMChains(bounds []float64, frames int, intervals []logo.Interval) (fl
 
 	return m.logoInCMChains(intervals)
 }
+
+// ProgramEdges は、今の見分け方の区間 (秒の組) と境目の候補に、programEdges を掛けて、秒の組で返す。
+func ProgramEdges(sections [][2]float64, bounds []float64, duration float64, program *Program, offset float64) [][2]float64 {
+	in := make([]Section, 0, len(sections))
+	for _, s := range sections {
+		in = append(in, Section{Start: seconds(s[0]), End: seconds(s[1])})
+	}
+	bs := make([]boundary, 0, len(bounds))
+	for _, at := range bounds {
+		bs = append(bs, boundary{at: at, cut: true})
+	}
+	got := programEdges(in, bs, duration, program, offset)
+	out := make([][2]float64, 0, len(got))
+	for _, s := range got {
+		out = append(out, [2]float64{s.Start.Seconds(), s.End.Seconds()})
+	}
+
+	return out
+}

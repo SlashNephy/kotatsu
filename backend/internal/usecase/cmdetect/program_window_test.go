@@ -106,3 +106,18 @@ func TestDropShortSections(t *testing.T) {
 		sec(0, 5), sec(200, 350), sec(351, 361), sec(362, 367), sec(600, 614), sec(1795, 1800),
 	}, got)
 }
+
+// TestProgramEdges は、ロゴを使えずに今の見分け方に回ったとき、番組の時刻に近い無音の境目より前と後を、前後の番組として CM にすることを確かめる (#1506)。
+func TestProgramEdges(t *testing.T) {
+	t.Parallel()
+
+	// 録画は 1817 秒。番組は、ファイルの始まりから 10 秒後に始まる 30 分。時刻の差は -0.27 秒。
+	program := &cmdetect.Program{Start: 10 * time.Second, Duration: 30 * time.Minute}
+	bounds := []float64{12.0, 660.6, 1221.0, 1311.0, 1620.0, 1740.0, 1811.9}
+	got := cmdetect.ProgramEdges([][2]float64{{1221, 1311}, {1620, 1740}}, bounds, 1817.2, program, -0.27)
+	assert.Equal(t, [][2]float64{{0, 12}, {1221, 1311}, {1620, 1740}, {1811.9, 1817.2}}, got)
+
+	// 番組の時刻の近くに境目がなければ、そのままにする。
+	got = cmdetect.ProgramEdges([][2]float64{{1221, 1311}}, []float64{660.6, 1221, 1311}, 1817.2, program, -0.27)
+	assert.Equal(t, [][2]float64{{1221, 1311}}, got)
+}

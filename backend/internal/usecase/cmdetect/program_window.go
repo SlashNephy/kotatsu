@@ -1,7 +1,9 @@
 package cmdetect
 
 import (
+	"cmp"
 	"math"
+	"slices"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
@@ -163,4 +165,46 @@ func dropShortSections(sections []Section, duration time.Duration) []Section {
 // gap は、2 つの区間の隙間を返す。重なっていれば 0。
 func gap(a, b Section) time.Duration {
 	return max(b.Start-a.End, a.Start-b.End, 0)
+}
+
+// programEdgeWindow は、番組が始まるはずの時刻と終わるはずの時刻から、前後の番組との境目とみなす無音の境目を探す幅 (秒)。
+const programEdgeWindow = 3.0
+
+// programEdges は、今の見分け方の区間 sections (時刻は、今の見分け方の基準の秒) に、録画の前後のマージンに入った前後の番組を、
+// CM として足す (#1506)。番組が始まるはずの時刻に最も近い、programEdgeWindow の内の無音の境目より前と、終わるはずの時刻に
+// 最も近い境目より後を CM にする。番組の時刻は、ファイルの始まりからの時間なので、offset (局ロゴの見分け方の時刻の差) で、
+// 今の見分け方の基準に直す。境目が見つからない端は、そのままにする。
+func programEdges(sections []Section, bounds []boundary, duration float64, program *Program, offset float64) []Section {
+	nearest := func(at float64) (float64, bool) {
+		best, found := 0.0, false
+		for _, b := range bounds {
+			if b.at <= 0 || b.at >= duration || math.Abs(b.at-at) > programEdgeWindow {
+				continue
+			}
+			if !found || math.Abs(b.at-at) < math.Abs(best-at) {
+				best, found = b.at, true
+			}
+		}
+
+		return best, found
+	}
+	start := program.Start.Seconds() + offset
+	spans := make([]span, 0, len(sections)+2)
+	if b, ok := nearest(start); ok {
+		spans = append(spans, span{start: 0, end: b})
+	}
+	for _, s := range sections {
+		spans = append(spans, span{start: s.Start.Seconds(), end: s.End.Seconds()})
+	}
+	if b, ok := nearest(start + program.Duration.Seconds()); ok {
+		spans = append(spans, span{start: b, end: duration})
+	}
+	slices.SortFunc(spans, func(a, b span) int { return cmp.Compare(a.start, b.start) })
+	merged := mergeAdjacent(spans)
+	out := make([]Section, 0, len(merged))
+	for _, s := range merged {
+		out = append(out, Section{Start: seconds(s.start), End: seconds(s.end)})
+	}
+
+	return out
 }

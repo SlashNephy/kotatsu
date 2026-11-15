@@ -23,8 +23,11 @@ const (
 	combineTolerance = 1.0
 	// combineMaxCM は、録画の端に接しない CM の区間の 1 本の長さの上限 (CM の最長)。
 	combineMaxCM = 60.0
-	// combineSponsor は、提供 (番組の終わりに出す、スポンサーの表示) の長さ。局ロゴを消して出すことが多い。
-	combineSponsor = 10.0
+	// combineSponsorMin と combineSponsorMax は、提供 (番組の終わりに出す、スポンサーの表示。局ロゴを消して出すことが多い) とみなす長さの幅。提供が 2 枚続くと、15 秒を少し超える (実録画で 15.5 秒)。
+	// 本当の CM は、無音から無音までがほぼちょうど 15 秒 (実録画で 15.0〜15.2 秒) なので、本編の直後でも、
+	// 15 秒にぴったり合う区間は、CM の点が提供の点を上回る。
+	combineSponsorMin = 8.0
+	combineSponsorMax = 16.0
 	// combineSponsorBonus は、本編の直後の提供で、次が CM か録画の終わりのときに足す点 (提供の加点)。
 	// 本編の直後の 10 秒は、提供とも告知とも読めるが、番組の終わりに提供を出してから CM に入る並びが多いので、提供を先に採る。
 	// ロゴのない 10 秒の本編の点 (-10) に足して、10 秒の告知の点 (10) を上回るようにする。
@@ -123,9 +126,15 @@ func (sc *combineScorer) notice(a, b float64) (float64, bool) {
 	return combineNoticeWeight*length*g - combineMismatch*(1-g) - combineLogoPenalty*sc.shown(a, b), true
 }
 
-// sponsor は、[a, b) を提供とみなした点。10 秒前後でなければ ok を false にする。
+// sponsor は、[a, b) を提供とみなした点。提供の長さの幅 (1 枚か 2 枚) でなければ ok を false にする。
+// 提供は、ロゴの出ていた本編の直後に、ロゴを消して出す。区間の中でロゴが許すロゴの途切れより長く見えるもの (ロゴの出た本編の終わり) と、
+// 始まりの前の許すロゴの途切れの内にロゴが見えないもの (ロゴのない所の後の CM) は、提供にしない。
 func (sc *combineScorer) sponsor(a, b float64) (float64, bool) {
-	if math.Abs(b-a-combineSponsor) > combineTolerance {
+	// 提供は本編の直後に出すので、録画の頭に接する区間は提供にしない (前の番組の CM が途中から入る所)。
+	if length := b - a; a <= 0 || length < combineSponsorMin || length > combineSponsorMax {
+		return 0, false
+	}
+	if sc.shown(a, b) > combineLogoGap || sc.shown(a-combineLogoGap, a) == 0 {
 		return 0, false
 	}
 
@@ -196,9 +205,15 @@ func (sc *combineScorer) relax(t *combineTable, points []float64, i, j int) {
 	if v, ok := sc.notice(a, b); ok {
 		base, prev := best(none, stateProgram)
 		update(stateNotice, base, prev, v)
-		// CM の後の告知だけを、CM の続きとして数える。本編の直後の告知や提供の後から告知で CM へ移ると、
-		// 告知から本編へ戻るときの減点を避けたり、本当の CM の頭を提供に取ったりできてしまうため。
-		base, prev = best(none, stateCM)
+		// CM と提供の後の告知だけを、CM の続きとして数える。本編の直後の告知から告知で CM へ移ると、
+		// 告知から本編へ戻るときの減点を避けられてしまうため。提供の後に、見逃し配信の案内などを出してから CM に入る並びがある。
+		// ただし、提供と告知を合わせて 15 秒の倍数に合うときは、提供の後に続けない。本当の CM の途中に境目の候補があると、
+		// CM の頭を提供に、残りを告知に取れてしまうため。
+		from := []int{stateCM}
+		if sp := t.from[i][stateSponsor]; !math.IsInf(t.best[i][stateSponsor], -1) && cmFit(b-points[sp]) == 0 {
+			from = append(from, stateSponsor)
+		}
+		base, prev = best(none, from...)
 		update(stateCM, base, prev, v)
 	}
 	// 端に接しない CM は、CM の最長より遠くの候補からは始められない。

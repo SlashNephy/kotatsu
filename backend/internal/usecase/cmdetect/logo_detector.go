@@ -125,6 +125,11 @@ func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	// 今の見分け方は、CM が 2 本以上続かないと CM にしないので、録画の前後のマージンに入った前後の番組を落とす。
+	// ロゴを学習できて材料を読めていれば、番組の時刻に近い無音の境目で、前後を CM にする (#1506)。
+	if material != nil && material.bounds != nil && input.Program != nil {
+		sections = programEdges(sections, material.bounds, material.boundsDuration, input.Program, material.offset)
+	}
 	// 長さが分からなければ (ffprobe が長さを返さない TS)、割合を確かめられないので、今の見分け方の結果をそのまま使う。
 	// 今の見分け方を選んだときと同じ結果になる。
 	if duration > 0 {
