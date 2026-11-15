@@ -23,6 +23,10 @@ type Cues struct {
 	// FirstVideoPTS と LastVideoPTS は、サービスの映像の、最初と最後の PES の PTS。映像がなければ nil。
 	FirstVideoPTS *int64
 	LastVideoPTS  *int64
+	// FirstKeyframePTS は、サービスの映像の、最初の I フレームの PES の PTS。見つからなければ nil。
+	// 録画の索引 (Splitter) と同じ探し方なので、再生の時間の 0 (索引の最初の I フレーム) と同じ所になる (#1811)。
+	// 録画の頭の、最初の I フレームより前の PES は、デコードできず、再生にも入らない。
+	FirstKeyframePTS *int64
 	// AudioChanges は、音声の構成 (音声のストリームの数か、最初の音声の channel_configuration) が変わった PTS。
 	// 録画の始まりで構成を初めて知ったときは含めない。
 	AudioChanges []int64
@@ -36,6 +40,8 @@ type CueScanner struct {
 	// generation は、programs の世代のうち、ストリームの役割を決め直したもの。
 	generation int
 	videoPID   uint16
+	// iframes は、サービスの映像から、最初の I フレームを探す。I フレームの探し方を知らない映像なら nil。
+	iframes    *iframeDetector
 	audioPID   uint16
 	audioCount int
 	// channels は、最初の音声の、続けて読めた ADTS の channel_configuration。
@@ -59,11 +65,11 @@ type CueScanner struct {
 func NewCueScanner(serviceID uint16) *CueScanner {
 	return &CueScanner{
 		serviceID: serviceID, programs: newProgramTable(), sections: map[uint16]*sectionAssembler{},
-		generation: -1, videoPID: NullPID, audioPID: NullPID, audioCount: 0,
+		generation: -1, videoPID: NullPID, iframes: nil, audioPID: NullPID, audioCount: 0,
 		channels: adtsChannelUnknown, pendingPTS: noPTS, pendingChannels: adtsChannelUnknown, pendingCount: 0,
 		layoutKnown: false, layoutChanged: false,
 		carry: [PacketSize]byte{}, carryLen: 0,
-		cues: Cues{FirstVideoPTS: nil, LastVideoPTS: nil, AudioChanges: []int64{}},
+		cues: Cues{FirstVideoPTS: nil, LastVideoPTS: nil, FirstKeyframePTS: nil, AudioChanges: []int64{}},
 	}
 }
 
@@ -114,6 +120,11 @@ func (s *CueScanner) handle(b []byte) {
 		s.handlePSI(&pkt)
 
 		return
+	}
+	if pkt.pid == s.videoPID && s.iframes != nil && s.cues.FirstKeyframePTS == nil {
+		if entry, ok := s.iframes.feed(&pkt, 0); ok {
+			s.cues.FirstKeyframePTS = new(entry.PTS)
+		}
 	}
 	if !pkt.payloadUnitStart {
 		return
@@ -166,6 +177,9 @@ func (s *CueScanner) assign() {
 		switch {
 		case stream.Kind == StreamKindVideo && s.videoPID == NullPID:
 			s.videoPID = stream.PID
+			if s.iframes == nil || s.iframes.pid != stream.PID || s.iframes.streamType != stream.StreamType {
+				s.iframes = newIFrameDetector(stream.PID, stream.StreamType)
+			}
 		case stream.Kind == StreamKindAudio:
 			if s.audioPID == NullPID {
 				s.audioPID = stream.PID

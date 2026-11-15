@@ -164,10 +164,35 @@ func (d *LogoDetector) decide(material *Material, program *Program, report *Repo
 	report.Missing = totalLength(result.missing) + result.edgeMissing
 	ratio := cmRatio(result.sections, result.missing, result.duration)
 	if ratio < maxCMRatio {
-		return result.sections, result.duration, nil
+		return shiftSections(result.sections, material.playbackShift()), result.duration, nil
 	}
 
 	return nil, result.duration, fmt.Errorf("%w: %.0f%% of the recording was detected as CM (%s)", errLogoUnusable, ratio*100, result.detail(d.params))
+}
+
+// playbackShift は、最初のコマからの時間に足すと、再生の時間 (録画の索引の最初の I フレームを 0 にした時間) になる量 (秒) を返す (#1811)。
+// 今の見分け方の基準 (sig.origin) は、索引と同じ探し方の最初の I フレームなので、最初のコマの、今の見分け方の基準での時刻になる。
+// 録画の頭の I フレームの前で PMT が届いた録画では、FFmpeg がデコードする最初のコマ (ffprobe でも同じ) は、索引の最初の I フレームより
+// 前にある (本番の録画で 0.5 秒)。今の見分け方の材料を読めなかった回は、基準が分からないので 0 にする。
+func (m *Material) playbackShift() float64 {
+	if m.bounds == nil {
+		return 0
+	}
+
+	return m.Times[0] + m.offset
+}
+
+// shiftSections は、区間を shift 秒ずらす。0 より前は切り、長さがなくなった区間は捨てる。
+func shiftSections(sections []Section, shift float64) []Section {
+	out := make([]Section, 0, len(sections))
+	d := seconds(shift)
+	for _, s := range sections {
+		if start, end := max(s.Start+d, 0), s.End+d; end > start {
+			out = append(out, Section{Start: start, End: end})
+		}
+	}
+
+	return out
 }
 
 // totalLength は、区間の長さの合計を返す。
@@ -412,7 +437,7 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 		}
 		if err == nil {
 			material.bounds, material.boundsDuration = boundaries(sig), sig.duration
-			// 今の見分け方の基準は、最初の映像の PES の PTS を 0 にしたもの。最初のコマ (最初の I フレーム) は、それより後ろにある。
+			// 今の見分け方の基準 (sig.origin) と、最初のコマの PTS の差でそろえる。
 			material.offset = signalOffset(video.firstFrame, sig.origin, times[0])
 		}
 	}
@@ -473,8 +498,9 @@ func edgeMissing(times []float64, video *videoInfo) time.Duration {
 	return total
 }
 
-// signalOffset は、局ロゴの見分け方のコマの時刻に足すと、今の見分け方の基準 (最初の映像の PES の PTS を 0 にした秒) になる量を返す。
-// first は最初のコマの PTS、origin は最初の映像の PES の PTS (どちらも PTS の刻み)、firstTime は最初のコマの、コマの時刻。
+// signalOffset は、局ロゴの見分け方のコマの時刻に足すと、今の見分け方の基準 (origin の PTS を 0 にした秒) になる量を返す。
+// first は最初のコマの PTS、origin は今の見分け方の時刻の 0 の PTS (どちらも PTS の刻み)、firstTime は最初のコマの、コマの時刻。
+// どちらも最初の I フレームなので、ふつうは差がないが、I フレームの探し方を知らない映像では、origin は最初の映像の PES になる。
 // コマの時刻の 0 (FFmpeg がパイプの入力の始まりとしたもの) は、ffprobe で読むファイルの始まりと 0.3 秒ほどずれることがあるので、
 // 最初のコマの PTS どうしでそろえる。PTS は 33 ビットで一周するので、差は一周を考えて求める。
 func signalOffset(first, origin int64, firstTime float64) float64 {

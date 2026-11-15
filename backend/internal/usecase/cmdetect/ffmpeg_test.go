@@ -56,8 +56,9 @@ func TestNewSignals(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// first と last は、最初と最後の映像の PTS。
+		// first と last は、最初と最後の映像の PTS。keyframe は、最初の I フレームの PTS (分からなければ nil)。
 		first, last int64
+		keyframe    *int64
 		// scenes と silences は、FFmpeg が出す PTS のままの時刻 (秒)。
 		scenes   []float64
 		silences [][2]float64
@@ -71,6 +72,13 @@ func TestNewSignals(t *testing.T) {
 			want: &cmdetect.Signals{Silences: [][2]float64{{10, 11}}, Scenes: []float64{60.5}, AudioChanges: []float64{20}, Duration: 1800},
 		},
 		{
+			// 録画の頭の、最初の I フレームより前の PES (0.5 秒) は、再生に入らないので、時刻の 0 にしない (#1811)。
+			name:  "時刻を、最初の I フレームからの秒にそろえる",
+			first: 90_000 * 100, last: 90_000 * 1900, keyframe: new(int64(90_000*100 + 45_000)),
+			scenes: []float64{160.5}, silences: [][2]float64{{100.2, 100.8}, {110, 111}}, audio: []int64{90_000 * 120},
+			want: &cmdetect.Signals{Silences: [][2]float64{{-0.3, 0.3}, {9.5, 10.5}}, Scenes: []float64{60}, AudioChanges: []float64{19.5}, Duration: 1799.5},
+		},
+		{
 			name: "PTS が一周しても、続けて数える",
 			// 33 ビットの PTS が一周する 10 秒前から始まる録画。FFmpeg は一周した後の時刻を、一周の分を足して出す。
 			first: 1<<33 - 90_000*10, last: 90_000 * 50,
@@ -82,7 +90,7 @@ func TestNewSignals(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: &tt.first, LastVideoPTS: &tt.last, AudioChanges: tt.audio}, tt.scenes, tt.silences)
+			got, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: &tt.first, LastVideoPTS: &tt.last, FirstKeyframePTS: tt.keyframe, AudioChanges: tt.audio}, tt.scenes, tt.silences)
 			require.NoError(t, err)
 			assert.InDelta(t, tt.want.Duration, got.Duration, 0.001)
 			assert.InDeltaSlice(t, tt.want.Scenes, got.Scenes, 0.001)
@@ -99,6 +107,6 @@ func TestNewSignals(t *testing.T) {
 func TestNewSignalsWithoutVideo(t *testing.T) {
 	t.Parallel()
 
-	_, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: nil, LastVideoPTS: nil, AudioChanges: []int64{}}, []float64{}, [][2]float64{})
+	_, err := cmdetect.NewSignals(&ts.Cues{FirstVideoPTS: nil, LastVideoPTS: nil, FirstKeyframePTS: nil, AudioChanges: []int64{}}, []float64{}, [][2]float64{})
 	assert.ErrorIs(t, err, cmdetect.ErrNoVideo)
 }

@@ -299,7 +299,7 @@ type Querier interface {
 	GetImportedTarget(ctx context.Context, arg GetImportedTargetParams) (uuid.UUID, error)
 	// サービスのチャンクの、最も遅い終わり。落ちた mikan が残した放送中の番組を、録れていた最後の時刻で閉じるのに使う。
 	GetLastTimeshiftChunkEnd(ctx context.Context, serviceID int64) (*time.Time, error)
-	// 録画の CM の区間を最後に見分け終えた見分け方と日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
+	// 録画の CM の区間を最後に見分け終えた見分け方と、その版と、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
 	GetLatestRecordingCMDetection(ctx context.Context, recordingID uuid.UUID) (GetLatestRecordingCMDetectionRow, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)

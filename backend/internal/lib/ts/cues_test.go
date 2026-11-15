@@ -53,7 +53,10 @@ func TestCueScanner(t *testing.T) {
 	streams = append(streams, esEntry{streamType: 0x02, pid: videoPID}, esEntry{streamType: 0x0F, pid: audioPID})
 	pkts := psiPackets(0x0000, &patCC, patSection(0, map[uint16]uint16{programNum: pmtPID}))
 	pkts = append(pkts, psiPackets(pmtPID, &pmtCC, pmtSection(0, streams...))...)
-	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 1000, nil))
+	// 録画の頭の映像は、I フレームの前の P ピクチャから始まる (MPEG-2 の picture header の picture_coding_type が 2)。
+	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 1000, []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x10}))
+	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 2000, []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x08}))
+	pkts = append(pkts, pesPacket(videoPID, &videoCC, 0xE0, 3000, []byte{0x00, 0x00, 0x01, 0x00, 0x00, 0x08}))
 	audio := func(pts uint64, channels byte, n uint64) {
 		for i := range n {
 			pkts = append(pkts, pesPacket(audioPID, &audioCC, 0xC0, pts+i, adts(channels)))
@@ -85,8 +88,10 @@ func TestCueScanner(t *testing.T) {
 	cues := scanner.Cues()
 	require.NotNil(t, cues.FirstVideoPTS)
 	require.NotNil(t, cues.LastVideoPTS)
+	require.NotNil(t, cues.FirstKeyframePTS)
 	assert.Equal(t, int64(1000), *cues.FirstVideoPTS)
 	assert.Equal(t, int64(40000), *cues.LastVideoPTS)
+	assert.Equal(t, int64(2000), *cues.FirstKeyframePTS)
 	assert.Equal(t, []int64{10000, 30000}, cues.AudioChanges)
 }
 

@@ -24,8 +24,11 @@ const (
 	// ffmpegCommand は、PATH から探す FFmpeg のコマンドの名前。FFmpeg の入ったイメージ (-ffmpeg) には入っている。
 	ffmpegCommand = "ffmpeg"
 	// FFmpegDetectorName と ffmpegDetectorVersion は、FFmpegDetector の名前と版。規則や値を変えたら版を上げる。
+	// 版 2 で、区間の時刻の基準を、最初の映像の PES から、最初の I フレームに移した (#1811)。
 	FFmpegDetectorName    = "ffmpeg"
-	ffmpegDetectorVersion = 1
+	ffmpegDetectorVersion = 2
+	// firstKeyframeFFmpegVersion は、区間の時刻の基準を最初の I フレームにした、FFmpegDetector の最初の版。
+	firstKeyframeFFmpegVersion = 2
 	// silenceNoise は、無音とみなす音量の上限。CM の境目は、デジタルの無音 (0) になる。
 	// 本編の台詞の間は、BGM や環境音が小さく残ることが多いので、ずっと小さい音までを無音とみなさない。
 	silenceNoise = "-80dB"
@@ -80,7 +83,10 @@ func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, e
 	spans := findSections(sig)
 	sections := make([]Section, 0, len(spans))
 	for _, s := range spans {
-		sections = append(sections, Section{Start: seconds(s.start), End: seconds(s.end)})
+		// 最初の I フレームより前 (デコードできず、再生にも入らない所) は切る。
+		if start, end := max(s.start, 0), s.end; end > start {
+			sections = append(sections, Section{Start: seconds(start), End: seconds(end)})
+		}
 	}
 
 	return sections, nil
@@ -211,12 +217,18 @@ func (c *countingReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// newSignals は、PTS のままの時刻を、ファイルの最初の映像からの秒にそろえる。PTS が一周していても、差が半周より短ければ正しく求まる。
+// newSignals は、PTS のままの時刻を、ファイルの最初の I フレームからの秒にそろえる。PTS が一周していても、差が半周より短ければ正しく求まる。
+// 再生の時間は、録画の索引の最初の I フレームを 0 にするので、それとそろえる (#1811)。録画の頭の、最初の I フレームより前の PES は、
+// デコードできず、再生にも入らない。本番の録画では 0.3〜0.5 秒あり、最初の映像の PES を 0 にすると、CM の区間がその分遅れた。
+// I フレームの探し方を知らない映像で、最初の I フレームが分からなければ、最初の映像の PES を 0 にする。
 func newSignals(cues *ts.Cues, scenes []float64, silences []span) (*signals, error) {
 	if cues.FirstVideoPTS == nil || cues.LastVideoPTS == nil {
 		return nil, ErrNoVideo
 	}
 	base := *cues.FirstVideoPTS
+	if cues.FirstKeyframePTS != nil {
+		base = *cues.FirstKeyframePTS
+	}
 	fromPTS := func(pts int64) float64 { return float64(ts.PTSDiff(base, pts)) / ts.PTSClock }
 	fromSeconds := func(t float64) float64 { return fromPTS(int64(math.Round(t * ts.PTSClock))) }
 

@@ -546,12 +546,17 @@ func TestRecordingSections(t *testing.T) {
 		// ffmpegAt と logoAt は、それぞれの見分け方で見分け終えた日時の、基準からのずれ。負なら見分けていない。
 		ffmpegAt time.Duration
 		logoAt   time.Duration
-		want     []cmdetect.Section
+		// ffmpegVersion は、今の見分け方の版。
+		ffmpegVersion int32
+		want          []cmdetect.Section
+		// wantFromFirstPES は、区間の時刻が、最初の映像の PES からのものか (版 1 の今の見分け方、#1811)。
+		wantFromFirstPES bool
 	}{
-		{name: "見分けていなければ空", ffmpegAt: -1, logoAt: -1, want: []cmdetect.Section{}},
-		{name: "1 つの見分け方だけなら、その区間", ffmpegAt: 0, logoAt: -1, want: ffmpegSections},
-		{name: "見分け方を替えて見分け直したら、新しい見分け方の区間 (#1505)", ffmpegAt: 0, logoAt: time.Hour, want: logoSections},
-		{name: "前の見分け方で見分け直したら、そちらの区間", ffmpegAt: 2 * time.Hour, logoAt: time.Hour, want: ffmpegSections},
+		{name: "見分けていなければ空", ffmpegAt: -1, logoAt: -1, ffmpegVersion: 2, want: []cmdetect.Section{}, wantFromFirstPES: false},
+		{name: "1 つの見分け方だけなら、その区間", ffmpegAt: 0, logoAt: -1, ffmpegVersion: 2, want: ffmpegSections, wantFromFirstPES: false},
+		{name: "見分け方を替えて見分け直したら、新しい見分け方の区間 (#1505)", ffmpegAt: 0, logoAt: time.Hour, ffmpegVersion: 1, want: logoSections, wantFromFirstPES: false},
+		{name: "前の見分け方で見分け直したら、そちらの区間", ffmpegAt: 2 * time.Hour, logoAt: time.Hour, ffmpegVersion: 2, want: ffmpegSections, wantFromFirstPES: false},
+		{name: "版 1 の今の見分け方の区間は、最初の映像の PES から", ffmpegAt: 0, logoAt: -1, ffmpegVersion: 1, want: ffmpegSections, wantFromFirstPES: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -561,14 +566,15 @@ func TestRecordingSections(t *testing.T) {
 			recordingID := f.recording(t, "completed")
 			for _, d := range []struct {
 				name     string
+				version  int32
 				at       time.Duration
 				sections []cmdetect.Section
-			}{{"ffmpeg", tt.ffmpegAt, ffmpegSections}, {"logo", tt.logoAt, logoSections}} {
+			}{{"ffmpeg", tt.ffmpegVersion, tt.ffmpegAt, ffmpegSections}, {"logo", 1, tt.logoAt, logoSections}} {
 				if d.at < 0 {
 					continue
 				}
-				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, $2, 1, $3)`,
-					recordingID, d.name, f.clock.Now().Add(d.at))
+				_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_cm_detections (recording_id, detector, detector_version, detected_at) VALUES ($1, $2, $3, $4)`,
+					recordingID, d.name, d.version, f.clock.Now().Add(d.at))
 				require.NoError(t, err)
 				// 始まりの順でなく入れても、始まりの順に返す。
 				for _, s := range slices.Backward(d.sections) {
@@ -578,9 +584,10 @@ func TestRecordingSections(t *testing.T) {
 				}
 			}
 
-			got, err := cmdetect.RecordingSections(t.Context(), f.pool, recordingID)
+			got, fromFirstPES, err := cmdetect.RecordingSectionsWithOrigin(t.Context(), f.pool, recordingID)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.wantFromFirstPES, fromFirstPES)
 		})
 	}
 }
