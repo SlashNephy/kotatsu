@@ -103,6 +103,19 @@ describe('useSeekableStream', () => {
     expect(result.current.position).toBeCloseTo(135);
   });
 
+  test('裏で読み込んでいる間に、もう一度知らせが届いても、映っている映像の起点で数え続ける', async () => {
+    mockHead({ '100.0': 99, '130.0': 129.5, '133.0': 132.5 });
+    const video = new FakeVideo();
+    const { result } = await playFrom(video);
+    act(() => result.current.restartAt(130, true));
+    await act(async () => {});
+    act(() => video.playTo(35));
+    act(() => result.current.restartAt(result.current.positionRef.current, true));
+    await act(async () => {});
+    act(() => video.playTo(37));
+    expect(result.current.position).toBe(134);
+  });
+
   test('新しい読み込みが流し始めた位置が分かるまでは、進める先を返さない', async () => {
     const video = new FakeVideo();
     const { result } = await playFrom(video);

@@ -669,11 +669,19 @@ export function TsPlayer({
           // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
           // 切り替える前に、今の映像が進んだ分だけ進める。進めないと、裏で読み込んでいた間の分だけ巻き戻る (#1728)。
+          // 裏で読み込んだ映像が失敗するか流し終えたら、進める先を待たずに切り替える。
           const base = slot.video.currentTime;
+          let ended = false;
+          next.addEventListener('error', () => {
+            ended = true;
+          });
+          next.addEventListener('statechange', (event) => {
+            ended ||= event.detail.state === 'completed' || event.detail.state === 'error';
+          });
           await advanceBeforeHandover(
             slot.video,
             () => handlers.current.handoverTarget?.(base) ?? null,
-            () => cancelled,
+            () => cancelled || ended,
           );
           if (!cancelled) {
             promote(slot);

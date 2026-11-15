@@ -686,11 +686,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // エラーで止まっている間は、「やり直す」に任せる。
     if (!hls && error === null) {
       // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
-      const tracking = phase.current === 'playing' && reached.current === streamKey;
+      // 裏で読み込んでいる間に、もう一度知らせが届いたら、映っている映像の起点のまま続ける。
+      const shown = handoverFrom.current;
+      const tracking =
+        phase.current === 'playing' && (shown !== null || reached.current === streamKey);
       startAt(positionRef.current);
       setHandover(true);
       if (tracking) {
-        handoverFrom.current = startedAt;
+        handoverFrom.current = shown ?? startedAt;
         phase.current = 'playing';
       }
     }
