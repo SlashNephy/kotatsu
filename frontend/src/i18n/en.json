@@ -1023,6 +1023,38 @@
     "outOfValidity": "Out of period",
     "select": "Select",
     "selectDone": "Stop selecting",
+    "selectShown": "Select {{count}} shown",
+    "deselectShown": "Clear selection",
+    "filter": {
+      "search": "Search names, memos and keywords",
+      "state": "Filter by state",
+      "stateAll": "Any state",
+      "states": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "outOfValidity": "Out of period"
+      },
+      "reservations": "Filter by reservations",
+      "reservationsAll": "Any reservations",
+      "reservationStates": {
+        "some": "With upcoming reservations",
+        "none": "No upcoming reservations"
+      },
+      "count": "{{shown}} of {{total}}",
+      "empty": "No rules match the filters",
+      "clear": "Clear filters"
+    },
+    "sort": {
+      "label": "Sort by",
+      "keys": {
+        "created": "Created",
+        "name": "Name",
+        "updated": "Updated",
+        "reservations": "Upcoming reservations"
+      },
+      "ascending": "Ascending",
+      "descending": "Descending"
+    },
     "cancel": "Cancel",
     "enableSelected": "Enable {{count}} selected rules",
     "disableSelected": "Disable {{count}} selected rules",
