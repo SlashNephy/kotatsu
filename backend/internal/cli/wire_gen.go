@@ -191,3 +191,20 @@ func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*
 	}
 	return cliAnimeJobParts, nil
 }
+
+// newPruneJobParts は、保持期間を過ぎたものを消すジョブの Worker を作る。
+func newPruneJobParts(deps *Deps) *pruneJobParts {
+	pool := poolOf(deps)
+	clock := clockOf(deps)
+	pruneWorker := newAuditPruneWorker(deps, pool, clock)
+	notificationPruneWorker := newNotificationPruneWorker(pool, clock)
+	pruneProgressWorker := newWatchProgressPruneWorker(pool, clock)
+	networkactivityPruneWorker := newNetworkActivityPruneWorker(pool, clock)
+	cliPruneJobParts := &pruneJobParts{
+		audit:           pruneWorker,
+		notifications:   notificationPruneWorker,
+		watchProgress:   pruneProgressWorker,
+		networkActivity: networkactivityPruneWorker,
+	}
+	return cliPruneJobParts
+}

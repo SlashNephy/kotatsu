@@ -158,41 +158,15 @@ func DefaultOptions(logger *slog.Logger) *Options {
 // jobWorkers は、nekonote で実行するジョブの Worker と定期ジョブを返す。ジョブを足したら、ここに登録する。
 func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.PeriodicJob, error) {
 	workers := river.NewWorkers()
-	retention := time.Duration(deps.Config.Audit.RetentionDays) * 24 * time.Hour
-	clientInfoRetention := time.Duration(deps.Config.Audit.ClientInfoRetentionDays) * 24 * time.Hour
-	river.AddWorker(workers, audit.NewPruneWorker(deps.DB, deps.Clock, retention, clientInfoRetention))
+	// 保持期間を過ぎたものを消す (#551、#963、#1366、#1369)。期間は、設定と、画面から変えられる値で決める。
+	prune := newPruneJobParts(deps)
+	river.AddWorker(workers, prune.audit)
 	river.AddWorker(workers, auth.NewPruneSessionsWorker(deps.DB, deps.Clock))
 	// MCP のクライアントに発行した、期限を過ぎた認可コードとトークンを消す (#963)。
 	river.AddWorker(workers, oauth.NewPruneWorker(deps.DB, deps.Clock))
-	// 配り終えた通知は、画面から変えられる保持期間を過ぎたら消す (#551)。
-	river.AddWorker(workers, notification.NewPruneWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
-		system, err := settings.Load(ctx, deps.DB)
-		if err != nil {
-			return 0, err
-		}
-
-		return system.NotificationRetention(), nil
-	}))
-
-	// 録画の再生位置は、画面から変えられる保持期間を過ぎたら消す (#1366)。
-	river.AddWorker(workers, library.NewPruneProgressWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
-		system, err := settings.Load(ctx, deps.DB)
-		if err != nil {
-			return 0, err
-		}
-
-		return system.WatchProgressRetention(), nil
-	}))
-
-	// 外部との通信の記録は、画面から変えられる保持期間を過ぎたら消す (#1369)。
-	river.AddWorker(workers, networkactivity.NewPruneWorker(deps.DB, deps.Clock, func(ctx context.Context) (time.Duration, error) {
-		system, err := settings.Load(ctx, deps.DB)
-		if err != nil {
-			return 0, err
-		}
-
-		return time.Duration(system.NetworkActivityRetentionDays) * 24 * time.Hour, nil
-	}))
+	river.AddWorker(workers, prune.notifications)
+	river.AddWorker(workers, prune.watchProgress)
+	river.AddWorker(workers, prune.networkActivity)
 
 	// Webhook の配信のジョブは、イベントを配るトランザクションの中で投入する。
 	// 投入に使う River のクライアントは、ここで作る Worker を必要とするので、投入だけを行うクライアントを別に作る。
