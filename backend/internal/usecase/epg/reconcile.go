@@ -120,6 +120,8 @@ func (r *Reconciler) SyncAll(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 	programs.deletes = keepSilentServices(programs.deletes, upstreamPrograms)
+	// 全量の突き合わせでは、シリーズ名と話数の列を埋めていない番組も埋める (#1564)。
+	programs.fillSeries = true
 
 	return r.apply(ctx, services, programs)
 }
@@ -259,6 +261,11 @@ func (r *Reconciler) apply(ctx context.Context, services *serviceDiff, programs 
 		}
 		if err := writePrograms(ctx, q, programs.upserts, now); err != nil {
 			return err
+		}
+		if programs.fillSeries {
+			if err := fillProgramSeries(ctx, q); err != nil {
+				return err
+			}
 		}
 		deleted, err := deletePrograms(ctx, q, programs.deletes, now)
 		if err != nil {
@@ -520,6 +527,8 @@ type programDiff struct {
 	deletes []*program
 	// previous は、upserts の番組の更新前の内容。追加した番組は含まない。変わった時間帯を求めるのに使う。
 	previous map[programKey]*program
+	// fillSeries は、シリーズ名と話数の列を埋めていない番組を埋めるかどうか (#1564)。全量の突き合わせのときだけ埋める。
+	fillSeries bool
 }
 
 // archiveCutoff は、アーカイブへ移す番組の境の時刻。これより前に終わった番組は、突き合わせない。
@@ -553,7 +562,7 @@ func diffPrograms(upstream []*tunerserver.Program, current []sqlc.ListProgramsRo
 		byKey[p.key()] = p
 	}
 
-	diff := &programDiff{upserts: []*program{}, deletes: []*program{}, previous: map[programKey]*program{}}
+	diff := &programDiff{upserts: []*program{}, deletes: []*program{}, previous: map[programKey]*program{}, fillSeries: false}
 	seen := map[programKey]bool{}
 	for _, up := range upstream {
 		p := fromUpstream(up)
@@ -601,6 +610,8 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 		if err != nil {
 			return err
 		}
+		extendedNormalized := domain.NormalizeExtended(p.Extended)
+		series, number := episodeSeriesOf(p.Name, p.Description, extendedNormalized, p.SeriesEpisode)
 		params = append(params, sqlc.UpsertProgramsParams{
 			ServiceID:             p.ServiceID,
 			EventID:               p.EventID,
@@ -613,7 +624,7 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			Description:           p.Description,
 			NameNormalized:        domain.Normalize(p.Name),
 			DescriptionNormalized: domain.Normalize(p.Description),
-			ExtendedNormalized:    new(domain.NormalizeExtended(p.Extended)),
+			ExtendedNormalized:    &extendedNormalized,
 			Extended:              columns.extended,
 			Genres:                columns.genres,
 			RelatedItems:          columns.related,
@@ -621,6 +632,8 @@ func writePrograms(ctx context.Context, q *sqlc.Queries, programs []*program, no
 			VideoResolution:       videoResolution(p.VideoResolution),
 			SeriesEpisode:         p.SeriesEpisode,
 			SeriesRepeat:          nullBool(p.SeriesRepeat),
+			Series:                series,
+			EpisodeNumber:         number,
 			Now:                   now,
 		})
 	}

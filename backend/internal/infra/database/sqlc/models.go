@@ -492,6 +492,8 @@ type Program struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	Series                *string
+	EpisodeNumber         *int32
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
