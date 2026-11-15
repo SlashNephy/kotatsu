@@ -1,0 +1,406 @@
+diff --git a/packages/yadif/src/deinterlace.ts b/packages/yadif/src/deinterlace.ts
+index 4704c00..e1b2122 100644
+--- a/packages/yadif/src/deinterlace.ts
++++ b/packages/yadif/src/deinterlace.ts
+@@ -271,6 +271,8 @@ export interface DeinterlacerOptions {
+   debug?: boolean;
+   /** What to make the pictures between pictures with. See PictureInterpolator. */
+   interpolator?: PictureInterpolator | null;
++  /** What to put pictures onto the canvas with, at a size of its own. See PictureScaler. */
++  scaler?: PictureScaler | null;
+ }
+ 
+ /** How often pictures come out: one per frame, one per field, or film at 24p. */
+@@ -279,8 +281,9 @@ export type Cadence = "frame" | "field" | "film";
+ /**
+  * Something that makes the pictures between two filtered pictures, such as
+  * motion-compensated frame interpolation. It is handed this filter's own
+- * context and textures, so nothing leaves the GPU: it draws onto the canvas
+- * (the default framebuffer) itself, and puts back any state it changes.
++ * context and textures, so nothing leaves the GPU: it draws onto the
++ * framebuffer it is given (null for the canvas) itself, and puts back any
++ * state it changes.
+  *
+  * Making a picture between two needs the second one already filtered, so the
+  * pictures of a cadence it wants are put up one picture late.
+@@ -301,11 +304,58 @@ export interface PictureInterpolator {
+     height: number,
+   ): void;
+   /**
+-   * Draw the picture `t` (0 to 1) of the way from the first to the second,
+-   * and say whether it did: one that keeps to a rate of its own can leave the
+-   * picture on the canvas as it is for a refresh.
++   * Draw the picture `t` (0 to 1) of the way from the first to the second
++   * onto `target`, `width` by `height`, and say whether it did: one that keeps
++   * to a rate of its own can leave the picture on the canvas as it is for a
++   * refresh. The target is a texture of the picture's size rather than the
++   * canvas while a PictureScaler puts the pictures up.
+    */
+-  draw(gl: WebGL2RenderingContext, t: number, width: number, height: number): boolean;
++  draw(
++    gl: WebGL2RenderingContext,
++    t: number,
++    width: number,
++    height: number,
++    target: WebGLFramebuffer | null,
++  ): boolean;
++}
++
++/**
++ * Something that puts a filtered picture onto the canvas at a size of its
++ * own, such as an upscaler drawing at the size the canvas is shown at rather
++ * than the size the picture is coded at. Like a PictureInterpolator, it is
++ * handed this filter's own context and textures and puts back any state it
++ * changes.
++ */
++export interface PictureScaler {
++  /**
++   * The size to give the canvas's buffer for a picture `width` by `height`
++   * shown across `boxWidth` by `boxHeight` device pixels, or null to keep the
++   * picture's own size and copy it texel for texel. The context is there to
++   * read its limits from.
++   */
++  size(
++    gl: WebGL2RenderingContext,
++    width: number,
++    height: number,
++    boxWidth: number,
++    boxHeight: number,
++  ): { width: number; height: number } | null;
++  /**
++   * Draw `texture`, `width` by `height`, across the whole of the canvas,
++   * `outputWidth` by `outputHeight`, and say whether it did. The texture
++   * holds rows from the bottom the way a framebuffer does, or from the top
++   * when `flipped`. One that did not is let go of, and the canvas goes back to
++   * the picture's own size.
++   */
++  draw(
++    gl: WebGL2RenderingContext,
++    texture: WebGLTexture,
++    flipped: boolean,
++    width: number,
++    height: number,
++    outputWidth: number,
++    outputHeight: number,
++  ): boolean;
+ }
+ 
+ /** Field information supplied by a player or another video source. */
+@@ -392,6 +442,16 @@ export class Deinterlacer {
+   #lastShown: Ready | null = null;
+   /** The pair the interpolator was last handed. */
+   #paired: { previous: Ready; next: Ready } | null = null;
++  /** What puts the pictures up at a size of its own, and the size it chose. */
++  #scaler: PictureScaler | null = null;
++  #output: { width: number; height: number } | null = null;
++  /** The size the canvas is shown at, in device pixels. */
++  #box: { width: number; height: number } | null = null;
++  /** A picture-sized texture to filter or interpolate into for the scaler. */
++  #stage: RenderTarget | null = null;
++  /** The texture last put up, to put up again when the canvas is resized. */
++  #onCanvas: { texture: WebGLTexture; flipped: boolean } | null = null;
++  readonly #canvasResizes: ResizeObserver;
+   /** Debug only: the rAF the last picture was drawn in, and repeats dropped since. */
+   #shownAt = 0;
+   #droppedBefore = 0;
+@@ -477,6 +537,7 @@ export class Deinterlacer {
+     this.#spatialCheck = options.spatialCheck ?? true;
+     this.#debug = options.debug ?? false;
+     this.#interpolator = options.interpolator ?? null;
++    this.#scaler = options.scaler ?? null;
+     this.#film = options.film ?? false;
+     this.#onStats = options.onStats;
+     this.canvas = document.createElement("canvas");
+@@ -515,6 +576,27 @@ export class Deinterlacer {
+     // the picture sits inside the element is arithmetic the browser does not
+     // hand out. Anything that moves the element has to move it too.
+     this.#resizes = new ResizeObserver(() => this.#layout());
++    // A scaler draws at the size the canvas is shown at, in device pixels,
++    // which moves with the zoom and the screen as well as with the layout.
++    this.#canvasResizes = new ResizeObserver(([entry]) => {
++      if (!entry) return;
++      const ratio = window.devicePixelRatio || 1;
++      const scaled = {
++        width: Math.round(entry.contentRect.width * ratio),
++        height: Math.round(entry.contentRect.height * ratio),
++      };
++      // The device pixel box is exact where it is given, but an emulated
++      // pixel ratio (devtools, automation) leaves it at the CSS size; one
++      // that disagrees with the ratio by more than rounding is not believed.
++      const device = entry.devicePixelContentBoxSize?.[0];
++      this.#box =
++        device &&
++        Math.abs(device.inlineSize - scaled.width) <= 1 &&
++        Math.abs(device.blockSize - scaled.height) <= 1
++          ? { width: device.inlineSize, height: device.blockSize }
++          : scaled;
++      this.#fitCanvas();
++    });
+     this.#videoFrames = new VideoFrames(video);
+     // A frame the filter has not seen the neighbours of is not worth holding:
+     // whatever is next will have been somewhere else entirely.
+@@ -621,6 +703,19 @@ export class Deinterlacer {
+     this.#applyScheduling();
+   }
+ 
++  get scaler(): PictureScaler | null {
++    return this.#scaler;
++  }
++
++  /**
++   * Setting the same scaler again asks it for the size afresh, for a page
++   * that changed something the size depends on that this cannot see.
++   */
++  set scaler(scaler: PictureScaler | null) {
++    this.#scaler = scaler;
++    this.#fitCanvas();
++  }
++
+   /** Whether pictures are queued and put up by the loop rather than drawn on arrival. */
+   get #scheduled(): boolean {
+     // A picture for every frame is queued too when the pictures between are
+@@ -691,6 +786,7 @@ export class Deinterlacer {
+     for (const texture of this.#textures) this.#gl.deleteTexture(texture);
+     this.#textures = [];
+     this.#freeOutputs();
++    this.#freeStage();
+     for (const q of [
+       ...this.#freeQueries,
+       ...this.#timerUsingQueries.map(({ q }) => q),
+@@ -1318,8 +1414,12 @@ export class Deinterlacer {
+       this.#paired = { previous, next };
+     }
+     const begin = performance.now();
+-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+-    if (!interpolator.draw(gl, t, this.#width, this.#height)) return;
++    const stage = this.#output ? this.#ensureStage() : null;
++    const target = stage?.framebuffer ?? null;
++    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
++    if (!interpolator.draw(gl, t, this.#width, this.#height, target)) return;
++    if (stage) this.#showTexture(stage.texture);
++    else this.#onCanvas = null;
+     this.#showMsSinceReport += performance.now() - begin;
+     this.#showFramesSinceReport++;
+     this.canvas.style.visibility = "visible";
+@@ -1363,7 +1463,32 @@ export class Deinterlacer {
+ 
+   #showTexture(texture: WebGLTexture, flip = false): void {
+     const gl = this.#gl;
++    this.#onCanvas = { texture, flipped: flip };
+     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
++    const scaler = this.#scaler;
++    const output = this.#output;
++    if (scaler && output) {
++      let drawn = false;
++      try {
++        drawn = scaler.draw(
++          gl,
++          texture,
++          flip,
++          this.#width,
++          this.#height,
++          output.width,
++          output.height,
++        );
++      } catch (error) {
++        console.warn("yadif: the scaler failed; showing pictures as they are", error);
++      }
++      if (drawn) {
++        this.canvas.style.visibility = "visible";
++        return;
++      }
++      this.#dropScaler();
++      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
++    }
+     gl.useProgram(this.#blit);
+     gl.activeTexture(gl.TEXTURE0);
+     gl.bindTexture(gl.TEXTURE_2D, texture);
+@@ -1489,6 +1614,10 @@ export class Deinterlacer {
+     target: WebGLFramebuffer | null,
+   ): void {
+     if (this.#frames === 0 || this.#lost) return;
++    // A picture for the canvas goes through the scaler, which needs it in a
++    // texture first.
++    const stage = target === null && this.#output ? this.#ensureStage() : null;
++    if (stage) target = stage.framebuffer;
+     if (this.#frames === HISTORY && !flush) this.#stats.filtered++;
+     else this.#stats.degraded++;
+     const gl = this.#gl;
+@@ -1529,7 +1658,12 @@ export class Deinterlacer {
+     if (this.#debug && film) this.#drawText(this.#debugText, 0, 90);
+     // A picture filtered into a texture is not on the screen yet, and showing
+     // the canvas for it would put up whatever was drawn on it last.
+-    if (target === null) this.canvas.style.visibility = "visible";
++    if (stage) {
++      this.#showTexture(stage.texture);
++    } else if (target === null) {
++      this.#onCanvas = null;
++      this.canvas.style.visibility = "visible";
++    }
+   }
+ 
+   #neighbours(flush: boolean): { prev: number; cur: number; next: number } {
+@@ -1577,11 +1711,12 @@ export class Deinterlacer {
+ 
+   #resize(width: number, height: number): void {
+     const gl = this.#gl;
+-    this.canvas.width = width;
+-    this.canvas.height = height;
+     this.#width = width;
+     this.#height = height;
+     this.#frames = 0;
++    this.#onCanvas = null;
++    this.#freeStage();
++    this.#fitCanvas();
+     this.#layout();
+     for (const texture of this.#textures) gl.deleteTexture(texture);
+     this.#textures = [];
+@@ -1699,6 +1834,11 @@ export class Deinterlacer {
+     wrapper.appendChild(this.canvas);
+     this.#wrapper = wrapper;
+     this.#resizes.observe(this.#video);
++    try {
++      this.#canvasResizes.observe(this.canvas, { box: "device-pixel-content-box" });
++    } catch {
++      this.#canvasResizes.observe(this.canvas);
++    }
+     this.#layout();
+   }
+ 
+@@ -1706,6 +1846,7 @@ export class Deinterlacer {
+     const wrapper = this.#wrapper;
+     this.#wrapper = null;
+     this.#resizes.disconnect();
++    this.#canvasResizes.disconnect();
+     this.canvas.remove();
+     if (!wrapper?.parentElement) return;
+     wrapper.parentElement.insertBefore(this.#video, wrapper);
+@@ -1714,6 +1855,116 @@ export class Deinterlacer {
+ 
+   #onResize = (): void => this.#layout();
+ 
++  /**
++   * Size the canvas's buffer for what puts the pictures up: the picture's own
++   * size for the copy, or whatever the scaler asks for. Resizing the buffer
++   * clears it, so the last picture goes up again.
++   */
++  #fitCanvas(): void {
++    const width = this.#width;
++    const height = this.#height;
++    if (width === 0 || height === 0) return;
++    let output: { width: number; height: number } | null = null;
++    if (this.#scaler && this.#box && this.#box.width > 0 && this.#box.height > 0) {
++      try {
++        output = this.#scaler.size(
++          this.#gl,
++          width,
++          height,
++          this.#box.width,
++          this.#box.height,
++        );
++      } catch (error) {
++        console.warn("yadif: the scaler failed; showing pictures as they are", error);
++        this.#scaler = null;
++      }
++    }
++    this.#output = output;
++    const target = output ?? { width, height };
++    const resized =
++      this.canvas.width !== target.width || this.canvas.height !== target.height;
++    if (resized) {
++      this.canvas.width = target.width;
++      this.canvas.height = target.height;
++    }
++    if (resized || output) this.#redraw();
++    if (!output) {
++      if (this.#onCanvas && this.#onCanvas.texture === this.#stage?.texture)
++        this.#onCanvas = null;
++      this.#freeStage();
++    }
++  }
++
++  /** Put the last picture up again, on a canvas that has just been cleared. */
++  #redraw(): void {
++    if (!this.#running || this.#lost) return;
++    if (this.#onCanvas) {
++      this.#showTexture(this.#onCanvas.texture, this.#onCanvas.flipped);
++    } else if (this.#video.paused || this.#video.ended) {
++      // The picture went straight onto the canvas, so it is filtered again:
++      // playback has stopped, so it is the one the last flush put up.
++      this.#render(true, false, null);
++    }
++  }
++
++  /** Let go of the scaler that failed, and copy pictures as they are again. */
++  #dropScaler(): void {
++    this.#scaler = null;
++    this.#output = null;
++    this.canvas.width = this.#width;
++    this.canvas.height = this.#height;
++  }
++
++  /** The picture-sized texture the scaler reads, made when it is first wanted. */
++  #ensureStage(): RenderTarget | null {
++    if (this.#stage) return this.#stage;
++    const gl = this.#gl;
++    const texture = gl.createTexture();
++    gl.bindTexture(gl.TEXTURE_2D, texture);
++    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
++    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
++    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
++    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
++    gl.texImage2D(
++      gl.TEXTURE_2D,
++      0,
++      gl.RGBA,
++      this.#width,
++      this.#height,
++      0,
++      gl.RGBA,
++      gl.UNSIGNED_BYTE,
++      null,
++    );
++    const framebuffer = gl.createFramebuffer();
++    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
++    gl.framebufferTexture2D(
++      gl.FRAMEBUFFER,
++      gl.COLOR_ATTACHMENT0,
++      gl.TEXTURE_2D,
++      texture,
++      0,
++    );
++    const complete =
++      gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
++    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
++    if (!complete) {
++      gl.deleteFramebuffer(framebuffer);
++      gl.deleteTexture(texture);
++      this.#dropScaler();
++      return null;
++    }
++    this.#stage = { texture, framebuffer };
++    return this.#stage;
++  }
++
++  #freeStage(): void {
++    if (!this.#stage) return;
++    this.#gl.deleteFramebuffer(this.#stage.framebuffer);
++    this.#gl.deleteTexture(this.#stage.texture);
++    this.#stage = null;
++  }
++
+   #onEmptied = (): void => {
+     this.#frames = 0;
+     this.#lastMediaTime = 0;
+diff --git a/packages/yadif/src/index.ts b/packages/yadif/src/index.ts
+index 2e6a68d..e53fbcf 100644
+--- a/packages/yadif/src/index.ts
++++ b/packages/yadif/src/index.ts
+@@ -4,6 +4,7 @@ export type {
+   DeinterlaceStats,
+   DeinterlacerOptions,
+   PictureInterpolator,
++  PictureScaler,
+   Scan,
+ } from "./deinterlace.js";
+ export {
