@@ -347,6 +347,24 @@ describe('decide', () => {
     expect(controller.decide(15_200, { ...input, buffer: 3.6 }).jump).toBe(true);
   });
 
+  test('読み込み直後の最初の塊は、届く直前のバッファを 0 として数えず、遅くしない', () => {
+    const controller = createLiveBufferController({ now: 0, storedFloor: null });
+    controller.arrive(1_000, null);
+    controller.arrive(1_500, 0.6);
+
+    // 0 を数えていれば 0 + 0.5 < 1 で遅くする。0.6 + 0.5 は目標量の 1〜1.25 倍の間なので等速。
+    expect(controller.decide(1_600, { ...input, buffer: 0.6 }).rate).toBe(1);
+  });
+
+  test('作り直しや飛んだ後は、速めていた寄せ方を引き継がない', () => {
+    const { controller } = started();
+    expect(controller.decide(15_000, { ...input, buffer: 2 }).rate).toBe(params.speedUpRate);
+
+    controller.selfInflicted(15_100);
+    // 1.1 倍と 1.25 倍の間なので、速めている最中なら続けるが、等速からは速めない。
+    expect(controller.decide(15_200, { ...input, buffer: 1.15 }).rate).toBe(1);
+  });
+
   test('速さを変えた回数を数える', () => {
     const { controller } = started();
     // 速め、速めたまま、遅くする。

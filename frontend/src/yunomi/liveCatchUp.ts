@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react';
 
 import {
   createLiveBufferController,
@@ -53,6 +53,13 @@ export function useLiveCatchUp(
     }),
   );
 
+  // 別のウィンドウに出したり戻したりしても、制御を作り直さない。作り直すと、追っかけをやめて飛び、詰まりもしばらく数えなくなる。
+  const inPictureInPicture = useEffectEvent(() => pictureInPicture);
+  // 出し入れしたら、前の到着時刻を忘れる。隠れたタブで戻したときに、絞られた間隔を数えないため。
+  useEffect(() => {
+    controller.forgetArrival();
+  }, [pictureInPicture, controller]);
+
   useEffect(() => {
     if (video === null || !enabled) {
       return;
@@ -64,7 +71,7 @@ export function useLiveCatchUp(
     );
     const visible = () =>
       document.visibilityState === 'visible' ||
-      pictureInPicture ||
+      inPictureInPicture() ||
       document.pictureInPictureElement === video;
     // counting は、届く間隔を数えるか。隠れたタブは、届き方も描き方も絞られ、間隔が長く見えるので数えない。
     const counting = () => !video.paused && !video.seeking && visible();
@@ -79,7 +86,7 @@ export function useLiveCatchUp(
       if (tail > lastTail + 1e-3) {
         if (counting()) {
           // 届く直前のバッファは、前の末尾と今の再生位置との差。
-          controller.arrive(now, Math.max(lastTail - video.currentTime, 0));
+          controller.arrive(now, lastTail > 0 ? Math.max(lastTail - video.currentTime, 0) : null);
         } else {
           controller.forgetArrival();
         }
@@ -95,10 +102,11 @@ export function useLiveCatchUp(
     const timer = window.setInterval(() => {
       const now = performance.now();
       const buffer = observe(now);
-      controller.tick(now);
+      // 止めている間は、無事が続いたとはみなさず、決め直さない。
       if (video.paused || video.seeking) {
         return;
       }
+      controller.tick(now);
       const decision = controller.decide(now, {
         buffer,
         // タブが隠れている間は、速めたまま戻らないおそれがあるので、遅くせず、変える回数を減らす寄せ方にする。
@@ -156,7 +164,7 @@ export function useLiveCatchUp(
       document.removeEventListener('visibilitychange', onVisibility);
       video.playbackRate = 1;
     };
-  }, [video, enabled, pictureInPicture, controller]);
+  }, [video, enabled, controller]);
 
   return {
     status: () => (video !== null && enabled ? controller.status(performance.now()) : null),
@@ -167,6 +175,7 @@ export function useLiveCatchUp(
         // 前の経路の値のまま遅れているのを解くため、放送の今へ戻す。
         video.currentTime = Math.max(bufferedTail(video) - controller.target, video.currentTime);
         controller.selfInflicted(now);
+        video.playbackRate = 1;
       }
     },
   };

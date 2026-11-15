@@ -125,7 +125,8 @@ type Sample = { at: number; buffer: number };
 // LiveBufferController は、目標量と下限を持ち、事象を受けて決め直す。時刻 now は、どれもミリ秒。
 export type LiveBufferController = {
   // arrive は、塊が届いたことを知らせる。bufferBefore は、届く直前のバッファ。
-  arrive(now: number, bufferBefore: number): void;
+  // まだ何も読み込んでいなかった (読み込み直後の最初の塊) なら null。0 として記録すると、しばらく足りないとみなして遅くするため。
+  arrive(now: number, bufferBefore: number | null): void;
   // sample は、映ったコマや判断の刻みで測ったバッファを知らせる。
   sample(now: number, buffer: number): void;
   // forgetArrival は、前の到着時刻を忘れる。シーク、一時停止、タブが隠れたとき。
@@ -276,7 +277,9 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
         }
       }
       lastArrival = now;
-      samples.push({ at: now, buffer: bufferBefore });
+      if (bufferBefore !== null) {
+        samples.push({ at: now, buffer: bufferBefore });
+      }
       prune(now);
     },
     sample(now, buffer) {
@@ -294,6 +297,8 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
       lastArrival = null;
       chasing = false;
       samples = [];
+      // 作り直した video や飛んだ後は等速から始めるので、寄せ方も等速に戻す。
+      mode = 'normal';
       graceUntil = now + params.selfInflictedGraceMs;
     },
     stall(now) {
