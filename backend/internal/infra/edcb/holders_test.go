@@ -110,3 +110,31 @@ func TestTunerServerWaitClosed(t *testing.T) {
 	require.NoError(t, server.WaitClosed(t.Context()))
 	assert.Equal(t, 1, countCommand(s, 1074))
 }
+
+func TestTunerServerRetriesRelease(t *testing.T) {
+	t.Parallel()
+
+	// DB に届かずに ID の持ち主から外れられなかったら、ほかの持ち主の TS を切らないよう閉じずに、外れられるまでやり直す (#1850)。
+	ts := make([]byte, 188)
+	ts[0] = 0x47
+	s := streamServer(t, ts, 0)
+	ids := &fakeIDs{mu: sync.Mutex{}, acquired: []edcb.ServiceKey{}, released: []int32{}, releaseFailures: 2}
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{
+		NetworkTVIDs: ids, PreemptionCheckInterval: time.Hour, ReleaseRetryInterval: 10 * time.Millisecond,
+	})
+	stream, err := server.OpenServiceStream(t.Context(), nhkSougou, nil)
+	require.NoError(t, err)
+	_, err = io.ReadAll(stream)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		_, released := ids.state()
+
+		return len(released) == 1
+	}, testWait, testTick)
+	assert.Equal(t, 1, countCommand(s, 1074))
+	ids.mu.Lock()
+	defer ids.mu.Unlock()
+	assert.Zero(t, ids.releaseFailures)
+	require.NoError(t, stream.Close())
+}

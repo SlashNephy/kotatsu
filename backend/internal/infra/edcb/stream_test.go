@@ -32,6 +32,8 @@ type fakeIDs struct {
 	// kept は、keep で残した ID。joinedDuringHandover なら、残している間にほかのインスタンスが加わったことにする。
 	kept                 []int32
 	joinedDuringHandover bool
+	// releaseFailures は、Release が DB に届かずに失敗する回数。
+	releaseFailures int
 }
 
 func (f *fakeIDs) Acquire(_ context.Context, service edcb.ServiceKey, exclusive bool) (int32, bool, error) {
@@ -55,6 +57,11 @@ func (f *fakeIDs) Acquire(_ context.Context, service edcb.ServiceKey, exclusive 
 func (f *fakeIDs) Release(_ context.Context, id int32, keep bool) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.releaseFailures > 0 {
+		f.releaseFailures--
+
+		return false, errors.New("database is down")
+	}
 	if f.holders > 0 {
 		return false, nil
 	}

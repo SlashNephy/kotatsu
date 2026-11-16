@@ -25,6 +25,8 @@ const (
 	// TS を送る FIFO はできているはずなので、これを過ぎても受け取れなければ、中継の空きがない (EDCB は 3 つ目の中継を断る) とみなす。
 	// 開いた直後に加わったときに、FIFO ができるのを待てるよう、測った時間 (0.2 秒) より長くする。
 	sharedRelayTimeout = 2 * time.Second
+	// DefaultReleaseRetryInterval は、ID の持ち主から外れられなかったときに、外れ直す既定の間隔 (#1850)。
+	DefaultReleaseRetryInterval = 10 * time.Second
 	// DefaultHandoverGrace は、止まるインスタンスが最後の持ち主だった NetworkTV を、ほかのインスタンスが引き継ぐのを待つ既定の時間 (#1850)。
 	// 受け手は、切れてから 2 秒 (録画の RetryInterval) ほどで、ほかの nabe につなぎ直す。加わらなければ閉じる。
 	DefaultHandoverGrace = 5 * time.Second
@@ -325,16 +327,46 @@ func (n *networkTVStream) Close() error {
 // release は、ID の持ち主から外れ、最後の持ち主なら NetworkTV を閉じて ID を消す。閉じられなくても ID は消す。
 // 開いている ID に NWTV_ID_SET_CH を送れば、EDCB は選局し直すか開き直すので、次に使う人が困らない。
 // 消さないと、このインスタンスが動いている間、ID が減ったままになる。
-// 持ち主から外れられなかったとき (DB に届かないなど) は、ほかの持ち主の TS を切らないよう閉じない。持ち主の行が残るので、
-// このインスタンスが止まった後に neko が閉じる。
+// 持ち主から外れられなかったとき (DB に届かないなど) は、ほかの持ち主の TS を切らないよう閉じず、裏で外れ直す (retryRelease)。
 // keep なら、最後の持ち主でも、ほかのインスタンスが加わるのを HandoverGrace だけ待ち、加わらなければ閉じる。
 // ctx が止められていても閉じられるよう、呼び出し側は止められない ctx を渡す。
 func (n *networkTVStream) release(ctx context.Context, keep bool) error {
+	failed, err := n.tryRelease(ctx, keep)
+	if failed && !n.server.stopping() {
+		go n.retryRelease(context.WithoutCancel(ctx))
+	}
+
+	return err
+}
+
+// retryRelease は、持ち主から外れられなかった ID から、外れられるまで ReleaseRetryInterval ごとにやり直す。
+// 外れないままだと、このインスタンスが動いている間、NetworkTV を開いたままにし、チューナーを使い続ける。
+// プロセスが止まり始めたらやめる。持ち主の行は、インスタンスが止まった後に neko が消し、NetworkTV を閉じる。
+func (n *networkTVStream) retryRelease(ctx context.Context) {
+	ticker := time.NewTicker(n.server.releaseRetryInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-n.server.stopped:
+			return
+		case <-ticker.C:
+		}
+		if failed, _ := n.tryRelease(ctx, false); !failed {
+			return
+		}
+	}
+}
+
+// tryRelease は、ID の持ち主から外れ、最後の持ち主なら閉じる。持ち主から外れられなかったら failed に true を返す。
+func (n *networkTVStream) tryRelease(ctx context.Context, keep bool) (bool, error) {
 	releaseCtx, cancel := context.WithTimeout(ctx, closeTimeout)
 	last, err := n.server.ids.Release(releaseCtx, n.id, keep)
 	cancel()
-	if err != nil || !last {
-		return err
+	if err != nil {
+		return true, err
+	}
+	if !last {
+		return false, nil
 	}
 	if keep {
 		timer := time.NewTimer(n.server.handoverGrace)
@@ -345,7 +377,7 @@ func (n *networkTVStream) release(ctx context.Context, keep bool) error {
 	if keep {
 		closing, err := n.server.ids.CloseIfUnheld(ctx, n.id)
 		if err != nil || !closing {
-			return err
+			return false, err
 		}
 	}
 	var errs []error
@@ -356,7 +388,7 @@ func (n *networkTVStream) release(ctx context.Context, keep bool) error {
 		errs = append(errs, err)
 	}
 
-	return errors.Join(errs...)
+	return false, errors.Join(errs...)
 }
 
 func (n *networkTVStream) preemption() error {

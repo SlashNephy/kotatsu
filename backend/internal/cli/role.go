@@ -363,7 +363,7 @@ func sharedEDCBServer(deps *Deps) (*edcb.TunerServer, error) {
 		}
 		deps.edcb.server = edcb.NewTunerServer(client, &edcb.TunerServerOptions{
 			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0, Clock: deps.Clock,
-			Stopped: deps.edcb.stopped, HandoverGrace: 0,
+			Stopped: deps.edcb.stopped, HandoverGrace: 0, ReleaseRetryInterval: 0,
 		})
 	})
 
