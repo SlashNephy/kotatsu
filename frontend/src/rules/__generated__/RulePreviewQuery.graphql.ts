@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<65ed5b6e40a836f751ba09779f8ff36b>>
+ * @generated SignedSource<<281789ef2d71d3a94673b709e2453972>>
  * @lightSyntaxTransform
  */
 
@@ -19,6 +19,7 @@ export type RuleInput = {
   duplicateWindowDays?: number | null | undefined;
   enabled?: boolean;
   followEventRelay?: boolean;
+  groupId?: string | null | undefined;
   memo?: string;
   name: string;
   settings?: RecordingSettingsOverridesInput | null | undefined;

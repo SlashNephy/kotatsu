@@ -44,6 +44,8 @@ export type RuleForm = ConditionsForm & {
   settings: Settings;
   validFrom: string | null;
   validUntil: string | null;
+  // groupId は、ルールを入れるグループの ID (#1493)。null ならどのグループにも入れない (一覧の「その他」)。
+  groupId: string | null;
 };
 
 // RuleData は、tenban が返すルールのうち、編集に使う項目。
@@ -71,6 +73,7 @@ export type RuleData = {
   readonly followEventRelay: boolean;
   readonly bundleSameEpisodes: boolean;
   readonly skipEarlierEpisodes: boolean;
+  readonly group?: { readonly id: string } | null;
 };
 
 // emptyRuleForm は、新しいルールの入力の初期値。conditions を渡すと、その条件から始める (番組の検索から作るときなど)。
@@ -100,6 +103,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
     },
     validFrom: null,
     validUntil: null,
+    groupId: null,
   };
 }
 
@@ -129,6 +133,7 @@ export function fromRule(rule: RuleData): RuleForm {
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,
+    groupId: rule.group?.id ?? null,
   };
 }
 
@@ -137,7 +142,8 @@ export function cmDetectorOf(value: string | null | undefined): CMDetector | nul
   return value === 'FFMPEG' || value === 'LOGO' ? value : null;
 }
 
-// toInput は、編集の画面の入力を、tenban の RuleInput にする。
+// toInput は、編集の画面の入力を、tenban の RuleInput にする。グループは含めない。
+// プレビューと照合を重くする書き方の確かめは、グループに関わらないので、グループを変えても問い合わせ直さないためである。
 export function toInput(form: RuleForm) {
   return {
     name: form.name.trim(),
@@ -153,4 +159,9 @@ export function toInput(form: RuleForm) {
     bundleSameEpisodes: form.bundleSameEpisodes,
     skipEarlierEpisodes: form.skipEarlierEpisodes,
   };
+}
+
+// toSaveInput は、ルールを保存するときの RuleInput。toInput に、ルールを入れるグループを足す (#1493)。
+export function toSaveInput(form: RuleForm) {
+  return { ...toInput(form), groupId: form.groupId };
 }

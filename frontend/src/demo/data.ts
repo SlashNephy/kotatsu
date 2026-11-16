@@ -361,6 +361,7 @@ export function createRootValue(
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
     rules: () => scheduler.rules(),
+    ruleGroups: () => scheduler.ruleGroups(),
     // デモは過去の番組を持たないので、番組表で過去の日へは遡れない (#1121)。
     oldestArchivedProgramAt: null,
     // デモでは、照合の重さを警告しない。
@@ -642,6 +643,13 @@ export function createRootValue(
     },
     setRulesEnabled: ({ ids, enabled }: { ids: string[]; enabled: boolean }) =>
       scheduler.setRulesEnabled(ids, enabled),
+    setRulesGroup: ({ ids, groupId }: { ids: string[]; groupId?: string | null }) =>
+      scheduler.setRulesGroup(ids, groupId ?? null),
+    createRuleGroup: ({ name }: { name: string }) => scheduler.createRuleGroup(name),
+    renameRuleGroup: ({ id, name }: { id: string; name: string }) =>
+      scheduler.renameRuleGroup(id, name),
+    reorderRuleGroups: ({ ids }: { ids: string[] }) => scheduler.reorderRuleGroups(ids),
+    deleteRuleGroup: ({ id }: { id: string }) => scheduler.deleteRuleGroup(id),
     updateWatchReminderSettings: ({ minutesBefore: value }: { minutesBefore: number }) => {
       minutesBefore = value;
       viewerSettingsChanged();

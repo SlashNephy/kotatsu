@@ -856,6 +856,18 @@ CREATE TABLE tuner_server_status (
   server_version text
 );
 
+-- ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+-- ルールと同じく家族で共有する。position は一覧で並べる順 (小さいほど先)。
+CREATE TABLE rule_groups (
+  id uuid PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  position integer NOT NULL,
+  created_at timestamptz NOT NULL,
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL
+);
+
 -- ルール (設計書 4.2)。条件は match パッケージの型で検証し、スキーマのバージョンを付けて JSONB に保存する (設計書 8.3)。
 CREATE TABLE rules (
   id uuid PRIMARY KEY,
@@ -878,6 +890,8 @@ CREATE TABLE rules (
   -- 追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
   -- 番組名を変えずに 1 話から数え直すシリーズを黙って飛ばさないよう、既定は false。この列を足す前からあるルールも false。
   skip_earlier_episodes boolean NOT NULL DEFAULT false,
+  -- ルールが入るグループ (#1493)。グループを消すと NULL (一覧の「その他」) に戻る。
+  group_id uuid REFERENCES rule_groups (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL,
   created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
@@ -894,6 +908,8 @@ CREATE TABLE reservation_rules (
 );
 
 CREATE INDEX reservation_rules_rule_id_idx ON reservation_rules (rule_id);
+
+CREATE INDEX rules_group_id_idx ON rules (group_id);
 
 -- 保存先プールの設定 (設計書 5.6、11.2)。マウント先は各ロールの設定で与え、優先順位と容量の閾値を DB に置く。
 -- 行がなければ、優先順位 0、容量の閾値 0 (容量の管理をしない) として扱う。
