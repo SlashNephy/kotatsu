@@ -62,7 +62,7 @@ func loadLibraryTS(t *testing.T) []byte {
 
 // newLibraryFixture は、保存先プール main と、フォルダのライブラリ anime を持つ GraphQL のサーバーを立てる。
 // anime には、番組の TS (show/ep1.ts)、再生できないファイル、隠しファイル、Blu-ray の .m2ts (disc.m2ts) を置く。
-func newLibraryFixture(t *testing.T) *fixture {
+func newLibraryFixture(t *testing.T) (*fixture, string) {
 	t.Helper()
 
 	poolDir, libraryDir, dataDir := t.TempDir(), t.TempDir(), t.TempDir()
@@ -79,14 +79,14 @@ func newLibraryFixture(t *testing.T) *fixture {
 	libraries := medialib.NewSet(map[string]string{poolMain: poolDir}, []string{poolMain}, map[string]string{animeLibrary: libraryDir})
 	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now()), slog.New(slog.DiscardHandler), true)
 
-	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer)})
+	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer)}), libraryDir
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
 func TestLibraries(t *testing.T) {
 	t.Parallel()
 
-	f := newLibraryFixture(t)
+	f, _ := newLibraryFixture(t)
 	viewer := f.as(t, "viewer", domain.RoleViewer)
 	var libraries struct {
 		Libraries []struct {
@@ -157,7 +157,7 @@ func nonNil(codes []string) []string {
 func TestLibraryFile(t *testing.T) {
 	t.Parallel()
 
-	f := newLibraryFixture(t)
+	f, libraryDir := newLibraryFixture(t)
 	variables := map[string]any{varLibrary: animeLibrary, varPath: episodePath}
 	var file libraryFileResult
 	require.Eventually(t, func() bool {
@@ -166,7 +166,10 @@ func TestLibraryFile(t *testing.T) {
 		return file.LibraryFile.Index.Complete
 	}, 10*time.Second, 20*time.Millisecond)
 	encoded := filelib.Ref{Library: animeLibrary, Path: episodePath}.Encode()
-	assert.Equal(t, graph.GlobalID("LibraryFile", encoded), file.LibraryFile.ID)
+	info, err := os.Stat(filepath.Join(libraryDir, filepath.FromSlash(episodePath)))
+	require.NoError(t, err)
+	fileID := filelib.FileID(filelib.Ref{Library: animeLibrary, Path: episodePath}, info.Size(), info.ModTime())
+	assert.Equal(t, graph.GlobalID("LibraryFile", fileID+"."+encoded), file.LibraryFile.ID)
 	assert.Equal(t, "ep1.ts", file.LibraryFile.Name)
 	assert.Equal(t, "HD", file.LibraryFile.VideoFormat)
 	assert.Equal(t, "/internal/streams/library/"+encoded, file.LibraryFile.StreamURL)
@@ -183,6 +186,18 @@ func TestLibraryFile(t *testing.T) {
 	require.Empty(t, f.query(t, saveLibraryPosition, map[string]any{"id": file.LibraryFile.ID, varPositionMs: 4500}, &saved))
 	require.NotNil(t, saved.SaveLibraryWatchPosition.WatchPositionMs)
 	assert.Equal(t, int64(4500), *saved.SaveLibraryWatchPosition.WatchPositionMs)
+	// 見ている間にファイルを書き換えたら、前のファイルの ID での保存は、書き換えた後のファイルの位置にしない。
+	later := info.ModTime().Add(time.Minute)
+	require.NoError(t, os.Chtimes(filepath.Join(libraryDir, filepath.FromSlash(episodePath)), later, later))
+	var stale struct {
+		SaveLibraryWatchPosition struct {
+			ID              string `json:"id"`
+			WatchPositionMs *int64 `json:"watchPositionMs"`
+		} `json:"saveLibraryWatchPosition"`
+	}
+	require.Empty(t, f.query(t, saveLibraryPosition, map[string]any{"id": file.LibraryFile.ID, varPositionMs: 9000}, &stale))
+	assert.NotEqual(t, file.LibraryFile.ID, stale.SaveLibraryWatchPosition.ID)
+	assert.Nil(t, stale.SaveLibraryWatchPosition.WatchPositionMs)
 	// ほかのユーザーには、その再生位置を返さない。
 	var other libraryFileResult
 	require.Empty(t, f.as(t, "other", domain.RoleMember).query(t, libraryFileQuery, variables, &other))

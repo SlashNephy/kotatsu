@@ -1071,7 +1071,7 @@ type LibraryEntry struct {
 
 // ライブラリの、再生できるファイル。
 type LibraryFile struct {
-	// ライブラリの名前とパスから作った ID。配信の URL にも使う。
+	// ライブラリの名前、パス、大きさ、更新日時から作った ID。ファイルを書き換えると変わる。
 	ID      string   `json:"id"`
 	Library *Library `json:"library"`
 	// ライブラリの中の / 区切りの相対パス。

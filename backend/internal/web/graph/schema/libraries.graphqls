@@ -58,7 +58,7 @@ type LibraryFileIndex {
 
 "ライブラリの、再生できるファイル。"
 type LibraryFile {
-  "ライブラリの名前とパスから作った ID。配信の URL にも使う。"
+  "ライブラリの名前、パス、大きさ、更新日時から作った ID。ファイルを書き換えると変わる。"
   id: ID!
   library: Library!
   "ライブラリの中の / 区切りの相対パス。"
@@ -96,6 +96,9 @@ extend type Query {
 }
 
 extend type Mutation {
-  "ログイン中のユーザーの、ライブラリのファイル id (LibraryFile.id) の再生位置 (ミリ秒) を保存する。誰でも使える。"
+  """
+  ログイン中のユーザーの、ライブラリのファイル id (LibraryFile.id) の再生位置 (ミリ秒) を保存する。誰でも使える。
+  id を引いた後にファイルを書き換えていたら、前のファイルの位置なので保存せず、今のファイルを返す。
+  """
   saveLibraryWatchPosition(id: ID!, positionMs: Int64!): LibraryFile!
 }

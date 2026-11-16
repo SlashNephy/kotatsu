@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -19,6 +20,9 @@ import (
 const (
 	// libraryFileType は、ライブラリのファイルのグローバル ID の型名。
 	libraryFileType = "LibraryFile"
+	// libraryFileIDSeparator は、ライブラリのファイルのグローバル ID で、ファイルの ID (filelib.FileID) と、ライブラリの名前とパスを
+	// 符号化したもの (filelib.Ref.Encode) を区切る文字。どちらにも現れない。
+	libraryFileIDSeparator = "."
 	// libraryStreamPrefix は、ライブラリのファイルの配信のパスの前置き。後ろに filelib.Ref.Encode を付ける。
 	libraryStreamPrefix = "/internal/streams/library/"
 )
@@ -145,7 +149,7 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 	encoded := ref.Encode()
 
 	return &model.LibraryFile{
-		ID: GlobalID(libraryFileType, encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
+		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
 	}, nil
@@ -183,10 +187,14 @@ func (r *Resolver) saveLibraryWatchPosition(ctx context.Context, globalID string
 	if !principal.Role.Can(domain.PermissionWatch) {
 		return nil, NewError(CodeForbidden, "watching is not allowed")
 	}
-	typeName, encoded, err := ParseGlobalID(globalID)
+	if positionMs < 0 {
+		return nil, NewError(CodeBadUserInput, "the position must not be negative")
+	}
+	typeName, raw, err := ParseGlobalID(globalID)
 	if err != nil || typeName != libraryFileType {
 		return nil, NewError(CodeBadUserInput, "invalid library file ID")
 	}
+	fileID, encoded, _ := strings.Cut(raw, libraryFileIDSeparator)
 	ref, ok := filelib.DecodeRef(encoded)
 	if !ok {
 		return nil, NewError(CodeBadUserInput, "invalid library file ID")
@@ -195,8 +203,12 @@ func (r *Resolver) saveLibraryWatchPosition(ctx context.Context, globalID string
 	if err != nil {
 		return nil, libraryReadError(err)
 	}
-	if err := r.library.SaveFileProgress(ctx, r.db, principal.UserID, file.ID(), time.Duration(positionMs)*time.Millisecond); err != nil {
-		return nil, libraryError(err)
+	// 見ている間にファイルを書き換えたら、前のファイルの再生位置を、書き換えた後のファイルのものとして残さない。
+	if file.ID() == fileID {
+		err := r.library.SaveFileProgress(ctx, r.db, principal.UserID, file.ID(), time.Duration(positionMs)*time.Millisecond)
+		if err != nil {
+			return nil, libraryError(err)
+		}
 	}
 
 	return r.openLibraryFile(ctx, ref)
