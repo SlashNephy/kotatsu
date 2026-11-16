@@ -33,7 +33,8 @@ import type { LiveCatchUp } from './liveCatchUp';
 import type { LiveBufferStatus } from './liveBuffer';
 import type { VideoLag } from './useVideoLag';
 import type { VideoLagStatus } from './videoLag';
-import type { NetworkStatus } from './networkQuality';
+import { audioStep, type NetworkStatus } from './networkQuality';
+import { original } from './route';
 import type { NetworkQuality } from './useNetworkQuality';
 import classes from './StreamInfo.module.css';
 
@@ -426,7 +427,7 @@ export function StreamInfo({
                       ? t('player.streamInfo.networkNone')
                       : net.signals
                           .map((signal) => t(`player.streamInfo.networkSignals.${signal}`))
-                          .join('、'),
+                          .join(t('player.streamInfo.networkSignalSeparator')),
                 })}
                 {net.probe !== null && (
                   <>
@@ -441,13 +442,18 @@ export function StreamInfo({
                   <>
                     <br />
                     {t('player.streamInfo.networkLastStep', {
-                      name: net.lastStep.to,
+                      name:
+                        net.lastStep.to === original
+                          ? t('player.originalShort')
+                          : net.lastStep.to === audioStep
+                            ? t('player.audioOnly')
+                            : net.lastStep.to,
                       signals:
                         net.lastStep.signals.length === 0
                           ? t('player.streamInfo.networkNone')
                           : net.lastStep.signals
                               .map((signal) => t(`player.streamInfo.networkSignals.${signal}`))
-                              .join('、'),
+                              .join(t('player.streamInfo.networkSignalSeparator')),
                       ago: Math.round(net.lastStep.ageMs / 1_000),
                     })}
                   </>

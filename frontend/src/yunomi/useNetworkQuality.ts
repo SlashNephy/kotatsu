@@ -96,10 +96,16 @@ export function useNetworkQuality(
   const stepped = useEffectEvent((event: NetworkStepEvent) => options.onStep(event));
   const shortManual = useEffectEvent(() => options.onShortManual());
 
-  // 経路の種類 (ライブと追っかけ) が変わったら、届いた量を数え直す。
+  // started は、今の video で (段が変わったら、その段で) 再生が始まったか。始まるまでは判定しない。
+  // 読み込みに時間がかかっても、始まるまでの詰まりを「足りない」と取り違えないよう、切り替え直後の無視時間は始まってから数える。
+  // 段の切り替えは video を作り直さないこと (kyusu の段どうし) も、作り直すこと (変換と kyusu の間) もあるので、video の外で持つ。
+  const started = useRef(false);
+
+  // 経路の種類 (ライブと追っかけ) や段が変わったら、届いた量を数え直し、新しい段が始まるのを待つ。
   useEffect(() => {
     meter.reset();
     lastReading.current = null;
+    started.current = false;
   }, [meter, options.mode, playback.current]);
 
   useEffect(() => {
@@ -108,16 +114,14 @@ export function useNetworkQuality(
     }
     let waiting = false;
     let lastFrameAt = performance.now();
-    // awaiting は、段が変わって、最初のコマ (音声だけなら再生の始まり) を待っている段の名前。
-    let awaiting: string | null = null;
-    let seenCurrent = read().current;
-    // started は、この video で (段が変わったら、その段で) 再生が始まったか。始まるまでは判定しない。
-    // 読み込みに時間がかかっても、始まるまでの詰まりを「足りない」と取り違えないよう、切り替え直後の無視時間は始まってから数える。
-    let started = false;
+    started.current = false;
+    // start は、最初のコマが映るか再生が始まったら呼ぶ。上げた段なら、映り出したことを知らせる。
     const start = (now: number) => {
-      if (!started) {
-        started = true;
+      lastFrameAt = now;
+      if (!started.current) {
+        started.current = true;
         controller.restart(now);
+        controller.shown(now);
       }
     };
     let stopped = false;
@@ -131,10 +135,10 @@ export function useNetworkQuality(
     const onPlaying = () => {
       waiting = false;
       start(performance.now());
-      if (awaiting === audioStep) {
-        awaiting = null;
-        controller.shown(performance.now());
-      }
+    };
+    // 止めていた間や隠れていた間は、コマが来ないのが当たり前なので、動き出したら数え直す。
+    const onResume = () => {
+      lastFrameAt = performance.now();
     };
     const onSeeking = () => {
       waiting = false;
@@ -143,6 +147,8 @@ export function useNetworkQuality(
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('playing', onPlaying);
     video.addEventListener('seeking', onSeeking);
+    video.addEventListener('play', onResume);
+    document.addEventListener('visibilitychange', onResume);
 
     let frameRequest: number | null = null;
     const frames = typeof video.requestVideoFrameCallback === 'function';
@@ -150,13 +156,7 @@ export function useNetworkQuality(
       if (stopped) {
         return;
       }
-      const now = performance.now();
-      lastFrameAt = now;
-      start(now);
-      if (awaiting !== null && awaiting !== audioStep) {
-        awaiting = null;
-        controller.shown(now);
-      }
+      start(performance.now());
       frameRequest = video.requestVideoFrameCallback(onFrame);
     };
     if (frames) {
@@ -184,12 +184,6 @@ export function useNetworkQuality(
       if (state.current === null) {
         return;
       }
-      if (state.current !== seenCurrent) {
-        seenCurrent = state.current;
-        awaiting = state.current;
-        lastFrameAt = now;
-        started = false;
-      }
       const ahead = aheadOf(video);
       const active =
         !video.paused &&
@@ -198,6 +192,9 @@ export function useNetworkQuality(
         (document.visibilityState === 'visible' ||
           state.pictureInPicture ||
           document.pictureInPictureElement === video);
+      if (!active) {
+        lastFrameAt = now;
+      }
       if (state.convert && state.mode === 'rate' && ahead >= selfLimitAhead) {
         meter.limit(now);
       }
@@ -215,7 +212,7 @@ export function useNetworkQuality(
         now,
         {
           active,
-          started,
+          started: started.current,
           waiting: waiting && !excused(),
           lowReadyState: video.readyState < haveFutureData,
           // 音声だけの段と、コマごとのコールバックが無い端末では、コマの途絶を測らない。
@@ -265,6 +262,8 @@ export function useNetworkQuality(
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('seeking', onSeeking);
+      video.removeEventListener('play', onResume);
+      document.removeEventListener('visibilitychange', onResume);
     };
   }, [video, controller, meter]);
 

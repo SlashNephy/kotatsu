@@ -90,6 +90,20 @@ export function usePlaybackRoute(
     name: rung.name,
     bitrate: rung.bitrate,
   }));
+  // 映像を変換しない画質 (BS4K) は段の表に載らないので、自動で選んだ経路がそれなら、表の一番上に置く。
+  const basePreset =
+    base.kind === 'kyusu'
+      ? transcoding.presets.find((candidate) => candidate.name === base.preset)
+      : undefined;
+  if (!manual && cap === null && basePreset?.passthrough === true) {
+    networkLadder.unshift({
+      name: basePreset.name,
+      bitrate:
+        basePreset.videoBitrate === undefined
+          ? null
+          : basePreset.videoBitrate * 1_000 + audioOnlyBitrate,
+    });
+  }
   if (audioAvailable && !manual) {
     networkLadder.push({ name: audioStep, bitrate: audioOnlyBitrate });
   }
@@ -129,8 +143,8 @@ export function usePlaybackRoute(
       if (height === null) {
         return;
       }
-      // 動かしてよい段の一番上まで上げたら、上限を外す。
-      const next = allowed[0] !== undefined && height >= allowed[0].height ? null : height;
+      // 動かしてよい段の一番上 (自動で選ぶ経路か、デコードの上限) まで上げたら、上限を外す。
+      const next = ceiling !== null && height >= ceiling ? null : height;
       saveNetworkCap(next);
       setNetworkCap(next);
     },

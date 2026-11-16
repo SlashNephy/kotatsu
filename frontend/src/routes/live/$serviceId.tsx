@@ -478,15 +478,28 @@ function Live({
   }
   // 回線が足りなければ段を下げ、余裕が戻れば上げる (#1513)。ライブは実時間でしか届かないので試しのデータで、
   // バッファの再生は先に読むので受け取りの速さで、余裕を確かめる。
-  const adaptive = useAdaptiveQuality(video, playback, {
-    stepDown: !timeshift.behind,
-    network: {
-      mode: timeshift.behind ? 'rate' : 'probe',
-      convert: route.kind === 'convert',
-      topBitrate: null,
+  const adaptive = useAdaptiveQuality(
+    video,
+    {
+      ...playback,
+      // バッファを再生している間に段を替えるときは、画質のメニューと同じく、今の位置から読み直す。
+      setNetworkStep: (name) => {
+        if (timeshift.behind) {
+          restartBehind();
+        }
+        playback.setNetworkStep(name);
+      },
     },
-    pictureInPicture: pip.container !== null,
-  });
+    {
+      stepDown: !timeshift.behind,
+      network: {
+        mode: timeshift.behind ? 'rate' : 'probe',
+        convert: route.kind === 'convert',
+        topBitrate: null,
+      },
+      pictureInPicture: pip.container !== null,
+    },
+  );
   const liveCatchUp = useLiveCatchUp(
     video,
     lowLatency && route.kind === 'convert' && !timeshift.behind,

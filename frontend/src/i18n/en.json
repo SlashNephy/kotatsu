@@ -1405,6 +1405,7 @@
       "networkProbe": "Probe {{rate}} ({{ago}} s ago)",
       "networkNextProbe": "Next probe in {{seconds}} s",
       "networkLastStep": "Last moved to {{name}} (signs: {{signals}}, {{ago}} s ago)",
+      "networkSignalSeparator": ", ",
       "networkNone": "none",
       "networkUnknownRate": "unknown",
       "networkSignals": {

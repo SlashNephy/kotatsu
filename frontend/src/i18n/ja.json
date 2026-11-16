@@ -1341,6 +1341,7 @@
       "networkProbe": "試しのデータ {{rate}}（{{ago}} 秒前）",
       "networkNextProbe": "次の試しまで {{seconds}} 秒",
       "networkLastStep": "最後に {{name}} へ動かした（兆し: {{signals}}、{{ago}} 秒前）",
+      "networkSignalSeparator": "、",
       "networkNone": "なし",
       "networkUnknownRate": "不明",
       "networkSignals": {

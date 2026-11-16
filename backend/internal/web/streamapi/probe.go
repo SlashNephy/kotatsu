@@ -52,15 +52,15 @@ func NewProbeHandler(clk clock.Clock) *ProbeHandler {
 }
 
 func (h *ProbeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	size, err := strconv.Atoi(r.URL.Query().Get("bytes"))
-	if err != nil || size < ProbeMinBytes || size > ProbeMaxBytes {
-		http.Error(w, "bytes must be an integer between "+strconv.Itoa(ProbeMinBytes)+" and "+strconv.Itoa(ProbeMaxBytes), http.StatusBadRequest)
-
-		return
-	}
 	principal := auth.PrincipalFrom(r.Context())
 	if principal == nil {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+
+		return
+	}
+	size, err := strconv.Atoi(r.URL.Query().Get("bytes"))
+	if err != nil || size < ProbeMinBytes || size > ProbeMaxBytes {
+		http.Error(w, "bytes must be an integer between "+strconv.Itoa(ProbeMinBytes)+" and "+strconv.Itoa(ProbeMaxBytes), http.StatusBadRequest)
 
 		return
 	}

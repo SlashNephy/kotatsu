@@ -408,6 +408,7 @@ function Player({
     // バッファは先に読むので、受け取りの速さで余裕を確かめて上げる。
     {
       stepDown: onAir,
+      pictureInPicture: pip.container !== null,
       network: { mode: 'rate', convert: route.kind === 'convert', topBitrate: null },
     },
   );
