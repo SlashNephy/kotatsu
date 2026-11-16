@@ -190,6 +190,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.finalize)
 	river.AddWorker(workers, media.cmDetect)
 	river.AddWorker(workers, media.captions)
+	river.AddWorker(workers, media.captionModels)
 	river.AddWorker(workers, media.transcode)
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
@@ -822,6 +823,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Pools:             deps.Config.Storage.Pools,
 		DataDir:           deps.Config.Storage.DataDir,
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
+		Captions:          &deps.Config.Captions,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
 		JobAdmin:          jobAdminOf(deps),

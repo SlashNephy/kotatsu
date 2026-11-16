@@ -169,6 +169,7 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 		newFinalizeWorker,
 		newCMDetectWorker,
 		newCaptionsWorker,
+		newCaptionModelWorker,
 		newTranscodeWorker,
 		newTvtplayWorker,
 		newChaptersWorker,

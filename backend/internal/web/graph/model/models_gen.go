@@ -14,6 +14,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
+	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -479,6 +480,52 @@ type CalendarFeed struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// 管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
+type CaptionModel struct {
+	// 一覧の中の ID。downloadCaptionModel に渡す。
+	ID   string            `json:"id"`
+	Kind captionmodel.Kind `json:"kind"`
+	// 画面に出す名前。
+	Name string `json:"name"`
+	// ファイルの大きさ (バイト)。
+	Size float64 `json:"size"`
+	// ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。
+	Sha256 string `json:"sha256"`
+	// モデルのライセンス (SPDX の識別子)。
+	License string `json:"license"`
+	// 入手先の URL。
+	URL string `json:"url"`
+	// その種類で勧めるモデルかどうか。
+	Recommended bool `json:"recommended"`
+}
+
+// 最後に頼んだダウンロード。終えていないか、失敗したものだけを返す。
+type CaptionModelDownload struct {
+	// ダウンロードしているか、失敗したモデル。一覧から消えたモデルなら null。
+	Model *CaptionModel `json:"model,omitempty"`
+	// 動いているかどうか。false なら、待っているか、失敗した。
+	Running bool `json:"running"`
+	// 失敗したかどうか。
+	Failed bool `json:"failed"`
+	// 動いているときの進み具合。今の試行で書いたものがなければ null。
+	Progress *JobProgress `json:"progress,omitempty"`
+}
+
+// 種類ごとの、字幕の自動生成のモデルの置き場所 (設計書 6.1、#1682)。
+type CaptionModelSlot struct {
+	Kind  captionmodel.Kind  `json:"kind"`
+	State captionmodel.State `json:"state"`
+	// 既定の場所に置いてあるモデル。なければ null。
+	Installed *InstalledCaptionModel `json:"installed,omitempty"`
+	// 終えていないか、失敗した最後のダウンロード。なければ null。
+	Download *CaptionModelDownload `json:"download,omitempty"`
+	// 設定 (captions.whisper_model か captions.vad_model) でモデルの場所を書いていて、既定の場所のモデルを使わないかどうか。
+	// tenban の設定で決める。設定は、nekonote と同じにしておく。
+	Overridden bool `json:"overridden"`
+	// この種類で選べるモデル。勧めるものを先に並べる。
+	Models []*CaptionModel `json:"models"`
+}
+
 // 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 type CaptionSettings struct {
 	// ライブ視聴で、文字スーパー (速報など) を出すかどうか。
@@ -779,6 +826,16 @@ type InspectedStream struct {
 	Drops      int64 `json:"drops"`
 	Errors     int64 `json:"errors"`
 	Scrambled  int64 `json:"scrambled"`
+}
+
+// データディレクトリの既定の場所に置いてあるモデル。
+type InstalledCaptionModel struct {
+	// 画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。
+	Model *CaptionModel `json:"model,omitempty"`
+	// ファイルの大きさ (バイト)。
+	Size float64 `json:"size"`
+	// 画面から置いた日時。手で置いたファイルなら null。
+	InstalledAt *time.Time `json:"installedAt,omitempty"`
 }
 
 // 各ロールのインスタンス (設計書 1.4)。

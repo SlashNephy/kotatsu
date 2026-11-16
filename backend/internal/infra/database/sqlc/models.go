@@ -248,6 +248,14 @@ type CalendarFeed struct {
 	LastUsedAt *time.Time
 }
 
+type CaptionModel struct {
+	Kind        string
+	ModelID     string
+	Size        int64
+	SHA256      string
+	InstalledAt time.Time
+}
+
 type Capture struct {
 	ID                    uuid.UUID
 	UserID                uuid.UUID

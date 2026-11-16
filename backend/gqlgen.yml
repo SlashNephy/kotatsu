@@ -90,6 +90,24 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateFailed
       NOT_CONFIGURED:
         value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateNotConfigured
+  CaptionModelKind:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.Kind
+    enum_values:
+      WHISPER:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.KindWhisper
+      VAD:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.KindVAD
+  CaptionModelState:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.State
+    enum_values:
+      NOT_PLACED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StateNotPlaced
+      DOWNLOADING:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StateDownloading
+      PLACED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StatePlaced
+      FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/captionmodel.StateFailed
   SkipReason:
     model: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReason
     enum_values:
@@ -216,6 +234,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeWebhook
       DATA_BROADCAST:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDataBroadcast
+      CAPTION_MODEL_DOWNLOAD:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeCaptionModelDownload
   NetworkActivityInitiator:
     model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Initiator
     enum_values:

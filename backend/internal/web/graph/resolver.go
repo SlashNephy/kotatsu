@@ -10,6 +10,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
@@ -101,4 +102,8 @@ type Resolver struct {
 	drain   Drain
 	// logs は、直近のログを集める (#1521)。nil なら、ログの画面を使えない。
 	logs *logreport.Service
+	// dataDir は、データディレクトリ。字幕の自動生成のモデルを置いたかを確かめ、消すのに使う (#1682)。空ならマウントしていない。
+	dataDir string
+	// captions は、字幕の自動生成の設定 (#1682)。nil なら、モデルの場所を書いていないとみなす。
+	captions *config.Captions
 }

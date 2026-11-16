@@ -37,6 +37,7 @@ import (
 // WebPush = WEB_PUSH
 // Webhook = WEBHOOK
 // DataBroadcast = DATA_BROADCAST
+// CaptionModelDownload = CAPTION_MODEL_DOWNLOAD
 // )
 type Purpose string
 
@@ -55,7 +56,7 @@ func initiatorOf(p Purpose) Initiator {
 		PurposeUpdateCheck, PurposeTelemetryTraces, PurposeTelemetryMetrics, PurposeWebPush, PurposeWebhook:
 		return InitiatorScheduled
 	case PurposeJikkyoChannels, PurposeJikkyoComments, PurposeJikkyoKakolog, PurposeNicologComments, PurposeAnimeLink, PurposeAnimeImage,
-		PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast:
+		PurposeUserAvatar, PurposeOIDC, PurposeHIBP, PurposeMCPClientMetadata, PurposeDataBroadcast, PurposeCaptionModelDownload:
 		return InitiatorUser
 	default:
 		return InitiatorUser
@@ -108,6 +109,10 @@ func knownHosts(p Purpose) ([]string, bool) {
 		return []string{"api.github.com"}, false
 	case PurposeWebPush:
 		// 送り先は、購読したブラウザのベンダーのプッシュサービスで、視聴の内容は分からない。
+		return nil, true
+	case PurposeCaptionModelDownload:
+		// 接続先は、コードに固定した Hugging Face と、そこから転送される配信網 (地域で名前が変わる) に限り、ほかへの転送は断る (#1682)。
+		// どのモデルを置いたかのほかは分からない。
 		return nil, true
 	case PurposeAnimeImage, PurposeUserAvatar, PurposeOIDC, PurposeMCPClientMetadata, PurposeTelemetryTraces,
 		PurposeTelemetryMetrics, PurposeWebhook, PurposeDataBroadcast:

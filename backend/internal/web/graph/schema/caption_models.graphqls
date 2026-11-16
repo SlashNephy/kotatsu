@@ -1,0 +1,109 @@
+"""
+字幕の自動生成のモデルの種類 (設計書 6.1、#1682)。種類ごとに、データディレクトリに置き場所が 1 つある。
+"""
+enum CaptionModelKind {
+  "書き起こしのモデル。whisper-cli が読む。データディレクトリの whisper/ggml-model.bin に置く。"
+  WHISPER
+  "声のある区間を求めるモデル。whisper-vad-speech-segments が読む。任意。データディレクトリの whisper/ggml-silero-vad.bin に置く。"
+  VAD
+}
+
+"""
+管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
+"""
+type CaptionModel {
+  "一覧の中の ID。downloadCaptionModel に渡す。"
+  id: String!
+  kind: CaptionModelKind!
+  "画面に出す名前。"
+  name: String!
+  "ファイルの大きさ (バイト)。"
+  size: Float!
+  "ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。"
+  sha256: String!
+  "モデルのライセンス (SPDX の識別子)。"
+  license: String!
+  "入手先の URL。"
+  url: String!
+  "その種類で勧めるモデルかどうか。"
+  recommended: Boolean!
+}
+
+"""
+種類ごとのモデルの置き場所の状態 (設計書 6.1、#1682)。
+"""
+enum CaptionModelState {
+  "置いていない。"
+  NOT_PLACED
+  "ダウンロードを待っているか、ダウンロードしている。"
+  DOWNLOADING
+  "置いた。画面から置いたものも、手で置いたものも含む。"
+  PLACED
+  "最後のダウンロードが、試す回数を使い切ったか、照合に失敗した。前に置いたモデルがあれば残る。"
+  FAILED
+}
+
+"""
+データディレクトリの既定の場所に置いてあるモデル。
+"""
+type InstalledCaptionModel {
+  "画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。"
+  model: CaptionModel
+  "ファイルの大きさ (バイト)。"
+  size: Float!
+  "画面から置いた日時。手で置いたファイルなら null。"
+  installedAt: Time
+}
+
+"""
+最後に頼んだダウンロード。終えていないか、失敗したものだけを返す。
+"""
+type CaptionModelDownload {
+  "ダウンロードしているか、失敗したモデル。一覧から消えたモデルなら null。"
+  model: CaptionModel
+  "動いているかどうか。false なら、待っているか、失敗した。"
+  running: Boolean!
+  "失敗したかどうか。"
+  failed: Boolean!
+  "動いているときの進み具合。今の試行で書いたものがなければ null。"
+  progress: JobProgress
+}
+
+"""
+種類ごとの、字幕の自動生成のモデルの置き場所 (設計書 6.1、#1682)。
+"""
+type CaptionModelSlot {
+  kind: CaptionModelKind!
+  state: CaptionModelState!
+  "既定の場所に置いてあるモデル。なければ null。"
+  installed: InstalledCaptionModel
+  "終えていないか、失敗した最後のダウンロード。なければ null。"
+  download: CaptionModelDownload
+  """
+  設定 (captions.whisper_model か captions.vad_model) でモデルの場所を書いていて、既定の場所のモデルを使わないかどうか。
+  tenban の設定で決める。設定は、nekonote と同じにしておく。
+  """
+  overridden: Boolean!
+  "この種類で選べるモデル。勧めるものを先に並べる。"
+  models: [CaptionModel!]!
+}
+
+extend type Query {
+  "字幕の自動生成のモデルの置き場所を、種類ごとに返す (設計書 6.1、#1682)。管理者だけが使える。"
+  captionModels: [CaptionModelSlot!]!
+}
+
+extend type Mutation {
+  """
+  一覧のモデル id をダウンロードして、データディレクトリの既定の場所に置くジョブを入れる (設計書 6.1、#1682)。管理者だけが使える。
+  ダウンロードは nekonote が行い、置いてあるファイルは、照合し終えてから置き換える。同じ種類のダウンロードを待っているか動かしていれば CONFLICT にする。
+  """
+  downloadCaptionModel(id: String!): CaptionModelSlot!
+  "種類 kind の、終えていないダウンロードを取り消す (#1682)。管理者だけが使える。なければ NOT_FOUND にする。"
+  cancelCaptionModelDownload(kind: CaptionModelKind!): CaptionModelSlot!
+  """
+  データディレクトリの既定の場所から、種類 kind のモデルを消す (#1682)。管理者だけが使える。手で置いたファイルも消す。
+  ダウンロードしている間は CONFLICT に、置いていなければ NOT_FOUND にする。
+  """
+  deleteCaptionModel(kind: CaptionModelKind!): CaptionModelSlot!
+}
