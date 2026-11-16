@@ -57,6 +57,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networkactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -582,6 +583,17 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
+	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
+	if serveNabe(deps, roles) {
+		nabeHandler, err := newNabeHandler(deps, logger)
+		if err != nil {
+			_ = apiListener.Close()
+			_ = metricsListener.Close()
+
+			return err
+		}
+		mux.Handle(nabe.PathPrefix, nabeHandler)
+	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
 
@@ -639,15 +651,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		})
 	}
 	eg.Go(func() error {
-		names := make([]string, 0, len(roles))
-		for _, role := range roles {
-			// トランスコードできない kyusu は、登録簿に載せない。画面は、登録簿に kyusu がいるかで、
-			// サーバー側でのトランスコードを使えるかを判断する (設計書 7.1)。
-			if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
-				continue
-			}
-			names = append(names, role.Name)
-		}
+		names := registeredRoles(deps, roles, live)
 
 		return opts.RunRegistry(ctx, logger, deps, names, apiListener.Addr().String())
 	})
@@ -661,6 +665,25 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 	})
 
 	return eg.Wait()
+}
+
+// registeredRoles は、インスタンスの登録簿に載せるロールの名前を返す。
+func registeredRoles(deps *Deps, roles []*Role, live *kyusu.Live) []string {
+	names := make([]string, 0, len(roles))
+	for _, role := range roles {
+		// トランスコードできない kyusu は、登録簿に載せない。画面は、登録簿に kyusu がいるかで、
+		// サーバー側でのトランスコードを使えるかを判断する (設計書 7.1)。
+		if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
+			continue
+		}
+		// EDCB を使わない nabe は、配るものがないので、登録簿に載せない。
+		if role.Name == nabe.Role && !serveNabe(deps, roles) {
+			continue
+		}
+		names = append(names, role.Name)
+	}
+
+	return names
 }
 
 // newAPI は、tenban の API と SPA のハンドラーを返す。
@@ -766,7 +789,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	streamParts := newStreamParts(deps)
 	streams, drainer := streamParts.streams, streamParts.drainer
 	// 映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) に使うチューナーサーバー。
-	tuner, err := newTunerUses(deps)
+	tuner, err := newTunerUses(ctx, deps, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -1216,12 +1239,12 @@ type tunerUses struct {
 }
 
 // newTunerUses は、映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) と、ロゴに使うチューナーサーバーの口を返す。
-func newTunerUses(deps *Deps) (*tunerUses, error) {
+func newTunerUses(ctx context.Context, deps *Deps, logger *slog.Logger) (*tunerUses, error) {
 	uses := &tunerUses{opener: nil, logos: nil, rates: nil, channels: nil, logs: nil}
 	if !deps.Config.Tuner.UsesTunerServer() {
 		return uses, nil
 	}
-	client, err := newTunerClient(deps)
+	client, err := newTunerClient(ctx, deps, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -1294,8 +1317,8 @@ func handleEPGStationAPI(
 	router.Any(prefix+"*", protect(http.NotFoundHandler()), httpserver.Component("stream"))
 }
 
-// errSecretKeyRequired は、tenban、nekonote か kyusu を、アプリの秘密キーなしで起動しようとしたことを表す。
-var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, and kyusu; " +
+// errSecretKeyRequired は、tenban、nekonote、kyusu か、EDCB を使う nabe を、アプリの秘密キーなしで起動しようとしたことを表す。
+var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, kyusu, and nabe with EDCB; " +
 	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。
