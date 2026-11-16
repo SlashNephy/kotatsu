@@ -83,10 +83,8 @@ func (s *TunerServer) OpenChannelStream(ctx context.Context, channelType, channe
 // ライブ視聴、kyusu、タイムシフトが新しく NetworkTV を開くときは、EPG の取得のためにチューナーを空けておくかを先に確かめる (#1536)。
 // すでに開いている NetworkTV に加わるだけなら、チューナーを増やさないので確かめない。
 func (s *TunerServer) openShared(ctx context.Context, service ServiceKey, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
-	if viewing(opts) && !s.share.active(service) {
-		if err := s.checkEPGCapture(ctx); err != nil {
-			return nil, err
-		}
+	if viewing(opts) && !s.share.active(service) && s.keepsTunerForEPG(ctx) {
+		return nil, errEPGCapture
 	}
 
 	return s.share.open(ctx, service)

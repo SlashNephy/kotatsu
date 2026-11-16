@@ -138,19 +138,13 @@ func nearEPGCapture(now time.Time, times []EPGCaptureTime) bool {
 	return false
 }
 
-// checkEPGCapture は、ライブ視聴やタイムシフトに新しく NetworkTV を開く前に、EPG の取得のためにチューナーを空けておくかを確かめる。
-// 空けておくなら、チューナーが足りないことを表すエラーを返す。EDCB の状態を読めなければ、空けずに開く。
-// EPG を守ることより、視聴を止めないことを先にする。EDCB に届かなければ、どのみち NetworkTV も開けない。
-func (s *TunerServer) checkEPGCapture(ctx context.Context) error {
+// keepsTunerForEPG は、ライブ視聴やタイムシフトに新しく NetworkTV を開く前に、EPG の取得のためにチューナーを空けておくかを返す。
+// EDCB の状態を読めなければ、空けずに開く (false)。EPG を守ることより、視聴を止めないことを先にする。
+// EDCB に届かなければ、どのみち NetworkTV も開けない。
+func (s *TunerServer) keepsTunerForEPG(ctx context.Context) bool {
 	state, err := s.epgCaptureState(ctx)
-	if err != nil {
-		return nil //nolint:nilerr // 読めなければ、空けずに開く (上のとおり)。
-	}
-	if KeepsTunerForEPG(state) {
-		return errEPGCapture
-	}
 
-	return nil
+	return err == nil && KeepsTunerForEPG(state)
 }
 
 // epgCaptureState は、EPG の取得のためにチューナーを空けておくかを決めるのに使う、EDCB の今の状態を読む。

@@ -121,6 +121,16 @@ func TestAssignEDCB(t *testing.T) {
 			want: []*assign.Assignment{conflict(1, 0, 30)},
 		},
 		{
+			// EDCB では、NetworkTV のチューナーは EpgTimerSrv が選ぶので、録画が始まった予約も、空いている別のチューナーで
+			// 本編を削られずに録れるなら、そちらに移す。
+			name:         "a recording reservation moves to a free tuner instead of being cut",
+			reservations: []*assign.Reservation{recordingOn(program(1, "27", 0, 60), 0)},
+			tuners:       []*assign.Tuner{blocked(30, 90), grTuners(2)[1]},
+			want: []*assign.Assignment{
+				{ReservationID: reservationID(1), State: domain.AssignmentStateOK, Tuner: 1, PlannedStart: at(0).Add(-margin), PlannedEnd: at(60).Add(margin)},
+			},
+		},
+		{
 			// ふさぐ時間帯が予約と重ならなければ、今までどおりに置く。
 			name:         "a block outside the reservation does not matter",
 			reservations: []*assign.Reservation{program(1, "27", 0, 30)},

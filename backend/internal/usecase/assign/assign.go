@@ -266,7 +266,7 @@ func group(reservations []*Reservation) []*demand {
 // choose は、需要を置くチューナーを選ぶ。置けるチューナーがなければ false を返す。
 func choose(d *demand, tuners []*Tuner, byTuner map[int][]*placed) (int, bool) {
 	if d.recording {
-		return d.tuner, true
+		return keepRecording(d, tuners, byTuner), true
 	}
 
 	type candidate struct {
@@ -292,6 +292,43 @@ func choose(d *demand, tuners []*Tuner, byTuner map[int][]*placed) (int, bool) {
 	}
 
 	return best.tuner, true
+}
+
+// keepRecording は、録画が始まった需要を置くチューナーを返す。ふつうは、録画しているチューナーから動かさない。
+// ただし、Kotatsu の外の予約 (EDCB の予約) がそのチューナーをふさぎ、本編を削られるなら、本編を削られずに置ける別のチューナーへ移す (#1536)。
+// EDCB では、NetworkTV がどのチューナーを使うかは EpgTimerSrv が選ぶので、割り当てたチューナーの番号は本数を見込むためのものである。
+// ふさぐ時間帯は EDCB にしかないので、Mirakurun 互換のサーバーでは動かさない。
+func keepRecording(d *demand, tuners []*Tuner, byTuner map[int][]*placed) int {
+	current := slices.IndexFunc(tuners, func(t *Tuner) bool { return t.Index == d.tuner })
+	if current < 0 || !blocks(tuners[current], d) {
+		return d.tuner
+	}
+	if coreCut, _, ok := lossOn(d, byTuner[d.tuner]); ok && coreCut == 0 {
+		return d.tuner
+	}
+	for _, tuner := range tuners {
+		if tuner.Index == d.tuner || !slices.Contains(tuner.Types, d.channel.channelType) {
+			continue
+		}
+		if coreCut, _, ok := lossOn(d, byTuner[tuner.Index]); ok && coreCut == 0 {
+			return tuner.Index
+		}
+	}
+
+	return d.tuner
+}
+
+// blocks は、Kotatsu の外の予約がチューナーをふさぐ時間帯が、需要の予約の区間 (マージン込み) と重なるかを返す。
+func blocks(tuner *Tuner, d *demand) bool {
+	for _, b := range tuner.Blocks {
+		for _, r := range d.reservations {
+			if overlap(r.fullStart(), r.fullEnd(), b.Start, b.End) > 0 {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // lossOn は、需要をチューナーに置いたときに削られる本編の時間とマージンの時間を返す。
