@@ -30,7 +30,8 @@ import type { RuleEditorUpdateMutation } from './__generated__/RuleEditorUpdateM
 import { hasConditions, hasRuleTargets } from '../conditions/form';
 import { Authorship } from '../futon';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
-import { cmDetectorOf, toInput, type RuleForm } from './form';
+import { cmDetectorOf, toInput, toSaveInput, type RuleForm } from './form';
+import { RuleGroupSelect } from './RuleGroupSelect';
 import { RulePreview } from './RulePreview';
 import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
@@ -57,6 +58,8 @@ type Props = {
   // pools は、選べる保存先プールの ID。defaultPoolId は、全体の既定値の保存先プール (null なら自動で選ぶ)。
   pools: readonly string[];
   defaultPoolId: string | null;
+  // groups は、ルールを入れられるグループ (#1493)。一覧で並べる順に渡す。
+  groups: readonly { readonly id: string; readonly name: string }[];
   // readOnly は、視聴者のように、ルールを変えられないかどうか。
   readOnly: boolean;
   // authorship は、ルールを誰がいつ作り、変えたか。新しいルールなら undefined。
@@ -137,12 +140,15 @@ export const ruleEditorRuleFragment = graphql`
     followEventRelay
     bundleSameEpisodes
     skipEarlierEpisodes
+    group {
+      id
+    }
   }
 `;
 
 // sameRule は、2 つの入力が、保存すると同じルールになるかどうかを返す。
 function sameRule(a: RuleForm, b: RuleForm) {
-  return JSON.stringify(toInput(a)) === JSON.stringify(toInput(b));
+  return JSON.stringify(toSaveInput(a)) === JSON.stringify(toSaveInput(b));
 }
 
 // RuleEditor は、ルールを編集するフォームと、条件に一致する番組のプレビュー (設計書 4.3)。
@@ -153,6 +159,7 @@ export function RuleEditor({
   services,
   pools,
   defaultPoolId,
+  groups,
   readOnly,
   authorship,
 }: Props) {
@@ -217,7 +224,7 @@ export function RuleEditor({
       errors != null && errors.length > 0;
     if (ruleId === undefined) {
       create({
-        variables: { input },
+        variables: { input: toSaveInput(form) },
         onCompleted: (response, errors) => {
           if (failed(errors)) {
             setResult('error');
@@ -230,7 +237,7 @@ export function RuleEditor({
       });
     } else {
       update({
-        variables: { id: ruleId, input },
+        variables: { id: ruleId, input: toSaveInput(form) },
         onCompleted: (_response, errors) => setResult(failed(errors) ? 'error' : 'saved'),
         onError,
       });
@@ -267,6 +274,13 @@ export function RuleEditor({
                     label={t('rules.enabled')}
                     checked={form.enabled}
                     onChange={(e) => set({ enabled: e.currentTarget.checked })}
+                  />
+                  {/* 一覧で、どのグループの見出しの下に並べるか (#1493)。照合には関わらない。 */}
+                  <RuleGroupSelect
+                    groups={groups}
+                    value={form.groupId}
+                    onChange={(groupId) => set({ groupId })}
+                    disabled={readOnly}
                   />
                   {/* 番組の開始時刻が、この期間に入る番組だけを予約する (設計書 4.2)。空なら区切らない。 */}
                   <Group grow align="flex-start">

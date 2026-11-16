@@ -99,6 +99,10 @@ function Rule({ ruleId }: { ruleId: string }) {
           displayName
         }
         storagePoolNames
+        ruleGroups {
+          id
+          name
+        }
         systemSettings {
           recordingDefaults {
             poolId
@@ -156,6 +160,7 @@ function Rule({ ruleId }: { ruleId: string }) {
       services={data.services}
       pools={data.storagePoolNames}
       defaultPoolId={data.systemSettings.recordingDefaults.poolId ?? null}
+      groups={data.ruleGroups}
       readOnly={data.viewer.role === 'VIEWER'}
       authorship={
         rule != null

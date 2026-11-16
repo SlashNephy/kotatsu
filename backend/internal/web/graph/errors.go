@@ -113,10 +113,10 @@ func recoverFunc(logger *slog.Logger) graphql.RecoverFunc {
 func domainError(err error, target **Error) bool {
 	var code Code
 	switch {
-	case errors.Is(err, rule.ErrNotFound), errors.Is(err, domain.ErrReservationNotFound), errors.Is(err, reserve.ErrProgramNotFound),
+	case errors.Is(err, rule.ErrNotFound), errors.Is(err, rule.ErrGroupNotFound), errors.Is(err, domain.ErrReservationNotFound), errors.Is(err, reserve.ErrProgramNotFound),
 		errors.Is(err, auth.ErrUserNotFound), errors.Is(err, auth.ErrSessionNotFound):
 		code = CodeNotFound
-	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, domain.ErrInvalidReservation),
+	case errors.Is(err, rule.ErrInvalidRule), errors.Is(err, rule.ErrInvalidGroup), errors.Is(err, domain.ErrInvalidReservation),
 		errors.Is(err, reserve.ErrInvalidSettings), errors.Is(err, match.ErrInvalidConditions),
 		errors.Is(err, auth.ErrInvalidUser), errors.Is(err, auth.ErrUsernameTaken), errors.Is(err, domain.ErrInvalidRole),
 		errors.Is(err, auth.ErrLastAdmin), errors.Is(err, auth.ErrCannotDisableSelf), errors.Is(err, auth.ErrCannotDeleteSelf):

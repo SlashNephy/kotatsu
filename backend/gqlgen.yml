@@ -332,6 +332,11 @@ models:
         resolver: true
   Rule:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Rule
+  RuleInput:
+    fields:
+      # 省いたこと (今のグループを残す) と null (グループから外す) を分ける (#1493)。
+      groupId:
+        omittable: true
   Recording:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Recording
     fields:

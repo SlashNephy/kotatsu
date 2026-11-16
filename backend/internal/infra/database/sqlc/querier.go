@@ -79,6 +79,7 @@ type Querier interface {
 	// /metrics に出す、録画の予定の終わりが来ていない予約の、割り当ての状態ごとの数。無効な予約は、割り当ての状態によらず無効として数える。
 	// 終わったかどうかは、割り当ての対象 (ListAssignableReservations) と同じく、予定の終わりで決める。
 	CountReservationsByState(ctx context.Context, now time.Time) (CountReservationsByStateRow, error)
+	CountRulesInGroup(ctx context.Context, groupID *uuid.UUID) (int64, error)
 	CountSyobocalTitles(ctx context.Context) (int32, error)
 	// /metrics に出す、状態ごとのチューナーの数。故障は、使えるかどうかより先に数える。
 	CountTunersByState(ctx context.Context) (CountTunersByStateRow, error)
@@ -165,6 +166,8 @@ type Querier interface {
 	DeleteReservation(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteReservationRule(ctx context.Context, arg DeleteReservationRuleParams) error
 	DeleteRule(ctx context.Context, id uuid.UUID) (int64, error)
+	// 中のルールは、外部キーの ON DELETE SET NULL で「その他」に戻る。
+	DeleteRuleGroup(ctx context.Context, id uuid.UUID) (int64, error)
 	// ユーザーの視聴予約のうち、(service_ids[i], event_ids[i]) の組にあり、視聴ルールが作ったものを消す。手で付けたものは消さない。
 	DeleteRuleWatchReservations(ctx context.Context, arg DeleteRuleWatchReservationsParams) (int64, error)
 	DeleteSetupTokens(ctx context.Context) error
@@ -368,6 +371,7 @@ type Querier interface {
 	// 録画に使う予約の情報。予定の時刻は、録画中も neko が計算し直すので、録画しながら読み直す。
 	GetReservationForRecording(ctx context.Context, id uuid.UUID) (GetReservationForRecordingRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (Rule, error)
+	GetRuleGroup(ctx context.Context, id uuid.UUID) (RuleGroup, error)
 	// サービスのロゴのうち、いちばん望ましい種類のものを返す (#1308)。HD の大きいロゴ (64×36) を先にする。
 	GetServiceLogo(ctx context.Context, serviceID int64) ([]byte, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (GetSessionByTokenHashRow, error)
@@ -490,6 +494,8 @@ type Querier interface {
 	InsertRelayedReservation(ctx context.Context, arg InsertRelayedReservationParams) (uuid.UUID, error)
 	InsertReservationRule(ctx context.Context, arg InsertReservationRuleParams) error
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
+	// 新しいグループは、一覧の最後 (今のグループの後) に並べる。
+	InsertRuleGroup(ctx context.Context, arg InsertRuleGroupParams) error
 	// ルール予約を、番組情報をコピーして作る。同じ番組の予約がすでにあれば何もせず、行を返さない。
 	InsertRuleReservation(ctx context.Context, arg InsertRuleReservationParams) (uuid.UUID, error)
 	// 視聴ルールに一致した番組 (service_ids[i], event_ids[i]) に、rule_ids[i] の視聴ルールが作ったものとして、ユーザーの視聴予約を付ける。
@@ -812,6 +818,8 @@ type Querier interface {
 	// 終わりが @now より後の予約。手動の予約も含む。回は、番組名と概要と、番組のシリーズの記述子の話数から読む。
 	// 同じ照合で消えるルール予約を照合の側で除くので、番組も返す (#1724)。
 	ListReservedEpisodes(ctx context.Context, now time.Time) ([]ListReservedEpisodesRow, error)
+	ListRuleGroups(ctx context.Context) ([]RuleGroup, error)
+	ListRuleGroupsByIDs(ctx context.Context, ids []uuid.UUID) ([]RuleGroup, error)
 	// 視聴ルールが作った視聴予約のうち、番組の放送が始まっていないもの。照合で、一致しなくなったものを消すのに使う。
 	ListRuleWatchReservations(ctx context.Context, now time.Time) ([]ListRuleWatchReservationsRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
@@ -935,6 +943,8 @@ type Querier interface {
 	LockRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	// 録画を終える前に、割り振りをロックして、今の世代番号を読む。ほかの mikan が取っていたら、録画を終えない。
 	LockRecordingAssignmentGeneration(ctx context.Context, id uuid.UUID) (int64, error)
+	// グループの並びを変えるときと足すときに、ほかの並べ替えと足す操作を待たせ、並び順の重なりと抜けを防ぐ。
+	LockRuleGroups(ctx context.Context) error
 	// 変える前の値を監査ログに残すため、サービスの行をロックして読む。
 	LockService(ctx context.Context, id int64) (LockServiceRow, error)
 	// 初回セットアップを、全インスタンスで 1 つずつ行わせる。トランザクションが終わるまでロックする。
@@ -1031,6 +1041,7 @@ type Querier interface {
 	ReleaseUnrecordableTimeshiftAssignment(ctx context.Context, arg ReleaseUnrecordableTimeshiftAssignmentParams) error
 	// 通知を受け取るユーザーの一覧から、消すユーザーを外す (#1382)。外部キーがないので、カスケードでは消えない。
 	RemoveUserFromNotificationAudiences(ctx context.Context, userID uuid.UUID) error
+	RenameRuleGroup(ctx context.Context, arg RenameRuleGroupParams) (int64, error)
 	RenameUserPasskey(ctx context.Context, arg RenameUserPasskeyParams) (int64, error)
 	// 同じ世代のリースを期限内に延長する。期限が切れていたり、他のインスタンスに取られていたりすれば、行を更新しない。
 	RenewLease(ctx context.Context, arg RenewLeaseParams) (int64, error)
@@ -1040,6 +1051,8 @@ type Querier interface {
 	// 割り振りのリースを延長する。世代番号が進んでいたら、ほかの mikan が取ったので、延長しない。引き継ぎ待ちの間も延長する。
 	// 期限が切れていても、世代番号が進んでいなければ誰も取っていないので、延長する。DB が止まっていた間に期限が切れても、録り続けるため (#1073)。
 	RenewTimeshiftAssignment(ctx context.Context, arg RenewTimeshiftAssignmentParams) (int64, error)
+	// グループを ids の順に並べ、position を 0 から振り直す。
+	ReorderRuleGroups(ctx context.Context, ids []uuid.UUID) error
 	ResetLoginThrottle(ctx context.Context, key string) error
 	// 理由 reasons の、録画の失敗の累計を 0 に、最後に失敗した日時を NULL に戻し、戻した日時を残す (#1035)。
 	// 監査ログに残すため、戻す前の累計と最後に失敗した日時を返す。
@@ -1129,6 +1142,8 @@ type Querier interface {
 	SetReservationEnabled(ctx context.Context, arg SetReservationEnabledParams) (int64, error)
 	SetReservationFollowEventRelay(ctx context.Context, arg SetReservationFollowEventRelayParams) error
 	SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) (int64, error)
+	// ルールのグループを変える (#1493)。照合には関わらないので、updated_at は変えない。変えた日での並べ替えを、まとめて移しただけで崩さないためである。
+	SetRuleGroup(ctx context.Context, arg SetRuleGroupParams) (int64, error)
 	// 作ったばかりのセッションの認証の日時を、IdP で認証した日時にする (#1013)。
 	SetSessionAuthenticatedAt(ctx context.Context, arg SetSessionAuthenticatedAtParams) error
 	SetTOTPLastUsedStep(ctx context.Context, arg SetTOTPLastUsedStepParams) error

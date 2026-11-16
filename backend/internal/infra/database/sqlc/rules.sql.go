@@ -12,6 +12,17 @@ import (
 	"uuid"
 )
 
+const countRulesInGroup = `-- name: CountRulesInGroup :one
+SELECT count(*) FROM rules WHERE group_id = $1
+`
+
+func (q *Queries) CountRulesInGroup(ctx context.Context, groupID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRulesInGroup, groupID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteRule = `-- name: DeleteRule :execrows
 DELETE FROM rules WHERE id = $1
 `
@@ -24,8 +35,21 @@ func (q *Queries) DeleteRule(ctx context.Context, id uuid.UUID) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const deleteRuleGroup = `-- name: DeleteRuleGroup :execrows
+DELETE FROM rule_groups WHERE id = $1
+`
+
+// 中のルールは、外部キーの ON DELETE SET NULL で「その他」に戻る。
+func (q *Queries) DeleteRuleGroup(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRuleGroup, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getRule = `-- name: GetRule :one
-SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, created_at, created_by, updated_at, updated_by FROM rules WHERE id = $1
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, group_id, created_at, created_by, updated_at, updated_by FROM rules WHERE id = $1
 `
 
 func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
@@ -45,6 +69,26 @@ func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
 		&i.FollowEventRelay,
 		&i.BundleSameEpisodes,
 		&i.SkipEarlierEpisodes,
+		&i.GroupID,
+		&i.CreatedAt,
+		&i.CreatedBy,
+		&i.UpdatedAt,
+		&i.UpdatedBy,
+	)
+	return i, err
+}
+
+const getRuleGroup = `-- name: GetRuleGroup :one
+SELECT id, name, position, created_at, created_by, updated_at, updated_by FROM rule_groups WHERE id = $1
+`
+
+func (q *Queries) GetRuleGroup(ctx context.Context, id uuid.UUID) (RuleGroup, error) {
+	row := q.db.QueryRow(ctx, getRuleGroup, id)
+	var i RuleGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Position,
 		&i.CreatedAt,
 		&i.CreatedBy,
 		&i.UpdatedAt,
@@ -56,12 +100,13 @@ func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (Rule, error) {
 const insertRule = `-- name: InsertRule :exec
 INSERT INTO rules (
   id, name, memo, enabled, conditions, settings, valid_from, valid_until,
-  avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes,
+  avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, group_id,
   created_at, created_by, updated_at, updated_by
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8,
-  $9, $10, $11, $12, $13, $14, $15, $14, $15
+  $9, $10, $11, $12, $13, $14,
+  $15, $16, $15, $16
 )
 `
 
@@ -79,6 +124,7 @@ type InsertRuleParams struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	GroupID             *uuid.UUID
 	Now                 time.Time
 	Actor               *uuid.UUID
 }
@@ -98,14 +144,102 @@ func (q *Queries) InsertRule(ctx context.Context, arg InsertRuleParams) error {
 		arg.FollowEventRelay,
 		arg.BundleSameEpisodes,
 		arg.SkipEarlierEpisodes,
+		arg.GroupID,
 		arg.Now,
 		arg.Actor,
 	)
 	return err
 }
 
+const insertRuleGroup = `-- name: InsertRuleGroup :exec
+INSERT INTO rule_groups (id, name, position, created_at, created_by, updated_at, updated_by)
+VALUES ($1, $2, (SELECT coalesce(max(position) + 1, 0) FROM rule_groups), $3, $4, $3, $4)
+`
+
+type InsertRuleGroupParams struct {
+	ID    uuid.UUID
+	Name  string
+	Now   time.Time
+	Actor *uuid.UUID
+}
+
+// 新しいグループは、一覧の最後 (今のグループの後) に並べる。
+func (q *Queries) InsertRuleGroup(ctx context.Context, arg InsertRuleGroupParams) error {
+	_, err := q.db.Exec(ctx, insertRuleGroup,
+		arg.ID,
+		arg.Name,
+		arg.Now,
+		arg.Actor,
+	)
+	return err
+}
+
+const listRuleGroups = `-- name: ListRuleGroups :many
+SELECT id, name, position, created_at, created_by, updated_at, updated_by FROM rule_groups ORDER BY position, created_at, id
+`
+
+func (q *Queries) ListRuleGroups(ctx context.Context) ([]RuleGroup, error) {
+	rows, err := q.db.Query(ctx, listRuleGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RuleGroup{}
+	for rows.Next() {
+		var i RuleGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Position,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuleGroupsByIDs = `-- name: ListRuleGroupsByIDs :many
+SELECT id, name, position, created_at, created_by, updated_at, updated_by FROM rule_groups WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListRuleGroupsByIDs(ctx context.Context, ids []uuid.UUID) ([]RuleGroup, error) {
+	rows, err := q.db.Query(ctx, listRuleGroupsByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RuleGroup{}
+	for rows.Next() {
+		var i RuleGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Position,
+			&i.CreatedAt,
+			&i.CreatedBy,
+			&i.UpdatedAt,
+			&i.UpdatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRules = `-- name: ListRules :many
-SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, created_at, created_by, updated_at, updated_by FROM rules ORDER BY created_at, id
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, group_id, created_at, created_by, updated_at, updated_by FROM rules ORDER BY created_at, id
 `
 
 func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
@@ -131,6 +265,7 @@ func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
 			&i.FollowEventRelay,
 			&i.BundleSameEpisodes,
 			&i.SkipEarlierEpisodes,
+			&i.GroupID,
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.UpdatedAt,
@@ -147,7 +282,7 @@ func (q *Queries) ListRules(ctx context.Context) ([]Rule, error) {
 }
 
 const listRulesByIDs = `-- name: ListRulesByIDs :many
-SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, created_at, created_by, updated_at, updated_by FROM rules WHERE id = ANY($1::uuid[])
+SELECT id, name, memo, enabled, conditions, settings, valid_from, valid_until, avoid_duplicates, duplicate_window_days, follow_event_relay, bundle_same_episodes, skip_earlier_episodes, group_id, created_at, created_by, updated_at, updated_by FROM rules WHERE id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error) {
@@ -173,6 +308,7 @@ func (q *Queries) ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, 
 			&i.FollowEventRelay,
 			&i.BundleSameEpisodes,
 			&i.SkipEarlierEpisodes,
+			&i.GroupID,
 			&i.CreatedAt,
 			&i.CreatedBy,
 			&i.UpdatedAt,
@@ -186,6 +322,52 @@ func (q *Queries) ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, 
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockRuleGroups = `-- name: LockRuleGroups :exec
+LOCK TABLE rule_groups IN SHARE ROW EXCLUSIVE MODE
+`
+
+// グループの並びを変えるときと足すときに、ほかの並べ替えと足す操作を待たせ、並び順の重なりと抜けを防ぐ。
+func (q *Queries) LockRuleGroups(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockRuleGroups)
+	return err
+}
+
+const renameRuleGroup = `-- name: RenameRuleGroup :execrows
+UPDATE rule_groups SET name = $1, updated_at = $2, updated_by = $3 WHERE id = $4
+`
+
+type RenameRuleGroupParams struct {
+	Name  string
+	Now   time.Time
+	Actor *uuid.UUID
+	ID    uuid.UUID
+}
+
+func (q *Queries) RenameRuleGroup(ctx context.Context, arg RenameRuleGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renameRuleGroup,
+		arg.Name,
+		arg.Now,
+		arg.Actor,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const reorderRuleGroups = `-- name: ReorderRuleGroups :exec
+UPDATE rule_groups AS g SET position = o.ord - 1
+FROM unnest($1::uuid[]) WITH ORDINALITY AS o (id, ord)
+WHERE g.id = o.id
+`
+
+// グループを ids の順に並べ、position を 0 から振り直す。
+func (q *Queries) ReorderRuleGroups(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, reorderRuleGroups, ids)
+	return err
 }
 
 const setRuleEnabled = `-- name: SetRuleEnabled :execrows
@@ -212,6 +394,24 @@ func (q *Queries) SetRuleEnabled(ctx context.Context, arg SetRuleEnabledParams) 
 	return result.RowsAffected(), nil
 }
 
+const setRuleGroup = `-- name: SetRuleGroup :execrows
+UPDATE rules SET group_id = $1 WHERE id = $2
+`
+
+type SetRuleGroupParams struct {
+	GroupID *uuid.UUID
+	ID      uuid.UUID
+}
+
+// ルールのグループを変える (#1493)。照合には関わらないので、updated_at は変えない。変えた日での並べ替えを、まとめて移しただけで崩さないためである。
+func (q *Queries) SetRuleGroup(ctx context.Context, arg SetRuleGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setRuleGroup, arg.GroupID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateRule = `-- name: UpdateRule :execrows
 UPDATE rules SET
   name = $1,
@@ -226,9 +426,11 @@ UPDATE rules SET
   follow_event_relay = $10,
   bundle_same_episodes = $11,
   skip_earlier_episodes = $12,
-  updated_at = $13,
-  updated_by = $14
-WHERE id = $15
+  -- keep_group なら、グループを変えずに残す (#1493)。API で group_id を省いた変更が、黙ってグループを外さないためである。
+  group_id = CASE WHEN $13::boolean THEN group_id ELSE $14::uuid END,
+  updated_at = $15,
+  updated_by = $16
+WHERE id = $17
 `
 
 type UpdateRuleParams struct {
@@ -244,6 +446,8 @@ type UpdateRuleParams struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	KeepGroup           bool
+	GroupID             *uuid.UUID
 	Now                 time.Time
 	Actor               *uuid.UUID
 	ID                  uuid.UUID
@@ -263,6 +467,8 @@ func (q *Queries) UpdateRule(ctx context.Context, arg UpdateRuleParams) (int64, 
 		arg.FollowEventRelay,
 		arg.BundleSameEpisodes,
 		arg.SkipEarlierEpisodes,
+		arg.KeepGroup,
+		arg.GroupID,
 		arg.Now,
 		arg.Actor,
 		arg.ID,

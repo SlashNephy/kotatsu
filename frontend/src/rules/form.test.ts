@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { emptyRuleForm, fromRule, toInput, type RuleData } from './form';
+import { emptyRuleForm, fromRule, toInput, toSaveInput, type RuleData } from './form';
 
 // imported は、EPGStation から取り込んだような、画面で編集しない項目まで埋まったルール。
 const imported: RuleData = {
@@ -103,5 +103,17 @@ describe('toInput', () => {
   test('重複を避けないときは、期間を送らない', () => {
     const form = { ...emptyRuleForm(), avoidDuplicates: false, duplicateWindowDays: 30 };
     expect(toInput(form).duplicateWindowDays).toBeNull();
+  });
+});
+
+describe('toSaveInput', () => {
+  test.each<[string, RuleData['group'], string | null]>([
+    ['グループに入ったルールは、そのグループのまま保存する', { id: 'RuleGroup:1' }, 'RuleGroup:1'],
+    ['グループのないルールは、null を送り、グループに入れない', null, null],
+  ])('%s (#1493)', (_, group, want) => {
+    const form = fromRule({ ...imported, group });
+    expect(toSaveInput(form).groupId).toBe(want);
+    // プレビューに送る入力には、グループを含めない。グループを変えても、プレビューを問い合わせ直さないためである。
+    expect(toInput(form)).not.toHaveProperty('groupId');
   });
 });

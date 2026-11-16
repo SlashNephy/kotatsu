@@ -110,6 +110,8 @@ func (r *queryResolver) Node(ctx context.Context, id string) (model.Node, error)
 		return r.reservation(ctx, id)
 	case ruleType:
 		return r.rule(ctx, id)
+	case ruleGroupType:
+		return r.ruleGroup(ctx, id)
 	case guideViewType, watchRuleType:
 		return r.ownNode(ctx, typeName, id)
 	default:

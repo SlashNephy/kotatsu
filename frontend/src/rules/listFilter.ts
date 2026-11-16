@@ -124,3 +124,49 @@ export function visibleRules<R extends ListedRule>(
   // Array.prototype.sort は安定なので、鍵が同じルールは渡された並びのまま残る。
   return filtered.sort((a, b) => sign * compare(a, b));
 }
+
+// GroupedRule は、グループに分けるのに使うルールの項目。group は、ルールが入るグループ (#1493)。null なら「その他」。
+export type GroupedRule = {
+  readonly id: string;
+  readonly group?: { readonly id: string } | null;
+};
+
+// ListedGroup は、ルールのグループ。サーバーが並べる順 (position) で渡す。
+export type ListedGroup = { readonly id: string; readonly name: string };
+
+// RuleSection は、一覧の 1 つの見出し。group が null なら、どのグループにも入らないルール (「その他」) の見出し。
+export type RuleSection<R, G> = { group: G | null; rules: R[] };
+
+// ruleSections は、探して絞り、並べ替えたルール rules を、グループ groups の順に見出しへ分ける (#1493)。
+// 見出しの中では rules の並びを保つので、並べ替えはグループの中で効く。「その他」は最後に置く。
+// showEmpty なら、ルールのないグループも見出しを出す (絞り込んでいないときに、作ったばかりのグループを見せるため)。
+// 「その他」は、ルールがなければ出さない。グループが 1 つもなければ、「その他」の見出し 1 つにまとめる。
+export function ruleSections<R extends GroupedRule, G extends ListedGroup>(
+  rules: readonly R[],
+  groups: readonly G[],
+  showEmpty: boolean,
+): RuleSection<R, G>[] {
+  const byGroup = new Map<string, R[]>(groups.map((group) => [group.id, []]));
+  const others: R[] = [];
+  for (const rule of rules) {
+    // 読み直す間に消えたグループのルールは、「その他」に並べる。
+    const bucket = rule.group == null ? undefined : byGroup.get(rule.group.id);
+    (bucket ?? others).push(rule);
+  }
+  const sections: RuleSection<R, G>[] = groups
+    .map((group) => ({ group, rules: byGroup.get(group.id) ?? [] }))
+    .filter((section) => showEmpty || section.rules.length > 0);
+  if (others.length > 0 || groups.length === 0) {
+    sections.push({ group: null, rules: others });
+  }
+
+  return sections;
+}
+
+// othersSectionKey は、折りたたんだ見出しを覚えるときの、「その他」の見出しの鍵。グループの ID とは重ならない。
+export const othersSectionKey = 'others';
+
+// sectionKey は、見出しを折りたたんだかを覚えるときの鍵。
+export function sectionKey(group: ListedGroup | null): string {
+  return group === null ? othersSectionKey : group.id;
+}
