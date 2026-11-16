@@ -1,9 +1,10 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
 import { browserStorage } from '../yunomi/volume';
 
-// アプリのアイコン (ブラウザのタブの favicon とヘッダーのロゴ) を、端末ごとに選ぶ (#1665)。
-// インストールしたアイコン (マニフェストの icons と apple-touch-icon) は変えない。
+// ヘッダーのロゴに出すアイコンを、端末ごとに選ぶ (#1665)。
+// タブの favicon は、16px では柄の違いが見えないので、どの組でもみかんの favicon のままにする (#759)。
+// インストールしたアイコン (マニフェストの icons と apple-touch-icon) も変えない。
 // 絵は docs/icons の原本を frontend/public/icons に写したもので、同じオリジンの SVG として読む (CSP の img-src 'self')。
 
 // appIconIds は、選べるアイコンの組。default は採用版 (main-v6.svg と favicon-mikan.svg) の三毛猫。
@@ -22,29 +23,20 @@ export type AppIconId = (typeof appIconIds)[number];
 
 export const defaultAppIcon: AppIconId = 'default';
 
-// appIconFiles は、組ごとの、ヘッダーのロゴ (app) と favicon の、public/icons の中のファイル名。
-// 採用版の favicon は、16px でも見分けられるようみかんだけを描く (#759)。柄の組は、柄の違いが見えるよう、
-// favicon にも猫の顔の絵を使う。
-function coat(id: Exclude<AppIconId, 'default'>): { app: string; favicon: string } {
-  return { app: `coat-${id}.svg`, favicon: `coat-${id}.svg` };
-}
-
-const appIconFiles: Record<AppIconId, { app: string; favicon: string }> = {
-  default: { app: 'icon.svg', favicon: 'favicon.svg' },
-  chatora: coat('chatora'),
-  kijitora: coat('kijitora'),
-  sabatora: coat('sabatora'),
-  kuro: coat('kuro'),
-  shiro: coat('shiro'),
-  hachiware: coat('hachiware'),
+// appIconFiles は、組ごとの、ヘッダーのロゴの、public/icons の中のファイル名。
+const appIconFiles: Record<AppIconId, string> = {
+  default: 'icon.svg',
+  chatora: 'coat-chatora.svg',
+  kijitora: 'coat-kijitora.svg',
+  sabatora: 'coat-sabatora.svg',
+  kuro: 'coat-kuro.svg',
+  shiro: 'coat-shiro.svg',
+  hachiware: 'coat-hachiware.svg',
 };
 
-// appIconUrls は、組 id の、ヘッダーのロゴと favicon の URL を返す。
-export function appIconUrls(id: AppIconId): { app: string; favicon: string } {
-  const files = appIconFiles[id];
-  const base = `${import.meta.env.BASE_URL}icons/`;
-
-  return { app: base + files.app, favicon: base + files.favicon };
+// appIconUrl は、組 id の、ヘッダーのロゴの URL を返す。
+export function appIconUrl(id: AppIconId): string {
+  return `${import.meta.env.BASE_URL}icons/${appIconFiles[id]}`;
 }
 
 // storageKey は、この端末で選んだアイコンを覚えるキー。ほかの端末とは同期しない。
@@ -113,26 +105,4 @@ export function useAppIcon(): [AppIconId, (next: AppIconId) => void] {
   const id = useSyncExternalStore(subscribe, currentAppIcon);
 
   return [id, (next) => saveAppIcon(browserStorage(), next)];
-}
-
-// applyFavicon は、ページの favicon (<link rel="icon">) を href に向ける。なければ足す。
-export function applyFavicon(href: string): void {
-  let link = document.head.querySelector<HTMLLinkElement>('link[rel~="icon"]');
-  if (link === null) {
-    link = document.createElement('link');
-    link.rel = 'icon';
-    link.type = 'image/svg+xml';
-    document.head.append(link);
-  }
-  if (link.getAttribute('href') !== href) {
-    link.href = href;
-  }
-}
-
-// useAppFavicon は、組 id の favicon を、ページに当て続ける。すべての画面の枠 (RootLayout) で、useAppIcon の値を渡して呼ぶ。
-export function useAppFavicon(id: AppIconId): void {
-  const href = appIconUrls(id).favicon;
-  useEffect(() => {
-    applyFavicon(href);
-  }, [href]);
 }

@@ -4,14 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import '../i18n';
 import { AppIconSettings } from './AppIconSettings';
-import { appIconUrls, saveAppIcon, useAppFavicon, useAppIcon } from './appIcon';
+import { appIconUrl, saveAppIcon, useAppIcon } from './appIcon';
 
-// Header は、ヘッダー (RootLayout) と同じく、選んだアイコンを favicon とロゴに当てる。
+// Header は、ヘッダー (RootLayout) と同じく、選んだアイコンをロゴに当てる。
 function Header() {
   const [id] = useAppIcon();
-  useAppFavicon(id);
 
-  return <img data-testid="logo" src={appIconUrls(id).app} alt="" />;
+  return <img data-testid="logo" src={appIconUrl(id)} alt="" />;
 }
 
 function renderSettings() {
@@ -45,19 +44,19 @@ describe('AppIconSettings', () => {
     renderSettings();
 
     expect(checked('三毛猫とみかん (既定)')).toBe(true);
-    expect(favicon()).toBe('/icons/favicon.svg');
     expect(logo()).toBe('/icons/icon.svg');
   });
 
-  test('選ぶと、すぐ favicon とロゴを替え、端末に覚える', () => {
+  test('選ぶと、すぐロゴを替え、端末に覚える', () => {
     renderSettings();
 
     fireEvent.click(screen.getByRole('radio', { name: 'サバトラ' }));
 
     expect(checked('サバトラ')).toBe(true);
     expect(checked('三毛猫とみかん (既定)')).toBe(false);
-    expect(favicon()).toBe('/icons/coat-sabatora.svg');
     expect(logo()).toBe('/icons/coat-sabatora.svg');
+    // タブの favicon は、小さくて柄が見えないので替えない。
+    expect(favicon()).toBe('/icons/favicon.svg');
     expect(localStorage.getItem('kotatsu.appIcon')).toBe('sabatora');
   });
 
@@ -66,7 +65,6 @@ describe('AppIconSettings', () => {
     renderSettings();
 
     expect(checked('黒猫')).toBe(true);
-    expect(favicon()).toBe('/icons/coat-kuro.svg');
     expect(logo()).toBe('/icons/coat-kuro.svg');
   });
 
@@ -75,7 +73,7 @@ describe('AppIconSettings', () => {
     renderSettings();
 
     expect(checked('三毛猫とみかん (既定)')).toBe(true);
-    expect(favicon()).toBe('/icons/favicon.svg');
+    expect(logo()).toBe('/icons/icon.svg');
   });
 
   test('端末に覚えられなくても、このタブでは選んだ組にする', () => {
@@ -88,7 +86,6 @@ describe('AppIconSettings', () => {
       fireEvent.click(screen.getByRole('radio', { name: '茶トラ' }));
 
       expect(checked('茶トラ')).toBe(true);
-      expect(favicon()).toBe('/icons/coat-chatora.svg');
       expect(logo()).toBe('/icons/coat-chatora.svg');
       expect(localStorage.getItem('kotatsu.appIcon')).toBeNull();
     } finally {
@@ -105,6 +102,6 @@ describe('AppIconSettings', () => {
     fireEvent(window, new StorageEvent('storage', { key: 'kotatsu.appIcon' }));
 
     expect(checked('キジトラ')).toBe(true);
-    expect(favicon()).toBe('/icons/coat-kijitora.svg');
+    expect(logo()).toBe('/icons/coat-kijitora.svg');
   });
 });

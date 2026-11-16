@@ -333,8 +333,8 @@
     "notificationsSummary": "Choose what to receive as in-app notifications and Web Push",
     "appIcon": {
       "title": "Icon",
-      "help": "Choose the picture shown in the browser tab (favicon) and the header logo. It changes right away.",
-      "installedNote": "The icon of the app added to the home screen or app list (installed) does not change.",
+      "help": "Choose the cat shown in the header logo. It changes right away.",
+      "installedNote": "The browser tab icon (favicon) and the icon of the app added to the home screen or app list (installed) do not change.",
       "choices": {
         "default": "Calico and mandarin (default)",
         "chatora": "Ginger tabby",

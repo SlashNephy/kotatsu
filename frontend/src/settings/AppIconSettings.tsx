@@ -11,10 +11,10 @@ import {
 } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-import { appIconIds, appIconUrls, useAppIcon, type AppIconId } from './appIcon';
+import { appIconIds, appIconUrl, useAppIcon, type AppIconId } from './appIcon';
 
-// AppIconSettings は、ブラウザのタブとヘッダーに出すアイコンを、この端末で選ぶ設定 (#1665)。
-// 選んだらすぐ、タブの favicon とヘッダーのロゴを替える。インストールしたアイコンは変えない。
+// AppIconSettings は、ヘッダーのロゴに出すアイコンを、この端末で選ぶ設定 (#1665)。
+// 選んだらすぐ、ヘッダーのロゴを替える。タブの favicon とインストールしたアイコンは変えない。
 export function AppIconSettings() {
   const { t } = useTranslation();
   const [current, setCurrent] = useAppIcon();
@@ -44,15 +44,12 @@ export function AppIconSettings() {
         >
           <SimpleGrid cols={{ base: 1, xs: 2, md: 3 }} spacing="xs" verticalSpacing="xs">
             {appIconIds.map((id) => {
-              const urls = appIconUrls(id);
-
               return (
                 <Radio.Card key={id} value={id} radius="md" p="sm">
                   <Group gap="sm" wrap="nowrap">
                     <Radio.Indicator />
                     {/* 絵は見本なので、読み上げない。名前は下の文で読む。 */}
-                    <img src={urls.app} alt="" width={48} height={48} />
-                    <img src={urls.favicon} alt="" width={24} height={24} />
+                    <img src={appIconUrl(id)} alt="" width={48} height={48} />
                     <Text size="sm">{t(`settings.appIcon.choices.${id}`)}</Text>
                   </Group>
                 </Radio.Card>

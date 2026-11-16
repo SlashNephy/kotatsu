@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 
-import { applyFavicon, loadAppIcon, saveAppIcon } from './appIcon';
+import { loadAppIcon, saveAppIcon } from './appIcon';
 
 describe('loadAppIcon', () => {
   test.each([
@@ -61,35 +61,5 @@ describe('saveAppIcon', () => {
       window.removeEventListener('kotatsu:app-icon', onChange);
     }
     expect(notified).toBe(1);
-  });
-});
-
-describe('applyFavicon', () => {
-  afterEach(() => {
-    document.head.innerHTML = '';
-  });
-
-  test('今の favicon の向き先を替える', () => {
-    document.head.innerHTML = '<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />';
-    applyFavicon('/icons/coat-chatora.svg');
-    const links = document.head.querySelectorAll('link[rel~="icon"]');
-    expect(links).toHaveLength(1);
-    expect(links[0]?.getAttribute('href')).toBe('/icons/coat-chatora.svg');
-  });
-
-  test('favicon がなければ足す', () => {
-    applyFavicon('/icons/favicon.svg');
-    const links = document.head.querySelectorAll('link[rel~="icon"]');
-    expect(links).toHaveLength(1);
-    expect(links[0]?.getAttribute('href')).toBe('/icons/favicon.svg');
-  });
-
-  test('apple-touch-icon は替えない', () => {
-    document.head.innerHTML =
-      '<link rel="apple-touch-icon" href="data:image/png;base64,AA==" /><link rel="icon" href="/icons/favicon.svg" />';
-    applyFavicon('/icons/coat-kijitora.svg');
-    expect(document.head.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href')).toBe(
-      'data:image/png;base64,AA==',
-    );
   });
 });
