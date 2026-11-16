@@ -578,7 +578,6 @@ function Player({
       video.pause();
     }
   };
-  const skip = (seconds: number) => seek(currentPosition() + seconds);
   const [flash, showFlash] = usePlayerFlash();
   const shownFlash = fastForward.active
     ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
@@ -644,6 +643,19 @@ function Player({
     }
     previousCmAutoSkip.current = cmAutoSkip;
   }, [cmAutoSkip]);
+  // skip は、今の位置から seconds 秒移る。録画と同じく、先へ移った先が CM の中なら、自動で飛ばす設定のときは、
+  // 蓋を出して続いた CM の終わりまで 1 回で飛ぶ。自分でシークして見ていた CM の中は飛ばさない (#1512)。
+  const skip = (seconds: number) => {
+    const target = currentPosition() + seconds;
+    const watching = lastSeek.current;
+    const span = cmSectionAt(cmSpans, target);
+    const insideWatched =
+      span !== null && watching !== null && span.from <= watching && watching < span.to;
+    if (seconds > 0 && !insideWatched && skipper.skipFrom(target)) {
+      return;
+    }
+    seek(target);
+  };
   // キャプチャ (#908)。放送時刻は、TS の TOT から読んだ録り始めから数える。分からなければ、撮った時刻にする。
   const capture = useCapture({
     crop,
