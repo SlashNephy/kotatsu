@@ -465,3 +465,43 @@ func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 		})
 	}
 }
+
+// TestTranscoderNVENCSplitsSegmentsEvery2s は、NVENC でも、HLS のセグメントを 2 秒ごとに区切ることを確かめる (#1845)。
+// NVENC は、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにするので、-forced-idr が要る。
+// NVENC の使える GPU がなければ、テストを飛ばす。
+func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
+	t.Parallel()
+
+	transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: config.EncoderNVENC, VAAPIDevice: "", WorkDir: ""})
+	if errors.Is(err, kyusu.ErrToolNotFound) {
+		t.Skip("FFmpeg or tsreadex is not installed")
+	}
+	require.NoError(t, err)
+	check := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-t", "0.1", "-c:v", "h264_nvenc", "-f", "null", "-")
+	if err := check.Run(); err != nil {
+		t.Skip("NVENC is not available")
+	}
+
+	preset, ok := kyusu.PresetByName("720p")
+	require.True(t, ok)
+	dir := t.TempDir()
+	// test.ts は約 6 秒なので、2 秒のセグメントが 3 本できる。
+	require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(loadTS(t, "test.ts")), preset, kyusu.AudioFirst, dir))
+
+	playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
+	require.NoError(t, err)
+	durations := []float64{}
+	for _, line := range strings.Split(string(playlist), "\n") {
+		if rest, ok := strings.CutPrefix(line, "#EXTINF:"); ok {
+			d, err := strconv.ParseFloat(strings.TrimSuffix(rest, ","), 64)
+			require.NoError(t, err)
+			durations = append(durations, d)
+		}
+	}
+	// 最後のセグメントは、入力の終わりで短くなりうるので比べない。
+	require.GreaterOrEqual(t, len(durations), 3, "segments: %v", durations)
+	for _, d := range durations[:len(durations)-1] {
+		assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
+	}
+}
