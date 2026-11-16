@@ -245,7 +245,8 @@ func TestPlan(t *testing.T) {
 	}
 }
 
-// TestPlanEDCB は、EDCB の数え方 (#1856) を確かめる。相乗りの単位はサービスで、番組表の取得には、種別と録られるチャンネルを問わずに空きチューナーを 1 本残す。
+// TestPlanEDCB は、EDCB の数え方 (#1856) を確かめる。相乗りの単位はサービスで、番組表の取得には、種別と録られるチャンネルを問わずに、
+// BonDriver ごとに空きチューナーを 1 本残す。
 func TestPlanEDCB(t *testing.T) {
 	t.Parallel()
 
@@ -258,9 +259,9 @@ func TestPlanEDCB(t *testing.T) {
 		watched  []*timeshift.Channel
 		tuners   []*assign.Tuner
 		busy     []*timeshift.Busy
-		// otherIdle は、tuners のほかにある、EPG の取得に使える空きチューナーの数。
-		otherIdle int
-		want      []int64
+		// groups は、チューナーの BonDriver。nil なら、すべてのチューナーが同じ BonDriver。
+		groups map[int]string
+		want   []int64
 	}{
 		{
 			name:     "予約と同じサービスは、チューナーを使わずに録る",
@@ -326,11 +327,19 @@ func TestPlanEDCB(t *testing.T) {
 			want:     []int64{1},
 		},
 		{
-			name:      "Kotatsu が使わない空きチューナーがあれば、最後の空きチューナーも使う",
-			channels:  grChannels(2),
-			tuners:    tuners(2, "GR"),
-			otherIdle: 1,
-			want:      []int64{1, 2},
+			name:     "BonDriver ごとに 1 本を残す",
+			channels: grChannels(3),
+			tuners:   tuners(4, "GR"),
+			groups:   map[int]string{0: "A", 1: "A", 2: "B", 3: "B"},
+			want:     []int64{1, 2},
+		},
+		{
+			// EDCB の EPG の取得は、空きチューナーの足りない BonDriver が 1 つでもあれば、その回の取得をしない。
+			name:     "ほかの BonDriver のチューナーが空いていても、BonDriver の最後の 1 本は使わない",
+			channels: grChannels(2),
+			tuners:   tuners(3, "GR"),
+			groups:   map[int]string{0: "A", 1: "B", 2: "B"},
+			want:     []int64{1},
 		},
 		{
 			// EDCB の EPG の取得は、どの種別のチューナーでも、使っていないものが 1 本あればよい。
@@ -345,7 +354,7 @@ func TestPlanEDCB(t *testing.T) {
 			t.Parallel()
 
 			// 番組表を取るチャンネルは、EDCB の数え方では見ない。録らないチャンネルを並べても結果は変わらない。
-			opts := &timeshift.PlanOptions{ShareByService: true, KeepIdleTuner: true, OtherIdleTuners: tt.otherIdle}
+			opts := &timeshift.PlanOptions{ShareByService: true, KeepIdleTuner: true, TunerGroups: tt.groups}
 			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.watched, grMultiplexes(8), tt.tuners, tt.busy, opts))
 		})
 	}

@@ -28,7 +28,11 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/tunerstate"
 )
 
-const grNetworkID = 0x7FE0
+const (
+	grNetworkID = 0x7FE0
+	// bonDriverA は、EDCB のチューナーの名前 (BonDriver)。
+	bonDriverA = "BonDriver_A.so"
+)
 
 // grService は、偽チューナーサーバーの地上波の 3 つのチャンネルの、i 番目のサービスの ID を返す。地上波のチューナーは 2 本ある。
 func grService(i int) int64 {
@@ -348,7 +352,7 @@ func edcbOptions() *timeshift.SchedulerOptions {
 
 // TestSchedulerShareUnit は、予約と同じチャンネルのサービスを、予約の録画と相乗りさせるかを確かめる。
 // Mirakurun 互換のサーバーではチャンネルが、EDCB ではサービスが相乗りの単位になる (#1856)。
-// 偽チューナーサーバーの BS と CS のチューナーは故障にし、地上波のチューナー 2 本だけにする。1 番目のチャンネルには、サービスが 2 つある。
+// 偽チューナーサーバーの BS と CS のチューナーは故障にし、同じ BonDriver の地上波のチューナー 2 本だけにする。1 番目のチャンネルには、サービスが 2 つある。
 func TestSchedulerShareUnit(t *testing.T) {
 	t.Parallel()
 
@@ -385,9 +389,9 @@ func TestSchedulerShareUnit(t *testing.T) {
 			t.Parallel()
 
 			e := newEnvWith(t, tt.opts)
-			tag, err := e.pool.Exec(t.Context(), "UPDATE tuners SET is_fault = true WHERE 'BS' = ANY(types)")
+			// EDCB のチューナーは、同じ BonDriver の名前を持つ。
+			_, err := e.pool.Exec(t.Context(), "UPDATE tuners SET name = $1, is_fault = ('BS' = ANY(types))", bonDriverA)
 			require.NoError(t, err)
-			require.EqualValues(t, 1, tag.RowsAffected())
 			e.configureService(t, tt.service)
 			e.reserve(t, 0)
 			_, err = e.scheduler.RunOnce(t.Context())
@@ -402,37 +406,33 @@ func TestSchedulerShareUnit(t *testing.T) {
 	}
 }
 
-// TestSchedulerKeepsIdleTuner は、EDCB で、EPG の取得に、種別と録られるチャンネルを問わずに空きチューナーを 1 本残すことを確かめる (#1856)。
-// Kotatsu が使わないチューナー (tuner.edcb.bon_drivers に並べていない BonDriver のもの) も、EDCB の EPG の取得に使われるので数える。
-// 偽チューナーサーバーのチューナーは、地上波の 2 本と、BS と CS の 1 本。地上波の 3 チャンネルを録る。
+// TestSchedulerKeepsIdleTuner は、EDCB で、EPG の取得に、種別と録られるチャンネルを問わずに、BonDriver ごとに空きチューナーを 1 本残すことを確かめる (#1856)。
+// BonDriver は、EDCB のチューナーの名前で分かる。偽チューナーサーバーのチューナーは、地上波の 2 本と、BS と CS の 1 本。地上波の 3 チャンネルを録る。
 func TestSchedulerKeepsIdleTuner(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		// noBS は、BS と CS のチューナーを故障にして、地上波のチューナーだけにするかどうか。
+		// grBonDriver と bsBonDriver は、地上波のチューナーと、BS と CS のチューナーの名前 (BonDriver)。
+		grBonDriver, bsBonDriver string
+		// noBS は、BS と CS のチューナーを故障にするかどうか。
 		noBS bool
-		// unusable は、地上波のチューナーの 1 本を、Kotatsu が使わないものにするかどうか。
-		unusable bool
-		// occupied は、Kotatsu が使わないチューナーを、EDCB の予約が今使うかどうか。
-		occupied bool
-		want     []int64
+		want []int64
 	}{
 		{
-			name: "BS と CS のチューナーが空いていれば、地上波のチューナーを 2 本とも使う",
+			name:        "同じ BonDriver の BS と CS のチューナーが空いていれば、地上波のチューナーを 2 本とも使う",
+			grBonDriver: bonDriverA, bsBonDriver: bonDriverA,
 			want: []int64{grService(0), grService(1)},
 		},
 		{
-			name: "地上波のチューナーしかなければ、1 本を残す", noBS: true,
+			name:        "地上波のチューナーしかなければ、1 本を残す",
+			grBonDriver: bonDriverA, bsBonDriver: bonDriverA, noBS: true,
 			want: []int64{grService(0)},
 		},
 		{
-			name: "Kotatsu が使わない空きチューナーがあれば、Kotatsu が使える最後の 1 本も使う", noBS: true, unusable: true,
+			name:        "ほかの BonDriver のチューナーが空いていても、地上波の BonDriver の 1 本を残す",
+			grBonDriver: bonDriverA, bsBonDriver: "BonDriver_B.so",
 			want: []int64{grService(0)},
-		},
-		{
-			name: "Kotatsu が使わないチューナーを EDCB の予約が使うなら、最後の 1 本を使わない", noBS: true, unusable: true, occupied: true,
-			want: []int64{},
 		},
 	}
 	for _, tt := range tests {
@@ -443,25 +443,11 @@ func TestSchedulerKeepsIdleTuner(t *testing.T) {
 			for i := range 3 {
 				e.configure(t, i)
 			}
-			exec := func(sql string, args ...any) {
-				t.Helper()
+			_, err := e.pool.Exec(t.Context(), "UPDATE tuners SET name = CASE WHEN 'BS' = ANY(types) THEN $2 ELSE $1 END, is_fault = ('BS' = ANY(types) AND $3)",
+				tt.grBonDriver, tt.bsBonDriver, tt.noBS)
+			require.NoError(t, err)
 
-				tag, err := e.pool.Exec(t.Context(), sql, args...)
-				require.NoError(t, err)
-				require.EqualValues(t, 1, tag.RowsAffected(), sql)
-			}
-			if tt.noBS {
-				exec("UPDATE tuners SET is_fault = true WHERE 'BS' = ANY(types)")
-			}
-			if tt.unusable {
-				exec("UPDATE tuners SET is_available = false WHERE tuner_index = (SELECT max(tuner_index) FROM tuners WHERE 'GR' = ANY(types))")
-			}
-			if tt.occupied {
-				exec("INSERT INTO tuner_occupancies (tuner_index, start_at, end_at) SELECT tuner_index, $1::timestamptz, $2::timestamptz FROM tuners WHERE NOT is_available",
-					e.clk.Now().Add(-time.Minute), e.clk.Now().Add(time.Hour))
-			}
-
-			_, err := e.scheduler.RunOnce(t.Context())
+			_, err = e.scheduler.RunOnce(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, assignedServices(t, e.pool))
 		})

@@ -36,12 +36,13 @@ type PlanOptions struct {
 	// ShareByService は、相乗りの単位をチャンネルでなくサービスにするかどうか。EDCB で使う (#1856)。
 	// EDCB の TS はサービスで絞られるので、同じチャンネルの別のサービスは別のチューナーになる。
 	ShareByService bool
-	// KeepIdleTuner は、番組表の取得に残すチューナーを、種別と録られるチャンネルを問わずに 1 本とするかどうか。EDCB で使う (#1856)。
-	// EDCB の EPG の取得は、録っているチャンネルに相乗りせず、使っていないチューナーで、取得するチャンネルをすべて回る。
+	// KeepIdleTuner は、番組表の取得に残すチューナーを、種別と録られるチャンネルを問わずに、TunerGroups のまとまりごとに 1 本とするかどうか。
+	// EDCB で使う (#1856)。EDCB の EPG の取得は、録っているチャンネルに相乗りせず、使っていないチューナーで、取得するチャンネルをすべて回る。
 	KeepIdleTuner bool
-	// OtherIdleTuners は、KeepIdleTuner のときに、tuners のほかにある、番組表の取得に使える空きチューナーの数。
-	// EDCB では、Kotatsu が使わない BonDriver (tuner.edcb.bon_drivers に並べていないもの) のチューナーも、EPG の取得に使われる。
-	OtherIdleTuners int
+	// TunerGroups は、チューナーの番号から、そのチューナーのまとまり (EDCB では BonDriver) への対応。
+	// EDCB の EPG の取得は、BonDriver ごとに使っていないチューナーが要り、ほかの BonDriver のチューナーが空いていても代わりにならない。
+	// 対応のないチューナーは、同じ 1 つのまとまりとみなす。
+	TunerGroups map[int]string
 }
 
 // channelKey は、チャンネル種別とチャンネルの組。相乗りの単位に使うときは、ShareByService ならサービスも持つ。
@@ -79,13 +80,13 @@ func multiplexKey(channelType, channel string) channelKey {
 // 録っているチャンネルの番組表は、チューナーサーバーが同じチャンネルのチューナーに相乗りして取れる。
 // 種別ごとに受信できる空きチューナーが 1 本残ればよく、いくつもの種別を受信できるチューナーは、どの種別にも数える。
 // 受信できる空きチューナーが初めからない種別は、残しようがないので見ない。
-// opts.KeepIdleTuner なら、代わりに、録られるチャンネルと種別を問わず、空きチューナーを 1 本残す (keepsIdleTuner)。
+// opts.KeepIdleTuner なら、代わりに、録られるチャンネルと種別を問わず、opts.TunerGroups のまとまりごとに空きチューナーを 1 本残す (keepsIdleTuner)。
 //
 // watched は、ライブ視聴しているサービス (#1408)。視聴のチューナーに相乗りするので、空きチューナーを使わずに録り、結果の後ろに足す。
 // neko は視聴のチューナーを知らないが、空きチューナーを当てると、設定されたチャンネルのチューナーや、番組表の取得に残すチューナーを、視聴が奪ってしまう。
 func Plan(channels, watched []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner, busy []*Busy, opts *PlanOptions) []int64 {
 	if opts == nil {
-		opts = &PlanOptions{ShareByService: false, KeepIdleTuner: false, OtherIdleTuners: 0}
+		opts = &PlanOptions{ShareByService: false, KeepIdleTuner: false, TunerGroups: map[int]string{}}
 	}
 
 	taken, shared, covered := coverage(busy, watched, opts)
@@ -101,7 +102,7 @@ func Plan(channels, watched []*Channel, multiplexes []*Multiplex, tuners []*assi
 					return false
 				}
 				if opts.KeepIdleTuner {
-					return keepsIdleTuner(free, opts.OtherIdleTuners)
+					return keepsIdleTuner(free, tuner, opts.TunerGroups)
 				}
 
 				return leavesEPGTuner(free, tuner, c.ChannelType, uncovered)
@@ -224,9 +225,12 @@ func leavesEPGTuner(free []*assign.Tuner, tuner *assign.Tuner, channelType strin
 	return true
 }
 
-// keepsIdleTuner は、free のうち 1 本をタイムシフトに使っても、番組表の取得に使える空きチューナーが、others を含めて 1 本以上残るかを返す。
-// EDCB の EPG の取得は、録っているチャンネルに相乗りせず、取得の時刻に使っていないチューナーがなければ、その回の取得をしない
-// (ReserveManager.cpp の CheckEpgCap、GetEpgCapTunerList)。タイムシフトは開いたまま取得の時刻をまたぐので、時刻を問わずに残す。
-func keepsIdleTuner(free []*assign.Tuner, others int) bool {
-	return len(free)-1+others >= 1
+// keepsIdleTuner は、tuner をタイムシフトに使っても、tuner と同じまとまり (groups) に、使っていないチューナーがほかに残るかを返す。
+// EDCB の EPG の取得は、BonDriver ごとに、EPG の取得に使うチューナーの数 (EpgTimerSrv.ini の EPGCount) だけ、使っていないチューナーが要り、
+// 足りない BonDriver が 1 つでもあれば、その回の取得をしない (ReserveManager.cpp の GetEpgCapTunerList、CheckEpgCap)。
+// neko は EPGCount を知らないので、BonDriver ごとに 1 本を残す。タイムシフトは開いたまま取得の時刻をまたぐので、時刻を問わずに残す。
+func keepsIdleTuner(free []*assign.Tuner, tuner *assign.Tuner, groups map[int]string) bool {
+	return slices.ContainsFunc(free, func(f *assign.Tuner) bool {
+		return f.Index != tuner.Index && groups[f.Index] == groups[tuner.Index]
+	})
 }

@@ -43,7 +43,7 @@ type SchedulerOptions struct {
 	PollInterval time.Duration
 	// ShareByService は、相乗りの単位をチャンネルでなくサービスにするかどうか。EDCB で使う (#1856、PlanOptions)。
 	ShareByService bool
-	// KeepIdleTuner は、EPG の取得に、種別と録られるチャンネルを問わずに空きチューナーを 1 本残すかどうか。EDCB で使う (#1856、PlanOptions)。
+	// KeepIdleTuner は、EPG の取得に、種別と録られるチャンネルを問わずに、BonDriver ごとに空きチューナーを 1 本残すかどうか。EDCB で使う (#1856、PlanOptions)。
 	KeepIdleTuner bool
 }
 
@@ -184,19 +184,14 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 		}
 	}
 	tuners := make([]*assign.Tuner, 0, len(tunerRows))
-	// otherIdle は、Kotatsu が使わないチューナー (EDCB では tuner.edcb.bon_drivers に並べていない BonDriver のもの) のうち、
-	// 今から Lead の間に EDCB の予約が使わないものの数。EDCB の EPG の取得は、これらのチューナーも使う (設計書 3.6)。
-	otherIdle := 0
+	// groups は、チューナーの BonDriver (EDCB のチューナーの名前)。EDCB の EPG の取得は、BonDriver ごとに空きチューナーが要る (#1856)。
+	groups := map[int]string{}
 	for _, row := range tunerRows {
-		if occupied[row.TunerIndex] || row.IsFault {
-			continue
-		}
-		if !row.IsAvailable {
-			otherIdle++
-
+		if occupied[row.TunerIndex] || !row.IsAvailable || row.IsFault {
 			continue
 		}
 		tuners = append(tuners, &assign.Tuner{Index: int(row.TunerIndex), Types: row.Types, Blocks: []assign.Block{}})
+		groups[int(row.TunerIndex)] = row.Name
 	}
 	busyRows, err := q.ListReservationsUsingTunersBetween(ctx, sqlc.ListReservationsUsingTunersBetweenParams{FromAt: now, ToAt: now.Add(s.opts.Lead)})
 	if err != nil {
@@ -209,7 +204,7 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	}
 
 	want := map[int64]bool{}
-	planOptions := &PlanOptions{ShareByService: s.opts.ShareByService, KeepIdleTuner: s.opts.KeepIdleTuner, OtherIdleTuners: otherIdle}
+	planOptions := &PlanOptions{ShareByService: s.opts.ShareByService, KeepIdleTuner: s.opts.KeepIdleTuner, TunerGroups: groups}
 	for _, serviceID := range Plan(channels, watched, multiplexes, tuners, busy, planOptions) {
 		want[serviceID] = true
 	}
