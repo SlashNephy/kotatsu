@@ -863,6 +863,119 @@ type CalendarFeed {
   lastUsedAt: Time
 }
 """
+管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
+"""
+type CaptionModel {
+  """
+  一覧の中の ID。downloadCaptionModel に渡す。
+  """
+  id: String!
+  kind: CaptionModelKind!
+  """
+  画面に出す名前。
+  """
+  name: String!
+  """
+  ファイルの大きさ (バイト)。
+  """
+  size: Int64!
+  """
+  ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。
+  """
+  sha256: String!
+  """
+  モデルのライセンス (SPDX の識別子)。
+  """
+  license: String!
+  """
+  入手先の URL。
+  """
+  url: String!
+  """
+  その種類で勧めるモデルかどうか。
+  """
+  recommended: Boolean!
+}
+"""
+最後に頼んだダウンロード。終えていないか、失敗したものだけを返す。
+"""
+type CaptionModelDownload {
+  """
+  ダウンロードしているか、失敗したモデル。一覧から消えたモデルなら null。
+  """
+  model: CaptionModel
+  """
+  動いているかどうか。false なら、待っているか、失敗した。
+  """
+  running: Boolean!
+  """
+  失敗したかどうか。
+  """
+  failed: Boolean!
+  """
+  動いているときの進み具合。今の試行で書いたものがなければ null。
+  """
+  progress: JobProgress
+}
+"""
+字幕の自動生成のモデルの種類 (設計書 6.1、#1682)。種類ごとに、データディレクトリに置き場所が 1 つある。
+"""
+enum CaptionModelKind {
+  """
+  書き起こしのモデル。whisper-cli が読む。データディレクトリの whisper/ggml-model.bin に置く。
+  """
+  WHISPER
+  """
+  声のある区間を求めるモデル。whisper-vad-speech-segments が読む。任意。データディレクトリの whisper/ggml-silero-vad.bin に置く。
+  """
+  VAD
+}
+"""
+種類ごとの、字幕の自動生成のモデルの置き場所 (設計書 6.1、#1682)。
+"""
+type CaptionModelSlot {
+  kind: CaptionModelKind!
+  state: CaptionModelState!
+  """
+  既定の場所に置いてあるモデル。なければ null。
+  """
+  installed: InstalledCaptionModel
+  """
+  終えていないか、失敗した最後のダウンロード。なければ null。
+  """
+  download: CaptionModelDownload
+  """
+  設定 (captions.whisper_model か captions.vad_model) でモデルの場所を書いていて、既定の場所のモデルを使わないかどうか。
+  tenban の設定で決める。設定は、nekonote と同じにしておく。
+  """
+  overridden: Boolean!
+  """
+  この種類で選べるモデル。勧めるものを先に並べる。
+  """
+  models: [CaptionModel!]!
+}
+"""
+種類ごとのモデルの置き場所の状態 (設計書 6.1、#1682)。
+"""
+enum CaptionModelState {
+  """
+  置いていない。
+  """
+  NOT_PLACED
+  """
+  ダウンロードを待っているか、ダウンロードしている。
+  """
+  DOWNLOADING
+  """
+  置いた。画面から置いたものも、手で置いたものも含む。
+  """
+  PLACED
+  """
+  最後のダウンロードが、試す回数を使い切ったか、照合に失敗した。前に置いたモデルがあれば残る。
+  """
+  FAILED
+}
+"""
 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 """
 type CaptionSettings {
@@ -1420,6 +1533,23 @@ type InspectedStream {
   scrambled: Int64!
 }
 """
+データディレクトリの既定の場所に置いてあるモデル。
+"""
+type InstalledCaptionModel {
+  """
+  画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。
+  """
+  model: CaptionModel
+  """
+  ファイルの大きさ (バイト)。
+  """
+  size: Int64!
+  """
+  画面から置いた日時。手で置いたファイルなら null。
+  """
+  installedAt: Time
+}
+"""
 各ロールのインスタンス (設計書 1.4)。
 """
 type Instance {
@@ -1973,6 +2103,20 @@ type Mutation {
   """
   deleteIptvFeed: Boolean!
   """
+  一覧のモデル id をダウンロードして、データディレクトリの既定の場所に置くジョブを入れる (設計書 6.1、#1682)。管理者だけが使える。
+  ダウンロードは nekonote が行い、置いてあるファイルは、照合し終えてから置き換える。同じ種類のダウンロードを待っているか動かしていれば CONFLICT にする。
+  """
+  downloadCaptionModel(id: String!): CaptionModelSlot!
+  """
+  種類 kind の、終えていないダウンロードを取り消す (#1682)。管理者だけが使える。なければ NOT_FOUND にする。
+  """
+  cancelCaptionModelDownload(kind: CaptionModelKind!): CaptionModelSlot!
+  """
+  データディレクトリの既定の場所から、種類 kind のモデルを消す (#1682)。管理者だけが使える。手で置いたファイルも消す。
+  ダウンロードしている間は CONFLICT に、置いていなければ NOT_FOUND にする。
+  """
+  deleteCaptionModel(kind: CaptionModelKind!): CaptionModelSlot!
+  """
   ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
   """
   deleteCapture(id: ID!): ID!
@@ -2427,6 +2571,10 @@ enum NetworkActivityPurpose {
   WEB_PUSH
   WEBHOOK
   DATA_BROADCAST
+  """
+  字幕の自動生成のモデルのダウンロード (#1682)
+  """
+  CAPTION_MODEL_DOWNLOAD
 }
 """
 ID で引けるもの (Relay の Global Object Identification)。
@@ -3143,6 +3291,10 @@ type Query {
   ログイン中のユーザーの IPTV の配信の URL。発行していなければ null。
   """
   iptvFeed: IptvFeed
+  """
+  字幕の自動生成のモデルの置き場所を、種類ごとに返す (設計書 6.1、#1682)。管理者だけが使える。
+  """
+  captionModels: [CaptionModelSlot!]!
   """
   ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
   keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。

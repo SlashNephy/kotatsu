@@ -1136,6 +1136,20 @@ CREATE TABLE recording_auto_captions (
   cues jsonb NOT NULL
 );
 
+-- 字幕の自動生成に使うモデルのうち、管理者が画面からダウンロードして、データディレクトリの既定の場所に置いたもの (#1682、設計書 6.1)。
+-- 種類ごとに 1 つ。ダウンロードするジョブ (nekonote) が、ファイルを置き換えた後に書き、画面から消すと消す。
+-- 手で置いたファイルには行がないので、画面は、ファイルの大きさが行と違えば、手で置いたものとして出す。
+CREATE TABLE caption_models (
+  -- kind は、モデルの種類。WHISPER (書き起こし) か VAD (声のある区間)。
+  kind text PRIMARY KEY,
+  -- model_id は、コードに固定したモデルの一覧の ID。
+  model_id text NOT NULL,
+  -- size と sha256 は、置いたファイルの大きさ (バイト) と SHA-256 (16 進)。
+  size bigint NOT NULL,
+  sha256 text NOT NULL,
+  installed_at timestamptz NOT NULL
+);
+
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
 CREATE INDEX recordings_recorded_from_id_idx ON recordings (recorded_from DESC, id DESC);
 

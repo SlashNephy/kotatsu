@@ -19,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
@@ -108,6 +109,8 @@ type Options struct {
 	DataDir string
 	// TimeshiftDir は、タイムシフトのバッファを置くディレクトリ。空なら、タイムシフトのチャンネルを設定できない。
 	TimeshiftDir string
+	// Captions は、字幕の自動生成の設定 (#1682)。モデルの場所を書いているかを、モデルの画面に出す。nil なら書いていないとみなす。
+	Captions *config.Captions
 	// FreeSpace は、保存先プールの空き容量を調べる。nil なら、ファイルシステムに問い合わせる。
 	FreeSpace kago.FreeSpaceFunc
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は捨てる。
@@ -233,6 +236,8 @@ func NewHandler(opts *Options) http.Handler {
 		updates:          o.Updates,
 		drain:            o.Drain,
 		logs:             o.Logs,
+		dataDir:          o.DataDir,
+		captions:         o.Captions,
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace

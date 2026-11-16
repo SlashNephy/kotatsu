@@ -120,6 +120,7 @@ func TestHostVisibility(t *testing.T) {
 		{name: "webhook", purpose: netactivity.PurposeWebhook, host: "discord.com", want: ""},
 		{name: "artwork reveals the work", purpose: netactivity.PurposeAnimeImage, host: "official-site.example", want: ""},
 		{name: "push service", purpose: netactivity.PurposeWebPush, host: "fcm.googleapis.com", want: "fcm.googleapis.com"},
+		{name: "caption model CDN", purpose: netactivity.PurposeCaptionModelDownload, host: "us.aws.cdn.hf.co", want: "us.aws.cdn.hf.co"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

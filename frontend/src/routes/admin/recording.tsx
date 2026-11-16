@@ -8,6 +8,7 @@ import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
+import { CaptionModels } from '../../admin/CaptionModels';
 import { useAction } from '../../admin/useAction';
 import { SaveRow } from '../../admin/SaveRow';
 import { settingsErrorMessage } from '../../settings/errors';
@@ -39,6 +40,8 @@ function RecordingPage() {
   return (
     <AdminPage title={t('admin.recording.title')}>
       <RecordingSettings />
+      {/* 字幕の自動生成のモデル (#1682)。自動で保存する録画の既定値とは別に読み直すので、別の問い合わせにする。 */}
+      <CaptionModels />
     </AdminPage>
   );
 }

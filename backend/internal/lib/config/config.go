@@ -316,7 +316,8 @@ type Thumbnail struct {
 }
 
 // Captions は、録画の音声から字幕を自動生成する設定 (設計書 6.1、#1682)。nekonote が使う。
-// 生成には whisper.cpp の whisper-cli とモデル (ggml の形式) を使う。どちらもイメージに入れないので、管理者が用意して置く。
+// 生成には whisper.cpp の whisper-cli とモデル (ggml の形式) を使う。whisper-cli は -ffmpeg のイメージに入れる。モデルはイメージに入れず、
+// 管理者が画面からデータディレクトリの既定の場所にダウンロードするか、手で置いて、ここに場所を書く。
 type Captions struct {
 	// WhisperCommand は、whisper.cpp の whisper-cli のパス。空なら、PATH から whisper-cli を探す。
 	WhisperCommand string `yaml:"whisper_command"`

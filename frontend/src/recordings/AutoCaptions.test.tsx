@@ -64,9 +64,10 @@ describe('AutoCaptionsStatus', () => {
       ],
     },
     {
-      name: 'whisper.cpp とモデルが置かれていなければ、置き方を示す',
+      name: 'モデルが置かれていなければ、管理者が置くと生成できると出す',
       status: { state: 'NOT_CONFIGURED', generatedAt: null, model: null, count: 0, progress: null },
-      want: ['whisper.cppとモデルが、サーバーに置かれていません', 'docs/setup.md'],
+      want: ['字幕を生成するモデルが、サーバーに置かれていません'],
+      notWant: ['docs/setup.md'],
     },
     {
       name: '失敗したら、ジョブの画面で確かめられると出す',
@@ -87,6 +88,35 @@ describe('AutoCaptionsStatus', () => {
     for (const part of notWant ?? []) {
       expect(text).not.toContain(part);
     }
+  });
+});
+
+describe('AutoCaptionsStatus のモデルを置く画面へのリンク', () => {
+  test.each<{ name: string; state: AutoCaptionsValue['state']; link: boolean; want: boolean }>([
+    {
+      name: '置かれていなければ、渡されたリンクを出す',
+      state: 'NOT_CONFIGURED',
+      link: true,
+      want: true,
+    },
+    {
+      name: '管理者でなければ、リンクを出さない',
+      state: 'NOT_CONFIGURED',
+      link: false,
+      want: false,
+    },
+    { name: '置かれていれば、リンクを出さない', state: 'FAILED', link: true, want: false },
+  ])('$name', ({ state, link, want }) => {
+    render(
+      <MantineProvider env="test">
+        <AutoCaptionsStatus
+          status={{ state, generatedAt: null, model: null, count: 0, progress: null }}
+          settingsLink={link && <a href="/admin/recording#caption-models">モデルを置く</a>}
+        />
+      </MantineProvider>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'モデルを置く' }) !== null).toBe(want);
   });
 });
 

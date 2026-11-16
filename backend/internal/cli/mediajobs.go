@@ -11,6 +11,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
 	"github.com/SlashNephy/kotatsu/internal/usecase/analysis"
 	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
+	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
@@ -18,7 +19,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
 )
 
-// mediaJobParts は、録画の後処理のジョブの Worker (#1607)。代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成、変換、チャプター。
+// mediaJobParts は、録画の後処理のジョブの Worker (#1607)。代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成とそのモデルのダウンロード、
+// 変換、チャプター。
 type mediaJobParts struct {
 	thumbnails     *thumbnail.GenerateWorker
 	liveThumbnails *thumbnail.LiveWorker
@@ -27,6 +29,7 @@ type mediaJobParts struct {
 	finalize       *segjoin.FinalizeWorker
 	cmDetect       *cmdetect.DetectWorker
 	captions       *autocaption.Worker
+	captionModels  *captionmodel.Worker
 	transcode      *transcode.Worker
 	tvtplay        *tvtplay.WriteWorker
 	chapters       *transcode.ChaptersWorker
@@ -94,6 +97,12 @@ func newCaptionsWorker(
 		},
 		func() (autocaption.Extractor, error) { return autocaption.FFmpegExtractor(lowerer) },
 		deps.Config.Kyusu.WorkDir)
+}
+
+// newCaptionModelWorker は、管理者が画面から頼んだ、字幕の自動生成のモデルをダウンロードして置く Worker を作る (#1682)。
+// モデルは、whisper-cli を動かす nekonote のデータディレクトリの既定の場所に置く。
+func newCaptionModelWorker(deps *Deps, pool *pgxpool.Pool, clk clock.Clock, logger *slog.Logger) *captionmodel.Worker {
+	return captionmodel.NewWorker(pool, clk, logger.With(slog.String("component", "captionmodel")), deps.Network, deps.Config.Storage.DataDir)
 }
 
 // newTranscodeWorker は、録画を終えた後に変換する Worker を作る (#1253)。映像のエンコーダーは、kyusu と同じ設定を使う。

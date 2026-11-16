@@ -1342,7 +1342,8 @@
       "generated": "{{count}}件の字幕を生成しました",
       "none": "台詞が見つからず、字幕はありません",
       "failed": "生成できませんでした。管理者は、ジョブの画面で理由を確かめられます",
-      "notConfigured": "字幕を生成するwhisper.cppとモデルが、サーバーに置かれていません。管理者が置くと生成できます（docs/setup.mdの「字幕の自動生成」）",
+      "notConfigured": "字幕を生成するモデルが、サーバーに置かれていません。管理者が置くと生成できます",
+      "notConfiguredLink": "録画の既定値の画面でモデルを置く",
       "generatedAt": "{{at}}に{{model}}で生成しました",
       "previous": "いまは、{{at}}に生成した字幕（{{count}}件）を使っています",
       "hint": "音声から自動で書き起こした字幕です。誤りが混ざります。再生画面の設定で「自動生成」を選ぶと出ます"
@@ -2003,7 +2004,49 @@
         "timeshift_prune": "タイムシフトの破棄",
         "watch_notify": "視聴予約の通知",
         "web_push_deliver": "Web Pushの配信",
-        "webhook_deliver": "Webhookの配信"
+        "webhook_deliver": "Webhookの配信",
+        "caption_model_download": "字幕のモデルのダウンロード"
+      }
+    },
+    "captionModels": {
+      "title": "字幕の自動生成のモデル",
+      "description": "字幕の自動生成（whisper.cpp）が読むモデルを、Hugging Faceからダウンロードして、データディレクトリのwhisper/に置きます。ダウンロードはnekonoteが行い、大きさとSHA-256を確かめてから置き換えます。置いたモデルは、次に生成する字幕から使います",
+      "kinds": {
+        "WHISPER": "書き起こしのモデル",
+        "VAD": "声のある区間のモデル（任意）"
+      },
+      "kindHelp": {
+        "WHISPER": "録画の音声を書き起こすモデルです。字幕を生成するのに要ります",
+        "VAD": "Silero VADで声のある区間を求め、字幕の時刻を声に合わせます。置かなくても生成できます"
+      },
+      "states": {
+        "NOT_PLACED": "置いていない",
+        "DOWNLOADING": "ダウンロード中",
+        "PLACED": "置いた",
+        "FAILED": "失敗"
+      },
+      "placed": "{{name}}（{{size}}）を置いています {{at}}",
+      "placedByHand": "手で置いたファイル（{{size}}）を置いています",
+      "overridden": {
+        "WHISPER": "設定（captions.whisper_model）で別のファイルを使っています。ここに置いたモデルは使いません",
+        "VAD": "設定（captions.vad_model）で別のファイルを使っています。ここに置いたモデルは使いません"
+      },
+      "queued": "{{name}}のダウンロードを待っています",
+      "downloading": "{{name}}をダウンロードしています",
+      "progress": "ダウンロードの進み具合",
+      "failed": "{{name}}をダウンロードできませんでした。理由はジョブの画面で確かめられます",
+      "model": "モデル",
+      "option": "{{name}}（{{size}}、{{license}}）{{recommended}}",
+      "recommended": "おすすめ",
+      "download": "ダウンロードする",
+      "replace": "ダウンロードして置き換える",
+      "cancel": "取りやめる",
+      "delete": "消す",
+      "keep": "残す",
+      "deleteTitle": "モデルを消す",
+      "deleteConfirm": {
+        "WHISPER": "書き起こしのモデルを消します。消すと、置き直すまで字幕を生成できません",
+        "VAD": "声のある区間のモデルを消します。消しても字幕は生成できますが、時刻を声に合わせません"
       }
     },
     "logs": {
@@ -2075,7 +2118,7 @@
       "tvtplayChapters": "CMの区間を解析したら、TvtPlayのチャプターのファイルを書く",
       "tvtplayChaptersHelp": "録画のファイルのあるフォルダーのchaptersフォルダーに、CMを飛ばすチャプターのファイル（.chapter）を置きます。TVTestのTvtPlayで録画を開くと、CMを飛ばします。同じ名前のファイルがあれば、上書きしません",
       "generateCaptions": "録画が終わったら字幕を自動生成する",
-      "generateCaptionsHelp": "whisper.cppで録画の音声を書き起こし、再生画面で「自動生成」の字幕として出します。whisper.cppとモデルはイメージに含まないので、サーバーに置いてください（docs/setup.md）。CPUだけでは録画の長さの3割ほどの時間がかかります。予約とルールで「生成する」か「生成しない」を選んだ録画は、その設定に従います",
+      "generateCaptionsHelp": "whisper.cppで録画の音声を書き起こし、再生画面で「自動生成」の字幕として出します。モデルは、この画面の下の「字幕の自動生成のモデル」でダウンロードしてください。CPUだけでは録画の長さの3割ほどの時間がかかります。予約とルールで「生成する」か「生成しない」を選んだ録画は、その設定に従います",
       "cmDetector": "CMの区間の見分け方",
       "cmDetectorHelp": "局ロゴは試験的な見分け方です。録画の隅の局ロゴが出ていない所をCMとみなします。ロゴを学習できない録画（局ロゴのない通販の枠など）では、無音とシーンの切り替わりで見分けます。番組のオープニングで局がロゴを消すと、そこもCMとみなします。替えても、見分け直すまでは前の結果を使います",
       "cmDetectorFfmpeg": "無音とシーンの切り替わり",
@@ -2598,6 +2641,10 @@
         "title": "データ放送の通信",
         "body": "データ放送の文書が指定した通信を中継しました",
         "hostLabel": "データ放送"
+      },
+      "CAPTION_MODEL_DOWNLOAD": {
+        "title": "字幕のモデルのダウンロード",
+        "body": "管理者が選んだ字幕の自動生成のモデルを、Hugging Faceからダウンロードしました"
       }
     },
     "hostHidden": "非公開の接続先"

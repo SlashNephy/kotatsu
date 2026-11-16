@@ -346,15 +346,16 @@ nekonoteが、録画の代表画像と、シークバー用のプレビュー画
 ### captions
 
 nekonoteが、録画の音声から字幕を自動生成するときの設定です（#1682）。
-生成には[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`とモデルを使います。どちらもイメージに含まないので、置き方は[セットアップ](setup.md#字幕の自動生成)を見てください。
+生成には[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`とモデルを使います。`whisper-cli`は`-ffmpeg`のイメージに入っています。モデルは、録画の既定値の画面（`/admin/recording`）からダウンロードします（[セットアップ](setup.md#字幕の自動生成)）。
+画面からダウンロードしたモデルは、下の表の既定の場所に置きます。`whisper_model`や`vad_model`で場所を書くと、そちらを読み、画面から置いたモデルは使いません。画面にもその旨を出します。画面はtenbanの設定で判断するので、tenbanとnekonoteには同じ設定を渡してください。
 生成するかどうかは、録画の既定値の画面（`/admin/recording`）と、ルールと予約で選びます。
 
 | YAML | 環境変数 | 既定値 | 内容 |
 | --- | --- | --- | --- |
-| `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli` | `whisper-cli`のパス |
+| `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli`（`-ffmpeg`のイメージに入っている） | `whisper-cli`のパス |
 | `captions.whisper_model` | `KOTATSU_CAPTIONS_WHISPER_MODEL` | データディレクトリの`whisper/ggml-model.bin` | モデル（ggmlの形式）のパス |
 | `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | `0`（CPUの数の半分。1〜8） | `whisper-cli`に使わせるスレッドの数 |
-| `captions.vad_command` | `KOTATSU_CAPTIONS_VAD_COMMAND` | PATHの`whisper-vad-speech-segments` | 字幕の時刻を声に合わせるVADのコマンドのパス（任意） |
+| `captions.vad_command` | `KOTATSU_CAPTIONS_VAD_COMMAND` | PATHの`whisper-vad-speech-segments`（`-ffmpeg`のイメージに入っている） | 字幕の時刻を声に合わせるVADのコマンドのパス（任意） |
 | `captions.vad_model` | `KOTATSU_CAPTIONS_VAD_MODEL` | データディレクトリの`whisper/ggml-silero-vad.bin` | Silero VADのモデル（ggmlの形式）のパス（任意） |
 
 `whisper-cli`とモデルは、ジョブごとに探します。置き直したら、nekonoteを再起動しなくても、次のジョブから使えます。

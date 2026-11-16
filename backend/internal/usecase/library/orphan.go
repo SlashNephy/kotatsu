@@ -18,6 +18,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/segjoin"
 )
 
@@ -214,6 +215,11 @@ func (l *Library) usedFiles(ctx context.Context, db sqlc.DBTX) (*usedFiles, erro
 	for _, c := range captures {
 		location := kago.CaptureLocation(c.UserID, c.ID)
 		used.add(uuid.Nil(), location.PoolID, location.Path)
+	}
+	// 字幕の自動生成のモデルは、データディレクトリの既定の場所 (whisper/) に置く (#1682)。管理者が画面から置いたものも、手で置いたものも、
+	// 使っているとみなす。ダウンロードの途中で止まった .part は、DB にないファイルとして出す。
+	for _, path := range []string{autocaption.DefaultModelPath, autocaption.DefaultVADModelPath} {
+		used.add(uuid.Nil(), kago.DataPoolID, path)
 	}
 	// つないだ後は、DB の記録はつないだファイルに置き換わるが、つなぐ元のファイルは、置き換えるジョブが消すまで残る。
 	// ジョブは、マウントが戻るまで何日もやり直すことがあるので、終わっていないジョブのファイルは使っているとみなす。

@@ -21,6 +21,8 @@ enum NetworkActivityPurpose {
   WEB_PUSH
   WEBHOOK
   DATA_BROADCAST
+  "字幕の自動生成のモデルのダウンロード (#1682)"
+  CAPTION_MODEL_DOWNLOAD
 }
 
 "外部との通信のきっかけ。"

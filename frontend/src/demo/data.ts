@@ -452,6 +452,8 @@ export function createRootValue(
       viewings: [],
     }),
     storagePoolNames: () => ['default'],
+    // デモは外部へ問い合わせないので、字幕の自動生成のモデル (#1682) は置かず、選べるモデルだけを見せる。ダウンロードはしない。
+    captionModels: () => demoCaptionModels(),
     fileNameTemplateHelp: () => ({
       items: fileNameTemplateItems.map((item) => ({
         ...item,
@@ -764,4 +766,53 @@ export function createRootValue(
     viewerEvents: () => events.listen((event) => ({ viewerEvents: event })),
     playerCommands: () => idle.listen(() => ({ playerCommands: null })),
   };
+}
+
+// demoCaptionModels は、デモで見せる、字幕の自動生成のモデルの置き場所 (#1682)。どれも置いていない。
+function demoCaptionModels() {
+  const model = (
+    id: string,
+    kind: 'WHISPER' | 'VAD',
+    name: string,
+    size: number,
+    license: string,
+    recommended: boolean,
+  ) => ({ id, kind, name, size, sha256: '', license, url: '', recommended });
+
+  return [
+    {
+      kind: 'WHISPER',
+      state: 'NOT_PLACED',
+      overridden: false,
+      installed: null,
+      download: null,
+      models: [
+        model(
+          'kotoba-whisper-v2.0-q5_0',
+          'WHISPER',
+          'kotoba-whisper v2.0 (q5_0)',
+          537819875,
+          'Apache-2.0',
+          true,
+        ),
+        model('whisper-small-q5_1', 'WHISPER', 'Whisper small (q5_1)', 190085487, 'MIT', false),
+        model(
+          'whisper-large-v3-turbo-q5_0',
+          'WHISPER',
+          'Whisper large-v3-turbo (q5_0)',
+          574041195,
+          'MIT',
+          false,
+        ),
+      ],
+    },
+    {
+      kind: 'VAD',
+      state: 'NOT_PLACED',
+      overridden: false,
+      installed: null,
+      download: null,
+      models: [model('silero-v5.1.2', 'VAD', 'Silero VAD v5.1.2', 885098, 'MIT', true)],
+    },
+  ];
 }
