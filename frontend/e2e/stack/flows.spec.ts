@@ -158,9 +158,18 @@ test('スマートフォンの幅で、ヘッダーと画面が横にはみ出�
     });
     try {
       const mobile = await context.newPage();
-      for (const path of ['/', '/live', '/search', '/reservations']) {
+      // 測る前に、画面の本文を読み終えるまで待つ。読み込み中のスピナーだけを測っても、はみ出しは分からない。
+      const loaded = {
+        '/': mobile.getByRole('heading', { name: '放送中の番組' }),
+        '/live': mobile.getByRole('link', { name: /こたつテスト1/ }).first(),
+        '/search': mobile.getByText('検索結果', { exact: true }),
+        '/reservations': mobile.getByRole('heading', { name: '予約', exact: true }),
+      };
+      for (const [path, content] of Object.entries(loaded)) {
         await mobile.goto(path);
         await expect(mobile.getByRole('button', { name: admin.displayName })).toBeVisible();
+        await expect(content).toBeVisible();
+        await expect(mobile.locator('main [role="status"]')).toHaveCount(0);
         const layout = await mobile.evaluate(() => ({
           innerWidth: window.innerWidth,
           scrollWidth: document.documentElement.scrollWidth,
