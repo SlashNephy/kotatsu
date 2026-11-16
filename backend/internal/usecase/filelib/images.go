@@ -181,16 +181,16 @@ func removePreview(dir string) error {
 	return nil
 }
 
-// ImagesInserter は、ジョブを入れる。*jobs.Client が満たす。
-type ImagesInserter interface {
+// JobInserter は、ジョブを入れる。*jobs.Client が満たす。
+type JobInserter interface {
 	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
 }
 
-var _ ImagesInserter = new(jobs.Client)
+var _ JobInserter = new(jobs.Client)
 
 // EnqueueImages は、ファイル file の画像がまだなければ、作るジョブを入れる。同じファイルのジョブが待っていれば、重ねない。
 // 索引を作り終えていないか、書いている途中のファイルには入れない。
-func EnqueueImages(ctx context.Context, inserter ImagesInserter, indexer *Indexer, file *File) error {
+func EnqueueImages(ctx context.Context, inserter JobInserter, indexer *Indexer, file *File) error {
 	if !file.Index.Complete || file.Writing || indexer.HasImages(file.Ref, file.ID()) {
 		return nil
 	}

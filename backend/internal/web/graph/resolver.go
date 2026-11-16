@@ -114,8 +114,8 @@ type Resolver struct {
 	// libraries は、ファイラーで見せるライブラリ。librarySource は、そのファイルを開き、索引を作り始める (設計書 5.8)。
 	libraries     *medialib.Set
 	librarySource *filelib.Source
-	// libraryImages は、ライブラリのファイルの画像を作るジョブを入れる。nil なら入れない。
-	libraryImages filelib.ImagesInserter
+	// libraryJobs は、ライブラリのファイルの画像を作るジョブと、CM の区間を見分けるジョブを入れる。nil なら入れない。
+	libraryJobs filelib.JobInserter
 	// captions は、字幕の自動生成の設定 (#1682)。nil なら、モデルの場所を書いていないとみなす。
 	captions *config.Captions
 }

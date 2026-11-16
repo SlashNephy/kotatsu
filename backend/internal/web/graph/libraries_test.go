@@ -24,7 +24,7 @@ import (
 const (
 	librariesQuery         = `{ libraries { name kind } }`
 	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
-	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
+	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl cmSections { startSeconds endSeconds } broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
 	libraryTestFileContent = "../../../testdata/ts/test.ts"
 	// animeLibrary は、テストのフォルダのライブラリの名前。discM2TS と episodePath は、その中のファイルのパス。
@@ -49,7 +49,11 @@ type libraryFileResult struct {
 		JikkyoCommentsURL string  `json:"jikkyoCommentsUrl"`
 		ThumbnailURL      *string `json:"thumbnailUrl"`
 		PreviewURL        *string `json:"previewUrl"`
-		Broadcast         *struct {
+		CMSections        []struct {
+			StartSeconds float64 `json:"startSeconds"`
+			EndSeconds   float64 `json:"endSeconds"`
+		} `json:"cmSections"`
+		Broadcast *struct {
 			NetworkID   *int                   `json:"networkId"`
 			ServiceID   int                    `json:"serviceId"`
 			ServiceName string                 `json:"serviceName"`
@@ -124,7 +128,7 @@ func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 
 	images := new(fakeImages)
 
-	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryImages: images}), &libraryParts{dir: libraryDir, images: images, indexer: indexer}
+	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryJobs: images}), &libraryParts{dir: libraryDir, images: images, indexer: indexer}
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
@@ -229,6 +233,9 @@ func TestLibraryFile(t *testing.T) {
 	assert.Nil(t, file.LibraryFile.ThumbnailURL)
 	assert.Nil(t, file.LibraryFile.PreviewURL)
 	assert.Contains(t, images.kinds(), "library_images_generate")
+	// CM の区間も、まだ見分けていないので null で、見分けるジョブを入れる。
+	assert.Nil(t, file.LibraryFile.CMSections)
+	assert.Contains(t, images.kinds(), "library_cm_detect")
 	// 画像を作り終えたら、ファイルの ID を付けた URL を返す。プレビュー画像を作っていなければ、代表画像だけを返す。
 	ref := filelib.Ref{Library: animeLibrary, Path: episodePath}
 	dir, err := indexer.ImageDir(ref)
@@ -242,6 +249,15 @@ func TestLibraryFile(t *testing.T) {
 	require.NoError(t, filelib.WriteFile(dir, filelib.PreviewFileName, []byte("jpeg")))
 	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
 	assert.Equal(t, new("/internal/media/library/"+encoded+"/preview.jpg?v="+fileID), made.LibraryFile.PreviewURL)
+	// 見分けたら、区間を再生の 0 秒からの秒で返す。
+	require.NoError(t, indexer.WriteCM(ref, &filelib.CMResult{
+		FileID: fileID, Detector: "ffmpeg", Version: 1, Note: "",
+		Sections: []*filelib.CMSection{{Start: 1500 * time.Millisecond, End: 16500 * time.Millisecond}},
+	}))
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	require.Len(t, made.LibraryFile.CMSections, 1)
+	assert.InDelta(t, 1.5, made.LibraryFile.CMSections[0].StartSeconds, 1e-9)
+	assert.InDelta(t, 16.5, made.LibraryFile.CMSections[0].EndSeconds, 1e-9)
 	require.NotNil(t, file.LibraryFile.Broadcast)
 	assert.Equal(t, new(0x7FE0), file.LibraryFile.Broadcast.NetworkID)
 	assert.Equal(t, 0x0400, file.LibraryFile.Broadcast.ServiceID)
@@ -299,7 +315,7 @@ func TestLibraryFile(t *testing.T) {
 	}
 }
 
-// fakeImages は、ライブラリのファイルの画像を作るジョブを入れる代わりに、入れたジョブの種類を覚える。
+// fakeImages は、ライブラリのファイルの画像や CM の区間のジョブを入れる代わりに、入れたジョブの種類を覚える。
 type fakeImages struct {
 	mu   sync.Mutex
 	args []river.JobArgs

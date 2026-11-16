@@ -19,7 +19,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
-	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect/logo"
 )
@@ -104,7 +103,7 @@ const maxLogoHeight = 1080
 // DetectWithMaterial は、DetectWithReport と同じ結果と、読み直さずに判定し直すための材料を返す (#1507)。
 // ロゴを学習できなかったか、コマと時刻の数が合わなかった回は、材料を返さない (nil)。読み直したほうがよいからである。
 func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]Section, *Report, *Material, error) {
-	video, err := probeVideo(ctx, input.Path)
+	video, err := probeVideo(ctx, input)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -410,7 +409,7 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 	learnFilter := fmt.Sprintf("fps=1/%f,split[a][b];[a]crop=%d:%d:0:0:exact=1[t];[b]crop=%d:%d:0:%d:exact=1[u];[t][u]vstack,format=gray",
 		interval, video.width, bandHeight, video.width, bandHeight, video.height-bandHeight)
 	half := video.width * bandHeight
-	_, err := d.frames(ctx, input.Path, []string{"-skip_frame", "nokey"}, learnFilter, 2*half, nil, func(buf []byte) {
+	_, err := d.frames(ctx, input, []string{"-skip_frame", "nokey"}, learnFilter, 2*half, nil, func(buf []byte) {
 		top.Add(&logo.Gray{Width: video.width, Height: bandHeight, Pix: buf[:half]}, p.EdgeStrength)
 		bottom.Add(&logo.Gray{Width: video.width, Height: bandHeight, Pix: buf[half:]}, p.EdgeStrength)
 	})
@@ -434,7 +433,7 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 	// 切り出しは exact=1 にする。付けないと、yuv420p で奇数の位置が丸められ、細い縁の一致が崩れる。
 	c := template.Crop
 	measures := []logo.Measure{}
-	times, err := d.frames(ctx, input.Path, nil, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray", c.W, c.H, c.X, c.Y), c.W*c.H, input.Progress,
+	times, err := d.frames(ctx, input, nil, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray", c.W, c.H, c.X, c.Y), c.W*c.H, input.Progress,
 		func(buf []byte) {
 			measures = append(measures, template.Measure(&logo.Gray{Width: c.W, Height: c.H, Pix: buf}))
 		})
@@ -457,7 +456,9 @@ func (d *LogoDetector) measure(ctx context.Context, input *Input, video *videoIn
 	// ロゴの区間の外を CM にする。止められたときだけは、止める。ファイルの始まりが分からなければ、時刻をそろえられないので読まない。
 	// 進み具合は、全コマを読む間だけ出すので、材料を読む間は出さない。
 	if d.signalsOf != nil && video.firstFrame >= 0 {
-		sig, err := d.signalsOf(ctx, &Input{Path: input.Path, ServiceID: input.ServiceID, Progress: nil, Program: input.Program})
+		quiet := *input
+		quiet.Progress = nil
+		sig, err := d.signalsOf(ctx, &quiet)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -627,16 +628,16 @@ func complementSections(intervals []logo.Interval, times []float64, fps float64)
 	return sections
 }
 
-// frames は、path の TS を FFmpeg でデコードし、最初の映像に filter を掛けたグレースケールの生のコマを、size バイトずつ fn に渡す。
+// frames は、input の TS を FFmpeg でデコードし、最初の映像に filter を掛けたグレースケールの生のコマを、size バイトずつ fn に渡す。
 // pre は、入力の前に付ける引数。コマは間引かず増やさない (-fps_mode passthrough)。
 // コマごとの時刻 (秒) を、showinfo の pts_time から読んで返す。コマが落ちたり、時刻が飛んだりしても、コマの番号でなく時刻で区間を出すためである。
 // progress を渡せば、FFmpeg の -progress のまとまりと、それまでにファイルから流したバイト数を渡す (#1511)。
 func (d *LogoDetector) frames(
-	ctx context.Context, path string, pre []string, filter string, size int, progress func(*ffprogress.Block, int64), fn func([]byte),
+	ctx context.Context, input *Input, pre []string, filter string, size int, progress func(*ffprogress.Block, int64), fn func([]byte),
 ) ([]float64, error) {
-	file, err := sharedfile.Open(path)
+	file, err := input.open()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open the recording file: %w", err)
+		return nil, err
 	}
 	defer func() { _ = file.Close() }()
 
@@ -754,10 +755,11 @@ type videoInfo struct {
 	firstFrame int64
 }
 
-// probeVideo は、ffprobe で、path の最初の映像の大きさと速さと、録画の長さと、最初のコマの PTS を読む。
-func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
-	out, err := exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0",
-		"-show_entries", "stream=width,height,avg_frame_rate:format=duration", "-of", "json", path).Output()
+// probeVideo は、ffprobe で、input の最初の映像の大きさと速さと、録画の長さと、最初のコマの PTS を読む。
+func probeVideo(ctx context.Context, input *Input) (*videoInfo, error) {
+	source := probeSource(input)
+	out, err := runProbe(exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=width,height,avg_frame_rate:format=duration", "-of", "json", "-f", "mpegts", "-i", source), input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to probe the recording with ffprobe: %w", err)
 	}
@@ -783,19 +785,55 @@ func probeVideo(ctx context.Context, path string) (*videoInfo, error) {
 		return nil, fmt.Errorf("%w: unknown frame rate %q", ErrNoVideo, s.AvgFrameRate)
 	}
 	seconds, _ := strconv.ParseFloat(probed.Format.Duration, 64)
+	duration := time.Duration(seconds * float64(time.Second))
+	if input.Open != nil {
+		// パイプで渡した頭の部分の長さでなく、ファイルの長さにする。
+		duration = input.Duration
+	}
 
 	return &videoInfo{
-		width: s.Width, height: s.Height, fps: fps, duration: time.Duration(seconds * float64(time.Second)),
-		firstFrame: probeFirstFrame(ctx, path),
+		width: s.Width, height: s.Height, fps: fps, duration: duration,
+		firstFrame: probeFirstFrame(ctx, input),
 	}, nil
+}
+
+// probeBytes は、パイプで ffprobe に渡す、ファイルの頭の大きさ。映像の大きさと速さ、最初のコマを読むには足りる。
+const probeBytes = 32 << 20
+
+// probeSource は、ffprobe に読ませる入力。Open で渡すファイルは、パイプで渡す。
+func probeSource(input *Input) string {
+	if input.Open != nil {
+		return "pipe:0"
+	}
+
+	return input.Path
+}
+
+// runProbe は、ffprobe の cmd を動かし、標準出力を返す。Open で渡すファイルは、頭の probeBytes だけを標準入力に流す。
+func runProbe(cmd *exec.Cmd, input *Input) ([]byte, error) {
+	if input.Open != nil {
+		file, err := input.open()
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = file.Close() }()
+		cmd.Stdin = io.LimitReader(file, probeBytes)
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to run ffprobe: %w", err)
+	}
+
+	return out, nil
 }
 
 // probeFirstFrame は、ffprobe で、path の最初の映像の、最初にデコードできたコマの PTS (90kHz の刻み) を読む。
 // 読めなければ (止められた、PTS が N/A など)、-1 を返し、今の見分け方の材料と組み合わせない。
 // 頭の 2 秒だけを読む。最初の I フレームより前の PES はデコードできないので、最初のコマは、局ロゴの見分け方の最初のコマと同じになる。
-func probeFirstFrame(ctx context.Context, path string) int64 {
-	out, err := exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0", "-read_intervals", "%+2",
-		"-show_entries", "frame=pts", "-of", "csv=p=0", path).Output()
+func probeFirstFrame(ctx context.Context, input *Input) int64 {
+	source := probeSource(input)
+	out, err := runProbe(exec.CommandContext(ctx, ffprobeCommand, "-v", "error", "-select_streams", "v:0", "-read_intervals", "%+2",
+		"-show_entries", "frame=pts", "-of", "csv=p=0", "-f", "mpegts", "-i", source), input)
 	if err != nil {
 		return -1
 	}

@@ -7,9 +7,12 @@ package cmdetect
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
+	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 )
 
 // Section は、CM とみなした区間。Start と End は、ファイルの最初の映像からの時間。
@@ -30,6 +33,29 @@ type Input struct {
 	Progress func(b *ffprogress.Block, read int64)
 	// Program は、録画した番組の、番組表の時刻 (#1506)。分からないか、使わないときは nil。
 	Program *Program
+	// Open は、TS のファイルを開く。nil なら Path を開く。ローカルのパスのないファイル (ライブラリのファイル。#1734) で使う。
+	// Path は、ログに出す名前にだけ使う。
+	Open func() (io.ReadSeekCloser, error)
+	// Duration は、TS の長さ。Open で渡すファイルは、ffprobe が終わりまで読めないので、索引から求めて渡す。Open が nil なら使わない。
+	Duration time.Duration
+}
+
+// open は、TS のファイルを開く。
+func (in *Input) open() (io.ReadCloser, error) {
+	if in.Open != nil {
+		file, err := in.Open()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open the file: %w", err)
+		}
+
+		return file, nil
+	}
+	file, err := sharedfile.Open(in.Path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open the recording file: %w", err)
+	}
+
+	return file, nil
 }
 
 //go:generate go tool mockgen -typed -destination=mock_detector_test.go -package=cmdetect_test . Detector

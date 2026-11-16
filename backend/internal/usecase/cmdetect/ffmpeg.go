@@ -16,7 +16,6 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/lib/ffprogress"
 	"github.com/SlashNephy/kotatsu/internal/lib/procprio"
-	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 )
 
@@ -95,9 +94,9 @@ func (d *FFmpegDetector) Detect(ctx context.Context, input *Input) ([]Section, e
 // signals は、録画のファイルを FFmpeg で読み、無音の区間、シーンの切り替わり、音声の構成の変化を返す。
 // 局ロゴの見分け方も、境目の候補を作るのに使う (#1506)。
 func (d *FFmpegDetector) signals(ctx context.Context, input *Input) (*signals, error) {
-	file, err := sharedfile.Open(input.Path)
+	file, err := input.open()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open the recording file: %w", err)
+		return nil, err
 	}
 	defer func() { _ = file.Close() }()
 

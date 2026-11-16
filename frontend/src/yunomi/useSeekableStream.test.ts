@@ -75,6 +75,16 @@ describe('useSeekableStream', () => {
     expect(result.current.position).toBe(132);
   });
 
+  test('映ったコマの位置は、位置の基準を決めてから返し、読み直す間は返さない', async () => {
+    const video = new FakeVideo();
+    const { result } = await playFrom(video);
+    // 99 秒から流れ、video の時刻 2 秒を基準にしたので、31.5 秒のコマは 128.5 秒。
+    expect(result.current.framePosition(31.5)).toBe(128.5);
+
+    act(() => result.current.restartAt(130));
+    expect(result.current.framePosition(32)).toBeNull();
+  });
+
   test('読み直す (シークする) 間は、位置を止める', async () => {
     const video = new FakeVideo();
     const { result } = await playFrom(video);

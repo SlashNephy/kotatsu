@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<6df7bee7a4ed0b0268f9722535852f73>>
+ * @generated SignedSource<<743997593213bdd01429711465aa24a4>>
  * @lightSyntaxTransform
  */
 
@@ -40,6 +40,10 @@ export type playLibraryFileQuery$data = {
       } | null | undefined;
       readonly serviceName: string;
     } | null | undefined;
+    readonly cmSections: ReadonlyArray<{
+      readonly endSeconds: number;
+      readonly startSeconds: number;
+    }> | null | undefined;
     readonly hlsUrl: string;
     readonly id: string;
     readonly index: {
@@ -197,32 +201,57 @@ v13 = {
 v14 = {
   "alias": null,
   "args": null,
-  "kind": "ScalarField",
-  "name": "serviceName",
+  "concreteType": "LibraryCMSection",
+  "kind": "LinkedField",
+  "name": "cmSections",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "startSeconds",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "endSeconds",
+      "storageKey": null
+    }
+  ],
   "storageKey": null
 },
 v15 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "jikkyoChannelId",
+  "name": "serviceName",
   "storageKey": null
 },
 v16 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "jikkyoChannelId",
   "storageKey": null
 },
 v17 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v18 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v19 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryProgram",
@@ -280,7 +309,7 @@ v18 = {
   ],
   "storageKey": null
 },
-v19 = {
+v20 = {
   "alias": null,
   "args": null,
   "concreteType": "ProgramAudio",
@@ -312,7 +341,7 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryFileQuality",
@@ -344,7 +373,7 @@ v20 = {
   ],
   "storageKey": null
 },
-v21 = {
+v22 = {
   "alias": null,
   "args": null,
   "concreteType": "LibraryFileIndex",
@@ -383,7 +412,7 @@ v21 = {
   ],
   "storageKey": null
 },
-v22 = {
+v23 = {
   "alias": null,
   "args": null,
   "concreteType": "Transcoding",
@@ -454,6 +483,7 @@ return {
           (v11/*:: as any*/),
           (v12/*:: as any*/),
           (v13/*:: as any*/),
+          (v14/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -462,9 +492,9 @@ return {
             "name": "broadcast",
             "plural": false,
             "selections": [
-              (v14/*:: as any*/),
               (v15/*:: as any*/),
               (v16/*:: as any*/),
+              (v17/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -474,21 +504,21 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v17/*:: as any*/)
+                  (v18/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v18/*:: as any*/)
+              (v19/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v19/*:: as any*/),
           (v20/*:: as any*/),
-          (v21/*:: as any*/)
+          (v21/*:: as any*/),
+          (v22/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v22/*:: as any*/)
+      (v23/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -519,6 +549,7 @@ return {
           (v11/*:: as any*/),
           (v12/*:: as any*/),
           (v13/*:: as any*/),
+          (v14/*:: as any*/),
           {
             "alias": null,
             "args": null,
@@ -527,9 +558,9 @@ return {
             "name": "broadcast",
             "plural": false,
             "selections": [
-              (v14/*:: as any*/),
               (v15/*:: as any*/),
               (v16/*:: as any*/),
+              (v17/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -539,35 +570,35 @@ return {
                 "plural": false,
                 "selections": [
                   (v3/*:: as any*/),
-                  (v17/*:: as any*/),
+                  (v18/*:: as any*/),
                   (v2/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v18/*:: as any*/)
+              (v19/*:: as any*/)
             ],
             "storageKey": null
           },
-          (v19/*:: as any*/),
           (v20/*:: as any*/),
-          (v21/*:: as any*/)
+          (v21/*:: as any*/),
+          (v22/*:: as any*/)
         ],
         "storageKey": null
       },
-      (v22/*:: as any*/)
+      (v23/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "187b5f4b990e48c94ff5d9ba0baa93c2",
+    "cacheID": "99374e38ea4caf452e11cde2a7e7ddc6",
     "id": null,
     "metadata": {},
     "name": "playLibraryFileQuery",
     "operationKind": "query",
-    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    jikkyoCommentsUrl\n    thumbnailUrl\n    previewUrl\n    cmSections {\n      startSeconds\n      endSeconds\n    }\n    broadcast {\n      serviceName\n      jikkyoChannelId\n      recordedFrom\n      service {\n        name\n        logoUrl\n        id\n      }\n      program {\n        name\n        description\n        extended {\n          heading\n          text\n        }\n        startAt\n        endAt\n      }\n    }\n    audios {\n      componentType\n      languages\n      samplingRate\n    }\n    quality {\n      drops\n      errors\n      scrambled\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f1062d080153bffa59f3fa0e9016a328";
+(node as any).hash = "5c437b96a359b1381ee38754fda8cd34";
 
 export default node;

@@ -196,10 +196,12 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.transcode)
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
-	// ライブラリのファイルの代表画像とプレビュー画像 (設計書 5.8)。ライブラリとデータディレクトリをマウントした nekonote で作る。
+	// ライブラリのファイルの代表画像とプレビュー画像と CM の区間 (設計書 5.8)。ライブラリとデータディレクトリをマウントした nekonote で作る。
 	// 索引は tenban が作るので、ここでは読むだけにする。
 	libraryParts := newLibraryParts(deps, logger, false)
 	river.AddWorker(workers, filelib.NewImagesWorker(libraryParts.libraries, libraryParts.indexer, !deps.Config.Thumbnail.DisablePreview))
+	// CM の区間も、録画と同じ見分け方で見分ける。FFmpeg は、録画の見分けと同じく、最低の優先度で動かす。
+	river.AddWorker(workers, filelib.NewCMWorker(libraryParts.libraries, libraryParts.indexer, poolOf(deps), newLowerer(logger)))
 	// 管理者が連携を有効にしていれば、アニメの番組と作品を結びつけるための連携先の情報を、1 日ごとに取り込む (設計書 3.8)。
 	// 番組を、しょぼいカレンダーで作品と話に結びつけ、上映会のコメント (NICOLOG) とも結びつける。見たアニメは、ユーザーが連携した
 	// Annict と AniList に記録する (#927)。
@@ -843,7 +845,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		DataDir:           deps.Config.Storage.DataDir,
 		Libraries:         libraries.libraries,
 		LibrarySource:     libraries.source,
-		LibraryImages:     libraryImagesOf(deps),
+		LibraryJobs:       libraryJobsOf(deps),
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		Captions:          &deps.Config.Captions,
 		FreeSpace:         nil,

@@ -652,6 +652,11 @@ type ComplexityRoot struct {
 		ServiceName     func(childComplexity int) int
 	}
 
+	LibraryCMSection struct {
+		EndSeconds   func(childComplexity int) int
+		StartSeconds func(childComplexity int) int
+	}
+
 	LibraryDirectory struct {
 		Entries func(childComplexity int) int
 		Library func(childComplexity int) int
@@ -670,6 +675,7 @@ type ComplexityRoot struct {
 	LibraryFile struct {
 		Audios            func(childComplexity int) int
 		Broadcast         func(childComplexity int) int
+		CMSections        func(childComplexity int) int
 		HlsURL            func(childComplexity int) int
 		ID                func(childComplexity int) int
 		Index             func(childComplexity int) int
@@ -4220,6 +4226,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.LibraryBroadcast.ServiceName(childComplexity), true
 
+	case "LibraryCMSection.endSeconds":
+		if e.ComplexityRoot.LibraryCMSection.EndSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryCMSection.EndSeconds(childComplexity), true
+	case "LibraryCMSection.startSeconds":
+		if e.ComplexityRoot.LibraryCMSection.StartSeconds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryCMSection.StartSeconds(childComplexity), true
+
 	case "LibraryDirectory.entries":
 		if e.ComplexityRoot.LibraryDirectory.Entries == nil {
 			break
@@ -4288,6 +4307,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryFile.Broadcast(childComplexity), true
+	case "LibraryFile.cmSections":
+		if e.ComplexityRoot.LibraryFile.CMSections == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.CMSections(childComplexity), true
 	case "LibraryFile.hlsUrl":
 		if e.ComplexityRoot.LibraryFile.HlsURL == nil {
 			break
@@ -11686,6 +11711,11 @@ type LibraryFile {
   "シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。"
   previewUrl: String
   """
+  CM とみなした区間 (設計書 5.8)。索引を作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
+  まだ見分けていなければ null で、開くとジョブを入れる。見つからなければ空のリスト。
+  """
+  cmSections: [LibraryCMSection!]
+  """
   ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
   後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
   """
@@ -11757,6 +11787,12 @@ extend type Mutation {
   id を引いた後にファイルを書き換えていたら、前のファイルの位置なので保存せず、今のファイルを返す。
   """
   saveLibraryWatchPosition(id: ID!, positionMs: Int64!): LibraryFile!
+}
+
+"ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。"
+type LibraryCMSection {
+  startSeconds: Float!
+  endSeconds: Float!
 }
 `, BuiltIn: false},
 	{Name: "../schema/licenses.graphqls", Input: `"""
@@ -15804,6 +15840,16 @@ func (ec *executionContext) childFields_LibraryBroadcast(ctx context.Context, fi
 	return nil, fmt.Errorf("no field named %q was found under type LibraryBroadcast", field.Name)
 }
 
+func (ec *executionContext) childFields_LibraryCMSection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "startSeconds":
+		return ec.fieldContext_LibraryCMSection_startSeconds(ctx, field)
+	case "endSeconds":
+		return ec.fieldContext_LibraryCMSection_endSeconds(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type LibraryCMSection", field.Name)
+}
+
 func (ec *executionContext) childFields_LibraryDirectory(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "library":
@@ -15868,6 +15914,8 @@ func (ec *executionContext) childFields_LibraryFile(ctx context.Context, field g
 		return ec.fieldContext_LibraryFile_thumbnailUrl(ctx, field)
 	case "previewUrl":
 		return ec.fieldContext_LibraryFile_previewUrl(ctx, field)
+	case "cmSections":
+		return ec.fieldContext_LibraryFile_cmSections(ctx, field)
 	case "hlsUrl":
 		return ec.fieldContext_LibraryFile_hlsUrl(ctx, field)
 	}
@@ -28505,6 +28553,52 @@ func (ec *executionContext) fieldContext_LibraryBroadcast_program(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _LibraryCMSection_startSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryCMSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryCMSection_startSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryCMSection_startSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryCMSection", field, false, false, "Float")
+}
+
+func (ec *executionContext) _LibraryCMSection_endSeconds(ctx context.Context, field graphql.CollectedField, obj *model.LibraryCMSection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryCMSection_endSeconds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndSeconds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
+			return ec.marshalNFloat2float64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryCMSection_endSeconds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryCMSection", field, false, false, "Float")
+}
+
 func (ec *executionContext) _LibraryDirectory_library(ctx context.Context, field graphql.CollectedField, obj *model.LibraryDirectory) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -29141,6 +29235,38 @@ func (ec *executionContext) _LibraryFile_previewUrl(ctx context.Context, field g
 }
 func (ec *executionContext) fieldContext_LibraryFile_previewUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFile_cmSections(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_cmSections(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CMSections, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.LibraryCMSection) graphql.Marshaler {
+			return ec.marshalOLibraryCMSection2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryCMSectionᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_cmSections(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LibraryFile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_LibraryCMSection(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _LibraryFile_hlsUrl(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
@@ -58953,6 +59079,44 @@ func (ec *executionContext) _LibraryBroadcast(ctx context.Context, sel ast.Selec
 	return out
 }
 
+var libraryCMSectionImplementors = []string{"LibraryCMSection"}
+
+func (ec *executionContext) _LibraryCMSection(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryCMSection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, libraryCMSectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("LibraryCMSection")
+		case "startSeconds":
+			out.Values[i] = ec._LibraryCMSection_startSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endSeconds":
+			out.Values[i] = ec._LibraryCMSection_endSeconds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var libraryDirectoryImplementors = []string{"LibraryDirectory"}
 
 func (ec *executionContext) _LibraryDirectory(ctx context.Context, sel ast.SelectionSet, obj *model.LibraryDirectory) graphql.Marshaler {
@@ -59142,6 +59306,11 @@ func (ec *executionContext) _LibraryFile(ctx context.Context, sel ast.SelectionS
 			}
 		case "previewUrl":
 			out.Values[i] = ec._LibraryFile_previewUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cmSections":
+			out.Values[i] = ec._LibraryFile_cmSections(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -68098,6 +68267,14 @@ func (ec *executionContext) marshalNLibrary2ᚖgithubᚗcomᚋSlashNephyᚋkotat
 	return ec._Library(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNLibraryCMSection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryCMSection(ctx context.Context, sel ast.SelectionSet, v *model.LibraryCMSection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "LibraryCMSection!")
+		return graphql.Null
+	}
+	return ec._LibraryCMSection(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNLibraryDirectory2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryDirectory(ctx context.Context, sel ast.SelectionSet, v *model.LibraryDirectory) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "LibraryDirectory!")
@@ -71025,6 +71202,25 @@ func (ec *executionContext) marshalOLibraryBroadcast2ᚖgithubᚗcomᚋSlashNeph
 		return graphql.Null
 	}
 	return ec._LibraryBroadcast(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOLibraryCMSection2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryCMSectionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.LibraryCMSection) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLibraryCMSection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryCMSection(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalOLibraryFileQuality2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐLibraryFileQuality(ctx context.Context, sel ast.SelectionSet, v *model.LibraryFileQuality) graphql.Marshaler {

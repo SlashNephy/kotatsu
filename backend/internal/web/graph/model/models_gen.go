@@ -1065,6 +1065,12 @@ type LibraryBroadcast struct {
 	Program *LibraryProgram `json:"program,omitempty"`
 }
 
+// ライブラリのファイルの、CM とみなした区間。時刻は、再生の 0 秒 (索引の最初の I フレーム) からの秒。
+type LibraryCMSection struct {
+	StartSeconds float64 `json:"startSeconds"`
+	EndSeconds   float64 `json:"endSeconds"`
+}
+
 // ライブラリのディレクトリの中身。
 type LibraryDirectory struct {
 	Library *Library `json:"library"`
@@ -1121,6 +1127,9 @@ type LibraryFile struct {
 	ThumbnailURL *string `json:"thumbnailUrl,omitempty"`
 	// シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。
 	PreviewURL *string `json:"previewUrl,omitempty"`
+	// CM とみなした区間 (設計書 5.8)。索引を作り終えた後に、nekonote のジョブで、録画と同じ見分け方で見分ける。
+	// まだ見分けていなければ null で、開くとジョブを入れる。見つからなければ空のリスト。
+	CMSections []*LibraryCMSection `json:"cmSections,omitempty"`
 	// ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
 	// 後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
 	HlsURL string `json:"hlsUrl"`

@@ -3,6 +3,8 @@ package cmdetect_test
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -112,26 +114,46 @@ func TestLogoDetectorFallsBack(t *testing.T) {
 
 // TestLogoDetector は、局ロゴを、出ている所、消えた所 (CM)、また出た所の順に描いた合成の TS で、
 // ロゴの消えた所を CM の区間にすることを確かめる。FFmpeg か ffprobe がなければ飛ばす。
+// ローカルのパスのないファイル (ライブラリのファイル。#1734) は、Open で開いてパイプで読み、長さは Duration で渡す。
 func TestLogoDetector(t *testing.T) {
 	t.Parallel()
 
-	// ロゴを使える録画では、今の見分け方を呼ばない。
-	fallback := NewMockDetector(gomock.NewController(t))
-	detector, err := cmdetect.NewLogoDetectorWith(fallback)
-	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
-		t.Skip("FFmpeg is not installed")
+	tests := []struct {
+		name  string
+		input func(path string) *cmdetect.Input
+	}{
+		{name: "path", input: func(path string) *cmdetect.Input {
+			return &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil, Open: nil, Duration: 0}
+		}},
+		{name: "open", input: func(path string) *cmdetect.Input {
+			return &cmdetect.Input{
+				Path: "library/logo.ts", ServiceID: 0, Progress: nil, Program: nil, Duration: 40 * time.Second,
+				Open: func() (io.ReadSeekCloser, error) { return os.Open(path) },
+			}
+		}},
 	}
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	path := writeLogoTS(t, 15, 30)
-	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil})
-	require.NoError(t, err)
-	// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
-	assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
-	require.Len(t, got, 1, "%v", got)
-	// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
-	assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
-	assert.InDelta(t, 30, got[0].End.Seconds(), 1, "%v", got)
+			// ロゴを使える録画では、今の見分け方を呼ばない。
+			fallback := NewMockDetector(gomock.NewController(t))
+			detector, err := cmdetect.NewLogoDetectorWith(fallback)
+			if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+				t.Skip("FFmpeg is not installed")
+			}
+			require.NoError(t, err)
+
+			got, report, err := detector.DetectWithReport(t.Context(), tt.input(writeLogoTS(t, 15, 30)))
+			require.NoError(t, err)
+			// ロゴで決められたので、理由は空で、合成の TS には映像の欠けもない (#1508)。
+			assert.Equal(t, &cmdetect.Report{Note: "", Missing: 0}, report)
+			require.Len(t, got, 1, "%v", got)
+			// 境目は、窓とならしで少し揺れるので、1 秒の内なら同じとみなす。
+			assert.InDelta(t, 15, got[0].Start.Seconds(), 1, "%v", got)
+			assert.InDelta(t, 30, got[0].End.Seconds(), 1, "%v", got)
+		})
+	}
 }
 
 // TestParseFrameLog は、showinfo のログの頭と本文の間に -progress のまとまりが入り、時刻の入った本文が

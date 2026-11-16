@@ -24,9 +24,9 @@ func newLibraryParts(deps *Deps, logger *slog.Logger, build bool) *libraryParts 
 	return &libraryParts{libraries: libraries, indexer: indexer, source: filelib.NewSource(libraries, indexer)}
 }
 
-// libraryImagesOf は、ライブラリのファイルの画像を作るジョブを入れる River のクライアントを返す。なければ nil を返す。
+// libraryJobsOf は、ライブラリのファイルの画像を作るジョブと CM の区間を見分けるジョブを入れる River のクライアントを返す。なければ nil を返す。
 // 型付きの nil を interface に入れると nil と比べられなくなるので、nil なら interface の nil を返す。
-func libraryImagesOf(deps *Deps) filelib.ImagesInserter {
+func libraryJobsOf(deps *Deps) filelib.JobInserter {
 	if deps.Jobs == nil {
 		return nil
 	}

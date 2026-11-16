@@ -168,13 +168,14 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 		}
 	}
 	thumbnailURL, previewURL := r.libraryImageURLs(ctx, file)
+	cmSections := r.libraryCMSections(ctx, file)
 	var quality *model.LibraryFileQuality
 	if q := file.Index.Quality; q != nil {
 		quality = &model.LibraryFileQuality{Drops: q.Drops, Errors: q.Errors, Scrambled: q.Scrambled}
 	}
 
 	return &model.LibraryFile{
-		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
+		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, CMSections: cmSections, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
 		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
@@ -186,9 +187,9 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 func (r *Resolver) libraryImageURLs(ctx context.Context, file *filelib.File) (*string, *string) {
 	indexer := r.librarySource.Indexer()
 	if !indexer.HasImages(file.Ref, file.ID()) {
-		if r.libraryImages != nil {
+		if r.libraryJobs != nil {
 			// 入れられなくても、ファイルは開ける。次に開いたときに入れ直す。
-			if err := filelib.EnqueueImages(ctx, r.libraryImages, indexer, file); err != nil {
+			if err := filelib.EnqueueImages(ctx, r.libraryJobs, indexer, file); err != nil {
 				r.logger.WarnContext(ctx, "failed to enqueue the library images job", slog.Any("error", err))
 			}
 		}
@@ -204,6 +205,28 @@ func (r *Resolver) libraryImageURLs(ctx context.Context, file *filelib.File) (*s
 	previewURL := base + filelib.PreviewFileName + version
 
 	return &thumbnailURL, &previewURL
+}
+
+// libraryCMSections は、ファイルの CM とみなした区間を返す。今のファイルを見分けていなければ、見分けるジョブを入れて nil を返す。
+func (r *Resolver) libraryCMSections(ctx context.Context, file *filelib.File) []*model.LibraryCMSection {
+	indexer := r.librarySource.Indexer()
+	result, ok := indexer.CM(file.Ref, file.ID())
+	if !ok {
+		if r.libraryJobs != nil {
+			// 入れられなくても、ファイルは開ける。次に開いたときに入れ直す。
+			if err := filelib.EnqueueCM(ctx, r.libraryJobs, indexer, file); err != nil {
+				r.logger.WarnContext(ctx, "failed to enqueue the library CM job", slog.Any("error", err))
+			}
+		}
+
+		return nil
+	}
+	sections := make([]*model.LibraryCMSection, 0, len(result.Sections))
+	for _, s := range result.Sections {
+		sections = append(sections, &model.LibraryCMSection{StartSeconds: s.Start.Seconds(), EndSeconds: s.End.Seconds()})
+	}
+
+	return sections
 }
 
 // libraryBroadcast は、TS から読んだ放送の情報を、GraphQL の形にする。同じネットワークとサービス ID の Kotatsu のサービスがあれば添える。
