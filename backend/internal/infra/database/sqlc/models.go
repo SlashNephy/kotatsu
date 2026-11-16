@@ -737,20 +737,23 @@ type RecordingFile struct {
 }
 
 type RecordingHistory struct {
-	ID            uuid.UUID
-	ServiceID     int64
-	TitleKey      string
-	Name          string
-	Description   string
-	SeriesEpisode *int32
-	SyobocalTid   *int32
-	AnimeCount    *float64
-	Imported      bool
-	Series        *string
-	StartAt       time.Time
-	EndAt         time.Time
-	CreatedAt     time.Time
-	RecordingID   *uuid.UUID
+	ID                uuid.UUID
+	ServiceID         int64
+	TitleKey          string
+	Name              string
+	Description       string
+	SeriesEpisode     *int32
+	SyobocalTid       *int32
+	AnimeCount        *float64
+	TmdbSeriesID      *int32
+	TmdbSeasonNumber  *int32
+	TmdbEpisodeNumber *int32
+	Imported          bool
+	Series            *string
+	StartAt           time.Time
+	EndAt             time.Time
+	CreatedAt         time.Time
+	RecordingID       *uuid.UUID
 }
 
 type RecordingLiveStat struct {
