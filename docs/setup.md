@@ -217,6 +217,7 @@ Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください
 - 別のホストからつなぐときは、`TCPAccessControlList`にKotatsuのホストを入れます。既定は`+127.0.0.1,+192.168.0.0/16`です。一覧から外れたホストからの接続は、何も返さずに切られます。
 - Windowsでは、EpgTimerSrvを初めて起動したときのダイアログで許可しないと、ファイアウォールに受信を遮断するルールが残ります。別のホストからつなぐ前に、EpgTimerSrvの受信を許可してください。
 - `EpgTimerSrv.ini`の`[TVTEST]`に、Kotatsuのライブ視聴と録画に使うBonDriverを並べます。NetworkTVは、ここに並べたBonDriverしか使わないので、空のままだと1本も開けません。同じ名前を、Kotatsuの設定の`tuner.edcb.bon_drivers`にも並べてください。EpgTimerSrvはこの一覧をKotatsuに返さないので、Kotatsuはチューナーの一覧で使えるチューナーを見分けるのに、設定の一覧を使います。
+- `EpgDataCap_Bon.ini`の`[SET_TCP]`で、TSを名前付きパイプ（LinuxではFIFO）に送る設定（`IP0=[0.0.0.1]`、`Port0=0`、`Count=1`）を入れます。NetworkTVは、この送り先からTSを中継するので、設定がないと、NetworkTVは開けてもTSを受け取れません（2026年11月に、LinuxのEDCBで確かめました）。
 
 次のことに注意してください。
 

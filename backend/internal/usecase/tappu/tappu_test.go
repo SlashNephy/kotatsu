@@ -112,9 +112,11 @@ func TestStreams(t *testing.T) {
 		// tappu は、tappu がいるかどうか。unreachable なら、登録簿にはいるが届かない。tappuKey は tappu のアプリの秘密キー。
 		tappu       bool
 		unreachable bool
-		tappuKey    string
-		listErr     error
-		remoteErr   error
+		// address は、登録簿に載せるアドレス。空なら tappu のアドレスにする。
+		address   string
+		tappuKey  string
+		listErr   error
+		remoteErr error
 		// want は、受け取る本文。wantErr なら、そのエラーで開けない。
 		want       string
 		wantErr    error
@@ -126,6 +128,7 @@ func TestStreams(t *testing.T) {
 		// 登録簿を引けなければ、録画を止めないよう、自分で開く。
 		{name: "registry unavailable", tappu: true, listErr: errors.New("database is down"), want: fromLocal, wantRemote: 0, wantLocal: 1},
 		{name: "tappu unreachable", tappu: true, unreachable: true, want: fromLocal, wantRemote: 0, wantLocal: 1},
+		{name: "invalid address", tappu: true, address: "[::1", want: fromLocal, wantRemote: 0, wantLocal: 1},
 		// 秘密キーが違って断られても、自分で開く。
 		{name: "wrong secret", tappu: true, tappuKey: keyMaterial + "-other", want: fromLocal, wantRemote: 0, wantLocal: 1},
 		// チューナーが足りないと断られたら、自分で開いても同じなので、そのまま返す。
@@ -143,6 +146,7 @@ func TestStreams(t *testing.T) {
 				if !tt.unreachable {
 					address = startTappu(t, remote, cmp.Or(tt.tappuKey, keyMaterial))
 				}
+				address = cmp.Or(tt.address, address)
 				instances.instances = append(instances.instances, &registry.Instance{
 					ID: uuid.New(), Role: tappu.Role, Address: address, StartedAt: time.Time{}, HeartbeatAt: time.Time{},
 				})

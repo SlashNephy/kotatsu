@@ -70,7 +70,7 @@ var (
 //   - tappu が何台いても、同じサービスは同じ tappu から受け取るよう、サービスから tappu を決める。tappu ごとに NetworkTV を開くので、
 //     ばらばらに受け取ると、同じサービスにチューナーを何本も使う。
 //   - tappu が、チューナーが足りないか、サービスがないと断ったときは、そのまま返す。自分で開いても、同じ理由で開けないためである。
-//   - 登録簿を引けないとき (DB が止まったときなど)、tappu に届かないとき、ほかの理由で断られたとき (秘密キーが違うなど) は、
+//   - 登録簿を引けないとき、tappu に届かないとき、ほかの理由で断られたとき (秘密キーが違うなど) は、
 //     local で開く。録画を止めないことを、チューナーを余分に使わないことより先にする。
 type Streams struct {
 	instances Instances
@@ -122,7 +122,10 @@ func (s *Streams) open(ctx context.Context, key string, open func(StreamOpener) 
 	instance := pick(instances, key)
 	client, err := s.client(instance.Address)
 	if err != nil {
-		return nil, err
+		s.logger.WarnContext(ctx, "the tappu address is invalid; opening the NetworkTV by itself",
+			slog.String("instance", instance.Address), slog.Any("error", err))
+
+		return open(s.local)
 	}
 	stream, err := open(client)
 	if err == nil || errors.Is(err, tunerserver.ErrTunerUnavailable) || errors.Is(err, tunerserver.ErrNotFound) || ctx.Err() != nil {
