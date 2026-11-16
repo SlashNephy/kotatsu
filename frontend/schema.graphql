@@ -5369,6 +5369,35 @@ type SystemSettings {
   """
   ruleUnmatchedGraceMinutes: Int!
   """
+  監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。
+  """
+  auditRetentionDays: Int!
+  """
+  監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。
+  """
+  auditClientInfoRetentionDays: Int!
+  """
+  パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会するかどうか (設計書 9.3)。既定は false。
+  """
+  hibpEnabled: Boolean!
+  """
+  Web Push で、プッシュサービスに示す送り手の連絡先 (mailto: か https:// の URI。RFC 8292、設計書 6.2)。空なら Kotatsu のリポジトリの URL を示す。
+  管理者の連絡先を含みうるので、管理者だけが読め、ほかのユーザーには FORBIDDEN を返す。
+  """
+  webPushSubject: String
+  """
+  録画のシークバー用のプレビュー画像を作るかどうか (設計書 6.1)。既定は true。切ると、代表画像だけを作る。
+  """
+  thumbnailPreviewsEnabled: Boolean!
+  """
+  all の構成を Windows か macOS で動かすときに、OS のスリープを扱うかどうか (#1522、設計書 11.7)。既定は true。Linux とコンテナでは何もしない。
+  """
+  sleepControlEnabled: Boolean!
+  """
+  字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0〜256。0 なら、nekonote の CPU の数の半分 (1〜8) にする。既定は 0。
+  """
+  captionThreads: Int!
+  """
   最後に変えた日時。一度も変えていなければ null。
   """
   updatedAt: Time
@@ -5442,6 +5471,28 @@ input SystemSettingsInput {
   0〜1440 分。
   """
   ruleUnmatchedGraceMinutes: Int
+  """
+  1〜3650 日。
+  """
+  auditRetentionDays: Int
+  """
+  1〜3650 日。
+  """
+  auditClientInfoRetentionDays: Int
+  """
+  変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+  """
+  hibpEnabled: Boolean
+  """
+  空にすると、Kotatsu のリポジトリの URL に戻す。空でなければ、空白を含まない mailto: か https:// の URI。
+  """
+  webPushSubject: String
+  thumbnailPreviewsEnabled: Boolean
+  sleepControlEnabled: Boolean
+  """
+  0〜256。0 なら、nekonote の CPU の数から決める。
+  """
+  captionThreads: Int
 }
 """
 システムの状態。

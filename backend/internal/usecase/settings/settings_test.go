@@ -128,6 +128,15 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{name: "negative rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(-1)}, wantErr: settings.ErrInvalidSettings},
 		{name: "unknown CM detector", changes: &settings.Changes{CMDetector: new("join_logo_scp")}, wantErr: settings.ErrInvalidSettings},
 		{name: "too long rule unmatched grace", changes: &settings.Changes{RuleUnmatchedGraceMinutes: new(1441)}, wantErr: settings.ErrInvalidSettings},
+		// 監査ログは、ほかの保持期間と違い、無期限 (0) にできない (#1869)。
+		{name: "unlimited audit retention", changes: &settings.Changes{AuditRetentionDays: new(0)}, wantErr: settings.ErrInvalidSettings},
+		{name: "too long audit retention", changes: &settings.Changes{AuditRetentionDays: new(3651)}, wantErr: settings.ErrInvalidSettings},
+		{name: "unlimited audit client info retention", changes: &settings.Changes{AuditClientInfoRetentionDays: new(0)}, wantErr: settings.ErrInvalidSettings},
+		{name: "web push subject without a scheme", changes: &settings.Changes{WebPushSubject: new("admin@kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
+		{name: "web push subject over http", changes: &settings.Changes{WebPushSubject: new("http://kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
+		{name: "web push subject with a space", changes: &settings.Changes{WebPushSubject: new("mailto:admin @kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
+		{name: "negative caption threads", changes: &settings.Changes{CaptionThreads: new(-1)}, wantErr: settings.ErrInvalidSettings},
+		{name: "too many caption threads", changes: &settings.Changes{CaptionThreads: new(257)}, wantErr: settings.ErrInvalidSettings},
 		{
 			name: "negative margin", wantErr: reserve.ErrInvalidSettings,
 			changes: &settings.Changes{
@@ -179,6 +188,99 @@ func TestUpdateRuleUnmatchedGrace(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, time.Duration(0), loaded.RuleUnmatchedGrace())
 	assert.True(t, loaded.MCPEnabled, "the other change is kept")
+}
+
+// TestUpdateMovedSettings は、設定ファイルから画面に移した項目 (#1869) が、行がなくても、ほかの項目で行を作っても、
+// 設定ファイルの既定値と同じで、変えられ、変えたことを監査ログに残すことを確かめる。
+func TestUpdateMovedSettings(t *testing.T) {
+	t.Parallel()
+
+	// wantDefaults は、設定ファイルで決めていたときの既定値 (付録 A)。
+	wantDefaults := func(t *testing.T, got *settings.System) {
+		t.Helper()
+		assert.Equal(t, 365*24*time.Hour, got.AuditRetention())
+		assert.Equal(t, 90*24*time.Hour, got.AuditClientInfoRetention())
+		assert.False(t, got.HIBPEnabled)
+		assert.Equal(t, settings.DefaultWebPushSubject, got.WebPushSubjectOrDefault())
+		assert.True(t, got.ThumbnailPreviewsEnabled)
+		assert.True(t, got.SleepControlEnabled)
+		assert.Zero(t, got.CaptionThreads)
+	}
+	tests := []struct {
+		name    string
+		changes *settings.Changes
+		check   func(t *testing.T, got *settings.System)
+		// wantAudit は、監査ログの変更の要約に残る、変える前と後の値。
+		wantAudit map[string]map[string]any
+	}{
+		{
+			name:    "a row made by another change keeps the defaults",
+			changes: &settings.Changes{MCPEnabled: new(true)},
+			check:   wantDefaults,
+		},
+		{
+			name: "every moved setting",
+			changes: &settings.Changes{
+				AuditRetentionDays: new(30), AuditClientInfoRetentionDays: new(7), HIBPEnabled: new(true),
+				WebPushSubject: new("mailto:admin@kotatsu.example"), ThumbnailPreviewsEnabled: new(false), SleepControlEnabled: new(false), CaptionThreads: new(4),
+			},
+			check: func(t *testing.T, got *settings.System) {
+				t.Helper()
+				assert.Equal(t, 30*24*time.Hour, got.AuditRetention())
+				assert.Equal(t, 7*24*time.Hour, got.AuditClientInfoRetention())
+				assert.True(t, got.HIBPEnabled)
+				assert.Equal(t, "mailto:admin@kotatsu.example", got.WebPushSubjectOrDefault())
+				assert.False(t, got.ThumbnailPreviewsEnabled)
+				assert.False(t, got.SleepControlEnabled)
+				assert.Equal(t, 4, got.CaptionThreads)
+			},
+			wantAudit: map[string]map[string]any{
+				"auditRetentionDays":           {"from": float64(365), "to": float64(30)},
+				"auditClientInfoRetentionDays": {"from": float64(90), "to": float64(7)},
+				"hibpEnabled":                  {"from": false, "to": true},
+				"webPushSubject":               {"from": "", "to": "mailto:admin@kotatsu.example"},
+				"thumbnailPreviewsEnabled":     {"from": true, "to": false},
+				"sleepControlEnabled":          {"from": true, "to": false},
+				"captionThreads":               {"from": float64(0), "to": float64(4)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := newDB(t)
+			before, err := settings.Load(t.Context(), db)
+			require.NoError(t, err)
+			wantDefaults(t, before)
+
+			updated, err := newStore().Update(t.Context(), db, audit.System("test"), tt.changes)
+			require.NoError(t, err)
+			loaded, err := settings.Load(t.Context(), db)
+			require.NoError(t, err)
+			assert.Equal(t, updated, loaded)
+			tt.check(t, loaded)
+
+			var summary map[string]map[string]any
+			require.NoError(t, db.QueryRow(t.Context(), "SELECT summary FROM audit_events WHERE action = 'settings.updated'").Scan(&summary))
+			for key, want := range tt.wantAudit {
+				assert.Equal(t, want, summary[key], key)
+			}
+		})
+	}
+}
+
+// TestUpdateWebPushSubjectBackToDefault は、Web Push の送り手の連絡先を空にすると、既定の URL に戻ることを確かめる (#1869)。
+func TestUpdateWebPushSubjectBackToDefault(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	store := newStore()
+	_, err := store.Update(t.Context(), db, audit.System("test"), &settings.Changes{WebPushSubject: new("https://kotatsu.example/contact")})
+	require.NoError(t, err)
+	updated, err := store.Update(t.Context(), db, audit.System("test"), &settings.Changes{WebPushSubject: new("")})
+	require.NoError(t, err)
+	assert.Equal(t, settings.DefaultWebPushSubject, updated.WebPushSubjectOrDefault())
 }
 
 // TestUpdateConcurrently は、違う項目を同時に変えても、どちらの変更も失わないことを確かめる。

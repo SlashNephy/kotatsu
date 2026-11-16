@@ -16,7 +16,10 @@ UPDATE system_settings SET recording_defaults = @recording_defaults, archive_ret
   iptv_feeds_enabled = @iptv_feeds_enabled, recording_downloads_enabled = @recording_downloads_enabled, tvtplay_chapters_enabled = @tvtplay_chapters_enabled, cm_detector = @cm_detector, epgstation_api_enabled = @epgstation_api_enabled, anime_linking_enabled = @anime_linking_enabled, drama_linking_enabled = @drama_linking_enabled, comment_sources = @comment_sources,
   drcs_replacements = @drcs_replacements, timeshift_while_watching = @timeshift_while_watching,
   timeshift_while_watching_retention_seconds = @timeshift_while_watching_retention_seconds,
-  rule_unmatched_grace_minutes = @rule_unmatched_grace_minutes, updated_at = @now
+  rule_unmatched_grace_minutes = @rule_unmatched_grace_minutes, audit_retention_days = @audit_retention_days,
+  audit_client_info_retention_days = @audit_client_info_retention_days, hibp_enabled = @hibp_enabled, web_push_subject = @web_push_subject,
+  thumbnail_previews_enabled = @thumbnail_previews_enabled, sleep_control_enabled = @sleep_control_enabled, caption_threads = @caption_threads,
+  updated_at = @now
 WHERE id = 1
 RETURNING *;
 

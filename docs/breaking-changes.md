@@ -8,6 +8,25 @@
 
 v2026.11.4からの変更です。
 
+### 機能の設定を、設定ファイルから管理者の画面に移す
+
+設定ファイルと環境変数には、起動とインフラに要るものだけを残し、機能と外部の連携に関わる次の項目は、管理者の画面で変えるようにしました（#1869）。
+更新した後は、設定ファイルや環境変数に書いた値を読みません。今の値も引き継がず、どれも既定値に戻ります。
+
+| 前の項目（環境変数） | 既定値 | 変える画面 |
+| --- | --- | --- |
+| `audit.retention_days`（`KOTATSU_AUDIT_RETENTION_DAYS`） | 365日 | 「設定」→「保持期間」の「監査ログ」 |
+| `audit.client_info_retention_days`（`KOTATSU_AUDIT_CLIENT_INFO_RETENTION_DAYS`） | 90日 | 「設定」→「保持期間」の「監査ログ」 |
+| `auth.hibp.enabled`（`KOTATSU_AUTH_HIBP_ENABLED`） | 照会しない | 「設定」→「連携」の「漏れたパスワードの確認」 |
+| `web_push.subject`（`KOTATSU_WEB_PUSH_SUBJECT`） | KotatsuのリポジトリのURL | 「設定」→「連携」の「Web Pushの送り手」 |
+| `thumbnail.disable_preview`（`KOTATSU_THUMBNAIL_DISABLE_PREVIEW`） | プレビュー画像を作る | 「設定」→「録画の既定値」の「後処理」 |
+| `power.manage_sleep`（`KOTATSU_POWER_MANAGE_SLEEP`） | スリープを扱う | 「設定」→「録画の既定値」の「OSのスリープ」 |
+| `captions.threads`（`KOTATSU_CAPTIONS_THREADS`） | 0（CPUの数の半分。1〜8） | 「設定」→「録画の既定値」の「後処理」 |
+
+- 既定値から変えていたときは、更新した後に、管理者が画面で設定し直してください。とくに、監査ログの保持期間を既定より長くしていたときは、更新した後の最初の片付け（nekonoteが起動したときと、1日ごと）で、365日より古い記録が消えます。消したくなければ、更新する前にDBをバックアップするか、更新してすぐに画面で長くしてください。
+- 設定ファイルや環境変数に残していても、Kotatsuは起動します。起動するときに、無視した項目と変える画面をログで警告します。警告が出なくなるよう、設定ファイルと環境変数から消してください。
+- `captions.whisper_command`、`captions.whisper_model`、`captions.vad_command`、`captions.vad_model`、`auth.hibp.url`は、設定ファイルと環境変数に残しています。
+
 ### 1080iの放送を59.94pで表示する
 
 ブラウザ内での変換で再生するとき、1080iの放送を、フィールドごとに1コマにして59.94pで表示するようにしました（#1655）。前は29.97pでした。動きはなめらかになりますが、描画の負荷は倍になります。

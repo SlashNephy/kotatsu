@@ -2092,6 +2092,21 @@ type SystemSettings struct {
 	// どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0〜1440。既定は 180。
 	// 番組表は放送の直前まで書き換わるので、その拍子に外れた予約を消して録り逃さないようにする。ルールを消すか無効にしたときは、この時間の内でも消す。
 	RuleUnmatchedGraceMinutes int `json:"ruleUnmatchedGraceMinutes"`
+	// 監査ログの保持期間 (日。設計書 8.5)。1〜3650。既定は 365。
+	AuditRetentionDays int `json:"auditRetentionDays"`
+	// 監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1〜3650。既定は 90。過ぎた記録は、この 2 つだけを空にする。
+	AuditClientInfoRetentionDays int `json:"auditClientInfoRetentionDays"`
+	// パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会するかどうか (設計書 9.3)。既定は false。
+	HibpEnabled bool `json:"hibpEnabled"`
+	// Web Push で、プッシュサービスに示す送り手の連絡先 (mailto: か https:// の URI。RFC 8292、設計書 6.2)。空なら Kotatsu のリポジトリの URL を示す。
+	// 管理者の連絡先を含みうるので、管理者だけが読め、ほかのユーザーには FORBIDDEN を返す。
+	WebPushSubject *string `json:"webPushSubject,omitempty"`
+	// 録画のシークバー用のプレビュー画像を作るかどうか (設計書 6.1)。既定は true。切ると、代表画像だけを作る。
+	ThumbnailPreviewsEnabled bool `json:"thumbnailPreviewsEnabled"`
+	// all の構成を Windows か macOS で動かすときに、OS のスリープを扱うかどうか (#1522、設計書 11.7)。既定は true。Linux とコンテナでは何もしない。
+	SleepControlEnabled bool `json:"sleepControlEnabled"`
+	// 字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0〜256。0 なら、nekonote の CPU の数の半分 (1〜8) にする。既定は 0。
+	CaptionThreads int `json:"captionThreads"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -2135,6 +2150,18 @@ type SystemSettingsInput struct {
 	TimeshiftWhileWatchingRetentionSeconds *int `json:"timeshiftWhileWatchingRetentionSeconds,omitempty"`
 	// 0〜1440 分。
 	RuleUnmatchedGraceMinutes *int `json:"ruleUnmatchedGraceMinutes,omitempty"`
+	// 1〜3650 日。
+	AuditRetentionDays *int `json:"auditRetentionDays,omitempty"`
+	// 1〜3650 日。
+	AuditClientInfoRetentionDays *int `json:"auditClientInfoRetentionDays,omitempty"`
+	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	HibpEnabled *bool `json:"hibpEnabled,omitempty"`
+	// 空にすると、Kotatsu のリポジトリの URL に戻す。空でなければ、空白を含まない mailto: か https:// の URI。
+	WebPushSubject           *string `json:"webPushSubject,omitempty"`
+	ThumbnailPreviewsEnabled *bool   `json:"thumbnailPreviewsEnabled,omitempty"`
+	SleepControlEnabled      *bool   `json:"sleepControlEnabled,omitempty"`
+	// 0〜256。0 なら、nekonote の CPU の数から決める。
+	CaptionThreads *int `json:"captionThreads,omitempty"`
 }
 
 // システムの状態。

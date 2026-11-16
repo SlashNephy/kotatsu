@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0927d2088a55a8afc97e875ddb76591b>>
+ * @generated SignedSource<<64c2325e93dbb7f008c37111bd993eb8>>
  * @lightSyntaxTransform
  */
 
@@ -13,6 +13,9 @@ export type CommentSource = "NICOLOG" | "NX_JIKKYO" | "%future added value";
 export type SystemSettingsInput = {
   animeLinkingEnabled?: boolean | null | undefined;
   archiveRetentionDays?: number | null | undefined;
+  auditClientInfoRetentionDays?: number | null | undefined;
+  auditRetentionDays?: number | null | undefined;
+  captionThreads?: number | null | undefined;
   cmDetector?: CMDetector | null | undefined;
   commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
@@ -20,6 +23,7 @@ export type SystemSettingsInput = {
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;
+  hibpEnabled?: boolean | null | undefined;
   iptvFeedsEnabled?: boolean | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   networkActivityEnabled?: boolean | null | undefined;
@@ -29,10 +33,13 @@ export type SystemSettingsInput = {
   recordingDownloadsEnabled?: boolean | null | undefined;
   ruleDefaults?: RuleDefaultsInput | null | undefined;
   ruleUnmatchedGraceMinutes?: number | null | undefined;
+  sleepControlEnabled?: boolean | null | undefined;
+  thumbnailPreviewsEnabled?: boolean | null | undefined;
   timeshiftWhileWatching?: boolean | null | undefined;
   timeshiftWhileWatchingRetentionSeconds?: number | null | undefined;
   tvtplayChaptersEnabled?: boolean | null | undefined;
   watchProgressRetentionDays?: number | null | undefined;
+  webPushSubject?: string | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
   cmDetector?: CMDetector | null | undefined;

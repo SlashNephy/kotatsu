@@ -34,13 +34,10 @@ type Config struct {
 	Metrics   Metrics   `yaml:"metrics"`
 	Database  Database  `yaml:"database"`
 	Telemetry Telemetry `yaml:"telemetry"`
-	Audit     Audit     `yaml:"audit"`
 	Storage   Storage   `yaml:"storage"`
 	Tuner     Tuner     `yaml:"tuner"`
 	Auth      Auth      `yaml:"auth"`
-	WebPush   WebPush   `yaml:"web_push"`
-	Thumbnail Thumbnail `yaml:"thumbnail"`
-	// Captions は、録画の音声から字幕を自動生成する設定 (設計書 6.1、#1682)。
+	// Captions は、録画の音声から字幕を自動生成するのに使う whisper.cpp とモデルの場所 (設計書 6.1、#1682)。
 	Captions Captions `yaml:"captions"`
 	Kyusu    Kyusu    `yaml:"kyusu"`
 	Jikkyo   Jikkyo   `yaml:"jikkyo"`
@@ -52,15 +49,8 @@ type Config struct {
 	TMDb TMDb `yaml:"tmdb"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
-	// Power は、Windows と macOS で、OS のスリープを扱う設定 (#1522)。
-	Power Power `yaml:"power"`
-}
-
-// Power は、OS のスリープを扱う設定 (設計書 11.7)。
-type Power struct {
-	// ManageSleep は、all の構成を Windows か macOS で動かすときに、録画、ライブ視聴、エンコードの間と次の録画の直前は
-	// OS をスリープさせず、次の録画の前にスリープから起こす予約を置くかどうか。Linux とコンテナでは、入れても何もしない。
-	ManageSleep bool `yaml:"manage_sleep"`
+	// Ignored は、画面で設定するようになったので、読まずに無視した項目 (#1869)。起動するときに、ログで警告する。
+	Ignored []IgnoredSetting `yaml:"-"`
 }
 
 // UpdateCheck は、新しいリリースを確かめる設定 (設計書 11.1)。
@@ -161,26 +151,6 @@ const (
 // OTLPMetricsHeaderMap は、OTLPMetricsHeaders を、ヘッダーの名前から値への対応にして返す。
 func (t *Telemetry) OTLPMetricsHeaderMap() (map[string]string, error) {
 	return parseMap(t.OTLPMetricsHeaders.Value())
-}
-
-// Audit は監査ログの設定。
-type Audit struct {
-	// RetentionDays は監査ログの保持期間 (日)。これを過ぎた記録は定期的に消す。
-	RetentionDays int `yaml:"retention_days"`
-	// ClientInfoRetentionDays は、IP アドレスと User-Agent の保持期間 (日)。これを過ぎた記録は、操作の記録を残してこの 2 つだけ空にする (#1367)。
-	ClientInfoRetentionDays int `yaml:"client_info_retention_days"`
-}
-
-func (a *Audit) validate() []error {
-	var errs []error
-	if a.RetentionDays < 1 {
-		errs = append(errs, fieldError("audit.retention_days", errors.New("must be at least 1")))
-	}
-	if a.ClientInfoRetentionDays < 1 {
-		errs = append(errs, fieldError("audit.client_info_retention_days", errors.New("must be at least 1")))
-	}
-
-	return errs
 }
 
 // Storage は保存先プール (kago) の設定 (設計書 5.6)。
@@ -315,23 +285,15 @@ func validateEDCBAddress(address string) error {
 	return nil
 }
 
-// Thumbnail は、録画の代表画像とシークバー用のプレビュー画像の設定 (設計書 6.1)。nekonote が使う。
-// 画像は FFmpeg で作るので、FFmpeg の入ったイメージ (-ffmpeg) を使うか、PATH に FFmpeg を入れる。
-type Thumbnail struct {
-	// DisablePreview は、プレビュー画像を作らないかどうか。低スペック機では、代表画像だけにして負荷を減らせる。
-	DisablePreview bool `yaml:"disable_preview"`
-}
-
-// Captions は、録画の音声から字幕を自動生成する設定 (設計書 6.1、#1682)。nekonote が使う。
+// Captions は、録画の音声から字幕を自動生成するのに使う、whisper.cpp とモデルの場所 (設計書 6.1、#1682)。nekonote が使う。
 // 生成には whisper.cpp の whisper-cli とモデル (ggml の形式) を使う。whisper-cli は -ffmpeg のイメージに入れる。モデルはイメージに入れず、
 // 管理者が画面からデータディレクトリの既定の場所にダウンロードするか、手で置いて、ここに場所を書く。
+// どれも nekonote のファイルシステムのパスなので、画面ではなく設定に置く (#1869)。スレッドの数は、画面で決める。
 type Captions struct {
 	// WhisperCommand は、whisper.cpp の whisper-cli のパス。空なら、PATH から whisper-cli を探す。
 	WhisperCommand string `yaml:"whisper_command"`
 	// WhisperModel は、whisper.cpp のモデル (ggml の形式) のパス。空なら、データディレクトリの whisper/ggml-model.bin にする。
 	WhisperModel string `yaml:"whisper_model"`
-	// Threads は、whisper-cli に使わせるスレッドの数。0 なら、CPU の数の半分 (1〜8) にする。
-	Threads int `yaml:"threads"`
 	// VADCommand は、whisper.cpp の whisper-vad-speech-segments のパス。空なら、PATH から探す。
 	// VAD は任意で、置いていれば、字幕の時刻を声のある区間に合わせる。
 	VADCommand string `yaml:"vad_command"`
@@ -414,13 +376,6 @@ type Kyusu struct {
 	WorkDir string `yaml:"work_dir"`
 }
 
-// WebPush は Web Push の通知の設定 (設計書 6.2)。
-type WebPush struct {
-	// Subject は、プッシュサービスに示す、送り手の連絡先 (mailto: か https: の URI) (RFC 8292)。
-	// プッシュサービスは、送り手に問題があるときに、ここに連絡する。空なら、Kotatsu のリポジトリの URL にする。
-	Subject string `yaml:"subject"`
-}
-
 // Auth は認証の設定 (設計書 9.3)。
 type Auth struct {
 	// SecretKey はアプリの秘密キー (設計書 8.4)。TOTP の秘密キーなどを暗号化して DB に保存するのに使う。
@@ -462,11 +417,11 @@ type AutoCreate struct {
 	ViewerGroups []string `yaml:"viewer_groups"`
 }
 
-// HIBP は、パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会する設定。
-// 外部への通信になるので、既定では照会しない (設計書 9.3)。
+// HIBP は、パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会する設定 (設計書 9.3)。
+// 照会するかどうかは、管理者が画面で決める (#1869)。
 type HIBP struct {
-	Enabled bool `yaml:"enabled"`
 	// URL は Pwned Passwords の API。空なら https://api.pwnedpasswords.com にする。
+	// 本物の API の代わりに、検証用のサーバーへ向けるときだけ使う。
 	URL string `yaml:"url"`
 }
 
@@ -518,14 +473,7 @@ func Default() *Config {
 		UpdateCheck: UpdateCheck{
 			Enabled: false,
 		},
-		Power: Power{
-			ManageSleep: true,
-		},
-		Audit: Audit{
-			// 設計書の付録 A の初期値。
-			RetentionDays:           365,
-			ClientInfoRetentionDays: 90,
-		},
+		Ignored: []IgnoredSetting{},
 		Storage: Storage{
 			Pools:        map[string]string{},
 			PoolOrder:    []string{},
@@ -540,7 +488,7 @@ func Default() *Config {
 		},
 		Auth: Auth{
 			SecretKey: "",
-			HIBP:      HIBP{Enabled: false, URL: ""},
+			HIBP:      HIBP{URL: ""},
 			OIDC: OIDC{
 				Issuer: "", ClientID: "", ClientSecret: "", RedirectURL: "",
 				Scopes: []string{"openid", "profile", "email"}, DisplayName: "OIDC", UsernameClaim: "preferred_username",
@@ -549,9 +497,7 @@ func Default() *Config {
 				},
 			},
 		},
-		WebPush:      WebPush{Subject: ""},
-		Thumbnail:    Thumbnail{DisablePreview: false},
-		Captions:     Captions{WhisperCommand: "", WhisperModel: "", Threads: 0, VADCommand: "", VADModel: ""},
+		Captions:     Captions{WhisperCommand: "", WhisperModel: "", VADCommand: "", VADModel: ""},
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
@@ -655,16 +601,9 @@ func (c *Config) validate() error {
 	if err := validateHTTPURL(c.TMDb.URL); err != nil {
 		errs = append(errs, fieldError("tmdb.url", err))
 	}
-	if subject := c.WebPush.Subject; subject != "" && !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
-		errs = append(errs, fieldError("web_push.subject", errors.New("must be a mailto: or https:// URI")))
-	}
 	if !slices.Contains([]string{EncoderX264, EncoderVAAPI, EncoderQSV, EncoderNVENC}, c.Kyusu.Encoder) {
 		errs = append(errs, fieldError("kyusu.encoder", errors.New("must be one of x264, vaapi, qsv, nvenc")))
 	}
-	if c.Captions.Threads < 0 {
-		errs = append(errs, fieldError("captions.threads", errors.New("must be 0 (auto) or more")))
-	}
-	errs = append(errs, c.Audit.validate()...)
 	errs = append(errs, c.Storage.validate()...)
 
 	return errors.Join(errs...)

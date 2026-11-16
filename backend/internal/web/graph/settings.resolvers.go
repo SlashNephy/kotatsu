@@ -7,6 +7,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/web/graph/generated"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
 
@@ -48,6 +49,12 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		DRCSReplacements:          replacements,
 		TimeshiftWhileWatching:    input.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: input.TimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: input.RuleUnmatchedGraceMinutes,
+		AuditRetentionDays:        input.AuditRetentionDays, AuditClientInfoRetentionDays: input.AuditClientInfoRetentionDays,
+		HIBPEnabled:              input.HibpEnabled,
+		WebPushSubject:           input.WebPushSubject,
+		ThumbnailPreviewsEnabled: input.ThumbnailPreviewsEnabled,
+		SleepControlEnabled:      input.SleepControlEnabled,
+		CaptionThreads:           input.CaptionThreads,
 	})
 	if err != nil {
 		return nil, settingsError(err)
@@ -159,3 +166,20 @@ func (r *queryResolver) SystemSettings(ctx context.Context) (*model.SystemSettin
 
 	return systemSettingsOf(system), nil
 }
+
+// WebPushSubject is the resolver for the webPushSubject field.
+func (r *systemSettingsResolver) WebPushSubject(ctx context.Context, obj *model.SystemSettings) (*string, error) {
+	// 管理者の連絡先を含みうるので、管理者のほかには FORBIDDEN を返す (#1869)。値は systemSettingsOf が入れておく。
+	if _, _, err := r.administratorActor(ctx, "only administrators can read the web push subject"); err != nil {
+		return nil, err
+	}
+
+	return obj.WebPushSubject, nil
+}
+
+// SystemSettings returns generated.SystemSettingsResolver implementation.
+func (r *Resolver) SystemSettings() generated.SystemSettingsResolver {
+	return &systemSettingsResolver{r}
+}
+
+type systemSettingsResolver struct{ *Resolver }

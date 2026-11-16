@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -42,6 +42,13 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.TimeshiftWhileWatching,
 		&i.TimeshiftWhileWatchingRetentionSeconds,
 		&i.RuleUnmatchedGraceMinutes,
+		&i.AuditRetentionDays,
+		&i.AuditClientInfoRetentionDays,
+		&i.HibpEnabled,
+		&i.WebPushSubject,
+		&i.ThumbnailPreviewsEnabled,
+		&i.SleepControlEnabled,
+		&i.CaptionThreads,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -81,7 +88,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -118,6 +125,13 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.TimeshiftWhileWatching,
 		&i.TimeshiftWhileWatchingRetentionSeconds,
 		&i.RuleUnmatchedGraceMinutes,
+		&i.AuditRetentionDays,
+		&i.AuditClientInfoRetentionDays,
+		&i.HibpEnabled,
+		&i.WebPushSubject,
+		&i.ThumbnailPreviewsEnabled,
+		&i.SleepControlEnabled,
+		&i.CaptionThreads,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -171,9 +185,12 @@ UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   iptv_feeds_enabled = $12, recording_downloads_enabled = $13, tvtplay_chapters_enabled = $14, cm_detector = $15, epgstation_api_enabled = $16, anime_linking_enabled = $17, drama_linking_enabled = $18, comment_sources = $19,
   drcs_replacements = $20, timeshift_while_watching = $21,
   timeshift_while_watching_retention_seconds = $22,
-  rule_unmatched_grace_minutes = $23, updated_at = $24
+  rule_unmatched_grace_minutes = $23, audit_retention_days = $24,
+  audit_client_info_retention_days = $25, hibp_enabled = $26, web_push_subject = $27,
+  thumbnail_previews_enabled = $28, sleep_control_enabled = $29, caption_threads = $30,
+  updated_at = $31
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, audit_retention_days, audit_client_info_retention_days, hibp_enabled, web_push_subject, thumbnail_previews_enabled, sleep_control_enabled, caption_threads, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
@@ -200,6 +217,13 @@ type UpdateSystemSettingsParams struct {
 	TimeshiftWhileWatching                 bool
 	TimeshiftWhileWatchingRetentionSeconds int32
 	RuleUnmatchedGraceMinutes              int32
+	AuditRetentionDays                     int32
+	AuditClientInfoRetentionDays           int32
+	HibpEnabled                            bool
+	WebPushSubject                         string
+	ThumbnailPreviewsEnabled               bool
+	SleepControlEnabled                    bool
+	CaptionThreads                         int32
 	Now                                    time.Time
 }
 
@@ -228,6 +252,13 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.TimeshiftWhileWatching,
 		arg.TimeshiftWhileWatchingRetentionSeconds,
 		arg.RuleUnmatchedGraceMinutes,
+		arg.AuditRetentionDays,
+		arg.AuditClientInfoRetentionDays,
+		arg.HibpEnabled,
+		arg.WebPushSubject,
+		arg.ThumbnailPreviewsEnabled,
+		arg.SleepControlEnabled,
+		arg.CaptionThreads,
 		arg.Now,
 	)
 	var i SystemSetting
@@ -256,6 +287,13 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.TimeshiftWhileWatching,
 		&i.TimeshiftWhileWatchingRetentionSeconds,
 		&i.RuleUnmatchedGraceMinutes,
+		&i.AuditRetentionDays,
+		&i.AuditClientInfoRetentionDays,
+		&i.HibpEnabled,
+		&i.WebPushSubject,
+		&i.ThumbnailPreviewsEnabled,
+		&i.SleepControlEnabled,
+		&i.CaptionThreads,
 		&i.UpdatedAt,
 	)
 	return i, err

@@ -1,7 +1,7 @@
 // Package settings は、画面から変える全体の設定を扱う (設計書 11.2)。
 //
-// 起動に要るものや秘密情報は YAML と環境変数に置き、家族が日常的に変えたいものを DB に置く。
-// ここでは、録画設定の全体の既定値、過去の番組と通知の保持期間、チャンネル種別の表示を扱う。
+// 起動とインフラに要るものは YAML と環境変数に置き、機能と外部の連携に関わるものを DB に置く (#1869)。
+// ここでは、録画設定の全体の既定値、過去の番組と通知と監査ログの保持期間、チャンネル種別の表示などを扱う。
 package settings
 
 import (
@@ -42,6 +42,14 @@ const (
 	DefaultRuleUnmatchedGraceMinutes = 180
 	// maxRuleUnmatchedGraceMinutes は、その時間の上限 (1 日)。DB の制約と同じ。
 	maxRuleUnmatchedGraceMinutes = 1440
+	// DefaultAuditRetentionDays は、監査ログの保持期間の既定値 (付録 A)。
+	DefaultAuditRetentionDays = 365
+	// DefaultAuditClientInfoRetentionDays は、監査ログの送信元の IP アドレスと User-Agent の保持期間の既定値 (付録 A、#1367)。
+	DefaultAuditClientInfoRetentionDays = 90
+	// maxCaptionThreads は、字幕の自動生成で whisper-cli に使わせるスレッドの数の上限。DB の制約と同じ。
+	maxCaptionThreads = 256
+	// DefaultWebPushSubject は、Web Push の送り手の連絡先を設定していないときに、プッシュサービスに示す URI (設計書 6.2)。
+	DefaultWebPushSubject = "https://github.com/SlashNephy/kotatsu"
 	// maxArchiveRetentionDays は、過去の番組と通知の保持期間の上限。無期限にするなら 0 にする。
 	maxArchiveRetentionDays = 3650
 	// auditTarget は、設定の監査ログの対象の種類。
@@ -119,8 +127,43 @@ type System struct {
 	TimeshiftWhileWatchingRetentionSeconds int
 	// RuleUnmatchedGraceMinutes は、どのルールにも一致しなくなったルール予約を、消さずに残す放送前の時間 (分。設計書 4.3、#1501)。0 なら残さない。
 	RuleUnmatchedGraceMinutes int
+	// AuditRetentionDays は、監査ログの保持期間 (日。設計書 8.5)。1 以上。
+	AuditRetentionDays int
+	// AuditClientInfoRetentionDays は、監査ログの送信元の IP アドレスと User-Agent の保持期間 (日。#1367)。1 以上。
+	AuditClientInfoRetentionDays int
+	// HIBPEnabled は、パスワードを設定するときに、Have I Been Pwned に漏洩済みかを照会するかどうか (設計書 9.3)。
+	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
+	HIBPEnabled bool
+	// WebPushSubject は、Web Push で、プッシュサービスに示す送り手の連絡先 (mailto: か https: の URI。RFC 8292)。
+	// 空なら DefaultWebPushSubject にする。
+	WebPushSubject string
+	// ThumbnailPreviewsEnabled は、録画のシークバー用のプレビュー画像を作るかどうか (設計書 6.1)。既定は true。
+	ThumbnailPreviewsEnabled bool
+	// SleepControlEnabled は、all の構成を Windows か macOS で動かすときに、OS のスリープを扱うかどうか (#1522、設計書 11.7)。既定は true。
+	SleepControlEnabled bool
+	// CaptionThreads は、字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0 なら、CPU の数から決める。
+	CaptionThreads int
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
+}
+
+// AuditRetention は、監査ログの保持期間を返す。
+func (s *System) AuditRetention() time.Duration {
+	return time.Duration(s.AuditRetentionDays) * 24 * time.Hour
+}
+
+// AuditClientInfoRetention は、監査ログの送信元の IP アドレスと User-Agent の保持期間を返す。
+func (s *System) AuditClientInfoRetention() time.Duration {
+	return time.Duration(s.AuditClientInfoRetentionDays) * 24 * time.Hour
+}
+
+// WebPushSubjectOrDefault は、プッシュサービスに示す送り手の連絡先を返す。設定していなければ DefaultWebPushSubject を返す。
+func (s *System) WebPushSubjectOrDefault() string {
+	if s.WebPushSubject == "" {
+		return DefaultWebPushSubject
+	}
+
+	return s.WebPushSubject
 }
 
 // ArchiveRetention は、過去の番組の保持期間を返す。無期限なら負の値を返す。
@@ -218,6 +261,14 @@ type Changes struct {
 	TimeshiftWhileWatching                 *bool
 	TimeshiftWhileWatchingRetentionSeconds *int
 	RuleUnmatchedGraceMinutes              *int
+	AuditRetentionDays                     *int
+	AuditClientInfoRetentionDays           *int
+	HIBPEnabled                            *bool
+	// WebPushSubject は、Web Push の送り手の連絡先。空にすると、DefaultWebPushSubject に戻す。
+	WebPushSubject           *string
+	ThumbnailPreviewsEnabled *bool
+	SleepControlEnabled      *bool
+	CaptionThreads           *int
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -279,6 +330,10 @@ type resolvedRetention struct {
 	timeshiftWhileWatching int32
 	// ruleUnmatchedGrace は、どのルールにも一致しなくなったルール予約を残す放送前の時間 (分)。
 	ruleUnmatchedGrace int32
+	// audit と auditClientInfo は、監査ログと、その送信元の情報の保持期間 (日)。
+	audit, auditClientInfo int32
+	// captionThreads は、whisper-cli に使わせるスレッドの数。
+	captionThreads int32
 }
 
 // resolveRetention は、変える項目を今の値に重ねた保持期間を返す。
@@ -301,6 +356,15 @@ func resolveRetention(current *System, changes *Changes) (resolvedRetention, err
 		return result, err
 	}
 	if result.ruleUnmatchedGrace, err = ruleUnmatchedGraceMinutes(valueOr(changes.RuleUnmatchedGraceMinutes, current.RuleUnmatchedGraceMinutes)); err != nil {
+		return result, err
+	}
+	if result.audit, err = auditRetentionDays("auditRetentionDays", valueOr(changes.AuditRetentionDays, current.AuditRetentionDays)); err != nil {
+		return result, err
+	}
+	if result.auditClientInfo, err = auditRetentionDays("auditClientInfoRetentionDays", valueOr(changes.AuditClientInfoRetentionDays, current.AuditClientInfoRetentionDays)); err != nil {
+		return result, err
+	}
+	if result.captionThreads, err = captionThreads(valueOr(changes.CaptionThreads, current.CaptionThreads)); err != nil {
 		return result, err
 	}
 
@@ -341,7 +405,67 @@ func validateRetentionChanges(changes *Changes) error {
 		}
 	}
 
+	return validateMovedChanges(changes)
+}
+
+// validateMovedChanges は、設定ファイルから画面に移した項目 (#1869) の変える値を確かめる。
+func validateMovedChanges(changes *Changes) error {
+	if days := changes.AuditRetentionDays; days != nil {
+		if _, err := auditRetentionDays("auditRetentionDays", *days); err != nil {
+			return err
+		}
+	}
+	if days := changes.AuditClientInfoRetentionDays; days != nil {
+		if _, err := auditRetentionDays("auditClientInfoRetentionDays", *days); err != nil {
+			return err
+		}
+	}
+	if subject := changes.WebPushSubject; subject != nil {
+		if err := validateWebPushSubject(*subject); err != nil {
+			return err
+		}
+	}
+	if threads := changes.CaptionThreads; threads != nil {
+		if _, err := captionThreads(*threads); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// validateWebPushSubject は、Web Push の送り手の連絡先が、空か、空白を含まない mailto: か https:// の URI かを確かめる (RFC 8292)。
+func validateWebPushSubject(subject string) error {
+	if subject == "" {
+		return nil
+	}
+	if !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
+		return fmt.Errorf("%w: webPushSubject must be a mailto: or https:// URI", ErrInvalidSettings)
+	}
+	if strings.ContainsAny(subject, " \t\r\n") {
+		return fmt.Errorf("%w: webPushSubject must not contain spaces", ErrInvalidSettings)
+	}
+
+	return nil
+}
+
+// auditRetentionDays は、監査ログの保持期間 name の日数が範囲 (1〜3650) にあるかを確かめ、DB に保存する形にする。
+// 監査ログは、ほかの保持期間と違い、無期限 (0) にできない。設定ファイルで決めていたときと同じである。
+func auditRetentionDays(name string, days int) (int32, error) {
+	if days < 1 || days > maxArchiveRetentionDays {
+		return 0, fmt.Errorf("%w: %s must be between 1 and %d", ErrInvalidSettings, name, maxArchiveRetentionDays)
+	}
+
+	return int32(days), nil
+}
+
+// captionThreads は、whisper-cli に使わせるスレッドの数を確かめ、DB に書く値にする。0 は、CPU の数から決める。
+func captionThreads(threads int) (int32, error) {
+	if threads < 0 || threads > maxCaptionThreads {
+		return 0, fmt.Errorf("%w: captionThreads must be between 0 and %d", ErrInvalidSettings, maxCaptionThreads)
+	}
+
+	return int32(threads), nil
 }
 
 // Update は、changes の項目を変え、変えた後の設定を返す。
@@ -415,6 +539,13 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
 			TimeshiftWhileWatchingRetentionSeconds: retention.timeshiftWhileWatching,
 			RuleUnmatchedGraceMinutes:              retention.ruleUnmatchedGrace,
+			AuditRetentionDays:                     retention.audit,
+			AuditClientInfoRetentionDays:           retention.auditClientInfo,
+			HibpEnabled:                            valueOr(changes.HIBPEnabled, current.HIBPEnabled),
+			WebPushSubject:                         valueOr(changes.WebPushSubject, current.WebPushSubject),
+			ThumbnailPreviewsEnabled:               valueOr(changes.ThumbnailPreviewsEnabled, current.ThumbnailPreviewsEnabled),
+			SleepControlEnabled:                    valueOr(changes.SleepControlEnabled, current.SleepControlEnabled),
+			CaptionThreads:                         retention.captionThreads,
 			Now:                                    now,
 		})
 		if err != nil {
@@ -453,6 +584,13 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"timeshiftWhileWatching":                 change(current.TimeshiftWhileWatching, updated.TimeshiftWhileWatching),
 				"timeshiftWhileWatchingRetentionSeconds": change(current.TimeshiftWhileWatchingRetentionSeconds, updated.TimeshiftWhileWatchingRetentionSeconds),
 				"ruleUnmatchedGraceMinutes":              change(current.RuleUnmatchedGraceMinutes, updated.RuleUnmatchedGraceMinutes),
+				"auditRetentionDays":                     change(current.AuditRetentionDays, updated.AuditRetentionDays),
+				"auditClientInfoRetentionDays":           change(current.AuditClientInfoRetentionDays, updated.AuditClientInfoRetentionDays),
+				"hibpEnabled":                            change(current.HIBPEnabled, updated.HIBPEnabled),
+				"webPushSubject":                         change(current.WebPushSubject, updated.WebPushSubject),
+				"thumbnailPreviewsEnabled":               change(current.ThumbnailPreviewsEnabled, updated.ThumbnailPreviewsEnabled),
+				"sleepControlEnabled":                    change(current.SleepControlEnabled, updated.SleepControlEnabled),
+				"captionThreads":                         change(current.CaptionThreads, updated.CaptionThreads),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -637,7 +775,13 @@ func defaults() *System {
 		DRCSReplacements:          map[string]string{},
 		TimeshiftWhileWatching:    false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
 		RuleUnmatchedGraceMinutes: DefaultRuleUnmatchedGraceMinutes,
-		UpdatedAt:                 nil,
+		AuditRetentionDays:        DefaultAuditRetentionDays, AuditClientInfoRetentionDays: DefaultAuditClientInfoRetentionDays,
+		HIBPEnabled:              false,
+		WebPushSubject:           "",
+		ThumbnailPreviewsEnabled: true,
+		SleepControlEnabled:      true,
+		CaptionThreads:           0,
+		UpdatedAt:                nil,
 	}
 }
 
@@ -678,7 +822,13 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		CommentSources:            row.CommentSources,
 		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
 		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),
-		UpdatedAt:                 &row.UpdatedAt,
+		AuditRetentionDays:        int(row.AuditRetentionDays), AuditClientInfoRetentionDays: int(row.AuditClientInfoRetentionDays),
+		HIBPEnabled:              row.HibpEnabled,
+		WebPushSubject:           row.WebPushSubject,
+		ThumbnailPreviewsEnabled: row.ThumbnailPreviewsEnabled,
+		SleepControlEnabled:      row.SleepControlEnabled,
+		CaptionThreads:           int(row.CaptionThreads),
+		UpdatedAt:                &row.UpdatedAt,
 	}, nil
 }
 

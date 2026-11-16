@@ -53,9 +53,7 @@ const (
 	defaultServerListen  = ":8080"
 	defaultMetricsListen = ":9090"
 	// 設計書の付録 A の初期値。
-	defaultAuditRetentionDays           = 365
-	defaultAuditClientInfoRetentionDays = 90
-	defaultOTLPMetricsIntervalSeconds   = 60
+	defaultOTLPMetricsIntervalSeconds = 60
 
 	testIssuer    = "https://idp.example.com"
 	envOIDCIssuer = "KOTATSU_AUTH_OIDC_ISSUER"
@@ -63,6 +61,15 @@ const (
 	testClientID  = "kotatsu"
 	envOIDCClient = "KOTATSU_AUTH_OIDC_CLIENT_ID"
 	envTrue       = "true"
+
+	// 画面に移した項目 (#1869) を設定する画面と、その環境変数。
+	retentionScreen    = "/admin/retention"
+	integrationsScreen = "/admin/integrations"
+	recordingScreen    = "/admin/recording"
+	envHIBPEnabled     = "KOTATSU_AUTH_HIBP_ENABLED"
+	keyHIBPEnabled     = "auth.hibp.enabled"
+	// envOTLPInterval は、OTLP でメトリクスを送る間隔の環境変数。
+	envOTLPInterval = "KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS"
 )
 
 // defaultOIDC は、OIDC の既定値 (OIDC でのログインは無効)。
@@ -178,7 +185,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 			},
@@ -195,7 +201,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Metrics:   config.Metrics{Listen: defaultMetricsListen},
 				Database:  config.Database{URL: envURL, Pooler: false},
 				Telemetry: config.Telemetry{OTLPEndpoint: "http://collector:4318"},
-				Audit:     config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:   noPools(),
 				Tuner:     defaultTuner(""),
 			},
@@ -211,7 +216,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: "127.0.0.1:3000", AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: ":9100"},
 				Database: config.Database{URL: envURL, Pooler: true},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 			},
@@ -223,23 +227,23 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: "postgresql://db/kotatsu", Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 			},
 		},
 		{
+			// 照会するかどうかは画面で決める (#1869) ので、環境変数で渡しても読まずに、無視したことを挙げる。
 			name: "have i been pwned",
 			yaml: "auth:\n  hibp:\n    url: https://hibp.example.com\n",
-			env:  map[string]string{envKeyURL: envURL, "KOTATSU_AUTH_HIBP_ENABLED": envTrue},
+			env:  map[string]string{envKeyURL: envURL, envHIBPEnabled: envTrue},
 			want: &config.Config{
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
-				Auth:     config.Auth{HIBP: config.HIBP{Enabled: true, URL: "https://hibp.example.com"}},
+				Auth:     config.Auth{HIBP: config.HIBP{URL: "https://hibp.example.com"}},
+				Ignored:  []config.IgnoredSetting{{Key: keyHIBPEnabled, Env: envHIBPEnabled, Screen: integrationsScreen}},
 			},
 		},
 		{
@@ -253,7 +257,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 				Auth: config.Auth{OIDC: config.OIDC{
@@ -266,16 +269,20 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			},
 		},
 		{
-			name: "audit retention",
+			// 監査ログの保持期間は画面で決める (#1869) ので、設定ファイルに書いてあっても、起動を止めずに無視したことを挙げる。
+			name: "audit retention in yaml",
 			yaml: "audit:\n  retention_days: 30\n  client_info_retention_days: 7\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: &config.Config{
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: 30, ClientInfoRetentionDays: 7},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
+				Ignored: []config.IgnoredSetting{
+					{Key: "audit.retention_days", Env: "", Screen: retentionScreen},
+					{Key: "audit.client_info_retention_days", Env: "", Screen: retentionScreen},
+				},
 			},
 		},
 		{
@@ -294,7 +301,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 			},
@@ -311,7 +317,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 			},
@@ -327,7 +332,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(tunerURL),
 			},
@@ -343,7 +347,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 				Server:   config.Server{Listen: defaultServerListen, AllowedPrivateNetworks: config.DefaultPrivateNetworks(), AllowedExternalNetworks: []string{}, TrustedProxies: []string{}, ClientIPHeader: config.ClientIPHeaderXForwardedFor, AllowedHosts: []string{}},
 				Metrics:  config.Metrics{Listen: defaultMetricsListen},
 				Database: config.Database{URL: envURL, Pooler: false},
-				Audit:    config.Audit{RetentionDays: defaultAuditRetentionDays, ClientInfoRetentionDays: defaultAuditClientInfoRetentionDays},
 				Storage:  noPools(),
 				Tuner:    defaultTuner(""),
 			},
@@ -368,8 +371,10 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
 			// jikkyo の設定は TestLoadJikkyo で確かめる。
 			tt.want.Jikkyo = config.Jikkyo{Channels: map[string]string{}}
-			// OS のスリープの設定は TestLoadPower で確かめる。
-			tt.want.Power = config.Power{ManageSleep: true}
+			// 画面に移した項目を書いていないケースでは、無視した項目はない。
+			if tt.want.Ignored == nil {
+				tt.want.Ignored = []config.IgnoredSetting{}
+			}
 			// OTLP のメトリクスの設定は TestLoadTelemetry で確かめるので、ここでは既定値のままであることだけを確かめる。
 			tt.want.Telemetry.OTLPMetricsProtocol = config.OTLPProtocolGRPC
 			tt.want.Telemetry.OTLPMetricsIntervalSeconds = defaultOTLPMetricsIntervalSeconds
@@ -464,50 +469,6 @@ func TestLoadStorage(t *testing.T) {
 			want.Libraries = nativeEnv(want.Libraries)
 			want.DataDir, want.TimeshiftDir = nativePaths(want.DataDir), nativePaths(want.TimeshiftDir)
 			assert.Equal(t, want, cfg.Storage)
-		})
-	}
-}
-
-// TestLoadWebPushAndThumbnail は、Web Push とサムネイルの設定を、YAML と環境変数から読むことを確かめる。
-func TestLoadWebPushAndThumbnail(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		yaml          string
-		env           map[string]string
-		wantWebPush   config.WebPush
-		wantThumbnail config.Thumbnail
-	}{
-		{
-			name: "defaults", env: map[string]string{envKeyURL: envURL},
-			wantWebPush: config.WebPush{Subject: ""}, wantThumbnail: config.Thumbnail{DisablePreview: false},
-		},
-		{
-			name: "web push subject", env: map[string]string{envKeyURL: envURL, "KOTATSU_WEB_PUSH_SUBJECT": "mailto:admin@kotatsu.example"},
-			wantWebPush: config.WebPush{Subject: "mailto:admin@kotatsu.example"}, wantThumbnail: config.Thumbnail{DisablePreview: false},
-		},
-		{
-			name: "disable preview in yaml", yaml: "thumbnail:\n  disable_preview: true\n", env: map[string]string{envKeyURL: envURL},
-			wantWebPush: config.WebPush{Subject: ""}, wantThumbnail: config.Thumbnail{DisablePreview: true},
-		},
-		{
-			name: "disable preview in env", env: map[string]string{envKeyURL: envURL, "KOTATSU_THUMBNAIL_DISABLE_PREVIEW": envTrue},
-			wantWebPush: config.WebPush{Subject: ""}, wantThumbnail: config.Thumbnail{DisablePreview: true},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := ""
-			if tt.yaml != "" {
-				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
-			}
-			cfg, err := config.Load(path, lookup(tt.env))
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantWebPush, cfg.WebPush)
-			assert.Equal(t, tt.wantThumbnail, cfg.Thumbnail)
 		})
 	}
 }
@@ -640,35 +601,6 @@ func TestLoadJikkyo(t *testing.T) {
 			cfg, err := config.Load(path, lookup(tt.env))
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, cfg.Jikkyo.Channels)
-		})
-	}
-}
-
-// TestLoadPower は、OS のスリープを扱うかを、既定では扱い、YAML と環境変数で切れることを確かめる (#1522、設計書 11.7)。
-func TestLoadPower(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		yaml string
-		env  map[string]string
-		want bool
-	}{
-		{name: "既定では扱う", env: map[string]string{envKeyURL: envURL}, want: true},
-		{name: "YAML で切る", yaml: "power:\n  manage_sleep: false\n", env: map[string]string{envKeyURL: envURL}, want: false},
-		{name: "環境変数で切る", env: map[string]string{envKeyURL: envURL, "KOTATSU_POWER_MANAGE_SLEEP": "false"}, want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := ""
-			if tt.yaml != "" {
-				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
-			}
-			cfg, err := config.Load(path, lookup(tt.env))
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, cfg.Power.ManageSleep)
 		})
 	}
 }
@@ -888,11 +820,11 @@ func TestLoadTelemetry(t *testing.T) {
 			name: "metrics env",
 			env: map[string]string{
 				envKeyURL: envURL,
-				"KOTATSU_TELEMETRY_OTLP_METRICS_ENDPOINT":         "https://otlp.mackerelio.com:4317",
-				"KOTATSU_TELEMETRY_OTLP_METRICS_PROTOCOL":         "http/protobuf",
-				"KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS": "30",
-				"KOTATSU_TELEMETRY_OTLP_METRICS_EXCLUDE":          "go_*,process_*",
-				"KOTATSU_TELEMETRY_OTLP_METRICS_HEADERS_FILE":     headersFile,
+				"KOTATSU_TELEMETRY_OTLP_METRICS_ENDPOINT": "https://otlp.mackerelio.com:4317",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_PROTOCOL": "http/protobuf",
+				envOTLPInterval:                               "30",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_EXCLUDE":      "go_*,process_*",
+				"KOTATSU_TELEMETRY_OTLP_METRICS_HEADERS_FILE": headersFile,
 			},
 			want: config.Telemetry{
 				OTLPEndpoint: "", OTLPMetricsEndpoint: "https://otlp.mackerelio.com:4317", OTLPMetricsProtocol: config.OTLPProtocolHTTP,
@@ -923,7 +855,7 @@ func TestLoadTelemetry(t *testing.T) {
 			wantErr: "telemetry.otlp_metrics_headers (KOTATSU_TELEMETRY_OTLP_METRICS_HEADERS):",
 		},
 		{
-			name: "invalid interval", env: map[string]string{envKeyURL: envURL, "KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS": "0"},
+			name: "invalid interval", env: map[string]string{envKeyURL: envURL, envOTLPInterval: "0"},
 			wantErr: "telemetry.otlp_metrics_interval_seconds (KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS): must be positive",
 		},
 		{
@@ -1036,14 +968,6 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErrs: []string{"auth.hibp.url (KOTATSU_AUTH_HIBP_URL): must be an http:// or https:// URL"},
 		},
 		{
-			name: "invalid web push subject",
-			env: map[string]string{
-				envKeyURL:                  envURL,
-				"KOTATSU_WEB_PUSH_SUBJECT": "admin@kotatsu.example",
-			},
-			wantErrs: []string{"web_push.subject (KOTATSU_WEB_PUSH_SUBJECT): must be a mailto: or https:// URI"},
-		},
-		{
 			name: "oidc without client id and openid scope",
 			env: map[string]string{
 				envKeyURL: envURL, envOIDCIssuer: testIssuer, "KOTATSU_AUTH_OIDC_SCOPES": "profile",
@@ -1078,20 +1002,12 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			wantErrs: []string{"auth.oidc.issuer (KOTATSU_AUTH_OIDC_ISSUER): must be an http:// or https:// URL"},
 		},
 		{
-			name: "invalid audit retention",
+			name: "non-integer otlp metrics interval",
 			env: map[string]string{
-				envKeyURL:                      envURL,
-				"KOTATSU_AUDIT_RETENTION_DAYS": "0",
+				envKeyURL:       envURL,
+				envOTLPInterval: "a minute",
 			},
-			wantErrs: []string{"audit.retention_days (KOTATSU_AUDIT_RETENTION_DAYS): must be at least 1"},
-		},
-		{
-			name: "non-integer audit retention",
-			env: map[string]string{
-				envKeyURL:                      envURL,
-				"KOTATSU_AUDIT_RETENTION_DAYS": "a year",
-			},
-			wantErrs: []string{"audit.retention_days (KOTATSU_AUDIT_RETENTION_DAYS): must be an integer"},
+			wantErrs: []string{"telemetry.otlp_metrics_interval_seconds (KOTATSU_TELEMETRY_OTLP_METRICS_INTERVAL_SECONDS): must be an integer"},
 		},
 		{
 			name: "invalid otlp endpoint",
@@ -1349,6 +1265,95 @@ func writeFile(t *testing.T, dir, name, content string) string {
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 
 	return path
+}
+
+// TestLoadIgnoresMovedSettings は、画面で設定するようになった項目 (#1869) を、設定ファイルや環境変数に書いてあっても、
+// 起動を止めずに読まず、無視した項目として挙げることを確かめる。同じ節の、設定に残した項目は読む。
+func TestLoadIgnoresMovedSettings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		yaml        string
+		env         map[string]string
+		wantIgnored []config.IgnoredSetting
+		wantErr     string
+		// wantWhisperCommand と wantHIBPURL は、移した項目と同じ節に残した項目の値。
+		wantWhisperCommand string
+		wantHIBPURL        string
+	}{
+		{
+			name: "every moved setting in the environment, even with values that used to be rejected",
+			env: map[string]string{
+				envKeyURL: envURL, "KOTATSU_AUDIT_RETENTION_DAYS": "a year", "KOTATSU_AUDIT_CLIENT_INFO_RETENTION_DAYS": "0",
+				envHIBPEnabled: envTrue, "KOTATSU_WEB_PUSH_SUBJECT": "admin@kotatsu.example",
+				"KOTATSU_THUMBNAIL_DISABLE_PREVIEW": envTrue, "KOTATSU_POWER_MANAGE_SLEEP": "false", "KOTATSU_CAPTIONS_THREADS": "-1",
+			},
+			wantIgnored: []config.IgnoredSetting{
+				{Key: "audit.retention_days", Env: "KOTATSU_AUDIT_RETENTION_DAYS", Screen: retentionScreen},
+				{Key: "audit.client_info_retention_days", Env: "KOTATSU_AUDIT_CLIENT_INFO_RETENTION_DAYS", Screen: retentionScreen},
+				{Key: keyHIBPEnabled, Env: envHIBPEnabled, Screen: integrationsScreen},
+				{Key: "web_push.subject", Env: "KOTATSU_WEB_PUSH_SUBJECT", Screen: integrationsScreen},
+				{Key: "thumbnail.disable_preview", Env: "KOTATSU_THUMBNAIL_DISABLE_PREVIEW", Screen: recordingScreen},
+				{Key: "power.manage_sleep", Env: "KOTATSU_POWER_MANAGE_SLEEP", Screen: recordingScreen},
+				{Key: "captions.threads", Env: "KOTATSU_CAPTIONS_THREADS", Screen: recordingScreen},
+			},
+		},
+		{
+			name: "whole sections in the config file",
+			yaml: "web_push:\n  subject: mailto:admin@kotatsu.example\nthumbnail:\n  disable_preview: true\npower:\n  manage_sleep: false\n",
+			env:  map[string]string{envKeyURL: envURL},
+			wantIgnored: []config.IgnoredSetting{
+				{Key: "web_push.subject", Env: "", Screen: integrationsScreen},
+				{Key: "thumbnail.disable_preview", Env: "", Screen: recordingScreen},
+				{Key: "power.manage_sleep", Env: "", Screen: recordingScreen},
+			},
+		},
+		{
+			name: "next to settings that stay in the config file",
+			yaml: "captions:\n  threads: 4\n  whisper_command: /opt/whisper/whisper-cli\nauth:\n  hibp:\n    enabled: true\n    url: https://hibp.example.com\n",
+			env:  map[string]string{envKeyURL: envURL},
+			wantIgnored: []config.IgnoredSetting{
+				{Key: keyHIBPEnabled, Env: "", Screen: integrationsScreen},
+				{Key: "captions.threads", Env: "", Screen: recordingScreen},
+			},
+			wantWhisperCommand: "/opt/whisper/whisper-cli", wantHIBPURL: "https://hibp.example.com",
+		},
+		{
+			// 値を書かずに節だけを残していても、起動を止めない。
+			name:        "an empty section in the config file",
+			yaml:        "audit:\n",
+			env:         map[string]string{envKeyURL: envURL},
+			wantIgnored: []config.IgnoredSetting{},
+		},
+		{
+			// 綴りを間違えたキーは、移した項目と同じ節にあっても、今までどおり拒む。
+			name:    "a misspelled key in a moved section",
+			yaml:    "audit:\n  retention_dayz: 30\n",
+			env:     map[string]string{envKeyURL: envURL},
+			wantErr: "audit",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := ""
+			if tt.yaml != "" {
+				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
+			}
+			cfg, err := config.Load(path, lookup(tt.env))
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantIgnored, cfg.Ignored)
+			assert.Equal(t, tt.wantWhisperCommand, cfg.Captions.WhisperCommand)
+			assert.Equal(t, tt.wantHIBPURL, cfg.Auth.HIBP.URL)
+		})
+	}
 }
 
 // TestLoadRejectsTimeshiftDirectoryReachedByAnotherPath は、タイムシフト用のディレクトリが、名前の上では重ならなくても、

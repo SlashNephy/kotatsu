@@ -212,7 +212,7 @@ func newAnimeJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) (*
 func newPruneJobParts(deps *Deps) *pruneJobParts {
 	pool := poolOf(deps)
 	clock := clockOf(deps)
-	pruneWorker := newAuditPruneWorker(deps, pool, clock)
+	pruneWorker := newAuditPruneWorker(pool, clock)
 	pruneSessionsWorker := newSessionPruneWorker(pool, clock)
 	oauthPruneWorker := newOAuthPruneWorker(pool, clock)
 	notificationPruneWorker := newNotificationPruneWorker(pool, clock)
@@ -234,7 +234,7 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 	pool := poolOf(deps)
 	store := mediaStoreOf(deps)
 	clock := clockOf(deps)
-	generateWorker := newThumbnailWorker(deps, pool, store, clock)
+	generateWorker := newThumbnailWorker(pool, store, clock)
 	liveWorker := newLiveThumbnailWorker(pool, inserter, clock)
 	analyzeWorker := newAnalyzeWorker(pool, store, clock, inserter)
 	joinWorker := newJoinWorker(pool, store, inserter, logger)
