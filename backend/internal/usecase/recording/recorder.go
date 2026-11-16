@@ -1965,6 +1965,7 @@ func (r *Recorder) complete(
 		payload["files"] = files
 		payload["joinSegments"] = settings.JoinSegments
 		payload["detectCm"] = settings.DetectCM
+		payload["generateCaptions"] = settings.GenerateCaptions
 		payload["transcodePreset"] = settings.TranscodePreset
 		payload["transcodeFrameRate"] = settings.TranscodeFrameRate
 		addNotBroadcast(ctx, q, &recording, payload)

@@ -236,7 +236,8 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 	finalizeWorker := newFinalizeWorker(pool, store, inserter)
 	lowerer := newLowerer(logger)
 	detectWorker := newCMDetectWorker(pool, store, clock, lowerer, inserter, logger)
-	worker := newTranscodeWorker(deps, pool, store, clock, inserter, lowerer, logger)
+	worker := newCaptionsWorker(deps, pool, store, clock, lowerer, logger)
+	transcodeWorker := newTranscodeWorker(deps, pool, store, clock, inserter, lowerer, logger)
 	writeWorker := newTvtplayWorker(pool, store, clock)
 	chaptersWorker := newChaptersWorker(pool, store, clock, lowerer)
 	cliMediaJobParts := &mediaJobParts{
@@ -246,7 +247,8 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 		join:           joinWorker,
 		finalize:       finalizeWorker,
 		cmDetect:       detectWorker,
-		transcode:      worker,
+		captions:       worker,
+		transcode:      transcodeWorker,
 		tvtplay:        writeWorker,
 		chapters:       chaptersWorker,
 	}

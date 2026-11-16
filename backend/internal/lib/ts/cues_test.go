@@ -92,6 +92,8 @@ func TestCueScanner(t *testing.T) {
 	assert.Equal(t, int64(1000), *cues.FirstVideoPTS)
 	assert.Equal(t, int64(40000), *cues.LastVideoPTS)
 	assert.Equal(t, int64(2000), *cues.FirstKeyframePTS)
+	require.NotNil(t, cues.FirstAudioPTS)
+	assert.Equal(t, int64(4000), *cues.FirstAudioPTS)
 	assert.Equal(t, []int64{10000, 30000}, cues.AudioChanges)
 }
 
@@ -121,6 +123,8 @@ func TestCueScannerServiceFallback(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, scanner.Cues().FirstVideoPTS)
 			assert.Equal(t, int64(1000), *scanner.Cues().FirstVideoPTS)
+			// 音声のない番組では、最初の音声の PTS も分からない。
+			assert.Nil(t, scanner.Cues().FirstAudioPTS)
 		})
 	}
 }

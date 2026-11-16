@@ -75,6 +75,21 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateDetected
       FAILED:
         value: github.com/SlashNephy/kotatsu/internal/usecase/cmdetect.StateFailed
+  RecordingAutoCaptionsState:
+    model: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.State
+    enum_values:
+      NOT_GENERATED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateNotGenerated
+      QUEUED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateQueued
+      RUNNING:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateRunning
+      GENERATED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateGenerated
+      FAILED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateFailed
+      NOT_CONFIGURED:
+        value: github.com/SlashNephy/kotatsu/internal/usecase/autocaption.StateNotConfigured
   SkipReason:
     model: github.com/SlashNephy/kotatsu/internal/usecase/rule.SkipReason
     enum_values:
@@ -352,6 +367,10 @@ models:
       cmDetectionNote:
         resolver: true
       cmVideoMissingSeconds:
+        resolver: true
+      autoCaptions:
+        resolver: true
+      autoCaptionsStatus:
         resolver: true
       failureDetail:
         resolver: true

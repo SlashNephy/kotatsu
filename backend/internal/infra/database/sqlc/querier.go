@@ -333,6 +333,10 @@ type Querier interface {
 	GetProgramForReservation(ctx context.Context, arg GetProgramForReservationParams) (GetProgramForReservationRow, error)
 	GetRecording(ctx context.Context, id uuid.UUID) (Recording, error)
 	GetRecordingAssignmentStream(ctx context.Context, id uuid.UUID) (GetRecordingAssignmentStreamRow, error)
+	// 録画の自動生成した字幕を返す。生成していなければ行を返さない。
+	GetRecordingAutoCaptions(ctx context.Context, recordingID uuid.UUID) (GetRecordingAutoCaptionsRow, error)
+	// 録画の自動生成した字幕の、生成した日時とモデルと字幕の数を返す。録画の詳細の状態に使い、字幕そのものは読まない。
+	GetRecordingAutoCaptionsSummary(ctx context.Context, recordingID uuid.UUID) (GetRecordingAutoCaptionsSummaryRow, error)
 	// 録画の CM の区間を見分けた材料を返す (#1507)。なければ行を返さない。
 	GetRecordingCMMaterial(ctx context.Context, arg GetRecordingCMMaterialParams) (GetRecordingCMMaterialRow, error)
 	// 録画の回を読むための、番組のシリーズの記述子の話数と、録画が 1 つの話に結びついたときの TID と話数。
@@ -1183,6 +1187,8 @@ type Querier interface {
 	UpsertProgramAnimeMatch(ctx context.Context, arg UpsertProgramAnimeMatchParams) error
 	UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams) *UpsertProgramsBatchResults
 	UpsertRecordingAnimeMatch(ctx context.Context, arg UpsertRecordingAnimeMatchParams) error
+	// 録画の音声から自動生成した字幕を書く (設計書 6.1、#1682)。生成し直したときは、前の字幕と置き換える。
+	UpsertRecordingAutoCaptions(ctx context.Context, arg UpsertRecordingAutoCaptionsParams) error
 	// 録画の CM の区間を見分けた記録を書く (設計書 6.1、#479)。見分け直したときは、版と日時を置き換える。
 	UpsertRecordingCMDetection(ctx context.Context, arg UpsertRecordingCMDetectionParams) error
 	// 録画の CM の区間を見分けた材料を書く (#1507)。同じ録画と見分け方の材料は置き換える。

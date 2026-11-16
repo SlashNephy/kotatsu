@@ -480,7 +480,7 @@ jobs:
           ffmpeg -hide_banner -version | head -n 1
           ffprobe -hide_banner -version | head -n 1
           # 飛ばしたテストを数え、FFmpeg が見つからずに飛んだテストがあれば落とす。入れたつもりで確かめていない、を防ぐ。
-          go test -v ./internal/usecase/thumbnail/... ./internal/usecase/transcode/... ./internal/usecase/cmdetect/... | tee "$RUNNER_TEMP/ffmpeg-tests.log"
+          go test -v ./internal/usecase/thumbnail/... ./internal/usecase/transcode/... ./internal/usecase/cmdetect/... ./internal/usecase/autocaption/... | tee "$RUNNER_TEMP/ffmpeg-tests.log"
           if grep -n "FFmpeg is not installed" "$RUNNER_TEMP/ffmpeg-tests.log"; then
             echo "::error::FFmpeg was installed but the tests could not find it"
             exit 1

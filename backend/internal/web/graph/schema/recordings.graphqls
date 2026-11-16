@@ -152,6 +152,50 @@ type RecordingCMDetection {
 }
 
 """
+録画の音声から自動生成した字幕の 1 つ (設計書 6.1、#1682)。放送の字幕と違い、誤りが混ざる。
+"""
+type RecordingAutoCaption {
+  "字幕を出す区間の始まりと終わり。録画の時間軸の日時で、CM の区間と同じく、再生の位置にするには途切れた分 (gaps) を詰める。"
+  from: Time!
+  to: Time!
+  "字幕の本文。複数の行は改行でつなぐ。"
+  text: String!
+}
+
+"""
+録画の字幕の自動生成の状態 (設計書 6.1、#1682)。
+"""
+enum RecordingAutoCaptionsState {
+  "生成していない。生成するジョブもない。"
+  NOT_GENERATED
+  "生成するジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  QUEUED
+  "生成している。"
+  RUNNING
+  "生成し終えた。台詞がなく、字幕が 1 つもなくても、生成し終えたとする。"
+  GENERATED
+  "最後に頼んだ生成が、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に生成した結果の状態に戻る。"
+  FAILED
+  "最後に頼んだ生成が、nekonote に whisper-cli かモデルが見つからずに取りやめた。管理者が置くと生成できる。"
+  NOT_CONFIGURED
+}
+
+"""
+録画の字幕の自動生成の状態 (設計書 6.1、#1682)。最後に入れた生成のジョブと、生成した字幕から決める。
+"""
+type RecordingAutoCaptions {
+  state: RecordingAutoCaptionsState!
+  "最後に生成し終えた日時。生成していなければ null。生成し直している間と、生成し直しに失敗した後は、前に生成した日時を返す。"
+  generatedAt: Time
+  "最後に生成し終えたときに使ったモデルのファイルの名前。生成していなければ null。"
+  model: String
+  "最後に生成し終えた字幕の数。"
+  count: Int!
+  "生成しているときの進み具合。今の試行で書いたものがなければ null。"
+  progress: JobProgress
+}
+
+"""
 録画のタグ。
 """
 type Tag {
@@ -213,6 +257,10 @@ type Recording implements Node {
   cmDetectionNote: String
   "最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
   cmVideoMissingSeconds: Float!
+  "音声から自動生成した字幕を、始まりの順に並べる (#1682)。生成していないか、台詞がなければ空になる。"
+  autoCaptions: [RecordingAutoCaption!]!
+  "字幕の自動生成の状態 (#1682)。生成を待っているか、生成しているか、生成し終えたか、失敗したかを返す。"
+  autoCaptionsStatus: RecordingAutoCaptions!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -371,6 +419,12 @@ extend type Mutation {
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   detectRecordingCm(id: ID!): Boolean!
+  """
+  録画の音声から字幕を自動生成するジョブを入れる (設計書 6.1、#1682)。視聴者は使えない。全体や予約の設定にかかわらず生成し、
+  前に生成した字幕は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。whisper-cli とモデルがなければ、ジョブが取りやめ、状態が NOT_CONFIGURED になる。
+  """
+  generateRecordingCaptions(id: ID!): Boolean!
 }
 
 """

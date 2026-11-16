@@ -13,6 +13,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -1372,6 +1373,28 @@ type RecordAnimeEpisodesInput struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// 録画の音声から自動生成した字幕の 1 つ (設計書 6.1、#1682)。放送の字幕と違い、誤りが混ざる。
+type RecordingAutoCaption struct {
+	// 字幕を出す区間の始まりと終わり。録画の時間軸の日時で、CM の区間と同じく、再生の位置にするには途切れた分 (gaps) を詰める。
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+	// 字幕の本文。複数の行は改行でつなぐ。
+	Text string `json:"text"`
+}
+
+// 録画の字幕の自動生成の状態 (設計書 6.1、#1682)。最後に入れた生成のジョブと、生成した字幕から決める。
+type RecordingAutoCaptions struct {
+	State autocaption.State `json:"state"`
+	// 最後に生成し終えた日時。生成していなければ null。生成し直している間と、生成し直しに失敗した後は、前に生成した日時を返す。
+	GeneratedAt *time.Time `json:"generatedAt,omitempty"`
+	// 最後に生成し終えたときに使ったモデルのファイルの名前。生成していなければ null。
+	Model *string `json:"model,omitempty"`
+	// 最後に生成し終えた字幕の数。
+	Count int `json:"count"`
+	// 生成しているときの進み具合。今の試行で書いたものがなければ null。
+	Progress *JobProgress `json:"progress,omitempty"`
+}
+
 // 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
 type RecordingCMDetection struct {
 	State cmdetect.State `json:"state"`
@@ -1508,6 +1531,8 @@ type RecordingSettings struct {
 	JoinSegments bool `json:"joinSegments"`
 	// 録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
 	DetectCM bool `json:"detectCm"`
+	// 録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定は false。生成には、nekonote に whisper.cpp とモデルを置く必要がある。
+	GenerateCaptions bool `json:"generateCaptions"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
@@ -1528,6 +1553,8 @@ type RecordingSettingsOverrides struct {
 	JoinSegments *bool `json:"joinSegments,omitempty"`
 	// 録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
 	DetectCM *bool `json:"detectCm,omitempty"`
+	// 録画が終わったら、音声から字幕を自動生成するかどうか (#1682)。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
+	GenerateCaptions *bool `json:"generateCaptions,omitempty"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
@@ -1543,6 +1570,7 @@ type RecordingSettingsOverridesInput struct {
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 	DetectCM           *bool   `json:"detectCm,omitempty"`
+	GenerateCaptions   *bool   `json:"generateCaptions,omitempty"`
 	// 変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 変換で出すコマ数 (auto、30、60 のどれか)。

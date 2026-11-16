@@ -528,6 +528,9 @@ func merge(base, changes *domain.RecordingOverrides) *domain.RecordingOverrides 
 	if changes.DetectCM != nil {
 		merged.DetectCM = changes.DetectCM
 	}
+	if changes.GenerateCaptions != nil {
+		merged.GenerateCaptions = changes.GenerateCaptions
+	}
 	if changes.TranscodePreset != nil {
 		merged.TranscodePreset = changes.TranscodePreset
 	}

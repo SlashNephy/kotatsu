@@ -616,6 +616,14 @@ type RecordingAssignment struct {
 	UpdatedAt        time.Time
 }
 
+type RecordingAutoCaption struct {
+	RecordingID      uuid.UUID
+	Model            string
+	GeneratorVersion int32
+	GeneratedAt      time.Time
+	Cues             []byte
+}
+
 type RecordingCmDetection struct {
 	RecordingID     uuid.UUID
 	Detector        string
