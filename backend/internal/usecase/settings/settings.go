@@ -106,6 +106,9 @@ type System struct {
 	// AnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
 	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
 	AnimeLinkingEnabled bool
+	// DramaLinkingEnabled は、TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
+	// 外部へ問い合わせるので、既定は false (設計書 0.3)。
+	DramaLinkingEnabled bool
 	// CommentSources は、管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定は空 (設計書 0.3)。
 	CommentSources []string
 	// DRCSReplacements は、字幕の外字 (DRCS) を文字に置き換える表 (#825)。外字の画像の MD5 (小文字の 16 進) から文字へ。
@@ -208,6 +211,7 @@ type Changes struct {
 	CMDetector                   *string
 	EPGStationAPIEnabled         *bool
 	AnimeLinkingEnabled          *bool
+	DramaLinkingEnabled          *bool
 	CommentSources               *[]string
 	// DRCSReplacements は、外字の置き換えの表の変更 (#825)。MD5 から、置き換える文字 (nil なら消す) へ。書いていない外字は変えない。
 	DRCSReplacements                       map[string]*string
@@ -405,6 +409,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			CMDetector:                             valueOr(changes.CMDetector, current.CMDetector),
 			EPGStationAPIEnabled:                   valueOr(changes.EPGStationAPIEnabled, current.EPGStationAPIEnabled),
 			AnimeLinkingEnabled:                    valueOr(changes.AnimeLinkingEnabled, current.AnimeLinkingEnabled),
+			DramaLinkingEnabled:                    valueOr(changes.DramaLinkingEnabled, current.DramaLinkingEnabled),
 			CommentSources:                         valueOr(changes.CommentSources, current.CommentSources),
 			DrcsReplacements:                       replacementsEncoded,
 			TimeshiftWhileWatching:                 valueOr(changes.TimeshiftWhileWatching, current.TimeshiftWhileWatching),
@@ -441,6 +446,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"cmDetector":                   change(current.CMDetector, updated.CMDetector),
 				"epgstationApiEnabled":         change(current.EPGStationAPIEnabled, updated.EPGStationAPIEnabled),
 				"animeLinkingEnabled":          change(current.AnimeLinkingEnabled, updated.AnimeLinkingEnabled),
+				"dramaLinkingEnabled":          change(current.DramaLinkingEnabled, updated.DramaLinkingEnabled),
 				"commentSources":               change(current.CommentSources, updated.CommentSources),
 				// 表は大きくなりうるので、監査ログには、変えた外字だけを残す。
 				"drcsReplacements":                       drcsChanges(current.DRCSReplacements, updated.DRCSReplacements, changes.DRCSReplacements),
@@ -623,6 +629,7 @@ func defaults() *System {
 		CMDetector:                CMDetectorFFmpeg,
 		EPGStationAPIEnabled:      false,
 		AnimeLinkingEnabled:       false,
+		DramaLinkingEnabled:       false,
 		CommentSources:            []string{},
 		DRCSReplacements:          map[string]string{},
 		TimeshiftWhileWatching:    false, TimeshiftWhileWatchingRetentionSeconds: DefaultTimeshiftWhileWatchingRetentionSeconds,
@@ -664,6 +671,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		CMDetector:                row.CMDetector,
 		EPGStationAPIEnabled:      row.EPGStationAPIEnabled,
 		AnimeLinkingEnabled:       row.AnimeLinkingEnabled,
+		DramaLinkingEnabled:       row.DramaLinkingEnabled,
 		CommentSources:            row.CommentSources,
 		TimeshiftWhileWatching:    row.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: int(row.TimeshiftWhileWatchingRetentionSeconds),
 		RuleUnmatchedGraceMinutes: int(row.RuleUnmatchedGraceMinutes),

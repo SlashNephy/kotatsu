@@ -43,6 +43,7 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		CMDetector:                cmDetectorName(input.CMDetector),
 		EPGStationAPIEnabled:      input.EpgstationAPIEnabled,
 		AnimeLinkingEnabled:       input.AnimeLinkingEnabled,
+		DramaLinkingEnabled:       input.DramaLinkingEnabled,
 		CommentSources:            optionalCommentSources(input.CommentSources),
 		DRCSReplacements:          replacements,
 		TimeshiftWhileWatching:    input.TimeshiftWhileWatching, TimeshiftWhileWatchingRetentionSeconds: input.TimeshiftWhileWatchingRetentionSeconds,
@@ -54,6 +55,10 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 	// 連携を有効にしたら、1 時間ごとの確かめを待たずに、連携先の情報を取り込み始める (設計書 3.8)。
 	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {
 		r.startAnimeLinking(ctx)
+	}
+	// TMDb との連携を有効にしたら、6 時間ごとの照合し直しを待たずに、これから 1 週間の番組を照合する (設計書 3.9)。
+	if updated.DramaLinkingEnabled && input.DramaLinkingEnabled != nil {
+		r.startDramaLinking(ctx)
 	}
 
 	return systemSettingsOf(updated), nil

@@ -2405,6 +2405,7 @@
     "categories": {
       "jikkyo": "実況",
       "anime": "アニメ",
+      "drama": "ドラマ",
       "auth": "認証",
       "operation": "運用",
       "notification": "通知",
@@ -2455,6 +2456,10 @@
         "title": "作品の画像",
         "body": "画面に出す作品の画像を取得しました",
         "hostLabel": "画像の配信元"
+      },
+      "DRAMA_LINKING": {
+        "title": "ドラマの作品と話",
+        "body": "ドラマの番組名から、TMDbの作品と話を問い合わせました"
       },
       "USER_AVATAR": {
         "title": "ユーザーのアイコン",

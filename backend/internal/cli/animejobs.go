@@ -8,11 +8,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/nicolog"
 	"github.com/SlashNephy/kotatsu/internal/infra/syobocal"
+	"github.com/SlashNephy/kotatsu/internal/infra/tmdb"
 	"github.com/SlashNephy/kotatsu/internal/infra/workids"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 )
 
 // animeJobParts は、nekonote で、アニメの番組と作品を結びつけ、見たアニメを記録するジョブの部品 (設計書 3.8、#927)。
@@ -39,6 +41,16 @@ func newSyobocalClient(deps *Deps) *syobocal.Client {
 		HTTPClient: netactivity.NewClient(deps.Network, netactivity.PurposeAnimeProgramSync, netactivity.ClientOptions{Transport: nil, Timeout: 0, CheckRedirect: nil}),
 		URL:        "", Interval: 0,
 	})
+}
+
+// newDramaMatcher は、ドラマの番組を、TMDb の作品と話に結びつける部品を作る (#1651、設計書 3.9)。
+// 問い合わせの間隔は、このプロセスの照合のジョブすべてで共有するので、1 つだけ作る。
+func newDramaMatcher(deps *Deps, logger *slog.Logger) *drama.Matcher {
+	client := tmdb.NewClient(&tmdb.Options{
+		HTTPClient: tmdb.NewHTTPClient(deps.Network), URL: deps.Config.TMDb.URL, Token: deps.Config.TMDb.ReadAccessToken.Value(), Interval: 0,
+	})
+
+	return drama.NewMatcher(deps.DB, deps.Clock, client, logger.With(slog.String("component", "drama")), 0)
 }
 
 // newRecordingAnimeRecords は、見たアニメを、ユーザーが連携した Annict と AniList に記録する部品を作る (#927)。

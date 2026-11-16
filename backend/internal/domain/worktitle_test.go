@@ -35,6 +35,11 @@ func TestWorkTitle(t *testing.T) {
 		{name: "serial drama", in: "連続ドラマ「縁側の午後」 第12話", want: "縁側の午後"},
 		{name: "leading mark before slot name", in: "【新】土曜ドラマ「作品名」#1", want: work},
 		{name: "quoted title with suffix", in: "金曜ドラマ「作品名」SP", want: work},
+		// 海外ドラマや時代劇の再放送の枠も除く (#1651)。
+		{name: "foreign drama slot", in: "中国ドラマ「作品名」　第３５話「サブタイトル」", want: work},
+		{name: "retro drama slot", in: "懐ドラ「作品名」　「サブタイトル」🈞", want: work},
+		{name: "period drama slot with space", in: "おはよう！時代劇　作品名　＃４🈑🈞", want: work},
+		{name: "mystery slot", in: "日曜ミステリー『作品名』出演者🈞", want: work},
 		// 枠の名前に似た作品名は、後ろに空白もかぎ括弧もないので削らない。
 		{name: "title starting like a slot name", in: "ドラマチックな恋 #1", want: "ドラマチックな恋"},
 		// 枠の名前だけなら、そのまま返す。

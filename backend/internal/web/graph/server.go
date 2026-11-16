@@ -25,6 +25,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -112,6 +113,8 @@ type Options struct {
 	FreeSpace kago.FreeSpaceFunc
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録の操作は内部のエラーにし、プレイヤーの報告は捨てる。
 	AnimeRecords *animerecord.Service
+	// TMDbConfigured は、TMDb のトークンを設定したかどうか (#1651)。連携の画面に出すだけで、tenban は TMDb に問い合わせない。
+	TMDbConfigured bool
 	// Jobs は、ジョブを入れる River のクライアント。録画の画像を作り直すのに使う。nil なら、作り直せない。
 	Jobs thumbnail.Inserter
 	// JobAdmin は、管理者向けにジョブを読み、試し直し、取り消す River のクライアント (#1279)。nil なら、ジョブの画面を使えない。
@@ -211,6 +214,8 @@ func NewHandler(opts *Options) http.Handler {
 		timeshift:        timeshift.NewChannels(o.Clock, o.Recorder),
 		animeChannels:    anime.NewChannels(o.Clock, o.Recorder, o.Jobs),
 		animeRecords:     o.AnimeRecords,
+		dramaOverrides:   drama.NewOverrides(o.Clock, o.Recorder, o.Jobs),
+		tmdbConfigured:   o.TMDbConfigured,
 		inbox:            notification.NewInbox(o.Clock),
 		webhooks:         o.Webhooks,
 		webPush:          o.WebPush,

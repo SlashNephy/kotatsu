@@ -46,6 +46,8 @@ type Config struct {
 	AnimeLinking AnimeLinking `yaml:"anime_linking"`
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
 	AnimeRecords AnimeRecords `yaml:"anime_records"`
+	// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
+	TMDb TMDb `yaml:"tmdb"`
 	// UpdateCheck は、新しいリリースを確かめるかどうかの設定 (#506)。
 	UpdateCheck UpdateCheck `yaml:"update_check"`
 	// Power は、Windows と macOS で、OS のスリープを扱う設定 (#1522)。
@@ -332,6 +334,16 @@ type AnimeLinking struct {
 	ArmURL Secret `yaml:"arm_url"`
 }
 
+// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。連携するかどうかは、管理者が画面で決める。
+type TMDb struct {
+	// ReadAccessToken は、TMDb の API の読み取りアクセストークン (API Read Access Token)。空なら、連携を有効にしても問い合わせない。
+	// インスタンスの運用者が TMDb で発行するものなので、ほかの運用の秘密情報と同じく設定で渡し、_FILE で終わる環境変数でファイルから渡せる。
+	ReadAccessToken Secret `yaml:"read_access_token"`
+	// URL は、TMDb の API を向ける先のオリジン。空なら https://api.themoviedb.org にする。
+	// 本物の API の代わりに、検証用のサーバーへ向けるときだけ使う。
+	URL string `yaml:"url"`
+}
+
 // AnimeRecords は、見たアニメを記録する先の設定 (#927)。どの記録先と連携するかは、管理者が画面で決める。
 type AnimeRecords struct {
 	// AnnictURL は、Annict の画面と API を向ける先のオリジン。空なら https://annict.com と https://api.annict.com にする。
@@ -520,6 +532,7 @@ func Default() *Config {
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
+		TMDb:         TMDb{ReadAccessToken: "", URL: ""},
 	}
 }
 
@@ -615,6 +628,9 @@ func (c *Config) validate() error {
 	}
 	errs = append(errs, c.Auth.OIDC.validate()...)
 	errs = append(errs, c.AnimeRecords.validate()...)
+	if err := validateHTTPURL(c.TMDb.URL); err != nil {
+		errs = append(errs, fieldError("tmdb.url", err))
+	}
 	if subject := c.WebPush.Subject; subject != "" && !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
 		errs = append(errs, fieldError("web_push.subject", errors.New("must be a mailto: or https:// URI")))
 	}

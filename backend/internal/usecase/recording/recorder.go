@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/history"
 	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -1795,6 +1796,10 @@ func (r *Recorder) start(
 		inserted = true
 		// 解像度と同じく、録画を始めたときの番組とアニメの作品の結びつきを写す (設計書 3.8)。
 		if err := anime.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
+			return err
+		}
+		// ドラマの番組と TMDb の作品と話の結びつきも、同じく写す (#1651、設計書 3.9)。
+		if err := drama.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
 			return err
 		}
 		if _, err := notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel); err != nil {

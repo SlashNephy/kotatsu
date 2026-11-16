@@ -384,6 +384,9 @@ CREATE TABLE system_settings (
   -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   anime_linking_enabled boolean NOT NULL DEFAULT false,
+  -- TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
+  -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
+  drama_linking_enabled boolean NOT NULL DEFAULT false,
   -- 管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定では空にする (設計書 0.3)。
   comment_sources text[] NOT NULL DEFAULT '{}',
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従、同じ回を束ねるか。#470、#1498)。変えた項目だけを持ち、Go の既定値に重ねる。
@@ -1819,4 +1822,97 @@ CREATE TABLE edcb_network_tvs (
   network_id integer NOT NULL,
   service_id integer NOT NULL,
   acquired_at timestamptz NOT NULL
+);
+
+-- TMDb の作品の検索の結果 (#1651、設計書 3.9)。番組名から読んだ作品名ごとに持ち、同じ作品名で問い合わせ直さない。
+-- TMDb の利用規約は、取得した情報を 6 か月を超えて持つことを禁じているので、引いてから 180 日たった行は消す。
+CREATE TABLE tmdb_searches (
+  -- 問い合わせた作品名 (NFKC で正規化したもの)。
+  query text PRIMARY KEY,
+  -- 検索の結果の作品。[{"id": 1, "name": "", "originalName": "", "firstAirDate": "2026-10-04", "genreIds": [18]}] の形。
+  results jsonb NOT NULL,
+  fetched_at timestamptz NOT NULL
+);
+
+-- TMDb の作品 (TV) の名前とシーズンの一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
+CREATE TABLE tmdb_series (
+  id integer PRIMARY KEY CHECK (id > 0),
+  name text NOT NULL,
+  original_name text NOT NULL,
+  first_air_date date,
+  -- シーズンの一覧。[{"seasonNumber": 1, "airDate": "2026-10-04", "episodeCount": 10}] の形。
+  seasons jsonb NOT NULL,
+  fetched_at timestamptz NOT NULL
+);
+
+-- TMDb のシーズンの話の一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
+CREATE TABLE tmdb_seasons (
+  series_id integer NOT NULL,
+  season_number integer NOT NULL CHECK (season_number >= 0),
+  -- 話の一覧。[{"episodeNumber": 1, "airDate": "2026-10-04", "name": ""}] の形。
+  episodes jsonb NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (series_id, season_number)
+);
+
+-- ドラマの番組と、TMDb の作品と話の結びつき (#1651、設計書 3.9)。アニメの結びつき (program_anime_matches) と同じく、
+-- programs の主キーの EID は使い回されるので、サービスと開始時刻で持ち、アーカイブへ移した番組の結びつきも残す。
+-- どの作品にも結びつかなかった番組の行も残し、照合したことを表す。持つのは TMDb の ID と番号だけで、名前はキャッシュから引く。
+CREATE TABLE program_drama_matches (
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  start_at timestamptz NOT NULL,
+  -- 照合したときの番組のイベント ID。放送時間が変わった番組の、前の結びつきを消すのに使う。
+  event_id bigint NOT NULL,
+  -- 番組名から読んだ作品名の鍵。管理者の上書き (drama_title_overrides) を引くのに使う。
+  title_key text NOT NULL,
+  tmdb_series_id integer CHECK (tmdb_series_id > 0),
+  season_number integer CHECK (season_number >= 0),
+  episode_number integer CHECK (episode_number > 0),
+  -- 作品を決めた出どころ。search は TMDb の検索、override は管理者の上書き。作品に結びつかなければ NULL。
+  series_source text CHECK (series_source IN ('search', 'override')),
+  -- 話を決めた出どころ。air_date は TMDb の話の放送日、title は番組名の話数。話を決められなければ NULL。
+  episode_source text CHECK (episode_source IN ('air_date', 'title')),
+  matched_at timestamptz NOT NULL,
+  -- 放送が終わった後に照合し直し、結びつきを確定させた日時。確定させた番組は、それからは照合し直さない。
+  finalized_at timestamptz,
+  PRIMARY KEY (service_id, start_at),
+  CHECK ((tmdb_series_id IS NULL) = (series_source IS NULL)),
+  CHECK ((episode_number IS NULL) = (episode_source IS NULL)),
+  CHECK (episode_number IS NULL OR (tmdb_series_id IS NOT NULL AND season_number IS NOT NULL))
+);
+CREATE INDEX program_drama_matches_service_id_event_id_idx ON program_drama_matches (service_id, event_id);
+CREATE INDEX program_drama_matches_title_key_idx ON program_drama_matches (title_key);
+-- ドラマの視聴管理の画面 (#1652) で、作品の番組を引く。
+CREATE INDEX program_drama_matches_tmdb_series_id_idx ON program_drama_matches (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
+
+-- ドラマの番組の照合が読み終えた、EPG の変更の記録 (epg_changes) の版数 (設計書 3.9)。1 行だけ持つ。
+CREATE TABLE drama_match_cursor (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  epg_version bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 録画に写した、番組と TMDb の作品と話の結びつき (#1651、設計書 3.9)。アニメと同じく、録画を始めたときの番組の結びつきを写し、
+-- 放送が終わるまでに照合し直したら写し直す。番組がアーカイブから消えても、録画の結びつきは残る。列は program_drama_matches と同じ。
+CREATE TABLE recording_drama_matches (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  tmdb_series_id integer CHECK (tmdb_series_id > 0),
+  season_number integer CHECK (season_number >= 0),
+  episode_number integer CHECK (episode_number > 0),
+  series_source text CHECK (series_source IN ('search', 'override')),
+  episode_source text CHECK (episode_source IN ('air_date', 'title')),
+  matched_at timestamptz NOT NULL,
+  CHECK ((tmdb_series_id IS NULL) = (series_source IS NULL)),
+  CHECK ((episode_number IS NULL) = (episode_source IS NULL)),
+  CHECK (episode_number IS NULL OR (tmdb_series_id IS NOT NULL AND season_number IS NOT NULL))
+);
+-- ドラマの視聴管理の画面 (#1652) で、作品の録画を引く。
+CREATE INDEX recording_drama_matches_tmdb_series_id_idx ON recording_drama_matches (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
+
+-- 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。検索で誤った作品に結びついたときに直す。
+-- tmdb_series_id が NULL なら、その作品名の番組を、どの作品にも結びつけない。
+CREATE TABLE drama_title_overrides (
+  title_key text PRIMARY KEY CHECK (title_key <> ''),
+  tmdb_series_id integer CHECK (tmdb_series_id > 0),
+  updated_at timestamptz NOT NULL
 );

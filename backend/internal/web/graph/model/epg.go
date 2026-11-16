@@ -7,6 +7,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 )
 
 var (
@@ -90,6 +91,11 @@ func (p Program) RuleKeyword() string {
 // WorkTitle は、外部のサービスで作品を探すのに使う作品名 (#1650)。gqlgen が Program.workTitle に使う。
 func (p Program) WorkTitle() string {
 	return domain.WorkTitle(p.Name)
+}
+
+// DramaTitleKey は、TMDb で作品を探す作品名の鍵 (#1651)。gqlgen が Program.dramaTitleKey に使う。
+func (p Program) DramaTitleKey() string {
+	return drama.TitleKeyOf(p.Name)
 }
 
 // GuideRow は、番組表の 1 列。
