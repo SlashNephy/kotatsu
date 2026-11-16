@@ -379,6 +379,64 @@ func (q *Queries) ListRecordingAssignments(ctx context.Context) ([]RecordingAssi
 	return items, nil
 }
 
+const listSkippedConflictReservations = `-- name: ListSkippedConflictReservations :many
+SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.extended, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
+FROM reservations r
+JOIN services s ON s.id = r.service_id
+WHERE r.enabled
+  AND r.assignment_state = 'conflict'
+  AND r.planned_start_at <= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
+  AND NOT EXISTS (SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.id)
+ORDER BY r.id
+`
+
+type ListSkippedConflictReservationsRow struct {
+	ID             uuid.UUID
+	ServiceID      int64
+	EventID        *int64
+	Name           string
+	Description    string
+	Extended       []byte
+	StartAt        time.Time
+	EndAt          time.Time
+	PlannedStartAt *time.Time
+	ServiceName    string
+}
+
+// チューナーを奪えない EDCB で録りに行かない、競合した予約のうち、予定の開始が過ぎ、録画の行も割り振りもないもの (#1536)。
+// 録画の失敗として記録する。
+func (q *Queries) ListSkippedConflictReservations(ctx context.Context, now time.Time) ([]ListSkippedConflictReservationsRow, error) {
+	rows, err := q.db.Query(ctx, listSkippedConflictReservations, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSkippedConflictReservationsRow{}
+	for rows.Next() {
+		var i ListSkippedConflictReservationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.StartAt,
+			&i.EndAt,
+			&i.PlannedStartAt,
+			&i.ServiceName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockRecordingAssignmentGeneration = `-- name: LockRecordingAssignmentGeneration :one
 SELECT generation FROM recording_assignments WHERE id = $1 FOR UPDATE
 `

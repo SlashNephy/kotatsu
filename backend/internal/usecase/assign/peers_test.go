@@ -14,7 +14,7 @@ func TestPeers(t *testing.T) {
 	t.Parallel()
 
 	// combined は、地上波と衛星を兼ねるチューナー 0 と、地上波だけのチューナー 1。
-	combined := []*assign.Tuner{{Index: 0, Types: []string{typeGR, typeBS}}, {Index: 1, Types: []string{typeGR}}}
+	combined := []*assign.Tuner{{Index: 0, Types: []string{typeGR, typeBS}, Blocks: []assign.Block{}}, {Index: 1, Types: []string{typeGR}, Blocks: []assign.Block{}}}
 	tests := []struct {
 		name         string
 		reservations []*assign.Reservation

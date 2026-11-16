@@ -33,7 +33,7 @@ func program(n int, channel string, startMinute, minutes int) *assign.Reservatio
 	start := base().Add(time.Duration(startMinute) * time.Minute)
 
 	return &assign.Reservation{
-		ID: reservationID(n), ChannelType: typeGR, Channel: channel,
+		ID: reservationID(n), ChannelType: typeGR, Channel: channel, Service: 0,
 		StartAt: start, EndAt: start.Add(time.Duration(minutes) * time.Minute),
 		StartMargin: margin, EndMargin: margin, Priority: 0, Recording: false, Tuner: 0,
 	}
@@ -72,7 +72,7 @@ func onBS(r *assign.Reservation) *assign.Reservation {
 func grTuners(n int) []*assign.Tuner {
 	tuners := make([]*assign.Tuner, 0, n)
 	for i := range n {
-		tuners = append(tuners, &assign.Tuner{Index: i, Types: []string{typeGR}})
+		tuners = append(tuners, &assign.Tuner{Index: i, Types: []string{typeGR}, Blocks: []assign.Block{}})
 	}
 
 	return tuners
@@ -347,7 +347,7 @@ func genInput(t *rapid.T) ([]*assign.Reservation, []*assign.Tuner) {
 	tuners := make([]*assign.Tuner, 0, tunerCount)
 	for i := range tunerCount {
 		types := rapid.SampledFrom([][]string{{typeGR}, {typeBS}, {typeGR, typeBS}}).Draw(t, fmt.Sprintf("types%d", i))
-		tuners = append(tuners, &assign.Tuner{Index: i, Types: types})
+		tuners = append(tuners, &assign.Tuner{Index: i, Types: types, Blocks: []assign.Block{}})
 	}
 
 	reservationCount := rapid.IntRange(0, 12).Draw(t, "reservations")
@@ -366,6 +366,7 @@ func genInput(t *rapid.T) ([]*assign.Reservation, []*assign.Tuner) {
 			ID:          reservationID(i + 1),
 			ChannelType: channelType,
 			Channel:     channel,
+			Service:     0,
 			StartAt:     start,
 			EndAt:       start.Add(time.Duration(rapid.IntRange(1, 120).Draw(t, fmt.Sprintf("minutes%d", i))) * time.Minute),
 			StartMargin: time.Duration(rapid.IntRange(0, 120).Draw(t, fmt.Sprintf("startMargin%d", i))) * time.Second,
@@ -481,7 +482,7 @@ func TestAssignDoesNotCutCoresForMarginsOnly(t *testing.T) {
 			start := next.Add(time.Duration(rapid.IntRange(0, 5).Draw(t, fmt.Sprintf("gap%d", i))) * time.Minute)
 			end := start.Add(time.Duration(rapid.IntRange(1, 60).Draw(t, fmt.Sprintf("minutes%d", i))) * time.Minute)
 			reservations = append(reservations, &assign.Reservation{
-				ID: reservationID(i + 1), ChannelType: typeGR, Channel: rapid.SampledFrom([]string{"27", "26", "25"}).Draw(t, fmt.Sprintf("channel%d", i)),
+				ID: reservationID(i + 1), ChannelType: typeGR, Channel: rapid.SampledFrom([]string{"27", "26", "25"}).Draw(t, fmt.Sprintf("channel%d", i)), Service: 0,
 				StartAt: start, EndAt: end,
 				StartMargin: time.Duration(rapid.IntRange(0, 300).Draw(t, fmt.Sprintf("startMargin%d", i))) * time.Second,
 				EndMargin:   time.Duration(rapid.IntRange(0, 300).Draw(t, fmt.Sprintf("endMargin%d", i))) * time.Second,

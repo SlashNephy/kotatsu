@@ -1,4 +1,4 @@
-h1:p1nR9bMb0Nm023OEegX7w1TZGO62/DJROaUMaj6NwGI=
+h1:eldPVoSC/ODXKJgZJRswD0l6ujhdnLeHlEtg9Y/Zfs4=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -130,3 +130,4 @@ h1:p1nR9bMb0Nm023OEegX7w1TZGO62/DJROaUMaj6NwGI=
 20261115223239_add_recording_file_external.sql h1:R838nqAPScwXegYSdZNzV+ElhLeHX82y77DmrFNQ7LQ=
 20261115232010_add_tuning_refused.sql h1:ntdxYjEfasHGyedHX2zrP9SuE51p1lFacXC/zTLLt9M=
 20261116033534_add_rule_groups.sql h1:kEHT0GtqD0XSKumxzvMJbNl0XDnqDyVq903haDMVG/E=
+20261116034238_add_tuner_occupancies.sql h1:KOEi2dpJeEHkBLJuZJ8ottUArTs2ZAOeeJ+2tWCm9xE=

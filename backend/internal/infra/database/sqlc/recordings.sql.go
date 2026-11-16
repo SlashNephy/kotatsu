@@ -695,8 +695,8 @@ WITH inserted AS (
   INSERT INTO recordings (id, reservation_id, service_id, event_id, name, description, extended, name_normalized, description_normalized,
     start_at, end_at, state, failure_reason, recorded_from, recorded_until, created_at, updated_at)
   VALUES ($2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, 'failed', 'recorder_unavailable',
-    $13, $13, $1, $1)
+    $11, $12, 'failed', $13,
+    $14, $14, $1, $1)
   ON CONFLICT (reservation_id) DO NOTHING
   RETURNING failure_reason
 )
@@ -718,10 +718,13 @@ type InsertMissedRecordingParams struct {
 	DescriptionNormalized *string
 	StartAt               time.Time
 	EndAt                 time.Time
+	FailureReason         *domain.RecordingFailureReason
 	RecordedFrom          time.Time
 }
 
-// mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
+// 録り始めなかった予約の録画を、失敗として記録する。mikan が取らなかった割り振り (#517、recorder_unavailable) と、
+// チューナーを奪えない EDCB で録りに行かなかった競合した予約 (#1536、tuner_unavailable) に使う。
+// 録画した時間はないので、始まりと終わりを予定の開始にする。
 // 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
 // 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error) {
@@ -738,6 +741,7 @@ func (q *Queries) InsertMissedRecording(ctx context.Context, arg InsertMissedRec
 		arg.DescriptionNormalized,
 		arg.StartAt,
 		arg.EndAt,
+		arg.FailureReason,
 		arg.RecordedFrom,
 	)
 	if err != nil {

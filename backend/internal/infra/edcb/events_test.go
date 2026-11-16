@@ -25,17 +25,24 @@ func notification(id, count uint32) reply {
 func TestTunerServerEvents(t *testing.T) {
 	t.Parallel()
 
-	// 最後の通知の巡回カウンタ (5) より後の通知を待つ。予約の変化 (2) は読み飛ばし、EPG の読み込み (1) をイベントにする。
+	// 最後の通知の巡回カウンタ (5) より後の通知を待つ。予約の変化 (2) はチューナーの変化に、EPG の読み込み (1) は
+	// サービスの変化にする (#1536)。ほかの通知 (録画の開始 102) は読み飛ばす。
 	s := newFakeServer(t, map[uint32]reply{2200: {status: 0, payload: nil, stream: nil, hold: true, drop: false}})
-	s.queued[2200] = []reply{notification(edcb.NotifyUpdateSrvStatus, 5), notification(edcb.NotifyUpdateReserveInfo, 6), notification(edcb.NotifyUpdateEPGData, 7)}
+	s.queued[2200] = []reply{
+		notification(edcb.NotifyUpdateSrvStatus, 5), notification(edcb.NotifyUpdateReserveInfo, 6), notification(edcb.NotifyRecStart, 7),
+		notification(edcb.NotifyUpdateEPGData, 8),
+	}
 	stream, err := edcb.NewTunerServer(s.client(t), nil).OpenEvents(t.Context())
 	require.NoError(t, err)
 
 	event, err := stream.Next()
 	require.NoError(t, err)
+	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0}, event)
+	event, err = stream.Next()
+	require.NoError(t, err)
 	assert.Equal(t, &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}, event)
-	// 4 回目の問い合わせ (巡回カウンタ 7 より後) は保留される。Close で切る。
-	require.Eventually(t, func() bool { return len(s.received()) == 4 }, testWait, testTick)
+	// 5 回目の問い合わせ (巡回カウンタ 8 より後) は保留される。Close で切る。
+	require.Eventually(t, func() bool { return len(s.received()) == 5 }, testWait, testTick)
 	require.NoError(t, stream.Close())
 
 	received := s.received()
@@ -43,7 +50,7 @@ func TestTunerServerEvents(t *testing.T) {
 	for _, r := range received {
 		counts = append(counts, binary.LittleEndian.Uint32(r.body[2:]))
 	}
-	assert.Equal(t, []uint32{0, 5, 6, 7}, counts)
+	assert.Equal(t, []uint32{0, 5, 6, 7, 8}, counts)
 }
 
 func TestTunerServerEventsFails(t *testing.T) {

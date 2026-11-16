@@ -115,7 +115,9 @@ func TestTunerServerOpenServiceStream(t *testing.T) {
 			require.NoError(t, stream.Close())
 			_, released = ids.state()
 			assert.Equal(t, []int32{1000}, released)
-			want := []uint32{1060, 1073}
+			// ライブ視聴 (優先度 0) なので、開く前に EPG の取得のためにチューナーを空けておくかを確かめる (#1536)。
+			// 偽の EpgTimerSrv は EpgTimerSrv.ini を返さないので、確かめられず、空けずに開く。
+			want := []uint32{1060, 2060, 1073}
 			for range tt.notReady + 1 {
 				want = append(want, 301)
 			}
