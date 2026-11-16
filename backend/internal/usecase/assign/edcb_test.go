@@ -111,6 +111,16 @@ func TestAssignEDCB(t *testing.T) {
 			},
 		},
 		{
+			// 同じチューナーで重なるふさぐ時間帯どうしは、削り合わない。入れ子の時間帯があっても、外側の時間帯をすべてふさぐ。
+			name:         "nested blocks on one tuner keep the outer block",
+			reservations: []*assign.Reservation{program(1, "27", 0, 30)},
+			tuners: []*assign.Tuner{{Index: 0, Types: []string{typeGR}, Blocks: []assign.Block{
+				{Start: at(-10), End: at(60)},
+				{Start: at(20), End: at(30)},
+			}}},
+			want: []*assign.Assignment{conflict(1, 0, 30)},
+		},
+		{
 			// ふさぐ時間帯が予約と重ならなければ、今までどおりに置く。
 			name:         "a block outside the reservation does not matter",
 			reservations: []*assign.Reservation{program(1, "27", 0, 30)},

@@ -7,7 +7,6 @@ package assign
 import (
 	"cmp"
 	"slices"
-	"strconv"
 	"time"
 	"uuid"
 
@@ -211,7 +210,8 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 }
 
 // seedBlocks は、Kotatsu の外の予約がチューナーをふさぐ時間帯を、どの需要よりも先に置いた予約として、チューナーに置く (#1536)。
-// 本編だけでマージンを持たないので、削られず、どの予約にも譲らない。ふさぐ時間帯ごとに別のチャンネルにして、互いに削り合わせない。
+// 本編だけでマージンを持たないので、削られず、どの予約にも譲らない。ふさぐ時間帯はどれも同じチャンネルにして、
+// 重なったり入れ子になったりしても、互いに削り合わせない (別のチャンネルどうしが本編とマージンを削り合う)。
 func seedBlocks(tuners []*Tuner) map[int][]*placed {
 	byTuner := map[int][]*placed{}
 	for _, tuner := range tuners {
@@ -220,7 +220,7 @@ func seedBlocks(tuners []*Tuner) map[int][]*placed {
 				continue
 			}
 			r := &Reservation{
-				ID: uuid.Nil(), ChannelType: blockChannelType, Channel: strconv.Itoa(i), Service: 0,
+				ID: uuid.Nil(), ChannelType: blockChannelType, Channel: "", Service: 0,
 				StartAt: b.Start, EndAt: b.End, StartMargin: 0, EndMargin: 0, Priority: 0, Recording: false, Tuner: tuner.Index,
 			}
 			// 録画が始まった需要 (rank 0 から) よりも先に置いたとみなす。
