@@ -6,7 +6,7 @@
     <path d="M106 384l-14-200 118 80z" fill="#2e2622"/>
     <path d="M406 384L302 264L420 184z" fill="#2e2622"/>
     <path d="M86 520q0-300 170-300t170 300z" fill="#2e2622"/>
-    <g clip-path="url(#h)"><rect width="512" height="512" fill="#2e2622"/><path d="M256 236Q146 288 104 520H408Q366 288 256 236Z" fill="#fff8ee"/></g>
+    <g clip-path="url(#h)"><rect width="512" height="512" fill="#2e2622"/><path d="M60 520V450Q120 340 204 326Q242 318 256 280Q270 318 308 326Q392 340 452 450V520Z" fill="#fff8ee"/></g>
     <circle cx="256" cy="198" r="56" fill="#f59a2e"/>
     <path d="M256 146.9v-12.2" stroke="#6b4a2a" stroke-width="9.7" stroke-linecap="round"/><path d="M258.4 134.7q17 -31.7 53.6 -21.9q-12.2 31.7 -53.6 21.9z" fill="#5b8a2e"/>
     <circle cx="184" cy="374" r="19.5" fill="#3a2a22"/><circle cx="328" cy="374" r="19.5" fill="#3a2a22"/>

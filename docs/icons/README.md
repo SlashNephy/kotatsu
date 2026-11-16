@@ -21,7 +21,7 @@
 | `coat-sabatora.svg` | サバトラ |
 | `coat-kuro.svg` | 黒猫 (目と口を黄色にしています) |
 | `coat-shiro.svg` | 白猫 |
-| `coat-hachiware.svg` | ハチワレ (黒い頭の額から、白が八の字に割れて広がる柄) |
+| `coat-hachiware.svg` | ハチワレ (頭の上側が黒く、額の真ん中で白が八の字に割れ込む柄) |
 
 ## 候補
 
