@@ -89,6 +89,8 @@ func TestLibraryCommentsHandler(t *testing.T) {
 			if tt.wantStatus != http.StatusOK {
 				return
 			}
+			// 索引を作り終えた後は、時間帯が変わらないので、少しの間だけ使い回させる。
+			assert.Equal(t, "private, max-age=600", rec.Header().Get("Cache-Control"))
 			var body commentsBody
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 			require.NotNil(t, body.Channel)
@@ -98,6 +100,29 @@ func TestLibraryCommentsHandler(t *testing.T) {
 			assert.NotNil(t, f.fake.query.Load(), "過去ログ API に問い合わせる")
 		})
 	}
+}
+
+// TestLibraryCommentsHandlerBeforeIndex は、索引を作り終える前は、局と時間帯が分からないのでチャンネルなしで返し、
+// 後で分かるので使い回させないことを確かめる。
+func TestLibraryCommentsHandlerBeforeIndex(t *testing.T) {
+	t.Parallel()
+
+	f := newCommentsFixture(t, `{"packet":[]}`)
+	libraryDir, dataDir := t.TempDir(), t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), readTestTS(t), 0o600))
+	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{testLibrary: libraryDir})
+	// 索引を作らない Indexer にして、作り終える前の状態を保つ。
+	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), false)
+	mux := http.NewServeMux()
+	mux.Handle("GET /internal/media/library/{id}/"+jikkyoapi.CommentsFileName, jikkyoapi.NewLibraryCommentsHandler(f.comments, filelib.NewSource(libraries, indexer)))
+	rec := httptest.NewRecorder()
+	id := filelib.Ref{Library: testLibrary, Path: "show.ts"}.Encode()
+	f.serve(mux, rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/internal/media/library/"+id+"/"+jikkyoapi.CommentsFileName, nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	var body commentsBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	assert.Nil(t, body.Channel)
 }
 
 // serve は、ログイン中のユーザーの要求として、h に渡す。

@@ -66,7 +66,8 @@ func (f *indexFixture) place(t *testing.T, name string) {
 	dir := f.indexer.dir(f.ref)
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, f.indexer.writeSource(dir, &source{
-		Library: f.ref.Library, Path: f.ref.Path, Size: f.entry.Size, ModifiedAt: f.entry.ModifiedAt.UnixNano(), Complete: false, Video: nil,
+		Version: sourceVersion, Library: f.ref.Library, Path: f.ref.Path, Size: f.entry.Size, ModifiedAt: f.entry.ModifiedAt.UnixNano(),
+		Complete: false, Video: nil, Broadcast: nil, Audios: nil, Quality: nil,
 	}))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), f.index, 0o600))
 	// 書きかけの索引は、今 (時計の今) 伸びたものにする。
@@ -128,4 +129,31 @@ func TestReadAfterRename(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, index.Complete)
 	assert.NotEmpty(t, index.Entries)
+}
+
+// TestReadOldVersion は、前の版の記録 (放送の情報のないもの) の索引は、シークに使えるが、作り終えていないものとして返し、
+// 開くと作り直して、放送の情報を埋めることを確かめる。画面は、作り終えるまで読み直すので、埋まった項目を受け取れる。
+func TestReadOldVersion(t *testing.T) {
+	t.Parallel()
+
+	f := newIndexFixture(t)
+	dir := f.indexer.dir(f.ref)
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, f.indexer.writeSource(dir, &source{
+		Version: 1, Library: f.ref.Library, Path: f.ref.Path, Size: f.entry.Size, ModifiedAt: f.entry.ModifiedAt.UnixNano(),
+		Complete: true, Video: nil, Broadcast: nil, Audios: nil, Quality: nil,
+	}))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, indexName), f.index, 0o600))
+	index, err := f.indexer.Read(f.ref, f.entry)
+	require.NoError(t, err)
+	assert.False(t, index.Complete)
+	assert.NotEmpty(t, index.Entries, "作り直すまでも、前の索引でシークできる")
+
+	f.indexer.Ensure(t.Context(), f.ref, f.entry)
+	require.Eventually(t, func() bool {
+		index, err := f.indexer.Read(f.ref, f.entry)
+		require.NoError(t, err)
+
+		return index.Complete && index.Broadcast != nil && index.Quality != nil
+	}, 10*time.Second, 10*time.Millisecond)
 }

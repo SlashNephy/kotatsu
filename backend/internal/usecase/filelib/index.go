@@ -58,7 +58,7 @@ type source struct {
 	// Broadcast は、TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報。読めなければ nil。索引を作り始める前に書く。
 	Broadcast *Broadcast `json:"broadcast"`
 	// Audios は、放送中だった番組の音声の構成 (EPG と同じ形の JSON)。索引を作り終えたときに書く。読めなければ nil。
-	Audios json.RawMessage `json:"audios"`
+	Audios json.RawMessage `json:"audios,omitempty"`
 	// Quality は、ドロップなどの集計。索引を作り終えたときに書く。
 	Quality *Quality `json:"quality"`
 }
@@ -196,12 +196,13 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	if src.Complete {
 		name = indexName
 	}
-	complete := src.Complete
+	// 前の版の記録は、作り直して項目を埋めるまで、作り終えていないものとして返す。画面が読み直して、埋まった項目を受け取れるようにする。
+	complete := src.Complete && src.Version == sourceVersion
 	file, err := sharedfile.Open(filepath.Join(x.dir(ref), name))
 	if errors.Is(err, fs.ErrNotExist) && !complete {
 		// 書きかけの索引の名前を変えてから、作り終えたと記録するまでの間なら、作り終えた索引がある。
 		file, err = sharedfile.Open(filepath.Join(x.dir(ref), indexName))
-		complete = err == nil
+		complete = err == nil && src.Version == sourceVersion
 	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return src.index([]ts.IndexEntry{}, false), nil

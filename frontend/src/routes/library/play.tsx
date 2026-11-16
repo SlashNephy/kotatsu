@@ -407,7 +407,8 @@ function Player({
   // channelId は、実況のチャンネルの ID。Kotatsu にない局でも、ネットワークとサービス ID で引く (設計書 7.4)。
   const channelId = broadcast?.jikkyoChannelId ?? null;
   const jikkyo = useRecordedJikkyo(
-    channelId !== null && jikkyoEnabled ? file.jikkyoCommentsUrl : null,
+    // 過去ログは、時間帯が決まる索引を作り終えてから読む。作っている途中は、終わりが伸びるからである。
+    channelId !== null && jikkyoEnabled && file.index.complete ? file.jikkyoCommentsUrl : null,
     currentPosition,
     visible,
     null,
@@ -753,6 +754,7 @@ function Player({
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
   );
   const shown = seeking ?? position;
+  const shownClock = clockAt(shown);
   // bands は、索引をまだ作っている所 (シークできないので帯で示す) と、実況のコメントから見つけた番組の区切りの印。
   const bands = [
     ...(indexing && duration > limit
@@ -789,7 +791,7 @@ function Player({
         <PositionStatus
           position={formatDuration(shown)}
           rest={`${duration > 0 ? ` / ${formatDuration(duration)}` : ''}${
-            clockAt(shown) === null ? '' : ` · ${formatClock(clockAt(shown) ?? 0)}`
+            shownClock === null ? '' : ` · ${formatClock(shownClock)}`
           }`}
         />
       }
