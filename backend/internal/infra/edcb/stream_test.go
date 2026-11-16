@@ -106,9 +106,10 @@ func TestTunerServerOpenServiceStream(t *testing.T) {
 			acquired, released := ids.state()
 			// テストの ChSet5 にある NHK 総合 (東京) を開く。
 			assert.Equal(t, []edcb.ServiceKey{{ONID: 32736, TSID: 32736, SID: 1024}}, acquired)
-			assert.Empty(t, released)
+			// TS が終わったら、受け手に終わりを返す前に、NetworkTV を閉じ、ID を返す。
+			assert.Equal(t, []int32{1000}, released)
 
-			// 閉じたら、NetworkTV を閉じ、ID を返す。2 度閉じても、1 度しか閉じない。
+			// 受け手を閉じても、2 度閉じても、NetworkTV を閉じ直さない。
 			require.NoError(t, stream.Close())
 			require.NoError(t, stream.Close())
 			_, released = ids.state()
