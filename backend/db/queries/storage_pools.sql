@@ -28,9 +28,10 @@ UPDATE storage_pools SET low_since = NULL WHERE id = @id AND low_since IS NOT NU
 -- name: ListDeletableRecordings :many
 -- 容量の管理で消せる録画を、古い順に返す。プール pool_id にファイルを持ち、保護されておらず、録画中でなく、
 -- すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。古いほうから skip 件を飛ばす。
+-- プールにあった TS を取り込んだファイル (external) は、録画を消しても残すので、それしか持たない録画は、消しても空かない (#1734)。
 SELECT r.id, r.name FROM recordings r
 WHERE NOT r.protected AND r.state <> 'recording'
-  AND EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.pool_id = @pool_id)
+  AND EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.pool_id = @pool_id AND NOT f.external)
   AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND NOT (f.pool_id = ANY(@mounted::text[])))
 ORDER BY r.recorded_from, r.id
 LIMIT @max_count OFFSET @skip;

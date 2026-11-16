@@ -98,6 +98,13 @@ EPGStation互換のAPI（`/api/epgstation/api/*`）は、APIトークンを持�
 - kiririnなどのEPGStation互換のクライアントで使っているときは、更新するとつながらなくなります（404）。管理者が「設定」→「連携」で「EPGStation互換のAPIを提供する」を有効にしてください。発行済みのAPIトークンは、発行し直さなくても、また使えるようになります。
 - 無効の間は、APIトークンを新しく発行できません。発行済みのトークンは、取り消せます。
 
+### 選局を断られた録画の失敗の理由を分けた
+
+チューナーサーバーが選局を断った録画（チャンネルかサービスがない404と、選局に失敗した500）の失敗の理由を、`tuner_unavailable`から新しい`tuning_refused`に分けました（#1519）。チューナーの空きがない（503）録画と、応答を待ちきれなかった録画は、これまでどおり`tuner_unavailable`です。
+
+- 録画の失敗のWebhookの`reason`と、`/metrics`の`kotatsu_recording_failures_total`の`reason`に、`tuning_refused`が出るようになります。`tuner_unavailable`で絞って見張っていたなら、`tuning_refused`も足してください。
+- 更新する前に失敗した録画の理由は、変えません。
+
 ## v2026.11.4
 
 v2026.11.3からの変更です。

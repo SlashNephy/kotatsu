@@ -16,12 +16,12 @@ import (
 
 // NewDetectWorkerWith は、FFmpeg の代わりに newDetector の Detector を使う DetectWorker を返す。
 func NewDetectWorkerWith(db Database, store *kago.Store, clk clock.Clock, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, nil, slog.New(slog.DiscardHandler), func(context.Context) (Detector, error) { return newDetector() })
+	return newDetectWorker(db, store, clk, nil, slog.New(slog.DiscardHandler), func(context.Context, string) (Detector, error) { return newDetector() })
 }
 
 // NewDetectWorkerWithHook は、NewDetectWorkerWith に、見分け終えたことを受け取る hook を足したもの。
 func NewDetectWorkerWithHook(db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, newDetector func() (Detector, error)) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, slog.New(slog.DiscardHandler), func(context.Context) (Detector, error) { return newDetector() })
+	return newDetectWorker(db, store, clk, hook, slog.New(slog.DiscardHandler), func(context.Context, string) (Detector, error) { return newDetector() })
 }
 
 // NewLogoDetectorWith は、ロゴを使えないときの見分け方を fallback にした LogoDetector を返す。
@@ -248,4 +248,9 @@ func ToPlayback(firstTime, offset float64, withBounds bool, sections [][2]float6
 	}
 
 	return out
+}
+
+// ResolveDetector は、resolveDetector をテストから呼ぶ。
+func ResolveDetector(requested string, global func() (string, error)) (string, error) {
+	return resolveDetector(requested, global)
 }

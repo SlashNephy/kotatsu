@@ -189,6 +189,26 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+// TestDeleteKeepsExternalFiles は、プールにあった TS を取り込んだファイル (external) は、録画を消しても残し、
+// 生成物と、Kotatsu が作ったほかのファイルは消すことを確かめる (#1734)。
+func TestDeleteKeepsExternalFiles(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	recordingID := f.recording(t, completed, false)
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET external = true WHERE id = $1", f.segmentID)
+	require.NoError(t, err)
+
+	require.NoError(t, f.library.Delete(t.Context(), f.pool, audit.User(f.userID), recordingID, "user"))
+	assert.Zero(t, f.count(t, "SELECT count(*) FROM recordings"))
+	_, err = os.Stat(filepath.Join(f.dir, "録画.m2ts"))
+	require.NoError(t, err, "the imported file is kept")
+	for _, path := range []string{filepath.Join(f.dataRoot, f.segmentID.String()), filepath.Join(f.dir, "録画.mp4")} {
+		_, err := os.Stat(path)
+		require.ErrorIs(t, err, fs.ErrNotExist, path)
+	}
+}
+
 // TestSetProtected は、保護の印を付け外しし、変えたときだけ監査ログに残すことを確かめる。
 func TestSetProtected(t *testing.T) {
 	t.Parallel()

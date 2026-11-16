@@ -3,7 +3,7 @@ package tunerserver
 import "errors"
 
 // ErrRefused は、チューナーサーバーが応答したが、求めたものを返さなかったこと。
-// ErrTunerUnavailable、ErrNotFound、ErrLogoUnavailable も、errors.Is でこれに当たる。
+// ErrTunerUnavailable、ErrNotFound、ErrTuningFailed、ErrLogoUnavailable も、errors.Is でこれに当たる。
 var ErrRefused = errors.New("the tuner server refused the request")
 
 var (
@@ -11,6 +11,9 @@ var (
 	ErrTunerUnavailable error = &refusal{msg: "no tuner is available"}
 	// ErrNotFound は、求めたサービスかチャンネルが、チューナーサーバーにないこと。
 	ErrNotFound error = &refusal{msg: "the tuner server has no such service or channel"}
+	// ErrTuningFailed は、ストリームを開くのに、チューナーサーバーが選局かストリームの準備に失敗したこと (Mirakurun の 500、#1519)。
+	// チューナーの空きがないこと (ErrTunerUnavailable) とは分ける。続けて選局できないチャンネルの判定に数えるため。
+	ErrTuningFailed error = &refusal{msg: "the tuner server failed to tune"}
 	// ErrLogoUnavailable は、サービスのロゴを、チューナーサーバーがまだ受信していないこと。
 	ErrLogoUnavailable error = &refusal{msg: "the tuner server has not received the logo"}
 )

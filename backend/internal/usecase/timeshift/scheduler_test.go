@@ -240,6 +240,41 @@ func TestSchedulerIgnoresConflictedReservation(t *testing.T) {
 	})
 }
 
+// TestSchedulerSkipsOccupiedTuners は、チューナーサーバー自身の予約 (EDCB の予約) が、今から先回りの時間までに使うチューナーを、
+// タイムシフトに使わないことを確かめる (#1536)。地上波のチューナーは 2 本で、1 本は番組表の取得に残す。
+func TestSchedulerSkipsOccupiedTuners(t *testing.T) {
+	t.Parallel()
+
+	e := newEnv(t)
+	occupy := func(from, to time.Time) {
+		_, err := e.pool.Exec(t.Context(), "DELETE FROM tuner_occupancies")
+		require.NoError(t, err)
+		_, err = e.pool.Exec(t.Context(), "INSERT INTO tuner_occupancies (tuner_index, start_at, end_at) SELECT min(tuner_index), $1, $2 FROM tuners", from, to)
+		require.NoError(t, err)
+	}
+	runSteps(t, e, []step{
+		{
+			name:        "1 本を番組表の取得に残して、割り振りを書く",
+			prepare:     func() { e.configure(t, 0) },
+			wantCreated: 1, wantDeleted: 0, wantChanged: true,
+			want: []int64{grService(0)},
+		},
+		{
+			// 残る 1 本は番組表の取得に残すので、タイムシフトを外す。
+			name:        "EDCB の予約が今チューナーを使うなら、そのチューナーを使わない",
+			prepare:     func() { occupy(e.clk.Now().Add(-time.Minute), e.clk.Now().Add(time.Hour)) },
+			wantCreated: 0, wantDeleted: 1, wantChanged: true,
+			want: []int64{},
+		},
+		{
+			name:        "EDCB の予約が先回りの時間より後なら、チューナーを使う",
+			prepare:     func() { occupy(e.clk.Now().Add(time.Hour), e.clk.Now().Add(2*time.Hour)) },
+			wantCreated: 1, wantDeleted: 0, wantChanged: true,
+			want: []int64{grService(0)},
+		},
+	})
+}
+
 // TestSchedulerReplacesFinishedAssignment は、終わったことになったタイムシフトの割り振りを、ないものとして扱うことを確かめる。
 // 終わった割り振りはどの mikan も取らないので、残すとそのチャンネルを録れなくなる (#1055)。
 func TestSchedulerReplacesFinishedAssignment(t *testing.T) {

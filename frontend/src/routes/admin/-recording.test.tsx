@@ -22,6 +22,7 @@ function settingsResponse() {
           priority: 0,
           joinSegments: true,
           detectCm: false,
+          generateCaptions: false,
           transcodePreset: null,
           transcodeFrameRate: 'auto',
         },
@@ -36,6 +37,8 @@ function settingsResponse() {
       },
       systemStatus: { pools: [] },
       transcodePresets: [],
+      // 同じ画面の、字幕の自動生成のモデルの欄 (#1682) も、同じ応答で読む。
+      captionModels: [],
     },
   };
 }
@@ -214,6 +217,29 @@ describe('切り替えと選ぶ項目は、変えたらすぐ保存する (#1740
     expect(sent).toEqual([{ recordingDefaults: { detectCm: true }, ruleDefaults: {} }]);
     // 書きかけの優先度は、保存せずに残す。
     expect(screen.getByRole('textbox', { name: '優先度' })).toHaveProperty('value', '3');
+  });
+
+  test('字幕の自動生成を入れたら、その項目だけを送る (#1682)', async () => {
+    const sent: unknown[] = [];
+    const environment = createTestEnvironment((request, variables) => {
+      if (request.name === 'recordingMutation') {
+        sent.push(variables.input);
+
+        return { data: { updateSystemSettings: { updatedAt: '2026-11-11T00:00:01Z' } } };
+      }
+
+      return settingsResponse();
+    });
+    await renderRoute(Route, '/admin/recording', '/admin/recording', environment);
+    const generate = await screen.findByRole('switch', {
+      name: /^録画が終わったら字幕を自動生成する/,
+    });
+    expect(generate).toHaveProperty('checked', false);
+
+    await act(async () => fireEvent.click(generate));
+    await screen.findByRole('status');
+
+    expect(sent).toEqual([{ recordingDefaults: { generateCaptions: true }, ruleDefaults: {} }]);
   });
 
   test('保存に失敗したら、変える前に戻す', async () => {

@@ -92,6 +92,75 @@ func TestRecorderResolvesDetectCM(t *testing.T) {
 	}
 }
 
+// TestRecorderResolvesGenerateCaptions は、録画の完了のイベントに載せる、字幕を自動生成するかどうか (設計書 6.1、#1682) を、
+// CM の区間の見分けと同じく、予約やルールで選んでいればその値、なければ録画を終えるときの全体の設定から求めることを確かめる。
+func TestRecorderResolvesGenerateCaptions(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name string
+		// global は全体の設定。nil なら一度も変えていない (既定は生成しない)。
+		global *bool
+		// rule はルールの録画設定。nil ならルール予約にしない。
+		rule        *bool
+		reservation *bool
+		want        bool
+	}{
+		{name: "全体を変えていなければ、生成しない", global: nil, reservation: nil, want: false},
+		{name: "全体が使うで、予約が全体に従う", global: new(true), reservation: nil, want: true},
+		{name: "全体が使わないで、予約が生成する", global: new(false), reservation: new(true), want: true},
+		{name: "全体が使うで、予約が生成しない", global: new(true), reservation: new(false), want: false},
+		{name: "全体が使わないで、ルールが生成し、予約が従う", global: new(false), rule: new(true), reservation: nil, want: true},
+		{name: "ルールが生成しても、予約の生成しないを優先する", global: new(true), rule: new(true), reservation: new(false), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			overrides, err := json.Marshal(&domain.RecordingOverrides{GenerateCaptions: tt.reservation})
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET settings = $1 WHERE id = $2", overrides, reservationID)
+			require.NoError(t, err)
+			if tt.rule != nil {
+				ruleSettings, err := json.Marshal(&domain.RecordingOverrides{GenerateCaptions: tt.rule})
+				require.NoError(t, err)
+				ruleID := id.New()
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO rules (id, name, memo, enabled, conditions, settings, avoid_duplicates, follow_event_relay, created_at, updated_at)
+					VALUES ($1, 'ルール', '', true, '{"version":1,"conditions":{}}', $2, false, true, $3, $3)`, ruleID, ruleSettings, testNow())
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), "INSERT INTO reservation_rules (reservation_id, rule_id) VALUES ($1, $2)", reservationID, ruleID)
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET kind = $1 WHERE id = $2", string(domain.ReservationKindRule), reservationID)
+				require.NoError(t, err)
+			}
+			if tt.global != nil {
+				_, err := settings.NewStore(f.clock, audit.NewRecorder(f.clock)).Update(t.Context(), f.pool, audit.System("test"), &settings.Changes{
+					Recording: &domain.RecordingOverrides{GenerateCaptions: tt.global},
+				})
+				require.NoError(t, err)
+			}
+
+			stream := newDrainedStream(data)
+			recorder, _ := f.newRecorderWithDefaults(t, f.pool, stream, nil, nil, slog.New(slog.DiscardHandler), settings.RecordingDefaults)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			stream.wait(t)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			events := f.events(t)
+			require.NotEmpty(t, events)
+			last := events[len(events)-1]
+			require.Equal(t, string(domain.NotificationKindRecordingCompleted), last.Kind)
+			assert.Equal(t, tt.want, last.Payload["generateCaptions"])
+		})
+	}
+}
+
 // TestRecorderResolvesTranscodeFrameRate は、録画の完了のイベントに載せる、変換で出すコマ数 (#1509) を、予約で選んでいればその値、
 // なければ録画を終えるときの全体の設定から求め、全体を変えていなければ既定値 (自動) にすることを確かめる。
 func TestRecorderResolvesTranscodeFrameRate(t *testing.T) {
@@ -139,6 +208,67 @@ func TestRecorderResolvesTranscodeFrameRate(t *testing.T) {
 			last := events[len(events)-1]
 			require.Equal(t, string(domain.NotificationKindRecordingCompleted), last.Kind)
 			assert.Equal(t, tt.want, last.Payload["transcodeFrameRate"])
+		})
+	}
+}
+
+// TestRecorderResolvesCMDetector は、録画の完了のイベントに載せる、CM の区間の見分け方 (#1505) を、
+// 予約やルールで選んでいればその値、なければ空 (見分けるときの全体の設定に従う) にすることを確かめる。
+func TestRecorderResolvesCMDetector(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("../../../testdata/ts/test.ts")
+	require.NoError(t, err)
+	tests := []struct {
+		name        string
+		rule        *string
+		reservation *string
+		want        string
+	}{
+		{name: "どこでも選んでいなければ、空にする", rule: nil, reservation: nil, want: ""},
+		{name: "予約で選んでいれば、その見分け方にする", rule: nil, reservation: new(domain.CMDetectorLogo), want: domain.CMDetectorLogo},
+		{name: "ルールで選び、予約が従えば、ルールの見分け方にする", rule: new(domain.CMDetectorLogo), reservation: nil, want: domain.CMDetectorLogo},
+		{
+			name: "ルールで選んでも、予約で選んだ見分け方を優先する",
+			rule: new(domain.CMDetectorLogo), reservation: new(domain.CMDetectorFFmpeg), want: domain.CMDetectorFFmpeg,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			reservationID := f.reserve(t, 0)
+			overrides, err := json.Marshal(&domain.RecordingOverrides{CMDetector: tt.reservation})
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET settings = $1 WHERE id = $2", overrides, reservationID)
+			require.NoError(t, err)
+			if tt.rule != nil {
+				ruleSettings, err := json.Marshal(&domain.RecordingOverrides{CMDetector: tt.rule})
+				require.NoError(t, err)
+				ruleID := id.New()
+				_, err = f.pool.Exec(t.Context(), `INSERT INTO rules (id, name, memo, enabled, conditions, settings, avoid_duplicates, follow_event_relay, created_at, updated_at)
+					VALUES ($1, 'ルール', '', true, '{"version":1,"conditions":{}}', $2, false, true, $3, $3)`, ruleID, ruleSettings, testNow())
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), "INSERT INTO reservation_rules (reservation_id, rule_id) VALUES ($1, $2)", reservationID, ruleID)
+				require.NoError(t, err)
+				_, err = f.pool.Exec(t.Context(), "UPDATE reservations SET kind = $1 WHERE id = $2", string(domain.ReservationKindRule), reservationID)
+				require.NoError(t, err)
+			}
+
+			stream := newDrainedStream(data)
+			recorder, _ := f.newRecorderWithDefaults(t, f.pool, stream, nil, nil, slog.New(slog.DiscardHandler), settings.RecordingDefaults)
+			_, done := f.session(t, recorder, reservationID)
+			f.clock.Advance(plannedStart().Sub(f.clock.Now()))
+			stream.wait(t)
+			f.clock.Advance(time.Hour)
+			require.NoError(t, wait(t, done))
+
+			events := f.events(t)
+			require.NotEmpty(t, events)
+			last := events[len(events)-1]
+			require.Equal(t, string(domain.NotificationKindRecordingCompleted), last.Kind)
+			assert.Equal(t, tt.want, last.Payload["cmDetector"])
 		})
 	}
 }

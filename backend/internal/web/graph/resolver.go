@@ -10,12 +10,14 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
+	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -69,6 +71,10 @@ type Resolver struct {
 	animeChannels *anime.Channels
 	// animeRecords は、見たアニメを Annict と AniList に記録する (#927)。nil なら、記録を扱わない。
 	animeRecords *animerecord.Service
+	// dramaOverrides は、ドラマの番組の作品名ごとに、TMDb の作品の上書きを変える (#1651、設計書 3.9)。
+	dramaOverrides *drama.Overrides
+	// dramaTokens は、管理者が入れる TMDb のトークン (#1651)。nil なら、トークンを扱わない。
+	dramaTokens  *drama.Tokens
 	inbox        *notification.Inbox
 	webhooks     *webhook.Store
 	webPush      *webpush.Service
@@ -101,4 +107,8 @@ type Resolver struct {
 	drain   Drain
 	// logs は、直近のログを集める (#1521)。nil なら、ログの画面を使えない。
 	logs *logreport.Service
+	// dataDir は、データディレクトリ。字幕の自動生成のモデルを置いたかを確かめ、消すのに使う (#1682)。空ならマウントしていない。
+	dataDir string
+	// captions は、字幕の自動生成の設定 (#1682)。nil なら、モデルの場所を書いていないとみなす。
+	captions *config.Captions
 }

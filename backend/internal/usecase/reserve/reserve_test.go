@@ -214,6 +214,8 @@ func TestInvalidOverridesAreRejected(t *testing.T) {
 		{name: "negative margin", overrides: &domain.RecordingOverrides{EndMarginSeconds: new(-1)}, wantErr: "endMarginSeconds must be between 0 and 3600"},
 		{name: "priority out of range", overrides: &domain.RecordingOverrides{Priority: new(11)}, wantErr: "priority must be between -10 and 10"},
 		{name: "unknown transcode frame rate", overrides: &domain.RecordingOverrides{TranscodeFrameRate: new("24")}, wantErr: "transcodeFrameRate must be one of"},
+		{name: "unknown CM detector", overrides: &domain.RecordingOverrides{CMDetector: new("join_logo_scp")}, wantErr: "cmDetector must be one of"},
+		{name: "empty CM detector", overrides: &domain.RecordingOverrides{CMDetector: new("")}, wantErr: "cmDetector must be one of"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

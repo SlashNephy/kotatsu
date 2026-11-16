@@ -18,11 +18,18 @@ type Settings = {
   joinSegments: boolean | null;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。null なら全体の設定に従う。
   detectCm: boolean | null;
+  // generateCaptions は、録画が終わったら音声から字幕を自動生成するかどうか (#1682)。null なら全体の設定に従う。
+  generateCaptions: boolean | null;
   // transcodePreset は、録画を終えた後に変換するときの画質 (#1253)。空なら変換しない。null なら全体の設定に従う。
   transcodePreset: string | null;
   // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。null なら全体の設定に従う。
   transcodeFrameRate: string | null;
+  // cmDetector は、CM の区間の見分け方 (#1505)。null なら全体の設定に従う。
+  cmDetector: CMDetector | null;
 };
+
+// CMDetector は、CM の区間の見分け方 (#1505)。
+export type CMDetector = 'FFMPEG' | 'LOGO';
 
 // RuleForm は、ルールの編集の画面の入力。番組の条件と、ルールだけの項目を並べる。
 export type RuleForm = ConditionsForm & {
@@ -39,6 +46,8 @@ export type RuleForm = ConditionsForm & {
   settings: Settings;
   validFrom: string | null;
   validUntil: string | null;
+  // groupId は、ルールを入れるグループの ID (#1493)。null ならどのグループにも入れない (一覧の「その他」)。
+  groupId: string | null;
 };
 
 // RuleData は、tenban が返すルールのうち、編集に使う項目。
@@ -55,8 +64,10 @@ export type RuleData = {
     readonly priority?: number | null;
     readonly joinSegments?: boolean | null;
     readonly detectCm?: boolean | null;
+    readonly generateCaptions?: boolean | null;
     readonly transcodePreset?: string | null;
     readonly transcodeFrameRate?: string | null;
+    readonly cmDetector?: string | null;
   };
   readonly validFrom?: string | null;
   readonly validUntil?: string | null;
@@ -65,6 +76,7 @@ export type RuleData = {
   readonly followEventRelay: boolean;
   readonly bundleSameEpisodes: boolean;
   readonly skipEarlierEpisodes: boolean;
+  readonly group?: { readonly id: string } | null;
 };
 
 // emptyRuleForm は、新しいルールの入力の初期値。conditions を渡すと、その条件から始める (番組の検索から作るときなど)。
@@ -88,11 +100,14 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
       priority: null,
       joinSegments: null,
       detectCm: null,
+      generateCaptions: null,
       transcodePreset: null,
       transcodeFrameRate: null,
+      cmDetector: null,
     },
     validFrom: null,
     validUntil: null,
+    groupId: null,
   };
 }
 
@@ -116,15 +131,24 @@ export function fromRule(rule: RuleData): RuleForm {
       priority: rule.settings.priority ?? null,
       joinSegments: rule.settings.joinSegments ?? null,
       detectCm: rule.settings.detectCm ?? null,
+      generateCaptions: rule.settings.generateCaptions ?? null,
       transcodePreset: rule.settings.transcodePreset ?? null,
       transcodeFrameRate: rule.settings.transcodeFrameRate ?? null,
+      cmDetector: cmDetectorOf(rule.settings.cmDetector),
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,
+    groupId: rule.group?.id ?? null,
   };
 }
 
-// toInput は、編集の画面の入力を、tenban の RuleInput にする。
+// cmDetectorOf は、tenban が返す見分け方を、入力の値にする。知らない値と null は、全体の設定に従う (null) にする。
+export function cmDetectorOf(value: string | null | undefined): CMDetector | null {
+  return value === 'FFMPEG' || value === 'LOGO' ? value : null;
+}
+
+// toInput は、編集の画面の入力を、tenban の RuleInput にする。グループは含めない。
+// プレビューと照合を重くする書き方の確かめは、グループに関わらないので、グループを変えても問い合わせ直さないためである。
 export function toInput(form: RuleForm) {
   return {
     name: form.name.trim(),
@@ -140,4 +164,9 @@ export function toInput(form: RuleForm) {
     bundleSameEpisodes: form.bundleSameEpisodes,
     skipEarlierEpisodes: form.skipEarlierEpisodes,
   };
+}
+
+// toSaveInput は、ルールを保存するときの RuleInput。toInput に、ルールを入れるグループを足す (#1493)。
+export function toSaveInput(form: RuleForm) {
+  return { ...toInput(form), groupId: form.groupId };
 }

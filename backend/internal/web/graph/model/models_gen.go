@@ -9,10 +9,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
+	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -478,6 +481,52 @@ type CalendarFeed struct {
 	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
 }
 
+// 管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
+type CaptionModel struct {
+	// 一覧の中の ID。downloadCaptionModel に渡す。
+	ID   string            `json:"id"`
+	Kind captionmodel.Kind `json:"kind"`
+	// 画面に出す名前。
+	Name string `json:"name"`
+	// ファイルの大きさ (バイト)。
+	Size int64 `json:"size"`
+	// ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。
+	Sha256 string `json:"sha256"`
+	// モデルのライセンス (SPDX の識別子)。
+	License string `json:"license"`
+	// 入手先の URL。
+	URL string `json:"url"`
+	// その種類で勧めるモデルかどうか。
+	Recommended bool `json:"recommended"`
+}
+
+// 最後に頼んだダウンロード。終えていないか、失敗したものだけを返す。
+type CaptionModelDownload struct {
+	// ダウンロードしているか、失敗したモデル。一覧から消えたモデルなら null。
+	Model *CaptionModel `json:"model,omitempty"`
+	// 動いているかどうか。false なら、待っているか、失敗した。
+	Running bool `json:"running"`
+	// 失敗したかどうか。
+	Failed bool `json:"failed"`
+	// 動いているときの進み具合。今の試行で書いたものがなければ null。
+	Progress *JobProgress `json:"progress,omitempty"`
+}
+
+// 種類ごとの、字幕の自動生成のモデルの置き場所 (設計書 6.1、#1682)。
+type CaptionModelSlot struct {
+	Kind  captionmodel.Kind  `json:"kind"`
+	State captionmodel.State `json:"state"`
+	// 既定の場所に置いてあるモデル。なければ null。
+	Installed *InstalledCaptionModel `json:"installed,omitempty"`
+	// 終えていないか、失敗した最後のダウンロード。なければ null。
+	Download *CaptionModelDownload `json:"download,omitempty"`
+	// 設定 (captions.whisper_model か captions.vad_model) でモデルの場所を書いていて、既定の場所のモデルを使わないかどうか。
+	// tenban の設定で決める。設定は、nekonote と同じにしておく。
+	Overridden bool `json:"overridden"`
+	// この種類で選べるモデル。勧めるものを先に並べる。
+	Models []*CaptionModel `json:"models"`
+}
+
 // 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 type CaptionSettings struct {
 	// ライブ視聴で、文字スーパー (速報など) を出すかどうか。
@@ -675,6 +724,66 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
+// 番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+type DramaEpisode struct {
+	Series       *DramaSeries      `json:"series"`
+	SeriesSource DramaSeriesSource `json:"seriesSource"`
+	// TMDb のシーズンの番号。0 は特別編。話を決められなければ null。
+	SeasonNumber *int `json:"seasonNumber,omitempty"`
+	// シーズンの中の話の番号。話を決められなければ null。
+	EpisodeNumber *int `json:"episodeNumber,omitempty"`
+	// 話の名前。キャッシュがなければ null。
+	EpisodeName   *string             `json:"episodeName,omitempty"`
+	EpisodeSource *DramaEpisodeSource `json:"episodeSource,omitempty"`
+	// TMDb の話のページ。話を決められなければ、作品のページ。
+	URL string `json:"url"`
+}
+
+// TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+type DramaLinkingStatus struct {
+	// 管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
+	TokenConfigured bool `json:"tokenConfigured"`
+	// 入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
+	TokenHint *string `json:"tokenHint,omitempty"`
+	// トークンを最後に変えた日時。入れていなければ null。
+	TokenUpdatedAt *time.Time `json:"tokenUpdatedAt,omitempty"`
+}
+
+// TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+type DramaSeries struct {
+	// TMDb の作品の ID。
+	TmdbID int `json:"tmdbId"`
+	// 作品の名前 (日本語)。
+	Name *string `json:"name,omitempty"`
+	// 作品の元の言語の名前。
+	OriginalName *string `json:"originalName,omitempty"`
+	// TMDb の作品のページ。
+	URL string `json:"url"`
+}
+
+// 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+type DramaTitleOverride struct {
+	// 作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。
+	TitleKey string `json:"titleKey"`
+	// 結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
+	TmdbSeriesID *int      `json:"tmdbSeriesId,omitempty"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// 作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+type DramaTitleOverrideInput struct {
+	// 上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。
+	ProgramName *string `json:"programName,omitempty"`
+	// 上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
+	TitleKey *string `json:"titleKey,omitempty"`
+	// 結びつける TMDb の作品の ID (1 以上)。
+	TmdbSeriesID *int `json:"tmdbSeriesId,omitempty"`
+	// この作品名の番組を、どの作品にも結びつけない。
+	Exclude bool `json:"exclude"`
+	// 上書きを消し、TMDb を探して作品を決めるのに戻す。
+	Reset bool `json:"reset"`
+}
+
 // 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
 type DrcsReplacement struct {
 	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。
@@ -778,6 +887,16 @@ type InspectedStream struct {
 	Drops      int64 `json:"drops"`
 	Errors     int64 `json:"errors"`
 	Scrambled  int64 `json:"scrambled"`
+}
+
+// データディレクトリの既定の場所に置いてあるモデル。
+type InstalledCaptionModel struct {
+	// 画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。
+	Model *CaptionModel `json:"model,omitempty"`
+	// ファイルの大きさ (バイト)。
+	Size int64 `json:"size"`
+	// 画面から置いた日時。手で置いたファイルなら null。
+	InstalledAt *time.Time `json:"installedAt,omitempty"`
 }
 
 // 各ロールのインスタンス (設計書 1.4)。
@@ -1372,6 +1491,28 @@ type RecordAnimeEpisodesInput struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// 録画の音声から自動生成した字幕の 1 つ (設計書 6.1、#1682)。放送の字幕と違い、誤りが混ざる。
+type RecordingAutoCaption struct {
+	// 字幕を出す区間の始まりと終わり。録画の時間軸の日時で、CM の区間と同じく、再生の位置にするには途切れた分 (gaps) を詰める。
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+	// 字幕の本文。複数の行は改行でつなぐ。
+	Text string `json:"text"`
+}
+
+// 録画の字幕の自動生成の状態 (設計書 6.1、#1682)。最後に入れた生成のジョブと、生成した字幕から決める。
+type RecordingAutoCaptions struct {
+	State autocaption.State `json:"state"`
+	// 最後に生成し終えた日時。生成していなければ null。生成し直している間と、生成し直しに失敗した後は、前に生成した日時を返す。
+	GeneratedAt *time.Time `json:"generatedAt,omitempty"`
+	// 最後に生成し終えたときに使ったモデルのファイルの名前。生成していなければ null。
+	Model *string `json:"model,omitempty"`
+	// 最後に生成し終えた字幕の数。
+	Count int `json:"count"`
+	// 生成しているときの進み具合。今の試行で書いたものがなければ null。
+	Progress *JobProgress `json:"progress,omitempty"`
+}
+
 // 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
 type RecordingCMDetection struct {
 	State cmdetect.State `json:"state"`
@@ -1508,6 +1649,8 @@ type RecordingSettings struct {
 	JoinSegments bool `json:"joinSegments"`
 	// 録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。
 	DetectCM bool `json:"detectCm"`
+	// 録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定は false。生成には、nekonote に whisper.cpp とモデルを置く必要がある。
+	GenerateCaptions bool `json:"generateCaptions"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。
@@ -1528,10 +1671,14 @@ type RecordingSettingsOverrides struct {
 	JoinSegments *bool `json:"joinSegments,omitempty"`
 	// 録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
 	DetectCM *bool `json:"detectCm,omitempty"`
+	// 録画が終わったら、音声から字幕を自動生成するかどうか (#1682)。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
+	GenerateCaptions *bool `json:"generateCaptions,omitempty"`
 	// 録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。
+	CMDetector *CMDetector `json:"cmDetector,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1543,10 +1690,13 @@ type RecordingSettingsOverridesInput struct {
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 	DetectCM           *bool   `json:"detectCm,omitempty"`
+	GenerateCaptions   *bool   `json:"generateCaptions,omitempty"`
 	// 変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 変換で出すコマ数 (auto、30、60 のどれか)。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CM の区間の見分け方。
+	CMDetector *CMDetector `json:"cmDetector,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
@@ -1618,6 +1768,20 @@ type RuleDefaultsInput struct {
 	BundleSameEpisodes       *bool `json:"bundleSameEpisodes,omitempty"`
 }
 
+// ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+// ルールと同じく家族で共有する。1 つのルールは、多くとも 1 つのグループに入る。
+type RuleGroup struct {
+	ID string `json:"id"`
+	// 1〜100 文字。ほかのグループと同じ名前にはできない。
+	Name string `json:"name"`
+	// 一覧で並べる順 (0 から)
+	Position  int       `json:"position"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (RuleGroup) IsNode() {}
+
 // ルールの内容。
 type RuleInput struct {
 	// 1〜200 文字
@@ -1635,6 +1799,9 @@ type RuleInput struct {
 	FollowEventRelay    bool `json:"followEventRelay"`
 	BundleSameEpisodes  bool `json:"bundleSameEpisodes"`
 	SkipEarlierEpisodes bool `json:"skipEarlierEpisodes"`
+	// ルールを入れるグループ (#1493)。null ならどのグループにも入れない。
+	// updateRule で省くと、今のグループを変えない。createRule で省くと、どのグループにも入れない。
+	GroupID graphql.Omittable[*string] `json:"groupId,omitempty"`
 }
 
 // ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
@@ -1663,6 +1830,14 @@ type SegmentVideoFormat struct {
 	Interlaced bool   `json:"interlaced"`
 	// フレームレート。読めなければ null (HEVC は読まない)。
 	FrameRate *float64 `json:"frameRate,omitempty"`
+}
+
+// ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+type SeriesNextEpisode struct {
+	// シリーズの見た回のうち、話数の最も大きい録画。
+	Watched *Recording `json:"watched"`
+	// シリーズの続きの放送のうち、最も早い放送。
+	Program *Program `json:"program"`
 }
 
 // サービスの表示の変える項目。省いた項目は変えない。
@@ -1831,6 +2006,8 @@ type SystemSettings struct {
 	EpgstationAPIEnabled bool `json:"epgstationApiEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
+	// TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
+	DramaLinkingEnabled bool `json:"dramaLinkingEnabled"`
 	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
 	// ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
@@ -1876,6 +2053,8 @@ type SystemSettingsInput struct {
 	EpgstationAPIEnabled *bool `json:"epgstationApiEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
+	// TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	DramaLinkingEnabled *bool `json:"dramaLinkingEnabled,omitempty"`
 	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	CommentSources []CommentSource `json:"commentSources,omitempty"`
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
@@ -2688,6 +2867,122 @@ func (e *DataChannel) UnmarshalJSON(b []byte) error {
 }
 
 func (e DataChannel) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+type DramaEpisodeSource string
+
+const (
+	// TMDb の話の放送日と、番組の放送日が一致した
+	DramaEpisodeSourceAirDate DramaEpisodeSource = "AIR_DATE"
+	// 番組名の話数 (#7、第7話、(4)) で選んだ
+	DramaEpisodeSourceTitle DramaEpisodeSource = "TITLE"
+)
+
+var AllDramaEpisodeSource = []DramaEpisodeSource{
+	DramaEpisodeSourceAirDate,
+	DramaEpisodeSourceTitle,
+}
+
+func (e DramaEpisodeSource) IsValid() bool {
+	switch e {
+	case DramaEpisodeSourceAirDate, DramaEpisodeSourceTitle:
+		return true
+	}
+	return false
+}
+
+func (e DramaEpisodeSource) String() string {
+	return string(e)
+}
+
+func (e *DramaEpisodeSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DramaEpisodeSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DramaEpisodeSource", str)
+	}
+	return nil
+}
+
+func (e DramaEpisodeSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DramaEpisodeSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DramaEpisodeSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+type DramaSeriesSource string
+
+const (
+	// 番組名から読んだ作品名で、TMDb を探した
+	DramaSeriesSourceSearch DramaSeriesSource = "SEARCH"
+	// 管理者が、作品名ごとに決めた (上書き)
+	DramaSeriesSourceOverride DramaSeriesSource = "OVERRIDE"
+)
+
+var AllDramaSeriesSource = []DramaSeriesSource{
+	DramaSeriesSourceSearch,
+	DramaSeriesSourceOverride,
+}
+
+func (e DramaSeriesSource) IsValid() bool {
+	switch e {
+	case DramaSeriesSourceSearch, DramaSeriesSourceOverride:
+		return true
+	}
+	return false
+}
+
+func (e DramaSeriesSource) String() string {
+	return string(e)
+}
+
+func (e *DramaSeriesSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DramaSeriesSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DramaSeriesSource", str)
+	}
+	return nil
+}
+
+func (e DramaSeriesSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DramaSeriesSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DramaSeriesSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

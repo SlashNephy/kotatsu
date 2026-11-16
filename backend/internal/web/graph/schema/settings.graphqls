@@ -14,6 +14,8 @@ type RecordingSettings {
   joinSegments: Boolean!
   "録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。"
   detectCm: Boolean!
+  "録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定は false。生成には、nekonote に whisper.cpp とモデルを置く必要がある。"
+  generateCaptions: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
   "録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
@@ -104,6 +106,8 @@ type SystemSettings {
   epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
+  "TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
+  dramaLinkingEnabled: Boolean!
   """
   NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
   ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
@@ -157,6 +161,8 @@ input SystemSettingsInput {
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
+  "TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  dramaLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   commentSources: [CommentSource!]
   """

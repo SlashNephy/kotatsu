@@ -234,6 +234,28 @@ func TestRunOnceDeletesOldRecordings(t *testing.T) {
 	}, events[0])
 }
 
+// TestRunOnceKeepsRecordingsOfExternalFiles は、プールにあった TS を取り込んだファイル (external) しか持たない録画は、
+// 消しても空かないので消さず、次に古い録画を消すことを確かめる (#1734)。
+func TestRunOnceKeepsRecordingsOfExternalFiles(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	f.recording(t, "取り込んだ録画", "completed", false)
+	f.recording(t, "最も古い録画", "completed", false)
+	f.recording(t, "新しい録画", "completed", false)
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET external = true WHERE id = $1", f.segmentIDs["取り込んだ録画"])
+	require.NoError(t, err)
+	// 録画ファイルは 3 つで、空き容量は 7 MiB。閾値を 7.5 MiB にすると、録画を 1 つ消せば足りる。
+	f.setThreshold(t, 7<<20+512<<10)
+
+	results := f.runOnce(t)
+	require.Len(t, results, 1)
+	assert.Equal(t, &capacity.PoolResult{PoolID: poolID, FreeBytes: 8 << 20, Deleted: 1, Low: false}, results[0])
+	assert.Equal(t, []string{"取り込んだ録画", "新しい録画"}, f.names(t))
+	_, err = os.Stat(filepath.Join(f.dir, "取り込んだ録画.m2ts"))
+	require.NoError(t, err)
+}
+
 // TestRunOnceSkipsPools は、閾値を設定していないプールと、空き容量が閾値以上のプールでは、何も消さず、通知しないことを確かめる。
 func TestRunOnceSkipsPools(t *testing.T) {
 	t.Parallel()

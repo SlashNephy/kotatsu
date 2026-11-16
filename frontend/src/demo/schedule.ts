@@ -1,3 +1,5 @@
+import { GraphQLError } from 'graphql';
+
 import {
   matchProgram,
   services,
@@ -9,6 +11,10 @@ import {
 // デモの予約とルール (#857)。ルールに一致する番組からルール予約を作り、チューナーを割り当てる。
 // 照合と割り当ては tenban (設計書 4.3、4.5) を簡単にしたもので、状態を変えるたびに作り直す。
 
+// invalidGroup は、本物のサーバーと同じく、BAD_USER_INPUT のエラーコードを持つ、グループの入力のエラーを作る (#1493)。
+const invalidGroup = (message: string) =>
+  new GraphQLError(message, { extensions: { code: 'BAD_USER_INPUT' } });
+
 export type SettingsInput = {
   poolId?: string | null;
   fileNameTemplate?: string | null;
@@ -17,6 +23,7 @@ export type SettingsInput = {
   priority?: number | null;
   joinSegments?: boolean | null;
   detectCm?: boolean | null;
+  generateCaptions?: boolean | null;
   transcodePreset?: string | null;
   transcodeFrameRate?: string | null;
 };
@@ -34,9 +41,21 @@ export type RuleInput = {
   followEventRelay?: boolean | null;
   bundleSameEpisodes?: boolean | null;
   skipEarlierEpisodes?: boolean | null;
+  // groupId は、ルールを入れるグループ (#1493)。省くと、ルールを変えるときは今のグループを残す。null ならグループから外す。
+  groupId?: string | null;
 };
 
-type Rule = { id: string; input: RuleInput; createdAt: number; updatedAt: number };
+// Rule は、デモのルール。groupId は、ルールが入るグループ (null なら「その他」)。
+type Rule = {
+  id: string;
+  input: RuleInput;
+  groupId: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+// RuleGroup は、デモのルールのグループ (#1493)。並びは、Map に入れた順にする。
+type RuleGroup = { id: string; name: string; createdAt: number; updatedAt: number };
 
 type Reservation = {
   id: string;
@@ -72,6 +91,7 @@ export function createScheduler(options: {
   const { programs, now, user, changed } = options;
   const programsById = new Map(programs.map((item) => [item.id, item]));
   const rules = new Map<string, Rule>();
+  const ruleGroups = new Map<string, RuleGroup>();
   const reservations = new Map<string, Reservation>();
   let nextId = 1;
   const newId = (type: string) => `${type}:${nextId++}`;
@@ -176,6 +196,7 @@ export function createScheduler(options: {
     priority: settings?.priority ?? null,
     joinSegments: settings?.joinSegments ?? null,
     detectCm: settings?.detectCm ?? null,
+    generateCaptions: settings?.generateCaptions ?? null,
     transcodePreset: settings?.transcodePreset ?? null,
     transcodeFrameRate: settings?.transcodeFrameRate ?? null,
   });
@@ -212,6 +233,35 @@ export function createScheduler(options: {
     excludeMarks: [],
   });
 
+  const ruleGroupView = (group: RuleGroup) => ({
+    __typename: 'RuleGroup',
+    id: group.id,
+    name: group.name,
+    position: [...ruleGroups.keys()].indexOf(group.id),
+    createdAt: new Date(group.createdAt).toISOString(),
+    updatedAt: new Date(group.updatedAt).toISOString(),
+  });
+  // groupNameOf は、グループの名前の前後の空白を除き、本物のサーバーと同じく、空の名前と同じ名前を拒む。
+  const groupNameOf = (name: string, except?: string) => {
+    const trimmed = name.trim();
+    if (trimmed === '' || trimmed.length > 100) {
+      throw invalidGroup('invalid rule group: name must be 1 to 100 characters');
+    }
+    if ([...ruleGroups.values()].some((group) => group.id !== except && group.name === trimmed)) {
+      throw invalidGroup('invalid rule group: the name is already used by another group');
+    }
+
+    return trimmed;
+  };
+  const groupOrThrow = (id: string) => {
+    const group = ruleGroups.get(id);
+    if (group === undefined) {
+      throw new GraphQLError('rule group not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    return group;
+  };
+
   const ruleView = (rule: Rule) => ({
     __typename: 'Rule',
     id: rule.id,
@@ -227,6 +277,7 @@ export function createScheduler(options: {
     followEventRelay: rule.input.followEventRelay !== false,
     bundleSameEpisodes: rule.input.bundleSameEpisodes ?? false,
     skipEarlierEpisodes: rule.input.skipEarlierEpisodes ?? false,
+    group: rule.groupId === null ? null : ruleGroupView(groupOrThrow(rule.groupId)),
     createdAt: new Date(rule.createdAt).toISOString(),
     createdBy: user,
     updatedAt: new Date(rule.updatedAt).toISOString(),
@@ -293,7 +344,11 @@ export function createScheduler(options: {
 
   const createRule = (input: RuleInput) => {
     const id = newId('Rule');
-    const rule = { id, input, createdAt: now, updatedAt: now };
+    const groupId = input.groupId ?? null;
+    if (groupId !== null) {
+      groupOrThrow(groupId);
+    }
+    const rule = { id, input, groupId, createdAt: now, updatedAt: now };
     rules.set(id, rule);
     syncRules();
 
@@ -421,8 +476,12 @@ export function createScheduler(options: {
         return reservationView(reservation);
       }
       const rule = rules.get(id);
+      if (rule !== undefined) {
+        return ruleView(rule);
+      }
+      const group = ruleGroups.get(id);
 
-      return rule === undefined ? undefined : ruleView(rule);
+      return group === undefined ? undefined : ruleGroupView(group);
     },
 
     // conditionsView は、条件の入力を、tenban が返す ProgramConditions の形にする。視聴ルールでも使う。
@@ -430,6 +489,7 @@ export function createScheduler(options: {
 
     // Query
     rules: () => [...rules.values()].map(ruleView),
+    ruleGroups: () => [...ruleGroups.values()].map(ruleGroupView),
     reservations: (args: {
       from: string;
       to: string;
@@ -456,7 +516,10 @@ export function createScheduler(options: {
     previewRule: (args: { input: RuleInput }) =>
       programs
         .filter((item) =>
-          ruleMatches({ id: '', input: args.input, createdAt: now, updatedAt: now }, item),
+          ruleMatches(
+            { id: '', input: args.input, groupId: null, createdAt: now, updatedAt: now },
+            item,
+          ),
         )
         .toSorted((a, b) => a.start - b.start),
 
@@ -581,6 +644,13 @@ export function createScheduler(options: {
     },
     updateRule: (id: string, input: RuleInput) => {
       const rule = ruleOrThrow(id);
+      // groupId を省いたら、今のグループを残す (#1493)。
+      if (input.groupId !== undefined) {
+        if (input.groupId !== null) {
+          groupOrThrow(input.groupId);
+        }
+        rule.groupId = input.groupId;
+      }
       rule.input = input;
       rule.updatedAt = now;
       syncRules();
@@ -615,6 +685,70 @@ export function createScheduler(options: {
       }
       syncRules();
       ruleChanged();
+
+      return { processed, skipped: ids.length - processed };
+    },
+    // ルールのグループ (#1493)。グループは照合に関わらないので、予約は作り直さない。
+    createRuleGroup: (name: string) => {
+      const group = {
+        id: newId('RuleGroup'),
+        name: groupNameOf(name),
+        createdAt: now,
+        updatedAt: now,
+      };
+      ruleGroups.set(group.id, group);
+      changed(['RULES']);
+
+      return ruleGroupView(group);
+    },
+    renameRuleGroup: (id: string, name: string) => {
+      const group = groupOrThrow(id);
+      group.name = groupNameOf(name, id);
+      group.updatedAt = now;
+      changed(['RULES']);
+
+      return ruleGroupView(group);
+    },
+    reorderRuleGroups: (ids: string[]) => {
+      if (ids.length !== ruleGroups.size || new Set(ids).size !== ids.length) {
+        throw invalidGroup('invalid rule group: ids must contain every group exactly once');
+      }
+      const ordered = ids.map(groupOrThrow);
+      ruleGroups.clear();
+      for (const group of ordered) {
+        ruleGroups.set(group.id, group);
+      }
+      changed(['RULES']);
+
+      return ordered.map(ruleGroupView);
+    },
+    deleteRuleGroup: (id: string) => {
+      groupOrThrow(id);
+      ruleGroups.delete(id);
+      // 中のルールは消さず、「その他」に戻す。
+      for (const rule of rules.values()) {
+        if (rule.groupId === id) {
+          rule.groupId = null;
+        }
+      }
+      changed(['RULES']);
+
+      return id;
+    },
+    // setRulesGroup は、ルールをまとめてグループに移す。ルールの変えた日は変えない。
+    setRulesGroup: (ids: string[], groupId: string | null) => {
+      if (groupId !== null) {
+        groupOrThrow(groupId);
+      }
+      let processed = 0;
+      for (const id of ids) {
+        const rule = rules.get(id);
+        if (rule !== undefined) {
+          rule.groupId = groupId;
+          processed += 1;
+        }
+      }
+      changed(['RULES']);
 
       return { processed, skipped: ids.length - processed };
     },

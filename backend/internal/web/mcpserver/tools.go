@@ -28,7 +28,7 @@ const (
 		service { id name }
 		genres { lv1 lv2 }
 		assignment { state plannedStartAt plannedEndAt }
-		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm transcodePreset transcodeFrameRate }
+		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm generateCaptions transcodePreset transcodeFrameRate }
 		rules { id name }
 		createdAt updatedAt`
 	ruleFields = `id name memo enabled validFrom validUntil avoidDuplicates duplicateWindowDays followEventRelay bundleSameEpisodes skipEarlierEpisodes upcomingReservationCount
@@ -44,7 +44,8 @@ const (
 			timeRanges { weekdays startMinute durationMinutes }
 			minDurationSeconds maxDurationSeconds freeOnly marks excludeMarks
 		}
-		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm transcodePreset transcodeFrameRate }
+		settings { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority joinSegments detectCm generateCaptions transcodePreset transcodeFrameRate }
+		group { id name }
 		createdAt updatedAt`
 	recordingFields = `id name description startAt endAt state failureReason protected drops errors scrambled ruleName
 		service { id name }
@@ -117,7 +118,7 @@ func toolList() []*tool {
 			"録画のルールを作る。条件は search_programs の conditions と同じ形で、作る前に search_programs で一致する番組を確かめるとよい。",
 			`mutation($input: RuleInput!) { createRule(input: $input) { `+ruleFields+` } }`),
 		writeTool("update_rule", "ルールの変更",
-			"ルールを変える。input には、変えない項目も含めたルールの全体を渡す。",
+			"ルールを変える。input には、変えない項目も含めたルールの全体を渡す。ただし groupId を省くと、グループは変えない。",
 			`mutation($id: ID!, $input: RuleInput!) { updateRule(id: $id, input: $input) { `+ruleFields+` } }`),
 		deleteTool("delete_rule", "ルールの削除",
 			"ルールを消す。ルールで作った予約のうち、ほかのルールに一致しないものも消える。",

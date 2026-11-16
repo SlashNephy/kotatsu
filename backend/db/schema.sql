@@ -384,6 +384,9 @@ CREATE TABLE system_settings (
   -- しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。
   -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
   anime_linking_enabled boolean NOT NULL DEFAULT false,
+  -- TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。
+  -- 外部へ問い合わせるので、既定では使わない (設計書 0.3)。
+  drama_linking_enabled boolean NOT NULL DEFAULT false,
   -- 管理者がオプトインした実況のコメントのソース (#1405、設計書 7.4)。外部へ問い合わせるので、既定では空にする (設計書 0.3)。
   comment_sources text[] NOT NULL DEFAULT '{}',
   -- ルールを作るときの既定値 (重複の回避と期間、イベントリレーへの追従、同じ回を束ねるか。#470、#1498)。変えた項目だけを持ち、Go の既定値に重ねる。
@@ -661,6 +664,11 @@ CREATE TABLE programs (
   -- 番組名から話数を読めないときに、アニメの話を結びつけるのに使う。記述子がないか、話数が 0 なら NULL。
   series_episode integer,
   series_repeat boolean,
+  -- 回の読み方 (設計書 4.4、episode.Parse) で番組名から読んだシリーズ名と、番組名、概要、記述子から読んだ話数 (#1564)。
+  -- 録画の詳細に、続きの放送を出すときに引く。シリーズ名を読めない番組は空、話数を読めない番組は NULL。
+  -- Go で読むので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが埋める。
+  series text,
+  episode_number integer,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -668,6 +676,8 @@ CREATE TABLE programs (
 
 CREATE INDEX programs_start_at_idx ON programs (start_at);
 CREATE INDEX programs_service_id_start_at_idx ON programs (service_id, start_at);
+-- 続きの放送 (#1564) を、シリーズ名と放送の時刻で引く。
+CREATE INDEX programs_series_start_at_idx ON programs (series, start_at) WHERE (episode_number IS NOT NULL);
 
 -- EPG の変更の記録 (設計書 3.3)。反映のたびに、変更のあったサービスと時間帯を、通知の版数と一緒に残す。
 -- 通知で届くのは版数だけなので、受け取った側は、自分が知っている版数より後の行を読んで、何が変わったかを知る。
@@ -681,6 +691,22 @@ CREATE TABLE epg_changes (
 
 CREATE INDEX epg_changes_version_idx ON epg_changes (version);
 CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);
+
+-- 放送前の番組の、番組名と概要の書き換え (#1558)。書き換えが放送開始のどれだけ前まで起きるかを測り、ルール予約の直前の猶予を決め直すのに使う。
+-- 書き換えを見つけた時点で放送開始より後のものだけを残す。observed_at から保持期間が過ぎたら消す (設計書 3.3)。
+CREATE TABLE program_rewrites (
+  service_id bigint NOT NULL,
+  event_id bigint NOT NULL,
+  -- start_at は、書き換えた後の番組の開始時刻。
+  start_at timestamptz NOT NULL,
+  -- field は、書き換わった項目 (name か description)。
+  field text NOT NULL CHECK (field IN ('name', 'description')),
+  before text NOT NULL,
+  after text NOT NULL,
+  observed_at timestamptz NOT NULL
+);
+
+CREATE INDEX program_rewrites_observed_at_idx ON program_rewrites (observed_at);
 
 -- 放送が終わった番組 (設計書 3.4)。neko が、放送の終わりから猶予が過ぎた番組を programs から移す。
 -- EID は再利用されうるので、サービスと eventId に開始時刻を加えた組で一意にする (設計書 3.2)。
@@ -813,6 +839,15 @@ CREATE TABLE tuners (
   updated_at timestamptz NOT NULL
 );
 
+-- チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536、設計書 4.5)。
+-- neko の割り当ては、この時間帯のチューナーを使わない。チューナーの一覧と同じく、変わったら丸ごと入れ替える。
+CREATE TABLE tuner_occupancies (
+  tuner_index bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  PRIMARY KEY (tuner_index, start_at, end_at)
+);
+
 -- チューナーサーバーの状態 (設計書 3.7)。行は 1 つだけ持つ。
 CREATE TABLE tuner_server_status (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
@@ -831,6 +866,18 @@ CREATE TABLE tuner_server_status (
   -- 接続できない間や判定に失敗したときは、最後に分かったものを残す。
   server_kind text,
   server_version text
+);
+
+-- ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+-- ルールと同じく家族で共有する。position は一覧で並べる順 (小さいほど先)。
+CREATE TABLE rule_groups (
+  id uuid PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  position integer NOT NULL,
+  created_at timestamptz NOT NULL,
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL
 );
 
 -- ルール (設計書 4.2)。条件は match パッケージの型で検証し、スキーマのバージョンを付けて JSONB に保存する (設計書 8.3)。
@@ -855,6 +902,8 @@ CREATE TABLE rules (
   -- 追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
   -- 番組名を変えずに 1 話から数え直すシリーズを黙って飛ばさないよう、既定は false。この列を足す前からあるルールも false。
   skip_earlier_episodes boolean NOT NULL DEFAULT false,
+  -- ルールが入るグループ (#1493)。グループを消すと NULL (一覧の「その他」) に戻る。
+  group_id uuid REFERENCES rule_groups (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL,
   created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
@@ -871,6 +920,8 @@ CREATE TABLE reservation_rules (
 );
 
 CREATE INDEX reservation_rules_rule_id_idx ON reservation_rules (rule_id);
+
+CREATE INDEX rules_group_id_idx ON rules (group_id);
 
 -- 保存先プールの設定 (設計書 5.6、11.2)。マウント先は各ロールの設定で与え、優先順位と容量の閾値を DB に置く。
 -- 行がなければ、優先順位 0、容量の閾値 0 (容量の管理をしない) として扱う。
@@ -928,7 +979,7 @@ CREATE TABLE recordings (
   -- 失敗の理由 (設計書 5.5)。失敗していなければ NULL。
   failure_reason text CHECK (failure_reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted', 'tuning_refused'
   )),
   -- 失敗の理由に至った、最後のエラーの本文 (設計書 5.5、#1467)。上流のチューナーのホスト名などを含むので、管理者にだけ見せる。
   -- 失敗していないか、本文がなければ NULL。
@@ -983,7 +1034,7 @@ CREATE TABLE recordings (
 CREATE TABLE recording_failure_counts (
   reason text PRIMARY KEY CHECK (reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted', 'tuning_refused'
   )),
   count bigint NOT NULL DEFAULT 0,
   -- 一度も失敗していなければ NULL。
@@ -1042,6 +1093,9 @@ CREATE TABLE recording_files (
   -- コマごとに解除したら 30。プログレッシブの映像は、元のコマ数を丸めた値。変換を終えたときに書く。
   -- セグメントと、EPGStation から取り込んだファイルと、これを足す前に変換した MP4 は NULL。
   transcode_frame_rate integer,
+  -- Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (kotatsu import files、#1734)。
+  -- 録画を消しても、ファイルは消さずに残し (生成物は消す)、容量の管理で消す対象にも、ファイル名の付け直しの対象にもしない。
+  external boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );
@@ -1098,6 +1152,33 @@ CREATE TABLE recording_cm_materials (
   data bytea NOT NULL,
   created_at timestamptz NOT NULL,
   PRIMARY KEY (recording_id, detector)
+);
+
+-- 録画の音声から自動生成した字幕 (設計書 6.1、#1682)。録画ごとに最後に生成した 1 つだけを持つ。
+-- cues は、{startMs, endMs, text} の配列。時刻は、CM の区間と同じく、録画を始めた日時からの時間 (セグメントの最初の I フレームを 0 にしたもの)。
+-- 字幕は録画ごとに数千件になり、いつもまとめて読み書きするので、行に分けずに JSONB にする。
+CREATE TABLE recording_auto_captions (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  -- model は、生成に使ったモデルのファイルの名前。
+  model text NOT NULL,
+  -- generator_version は、生成の仕方の版。生成の仕方を変えたら上げる。
+  generator_version integer NOT NULL,
+  generated_at timestamptz NOT NULL,
+  cues jsonb NOT NULL
+);
+
+-- 字幕の自動生成に使うモデルのうち、管理者が画面からダウンロードして、データディレクトリの既定の場所に置いたもの (#1682、設計書 6.1)。
+-- 種類ごとに 1 つ。ダウンロードするジョブ (nekonote) が、ファイルを置き換えた後に書き、画面から消すと消す。
+-- 手で置いたファイルには行がないので、画面は、ファイルの大きさが行と違えば、手で置いたものとして出す。
+CREATE TABLE caption_models (
+  -- kind は、モデルの種類。WHISPER (書き起こし) か VAD (声のある区間)。
+  kind text PRIMARY KEY,
+  -- model_id は、コードに固定したモデルの一覧の ID。
+  model_id text NOT NULL,
+  -- size と sha256 は、置いたファイルの大きさ (バイト) と SHA-256 (16 進)。
+  size bigint NOT NULL,
+  sha256 text NOT NULL,
+  installed_at timestamptz NOT NULL
 );
 
 -- 録画を一覧で新しい順に並べ、ページを送るのに使う。
@@ -1819,4 +1900,105 @@ CREATE TABLE edcb_network_tvs (
   network_id integer NOT NULL,
   service_id integer NOT NULL,
   acquired_at timestamptz NOT NULL
+);
+
+-- TMDb の作品の検索の結果 (#1651、設計書 3.9)。番組名から読んだ作品名ごとに持ち、同じ作品名で問い合わせ直さない。
+-- TMDb の利用規約は、取得した情報を 6 か月を超えて持つことを禁じているので、引いてから 180 日たった行は消す。
+CREATE TABLE tmdb_searches (
+  -- 問い合わせた作品名 (NFKC で正規化したもの)。
+  query text PRIMARY KEY,
+  -- 検索の結果の作品。[{"id": 1, "name": "", "originalName": "", "firstAirDate": "2026-10-04", "genreIds": [18]}] の形。
+  results jsonb NOT NULL,
+  fetched_at timestamptz NOT NULL
+);
+
+-- TMDb の作品 (TV) の名前とシーズンの一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
+CREATE TABLE tmdb_series (
+  id integer PRIMARY KEY CHECK (id > 0),
+  name text NOT NULL,
+  original_name text NOT NULL,
+  first_air_date date,
+  -- シーズンの一覧。[{"seasonNumber": 1, "airDate": "2026-10-04", "episodeCount": 10}] の形。
+  seasons jsonb NOT NULL,
+  fetched_at timestamptz NOT NULL
+);
+
+-- TMDb のシーズンの話の一覧 (#1651、設計書 3.9)。引いてから 180 日たった行は消す。
+CREATE TABLE tmdb_seasons (
+  series_id integer NOT NULL,
+  season_number integer NOT NULL CHECK (season_number >= 0),
+  -- 話の一覧。[{"episodeNumber": 1, "airDate": "2026-10-04", "name": ""}] の形。
+  episodes jsonb NOT NULL,
+  fetched_at timestamptz NOT NULL,
+  PRIMARY KEY (series_id, season_number)
+);
+
+-- ドラマの番組と、TMDb の作品と話の結びつき (#1651、設計書 3.9)。アニメの結びつき (program_anime_matches) と同じく、
+-- programs の主キーの EID は使い回されるので、サービスと開始時刻で持ち、アーカイブへ移した番組の結びつきも残す。
+-- どの作品にも結びつかなかった番組の行も残し、照合したことを表す。持つのは TMDb の ID と番号だけで、名前はキャッシュから引く。
+CREATE TABLE program_drama_matches (
+  service_id bigint NOT NULL REFERENCES services (id) ON DELETE CASCADE,
+  start_at timestamptz NOT NULL,
+  -- 照合したときの番組のイベント ID。放送時間が変わった番組の、前の結びつきを消すのに使う。
+  event_id bigint NOT NULL,
+  -- 番組名から読んだ作品名の鍵。管理者の上書き (drama_title_overrides) を引くのに使う。
+  title_key text NOT NULL,
+  tmdb_series_id integer CHECK (tmdb_series_id > 0),
+  season_number integer CHECK (season_number >= 0),
+  episode_number integer CHECK (episode_number > 0),
+  -- 作品を決めた出どころ。search は TMDb の検索、override は管理者の上書き。作品に結びつかなければ NULL。
+  series_source text CHECK (series_source IN ('search', 'override')),
+  -- 話を決めた出どころ。air_date は TMDb の話の放送日、title は番組名の話数。話を決められなければ NULL。
+  episode_source text CHECK (episode_source IN ('air_date', 'title')),
+  matched_at timestamptz NOT NULL,
+  -- 放送が終わった後に照合し直し、結びつきを確定させた日時。確定させた番組は、それからは照合し直さない。
+  finalized_at timestamptz,
+  PRIMARY KEY (service_id, start_at),
+  CHECK ((tmdb_series_id IS NULL) = (series_source IS NULL)),
+  CHECK ((episode_number IS NULL) = (episode_source IS NULL)),
+  CHECK (episode_number IS NULL OR (tmdb_series_id IS NOT NULL AND season_number IS NOT NULL))
+);
+CREATE INDEX program_drama_matches_service_id_event_id_idx ON program_drama_matches (service_id, event_id);
+CREATE INDEX program_drama_matches_title_key_idx ON program_drama_matches (title_key);
+-- ドラマの視聴管理の画面 (#1652) で、作品の番組を引く。
+CREATE INDEX program_drama_matches_tmdb_series_id_idx ON program_drama_matches (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
+
+-- ドラマの番組の照合が読み終えた、EPG の変更の記録 (epg_changes) の版数 (設計書 3.9)。1 行だけ持つ。
+CREATE TABLE drama_match_cursor (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  epg_version bigint NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 録画に写した、番組と TMDb の作品と話の結びつき (#1651、設計書 3.9)。アニメと同じく、録画を始めたときの番組の結びつきを写し、
+-- 放送が終わるまでに照合し直したら写し直す。番組がアーカイブから消えても、録画の結びつきは残る。列は program_drama_matches と同じ。
+CREATE TABLE recording_drama_matches (
+  recording_id uuid PRIMARY KEY REFERENCES recordings (id) ON DELETE CASCADE,
+  tmdb_series_id integer CHECK (tmdb_series_id > 0),
+  season_number integer CHECK (season_number >= 0),
+  episode_number integer CHECK (episode_number > 0),
+  series_source text CHECK (series_source IN ('search', 'override')),
+  episode_source text CHECK (episode_source IN ('air_date', 'title')),
+  matched_at timestamptz NOT NULL,
+  CHECK ((tmdb_series_id IS NULL) = (series_source IS NULL)),
+  CHECK ((episode_number IS NULL) = (episode_source IS NULL)),
+  CHECK (episode_number IS NULL OR (tmdb_series_id IS NOT NULL AND season_number IS NOT NULL))
+);
+-- ドラマの視聴管理の画面 (#1652) で、作品の録画を引く。
+CREATE INDEX recording_drama_matches_tmdb_series_id_idx ON recording_drama_matches (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
+
+-- 管理者が連携の画面で入れた、TMDb の API の読み取りアクセストークン (#1651、設計書 3.9)。1 行だけ持つ。
+-- Annict のトークン (anime_import_tokens) と同じく、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、TMDb に問い合わせない。
+CREATE TABLE tmdb_tokens (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  token_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
+-- 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。検索で誤った作品に結びついたときに直す。
+-- tmdb_series_id が NULL なら、その作品名の番組を、どの作品にも結びつけない。
+CREATE TABLE drama_title_overrides (
+  title_key text PRIMARY KEY CHECK (title_key <> ''),
+  tmdb_series_id integer CHECK (tmdb_series_id > 0),
+  updated_at timestamptz NOT NULL
 );

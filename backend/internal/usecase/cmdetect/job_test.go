@@ -642,10 +642,20 @@ func TestEnqueuer(t *testing.T) {
 		kind    domain.NotificationKind
 		payload map[string]any
 		want    bool
+		// wantDetector は、ジョブに載せる見分け方 (#1505)。
+		wantDetector string
 	}{
 		{
 			name: "見分ける設定の録画を終えたら、見分けるジョブを入れる", kind: domain.NotificationKindRecordingCompleted,
 			payload: map[string]any{filesKey: oneSegment(), detectKey: true}, want: true,
+		},
+		{
+			name: "予約とルールで選んだ見分け方を、ジョブに載せる", kind: domain.NotificationKindRecordingCompleted,
+			payload: map[string]any{filesKey: oneSegment(), detectKey: true, "cmDetector": cmdetect.LogoDetectorName}, want: true, wantDetector: cmdetect.LogoDetectorName,
+		},
+		{
+			name: "見分け方を選んでいなければ、ジョブに載せない", kind: domain.NotificationKindRecordingCompleted,
+			payload: map[string]any{filesKey: oneSegment(), detectKey: true, "cmDetector": ""}, want: true,
 		},
 		{
 			name: "見分けない設定の録画では、何もしない", kind: domain.NotificationKindRecordingCompleted,
@@ -679,6 +689,7 @@ func TestEnqueuer(t *testing.T) {
 			require.NoError(t, err)
 			defer rows.Close()
 			queued := []uuid.UUID{}
+			detectors := []string{}
 			for rows.Next() {
 				var queue string
 				var raw json.RawMessage
@@ -687,6 +698,7 @@ func TestEnqueuer(t *testing.T) {
 				var args cmdetect.DetectArgs
 				require.NoError(t, json.Unmarshal(raw, &args))
 				queued = append(queued, args.RecordingID)
+				detectors = append(detectors, args.Detector)
 			}
 			require.NoError(t, rows.Err())
 			// 入れたら、録画の詳細が見分けを待っていると出せるよう、録画の変更を知らせる (#1571)。
@@ -694,11 +706,40 @@ func TestEnqueuer(t *testing.T) {
 			require.NoError(t, f.pool.QueryRow(t.Context(), recordingsVersion).Scan(&version))
 			if tt.want {
 				assert.Equal(t, []uuid.UUID{recordingID}, queued)
+				assert.Equal(t, []string{tt.wantDetector}, detectors)
 				assert.Equal(t, int64(1), version)
 			} else {
 				assert.Empty(t, queued)
 				assert.Zero(t, version)
 			}
+		})
+	}
+}
+
+// TestResolveDetector は、ジョブに載せた見分け方を使い、なければ全体の設定に従うことを確かめる (#1505)。
+func TestResolveDetector(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		requested string
+		want      string
+	}{
+		{name: "局ロゴを選んでいれば、局ロゴで見分ける", requested: cmdetect.LogoDetectorName, want: cmdetect.LogoDetectorName},
+		{
+			name:      "FFmpeg を選んでいれば、全体の設定によらず FFmpeg で見分ける",
+			requested: cmdetect.FFmpegDetectorName, want: cmdetect.FFmpegDetectorName,
+		},
+		{name: "選んでいなければ、全体の設定に従う", requested: "", want: cmdetect.LogoDetectorName},
+		{name: "知らない見分け方なら、全体の設定に従う", requested: "unknown", want: cmdetect.LogoDetectorName},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := cmdetect.ResolveDetector(tt.requested, func() (string, error) { return cmdetect.LogoDetectorName, nil })
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

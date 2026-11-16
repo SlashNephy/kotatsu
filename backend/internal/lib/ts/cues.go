@@ -27,6 +27,9 @@ type Cues struct {
 	// 録画の索引 (Splitter) と同じ探し方なので、再生の時間の 0 (索引の最初の I フレーム) と同じ所になる (#1811)。
 	// 録画の頭の、最初の I フレームより前の PES は、デコードできず、再生にも入らない。
 	FirstKeyframePTS *int64
+	// FirstAudioPTS は、サービスの最初の音声の、最初の PES の PTS。音声がなければ nil。
+	// 音声から作った字幕 (#1682) の時刻を、再生の時間 (FirstKeyframePTS を 0 にしたもの) にそろえるのに使う。
+	FirstAudioPTS *int64
 	// AudioChanges は、音声の構成 (音声のストリームの数か、最初の音声の channel_configuration) が変わった PTS。
 	// 録画の始まりで構成を初めて知ったときは含めない。
 	AudioChanges []int64
@@ -69,7 +72,7 @@ func NewCueScanner(serviceID uint16) *CueScanner {
 		channels: adtsChannelUnknown, pendingPTS: noPTS, pendingChannels: adtsChannelUnknown, pendingCount: 0,
 		layoutKnown: false, layoutChanged: false,
 		carry: [PacketSize]byte{}, carryLen: 0,
-		cues: Cues{FirstVideoPTS: nil, LastVideoPTS: nil, FirstKeyframePTS: nil, AudioChanges: []int64{}},
+		cues: Cues{FirstVideoPTS: nil, LastVideoPTS: nil, FirstKeyframePTS: nil, FirstAudioPTS: nil, AudioChanges: []int64{}},
 	}
 }
 
@@ -199,6 +202,9 @@ func (s *CueScanner) handleAudio(pkt *packet) {
 	data, pts, ok := parsePESHeader(pkt.payload)
 	if !ok || pts == noPTS {
 		return
+	}
+	if s.cues.FirstAudioPTS == nil {
+		s.cues.FirstAudioPTS = new(pts)
 	}
 	channels := adtsChannels(data)
 	if channels == adtsChannelUnknown {

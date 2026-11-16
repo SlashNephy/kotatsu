@@ -2,6 +2,7 @@ package mirakurun_test
 
 import (
 	"bytes"
+	"errors"
 	"image/png"
 	"io"
 	"net/http"
@@ -266,6 +267,58 @@ func TestClientOpenServiceStreamErrors(t *testing.T) {
 			assert.NotEmpty(t, apiErr.Reason)
 			require.ErrorIs(t, err, tt.wantErr)
 			require.ErrorIs(t, err, tunerserver.ErrRefused)
+		})
+	}
+}
+
+// TestClientOpenServiceStreamStatus は、ストリームを開くときの状態を、選局を断られたのか、チューナーの空きがないのかに読み替えることを確かめる (#1519)。
+// Mahiron は設定にないチャンネルに本文なしの 404 を、Mirakurun は空きがなければ 503 を、ほかのストリームの失敗には 500 を返す。
+func TestClientOpenServiceStreamStatus(t *testing.T) {
+	t.Parallel()
+
+	sentinels := []error{tunerserver.ErrNotFound, tunerserver.ErrTunerUnavailable, tunerserver.ErrTuningFailed}
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		wantErr error
+	}{
+		{name: "設定にないチャンネル (本文なし)", status: http.StatusNotFound, body: "", wantErr: tunerserver.ErrNotFound},
+		{
+			name: "チューナーの空きがない", status: http.StatusServiceUnavailable,
+			body: `{"code":503,"reason":"Tuner Resource Unavailable"}`, wantErr: tunerserver.ErrTunerUnavailable,
+		},
+		{
+			name: "選局に失敗した", status: http.StatusInternalServerError,
+			body: `{"code":500,"reason":"Error: tuner process exited"}`, wantErr: tunerserver.ErrTuningFailed,
+		},
+		// リバースプロキシの 502 などは、選局の失敗とは限らないので、どれにも読み替えない。
+		{name: "リバースプロキシのエラー", status: http.StatusBadGateway, body: "Bad Gateway", wantErr: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(server.Close)
+			client, err := mirakurun.New(&mirakurun.Options{URL: server.URL})
+			require.NoError(t, err)
+
+			_, err = client.OpenServiceStream(t.Context(), grServiceID, nil)
+			var apiErr *mirakurun.APIError
+			require.ErrorAs(t, err, &apiErr)
+			assert.Equal(t, tt.status, apiErr.StatusCode)
+			require.ErrorIs(t, err, tunerserver.ErrRefused)
+			for _, sentinel := range sentinels {
+				if errors.Is(tt.wantErr, sentinel) {
+					assert.ErrorIs(t, err, sentinel)
+				} else {
+					assert.NotErrorIs(t, err, sentinel)
+				}
+			}
 		})
 	}
 }

@@ -271,6 +271,21 @@ func (a *Analyzer) EventInfo(serviceID, eventID uint16) *EventInfo {
 	return parseEventInfo(descriptors)
 }
 
+// EventTime は、これまでに読んだ EIT[p/f] (自 TS) で、サービス serviceID の放送中か次の番組として最後に読んだ、
+// 番組 eventID の開始と長さを返す (#1734)。まだ読んでいなければ nil を返す。書き込みと並行して呼べる。
+func (a *Analyzer) EventTime(serviceID, eventID uint16) *EventTime {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	et, ok := a.eit.times[[2]uint16{serviceID, eventID}]
+	if !ok {
+		return nil
+	}
+	copied := *et
+
+	return &copied
+}
+
 // pidStats は、PID ごとの統計を、PID の昇順に写して返す。
 func (a *Analyzer) pidStats() []*PIDStats {
 	pids := make([]*PIDStats, 0, len(a.pids))

@@ -42,6 +42,7 @@ func TestHelpListsRolesWithAlias(t *testing.T) {
 		"mikan (recorder)",
 		"nekonote (worker)",
 		"kyusu (transcoder)",
+		"nabe (hub)",
 		"all ",
 	}
 	for _, want := range tests {
@@ -228,17 +229,22 @@ func TestRoleDoesNotStartWithInvalidConfig(t *testing.T) {
 	assert.False(t, started.Load())
 }
 
-// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote と kyusu を起動しないことを確かめる (設計書 8.4)。
+// TestRolesRequireSecretKey は、アプリの秘密キーがなければ、tenban、nekonote、kyusu と、EDCB を使う nabe を起動しないことを確かめる (設計書 8.4)。
 func TestRolesRequireSecretKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
 		role string
+		// env は、テストの環境変数に足すもの。
+		env map[string]string
 	}{
-		{name: "TOTP の秘密キーを暗号化する tenban", role: roleTenban},
-		{name: "Webhook の署名用の秘密キーを復号する nekonote", role: roleNekonote},
-		{name: "tenban からのリクエストを確かめる kyusu", role: roleKyusu},
+		{name: "TOTP の秘密キーを暗号化する tenban", role: roleTenban, env: nil},
+		{name: "Webhook の署名用の秘密キーを復号する nekonote", role: roleNekonote, env: nil},
+		{name: "tenban からのリクエストを確かめる kyusu", role: roleKyusu, env: nil},
+		{name: "ほかのロールからのリクエストを確かめる nabe", role: "nabe", env: map[string]string{
+			"KOTATSU_TUNER_KIND": "edcb", "KOTATSU_TUNER_URL": "", "KOTATSU_TUNER_EDCB_ADDRESS": "127.0.0.1:4510",
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -255,6 +261,7 @@ func TestRolesRequireSecretKey(t *testing.T) {
 			}
 			env := testEnv()
 			delete(env, "KOTATSU_AUTH_SECRET_KEY")
+			maps.Copy(env, tt.env)
 
 			cmd := cli.NewCommand(testOptions(slog.New(slog.DiscardHandler), roles, func(key string) (string, bool) {
 				v, ok := env[key]
@@ -262,7 +269,7 @@ func TestRolesRequireSecretKey(t *testing.T) {
 				return v, ok
 			}))
 			cmd.SetArgs([]string{tt.role})
-			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, and kyusu")
+			require.ErrorContains(t, cmd.ExecuteContext(t.Context()), "auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, kyusu, and nabe with EDCB")
 			assert.False(t, started.Load())
 		})
 	}

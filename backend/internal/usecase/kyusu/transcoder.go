@@ -293,10 +293,18 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		// scale_qsv は、幅に -2 (比を保って偶数にそろえる) を受け付けず、-1 (比を保つ) までしか受け付けない (#509)。
 		filter = deinterlace + ",format=nv12,hwupload=extra_hw_frames=64,scale_qsv=w=-1:h=" + height
 		encoder = map[Codec]string{CodecH264: "h264_qsv", CodecHEVC: "hevc_qsv"}[preset.Codec]
+		// scale_qsv の後のフレームは、時間の単位が変わるのに、長さが前の単位のまま残る。HLS の muxer は固定のフレームレートで書くので、
+		// FFmpeg が最初のフレームを数千枚複製し、映像が遅れる。フレームの PTS をそのまま渡し、複製させない (#1848)。
+		// また、QSV は、#1845 の NVENC と同じく、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにすることがあり、
+		// HLS の muxer がそこで区切らない。
+		options = []string{"-fps_mode", "passthrough", "-forced_idr", "1"}
 	case config.EncoderNVENC:
 		// 復号したフレームは CPU のメモリへ戻し、bwdif と縮小は CPU でする。
 		device = []string{"-hwaccel", "cuda"}
 		encoder = map[Codec]string{CodecH264: "h264_nvenc", CodecHEVC: "hevc_nvenc"}[preset.Codec]
+		// -force_key_frames で置くキーフレームを IDR にする。NVENC の既定では IDR でない I フレームになり、
+		// HLS の muxer は IDR でしか区切らないので、セグメントが 2 秒ごとに区切られない (#1845)。
+		options = []string{"-forced-idr", "1"}
 	default:
 		// x264 と x265 は、速さを優先する。
 		encoder = map[Codec]string{CodecH264: "libx264", CodecHEVC: "libx265"}[preset.Codec]

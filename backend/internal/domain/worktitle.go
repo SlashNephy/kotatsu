@@ -6,21 +6,36 @@ import (
 )
 
 var (
-	// workSlotPattern は、作品名の前に付く、ドラマや映画の放送枠の名前 (土曜ドラマ、日曜劇場、ドラマ24、金曜ロードショーなど)。
+	// workSlotPattern は、作品名の前に付く、ドラマや映画の放送枠の名前 (土曜ドラマ、日曜劇場、ドラマ24、金曜ロードショー、中国ドラマなど)。
 	// NFKC で正規化した名前から探す。枠の名前の後には、空白かかぎ括弧が続くものだけを除く (「ドラマチック」のような作品名を削らないため)。
 	workSlotPattern = regexp.MustCompile(`^(?:` +
 		`[月火水木金土日]曜(?:ナイト|よる|夜)?(?:ドラマ|劇場|ロードショー|プレミアム|シネマ)(?:\d+)?|` +
 		`[月火水木金土日]ドラ(?:\d+)?|夜ドラ|連続テレビ小説|連続ドラマW?|大河ドラマ|特集ドラマ|スペシャルドラマ|ドラマスペシャル|` +
+		// 海外ドラマや時代劇の再放送の枠 (中国ドラマ「作品名」、懐ドラ「作品名」、おはよう!時代劇 作品名。#1651)。
+		`(?:中国|韓国|台湾|タイ|華流|韓流|海外)ドラマ|懐ドラ|(?:おはよう!)?時代劇|[月火水木金土日]曜ミステリー|ドラマブレイク|` +
 		`ドラマ(?:\d+|イズム|ストリーム|NEO|Paravi|L)?|映画)(?:\s+|([「『]))`)
 	// workQuotedPattern は、枠の名前の後の、かぎ括弧で囲んだ作品名 (土曜ドラマ「作品名」 第3話)。
 	workQuotedPattern = regexp.MustCompile(`^[「『]([^」』]+)[」』]`)
+	// workLenticularPattern は、作品名の途中や後ろに残る、すみ付き括弧の飾り (作品名【最終章へ…】 #6)。続けて並んだ飾りは、まとめて 1 つの空白にする。
+	workLenticularPattern = regexp.MustCompile(`(?:\s*【[^】]*】\s*)+`)
 )
 
 // WorkTitle は、番組名から、外部のサービスで作品を探すのに使う作品名を読む (#1650)。
 // 頭の飾り (【新】のような印) の後に、ドラマや映画の放送枠の名前 (土曜ドラマ、ドラマ24、映画など) があれば除き、
 // 続くかぎ括弧の中を作品名とする (土曜ドラマ「作品名」 第3話)。かぎ括弧がなければ、枠の名前の後から RuleKeyword で読む。
 // 枠の名前がなければ、RuleKeyword と同じ作品名を返す。ルールのキーワードと違い、番組名のひと続きの部分になるとは限らない。
+// 作品名の途中や後ろに残ったすみ付き括弧 (【最終章へ…】) は、外部のサービスで探すときの邪魔になるので除く。
+// 除いて何も残らなければ、除く前の作品名を返す。
 func WorkTitle(name string) string {
+	title := workTitle(name)
+	if stripped := strings.TrimSpace(workLenticularPattern.ReplaceAllString(title, " ")); stripped != "" {
+		return stripped
+	}
+
+	return title
+}
+
+func workTitle(name string) string {
 	rest := Normalize(name)
 	for {
 		loc := keywordLeadingPattern.FindStringIndex(rest)

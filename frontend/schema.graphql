@@ -863,6 +863,119 @@ type CalendarFeed {
   lastUsedAt: Time
 }
 """
+管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
+"""
+type CaptionModel {
+  """
+  一覧の中の ID。downloadCaptionModel に渡す。
+  """
+  id: String!
+  kind: CaptionModelKind!
+  """
+  画面に出す名前。
+  """
+  name: String!
+  """
+  ファイルの大きさ (バイト)。
+  """
+  size: Int64!
+  """
+  ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。
+  """
+  sha256: String!
+  """
+  モデルのライセンス (SPDX の識別子)。
+  """
+  license: String!
+  """
+  入手先の URL。
+  """
+  url: String!
+  """
+  その種類で勧めるモデルかどうか。
+  """
+  recommended: Boolean!
+}
+"""
+最後に頼んだダウンロード。終えていないか、失敗したものだけを返す。
+"""
+type CaptionModelDownload {
+  """
+  ダウンロードしているか、失敗したモデル。一覧から消えたモデルなら null。
+  """
+  model: CaptionModel
+  """
+  動いているかどうか。false なら、待っているか、失敗した。
+  """
+  running: Boolean!
+  """
+  失敗したかどうか。
+  """
+  failed: Boolean!
+  """
+  動いているときの進み具合。今の試行で書いたものがなければ null。
+  """
+  progress: JobProgress
+}
+"""
+字幕の自動生成のモデルの種類 (設計書 6.1、#1682)。種類ごとに、データディレクトリに置き場所が 1 つある。
+"""
+enum CaptionModelKind {
+  """
+  書き起こしのモデル。whisper-cli が読む。データディレクトリの whisper/ggml-model.bin に置く。
+  """
+  WHISPER
+  """
+  声のある区間を求めるモデル。whisper-vad-speech-segments が読む。任意。データディレクトリの whisper/ggml-silero-vad.bin に置く。
+  """
+  VAD
+}
+"""
+種類ごとの、字幕の自動生成のモデルの置き場所 (設計書 6.1、#1682)。
+"""
+type CaptionModelSlot {
+  kind: CaptionModelKind!
+  state: CaptionModelState!
+  """
+  既定の場所に置いてあるモデル。なければ null。
+  """
+  installed: InstalledCaptionModel
+  """
+  終えていないか、失敗した最後のダウンロード。なければ null。
+  """
+  download: CaptionModelDownload
+  """
+  設定 (captions.whisper_model か captions.vad_model) でモデルの場所を書いていて、既定の場所のモデルを使わないかどうか。
+  tenban の設定で決める。設定は、nekonote と同じにしておく。
+  """
+  overridden: Boolean!
+  """
+  この種類で選べるモデル。勧めるものを先に並べる。
+  """
+  models: [CaptionModel!]!
+}
+"""
+種類ごとのモデルの置き場所の状態 (設計書 6.1、#1682)。
+"""
+enum CaptionModelState {
+  """
+  置いていない。
+  """
+  NOT_PLACED
+  """
+  ダウンロードを待っているか、ダウンロードしている。
+  """
+  DOWNLOADING
+  """
+  置いた。画面から置いたものも、手で置いたものも含む。
+  """
+  PLACED
+  """
+  最後のダウンロードが、試す回数を使い切ったか、照合に失敗した。前に置いたモデルがあれば残る。
+  """
+  FAILED
+}
+"""
 字幕の見た目と、文字スーパーを出すかどうかの設定 (#491)。字幕と文字スーパーを両方とも出さないのは、captionsEnabled で切り替える。
 """
 type CaptionSettings {
@@ -1218,6 +1331,133 @@ type DeleteReservationPayload {
   reservation: Reservation
 }
 """
+番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+"""
+type DramaEpisode {
+  series: DramaSeries!
+  seriesSource: DramaSeriesSource!
+  """
+  TMDb のシーズンの番号。0 は特別編。話を決められなければ null。
+  """
+  seasonNumber: Int
+  """
+  シーズンの中の話の番号。話を決められなければ null。
+  """
+  episodeNumber: Int
+  """
+  話の名前。キャッシュがなければ null。
+  """
+  episodeName: String
+  episodeSource: DramaEpisodeSource
+  """
+  TMDb の話のページ。話を決められなければ、作品のページ。
+  """
+  url: String!
+}
+"""
+番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+"""
+enum DramaEpisodeSource {
+  """
+  TMDb の話の放送日と、番組の放送日が一致した
+  """
+  AIR_DATE
+  """
+  番組名の話数 (#7、第7話、(4)) で選んだ
+  """
+  TITLE
+}
+"""
+TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+"""
+type DramaLinkingStatus {
+  """
+  管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
+  """
+  tokenConfigured: Boolean!
+  """
+  入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
+  """
+  tokenHint: String
+  """
+  トークンを最後に変えた日時。入れていなければ null。
+  """
+  tokenUpdatedAt: Time
+}
+"""
+TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+"""
+type DramaSeries {
+  """
+  TMDb の作品の ID。
+  """
+  tmdbId: Int!
+  """
+  作品の名前 (日本語)。
+  """
+  name: String
+  """
+  作品の元の言語の名前。
+  """
+  originalName: String
+  """
+  TMDb の作品のページ。
+  """
+  url: String!
+}
+"""
+番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+"""
+enum DramaSeriesSource {
+  """
+  番組名から読んだ作品名で、TMDb を探した
+  """
+  SEARCH
+  """
+  管理者が、作品名ごとに決めた (上書き)
+  """
+  OVERRIDE
+}
+"""
+管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+"""
+type DramaTitleOverride {
+  """
+  作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。
+  """
+  titleKey: String!
+  """
+  結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
+  """
+  tmdbSeriesId: Int
+  updatedAt: Time!
+}
+"""
+作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+"""
+input DramaTitleOverrideInput {
+  """
+  上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。
+  """
+  programName: String
+  """
+  上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
+  """
+  titleKey: String
+  """
+  結びつける TMDb の作品の ID (1 以上)。
+  """
+  tmdbSeriesId: Int
+  """
+  この作品名の番組を、どの作品にも結びつけない。
+  """
+  exclude: Boolean! = false
+  """
+  上書きを消し、TMDb を探して作品を決めるのに戻す。
+  """
+  reset: Boolean! = false
+}
+"""
 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
 """
 type DrcsReplacement {
@@ -1418,6 +1658,23 @@ type InspectedStream {
   drops: Int64!
   errors: Int64!
   scrambled: Int64!
+}
+"""
+データディレクトリの既定の場所に置いてあるモデル。
+"""
+type InstalledCaptionModel {
+  """
+  画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。
+  """
+  model: CaptionModel
+  """
+  ファイルの大きさ (バイト)。
+  """
+  size: Int64!
+  """
+  画面から置いた日時。手で置いたファイルなら null。
+  """
+  installedAt: Time
 }
 """
 各ロールのインスタンス (設計書 1.4)。
@@ -1973,6 +2230,20 @@ type Mutation {
   """
   deleteIptvFeed: Boolean!
   """
+  一覧のモデル id をダウンロードして、データディレクトリの既定の場所に置くジョブを入れる (設計書 6.1、#1682)。管理者だけが使える。
+  ダウンロードは nekonote が行い、置いてあるファイルは、照合し終えてから置き換える。同じ種類のダウンロードを待っているか動かしていれば CONFLICT にする。
+  """
+  downloadCaptionModel(id: String!): CaptionModelSlot!
+  """
+  種類 kind の、終えていないダウンロードを取り消す (#1682)。管理者だけが使える。なければ NOT_FOUND にする。
+  """
+  cancelCaptionModelDownload(kind: CaptionModelKind!): CaptionModelSlot!
+  """
+  データディレクトリの既定の場所から、種類 kind のモデルを消す (#1682)。管理者だけが使える。手で置いたファイルも消す。
+  ダウンロードしている間は CONFLICT に、置いていなければ NOT_FOUND にする。
+  """
+  deleteCaptionModel(kind: CaptionModelKind!): CaptionModelSlot!
+  """
   ログイン中のユーザーのキャプチャを、画像ごと消し、消した ID を返す。ほかのユーザーのものは、見つからないものとして NOT_FOUND を返す。
   """
   deleteCapture(id: ID!): ID!
@@ -1982,6 +2253,19 @@ type Mutation {
   調べる間、チューナーを 1 本使う。
   """
   inspectChannel(channelType: String!, channel: String!): ChannelInspection!
+  """
+  TMDb の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDb には問い合わせない。
+  2048 文字を超えるか、空白、制御文字、ASCII の外の文字を含めば BAD_USER_INPUT を返す。
+  入れたら、6 時間ごとの照合し直しを待たずに照合するジョブを入れる。
+  """
+  updateDramaLinkingToken(token: String!): DramaLinkingStatus!
+  """
+  番組名から読んだ作品名の、TMDb の作品の上書きを変える (#1651)。管理者だけが使える。
+  家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDb には問い合わせず、照合し直すジョブを入れる。
+  正しくない値なら BAD_USER_INPUT を返す。変えた後の、すべての上書きを返す。
+  """
+  updateDramaTitleOverride(input: DramaTitleOverrideInput!): [DramaTitleOverride!]!
   """
   ジョブを、すぐに試し直す (#1279)。管理者だけが使える。動いているジョブは試し直せない。監査ログに残す。
   """
@@ -2114,6 +2398,12 @@ type Mutation {
   """
   detectRecordingCm(id: ID!): Boolean!
   """
+  録画の音声から字幕を自動生成するジョブを入れる (設計書 6.1、#1682)。視聴者は使えない。全体や予約の設定にかかわらず生成し、
+  前に生成した字幕は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。whisper-cli とモデルがなければ、ジョブが取りやめ、状態が NOT_CONFIGURED になる。
+  """
+  generateRecordingCaptions(id: ID!): Boolean!
+  """
   番組予約を作る。同じ番組の予約がすでにあれば、作らずにその予約を返す。視聴者は使えない。
   """
   createProgramReservation(input: ProgramReservationInput!): Reservation!
@@ -2167,6 +2457,27 @@ type Mutation {
   見つからないルールは飛ばした数に数える。一度に 500 件まで。
   """
   deleteRules(ids: [ID!]!): BulkOperationPayload!
+  """
+  ルール ids をまとめてグループ groupId に移す (#1493)。groupId が null なら、どのグループにも入れない。視聴者は使えない。
+  監査ログは 1 件ずつ残す。ルールの updatedAt は変えない。見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesGroup(ids: [ID!]!, groupId: ID): BulkOperationPayload!
+  """
+  ルールのグループを作り、一覧の最後に並べる (#1493)。名前の前後の空白は除く。視聴者は使えない。
+  """
+  createRuleGroup(name: String!): RuleGroup!
+  """
+  グループの名前を変える。視聴者は使えない。
+  """
+  renameRuleGroup(id: ID!, name: String!): RuleGroup!
+  """
+  グループを ids の順に並べ直し、並べ直したすべてのグループを返す。ids には、すべてのグループを 1 回ずつ含める。視聴者は使えない。
+  """
+  reorderRuleGroups(ids: [ID!]!): [RuleGroup!]!
+  """
+  グループを消し、消したグループの ID を返す。中のルールは消さず、どのグループにも入らないルールに戻す。視聴者は使えない。
+  """
+  deleteRuleGroup(id: ID!): ID!
   """
   TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
   直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
@@ -2411,6 +2722,7 @@ enum NetworkActivityPurpose {
   ANIME_RECORD
   ANIME_LINK
   ANIME_IMAGE
+  DRAMA_LINKING
   USER_AVATAR
   OIDC
   HIBP
@@ -2421,6 +2733,10 @@ enum NetworkActivityPurpose {
   WEB_PUSH
   WEBHOOK
   DATA_BROADCAST
+  """
+  字幕の自動生成のモデルのダウンロード (#1682)
+  """
+  CAPTION_MODEL_DOWNLOAD
 }
 """
 ID で引けるもの (Relay の Global Object Identification)。
@@ -2941,6 +3257,14 @@ type Program implements Node {
   """
   animeEpisodes: [AnimeEpisode!]!
   """
+  結びついた TMDb の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。
+  """
+  dramaEpisode: DramaEpisode
+  """
+  番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。
+  """
+  dramaTitleKey: String!
+  """
   番組の録画のうち、番組の放送時間に重なるもの (#1121)。過去の番組の詳細から、録画を開くのに使う。
   """
   recordings: [Recording!]!
@@ -3138,6 +3462,10 @@ type Query {
   """
   iptvFeed: IptvFeed
   """
+  字幕の自動生成のモデルの置き場所を、種類ごとに返す (設計書 6.1、#1682)。管理者だけが使える。
+  """
+  captionModels: [CaptionModelSlot!]!
+  """
   ログイン中のユーザーのキャプチャを、残した新しい順に first 件まで返す。
   keyword を渡すと、空白で区切ったすべての語を、番組名かサービス名に含むものだけを返す。全角と半角、大文字と小文字は区別しない。
   """
@@ -3146,6 +3474,14 @@ type Query {
   このサーバーでキャプチャを残せるか。データディレクトリ (storage.data_dir) を設定していなければ false。
   """
   capturesAvailable: Boolean!
+  """
+  TMDb との連携の様子 (#1651)。管理者だけが使える。
+  """
+  dramaLinking: DramaLinkingStatus!
+  """
+  作品名ごとの TMDb の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。
+  """
+  dramaTitleOverrides: [DramaTitleOverride!]!
   """
   ID で引く (Relay の Global Object Identification)。見つからなければ NOT_FOUND のエラーを返す。
   """
@@ -3272,6 +3608,12 @@ type Query {
   """
   continueWatching(first: Int! = 12): [Recording!]!
   """
+  ログイン中のユーザーが見たシリーズの続きの放送 (#1564、設計書 4.4)。ホームの「続きの放送」に出す。
+  直近 30 日に、録画の長さの半分以上まで再生した録画を見た回とし、シリーズごとに、見た回の最大の話数より後の放送のうち
+  最も早い 1 件を、放送の早い順に 10 シリーズまで返す。放送の選び方は Recording.nextEpisodes と同じ。
+  """
+  nextEpisodes: [SeriesNextEpisode!]!
+  """
   タグを、名前の順に返す。
   """
   tags: [Tag!]!
@@ -3291,6 +3633,10 @@ type Query {
   すべてのルールを、作った順に返す。
   """
   rules: [Rule!]!
+  """
+  ルールのすべてのグループを、一覧で並べる順に返す (#1493)。
+  """
+  ruleGroups: [RuleGroup!]!
   """
   保存する前のルールの、照合を重くする書き方を返す (#904)。ルールのプレビューと同じく、視聴者も使える。
   """
@@ -3495,6 +3841,14 @@ type Recording implements Node {
   """
   cmVideoMissingSeconds: Float!
   """
+  音声から自動生成した字幕を、始まりの順に並べる (#1682)。生成していないか、台詞がなければ空になる。
+  """
+  autoCaptions: [RecordingAutoCaption!]!
+  """
+  字幕の自動生成の状態 (#1682)。生成を待っているか、生成しているか、生成し終えたか、失敗したかを返す。
+  """
+  autoCaptionsStatus: RecordingAutoCaptions!
+  """
   録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。
   """
   audios: [ProgramAudio!]!
@@ -3565,6 +3919,13 @@ type Recording implements Node {
   """
   jikkyoCommentsUrl: String!
   """
+  録画のシリーズの続きの放送 (#1564、設計書 4.4)。これから 1 週間に始まる番組表の番組のうち、録画より話数の大きい回を、
+  放送の早い順に 10 件まで返す。録画がしょぼいカレンダーの 1 つの話に結びついていれば TID と話数で、結びついていなければ
+  番組名から読んだシリーズ名の完全一致と話数で探す。予約のある放送 (無効にした予約を含む) と、録画履歴にある話数の放送は外し、
+  同じイベントを共有する放送は 1 つにする。シリーズか話数を読めない録画 (ニュースや帯番組など) では空になる。
+  """
+  nextEpisodes: [Program!]!
+  """
   同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。
   """
   jikkyoOtherCommentsUrl: String!
@@ -3586,6 +3947,79 @@ type Recording implements Node {
   結びついた話 (設計書 3.8)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。
   """
   animeEpisodes: [AnimeEpisode!]!
+  """
+  結びついた TMDb の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。
+  """
+  dramaEpisode: DramaEpisode
+  """
+  番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。
+  """
+  dramaTitleKey: String!
+}
+"""
+録画の音声から自動生成した字幕の 1 つ (設計書 6.1、#1682)。放送の字幕と違い、誤りが混ざる。
+"""
+type RecordingAutoCaption {
+  """
+  字幕を出す区間の始まりと終わり。録画の時間軸の日時で、CM の区間と同じく、再生の位置にするには途切れた分 (gaps) を詰める。
+  """
+  from: Time!
+  to: Time!
+  """
+  字幕の本文。複数の行は改行でつなぐ。
+  """
+  text: String!
+}
+"""
+録画の字幕の自動生成の状態 (設計書 6.1、#1682)。最後に入れた生成のジョブと、生成した字幕から決める。
+"""
+type RecordingAutoCaptions {
+  state: RecordingAutoCaptionsState!
+  """
+  最後に生成し終えた日時。生成していなければ null。生成し直している間と、生成し直しに失敗した後は、前に生成した日時を返す。
+  """
+  generatedAt: Time
+  """
+  最後に生成し終えたときに使ったモデルのファイルの名前。生成していなければ null。
+  """
+  model: String
+  """
+  最後に生成し終えた字幕の数。
+  """
+  count: Int!
+  """
+  生成しているときの進み具合。今の試行で書いたものがなければ null。
+  """
+  progress: JobProgress
+}
+"""
+録画の字幕の自動生成の状態 (設計書 6.1、#1682)。
+"""
+enum RecordingAutoCaptionsState {
+  """
+  生成していない。生成するジョブもない。
+  """
+  NOT_GENERATED
+  """
+  生成するジョブが、動くのを待っている。試し直しを待っているときも含む。
+  """
+  QUEUED
+  """
+  生成している。
+  """
+  RUNNING
+  """
+  生成し終えた。台詞がなく、字幕が 1 つもなくても、生成し終えたとする。
+  """
+  GENERATED
+  """
+  最後に頼んだ生成が、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に生成した結果の状態に戻る。
+  """
+  FAILED
+  """
+  最後に頼んだ生成が、nekonote に whisper-cli かモデルが見つからずに取りやめた。管理者が置くと生成できる。
+  """
+  NOT_CONFIGURED
 }
 """
 録画の CM の区間の見分けの状態 (#1571、設計書 6.1)。最後に入れた見分けのジョブと、見分けた記録から決める。
@@ -3707,6 +4141,10 @@ enum RecordingFailureReason {
   録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)
   """
   TUNER_PREEMPTED
+  """
+  チューナーサーバーが選局を断った。サービスかチャンネルがないか、選局に失敗した (#1519)
+  """
+  TUNING_REFUSED
 }
 """
 録画のファイル。
@@ -3882,6 +4320,10 @@ type RecordingSettings {
   """
   detectCm: Boolean!
   """
+  録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定は false。生成には、nekonote に whisper.cpp とモデルを置く必要がある。
+  """
+  generateCaptions: Boolean!
+  """
   録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。
   """
   transcodePreset: String
@@ -3917,6 +4359,10 @@ type RecordingSettingsOverrides {
   """
   detectCm: Boolean
   """
+  録画が終わったら、音声から字幕を自動生成するかどうか (#1682)。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。
+  """
+  generateCaptions: Boolean
+  """
   録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。
   """
   transcodePreset: String
@@ -3924,6 +4370,10 @@ type RecordingSettingsOverrides {
   録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
   """
   transcodeFrameRate: String
+  """
+  CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。
+  """
+  cmDetector: CMDetector
 }
 """
 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -3936,6 +4386,7 @@ input RecordingSettingsOverridesInput {
   priority: Int
   joinSegments: Boolean
   detectCm: Boolean
+  generateCaptions: Boolean
   """
   変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。
   """
@@ -3944,6 +4395,10 @@ input RecordingSettingsOverridesInput {
   変換で出すコマ数 (auto、30、60 のどれか)。
   """
   transcodeFrameRate: String
+  """
+  CM の区間の見分け方。
+  """
+  cmDetector: CMDetector
 }
 """
 録画の状態 (設計書 5.5)。
@@ -4188,6 +4643,10 @@ type Rule implements Node {
   このルールに一致した予約のうち、終わっていないものの件数。無効にした予約も数える。
   """
   upcomingReservationCount: Int!
+  """
+  ルールが入るグループ (#1493)。どのグループにも入らなければ null (一覧の「その他」)。
+  """
+  group: RuleGroup
 }
 """
 ルールを作るときの既定値 (設計書 4.2、#470)。ルールの作成の画面の初期値に使う。
@@ -4227,6 +4686,23 @@ input RuleDefaultsInput {
   bundleSameEpisodes: Boolean
 }
 """
+ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+ルールと同じく家族で共有する。1 つのルールは、多くとも 1 つのグループに入る。
+"""
+type RuleGroup implements Node {
+  id: ID!
+  """
+  1〜100 文字。ほかのグループと同じ名前にはできない。
+  """
+  name: String!
+  """
+  一覧で並べる順 (0 から)
+  """
+  position: Int!
+  createdAt: Time!
+  updatedAt: Time!
+}
+"""
 ルールの内容。
 """
 input RuleInput {
@@ -4251,6 +4727,11 @@ input RuleInput {
   followEventRelay: Boolean! = true
   bundleSameEpisodes: Boolean! = false
   skipEarlierEpisodes: Boolean! = false
+  """
+  ルールを入れるグループ (#1493)。null ならどのグループにも入れない。
+  updateRule で省くと、今のグループを変えない。createRule で省くと、どのグループにも入れない。
+  """
+  groupId: ID
 }
 """
 ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。
@@ -4300,6 +4781,19 @@ type SegmentVideoFormat {
   フレームレート。読めなければ null (HEVC は読まない)。
   """
   frameRate: Float
+}
+"""
+ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+"""
+type SeriesNextEpisode {
+  """
+  シリーズの見た回のうち、話数の最も大きい録画。
+  """
+  watched: Recording!
+  """
+  シリーズの続きの放送のうち、最も早い放送。
+  """
+  program: Program!
 }
 """
 サービス (設計書 3.2)。
@@ -4702,6 +5196,10 @@ type SystemSettings {
   """
   animeLinkingEnabled: Boolean!
   """
+  TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
+  """
+  dramaLinkingEnabled: Boolean!
+  """
   NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
   ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
   """
@@ -4777,6 +5275,10 @@ input SystemSettingsInput {
   変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
   """
   animeLinkingEnabled: Boolean
+  """
+  TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+  """
+  dramaLinkingEnabled: Boolean
   """
   渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
   """

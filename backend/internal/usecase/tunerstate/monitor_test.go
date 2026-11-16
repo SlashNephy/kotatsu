@@ -390,3 +390,92 @@ func TestCheckRecordsServerIdentity(t *testing.T) {
 		})
 	}
 }
+
+// occupying は、チューナーサーバー自身の予約がチューナーを使う時間帯を返すチューナーサーバー (EDCB の代わり)。
+type occupying struct {
+	tunerstate.Upstream
+
+	mu          sync.Mutex
+	occupancies []*tunerserver.TunerOccupancy
+	err         error
+}
+
+func (o *occupying) TunerOccupancies(context.Context) ([]*tunerserver.TunerOccupancy, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	return o.occupancies, o.err
+}
+
+func (o *occupying) set(occupancies []*tunerserver.TunerOccupancy, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.occupancies, o.err = occupancies, err
+}
+
+// TestCheckRecordsTunerOccupancies は、チューナーサーバー自身の予約がチューナーを使う時間帯を DB に書き、変わったときだけ知らせ、
+// 読めないときは前に読んだものを残し、終わった時間帯は残さないことを確かめる (#1536)。
+func TestCheckRecordsTunerOccupancies(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, 0)
+	client, err := mirakurun.New(&mirakurun.Options{URL: f.server.URL})
+	require.NoError(t, err)
+	upstream := &occupying{Upstream: client, mu: sync.Mutex{}, occupancies: nil, err: nil}
+	monitor := tunerstate.NewMonitor(f.pool, upstream, f.clock, noGuard, slog.New(slog.DiscardHandler), nil)
+	stored := func(t *testing.T) []string {
+		t.Helper()
+
+		rows, err := f.pool.Query(t.Context(), "SELECT tuner_index || '@' || to_char(start_at AT TIME ZONE 'UTC', 'HH24:MI') || '-' || "+
+			"to_char(end_at AT TIME ZONE 'UTC', 'HH24:MI') FROM tuner_occupancies ORDER BY tuner_index, start_at")
+		require.NoError(t, err)
+		got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+
+		return got
+	}
+	at := func(hour, minute int) time.Time { return time.Date(2026, 10, 10, hour, minute, 0, 0, time.UTC) }
+	const occupied = "1@13:00-14:00"
+
+	tests := []struct {
+		name        string
+		occupancies []*tunerserver.TunerOccupancy
+		err         error
+		want        []string
+		notified    bool
+	}{
+		{
+			name: "first read",
+			occupancies: []*tunerserver.TunerOccupancy{
+				{TunerIndex: 1, Start: at(13, 0), End: at(14, 0)},
+				// 終わった時間帯は残さない。
+				{TunerIndex: 0, Start: at(11, 0), End: at(12, 0)},
+			},
+			err: nil, want: []string{occupied}, notified: true,
+		},
+		{
+			name:        "unchanged",
+			occupancies: []*tunerserver.TunerOccupancy{{TunerIndex: 1, Start: at(13, 0), End: at(14, 0)}},
+			err:         nil, want: []string{occupied}, notified: false,
+		},
+		{
+			// 読めなければ、EDCB の予約のチューナーへ割り当ててしまわないよう、前に読んだものを残す。
+			name:        "read fails",
+			occupancies: nil,
+			err:         errors.New("EDCB is busy"), want: []string{occupied}, notified: false,
+		},
+		{
+			name:        "reservation removed",
+			occupancies: []*tunerserver.TunerOccupancy{},
+			err:         nil, want: []string{}, notified: true,
+		},
+	}
+	// 段階は、前の段階の DB の状態の上に積むので、順に確かめる。
+	for _, tt := range tests {
+		before := f.version(t)
+		upstream.set(tt.occupancies, tt.err)
+		require.NoError(t, monitor.Check(t.Context()), tt.name)
+		assert.Equal(t, tt.want, stored(t), tt.name)
+		assert.Equal(t, tt.notified, f.version(t) > before, tt.name)
+	}
+}

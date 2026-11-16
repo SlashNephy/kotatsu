@@ -8,6 +8,7 @@ import { useSyncedForm } from '../../rules/useSyncedForm';
 
 import { useDataChanges } from '../../changes/DataChanges';
 import { AdminPage } from '../../admin/AdminPage';
+import { CaptionModels } from '../../admin/CaptionModels';
 import { useAction } from '../../admin/useAction';
 import { SaveRow } from '../../admin/SaveRow';
 import { settingsErrorMessage } from '../../settings/errors';
@@ -39,6 +40,8 @@ function RecordingPage() {
   return (
     <AdminPage title={t('admin.recording.title')}>
       <RecordingSettings />
+      {/* 字幕の自動生成のモデル (#1682)。自動で保存する録画の既定値とは別に読み直すので、別の問い合わせにする。 */}
+      <CaptionModels />
     </AdminPage>
   );
 }
@@ -54,6 +57,7 @@ const query = graphql`
         priority
         joinSegments
         detectCm
+        generateCaptions
         transcodePreset
         transcodeFrameRate
       }
@@ -93,6 +97,8 @@ type Form = {
   joinSegments: boolean;
   // detectCm は、録画が終わったら CM の区間を見分けるかどうか (#1209)。既定は切る。
   detectCm: boolean;
+  // generateCaptions は、録画が終わったら音声から字幕を自動生成するかどうか (#1682)。既定は切る。
+  generateCaptions: boolean;
   // cmDetector は、CM の区間の見分け方 (#1505)。既定は FFMPEG (無音とシーンの切り替わり)。
   cmDetector: CMDetector;
   // tvtplayChapters は、CM の区間を見分け終えたら、TvtPlay のチャプターのファイルを書くかどうか (#1737)。既定は切る。
@@ -116,6 +122,7 @@ type Autosaved = Pick<
   | 'poolId'
   | 'joinSegments'
   | 'detectCm'
+  | 'generateCaptions'
   | 'cmDetector'
   | 'tvtplayChapters'
   | 'transcodePreset'
@@ -132,6 +139,7 @@ function autosaveInput(patch: Partial<Autosaved>): recordingMutation['variables'
       ...(patch.poolId !== undefined && { poolId: patch.poolId }),
       ...(patch.joinSegments !== undefined && { joinSegments: patch.joinSegments }),
       ...(patch.detectCm !== undefined && { detectCm: patch.detectCm }),
+      ...(patch.generateCaptions !== undefined && { generateCaptions: patch.generateCaptions }),
       ...(patch.transcodePreset !== undefined && { transcodePreset: patch.transcodePreset }),
       ...(patch.transcodeFrameRate !== undefined && {
         transcodeFrameRate: patch.transcodeFrameRate,
@@ -184,6 +192,7 @@ function RecordingSettings() {
     priority: defaults.priority,
     joinSegments: defaults.joinSegments,
     detectCm: defaults.detectCm,
+    generateCaptions: defaults.generateCaptions,
     cmDetector: settings.cmDetector,
     tvtplayChapters: settings.tvtplayChaptersEnabled,
     transcodePreset: defaults.transcodePreset ?? noTranscode,
@@ -249,6 +258,7 @@ function RecordingSettings() {
               priority: Number(form.priority),
               joinSegments: form.joinSegments,
               detectCm: form.detectCm,
+              generateCaptions: form.generateCaptions,
               transcodePreset: form.transcodePreset,
               transcodeFrameRate: form.transcodeFrameRate,
             },
@@ -386,6 +396,14 @@ function RecordingSettings() {
               description={t('admin.settings.tvtplayChaptersHelp')}
               checked={form.tvtplayChapters}
               onChange={(event) => autosave({ tvtplayChapters: event.currentTarget.checked })}
+            />
+            <Switch
+              disabled={action.busy}
+              size="sm"
+              label={t('admin.settings.generateCaptions')}
+              description={t('admin.settings.generateCaptionsHelp')}
+              checked={form.generateCaptions}
+              onChange={(event) => autosave({ generateCaptions: event.currentTarget.checked })}
             />
             <Select
               disabled={action.busy}

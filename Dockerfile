@@ -2,12 +2,14 @@
 # Kotatsu のコンテナイメージ (設計書 2.4、11.1、付録 B)。
 #
 #   - static: distroless の static イメージ。tenban、neko、mikan 向け。
-#   - ffmpeg: Debian 13 の slim に FFmpeg と tsreadex を入れたイメージ。kyusu、nekonote、all 向け。
+#   - ffmpeg: Debian 13 の slim に FFmpeg と tsreadex と whisper.cpp を入れたイメージ。kyusu、nekonote、all 向け。
 #
 # docker buildx build --platform linux/amd64,linux/arm64 --target static . のようにビルドする。
 
 # renovate: datasource=github-tags depName=xtne6f/tsreadex versioning=loose
 ARG TSREADEX_VERSION=master-260428
+# renovate: datasource=github-releases depName=ggml-org/whisper.cpp
+ARG WHISPER_CPP_VERSION=v1.9.5
 
 # SPA は、どのアーキテクチャでも同じものになるので、ビルドするマシンのアーキテクチャで 1 回だけビルドする。
 FROM --platform=$BUILDPLATFORM docker.io/library/node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS web
@@ -51,6 +53,40 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
     -ldflags="-s -w -X github.com/SlashNephy/kotatsu/internal/lib/buildinfo.version=${VERSION}" -o /out/kotatsu ./backend/cmd/kotatsu
 
+# 字幕の自動生成 (設計書 6.1、#1682) に使う whisper.cpp の whisper-cli と whisper-vad-speech-segments は、配布されている Linux の
+# バイナリがないので、ソースからビルドする。C++ のビルドは QEMU では遅いので、ビルドするマシンのアーキテクチャで、対象の
+# アーキテクチャへクロスコンパイルする。共有ライブラリを持ち込まないよう、静的にリンクする。
+# 命令セットは、ビルドするマシンに合わせず (GGML_NATIVE=OFF)、amd64 は AVX2 と FMA (x86-64-v3)、arm64 は ARMv8.0 を前提にする。
+FROM --platform=$BUILDPLATFORM docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS whisper
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+        amd64) echo x86_64-linux-gnu > /triple ;; \
+        arm64) echo aarch64-linux-gnu > /triple ;; \
+        *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends binutils ca-certificates cmake git make "g++-$(tr _ - < /triple)" \
+    && rm -rf /var/lib/apt/lists/*
+ARG WHISPER_CPP_VERSION
+WORKDIR /build
+RUN git clone --depth 1 --branch "$WHISPER_CPP_VERSION" https://github.com/ggml-org/whisper.cpp.git
+RUN triple="$(cat /triple)" \
+    && case "$TARGETARCH" in \
+        amd64) arch="-DCMAKE_SYSTEM_PROCESSOR=x86_64 -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON" ;; \
+        arm64) arch="-DCMAKE_SYSTEM_PROCESSOR=aarch64" ;; \
+    esac \
+    && cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_C_COMPILER="$triple-gcc" -DCMAKE_CXX_COMPILER="$triple-g++" $arch \
+        -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DCMAKE_EXE_LINKER_FLAGS=-static \
+    && cmake --build whisper.cpp/build -j "$(nproc)" --target whisper-cli whisper-vad-speech-segments
+# ライセンス文書と、ビルドに使ったリポジトリとコミットを残す (付録 B)。
+RUN mkdir -p /out/bin /out/doc \
+    && for name in whisper-cli whisper-vad-speech-segments; do \
+        "$(cat /triple)-strip" -o "/out/bin/$name" "whisper.cpp/build/bin/$name"; \
+    done \
+    && cp whisper.cpp/LICENSE /out/doc/whisper.cpp.License.txt \
+    && echo "whisper.cpp https://github.com/ggml-org/whisper.cpp $(git -C whisper.cpp rev-parse HEAD)" > /out/doc/SOURCES
+
 # tsreadex は、配布されているバイナリがないので、対象のアーキテクチャでソースからビルドする。
 FROM docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS tools
 RUN apt-get update \
@@ -60,20 +96,23 @@ ARG TSREADEX_VERSION
 WORKDIR /build
 RUN git clone --depth 1 --branch "$TSREADEX_VERSION" https://github.com/xtne6f/tsreadex.git \
     && make -C tsreadex
-# ライセンス文書と、ビルドに使ったリポジトリとコミットを残す (付録 B)。
+COPY --from=whisper /out/doc/ /build/whisper-doc/
+# ライセンス文書と、ビルドに使ったリポジトリとコミットを残す (付録 B)。whisper.cpp の分は、whisper のステージで書いたものを足す。
 RUN mkdir -p /out/doc \
     && for name in tsreadex; do \
         cp "$name/$name" /out/ \
         && cp "$name/License.txt" "/out/doc/$name.License.txt" \
         && echo "$name https://github.com/xtne6f/$name $(git -C "$name" rev-parse HEAD)" >> /out/doc/SOURCES; \
-    done
+    done \
+    && cp whisper-doc/whisper.cpp.License.txt /out/doc/ \
+    && cat whisper-doc/SOURCES >> /out/doc/SOURCES
 
 FROM gcr.io/distroless/static-debian13:nonroot@sha256:aafe993665bf6200db38a02c11a9351e782a84b6a45e7f33b6695638c88e3931 AS static
 COPY --from=build /out/kotatsu /usr/local/bin/kotatsu
 USER 65532:65532
 ENTRYPOINT ["/usr/local/bin/kotatsu"]
 
-# FFmpeg と tsreadex を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
+# FFmpeg と tsreadex と whisper.cpp を入れた実行環境。ffmpeg と、開発用の dev の土台にする。
 FROM docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS runtime
 ARG TARGETARCH
 # FFmpeg は Debian の ffmpeg パッケージ (GPL-2.0-or-later) を使う (#77)。
@@ -89,6 +128,8 @@ RUN drivers="mesa-va-drivers" \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg $drivers \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=tools /out/tsreadex /usr/local/bin/
+# whisper.cpp のモデルは大きく、使う人も選ぶので、イメージに入れない。管理者が画面からダウンロードする (#1682)。
+COPY --from=whisper /out/bin/ /usr/local/bin/
 COPY --from=tools /out/doc/ /usr/share/doc/kotatsu/third-party/
 COPY docker/debian/write-debian-sources.sh /tmp/
 # 入れた Debian のパッケージとソースパッケージの一覧を、ソースの入手先とともに書き出す (付録 B)。
@@ -100,7 +141,7 @@ FROM runtime AS dev
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=docker.io/jdxcode/mise:2026.11.4@sha256:085be191bbe51dbe93894681b7f29f6c014ae267e7a365c0b8b6a2fdd882ac63 /usr/local/bin/mise /usr/local/bin/mise
+COPY --from=docker.io/jdxcode/mise:2026.11.5@sha256:3beda11ba592da44277cac15061103b844c69420a55cb5c41694dc4f2734d0cb /usr/local/bin/mise /usr/local/bin/mise
 ARG UID=1000
 ARG GID=1000
 # 名前付きボリュームは、最初にマウントしたときに、イメージのディレクトリの持ち主を引き継ぐ。

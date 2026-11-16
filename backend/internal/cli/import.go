@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"text/tabwriter"
+	"time"
 	"uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,6 +24,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/edcbimport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epgstation"
+	"github.com/SlashNephy/kotatsu/internal/usecase/fileimport"
 )
 
 var (
@@ -34,6 +36,8 @@ var (
 	errInvalidPoolMapping = errors.New("invalid --pool")
 	// errSourcePassword は、取り込み元の DB のパスワードの渡し方が正しくないことを表す。
 	errSourcePassword = errors.New("invalid source password")
+	// errInvalidPoolDirectory は、kotatsu import files の POOL:DIR が正しくないことを表す。
+	errInvalidPoolDirectory = errors.New("invalid POOL:DIR")
 )
 
 // newImportCommand は kotatsu import を作る。loadConfig は、--config と環境変数から設定を読む。
@@ -113,7 +117,7 @@ func newImportCommand(
 	epgstationCmd.Flags().BoolVar(&dryRun, "dry-run", false, "only show what would be imported")
 	epgstationCmd.Flags().StringVar(&username, "user", "", "the Kotatsu user recorded as the creator of the imported rules and reserves")
 	_ = epgstationCmd.MarkFlagRequired("source")
-	importCmd.AddCommand(epgstationCmd, newImportEDCBCommand(opts, connect))
+	importCmd.AddCommand(epgstationCmd, newImportEDCBCommand(opts, connect), newImportFilesCommand(opts, connect))
 
 	return importCmd
 }
@@ -176,6 +180,113 @@ func newImportEDCBCommand(opts *Options, connect func(ctx context.Context) (*con
 	_ = cmd.MarkFlagRequired("address")
 
 	return cmd
+}
+
+// newImportFilesCommand は kotatsu import files を作る (#1734)。保存先プールにある TS を、録画として取り込む。
+// dry run でも、サービスと取り込んだ記録を引くので DB に接続する。書き込みは巻き戻すので、DB は変わらない。
+func newImportFilesCommand(opts *Options, connect func(ctx context.Context) (*config.Config, *pgxpool.Pool, error)) *cobra.Command {
+	var (
+		dryRun   bool
+		username string
+		minAge   time.Duration
+	)
+	cmd := &cobra.Command{
+		Use:   "files POOL:DIR",
+		Short: "Import TS files (.ts, .m2ts) in a storage pool as recordings",
+		Long: "Import 188-byte-packet TS files (.ts, .m2ts) under DIR in the storage pool POOL as recordings. " +
+			"The service, the program, and the recorded time are read from the PAT, PMT, SDT, EIT[p/f], and TOT in the file. " +
+			"Files of services that Kotatsu does not have, Blu-ray (BDAV) .m2ts files, and files modified recently are skipped. " +
+			"Deleting an imported recording keeps the file. Run this where the pool is mounted. DIR may be empty to import the whole pool.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !dryRun && username == "" {
+				return errImportUserRequired
+			}
+			poolID, dir, ok := strings.Cut(args[0], ":")
+			if !ok || poolID == "" {
+				return fmt.Errorf("%w %q: must be POOL:DIR", errInvalidPoolDirectory, args[0])
+			}
+			cfg, pool, err := connect(cmd.Context())
+			if err != nil {
+				return err
+			}
+			defer closePool(pool)
+			if _, ok := cfg.Storage.Pools[poolID]; !ok {
+				return fmt.Errorf("%w %q: pool %q is not configured (configured pools: %s)",
+					errInvalidPoolDirectory, args[0], poolID, strings.Join(slices.Sorted(maps.Keys(cfg.Storage.Pools)), ", "))
+			}
+			serviceIDs, err := sqlc.New(pool).ListServiceIDs(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("failed to list services: %w", err)
+			}
+			if len(serviceIDs) == 0 {
+				return errNoServices
+			}
+			userID := uuid.Nil()
+			if username != "" {
+				if userID, err = auth.UserIDByUsername(cmd.Context(), pool, username); err != nil {
+					return err
+				}
+			}
+			inserter, err := jobs.NewClient(pool, opts.Logger, &jobs.Options{PollOnly: cfg.Database.Pooler, Workers: nil, PeriodicJobs: nil})
+			if err != nil {
+				return err
+			}
+			importer := fileimport.NewImporter(opts.Clock, audit.NewRecorder(opts.Clock), inserter, storeOf(cfg))
+			result, err := importer.Apply(cmd.Context(), pool, &fileimport.Options{
+				PoolID: poolID, Dir: dir, UserID: userID, MinAge: minAge, DryRun: dryRun,
+			})
+			if err != nil {
+				return err
+			}
+
+			return printFilesImportResult(cmd.OutOrStdout(), result, dryRun)
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "only show what would be imported; changes are rolled back")
+	cmd.Flags().StringVar(&username, "user", "", "the Kotatsu user recorded in the audit log as the one who imported the files")
+	cmd.Flags().DurationVar(&minAge, "min-age", fileimport.DefaultMinAge, "skip files modified within this duration, which may still be being written")
+
+	return cmd
+}
+
+// printFilesImportResult は、プールの TS の取り込みの結果を表にして w に書く。
+func printFilesImportResult(w io.Writer, result *fileimport.Result, dryRun bool) error {
+	title, verb := "TS file import result", "Imported"
+	if dryRun {
+		title, verb = "TS file import plan (dry run; nothing was written)", "Would import"
+	}
+	lines := []string{
+		title,
+		"",
+		fmt.Sprintf("%s\t%d", verb, len(result.Imported)),
+		fmt.Sprintf("Already imported\t%d", result.AlreadyImported),
+		fmt.Sprintf("Already recording files\t%d", result.AlreadyRecorded),
+		fmt.Sprintf("Skipped\t%d", len(result.Skipped)),
+	}
+	if len(result.Imported) > 0 {
+		lines = append(lines, "", verb, "  PATH\tSERVICE\tSTART\tNAME")
+		for _, f := range result.Imported {
+			lines = append(lines, fmt.Sprintf("  %s\t%s\t%s\t%s", f.Path, f.ServiceName, f.StartAt.Format(time.RFC3339), f.Name))
+		}
+	}
+	if len(result.Skipped) > 0 {
+		lines = append(lines, "", "Skipped", "  PATH\tREASON")
+		for _, s := range result.Skipped {
+			lines = append(lines, fmt.Sprintf("  %s\t%s", s.Path, s.Reason))
+		}
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(tw, line); err != nil {
+			return fmt.Errorf("failed to print the import result: %w", err)
+		}
+	}
+	if err := tw.Flush(); err != nil {
+		return fmt.Errorf("failed to print the import result: %w", err)
+	}
+
+	return nil
 }
 
 // printEDCBImportResult は、EDCB からの取り込みの結果を表にして w に書く。

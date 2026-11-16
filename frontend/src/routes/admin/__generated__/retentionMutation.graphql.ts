@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<074ea2d109bc951dfb38603da8e72c3c>>
+ * @generated SignedSource<<24e74e4086ade41af94d94273e82859f>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type SystemSettingsInput = {
   cmDetector?: CMDetector | null | undefined;
   commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
+  dramaLinkingEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;
@@ -34,9 +35,11 @@ export type SystemSettingsInput = {
   watchProgressRetentionDays?: number | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
+  generateCaptions?: boolean | null | undefined;
   joinSegments?: boolean | null | undefined;
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
