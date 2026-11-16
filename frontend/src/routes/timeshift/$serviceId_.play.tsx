@@ -52,6 +52,7 @@ import { documentTitle, type PlayerSnapshot } from '../../yunomi/playerState';
 import { SeekBar } from '../../yunomi/SeekBar';
 import { TsPlayer } from '../../yunomi/TsPlayer';
 import { usePlaybackRoute } from '../../yunomi/usePlaybackRoute';
+import { useAdaptiveQuality } from '../../yunomi/useAdaptiveQuality';
 import { usePlayerSettings } from '../../yunomi/usePlayerSettings';
 import { useMediaSession } from '../../yunomi/useMediaSession';
 import { ShortcutsHelp } from '../../yunomi/ShortcutsHelp';
@@ -268,10 +269,11 @@ function Player({
   const controls = useControlsVisibility({ playing: !videoState.paused && !shortcutsOpen });
   useWakeLock(!videoState.paused);
   // 録画と同じく、ブラウザの中で変換するか、kyusu の仮想 HLS で再生する (設計書 7.1)。
-  const { route, choices, quality, setQuality } = usePlaybackRoute(
-    transcoding,
-    toVideoFormat(program.service.videoFormat),
-  );
+  // デコードが追いつかずにほかの画面で下げた段の上限は、段を下げる放送中の番組でだけ引き継ぐ (#1513)。
+  const playback = usePlaybackRoute(transcoding, toVideoFormat(program.service.videoFormat), {
+    inheritCap: program.endAt == null,
+  });
+  const { route, choices, quality, setQuality } = playback;
   const hls = route.kind === 'kyusu';
   const {
     captionsEnabled: captions,
@@ -319,7 +321,7 @@ function Player({
   const [handover, setHandover] = useState(false);
 
   // streamMeter は、右の列の「情報」に出す、届いた映像のビットレートと放送の形式を溜める (#828)。
-  const streamMeter = useStreamMeter(quality);
+  const streamMeter = useStreamMeter(playback.current);
   useVolumeNormalizer(video);
   useAudioDelayer(video);
   const [crop, setCrop] = useState<Crop>(noCrop);
@@ -384,6 +386,24 @@ function Player({
     restartAt(positionRef.current);
     setQuality(next);
   };
+  // 映像だけの遅れを飛び直しで直す (#1513)。デコードが追いつかなければ、画質が「自動」の間は段を下げ、それまでの位置から続ける。
+  // 段を下げるのは、放送中の番組 (追っかけと同じく、バッファの端が伸びている) でだけ。
+  const adaptive = useAdaptiveQuality(
+    video,
+    {
+      automatic: playback.automatic,
+      lowerAvailable: playback.lowerAvailable,
+      stepDownForDecode: () => {
+        const next = playback.stepDownForDecode();
+        if (next !== null) {
+          restartAt(positionRef.current);
+        }
+
+        return next;
+      },
+    },
+    { stepDown: onAir },
+  );
   // 音声は、経路ごとのメニューで選ぶ。バッファの番組の音声の構成は分からないので、プレイヤーに任せる。
   const audio = usePlayerAudio(route, null, () => restartAt(positionRef.current));
   const [rate, setRate] = useState(1);
@@ -686,7 +706,13 @@ function Player({
             active={captions}
           />
           <SettingsButton>
-            <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
+            <QualitySelect
+              choices={choices}
+              quality={quality}
+              current={playback.current}
+              currentCodec={playback.currentCodec}
+              onChange={changeQuality}
+            />
             {audio.menu}
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
@@ -767,6 +793,7 @@ function Player({
           overlay={
             <>
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {adaptive.notice}
               {scrub !== null && (
                 <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
               )}
@@ -796,6 +823,7 @@ function Player({
           overlay={
             <>
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
+              {adaptive.notice}
               {scrub !== null && (
                 <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />
               )}
@@ -880,9 +908,10 @@ function Player({
               label: t('player.streamInfo.tab'),
               content: (
                 <StreamInfo
+                  videoLag={adaptive.videoLag}
                   meter={streamMeter.meter}
                   video={video}
-                  quality={quality}
+                  quality={playback.current}
                   kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
                   audios={null}
                   // タイムシフトの再生は、プレイヤーが先まで読むので測れない。平均も分からないので出さない。
