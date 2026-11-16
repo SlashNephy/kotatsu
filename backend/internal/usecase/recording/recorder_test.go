@@ -791,7 +791,7 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			retries:    true,
 		},
 		{
-			// チューナーサーバーが上流のチューナーにつなげず、500 を返した。ストリームは一度も開いていないので、中断ではない。
+			// リバースプロキシが 502 を返したなど、選局を断ったとは言えない応答。ストリームは一度も開いていないので、中断ではない。
 			name: "チューナーサーバーがエラーを返す",
 			tuner: func(*fixture) recording.StreamOpener {
 				return failingStream{err: fmt.Errorf("upstream: context deadline exceeded: %w", tunerserver.ErrRefused)}
@@ -799,6 +799,28 @@ func TestRecorderRecordsFailures(t *testing.T) {
 			freeSpace:  nil,
 			want:       domain.RecordingFailureReasonTunerUnavailable,
 			wantDetail: "upstream: context deadline exceeded",
+			retries:    true,
+		},
+		{
+			// チューナーサーバーの設定にないチャンネル (404)。チューナーの空きがないときと分ける (#1519)。
+			name: "チャンネルがない",
+			tuner: func(*fixture) recording.StreamOpener {
+				return failingStream{err: fmt.Errorf("tuner server responded 404: %w", tunerserver.ErrNotFound)}
+			},
+			freeSpace:  nil,
+			want:       domain.RecordingFailureReasonTuningRefused,
+			wantDetail: "responded 404",
+			retries:    true,
+		},
+		{
+			// チューナーサーバーが選局に失敗し、500 を返した (#1519)。
+			name: "選局に失敗した",
+			tuner: func(*fixture) recording.StreamOpener {
+				return failingStream{err: fmt.Errorf("tuner server responded 500: %w", tunerserver.ErrTuningFailed)}
+			},
+			freeSpace:  nil,
+			want:       domain.RecordingFailureReasonTuningRefused,
+			wantDetail: "responded 500",
 			retries:    true,
 		},
 		{

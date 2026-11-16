@@ -14,6 +14,7 @@ import { emptyRuleForm, fromRule, type RuleForm } from '../../rules/form';
 import { RuleEditor, ruleEditorRuleFragment } from '../../rules/RuleEditor';
 import type { RuleEditor_rule$key } from '../../rules/__generated__/RuleEditor_rule.graphql';
 import type { RuleIdQuery } from './__generated__/RuleIdQuery.graphql';
+import { readableParams } from '../../futon/readableId';
 
 declare module '@tanstack/react-router' {
   interface HistoryState {
@@ -23,6 +24,8 @@ declare module '@tanstack/react-router' {
 }
 
 export const Route = createFileRoute('/rules/$ruleId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('ruleId', 'Rule'),
   component: RulePage,
 });
 

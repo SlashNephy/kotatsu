@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 既定のアイコン (icon.svg) の構図のまま、猫をサバトラにしたもの (#1665)。 -->
+  <defs><clipPath id="i"><rect width="512" height="512" rx="112"/></clipPath><clipPath id="h"><path d="M86 520q0-300 170-300t170 300z"/><path d="M106 384l-14-200 118 80z"/><path d="M406 384L302 264L420 184z"/></clipPath></defs>
+  <g clip-path="url(#i)">
+    <rect width="512" height="512" fill="#f3b97a"/>
+    <path d="M106 384l-14-200 118 80z" fill="#6f767d"/>
+    <path d="M406 384L302 264L420 184z" fill="#6f767d"/>
+    <path d="M86 520q0-300 170-300t170 300z" fill="#a9b0b6"/>
+    <g clip-path="url(#h)"><path d="M216 262v44M256 254v52M296 262v44" stroke="#4f565d" stroke-width="14" stroke-linecap="round"/><path d="M92 330h56M100 366h48M420 330h-56M412 366h-48" stroke="#4f565d" stroke-width="14" stroke-linecap="round"/></g>
+    <circle cx="256" cy="198" r="56" fill="#f59a2e"/>
+    <path d="M256 146.9v-12.2" stroke="#6b4a2a" stroke-width="9.7" stroke-linecap="round"/><path d="M258.4 134.7q17 -31.7 53.6 -21.9q-12.2 31.7 -53.6 21.9z" fill="#5b8a2e"/>
+    <circle cx="184" cy="374" r="19.5" fill="#2a2a2e"/><circle cx="328" cy="374" r="19.5" fill="#2a2a2e"/>
+    <path d="M238 412q9 9 18 0 9 9 18 0" fill="none" stroke="#2a2a2e" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

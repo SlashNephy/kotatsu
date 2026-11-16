@@ -2,6 +2,7 @@ package lineup
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -25,6 +26,9 @@ const DefaultCheckInterval = 10 * time.Minute
 // kindTerrestrial は、地上波の知らせの種別。
 const kindTerrestrial = "GR"
 
+// payloadKind は、知らせの payload の、種別 (BS、CS、GR などのチャンネル種別) の鍵。
+const payloadKind = "kind"
+
 // systemStatusURL は、知らせを押したときに開く、システムの状態の画面のパス。
 const systemStatusURL = "/admin/system"
 
@@ -37,8 +41,10 @@ var _ ServiceLister = tunerserver.Client(nil)
 
 // Checker は、mikan が DB に書いた衛星の構成 (broadcast_lineups) と地上波のネットワークのサービス (terrestrial_lineups) を、
 // チューナーサーバーのテレビのサービスと定期的に比べ、食い違いを管理者に知らせる (#1519、設計書 6.2)。neko で動かす。
+// あわせて、録画の結果から、続けて選局できないチャンネルを決めて知らせる。
 //
-// 比べた状態 (衛星の確かめ済みの version と 1 回目に見た食い違い、地上波の知らせた食い違い) は、プロセスの中だけに持つ。
+// 比べた状態 (衛星の確かめ済みの version と 1 回目に見た食い違い、地上波の知らせた食い違い、知らせた続けて選局できないチャンネル) は、
+// プロセスの中だけに持つ。
 // 再起動したら、続いている食い違いも、もう一度知らせる (衛星は 2 回読み直したところで)。
 type Checker struct {
 	pool     *pgxpool.Pool
@@ -51,6 +57,10 @@ type Checker struct {
 	known string
 	// terrestrial は、地上波のネットワークごとの、知らせた食い違い。同じ食い違いを繰り返し知らせない。
 	terrestrial map[uint16]string
+	// tuningRule は、続けて選局できないチャンネルを決める規則。
+	tuningRule UnreachableRule
+	// unreachable は、チャンネル種別ごとの、知らせた続けて選局できないチャンネルの組。同じ組を繰り返し知らせない。
+	unreachable map[string]string
 }
 
 // NewChecker は、Checker を返す。interval が 0 以下なら DefaultCheckInterval を使う。
@@ -62,6 +72,8 @@ func NewChecker(pool *pgxpool.Pool, services ServiceLister, clk clock.Clock, log
 	return &Checker{
 		pool: pool, services: services, clock: clk, logger: logger, interval: interval,
 		comparer: NewComparer(clk, DefaultRecheckInterval), known: "", terrestrial: map[uint16]string{},
+		tuningRule:  UnreachableRule{SameRoundInterval: DefaultSameRoundInterval, Threshold: DefaultUnreachableThreshold},
+		unreachable: map[string]string{},
 	}
 }
 
@@ -92,11 +104,13 @@ func (c *Checker) Check(ctx context.Context) error {
 		return nil
 	}
 	q := sqlc.New(c.pool)
-	if err := c.checkSatellites(ctx, q, registeredTV(services)); err != nil {
-		return err
-	}
 
-	return c.checkTerrestrial(ctx, q, services)
+	// どれかが失敗しても、ほかの比べ方は進める。
+	return errors.Join(
+		c.checkSatellites(ctx, q, registeredTV(services)),
+		c.checkTerrestrial(ctx, q, services),
+		c.checkTuning(ctx, q, services),
+	)
 }
 
 // checkSatellites は、衛星の構成を、チューナーサーバーの衛星のテレビのサービス known と比べる。known がなければ比べない。
@@ -121,7 +135,7 @@ func (c *Checker) checkSatellites(ctx context.Context, q *sqlc.Queries, known []
 			slog.String("kind", string(change.Kind)), slog.Int("network_id", int(change.NetworkID)),
 			slog.Int("added", change.Added), slog.Int("removed", change.Removed))
 		payload := map[string]any{
-			"kind": string(change.Kind), "networkId": int(change.NetworkID), "added": change.Added, "removed": change.Removed,
+			payloadKind: string(change.Kind), "networkId": int(change.NetworkID), "added": change.Added, "removed": change.Removed,
 		}
 		if err := c.notify(ctx, q, payload); err != nil {
 			// 知らせられなかったら、次の回にもう一度知らせる。
@@ -164,7 +178,7 @@ func (c *Checker) checkTerrestrial(ctx context.Context, q *sqlc.Queries, service
 			slog.Int("network_id", int(obs.NetworkID)), slog.String("channel", channels[obs.NetworkID]),
 			slog.Int("added", len(added)), slog.Int("removed", len(removed)))
 		payload := map[string]any{
-			"kind": kindTerrestrial, "networkId": int(obs.NetworkID), "channel": channels[obs.NetworkID],
+			payloadKind: kindTerrestrial, "networkId": int(obs.NetworkID), "channel": channels[obs.NetworkID],
 			"added": len(added), "removed": len(removed),
 		}
 		if err := c.notify(ctx, q, payload); err != nil {

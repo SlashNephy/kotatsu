@@ -156,6 +156,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonRecorderUnavailable
       TUNER_PREEMPTED:
         value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTunerPreempted
+      TUNING_REFUSED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTuningRefused
   NetworkActivityPurpose:
     model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Purpose
     enum_values:
@@ -359,6 +361,8 @@ models:
       cmVideoMissingSeconds:
         resolver: true
       failureDetail:
+        resolver: true
+      nextEpisodes:
         resolver: true
   ReservationAssignment:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.ReservationAssignment

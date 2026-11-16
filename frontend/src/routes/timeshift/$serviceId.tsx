@@ -18,8 +18,11 @@ import { ServiceLabel } from '../../guide/ServiceLabel';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { ServiceIdTimeshiftPromoteMutation } from './__generated__/ServiceIdTimeshiftPromoteMutation.graphql';
 import type { ServiceIdTimeshiftQuery } from './__generated__/ServiceIdTimeshiftQuery.graphql';
+import { readableParams } from '../../futon/readableId';
 
 export const Route = createFileRoute('/timeshift/$serviceId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('serviceId', 'Service'),
   component: TimeshiftPage,
 });
 

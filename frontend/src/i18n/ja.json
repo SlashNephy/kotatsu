@@ -329,6 +329,20 @@
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
+    "appIcon": {
+      "title": "アイコン",
+      "help": "ヘッダーのロゴに出す猫を選びます。選んだらすぐ替わります。",
+      "installedNote": "ブラウザのタブのアイコン (favicon) と、ホーム画面やアプリの一覧に入れた (インストールした) アプリのアイコンは替わりません。",
+      "choices": {
+        "default": "三毛猫とみかん (既定)",
+        "chatora": "茶トラ",
+        "kijitora": "キジトラ",
+        "sabatora": "サバトラ",
+        "kuro": "黒猫",
+        "shiro": "白猫",
+        "hachiware": "ハチワレ"
+      }
+    },
     "pages": {
       "player": {
         "title": "プレイヤー",
@@ -337,6 +351,10 @@
       "guide": {
         "title": "番組表",
         "summary": "番組表の密度や、ジャンルの色を変えます"
+      },
+      "icon": {
+        "title": "アイコン",
+        "summary": "ブラウザのタブとヘッダーに出すアイコンを、この端末で選びます"
       },
       "security": {
         "title": "セキュリティ",
@@ -381,6 +399,11 @@
       "cmAutoSkipHelp": "録画の再生で、CMとみなした区間に入ったら、区間の終わりへ移ります。CMの見分けは間違えることがあります。シークバーなどで自分でCMの区間の中を選んだときは、スキップしません。",
       "fieldRate": "1080iをフィールドごとに表示する",
       "fieldRateHelp": "インターレースの放送を、フィールドごとに1コマにして59.94pで表示し、動きをなめらかにします。ブラウザの中で変換して再生するときに使います。表示が追いつかない端末では、再生の途中でコマごとの表示（29.97p）に戻します。",
+      "superResolution": "映像を拡大してくっきり表示する",
+      "superResolutionHelp": "放送の映像を、画面に映す大きさまで、縁を見ながら拡大し、鮮鋭化して表示します（FSR 1の方式）。大きな画面や高解像度のディスプレイで、ぼやけにくくなります。ブラウザの中で変換して再生するときに使います。GPUの負荷が増え、圧縮のノイズも少し目立ちます。",
+      "superResolutionStrength": "鮮鋭化の強さ",
+      "superResolutionStrengthHelp": "拡大した後に、縁をどれだけくっきりさせるかです。強いほど細部が締まりますが、圧縮のノイズや縁のにじみも目立ちます。",
+      "superResolutionStrengths": { "1": "1 (弱い)", "2": "2", "3": "3 (標準)", "4": "4 (強い)" },
       "interpolation": "コマを補間してなめらかに表示する",
       "interpolationHelp": "30コマや24コマの映像の間に、動きから推し量ったコマを挟み、画面の書き換えに合わせてなめらかに表示します。ブラウザの中で変換するときは、プルダウンを組み直した24pと、フィールドごとに表示しないときの29.97pを補間します。映像が1コマ分（約0.03〜0.04秒）遅れるので、口の動きと声がずれて見えたら、音ずれ補正で音を遅らせてください。速い動きや場面の切り替わりでは、崩れることがあります。",
       "interpolationRate": "補間したコマを出す回数の上限",
@@ -600,6 +623,8 @@
       "openRecording": "録画を見る",
       "playTimeshift": "追っかけ再生",
       "searchFilmarks": "Filmarksで探す",
+      "searchTver": "TVerで探す",
+      "searchNhkOne": "NHK ONEで探す",
       "searchSameName": "同じ番組名で探す"
     },
     "view": {
@@ -1149,6 +1174,7 @@
     "detectCmDefault": "全体の既定値に従う",
     "detectCmOn": "解析する",
     "detectCmOff": "解析しない",
+    "cmDetector": "CMの区間の見分け方",
     "transcode": "録画が終わったら変換する",
     "transcodeHelp": "録画が終わったら、録画をMP4に変換して「その他のファイル」として足します。元のTSは残します。",
     "transcodeDefault": "録画の既定値に従う",
@@ -1254,6 +1280,7 @@
       "CANCELLED": "録画を取り消しました",
       "RECORDER_UNAVAILABLE": "録画を始める時刻に、録画できる mikan がいませんでした",
       "TUNER_PREEMPTED": "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せませんでした",
+      "TUNING_REFUSED": "チューナーサーバーが選局を断りました（チャンネルがないか、選局に失敗しました）",
       "unknown": "録画に失敗しました"
     },
     "quality": "録画の品質",
@@ -1295,6 +1322,15 @@
     "ruleFilter": "ルール「{{name}}」で録った録画",
     "ruleFilterClear": "ルールでの絞り込みを外す",
     "deletedRule": "削除したルール",
+    "nextEpisodes": {
+      "title": "続きの放送",
+      "createRule": "このシリーズのルールを作る",
+      "createSeriesRule": "{{name}}のシリーズのルールを作る",
+      "reserve": "予約",
+      "reserveProgram": "{{name}}を予約",
+      "reserved": "予約済み",
+      "reserveError": "予約できませんでした"
+    },
     "recordedByRule": "ルール「{{name}}」で録画",
     "failureDetail": "エラーの内容（管理者にだけ表示）",
     "recordedByDeletedRule": "削除したルール「{{name}}」で録画",
@@ -1398,6 +1434,8 @@
       "unfiltered": "{{picture}}（WebGL2が使えず、インターレースを解除していません）",
       "fieldRateDropped": "{{picture}}（表示が追いつかないため、コマごとに表示）",
       "interpolated": "{{label}}（コマを補間）",
+      "upscaled": "{{label}}（{{width}}×{{height}}に拡大）",
+      "notUpscaled": "{{label}}（映す大きさ {{width}}×{{height}} が元の大きさ以下なので拡大しない）",
       "playing": "再生している映像",
       "frameRate": "フレームレート",
       "audio": "放送の音声",
@@ -1826,7 +1864,7 @@
       "annictChannel": "Annictのチャンネル",
       "lineup": {
         "title": "チャンネルの変更",
-        "description": "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
+        "description": "放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったか、選局が続けて失敗しているチャンネルがあるという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
         "occurredAt": "日時",
         "message": "内容"
       }

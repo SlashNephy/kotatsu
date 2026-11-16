@@ -8,14 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
-	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 )
 
@@ -94,10 +92,7 @@ func TestCheckerTerrestrial(t *testing.T) {
 	require.NoError(t, database.Migrate(t.Context(), slog.New(slog.DiscardHandler), pool))
 	q := sqlc.New(pool)
 	clk := clocktest.NewFake(time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC))
-	_, err = auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-		Username: "admin", DisplayName: "Admin", Role: domain.RoleAdmin, PasswordHash: nil,
-	})
-	require.NoError(t, err)
+	createAdmin(t, pool, clk)
 	collector := lineup.NewTerrestrialCollector(clk, slog.New(slog.DiscardHandler))
 	collector.Observe(sdtSection(0, 0, 1024, 1025))
 	collector.Flush(t.Context(), q)
@@ -116,7 +111,7 @@ func TestCheckerTerrestrial(t *testing.T) {
 	got := lineupNotifications(t, pool)
 	require.Len(t, got, 1)
 	assert.Equal(t, map[string]any{
-		"kind": "GR", "networkId": float64(nhkNetwork), "channel": "27", "added": float64(1), "removed": float64(0), "url": "/admin/system",
+		keyKind: "GR", "networkId": float64(nhkNetwork), "channel": "27", "added": float64(1), "removed": float64(0), "url": systemURL,
 	}, got[0])
 
 	// スキャンし直して同じになれば忘れ、また食い違ったら知らせる。

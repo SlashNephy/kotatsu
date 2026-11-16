@@ -16,11 +16,28 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
+	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 )
+
+// systemURL は、知らせの payload の、押したときに開くシステムの状態の画面のパス。
+const systemURL = "/admin/system"
+
+// keyKind は、知らせの payload の、種別の鍵。
+const keyKind = "kind"
+
+// createAdmin は、知らせの宛先にする、有効な管理者を作る。
+func createAdmin(t *testing.T, pool *pgxpool.Pool, clk clock.Clock) {
+	t.Helper()
+
+	_, err := auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
+		Username: "admin", DisplayName: "Admin", Role: domain.RoleAdmin, PasswordHash: nil,
+	})
+	require.NoError(t, err)
+}
 
 // fakeServices は、チューナーサーバーのサービスの一覧を返す偽物。
 type fakeServices struct {
@@ -99,10 +116,7 @@ func TestChecker(t *testing.T) {
 	q := sqlc.New(pool)
 	start := time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC)
 	clk := clocktest.NewFake(start)
-	_, err = auth.NewUsers(clk).Create(t.Context(), pool, &auth.NewUser{
-		Username: "admin", DisplayName: "Admin", Role: domain.RoleAdmin, PasswordHash: nil,
-	})
-	require.NoError(t, err)
+	createAdmin(t, pool, clk)
 	tuner := new(fakeServices)
 	checker := lineup.NewChecker(pool, tuner, clk, slog.New(slog.DiscardHandler), 0)
 
@@ -126,7 +140,7 @@ func TestChecker(t *testing.T) {
 	got := lineupNotifications(t, pool)
 	require.Len(t, got, 1)
 	assert.Equal(t, map[string]any{
-		"kind": "BS", "networkId": float64(4), "added": float64(2), "removed": float64(1), "url": "/admin/system",
+		keyKind: "BS", "networkId": float64(4), "added": float64(2), "removed": float64(1), "url": systemURL,
 	}, got[0])
 
 	// 続いている間は、同じ知らせを繰り返さない。

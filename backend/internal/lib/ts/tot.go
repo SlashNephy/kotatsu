@@ -16,10 +16,17 @@ func parseTOT(section []byte) (time.Time, bool) {
 	if len(section) < 8 || (section[0] != tableIDTDT && section[0] != tableIDTOT) {
 		return time.Time{}, false
 	}
-	mjd := int(section[3])<<8 | int(section[4])
-	hour, okH := bcd(section[5])
-	minute, okM := bcd(section[6])
-	second, okS := bcd(section[7])
+
+	return parseJSTTime(section[3:8])
+}
+
+// parseJSTTime は、MJD の 16 ビットと、時、分、秒の BCD の 24 ビットからなる 5 バイトの時刻を読む。
+// TOT の JST_time と、EIT の start_time が、この形をとる。未定 (すべてのビットが 1) か読めなければ false を返す。
+func parseJSTTime(b []byte) (time.Time, bool) {
+	mjd := int(b[0])<<8 | int(b[1])
+	hour, okH := bcd(b[2])
+	minute, okM := bcd(b[3])
+	second, okS := bcd(b[4])
 	if !okH || !okM || !okS || hour > 23 || minute > 59 || second > 60 || mjd == 0xFFFF {
 		return time.Time{}, false
 	}
