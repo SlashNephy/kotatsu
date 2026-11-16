@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"sync"
 	"testing"
@@ -106,14 +107,17 @@ func TestTunerServerOpenServiceStream(t *testing.T) {
 			acquired, released := ids.state()
 			// テストの ChSet5 にある NHK 総合 (東京) を開く。
 			assert.Equal(t, []edcb.ServiceKey{{ONID: 32736, TSID: 32736, SID: 1024}}, acquired)
-			assert.Empty(t, released)
+			// TS が終わったら、受け手に終わりを返す前に、NetworkTV を閉じ、ID を返す。
+			assert.Equal(t, []int32{1000}, released)
 
-			// 閉じたら、NetworkTV を閉じ、ID を返す。2 度閉じても、1 度しか閉じない。
+			// 受け手を閉じても、2 度閉じても、NetworkTV を閉じ直さない。
 			require.NoError(t, stream.Close())
 			require.NoError(t, stream.Close())
 			_, released = ids.state()
 			assert.Equal(t, []int32{1000}, released)
-			want := []uint32{1060, 1073}
+			// ライブ視聴 (優先度 0) なので、開く前に EPG の取得のためにチューナーを空けておくかを確かめる (#1536)。
+			// 偽の EpgTimerSrv は EpgTimerSrv.ini を返さないので、確かめられず、空けずに開く。
+			want := []uint32{1060, 2060, 1073}
 			for range tt.notReady + 1 {
 				want = append(want, 301)
 			}
@@ -136,7 +140,8 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 	}{
 		{name: "unknown service", serviceID: 3273601999, busy: false, openStatus: 1, want: tunerserver.ErrNotFound, wantRelease: []int32{}},
 		{name: "no free ID", serviceID: 3273601024, busy: true, openStatus: 1, want: tunerserver.ErrTunerUnavailable, wantRelease: []int32{}},
-		// EDCB がチューナーを開けなければ、ID を返す。
+		// EDCB がチューナーを開けなければ、ID を返す。EDCB は、空きがないときと受信できないときを分けずに返すので、
+		// 選局の失敗 (ErrTuningFailed) にはせず、空きがないものとする (#1519)。
 		{name: "no tuner", serviceID: 3273601024, busy: false, openStatus: 0, want: tunerserver.ErrTunerUnavailable, wantRelease: []int32{1000}},
 	}
 	for _, tt := range tests {
@@ -149,6 +154,11 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: 0})
 			_, err := server.OpenServiceStream(t.Context(), tt.serviceID, nil)
 			require.ErrorIs(t, err, tt.want)
+			for _, sentinel := range []error{tunerserver.ErrNotFound, tunerserver.ErrTunerUnavailable, tunerserver.ErrTuningFailed} {
+				if !errors.Is(tt.want, sentinel) {
+					require.NotErrorIs(t, err, sentinel)
+				}
+			}
 			_, released := ids.state()
 			assert.Equal(t, tt.wantRelease, released)
 		})
@@ -201,6 +211,19 @@ func patPacket(tsid, sid uint16) []byte {
 	return p
 }
 
+// nitOnlyPATPacket は、transport_stream_id が tsid で、NIT だけを持ち、サービスを持たない PAT のパケットを作る。
+// EDCB は、NetworkTV を開いた直後に、この PAT を送ることがある。
+func nitOnlyPATPacket(tsid uint16) []byte {
+	section := binary.BigEndian.AppendUint16([]byte{0x00, 0xB0, 0x0D}, tsid)
+	section = append(section, 0xC1, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x10)
+	section = binary.BigEndian.AppendUint32(section, crcMPEG(section))
+	p := bytes.Repeat([]byte{0xFF}, 188)
+	copy(p, []byte{0x47, 0x40, 0x00, 0x10, 0x00})
+	copy(p[5:], section)
+
+	return p
+}
+
 // dataPacket は、PID 0x100 のパケットを作る。
 func dataPacket() []byte {
 	p := bytes.Repeat([]byte{0xAA}, 188)
@@ -227,6 +250,44 @@ func TestTunerServerStreamPreemptedByPAT(t *testing.T) {
 	// 別の局の TS は返さない。
 	assert.NotContains(t, string(got), string(patPacket(0x4010, 101)))
 	assert.True(t, bytes.HasPrefix(got, patPacket(32736, 1024)))
+}
+
+func TestTunerServerStreamPATWithoutServiceAtStart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		ts            [][]byte
+		wantPreempted bool
+	}{
+		// 開いた直後に、NIT だけの PAT が届いても、取られたとはみなさない。
+		{name: "NIT only at start", ts: [][]byte{nitOnlyPATPacket(32736), dataPacket(), patPacket(32736, 1024), dataPacket()}, wantPreempted: false},
+		// サービスを載せた PAT の後に、サービスが消えたら、取られたとみなす。
+		{name: "service removed later", ts: [][]byte{patPacket(32736, 1024), dataPacket(), nitOnlyPATPacket(32736), dataPacket()}, wantPreempted: true},
+		// 最初から別の TS なら、取られたとみなす。
+		{name: "other TS at start", ts: [][]byte{nitOnlyPATPacket(0x4010), dataPacket()}, wantPreempted: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := streamServer(t, bytes.Join(tt.ts, nil), 0)
+			ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
+			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: time.Hour})
+			stream, err := server.OpenServiceStream(t.Context(), 3273601024, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = stream.Close() })
+
+			got, err := io.ReadAll(stream)
+			if tt.wantPreempted {
+				require.ErrorIs(t, err, tunerserver.ErrTunerPreempted)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, bytes.Join(tt.ts, nil), got)
+		})
+	}
 }
 
 func TestTunerServerStreamPreemptedByCheck(t *testing.T) {

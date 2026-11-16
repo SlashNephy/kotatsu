@@ -164,9 +164,23 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list tuners: %w", err)
 	}
+	// チューナーサーバー自身の予約 (EDCB の予約) が、今から Lead の間に使うチューナーは使わない (#1536)。
+	occupancies, err := q.ListTunerOccupancies(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list tuner occupancies: %w", err)
+	}
+	occupied := map[int64]bool{}
+	for _, o := range occupancies {
+		if o.StartAt.Before(now.Add(s.opts.Lead)) && o.EndAt.After(now) {
+			occupied[o.TunerIndex] = true
+		}
+	}
 	tuners := make([]*assign.Tuner, 0, len(tunerRows))
 	for _, row := range tunerRows {
-		tuners = append(tuners, &assign.Tuner{Index: int(row.TunerIndex), Types: row.Types})
+		if occupied[row.TunerIndex] {
+			continue
+		}
+		tuners = append(tuners, &assign.Tuner{Index: int(row.TunerIndex), Types: row.Types, Blocks: []assign.Block{}})
 	}
 	busyRows, err := q.ListReservationsUsingTunersBetween(ctx, sqlc.ListReservationsUsingTunersBetweenParams{FromAt: now, ToAt: now.Add(s.opts.Lead)})
 	if err != nil {

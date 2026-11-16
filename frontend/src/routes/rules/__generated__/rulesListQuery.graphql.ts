@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0cae46aa4bf62ec25a326ac23996125d>>
+ * @generated SignedSource<<38583d6bd9bf6caadd41140d55a9ba21>>
  * @lightSyntaxTransform
  */
 
@@ -15,6 +15,10 @@ export type rulesListQuery$data = {
     readonly displayName: string;
     readonly type: string;
   }>;
+  readonly ruleGroups: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+  }>;
   readonly rules: ReadonlyArray<{
     readonly conditions: {
       readonly channelTypes: ReadonlyArray<string>;
@@ -22,7 +26,11 @@ export type rulesListQuery$data = {
         readonly text: string;
       }>;
     };
+    readonly createdAt: string;
     readonly enabled: boolean;
+    readonly group: {
+      readonly id: string;
+    } | null | undefined;
     readonly id: string;
     readonly memo: string;
     readonly name: string;
@@ -83,19 +91,33 @@ v2 = {
 v3 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "name",
+  "storageKey": null
+},
+v4 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "RuleGroup",
+  "kind": "LinkedField",
+  "name": "ruleGroups",
+  "plural": true,
+  "selections": [
+    (v2/*:: as any*/),
+    (v3/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v5 = {
+  "alias": null,
+  "args": null,
   "concreteType": "Rule",
   "kind": "LinkedField",
   "name": "rules",
   "plural": true,
   "selections": [
     (v2/*:: as any*/),
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "name",
-      "storageKey": null
-    },
+    (v3/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -164,6 +186,13 @@ v3 = {
       "alias": null,
       "args": null,
       "kind": "ScalarField",
+      "name": "createdAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
       "name": "updatedAt",
       "storageKey": null
     },
@@ -172,6 +201,18 @@ v3 = {
       "args": null,
       "kind": "ScalarField",
       "name": "upcomingReservationCount",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "RuleGroup",
+      "kind": "LinkedField",
+      "name": "group",
+      "plural": false,
+      "selections": [
+        (v2/*:: as any*/)
+      ],
       "storageKey": null
     }
   ],
@@ -197,7 +238,8 @@ return {
         "storageKey": null
       },
       (v1/*:: as any*/),
-      (v3/*:: as any*/)
+      (v4/*:: as any*/),
+      (v5/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -222,20 +264,21 @@ return {
         "storageKey": null
       },
       (v1/*:: as any*/),
-      (v3/*:: as any*/)
+      (v4/*:: as any*/),
+      (v5/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "cae53ea68710f50ac87541e820536340",
+    "cacheID": "51b7bdc4dd0b109288613b8eb60fb4a8",
     "id": null,
     "metadata": {},
     "name": "rulesListQuery",
     "operationKind": "query",
-    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    validFrom\n    validUntil\n    updatedAt\n    upcomingReservationCount\n  }\n}\n"
+    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  ruleGroups {\n    id\n    name\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    validFrom\n    validUntil\n    createdAt\n    updatedAt\n    upcomingReservationCount\n    group {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d3fc865e7223b6cc3d654499fa30e537";
+(node as any).hash = "8def8f0da3900e21c9f341a044b8b9a9";
 
 export default node;

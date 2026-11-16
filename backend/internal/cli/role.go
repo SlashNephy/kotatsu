@@ -2,9 +2,12 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"slices"
+	"sync"
 	"time"
 	"uuid"
 
@@ -16,13 +19,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/innertoken"
 	"github.com/SlashNephy/kotatsu/internal/lib/logring"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 	"github.com/SlashNephy/kotatsu/internal/usecase/neko"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networktv"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
@@ -58,6 +64,15 @@ type Deps struct {
 	LookupEnv config.LookupEnv
 	// Logs は、このプロセスのログのバッファ (#1521)。nil なら、ログの画面は空になる。
 	Logs *logring.Buffer
+	// edcb は、このプロセスのロールで共有する EDCB のチューナーサーバー。同じサービスのストリームを、ロールをまたいで分け合う (#1535)。
+	edcb *sharedEDCB
+}
+
+// sharedEDCB は、プロセスで 1 つだけ作る EDCB のチューナーサーバー。最初に使うロールが作る。
+type sharedEDCB struct {
+	once   sync.Once
+	server *edcb.TunerServer
+	err    error
 }
 
 // tenbanRoleName は、API を受け持つロールの名前。
@@ -122,6 +137,12 @@ func DefaultRoles() []*Role {
 			Short: "Transcode streams on demand",
 			Run:   waitUntilDone,
 		},
+		{
+			Name:  nabe.Role,
+			Alias: "hub",
+			Short: "Share each EDCB NetworkTV stream with the other roles (EDCB only)",
+			Run:   runNabe,
+		},
 	}
 }
 
@@ -133,7 +154,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	var tuner tunerserver.Client
 	if deps.Config.Tuner.UsesTunerServer() {
 		var err error
-		if tuner, err = newTunerClient(deps); err != nil {
+		if tuner, err = newTunerClient(ctx, deps, logger); err != nil {
 			return err
 		}
 	}
@@ -187,6 +208,8 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			Interval:     0,
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
+			// EDCB の TS はサービスで絞られるので、相乗りの単位はサービスになる (#1536)。
+			ShareByService: deps.Config.Tuner.Kind == config.TunerKindEDCB,
 		},
 		Follow: &reserve.FollowerOptions{
 			Debounce:      0,
@@ -201,6 +224,8 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			Debounce:     0,
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
+			// EDCB は優先度を持たず、チューナーを奪えないので、競合した予約を録りに行かない (#1536)。
+			SkipConflicts: deps.Config.Tuner.Kind == config.TunerKindEDCB,
 		},
 		Timeshift: &timeshift.SchedulerOptions{
 			Interval:     0,
@@ -260,19 +285,33 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 
 // newTunerClient は、設定したチューナーサーバーのクライアントを返す。チューナーサーバーの実装は、ここで設定から選ぶ (設計書 3.1)。
 // Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) と、EDCB (#1258) に対応する。
-func newTunerClient(deps *Deps) (tunerserver.Client, error) {
+//
+// EDCB では、このプロセスで nabe を動かしていなければ、ストリームを nabe から受け取る (#1535)。nabe を動かしていれば、
+// HTTP を挟まずに、同じプロセスの中で分け合う。アプリの秘密キーがなければ、nabe に送るトークンを作れないので、自分で開く。
+func newTunerClient(ctx context.Context, deps *Deps, logger *slog.Logger) (tunerserver.Client, error) {
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
-		client, err := newEDCBClient(deps)
+		server, err := sharedEDCBServer(deps)
 		if err != nil {
 			return nil, err
 		}
-		edcbConfig := deps.Config.Tuner.EDCB
-		ids, err := networktv.NewIDs(deps.DB, deps.Clock, deps.InstanceID, edcbConfig.NetworkTVIDStart, edcbConfig.NetworkTVIDCount)
+		if slices.Contains(deps.Roles, nabe.Role) {
+			return server, nil
+		}
+		token, err := nabe.NewToken(deps.Config.Auth.SecretKey.Value())
+		if errors.Is(err, innertoken.ErrNoKey) {
+			logger.WarnContext(ctx, "auth.secret_key is not set; opening EDCB NetworkTVs without nabe")
+
+			return server, nil
+		}
 		if err != nil {
 			return nil, err
 		}
 
-		return edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0}), nil
+		return &nabeTuner{
+			TunerServer: server,
+			streams: nabe.NewStreams(registry.New(deps.DB, deps.Clock, deps.InstanceID), token, server, deps.Clock,
+				logger.With(slog.String("component", "nabe"))),
+		}, nil
 	}
 	client, err := mirakurun.New(&mirakurun.Options{
 		URL:               deps.Config.Tuner.URL.Value(),
@@ -285,6 +324,7 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 		StreamIdleTimeout: 0,
 		StreamOpenTimeout: 0,
 		Clock:             deps.Clock,
+		Authorize:         nil,
 	})
 	if err != nil {
 		// nil の *mirakurun.Client を interface に入れると nil と比べられなくなるので、interface のまま nil を返す。
@@ -292,6 +332,31 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 	}
 
 	return client, nil
+}
+
+// sharedEDCBServer は、このプロセスで共有する EDCB のチューナーサーバーを返す。初めて呼ばれたときに作る (#1535)。
+// ロールごとに作ると、kotatsu all でライブと録画が同じサービスを開いたときに、NetworkTV を 2 つ開いてチューナーを 2 本使う。
+func sharedEDCBServer(deps *Deps) (*edcb.TunerServer, error) {
+	deps.edcb.once.Do(func() {
+		client, err := newEDCBClient(deps)
+		if err != nil {
+			deps.edcb.err = err
+
+			return
+		}
+		edcbConfig := deps.Config.Tuner.EDCB
+		ids, err := networktv.NewIDs(deps.DB, deps.Clock, deps.InstanceID, edcbConfig.NetworkTVIDStart, edcbConfig.NetworkTVIDCount)
+		if err != nil {
+			deps.edcb.err = err
+
+			return
+		}
+		deps.edcb.server = edcb.NewTunerServer(client, &edcb.TunerServerOptions{
+			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0, Clock: deps.Clock,
+		})
+	})
+
+	return deps.edcb.server, deps.edcb.err
 }
 
 // newEDCBClient は、EpgTimerSrv の CtrlCmd のクライアントを返す。
@@ -317,7 +382,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return nil
 	}
-	tuner, err := newTunerClient(deps)
+	tuner, err := newTunerClient(ctx, deps, logger)
 	if err != nil {
 		return err
 	}

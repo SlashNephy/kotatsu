@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e9e4515efb67aa89cd608b7c2bc93505>>
+ * @generated SignedSource<<f0138471f2904c6b016caae673af2cea>>
  * @lightSyntaxTransform
  */
 
@@ -9,10 +9,13 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
+  generateCaptions?: boolean | null | undefined;
   joinSegments?: boolean | null | undefined;
   poolId?: string | null | undefined;
   priority?: number | null | undefined;
@@ -33,9 +36,11 @@ export type ReservationSettingsDialogMutation$data = {
     readonly followEventRelay: boolean;
     readonly id: string;
     readonly settings: {
+      readonly cmDetector: CMDetector | null | undefined;
       readonly detectCm: boolean | null | undefined;
       readonly endMarginSeconds: number | null | undefined;
       readonly fileNameTemplate: string | null | undefined;
+      readonly generateCaptions: boolean | null | undefined;
       readonly joinSegments: boolean | null | undefined;
       readonly poolId: string | null | undefined;
       readonly priority: number | null | undefined;
@@ -172,6 +177,13 @@ v3 = [
             "alias": null,
             "args": null,
             "kind": "ScalarField",
+            "name": "generateCaptions",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
             "name": "transcodePreset",
             "storageKey": null
           },
@@ -180,6 +192,13 @@ v3 = [
             "args": null,
             "kind": "ScalarField",
             "name": "transcodeFrameRate",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "cmDetector",
             "storageKey": null
           }
         ],
@@ -233,16 +252,16 @@ return {
     "selections": (v3/*:: as any*/)
   },
   "params": {
-    "cacheID": "0bdeb5ea0f510802c658c8241266498b",
+    "cacheID": "fdece61bbdc4eead6d82ec5337829eca",
     "id": null,
     "metadata": {},
     "name": "ReservationSettingsDialogMutation",
     "operationKind": "mutation",
-    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
+    "text": "mutation ReservationSettingsDialogMutation(\n  $id: ID!\n  $settings: RecordingSettingsOverridesInput!\n  $followEventRelay: Boolean\n) {\n  updateReservation(id: $id, input: {settings: $settings, followEventRelay: $followEventRelay}) {\n    id\n    followEventRelay\n    settings {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      generateCaptions\n      transcodePreset\n      transcodeFrameRate\n      cmDetector\n    }\n    assignment {\n      state\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "94fc5cc72a8fc7a4eaf4523108fc3478";
+(node as any).hash = "553c7c53f3e13ba49c363f9bf369e2cf";
 
 export default node;

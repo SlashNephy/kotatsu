@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2f9afb44e0e3dd7272989ea5219363fe>>
+ * @generated SignedSource<<4b227b437eb73a8da2dbb41cbd7edbef>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RuleInput = {
@@ -17,6 +18,7 @@ export type RuleInput = {
   duplicateWindowDays?: number | null | undefined;
   enabled?: boolean;
   followEventRelay?: boolean;
+  groupId?: string | null | undefined;
   memo?: string;
   name: string;
   settings?: RecordingSettingsOverridesInput | null | undefined;
@@ -56,9 +58,11 @@ export type TimeRangeInput = {
   weekdays: ReadonlyArray<number>;
 };
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
+  generateCaptions?: boolean | null | undefined;
   joinSegments?: boolean | null | undefined;
   poolId?: string | null | undefined;
   priority?: number | null | undefined;

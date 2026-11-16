@@ -2,6 +2,7 @@ package ts_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,6 +127,69 @@ func TestAnalyzerEventInfo(t *testing.T) {
 				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, analyzer.EventInfo(testServiceID, tt.eventID))
+		})
+	}
+}
+
+// TestAnalyzerEventTime は、EIT[p/f] の放送中と次の番組の、開始と長さを読むことを確かめる (#1734)。
+// 未定の値 (すべてのビットが 1) は nil にする。
+func TestAnalyzerEventTime(t *testing.T) {
+	t.Parallel()
+
+	jst := time.FixedZone("JST", 9*60*60)
+	tests := []struct {
+		name     string
+		sections [][]byte
+		eventID  uint16
+		want     *ts.EventTime
+	}{
+		{name: "EIT を読む前", sections: nil, eventID: 100, want: nil},
+		{
+			name:     "放送中の番組",
+			sections: [][]byte{eitSection(0, 100)},
+			eventID:  100,
+			want:     &ts.EventTime{Start: new(time.Date(2021, 7, 28, 23, 0, 0, 0, jst)), Duration: new(30 * time.Minute)},
+		},
+		{
+			name: "次の番組",
+			sections: [][]byte{
+				eitSection(0, 100),
+				eitSectionAt(1, 101, [8]byte{0xE8, 0x1F, 0x23, 0x30, 0x00, 0x01, 0x24, 0x30}),
+			},
+			eventID: 101,
+			want:    &ts.EventTime{Start: new(time.Date(2021, 7, 28, 23, 30, 0, 0, jst)), Duration: new(time.Hour + 24*time.Minute + 30*time.Second)},
+		},
+		{
+			name:     "開始と長さが未定",
+			sections: [][]byte{eitSectionAt(1, 101, [8]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF})},
+			eventID:  101,
+			want:     &ts.EventTime{Start: nil, Duration: nil},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			analyzer := ts.NewAnalyzer(nil)
+			cc := byte(0)
+			for _, p := range psiPackets(0x12, &cc, tt.sections...) {
+				_, err := analyzer.Write(p)
+				require.NoError(t, err)
+			}
+			got := analyzer.EventTime(testServiceID, tt.eventID)
+			if tt.want == nil {
+				assert.Nil(t, got)
+
+				return
+			}
+			require.NotNil(t, got)
+			if tt.want.Start == nil {
+				assert.Nil(t, got.Start)
+			} else {
+				require.NotNil(t, got.Start)
+				assert.True(t, tt.want.Start.Equal(*got.Start), *got.Start)
+			}
+			assert.Equal(t, tt.want.Duration, got.Duration)
 		})
 	}
 }

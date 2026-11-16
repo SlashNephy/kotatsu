@@ -30,6 +30,7 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 		newWebPush,
 		jobInserterOf,
 		newLinkedAnimeRecords,
+		newDramaTokens,
 		wire.Struct(new(sealedStores), "*"),
 	))
 }
@@ -168,6 +169,8 @@ func newMediaJobParts(deps *Deps, logger *slog.Logger, inserter *jobs.Client) *m
 		newJoinWorker,
 		newFinalizeWorker,
 		newCMDetectWorker,
+		newCaptionsWorker,
+		newCaptionModelWorker,
 		newTranscodeWorker,
 		newTvtplayWorker,
 		newChaptersWorker,

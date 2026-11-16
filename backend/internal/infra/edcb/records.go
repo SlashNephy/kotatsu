@@ -19,11 +19,20 @@ type RecSetting struct {
 	RecMode uint8
 	// Priority は優先度。
 	Priority uint8
+	// UseMargin は、マージンを個別に指定しているかどうか。偽なら、EpgTimerSrv.ini の既定のマージンを使う。
+	UseMargin bool
+	// StartMargin と EndMargin は、個別に指定したマージン。負なら、本編を削る。
+	StartMargin, EndMargin time.Duration
 }
 
 // Records は、録画するかどうか。無効でなく、視聴でもなければ録る。
 func (r RecSetting) Records() bool {
 	return r.RecMode < 4
+}
+
+// Disabled は、予約を無効にしているかどうか (EDCB の REC_SETTING_DATA::IsNoRec)。
+func (r RecSetting) Disabled() bool {
+	return r.RecMode/5%2 != 0
 }
 
 // ContentData は、ジャンル (EPGDB_CONTENT_DATA)。
@@ -134,7 +143,16 @@ func decodeRecSetting(d *decoder) RecSetting {
 	var r RecSetting
 	d.structure(func(d *decoder) {
 		r.RecMode, r.Priority = d.u8(), d.u8()
-		// 後ろの項目 (追従、保存先など) は、移行では使わない。構造体の終わりまで飛ばす。
+		_ = d.u8()                                                    // 追従
+		_ = d.u32()                                                   // 処理対象データモード
+		_ = d.u8()                                                    // ぴったり録画
+		_ = d.str()                                                   // 録画後の BAT ファイル
+		d.vector(func(d *decoder) { d.structure(func(*decoder) {}) }) // 録画フォルダー
+		_, _ = d.u8(), d.u8()                                         // 休止と再起動
+		r.UseMargin = d.u8() != 0
+		r.StartMargin = time.Duration(d.i32()) * time.Second
+		r.EndMargin = time.Duration(d.i32()) * time.Second
+		// 後ろの項目 (部分受信、チューナーの固定など) は使わない。構造体の終わりまで飛ばす。
 	})
 
 	return r

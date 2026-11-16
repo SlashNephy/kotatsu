@@ -306,6 +306,9 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		BundleSameEpisodes: r.AvoidDuplicate,
 		// EPGStation に前の回を録らない設定はないので、切で取り込む (#1499)。
 		SkipEarlierEpisodes: false,
+		// 取り込んだルールや見たいリストから作るルールは、どのグループにも入れない (#1493)。
+		GroupID:   nil,
+		KeepGroup: false,
 	}
 }
 
@@ -462,7 +465,7 @@ func (a *applier) reserve(ctx context.Context, tx pgx.Tx, r *Reserve) (uuid.UUID
 	if !ok {
 		return uuid.Nil(), skip("directory %q is not mapped to a pool", r.ParentDirectoryName)
 	}
-	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, TranscodePreset: nil, TranscodeFrameRate: nil}
+	overrides := &domain.RecordingOverrides{PoolID: poolID, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, GenerateCaptions: nil, TranscodePreset: nil, TranscodeFrameRate: nil, CMDetector: nil}
 
 	created, err := a.createReservation(ctx, tx, r, overrides)
 	if err != nil {

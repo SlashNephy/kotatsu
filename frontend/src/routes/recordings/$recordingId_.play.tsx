@@ -39,6 +39,11 @@ import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
 import { findPartMarkers } from '../../jikkyo/partMarkers';
 import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
+import {
+  AutoCaptionOverlay,
+  CaptionTrackSelect,
+  type CaptionTrack,
+} from '../../yunomi/AutoCaptionOverlay';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
 import {
   broadcastTime,
@@ -142,6 +147,7 @@ import { copyPositionUrl, parseStartSeconds } from '../../yunomi/shareUrl';
 import { useVisible } from '../../yunomi/useVisible';
 import type { RecordingIdPlayQuery } from './__generated__/RecordingIdPlayQuery.graphql';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { readableParams } from '../../futon/readableId';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -150,6 +156,8 @@ const volumeStep = 0.05;
 type PlaySearch = { t?: number };
 
 export const Route = createFileRoute('/recordings/$recordingId_/play')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('recordingId', 'Recording'),
   // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
@@ -244,6 +252,11 @@ const playQuery = graphql`
         cmSections {
           from
           to
+        }
+        autoCaptions {
+          from
+          to
+          text
         }
         jikkyoCommentsUrl
         jikkyoOtherCommentsUrl
@@ -397,6 +410,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           })),
     [recording],
   );
+  // captionTrack は、出す字幕の種類 (#1682)。自動生成した字幕があるときだけ選べ、既定は放送の字幕にする。
+  const [captionTrack, setCaptionTrack] = useState<CaptionTrack>('broadcast');
+  const hasAutoCaptions = recording !== null && recording.autoCaptions.length > 0;
+  const autoCaptionsShown = captions && hasAutoCaptions && captionTrack === 'auto';
   // cmSpans は、自動で飛ばすときに使う、続いた区間をまとめた CM の区間 (#1512)。
   const cmSpans = useMemo(() => mergeCmSections(cmPositions, cmMergeGap), [cmPositions]);
   // resumeAt は、再生を始める位置 (秒)。URL で位置を渡されたらそこから、なければ前回の続きから、続きもなければ 0 (設計書 7.5)。
@@ -463,12 +480,15 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   const base = useRef(0);
   // lastVideoTime は、最後に見た video の時刻。変換した映像の時刻が、途切れた区間で飛んだのを見つけるのに使う。
   const lastVideoTime = useRef(0);
+  // handoverFrom は、tenban が止まる前の知らせで、裏で読み込んでいる間 (#1728) の、映っている映像の読み込みが流し始めた位置。
+  // 裏で読み込んでいる間も、映っている映像の時刻で位置を進める。新しい読み込みの起点は、切り替えるまで使わない。
+  const handoverFrom = useRef<number | null>(null);
   // convertedPosition は、ブラウザの中で変換した映像の時刻 current から、再生位置を求める。途切れた区間で飛んだ分は数えない。
   const convertedPosition = (current: number) => {
     base.current = skipJump(base.current, lastVideoTime.current, current);
     lastVideoTime.current = current;
 
-    return playbackPosition(startedAt, base.current, current);
+    return playbackPosition(handoverFrom.current ?? startedAt, base.current, current);
   };
   // phase は、読み込みの段階。読み直している間に、前の映像の時刻で位置を動かさないよう、base を決めるまで位置を更新しない。
   const phase = useRef<'loading' | 'awaitingBase' | 'playing'>('loading');
@@ -494,7 +514,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
   // 配信を読み直すので、届くのを待ってから進める。kyusu の HLS は、プレイヤーを作り直したばかりのとき、まだ求めた位置へ
   // 移っておらず、頭の位置を返すことがあるので、求めた位置の近くのコマが映るまで待つ。
   const reachedStart = (video: HTMLVideoElement, mediaTime: number | null) => {
-    if (reached.current === streamKey) {
+    // 裏で読み込んでいる間に映っているのは、前の読み込みの映像で、その位置は確かめてある。
+    if (reached.current === streamKey || handoverFrom.current !== null) {
       return true;
     }
     const time = mediaTime ?? video.currentTime;
@@ -668,6 +689,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     // CM の区間が録画の終わりまで続く回で、CM を飛ばすと、ここに来る。
     const seconds = playableStart(target, duration);
     setHandover(false);
+    handoverFrom.current = null;
     phase.current = 'loading';
     positionRef.current = seconds;
     setPosition(seconds);
@@ -685,8 +707,17 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
     seenDrains.current = drains;
     // エラーで止まっている間は、「やり直す」に任せる。
     if (!hls && error === null) {
+      // 映っている映像の位置を信じられるなら、裏で読み込んでいる間も、その映像で位置を進める (#1728)。
+      // 裏で読み込んでいる間に、もう一度知らせが届いたら、映っている映像の起点のまま続ける。
+      const shown = handoverFrom.current;
+      const tracking =
+        phase.current === 'playing' && (shown !== null || reached.current === streamKey);
       startAt(positionRef.current);
       setHandover(true);
+      if (tracking) {
+        handoverFrom.current = shown ?? startedAt;
+        phase.current = 'playing';
+      }
     }
     // startAt と positionRef は、描画ごとに作り直すが、読み直しの位置は ref から読むので、知らせが届いたときだけ動かす。
   }, [drains, hls, error]);
@@ -1294,6 +1325,11 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
               onChange={changeQuality}
             />
             {audio.menu}
+            <CaptionTrackSelect
+              available={hasAutoCaptions}
+              value={captionTrack}
+              onChange={setCaptionTrack}
+            />
             <RateSelect value={rate} onChange={setRate} />
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
@@ -1358,21 +1394,48 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           videoRef={videoRef}
           onVideo={setVideo}
           controls={controlBar}
-          captions={captions}
+          // 自動生成した字幕を出している間は、放送の字幕を重ねない。
+          captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
           brightness={brightness}
           onCaptionText={onCaptionText}
-          onLoaded={() => {
+          onLoaded={(handed) => {
+            setError(null);
+            // 裏で読み込んで切り替えたら、裏で読み込んだ映像の最初のコマの時刻を base にする。
+            // 切り替える前に進めてあるので、今のコマの時刻を base にすると、進めた分を数えない (#1728)。
+            const switched = handed !== undefined && handoverFrom.current !== null;
+            handoverFrom.current = null;
+            if (switched) {
+              base.current = handed.base;
+              // 進めた分を、途切れた区間を越えたとみなさない。
+              lastVideoTime.current = handed.current;
+              phase.current = 'playing';
+
+              return;
+            }
             // 最初のフレームが出たときの時刻を、base にする。
             phase.current = 'awaitingBase';
-            setError(null);
           }}
+          handoverTarget={(first) =>
+            // 新しい読み込みが流し始めた位置が分かるまでは、進める先が分からない。
+            handoverFrom.current === null || !streamSettled
+              ? null
+              : advanceTarget(first, startedAt, currentPosition())
+          }
           onError={onError}
           onState={onConvertState}
           overlay={
             <>
+              {autoCaptionsShown && (
+                <AutoCaptionOverlay
+                  recordedFrom={recording.recordedFrom}
+                  gaps={recording.gaps}
+                  captions={recording.autoCaptions}
+                  clock={currentPosition}
+                />
+              )}
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {adaptive.notice}
@@ -1409,7 +1472,8 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             adaptive.network.onSegment(segment);
           }}
           controls={controlBar}
-          captions={captions}
+          // 自動生成した字幕を出している間は、放送の字幕を重ねない。
+          captions={captions && !autoCaptionsShown}
           superimpose={captionSettings.superimposeRecorded}
           captionStyle={captionSettings}
           crop={shownCrop}
@@ -1419,6 +1483,14 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           startPosition={offset}
           overlay={
             <>
+              {autoCaptionsShown && (
+                <AutoCaptionOverlay
+                  recordedFrom={recording.recordedFrom}
+                  gaps={recording.gaps}
+                  captions={recording.autoCaptions}
+                  clock={currentPosition}
+                />
+              )}
               {jikkyo.overlay}
               {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
               {adaptive.notice}

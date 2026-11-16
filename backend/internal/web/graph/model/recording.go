@@ -5,6 +5,7 @@ import (
 	"uuid"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 )
 
 // Recording は録画 (設計書 5.5、8.2)。サービスは、リゾルバで dataloader から引く。
@@ -65,4 +66,9 @@ func (Recording) IsNode() {}
 // IsNode と同じく値のレシーバーにする (ポインタと混ぜると recvcheck に当たる)。
 func (r Recording) WorkTitle() string {
 	return domain.WorkTitle(r.Name)
+}
+
+// DramaTitleKey は、TMDb で作品を探す作品名の鍵 (#1651)。gqlgen が Recording.dramaTitleKey に使う。
+func (r Recording) DramaTitleKey() string {
+	return drama.TitleKeyOf(r.Name)
 }

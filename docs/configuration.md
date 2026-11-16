@@ -260,7 +260,7 @@ BASIC認証が要るときは、URLに資格情報を含めてください。
 `tuner.kind`に`edcb`を選ぶときは、`tuner.url`を空にし、`tuner.edcb.address`に`192.168.1.10:4510`のように書きます。ポートを省けば4510です。
 NetworkTVのIDは、EpgTimerSrvに接続するほかのクライアント（KonomiTVは500から）と重ならない範囲にしてください。
 `tuner.edcb.bon_drivers`には、EpgTimerSrv.iniの`[TVTEST]`に並べたBonDriverの名前（`BonDriver_mirakc.dll`など）を書きます。NetworkTVは、そこに並べたBonDriverしか使いませんが、EpgTimerSrvはその一覧を返さないためです。大文字と小文字は区別しません。空なら、すべてのチューナーを使えるとみなします。
-EDCBを選ぶと、録画、タイムシフト、ライブ視聴も、EDCBのNetworkTVで受け取ります（#1533）。NetworkTVのIDは、指定した範囲から、Kotatsuのインスタンスどうしでぶつからないように配ります。
+EDCBを選ぶと、録画、タイムシフト、ライブ視聴も、EDCBのNetworkTVで受け取ります（#1533）。NetworkTVのIDは、指定した範囲から、Kotatsuのインスタンスどうしでぶつからないように配ります。1つのプロセスの中では、同じサービスのストリームを1本のNetworkTVで分け合います。ロールを分けた構成で`kotatsu nabe`を動かすと、ほかのロールは、ストリームをnabeから受け取ります（#1535）。nabeと、nabeから受け取るロールには、同じ`auth.secret_key`が要ります。
 
 ### auth
 
@@ -272,7 +272,7 @@ EDCBを選ぶと、録画、タイムシフト、ライブ視聴も、EDCBのNet
 
 `auth.secret_key`には、32バイト以上のランダムな文字列を渡します。
 `openssl rand -base64 48`の出力を使ってください。
-tenban、nekonote、kyusuは、これがないと起動しません。
+tenban、nekonote、kyusuと、EDCBを使うnabeは、これがないと起動しません。
 ロールを別のプロセスに分けるときは、すべてのプロセスに同じ秘密キーを渡してください。
 
 Kotatsuは、TOTPの秘密キーやWebhookの署名用の秘密キーを、この秘密キーで暗号化してDBに保存します。
@@ -342,6 +342,24 @@ nekonoteが、録画の代表画像と、シークバー用のプレビュー画
 | `thumbnail.disable_preview` | `KOTATSU_THUMBNAIL_DISABLE_PREVIEW` | `false` | プレビュー画像を作らないかどうか |
 
 性能の低いマシンでは、`true`にすると、代表画像だけを作って負荷を減らせます。
+
+### captions
+
+nekonoteが、録画の音声から字幕を自動生成するときの設定です（#1682）。
+生成には[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`とモデルを使います。`whisper-cli`は`-ffmpeg`のイメージに入っています。モデルは、録画の既定値の画面（`/admin/recording`）からダウンロードします（[セットアップ](setup.md#字幕の自動生成)）。
+画面からダウンロードしたモデルは、下の表の既定の場所に置きます。`whisper_model`や`vad_model`で場所を書くと、そちらを読み、画面から置いたモデルは使いません。画面にもその旨を出します。画面はtenbanの設定で判断するので、tenbanとnekonoteには同じ設定を渡してください。
+生成するかどうかは、録画の既定値の画面（`/admin/recording`）と、ルールと予約で選びます。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli`（`-ffmpeg`のイメージに入っている） | `whisper-cli`のパス |
+| `captions.whisper_model` | `KOTATSU_CAPTIONS_WHISPER_MODEL` | データディレクトリの`whisper/ggml-model.bin` | モデル（ggmlの形式）のパス |
+| `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | `0`（CPUの数の半分。1〜8） | `whisper-cli`に使わせるスレッドの数 |
+| `captions.vad_command` | `KOTATSU_CAPTIONS_VAD_COMMAND` | PATHの`whisper-vad-speech-segments`（`-ffmpeg`のイメージに入っている） | 字幕の時刻を声に合わせるVADのコマンドのパス（任意） |
+| `captions.vad_model` | `KOTATSU_CAPTIONS_VAD_MODEL` | データディレクトリの`whisper/ggml-silero-vad.bin` | Silero VADのモデル（ggmlの形式）のパス（任意） |
+
+`whisper-cli`とモデルは、ジョブごとに探します。置き直したら、nekonoteを再起動しなくても、次のジョブから使えます。
+音声を取り出した一時ファイル（1時間の録画で約115 MB）は、`kyusu.work_dir`（空ならOSの一時ディレクトリ）に置き、ジョブを終えたら消します。
 
 ### kyusu
 
@@ -416,3 +434,15 @@ OSのスリープを自分で管理するときは、`false`にしてくださ�
 自分で作った対応を、公開しない場所に置いて取り込むときに設定します。
 認証が要るときは、URLに資格情報を含めてください。
 取り込めなかった理由にはURLを書かず、取り込み元の名前（`arm`）だけを書きます。
+
+### tmdb
+
+ドラマの番組を、TMDbの作品と話に結びつける連携の設定です（[設計書 3.9](spec.v1.md#39-ドラマの番組と作品の結びつき)）。
+連携するかどうかと、TMDbのAPIの読み取りアクセストークン（API Read Access Token）は、管理者が連携の画面（`/admin/integrations`）で決めます。
+設定ファイルと環境変数では渡しません。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `tmdb.url` | `KOTATSU_TMDB_URL` | `https://api.themoviedb.org` | TMDbのAPIを向ける先のオリジン |
+
+`tmdb.url`は、本物のAPIの代わりに検証用のサーバーへ向けるときだけ設定してください。

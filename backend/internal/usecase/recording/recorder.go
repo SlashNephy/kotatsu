@@ -31,6 +31,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/history"
 	"github.com/SlashNephy/kotatsu/internal/usecase/lineup"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
@@ -1797,6 +1798,10 @@ func (r *Recorder) start(
 		if err := anime.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
 			return err
 		}
+		// ドラマの番組と TMDb の作品と話の結びつきも、同じく写す (#1651、設計書 3.9)。
+		if err := drama.CopyToRecording(ctx, tx, recording.ID, recording.ServiceID, recording.StartAt, at); err != nil {
+			return err
+		}
 		if _, err := notify.Publish(ctx, tx, r.clock, notify.RecordingsChannel); err != nil {
 			return err
 		}
@@ -1965,8 +1970,11 @@ func (r *Recorder) complete(
 		payload["files"] = files
 		payload["joinSegments"] = settings.JoinSegments
 		payload["detectCm"] = settings.DetectCM
+		payload["generateCaptions"] = settings.GenerateCaptions
 		payload["transcodePreset"] = settings.TranscodePreset
 		payload["transcodeFrameRate"] = settings.TranscodeFrameRate
+		// 空なら、見分けるときの全体の設定に従う (#1505)。
+		payload["cmDetector"] = settings.CMDetector
 		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)
@@ -2078,7 +2086,12 @@ func streamFailure(err error) domain.RecordingFailureReason {
 	if errors.Is(err, tunerserver.ErrStreamOpenTimeout) {
 		return domain.RecordingFailureReasonTunerUnavailable
 	}
-	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りないほか、上流のチューナーにつなげないこともある。
+	// チューナーサーバーが選局を断った (サービスかチャンネルがないか、選局に失敗した)。チューナーの空きがないときと分けて、
+	// 続けて選局できないチャンネルの判定に数える (#1519)。
+	if errors.Is(err, tunerserver.ErrNotFound) || errors.Is(err, tunerserver.ErrTuningFailed) {
+		return domain.RecordingFailureReasonTuningRefused
+	}
+	// チューナーサーバーが応答したが、ストリームを渡さなかった。チューナーが足りない (503) ほか、リバースプロキシが返した 502 などもある。
 	// まだ一度も開いていないので、中断とはせず、チューナーを確保できなかったとみなす。
 	if errors.Is(err, tunerserver.ErrRefused) {
 		return domain.RecordingFailureReasonTunerUnavailable

@@ -850,6 +850,139 @@ func TestRecordingCMSections(t *testing.T) {
 	assert.True(t, recordedFrom.Add(690500*time.Millisecond).Equal(got[1].To))
 }
 
+// TestGenerateRecordingCaptions は、録画の字幕を自動生成するジョブを、視聴者でなければ、全体の設定にかかわらず入れられることを確かめる (#1682)。
+// 録画中の録画と、TS のセグメントのない録画は断り、待っているジョブには重ねない。入れたら、状態は待っているになる。
+func TestGenerateRecordingCaptions(t *testing.T) {
+	t.Parallel()
+
+	inserter := &lateInserter{client: nil}
+	dir := t.TempDir()
+	f := newFixture(t, &graph.Options{Pools: map[string]string{poolMain: dir}, Jobs: inserter})
+	f.syncEPG(t)
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	client, err := jobs.NewClient(f.pool, slog.New(slog.DiscardHandler), &jobs.Options{PollOnly: false, Workers: nil, PeriodicJobs: nil})
+	require.NoError(t, err)
+	inserter.client = client
+	recordingID := f.addRecording(t, dir, "こたつ特集", "completed", time.Hour)
+	recordingNow := f.addRecording(t, dir, "こたつ中継", "recording", time.Hour)
+	mp4Only := f.addRecording(t, dir, "こたつ再放送", "completed", 2*time.Hour)
+	_, rawMP4Only, err := graph.ParseGlobalID(mp4Only)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(t.Context(), "UPDATE recording_files SET kind = 'other' WHERE recording_id = $1", rawMP4Only)
+	require.NoError(t, err)
+	_, rawID, err := graph.ParseGlobalID(recordingID)
+	require.NoError(t, err)
+	const generate = `mutation($id: ID!) { generateRecordingCaptions(id: $id) }`
+	queued := func() []string {
+		rows, err := f.pool.Query(t.Context(), `SELECT queue FROM river_job WHERE kind = 'recording_auto_captions' AND args->>'recordingId' = $1 ORDER BY id`, rawID)
+		require.NoError(t, err)
+		queues, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		require.NoError(t, err)
+
+		return queues
+	}
+	state := func() string {
+		var got struct {
+			Node struct {
+				AutoCaptionsStatus struct {
+					State string `json:"state"`
+				} `json:"autoCaptionsStatus"`
+			} `json:"node"`
+		}
+		require.Empty(t, f.query(t, `query($id: ID!) { node(id: $id) { ... on Recording { autoCaptionsStatus { state } } } }`, map[string]any{varID: recordingID}, &got))
+
+		return got.Node.AutoCaptionsStatus.State
+	}
+	var got struct {
+		GenerateRecordingCaptions bool `json:"generateRecordingCaptions"`
+	}
+
+	assert.Equal(t, []string{codeForbidden}, f.as(t, "viewer", domain.RoleViewer).query(t, generate, map[string]any{varID: recordingID}, nil))
+	assert.Equal(t, []string{codeConflict}, f.query(t, generate, map[string]any{varID: recordingNow}, nil), "a recording in progress")
+	assert.Equal(t, []string{codeConflict}, f.query(t, generate, map[string]any{varID: mp4Only}, nil), "a recording without TS segments")
+	assert.Equal(t, []string{codeNotFound}, f.query(t, generate, map[string]any{varID: graph.GlobalID("Recording", uuid.New().String())}, nil))
+	assert.Empty(t, queued())
+	assert.Equal(t, "NOT_GENERATED", state())
+
+	// 全体の設定は既定 (生成しない) のままでも、頼まれたら生成する。メンバーも頼める。
+	require.Empty(t, f.as(t, "member", domain.RoleMember).query(t, generate, map[string]any{varID: recordingID}, &got))
+	assert.True(t, got.GenerateRecordingCaptions)
+	assert.Equal(t, []string{jobs.QueueCaptions}, queued())
+	assert.Equal(t, "QUEUED", state())
+
+	// 待っているジョブがあれば、重ねて入れない。
+	require.Empty(t, f.query(t, generate, map[string]any{varID: recordingID}, &got))
+	assert.False(t, got.GenerateRecordingCaptions)
+	assert.Len(t, queued(), 1)
+}
+
+// TestRecordingAutoCaptions は、自動生成した字幕を、録画を始めた日時に足した日時で、始まりの順に返し、状態に数とモデルを返すことを確かめる (#1682)。
+// 視聴者も読める。
+func TestRecordingAutoCaptions(t *testing.T) {
+	t.Parallel()
+
+	f, dir := newRecordingFixture(t)
+	// 状態は、River のジョブの表も読む。
+	require.NoError(t, jobs.Migrate(t.Context(), slog.New(slog.DiscardHandler), f.pool))
+	f.addRecording(t, dir, episode1, "completed", time.Hour)
+	var rawID string
+	var recordedFrom time.Time
+	require.NoError(t, f.pool.QueryRow(t.Context(), `SELECT id::text, recorded_from FROM recordings WHERE name = $1`, episode1).Scan(&rawID, &recordedFrom))
+
+	type caption struct {
+		From time.Time `json:"from"`
+		To   time.Time `json:"to"`
+		Text string    `json:"text"`
+	}
+	type node struct {
+		AutoCaptions       []caption `json:"autoCaptions"`
+		AutoCaptionsStatus struct {
+			State string  `json:"state"`
+			Model *string `json:"model"`
+			Count int     `json:"count"`
+		} `json:"autoCaptionsStatus"`
+	}
+	viewer := f.as(t, "viewer", domain.RoleViewer)
+	read := func(t *testing.T) node {
+		t.Helper()
+
+		var page struct {
+			Recordings struct {
+				Edges []struct {
+					Node node `json:"node"`
+				} `json:"edges"`
+			} `json:"recordings"`
+		}
+		require.Empty(t, viewer.query(t,
+			`query { recordings(first: 1) { edges { node { autoCaptions { from to text } autoCaptionsStatus { state model count } } } } }`, nil, &page))
+		require.Len(t, page.Recordings.Edges, 1)
+
+		return page.Recordings.Edges[0].Node
+	}
+
+	// 生成していなければ、空にする。
+	got := read(t)
+	assert.Empty(t, got.AutoCaptions)
+	assert.Equal(t, "NOT_GENERATED", got.AutoCaptionsStatus.State)
+	assert.Nil(t, got.AutoCaptionsStatus.Model)
+
+	_, err := f.pool.Exec(t.Context(), `INSERT INTO recording_auto_captions (recording_id, model, generator_version, generated_at, cues) VALUES
+		($1, 'ggml-kotoba-whisper-v2.0-q5_0.bin', 1, $2, '[{"startMs":1500,"endMs":4000,"text":"こんにちは"},{"startMs":600000,"endMs":601000,"text":"1行目\n2行目"}]')`,
+		rawID, testNow())
+	require.NoError(t, err)
+
+	got = read(t)
+	require.Len(t, got.AutoCaptions, 2)
+	assert.True(t, recordedFrom.Add(1500*time.Millisecond).Equal(got.AutoCaptions[0].From))
+	assert.True(t, recordedFrom.Add(4*time.Second).Equal(got.AutoCaptions[0].To))
+	assert.Equal(t, "こんにちは", got.AutoCaptions[0].Text)
+	assert.True(t, recordedFrom.Add(10*time.Minute).Equal(got.AutoCaptions[1].From))
+	assert.Equal(t, "1行目\n2行目", got.AutoCaptions[1].Text)
+	assert.Equal(t, "GENERATED", got.AutoCaptionsStatus.State)
+	assert.Equal(t, new("ggml-kotoba-whisper-v2.0-q5_0.bin"), got.AutoCaptionsStatus.Model)
+	assert.Equal(t, 2, got.AutoCaptionsStatus.Count)
+}
+
 // TestRecordingFailureDetail は、失敗した理由に至ったエラーの本文を、管理者にだけ返し、
 // ほかのユーザーには null を返すことを確かめる (#1467)。本文は上流のチューナーのホスト名などを含む。
 func TestRecordingFailureDetail(t *testing.T) {

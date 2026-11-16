@@ -335,8 +335,11 @@ func (r *Recorder) finishPromotion(
 			payload["files"] = files
 			payload["joinSegments"] = settings.JoinSegments
 			payload["detectCm"] = settings.DetectCM
+			payload["generateCaptions"] = settings.GenerateCaptions
 			payload["transcodePreset"] = settings.TranscodePreset
 			payload["transcodeFrameRate"] = settings.TranscodeFrameRate
+			// 空なら、見分けるときの全体の設定に従う (#1505)。
+			payload["cmDetector"] = settings.CMDetector
 
 			return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, audienceOf(promotion.CreatedBy))
 		})

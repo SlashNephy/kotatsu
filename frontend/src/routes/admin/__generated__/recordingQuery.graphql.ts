@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<e6c706acd9be46c3bd86a9d64f84aed7>>
+ * @generated SignedSource<<869add0c1190866d5ebf982227d8a81e>>
  * @lightSyntaxTransform
  */
 
@@ -17,6 +17,7 @@ export type recordingQuery$data = {
       readonly detectCm: boolean;
       readonly endMarginSeconds: number;
       readonly fileNameTemplate: string;
+      readonly generateCaptions: boolean;
       readonly joinSegments: boolean;
       readonly poolId: string | null | undefined;
       readonly priority: number;
@@ -110,6 +111,13 @@ var v0 = [
             "args": null,
             "kind": "ScalarField",
             "name": "detectCm",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
+            "name": "generateCaptions",
             "storageKey": null
           },
           {
@@ -247,16 +255,16 @@ return {
     "selections": (v0/*:: as any*/)
   },
   "params": {
-    "cacheID": "014a9cffb0cb79122e2e5c077e67e791",
+    "cacheID": "a5d39eb66acbf1143df472ebd3cad1b0",
     "id": null,
     "metadata": {},
     "name": "recordingQuery",
     "operationKind": "query",
-    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    cmDetector\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
+    "text": "query recordingQuery {\n  systemSettings {\n    recordingDefaults {\n      poolId\n      fileNameTemplate\n      startMarginSeconds\n      endMarginSeconds\n      priority\n      joinSegments\n      detectCm\n      generateCaptions\n      transcodePreset\n      transcodeFrameRate\n    }\n    ruleDefaults {\n      avoidDuplicates\n      duplicateWindowDays\n      followEventRelay\n      bundleSameEpisodes\n    }\n    ruleUnmatchedGraceMinutes\n    tvtplayChaptersEnabled\n    cmDetector\n    updatedAt\n  }\n  systemStatus {\n    pools {\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3ff755a810282c4d7b1f2be8e39f7642";
+(node as any).hash = "95c2a56eebcf938e257ed02f94e447c7";
 
 export default node;
