@@ -121,7 +121,13 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	if src.Complete {
 		name = indexName
 	}
+	complete := src.Complete
 	file, err := sharedfile.Open(filepath.Join(x.dir(ref), name))
+	if errors.Is(err, fs.ErrNotExist) && !complete {
+		// 書きかけの索引の名前を変えてから、作り終えたと記録するまでの間なら、作り終えた索引がある。
+		file, err = sharedfile.Open(filepath.Join(x.dir(ref), indexName))
+		complete = err == nil
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: src.Video}, nil
 	}
@@ -132,14 +138,14 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	entries, err := ts.ReadIndex(file)
 	if err != nil {
 		// 作り始めたばかりで、まだヘッダーを書いていないこともある。
-		if !src.Complete && errors.Is(err, ts.ErrInvalidIndex) {
+		if !complete && errors.Is(err, ts.ErrInvalidIndex) {
 			return &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: src.Video}, nil
 		}
 
 		return nil, err
 	}
 
-	return &Index{Entries: entries, Complete: src.Complete, Video: src.Video}, nil
+	return &Index{Entries: entries, Complete: complete, Video: src.Video}, nil
 }
 
 // Ensure は、ファイル ref (大きさと更新日時は entry) の索引を作り終えていなければ、裏で作り始める。
@@ -300,13 +306,18 @@ func (x *Indexer) writeSource(dir string, src *source) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode the index source: %w", err)
 	}
-	tmp := filepath.Join(dir, sourceName+".tmp")
-	// 索引と同じく、kyusu (別のユーザーで動くこともある) からも読めるようにする。
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	// 別の tenban が同じファイルの索引を作っていても、互いの一時ファイルを書き換えないよう、名前を重ねない。
+	f, err := os.CreateTemp(dir, sourceName+".*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to write the index source: %w", err)
 	}
-	_, err = f.Write(data)
+	tmp := f.Name()
+	defer func() { _ = os.Remove(tmp) }()
+	// 索引と同じく、kyusu (別のユーザーで動くこともある) からも読めるようにする。
+	err = f.Chmod(0o644)
+	if err == nil {
+		_, err = f.Write(data)
+	}
 	if closeErr := f.Close(); err == nil {
 		err = closeErr
 	}

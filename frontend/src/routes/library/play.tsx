@@ -306,7 +306,13 @@ function Player({
     return file.index.complete ? playableStart(at, duration) : at;
   });
   // stream は、ファイルの始まりからの秒で、位置を指定して読み直す配信 (設計書 7.2)。kyusu の経路では、仮想 HLS を流す。
-  const stream = useSeekableStream(file.streamUrl, video, initialPosition, !hls);
+  // 再生できない経路 (8K や kyusu のない UHD) では、配信に HEAD を送らない。
+  const stream = useSeekableStream(
+    file.streamUrl,
+    video,
+    initialPosition,
+    route.kind === 'convert',
+  );
   const hlsStream = useHlsStream(video, hls, initialPosition);
   const { position, positionRef, currentPosition } = hls ? hlsStream : stream;
   const [seeking, setSeeking] = useState<number | null>(null);
@@ -342,7 +348,7 @@ function Player({
       return;
     }
     seenDrains.current = drains;
-    if (!hls && error === null) {
+    if (route.kind === 'convert' && error === null) {
       stream.restartAt(positionRef.current, true);
       setHandover(true);
     }
@@ -731,7 +737,12 @@ function Player({
       {route.kind === 'kyusu' && (
         <HlsPlayer
           // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
-          url={`${hlsURL(file.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`}
+          // kyusu は、索引の I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。索引ができ始めるまで読まない。
+          url={
+            file.index.durationSeconds == null
+              ? null
+              : `${hlsURL(file.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`
+          }
           videoRef={videoRef}
           onVideo={setVideo}
           onSegment={streamMeter.onSegment}
