@@ -126,6 +126,7 @@ export const ruleEditorRuleFragment = graphql`
       priority
       joinSegments
       detectCm
+      generateCaptions
       transcodePreset
       transcodeFrameRate
     }
@@ -435,6 +436,31 @@ export function RuleEditor({
                         settings: {
                           ...form.settings,
                           detectCm:
+                            value === null || value === joinDefault ? null : value === 'true',
+                        },
+                      })
+                    }
+                    allowDeselect={false}
+                  />
+                  {/* 全体に従うなら、録画を終えるときの全体の設定で決める (#1682)。 */}
+                  <Select
+                    label={t('rules.generateCaptions')}
+                    maw={360}
+                    data={[
+                      { value: joinDefault, label: t('rules.generateCaptionsDefault') },
+                      { value: 'true', label: t('rules.generateCaptionsOn') },
+                      { value: 'false', label: t('rules.generateCaptionsOff') },
+                    ]}
+                    value={
+                      form.settings.generateCaptions === null
+                        ? joinDefault
+                        : String(form.settings.generateCaptions)
+                    }
+                    onChange={(value) =>
+                      set({
+                        settings: {
+                          ...form.settings,
+                          generateCaptions:
                             value === null || value === joinDefault ? null : value === 'true',
                         },
                       })

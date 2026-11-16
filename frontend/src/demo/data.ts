@@ -397,6 +397,8 @@ export function createRootValue(
         priority: 0,
         joinSegments: true,
         detectCm: false,
+        // 字幕の自動生成 (#1682) は、既定では使わない。
+        generateCaptions: false,
         transcodePreset: null,
         // 変換で出すコマ数の既定値 (#1509)。
         transcodeFrameRate: 'auto',
@@ -522,6 +524,7 @@ export function createRootValue(
     reanalyzeRecording: () => true,
     // CM を解析するジョブは、待って、進み具合を出して、終える様子を真似る。デモの映像は CM を含まないので、区間は見つからない。
     detectRecordingCm: ({ id }: { id: string }) => recordings.detectCm(id),
+    generateRecordingCaptions: ({ id }: { id: string }) => recordings.generateCaptions(id),
     regenerateRecordingImages: () => true,
     saveWatchPosition: ({ id, positionMs }: { id: string; positionMs: number }) =>
       recordings.saveWatchPosition(id, positionMs),

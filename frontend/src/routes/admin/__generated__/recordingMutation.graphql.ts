@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<dc35e8ec4194363a22916cfd4d10dd01>>
+ * @generated SignedSource<<346351a93e73810fcbfe9d778324b210>>
  * @lightSyntaxTransform
  */
 
@@ -37,6 +37,7 @@ export type RecordingSettingsOverridesInput = {
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
+  generateCaptions?: boolean | null | undefined;
   joinSegments?: boolean | null | undefined;
   poolId?: string | null | undefined;
   priority?: number | null | undefined;

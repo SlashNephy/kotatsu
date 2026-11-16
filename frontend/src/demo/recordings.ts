@@ -24,6 +24,8 @@ type Recording = {
   rule: RecordingRule | undefined;
   // cm は、CM の区間の見分け (#1571)。requestedAt は、見分けを頼んだ時刻。見分け終えたら null に戻し、detectedAt に終えた時刻を書く。
   cm: { requestedAt: number | null; detectedAt: number | null };
+  // captionsRequested は、字幕の自動生成を頼んだかどうか (#1682)。デモには whisper.cpp がないので、頼むと「置かれていない」になる。
+  captionsRequested: boolean;
 };
 
 // cmQueuedMs と cmRunningMs は、デモで CM の区間の見分けを待つ時間と、見分ける時間 (#1571)。
@@ -88,6 +90,7 @@ export function createRecordings(options: {
       watchedAt: 0,
       rule,
       cm: { requestedAt: null, detectedAt: null },
+      captionsRequested: false,
       ...fields,
     });
   };
@@ -222,6 +225,15 @@ export function createRecordings(options: {
       // デモの録画の映像は CM を含まないので、CM の区間はない。
       cmSections: [],
       cmDetection: () => cmDetection(recording),
+      // デモには whisper.cpp とモデルがないので、自動生成した字幕はない (#1682)。
+      autoCaptions: [],
+      autoCaptionsStatus: () => ({
+        state: recording.captionsRequested ? 'NOT_CONFIGURED' : 'NOT_GENERATED',
+        generatedAt: null,
+        model: null,
+        count: 0,
+        progress: null,
+      }),
       audios: program.audios,
       videoFormat: program.service.videoFormat,
       genres: program.genres,
@@ -383,6 +395,18 @@ export function createRecordings(options: {
       recording.cm = { ...recording.cm, requestedAt: Date.now() };
       changed?.(['RECORDINGS']);
       setTimeout(() => changed?.(['RECORDINGS']), cmQueuedMs + cmRunningMs);
+
+      return true;
+    },
+    // generateCaptions は、字幕の自動生成を頼む (#1682)。デモには whisper.cpp がないので、本物の置かれていないサーバーと同じく、
+    // ジョブが取りやめたことを出す。
+    generateCaptions: (id: string) => {
+      const recording = recordingOrThrow(id);
+      if (recording.state === 'RECORDING') {
+        throw new Error('the recording is still being recorded');
+      }
+      recording.captionsRequested = true;
+      changed?.(['RECORDINGS']);
 
       return true;
     },
