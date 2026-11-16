@@ -2578,12 +2578,13 @@ Helm Chartは次の方針で作ります。
 - `/metrics`を、Prometheus OperatorのPodMonitorで読めるようにします（`metrics.podMonitor.enabled`、[11.3](#113-監視)）。CRDのないクラスターで失敗しないよう、既定では作りません。
 - メトリクスをOTLPで送る設定（`metrics.otlp`）を、全ロールに渡せるようにします。ヘッダーはSecretから渡します。
 - IngressのほかにGateway APIのHTTPRoute（`httpRoute.enabled`）でも公開できるようにします（#1526）。IngressのAPIは機能が凍結されているからです。付けるGateway（`parentRefs`）がなければ、描画を止めます。APIサーバーが既定値を入れる項目（parentRefsとbackendRefsの`group`と`kind`、backendRefsの`weight`）は、省略されても書き出します。書かないと、マニフェストとクラスターにあるものが食い違い、GitOpsのServerSideApplyでOutOfSyncが続くからです。X-Forwarded-Forを信頼させるため、Ingressと同じく`ingress.trustedProxies`を必須にします。
-- Podへ届く相手を絞るNetworkPolicy（`networkPolicy.enabled`）を作れるようにします（#1526）。CNIが対応していないと効かないので、既定では作りません。Ingressだけを絞り、`all`とtenbanのhttpは`httpFrom`から、kyusuのhttpはtenbanのPodから、どのロールのmetricsも`metricsFrom`から受けます。ロールの間でHTTPを使うのはtenbanからkyusuへの中継だけなので（[1.3](#13-ロールの境界)）、neko、mikan、nekonoteのhttpは誰からも受けません。
+- Podへ届く相手を絞るNetworkPolicy（`networkPolicy.enabled`）を作れるようにします（#1526）。CNIが対応していないと効かないので、既定では作りません。Ingressだけを絞り、`all`とtenbanのhttpは`httpFrom`から、kyusuのhttpはtenbanのPodから、nabeのhttpはtenban、mikan、kyusuのPodから、どのロールのmetricsも`metricsFrom`から受けます。ロールの間でHTTPを使うのは、tenbanからkyusuへの中継（[1.4](#14-協調の仕組み)）と、tenban、mikan、kyusuがnabeからTSを受け取るところ（[3.1](#31-接続先)）だけなので、neko、mikan、nekonoteのhttpは誰からも受けません。
+- nabe（[3.1](#31-接続先)、#1851）は、ロールを分けた構成の`roles.nabe`で動かします。EDCBを使うときだけ意味があるので、既定では0台にし、使うときは`replicas`を1にします。1台だけ動かすので、2台以上は描画を止めます。ほかのロールはインスタンスの登録簿でnabeのPodのIPを引くので、Serviceは作りません。アプリの秘密キーとチューナーの設定は、ほかのロールと同じものを渡します。録画のファイルもFFmpegも使わないので、保存先プールをマウントせず、FFmpegを含まないイメージを使います。
 - タイムシフト用のディレクトリ（[5.7](#57-タイムシフト)）は、`storage.timeshift`のvolumeで渡します。保存先プールとデータディレクトリと同じロール（mikan、nekonote、tenban、kyusu）にマウントします。設定しなければ、タイムシフトは動きません。
 
 Kubernetesのマニフェストは、全ロールを1つのPodで動かす構成例と、ロールを分けた構成例の2つを生成します。
 Chartから生成した結果とリポジトリ上のマニフェストの差分は、CIの検査対象です。
-CIでは、Chartの`fail`の検査が描画を止めること（知らない`mode`、信頼するプロキシのないIngressやHTTPRoute、GatewayのないHTTPRoute、二重の指定など）と、HTTPRouteとNetworkPolicyが期待どおりに描かれることも確かめます（`mise run deploy:test`、#1526）。
+CIでは、Chartの`fail`の検査が描画を止めること（知らない`mode`、信頼するプロキシのないIngressやHTTPRoute、GatewayのないHTTPRoute、二重の指定、2台以上のnabeなど）と、HTTPRouteとNetworkPolicyが期待どおりに描かれることも確かめます（`mise run deploy:test`、#1526）。
 
 
 ### 11.2 設定の置き場所
