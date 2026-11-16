@@ -37,6 +37,8 @@ function settingsResponse() {
       },
       systemStatus: { pools: [] },
       transcodePresets: [],
+      // 同じ画面の、字幕の自動生成のモデルの欄 (#1682) も、同じ応答で読む。
+      captionModels: [],
     },
   };
 }

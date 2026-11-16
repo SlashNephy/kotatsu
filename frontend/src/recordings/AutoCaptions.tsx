@@ -1,4 +1,5 @@
 import { Group, Loader, Progress, Stack, Text } from '@mantine/core';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { progressPercent, remainingLabel } from '../admin/jobs';
@@ -26,6 +27,10 @@ export type AutoCaptionsValue = {
     | undefined;
 };
 
+// captionModelsAnchor は、録画の既定値の画面 (/admin/recording) の、字幕の自動生成のモデルの欄の id。
+// 「置かれていない」の案内から、その欄へ飛ぶのに使う。
+export const captionModelsAnchor = 'caption-models';
+
 const generatedAtFormat = zonedFormat({
   month: 'numeric',
   day: 'numeric',
@@ -39,8 +44,15 @@ export function autoCaptionsActive(state: AutoCaptionsValue['state']): boolean {
   return state === 'QUEUED' || state === 'RUNNING';
 }
 
-// AutoCaptionsStatus は、録画の字幕の自動生成の状態を出す (#1682)。whisper.cpp とモデルがなくて取りやめたときは、置き方を示す。
-export function AutoCaptionsStatus({ status }: { status: AutoCaptionsValue }) {
+// AutoCaptionsStatus は、録画の字幕の自動生成の状態を出す (#1682)。モデルがなくて取りやめたときは、管理者には、
+// モデルを置く画面へのリンク (settingsLink) を添える。管理者でなければ、settingsLink を渡さない。
+export function AutoCaptionsStatus({
+  status,
+  settingsLink,
+}: {
+  status: AutoCaptionsValue;
+  settingsLink?: ReactNode;
+}) {
   const { t } = useTranslation();
   const generatedAt =
     status.generatedAt == null ? null : generatedAtFormat.format(Date.parse(status.generatedAt));
@@ -86,9 +98,12 @@ export function AutoCaptionsStatus({ status }: { status: AutoCaptionsValue }) {
         </Text>
       )}
       {status.state === 'NOT_CONFIGURED' && (
-        <Text size="sm" c="amber.8">
-          {t('recordings.autoCaptions.notConfigured')}
-        </Text>
+        <>
+          <Text size="sm" c="amber.8">
+            {t('recordings.autoCaptions.notConfigured')}
+          </Text>
+          {settingsLink}
+        </>
       )}
       {(status.state === 'NOT_GENERATED' || status.state === '%future added value') && (
         <Text size="sm" c="dimmed">

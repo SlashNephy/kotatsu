@@ -22,7 +22,11 @@ import {
   cmDetectionActive,
   useCmDetectionPoll,
 } from '../../recordings/CmDetection';
-import { AutoCaptionsStatus, autoCaptionsActive } from '../../recordings/AutoCaptions';
+import {
+  AutoCaptionsStatus,
+  autoCaptionsActive,
+  captionModelsAnchor,
+} from '../../recordings/AutoCaptions';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
   Captions,
@@ -812,7 +816,22 @@ function Recording({ recordingId }: { recordingId: string }) {
             <Card withBorder>
               <Stack gap={4}>
                 <CardHeading icon={Captions}>{t('recordings.autoCaptions.title')}</CardHeading>
-                <AutoCaptionsStatus status={recording.autoCaptionsStatus} />
+                <AutoCaptionsStatus
+                  status={recording.autoCaptionsStatus}
+                  settingsLink={
+                    // モデルを置けるのは管理者だけなので、管理者にだけ、置く画面へのリンクを出す。
+                    data.viewer.role === 'ADMIN' && (
+                      <Anchor
+                        component={Link}
+                        to="/admin/recording"
+                        hash={captionModelsAnchor}
+                        size="sm"
+                      >
+                        {t('recordings.autoCaptions.notConfiguredLink')}
+                      </Anchor>
+                    )
+                  }
+                />
               </Stack>
             </Card>
           )}

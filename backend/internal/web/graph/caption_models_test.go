@@ -102,9 +102,9 @@ func TestCaptionModels(t *testing.T) {
 	assert.Equal(t, []string{codeBadUserInput}, adminFixture.query(t, downloadCaptionModel, map[string]any{varID: "https://example.com/model.bin"}, nil))
 
 	// 取り消すと、置いていないに戻る。取り消すものがなければ NOT_FOUND。
-	require.Empty(t, adminFixture.query(t, cancelCaptionModel, map[string]any{"kind": kindWhisper}, nil))
+	require.Empty(t, adminFixture.query(t, cancelCaptionModel, map[string]any{keyKind: kindWhisper}, nil))
 	assert.Equal(t, stateNotPlaced, slots()[kindWhisper].State)
-	assert.Equal(t, []string{codeNotFound}, adminFixture.query(t, cancelCaptionModel, map[string]any{"kind": kindWhisper}, nil))
+	assert.Equal(t, []string{codeNotFound}, adminFixture.query(t, cancelCaptionModel, map[string]any{keyKind: kindWhisper}, nil))
 
 	// 手で置いたファイルも、置いたものとして出し、消せる。消すものがなければ NOT_FOUND。
 	vad := filepath.Join(dataDir, "whisper", "ggml-silero-vad.bin")
@@ -115,18 +115,18 @@ func TestCaptionModels(t *testing.T) {
 	require.NotNil(t, placed.Installed)
 	assert.Nil(t, placed.Installed.Model, "a file placed by hand is not one of the catalog")
 	assert.InDelta(t, 3, placed.Installed.Size, 0)
-	require.Empty(t, adminFixture.query(t, deleteCaptionModel, map[string]any{"kind": kindVAD}, nil))
+	require.Empty(t, adminFixture.query(t, deleteCaptionModel, map[string]any{keyKind: kindVAD}, nil))
 	assert.NoFileExists(t, vad)
 	assert.Equal(t, stateNotPlaced, slots()[kindVAD].State)
-	assert.Equal(t, []string{codeNotFound}, adminFixture.query(t, deleteCaptionModel, map[string]any{"kind": kindVAD}, nil))
+	assert.Equal(t, []string{codeNotFound}, adminFixture.query(t, deleteCaptionModel, map[string]any{keyKind: kindVAD}, nil))
 
 	// 管理者でなければ、見ることも操作もできない。
 	for _, role := range []domain.Role{domain.RoleMember, domain.RoleViewer} {
 		other := f.as(t, string(role), role)
 		assert.Equal(t, []string{codeForbidden}, other.query(t, captionModelsQuery, nil, nil), role)
 		assert.Equal(t, []string{codeForbidden}, other.query(t, downloadCaptionModel, map[string]any{varID: "silero-v5.1.2"}, nil), role)
-		assert.Equal(t, []string{codeForbidden}, other.query(t, cancelCaptionModel, map[string]any{"kind": kindWhisper}, nil), role)
-		assert.Equal(t, []string{codeForbidden}, other.query(t, deleteCaptionModel, map[string]any{"kind": kindVAD}, nil), role)
+		assert.Equal(t, []string{codeForbidden}, other.query(t, cancelCaptionModel, map[string]any{keyKind: kindWhisper}, nil), role)
+		assert.Equal(t, []string{codeForbidden}, other.query(t, deleteCaptionModel, map[string]any{keyKind: kindVAD}, nil), role)
 	}
 
 	// 操作は監査ログに残す。

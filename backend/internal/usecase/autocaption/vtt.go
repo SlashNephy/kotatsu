@@ -2,7 +2,7 @@
 //
 // 録画を終えた後のジョブとして、FFmpeg で録画の音声を取り出し、whisper.cpp の whisper-cli を子プロセスとして動かして、
 // 出力した WebVTT を読む。字幕は、CM の区間と同じく、録画を始めた日時からの時間にそろえて DB に残し、プレイヤーが「自動生成」の字幕として出す。
-// whisper-cli とモデルは、イメージに入れず、管理者が用意して置く (設定の captions)。
+// whisper-cli は -ffmpeg のイメージに入れ、モデルは管理者が画面からダウンロードするか (usecase/captionmodel)、手で置く (設定の captions)。
 package autocaption
 
 import (

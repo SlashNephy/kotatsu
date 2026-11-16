@@ -33,8 +33,8 @@ const (
 )
 
 // ErrNotConfigured は、字幕の生成に使う whisper-cli かモデルが見つからないことを表す。管理者が設定の captions に置き場所を書くか、
-// 既定の場所 (whisper-cli は PATH、モデルはデータディレクトリの whisper/ggml-model.bin) に置く (設計書 6.1)。
-// 録画の詳細は、ジョブがこの理由で取りやめたことを見分けて、置き方を示す。
+// 既定の場所 (whisper-cli は PATH、モデルはデータディレクトリの whisper/ggml-model.bin) に置く (設計書 6.1)。モデルは画面からダウンロードできる。
+// 録画の詳細は、ジョブがこの理由で取りやめたことを見分けて、管理者にモデルを置く画面へのリンクを出す。
 var ErrNotConfigured = errors.New("whisper.cpp is not configured")
 
 // Transcriber は、16 kHz のモノラルの WAV から字幕を作る。

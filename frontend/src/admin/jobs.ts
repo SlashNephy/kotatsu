@@ -22,6 +22,7 @@ const kindKeys = {
   anime_watch_progress_prune: 'admin.jobs.kinds.anime_watch_progress_prune',
   anime_wishlist_import: 'admin.jobs.kinds.anime_wishlist_import',
   audit_prune: 'admin.jobs.kinds.audit_prune',
+  caption_model_download: 'admin.jobs.kinds.caption_model_download',
   notification_dispatch: 'admin.jobs.kinds.notification_dispatch',
   notification_prune: 'admin.jobs.kinds.notification_prune',
   oauth_prune: 'admin.jobs.kinds.oauth_prune',
