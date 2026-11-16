@@ -931,8 +931,8 @@ func (q *Queries) InsertRecordingHistory(ctx context.Context, arg InsertRecordin
 
 const insertRecordingHistoryFromRecording = `-- name: InsertRecordingHistoryFromRecording :exec
 INSERT INTO recording_history (
-  id, service_id, title_key, name, series, description, series_episode, syobocal_tid, anime_count, imported, start_at, end_at, created_at,
-  recording_id
+  id, service_id, title_key, name, series, description, series_episode, syobocal_tid, anime_count,
+  tmdb_series_id, tmdb_season_number, tmdb_episode_number, imported, start_at, end_at, created_at, recording_id
 )
 SELECT $1, rec.service_id, $2, rec.name, $3::text, rec.description,
   coalesce(
@@ -940,8 +940,10 @@ SELECT $1, rec.service_id, $2, rec.name, $3::text, rec.description,
     (SELECT pa.series_episode FROM program_archives pa
       WHERE pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at)
   ),
-  a.syobocal_tid, a.count_start, false, rec.start_at, rec.end_at, $4, rec.id
+  a.syobocal_tid, a.count_start, d.tmdb_series_id, d.season_number, d.episode_number,
+  false, rec.start_at, rec.end_at, $4, rec.id
 FROM recordings rec
+LEFT JOIN recording_drama_matches d ON d.recording_id = rec.id
 LEFT JOIN LATERAL (
   SELECT min(e.syobocal_tid)::integer AS syobocal_tid, min(e.count_start)::double precision AS count_start
   FROM recording_anime_episodes e
@@ -963,6 +965,7 @@ type InsertRecordingHistoryFromRecordingParams struct {
 // 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 // 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
 // series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
+// ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDb の作品とシーズンと話の番号も写す。
 func (q *Queries) InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error {
 	_, err := q.db.Exec(ctx, insertRecordingHistoryFromRecording,
 		arg.ID,

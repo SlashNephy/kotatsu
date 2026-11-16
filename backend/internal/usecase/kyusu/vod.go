@@ -3,6 +3,8 @@ package kyusu
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -20,9 +22,11 @@ import (
 	"time"
 	"uuid"
 
+	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/sharedfile"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
 )
 
@@ -32,6 +36,9 @@ const (
 	// TimeshiftPathPrefix は、kyusu のタイムシフトのバッファの仮想 HLS のパスの前置き。
 	// /internal/kyusu/timeshift/{サービス ID}-{起点の Unix マイクロ秒}/{画質}/{音声}/{ファイル} で受け付ける (設計書 5.7)。
 	TimeshiftPathPrefix = "/internal/kyusu/timeshift/"
+	// LibraryPathPrefix は、kyusu のライブラリのファイルの仮想 HLS のパスの前置き。
+	// /internal/kyusu/library/{ファイルの ID}/{画質}/{音声}/{ファイル} で受け付ける (設計書 5.8)。ファイルの ID は filelib.Ref.Encode で作る。
+	LibraryPathPrefix = "/internal/kyusu/library/"
 	// recordingDir は、作業ディレクトリのうち、録画とタイムシフトのバッファの仮想 HLS を置くディレクトリ。
 	recordingDir = "recordings"
 	// segmentTimeout は、要求されたセグメントを書き終えるのを待つ時間の上限。エンコーダーを起動し直したときも、ここまで待つ。
@@ -78,6 +85,11 @@ type TimeshiftOpener interface {
 	Open(ctx context.Context, serviceID int64, from time.Time) (*stream.Recording, error)
 }
 
+// LibraryOpener は、ライブラリのファイルを、パスの ID から開く。*filelib.Source が満たす。
+type LibraryOpener interface {
+	OpenEncoded(ctx context.Context, id string) (*stream.Recording, error)
+}
+
 // VODEncoder は、録画の仮想 HLS のセグメントを書く。*Transcoder が満たす。
 type VODEncoder interface {
 	RunVOD(ctx context.Context, src io.Reader, preset *Preset, audio Audio, dir string, opts *RunOptions) error
@@ -86,6 +98,7 @@ type VODEncoder interface {
 var (
 	_ RecordingOpener = new(stream.RecordingSource)
 	_ TimeshiftOpener = new(stream.TimeshiftSource)
+	_ LibraryOpener   = new(filelib.Source)
 	_ VODEncoder      = new(Transcoder)
 	_ io.Writer       = new(lookaheadWriter)
 )
@@ -98,11 +111,22 @@ type vodSource struct {
 	id string
 }
 
-// timeshiftKind は、タイムシフトのバッファの vodSource の種類。
-const timeshiftKind = "timeshift"
+const (
+	// timeshiftKind は、タイムシフトのバッファの vodSource の種類。
+	timeshiftKind = "timeshift"
+	// libraryKind は、ライブラリのファイルの vodSource の種類。
+	libraryKind = "library"
+)
 
-// String は、ログとディレクトリの名前に使う文字列を返す。
+// String は、ログとディレクトリの名前に使う文字列を返す。ライブラリのファイルの ID はパスを符号化したもので、ディレクトリの名前の
+// 長さの上限を超えることがあるので、ハッシュにする。
 func (s vodSource) String() string {
+	if s.kind == libraryKind {
+		sum := sha256.Sum256([]byte(s.id))
+
+		return s.kind + "-" + hex.EncodeToString(sum[:16])
+	}
+
 	return s.kind + "-" + s.id
 }
 
@@ -159,6 +183,7 @@ type vodSession struct {
 type VOD struct {
 	opener      RecordingOpener
 	timeshift   TimeshiftOpener
+	library     LibraryOpener
 	encoder     VODEncoder
 	dir         string
 	clock       clock.Clock
@@ -177,6 +202,8 @@ type VODOptions struct {
 	Opener RecordingOpener
 	// Timeshift は、タイムシフトのバッファを開く。タイムシフト用のディレクトリを、このインスタンスにマウントしておく。
 	Timeshift TimeshiftOpener
+	// Library は、ライブラリのファイルを開く。ライブラリとデータディレクトリを、このインスタンスにマウントしておく。nil なら、ライブラリのファイルは 503 を返す。
+	Library LibraryOpener
 	// Encoder は、セグメントを書く。FFmpeg と tsreadex がなければ nil にし、503 を返す。
 	Encoder VODEncoder
 	// WorkDir は、HLS を置く作業ディレクトリ。空なら、OS の一時ディレクトリの下にする。
@@ -212,7 +239,7 @@ func NewVOD(opts *VODOptions) (*VOD, error) {
 	}
 
 	return &VOD{
-		opener: opts.Opener, timeshift: opts.Timeshift, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle, maxSessions: maxSessions,
+		opener: opts.Opener, timeshift: opts.Timeshift, library: opts.Library, encoder: opts.Encoder, dir: dir, clock: opts.Clock, logger: opts.Logger, idleTimeout: idle, maxSessions: maxSessions,
 		mu: sync.Mutex{}, sessions: map[vodKey]*vodSession{}, stopped: false,
 	}, nil
 }
@@ -249,6 +276,9 @@ func (v *VOD) Handler(token *Token) http.Handler {
 	})
 	mux.HandleFunc("GET "+TimeshiftPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
 		v.serveHTTP(w, r, timeshiftKind)
+	})
+	mux.HandleFunc("GET "+LibraryPathPrefix+"{id}/{preset}/{audio}/{file}", func(w http.ResponseWriter, r *http.Request) {
+		v.serveHTTP(w, r, libraryKind)
 	})
 
 	return token.Middleware(mux)
@@ -411,6 +441,13 @@ func (v *VOD) open(ctx context.Context, source vodSource) (*stream.Recording, er
 // openSource は、source の種類に応じて、録画かタイムシフトのバッファを開く。タイムシフトのバッファを開けないインスタンスでは、
 // stream.ErrNotMounted を返す。
 func (v *VOD) openSource(ctx context.Context, source vodSource) (*stream.Recording, error) {
+	if source.kind == libraryKind {
+		if v.library == nil {
+			return nil, stream.ErrNotMounted
+		}
+
+		return v.library.OpenEncoded(ctx, source.id)
+	}
 	if source.kind == timeshiftKind {
 		if v.timeshift == nil {
 			return nil, stream.ErrNotMounted
@@ -429,6 +466,11 @@ func (v *VOD) openSource(ctx context.Context, source vodSource) (*stream.Recordi
 
 // parseVODSource は、パスの {id} を、種類に応じて確かめ、同じものが同じ文字列になるようにそろえる。
 func parseVODSource(kind, id string) (vodSource, bool) {
+	if kind == libraryKind {
+		ref, ok := filelib.DecodeRef(id)
+
+		return vodSource{kind: kind, id: ref.Encode()}, ok
+	}
 	if kind == timeshiftKind {
 		serviceID, from, ok := ParseTimeshiftID(id)
 
@@ -927,7 +969,7 @@ func (v *VOD) writeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case r.Context().Err() != nil:
 	case errors.Is(err, stream.ErrRecordingNotFound), errors.Is(err, stream.ErrTimeshiftNotFound), errors.Is(err, stream.ErrNoSegment),
-		errors.Is(err, errOutOfRange):
+		errors.Is(err, errOutOfRange), errors.Is(err, medialib.ErrNotFound), errors.Is(err, filelib.ErrNotAFile):
 		http.Error(w, err.Error(), http.StatusNotFound)
 	case errors.Is(err, stream.ErrNotMounted), errors.Is(err, errNotIndexed), errors.Is(err, errNoPTS), errors.Is(err, errNoEncoder),
 		errors.Is(err, errEnded), errors.Is(err, errSegmentTimeout), errors.Is(err, errTooManySessions):

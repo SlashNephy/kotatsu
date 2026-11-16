@@ -12,6 +12,19 @@ import (
 	"uuid"
 )
 
+const deleteAllLibraryWatchProgress = `-- name: DeleteAllLibraryWatchProgress :execrows
+DELETE FROM library_watch_progress WHERE user_id = $1
+`
+
+// ユーザーの、ライブラリのファイルの再生位置をすべて消す (#1366、#1734)。
+func (q *Queries) DeleteAllLibraryWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAllLibraryWatchProgress, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteAllWatchProgress = `-- name: DeleteAllWatchProgress :execrows
 DELETE FROM watch_progress WHERE user_id = $1
 `
@@ -19,6 +32,26 @@ DELETE FROM watch_progress WHERE user_id = $1
 // ユーザーの再生位置をすべて消す (#1366)。
 func (q *Queries) DeleteAllWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteAllWatchProgress, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteLibraryWatchProgressBefore = `-- name: DeleteLibraryWatchProgressBefore :execrows
+DELETE FROM library_watch_progress WHERE (user_id, file_id) IN (
+  SELECT w.user_id, w.file_id FROM library_watch_progress w WHERE w.updated_at < $1 ORDER BY w.updated_at LIMIT $2
+)
+`
+
+type DeleteLibraryWatchProgressBeforeParams struct {
+	Before   time.Time
+	MaxCount int32
+}
+
+// 最後に更新してから before より経った、ライブラリのファイルの再生位置を、古い順に max_count 件まで消す (#1366、#1734)。
+func (q *Queries) DeleteLibraryWatchProgressBefore(ctx context.Context, arg DeleteLibraryWatchProgressBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteLibraryWatchProgressBefore, arg.Before, arg.MaxCount)
 	if err != nil {
 		return 0, err
 	}
@@ -67,6 +100,22 @@ func (q *Queries) DeleteWatchProgressBefore(ctx context.Context, arg DeleteWatch
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getLibraryWatchProgress = `-- name: GetLibraryWatchProgress :one
+SELECT position_ms FROM library_watch_progress WHERE user_id = $1 AND file_id = $2
+`
+
+type GetLibraryWatchProgressParams struct {
+	UserID uuid.UUID
+	FileID string
+}
+
+func (q *Queries) GetLibraryWatchProgress(ctx context.Context, arg GetLibraryWatchProgressParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getLibraryWatchProgress, arg.UserID, arg.FileID)
+	var position_ms int64
+	err := row.Scan(&position_ms)
+	return position_ms, err
 }
 
 const insertRecordingTag = `-- name: InsertRecordingTag :exec
@@ -667,6 +716,29 @@ type SetRecordingProtectedParams struct {
 
 func (q *Queries) SetRecordingProtected(ctx context.Context, arg SetRecordingProtectedParams) error {
 	_, err := q.db.Exec(ctx, setRecordingProtected, arg.Protected, arg.Now, arg.ID)
+	return err
+}
+
+const upsertLibraryWatchProgress = `-- name: UpsertLibraryWatchProgress :exec
+INSERT INTO library_watch_progress (user_id, file_id, position_ms, updated_at) VALUES ($1, $2, $3, $4)
+ON CONFLICT (user_id, file_id) DO UPDATE SET position_ms = EXCLUDED.position_ms, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertLibraryWatchProgressParams struct {
+	UserID     uuid.UUID
+	FileID     string
+	PositionMs int64
+	Now        time.Time
+}
+
+// ユーザーの、ライブラリのファイルの再生位置を保存する (#1734)。
+func (q *Queries) UpsertLibraryWatchProgress(ctx context.Context, arg UpsertLibraryWatchProgressParams) error {
+	_, err := q.db.Exec(ctx, upsertLibraryWatchProgress,
+		arg.UserID,
+		arg.FileID,
+		arg.PositionMs,
+		arg.Now,
+	)
 	return err
 }
 

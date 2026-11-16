@@ -215,6 +215,35 @@ func (l *Library) SaveProgress(ctx context.Context, db sqlc.DBTX, userID, record
 	return nil
 }
 
+// SaveFileProgress は、ユーザーの、ライブラリのファイル fileID (filelib.FileID) の再生位置を保存する (#1734)。
+// ファイルは DB に行を持たないので、ファイルがあるかは呼ぶ側が確かめる。再生位置は個人のものなので、監査ログには残さない。
+func (l *Library) SaveFileProgress(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, fileID string, position time.Duration) error {
+	if position < 0 {
+		return fmt.Errorf("%w: the position must not be negative", ErrInvalidPosition)
+	}
+	err := sqlc.New(db).UpsertLibraryWatchProgress(ctx, sqlc.UpsertLibraryWatchProgressParams{
+		UserID: userID, FileID: fileID, PositionMs: position.Milliseconds(), Now: l.clock.Now(),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to save the watch progress of the library file: %w", err)
+	}
+
+	return nil
+}
+
+// FileProgress は、ユーザーの、ライブラリのファイル fileID の再生位置を返す。保存していなければ false を返す。
+func FileProgress(ctx context.Context, db sqlc.DBTX, userID uuid.UUID, fileID string) (time.Duration, bool, error) {
+	positionMs, err := sqlc.New(db).GetLibraryWatchProgress(ctx, sqlc.GetLibraryWatchProgressParams{UserID: userID, FileID: fileID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("failed to get the watch progress of the library file: %w", err)
+	}
+
+	return time.Duration(positionMs) * time.Millisecond, true, nil
+}
+
 // ClearProgress は、ユーザーの録画の再生位置を消す。続きから見るの一覧から外れ、次は始まりから再生する (#1074)。
 // 再生位置がなくても失敗しない。再生位置は個人のものなので、監査ログには残さない。
 func (l *Library) ClearProgress(ctx context.Context, db sqlc.DBTX, userID, recordingID uuid.UUID) error {
@@ -226,14 +255,19 @@ func (l *Library) ClearProgress(ctx context.Context, db sqlc.DBTX, userID, recor
 	return nil
 }
 
-// ClearAllProgress は、ユーザーの再生位置をすべて消し、消した数を返す (#1366)。再生位置は個人のものなので、監査ログには残さない。
+// ClearAllProgress は、ユーザーの再生位置を、ライブラリのファイルのもの (#1734) も含めてすべて消し、消した数を返す (#1366)。
+// 再生位置は個人のものなので、監査ログには残さない。
 func (l *Library) ClearAllProgress(ctx context.Context, db sqlc.DBTX, userID uuid.UUID) (int64, error) {
 	deleted, err := sqlc.New(db).DeleteAllWatchProgress(ctx, userID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to clear the watch progress: %w", err)
 	}
+	files, err := sqlc.New(db).DeleteAllLibraryWatchProgress(ctx, userID)
+	if err != nil {
+		return deleted, fmt.Errorf("failed to clear the watch progress of the library files: %w", err)
+	}
 
-	return deleted, nil
+	return deleted + files, nil
 }
 
 // foreignKeyViolation は、PostgreSQL の外部キーの違反のエラーコード。録画がないときに返る。

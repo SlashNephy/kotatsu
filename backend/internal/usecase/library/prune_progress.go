@@ -18,24 +18,37 @@ const (
 	pruneProgressBatchSize = 1000
 )
 
-// PruneProgress は、最後に更新してから retention より経った再生位置を、pruneProgressBatchSize 件ずつ区切って消し、消した数を返す。
-// retention が負なら、無期限として何も消さない (#1366)。
+// PruneProgress は、最後に更新してから retention より経った再生位置を、録画のものとライブラリのファイルのもの (#1734) の順に、
+// pruneProgressBatchSize 件ずつ区切って消し、消した数を返す。retention が負なら、無期限として何も消さない (#1366)。
 func PruneProgress(ctx context.Context, db sqlc.DBTX, clk clock.Clock, retention time.Duration) (int64, error) {
 	if retention < 0 {
 		return 0, nil
 	}
 	before := clk.Now().Add(-retention)
+	q := sqlc.New(db)
+	prunes := []func() (int64, error){
+		func() (int64, error) {
+			return q.DeleteWatchProgressBefore(ctx, sqlc.DeleteWatchProgressBeforeParams{Before: before, MaxCount: pruneProgressBatchSize})
+		},
+		func() (int64, error) {
+			return q.DeleteLibraryWatchProgressBefore(ctx, sqlc.DeleteLibraryWatchProgressBeforeParams{Before: before, MaxCount: pruneProgressBatchSize})
+		},
+	}
 	var total int64
-	for {
-		deleted, err := sqlc.New(db).DeleteWatchProgressBefore(ctx, sqlc.DeleteWatchProgressBeforeParams{Before: before, MaxCount: pruneProgressBatchSize})
-		if err != nil {
-			return total, fmt.Errorf("failed to prune the watch progress: %w", err)
-		}
-		total += deleted
-		if deleted < pruneProgressBatchSize {
-			return total, nil
+	for _, prune := range prunes {
+		for {
+			deleted, err := prune()
+			if err != nil {
+				return total, fmt.Errorf("failed to prune the watch progress: %w", err)
+			}
+			total += deleted
+			if deleted < pruneProgressBatchSize {
+				break
+			}
 		}
 	}
+
+	return total, nil
 }
 
 // PruneProgressArgs は、保持期間を過ぎた再生位置を消すジョブの引数。
