@@ -51,6 +51,10 @@ type SchedulerOptions struct {
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
+	// SkipConflicts は、競合した予約を録りに行かないかどうか。チューナーを奪えない EDCB で使う (#1536、設計書 1.6)。
+	// Mirakurun では、競合した予約を優先度 1 で試み、後から優先度 2 の録画が来ればチューナーを譲らせる。EDCB には優先度がなく、
+	// 先に録り始めた競合した予約が、後から始まる割り当て済みの予約のチューナーを取ってしまうので、試みない。
+	SkipConflicts bool
 }
 
 // Scheduler は、録画の予定の開始が Lead 以内に来た予約の割り振りを書き、録画しなくなった予約の割り振りを消す (設計書 1.5)。
@@ -64,9 +68,13 @@ type Scheduler struct {
 
 // NewScheduler は Scheduler を返す。opts は nil でもよい。
 func NewScheduler(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, opts *SchedulerOptions) *Scheduler {
-	o := SchedulerOptions{Lead: DefaultLead, Interval: DefaultInterval, Debounce: DefaultDebounce, PollOnly: false, PollInterval: notify.DefaultPollInterval}
+	o := SchedulerOptions{
+		Lead: DefaultLead, Interval: DefaultInterval, Debounce: DefaultDebounce, PollOnly: false, PollInterval: notify.DefaultPollInterval,
+		SkipConflicts: false,
+	}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
+		o.SkipConflicts = opts.SkipConflicts
 		if opts.Lead > 0 {
 			o.Lead = opts.Lead
 		}
@@ -144,17 +152,22 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 		if err != nil {
 			return fmt.Errorf("failed to list due reservations: %w", err)
 		}
+		created := 0
 		for _, row := range due {
 			priority := int32(Priority)
 			if row.AssignmentState == domain.AssignmentStateConflict {
+				if s.opts.SkipConflicts {
+					continue
+				}
 				priority = ConflictPriority
 			}
 			err := q.InsertRecordingAssignment(ctx, sqlc.InsertRecordingAssignmentParams{ID: id.New(), ReservationID: row.ID, Priority: priority, Now: now})
 			if err != nil {
 				return fmt.Errorf("failed to save a recording assignment: %w", err)
 			}
+			created++
 		}
-		result.Created = len(due)
+		result.Created = created
 
 		if result.Created == 0 && result.Deleted == 0 && reprioritized == 0 {
 			return nil

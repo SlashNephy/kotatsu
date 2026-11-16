@@ -8,6 +8,13 @@ DELETE FROM tuners;
 INSERT INTO tuners (tuner_index, name, types, is_available, is_remote, is_fault, updated_at)
 VALUES (@tuner_index, @name, @types, @is_available, @is_remote, @is_fault, @now);
 
+-- name: DeleteTunerOccupancies :exec
+DELETE FROM tuner_occupancies;
+
+-- name: InsertTunerOccupancy :exec
+INSERT INTO tuner_occupancies (tuner_index, start_at, end_at) VALUES (@tuner_index, @start_at, @end_at)
+ON CONFLICT DO NOTHING;
+
 -- name: GetTunerServerStatus :one
 SELECT degraded_since, last_error, clock_skew_ms, checked_at, broadcast_clock_skew_ms, broadcast_clock_checked_at, server_kind, server_version FROM tuner_server_status WHERE id;
 

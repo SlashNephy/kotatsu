@@ -204,6 +204,49 @@ func TestSchedulerWritesAssignmentsBeforeStart(t *testing.T) {
 	assert.Equal(t, int64(1), f.version(t))
 }
 
+// TestSchedulerSkipsConflictsWithoutPreemption は、チューナーを奪えないチューナーサーバー (EDCB) では、競合した予約を録りに行かず、
+// 割り当てた予約だけに割り振りを書くことを確かめる (#1536、設計書 1.6)。
+func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		skipConflicts bool
+		want          map[int32]int
+	}{
+		{name: "mirakurun tries conflicts at priority 1", skipConflicts: false, want: map[int32]int{recording.Priority: 2, recording.ConflictPriority: 1}},
+		{name: "edcb does not try conflicts", skipConflicts: true, want: map[int32]int{recording.Priority: 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			scheduler := recording.NewScheduler(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), &recording.SchedulerOptions{
+				Lead: 0, Interval: 0, Debounce: 0, PollOnly: false, PollInterval: 0, SkipConflicts: tt.skipConflicts,
+			})
+			// 地上波のチューナーは 2 本なので、3 つの予約のうち 1 つが競合する。
+			ids := []uuid.UUID{f.reserve(t, 0), f.reserve(t, 1), f.reserve(t, 2)}
+			f.clock.Advance(programStart().Add(-domain.DefaultMarginSeconds * time.Second).Sub(f.clock.Now()))
+			result, err := scheduler.RunOnce(t.Context())
+			require.NoError(t, err)
+			created := 0
+			for _, n := range tt.want {
+				created += n
+			}
+			assert.Equal(t, &recording.ScheduleResult{Created: created, Deleted: 0}, result)
+			got := f.assigned(t)
+			priorities := map[int32]int{}
+			for _, reservationID := range ids {
+				if priority, ok := got[reservationID]; ok {
+					priorities[priority]++
+				}
+			}
+			assert.Equal(t, tt.want, priorities)
+		})
+	}
+}
+
 // TestSchedulerDeletesStaleAssignments は、まだ mikan が取っていない割り振りのうち、録画しなくなった予約のものを消し、
 // mikan が取った割り振りは消さないことを確かめる。
 func TestSchedulerDeletesStaleAssignments(t *testing.T) {

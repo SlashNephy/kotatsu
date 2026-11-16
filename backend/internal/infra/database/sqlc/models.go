@@ -974,6 +974,12 @@ type Tuner struct {
 	UpdatedAt   time.Time
 }
 
+type TunerOccupancy struct {
+	TunerIndex int64
+	StartAt    time.Time
+	EndAt      time.Time
+}
+
 type TunerServerStatus struct {
 	ID                      bool
 	DegradedSince           *time.Time

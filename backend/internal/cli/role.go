@@ -208,6 +208,8 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			Interval:     0,
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
+			// EDCB の TS はサービスで絞られるので、相乗りの単位はサービスになる (#1536)。
+			ShareByService: deps.Config.Tuner.Kind == config.TunerKindEDCB,
 		},
 		Follow: &reserve.FollowerOptions{
 			Debounce:      0,
@@ -222,6 +224,8 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			Debounce:     0,
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
+			// EDCB は優先度を持たず、チューナーを奪えないので、競合した予約を録りに行かない (#1536)。
+			SkipConflicts: deps.Config.Tuner.Kind == config.TunerKindEDCB,
 		},
 		Timeshift: &timeshift.SchedulerOptions{
 			Interval:     0,
@@ -348,7 +352,7 @@ func sharedEDCBServer(deps *Deps) (*edcb.TunerServer, error) {
 			return
 		}
 		deps.edcb.server = edcb.NewTunerServer(client, &edcb.TunerServerOptions{
-			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0,
+			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0, Clock: deps.Clock,
 		})
 	})
 

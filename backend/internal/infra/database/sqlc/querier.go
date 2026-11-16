@@ -199,6 +199,7 @@ type Querier interface {
 	DeleteTimeshiftChannel(ctx context.Context, serviceID int64) (int64, error)
 	DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTimeshiftPromotion(ctx context.Context, recordingID uuid.UUID) (int64, error)
+	DeleteTunerOccupancies(ctx context.Context) error
 	DeleteTuners(ctx context.Context) error
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
@@ -495,6 +496,7 @@ type Querier interface {
 	// 同じ番組を昇格している途中なら、何もしない。そのときは 0 を返す。
 	InsertTimeshiftPromotion(ctx context.Context, arg InsertTimeshiftPromotionParams) (int64, error)
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
+	InsertTunerOccupancy(ctx context.Context, arg InsertTunerOccupancyParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
 	// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
@@ -826,6 +828,8 @@ type Querier interface {
 	ListTimeshiftPromotions(ctx context.Context, serviceID int64) ([]ListTimeshiftPromotionsRow, error)
 	// ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
 	ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitlesForBroadcastLookupParams) ([]int32, error)
+	// チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536)。
+	ListTunerOccupancies(ctx context.Context) ([]TunerOccupancy, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	ListUsableTuners(ctx context.Context) ([]ListUsableTunersRow, error)
 	ListUserOIDCIdentities(ctx context.Context, userID uuid.UUID) ([]UserOidcIdentity, error)

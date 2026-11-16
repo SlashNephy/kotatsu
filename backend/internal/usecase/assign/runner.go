@@ -43,6 +43,9 @@ type RunnerOptions struct {
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
+	// ShareByService は、相乗りの単位をチャンネルでなくサービスにするかどうか。EDCB で使う (#1536)。
+	// EDCB の TS はサービスで絞られるので、同じチャンネルの別のサービスは別のチューナーになる (設計書 3.1)。
+	ShareByService bool
 }
 
 // Runner は、予約、EPG、チューナーの構成が変わるたびに、割り当てを計算し直して DB に書く (設計書 4.5)。
@@ -70,9 +73,10 @@ func NewRunner(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Lo
 	if defaults == nil {
 		defaults = FixedDefaults(domain.DefaultRecordingSettings())
 	}
-	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval}
+	o := RunnerOptions{Debounce: DefaultDebounce, Interval: DefaultInterval, PollOnly: false, PollInterval: notify.DefaultPollInterval, ShareByService: false}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
+		o.ShareByService = opts.ShareByService
 		if opts.Debounce > 0 {
 			o.Debounce = opts.Debounce
 		}
@@ -266,6 +270,10 @@ func (r *Runner) inputs(
 		}
 		settings = settings.Resolve(overrides)
 
+		var service int64
+		if r.opts.ShareByService {
+			service = row.ServiceID
+		}
 		recording := row.PlannedStartAt != nil && !row.PlannedStartAt.After(now) &&
 			row.AssignedTuner != nil && row.AssignmentState != domain.AssignmentStateConflict
 		tuner := 0
@@ -276,6 +284,7 @@ func (r *Runner) inputs(
 			ID:          row.ID,
 			ChannelType: row.ChannelType,
 			Channel:     row.Channel,
+			Service:     service,
 			StartAt:     row.StartAt.UTC(),
 			EndAt:       row.EndAt.UTC(),
 			StartMargin: time.Duration(settings.StartMarginSeconds) * time.Second,
@@ -289,14 +298,23 @@ func (r *Runner) inputs(
 	return reservations, nil
 }
 
+// usableTuners は、割り当てに使えるチューナーと、Kotatsu の外の予約がそれぞれをふさぐ時間帯を返す (#1536)。
 func usableTuners(ctx context.Context, q *sqlc.Queries) ([]*Tuner, error) {
 	rows, err := q.ListUsableTuners(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tuners: %w", err)
 	}
+	occupancies, err := q.ListTunerOccupancies(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tuner occupancies: %w", err)
+	}
+	blocks := map[int64][]Block{}
+	for _, o := range occupancies {
+		blocks[o.TunerIndex] = append(blocks[o.TunerIndex], Block{Start: o.StartAt.UTC(), End: o.EndAt.UTC()})
+	}
 	tuners := make([]*Tuner, 0, len(rows))
 	for _, row := range rows {
-		tuners = append(tuners, &Tuner{Index: int(row.TunerIndex), Types: row.Types})
+		tuners = append(tuners, &Tuner{Index: int(row.TunerIndex), Types: row.Types, Blocks: append([]Block{}, blocks[row.TunerIndex]...)})
 	}
 
 	return tuners, nil
