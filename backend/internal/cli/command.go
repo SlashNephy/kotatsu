@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"uuid"
 
@@ -404,7 +405,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Roles:          roleNames(targets),
 			LookupEnv:      opts.LookupEnv,
 			Logs:           opts.Logs,
-			edcb:           new(sharedEDCB),
+			edcb:           &sharedEDCB{once: sync.Once{}, server: nil, err: nil, stopped: ctx.Done()},
 		}
 		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
 		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。
@@ -678,7 +679,10 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return nil
 	})
 
-	return eg.Wait()
+	err = eg.Wait()
+	waitEDCBStreams(ctx, logger, deps)
+
+	return err
 }
 
 // registeredRoles は、インスタンスの登録簿に載せるロールの名前を返す。

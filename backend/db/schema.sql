@@ -1913,16 +1913,28 @@ CREATE TABLE job_progress (
   updated_at timestamptz NOT NULL
 );
 
--- EDCB の NetworkTV の ID の持ち主 (#1533、設計書 3.1)。ID は EpgTimerSrv 全体で 1 つの名前空間で、持ち主の概念がないので、
--- 設定した範囲 (tuner.edcb.network_tv_id_start と _count) から、Kotatsu の中で配る。持ち主は、開いたインスタンス (instances.id)。
+-- EDCB の NetworkTV の ID (#1533、設計書 3.1)。ID は EpgTimerSrv 全体で 1 つの名前空間で、持ち主の概念がないので、
+-- 設定した範囲 (tuner.edcb.network_tv_id_start と _count) から、Kotatsu の中で配る。
+-- 1 つの ID を、2 つまでのインスタンスが持ち (edcb_network_tv_holders)、同じ TS を受け取る (#1850)。最後の持ち主が去ったら閉じる。
 -- 持ち主が止まって閉じられなかった ID は、neko が NWTV_ID_CLOSE を送ってから消す。
 CREATE TABLE edcb_network_tvs (
   id integer PRIMARY KEY CHECK (id > 0),
-  instance_id uuid NOT NULL,
-  -- 開いたサービス。ログと調べ物のためだけに持つ。
+  -- 開いたサービス。同じサービスを開くインスタンスが、この ID に加わるのに使う。
   network_id integer NOT NULL,
   service_id integer NOT NULL,
-  acquired_at timestamptz NOT NULL
+  acquired_at timestamptz NOT NULL,
+  -- 最後の持ち主が外れた時刻。止まるインスタンスは、ほかのインスタンスが加われるよう、閉じずに外れる。持ち主が加われば NULL に戻す。
+  released_at timestamptz,
+  -- 閉じ始めた時刻。閉じ始めた ID には加わらない。閉じ終えたら行を消す。
+  closing_at timestamptz
+);
+
+-- EDCB の NetworkTV の ID の持ち主 (#1850)。持ち主は、ID を開いて TS を受け取っているインスタンス (instances.id)。
+CREATE TABLE edcb_network_tv_holders (
+  network_tv_id integer NOT NULL REFERENCES edcb_network_tvs (id) ON DELETE CASCADE,
+  instance_id uuid NOT NULL,
+  acquired_at timestamptz NOT NULL,
+  PRIMARY KEY (network_tv_id, instance_id)
 );
 
 -- TMDb の作品の検索の結果 (#1651、設計書 3.9)。番組名から読んだ作品名ごとに持ち、同じ作品名で問い合わせ直さない。
