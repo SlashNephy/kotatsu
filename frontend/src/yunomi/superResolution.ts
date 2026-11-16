@@ -53,6 +53,61 @@ export function useSuperResolution(): [boolean, (enabled: boolean) => void] {
   ];
 }
 
+// superResolutionStrengths は、選べる鮮鋭化の強さ。1 が最も弱く、4 が最も強い。
+// RTX Video Super Resolution の品質の段と同じく、映像と画面に合わせて選べるようにする。
+export const superResolutionStrengths = [1, 2, 3, 4] as const;
+export type SuperResolutionStrength = (typeof superResolutionStrengths)[number];
+
+// defaultSuperResolutionStrength は、既定の強さ。FSR の例と同じ鮮鋭化 (0.2 段弱める) にする。
+export const defaultSuperResolutionStrength: SuperResolutionStrength = 3;
+
+// sharpnessStops は、強さごとの、RCAS の鮮鋭化を弱める段数。0 が最も強く、1 段ごとに半分になる。
+// 1 は 1/4、2 は 1/2、3 は FSR の例と同じ 0.2 段、4 は弱めない。
+export const sharpnessStops: Record<SuperResolutionStrength, number> = { 1: 2, 2: 1, 3: 0.2, 4: 0 };
+
+// strengthKey は、鮮鋭化の強さを覚えるキー。画面と映像の見え方は端末によるので、ほかの端末とは同期しない。
+const strengthKey = 'kotatsu.player.superResolutionStrength';
+
+// loadSuperResolutionStrength は、鮮鋭化の強さを読む。覚えていないか、知らない値か、読めなければ既定の強さを返す。
+export function loadSuperResolutionStrength(
+  storage: Pick<Storage, 'getItem'> | null,
+): SuperResolutionStrength {
+  try {
+    const stored = Number(storage?.getItem(strengthKey));
+
+    return (
+      superResolutionStrengths.find((strength) => strength === stored) ??
+      defaultSuperResolutionStrength
+    );
+  } catch {
+    return defaultSuperResolutionStrength;
+  }
+}
+
+function getStrengthSnapshot(): SuperResolutionStrength {
+  return loadSuperResolutionStrength(browserStorage());
+}
+
+// useSuperResolutionStrength は、鮮鋭化の強さと、それを変える関数を返す。ほかのタブで変えても追う。
+export function useSuperResolutionStrength(): [
+  SuperResolutionStrength,
+  (strength: SuperResolutionStrength) => void,
+] {
+  const strength = useSyncExternalStore(subscribe, getStrengthSnapshot);
+
+  return [
+    strength,
+    (next) => {
+      try {
+        browserStorage()?.setItem(strengthKey, String(next));
+      } catch {
+        // 書けなければ、次に開いたときは既定に戻るだけ。
+      }
+      window.dispatchEvent(new Event(changeEvent));
+    },
+  ];
+}
+
 // Size は、画素の幅と高さ。
 export type Size = { width: number; height: number };
 
@@ -108,13 +163,16 @@ export type YadifUpscaler = PictureScaler & {
 // createYadifUpscaler は、yadif に渡す拡大を作る。拡大の処理は、yadif が最初に描かせるときに、そのコンテキストで作る。
 // 作れないか、途中で失敗したら、onUnavailable を呼び、以後は拡大しない (yadif はコマをそのまま描く)。
 // yadif の描画の中で投げると、yadif のループが止まるので、ここで受け止める。
-// zoom は、切り抜きの拡大率を、大きさを決めるたびに読む。create は、テストで拡大の処理を差し替える口。
+// zoom は、切り抜きの拡大率を、大きさを決めるたびに読む。strength は、鮮鋭化の強さを、描くたびに読む。
+// create は、テストで拡大の処理を差し替える口。
 export function createYadifUpscaler({
   zoom = () => ({ x: 1, y: 1 }),
+  strength = () => defaultSuperResolutionStrength,
   onUnavailable,
   create = createUpscaler,
 }: {
   zoom?: () => { x: number; y: number };
+  strength?: () => SuperResolutionStrength;
   onUnavailable?: (error: unknown) => void;
   create?: (gl: WebGL2RenderingContext) => Upscaler;
 } = {}): YadifUpscaler {
@@ -168,7 +226,15 @@ export function createYadifUpscaler({
           upscaler = create(gl);
           context = gl;
         }
-        upscaler.draw(texture, flipped, width, height, outputWidth, outputHeight);
+        upscaler.draw(
+          texture,
+          flipped,
+          width,
+          height,
+          outputWidth,
+          outputHeight,
+          sharpnessStops[strength()],
+        );
         output = { width: outputWidth, height: outputHeight };
 
         return true;

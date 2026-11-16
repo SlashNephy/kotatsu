@@ -25,7 +25,12 @@ import { advanceBeforeHandover } from './handoverAdvance';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
-import { createYadifUpscaler, useSuperResolution, type YadifUpscaler } from './superResolution';
+import {
+  createYadifUpscaler,
+  useSuperResolution,
+  useSuperResolutionStrength,
+  type YadifUpscaler,
+} from './superResolution';
 import classes from './TsPlayer.module.css';
 import { createYadifInterpolation, type YadifInterpolation } from './yadifInterpolation';
 
@@ -289,6 +294,10 @@ export function TsPlayer({
   const superResolution = settings?.superResolution ?? savedSuperResolution;
   const superResolutionRef = useRef(superResolution);
   superResolutionRef.current = superResolution;
+  // superResolutionStrength は、拡大した後の鮮鋭化の強さ。描くたびに読むので、ref で渡す。
+  const [superResolutionStrength] = useSuperResolutionStrength();
+  const superResolutionStrengthRef = useRef(superResolutionStrength);
+  superResolutionStrengthRef.current = superResolutionStrength;
   // zoom は、切り抜き (#496) の拡大率。拡大する大きさを決めるたびに読むので、ref で渡す。
   const zoomRef = useRef(scales(crop));
   zoomRef.current = scales(crop);
@@ -368,6 +377,7 @@ export function TsPlayer({
       }),
       upscaler: createYadifUpscaler({
         zoom: () => zoomRef.current,
+        strength: () => superResolutionStrengthRef.current,
         onUnavailable: (error) => {
           console.warn('upscaling is unavailable; showing the pictures as they are', error);
         },
@@ -559,7 +569,8 @@ export function TsPlayer({
   }, [interpolate]);
 
   // 拡大の設定も、読み直さずに切り替える (#1654)。切り抜きを変えたときは、映る大きさが変わるので、大きさを決め直させる。
-  // yadif は、同じものを渡し直すと、大きさを決め直す。
+  // yadif は、同じものを渡し直すと、大きさを決め直し、拡大していれば最後のコマを描き直す。
+  // 鮮鋭化の強さを変えたときも渡し直し、止めている間でも、今のコマを新しい強さで描き直させる。
   const { scale: cropScale, stretchX: cropStretchX } = crop;
   useEffect(() => {
     for (const slot of [activeRef.current, pendingRef.current]) {
@@ -567,7 +578,7 @@ export function TsPlayer({
         slot.yadif.scaler = superResolution ? slot.upscaler : null;
       }
     }
-  }, [superResolution, cropScale, cropStretchX]);
+  }, [superResolution, superResolutionStrength, cropScale, cropStretchX]);
 
   // destroySlot は、組を捨てる。yadif が包んだ要素ごと取り除く。
   const destroySlot = (slot: Slot) => {

@@ -1,6 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
 
-import { createYadifUpscaler, loadSuperResolution, upscaleSize } from './superResolution';
+import {
+  createYadifUpscaler,
+  loadSuperResolution,
+  loadSuperResolutionStrength,
+  upscaleSize,
+  type SuperResolutionStrength,
+} from './superResolution';
 import type { Upscaler } from './upscaler';
 
 describe('loadSuperResolution', () => {
@@ -20,6 +26,27 @@ describe('loadSuperResolution', () => {
         },
       }),
     ).toBe(false);
+  });
+});
+
+describe('loadSuperResolutionStrength', () => {
+  test.each([
+    { name: '覚えていなければ標準の 3', stored: null, want: 3 },
+    { name: '選んだ強さを覚えていればその強さ', stored: '1', want: 1 },
+    { name: '知らない値なら標準の 3', stored: '9', want: 3 },
+    { name: '数でなければ標準の 3', stored: 'strong', want: 3 },
+  ])('$name', ({ stored, want }) => {
+    expect(loadSuperResolutionStrength({ getItem: () => stored })).toBe(want);
+  });
+
+  test('読めなければ標準の 3', () => {
+    expect(
+      loadSuperResolutionStrength({
+        getItem: () => {
+          throw new Error('denied');
+        },
+      }),
+    ).toBe(3);
   });
 });
 
@@ -144,8 +171,21 @@ describe('createYadifUpscaler', () => {
     expect(upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160)).toBe(true);
     expect(upscaler.draw(gl, texture, true, 1440, 1080, 3840, 2160)).toBe(true);
     expect(create).toHaveBeenCalledTimes(1);
-    expect(made.draw).toHaveBeenLastCalledWith(texture, true, 1440, 1080, 3840, 2160);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, true, 1440, 1080, 3840, 2160, 0.2);
     expect(upscaler.output()).toEqual({ width: 3840, height: 2160 });
+  });
+
+  test('鮮鋭化は、描くたびに読んだ強さの段数で弱める', () => {
+    const made = fakeUpscaler();
+    let strength: SuperResolutionStrength = 1;
+    const upscaler = createYadifUpscaler({ create: () => made, strength: () => strength });
+    const gl = fakeContext();
+
+    upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 2);
+    strength = 4;
+    upscaler.draw(gl, texture, false, 1440, 1080, 3840, 2160);
+    expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0);
   });
 
   test('コンテキストを失っていれば (上限が読めなければ)、拡大しない', () => {

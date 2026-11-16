@@ -25,9 +25,6 @@
 
 import { compileProgram, restoreState, saveState } from './glPass';
 
-// sharpnessStops は、RCAS の鮮鋭化を弱める段数。0 が最も強く、1 段ごとに半分になる。FSR の例と同じ 0.2 にする。
-export const sharpnessStops = 0.2;
-
 // EASU。出力の画素の中心を元の画素の座標に写し、周りの 12 画素から縁の向きと強さを推し量り、
 // 縁に沿って伸ばした窓の Lanczos に近い重みで混ぜる。近い 4 画素の最小と最大に収め、縁の周りの輪を出さない。
 // 座標は、行を下から数える (framebuffer と同じ向き)。uFlip のテクスチャは行を上から持つので、読むときに返す。
@@ -216,6 +213,7 @@ void main() {
 export type Upscaler = {
   // draw は、width × height の texture を、canvas (既定の framebuffer) の outputWidth × outputHeight へ拡大して描く。
   // texture は行を下から持つ。flipped なら行を上から持つ (video を写したテクスチャ)。
+  // sharpnessStops は、RCAS の鮮鋭化を弱める段数。0 が最も強く、1 段ごとに半分になる。
   draw(
     texture: WebGLTexture,
     flipped: boolean,
@@ -223,6 +221,7 @@ export type Upscaler = {
     height: number,
     outputWidth: number,
     outputHeight: number,
+    sharpnessStops: number,
   ): void;
   destroy(): void;
 };
@@ -283,7 +282,7 @@ export function createUpscaler(gl: WebGL2RenderingContext): Upscaler {
   };
 
   return {
-    draw(texture, flipped, width, height, outputWidth, outputHeight) {
+    draw(texture, flipped, width, height, outputWidth, outputHeight, sharpnessStops) {
       const state = saveState(gl, 1);
       try {
         gl.disable(gl.BLEND);
