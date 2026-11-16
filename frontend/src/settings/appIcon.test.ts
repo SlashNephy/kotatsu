@@ -5,10 +5,10 @@ import { applyFavicon, loadAppIcon, saveAppIcon } from './appIcon';
 describe('loadAppIcon', () => {
   test.each([
     { name: '覚えていなければ既定の組', stored: null, want: 'default' },
-    { name: '選んだ組を覚えていればその組', stored: 'chatora-night', want: 'chatora-night' },
+    { name: '選んだ組を覚えていればその組', stored: 'chatora', want: 'chatora' },
     { name: '既定の組を覚えていれば既定の組', stored: 'default', want: 'default' },
     { name: '知らない組なら既定の組', stored: 'p9-unknown', want: 'default' },
-    { name: 'ファイル名を覚えていても既定の組', stored: 'p1-mike-night-app.svg', want: 'default' },
+    { name: 'ファイル名を覚えていても既定の組', stored: 'coat-kuro.svg', want: 'default' },
     { name: '空なら既定の組', stored: '', want: 'default' },
   ])('$name', ({ stored, want }) => {
     expect(loadAppIcon({ getItem: () => stored })).toBe(want);
@@ -36,8 +36,8 @@ describe('saveAppIcon', () => {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => void values.set(key, value),
     };
-    saveAppIcon(storage, 'mike-sunset');
-    expect(loadAppIcon(storage)).toBe('mike-sunset');
+    saveAppIcon(storage, 'kijitora');
+    expect(loadAppIcon(storage)).toBe('kijitora');
   });
 
   test('書けなくても、同じタブの画面には知らせる', () => {
@@ -54,7 +54,7 @@ describe('saveAppIcon', () => {
               throw new Error('quota');
             },
           },
-          'mike-night',
+          'kuro',
         ),
       ).not.toThrow();
     } finally {
@@ -71,10 +71,10 @@ describe('applyFavicon', () => {
 
   test('今の favicon の向き先を替える', () => {
     document.head.innerHTML = '<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />';
-    applyFavicon('/icons/p3-chatora-night-favicon.svg');
+    applyFavicon('/icons/coat-chatora.svg');
     const links = document.head.querySelectorAll('link[rel~="icon"]');
     expect(links).toHaveLength(1);
-    expect(links[0]?.getAttribute('href')).toBe('/icons/p3-chatora-night-favicon.svg');
+    expect(links[0]?.getAttribute('href')).toBe('/icons/coat-chatora.svg');
   });
 
   test('favicon がなければ足す', () => {
@@ -87,7 +87,7 @@ describe('applyFavicon', () => {
   test('apple-touch-icon は替えない', () => {
     document.head.innerHTML =
       '<link rel="apple-touch-icon" href="data:image/png;base64,AA==" /><link rel="icon" href="/icons/favicon.svg" />';
-    applyFavicon('/icons/p2-mike-sunset-favicon.svg');
+    applyFavicon('/icons/coat-kijitora.svg');
     expect(document.head.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href')).toBe(
       'data:image/png;base64,AA==',
     );

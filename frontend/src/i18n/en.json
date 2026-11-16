@@ -337,10 +337,12 @@
       "installedNote": "The icon of the app added to the home screen or app list (installed) does not change.",
       "choices": {
         "default": "Calico and mandarin (default)",
-        "mike-night": "Calico in a night room",
-        "mike-sunset": "Calico at sunset",
-        "chatora-night": "Ginger tabby in a night room",
-        "chatora-sunset": "Ginger tabby at sunset"
+        "chatora": "Ginger tabby",
+        "kijitora": "Brown tabby",
+        "sabatora": "Silver tabby",
+        "kuro": "Black cat",
+        "shiro": "White cat",
+        "hachiware": "Tuxedo"
       }
     },
     "pages": {

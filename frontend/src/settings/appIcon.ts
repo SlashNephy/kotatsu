@@ -6,13 +6,16 @@ import { browserStorage } from '../yunomi/volume';
 // インストールしたアイコン (マニフェストの icons と apple-touch-icon) は変えない。
 // 絵は docs/icons の原本を frontend/public/icons に写したもので、同じオリジンの SVG として読む (CSP の img-src 'self')。
 
-// appIconIds は、選べるアイコンの組。default は採用版 (main-v6.svg と favicon-mikan.svg)。
+// appIconIds は、選べるアイコンの組。default は採用版 (main-v6.svg と favicon-mikan.svg) の三毛猫。
+// ほかの組は、採用版の構図のまま、猫の柄だけを変えたもの (docs/icons の coat-*.svg)。
 export const appIconIds = [
   'default',
-  'mike-night',
-  'mike-sunset',
-  'chatora-night',
-  'chatora-sunset',
+  'chatora',
+  'kijitora',
+  'sabatora',
+  'kuro',
+  'shiro',
+  'hachiware',
 ] as const;
 
 export type AppIconId = (typeof appIconIds)[number];
@@ -20,15 +23,20 @@ export type AppIconId = (typeof appIconIds)[number];
 export const defaultAppIcon: AppIconId = 'default';
 
 // appIconFiles は、組ごとの、ヘッダーのロゴ (app) と favicon の、public/icons の中のファイル名。
+// 採用版の favicon は、16px でも見分けられるようみかんだけを描く (#759)。柄の組は、柄の違いが見えるよう、
+// favicon にも猫の顔の絵を使う。
+function coat(id: Exclude<AppIconId, 'default'>): { app: string; favicon: string } {
+  return { app: `coat-${id}.svg`, favicon: `coat-${id}.svg` };
+}
+
 const appIconFiles: Record<AppIconId, { app: string; favicon: string }> = {
   default: { app: 'icon.svg', favicon: 'favicon.svg' },
-  'mike-night': { app: 'p1-mike-night-app.svg', favicon: 'p1-mike-night-favicon.svg' },
-  'mike-sunset': { app: 'p2-mike-sunset-app.svg', favicon: 'p2-mike-sunset-favicon.svg' },
-  'chatora-night': { app: 'p3-chatora-night-app.svg', favicon: 'p3-chatora-night-favicon.svg' },
-  'chatora-sunset': {
-    app: 'p4-chatora-sunset-app.svg',
-    favicon: 'p4-chatora-sunset-favicon.svg',
-  },
+  chatora: coat('chatora'),
+  kijitora: coat('kijitora'),
+  sabatora: coat('sabatora'),
+  kuro: coat('kuro'),
+  shiro: coat('shiro'),
+  hachiware: coat('hachiware'),
 };
 
 // appIconUrls は、組 id の、ヘッダーのロゴと favicon の URL を返す。

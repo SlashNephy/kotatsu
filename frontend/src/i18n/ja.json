@@ -335,10 +335,12 @@
       "installedNote": "ホーム画面やアプリの一覧に入れた (インストールした) アプリのアイコンは替わりません。",
       "choices": {
         "default": "三毛猫とみかん (既定)",
-        "mike-night": "三毛猫と夜の部屋",
-        "mike-sunset": "三毛猫と夕焼け",
-        "chatora-night": "茶トラと夜の部屋",
-        "chatora-sunset": "茶トラと夕焼け"
+        "chatora": "茶トラ",
+        "kijitora": "キジトラ",
+        "sabatora": "サバトラ",
+        "kuro": "黒猫",
+        "shiro": "白猫",
+        "hachiware": "ハチワレ"
       }
     },
     "pages": {

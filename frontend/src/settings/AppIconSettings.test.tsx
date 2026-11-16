@@ -52,22 +52,22 @@ describe('AppIconSettings', () => {
   test('選ぶと、すぐ favicon とロゴを替え、端末に覚える', () => {
     renderSettings();
 
-    fireEvent.click(screen.getByRole('radio', { name: '茶トラと夕焼け' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'サバトラ' }));
 
-    expect(checked('茶トラと夕焼け')).toBe(true);
+    expect(checked('サバトラ')).toBe(true);
     expect(checked('三毛猫とみかん (既定)')).toBe(false);
-    expect(favicon()).toBe('/icons/p4-chatora-sunset-favicon.svg');
-    expect(logo()).toBe('/icons/p4-chatora-sunset-app.svg');
-    expect(localStorage.getItem('kotatsu.appIcon')).toBe('chatora-sunset');
+    expect(favicon()).toBe('/icons/coat-sabatora.svg');
+    expect(logo()).toBe('/icons/coat-sabatora.svg');
+    expect(localStorage.getItem('kotatsu.appIcon')).toBe('sabatora');
   });
 
   test('開き直すと、覚えた組を出す', () => {
-    localStorage.setItem('kotatsu.appIcon', 'mike-night');
+    localStorage.setItem('kotatsu.appIcon', 'kuro');
     renderSettings();
 
-    expect(checked('三毛猫と夜の部屋')).toBe(true);
-    expect(favicon()).toBe('/icons/p1-mike-night-favicon.svg');
-    expect(logo()).toBe('/icons/p1-mike-night-app.svg');
+    expect(checked('黒猫')).toBe(true);
+    expect(favicon()).toBe('/icons/coat-kuro.svg');
+    expect(logo()).toBe('/icons/coat-kuro.svg');
   });
 
   test('知らない組を覚えていれば、既定の組を出す', () => {
@@ -85,11 +85,11 @@ describe('AppIconSettings', () => {
     try {
       renderSettings();
 
-      fireEvent.click(screen.getByRole('radio', { name: '茶トラと夜の部屋' }));
+      fireEvent.click(screen.getByRole('radio', { name: '茶トラ' }));
 
-      expect(checked('茶トラと夜の部屋')).toBe(true);
-      expect(favicon()).toBe('/icons/p3-chatora-night-favicon.svg');
-      expect(logo()).toBe('/icons/p3-chatora-night-app.svg');
+      expect(checked('茶トラ')).toBe(true);
+      expect(favicon()).toBe('/icons/coat-chatora.svg');
+      expect(logo()).toBe('/icons/coat-chatora.svg');
       expect(localStorage.getItem('kotatsu.appIcon')).toBeNull();
     } finally {
       setItem.mockRestore();
@@ -101,10 +101,10 @@ describe('AppIconSettings', () => {
   test('ほかのタブで選んだ組にも追う', () => {
     renderSettings();
 
-    localStorage.setItem('kotatsu.appIcon', 'mike-sunset');
+    localStorage.setItem('kotatsu.appIcon', 'kijitora');
     fireEvent(window, new StorageEvent('storage', { key: 'kotatsu.appIcon' }));
 
-    expect(checked('三毛猫と夕焼け')).toBe(true);
-    expect(favicon()).toBe('/icons/p2-mike-sunset-favicon.svg');
+    expect(checked('キジトラ')).toBe(true);
+    expect(favicon()).toBe('/icons/coat-kijitora.svg');
   });
 });
