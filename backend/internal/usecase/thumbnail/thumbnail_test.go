@@ -90,7 +90,7 @@ func segmentAt(t *testing.T, path string, start time.Duration, n int, step time.
 	}
 	require.NoError(t, os.WriteFile(path, data, 0o600))
 
-	return thumbnail.Segment{Path: path, Start: start, Index: index}
+	return thumbnail.Segment{Path: path, Start: start, Index: index, Open: nil}
 }
 
 func decode(t *testing.T, data []byte) image.Image {

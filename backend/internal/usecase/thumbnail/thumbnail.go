@@ -82,6 +82,9 @@ type Segment struct {
 	// Start は、録画の始まりから、このセグメントの始まりまでの時間。
 	Start time.Duration
 	Index []ts.IndexEntry
+	// Open は、Path の代わりにファイルを開く。ライブラリのファイル (#1734) のように、ライブラリの口 (medialib) で読むのに使う。
+	// nil なら Path を開く。
+	Open func() (io.ReadSeekCloser, error)
 }
 
 // Manifest は、プレビュー画像のコマの並びの説明。画面は、これを見て、シークバーの位置に合うコマを切り出す。
@@ -306,7 +309,13 @@ func (g *Generator) preview(ctx context.Context, segments []Segment, keyframes [
 
 // extract は、I フレームから始まる TS の一部を、Extractor に渡して 1 枚にする。
 func (g *Generator) extract(ctx context.Context, segments []Segment, k keyframe, size Size) ([]byte, error) {
-	file, err := sharedfile.Open(segments[k.segment].Path)
+	var file io.ReadSeekCloser
+	var err error
+	if open := segments[k.segment].Open; open != nil {
+		file, err = open()
+	} else {
+		file, err = sharedfile.Open(segments[k.segment].Path)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the segment: %w", err)
 	}

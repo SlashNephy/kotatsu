@@ -1117,6 +1117,10 @@ type LibraryFile struct {
 	// ファイルの時間帯の実況の過去ログの URL のパス (設計書 7.4)。局と時間帯は broadcast のものを使う。
 	// コメントの時刻は、broadcast.recordedFrom からの秒。ログイン中のセッションで使う。
 	JikkyoCommentsURL string `json:"jikkyoCommentsUrl"`
+	// 代表画像の URL のパス。索引を作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
+	ThumbnailURL *string `json:"thumbnailUrl,omitempty"`
+	// シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。
+	PreviewURL *string `json:"previewUrl,omitempty"`
 	// ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
 	// 後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
 	HlsURL string `json:"hlsUrl"`

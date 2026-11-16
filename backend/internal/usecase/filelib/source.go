@@ -25,6 +25,11 @@ func NewSource(libraries *medialib.Set, indexer *Indexer) *Source {
 	return &Source{libraries: libraries, indexer: indexer}
 }
 
+// Indexer は、索引と画像を読み書きする Indexer を返す。
+func (s *Source) Indexer() *Indexer {
+	return s.indexer
+}
+
 // File は、開いたライブラリのファイル。
 type File struct {
 	Ref   Ref

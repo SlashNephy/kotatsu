@@ -16,6 +16,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 )
 
+// internalLibrary と internalShowTS は、テストのライブラリの名前と、その中のファイルの名前。
+const (
+	internalLibrary = "lib"
+	internalShowTS  = "show.ts"
+)
+
 // indexFixture は、testdata/ts/test.ts を show.ts として置いたライブラリと、その索引の置き場を持つ。
 type indexFixture struct {
 	indexer *Indexer
@@ -41,13 +47,13 @@ func newIndexFixture(t *testing.T) *indexFixture {
 
 	libraryDir, dataDir := t.TempDir(), t.TempDir()
 	data := readTestTS(t)
-	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), data, 0o600))
-	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{"lib": libraryDir})
+	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, internalShowTS), data, 0o600))
+	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{internalLibrary: libraryDir})
 	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
 	clk := clocktest.NewFake(time.Now().Add(time.Hour))
 	indexer := NewIndexer(dataDir, libraries, clk, slog.New(slog.DiscardHandler), true)
-	library, _ := libraries.Get("lib")
-	ref := Ref{Library: "lib", Path: "show.ts"}
+	library, _ := libraries.Get(internalLibrary)
+	ref := Ref{Library: internalLibrary, Path: internalShowTS}
 	entry, err := library.Stat(t.Context(), ref.Path)
 	require.NoError(t, err)
 	var index bytes.Buffer

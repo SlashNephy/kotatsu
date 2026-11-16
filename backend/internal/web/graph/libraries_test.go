@@ -5,9 +5,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +24,7 @@ import (
 const (
 	librariesQuery         = `{ libraries { name kind } }`
 	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
-	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
+	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl thumbnailUrl previewUrl broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
 	libraryTestFileContent = "../../../testdata/ts/test.ts"
 	// animeLibrary は、テストのフォルダのライブラリの名前。discM2TS と episodePath は、その中のファイルのパス。
@@ -36,14 +39,16 @@ const (
 
 type libraryFileResult struct {
 	LibraryFile struct {
-		ID                string `json:"id"`
-		Name              string `json:"name"`
-		Size              int64  `json:"size"`
-		VideoFormat       string `json:"videoFormat"`
-		WatchPositionMs   *int64 `json:"watchPositionMs"`
-		StreamURL         string `json:"streamUrl"`
-		HlsURL            string `json:"hlsUrl"`
-		JikkyoCommentsURL string `json:"jikkyoCommentsUrl"`
+		ID                string  `json:"id"`
+		Name              string  `json:"name"`
+		Size              int64   `json:"size"`
+		VideoFormat       string  `json:"videoFormat"`
+		WatchPositionMs   *int64  `json:"watchPositionMs"`
+		StreamURL         string  `json:"streamUrl"`
+		HlsURL            string  `json:"hlsUrl"`
+		JikkyoCommentsURL string  `json:"jikkyoCommentsUrl"`
+		ThumbnailURL      *string `json:"thumbnailUrl"`
+		PreviewURL        *string `json:"previewUrl"`
 		Broadcast         *struct {
 			NetworkID   *int                   `json:"networkId"`
 			ServiceID   int                    `json:"serviceId"`
@@ -78,7 +83,7 @@ func loadLibraryTS(t *testing.T) []byte {
 
 // newLibraryFixture は、保存先プール main と、フォルダのライブラリ anime を持つ GraphQL のサーバーを立てる。
 // anime には、番組の TS (show/ep1.ts)、再生できないファイル、隠しファイル、Blu-ray の .m2ts (disc.m2ts) を置く。
-func newLibraryFixture(t *testing.T) (*fixture, string) {
+func newLibraryFixture(t *testing.T) (*fixture, string, *fakeImages) {
 	t.Helper()
 
 	poolDir, libraryDir, dataDir := t.TempDir(), t.TempDir(), t.TempDir()
@@ -107,14 +112,16 @@ func newLibraryFixture(t *testing.T) (*fixture, string) {
 		<-done
 	})
 
-	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer)}), libraryDir
+	images := new(fakeImages)
+
+	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryImages: images}), libraryDir, images
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
 func TestLibraries(t *testing.T) {
 	t.Parallel()
 
-	f, _ := newLibraryFixture(t)
+	f, _, _ := newLibraryFixture(t)
 	viewer := f.as(t, "viewer", domain.RoleViewer)
 	var libraries struct {
 		Libraries []struct {
@@ -185,7 +192,7 @@ func nonNil(codes []string) []string {
 func TestLibraryFile(t *testing.T) {
 	t.Parallel()
 
-	f, libraryDir := newLibraryFixture(t)
+	f, libraryDir, images := newLibraryFixture(t)
 	variables := map[string]any{varLibrary: animeLibrary, varPath: episodePath}
 	var file libraryFileResult
 	require.Eventually(t, func() bool {
@@ -207,6 +214,10 @@ func TestLibraryFile(t *testing.T) {
 	assert.Nil(t, file.LibraryFile.WatchPositionMs)
 	// 放送の情報と実況の過去ログの URL (#1734 の 2 段目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
 	assert.Equal(t, "/internal/media/library/"+encoded+"/jikkyo.json", file.LibraryFile.JikkyoCommentsURL)
+	// 画像はまだないので null で、索引を作り終えたファイルを引くと、作るジョブを入れる。
+	assert.Nil(t, file.LibraryFile.ThumbnailURL)
+	assert.Nil(t, file.LibraryFile.PreviewURL)
+	assert.Contains(t, images.kinds(), "library_images_generate")
 	require.NotNil(t, file.LibraryFile.Broadcast)
 	assert.Equal(t, new(0x7FE0), file.LibraryFile.Broadcast.NetworkID)
 	assert.Equal(t, 0x0400, file.LibraryFile.Broadcast.ServiceID)
@@ -262,4 +273,29 @@ func TestLibraryFile(t *testing.T) {
 			assert.Equal(t, tt.wantCodes, f.query(t, tt.query, tt.variables, nil))
 		})
 	}
+}
+
+// fakeImages は、ライブラリのファイルの画像を作るジョブを入れる代わりに、入れたジョブの種類を覚える。
+type fakeImages struct {
+	mu   sync.Mutex
+	args []river.JobArgs
+}
+
+func (f *fakeImages) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.args = append(f.args, args)
+
+	return &rivertype.JobInsertResult{Job: nil, UniqueSkippedAsDuplicate: false}, nil
+}
+
+func (f *fakeImages) kinds() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	kinds := make([]string, 0, len(f.args))
+	for _, args := range f.args {
+		kinds = append(kinds, args.Kind())
+	}
+
+	return kinds
 }

@@ -678,9 +678,11 @@ type ComplexityRoot struct {
 		ModifiedAt        func(childComplexity int) int
 		Name              func(childComplexity int) int
 		Path              func(childComplexity int) int
+		PreviewURL        func(childComplexity int) int
 		Quality           func(childComplexity int) int
 		Size              func(childComplexity int) int
 		StreamURL         func(childComplexity int) int
+		ThumbnailURL      func(childComplexity int) int
 		VideoFormat       func(childComplexity int) int
 		WatchPositionMs   func(childComplexity int) int
 	}
@@ -4334,6 +4336,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryFile.Path(childComplexity), true
+	case "LibraryFile.previewUrl":
+		if e.ComplexityRoot.LibraryFile.PreviewURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.PreviewURL(childComplexity), true
 	case "LibraryFile.quality":
 		if e.ComplexityRoot.LibraryFile.Quality == nil {
 			break
@@ -4352,6 +4360,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryFile.StreamURL(childComplexity), true
+	case "LibraryFile.thumbnailUrl":
+		if e.ComplexityRoot.LibraryFile.ThumbnailURL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFile.ThumbnailURL(childComplexity), true
 	case "LibraryFile.videoFormat":
 		if e.ComplexityRoot.LibraryFile.VideoFormat == nil {
 			break
@@ -11666,6 +11680,12 @@ type LibraryFile {
   """
   jikkyoCommentsUrl: String!
   """
+  代表画像の URL のパス。索引を作り終えた後に、nekonote のジョブで作る (設計書 5.8)。まだなければ null で、開くとジョブを入れる。
+  """
+  thumbnailUrl: String
+  "シークバー用のプレビュー画像の URL のパス。代表画像と一緒に作る。まだないか、作らない設定なら null。"
+  previewUrl: String
+  """
   ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
   後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
   """
@@ -15844,6 +15864,10 @@ func (ec *executionContext) childFields_LibraryFile(ctx context.Context, field g
 		return ec.fieldContext_LibraryFile_quality(ctx, field)
 	case "jikkyoCommentsUrl":
 		return ec.fieldContext_LibraryFile_jikkyoCommentsUrl(ctx, field)
+	case "thumbnailUrl":
+		return ec.fieldContext_LibraryFile_thumbnailUrl(ctx, field)
+	case "previewUrl":
+		return ec.fieldContext_LibraryFile_previewUrl(ctx, field)
 	case "hlsUrl":
 		return ec.fieldContext_LibraryFile_hlsUrl(ctx, field)
 	}
@@ -29070,6 +29094,52 @@ func (ec *executionContext) _LibraryFile_jikkyoCommentsUrl(ctx context.Context, 
 	)
 }
 func (ec *executionContext) fieldContext_LibraryFile_jikkyoCommentsUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFile_thumbnailUrl(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_thumbnailUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ThumbnailURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_thumbnailUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
+}
+
+func (ec *executionContext) _LibraryFile_previewUrl(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFile_previewUrl(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PreviewURL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFile_previewUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LibraryFile", field, false, false, "String")
 }
 
@@ -59063,6 +59133,16 @@ func (ec *executionContext) _LibraryFile(ctx context.Context, sel ast.SelectionS
 		case "jikkyoCommentsUrl":
 			out.Values[i] = ec._LibraryFile_jikkyoCommentsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "thumbnailUrl":
+			out.Values[i] = ec._LibraryFile_thumbnailUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "previewUrl":
+			out.Values[i] = ec._LibraryFile_previewUrl(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		case "hlsUrl":

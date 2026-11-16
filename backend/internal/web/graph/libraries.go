@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -165,17 +167,43 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 			return nil, fmt.Errorf("failed to decode the audio components of the library file: %w", err)
 		}
 	}
+	thumbnailURL, previewURL := r.libraryImageURLs(ctx, file)
 	var quality *model.LibraryFileQuality
 	if q := file.Index.Quality; q != nil {
 		quality = &model.LibraryFileQuality{Drops: q.Drops, Errors: q.Errors, Scrambled: q.Scrambled}
 	}
 
 	return &model.LibraryFile{
-		Broadcast: broadcast, Audios: audios, Quality: quality, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
+		Broadcast: broadcast, Audios: audios, Quality: quality, ThumbnailURL: thumbnailURL, PreviewURL: previewURL, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
 		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
 	}, nil
+}
+
+// libraryImageURLs は、ファイルの代表画像とプレビュー画像の URL を返す。今のファイルから作った画像がなければ、作るジョブを入れて nil を返す。
+// URL には、ファイルの ID を付け、ファイルを書き換えたら別の URL にする。ブラウザが前のファイルの画像を使い回さないためである。
+func (r *Resolver) libraryImageURLs(ctx context.Context, file *filelib.File) (*string, *string) {
+	indexer := r.librarySource.Indexer()
+	if !indexer.HasImages(file.Ref, file.ID()) {
+		if r.libraryImages != nil {
+			// 入れられなくても、ファイルは開ける。次に開いたときに入れ直す。
+			if err := filelib.EnqueueImages(ctx, r.libraryImages, indexer, file); err != nil {
+				r.logger.WarnContext(ctx, "failed to enqueue the library images job", slog.Any("error", err))
+			}
+		}
+
+		return nil, nil
+	}
+	base := libraryMediaPrefix + file.Ref.Encode() + "/"
+	version := "?v=" + file.ID()
+	thumbnailURL := base + filelib.ThumbnailFileName + version
+	if _, err := os.Stat(indexer.ImagePath(file.Ref, filelib.PreviewFileName)); err != nil {
+		return &thumbnailURL, nil
+	}
+	previewURL := base + filelib.PreviewFileName + version
+
+	return &thumbnailURL, &previewURL
 }
 
 // libraryBroadcast は、TS から読んだ放送の情報を、GraphQL の形にする。同じネットワークとサービス ID の Kotatsu のサービスがあれば添える。

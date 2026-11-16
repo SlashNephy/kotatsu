@@ -246,6 +246,8 @@ const playQuery = graphql`
         name
       }
       jikkyoCommentsUrl
+      thumbnailUrl
+      previewUrl
       broadcast {
         serviceName
         jikkyoChannelId
@@ -296,6 +298,9 @@ const playQuery = graphql`
 // refreshMs は、シークの索引を作っている間に、ファイルを読み直す間隔。
 const refreshMs = 5_000;
 
+// imagesRefreshMs は、索引を作り終えた後、シークバーの画像 (nekonote のジョブで作る) が届くまで、ファイルを読み直す間隔。
+const imagesRefreshMs = 30_000;
+
 function Player({
   library,
   path,
@@ -340,12 +345,15 @@ function Player({
     muteUser,
     captions: captionSettings,
   } = usePlayerSettings();
-  // シークの索引を作り終えるまで、読み直して、シークできる所と長さを伸ばす。
+  // シークの索引を作り終えるまで、読み直して、シークできる所と長さを伸ばす (設計書 5.8)。
   const environment = useRelayEnvironment();
   // 書いている途中のファイルは、索引を作らないので、読み直さない (設計書 5.8)。
   const indexing = !file.index.complete && !file.index.writing;
+  // 索引を作り終えた後も、シークバーの画像が届くまで、間を空けて読み直す。
+  const waitingImages = file.index.complete && file.thumbnailUrl == null;
+  const interval = indexing ? refreshMs : waitingImages ? imagesRefreshMs : null;
   useEffect(() => {
-    if (!indexing) {
+    if (interval === null) {
       return;
     }
     const timer = setInterval(() => {
@@ -354,11 +362,11 @@ function Player({
       })
         .toPromise()
         .catch(() => {});
-    }, refreshMs);
+    }, interval);
 
     return () => clearInterval(timer);
     // variables は描画ごとに作り直すが、中身は library と path だけで決まる。
-  }, [environment, indexing, library, path]);
+  }, [environment, interval, library, path]);
   // duration は、シークバーの長さ (秒)。索引を作っている途中は見込みの長さ。limit は、シークできる所。
   const duration = fileDuration(file.index);
   const limit = seekLimit(file.index);
@@ -771,7 +779,7 @@ function Player({
           bands={bands}
           duration={duration}
           value={shown}
-          previewUrl={null}
+          previewUrl={file.previewUrl}
           label={seekLabel}
           onChange={(value) => setSeeking(Math.min(value, limit))}
           onChangeEnd={(value) => {
@@ -849,7 +857,9 @@ function Player({
     <>
       {jikkyo.overlay}
       {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
-      {scrub !== null && <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />}
+      {scrub !== null && (
+        <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={file.previewUrl} />
+      )}
       {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
       {videoLoading && !autoplay.blocked && error === null && <PlayerLoading />}
       {errorAlert}

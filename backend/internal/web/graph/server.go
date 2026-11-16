@@ -114,6 +114,8 @@ type Options struct {
 	Libraries *medialib.Set
 	// LibrarySource は、ライブラリのファイルを開き、索引を作り始める。nil なら、ライブラリのファイルは開けない。
 	LibrarySource *filelib.Source
+	// LibraryImages は、ライブラリのファイルの画像を作るジョブを入れる。nil なら、入れない。
+	LibraryImages filelib.ImagesInserter
 	// TimeshiftDir は、タイムシフトのバッファを置くディレクトリ。空なら、タイムシフトのチャンネルを設定できない。
 	TimeshiftDir string
 	// Captions は、字幕の自動生成の設定 (#1682)。モデルの場所を書いているかを、モデルの画面に出す。nil なら書いていないとみなす。
@@ -251,6 +253,7 @@ func NewHandler(opts *Options) http.Handler {
 		dataDir:          o.DataDir,
 		libraries:        o.Libraries,
 		librarySource:    o.LibrarySource,
+		libraryImages:    o.LibraryImages,
 		captions:         o.Captions,
 	}
 	if resolver.libraries == nil {

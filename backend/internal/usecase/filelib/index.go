@@ -139,7 +139,7 @@ type Index struct {
 //
 // 索引は、tenban が、ファイルを初めて開いたときに、裏で作る。nekonote のジョブにしないのは、次の理由による。
 //   - ファイラーで開いてすぐにシークしたいので、ほかのジョブの後に並ばせたくない。I フレームを見つけるたびに追記するので、作りながら使える。
-//   - ライブラリを読むのは、配信する tenban と kyusu で、nekonote にライブラリをマウントさせずに済む。
+//   - 索引は配信の前に要るので、配信する tenban で作る。kyusu と nekonote (画像) は索引を読むだけにする。
 //   - 録画として登録しないので、ジョブの重複を防ぐ DB の行がない。同じ tenban の中では 1 つに束ね、別の tenban が作っている途中の索引は
 //     (伸び続けていれば) 使う。落ちた tenban の書きかけは、staleBuild 伸びなければ作り直す。
 //   - tenban を止めたら、作るのをやめる。次に開いたときに、始めから作り直す。
@@ -446,10 +446,17 @@ func (x *Indexer) writeSource(dir string, src *source) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode the index source: %w", err)
 	}
+
+	return WriteFile(dir, sourceName, data)
+}
+
+// WriteFile は、索引の置き場 dir に、name のファイルを、一時ファイルに書いてから置き換えて書く。読む側に書きかけのファイルを見せない。
+// 索引のほか、ライブラリのファイルの画像 (nekonote のジョブが作る) も、これで置く。
+func WriteFile(dir, name string, data []byte) error {
 	// 別の tenban が同じファイルの索引を作っていても、互いの一時ファイルを書き換えないよう、名前を重ねない。
-	f, err := os.CreateTemp(dir, sourceName+".*.tmp")
+	f, err := os.CreateTemp(dir, name+".*.tmp")
 	if err != nil {
-		return fmt.Errorf("failed to write the index source: %w", err)
+		return fmt.Errorf("failed to write %s: %w", name, err)
 	}
 	tmp := f.Name()
 	defer func() { _ = os.Remove(tmp) }()
@@ -462,10 +469,10 @@ func (x *Indexer) writeSource(dir string, src *source) error {
 		err = closeErr
 	}
 	if err != nil {
-		return fmt.Errorf("failed to write the index source: %w", err)
+		return fmt.Errorf("failed to write %s: %w", name, err)
 	}
-	if err := sharedfile.Rename(tmp, filepath.Join(dir, sourceName)); err != nil {
-		return fmt.Errorf("failed to replace the index source: %w", err)
+	if err := sharedfile.Rename(tmp, filepath.Join(dir, name)); err != nil {
+		return fmt.Errorf("failed to replace %s: %w", name, err)
 	}
 
 	return nil
