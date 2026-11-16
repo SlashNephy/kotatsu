@@ -3,6 +3,11 @@
 // kyusu の経路 (video を写したテクスチャ) でも、yadif の中 (yadif が解除したテクスチャ) でも使える。
 // テクスチャは、どちらも行を下から持つ (framebuffer と同じ向き) ものとする。
 
+import { compileProgram, restoreState, saveState } from './glPass';
+
+// textureUnits は、補間が使うテクスチャのユニットの数。
+const textureUnits = 4;
+
 // blockSize は、動きを推し量るブロックの一辺 (半分の解像度での画素)。原寸では 16 画素になる。
 export const blockSize = 8;
 // searchRange は、ブロックを探す範囲 (半分の解像度での画素、上下左右)。原寸では ±16 画素になる。
@@ -23,13 +28,6 @@ export const mismatchThreshold = 0.1;
 // 切り替わりでも、前後の場面で偶然似たブロックは閾値を下回り、前の場面の断片を新しい場面に混ぜてしまう (#1655)。
 // 切り替わったとみなしたら、コマ全体を近い方のコマにする。
 export const sceneCutRatio = 0.3;
-
-const vertexShader = `#version 300 es
-void main() {
-  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
-  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
-}
-`;
 
 // 輝度を半分の解像度にする。元のテクスチャは 0〜1 の座標で読む。ブラウザが video を写す大きさ
 // (表示の大きさか、符号化した大きさか) によらず、同じ絵を縮められる。線形に読むので、2×2 の平均になる。
@@ -284,99 +282,6 @@ type Programs = {
   compose: WebGLProgram;
 };
 
-function compile(gl: WebGL2RenderingContext, fragment: string): WebGLProgram {
-  const program = gl.createProgram();
-  for (const [type, source] of [
-    [gl.VERTEX_SHADER, vertexShader],
-    [gl.FRAGMENT_SHADER, fragment],
-  ] as const) {
-    const shader = gl.createShader(type);
-    if (shader === null) {
-      throw new Error('failed to create a shader');
-    }
-    gl.shaderSource(shader, source);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      throw new Error(`failed to compile a shader: ${gl.getShaderInfoLog(shader) ?? ''}`);
-    }
-    gl.attachShader(program, shader);
-    gl.deleteShader(shader);
-  }
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    throw new Error(`failed to link a program: ${gl.getProgramInfoLog(program) ?? ''}`);
-  }
-
-  return program;
-}
-
-// SavedState は、補間が書き換える GL の状態。yadif のように、ほかが使っているコンテキストで動くときに戻す。
-type SavedState = {
-  framebuffer: WebGLFramebuffer | null;
-  program: WebGLProgram | null;
-  viewport: Int32Array;
-  activeTexture: number;
-  textures: (WebGLTexture | null)[];
-  samplers: (WebGLSampler | null)[];
-  vertexArray: WebGLVertexArrayObject | null;
-  blend: boolean;
-  scissor: boolean;
-  depth: boolean;
-};
-
-// textureUnits は、補間が使うテクスチャのユニットの数。
-const textureUnits = 4;
-
-function save(gl: WebGL2RenderingContext): SavedState {
-  const activeTexture = gl.getParameter(gl.ACTIVE_TEXTURE) as number;
-  const textures: (WebGLTexture | null)[] = [];
-  const samplers: (WebGLSampler | null)[] = [];
-  for (let unit = 0; unit < textureUnits; unit++) {
-    gl.activeTexture(gl.TEXTURE0 + unit);
-    textures.push(gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null);
-    samplers.push(gl.getParameter(gl.SAMPLER_BINDING) as WebGLSampler | null);
-  }
-  gl.activeTexture(activeTexture);
-
-  return {
-    framebuffer: gl.getParameter(gl.FRAMEBUFFER_BINDING) as WebGLFramebuffer | null,
-    program: gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram | null,
-    viewport: gl.getParameter(gl.VIEWPORT) as Int32Array,
-    activeTexture,
-    textures,
-    samplers,
-    vertexArray: gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null,
-    blend: gl.isEnabled(gl.BLEND),
-    scissor: gl.isEnabled(gl.SCISSOR_TEST),
-    depth: gl.isEnabled(gl.DEPTH_TEST),
-  };
-}
-
-function restore(gl: WebGL2RenderingContext, state: SavedState): void {
-  for (const [capability, enabled] of [
-    [gl.BLEND, state.blend],
-    [gl.SCISSOR_TEST, state.scissor],
-    [gl.DEPTH_TEST, state.depth],
-  ] as const) {
-    if (enabled) {
-      gl.enable(capability);
-    } else {
-      gl.disable(capability);
-    }
-  }
-  state.textures.forEach((texture, unit) => {
-    gl.activeTexture(gl.TEXTURE0 + unit);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.bindSampler(unit, state.samplers[unit] ?? null);
-  });
-  gl.activeTexture(state.activeTexture);
-  gl.bindVertexArray(state.vertexArray);
-  gl.useProgram(state.program);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, state.framebuffer);
-  const [x = 0, y = 0, width = 0, height = 0] = state.viewport;
-  gl.viewport(x, y, width, height);
-}
-
 // Target は、描画先のテクスチャと framebuffer の組。
 type Target = {
   texture: WebGLTexture;
@@ -414,12 +319,12 @@ function deleteTarget(gl: WebGL2RenderingContext, target: Target): void {
 // createInterpolator は、gl に補間のシェーダーを作る。作れなければ投げる。
 export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
   const programs: Programs = {
-    downsample: compile(gl, downsampleShader),
-    reduce: compile(gl, reduceShader),
-    coarse: compile(gl, coarseShader),
-    estimate: compile(gl, estimateShader),
-    scene: compile(gl, sceneShader),
-    compose: compile(gl, composeShader),
+    downsample: compileProgram(gl, downsampleShader),
+    reduce: compileProgram(gl, reduceShader),
+    coarse: compileProgram(gl, coarseShader),
+    estimate: compileProgram(gl, estimateShader),
+    scene: compileProgram(gl, sceneShader),
+    compose: compileProgram(gl, composeShader),
   };
   // 描くときは頂点の属性を使わないので、空の VAO を当てて、ほかの VAO の状態に触れない。
   const vertexArray = gl.createVertexArray();
@@ -512,7 +417,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
 
   return {
     estimate(previous, next, width, height) {
-      const state = save(gl);
+      const state = saveState(gl, textureUnits);
       try {
         prepare();
         resize(width, height);
@@ -552,7 +457,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
         drawTo(scene, 1, 1);
         pair = { previous, next };
       } finally {
-        restore(gl, state);
+        restoreState(gl, state);
       }
     },
     compose(t, framebuffer, width, height) {
@@ -560,7 +465,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
         return;
       }
       const luma = previousLuma;
-      const state = save(gl);
+      const state = saveState(gl, textureUnits);
       try {
         prepare();
         bind(programs.compose, [
@@ -576,7 +481,7 @@ export function createInterpolator(gl: WebGL2RenderingContext): Interpolator {
         gl.viewport(0, 0, width, height);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
       } finally {
-        restore(gl, state);
+        restoreState(gl, state);
       }
     },
     destroy() {

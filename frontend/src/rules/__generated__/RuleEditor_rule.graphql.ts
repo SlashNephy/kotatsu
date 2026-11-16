@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c60654ba15f4538f2806b0c9290673c7>>
+ * @generated SignedSource<<e91a080223d047c404491201beff30b4>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ReaderFragment } from 'relay-runtime';
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 import { FragmentRefs } from "relay-runtime";
@@ -61,13 +62,18 @@ export type RuleEditor_rule$data = {
   readonly duplicateWindowDays: number | null | undefined;
   readonly enabled: boolean;
   readonly followEventRelay: boolean;
+  readonly group: {
+    readonly id: string;
+  } | null | undefined;
   readonly id: string;
   readonly memo: string;
   readonly name: string;
   readonly settings: {
+    readonly cmDetector: CMDetector | null | undefined;
     readonly detectCm: boolean | null | undefined;
     readonly endMarginSeconds: number | null | undefined;
     readonly fileNameTemplate: string | null | undefined;
+    readonly generateCaptions: boolean | null | undefined;
     readonly joinSegments: boolean | null | undefined;
     readonly poolId: string | null | undefined;
     readonly priority: number | null | undefined;
@@ -430,6 +436,13 @@ return {
           "alias": null,
           "args": null,
           "kind": "ScalarField",
+          "name": "generateCaptions",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
           "name": "transcodePreset",
           "storageKey": null
         },
@@ -438,6 +451,13 @@ return {
           "args": null,
           "kind": "ScalarField",
           "name": "transcodeFrameRate",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "cmDetector",
           "storageKey": null
         }
       ],
@@ -491,6 +511,16 @@ return {
       "kind": "ScalarField",
       "name": "skipEarlierEpisodes",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "RuleGroup",
+      "kind": "LinkedField",
+      "name": "group",
+      "plural": false,
+      "selections": (v3/*:: as any*/),
+      "storageKey": null
     }
   ],
   "type": "Rule",
@@ -498,6 +528,6 @@ return {
 };
 })();
 
-(node as any).hash = "a1c554eff51606259e8002e19f2c84f3";
+(node as any).hash = "36c2a0002133c4d545b0f55d389cd65e";
 
 export default node;

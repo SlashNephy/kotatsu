@@ -1,0 +1,41 @@
+/* 自動生成した字幕 (#1682)。映像の枠の大きさに合わせて文字を大きくするので、枠をコンテナにする。 */
+.root {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 5%;
+  container-type: size;
+  pointer-events: none;
+}
+
+/* 放送の字幕 (aribb24.js の枠) と見分けられるよう、半透明の黒い帯に、「自動生成」の印を添える。 */
+.box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+  max-width: 86cqw;
+  padding: 0.35em 0.7em;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 65%);
+  color: #fff;
+  font-size: max(4.2cqh, 12px);
+  line-height: 1.45;
+}
+
+.badge {
+  flex: none;
+  margin-top: 0.3em;
+  padding: 0.1em 0.45em;
+  border: 1px solid rgb(255 255 255 / 70%);
+  border-radius: 4px;
+  font-size: 0.55em;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.text {
+  white-space: pre-line;
+  text-shadow: 0 0 3px #000;
+}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<646ca19bd61766dad54869065ca7590d>>
+ * @generated SignedSource<<e6b7bbdcca117f6e5bb9f2316d76ab60>>
  * @lightSyntaxTransform
  */
 
@@ -10,11 +10,14 @@
 import { ConcreteRequest } from 'relay-runtime';
 import { FragmentRefs } from "relay-runtime";
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
+  generateCaptions?: boolean | null | undefined;
   joinSegments?: boolean | null | undefined;
   poolId?: string | null | undefined;
   priority?: number | null | undefined;

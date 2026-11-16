@@ -45,6 +45,7 @@ const purposeCategories = {
   ANIME_RECORD: 'anime',
   ANIME_LINK: 'anime',
   ANIME_IMAGE: 'anime',
+  DRAMA_LINKING: 'drama',
   USER_AVATAR: 'auth',
   OIDC: 'auth',
   HIBP: 'auth',
@@ -55,6 +56,7 @@ const purposeCategories = {
   WEB_PUSH: 'notification',
   WEBHOOK: 'notification',
   DATA_BROADCAST: 'other',
+  CAPTION_MODEL_DOWNLOAD: 'operation',
 } as const;
 
 const dayFormat = zonedFormat({ year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });

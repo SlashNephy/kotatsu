@@ -18,6 +18,8 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/match"
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
+	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -307,6 +309,33 @@ type ComplexityRoot struct {
 		LastUsedAt func(childComplexity int) int
 	}
 
+	CaptionModel struct {
+		ID          func(childComplexity int) int
+		Kind        func(childComplexity int) int
+		License     func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Recommended func(childComplexity int) int
+		Sha256      func(childComplexity int) int
+		Size        func(childComplexity int) int
+		URL         func(childComplexity int) int
+	}
+
+	CaptionModelDownload struct {
+		Failed   func(childComplexity int) int
+		Model    func(childComplexity int) int
+		Progress func(childComplexity int) int
+		Running  func(childComplexity int) int
+	}
+
+	CaptionModelSlot struct {
+		Download   func(childComplexity int) int
+		Installed  func(childComplexity int) int
+		Kind       func(childComplexity int) int
+		Models     func(childComplexity int) int
+		Overridden func(childComplexity int) int
+		State      func(childComplexity int) int
+	}
+
 	CaptionSettings struct {
 		BackgroundOpacity   func(childComplexity int) int
 		Stroke              func(childComplexity int) int
@@ -404,6 +433,35 @@ type ComplexityRoot struct {
 		Reservation func(childComplexity int) int
 	}
 
+	DramaEpisode struct {
+		EpisodeName   func(childComplexity int) int
+		EpisodeNumber func(childComplexity int) int
+		EpisodeSource func(childComplexity int) int
+		SeasonNumber  func(childComplexity int) int
+		Series        func(childComplexity int) int
+		SeriesSource  func(childComplexity int) int
+		URL           func(childComplexity int) int
+	}
+
+	DramaLinkingStatus struct {
+		TokenConfigured func(childComplexity int) int
+		TokenHint       func(childComplexity int) int
+		TokenUpdatedAt  func(childComplexity int) int
+	}
+
+	DramaSeries struct {
+		Name         func(childComplexity int) int
+		OriginalName func(childComplexity int) int
+		TmdbID       func(childComplexity int) int
+		URL          func(childComplexity int) int
+	}
+
+	DramaTitleOverride struct {
+		TitleKey     func(childComplexity int) int
+		TmdbSeriesID func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
+	}
+
 	DrcsReplacement struct {
 		Md5  func(childComplexity int) int
 		Text func(childComplexity int) int
@@ -483,6 +541,12 @@ type ComplexityRoot struct {
 		Pid        func(childComplexity int) int
 		Scrambled  func(childComplexity int) int
 		StreamType func(childComplexity int) int
+	}
+
+	InstalledCaptionModel struct {
+		InstalledAt func(childComplexity int) int
+		Model       func(childComplexity int) int
+		Size        func(childComplexity int) int
 	}
 
 	Instance struct {
@@ -631,6 +695,7 @@ type ComplexityRoot struct {
 		ApproveOAuthAuthorization     func(childComplexity int, query string, scopes []string) int
 		BeginAnimeRecordConnection    func(childComplexity int, destination model.AnimeRecordDestination) int
 		BeginTotpEnrollment           func(childComplexity int) int
+		CancelCaptionModelDownload    func(childComplexity int, kind captionmodel.Kind) int
 		CancelJob                     func(childComplexity int, id string) int
 		ChangePassword                func(childComplexity int, password string) int
 		CleanUpMissingRecordings      func(childComplexity int, ids []string) int
@@ -644,6 +709,7 @@ type ComplexityRoot struct {
 		CreateIptvFeed                func(childComplexity int) int
 		CreateProgramReservation      func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule                    func(childComplexity int, input model.RuleInput) int
+		CreateRuleGroup               func(childComplexity int, name string) int
 		CreateStreamURL               func(childComplexity int, target string) int
 		CreateTimeReservation         func(childComplexity int, input model.TimeReservationInput) int
 		CreateUser                    func(childComplexity int, input model.CreateUserInput) int
@@ -652,6 +718,7 @@ type ComplexityRoot struct {
 		DeleteAPIToken                func(childComplexity int, id string) int
 		DeleteAccount                 func(childComplexity int) int
 		DeleteCalendarFeed            func(childComplexity int) int
+		DeleteCaptionModel            func(childComplexity int, kind captionmodel.Kind) int
 		DeleteCapture                 func(childComplexity int, id string) int
 		DeleteGuideView               func(childComplexity int, id string) int
 		DeleteIptvFeed                func(childComplexity int) int
@@ -663,6 +730,7 @@ type ComplexityRoot struct {
 		DeleteReservation             func(childComplexity int, id string) int
 		DeleteReservations            func(childComplexity int, ids []string) int
 		DeleteRule                    func(childComplexity int, id string) int
+		DeleteRuleGroup               func(childComplexity int, id string) int
 		DeleteRules                   func(childComplexity int, ids []string) int
 		DeleteTotp                    func(childComplexity int) int
 		DeleteUser                    func(childComplexity int, id string) int
@@ -672,7 +740,9 @@ type ComplexityRoot struct {
 		DetectRecordingCM             func(childComplexity int, id string) int
 		DisableUser                   func(childComplexity int, id string) int
 		DisconnectAnimeRecord         func(childComplexity int, destination model.AnimeRecordDestination) int
+		DownloadCaptionModel          func(childComplexity int, id string) int
 		EnableUser                    func(childComplexity int, id string) int
+		GenerateRecordingCaptions     func(childComplexity int, id string) int
 		InspectChannel                func(childComplexity int, channelType string, channel string) int
 		MarkAllNotificationsRead      func(childComplexity int) int
 		MarkNotificationsRead         func(childComplexity int, ids []string) int
@@ -687,6 +757,8 @@ type ComplexityRoot struct {
 		RemoveTimeshiftChannel        func(childComplexity int, serviceID string) int
 		RenamePasskey                 func(childComplexity int, id string, name string) int
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
+		RenameRuleGroup               func(childComplexity int, id string, name string) int
+		ReorderRuleGroups             func(childComplexity int, ids []string) int
 		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
 		ResetRecordingFailureCounts   func(childComplexity int, reasons []domain.RecordingFailureReason) int
 		ResetUserPassword             func(childComplexity int, id string, password string) int
@@ -701,6 +773,7 @@ type ComplexityRoot struct {
 		SetReservationsEnabled        func(childComplexity int, ids []string, enabled bool) int
 		SetRuleEnabled                func(childComplexity int, id string, enabled bool) int
 		SetRulesEnabled               func(childComplexity int, ids []string, enabled bool) int
+		SetRulesGroup                 func(childComplexity int, ids []string, groupID *string) int
 		SetServicePinned              func(childComplexity int, id string, pinned bool) int
 		SetTimeshiftChannel           func(childComplexity int, serviceID string, retentionSeconds *int) int
 		SetWatchReservation           func(childComplexity int, program string, reserved bool) int
@@ -713,6 +786,8 @@ type ComplexityRoot struct {
 		UpdateAnimeRecordApp          func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
 		UpdateAnimeRecordSettings     func(childComplexity int, input model.AnimeRecordSettingsInput) int
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
+		UpdateDramaLinkingToken       func(childComplexity int, token string) int
+		UpdateDramaTitleOverride      func(childComplexity int, input model.DramaTitleOverrideInput) int
 		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference  func(childComplexity int, input model.NotificationPreferenceInput) int
 		UpdatePlayer                  func(childComplexity int, id string, state model.PlayerStateInput, announce bool) int
@@ -892,6 +967,8 @@ type ComplexityRoot struct {
 		Archived      func(childComplexity int) int
 		Audios        func(childComplexity int) int
 		Description   func(childComplexity int) int
+		DramaEpisode  func(childComplexity int) int
+		DramaTitleKey func(childComplexity int) int
 		EndAt         func(childComplexity int) int
 		EndUndecided  func(childComplexity int) int
 		EventID       func(childComplexity int) int
@@ -957,10 +1034,13 @@ type ComplexityRoot struct {
 		AnimeWishlist           func(childComplexity int) int
 		AuditEvents             func(childComplexity int, first int, after *string, filter *model.AuditEventFilter) int
 		CalendarFeed            func(childComplexity int) int
+		CaptionModels           func(childComplexity int) int
 		Captures                func(childComplexity int, first int, after *string, keyword *string) int
 		CapturesAvailable       func(childComplexity int) int
 		ChannelTypes            func(childComplexity int) int
 		ContinueWatching        func(childComplexity int, first int) int
+		DramaLinking            func(childComplexity int) int
+		DramaTitleOverrides     func(childComplexity int) int
 		DrcsReplacements        func(childComplexity int) int
 		FileNameTemplateHelp    func(childComplexity int) int
 		GoModuleLicenses        func(childComplexity int) int
@@ -973,6 +1053,7 @@ type ComplexityRoot struct {
 		LogReport               func(childComplexity int) int
 		MissingRecordings       func(childComplexity int) int
 		NetworkActivity         func(childComplexity int) int
+		NextEpisodes            func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) int
@@ -989,6 +1070,7 @@ type ComplexityRoot struct {
 		RecordingRenames        func(childComplexity int) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) int
+		RuleGroups              func(childComplexity int) int
 		RuleWarnings            func(childComplexity int, input model.RuleInput) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
@@ -1022,6 +1104,8 @@ type ComplexityRoot struct {
 	Recording struct {
 		AnimeEpisodes            func(childComplexity int) int
 		Audios                   func(childComplexity int) int
+		AutoCaptions             func(childComplexity int) int
+		AutoCaptionsStatus       func(childComplexity int) int
 		BroadcastEndedAt         func(childComplexity int) int
 		BroadcastStartedAt       func(childComplexity int) int
 		CMDetection              func(childComplexity int) int
@@ -1029,6 +1113,8 @@ type ComplexityRoot struct {
 		CMSections               func(childComplexity int) int
 		CMVideoMissingSeconds    func(childComplexity int) int
 		Description              func(childComplexity int) int
+		DramaEpisode             func(childComplexity int) int
+		DramaTitleKey            func(childComplexity int) int
 		Drops                    func(childComplexity int) int
 		EndAt                    func(childComplexity int) int
 		Errors                   func(childComplexity int) int
@@ -1045,6 +1131,7 @@ type ComplexityRoot struct {
 		JikkyoOtherCommentsURL   func(childComplexity int) int
 		LiveStats                func(childComplexity int) int
 		Name                     func(childComplexity int) int
+		NextEpisodes             func(childComplexity int) int
 		NotBroadcast             func(childComplexity int) int
 		PreviewURL               func(childComplexity int) int
 		ProgramLost              func(childComplexity int) int
@@ -1068,6 +1155,20 @@ type ComplexityRoot struct {
 		WatchFrame               func(childComplexity int) int
 		WatchPositionMs          func(childComplexity int) int
 		WorkTitle                func(childComplexity int) int
+	}
+
+	RecordingAutoCaption struct {
+		From func(childComplexity int) int
+		Text func(childComplexity int) int
+		To   func(childComplexity int) int
+	}
+
+	RecordingAutoCaptions struct {
+		Count       func(childComplexity int) int
+		GeneratedAt func(childComplexity int) int
+		Model       func(childComplexity int) int
+		Progress    func(childComplexity int) int
+		State       func(childComplexity int) int
 	}
 
 	RecordingCMDetection struct {
@@ -1146,6 +1247,7 @@ type ComplexityRoot struct {
 		DetectCM           func(childComplexity int) int
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
+		GenerateCaptions   func(childComplexity int) int
 		JoinSegments       func(childComplexity int) int
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
@@ -1155,9 +1257,11 @@ type ComplexityRoot struct {
 	}
 
 	RecordingSettingsOverrides struct {
+		CMDetector         func(childComplexity int) int
 		DetectCM           func(childComplexity int) int
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
+		GenerateCaptions   func(childComplexity int) int
 		JoinSegments       func(childComplexity int) int
 		PoolID             func(childComplexity int) int
 		Priority           func(childComplexity int) int
@@ -1232,6 +1336,7 @@ type ComplexityRoot struct {
 		DuplicateWindowDays      func(childComplexity int) int
 		Enabled                  func(childComplexity int) int
 		FollowEventRelay         func(childComplexity int) int
+		Group                    func(childComplexity int) int
 		ID                       func(childComplexity int) int
 		Memo                     func(childComplexity int) int
 		Name                     func(childComplexity int) int
@@ -1251,6 +1356,14 @@ type ComplexityRoot struct {
 		FollowEventRelay    func(childComplexity int) int
 	}
 
+	RuleGroup struct {
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Position  func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
 	RuleWarning struct {
 		Exclude func(childComplexity int) int
 		Index   func(childComplexity int) int
@@ -1268,6 +1381,11 @@ type ComplexityRoot struct {
 		Height     func(childComplexity int) int
 		Interlaced func(childComplexity int) int
 		Width      func(childComplexity int) int
+	}
+
+	SeriesNextEpisode struct {
+		Program func(childComplexity int) int
+		Watched func(childComplexity int) int
 	}
 
 	Service struct {
@@ -1369,6 +1487,7 @@ type ComplexityRoot struct {
 		CMDetector                             func(childComplexity int) int
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
+		DramaLinkingEnabled                    func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
 		EpgstationAPIEnabled                   func(childComplexity int) int
 		ExternalPlayerUrlsEnabled              func(childComplexity int) int
@@ -1573,8 +1692,13 @@ type MutationResolver interface {
 	DeleteCalendarFeed(ctx context.Context) (bool, error)
 	CreateIptvFeed(ctx context.Context) (*model.CreatedIptvFeed, error)
 	DeleteIptvFeed(ctx context.Context) (bool, error)
+	DownloadCaptionModel(ctx context.Context, id string) (*model.CaptionModelSlot, error)
+	CancelCaptionModelDownload(ctx context.Context, kind captionmodel.Kind) (*model.CaptionModelSlot, error)
+	DeleteCaptionModel(ctx context.Context, kind captionmodel.Kind) (*model.CaptionModelSlot, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
+	UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error)
+	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
@@ -1604,6 +1728,7 @@ type MutationResolver interface {
 	RegenerateRecordingImages(ctx context.Context, id string) (bool, error)
 	ReanalyzeRecording(ctx context.Context, id string) (bool, error)
 	DetectRecordingCM(ctx context.Context, id string) (bool, error)
+	GenerateRecordingCaptions(ctx context.Context, id string) (bool, error)
 	CreateProgramReservation(ctx context.Context, input model.ProgramReservationInput) (*model.Reservation, error)
 	CreateTimeReservation(ctx context.Context, input model.TimeReservationInput) (*model.Reservation, error)
 	UpdateReservation(ctx context.Context, id string, input model.ReservationUpdateInput) (*model.Reservation, error)
@@ -1616,6 +1741,11 @@ type MutationResolver interface {
 	DeleteRule(ctx context.Context, id string) (string, error)
 	SetRulesEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error)
 	DeleteRules(ctx context.Context, ids []string) (*model.BulkOperationPayload, error)
+	SetRulesGroup(ctx context.Context, ids []string, groupID *string) (*model.BulkOperationPayload, error)
+	CreateRuleGroup(ctx context.Context, name string) (*model.RuleGroup, error)
+	RenameRuleGroup(ctx context.Context, id string, name string) (*model.RuleGroup, error)
+	ReorderRuleGroups(ctx context.Context, ids []string) ([]*model.RuleGroup, error)
+	DeleteRuleGroup(ctx context.Context, id string) (string, error)
 	BeginTotpEnrollment(ctx context.Context) (*model.TOTPEnrollment, error)
 	ConfirmTotpEnrollment(ctx context.Context, code string) (*model.RecoveryCodes, error)
 	DeleteTotp(ctx context.Context) (*model.SecondFactorStatus, error)
@@ -1656,6 +1786,8 @@ type ProgramResolver interface {
 
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error)
+	DramaEpisode(ctx context.Context, obj *model.Program) (*model.DramaEpisode, error)
+
 	Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error)
 	Recorded(ctx context.Context, obj *model.Program) (bool, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
@@ -1685,8 +1817,11 @@ type QueryResolver interface {
 	APITokens(ctx context.Context) ([]*model.APIToken, error)
 	CalendarFeed(ctx context.Context) (*model.CalendarFeed, error)
 	IptvFeed(ctx context.Context) (*model.IptvFeed, error)
+	CaptionModels(ctx context.Context) ([]*model.CaptionModelSlot, error)
 	Captures(ctx context.Context, first int, after *string, keyword *string) (*model.CaptureConnection, error)
 	CapturesAvailable(ctx context.Context) (bool, error)
+	DramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error)
+	DramaTitleOverrides(ctx context.Context) ([]*model.DramaTitleOverride, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -1714,9 +1849,11 @@ type QueryResolver interface {
 	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
 	ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error)
+	NextEpisodes(ctx context.Context) ([]*model.SeriesNextEpisode, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
+	RuleGroups(ctx context.Context) ([]*model.RuleGroup, error)
 	RuleWarnings(ctx context.Context, input model.RuleInput) ([]*model.RuleWarning, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
@@ -1750,6 +1887,8 @@ type RecordingResolver interface {
 	CMDetection(ctx context.Context, obj *model.Recording) (*model.RecordingCMDetection, error)
 	CMDetectionNote(ctx context.Context, obj *model.Recording) (*string, error)
 	CMVideoMissingSeconds(ctx context.Context, obj *model.Recording) (float64, error)
+	AutoCaptions(ctx context.Context, obj *model.Recording) ([]*model.RecordingAutoCaption, error)
+	AutoCaptionsStatus(ctx context.Context, obj *model.Recording) (*model.RecordingAutoCaptions, error)
 
 	VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error)
 
@@ -1759,7 +1898,10 @@ type RecordingResolver interface {
 
 	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
 
+	NextEpisodes(ctx context.Context, obj *model.Recording) ([]*model.Program, error)
+
 	AnimeEpisodes(ctx context.Context, obj *model.Recording) ([]*model.AnimeEpisode, error)
+	DramaEpisode(ctx context.Context, obj *model.Recording) (*model.DramaEpisode, error)
 }
 type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
@@ -1773,6 +1915,7 @@ type ReservationAssignmentResolver interface {
 }
 type RuleResolver interface {
 	UpcomingReservationCount(ctx context.Context, obj *model.Rule) (int, error)
+	Group(ctx context.Context, obj *model.Rule) (*model.RuleGroup, error)
 }
 type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
@@ -2771,6 +2914,117 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.CalendarFeed.LastUsedAt(childComplexity), true
 
+	case "CaptionModel.id":
+		if e.ComplexityRoot.CaptionModel.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.ID(childComplexity), true
+	case "CaptionModel.kind":
+		if e.ComplexityRoot.CaptionModel.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.Kind(childComplexity), true
+	case "CaptionModel.license":
+		if e.ComplexityRoot.CaptionModel.License == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.License(childComplexity), true
+	case "CaptionModel.name":
+		if e.ComplexityRoot.CaptionModel.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.Name(childComplexity), true
+	case "CaptionModel.recommended":
+		if e.ComplexityRoot.CaptionModel.Recommended == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.Recommended(childComplexity), true
+	case "CaptionModel.sha256":
+		if e.ComplexityRoot.CaptionModel.Sha256 == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.Sha256(childComplexity), true
+	case "CaptionModel.size":
+		if e.ComplexityRoot.CaptionModel.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.Size(childComplexity), true
+	case "CaptionModel.url":
+		if e.ComplexityRoot.CaptionModel.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModel.URL(childComplexity), true
+
+	case "CaptionModelDownload.failed":
+		if e.ComplexityRoot.CaptionModelDownload.Failed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelDownload.Failed(childComplexity), true
+	case "CaptionModelDownload.model":
+		if e.ComplexityRoot.CaptionModelDownload.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelDownload.Model(childComplexity), true
+	case "CaptionModelDownload.progress":
+		if e.ComplexityRoot.CaptionModelDownload.Progress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelDownload.Progress(childComplexity), true
+	case "CaptionModelDownload.running":
+		if e.ComplexityRoot.CaptionModelDownload.Running == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelDownload.Running(childComplexity), true
+
+	case "CaptionModelSlot.download":
+		if e.ComplexityRoot.CaptionModelSlot.Download == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelSlot.Download(childComplexity), true
+	case "CaptionModelSlot.installed":
+		if e.ComplexityRoot.CaptionModelSlot.Installed == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelSlot.Installed(childComplexity), true
+	case "CaptionModelSlot.kind":
+		if e.ComplexityRoot.CaptionModelSlot.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelSlot.Kind(childComplexity), true
+	case "CaptionModelSlot.models":
+		if e.ComplexityRoot.CaptionModelSlot.Models == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelSlot.Models(childComplexity), true
+	case "CaptionModelSlot.overridden":
+		if e.ComplexityRoot.CaptionModelSlot.Overridden == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelSlot.Overridden(childComplexity), true
+	case "CaptionModelSlot.state":
+		if e.ComplexityRoot.CaptionModelSlot.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.CaptionModelSlot.State(childComplexity), true
+
 	case "CaptionSettings.backgroundOpacity":
 		if e.ComplexityRoot.CaptionSettings.BackgroundOpacity == nil {
 			break
@@ -3098,6 +3352,112 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.DeleteReservationPayload.Reservation(childComplexity), true
 
+	case "DramaEpisode.episodeName":
+		if e.ComplexityRoot.DramaEpisode.EpisodeName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.EpisodeName(childComplexity), true
+	case "DramaEpisode.episodeNumber":
+		if e.ComplexityRoot.DramaEpisode.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.EpisodeNumber(childComplexity), true
+	case "DramaEpisode.episodeSource":
+		if e.ComplexityRoot.DramaEpisode.EpisodeSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.EpisodeSource(childComplexity), true
+	case "DramaEpisode.seasonNumber":
+		if e.ComplexityRoot.DramaEpisode.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.SeasonNumber(childComplexity), true
+	case "DramaEpisode.series":
+		if e.ComplexityRoot.DramaEpisode.Series == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.Series(childComplexity), true
+	case "DramaEpisode.seriesSource":
+		if e.ComplexityRoot.DramaEpisode.SeriesSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.SeriesSource(childComplexity), true
+	case "DramaEpisode.url":
+		if e.ComplexityRoot.DramaEpisode.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.URL(childComplexity), true
+
+	case "DramaLinkingStatus.tokenConfigured":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenConfigured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenConfigured(childComplexity), true
+	case "DramaLinkingStatus.tokenHint":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenHint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenHint(childComplexity), true
+	case "DramaLinkingStatus.tokenUpdatedAt":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt(childComplexity), true
+
+	case "DramaSeries.name":
+		if e.ComplexityRoot.DramaSeries.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.Name(childComplexity), true
+	case "DramaSeries.originalName":
+		if e.ComplexityRoot.DramaSeries.OriginalName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.OriginalName(childComplexity), true
+	case "DramaSeries.tmdbId":
+		if e.ComplexityRoot.DramaSeries.TmdbID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.TmdbID(childComplexity), true
+	case "DramaSeries.url":
+		if e.ComplexityRoot.DramaSeries.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.URL(childComplexity), true
+
+	case "DramaTitleOverride.titleKey":
+		if e.ComplexityRoot.DramaTitleOverride.TitleKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaTitleOverride.TitleKey(childComplexity), true
+	case "DramaTitleOverride.tmdbSeriesId":
+		if e.ComplexityRoot.DramaTitleOverride.TmdbSeriesID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaTitleOverride.TmdbSeriesID(childComplexity), true
+	case "DramaTitleOverride.updatedAt":
+		if e.ComplexityRoot.DramaTitleOverride.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaTitleOverride.UpdatedAt(childComplexity), true
+
 	case "DrcsReplacement.md5":
 		if e.ComplexityRoot.DrcsReplacement.Md5 == nil {
 			break
@@ -3362,6 +3722,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.InspectedStream.StreamType(childComplexity), true
+
+	case "InstalledCaptionModel.installedAt":
+		if e.ComplexityRoot.InstalledCaptionModel.InstalledAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InstalledCaptionModel.InstalledAt(childComplexity), true
+	case "InstalledCaptionModel.model":
+		if e.ComplexityRoot.InstalledCaptionModel.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InstalledCaptionModel.Model(childComplexity), true
+	case "InstalledCaptionModel.size":
+		if e.ComplexityRoot.InstalledCaptionModel.Size == nil {
+			break
+		}
+
+		return e.ComplexityRoot.InstalledCaptionModel.Size(childComplexity), true
 
 	case "Instance.address":
 		if e.ComplexityRoot.Instance.Address == nil {
@@ -3937,6 +4316,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.BeginTotpEnrollment(childComplexity), true
+	case "Mutation.cancelCaptionModelDownload":
+		if e.ComplexityRoot.Mutation.CancelCaptionModelDownload == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_cancelCaptionModelDownload_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CancelCaptionModelDownload(childComplexity, args["kind"].(captionmodel.Kind)), true
 	case "Mutation.cancelJob":
 		if e.ComplexityRoot.Mutation.CancelJob == nil {
 			break
@@ -4065,6 +4455,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateRule(childComplexity, args["input"].(model.RuleInput)), true
+	case "Mutation.createRuleGroup":
+		if e.ComplexityRoot.Mutation.CreateRuleGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createRuleGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateRuleGroup(childComplexity, args["name"].(string)), true
 	case "Mutation.createStreamURL":
 		if e.ComplexityRoot.Mutation.CreateStreamURL == nil {
 			break
@@ -4143,6 +4544,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteCalendarFeed(childComplexity), true
+	case "Mutation.deleteCaptionModel":
+		if e.ComplexityRoot.Mutation.DeleteCaptionModel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteCaptionModel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteCaptionModel(childComplexity, args["kind"].(captionmodel.Kind)), true
 	case "Mutation.deleteCapture":
 		if e.ComplexityRoot.Mutation.DeleteCapture == nil {
 			break
@@ -4259,6 +4671,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteRule(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRuleGroup":
+		if e.ComplexityRoot.Mutation.DeleteRuleGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRuleGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteRuleGroup(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteRules":
 		if e.ComplexityRoot.Mutation.DeleteRules == nil {
 			break
@@ -4353,6 +4776,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DisconnectAnimeRecord(childComplexity, args["destination"].(model.AnimeRecordDestination)), true
+	case "Mutation.downloadCaptionModel":
+		if e.ComplexityRoot.Mutation.DownloadCaptionModel == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_downloadCaptionModel_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DownloadCaptionModel(childComplexity, args["id"].(string)), true
 	case "Mutation.enableUser":
 		if e.ComplexityRoot.Mutation.EnableUser == nil {
 			break
@@ -4364,6 +4798,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.EnableUser(childComplexity, args["id"].(string)), true
+	case "Mutation.generateRecordingCaptions":
+		if e.ComplexityRoot.Mutation.GenerateRecordingCaptions == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_generateRecordingCaptions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.GenerateRecordingCaptions(childComplexity, args["id"].(string)), true
 	case "Mutation.inspectChannel":
 		if e.ComplexityRoot.Mutation.InspectChannel == nil {
 			break
@@ -4503,6 +4948,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RenameRecordingFiles(childComplexity, args["ids"].([]string)), true
+	case "Mutation.renameRuleGroup":
+		if e.ComplexityRoot.Mutation.RenameRuleGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_renameRuleGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RenameRuleGroup(childComplexity, args["id"].(string), args["name"].(string)), true
+	case "Mutation.reorderRuleGroups":
+		if e.ComplexityRoot.Mutation.ReorderRuleGroups == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_reorderRuleGroups_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ReorderRuleGroups(childComplexity, args["ids"].([]string)), true
 	case "Mutation.reportAnimePlayback":
 		if e.ComplexityRoot.Mutation.ReportAnimePlayback == nil {
 			break
@@ -4652,6 +5119,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRulesEnabled(childComplexity, args["ids"].([]string), args["enabled"].(bool)), true
+	case "Mutation.setRulesGroup":
+		if e.ComplexityRoot.Mutation.SetRulesGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setRulesGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetRulesGroup(childComplexity, args["ids"].([]string), args["groupId"].(*string)), true
 	case "Mutation.setServicePinned":
 		if e.ComplexityRoot.Mutation.SetServicePinned == nil {
 			break
@@ -4784,6 +5262,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateChannelType(childComplexity, args["type"].(string), args["input"].(model.ChannelTypeInput)), true
+	case "Mutation.updateDramaLinkingToken":
+		if e.ComplexityRoot.Mutation.UpdateDramaLinkingToken == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaLinkingToken_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaLinkingToken(childComplexity, args["token"].(string)), true
+	case "Mutation.updateDramaTitleOverride":
+		if e.ComplexityRoot.Mutation.UpdateDramaTitleOverride == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaTitleOverride_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaTitleOverride(childComplexity, args["input"].(model.DramaTitleOverrideInput)), true
 	case "Mutation.updateGuideView":
 		if e.ComplexityRoot.Mutation.UpdateGuideView == nil {
 			break
@@ -5583,6 +6083,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Description(childComplexity), true
+	case "Program.dramaEpisode":
+		if e.ComplexityRoot.Program.DramaEpisode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.DramaEpisode(childComplexity), true
+	case "Program.dramaTitleKey":
+		if e.ComplexityRoot.Program.DramaTitleKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.DramaTitleKey(childComplexity), true
 	case "Program.endAt":
 		if e.ComplexityRoot.Program.EndAt == nil {
 			break
@@ -5898,6 +6410,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.CalendarFeed(childComplexity), true
+	case "Query.captionModels":
+		if e.ComplexityRoot.Query.CaptionModels == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.CaptionModels(childComplexity), true
 	case "Query.captures":
 		if e.ComplexityRoot.Query.Captures == nil {
 			break
@@ -5932,6 +6450,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
+	case "Query.dramaLinking":
+		if e.ComplexityRoot.Query.DramaLinking == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaLinking(childComplexity), true
+	case "Query.dramaTitleOverrides":
+		if e.ComplexityRoot.Query.DramaTitleOverrides == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaTitleOverrides(childComplexity), true
 	case "Query.drcsReplacements":
 		if e.ComplexityRoot.Query.DrcsReplacements == nil {
 			break
@@ -6015,6 +6545,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.NetworkActivity(childComplexity), true
+	case "Query.nextEpisodes":
+		if e.ComplexityRoot.Query.NextEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.NextEpisodes(childComplexity), true
 	case "Query.node":
 		if e.ComplexityRoot.Query.Node == nil {
 			break
@@ -6146,6 +6682,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]domain.AssignmentState), args["enabled"].(*bool), args["rule"].(*string), args["first"].(int), args["after"].(*string)), true
+	case "Query.ruleGroups":
+		if e.ComplexityRoot.Query.RuleGroups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.RuleGroups(childComplexity), true
 	case "Query.ruleWarnings":
 		if e.ComplexityRoot.Query.RuleWarnings == nil {
 			break
@@ -6347,6 +6889,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Audios(childComplexity), true
+	case "Recording.autoCaptions":
+		if e.ComplexityRoot.Recording.AutoCaptions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.AutoCaptions(childComplexity), true
+	case "Recording.autoCaptionsStatus":
+		if e.ComplexityRoot.Recording.AutoCaptionsStatus == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.AutoCaptionsStatus(childComplexity), true
 	case "Recording.broadcastEndedAt":
 		if e.ComplexityRoot.Recording.BroadcastEndedAt == nil {
 			break
@@ -6389,6 +6943,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Description(childComplexity), true
+	case "Recording.dramaEpisode":
+		if e.ComplexityRoot.Recording.DramaEpisode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.DramaEpisode(childComplexity), true
+	case "Recording.dramaTitleKey":
+		if e.ComplexityRoot.Recording.DramaTitleKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.DramaTitleKey(childComplexity), true
 	case "Recording.drops":
 		if e.ComplexityRoot.Recording.Drops == nil {
 			break
@@ -6485,6 +7051,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Name(childComplexity), true
+	case "Recording.nextEpisodes":
+		if e.ComplexityRoot.Recording.NextEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.NextEpisodes(childComplexity), true
 	case "Recording.notBroadcast":
 		if e.ComplexityRoot.Recording.NotBroadcast == nil {
 			break
@@ -6623,6 +7195,56 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.WorkTitle(childComplexity), true
+
+	case "RecordingAutoCaption.from":
+		if e.ComplexityRoot.RecordingAutoCaption.From == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaption.From(childComplexity), true
+	case "RecordingAutoCaption.text":
+		if e.ComplexityRoot.RecordingAutoCaption.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaption.Text(childComplexity), true
+	case "RecordingAutoCaption.to":
+		if e.ComplexityRoot.RecordingAutoCaption.To == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaption.To(childComplexity), true
+
+	case "RecordingAutoCaptions.count":
+		if e.ComplexityRoot.RecordingAutoCaptions.Count == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaptions.Count(childComplexity), true
+	case "RecordingAutoCaptions.generatedAt":
+		if e.ComplexityRoot.RecordingAutoCaptions.GeneratedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaptions.GeneratedAt(childComplexity), true
+	case "RecordingAutoCaptions.model":
+		if e.ComplexityRoot.RecordingAutoCaptions.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaptions.Model(childComplexity), true
+	case "RecordingAutoCaptions.progress":
+		if e.ComplexityRoot.RecordingAutoCaptions.Progress == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaptions.Progress(childComplexity), true
+	case "RecordingAutoCaptions.state":
+		if e.ComplexityRoot.RecordingAutoCaptions.State == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingAutoCaptions.State(childComplexity), true
 
 	case "RecordingCMDetection.detectedAt":
 		if e.ComplexityRoot.RecordingCMDetection.DetectedAt == nil {
@@ -6887,6 +7509,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettings.FileNameTemplate(childComplexity), true
+	case "RecordingSettings.generateCaptions":
+		if e.ComplexityRoot.RecordingSettings.GenerateCaptions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettings.GenerateCaptions(childComplexity), true
 	case "RecordingSettings.joinSegments":
 		if e.ComplexityRoot.RecordingSettings.JoinSegments == nil {
 			break
@@ -6924,6 +7552,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingSettings.TranscodePreset(childComplexity), true
 
+	case "RecordingSettingsOverrides.cmDetector":
+		if e.ComplexityRoot.RecordingSettingsOverrides.CMDetector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.CMDetector(childComplexity), true
 	case "RecordingSettingsOverrides.detectCm":
 		if e.ComplexityRoot.RecordingSettingsOverrides.DetectCM == nil {
 			break
@@ -6942,6 +7576,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RecordingSettingsOverrides.FileNameTemplate(childComplexity), true
+	case "RecordingSettingsOverrides.generateCaptions":
+		if e.ComplexityRoot.RecordingSettingsOverrides.GenerateCaptions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.GenerateCaptions(childComplexity), true
 	case "RecordingSettingsOverrides.joinSegments":
 		if e.ComplexityRoot.RecordingSettingsOverrides.JoinSegments == nil {
 			break
@@ -7250,6 +7890,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Rule.FollowEventRelay(childComplexity), true
+	case "Rule.group":
+		if e.ComplexityRoot.Rule.Group == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rule.Group(childComplexity), true
 	case "Rule.id":
 		if e.ComplexityRoot.Rule.ID == nil {
 			break
@@ -7336,6 +7982,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RuleDefaults.FollowEventRelay(childComplexity), true
 
+	case "RuleGroup.createdAt":
+		if e.ComplexityRoot.RuleGroup.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.CreatedAt(childComplexity), true
+	case "RuleGroup.id":
+		if e.ComplexityRoot.RuleGroup.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.ID(childComplexity), true
+	case "RuleGroup.name":
+		if e.ComplexityRoot.RuleGroup.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.Name(childComplexity), true
+	case "RuleGroup.position":
+		if e.ComplexityRoot.RuleGroup.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.Position(childComplexity), true
+	case "RuleGroup.updatedAt":
+		if e.ComplexityRoot.RuleGroup.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.UpdatedAt(childComplexity), true
+
 	case "RuleWarning.exclude":
 		if e.ComplexityRoot.RuleWarning.Exclude == nil {
 			break
@@ -7398,6 +8075,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SegmentVideoFormat.Width(childComplexity), true
+
+	case "SeriesNextEpisode.program":
+		if e.ComplexityRoot.SeriesNextEpisode.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SeriesNextEpisode.Program(childComplexity), true
+	case "SeriesNextEpisode.watched":
+		if e.ComplexityRoot.SeriesNextEpisode.Watched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SeriesNextEpisode.Watched(childComplexity), true
 
 	case "Service.channel":
 		if e.ComplexityRoot.Service.Channel == nil {
@@ -7827,6 +8517,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.DataBroadcastIPEnabled(childComplexity), true
+	case "SystemSettings.dramaLinkingEnabled":
+		if e.ComplexityRoot.SystemSettings.DramaLinkingEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.DramaLinkingEnabled(childComplexity), true
 	case "SystemSettings.drcsReplacements":
 		if e.ComplexityRoot.SystemSettings.DrcsReplacements == nil {
 			break
@@ -8556,6 +9252,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("CommentSettingsInput", ec.unmarshalInputCommentSettingsInput),
 			graphql.NewInputUnmarshaler("CreateUserInput", ec.unmarshalInputCreateUserInput),
 			graphql.NewInputUnmarshaler("CreateWebhookInput", ec.unmarshalInputCreateWebhookInput),
+			graphql.NewInputUnmarshaler("DramaTitleOverrideInput", ec.unmarshalInputDramaTitleOverrideInput),
 			graphql.NewInputUnmarshaler("DrcsReplacementInput", ec.unmarshalInputDrcsReplacementInput),
 			graphql.NewInputUnmarshaler("GenreInput", ec.unmarshalInputGenreInput),
 			graphql.NewInputUnmarshaler("GuideViewInput", ec.unmarshalInputGuideViewInput),
@@ -9615,6 +10312,116 @@ extend type Mutation {
   deleteIptvFeed: Boolean!
 }
 `, BuiltIn: false},
+	{Name: "../schema/caption_models.graphqls", Input: `"""
+字幕の自動生成のモデルの種類 (設計書 6.1、#1682)。種類ごとに、データディレクトリに置き場所が 1 つある。
+"""
+enum CaptionModelKind {
+  "書き起こしのモデル。whisper-cli が読む。データディレクトリの whisper/ggml-model.bin に置く。"
+  WHISPER
+  "声のある区間を求めるモデル。whisper-vad-speech-segments が読む。任意。データディレクトリの whisper/ggml-silero-vad.bin に置く。"
+  VAD
+}
+
+"""
+管理者が画面からダウンロードできる、字幕の自動生成のモデル (設計書 6.1、#1682)。入手先、大きさ、SHA-256 はコードに固定する。
+"""
+type CaptionModel {
+  "一覧の中の ID。downloadCaptionModel に渡す。"
+  id: String!
+  kind: CaptionModelKind!
+  "画面に出す名前。"
+  name: String!
+  "ファイルの大きさ (バイト)。"
+  size: Int64!
+  "ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。"
+  sha256: String!
+  "モデルのライセンス (SPDX の識別子)。"
+  license: String!
+  "入手先の URL。"
+  url: String!
+  "その種類で勧めるモデルかどうか。"
+  recommended: Boolean!
+}
+
+"""
+種類ごとのモデルの置き場所の状態 (設計書 6.1、#1682)。
+"""
+enum CaptionModelState {
+  "置いていない。"
+  NOT_PLACED
+  "ダウンロードを待っているか、ダウンロードしている。"
+  DOWNLOADING
+  "置いた。画面から置いたものも、手で置いたものも含む。"
+  PLACED
+  "最後のダウンロードが、試す回数を使い切ったか、照合に失敗した。前に置いたモデルがあれば残る。"
+  FAILED
+}
+
+"""
+データディレクトリの既定の場所に置いてあるモデル。
+"""
+type InstalledCaptionModel {
+  "画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。"
+  model: CaptionModel
+  "ファイルの大きさ (バイト)。"
+  size: Int64!
+  "画面から置いた日時。手で置いたファイルなら null。"
+  installedAt: Time
+}
+
+"""
+最後に頼んだダウンロード。終えていないか、失敗したものだけを返す。
+"""
+type CaptionModelDownload {
+  "ダウンロードしているか、失敗したモデル。一覧から消えたモデルなら null。"
+  model: CaptionModel
+  "動いているかどうか。false なら、待っているか、失敗した。"
+  running: Boolean!
+  "失敗したかどうか。"
+  failed: Boolean!
+  "動いているときの進み具合。今の試行で書いたものがなければ null。"
+  progress: JobProgress
+}
+
+"""
+種類ごとの、字幕の自動生成のモデルの置き場所 (設計書 6.1、#1682)。
+"""
+type CaptionModelSlot {
+  kind: CaptionModelKind!
+  state: CaptionModelState!
+  "既定の場所に置いてあるモデル。なければ null。"
+  installed: InstalledCaptionModel
+  "終えていないか、失敗した最後のダウンロード。なければ null。"
+  download: CaptionModelDownload
+  """
+  設定 (captions.whisper_model か captions.vad_model) でモデルの場所を書いていて、既定の場所のモデルを使わないかどうか。
+  tenban の設定で決める。設定は、nekonote と同じにしておく。
+  """
+  overridden: Boolean!
+  "この種類で選べるモデル。勧めるものを先に並べる。"
+  models: [CaptionModel!]!
+}
+
+extend type Query {
+  "字幕の自動生成のモデルの置き場所を、種類ごとに返す (設計書 6.1、#1682)。管理者だけが使える。"
+  captionModels: [CaptionModelSlot!]!
+}
+
+extend type Mutation {
+  """
+  一覧のモデル id をダウンロードして、データディレクトリの既定の場所に置くジョブを入れる (設計書 6.1、#1682)。管理者だけが使える。
+  ダウンロードは nekonote が行い、置いてあるファイルは、照合し終えてから置き換える。同じ種類のダウンロードを待っているか動かしていれば CONFLICT にする。
+  """
+  downloadCaptionModel(id: String!): CaptionModelSlot!
+  "種類 kind の、終えていないダウンロードを取り消す (#1682)。管理者だけが使える。なければ NOT_FOUND にする。"
+  cancelCaptionModelDownload(kind: CaptionModelKind!): CaptionModelSlot!
+  """
+  データディレクトリの既定の場所から、種類 kind のモデルを消す (#1682)。管理者だけが使える。手で置いたファイルも消す。
+  ダウンロードしている間は CONFLICT に、置いていなければ NOT_FOUND にする。
+  """
+  deleteCaptionModel(kind: CaptionModelKind!): CaptionModelSlot!
+}
+`, BuiltIn: false},
 	{Name: "../schema/captures.graphqls", Input: `"""
 ログイン中のユーザーが視聴画面で撮ったキャプチャ (設計書 7.5)。撮ったユーザーだけが見られる。
 """
@@ -9881,6 +10688,133 @@ input ProgramConditionsInput {
   marks: [String!]
   "どれか 1 つの囲み文字を持つ番組を除外する。"
   excludeMarks: [String!]
+}
+`, BuiltIn: false},
+	{Name: "../schema/drama.graphqls", Input: `"""
+番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+"""
+enum DramaSeriesSource {
+  "番組名から読んだ作品名で、TMDb を探した"
+  SEARCH
+  "管理者が、作品名ごとに決めた (上書き)"
+  OVERRIDE
+}
+
+"""
+番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+"""
+enum DramaEpisodeSource {
+  "TMDb の話の放送日と、番組の放送日が一致した"
+  AIR_DATE
+  "番組名の話数 (#7、第7話、(4)) で選んだ"
+  TITLE
+}
+
+"""
+TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+"""
+type DramaSeries {
+  "TMDb の作品の ID。"
+  tmdbId: Int!
+  "作品の名前 (日本語)。"
+  name: String
+  "作品の元の言語の名前。"
+  originalName: String
+  "TMDb の作品のページ。"
+  url: String!
+}
+
+"""
+番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+"""
+type DramaEpisode {
+  series: DramaSeries!
+  seriesSource: DramaSeriesSource!
+  "TMDb のシーズンの番号。0 は特別編。話を決められなければ null。"
+  seasonNumber: Int
+  "シーズンの中の話の番号。話を決められなければ null。"
+  episodeNumber: Int
+  "話の名前。キャッシュがなければ null。"
+  episodeName: String
+  episodeSource: DramaEpisodeSource
+  "TMDb の話のページ。話を決められなければ、作品のページ。"
+  url: String!
+}
+
+"""
+管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+"""
+type DramaTitleOverride {
+  "作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
+  titleKey: String!
+  "結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。"
+  tmdbSeriesId: Int
+  updatedAt: Time!
+}
+
+"""
+TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+"""
+type DramaLinkingStatus {
+  "管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。"
+  tokenConfigured: Boolean!
+  "入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。"
+  tokenHint: String
+  "トークンを最後に変えた日時。入れていなければ null。"
+  tokenUpdatedAt: Time
+}
+
+"""
+作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+"""
+input DramaTitleOverrideInput {
+  "上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。"
+  programName: String
+  "上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
+  titleKey: String
+  "結びつける TMDb の作品の ID (1 以上)。"
+  tmdbSeriesId: Int
+  "この作品名の番組を、どの作品にも結びつけない。"
+  exclude: Boolean! = false
+  "上書きを消し、TMDb を探して作品を決めるのに戻す。"
+  reset: Boolean! = false
+}
+
+extend type Program {
+  "結びついた TMDb の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。"
+  dramaEpisode: DramaEpisode
+  "番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  dramaTitleKey: String!
+}
+
+extend type Recording {
+  "結びついた TMDb の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  dramaEpisode: DramaEpisode
+  "番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  dramaTitleKey: String!
+}
+
+extend type Query {
+  "TMDb との連携の様子 (#1651)。管理者だけが使える。"
+  dramaLinking: DramaLinkingStatus!
+  "作品名ごとの TMDb の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。"
+  dramaTitleOverrides: [DramaTitleOverride!]!
+}
+
+extend type Mutation {
+  """
+  TMDb の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDb には問い合わせない。
+  2048 文字を超えるか、空白、制御文字、ASCII の外の文字を含めば BAD_USER_INPUT を返す。
+  入れたら、6 時間ごとの照合し直しを待たずに照合するジョブを入れる。
+  """
+  updateDramaLinkingToken(token: String!): DramaLinkingStatus!
+  """
+  番組名から読んだ作品名の、TMDb の作品の上書きを変える (#1651)。管理者だけが使える。
+  家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDb には問い合わせず、照合し直すジョブを入れる。
+  正しくない値なら BAD_USER_INPUT を返す。変えた後の、すべての上書きを返す。
+  """
+  updateDramaTitleOverride(input: DramaTitleOverrideInput!): [DramaTitleOverride!]!
 }
 `, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
@@ -10374,6 +11308,7 @@ enum NetworkActivityPurpose {
   ANIME_RECORD
   ANIME_LINK
   ANIME_IMAGE
+  DRAMA_LINKING
   USER_AVATAR
   OIDC
   HIBP
@@ -10384,6 +11319,8 @@ enum NetworkActivityPurpose {
   WEB_PUSH
   WEBHOOK
   DATA_BROADCAST
+  "字幕の自動生成のモデルのダウンロード (#1682)"
+  CAPTION_MODEL_DOWNLOAD
 }
 
 "外部との通信のきっかけ。"
@@ -11049,6 +11986,8 @@ enum RecordingFailureReason {
   RECORDER_UNAVAILABLE
   "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)"
   TUNER_PREEMPTED
+  "チューナーサーバーが選局を断った。サービスかチャンネルがないか、選局に失敗した (#1519)"
+  TUNING_REFUSED
 }
 
 """
@@ -11165,6 +12104,50 @@ type RecordingCMDetection {
 }
 
 """
+録画の音声から自動生成した字幕の 1 つ (設計書 6.1、#1682)。放送の字幕と違い、誤りが混ざる。
+"""
+type RecordingAutoCaption {
+  "字幕を出す区間の始まりと終わり。録画の時間軸の日時で、CM の区間と同じく、再生の位置にするには途切れた分 (gaps) を詰める。"
+  from: Time!
+  to: Time!
+  "字幕の本文。複数の行は改行でつなぐ。"
+  text: String!
+}
+
+"""
+録画の字幕の自動生成の状態 (設計書 6.1、#1682)。
+"""
+enum RecordingAutoCaptionsState {
+  "生成していない。生成するジョブもない。"
+  NOT_GENERATED
+  "生成するジョブが、動くのを待っている。試し直しを待っているときも含む。"
+  QUEUED
+  "生成している。"
+  RUNNING
+  "生成し終えた。台詞がなく、字幕が 1 つもなくても、生成し終えたとする。"
+  GENERATED
+  "最後に頼んだ生成が、試す回数を使い切ったか、取りやめた。River がジョブを消すと、前に生成した結果の状態に戻る。"
+  FAILED
+  "最後に頼んだ生成が、nekonote に whisper-cli かモデルが見つからずに取りやめた。管理者が置くと生成できる。"
+  NOT_CONFIGURED
+}
+
+"""
+録画の字幕の自動生成の状態 (設計書 6.1、#1682)。最後に入れた生成のジョブと、生成した字幕から決める。
+"""
+type RecordingAutoCaptions {
+  state: RecordingAutoCaptionsState!
+  "最後に生成し終えた日時。生成していなければ null。生成し直している間と、生成し直しに失敗した後は、前に生成した日時を返す。"
+  generatedAt: Time
+  "最後に生成し終えたときに使ったモデルのファイルの名前。生成していなければ null。"
+  model: String
+  "最後に生成し終えた字幕の数。"
+  count: Int!
+  "生成しているときの進み具合。今の試行で書いたものがなければ null。"
+  progress: JobProgress
+}
+
+"""
 録画のタグ。
 """
 type Tag {
@@ -11226,6 +12209,10 @@ type Recording implements Node {
   cmDetectionNote: String
   "最後に見分け終えた CM の見分けで測った、映像の欠けの長さの合計の秒 (#1508)。録画の一覧の印に使う。cmDetection.videoMissingSeconds と同じ値を、一覧の録画をまとめて引く。"
   cmVideoMissingSeconds: Float!
+  "音声から自動生成した字幕を、始まりの順に並べる (#1682)。生成していないか、台詞がなければ空になる。"
+  autoCaptions: [RecordingAutoCaption!]!
+  "字幕の自動生成の状態 (#1682)。生成を待っているか、生成しているか、生成し終えたか、失敗したかを返す。"
+  autoCaptionsStatus: RecordingAutoCaptions!
   "録画を始めたときの番組の音声の構成。主音声を先に並べる。時刻予約の録画や、構成を知らない録画では空になる。"
   audios: [ProgramAudio!]!
   "映像の種類 (#806)。録画を始めたときの番組の映像の解像度から決める。分からなければ、チャンネル種別から決める。"
@@ -11270,6 +12257,13 @@ type Recording implements Node {
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
   jikkyoCommentsUrl: String!
+  """
+  録画のシリーズの続きの放送 (#1564、設計書 4.4)。これから 1 週間に始まる番組表の番組のうち、録画より話数の大きい回を、
+  放送の早い順に 10 件まで返す。録画がしょぼいカレンダーの 1 つの話に結びついていれば TID と話数で、結びついていなければ
+  番組名から読んだシリーズ名の完全一致と話数で探す。予約のある放送 (無効にした予約を含む) と、録画履歴にある話数の放送は外し、
+  同じイベントを共有する放送は 1 つにする。シリーズか話数を読めない録画 (ニュースや帯番組など) では空になる。
+  """
+  nextEpisodes: [Program!]!
   "同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。"
   jikkyoOtherCommentsUrl: String!
   "上映会のコメント (NICOLOG) を読む URL のパス (#1363)。"
@@ -11334,6 +12328,16 @@ enum RecordingOrder {
   OLDEST_FIRST
 }
 
+"""
+ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+"""
+type SeriesNextEpisode {
+  "シリーズの見た回のうち、話数の最も大きい録画。"
+  watched: Recording!
+  "シリーズの続きの放送のうち、最も早い放送。"
+  program: Program!
+}
+
 extend type Query {
   "録画を、録画を始めた日時の順 (既定は新しい順) に first 件まで返す。"
   recordings(first: Int! = 50, after: String, filter: RecordingFilter, order: RecordingOrder! = NEWEST_FIRST): RecordingConnection!
@@ -11342,6 +12346,12 @@ extend type Query {
   少しだけ見た録画 (10 秒より前) と、終わりの 10 秒以内まで見た録画は、見終えたものとして含めない。
   """
   continueWatching(first: Int! = 12): [Recording!]!
+  """
+  ログイン中のユーザーが見たシリーズの続きの放送 (#1564、設計書 4.4)。ホームの「続きの放送」に出す。
+  直近 30 日に、録画の長さの半分以上まで再生した録画を見た回とし、シリーズごとに、見た回の最大の話数より後の放送のうち
+  最も早い 1 件を、放送の早い順に 10 シリーズまで返す。放送の選び方は Recording.nextEpisodes と同じ。
+  """
+  nextEpisodes: [SeriesNextEpisode!]!
   "タグを、名前の順に返す。"
   tags: [Tag!]!
 }
@@ -11384,6 +12394,12 @@ extend type Mutation {
   同じ録画のジョブを待っていれば、重ねて入れずに false を返す。
   """
   detectRecordingCm(id: ID!): Boolean!
+  """
+  録画の音声から字幕を自動生成するジョブを入れる (設計書 6.1、#1682)。視聴者は使えない。全体や予約の設定にかかわらず生成し、
+  前に生成した字幕は置き換える。録画中の録画と、TS のセグメントのない録画は CONFLICT にする。
+  同じ録画のジョブを待っていれば、重ねて入れずに false を返す。whisper-cli とモデルがなければ、ジョブが取りやめ、状態が NOT_CONFIGURED になる。
+  """
+  generateRecordingCaptions(id: ID!): Boolean!
 }
 
 """
@@ -11688,10 +12704,14 @@ type RecordingSettingsOverrides {
   joinSegments: Boolean
   "録画が終わったら、CM とみなす区間を見分けるかどうか。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。"
   detectCm: Boolean
+  "録画が終わったら、音声から字幕を自動生成するかどうか (#1682)。null なら従う値 (ルール予約ならルールの設定、なければ録画を終えるときの全体の設定) にする。"
+  generateCaptions: Boolean
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (#1253)。空の文字列なら変換しない。null なら従う値にする。"
   transcodePreset: String
   "録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。"
   transcodeFrameRate: String
+  "CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。"
+  cmDetector: CMDetector
 }
 
 """
@@ -11705,10 +12725,13 @@ input RecordingSettingsOverridesInput {
   priority: Int
   joinSegments: Boolean
   detectCm: Boolean
+  generateCaptions: Boolean
   "変換の画質 (transcodePresets のどれか)。空の文字列なら変換しない。"
   transcodePreset: String
   "変換で出すコマ数 (auto、30、60 のどれか)。"
   transcodeFrameRate: String
+  "CM の区間の見分け方。"
+  cmDetector: CMDetector
 }
 
 """
@@ -11743,6 +12766,22 @@ type Rule implements Node {
   updatedBy: User
   "このルールに一致した予約のうち、終わっていないものの件数。無効にした予約も数える。"
   upcomingReservationCount: Int!
+  "ルールが入るグループ (#1493)。どのグループにも入らなければ null (一覧の「その他」)。"
+  group: RuleGroup
+}
+
+"""
+ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+ルールと同じく家族で共有する。1 つのルールは、多くとも 1 つのグループに入る。
+"""
+type RuleGroup implements Node {
+  id: ID!
+  "1〜100 文字。ほかのグループと同じ名前にはできない。"
+  name: String!
+  "一覧で並べる順 (0 から)"
+  position: Int!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 """
@@ -11764,6 +12803,11 @@ input RuleInput {
   followEventRelay: Boolean! = true
   bundleSameEpisodes: Boolean! = false
   skipEarlierEpisodes: Boolean! = false
+  """
+  ルールを入れるグループ (#1493)。null ならどのグループにも入れない。
+  updateRule で省くと、今のグループを変えない。createRule で省くと、どのグループにも入れない。
+  """
+  groupId: ID
 }
 
 "ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。"
@@ -11783,6 +12827,8 @@ enum RuleWarningKind {
 extend type Query {
   "すべてのルールを、作った順に返す。"
   rules: [Rule!]!
+  "ルールのすべてのグループを、一覧で並べる順に返す (#1493)。"
+  ruleGroups: [RuleGroup!]!
   "保存する前のルールの、照合を重くする書き方を返す (#904)。ルールのプレビューと同じく、視聴者も使える。"
   ruleWarnings(input: RuleInput!): [RuleWarning!]!
   """
@@ -11821,6 +12867,19 @@ extend type Mutation {
   見つからないルールは飛ばした数に数える。一度に 500 件まで。
   """
   deleteRules(ids: [ID!]!): BulkOperationPayload!
+  """
+  ルール ids をまとめてグループ groupId に移す (#1493)。groupId が null なら、どのグループにも入れない。視聴者は使えない。
+  監査ログは 1 件ずつ残す。ルールの updatedAt は変えない。見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesGroup(ids: [ID!]!, groupId: ID): BulkOperationPayload!
+  "ルールのグループを作り、一覧の最後に並べる (#1493)。名前の前後の空白は除く。視聴者は使えない。"
+  createRuleGroup(name: String!): RuleGroup!
+  "グループの名前を変える。視聴者は使えない。"
+  renameRuleGroup(id: ID!, name: String!): RuleGroup!
+  "グループを ids の順に並べ直し、並べ直したすべてのグループを返す。ids には、すべてのグループを 1 回ずつ含める。視聴者は使えない。"
+  reorderRuleGroups(ids: [ID!]!): [RuleGroup!]!
+  "グループを消し、消したグループの ID を返す。中のルールは消さず、どのグループにも入らないルールに戻す。視聴者は使えない。"
+  deleteRuleGroup(id: ID!): ID!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `"""
@@ -12018,6 +13077,8 @@ type RecordingSettings {
   joinSegments: Boolean!
   "録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1、#1209)。既定は false。"
   detectCm: Boolean!
+  "録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定は false。生成には、nekonote に whisper.cpp とモデルを置く必要がある。"
+  generateCaptions: Boolean!
   "録画が終わったら、録画を変換して MP4 を足すときの画質 (設計書 6.1、#1253)。null なら変換しない。既定は null。"
   transcodePreset: String
   "録画を変換するときに出すコマ数 (#1509)。auto (映像から測って 30 か 60 を選ぶ)、30、60 のどれか。既定は auto。"
@@ -12108,6 +13169,8 @@ type SystemSettings {
   epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
+  "TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
+  dramaLinkingEnabled: Boolean!
   """
   NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
   ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
@@ -12161,6 +13224,8 @@ input SystemSettingsInput {
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
+  "TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  dramaLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   commentSources: [CommentSource!]
   """
@@ -13457,6 +14522,60 @@ func (ec *executionContext) childFields_CalendarFeed(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type CalendarFeed", field.Name)
 }
 
+func (ec *executionContext) childFields_CaptionModel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_CaptionModel_id(ctx, field)
+	case "kind":
+		return ec.fieldContext_CaptionModel_kind(ctx, field)
+	case "name":
+		return ec.fieldContext_CaptionModel_name(ctx, field)
+	case "size":
+		return ec.fieldContext_CaptionModel_size(ctx, field)
+	case "sha256":
+		return ec.fieldContext_CaptionModel_sha256(ctx, field)
+	case "license":
+		return ec.fieldContext_CaptionModel_license(ctx, field)
+	case "url":
+		return ec.fieldContext_CaptionModel_url(ctx, field)
+	case "recommended":
+		return ec.fieldContext_CaptionModel_recommended(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CaptionModel", field.Name)
+}
+
+func (ec *executionContext) childFields_CaptionModelDownload(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "model":
+		return ec.fieldContext_CaptionModelDownload_model(ctx, field)
+	case "running":
+		return ec.fieldContext_CaptionModelDownload_running(ctx, field)
+	case "failed":
+		return ec.fieldContext_CaptionModelDownload_failed(ctx, field)
+	case "progress":
+		return ec.fieldContext_CaptionModelDownload_progress(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CaptionModelDownload", field.Name)
+}
+
+func (ec *executionContext) childFields_CaptionModelSlot(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "kind":
+		return ec.fieldContext_CaptionModelSlot_kind(ctx, field)
+	case "state":
+		return ec.fieldContext_CaptionModelSlot_state(ctx, field)
+	case "installed":
+		return ec.fieldContext_CaptionModelSlot_installed(ctx, field)
+	case "download":
+		return ec.fieldContext_CaptionModelSlot_download(ctx, field)
+	case "overridden":
+		return ec.fieldContext_CaptionModelSlot_overridden(ctx, field)
+	case "models":
+		return ec.fieldContext_CaptionModelSlot_models(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type CaptionModelSlot", field.Name)
+}
+
 func (ec *executionContext) childFields_CaptionSettings(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "superimposeLive":
@@ -13651,6 +14770,64 @@ func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type DeleteReservationPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_DramaEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "series":
+		return ec.fieldContext_DramaEpisode_series(ctx, field)
+	case "seriesSource":
+		return ec.fieldContext_DramaEpisode_seriesSource(ctx, field)
+	case "seasonNumber":
+		return ec.fieldContext_DramaEpisode_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaEpisode_episodeNumber(ctx, field)
+	case "episodeName":
+		return ec.fieldContext_DramaEpisode_episodeName(ctx, field)
+	case "episodeSource":
+		return ec.fieldContext_DramaEpisode_episodeSource(ctx, field)
+	case "url":
+		return ec.fieldContext_DramaEpisode_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLinkingStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "tokenConfigured":
+		return ec.fieldContext_DramaLinkingStatus_tokenConfigured(ctx, field)
+	case "tokenHint":
+		return ec.fieldContext_DramaLinkingStatus_tokenHint(ctx, field)
+	case "tokenUpdatedAt":
+		return ec.fieldContext_DramaLinkingStatus_tokenUpdatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLinkingStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaSeries(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "tmdbId":
+		return ec.fieldContext_DramaSeries_tmdbId(ctx, field)
+	case "name":
+		return ec.fieldContext_DramaSeries_name(ctx, field)
+	case "originalName":
+		return ec.fieldContext_DramaSeries_originalName(ctx, field)
+	case "url":
+		return ec.fieldContext_DramaSeries_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaSeries", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaTitleOverride(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "titleKey":
+		return ec.fieldContext_DramaTitleOverride_titleKey(ctx, field)
+	case "tmdbSeriesId":
+		return ec.fieldContext_DramaTitleOverride_tmdbSeriesId(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_DramaTitleOverride_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaTitleOverride", field.Name)
+}
+
 func (ec *executionContext) childFields_DrcsReplacement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "md5":
@@ -13811,6 +14988,18 @@ func (ec *executionContext) childFields_InspectedStream(ctx context.Context, fie
 		return ec.fieldContext_InspectedStream_scrambled(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type InspectedStream", field.Name)
+}
+
+func (ec *executionContext) childFields_InstalledCaptionModel(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "model":
+		return ec.fieldContext_InstalledCaptionModel_model(ctx, field)
+	case "size":
+		return ec.fieldContext_InstalledCaptionModel_size(ctx, field)
+	case "installedAt":
+		return ec.fieldContext_InstalledCaptionModel_installedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type InstalledCaptionModel", field.Name)
 }
 
 func (ec *executionContext) childFields_Instance(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14449,6 +15638,10 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_sharedFrom(ctx, field)
 	case "animeEpisodes":
 		return ec.fieldContext_Program_animeEpisodes(ctx, field)
+	case "dramaEpisode":
+		return ec.fieldContext_Program_dramaEpisode(ctx, field)
+	case "dramaTitleKey":
+		return ec.fieldContext_Program_dramaTitleKey(ctx, field)
 	case "recordings":
 		return ec.fieldContext_Program_recordings(ctx, field)
 	case "recorded":
@@ -14581,6 +15774,10 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_cmDetectionNote(ctx, field)
 	case "cmVideoMissingSeconds":
 		return ec.fieldContext_Recording_cmVideoMissingSeconds(ctx, field)
+	case "autoCaptions":
+		return ec.fieldContext_Recording_autoCaptions(ctx, field)
+	case "autoCaptionsStatus":
+		return ec.fieldContext_Recording_autoCaptionsStatus(ctx, field)
 	case "audios":
 		return ec.fieldContext_Recording_audios(ctx, field)
 	case "videoFormat":
@@ -14619,6 +15816,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_watchFrame(ctx, field)
 	case "jikkyoCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
+	case "nextEpisodes":
+		return ec.fieldContext_Recording_nextEpisodes(ctx, field)
 	case "jikkyoOtherCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoOtherCommentsUrl(ctx, field)
 	case "jikkyoNicologCommentsUrl":
@@ -14629,8 +15828,40 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_streamUrl(ctx, field)
 	case "animeEpisodes":
 		return ec.fieldContext_Recording_animeEpisodes(ctx, field)
+	case "dramaEpisode":
+		return ec.fieldContext_Recording_dramaEpisode(ctx, field)
+	case "dramaTitleKey":
+		return ec.fieldContext_Recording_dramaTitleKey(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingAutoCaption(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "from":
+		return ec.fieldContext_RecordingAutoCaption_from(ctx, field)
+	case "to":
+		return ec.fieldContext_RecordingAutoCaption_to(ctx, field)
+	case "text":
+		return ec.fieldContext_RecordingAutoCaption_text(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingAutoCaption", field.Name)
+}
+
+func (ec *executionContext) childFields_RecordingAutoCaptions(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "state":
+		return ec.fieldContext_RecordingAutoCaptions_state(ctx, field)
+	case "generatedAt":
+		return ec.fieldContext_RecordingAutoCaptions_generatedAt(ctx, field)
+	case "model":
+		return ec.fieldContext_RecordingAutoCaptions_model(ctx, field)
+	case "count":
+		return ec.fieldContext_RecordingAutoCaptions_count(ctx, field)
+	case "progress":
+		return ec.fieldContext_RecordingAutoCaptions_progress(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RecordingAutoCaptions", field.Name)
 }
 
 func (ec *executionContext) childFields_RecordingCMDetection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -14793,6 +16024,8 @@ func (ec *executionContext) childFields_RecordingSettings(ctx context.Context, f
 		return ec.fieldContext_RecordingSettings_joinSegments(ctx, field)
 	case "detectCm":
 		return ec.fieldContext_RecordingSettings_detectCm(ctx, field)
+	case "generateCaptions":
+		return ec.fieldContext_RecordingSettings_generateCaptions(ctx, field)
 	case "transcodePreset":
 		return ec.fieldContext_RecordingSettings_transcodePreset(ctx, field)
 	case "transcodeFrameRate":
@@ -14817,10 +16050,14 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_joinSegments(ctx, field)
 	case "detectCm":
 		return ec.fieldContext_RecordingSettingsOverrides_detectCm(ctx, field)
+	case "generateCaptions":
+		return ec.fieldContext_RecordingSettingsOverrides_generateCaptions(ctx, field)
 	case "transcodePreset":
 		return ec.fieldContext_RecordingSettingsOverrides_transcodePreset(ctx, field)
 	case "transcodeFrameRate":
 		return ec.fieldContext_RecordingSettingsOverrides_transcodeFrameRate(ctx, field)
+	case "cmDetector":
+		return ec.fieldContext_RecordingSettingsOverrides_cmDetector(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -14977,6 +16214,8 @@ func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.
 		return ec.fieldContext_Rule_updatedBy(ctx, field)
 	case "upcomingReservationCount":
 		return ec.fieldContext_Rule_upcomingReservationCount(ctx, field)
+	case "group":
+		return ec.fieldContext_Rule_group(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Rule", field.Name)
 }
@@ -14993,6 +16232,22 @@ func (ec *executionContext) childFields_RuleDefaults(ctx context.Context, field 
 		return ec.fieldContext_RuleDefaults_bundleSameEpisodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RuleDefaults", field.Name)
+}
+
+func (ec *executionContext) childFields_RuleGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_RuleGroup_id(ctx, field)
+	case "name":
+		return ec.fieldContext_RuleGroup_name(ctx, field)
+	case "position":
+		return ec.fieldContext_RuleGroup_position(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_RuleGroup_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_RuleGroup_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RuleGroup", field.Name)
 }
 
 func (ec *executionContext) childFields_RuleWarning(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -15031,6 +16286,16 @@ func (ec *executionContext) childFields_SegmentVideoFormat(ctx context.Context, 
 		return ec.fieldContext_SegmentVideoFormat_frameRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SegmentVideoFormat", field.Name)
+}
+
+func (ec *executionContext) childFields_SeriesNextEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "watched":
+		return ec.fieldContext_SeriesNextEpisode_watched(ctx, field)
+	case "program":
+		return ec.fieldContext_SeriesNextEpisode_program(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SeriesNextEpisode", field.Name)
 }
 
 func (ec *executionContext) childFields_Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -15231,6 +16496,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_epgstationApiEnabled(ctx, field)
 	case "animeLinkingEnabled":
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
+	case "dramaLinkingEnabled":
+		return ec.fieldContext_SystemSettings_dramaLinkingEnabled(ctx, field)
 	case "jikkyoEnabled":
 		return ec.fieldContext_SystemSettings_jikkyoEnabled(ctx, field)
 	case "commentSources":
@@ -15709,6 +16976,20 @@ func (ec *executionContext) field_Mutation_beginAnimeRecordConnection_args(ctx c
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_cancelCaptionModelDownload_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "kind",
+		func(ctx context.Context, v any) (captionmodel.Kind, error) {
+			return ec.unmarshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["kind"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_cancelJob_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15835,6 +17116,20 @@ func (ec *executionContext) field_Mutation_createProgramReservation_args(ctx con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createRuleGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -15930,6 +17225,20 @@ func (ec *executionContext) field_Mutation_deleteApiToken_args(ctx context.Conte
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteCaptionModel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "kind",
+		func(ctx context.Context, v any) (captionmodel.Kind, error) {
+			return ec.unmarshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["kind"] = arg0
 	return args, nil
 }
 
@@ -16059,6 +17368,20 @@ func (ec *executionContext) field_Mutation_deleteReservations_args(ctx context.C
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_deleteRuleGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_deleteRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16185,7 +17508,35 @@ func (ec *executionContext) field_Mutation_disconnectAnimeRecord_args(ctx contex
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_downloadCaptionModel_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_enableUser_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_generateRecordingCaptions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -16364,6 +17715,42 @@ func (ec *executionContext) field_Mutation_renamePasskey_args(ctx context.Contex
 }
 
 func (ec *executionContext) field_Mutation_renameRecordingFiles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_renameRuleGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_reorderRuleGroups_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
@@ -16639,6 +18026,28 @@ func (ec *executionContext) field_Mutation_setRulesEnabled_args(ctx context.Cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setRulesGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "groupId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupId"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setServicePinned_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16860,6 +18269,34 @@ func (ec *executionContext) field_Mutation_updateChannelType_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaLinkingToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "token",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["token"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaTitleOverride_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
+			return ec.unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -21455,6 +22892,465 @@ func (ec *executionContext) fieldContext_CalendarFeed_lastUsedAt(_ context.Conte
 	return graphql.NewScalarFieldContext("CalendarFeed", field, false, false, "Time")
 }
 
+func (ec *executionContext) _CaptionModel_id(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "String")
+}
+
+func (ec *executionContext) _CaptionModel_kind(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v captionmodel.Kind) graphql.Marshaler {
+			return ec.marshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "CaptionModelKind")
+}
+
+func (ec *executionContext) _CaptionModel_name(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "String")
+}
+
+func (ec *executionContext) _CaptionModel_size(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _CaptionModel_sha256(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_sha256(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Sha256, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_sha256(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "String")
+}
+
+func (ec *executionContext) _CaptionModel_license(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_license(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.License, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_license(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "String")
+}
+
+func (ec *executionContext) _CaptionModel_url(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "String")
+}
+
+func (ec *executionContext) _CaptionModel_recommended(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModel_recommended(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Recommended, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModel_recommended(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _CaptionModelDownload_model(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelDownload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelDownload_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionModel) graphql.Marshaler {
+			return ec.marshalOCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModel(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelDownload_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptionModelDownload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CaptionModelDownload_running(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelDownload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelDownload_running(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Running, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelDownload_running(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModelDownload", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _CaptionModelDownload_failed(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelDownload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelDownload_failed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Failed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelDownload_failed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModelDownload", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _CaptionModelDownload_progress(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelDownload) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelDownload_progress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Progress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.JobProgress) graphql.Marshaler {
+			return ec.marshalOJobProgress2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobProgress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelDownload_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptionModelDownload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobProgress(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CaptionModelSlot_kind(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelSlot_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v captionmodel.Kind) graphql.Marshaler {
+			return ec.marshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelSlot_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModelSlot", field, false, false, "CaptionModelKind")
+}
+
+func (ec *executionContext) _CaptionModelSlot_state(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelSlot_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v captionmodel.State) graphql.Marshaler {
+			return ec.marshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelSlot_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModelSlot", field, false, false, "CaptionModelState")
+}
+
+func (ec *executionContext) _CaptionModelSlot_installed(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelSlot_installed(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Installed, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.InstalledCaptionModel) graphql.Marshaler {
+			return ec.marshalOInstalledCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInstalledCaptionModel(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelSlot_installed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptionModelSlot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_InstalledCaptionModel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CaptionModelSlot_download(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelSlot_download(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Download, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionModelDownload) graphql.Marshaler {
+			return ec.marshalOCaptionModelDownload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelDownload(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelSlot_download(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptionModelSlot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModelDownload(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _CaptionModelSlot_overridden(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelSlot_overridden(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Overridden, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelSlot_overridden(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("CaptionModelSlot", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _CaptionModelSlot_models(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModelSlot) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_CaptionModelSlot_models(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Models, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CaptionModel) graphql.Marshaler {
+			return ec.marshalNCaptionModel2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_CaptionModelSlot_models(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "CaptionModelSlot",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _CaptionSettings_superimposeLive(ctx context.Context, field graphql.CollectedField, obj *model.CaptionSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -22750,6 +24646,406 @@ func (ec *executionContext) fieldContext_DeleteReservationPayload_reservation(_ 
 	return fc, nil
 }
 
+func (ec *executionContext) _DramaEpisode_series(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_series(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Series, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+			return ec.marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_series(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaSeries(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaEpisode_seriesSource(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_seriesSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeriesSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DramaSeriesSource) graphql.Marshaler {
+			return ec.marshalNDramaSeriesSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeriesSource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_seriesSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "DramaSeriesSource")
+}
+
+func (ec *executionContext) _DramaEpisode_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaEpisode_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaEpisode_episodeName(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_episodeName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_episodeName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaEpisode_episodeSource(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_episodeSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaEpisodeSource) graphql.Marshaler {
+			return ec.marshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_episodeSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "DramaEpisodeSource")
+}
+
+func (ec *executionContext) _DramaEpisode_url(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenConfigured(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenConfigured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenConfigured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenConfigured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenHint(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenHint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenHint, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenHint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenUpdatedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenUpdatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenUpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenUpdatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaSeries_tmdbId(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_tmdbId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TmdbID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_tmdbId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaSeries_name(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaSeries_originalName(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_originalName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OriginalName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_originalName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaSeries_url(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaTitleOverride_titleKey(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaTitleOverride_titleKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TitleKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaTitleOverride_titleKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaTitleOverride", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaTitleOverride_tmdbSeriesId(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaTitleOverride_tmdbSeriesId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TmdbSeriesID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaTitleOverride_tmdbSeriesId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaTitleOverride", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaTitleOverride_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaTitleOverride_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaTitleOverride_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaTitleOverride", field, false, false, "Time")
+}
+
 func (ec *executionContext) _DrcsReplacement_md5(ctx context.Context, field graphql.CollectedField, obj *model.DrcsReplacement) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -23795,6 +26091,84 @@ func (ec *executionContext) _InspectedStream_scrambled(ctx context.Context, fiel
 }
 func (ec *executionContext) fieldContext_InspectedStream_scrambled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("InspectedStream", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _InstalledCaptionModel_model(ctx context.Context, field graphql.CollectedField, obj *model.InstalledCaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InstalledCaptionModel_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionModel) graphql.Marshaler {
+			return ec.marshalOCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModel(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InstalledCaptionModel_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "InstalledCaptionModel",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModel(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _InstalledCaptionModel_size(ctx context.Context, field graphql.CollectedField, obj *model.InstalledCaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InstalledCaptionModel_size(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Size, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_InstalledCaptionModel_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InstalledCaptionModel", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _InstalledCaptionModel_installedAt(ctx context.Context, field graphql.CollectedField, obj *model.InstalledCaptionModel) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_InstalledCaptionModel_installedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.InstalledAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_InstalledCaptionModel_installedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("InstalledCaptionModel", field, false, false, "Time")
 }
 
 func (ec *executionContext) _Instance_instanceId(ctx context.Context, field graphql.CollectedField, obj *model.Instance) (ret graphql.Marshaler) {
@@ -26730,6 +29104,138 @@ func (ec *executionContext) fieldContext_Mutation_deleteIptvFeed(_ context.Conte
 	return graphql.NewScalarFieldContext("Mutation", field, true, true, "Boolean")
 }
 
+func (ec *executionContext) _Mutation_downloadCaptionModel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_downloadCaptionModel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DownloadCaptionModel(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionModelSlot) graphql.Marshaler {
+			return ec.marshalNCaptionModelSlot2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlot(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_downloadCaptionModel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModelSlot(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_downloadCaptionModel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_cancelCaptionModelDownload(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_cancelCaptionModelDownload(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CancelCaptionModelDownload(ctx, fc.Args["kind"].(captionmodel.Kind))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionModelSlot) graphql.Marshaler {
+			return ec.marshalNCaptionModelSlot2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlot(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_cancelCaptionModelDownload(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModelSlot(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_cancelCaptionModelDownload_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteCaptionModel(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteCaptionModel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteCaptionModel(ctx, fc.Args["kind"].(captionmodel.Kind))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CaptionModelSlot) graphql.Marshaler {
+			return ec.marshalNCaptionModelSlot2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlot(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteCaptionModel(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModelSlot(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteCaptionModel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_deleteCapture(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -26812,6 +29318,94 @@ func (ec *executionContext) fieldContext_Mutation_inspectChannel(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_inspectChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaLinkingToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaLinkingToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaLinkingToken(ctx, fc.Args["token"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+			return ec.marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaLinkingToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLinkingStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaLinkingToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaTitleOverride(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaTitleOverride(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaTitleOverride(ctx, fc.Args["input"].(model.DramaTitleOverrideInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaTitleOverride) graphql.Marshaler {
+			return ec.marshalNDramaTitleOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaTitleOverride(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaTitleOverride(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaTitleOverride_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -28052,6 +30646,50 @@ func (ec *executionContext) fieldContext_Mutation_detectRecordingCm(ctx context.
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_generateRecordingCaptions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_generateRecordingCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().GenerateRecordingCaptions(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_generateRecordingCaptions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_generateRecordingCaptions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_createProgramReservation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -28574,6 +31212,226 @@ func (ec *executionContext) fieldContext_Mutation_deleteRules(ctx context.Contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteRules_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setRulesGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setRulesGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetRulesGroup(ctx, fc.Args["ids"].([]string), fc.Args["groupId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setRulesGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setRulesGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createRuleGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createRuleGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateRuleGroup(ctx, fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createRuleGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createRuleGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_renameRuleGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_renameRuleGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RenameRuleGroup(ctx, fc.Args["id"].(string), fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_renameRuleGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_renameRuleGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_reorderRuleGroups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_reorderRuleGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ReorderRuleGroups(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_reorderRuleGroups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_reorderRuleGroups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRuleGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteRuleGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteRuleGroup(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteRuleGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRuleGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -32847,6 +35705,61 @@ func (ec *executionContext) fieldContext_Program_animeEpisodes(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_dramaEpisode(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_dramaEpisode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().DramaEpisode(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaEpisode) graphql.Marshaler {
+			return ec.marshalODramaEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Program_dramaEpisode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_dramaTitleKey(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_dramaTitleKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DramaTitleKey(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_dramaTitleKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, true, false, "String")
+}
+
 func (ec *executionContext) _Program_recordings(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34158,6 +37071,38 @@ func (ec *executionContext) fieldContext_Query_iptvFeed(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_captionModels(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_captionModels(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().CaptionModels(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.CaptionModelSlot) graphql.Marshaler {
+			return ec.marshalNCaptionModelSlot2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlotᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_captionModels(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_CaptionModelSlot(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_captures(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34223,6 +37168,70 @@ func (ec *executionContext) _Query_capturesAvailable(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_Query_capturesAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Query", field, true, true, "Boolean")
+}
+
+func (ec *executionContext) _Query_dramaLinking(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaLinking(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaLinking(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+			return ec.marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaLinking(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLinkingStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_dramaTitleOverrides(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaTitleOverrides(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaTitleOverrides(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaTitleOverride) graphql.Marshaler {
+			return ec.marshalNDramaTitleOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaTitleOverrides(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaTitleOverride(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Query_node(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -35179,6 +38188,38 @@ func (ec *executionContext) fieldContext_Query_continueWatching(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_nextEpisodes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_nextEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().NextEpisodes(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SeriesNextEpisode) graphql.Marshaler {
+			return ec.marshalNSeriesNextEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisodeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_nextEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SeriesNextEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_tags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35282,6 +38323,38 @@ func (ec *executionContext) fieldContext_Query_rules(_ context.Context, field gr
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Rule(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_ruleGroups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_ruleGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().RuleGroups(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_ruleGroups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
 		},
 	}
 	return fc, nil
@@ -36662,6 +39735,70 @@ func (ec *executionContext) fieldContext_Recording_cmVideoMissingSeconds(_ conte
 	return graphql.NewScalarFieldContext("Recording", field, true, true, "Float")
 }
 
+func (ec *executionContext) _Recording_autoCaptions(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_autoCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().AutoCaptions(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RecordingAutoCaption) graphql.Marshaler {
+			return ec.marshalNRecordingAutoCaption2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaptionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_autoCaptions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingAutoCaption(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_autoCaptionsStatus(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_autoCaptionsStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().AutoCaptionsStatus(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RecordingAutoCaptions) graphql.Marshaler {
+			return ec.marshalNRecordingAutoCaptions2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaptions(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_autoCaptionsStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RecordingAutoCaptions(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_audios(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37162,6 +40299,38 @@ func (ec *executionContext) fieldContext_Recording_jikkyoCommentsUrl(_ context.C
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
 }
 
+func (ec *executionContext) _Recording_nextEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_nextEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().NextEpisodes(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgramᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_nextEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_jikkyoOtherCommentsUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -37281,6 +40450,254 @@ func (ec *executionContext) fieldContext_Recording_animeEpisodes(_ context.Conte
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AnimeEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_dramaEpisode(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_dramaEpisode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().DramaEpisode(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaEpisode) graphql.Marshaler {
+			return ec.marshalODramaEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_dramaEpisode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_dramaTitleKey(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_dramaTitleKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DramaTitleKey(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_dramaTitleKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, false, "String")
+}
+
+func (ec *executionContext) _RecordingAutoCaption_from(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaption_from(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.From, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaption_from(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaption", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RecordingAutoCaption_to(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaption_to(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.To, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaption_to(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaption", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RecordingAutoCaption_text(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaption) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaption_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaption_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaption", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingAutoCaptions_state(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaptions_state(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.State, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v autocaption.State) graphql.Marshaler {
+			return ec.marshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaptions_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaptions", field, false, false, "RecordingAutoCaptionsState")
+}
+
+func (ec *executionContext) _RecordingAutoCaptions_generatedAt(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaptions_generatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GeneratedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaptions_generatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaptions", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RecordingAutoCaptions_model(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaptions_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaptions_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaptions", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingAutoCaptions_count(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaptions_count(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Count, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaptions_count(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingAutoCaptions", field, false, false, "Int")
+}
+
+func (ec *executionContext) _RecordingAutoCaptions_progress(ctx context.Context, field graphql.CollectedField, obj *model.RecordingAutoCaptions) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingAutoCaptions_progress(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Progress, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.JobProgress) graphql.Marshaler {
+			return ec.marshalOJobProgress2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐJobProgress(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingAutoCaptions_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RecordingAutoCaptions",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_JobProgress(ctx, field)
 		},
 	}
 	return fc, nil
@@ -38416,6 +41833,29 @@ func (ec *executionContext) fieldContext_RecordingSettings_detectCm(_ context.Co
 	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _RecordingSettings_generateCaptions(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettings_generateCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GenerateCaptions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettings_generateCaptions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettings", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _RecordingSettings_transcodePreset(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38623,6 +42063,29 @@ func (ec *executionContext) fieldContext_RecordingSettingsOverrides_detectCm(_ c
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _RecordingSettingsOverrides_generateCaptions(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_generateCaptions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GenerateCaptions, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *bool) graphql.Marshaler {
+			return ec.marshalOBoolean2ᚖbool(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_generateCaptions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _RecordingSettingsOverrides_transcodePreset(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38667,6 +42130,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_transcodeFrameRate(ctx c
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_transcodeFrameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingSettingsOverrides_cmDetector(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_cmDetector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CMDetector, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CMDetector) graphql.Marshaler {
+			return ec.marshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_cmDetector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "CMDetector")
 }
 
 func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field graphql.CollectedField, obj *model.RecoveryCodes) (ret graphql.Marshaler) {
@@ -40055,6 +43541,38 @@ func (ec *executionContext) fieldContext_Rule_upcomingReservationCount(_ context
 	return graphql.NewScalarFieldContext("Rule", field, true, true, "Int")
 }
 
+func (ec *executionContext) _Rule_group(ctx context.Context, field graphql.CollectedField, obj *model.Rule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rule_group(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Rule().Group(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+			return ec.marshalORuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Rule_group(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Rule",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RuleDefaults_avoidDuplicates(ctx context.Context, field graphql.CollectedField, obj *model.RuleDefaults) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40145,6 +43663,121 @@ func (ec *executionContext) _RuleDefaults_bundleSameEpisodes(ctx context.Context
 }
 func (ec *executionContext) fieldContext_RuleDefaults_bundleSameEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _RuleGroup_id(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "ID")
+}
+
+func (ec *executionContext) _RuleGroup_name(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "String")
+}
+
+func (ec *executionContext) _RuleGroup_position(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "Int")
+}
+
+func (ec *executionContext) _RuleGroup_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RuleGroup_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "Time")
 }
 
 func (ec *executionContext) _RuleWarning_kind(ctx context.Context, field graphql.CollectedField, obj *model.RuleWarning) (ret graphql.Marshaler) {
@@ -40375,6 +44008,70 @@ func (ec *executionContext) _SegmentVideoFormat_frameRate(ctx context.Context, f
 }
 func (ec *executionContext) fieldContext_SegmentVideoFormat_frameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Float")
+}
+
+func (ec *executionContext) _SeriesNextEpisode_watched(ctx context.Context, field graphql.CollectedField, obj *model.SeriesNextEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SeriesNextEpisode_watched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Watched, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SeriesNextEpisode_watched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeriesNextEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SeriesNextEpisode_program(ctx context.Context, field graphql.CollectedField, obj *model.SeriesNextEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SeriesNextEpisode_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Program, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SeriesNextEpisode_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeriesNextEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Service_id(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
@@ -42350,6 +46047,29 @@ func (ec *executionContext) _SystemSettings_animeLinkingEnabled(ctx context.Cont
 	)
 }
 func (ec *executionContext) fieldContext_SystemSettings_animeLinkingEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _SystemSettings_dramaLinkingEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_dramaLinkingEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DramaLinkingEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_dramaLinkingEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
@@ -46635,6 +50355,83 @@ func UnmarshalCreateWebhookInput(ctx context.Context, raw any) (model.CreateWebh
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputDramaTitleOverrideInput(ctx context.Context, obj any) (model.DramaTitleOverrideInput, error) {
+	var it model.DramaTitleOverrideInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["exclude"]; !present {
+		asMap["exclude"] = false
+	}
+	if _, present := asMap["reset"]; !present {
+		asMap["reset"] = false
+	}
+
+	fieldsInOrder := [...]string{"programName", "titleKey", "tmdbSeriesId", "exclude", "reset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "programName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("programName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProgramName = data
+		case "titleKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("titleKey"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TitleKey = data
+		case "tmdbSeriesId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tmdbSeriesId"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TmdbSeriesID = data
+		case "exclude":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("exclude"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Exclude = data
+		case "reset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reset"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reset = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalDramaTitleOverrideInput unmarshals raw into the DramaTitleOverrideInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalDramaTitleOverrideInput(ctx context.Context, raw any) (model.DramaTitleOverrideInput, error) {
+	var out model.DramaTitleOverrideInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "DramaTitleOverrideInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputDrcsReplacementInput(ctx context.Context, obj any) (model.DrcsReplacementInput, error) {
 	var it model.DrcsReplacementInput
 	if obj == nil {
@@ -47809,7 +51606,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset", "transcodeFrameRate"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "generateCaptions", "transcodePreset", "transcodeFrameRate", "cmDetector"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -47865,6 +51662,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.DetectCM = data
+		case "generateCaptions":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("generateCaptions"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GenerateCaptions = data
 		case "transcodePreset":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("transcodePreset"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -47879,6 +51683,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.TranscodeFrameRate = data
+		case "cmDetector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cmDetector"))
+			data, err := ec.unmarshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CMDetector = data
 		}
 	}
 	return it, nil
@@ -48077,7 +51888,7 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 		asMap["skipEarlierEpisodes"] = false
 	}
 
-	fieldsInOrder := [...]string{"name", "memo", "enabled", "conditions", "settings", "validFrom", "validUntil", "avoidDuplicates", "duplicateWindowDays", "followEventRelay", "bundleSameEpisodes", "skipEarlierEpisodes"}
+	fieldsInOrder := [...]string{"name", "memo", "enabled", "conditions", "settings", "validFrom", "validUntil", "avoidDuplicates", "duplicateWindowDays", "followEventRelay", "bundleSameEpisodes", "skipEarlierEpisodes", "groupId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -48168,6 +51979,13 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 				return it, err
 			}
 			it.SkipEarlierEpisodes = data
+		case "groupId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("groupId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GroupID = graphql.OmittableOf(data)
 		}
 	}
 	return it, nil
@@ -48305,7 +52123,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -48424,6 +52242,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.AnimeLinkingEnabled = data
+		case "dramaLinkingEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dramaLinkingEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DramaLinkingEnabled = data
 		case "commentSources":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("commentSources"))
 			data, err := ec.unmarshalOCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx, v)
@@ -48870,6 +52695,13 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Service(ctx, sel, obj)
+	case model.RuleGroup:
+		return ec._RuleGroup(ctx, sel, &obj)
+	case *model.RuleGroup:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RuleGroup(ctx, sel, obj)
 	case model.Rule:
 		return ec._Rule(ctx, sel, &obj)
 	case *model.Rule:
@@ -50579,6 +54411,180 @@ func (ec *executionContext) _CalendarFeed(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var captionModelImplementors = []string{"CaptionModel"}
+
+func (ec *executionContext) _CaptionModel(ctx context.Context, sel ast.SelectionSet, obj *model.CaptionModel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captionModelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CaptionModel")
+		case "id":
+			out.Values[i] = ec._CaptionModel_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._CaptionModel_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._CaptionModel_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._CaptionModel_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "sha256":
+			out.Values[i] = ec._CaptionModel_sha256(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "license":
+			out.Values[i] = ec._CaptionModel_license(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._CaptionModel_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "recommended":
+			out.Values[i] = ec._CaptionModel_recommended(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var captionModelDownloadImplementors = []string{"CaptionModelDownload"}
+
+func (ec *executionContext) _CaptionModelDownload(ctx context.Context, sel ast.SelectionSet, obj *model.CaptionModelDownload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captionModelDownloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CaptionModelDownload")
+		case "model":
+			out.Values[i] = ec._CaptionModelDownload_model(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "running":
+			out.Values[i] = ec._CaptionModelDownload_running(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failed":
+			out.Values[i] = ec._CaptionModelDownload_failed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progress":
+			out.Values[i] = ec._CaptionModelDownload_progress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var captionModelSlotImplementors = []string{"CaptionModelSlot"}
+
+func (ec *executionContext) _CaptionModelSlot(ctx context.Context, sel ast.SelectionSet, obj *model.CaptionModelSlot) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, captionModelSlotImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("CaptionModelSlot")
+		case "kind":
+			out.Values[i] = ec._CaptionModelSlot_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "state":
+			out.Values[i] = ec._CaptionModelSlot_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "installed":
+			out.Values[i] = ec._CaptionModelSlot_installed(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "download":
+			out.Values[i] = ec._CaptionModelSlot_download(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "overridden":
+			out.Values[i] = ec._CaptionModelSlot_overridden(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "models":
+			out.Values[i] = ec._CaptionModelSlot_models(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var captionSettingsImplementors = []string{"CaptionSettings"}
 
 func (ec *executionContext) _CaptionSettings(ctx context.Context, sel ast.SelectionSet, obj *model.CaptionSettings) graphql.Marshaler {
@@ -51259,6 +55265,203 @@ func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel a
 	return out
 }
 
+var dramaEpisodeImplementors = []string{"DramaEpisode"}
+
+func (ec *executionContext) _DramaEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.DramaEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaEpisode")
+		case "series":
+			out.Values[i] = ec._DramaEpisode_series(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seriesSource":
+			out.Values[i] = ec._DramaEpisode_seriesSource(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seasonNumber":
+			out.Values[i] = ec._DramaEpisode_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaEpisode_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeName":
+			out.Values[i] = ec._DramaEpisode_episodeName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeSource":
+			out.Values[i] = ec._DramaEpisode_episodeSource(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._DramaEpisode_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLinkingStatusImplementors = []string{"DramaLinkingStatus"}
+
+func (ec *executionContext) _DramaLinkingStatus(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLinkingStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLinkingStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLinkingStatus")
+		case "tokenConfigured":
+			out.Values[i] = ec._DramaLinkingStatus_tokenConfigured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tokenHint":
+			out.Values[i] = ec._DramaLinkingStatus_tokenHint(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "tokenUpdatedAt":
+			out.Values[i] = ec._DramaLinkingStatus_tokenUpdatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaSeriesImplementors = []string{"DramaSeries"}
+
+func (ec *executionContext) _DramaSeries(ctx context.Context, sel ast.SelectionSet, obj *model.DramaSeries) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaSeriesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaSeries")
+		case "tmdbId":
+			out.Values[i] = ec._DramaSeries_tmdbId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DramaSeries_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "originalName":
+			out.Values[i] = ec._DramaSeries_originalName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._DramaSeries_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaTitleOverrideImplementors = []string{"DramaTitleOverride"}
+
+func (ec *executionContext) _DramaTitleOverride(ctx context.Context, sel ast.SelectionSet, obj *model.DramaTitleOverride) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaTitleOverrideImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaTitleOverride")
+		case "titleKey":
+			out.Values[i] = ec._DramaTitleOverride_titleKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tmdbSeriesId":
+			out.Values[i] = ec._DramaTitleOverride_tmdbSeriesId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._DramaTitleOverride_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var drcsReplacementImplementors = []string{"DrcsReplacement"}
 
 func (ec *executionContext) _DrcsReplacement(ctx context.Context, sel ast.SelectionSet, obj *model.DrcsReplacement) graphql.Marshaler {
@@ -51815,6 +56018,49 @@ func (ec *executionContext) _InspectedStream(ctx context.Context, sel ast.Select
 		case "scrambled":
 			out.Values[i] = ec._InspectedStream_scrambled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var installedCaptionModelImplementors = []string{"InstalledCaptionModel"}
+
+func (ec *executionContext) _InstalledCaptionModel(ctx context.Context, sel ast.SelectionSet, obj *model.InstalledCaptionModel) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, installedCaptionModelImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("InstalledCaptionModel")
+		case "model":
+			out.Values[i] = ec._InstalledCaptionModel_model(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "size":
+			out.Values[i] = ec._InstalledCaptionModel_size(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "installedAt":
+			out.Values[i] = ec._InstalledCaptionModel_installedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
 		default:
@@ -52944,6 +57190,27 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "downloadCaptionModel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_downloadCaptionModel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "cancelCaptionModelDownload":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_cancelCaptionModelDownload(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteCaptionModel":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteCaptionModel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "deleteCapture":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteCapture(ctx, field)
@@ -52954,6 +57221,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "inspectChannel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_inspectChannel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaLinkingToken":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaLinkingToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaTitleOverride":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaTitleOverride(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -53161,6 +57442,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "generateRecordingCaptions":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_generateRecordingCaptions(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "createProgramReservation":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createProgramReservation(ctx, field)
@@ -53241,6 +57529,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteRules":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteRules(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setRulesGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setRulesGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createRuleGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createRuleGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "renameRuleGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_renameRuleGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reorderRuleGroups":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_reorderRuleGroups(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRuleGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRuleGroup(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -54636,6 +58959,17 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Program_animeEpisodes(ctx, field, obj)
 				})
+		case "dramaEpisode":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Program_dramaEpisode(ctx, field, obj)
+				})
+		case "dramaTitleKey":
+			out.Values[i] = ec._Program_dramaTitleKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "recordings":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
 				true, true,
@@ -55033,6 +59367,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_iptvFeed(ctx, field)
 				})
+		case "captionModels":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_captionModels(ctx, field)
+				})
 		case "captures":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -55044,6 +59384,18 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_capturesAvailable(ctx, field)
+				})
+		case "dramaLinking":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaLinking(ctx, field)
+				})
+		case "dramaTitleOverrides":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaTitleOverrides(ctx, field)
 				})
 		case "node":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -55207,6 +59559,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_continueWatching(ctx, field)
 				})
+		case "nextEpisodes":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_nextEpisodes(ctx, field)
+				})
 		case "tags":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -55224,6 +59582,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_rules(ctx, field)
+				})
+		case "ruleGroups":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_ruleGroups(ctx, field)
 				})
 		case "ruleWarnings":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -55520,6 +59884,18 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_cmVideoMissingSeconds(ctx, field, obj)
 				})
+		case "autoCaptions":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_autoCaptions(ctx, field, obj)
+				})
+		case "autoCaptionsStatus":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_autoCaptionsStatus(ctx, field, obj)
+				})
 		case "audios":
 			out.Values[i] = ec._Recording_audios(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -55619,6 +59995,12 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "nextEpisodes":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_nextEpisodes(ctx, field, obj)
+				})
 		case "jikkyoOtherCommentsUrl":
 			out.Values[i] = ec._Recording_jikkyoOtherCommentsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -55645,6 +60027,113 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_animeEpisodes(ctx, field, obj)
 				})
+		case "dramaEpisode":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_dramaEpisode(ctx, field, obj)
+				})
+		case "dramaTitleKey":
+			out.Values[i] = ec._Recording_dramaTitleKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var recordingAutoCaptionImplementors = []string{"RecordingAutoCaption"}
+
+func (ec *executionContext) _RecordingAutoCaption(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingAutoCaption) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingAutoCaptionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingAutoCaption")
+		case "from":
+			out.Values[i] = ec._RecordingAutoCaption_from(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "to":
+			out.Values[i] = ec._RecordingAutoCaption_to(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._RecordingAutoCaption_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var recordingAutoCaptionsImplementors = []string{"RecordingAutoCaptions"}
+
+func (ec *executionContext) _RecordingAutoCaptions(ctx context.Context, sel ast.SelectionSet, obj *model.RecordingAutoCaptions) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, recordingAutoCaptionsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RecordingAutoCaptions")
+		case "state":
+			out.Values[i] = ec._RecordingAutoCaptions_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "generatedAt":
+			out.Values[i] = ec._RecordingAutoCaptions_generatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "model":
+			out.Values[i] = ec._RecordingAutoCaptions_model(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "count":
+			out.Values[i] = ec._RecordingAutoCaptions_count(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progress":
+			out.Values[i] = ec._RecordingAutoCaptions_progress(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -56211,6 +60700,11 @@ func (ec *executionContext) _RecordingSettings(ctx context.Context, sel ast.Sele
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "generateCaptions":
+			out.Values[i] = ec._RecordingSettings_generateCaptions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "transcodePreset":
 			out.Values[i] = ec._RecordingSettings_transcodePreset(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -56284,6 +60778,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
+		case "generateCaptions":
+			out.Values[i] = ec._RecordingSettingsOverrides_generateCaptions(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		case "transcodePreset":
 			out.Values[i] = ec._RecordingSettingsOverrides_transcodePreset(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
@@ -56291,6 +60790,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "transcodeFrameRate":
 			out.Values[i] = ec._RecordingSettingsOverrides_transcodeFrameRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cmDetector":
+			out.Values[i] = ec._RecordingSettingsOverrides_cmDetector(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}
@@ -56793,6 +61297,12 @@ func (ec *executionContext) _Rule(ctx context.Context, sel ast.SelectionSet, obj
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Rule_upcomingReservationCount(ctx, field, obj)
 				})
+		case "group":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Rule_group(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -56838,6 +61348,59 @@ func (ec *executionContext) _RuleDefaults(ctx context.Context, sel ast.Selection
 			}
 		case "bundleSameEpisodes":
 			out.Values[i] = ec._RuleDefaults_bundleSameEpisodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var ruleGroupImplementors = []string{"RuleGroup", "Node"}
+
+func (ec *executionContext) _RuleGroup(ctx context.Context, sel ast.SelectionSet, obj *model.RuleGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ruleGroupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RuleGroup")
+		case "id":
+			out.Values[i] = ec._RuleGroup_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._RuleGroup_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._RuleGroup_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._RuleGroup_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._RuleGroup_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -56973,6 +61536,44 @@ func (ec *executionContext) _SegmentVideoFormat(ctx context.Context, sel ast.Sel
 		case "frameRate":
 			out.Values[i] = ec._SegmentVideoFormat_frameRate(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var seriesNextEpisodeImplementors = []string{"SeriesNextEpisode"}
+
+func (ec *executionContext) _SeriesNextEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.SeriesNextEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, seriesNextEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SeriesNextEpisode")
+		case "watched":
+			out.Values[i] = ec._SeriesNextEpisode_watched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "program":
+			out.Values[i] = ec._SeriesNextEpisode_program(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -57647,6 +62248,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "animeLinkingEnabled":
 			out.Values[i] = ec._SystemSettings_animeLinkingEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dramaLinkingEnabled":
+			out.Values[i] = ec._SystemSettings_dramaLinkingEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -59723,6 +64329,110 @@ func (ec *executionContext) marshalNCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return ec._CalendarFeed(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNCaptionModel2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CaptionModel) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModel(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModel(ctx context.Context, sel ast.SelectionSet, v *model.CaptionModel) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "CaptionModel!")
+		return graphql.Null
+	}
+	return ec._CaptionModel(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind(ctx context.Context, v any) (captionmodel.Kind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind(ctx context.Context, sel ast.SelectionSet, v captionmodel.Kind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "CaptionModelKind!")
+	}
+	return res
+}
+
+var (
+	unmarshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind = map[string]captionmodel.Kind{
+		"WHISPER": captionmodel.KindWhisper,
+		"VAD":     captionmodel.KindVAD,
+	}
+	marshalNCaptionModelKind2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐKind = map[captionmodel.Kind]string{
+		captionmodel.KindWhisper: "WHISPER",
+		captionmodel.KindVAD:     "VAD",
+	}
+)
+
+func (ec *executionContext) marshalNCaptionModelSlot2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlotᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.CaptionModelSlot) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNCaptionModelSlot2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlot(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNCaptionModelSlot2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelSlot(ctx context.Context, sel ast.SelectionSet, v *model.CaptionModelSlot) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "CaptionModelSlot!")
+		return graphql.Null
+	}
+	return ec._CaptionModelSlot(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState(ctx context.Context, v any) (captionmodel.State, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState(ctx context.Context, sel ast.SelectionSet, v captionmodel.State) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "CaptionModelState!")
+	}
+	return res
+}
+
+var (
+	unmarshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState = map[string]captionmodel.State{
+		"NOT_PLACED":  captionmodel.StateNotPlaced,
+		"DOWNLOADING": captionmodel.StateDownloading,
+		"PLACED":      captionmodel.StatePlaced,
+		"FAILED":      captionmodel.StateFailed,
+	}
+	marshalNCaptionModelState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋcaptionmodelᚐState = map[captionmodel.State]string{
+		captionmodel.StateNotPlaced:   "NOT_PLACED",
+		captionmodel.StateDownloading: "DOWNLOADING",
+		captionmodel.StatePlaced:      "PLACED",
+		captionmodel.StateFailed:      "FAILED",
+	}
+)
+
 func (ec *executionContext) marshalNCaptionSettings2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSettings(ctx context.Context, sel ast.SelectionSet, v *model.CaptionSettings) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "CaptionSettings!")
@@ -59938,6 +64648,61 @@ func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋS
 		return graphql.Null
 	}
 	return ec._DeleteReservationPayload(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLinkingStatus!")
+		return graphql.Null
+	}
+	return ec._DramaLinkingStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx context.Context, sel ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaSeries!")
+		return graphql.Null
+	}
+	return ec._DramaSeries(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaSeriesSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeriesSource(ctx context.Context, v any) (model.DramaSeriesSource, error) {
+	var res model.DramaSeriesSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDramaSeriesSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeriesSource(ctx context.Context, sel ast.SelectionSet, v model.DramaSeriesSource) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDramaTitleOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaTitleOverride) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaTitleOverride2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverride(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaTitleOverride2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverride(ctx context.Context, sel ast.SelectionSet, v *model.DramaTitleOverride) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaTitleOverride!")
+		return graphql.Null
+	}
+	return ec._DramaTitleOverride(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
+	res, err := ec.unmarshalInputDramaTitleOverrideInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
@@ -60892,50 +65657,54 @@ func (ec *executionContext) marshalNNetworkActivityPurpose2githubᚗcomᚋSlashN
 
 var (
 	unmarshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose = map[string]netactivity.Purpose{
-		"JIKKYO_CHANNELS":     netactivity.PurposeJikkyoChannels,
-		"JIKKYO_COMMENTS":     netactivity.PurposeJikkyoComments,
-		"JIKKYO_KAKOLOG":      netactivity.PurposeJikkyoKakolog,
-		"NICOLOG_COMMENTS":    netactivity.PurposeNicologComments,
-		"ANIME_PROGRAM_SYNC":  netactivity.PurposeAnimeProgramSync,
-		"ANIME_MAPPINGS":      netactivity.PurposeAnimeMappings,
-		"ANIME_WORK_IDS":      netactivity.PurposeAnimeWorkIDs,
-		"ANIME_ARTWORKS":      netactivity.PurposeAnimeArtworks,
-		"ANIME_RECORD":        netactivity.PurposeAnimeRecord,
-		"ANIME_LINK":          netactivity.PurposeAnimeLink,
-		"ANIME_IMAGE":         netactivity.PurposeAnimeImage,
-		"USER_AVATAR":         netactivity.PurposeUserAvatar,
-		"OIDC":                netactivity.PurposeOIDC,
-		"HIBP":                netactivity.PurposeHIBP,
-		"MCP_CLIENT_METADATA": netactivity.PurposeMCPClientMetadata,
-		"UPDATE_CHECK":        netactivity.PurposeUpdateCheck,
-		"TELEMETRY_TRACES":    netactivity.PurposeTelemetryTraces,
-		"TELEMETRY_METRICS":   netactivity.PurposeTelemetryMetrics,
-		"WEB_PUSH":            netactivity.PurposeWebPush,
-		"WEBHOOK":             netactivity.PurposeWebhook,
-		"DATA_BROADCAST":      netactivity.PurposeDataBroadcast,
+		"JIKKYO_CHANNELS":        netactivity.PurposeJikkyoChannels,
+		"JIKKYO_COMMENTS":        netactivity.PurposeJikkyoComments,
+		"JIKKYO_KAKOLOG":         netactivity.PurposeJikkyoKakolog,
+		"NICOLOG_COMMENTS":       netactivity.PurposeNicologComments,
+		"ANIME_PROGRAM_SYNC":     netactivity.PurposeAnimeProgramSync,
+		"ANIME_MAPPINGS":         netactivity.PurposeAnimeMappings,
+		"ANIME_WORK_IDS":         netactivity.PurposeAnimeWorkIDs,
+		"ANIME_ARTWORKS":         netactivity.PurposeAnimeArtworks,
+		"ANIME_RECORD":           netactivity.PurposeAnimeRecord,
+		"ANIME_LINK":             netactivity.PurposeAnimeLink,
+		"ANIME_IMAGE":            netactivity.PurposeAnimeImage,
+		"DRAMA_LINKING":          netactivity.PurposeDramaLinking,
+		"USER_AVATAR":            netactivity.PurposeUserAvatar,
+		"OIDC":                   netactivity.PurposeOIDC,
+		"HIBP":                   netactivity.PurposeHIBP,
+		"MCP_CLIENT_METADATA":    netactivity.PurposeMCPClientMetadata,
+		"UPDATE_CHECK":           netactivity.PurposeUpdateCheck,
+		"TELEMETRY_TRACES":       netactivity.PurposeTelemetryTraces,
+		"TELEMETRY_METRICS":      netactivity.PurposeTelemetryMetrics,
+		"WEB_PUSH":               netactivity.PurposeWebPush,
+		"WEBHOOK":                netactivity.PurposeWebhook,
+		"DATA_BROADCAST":         netactivity.PurposeDataBroadcast,
+		"CAPTION_MODEL_DOWNLOAD": netactivity.PurposeCaptionModelDownload,
 	}
 	marshalNNetworkActivityPurpose2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋlibᚋnetactivityᚐPurpose = map[netactivity.Purpose]string{
-		netactivity.PurposeJikkyoChannels:    "JIKKYO_CHANNELS",
-		netactivity.PurposeJikkyoComments:    "JIKKYO_COMMENTS",
-		netactivity.PurposeJikkyoKakolog:     "JIKKYO_KAKOLOG",
-		netactivity.PurposeNicologComments:   "NICOLOG_COMMENTS",
-		netactivity.PurposeAnimeProgramSync:  "ANIME_PROGRAM_SYNC",
-		netactivity.PurposeAnimeMappings:     "ANIME_MAPPINGS",
-		netactivity.PurposeAnimeWorkIDs:      "ANIME_WORK_IDS",
-		netactivity.PurposeAnimeArtworks:     "ANIME_ARTWORKS",
-		netactivity.PurposeAnimeRecord:       "ANIME_RECORD",
-		netactivity.PurposeAnimeLink:         "ANIME_LINK",
-		netactivity.PurposeAnimeImage:        "ANIME_IMAGE",
-		netactivity.PurposeUserAvatar:        "USER_AVATAR",
-		netactivity.PurposeOIDC:              "OIDC",
-		netactivity.PurposeHIBP:              "HIBP",
-		netactivity.PurposeMCPClientMetadata: "MCP_CLIENT_METADATA",
-		netactivity.PurposeUpdateCheck:       "UPDATE_CHECK",
-		netactivity.PurposeTelemetryTraces:   "TELEMETRY_TRACES",
-		netactivity.PurposeTelemetryMetrics:  "TELEMETRY_METRICS",
-		netactivity.PurposeWebPush:           "WEB_PUSH",
-		netactivity.PurposeWebhook:           "WEBHOOK",
-		netactivity.PurposeDataBroadcast:     "DATA_BROADCAST",
+		netactivity.PurposeJikkyoChannels:       "JIKKYO_CHANNELS",
+		netactivity.PurposeJikkyoComments:       "JIKKYO_COMMENTS",
+		netactivity.PurposeJikkyoKakolog:        "JIKKYO_KAKOLOG",
+		netactivity.PurposeNicologComments:      "NICOLOG_COMMENTS",
+		netactivity.PurposeAnimeProgramSync:     "ANIME_PROGRAM_SYNC",
+		netactivity.PurposeAnimeMappings:        "ANIME_MAPPINGS",
+		netactivity.PurposeAnimeWorkIDs:         "ANIME_WORK_IDS",
+		netactivity.PurposeAnimeArtworks:        "ANIME_ARTWORKS",
+		netactivity.PurposeAnimeRecord:          "ANIME_RECORD",
+		netactivity.PurposeAnimeLink:            "ANIME_LINK",
+		netactivity.PurposeAnimeImage:           "ANIME_IMAGE",
+		netactivity.PurposeDramaLinking:         "DRAMA_LINKING",
+		netactivity.PurposeUserAvatar:           "USER_AVATAR",
+		netactivity.PurposeOIDC:                 "OIDC",
+		netactivity.PurposeHIBP:                 "HIBP",
+		netactivity.PurposeMCPClientMetadata:    "MCP_CLIENT_METADATA",
+		netactivity.PurposeUpdateCheck:          "UPDATE_CHECK",
+		netactivity.PurposeTelemetryTraces:      "TELEMETRY_TRACES",
+		netactivity.PurposeTelemetryMetrics:     "TELEMETRY_METRICS",
+		netactivity.PurposeWebPush:              "WEB_PUSH",
+		netactivity.PurposeWebhook:              "WEBHOOK",
+		netactivity.PurposeDataBroadcast:        "DATA_BROADCAST",
+		netactivity.PurposeCaptionModelDownload: "CAPTION_MODEL_DOWNLOAD",
 	}
 )
 
@@ -61466,6 +66235,72 @@ func (ec *executionContext) marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkot
 	return ec._Recording(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRecordingAutoCaption2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaptionᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RecordingAutoCaption) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRecordingAutoCaption2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaption(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRecordingAutoCaption2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaption(ctx context.Context, sel ast.SelectionSet, v *model.RecordingAutoCaption) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RecordingAutoCaption!")
+		return graphql.Null
+	}
+	return ec._RecordingAutoCaption(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRecordingAutoCaptions2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingAutoCaptions(ctx context.Context, sel ast.SelectionSet, v *model.RecordingAutoCaptions) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RecordingAutoCaptions!")
+		return graphql.Null
+	}
+	return ec._RecordingAutoCaptions(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState(ctx context.Context, v any) (autocaption.State, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState(ctx context.Context, sel ast.SelectionSet, v autocaption.State) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "RecordingAutoCaptionsState!")
+	}
+	return res
+}
+
+var (
+	unmarshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState = map[string]autocaption.State{
+		"NOT_GENERATED":  autocaption.StateNotGenerated,
+		"QUEUED":         autocaption.StateQueued,
+		"RUNNING":        autocaption.StateRunning,
+		"GENERATED":      autocaption.StateGenerated,
+		"FAILED":         autocaption.StateFailed,
+		"NOT_CONFIGURED": autocaption.StateNotConfigured,
+	}
+	marshalNRecordingAutoCaptionsState2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋusecaseᚋautocaptionᚐState = map[autocaption.State]string{
+		autocaption.StateNotGenerated:  "NOT_GENERATED",
+		autocaption.StateQueued:        "QUEUED",
+		autocaption.StateRunning:       "RUNNING",
+		autocaption.StateGenerated:     "GENERATED",
+		autocaption.StateFailed:        "FAILED",
+		autocaption.StateNotConfigured: "NOT_CONFIGURED",
+	}
+)
+
 func (ec *executionContext) marshalNRecordingCMDetection2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecordingCMDetection(ctx context.Context, sel ast.SelectionSet, v *model.RecordingCMDetection) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "RecordingCMDetection!")
@@ -61612,6 +66447,7 @@ var (
 		"CANCELLED":                domain.RecordingFailureReasonCancelled,
 		"RECORDER_UNAVAILABLE":     domain.RecordingFailureReasonRecorderUnavailable,
 		"TUNER_PREEMPTED":          domain.RecordingFailureReasonTunerPreempted,
+		"TUNING_REFUSED":           domain.RecordingFailureReasonTuningRefused,
 	}
 	marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[domain.RecordingFailureReason]string{
 		domain.RecordingFailureReasonTunerUnavailable:       "TUNER_UNAVAILABLE",
@@ -61623,6 +66459,7 @@ var (
 		domain.RecordingFailureReasonCancelled:              "CANCELLED",
 		domain.RecordingFailureReasonRecorderUnavailable:    "RECORDER_UNAVAILABLE",
 		domain.RecordingFailureReasonTunerPreempted:         "TUNER_PREEMPTED",
+		domain.RecordingFailureReasonTuningRefused:          "TUNING_REFUSED",
 	}
 )
 
@@ -61993,6 +66830,30 @@ func (ec *executionContext) marshalNRuleDefaults2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return ec._RuleDefaults(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRuleGroup2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RuleGroup) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx context.Context, sel ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RuleGroup!")
+		return graphql.Null
+	}
+	return ec._RuleGroup(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleInput(ctx context.Context, v any) (model.RuleInput, error) {
 	res, err := ec.unmarshalInputRuleInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -62038,6 +66899,30 @@ func (ec *executionContext) marshalNSecondFactorStatus2ᚖgithubᚗcomᚋSlashNe
 		return graphql.Null
 	}
 	return ec._SecondFactorStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSeriesNextEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SeriesNextEpisode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSeriesNextEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSeriesNextEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisode(ctx context.Context, sel ast.SelectionSet, v *model.SeriesNextEpisode) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "SeriesNextEpisode!")
+		return graphql.Null
+	}
+	return ec._SeriesNextEpisode(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐServiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Service) graphql.Marshaler {
@@ -63035,6 +67920,20 @@ func (ec *executionContext) marshalOCalendarFeed2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return ec._CalendarFeed(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalOCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModel(ctx context.Context, sel ast.SelectionSet, v *model.CaptionModel) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CaptionModel(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOCaptionModelDownload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionModelDownload(ctx context.Context, sel ast.SelectionSet, v *model.CaptionModelDownload) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._CaptionModelDownload(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOCaptionSettingsInput2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCaptionSettingsInput(ctx context.Context, v any) (*model.CaptionSettingsInput, error) {
 	if v == nil {
 		return nil, nil
@@ -63092,6 +67991,29 @@ func (ec *executionContext) marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋko
 		return graphql.Null
 	}
 	return ec._DataChange(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisode(ctx context.Context, sel ast.SelectionSet, v *model.DramaEpisode) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx context.Context, v any) (*model.DramaEpisodeSource, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.DramaEpisodeSource)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx context.Context, sel ast.SelectionSet, v *model.DramaEpisodeSource) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx context.Context, v any) ([]*model.DrcsReplacementInput, error) {
@@ -63215,6 +68137,13 @@ func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.Se
 	_ = ctx
 	res := graphql.MarshalID(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOInstalledCaptionModel2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐInstalledCaptionModel(ctx context.Context, sel ast.SelectionSet, v *model.InstalledCaptionModel) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._InstalledCaptionModel(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOInt2ᚕintᚄ(ctx context.Context, v any) ([]int, error) {
@@ -63468,6 +68397,7 @@ var (
 		"CANCELLED":                domain.RecordingFailureReasonCancelled,
 		"RECORDER_UNAVAILABLE":     domain.RecordingFailureReasonRecorderUnavailable,
 		"TUNER_PREEMPTED":          domain.RecordingFailureReasonTunerPreempted,
+		"TUNING_REFUSED":           domain.RecordingFailureReasonTuningRefused,
 	}
 	marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[domain.RecordingFailureReason]string{
 		domain.RecordingFailureReasonTunerUnavailable:       "TUNER_UNAVAILABLE",
@@ -63479,6 +68409,7 @@ var (
 		domain.RecordingFailureReasonCancelled:              "CANCELLED",
 		domain.RecordingFailureReasonRecorderUnavailable:    "RECORDER_UNAVAILABLE",
 		domain.RecordingFailureReasonTunerPreempted:         "TUNER_PREEMPTED",
+		domain.RecordingFailureReasonTuningRefused:          "TUNING_REFUSED",
 	}
 )
 
@@ -63635,6 +68566,13 @@ func (ec *executionContext) unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashN
 	}
 	res, err := ec.unmarshalInputRuleDefaultsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalORuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx context.Context, sel ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._RuleGroup(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOSegmentVideoFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSegmentVideoFormat(ctx context.Context, sel ast.SelectionSet, v *model.SegmentVideoFormat) graphql.Marshaler {

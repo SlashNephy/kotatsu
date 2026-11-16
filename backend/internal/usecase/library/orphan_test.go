@@ -216,6 +216,34 @@ func TestFindOrphansCaptures(t *testing.T) {
 	assert.Contains(t, found, orphan{pool: kago.DataPoolID, path: stray.Path, segmentDir: false})
 }
 
+// TestFindOrphansCaptionModels は、データディレクトリの既定の場所に置いた字幕の自動生成のモデルを返さず、
+// ダウンロードの途中で止まった .part は、DB にないファイルとして返すことを確かめる (#1682)。
+func TestFindOrphansCaptionModels(t *testing.T) {
+	t.Parallel()
+
+	f := orphanFixture(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dataRoot, "whisper"), 0o755))
+	tests := []struct {
+		name   string
+		path   string
+		orphan bool
+	}{
+		{name: "書き起こしのモデル", path: "whisper/ggml-model.bin", orphan: false},
+		{name: "VAD のモデル", path: "whisper/ggml-silero-vad.bin", orphan: false},
+		{name: "途中で止まったダウンロード", path: "whisper/ggml-model.bin.part", orphan: true},
+	}
+	for _, tt := range tests {
+		require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, filepath.FromSlash(tt.path)), []byte("model"), 0o600))
+	}
+	// 書いてから時間が経ったものにする。
+	f.clock.Advance(2 * time.Hour)
+
+	found := f.orphans(t)
+	for _, tt := range tests {
+		assert.Equal(t, tt.orphan, slices.Contains(found, orphan{pool: kago.DataPoolID, path: tt.path, segmentDir: false}), tt.name)
+	}
+}
+
 // TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。
 func TestDeleteOrphans(t *testing.T) {
 	t.Parallel()

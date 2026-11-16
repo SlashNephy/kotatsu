@@ -10,7 +10,9 @@ import (
 
 // OpenEvents は、EpgTimerSrv の通知 (GET_STATUS_NOTIFY2) を、チューナーサーバーのイベントに読み替えるストリームを開く (#1531)。
 // EPG のデータを読み込み直した通知 (NotifyUpdateEPGData) は、どのサービスが変わったかを持たないので、
-// サービスが変わったイベントにして、全量を突き合わせさせる。ほかの通知は読み飛ばす。
+// サービスが変わったイベントにして、全量を突き合わせさせる。予約が変わった通知 (NotifyUpdateReserveInfo) は、
+// EDCB の予約がチューナーを使う時間帯が変わるので、チューナーが変わったイベントにして、割り当てを計算し直させる (#1536)。
+// ほかの通知は読み飛ばす。
 func (s *TunerServer) OpenEvents(ctx context.Context) (tunerserver.EventStream, error) {
 	// 巡回カウンタが 0 の問い合わせは、待たずに、最後の通知の巡回カウンタを返す。それより後の通知から読む。
 	current, err := s.client.WaitNotification(ctx, 0)
@@ -73,11 +75,17 @@ func (e *eventStream) wait(ctx context.Context, client *Client, count uint32) {
 			return
 		}
 		count = notification.Count
-		if notification.ID != NotifyUpdateEPGData {
+		var event *tunerserver.Event
+		switch notification.ID {
+		case NotifyUpdateEPGData:
+			event = &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}
+		case NotifyUpdateReserveInfo:
+			event = &tunerserver.Event{Type: tunerserver.EventTypeTunerChanged, ServiceID: 0}
+		default:
 			continue
 		}
 		select {
-		case e.events <- &tunerserver.Event{Type: tunerserver.EventTypeServiceChanged, ServiceID: 0}:
+		case e.events <- event:
 		case <-ctx.Done():
 			e.err <- ctx.Err()
 

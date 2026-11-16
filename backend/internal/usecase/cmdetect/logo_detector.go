@@ -97,6 +97,10 @@ func (d *LogoDetector) DetectWithReport(ctx context.Context, input *Input) ([]Se
 	return sections, report, err
 }
 
+// maxLogoHeight は、局ロゴを学習する映像の縦の上限 (ライン)。これより大きい映像では、ロゴを試さない (#1505)。
+// 2026 年 11 月に BS4K の録画で試したとき、4K のままではロゴを学習できず、読むのに録画の長さの 0.36〜0.44 倍かかった。
+const maxLogoHeight = 1080
+
 // DetectWithMaterial は、DetectWithReport と同じ結果と、読み直さずに判定し直すための材料を返す (#1507)。
 // ロゴを学習できなかったか、コマと時刻の数が合わなかった回は、材料を返さない (nil)。読み直したほうがよいからである。
 func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]Section, *Report, *Material, error) {
@@ -104,7 +108,14 @@ func (d *LogoDetector) DetectWithMaterial(ctx context.Context, input *Input) ([]
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	material, err := d.measure(ctx, input, video)
+	// 縦が maxLogoHeight より大きい映像 (BS4K、8K) では、ロゴを学習できず、読むのに録画の長さの 4 割ほどかかるので、
+	// 試さずに今の見分け方で見分ける (#1505)。
+	var material *Material
+	if video.height > maxLogoHeight {
+		err = fmt.Errorf("%w: the video is %d lines tall; the logo is learned only up to %d lines", errLogoUnusable, video.height, maxLogoHeight)
+	} else {
+		material, err = d.measure(ctx, input, video)
+	}
 	if err != nil && !errors.Is(err, errLogoUnusable) {
 		return nil, nil, nil, err
 	}

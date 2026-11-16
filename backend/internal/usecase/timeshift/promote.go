@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
@@ -167,6 +168,9 @@ func (p *Promoter) enqueue(
 		}
 		// 予約の録画と同じく、番組とアニメの作品の結びつきを写す (設計書 3.8)。
 		if err := anime.CopyToRecording(ctx, tx, row.ID, row.ServiceID, row.StartAt, now); err != nil {
+			return err
+		}
+		if err := drama.CopyToRecording(ctx, tx, row.ID, row.ServiceID, row.StartAt, now); err != nil {
 			return err
 		}
 		inserted, err := q.InsertTimeshiftPromotion(ctx, sqlc.InsertTimeshiftPromotionParams{

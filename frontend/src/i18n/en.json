@@ -331,6 +331,20 @@
     "title": "Settings",
     "back": "Back to settings",
     "notificationsSummary": "Choose what to receive as in-app notifications and Web Push",
+    "appIcon": {
+      "title": "Icon",
+      "help": "Choose the cat shown in the header logo. It changes right away.",
+      "installedNote": "The browser tab icon (favicon) and the icon of the app added to the home screen or app list (installed) do not change.",
+      "choices": {
+        "default": "Calico and mandarin (default)",
+        "chatora": "Ginger tabby",
+        "kijitora": "Brown tabby",
+        "sabatora": "Silver tabby",
+        "kuro": "Black cat",
+        "shiro": "White cat",
+        "hachiware": "Tuxedo"
+      }
+    },
     "pages": {
       "player": {
         "title": "Player",
@@ -339,6 +353,10 @@
       "guide": {
         "title": "Guide",
         "summary": "Change the guide's density and genre colors"
+      },
+      "icon": {
+        "title": "Icon",
+        "summary": "Choose the icon shown in the browser tab and the header on this device"
       },
       "security": {
         "title": "Security",
@@ -383,6 +401,16 @@
       "cmAutoSkipHelp": "When playback of a recording enters a section detected as commercials, jump to its end. Detection can be wrong. Sections you pick yourself, such as with the seek bar, are not skipped.",
       "fieldRate": "Show 1080i field by field",
       "fieldRateHelp": "Shows interlaced broadcasts at 59.94p, one picture per field, for smoother motion. Applies when the browser converts the stream itself. On devices that cannot keep up, playback falls back to one picture per frame (29.97p).",
+      "superResolution": "Upscale the picture for sharper display",
+      "superResolutionHelp": "Upscales the broadcast picture to the size it is shown at with an edge-aware filter, then sharpens it (the FSR 1 method). Looks less blurry on large or high-resolution displays. Applies when the browser converts the stream itself. Uses more GPU, and makes compression noise a little more visible.",
+      "superResolutionStrength": "Sharpening strength",
+      "superResolutionStrengthHelp": "How much to sharpen edges after upscaling. Stronger makes details crisper, but also makes compression noise and edge halos more visible.",
+      "superResolutionStrengths": {
+        "1": "1 (weak)",
+        "2": "2",
+        "3": "3 (standard)",
+        "4": "4 (strong)"
+      },
       "interpolation": "Interpolate frames for smoother motion",
       "interpolationHelp": "Inserts frames estimated from motion between the frames of 30 or 24 fps video, timed to your display's refresh. When the browser converts the stream, applies to 24p film rebuilt from pulldown and to 29.97p when 1080i is not shown field by field. The picture is delayed by one frame (about 0.03 to 0.04 seconds); if speech looks out of sync, delay the audio with the audio sync setting. Fast motion and scene changes may show artifacts.",
       "interpolationRate": "Maximum rate of interpolated frames",
@@ -610,6 +638,8 @@
       "openRecording": "Open recording",
       "playTimeshift": "Play from time shift",
       "searchFilmarks": "Search on Filmarks",
+      "searchTver": "Search on TVer",
+      "searchNhkOne": "Search on NHK ONE",
       "searchSameName": "Search by the same title"
     },
     "view": {
@@ -1023,6 +1053,62 @@
     "outOfValidity": "Out of period",
     "select": "Select",
     "selectDone": "Stop selecting",
+    "selectShown": "Select {{count}} shown",
+    "deselectShown": "Deselect shown",
+    "filter": {
+      "search": "Search names, memos and keywords",
+      "state": "Filter by state",
+      "stateAll": "Any state",
+      "states": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "outOfValidity": "Out of period"
+      },
+      "reservations": "Filter by reservations",
+      "reservationsAll": "Any reservations",
+      "reservationStates": {
+        "some": "With upcoming reservations",
+        "none": "No upcoming reservations"
+      },
+      "count": "{{shown}} of {{total}}",
+      "empty": "No rules match the filters",
+      "clear": "Clear filters"
+    },
+    "sort": {
+      "label": "Sort by",
+      "keys": {
+        "created": "Created",
+        "name": "Name",
+        "updated": "Updated",
+        "reservations": "Upcoming reservations"
+      },
+      "ascending": "Ascending",
+      "descending": "Descending"
+    },
+    "groups": {
+      "label": "Group",
+      "none": "Others (no group)",
+      "others": "Others",
+      "new": "New group…",
+      "newName": "Name of the new group",
+      "name": "Group name",
+      "create": "Create group",
+      "createButton": "Create group",
+      "createTitle": "Create a group",
+      "nameInvalid": "The name must not be empty or the same as another group",
+      "error": "Could not change the group",
+      "menu": "Actions for {{name}}",
+      "rename": "Rename",
+      "renameTitle": "Rename the group",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "delete": "Delete group",
+      "deleteTitle": "Delete the group",
+      "deleteConfirm": "Delete \"{{name}}\". The rules in it are kept and moved to Others.",
+      "moveSelected": "Move {{count}} selected to a group",
+      "moveTitle": "Move rules to a group",
+      "moveTo": "Move to"
+    },
     "cancel": "Cancel",
     "enableSelected": "Enable {{count}} selected rules",
     "disableSelected": "Disable {{count}} selected rules",
@@ -1041,7 +1127,10 @@
       "deleted_one": "Deleted {{count}} rule",
       "deleted_other": "Deleted {{count}} rules",
       "skipped_one": "({{count}} was skipped because it could not be found)",
-      "skipped_other": "({{count}} were skipped because they could not be found)"
+      "skipped_other": "({{count}} were skipped because they could not be found)",
+      "moved": "Moved {{count}} rules",
+      "moved_one": "Moved {{count}} rule",
+      "moved_other": "Moved {{count}} rules"
     },
     "upcomingReservations": "{{count}} upcoming reservations",
     "recordings": "Recordings",
@@ -1128,6 +1217,11 @@
     "detectCmDefault": "Use the global default",
     "detectCmOn": "Detect",
     "detectCmOff": "Don't detect",
+    "cmDetector": "How to detect commercial breaks",
+    "generateCaptions": "Generate captions after recording",
+    "generateCaptionsDefault": "Use the global default",
+    "generateCaptionsOn": "Generate",
+    "generateCaptionsOff": "Don't generate",
     "transcode": "Transcode after recording",
     "transcodeHelp": "After recording, transcode the recording to MP4 and add it as an other file. The original TS is kept.",
     "transcodeDefault": "Follow the recording defaults",
@@ -1243,6 +1337,7 @@
       "CANCELLED": "The recording was cancelled",
       "RECORDER_UNAVAILABLE": "No mikan was available to record when the recording was due to start",
       "TUNER_PREEMPTED": "A reservation in EDCB took the tuner during the recording, and Kotatsu could not reconnect",
+      "TUNING_REFUSED": "The tuner server refused to tune (the channel does not exist, or tuning failed)",
       "unknown": "Recording failed"
     },
     "quality": "Recording quality",
@@ -1284,6 +1379,15 @@
     "ruleFilter": "Recorded by rule \"{{name}}\"",
     "ruleFilterClear": "Clear rule filter",
     "deletedRule": "Deleted rule",
+    "nextEpisodes": {
+      "title": "Next episodes",
+      "createRule": "Create a rule for this series",
+      "createSeriesRule": "Create a rule for the series of {{name}}",
+      "reserve": "Reserve",
+      "reserveProgram": "Reserve {{name}}",
+      "reserved": "Reserved",
+      "reserveError": "Could not reserve the program"
+    },
     "recordedByRule": "Recorded by rule \"{{name}}\"",
     "failureDetail": "Error details (shown only to administrators)",
     "recordedByDeletedRule": "Recorded by deleted rule \"{{name}}\"",
@@ -1313,6 +1417,25 @@
       "videoMissing": "The video could not be decoded for {{count}} seconds in total",
       "videoMissing_one": "The video could not be decoded for {{count}} second in total",
       "videoMissing_other": "The video could not be decoded for {{count}} seconds in total"
+    },
+    "generateCaptions": "Generate captions",
+    "autoCaptions": {
+      "title": "Auto-generated captions",
+      "notGenerated": "Not generated yet",
+      "queued": "Waiting to generate",
+      "running": "Generating captions from the audio",
+      "generated": "Generated {{count}} captions",
+      "generated_one": "Generated {{count}} caption",
+      "generated_other": "Generated {{count}} captions",
+      "none": "No speech was found, so there are no captions",
+      "failed": "Could not generate captions. Administrators can see the reason on the jobs page.",
+      "notConfigured": "The model for generating captions is not placed on the server. An administrator can place it to enable this.",
+      "notConfiguredLink": "Place the model on the recording defaults page",
+      "generatedAt": "Generated at {{at}} with {{model}}",
+      "previous": "Currently using the captions generated at {{at}} ({{count}} captions)",
+      "previous_one": "Currently using the captions generated at {{at}} ({{count}} caption)",
+      "previous_other": "Currently using the captions generated at {{at}} ({{count}} captions)",
+      "hint": "These captions are transcribed automatically from the audio and may contain mistakes. Choose \"Auto-generated\" in the player settings to show them."
     },
     "download": "Download",
     "downloadTvtplayChapter": "CM chapters (TvtPlay)",
@@ -1411,6 +1534,8 @@
       "unfiltered": "{{picture}} (not deinterlaced: WebGL2 is unavailable)",
       "fieldRateDropped": "{{picture}} (shown per frame: the display could not keep up)",
       "interpolated": "{{label}} (frames interpolated)",
+      "upscaled": "{{label}} (upscaled to {{width}}×{{height}})",
+      "notUpscaled": "{{label}} (not upscaled: shown at {{width}}×{{height}}, no larger than the source)",
       "playing": "Playing video",
       "frameRate": "Frame rate",
       "audio": "Broadcast audio",
@@ -1519,6 +1644,12 @@
     "exitFullscreen": "Exit full screen",
     "quality": "Quality",
     "captions": "Captions",
+    "autoCaptions": {
+      "track": "Captions",
+      "broadcast": "Broadcast",
+      "auto": "Auto-generated",
+      "badge": "Auto-generated"
+    },
     "dataBroadcast": "Data broadcasting",
     "dataBroadcastReceiving": "Receiving data",
     "dataBroadcastEnded": "Data broadcasting is no longer being received",
@@ -1855,7 +1986,7 @@
       "annictChannel": "Annict channel",
       "lineup": {
         "title": "Channel lineup changes",
-        "description": "The satellite stations on the air no longer match the channels of the tuner server. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
+        "description": "The stations on the air no longer match the channels of the tuner server, or some channels keep failing to tune. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
         "occurredAt": "Time",
         "message": "Details"
       }
@@ -1982,6 +2113,7 @@
         "oauth_prune": "Prune MCP tokens",
         "recording_analyze": "Analyze recording",
         "recording_chapters": "Commercial chapters in the transcoded recording",
+        "recording_auto_captions": "Auto-generated captions",
         "recording_cm_detect": "Commercial sections",
         "recording_join": "Join segments",
         "recording_join_finalize": "Clean up after joining",
@@ -1995,7 +2127,49 @@
         "timeshift_prune": "Discard timeshift",
         "watch_notify": "Watch reservation notification",
         "web_push_deliver": "Deliver Web Push",
-        "webhook_deliver": "Deliver webhook"
+        "webhook_deliver": "Deliver webhook",
+        "caption_model_download": "Download caption model"
+      }
+    },
+    "captionModels": {
+      "title": "Models for auto-generated captions",
+      "description": "Downloads the models read by caption generation (whisper.cpp) from Hugging Face and places them in whisper/ in the data directory. nekonote downloads them and replaces the current file only after checking the size and SHA-256. A placed model is used from the next captions generated.",
+      "kinds": {
+        "WHISPER": "Transcription model",
+        "VAD": "Voice activity model (optional)"
+      },
+      "kindHelp": {
+        "WHISPER": "Transcribes the recording's audio. Required to generate captions.",
+        "VAD": "Finds the parts with voices using Silero VAD and aligns the caption timings to them. Captions can be generated without it."
+      },
+      "states": {
+        "NOT_PLACED": "Not placed",
+        "DOWNLOADING": "Downloading",
+        "PLACED": "Placed",
+        "FAILED": "Failed"
+      },
+      "placed": "{{name}} ({{size}}) is placed {{at}}",
+      "placedByHand": "A file placed by hand ({{size}}) is placed",
+      "overridden": {
+        "WHISPER": "The configuration (captions.whisper_model) uses another file. The model placed here is not used.",
+        "VAD": "The configuration (captions.vad_model) uses another file. The model placed here is not used."
+      },
+      "queued": "Waiting to download {{name}}",
+      "downloading": "Downloading {{name}}",
+      "progress": "Download progress",
+      "failed": "Could not download {{name}}. See the jobs page for the reason.",
+      "model": "Model",
+      "option": "{{name}} ({{size}}, {{license}}) {{recommended}}",
+      "recommended": "Recommended",
+      "download": "Download",
+      "replace": "Download and replace",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "keep": "Keep",
+      "deleteTitle": "Delete the model",
+      "deleteConfirm": {
+        "WHISPER": "Deletes the transcription model. Captions cannot be generated until a model is placed again.",
+        "VAD": "Deletes the voice activity model. Captions can still be generated, but their timings are not aligned to voices."
       }
     },
     "logs": {
@@ -2066,6 +2240,8 @@
       "detectCm": "Detect commercial breaks after recording",
       "tvtplayChapters": "Write TvtPlay chapter files after detecting commercial breaks",
       "tvtplayChaptersHelp": "Puts a chapter file (.chapter) that skips commercials in the chapters folder next to the recording file. TvtPlay for TVTest skips commercials when it opens the recording. Existing files with the same name are not overwritten.",
+      "generateCaptions": "Generate captions after recording",
+      "generateCaptionsHelp": "Transcribes the recording's audio with whisper.cpp and shows it as \"Auto-generated\" captions in the player. Download the model in \"Models for auto-generated captions\" below on this page. On a CPU alone it takes about 30% of the recording's length. Recordings whose reservation or rule chooses Generate or Don't generate follow that setting.",
       "cmDetector": "How to detect commercial breaks",
       "cmDetectorHelp": "The station logo method is experimental. It treats the parts where the station logo in the corner is missing as commercials. Recordings whose logo cannot be learned (such as shopping slots without a station logo) are detected by silence and scene changes. If a station hides its logo during an opening, that part is also treated as a commercial. Changing this keeps the previous result until a recording is detected again.",
       "cmDetectorFfmpeg": "Silence and scene changes",
@@ -2133,7 +2309,25 @@
       "animeTokenDelete": "Delete",
       "networkActivity": "Network activity record",
       "networkActivityRetentionDays": "Retention period (days)",
-      "networkActivityRetentionHelp": "Number of days to keep the record. Older records are deleted daily."
+      "networkActivityRetentionHelp": "Number of days to keep the record. Older records are deleted daily.",
+      "drama": "TMDB (dramas)",
+      "dramaEnabled": "Link drama programs to TMDB series and episodes",
+      "dramaHelp": "Searches TMDB by the titles of drama programs and picks episodes by air date and episode number. Program titles are sent to TMDB.",
+      "dramaToken": "TMDB API Read Access Token",
+      "dramaTokenHelp": "Enter the API Read Access Token shown under \"API\" in your TMDB account settings. The token is never shown again; only its last 4 characters are displayed.",
+      "dramaTokenConfigured": "Configured",
+      "dramaTokenConfiguredHint": "Configured (…{{hint}})",
+      "dramaTokenNotConfigured": "Not configured",
+      "dramaTokenKept": "Configured (enter only to change)",
+      "dramaTokenDelete": "Delete",
+      "dramaTokenMissing": "No TMDB token has been entered, so nothing is looked up even when enabled. Enter it below.",
+      "dramaOverrides": "Series overrides",
+      "dramaOverridesHelp": "Choose the TMDB series for each title read from program names. Use this when the search picks a wrong series or finds none.",
+      "dramaOverridesEmpty": "No overrides",
+      "dramaOverrideExcluded": "Not linked",
+      "dramaOverrideReset": "Remove",
+      "dramaOverrideProgram": "Program title",
+      "dramaOverrideSeries": "TMDB series ID or URL"
     },
     "recording": {
       "title": "Recording defaults",
@@ -2465,6 +2659,25 @@
     "notifyWishlist": "Remind me of broadcasts of works on my wishlist",
     "notifyWishlistHelp": "Adds watch reminders to the earliest first-run broadcast of each episode you have not watched yet. Reruns are skipped. Reminders are removed when a work leaves your wishlist."
   },
+  "drama": {
+    "tmdb": "TMDB",
+    "season": "Season {{number}}",
+    "special": "Specials",
+    "episode": "Episode {{number}}",
+    "unknownSeries": "Series name not fetched yet",
+    "overridden": "Set by an administrator",
+    "attributionNote": "Series and episode data is provided by TMDB",
+    "override": {
+      "button": "Fix series",
+      "help": "Links every program with the same title to this series. It takes effect at the next matching run.",
+      "series": "TMDB series ID or URL",
+      "invalid": "Enter a TMDB series ID or URL (a number after /tv/)",
+      "save": "Link",
+      "exclude": "Do not link",
+      "reset": "Back to search",
+      "saved": "Saved. It takes effect at the next matching run"
+    }
+  },
   "networkActivity": {
     "title": "Network activity",
     "description": "See the external connections this server actually made, grouped by hour.",
@@ -2491,6 +2704,7 @@
     "categories": {
       "jikkyo": "Jikkyo",
       "anime": "Anime",
+      "drama": "Drama",
       "auth": "Authentication",
       "operation": "Operations",
       "notification": "Notifications",
@@ -2542,6 +2756,10 @@
         "body": "Fetched artwork shown on the screen",
         "hostLabel": "Image host"
       },
+      "DRAMA_LINKING": {
+        "title": "Drama series and episodes",
+        "body": "Looked up TMDB series and episodes from drama program titles"
+      },
       "USER_AVATAR": {
         "title": "User avatars",
         "body": "Fetched avatars shown on the screen",
@@ -2588,6 +2806,10 @@
         "title": "Data broadcast",
         "body": "Relayed a request from a data broadcast document",
         "hostLabel": "Data broadcast"
+      },
+      "CAPTION_MODEL_DOWNLOAD": {
+        "title": "Caption model download",
+        "body": "Downloaded the model for auto-generated captions chosen by an administrator from Hugging Face"
       }
     },
     "hostHidden": "Undisclosed destination"
@@ -2614,7 +2836,9 @@
     "generatedLicense": "This package does not include a license file, so the text is built from the license (MIT) and author declared in its package.json",
     "inRepository": "The license and copyright notice are kept in the linked file",
     "inImage": "License texts and source locations are in /usr/share/doc/kotatsu/third-party/ and, for Debian packages, /usr/share/doc/ in the image",
-    "loadFailed": "Could not load"
+    "loadFailed": "Could not load",
+    "dataSources": "External data",
+    "tmdb": "Drama series and episode data is fetched from TMDB only when an administrator enables the integration."
   },
   "disclaimer": {
     "title": "Disclaimer",

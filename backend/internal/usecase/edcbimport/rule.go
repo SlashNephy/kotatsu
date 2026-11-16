@@ -93,6 +93,9 @@ func ruleInput(a *edcb.AutoAdd, services map[int64]bool) (*rule.Input, error) {
 		FollowEventRelay:    false,
 		BundleSameEpisodes:  a.Search.CheckRecorded,
 		SkipEarlierEpisodes: false,
+		// 取り込んだルールや見たいリストから作るルールは、どのグループにも入れない (#1493)。
+		GroupID:   nil,
+		KeepGroup: false,
 	}, nil
 }
 

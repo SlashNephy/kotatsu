@@ -75,6 +75,16 @@ func TestMessage(t *testing.T) {
 			want:    "地上波の 27ch で受かる局が、チューナーサーバーの登録と食い違っています（新しい局 1）。再スキャンすれば、新しい局を選べるようになります",
 		},
 		{
+			name: "地上波の続けて選局できないチャンネルは、チャンネルを並べる", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{keyLineupKind: "GR", "unreachable": []string{"22", "25"}},
+			want:    "地上波の 22ch・25ch の選局が続けて失敗しています。周波数が変わったのなら、チューナーサーバーで地上波を再スキャンすれば選局できるようになります",
+		},
+		{
+			name: "DB から読み直した衛星の続けて選局できないチャンネルは、配列が []any で届く", kind: domain.NotificationKindLineupChanged, location: tokyo,
+			payload: map[string]any{keyLineupKind: "BS", "unreachable": []any{"BS15_0"}},
+			want:    "BS の BS15_0 の選局が続けて失敗しています。放送で変わったのなら、チューナーサーバーのチャンネルをスキャンし直せば選局できるようになります",
+		},
+		{
 			name: "DB から読み直した局の顔ぶれの変化は、数が float64 で届く", kind: domain.NotificationKindLineupChanged, location: tokyo,
 			payload: map[string]any{keyLineupKind: "CS", keyNetworkID: float64(6), keyAdded: float64(1), keyRemoved: float64(2)},
 			want:    "CS のチャンネルが放送で変わりました（新しい局 1、終わった局 2）。チューナーサーバーのチャンネルをスキャンし直してください",

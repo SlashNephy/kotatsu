@@ -329,6 +329,20 @@
     "title": "設定",
     "back": "設定に戻る",
     "notificationsSummary": "画面内の通知とWeb Pushで、何を受け取るかを選びます",
+    "appIcon": {
+      "title": "アイコン",
+      "help": "ヘッダーのロゴに出す猫を選びます。選んだらすぐ替わります。",
+      "installedNote": "ブラウザのタブのアイコン (favicon) と、ホーム画面やアプリの一覧に入れた (インストールした) アプリのアイコンは替わりません。",
+      "choices": {
+        "default": "三毛猫とみかん (既定)",
+        "chatora": "茶トラ",
+        "kijitora": "キジトラ",
+        "sabatora": "サバトラ",
+        "kuro": "黒猫",
+        "shiro": "白猫",
+        "hachiware": "ハチワレ"
+      }
+    },
     "pages": {
       "player": {
         "title": "プレイヤー",
@@ -337,6 +351,10 @@
       "guide": {
         "title": "番組表",
         "summary": "番組表の密度や、ジャンルの色を変えます"
+      },
+      "icon": {
+        "title": "アイコン",
+        "summary": "ブラウザのタブとヘッダーに出すアイコンを、この端末で選びます"
       },
       "security": {
         "title": "セキュリティ",
@@ -381,6 +399,11 @@
       "cmAutoSkipHelp": "録画の再生で、CMとみなした区間に入ったら、区間の終わりへ移ります。CMの見分けは間違えることがあります。シークバーなどで自分でCMの区間の中を選んだときは、スキップしません。",
       "fieldRate": "1080iをフィールドごとに表示する",
       "fieldRateHelp": "インターレースの放送を、フィールドごとに1コマにして59.94pで表示し、動きをなめらかにします。ブラウザの中で変換して再生するときに使います。表示が追いつかない端末では、再生の途中でコマごとの表示（29.97p）に戻します。",
+      "superResolution": "映像を拡大してくっきり表示する",
+      "superResolutionHelp": "放送の映像を、画面に映す大きさまで、縁を見ながら拡大し、鮮鋭化して表示します（FSR 1の方式）。大きな画面や高解像度のディスプレイで、ぼやけにくくなります。ブラウザの中で変換して再生するときに使います。GPUの負荷が増え、圧縮のノイズも少し目立ちます。",
+      "superResolutionStrength": "鮮鋭化の強さ",
+      "superResolutionStrengthHelp": "拡大した後に、縁をどれだけくっきりさせるかです。強いほど細部が締まりますが、圧縮のノイズや縁のにじみも目立ちます。",
+      "superResolutionStrengths": { "1": "1 (弱い)", "2": "2", "3": "3 (標準)", "4": "4 (強い)" },
       "interpolation": "コマを補間してなめらかに表示する",
       "interpolationHelp": "30コマや24コマの映像の間に、動きから推し量ったコマを挟み、画面の書き換えに合わせてなめらかに表示します。ブラウザの中で変換するときは、プルダウンを組み直した24pと、フィールドごとに表示しないときの29.97pを補間します。映像が1コマ分（約0.03〜0.04秒）遅れるので、口の動きと声がずれて見えたら、音ずれ補正で音を遅らせてください。速い動きや場面の切り替わりでは、崩れることがあります。",
       "interpolationRate": "補間したコマを出す回数の上限",
@@ -600,6 +623,8 @@
       "openRecording": "録画を見る",
       "playTimeshift": "追っかけ再生",
       "searchFilmarks": "Filmarksで探す",
+      "searchTver": "TVerで探す",
+      "searchNhkOne": "NHK ONEで探す",
       "searchSameName": "同じ番組名で探す"
     },
     "view": {
@@ -995,6 +1020,62 @@
     "outOfValidity": "期間外",
     "select": "選ぶ",
     "selectDone": "選ぶのをやめる",
+    "selectShown": "表示中の{{count}}件を選ぶ",
+    "deselectShown": "表示中の選択を外す",
+    "filter": {
+      "search": "名前、メモ、キーワードで探す",
+      "state": "状態で絞り込む",
+      "stateAll": "すべての状態",
+      "states": {
+        "enabled": "有効",
+        "disabled": "無効",
+        "outOfValidity": "期間外"
+      },
+      "reservations": "予約で絞り込む",
+      "reservationsAll": "予約の有無を問わない",
+      "reservationStates": {
+        "some": "これからの予約あり",
+        "none": "これからの予約なし"
+      },
+      "count": "{{total}}件中{{shown}}件",
+      "empty": "条件に合うルールはありません",
+      "clear": "絞り込みを解除"
+    },
+    "sort": {
+      "label": "並べ替え",
+      "keys": {
+        "created": "作った日",
+        "name": "名前",
+        "updated": "変えた日",
+        "reservations": "これからの予約の件数"
+      },
+      "ascending": "昇順",
+      "descending": "降順"
+    },
+    "groups": {
+      "label": "グループ",
+      "none": "その他（グループなし）",
+      "others": "その他",
+      "new": "新しいグループ…",
+      "newName": "新しいグループの名前",
+      "name": "グループの名前",
+      "create": "グループを作る",
+      "createButton": "グループを作る",
+      "createTitle": "グループを作る",
+      "nameInvalid": "空の名前と、ほかのグループと同じ名前にはできません",
+      "error": "グループを変えられませんでした",
+      "menu": "{{name}}の操作",
+      "rename": "名前を変える",
+      "renameTitle": "グループの名前を変える",
+      "moveUp": "上へ移す",
+      "moveDown": "下へ移す",
+      "delete": "グループを削除",
+      "deleteTitle": "グループを削除",
+      "deleteConfirm": "「{{name}}」を削除します。中のルールは消さず、「その他」に移します",
+      "moveSelected": "選んだ{{count}}件をグループへ移す",
+      "moveTitle": "ルールをグループへ移す",
+      "moveTo": "移す先"
+    },
     "cancel": "キャンセル",
     "enableSelected": "選んだ{{count}}件を有効にする",
     "disableSelected": "選んだ{{count}}件を無効にする",
@@ -1005,7 +1086,8 @@
       "enabled": "{{count}}件のルールを有効にしました",
       "disabled": "{{count}}件のルールを無効にしました",
       "deleted": "{{count}}件のルールを削除しました",
-      "skipped": "（{{count}}件は見つからなかったため飛ばしました）"
+      "skipped": "（{{count}}件は見つからなかったため飛ばしました）",
+      "moved": "{{count}}件のルールを移しました"
     },
     "upcomingReservations": "これからの予約 {{count}} 件",
     "recordings": "録った録画",
@@ -1092,6 +1174,11 @@
     "detectCmDefault": "全体の既定値に従う",
     "detectCmOn": "解析する",
     "detectCmOff": "解析しない",
+    "cmDetector": "CMの区間の見分け方",
+    "generateCaptions": "録画が終わったら字幕を自動生成する",
+    "generateCaptionsDefault": "全体の既定値に従う",
+    "generateCaptionsOn": "生成する",
+    "generateCaptionsOff": "生成しない",
     "transcode": "録画が終わったら変換する",
     "transcodeHelp": "録画が終わったら、録画をMP4に変換して「その他のファイル」として足します。元のTSは残します。",
     "transcodeDefault": "録画の既定値に従う",
@@ -1197,6 +1284,7 @@
       "CANCELLED": "録画を取り消しました",
       "RECORDER_UNAVAILABLE": "録画を始める時刻に、録画できる mikan がいませんでした",
       "TUNER_PREEMPTED": "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せませんでした",
+      "TUNING_REFUSED": "チューナーサーバーが選局を断りました（チャンネルがないか、選局に失敗しました）",
       "unknown": "録画に失敗しました"
     },
     "quality": "録画の品質",
@@ -1238,6 +1326,15 @@
     "ruleFilter": "ルール「{{name}}」で録った録画",
     "ruleFilterClear": "ルールでの絞り込みを外す",
     "deletedRule": "削除したルール",
+    "nextEpisodes": {
+      "title": "続きの放送",
+      "createRule": "このシリーズのルールを作る",
+      "createSeriesRule": "{{name}}のシリーズのルールを作る",
+      "reserve": "予約",
+      "reserveProgram": "{{name}}を予約",
+      "reserved": "予約済み",
+      "reserveError": "予約できませんでした"
+    },
     "recordedByRule": "ルール「{{name}}」で録画",
     "failureDetail": "エラーの内容（管理者にだけ表示）",
     "recordedByDeletedRule": "削除したルール「{{name}}」で録画",
@@ -1261,6 +1358,21 @@
       "listNote": "CMの見分けに注記があります",
       "listVideoMissing": "映像を読めなかった所があります",
       "videoMissing": "映像を読めなかった所が、合わせて{{count}}秒あります"
+    },
+    "generateCaptions": "字幕を生成する",
+    "autoCaptions": {
+      "title": "自動生成の字幕",
+      "notGenerated": "まだ生成していません",
+      "queued": "生成を待っています",
+      "running": "音声から字幕を生成しています",
+      "generated": "{{count}}件の字幕を生成しました",
+      "none": "台詞が見つからず、字幕はありません",
+      "failed": "生成できませんでした。管理者は、ジョブの画面で理由を確かめられます",
+      "notConfigured": "字幕を生成するモデルが、サーバーに置かれていません。管理者が置くと生成できます",
+      "notConfiguredLink": "録画の既定値の画面でモデルを置く",
+      "generatedAt": "{{at}}に{{model}}で生成しました",
+      "previous": "いまは、{{at}}に生成した字幕（{{count}}件）を使っています",
+      "hint": "音声から自動で書き起こした字幕です。誤りが混ざります。再生画面の設定で「自動生成」を選ぶと出ます"
     },
     "download": "ダウンロード",
     "downloadTvtplayChapter": "CM のチャプター (TvtPlay)",
@@ -1347,6 +1459,8 @@
       "unfiltered": "{{picture}}（WebGL2が使えず、インターレースを解除していません）",
       "fieldRateDropped": "{{picture}}（表示が追いつかないため、コマごとに表示）",
       "interpolated": "{{label}}（コマを補間）",
+      "upscaled": "{{label}}（{{width}}×{{height}}に拡大）",
+      "notUpscaled": "{{label}}（映す大きさ {{width}}×{{height}} が元の大きさ以下なので拡大しない）",
       "playing": "再生している映像",
       "frameRate": "フレームレート",
       "audio": "放送の音声",
@@ -1455,6 +1569,12 @@
     "exitFullscreen": "全画面を終える",
     "quality": "画質",
     "captions": "字幕",
+    "autoCaptions": {
+      "track": "字幕の種類",
+      "broadcast": "放送",
+      "auto": "自動生成",
+      "badge": "自動生成"
+    },
     "dataBroadcast": "データ放送",
     "dataBroadcastReceiving": "データ受信中",
     "dataBroadcastEnded": "データ放送を受け取れなくなりました",
@@ -1775,7 +1895,7 @@
       "annictChannel": "Annictのチャンネル",
       "lineup": {
         "title": "チャンネルの変更",
-        "description": "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
+        "description": "放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったか、選局が続けて失敗しているチャンネルがあるという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
         "occurredAt": "日時",
         "message": "内容"
       }
@@ -1902,6 +2022,7 @@
         "oauth_prune": "MCPのトークンの片付け",
         "recording_analyze": "録画の解析",
         "recording_chapters": "変換した録画のCMのチャプター",
+        "recording_auto_captions": "字幕の自動生成",
         "recording_cm_detect": "CMの区間",
         "recording_join": "セグメントをつなぐ",
         "recording_join_finalize": "セグメントをつないだ後の片付け",
@@ -1915,7 +2036,49 @@
         "timeshift_prune": "タイムシフトの破棄",
         "watch_notify": "視聴予約の通知",
         "web_push_deliver": "Web Pushの配信",
-        "webhook_deliver": "Webhookの配信"
+        "webhook_deliver": "Webhookの配信",
+        "caption_model_download": "字幕のモデルのダウンロード"
+      }
+    },
+    "captionModels": {
+      "title": "字幕の自動生成のモデル",
+      "description": "字幕の自動生成（whisper.cpp）が読むモデルを、Hugging Faceからダウンロードして、データディレクトリのwhisper/に置きます。ダウンロードはnekonoteが行い、大きさとSHA-256を確かめてから置き換えます。置いたモデルは、次に生成する字幕から使います",
+      "kinds": {
+        "WHISPER": "書き起こしのモデル",
+        "VAD": "声のある区間のモデル（任意）"
+      },
+      "kindHelp": {
+        "WHISPER": "録画の音声を書き起こすモデルです。字幕を生成するのに要ります",
+        "VAD": "Silero VADで声のある区間を求め、字幕の時刻を声に合わせます。置かなくても生成できます"
+      },
+      "states": {
+        "NOT_PLACED": "置いていない",
+        "DOWNLOADING": "ダウンロード中",
+        "PLACED": "置いた",
+        "FAILED": "失敗"
+      },
+      "placed": "{{name}}（{{size}}）を置いています {{at}}",
+      "placedByHand": "手で置いたファイル（{{size}}）を置いています",
+      "overridden": {
+        "WHISPER": "設定（captions.whisper_model）で別のファイルを使っています。ここに置いたモデルは使いません",
+        "VAD": "設定（captions.vad_model）で別のファイルを使っています。ここに置いたモデルは使いません"
+      },
+      "queued": "{{name}}のダウンロードを待っています",
+      "downloading": "{{name}}をダウンロードしています",
+      "progress": "ダウンロードの進み具合",
+      "failed": "{{name}}をダウンロードできませんでした。理由はジョブの画面で確かめられます",
+      "model": "モデル",
+      "option": "{{name}}（{{size}}、{{license}}）{{recommended}}",
+      "recommended": "おすすめ",
+      "download": "ダウンロードする",
+      "replace": "ダウンロードして置き換える",
+      "cancel": "取りやめる",
+      "delete": "消す",
+      "keep": "残す",
+      "deleteTitle": "モデルを消す",
+      "deleteConfirm": {
+        "WHISPER": "書き起こしのモデルを消します。消すと、置き直すまで字幕を生成できません",
+        "VAD": "声のある区間のモデルを消します。消しても字幕は生成できますが、時刻を声に合わせません"
       }
     },
     "logs": {
@@ -1986,6 +2149,8 @@
       "detectCm": "録画が終わったらCMの区間を解析する",
       "tvtplayChapters": "CMの区間を解析したら、TvtPlayのチャプターのファイルを書く",
       "tvtplayChaptersHelp": "録画のファイルのあるフォルダーのchaptersフォルダーに、CMを飛ばすチャプターのファイル（.chapter）を置きます。TVTestのTvtPlayで録画を開くと、CMを飛ばします。同じ名前のファイルがあれば、上書きしません",
+      "generateCaptions": "録画が終わったら字幕を自動生成する",
+      "generateCaptionsHelp": "whisper.cppで録画の音声を書き起こし、再生画面で「自動生成」の字幕として出します。モデルは、この画面の下の「字幕の自動生成のモデル」でダウンロードしてください。CPUだけでは録画の長さの3割ほどの時間がかかります。予約とルールで「生成する」か「生成しない」を選んだ録画は、その設定に従います",
       "cmDetector": "CMの区間の見分け方",
       "cmDetectorHelp": "局ロゴは試験的な見分け方です。録画の隅の局ロゴが出ていない所をCMとみなします。ロゴを学習できない録画（局ロゴのない通販の枠など）では、無音とシーンの切り替わりで見分けます。番組のオープニングで局がロゴを消すと、そこもCMとみなします。替えても、見分け直すまでは前の結果を使います",
       "cmDetectorFfmpeg": "無音とシーンの切り替わり",
@@ -2053,7 +2218,25 @@
       "animeTokenDelete": "消す",
       "networkActivity": "外部との通信の記録",
       "networkActivityRetentionDays": "保持期間（日）",
-      "networkActivityRetentionHelp": "記録を残す日数です。これより古い記録は1日ごとに消します"
+      "networkActivityRetentionHelp": "記録を残す日数です。これより古い記録は1日ごとに消します",
+      "drama": "TMDbとの連携（ドラマ）",
+      "dramaEnabled": "ドラマの番組を、TMDbの作品と話に結びつける",
+      "dramaHelp": "ジャンルがドラマの番組名から、TMDbで作品を探し、放送日と話数で話を選びます。番組名をTMDbへ送ります。",
+      "dramaToken": "TMDbのAPI読み取りアクセストークン",
+      "dramaTokenHelp": "TMDbのアカウントの設定の「API」にある、API読み取りアクセストークン（API Read Access Token）を入れてください。入れたトークンは画面に出さず、末尾の4文字だけを示します。",
+      "dramaTokenConfigured": "設定済み",
+      "dramaTokenConfiguredHint": "設定済み（…{{hint}}）",
+      "dramaTokenNotConfigured": "未設定",
+      "dramaTokenKept": "設定済み（変えるときだけ入れる）",
+      "dramaTokenDelete": "消す",
+      "dramaTokenMissing": "TMDbのトークンを入れていないので、有効にしても問い合わせません。下の欄に入れてください。",
+      "dramaOverrides": "作品の指定",
+      "dramaOverridesHelp": "番組名から読んだ作品名ごとに、結びつけるTMDbの作品を決めます。検索で誤った作品に結びついたときや、見つからなかったときに使います。",
+      "dramaOverridesEmpty": "指定した作品はありません",
+      "dramaOverrideExcluded": "結びつけない",
+      "dramaOverrideReset": "消す",
+      "dramaOverrideProgram": "番組名",
+      "dramaOverrideSeries": "TMDbの作品のIDかURL"
     },
     "recording": {
       "title": "録画の既定値",
@@ -2385,6 +2568,25 @@
     "notifyWishlist": "見たいリストの作品の放送を通知する",
     "notifyWishlistHelp": "見たいリストの作品の、まだ見ていない話の本放送に、話ごとに最も早い放送へ視聴予約を付けます。再放送には付けません。作品が見たいリストから外れたら外します。"
   },
+  "drama": {
+    "tmdb": "TMDb",
+    "season": "シーズン{{number}}",
+    "special": "特別編",
+    "episode": "第{{number}}話",
+    "unknownSeries": "作品名を取得していません",
+    "overridden": "管理者が指定",
+    "attributionNote": "作品と話の情報は、TMDbから取得しています",
+    "override": {
+      "button": "作品を直す",
+      "help": "番組名から読んだ作品名の番組を、すべてこの作品に結びつけます。反映は次の照合を待ちます。",
+      "series": "TMDbの作品のIDかURL",
+      "invalid": "TMDbの作品のIDかURL（/tv/の後に数字）を入れてください",
+      "save": "結びつける",
+      "exclude": "結びつけない",
+      "reset": "検索に戻す",
+      "saved": "保存しました。次の照合で反映します"
+    }
+  },
   "networkActivity": {
     "title": "外部との通信",
     "description": "サーバーが実際に行った外部との通信を、1時間ごとにまとめて見られます。",
@@ -2411,6 +2613,7 @@
     "categories": {
       "jikkyo": "実況",
       "anime": "アニメ",
+      "drama": "ドラマ",
       "auth": "認証",
       "operation": "運用",
       "notification": "通知",
@@ -2462,6 +2665,10 @@
         "body": "画面に出す作品の画像を取得しました",
         "hostLabel": "画像の配信元"
       },
+      "DRAMA_LINKING": {
+        "title": "ドラマの作品と話",
+        "body": "ドラマの番組名から、TMDbの作品と話を問い合わせました"
+      },
       "USER_AVATAR": {
         "title": "ユーザーのアイコン",
         "body": "画面に出すアイコンを取得しました",
@@ -2508,6 +2715,10 @@
         "title": "データ放送の通信",
         "body": "データ放送の文書が指定した通信を中継しました",
         "hostLabel": "データ放送"
+      },
+      "CAPTION_MODEL_DOWNLOAD": {
+        "title": "字幕のモデルのダウンロード",
+        "body": "管理者が選んだ字幕の自動生成のモデルを、Hugging Faceからダウンロードしました"
       }
     },
     "hostHidden": "非公開の接続先"
@@ -2534,7 +2745,9 @@
     "generatedLicense": "このパッケージはライセンスの文書を含まないので、package.jsonが宣言するライセンス（MIT）と著作者から文書を示しています",
     "inRepository": "ライセンスと著作権表示は、リンク先のファイルに残しています",
     "inImage": "ライセンスの文書とソースの入手先は、イメージの /usr/share/doc/kotatsu/third-party/ と、Debianのパッケージの /usr/share/doc/ に置いています",
-    "loadFailed": "読み込めませんでした"
+    "loadFailed": "読み込めませんでした",
+    "dataSources": "外部のデータ",
+    "tmdb": "ドラマの作品と話の情報は、管理者が連携を有効にしたときだけ、TMDbから取得します。"
   },
   "disclaimer": {
     "title": "免責事項",

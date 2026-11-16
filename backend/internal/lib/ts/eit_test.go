@@ -39,7 +39,13 @@ func audioDescriptor(componentType, tag byte, main bool, languages ...string) []
 }
 
 // eitSection は、サービス testServiceID の EIT[p/f] (自 TS) のセクションを作る。sectionNumber 0 が放送中の番組。
+// start_time は 2021-07-28 23:00:00 (日本標準時)、duration は 30 分にする。
 func eitSection(sectionNumber byte, eventID uint16, descriptors ...[]byte) []byte {
+	return eitSectionAt(sectionNumber, eventID, [8]byte{0xE8, 0x1F, 0x23, 0x00, 0x00, 0x00, 0x30, 0x00}, descriptors...)
+}
+
+// eitSectionAt は、start_time と duration の 8 バイトを times にした eitSection を作る。
+func eitSectionAt(sectionNumber byte, eventID uint16, times [8]byte, descriptors ...[]byte) []byte {
 	loop := []byte{}
 	for _, d := range descriptors {
 		loop = append(loop, d...)
@@ -47,8 +53,7 @@ func eitSection(sectionNumber byte, eventID uint16, descriptors ...[]byte) []byt
 	// transport_stream_id、original_network_id、segment_last_section_number、last_table_id
 	body := []byte{0x7F, 0xE0, 0x7F, 0xE0, 0x01, 0x4E}
 	body = binary.BigEndian.AppendUint16(body, eventID)
-	// start_time と duration は読まないので、適当な値にする。
-	body = append(body, 0xE8, 0x1F, 0x23, 0x00, 0x00, 0x00, 0x30, 0x00)
+	body = append(body, times[:]...)
 	length := len(loop)
 	if length > 0x0FFF {
 		panic("the descriptors are too long")

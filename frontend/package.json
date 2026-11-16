@@ -55,7 +55,7 @@
     "babel-plugin-relay": "21.0.1",
     "fontverter": "2.0.0",
     "harfbuzzjs": "1.6.4",
-    "jsdom": "31.0.0",
+    "jsdom": "31.0.1",
     "react-grab": "0.2.0",
     "relay-compiler": "21.0.1",
     "storybook": "10.6.7",

@@ -11,6 +11,7 @@ enum NetworkActivityPurpose {
   ANIME_RECORD
   ANIME_LINK
   ANIME_IMAGE
+  DRAMA_LINKING
   USER_AVATAR
   OIDC
   HIBP
@@ -21,6 +22,8 @@ enum NetworkActivityPurpose {
   WEB_PUSH
   WEBHOOK
   DATA_BROADCAST
+  "字幕の自動生成のモデルのダウンロード (#1682)"
+  CAPTION_MODEL_DOWNLOAD
 }
 
 "外部との通信のきっかけ。"

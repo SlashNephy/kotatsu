@@ -125,11 +125,27 @@ type RecordingSettings struct {
 	JoinSegments bool
 	// DetectCM は、録画が終わったら、CM とみなす区間を見分けるかどうか (設計書 6.1)。既定では見分けない。
 	DetectCM bool
+	// GenerateCaptions は、録画が終わったら、音声から字幕を自動生成するかどうか (設計書 6.1、#1682)。既定では生成しない。
+	GenerateCaptions bool
 	// TranscodePreset は、録画が終わったら、録画を変換して MP4 を足すときの画質 (TranscodePresets のどれか、#1253)。
 	// 空なら変換しない。既定では変換しない。
 	TranscodePreset string
 	// TranscodeFrameRate は、録画を変換するときに出すコマ数 (TranscodeFrameRates のどれか、#1509)。
 	TranscodeFrameRate string
+	// CMDetector は、CM の区間の見分け方 (CMDetectors のどれか、#1505)。空なら、見分けるときの全体の設定 (設計書 6.1) に従う。
+	CMDetector string
+}
+
+const (
+	// CMDetectorFFmpeg は、無音とシーンの切り替わりで CM の区間を見分けること。
+	CMDetectorFFmpeg = "ffmpeg"
+	// CMDetectorLogo は、局ロゴが出ているかで CM の区間を見分けること (試験的、#1505)。
+	CMDetectorLogo = "logo"
+)
+
+// CMDetectors は、予約とルールで選べる、CM の区間の見分け方を返す (#1505)。
+func CMDetectors() []string {
+	return []string{CMDetectorFFmpeg, CMDetectorLogo}
 }
 
 // TranscodePresets は、録画を終えた後の変換 (#1253) で選べる画質を返す。kyusu の画質のプリセットのうち、
@@ -172,8 +188,10 @@ func DefaultRecordingSettings() *RecordingSettings {
 		Priority:           DefaultPriority,
 		JoinSegments:       true,
 		DetectCM:           false,
+		GenerateCaptions:   false,
 		TranscodePreset:    "",
 		TranscodeFrameRate: DefaultTranscodeFrameRate,
+		CMDetector:         "",
 	}
 }
 
@@ -186,10 +204,13 @@ type RecordingOverrides struct {
 	Priority           *int    `json:"priority,omitempty"`
 	JoinSegments       *bool   `json:"joinSegments,omitempty"`
 	DetectCM           *bool   `json:"detectCm,omitempty"`
+	GenerateCaptions   *bool   `json:"generateCaptions,omitempty"`
 	// TranscodePreset は、空の文字列なら「変換しない」で上書きする。nil なら上書きしない。
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// TranscodeFrameRate は、出すコマ数 (TranscodeFrameRates のどれか)。nil なら上書きしない。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CMDetector は、CM の区間の見分け方 (CMDetectors のどれか、#1505)。nil なら上書きしない。
+	CMDetector *string `json:"cmDetector,omitempty"`
 }
 
 // Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
@@ -219,11 +240,17 @@ func (s *RecordingSettings) Resolve(o *RecordingOverrides) *RecordingSettings {
 	if o.DetectCM != nil {
 		resolved.DetectCM = *o.DetectCM
 	}
+	if o.GenerateCaptions != nil {
+		resolved.GenerateCaptions = *o.GenerateCaptions
+	}
 	if o.TranscodePreset != nil {
 		resolved.TranscodePreset = *o.TranscodePreset
 	}
 	if o.TranscodeFrameRate != nil {
 		resolved.TranscodeFrameRate = *o.TranscodeFrameRate
+	}
+	if o.CMDetector != nil {
+		resolved.CMDetector = *o.CMDetector
 	}
 
 	return &resolved

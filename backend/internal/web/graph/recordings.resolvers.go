@@ -57,6 +57,11 @@ func (r *mutationResolver) DetectRecordingCM(ctx context.Context, id string) (bo
 	return r.detectRecordingCM(ctx, id)
 }
 
+// GenerateRecordingCaptions is the resolver for the generateRecordingCaptions field.
+func (r *mutationResolver) GenerateRecordingCaptions(ctx context.Context, id string) (bool, error) {
+	return r.generateRecordingCaptions(ctx, id)
+}
+
 // Recordings is the resolver for the recordings field.
 func (r *queryResolver) Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error) {
 	return r.listRecordings(ctx, first, after, filter, order)
@@ -65,6 +70,11 @@ func (r *queryResolver) Recordings(ctx context.Context, first int, after *string
 // ContinueWatching is the resolver for the continueWatching field.
 func (r *queryResolver) ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error) {
 	return r.continueWatching(ctx, first)
+}
+
+// NextEpisodes is the resolver for the nextEpisodes field.
+func (r *queryResolver) NextEpisodes(ctx context.Context) ([]*model.SeriesNextEpisode, error) {
+	return r.viewerNextEpisodes(ctx)
 }
 
 // Tags is the resolver for the tags field.
@@ -112,6 +122,16 @@ func (r *recordingResolver) CMVideoMissingSeconds(ctx context.Context, obj *mode
 	return r.recordingCMVideoMissingSeconds(ctx, obj)
 }
 
+// AutoCaptions is the resolver for the autoCaptions field.
+func (r *recordingResolver) AutoCaptions(ctx context.Context, obj *model.Recording) ([]*model.RecordingAutoCaption, error) {
+	return r.recordingAutoCaptions(ctx, obj)
+}
+
+// AutoCaptionsStatus is the resolver for the autoCaptionsStatus field.
+func (r *recordingResolver) AutoCaptionsStatus(ctx context.Context, obj *model.Recording) (*model.RecordingAutoCaptions, error) {
+	return r.recordingAutoCaptionsStatus(ctx, obj)
+}
+
 // VideoFormat is the resolver for the videoFormat field.
 func (r *recordingResolver) VideoFormat(ctx context.Context, obj *model.Recording) (model.VideoFormat, error) {
 	return r.recordingVideoFormat(ctx, obj)
@@ -130,6 +150,11 @@ func (r *recordingResolver) LiveStats(ctx context.Context, obj *model.Recording)
 // WatchFrame is the resolver for the watchFrame field.
 func (r *recordingResolver) WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error) {
 	return r.watchFrame(ctx, obj), nil
+}
+
+// NextEpisodes is the resolver for the nextEpisodes field.
+func (r *recordingResolver) NextEpisodes(ctx context.Context, obj *model.Recording) ([]*model.Program, error) {
+	return r.nextEpisodes(ctx, obj)
 }
 
 // Recording returns generated.RecordingResolver implementation.

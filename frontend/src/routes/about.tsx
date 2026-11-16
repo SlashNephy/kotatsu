@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { graphql } from 'react-relay';
 
 import { Disclaimer } from '../about/Disclaimer';
+import { TMDbAttribution } from '../drama/DramaEpisode';
 import { LicenseList } from '../about/LicenseList';
 import {
   bundledData,
@@ -125,6 +126,23 @@ function AboutContent() {
 
       <Card withBorder>
         <Disclaimer />
+      </Card>
+
+      {/* TMDb の API の利用規約は、このアプリについての画面に、帰属の表示 (ロゴと注記) を求める (#1651)。 */}
+      <Card withBorder>
+        <Stack gap="xs">
+          <Text fw={600}>{t('about.dataSources')}</Text>
+          <Text size="sm">{t('about.tmdb')}</Text>
+          <TMDbAttribution />
+          <Anchor
+            href="https://www.themoviedb.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            size="sm"
+          >
+            https://www.themoviedb.org/
+          </Anchor>
+        </Stack>
       </Card>
 
       <Text size="sm">{t('about.description')}</Text>

@@ -52,11 +52,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networkactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -180,7 +182,7 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, storage.timeshiftPrune)
 	river.AddWorker(workers, storage.promote)
 	river.AddWorker(workers, storage.reapPromotions)
-	// 録画の後処理 (代表画像、解析、セグメントのつなぎ、CM の区間の見分け、変換、チャプター)。組み方は mediajobs.go に置く。
+	// 録画の後処理 (代表画像、解析、セグメントのつなぎ、CM の区間の見分け、字幕の自動生成、変換、チャプター)。組み方は mediajobs.go に置く。
 	media := newMediaJobParts(deps, logger, inserter)
 	river.AddWorker(workers, media.thumbnails)
 	river.AddWorker(workers, media.liveThumbnails)
@@ -188,6 +190,8 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, media.join)
 	river.AddWorker(workers, media.finalize)
 	river.AddWorker(workers, media.cmDetect)
+	river.AddWorker(workers, media.captions)
+	river.AddWorker(workers, media.captionModels)
 	river.AddWorker(workers, media.transcode)
 	river.AddWorker(workers, media.tvtplay)
 	river.AddWorker(workers, media.chapters)
@@ -207,13 +211,19 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, animerecord.NewWishlistWorker(animeJobs.records, deps.DB))
 	// フォロー中のユーザーの視聴状況を、画面を開いたときに、記録の連携のトークンで取得する (#1372)。
 	river.AddWorker(workers, animerecord.NewFollowingWorker(animeJobs.records, deps.DB))
+	// 管理者が連携を有効にし、連携の画面で TMDb のトークンを入れていれば、ドラマの番組を TMDb の作品と話に結びつける (#1651、設計書 3.9)。
+	dramaMatcher, err := newDramaMatcher(deps, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	river.AddWorker(workers, drama.NewMatchWorker(dramaMatcher))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), anime.NicologPeriodicJob(), animerecord.PrunePeriodicJob(),
 		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
-	}, anime.MatchPeriodicJobs()...), nil
+	}, slices.Concat(anime.MatchPeriodicJobs(), drama.MatchPeriodicJobs())...), nil
 }
 
 // newAnimeRecords は、見たアニメを Annict と AniList に記録する部品を作る (#927)。
@@ -393,6 +403,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Roles:          roleNames(targets),
 			LookupEnv:      opts.LookupEnv,
 			Logs:           opts.Logs,
+			edcb:           new(sharedEDCB),
 		}
 		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
 		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。
@@ -581,6 +592,17 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
+	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
+	if serveNabe(deps, roles) {
+		nabeHandler, err := newNabeHandler(deps, logger)
+		if err != nil {
+			_ = apiListener.Close()
+			_ = metricsListener.Close()
+
+			return err
+		}
+		mux.Handle(nabe.PathPrefix, nabeHandler)
+	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
 
@@ -638,15 +660,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		})
 	}
 	eg.Go(func() error {
-		names := make([]string, 0, len(roles))
-		for _, role := range roles {
-			// トランスコードできない kyusu は、登録簿に載せない。画面は、登録簿に kyusu がいるかで、
-			// サーバー側でのトランスコードを使えるかを判断する (設計書 7.1)。
-			if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
-				continue
-			}
-			names = append(names, role.Name)
-		}
+		names := registeredRoles(deps, roles, live)
 
 		return opts.RunRegistry(ctx, logger, deps, names, apiListener.Addr().String())
 	})
@@ -660,6 +674,25 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 	})
 
 	return eg.Wait()
+}
+
+// registeredRoles は、インスタンスの登録簿に載せるロールの名前を返す。
+func registeredRoles(deps *Deps, roles []*Role, live *kyusu.Live) []string {
+	names := make([]string, 0, len(roles))
+	for _, role := range roles {
+		// トランスコードできない kyusu は、登録簿に載せない。画面は、登録簿に kyusu がいるかで、
+		// サーバー側でのトランスコードを使えるかを判断する (設計書 7.1)。
+		if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
+			continue
+		}
+		// EDCB を使わない nabe は、配るものがないので、登録簿に載せない。
+		if role.Name == nabe.Role && !serveNabe(deps, roles) {
+			continue
+		}
+		names = append(names, role.Name)
+	}
+
+	return names
 }
 
 // newAPI は、tenban の API と SPA のハンドラーを返す。
@@ -765,7 +798,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	streamParts := newStreamParts(deps)
 	streams, drainer := streamParts.streams, streamParts.drainer
 	// 映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) に使うチューナーサーバー。
-	tuner, err := newTunerUses(deps)
+	tuner, err := newTunerUses(ctx, deps, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -797,10 +830,12 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Pools:             deps.Config.Storage.Pools,
 		DataDir:           deps.Config.Storage.DataDir,
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
+		Captions:          &deps.Config.Captions,
 		FreeSpace:         nil,
 		Jobs:              deps.Jobs,
 		JobAdmin:          jobAdminOf(deps),
 		AnimeRecords:      animeRecords,
+		DramaTokens:       sealed.dramaTokens,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,
@@ -1215,12 +1250,12 @@ type tunerUses struct {
 }
 
 // newTunerUses は、映像の配信 (設計書 7.2、7.6、9.6) と、ライブの内訳 (#812) と、ロゴに使うチューナーサーバーの口を返す。
-func newTunerUses(deps *Deps) (*tunerUses, error) {
+func newTunerUses(ctx context.Context, deps *Deps, logger *slog.Logger) (*tunerUses, error) {
 	uses := &tunerUses{opener: nil, logos: nil, rates: nil, channels: nil, logs: nil}
 	if !deps.Config.Tuner.UsesTunerServer() {
 		return uses, nil
 	}
-	client, err := newTunerClient(deps)
+	client, err := newTunerClient(ctx, deps, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -1293,8 +1328,8 @@ func handleEPGStationAPI(
 	router.Any(prefix+"*", protect(http.NotFoundHandler()), httpserver.Component("stream"))
 }
 
-// errSecretKeyRequired は、tenban、nekonote か kyusu を、アプリの秘密キーなしで起動しようとしたことを表す。
-var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, and kyusu; " +
+// errSecretKeyRequired は、tenban、nekonote、kyusu か、EDCB を使う nabe を、アプリの秘密キーなしで起動しようとしたことを表す。
+var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, kyusu, and nabe with EDCB; " +
 	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。

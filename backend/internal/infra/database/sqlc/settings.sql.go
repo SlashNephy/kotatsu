@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at FROM system_settings WHERE id = 1
+SELECT id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at FROM system_settings WHERE id = 1
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -35,6 +35,7 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.TvtplayChaptersEnabled,
 		&i.EPGStationAPIEnabled,
 		&i.AnimeLinkingEnabled,
+		&i.DramaLinkingEnabled,
 		&i.CommentSources,
 		&i.RuleDefaults,
 		&i.DrcsReplacements,
@@ -80,7 +81,7 @@ const lockSystemSettings = `-- name: LockSystemSettings :one
 INSERT INTO system_settings (id, recording_defaults, archive_retention_days, updated_at)
 VALUES (1, '{}', $1, $2)
 ON CONFLICT (id) DO UPDATE SET id = system_settings.id
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
 `
 
 type LockSystemSettingsParams struct {
@@ -110,6 +111,7 @@ func (q *Queries) LockSystemSettings(ctx context.Context, arg LockSystemSettings
 		&i.TvtplayChaptersEnabled,
 		&i.EPGStationAPIEnabled,
 		&i.AnimeLinkingEnabled,
+		&i.DramaLinkingEnabled,
 		&i.CommentSources,
 		&i.RuleDefaults,
 		&i.DrcsReplacements,
@@ -166,12 +168,12 @@ UPDATE system_settings SET recording_defaults = $1, archive_retention_days = $2,
   notification_retention_days = $3, watch_progress_retention_days = $4, network_activity_enabled = $5,
   network_activity_enabled_at = $6, network_activity_retention_days = $7, rule_defaults = $8, mcp_enabled = $9,
   data_broadcast_ip_enabled = $10, external_player_urls_enabled = $11,
-  iptv_feeds_enabled = $12, recording_downloads_enabled = $13, tvtplay_chapters_enabled = $14, cm_detector = $15, epgstation_api_enabled = $16, anime_linking_enabled = $17, comment_sources = $18,
-  drcs_replacements = $19, timeshift_while_watching = $20,
-  timeshift_while_watching_retention_seconds = $21,
-  rule_unmatched_grace_minutes = $22, updated_at = $23
+  iptv_feeds_enabled = $12, recording_downloads_enabled = $13, tvtplay_chapters_enabled = $14, cm_detector = $15, epgstation_api_enabled = $16, anime_linking_enabled = $17, drama_linking_enabled = $18, comment_sources = $19,
+  drcs_replacements = $20, timeshift_while_watching = $21,
+  timeshift_while_watching_retention_seconds = $22,
+  rule_unmatched_grace_minutes = $23, updated_at = $24
 WHERE id = 1
-RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
+RETURNING id, recording_defaults, archive_retention_days, notification_retention_days, watch_progress_retention_days, network_activity_enabled, network_activity_enabled_at, network_activity_retention_days, mcp_enabled, data_broadcast_ip_enabled, external_player_urls_enabled, iptv_feeds_enabled, recording_downloads_enabled, cm_detector, tvtplay_chapters_enabled, epgstation_api_enabled, anime_linking_enabled, drama_linking_enabled, comment_sources, rule_defaults, drcs_replacements, timeshift_while_watching, timeshift_while_watching_retention_seconds, rule_unmatched_grace_minutes, updated_at
 `
 
 type UpdateSystemSettingsParams struct {
@@ -192,6 +194,7 @@ type UpdateSystemSettingsParams struct {
 	CMDetector                             string
 	EPGStationAPIEnabled                   bool
 	AnimeLinkingEnabled                    bool
+	DramaLinkingEnabled                    bool
 	CommentSources                         []string
 	DrcsReplacements                       []byte
 	TimeshiftWhileWatching                 bool
@@ -219,6 +222,7 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		arg.CMDetector,
 		arg.EPGStationAPIEnabled,
 		arg.AnimeLinkingEnabled,
+		arg.DramaLinkingEnabled,
 		arg.CommentSources,
 		arg.DrcsReplacements,
 		arg.TimeshiftWhileWatching,
@@ -245,6 +249,7 @@ func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSett
 		&i.TvtplayChaptersEnabled,
 		&i.EPGStationAPIEnabled,
 		&i.AnimeLinkingEnabled,
+		&i.DramaLinkingEnabled,
 		&i.CommentSources,
 		&i.RuleDefaults,
 		&i.DrcsReplacements,

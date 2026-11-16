@@ -6,6 +6,8 @@ import (
 	"log/slog"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/power"
+	"github.com/SlashNephy/kotatsu/internal/usecase/autocaption"
+	"github.com/SlashNephy/kotatsu/internal/usecase/captionmodel"
 	"github.com/SlashNephy/kotatsu/internal/usecase/cmdetect"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/sleep"
@@ -32,12 +34,15 @@ func newSleepSystem(opts *power.Options) (SleepSystem, error) {
 	return system, nil
 }
 
-// sleepEncodeKinds は、スリープさせない理由にする、録画の後処理のジョブの種類 (設計書 6.1)。FFmpeg で録画を読み続けるものだけを入れる。
+// sleepEncodeKinds は、スリープさせない理由にする、録画の後処理のジョブの種類 (設計書 6.1)。FFmpeg で録画を読み続けるものと、字幕の自動生成と、
+// そのモデルのダウンロード (#1682) を入れる。
 func sleepEncodeKinds() []string {
 	return []string{
 		new(transcode.Args).Kind(),
 		new(transcode.ChaptersArgs).Kind(),
 		new(cmdetect.DetectArgs).Kind(),
+		new(autocaption.Args).Kind(),
+		new(captionmodel.DownloadArgs).Kind(),
 	}
 }
 

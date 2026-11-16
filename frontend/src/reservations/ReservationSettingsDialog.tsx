@@ -23,6 +23,7 @@ import {
   transcodeOptions,
   useTranscodePresets,
 } from '../rules/transcode';
+import { cmDetectorOf, type CMDetector } from '../rules/form';
 
 import { Authorship, ErrorBoundary } from '../futon';
 import { FileNameTemplateField, InheritedFileNameTemplateField } from './FileNameTemplateField';
@@ -81,9 +82,11 @@ function Form({ id, onClose, onReserved }: Props) {
             priority
             joinSegments
             detectCm
+            generateCaptions
             transcodePreset
             transcodeFrameRate
           }
+          cmDetector
         }
         storagePoolNames
         node(id: $id) {
@@ -112,8 +115,10 @@ function Form({ id, onClose, onReserved }: Props) {
                 priority
                 joinSegments
                 detectCm
+                generateCaptions
                 transcodePreset
                 transcodeFrameRate
+                cmDetector
               }
             }
             settings {
@@ -124,8 +129,10 @@ function Form({ id, onClose, onReserved }: Props) {
               priority
               joinSegments
               detectCm
+              generateCaptions
               transcodePreset
               transcodeFrameRate
+              cmDetector
             }
           }
         }
@@ -154,8 +161,10 @@ function Form({ id, onClose, onReserved }: Props) {
           priority
           joinSegments
           detectCm
+          generateCaptions
           transcodePreset
           transcodeFrameRate
+          cmDetector
         }
         # マージンが変わると、チューナーの割り当てが変わることがあるので、一覧の状態も取り直す。
         assignment {
@@ -205,11 +214,17 @@ function Form({ id, onClose, onReserved }: Props) {
     reservation?.settings.joinSegments ?? null,
   );
   const [detectCm, setDetectCm] = useState<boolean | null>(reservation?.settings.detectCm ?? null);
+  const [generateCaptions, setGenerateCaptions] = useState<boolean | null>(
+    reservation?.settings.generateCaptions ?? null,
+  );
   const [transcodePreset, setTranscodePreset] = useState<string | null>(
     reservation?.settings.transcodePreset ?? null,
   );
   const [transcodeFrameRate, setTranscodeFrameRate] = useState<string | null>(
     reservation?.settings.transcodeFrameRate ?? null,
+  );
+  const [cmDetector, setCmDetector] = useState<CMDetector | null>(
+    cmDetectorOf(reservation?.settings.cmDetector),
   );
   const transcodePresets = useTranscodePresets();
   const [poolId, setPoolId] = useState<string | null>(reservation?.settings.poolId ?? null);
@@ -229,8 +244,10 @@ function Form({ id, onClose, onReserved }: Props) {
   const rulePriority = rule?.settings.priority ?? null;
   const ruleJoin = rule?.settings.joinSegments ?? null;
   const ruleDetect = rule?.settings.detectCm ?? null;
+  const ruleCaptions = rule?.settings.generateCaptions ?? null;
   const ruleTranscode = rule?.settings.transcodePreset ?? null;
   const ruleFrameRate = rule?.settings.transcodeFrameRate ?? null;
+  const ruleDetector = cmDetectorOf(rule?.settings.cmDetector);
   const rulePool = rule?.settings.poolId ?? null;
   const inherited = (fromRule: boolean, value: string) =>
     fromRule && rule !== undefined
@@ -238,6 +255,10 @@ function Form({ id, onClose, onReserved }: Props) {
       : t('reservations.settings.inheritedDefault', { value });
   const joinLabel = (join: boolean) => t(join ? 'rules.joinSegmentsOn' : 'rules.joinSegmentsOff');
   const detectLabel = (detect: boolean) => t(detect ? 'rules.detectCmOn' : 'rules.detectCmOff');
+  const captionsLabel = (generate: boolean) =>
+    t(generate ? 'rules.generateCaptionsOn' : 'rules.generateCaptionsOff');
+  const detectorLabel = (detector: CMDetector) =>
+    t(detector === 'LOGO' ? 'admin.settings.cmDetectorLogo' : 'admin.settings.cmDetectorFfmpeg');
   const save = () => {
     setError(false);
     const settings = {
@@ -248,8 +269,10 @@ function Form({ id, onClose, onReserved }: Props) {
       priority,
       joinSegments,
       detectCm,
+      generateCaptions,
       transcodePreset,
       transcodeFrameRate,
+      cmDetector,
     };
     // Relay は、data とともに返ったエラーを、onError ではなく onCompleted に渡す。
     const failed = (errors: readonly unknown[] | null | undefined) =>
@@ -412,6 +435,58 @@ function Form({ id, onClose, onReserved }: Props) {
           onChange={(value) =>
             setDetectCm(value === null || value === joinDefault ? null : value === 'true')
           }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {/* 全体に従うなら、録画を終えるときの全体の設定 (ルール予約ならルールの設定) で決める (#1682)。 */}
+        <Select
+          label={t('rules.generateCaptions')}
+          data={[
+            {
+              value: joinDefault,
+              label:
+                ruleCaptions !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: captionsLabel(ruleCaptions),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: captionsLabel(defaults.generateCaptions),
+                    }),
+            },
+            { value: 'true', label: t('rules.generateCaptionsOn') },
+            { value: 'false', label: t('rules.generateCaptionsOff') },
+          ]}
+          value={generateCaptions === null ? joinDefault : String(generateCaptions)}
+          onChange={(value) =>
+            setGenerateCaptions(value === null || value === joinDefault ? null : value === 'true')
+          }
+          allowDeselect={false}
+          disabled={inFlight}
+        />
+        {/* 全体に従うなら、見分けるときの全体の設定 (ルール予約ならルールの設定) で決める (#1505)。 */}
+        <Select
+          label={t('rules.cmDetector')}
+          data={[
+            {
+              value: joinDefault,
+              label:
+                ruleDetector !== null && rule !== undefined
+                  ? t('reservations.settings.joinInheritedRule', {
+                      name: rule.name,
+                      value: detectorLabel(ruleDetector),
+                    })
+                  : t('reservations.settings.joinInheritedDefault', {
+                      value: detectorLabel(
+                        cmDetectorOf(data.systemSettings.cmDetector) ?? 'FFMPEG',
+                      ),
+                    }),
+            },
+            { value: 'FFMPEG', label: t('admin.settings.cmDetectorFfmpeg') },
+            { value: 'LOGO', label: t('admin.settings.cmDetectorLogo') },
+          ]}
+          value={cmDetector ?? joinDefault}
+          onChange={(value) => setCmDetector(cmDetectorOf(value))}
           allowDeselect={false}
           disabled={inFlight}
         />

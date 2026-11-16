@@ -22,8 +22,14 @@ import {
   cmDetectionActive,
   useCmDetectionPoll,
 } from '../../recordings/CmDetection';
+import {
+  AutoCaptionsStatus,
+  autoCaptionsActive,
+  captionModelsAnchor,
+} from '../../recordings/AutoCaptions';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import {
+  Captions,
   Download,
   Files,
   Gauge,
@@ -55,6 +61,7 @@ import {
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
+import { DramaEpisode } from '../../drama/DramaEpisode';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { ScrambleBadge } from '../../recordings/ScrambleBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
@@ -62,6 +69,7 @@ import { recordingPosition } from '../../yunomi/position';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import type { RecordingIdDeleteMutation } from './__generated__/RecordingIdDeleteMutation.graphql';
 import type { RecordingIdDetectCmMutation } from './__generated__/RecordingIdDetectCmMutation.graphql';
+import type { RecordingIdGenerateCaptionsMutation } from './__generated__/RecordingIdGenerateCaptionsMutation.graphql';
 import type { RecordingIdProtectMutation } from './__generated__/RecordingIdProtectMutation.graphql';
 import type { RecordingIdQuery } from './__generated__/RecordingIdQuery.graphql';
 import type { RecordingIdReanalyzeMutation } from './__generated__/RecordingIdReanalyzeMutation.graphql';
@@ -69,6 +77,7 @@ import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdR
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { FilmarksLink } from '../../guide/FilmarksLink';
+import { StreamingLink } from '../../guide/StreamingLink';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
@@ -76,8 +85,12 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
 import { failureKey } from '../../recordings/failureReason';
 import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
+import { readableParams } from '../../futon/readableId';
+import { NextEpisodes } from '../../recordings/NextEpisodes';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('recordingId', 'Recording'),
   component: RecordingPage,
 });
 
@@ -153,8 +166,8 @@ function RecordingPage() {
   );
 }
 
-// recordingChannels は、録画の詳細に関わるデータの種類。
-const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS'];
+// recordingChannels は、録画の詳細に関わるデータの種類。予約が変われば、続きの放送 (#1564) から予約した放送が外れる。
+const recordingChannels: readonly ChangeChannel[] = ['RECORDINGS', 'RESERVATIONS'];
 
 function Recording({ recordingId }: { recordingId: string }) {
   const { t } = useTranslation();
@@ -164,6 +177,9 @@ function Recording({ recordingId }: { recordingId: string }) {
   // CM の区間を見分けるのを待っている間と、見分けている間は、進み具合と、終わったか失敗したかを追うため、読み直し続ける (#1571)。
   const [cmActive, setCmActive] = useState(false);
   const [cmPoll, refreshCm] = useCmDetectionPoll(cmActive);
+  // 字幕の自動生成も、待っている間と生成している間は、同じ間隔で読み直す (#1682)。
+  const [captionsActive, setCaptionsActive] = useState(false);
+  const [captionsPoll, refreshCaptions] = useCmDetectionPoll(captionsActive);
   const data = useLazyLoadQuery<RecordingIdQuery>(
     graphql`
       query RecordingIdQuery($id: ID!) {
@@ -224,6 +240,16 @@ function Recording({ recordingId }: { recordingId: string }) {
                 remainingSeconds
               }
             }
+            autoCaptionsStatus {
+              state
+              generatedAt
+              model
+              count
+              progress {
+                ratio
+                remainingSeconds
+              }
+            }
             programLost
             broadcastStartedAt
             broadcastEndedAt
@@ -231,6 +257,20 @@ function Recording({ recordingId }: { recordingId: string }) {
             genres {
               lv1
               lv2
+            }
+            # 録画を始めたときに写した、TMDb で結びつけた作品と話 (#1651、設計書 3.9)。
+            dramaEpisode {
+              series {
+                tmdbId
+                name
+                originalName
+                url
+              }
+              seriesSource
+              seasonNumber
+              episodeNumber
+              episodeName
+              url
             }
             # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
             animeEpisodes {
@@ -260,10 +300,26 @@ function Recording({ recordingId }: { recordingId: string }) {
             recordedFrom
             recordedUntil
             service {
+              id
               name
+              channelType {
+                type
+              }
               logoUrl
               jikkyo {
                 id
+              }
+            }
+            # 録画のシリーズの続きの放送 (設計書 4.4、#1564)。
+            nextEpisodes {
+              id
+              name
+              startAt
+              ruleKeyword
+              service {
+                id
+                name
+                logoUrl
               }
             }
             tags {
@@ -293,7 +349,7 @@ function Recording({ recordingId }: { recordingId: string }) {
       }
     `,
     { id: recordingId },
-    { fetchKey: `${changes}:${cmPoll}`, fetchPolicy: 'store-and-network' },
+    { fetchKey: `${changes}:${cmPoll}:${captionsPoll}`, fetchPolicy: 'store-and-network' },
   );
   const [protect, protecting] = useMutation<RecordingIdProtectMutation>(graphql`
     mutation RecordingIdProtectMutation($id: ID!, $protected: Boolean!) {
@@ -334,6 +390,13 @@ function Recording({ recordingId }: { recordingId: string }) {
       detectRecordingCm(id: $id)
     }
   `);
+  const [generateCaptions, generatingCaptions] = useMutation<RecordingIdGenerateCaptionsMutation>(
+    graphql`
+      mutation RecordingIdGenerateCaptionsMutation($id: ID!) {
+        generateRecordingCaptions(id: $id)
+      }
+    `,
+  );
   // regenerated は、画像の作り直しか解析のやり直しを頼んだ結果。queued は入れた、waiting は前に頼んだものを待っている。
   // CM の解析は、頼んだ結果の代わりに、CM の区間のカードに状態を出す (#1571)。
   const [regenerated, setRegenerated] = useState<{
@@ -344,6 +407,11 @@ function Recording({ recordingId }: { recordingId: string }) {
   const cmNowActive = node?.__typename === 'Recording' && cmDetectionActive(node.cmDetection.state);
   if (cmNowActive !== cmActive) {
     setCmActive(cmNowActive);
+  }
+  const captionsNowActive =
+    node?.__typename === 'Recording' && autoCaptionsActive(node.autoCaptionsStatus.state);
+  if (captionsNowActive !== captionsActive) {
+    setCaptionsActive(captionsNowActive);
   }
   // editedTags は、編集中のタグ。編集していなければ null で、サーバーのタグをそのまま出す。
   const [editedTags, setEditedTags] = useState<string[] | null>(null);
@@ -452,6 +520,31 @@ function Recording({ recordingId }: { recordingId: string }) {
                 }
               >
                 {t('recordings.detectCm')}
+              </Button>
+              {/* 全体や予約の設定にかかわらず、音声から字幕を自動生成する。前の字幕は置き換える (#1682)。 */}
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<Captions size={14} aria-hidden />}
+                loading={generatingCaptions}
+                onClick={() =>
+                  generateCaptions({
+                    variables: { id: recording.id },
+                    onCompleted: (_response, errors) => {
+                      if (failed(errors)) {
+                        setError(t('recordings.actionError'));
+
+                        return;
+                      }
+                      setRegenerated(null);
+                      // 変更の知らせを待たずに読み直し、待っていることを字幕のカードに出す。
+                      refreshCaptions();
+                    },
+                    onError: () => setError(t('recordings.actionError')),
+                  })
+                }
+              >
+                {t('recordings.generateCaptions')}
               </Button>
               {regenerated !== null && (
                 <Text size="xs" c="dimmed" role="status">
@@ -570,11 +663,18 @@ function Recording({ recordingId }: { recordingId: string }) {
             ))}
           </Group>
           <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
+          {/* 作品の上書きは番組表にある番組にしか及ばないので、録画の詳細には置かない (#1651)。 */}
+          <DramaEpisode
+            episode={recording.dramaEpisode}
+            programName={recording.name}
+            canOverride={false}
+          />
           <FilmarksLink
             genres={recording.genres}
             workTitle={recording.workTitle}
             anime={recording.animeEpisodes.length > 0}
           />
+          <StreamingLink service={recording.service} workTitle={recording.workTitle} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (
@@ -628,6 +728,11 @@ function Recording({ recordingId }: { recordingId: string }) {
               <LinkifiedText text={toHalfWidth(recording.description)} />
             </Text>
           )}
+          <NextEpisodes
+            episodes={recording.nextEpisodes}
+            serviceId={recording.service.id}
+            canEdit={canEdit}
+          />
           <Card withBorder>
             <Stack gap={4}>
               <CardHeading icon={Gauge}>{t('recordings.quality')}</CardHeading>
@@ -723,6 +828,30 @@ function Recording({ recordingId }: { recordingId: string }) {
                 <CmDetectionStatus
                   detection={recording.cmDetection}
                   sections={recording.cmSections.length}
+                />
+              </Stack>
+            </Card>
+          )}
+          {/* 字幕を自動生成したか、生成しているかを出す (#1682)。音声を取り出すのは TS のセグメントだけ。 */}
+          {segments.length > 0 && recording.state !== 'RECORDING' && (
+            <Card withBorder>
+              <Stack gap={4}>
+                <CardHeading icon={Captions}>{t('recordings.autoCaptions.title')}</CardHeading>
+                <AutoCaptionsStatus
+                  status={recording.autoCaptionsStatus}
+                  settingsLink={
+                    // モデルを置けるのは管理者だけなので、管理者にだけ、置く画面へのリンクを出す。
+                    data.viewer.role === 'ADMIN' && (
+                      <Anchor
+                        component={Link}
+                        to="/admin/recording"
+                        hash={captionModelsAnchor}
+                        size="sm"
+                      >
+                        {t('recordings.autoCaptions.notConfiguredLink')}
+                      </Anchor>
+                    )
+                  }
                 />
               </Stack>
             </Card>
