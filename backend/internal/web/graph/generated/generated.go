@@ -11091,6 +11091,8 @@ enum RecordingFailureReason {
   RECORDER_UNAVAILABLE
   "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)"
   TUNER_PREEMPTED
+  "チューナーサーバーが選局を断った。サービスかチャンネルがないか、選局に失敗した (#1519)"
+  TUNING_REFUSED
 }
 
 """
@@ -61908,6 +61910,7 @@ var (
 		"CANCELLED":                domain.RecordingFailureReasonCancelled,
 		"RECORDER_UNAVAILABLE":     domain.RecordingFailureReasonRecorderUnavailable,
 		"TUNER_PREEMPTED":          domain.RecordingFailureReasonTunerPreempted,
+		"TUNING_REFUSED":           domain.RecordingFailureReasonTuningRefused,
 	}
 	marshalNRecordingFailureReason2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[domain.RecordingFailureReason]string{
 		domain.RecordingFailureReasonTunerUnavailable:       "TUNER_UNAVAILABLE",
@@ -61919,6 +61922,7 @@ var (
 		domain.RecordingFailureReasonCancelled:              "CANCELLED",
 		domain.RecordingFailureReasonRecorderUnavailable:    "RECORDER_UNAVAILABLE",
 		domain.RecordingFailureReasonTunerPreempted:         "TUNER_PREEMPTED",
+		domain.RecordingFailureReasonTuningRefused:          "TUNING_REFUSED",
 	}
 )
 
@@ -63788,6 +63792,7 @@ var (
 		"CANCELLED":                domain.RecordingFailureReasonCancelled,
 		"RECORDER_UNAVAILABLE":     domain.RecordingFailureReasonRecorderUnavailable,
 		"TUNER_PREEMPTED":          domain.RecordingFailureReasonTunerPreempted,
+		"TUNING_REFUSED":           domain.RecordingFailureReasonTuningRefused,
 	}
 	marshalORecordingFailureReason2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋdomainᚐRecordingFailureReason = map[domain.RecordingFailureReason]string{
 		domain.RecordingFailureReasonTunerUnavailable:       "TUNER_UNAVAILABLE",
@@ -63799,6 +63804,7 @@ var (
 		domain.RecordingFailureReasonCancelled:              "CANCELLED",
 		domain.RecordingFailureReasonRecorderUnavailable:    "RECORDER_UNAVAILABLE",
 		domain.RecordingFailureReasonTunerPreempted:         "TUNER_PREEMPTED",
+		domain.RecordingFailureReasonTuningRefused:          "TUNING_REFUSED",
 	}
 )
 

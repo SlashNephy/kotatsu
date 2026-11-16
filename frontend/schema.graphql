@@ -3720,6 +3720,10 @@ enum RecordingFailureReason {
   録画中に、EDCB の予約にチューナーを取られ、つなぎ直せなかった (#1534)
   """
   TUNER_PREEMPTED
+  """
+  チューナーサーバーが選局を断った。サービスかチャンネルがないか、選局に失敗した (#1519)
+  """
+  TUNING_REFUSED
 }
 """
 録画のファイル。

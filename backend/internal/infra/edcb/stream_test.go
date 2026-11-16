@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"sync"
 	"testing"
@@ -137,7 +138,8 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 	}{
 		{name: "unknown service", serviceID: 3273601999, busy: false, openStatus: 1, want: tunerserver.ErrNotFound, wantRelease: []int32{}},
 		{name: "no free ID", serviceID: 3273601024, busy: true, openStatus: 1, want: tunerserver.ErrTunerUnavailable, wantRelease: []int32{}},
-		// EDCB がチューナーを開けなければ、ID を返す。
+		// EDCB がチューナーを開けなければ、ID を返す。EDCB は、空きがないときと受信できないときを分けずに返すので、
+		// 選局の失敗 (ErrTuningFailed) にはせず、空きがないものとする (#1519)。
 		{name: "no tuner", serviceID: 3273601024, busy: false, openStatus: 0, want: tunerserver.ErrTunerUnavailable, wantRelease: []int32{1000}},
 	}
 	for _, tt := range tests {
@@ -150,6 +152,11 @@ func TestTunerServerOpenServiceStreamFails(t *testing.T) {
 			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: 0})
 			_, err := server.OpenServiceStream(t.Context(), tt.serviceID, nil)
 			require.ErrorIs(t, err, tt.want)
+			for _, sentinel := range []error{tunerserver.ErrNotFound, tunerserver.ErrTunerUnavailable, tunerserver.ErrTuningFailed} {
+				if !errors.Is(tt.want, sentinel) {
+					require.NotErrorIs(t, err, sentinel)
+				}
+			}
 			_, released := ids.state()
 			assert.Equal(t, tt.wantRelease, released)
 		})
