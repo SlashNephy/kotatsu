@@ -623,7 +623,7 @@ type Querier interface {
 	ListDeletableRecordings(ctx context.Context, arg ListDeletableRecordingsParams) ([]ListDeletableRecordingsRow, error)
 	// サービス service_ids の、from から to までと放送時間が重なる、ドラマ (最初のジャンルの大分類が 0x3) の番組を返す。
 	// ドラマのジャンルを 2 つ目以降に持つ番組 (情報番組やバラエティで、ドラマの宣伝をするものなど) は照合しない。
-	// service_ids が NULL なら、すべてのサービスの番組を返す。
+	// service_ids が NULL なら、すべてのサービスの番組を返す。問い合わせの上限で区切っても、近い放送から照合するよう、開始時刻の順に並べる。
 	ListDramaPrograms(ctx context.Context, arg ListDramaProgramsParams) ([]ListDramaProgramsRow, error)
 	// 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないドラマの番組を返す。
 	ListDramaProgramsToFinalize(ctx context.Context, now time.Time) ([]ListDramaProgramsToFinalizeRow, error)

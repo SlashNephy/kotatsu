@@ -203,7 +203,7 @@ LEFT JOIN program_drama_matches m ON m.service_id = p.service_id AND m.start_at 
 WHERE ($1::bigint[] IS NULL OR p.service_id = ANY($1::bigint[]))
   AND p.start_at < $2 AND p.end_at > $3
   AND p.genres -> 0 ->> 'lv1' = '3'
-ORDER BY p.service_id, p.start_at
+ORDER BY p.start_at, p.service_id
 `
 
 type ListDramaProgramsParams struct {
@@ -226,7 +226,7 @@ type ListDramaProgramsRow struct {
 
 // サービス service_ids の、from から to までと放送時間が重なる、ドラマ (最初のジャンルの大分類が 0x3) の番組を返す。
 // ドラマのジャンルを 2 つ目以降に持つ番組 (情報番組やバラエティで、ドラマの宣伝をするものなど) は照合しない。
-// service_ids が NULL なら、すべてのサービスの番組を返す。
+// service_ids が NULL なら、すべてのサービスの番組を返す。問い合わせの上限で区切っても、近い放送から照合するよう、開始時刻の順に並べる。
 func (q *Queries) ListDramaPrograms(ctx context.Context, arg ListDramaProgramsParams) ([]ListDramaProgramsRow, error) {
 	rows, err := q.db.Query(ctx, listDramaPrograms, arg.ServiceIds, arg.RangeEnd, arg.RangeStart)
 	if err != nil {
@@ -263,7 +263,7 @@ FROM programs p
 LEFT JOIN program_drama_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.end_at <= $1 AND NOT p.end_undecided
   AND p.genres -> 0 ->> 'lv1' = '3' AND m.finalized_at IS NULL
-ORDER BY p.service_id, p.start_at
+ORDER BY p.start_at, p.service_id
 `
 
 type ListDramaProgramsToFinalizeRow struct {

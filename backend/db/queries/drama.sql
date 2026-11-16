@@ -8,14 +8,14 @@ ON CONFLICT (id) DO UPDATE SET epg_version = excluded.epg_version, updated_at = 
 -- name: ListDramaPrograms :many
 -- サービス service_ids の、from から to までと放送時間が重なる、ドラマ (最初のジャンルの大分類が 0x3) の番組を返す。
 -- ドラマのジャンルを 2 つ目以降に持つ番組 (情報番組やバラエティで、ドラマの宣伝をするものなど) は照合しない。
--- service_ids が NULL なら、すべてのサービスの番組を返す。
+-- service_ids が NULL なら、すべてのサービスの番組を返す。問い合わせの上限で区切っても、近い放送から照合するよう、開始時刻の順に並べる。
 SELECT p.service_id, p.event_id, p.start_at, p.end_at, p.end_undecided, p.name, p.series_episode, p.series_repeat, m.finalized_at
 FROM programs p
 LEFT JOIN program_drama_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE (sqlc.narg(service_ids)::bigint[] IS NULL OR p.service_id = ANY(sqlc.narg(service_ids)::bigint[]))
   AND p.start_at < @range_end AND p.end_at > @range_start
   AND p.genres -> 0 ->> 'lv1' = '3'
-ORDER BY p.service_id, p.start_at;
+ORDER BY p.start_at, p.service_id;
 
 -- name: ListDramaProgramsToFinalize :many
 -- 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないドラマの番組を返す。
@@ -24,7 +24,7 @@ FROM programs p
 LEFT JOIN program_drama_matches m ON m.service_id = p.service_id AND m.start_at = p.start_at
 WHERE p.end_at <= @now AND NOT p.end_undecided
   AND p.genres -> 0 ->> 'lv1' = '3' AND m.finalized_at IS NULL
-ORDER BY p.service_id, p.start_at;
+ORDER BY p.start_at, p.service_id;
 
 -- name: GetTMDbSearch :one
 SELECT query, results, fetched_at FROM tmdb_searches WHERE query = @query;

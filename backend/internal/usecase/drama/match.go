@@ -57,6 +57,9 @@ const (
 	recentSeason = 365 * 24 * time.Hour
 	// upcomingSeries は、作品の放送開始が番組の放送より後でも、候補に残す長さ (TMDb の放送開始日のずれを見込む)。
 	upcomingSeries = 30 * 24 * time.Hour
+	// continueAfter は、問い合わせの上限に達して照合しきれなかったとき、続きを照合するまで待つ長さ。
+	// 連携を有効にした直後は、これから 1 週間のドラマの番組を一度に照合するので、上限ごとに区切って続ける。
+	continueAfter = time.Minute
 	// genreAnimation は、TMDb のジャンルのアニメーション。アニメはしょぼいカレンダーで結びつけるので、候補にしない。
 	genreAnimation = 16
 )
@@ -123,6 +126,11 @@ type MatchResult struct {
 	Failed   int `json:"failed"`
 	// Pruned は、古くなって消したキャッシュと結びつきの数。
 	Pruned int64 `json:"pruned"`
+	// Stopped は、問い合わせの上限に達したか、TMDb に断られて、照合しきれなかった番組があるかどうか。
+	// ジョブは、ContinueAfter の後に、続きを照合し直す。
+	Stopped bool `json:"stopped"`
+	// ContinueAfter は、続きを照合するまで待つ長さ。TMDb が 429 で示した長さか、上限に達したときは continueAfter。
+	ContinueAfter time.Duration `json:"continueAfter"`
 }
 
 // target は、照合する番組。
@@ -349,6 +357,8 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 		link, err := m.resolve(ctx, r, t)
 		if errors.Is(err, errStop) {
 			result.Deferred += len(targets) - i
+			result.Stopped = true
+			result.ContinueAfter = max(result.ContinueAfter, continueAfter)
 
 			return true, nil
 		}
@@ -547,6 +557,7 @@ func shiftDate(date string, d time.Duration) string {
 //     (晩酌の流儀5 は TMDb ではシーズン 7) ので、番組名からは読まない。
 //   - 放送日で選べなければ (遅れて放送する局や、TMDb にまだ放送日のない話)、番組名の話数で、今放送しているシーズンの話を選ぶ。
 //   - 再放送は、放送日では選べないので、番組名の話数で選ぶ。シーズンがいくつもある作品は、どのシーズンか決められないので、作品だけに結びつける。
+//     再放送の印がなくても、今放送しているシーズンがなければ (昔の作品や海外ドラマ)、再放送と同じく選ぶ。
 func (m *Matcher) findEpisode(ctx context.Context, r *run, seriesID int32, t *target, dates []string) (int32, int32, string, error) {
 	series, err := m.seriesDetail(ctx, r, seriesID)
 	if err != nil {
@@ -586,6 +597,11 @@ func (m *Matcher) findEpisode(ctx context.Context, r *run, seriesID int32, t *ta
 		}
 	}
 	if current == nil || current.AirDate < shiftDate(dates[0], -recentSeason) {
+		// 今放送しているシーズンがなければ、再放送の印のない再放送 (昔の作品や海外ドラマ) とみなし、再放送と同じく選ぶ。
+		if len(regular) == 1 {
+			return m.titleEpisode(ctx, r, seriesID, regular[0].SeasonNumber, number, "")
+		}
+
 		return 0, 0, "", nil
 	}
 
@@ -700,7 +716,10 @@ func (m *Matcher) request(r *run) error {
 func (m *Matcher) failed(ctx context.Context, r *run, err error) error {
 	r.result.Failed++
 	var limited *tmdb.RateLimitedError
-	if errors.As(err, &limited) || errors.Is(err, tmdb.ErrUnauthorized) {
+	if errors.As(err, &limited) {
+		r.result.ContinueAfter = max(r.result.ContinueAfter, limited.RetryAfter)
+	}
+	if limited != nil || errors.Is(err, tmdb.ErrUnauthorized) {
 		m.logger.WarnContext(ctx, "stopped querying TMDb", slog.Any("error", err))
 
 		return errStop
@@ -739,7 +758,7 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the TMDb search: %w", err)
 	}
-	if err := q.UpsertTMDbSearch(ctx, sqlc.UpsertTMDbSearchParams{Query: query, Results: encoded, Now: r.now}); err != nil {
+	if err := q.UpsertTMDbSearch(ctx, sqlc.UpsertTMDbSearchParams{Query: query, Results: encoded, Now: m.clock.Now()}); err != nil {
 		return nil, fmt.Errorf("failed to save the TMDb search: %w", err)
 	}
 	r.searches[query] = results
@@ -793,7 +812,7 @@ func (m *Matcher) fetchSeries(ctx context.Context, r *run, id int32) (*tmdb.Seri
 		return nil, fmt.Errorf("failed to encode the TMDb seasons: %w", err)
 	}
 	if err := sqlc.New(m.db).UpsertTMDbSeries(ctx, sqlc.UpsertTMDbSeriesParams{
-		ID: series.ID, Name: series.Name, OriginalName: series.OriginalName, FirstAirDate: dateOf(series.FirstAirDate), Seasons: seasons, Now: r.now,
+		ID: series.ID, Name: series.Name, OriginalName: series.OriginalName, FirstAirDate: dateOf(series.FirstAirDate), Seasons: seasons, Now: m.clock.Now(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to save the TMDb series: %w", err)
 	}
@@ -847,7 +866,7 @@ func (m *Matcher) fetchSeason(ctx context.Context, r *run, seriesID, number int3
 		return nil, fmt.Errorf("failed to encode the TMDb season: %w", err)
 	}
 	if err := sqlc.New(m.db).UpsertTMDbSeason(ctx, sqlc.UpsertTMDbSeasonParams{
-		SeriesID: seriesID, SeasonNumber: number, Episodes: encoded, Now: r.now,
+		SeriesID: seriesID, SeasonNumber: number, Episodes: encoded, Now: m.clock.Now(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to save the TMDb season: %w", err)
 	}

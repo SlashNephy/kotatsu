@@ -385,6 +385,12 @@ func TestMatchHorizon(t *testing.T) {
 			want: new(linkedTo(sukeban, 1, 26, drama.EpisodeSourceTitle)),
 		},
 		{
+			// 再放送の印がなくても、今放送しているシーズンのない昔の作品は、再放送と同じく番組名の話数で選ぶ。
+			name: "unmarked rerun of an old series", serviceID: bsService, start: jst(17, 16, 0), end: jst(17, 17, 0),
+			title: "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２７話", genres: genreDrama,
+			want: new(linkedTo(sukeban, 1, 27, drama.EpisodeSourceTitle)),
+		},
+		{
 			// 作品名の一部で探すと、作品名の一致しない候補しか出ない。放送日の話がある候補だけに結びつけ、アニメは候補にしない。
 			name: "partial title confirmed by the air date", serviceID: grService, start: jst(20, 23, 0), end: jst(20, 23, 54),
 			title: "真田十勇士　＃５", genres: genreDrama,
@@ -413,9 +419,9 @@ func TestMatchHorizon(t *testing.T) {
 
 	result, err := f.matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 8, result.Programs)
-	assert.Equal(t, 6, result.Linked)
-	assert.Equal(t, 5, result.Episodes)
+	assert.Equal(t, 9, result.Programs)
+	assert.Equal(t, 7, result.Linked)
+	assert.Equal(t, 6, result.Episodes)
 	assert.Zero(t, result.Failed)
 	for _, p := range programs {
 		got, found := matchOf(t, f.db, p.serviceID, p.start)
@@ -463,6 +469,8 @@ func TestMatchStopsWhenRateLimited(t *testing.T) {
 	assert.Equal(t, 1, result.Requests, "no more requests after a 429")
 	assert.Equal(t, 1, result.Failed)
 	assert.Equal(t, 2, result.Deferred)
+	assert.True(t, result.Stopped)
+	assert.Equal(t, time.Minute, result.ContinueAfter, "the job continues after the Retry-After of TMDb")
 	_, found := matchOf(t, f.db, grService, jst(15, 22, 15))
 	assert.False(t, found, "the deferred program is matched later")
 
@@ -486,6 +494,7 @@ func TestMatchRequestBudget(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Requests)
 	assert.Equal(t, 2, result.Deferred, "the program in the middle of the lookups and the rest are deferred")
+	assert.True(t, result.Stopped, "the job continues the rest a little later")
 	assert.Len(t, f.fake.takeRequests(), 2)
 }
 

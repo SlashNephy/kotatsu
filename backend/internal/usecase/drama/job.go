@@ -90,6 +90,11 @@ func (w *MatchWorker) Work(ctx context.Context, job *river.Job[MatchArgs]) error
 	if err != nil {
 		return err
 	}
+	// 照合しきれなかった番組は、次の定期の照合 (6 時間後など) を待たずに、少し空けてから続きを照合する。
+	// 変更の記録の照合は、1 分ごとに読み直すので続けない。
+	if result.Stopped && job.Args.Mode != MatchModeChanges {
+		return river.JobSnooze(result.ContinueAfter)
+	}
 	if err := river.RecordOutput(ctx, result); err != nil {
 		return fmt.Errorf("failed to record the job output: %w", err)
 	}

@@ -416,3 +416,18 @@ OSのスリープを自分で管理するときは、`false`にしてくださ�
 自分で作った対応を、公開しない場所に置いて取り込むときに設定します。
 認証が要るときは、URLに資格情報を含めてください。
 取り込めなかった理由にはURLを書かず、取り込み元の名前（`arm`）だけを書きます。
+
+### tmdb
+
+ドラマの番組を、TMDbの作品と話に結びつける連携の設定です（[設計書 3.9](spec.v1.md#39-ドラマの番組と作品の結びつき)）。
+連携するかどうかは、管理者が連携の画面で決めます。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `tmdb.read_access_token` | `KOTATSU_TMDB_READ_ACCESS_TOKEN` | なし（秘密） | TMDbのAPIの読み取りアクセストークン（API Read Access Token） |
+| `tmdb.url` | `KOTATSU_TMDB_URL` | `https://api.themoviedb.org` | TMDbのAPIを向ける先のオリジン |
+
+トークンは、TMDbのアカウントの設定（API）で発行し、「API Read Access Token」を渡します（「API Key」ではありません）。
+`KOTATSU_TMDB_READ_ACCESS_TOKEN_FILE`で、ファイルから渡せます。
+トークンを設定していなければ、連携を有効にしても問い合わせません。
+`tmdb.url`は、本物のAPIの代わりに検証用のサーバーへ向けるときだけ設定してください。
