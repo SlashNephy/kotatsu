@@ -26,6 +26,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 )
 
+// テストで使う画質の名前。
+const (
+	preset720p   = "720p"
+	preset720p60 = "720p60"
+)
+
 func loadTestTS(t *testing.T) []byte {
 	t.Helper()
 
@@ -109,12 +115,12 @@ func TestTranscoderWritesHLS(t *testing.T) {
 		wantPixFmt string
 	}{
 		{input: mpeg2, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames30, wantPixFmt: yuv420p},
-		{input: mpeg2, preset: "720p", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30, wantPixFmt: yuv420p},
+		{input: mpeg2, preset: preset720p, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames30, wantPixFmt: yuv420p},
 		{input: mpeg2, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames30, wantPixFmt: yuv420p},
-		{input: mpeg2, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60, wantPixFmt: yuv420p},
+		{input: mpeg2, preset: preset720p60, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60, wantPixFmt: yuv420p},
 		{input: bs4k, preset: "360p", wantCodec: string(kyusu.CodecH264), wantHeight: 360, wantFrameRate: frames60, wantPixFmt: yuv420p},
 		{input: bs4k, preset: "360p-hevc", wantCodec: string(kyusu.CodecHEVC), wantHeight: 360, wantFrameRate: frames60, wantPixFmt: yuv420p},
-		{input: bs4k, preset: "720p60", wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60, wantPixFmt: yuv420p},
+		{input: bs4k, preset: preset720p60, wantCodec: string(kyusu.CodecH264), wantHeight: 720, wantFrameRate: frames60, wantPixFmt: yuv420p},
 		{input: bs4k, preset: kyusu.PassthroughPreset, wantCodec: string(kyusu.CodecHEVC), wantHeight: 180, wantFrameRate: frames60, wantPixFmt: "yuv420p10le"},
 	}
 	for _, tt := range tests {
@@ -447,7 +453,7 @@ func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 
 	transcoder := newTranscoder(t)
 	input := filepath.Join("..", "..", "..", "testdata", "ts", "test.ts")
-	for _, name := range []string{"720p", kyusu.PassthroughPreset} {
+	for _, name := range []string{preset720p, kyusu.PassthroughPreset} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -462,6 +468,61 @@ func TestTranscoderKeepsBroadcastPTS(t *testing.T) {
 
 			assert.InDelta(t, firstPTS(t, input, "a:0"), firstPTS(t, segments[0], "a:0"), 0.05)
 			assert.InDelta(t, firstPTS(t, input, "v:0"), firstPTS(t, segments[0], "v:0"), 1.0/29.97)
+		})
+	}
+}
+
+// TestTranscoderQSVSplitsSegmentsEvery2s は、QSV でも、どの画質でも HLS のセグメントを 2 秒ごとに区切ることを確かめる (#1848)。
+// 30 コマの画質では、scale_qsv の後のフレームの長さが前の時間の単位のままになり、HLS の muxer が最初のフレームを複製し続ける。
+// 60 コマの画質では、-force_key_frames で置いたキーフレームが IDR にならないことがある。
+// QSV の使える GPU がなければ、テストを飛ばす。
+func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
+	t.Parallel()
+
+	transcoder, err := kyusu.NewTranscoder(&config.Kyusu{Encoder: config.EncoderQSV, VAAPIDevice: "", WorkDir: ""})
+	if errors.Is(err, kyusu.ErrToolNotFound) {
+		t.Skip("FFmpeg or tsreadex is not installed")
+	}
+	require.NoError(t, err)
+	check := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-init_hw_device", "qsv=hw", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30", "-t", "0.1", "-c:v", "h264_qsv", "-f", "null", "-")
+	if err := check.Run(); err != nil {
+		t.Skip("QSV is not available")
+	}
+
+	// 放送と同じ 1080i の MPEG-2 を 30 秒つくる。60 コマの画質で IDR でないキーフレームが混ざり始めるのは、5 秒ほど後からである。
+	input := filepath.Join(t.TempDir(), "in.ts")
+	generate := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
+		"-f", "lavfi", "-i", "testsrc2=size=1440x1080:rate=30000/1001", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "30",
+		"-vf", "setfield=tff", "-c:v", "mpeg2video", "-flags", "+ilme+ildct", "-b:v", "15M", "-c:a", "aac", "-ac", "2", "-f", "mpegts", input)
+	require.NoError(t, generate.Run())
+	ts, err := os.ReadFile(input)
+	require.NoError(t, err)
+
+	for _, name := range []string{preset720p, preset720p60} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			preset, ok := kyusu.PresetByName(name)
+			require.True(t, ok)
+			dir := t.TempDir()
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(ts), preset, kyusu.AudioFirst, dir))
+
+			playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
+			require.NoError(t, err)
+			durations := []float64{}
+			for line := range strings.SplitSeq(string(playlist), "\n") {
+				if rest, ok := strings.CutPrefix(line, "#EXTINF:"); ok {
+					d, err := strconv.ParseFloat(strings.TrimSuffix(rest, ","), 64)
+					require.NoError(t, err)
+					durations = append(durations, d)
+				}
+			}
+			// プレイリストには、最後の数本だけが残る。最後のセグメントは、入力の終わりで短くなりうるので比べない。
+			require.GreaterOrEqual(t, len(durations), 3, "segments: %v", durations)
+			for _, d := range durations[:len(durations)-1] {
+				assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
+			}
 		})
 	}
 }
