@@ -492,7 +492,7 @@ func TestTranscoderNVENCSplitsSegmentsEvery2s(t *testing.T) {
 	playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
 	require.NoError(t, err)
 	durations := []float64{}
-	for _, line := range strings.Split(string(playlist), "\n") {
+	for line := range strings.SplitSeq(string(playlist), "\n") {
 		if rest, ok := strings.CutPrefix(line, "#EXTINF:"); ok {
 			d, err := strconv.ParseFloat(strings.TrimSuffix(rest, ","), 64)
 			require.NoError(t, err)
