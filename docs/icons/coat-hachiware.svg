@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- 既定のアイコン (icon.svg) の構図のまま、猫をハチワレにしたもの (#1665)。 -->
-  <defs><clipPath id="i"><rect width="512" height="512" rx="112"/></clipPath><clipPath id="h"><path d="M86 520q0-300 170-300t170 300z"/></clipPath></defs>
+  <defs><clipPath id="i"><rect width="512" height="512" rx="112"/></clipPath><clipPath id="h"><path d="M86 520q0-300 170-300t170 300z"/><path d="M106 384l-14-200 118 80z"/><path d="M406 384L302 264L420 184z"/></clipPath></defs>
   <g clip-path="url(#i)">
     <rect width="512" height="512" fill="#f3b97a"/>
-    <path d="M98 360l-6-176 118 80z" fill="#2e2622"/>
-    <path d="M414 360l6-176-118 80z" fill="#2e2622"/>
-    <path d="M86 520q0-300 170-300t170 300z" fill="#fff8ee"/>
-    <g clip-path="url(#h)"><path d="M60 220H452V430Q360 300 256 300Q152 300 60 430Z" fill="#2e2622"/></g>
+    <path d="M106 384l-14-200 118 80z" fill="#2e2622"/>
+    <path d="M406 384L302 264L420 184z" fill="#2e2622"/>
+    <path d="M86 520q0-300 170-300t170 300z" fill="#2e2622"/>
+    <g clip-path="url(#h)"><rect width="512" height="512" fill="#2e2622"/><path d="M256 236Q146 288 104 520H408Q366 288 256 236Z" fill="#fff8ee"/></g>
     <circle cx="256" cy="198" r="56" fill="#f59a2e"/>
     <path d="M256 146.9v-12.2" stroke="#6b4a2a" stroke-width="9.7" stroke-linecap="round"/><path d="M258.4 134.7q17 -31.7 53.6 -21.9q-12.2 31.7 -53.6 21.9z" fill="#5b8a2e"/>
     <circle cx="184" cy="374" r="19.5" fill="#3a2a22"/><circle cx="328" cy="374" r="19.5" fill="#3a2a22"/>

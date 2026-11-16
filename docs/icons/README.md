@@ -16,12 +16,12 @@
 
 | ファイル | 柄 |
 | --- | --- |
-| `coat-chatora.svg` | 茶トラ |
+| `coat-chatora.svg` | 茶トラ (猫が夕焼けの背景に埋もれるので、背景をクリーム色 #fbeedd にしています) |
 | `coat-kijitora.svg` | キジトラ |
 | `coat-sabatora.svg` | サバトラ |
 | `coat-kuro.svg` | 黒猫 (目と口を黄色にしています) |
-| `coat-shiro.svg` | 白猫 (耳の内側を桃色にしています) |
-| `coat-hachiware.svg` | ハチワレ |
+| `coat-shiro.svg` | 白猫 |
+| `coat-hachiware.svg` | ハチワレ (黒い頭の額から、白が八の字に割れて広がる柄) |
 
 ## 候補
 
