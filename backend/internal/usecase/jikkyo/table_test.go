@@ -175,3 +175,30 @@ func TestIsChannelID(t *testing.T) {
 		})
 	}
 }
+
+// TestTableKeepsReadingAfterCanceledRequest は、取り消された要求で読めなかったときは、覚えた時刻を進めず、
+// 次の要求ですぐ読み直すことを確かめる (#1869)。
+func TestTableKeepsReadingAfterCanceledRequest(t *testing.T) {
+	t.Parallel()
+
+	reads := 0
+	table, err := jikkyo.NewTable(func(ctx context.Context) (map[string]string, error) {
+		reads++
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		return map[string]string{addedService: jkAdded}, nil
+	}, clocktest.NewFake(time.Now()), nil)
+	require.NoError(t, err)
+
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, ok := table.Lookup(canceled, 6, 999)
+	assert.False(t, ok)
+
+	id, ok := table.Lookup(t.Context(), 6, 999)
+	assert.True(t, ok)
+	assert.Equal(t, jkAdded, id)
+	assert.Equal(t, 2, reads)
+}

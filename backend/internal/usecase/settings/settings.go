@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
@@ -445,10 +446,15 @@ func validateWebPushSubject(subject string) error {
 	if subject == "" {
 		return nil
 	}
-	if !strings.HasPrefix(subject, "mailto:") && !strings.HasPrefix(subject, "https://") {
+	rest, ok := strings.CutPrefix(subject, "mailto:")
+	if !ok {
+		rest, ok = strings.CutPrefix(subject, "https://")
+	}
+	// 接頭辞だけの URI は、プッシュサービスが送り手の連絡先として受け付けない。画面の確かめ方と同じにする。
+	if !ok || rest == "" {
 		return fmt.Errorf("%w: webPushSubject must be a mailto: or https:// URI", ErrInvalidSettings)
 	}
-	if strings.ContainsAny(subject, " \t\r\n") {
+	if strings.IndexFunc(subject, unicode.IsSpace) >= 0 {
 		return fmt.Errorf("%w: webPushSubject must not contain spaces", ErrInvalidSettings)
 	}
 

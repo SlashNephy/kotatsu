@@ -135,6 +135,8 @@ func TestUpdateRejectsInvalidSettings(t *testing.T) {
 		{name: "web push subject without a scheme", changes: &settings.Changes{WebPushSubject: new("admin@kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
 		{name: "web push subject over http", changes: &settings.Changes{WebPushSubject: new("http://kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
 		{name: "web push subject with a space", changes: &settings.Changes{WebPushSubject: new("mailto:admin @kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
+		{name: "web push subject with a no-break space", changes: &settings.Changes{WebPushSubject: new("mailto:admin\u00a0@kotatsu.example")}, wantErr: settings.ErrInvalidSettings},
+		{name: "web push subject with only the scheme", changes: &settings.Changes{WebPushSubject: new("mailto:")}, wantErr: settings.ErrInvalidSettings},
 		{name: "negative caption threads", changes: &settings.Changes{CaptionThreads: new(-1)}, wantErr: settings.ErrInvalidSettings},
 		{name: "too many caption threads", changes: &settings.Changes{CaptionThreads: new(257)}, wantErr: settings.ErrInvalidSettings},
 		{

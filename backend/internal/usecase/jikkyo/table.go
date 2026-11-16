@@ -199,8 +199,13 @@ func (t *Table) overridesOf(ctx context.Context) map[serviceKey]string {
 	if !t.cachedAt.IsZero() && now.Sub(t.cachedAt) < overridesTTL {
 		return t.cached
 	}
-	t.cachedAt = now
 	raw, err := t.overrides(ctx)
+	// 要求が取り消されて読めなかったときは、ほかの要求のために、覚えた時刻を進めない。
+	if err != nil && ctx.Err() != nil {
+		return t.cached
+	}
+	// 読めなかったときも時刻を進め、DB が止まっている間に、引くたびに読みに行かないようにする。
+	t.cachedAt = now
 	if err != nil {
 		t.logger.WarnContext(ctx, "failed to read the jikkyo channel overrides; using the last ones", slog.Any("error", err))
 
