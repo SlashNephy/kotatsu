@@ -69,6 +69,7 @@ import type { RecordingIdRegenerateMutation } from './__generated__/RecordingIdR
 import type { RecordingIdTagsMutation } from './__generated__/RecordingIdTagsMutation.graphql';
 import { ExternalStreamURL } from '../../streams/ExternalStreamURL';
 import { FilmarksLink } from '../../guide/FilmarksLink';
+import { StreamingLink } from '../../guide/StreamingLink';
 import { programGenreLabels } from '../../guide/genreOptions';
 import { ServiceLabel } from '../../guide/ServiceLabel';
 import { zonedFormat } from '../../futon';
@@ -76,9 +77,12 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { ChangeChannel } from '../../changes/dataChanges';
 import { failureKey } from '../../recordings/failureReason';
 import { SaveOfflineButton } from '../../offline/SaveOfflineButton';
+import { readableParams } from '../../futon/readableId';
 import { NextEpisodes } from '../../recordings/NextEpisodes';
 
 export const Route = createFileRoute('/recordings/$recordingId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('recordingId', 'Recording'),
   component: RecordingPage,
 });
 
@@ -263,6 +267,9 @@ function Recording({ recordingId }: { recordingId: string }) {
             service {
               id
               name
+              channelType {
+                type
+              }
               logoUrl
               jikkyo {
                 id
@@ -589,6 +596,7 @@ function Recording({ recordingId }: { recordingId: string }) {
             workTitle={recording.workTitle}
             anime={recording.animeEpisodes.length > 0}
           />
+          <StreamingLink service={recording.service} workTitle={recording.workTitle} />
           {/* ルールで録った録画は、そのルールへ移れるようにする。ルールを消していても、名前は出す (#468)。 */}
           {recording.ruleName != null &&
             (recording.rule != null ? (

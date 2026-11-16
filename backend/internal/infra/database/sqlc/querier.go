@@ -458,6 +458,7 @@ type Querier interface {
 	InsertProgramAnimeEpisode(ctx context.Context, arg InsertProgramAnimeEpisodeParams) error
 	// 同じ番組の予約がすでにあれば何もしない。そのときは行を返さない。
 	InsertProgramReservation(ctx context.Context, arg InsertProgramReservationParams) (uuid.UUID, error)
+	InsertProgramRewrites(ctx context.Context, arg []InsertProgramRewritesParams) *InsertProgramRewritesBatchResults
 	// タイムシフトのバッファから昇格する、放送の終わった番組の録画を、録画中として記録する (#1057、設計書 5.7)。予約とは結び付けない。
 	// nekonote のジョブが、バッファから書き出し終えたら完了にする。番組情報は、昇格したときの番組表から写す。
 	InsertPromotedRecording(ctx context.Context, arg InsertPromotedRecordingParams) (Recording, error)
@@ -959,6 +960,7 @@ type Querier interface {
 	PruneProgramAnimeMatches(ctx context.Context, before time.Time) (int64, error)
 	// 放送の終わりが before より前のアーカイブを、最大 batch_size 件だけ消す。一度に大量の行をロックしないよう、少しずつ消す。
 	PruneProgramArchives(ctx context.Context, arg PruneProgramArchivesParams) (int64, error)
+	PruneProgramRewrites(ctx context.Context, before time.Time) (int64, error)
 	PruneSyobocalLookups(ctx context.Context, before time.Time) (int64, error)
 	PruneSyobocalPrograms(ctx context.Context, before time.Time) (int64, error)
 	// 放送が終わった番組と、EPG から消えた番組の視聴予約を消す。

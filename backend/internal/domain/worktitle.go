@@ -14,13 +14,26 @@ var (
 		`ドラマ(?:\d+|イズム|ストリーム|NEO|Paravi|L)?|映画)(?:\s+|([「『]))`)
 	// workQuotedPattern は、枠の名前の後の、かぎ括弧で囲んだ作品名 (土曜ドラマ「作品名」 第3話)。
 	workQuotedPattern = regexp.MustCompile(`^[「『]([^」』]+)[」』]`)
+	// workLenticularPattern は、作品名の途中や後ろに残る、すみ付き括弧の飾り (作品名【最終章へ…】 #6)。続けて並んだ飾りは、まとめて 1 つの空白にする。
+	workLenticularPattern = regexp.MustCompile(`(?:\s*【[^】]*】\s*)+`)
 )
 
 // WorkTitle は、番組名から、外部のサービスで作品を探すのに使う作品名を読む (#1650)。
 // 頭の飾り (【新】のような印) の後に、ドラマや映画の放送枠の名前 (土曜ドラマ、ドラマ24、映画など) があれば除き、
 // 続くかぎ括弧の中を作品名とする (土曜ドラマ「作品名」 第3話)。かぎ括弧がなければ、枠の名前の後から RuleKeyword で読む。
 // 枠の名前がなければ、RuleKeyword と同じ作品名を返す。ルールのキーワードと違い、番組名のひと続きの部分になるとは限らない。
+// 作品名の途中や後ろに残ったすみ付き括弧 (【最終章へ…】) は、外部のサービスで探すときの邪魔になるので除く。
+// 除いて何も残らなければ、除く前の作品名を返す。
 func WorkTitle(name string) string {
+	title := workTitle(name)
+	if stripped := strings.TrimSpace(workLenticularPattern.ReplaceAllString(title, " ")); stripped != "" {
+		return stripped
+	}
+
+	return title
+}
+
+func workTitle(name string) string {
 	rest := Normalize(name)
 	for {
 		loc := keywordLeadingPattern.FindStringIndex(rest)

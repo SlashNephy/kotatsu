@@ -1,4 +1,4 @@
-h1:CQg/hfaQF/AERF4CK8Fw2uDfRk1ha3EiKRWntluxrCE=
+h1:q1rosrl0+Y1sH8/q3yxdZjoY9rky+Ir+hKlVM5LfufQ=
 20261009102215_init.sql h1:djnv0wCljjLLAM5B5hIIhKRznUe+i3cP9cxgvQGM8xc=
 20261009105537_coordination.sql h1:4kuzfKBnc3dZixraSK3FOFkkX25e2X59okkh0iXnETo=
 20261009114515_audit_events.sql h1:5zL6ffLkLETRIkZis+kRS1SdjTlgdvLW4NNecIsxWQE=
@@ -125,4 +125,5 @@ h1:CQg/hfaQF/AERF4CK8Fw2uDfRk1ha3EiKRWntluxrCE=
 20261114190556_add_cm_detector.sql h1:y6UyeqEO7pRiHsOr/DECHTqYFmLkZQZwpoW+fREjQgw=
 20261114205013_add_cm_detection_note.sql h1:5XJ7aTD3n2qhWhwK0t7sTrXXnOujNvpFfQ1S54MpANc=
 20261114214813_add_recording_cm_materials.sql h1:BEvobBXlihUU6kBTdx/YIETf2M7cgyPLQuDUiLSfAvc=
-20261115214338_add_program_series_name.sql h1:E9F95gYxQ+gPk4Qj+I4lmrMbXqqK/xBQNx4SctWROV8=
+20261115154511_add_program_rewrites.sql h1:ExVT9kGjAajLh3zsbji7nTrsOsuwKMcxZrZMUX4k878=
+20261115214338_add_program_series_name.sql h1:cu3mhHkz60nOqkUmRjhyT7e7I28jXuT9Dzf0UTk5yTY=
