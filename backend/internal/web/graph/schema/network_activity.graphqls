@@ -11,6 +11,7 @@ enum NetworkActivityPurpose {
   ANIME_RECORD
   ANIME_LINK
   ANIME_IMAGE
+  DRAMA_LINKING
   USER_AVATAR
   OIDC
   HIBP

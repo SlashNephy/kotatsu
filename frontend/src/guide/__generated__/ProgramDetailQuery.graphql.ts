@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<3389adcb208ff8400ae61ffe4d03db32>>
+ * @generated SignedSource<<87ad7d8f4dca58fc92daa7be94365028>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 import { FragmentRefs } from "relay-runtime";
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
+export type DramaSeriesSource = "OVERRIDE" | "SEARCH" | "%future added value";
 export type ReservationKind = "PROGRAM" | "RULE" | "TIME" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type ProgramDetailQuery$variables = {
@@ -35,6 +36,19 @@ export type ProgramDetailQuery$data = {
     }>;
     readonly archived: boolean;
     readonly description: string;
+    readonly dramaEpisode: {
+      readonly episodeName: string | null | undefined;
+      readonly episodeNumber: number | null | undefined;
+      readonly seasonNumber: number | null | undefined;
+      readonly series: {
+        readonly name: string | null | undefined;
+        readonly originalName: string | null | undefined;
+        readonly tmdbId: number;
+        readonly url: string;
+      };
+      readonly seriesSource: DramaSeriesSource;
+      readonly url: string;
+    } | null | undefined;
     readonly endAt: string;
     readonly endUndecided: boolean;
     readonly eventId: number;
@@ -294,6 +308,80 @@ v17 = {
 v18 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "url",
+  "storageKey": null
+},
+v19 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "DramaEpisode",
+  "kind": "LinkedField",
+  "name": "dramaEpisode",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "DramaSeries",
+      "kind": "LinkedField",
+      "name": "series",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "tmdbId",
+          "storageKey": null
+        },
+        (v5/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "originalName",
+          "storageKey": null
+        },
+        (v18/*:: as any*/)
+      ],
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "seriesSource",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "seasonNumber",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "episodeNumber",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "episodeName",
+      "storageKey": null
+    },
+    (v18/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v20 = {
+  "alias": null,
+  "args": null,
   "concreteType": "AnimeEpisode",
   "kind": "LinkedField",
   "name": "animeEpisodes",
@@ -390,7 +478,7 @@ v18 = {
   ],
   "storageKey": null
 },
-v19 = {
+v21 = {
   "alias": null,
   "args": null,
   "concreteType": "ExtendedItem",
@@ -415,49 +503,49 @@ v19 = {
   ],
   "storageKey": null
 },
-v20 = {
+v22 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchReserved",
   "storageKey": null
 },
-v21 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "enabled",
   "storageKey": null
 },
-v22 = {
+v24 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "kind",
   "storageKey": null
 },
-v23 = {
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "plannedStartAt",
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "plannedEndAt",
   "storageKey": null
 },
-v26 = {
+v28 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
@@ -515,9 +603,10 @@ return {
               (v15/*:: as any*/),
               (v16/*:: as any*/),
               (v17/*:: as any*/),
-              (v18/*:: as any*/),
               (v19/*:: as any*/),
               (v20/*:: as any*/),
+              (v21/*:: as any*/),
+              (v22/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -527,8 +616,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v4/*:: as any*/),
-                  (v21/*:: as any*/),
-                  (v22/*:: as any*/),
+                  (v23/*:: as any*/),
+                  (v24/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -537,9 +626,9 @@ return {
                     "name": "assignment",
                     "plural": false,
                     "selections": [
-                      (v23/*:: as any*/),
-                      (v24/*:: as any*/),
                       (v25/*:: as any*/),
+                      (v26/*:: as any*/),
+                      (v27/*:: as any*/),
                       {
                         "args": null,
                         "kind": "FragmentSpread",
@@ -548,7 +637,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v26/*:: as any*/)
+                  (v28/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -608,9 +697,10 @@ return {
               (v15/*:: as any*/),
               (v16/*:: as any*/),
               (v17/*:: as any*/),
-              (v18/*:: as any*/),
               (v19/*:: as any*/),
               (v20/*:: as any*/),
+              (v21/*:: as any*/),
+              (v22/*:: as any*/),
               {
                 "alias": null,
                 "args": null,
@@ -620,8 +710,8 @@ return {
                 "plural": false,
                 "selections": [
                   (v4/*:: as any*/),
-                  (v21/*:: as any*/),
-                  (v22/*:: as any*/),
+                  (v23/*:: as any*/),
+                  (v24/*:: as any*/),
                   {
                     "alias": null,
                     "args": null,
@@ -630,9 +720,9 @@ return {
                     "name": "assignment",
                     "plural": false,
                     "selections": [
-                      (v23/*:: as any*/),
-                      (v24/*:: as any*/),
                       (v25/*:: as any*/),
+                      (v26/*:: as any*/),
+                      (v27/*:: as any*/),
                       {
                         "alias": null,
                         "args": null,
@@ -662,7 +752,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v26/*:: as any*/)
+                  (v28/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -676,16 +766,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "5a5d0b6328f56eb75635a3ca0cf114ad",
+    "cacheID": "2e6b5ec38d4a1850c97ce98a08625c44",
     "id": null,
     "metadata": {},
     "name": "ProgramDetailQuery",
     "operationKind": "query",
-    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
+    "text": "query ProgramDetailQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Program {\n      id\n      name\n      ruleKeyword\n      workTitle\n      description\n      startAt\n      endAt\n      endUndecided\n      isFree\n      archived\n      eventId\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        timeshiftPrograms {\n          eventId\n          startAt\n        }\n      }\n      recordings {\n        id\n      }\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      extended {\n        heading\n        text\n      }\n      watchReserved\n      reservation {\n        id\n        enabled\n        kind\n        assignment {\n          state\n          plannedStartAt\n          plannedEndAt\n          ...ReservationPeers_assignment\n        }\n        rules {\n          id\n          name\n        }\n      }\n    }\n    id\n  }\n}\n\nfragment ReservationPeers_assignment on ReservationAssignment {\n  peers {\n    id\n    name\n    service {\n      name\n      id\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2bc19889d2f65b12e01761adff20670b";
+(node as any).hash = "8b569a39ed54f0ef3e2aa16f68f7bf63";
 
 export default node;

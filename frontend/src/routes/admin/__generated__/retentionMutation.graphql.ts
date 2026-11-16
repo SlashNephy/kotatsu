@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<29086ef644eb5bbe99fb4e542975a4b2>>
+ * @generated SignedSource<<24e74e4086ade41af94d94273e82859f>>
  * @lightSyntaxTransform
  */
 
@@ -16,6 +16,7 @@ export type SystemSettingsInput = {
   cmDetector?: CMDetector | null | undefined;
   commentSources?: ReadonlyArray<CommentSource> | null | undefined;
   dataBroadcastIpEnabled?: boolean | null | undefined;
+  dramaLinkingEnabled?: boolean | null | undefined;
   drcsReplacements?: ReadonlyArray<DrcsReplacementInput> | null | undefined;
   epgstationApiEnabled?: boolean | null | undefined;
   externalPlayerUrlsEnabled?: boolean | null | undefined;

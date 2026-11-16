@@ -52,6 +52,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
@@ -210,13 +211,19 @@ func jobWorkers(deps *Deps, logger *slog.Logger) (*river.Workers, []*river.Perio
 	river.AddWorker(workers, animerecord.NewWishlistWorker(animeJobs.records, deps.DB))
 	// フォロー中のユーザーの視聴状況を、画面を開いたときに、記録の連携のトークンで取得する (#1372)。
 	river.AddWorker(workers, animerecord.NewFollowingWorker(animeJobs.records, deps.DB))
+	// 管理者が連携を有効にし、連携の画面で TMDb のトークンを入れていれば、ドラマの番組を TMDb の作品と話に結びつける (#1651、設計書 3.9)。
+	dramaMatcher, err := newDramaMatcher(deps, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	river.AddWorker(workers, drama.NewMatchWorker(dramaMatcher))
 
 	return workers, append([]*river.PeriodicJob{
 		audit.PrunePeriodicJob(), library.PruneProgressPeriodicJob(), networkactivity.PrunePeriodicJob(), auth.PruneSessionsPeriodicJob(), notification.DispatchPeriodicJob(), notification.PrunePeriodicJob(), capacity.CheckPeriodicJob(),
 		watch.NotifyPeriodicJob(), oauth.PrunePeriodicJob(), timeshift.PrunePeriodicJob(),
 		recording.ReapPromotionsPeriodicJob(), anime.ImportPeriodicJob(), anime.NicologPeriodicJob(), animerecord.PrunePeriodicJob(),
 		animerecord.WishlistPeriodicJob(), thumbnail.LivePeriodicJob(),
-	}, anime.MatchPeriodicJobs()...), nil
+	}, slices.Concat(anime.MatchPeriodicJobs(), drama.MatchPeriodicJobs())...), nil
 }
 
 // newAnimeRecords は、見たアニメを Annict と AniList に記録する部品を作る (#927)。
@@ -828,6 +835,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Jobs:              deps.Jobs,
 		JobAdmin:          jobAdminOf(deps),
 		AnimeRecords:      animeRecords,
+		DramaTokens:       sealed.dramaTokens,
 		TotalSpace:        nil,
 		Clock:             deps.Clock,
 		Location:          location,

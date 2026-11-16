@@ -105,6 +105,7 @@ const (
 	PurposeAnimeRecord          Purpose = "ANIME_RECORD"
 	PurposeAnimeLink            Purpose = "ANIME_LINK"
 	PurposeAnimeImage           Purpose = "ANIME_IMAGE"
+	PurposeDramaLinking         Purpose = "DRAMA_LINKING"
 	PurposeUserAvatar           Purpose = "USER_AVATAR"
 	PurposeOIDC                 Purpose = "OIDC"
 	PurposeHIBP                 Purpose = "HIBP"
@@ -134,6 +135,7 @@ func PurposeValues() []Purpose {
 		PurposeAnimeRecord,
 		PurposeAnimeLink,
 		PurposeAnimeImage,
+		PurposeDramaLinking,
 		PurposeUserAvatar,
 		PurposeOIDC,
 		PurposeHIBP,
@@ -172,6 +174,7 @@ var _PurposeValue = map[string]Purpose{
 	"ANIME_RECORD":           PurposeAnimeRecord,
 	"ANIME_LINK":             PurposeAnimeLink,
 	"ANIME_IMAGE":            PurposeAnimeImage,
+	"DRAMA_LINKING":          PurposeDramaLinking,
 	"USER_AVATAR":            PurposeUserAvatar,
 	"OIDC":                   PurposeOIDC,
 	"HIBP":                   PurposeHIBP,

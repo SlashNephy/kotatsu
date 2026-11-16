@@ -30,6 +30,7 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 		newWebPush,
 		jobInserterOf,
 		newLinkedAnimeRecords,
+		newDramaTokens,
 		wire.Struct(new(sealedStores), "*"),
 	))
 }

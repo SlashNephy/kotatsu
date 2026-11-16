@@ -45,6 +45,7 @@ const purposeCategories = {
   ANIME_RECORD: 'anime',
   ANIME_LINK: 'anime',
   ANIME_IMAGE: 'anime',
+  DRAMA_LINKING: 'drama',
   USER_AVATAR: 'auth',
   OIDC: 'auth',
   HIBP: 'auth',

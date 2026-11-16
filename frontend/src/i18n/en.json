@@ -2303,7 +2303,25 @@
       "animeTokenDelete": "Delete",
       "networkActivity": "Network activity record",
       "networkActivityRetentionDays": "Retention period (days)",
-      "networkActivityRetentionHelp": "Number of days to keep the record. Older records are deleted daily."
+      "networkActivityRetentionHelp": "Number of days to keep the record. Older records are deleted daily.",
+      "drama": "TMDB (dramas)",
+      "dramaEnabled": "Link drama programs to TMDB series and episodes",
+      "dramaHelp": "Searches TMDB by the titles of drama programs and picks episodes by air date and episode number. Program titles are sent to TMDB.",
+      "dramaToken": "TMDB API Read Access Token",
+      "dramaTokenHelp": "Enter the API Read Access Token shown under \"API\" in your TMDB account settings. The token is never shown again; only its last 4 characters are displayed.",
+      "dramaTokenConfigured": "Configured",
+      "dramaTokenConfiguredHint": "Configured (…{{hint}})",
+      "dramaTokenNotConfigured": "Not configured",
+      "dramaTokenKept": "Configured (enter only to change)",
+      "dramaTokenDelete": "Delete",
+      "dramaTokenMissing": "No TMDB token has been entered, so nothing is looked up even when enabled. Enter it below.",
+      "dramaOverrides": "Series overrides",
+      "dramaOverridesHelp": "Choose the TMDB series for each title read from program names. Use this when the search picks a wrong series or finds none.",
+      "dramaOverridesEmpty": "No overrides",
+      "dramaOverrideExcluded": "Not linked",
+      "dramaOverrideReset": "Remove",
+      "dramaOverrideProgram": "Program title",
+      "dramaOverrideSeries": "TMDB series ID or URL"
     },
     "recording": {
       "title": "Recording defaults",
@@ -2635,6 +2653,25 @@
     "notifyWishlist": "Remind me of broadcasts of works on my wishlist",
     "notifyWishlistHelp": "Adds watch reminders to the earliest first-run broadcast of each episode you have not watched yet. Reruns are skipped. Reminders are removed when a work leaves your wishlist."
   },
+  "drama": {
+    "tmdb": "TMDB",
+    "season": "Season {{number}}",
+    "special": "Specials",
+    "episode": "Episode {{number}}",
+    "unknownSeries": "Series name not fetched yet",
+    "overridden": "Set by an administrator",
+    "attributionNote": "Series and episode data is provided by TMDB",
+    "override": {
+      "button": "Fix series",
+      "help": "Links every program with the same title to this series. It takes effect at the next matching run.",
+      "series": "TMDB series ID or URL",
+      "invalid": "Enter a TMDB series ID or URL (a number after /tv/)",
+      "save": "Link",
+      "exclude": "Do not link",
+      "reset": "Back to search",
+      "saved": "Saved. It takes effect at the next matching run"
+    }
+  },
   "networkActivity": {
     "title": "Network activity",
     "description": "See the external connections this server actually made, grouped by hour.",
@@ -2661,6 +2698,7 @@
     "categories": {
       "jikkyo": "Jikkyo",
       "anime": "Anime",
+      "drama": "Drama",
       "auth": "Authentication",
       "operation": "Operations",
       "notification": "Notifications",
@@ -2711,6 +2749,10 @@
         "title": "Artwork images",
         "body": "Fetched artwork shown on the screen",
         "hostLabel": "Image host"
+      },
+      "DRAMA_LINKING": {
+        "title": "Drama series and episodes",
+        "body": "Looked up TMDB series and episodes from drama program titles"
       },
       "USER_AVATAR": {
         "title": "User avatars",
@@ -2788,7 +2830,9 @@
     "generatedLicense": "This package does not include a license file, so the text is built from the license (MIT) and author declared in its package.json",
     "inRepository": "The license and copyright notice are kept in the linked file",
     "inImage": "License texts and source locations are in /usr/share/doc/kotatsu/third-party/ and, for Debian packages, /usr/share/doc/ in the image",
-    "loadFailed": "Could not load"
+    "loadFailed": "Could not load",
+    "dataSources": "External data",
+    "tmdb": "Drama series and episode data is fetched from TMDB only when an administrator enables the integration."
   },
   "disclaimer": {
     "title": "Disclaimer",

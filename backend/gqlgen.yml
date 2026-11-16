@@ -216,6 +216,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeLink
       ANIME_IMAGE:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeImage
+      DRAMA_LINKING:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDramaLinking
       USER_AVATAR:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeUserAvatar
       OIDC:
@@ -353,6 +355,8 @@ models:
         resolver: true
       animeEpisodes:
         resolver: true
+      dramaEpisode:
+        resolver: true
   GuideRow:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.GuideRow
   GuideView:
@@ -386,6 +390,8 @@ models:
       liveStats:
         resolver: true
       animeEpisodes:
+        resolver: true
+      dramaEpisode:
         resolver: true
       cmSections:
         resolver: true
