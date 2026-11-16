@@ -267,6 +267,8 @@ export function createRootValue(
     viewer: () => demoUser,
     captures: (args: { keyword?: string | null }) => captures.list(args),
     capturesAvailable: () => true,
+    // デモには、録画として登録していない TS を置くライブラリがない (設計書 5.8)。
+    libraries: () => [],
     version: () => ({ version: 'demo', revision: null, modified: false, latestRelease: null }),
     // デモには tenban がないので、本体の Go のモジュールの一覧はない (#1604)。
     goModuleLicenses: () => null,

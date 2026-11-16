@@ -325,12 +325,17 @@ func TestClearAllProgress(t *testing.T) {
 	require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, first, time.Minute))
 	require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, second, time.Minute))
 	require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, otherID, first, time.Minute))
+	// ライブラリのファイルの再生位置 (#1734) も消す。
+	require.NoError(t, f.library.SaveFileProgress(t.Context(), f.pool, f.userID, libraryFileID, time.Minute))
+	require.NoError(t, f.library.SaveFileProgress(t.Context(), f.pool, otherID, libraryFileID, time.Minute))
 
 	deleted, err := f.library.ClearAllProgress(t.Context(), f.pool, f.userID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), deleted)
+	assert.Equal(t, int64(3), deleted)
 	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM watch_progress WHERE user_id = '"+f.userID.String()+"'"))
 	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM watch_progress WHERE user_id = '"+otherID.String()+"'"), "ほかのユーザーの再生位置は残す")
+	assert.Equal(t, 0, f.count(t, "SELECT count(*) FROM library_watch_progress WHERE user_id = '"+f.userID.String()+"'"))
+	assert.Equal(t, 1, f.count(t, "SELECT count(*) FROM library_watch_progress WHERE user_id = '"+otherID.String()+"'"), "ほかのユーザーの再生位置は残す")
 	assert.Empty(t, f.actions(t, first), "再生位置は個人のものなので、監査ログに残さない")
 }
 
@@ -345,7 +350,7 @@ func TestPruneProgress(t *testing.T) {
 		retention time.Duration
 		want      int64
 	}{
-		{name: "保持期間を過ぎた", age: retention + time.Hour, retention: retention, want: 1},
+		{name: "保持期間を過ぎた", age: retention + time.Hour, retention: retention, want: 2},
 		{name: "保持期間の内", age: retention - time.Hour, retention: retention, want: 0},
 		{name: "無期限", age: 10 * retention, retention: -1, want: 0},
 	}
@@ -356,15 +361,40 @@ func TestPruneProgress(t *testing.T) {
 			f := newFixture(t)
 			recordingID := f.recording(t, completed, false)
 			require.NoError(t, f.library.SaveProgress(t.Context(), f.pool, f.userID, recordingID, time.Minute))
+			require.NoError(t, f.library.SaveFileProgress(t.Context(), f.pool, f.userID, libraryFileID, time.Minute))
 			_, err := f.pool.Exec(t.Context(), "UPDATE watch_progress SET updated_at = $1", f.clock.Now().Add(-tt.age))
+			require.NoError(t, err)
+			_, err = f.pool.Exec(t.Context(), "UPDATE library_watch_progress SET updated_at = $1", f.clock.Now().Add(-tt.age))
 			require.NoError(t, err)
 
 			deleted, err := library.PruneProgress(t.Context(), f.pool, f.clock, tt.retention)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, deleted)
-			assert.Equal(t, 1-int(tt.want), f.count(t, "SELECT count(*) FROM watch_progress"))
+			assert.Equal(t, 1-int(tt.want)/2, f.count(t, "SELECT count(*) FROM watch_progress"))
+			assert.Equal(t, 1-int(tt.want)/2, f.count(t, "SELECT count(*) FROM library_watch_progress"))
 		})
 	}
+}
+
+// libraryFileID は、テストで再生位置を保存するライブラリのファイルの ID (filelib.FileID の形)。
+const libraryFileID = "0123456789abcdef0123456789abcdef"
+
+// TestSaveFileProgress は、ライブラリのファイルの再生位置を、ユーザーごとに保存し、上書きし、引けることを確かめる (#1734)。
+func TestSaveFileProgress(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	_, ok, err := library.FileProgress(t.Context(), f.pool, f.userID, libraryFileID)
+	require.NoError(t, err)
+	assert.False(t, ok, "保存する前は、再生位置がない")
+	for _, position := range []time.Duration{90 * time.Second, 15*time.Minute + 500*time.Millisecond} {
+		require.NoError(t, f.library.SaveFileProgress(t.Context(), f.pool, f.userID, libraryFileID, position))
+		got, ok, err := library.FileProgress(t.Context(), f.pool, f.userID, libraryFileID)
+		require.NoError(t, err)
+		assert.True(t, ok)
+		assert.Equal(t, position, got)
+	}
+	require.ErrorIs(t, f.library.SaveFileProgress(t.Context(), f.pool, f.userID, libraryFileID, -time.Second), library.ErrInvalidPosition)
 }
 
 // TestSaveProgress は、ユーザーごとに再生位置を保存し、上書きすることを確かめる。

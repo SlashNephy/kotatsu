@@ -53,6 +53,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capacity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/kyusu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
@@ -591,6 +592,7 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		vodHandler := vod.Handler(token)
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
+		mux.Handle(kyusu.LibraryPathPrefix, vodHandler)
 	}
 	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
 	if serveNabe(deps, roles) {
@@ -644,6 +646,9 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 	if api != nil {
 		eg.Go(func() error {
 			return api.changes.Run(apiCtx)
+		})
+		eg.Go(func() error {
+			return api.libraryIndexer.Run(ctx)
 		})
 		if api.updates != nil {
 			eg.Go(func() error {
@@ -718,6 +723,8 @@ type apiHandler struct {
 	drainer *streamapi.Drainer
 	// streams は、tenban が変換せずに流している配信を数える。
 	streams *streamapi.StreamCounter
+	// libraryIndexer は、ライブラリのファイルの索引を裏で作る (設計書 5.8)。tenban を止めたら、作るのをやめる。
+	libraryIndexer *filelib.Indexer
 }
 
 var _ graph.Updates = new(update.Checker)
@@ -803,6 +810,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	opener, logos := tuner.opener, tuner.logos
+	libraries := newLibraryParts(deps, logger, true)
 	graphQL := graph.NewHandler(&graph.Options{
 		DB:                deps.DB,
 		Recorder:          audit.NewRecorder(deps.Clock),
@@ -829,6 +837,8 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		Changes:           changes,
 		Pools:             deps.Config.Storage.Pools,
 		DataDir:           deps.Config.Storage.DataDir,
+		Libraries:         libraries.libraries,
+		LibrarySource:     libraries.source,
 		TimeshiftDir:      deps.Config.Storage.TimeshiftDir,
 		Captions:          &deps.Config.Captions,
 		FreeSpace:         nil,
@@ -898,7 +908,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	// 外部プレイヤーと IPTV のクライアントに渡す URL は、管理者が有効にしている間だけ受け付ける (#1755)。
 	urlGate := settings.NewURLGate(deps.DB, deps.Clock, logger.With(slog.String("component", "url_gate")))
 	authorizer := streamapi.NewAuthorizer(signer, urlUsers, urlGate, deps.Clock)
-	streamRoutes, instances, err := newStreamRoutes(deps, authorizer, urlGate, opener, streams, streamLogger)
+	streamRoutes, instances, err := newStreamRoutes(deps, authorizer, urlGate, opener, streams, libraries.source, streamLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -927,7 +937,9 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 	handleSessionRoutes(router, sessions.Middleware(deps.DB), streamRoutes, "stream")
 	handleGraphQL(router, sessions.Middleware(deps.DB), graphQLHandler)
 
-	return &apiHandler{handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams}, nil
+	return &apiHandler{
+		handler: policy.Middleware(router), changes: changes, updates: updates, drainer: drainer, streams: streams, libraryIndexer: libraries.indexer,
+	}, nil
 }
 
 // newRouter は、tenban の一番外側の echo のルーターを返す (#1606)。どのルートにも当たらないリクエストは、notFound に渡す。
@@ -1019,7 +1031,7 @@ func notFoundOrApp(app http.Handler) http.Handler {
 // kyusu への中継に使うインスタンスの登録簿も返す。
 func newStreamRoutes(
 	deps *Deps, authorizer *streamapi.Authorizer, urlGate *settings.URLGate, opener streamapi.ServiceOpener,
-	streams *streamapi.StreamCounter, streamLogger *slog.Logger,
+	streams *streamapi.StreamCounter, librarySource *filelib.Source, streamLogger *slog.Logger,
 ) (sessionRoutes, *kyusu.LastKnownInstances, error) {
 	routes := sessionRoutes{}
 	// ライブ視聴と録画の配信は終わらないので、停止を始めたら打ち切り、待たない。
@@ -1055,6 +1067,11 @@ func newStreamRoutes(
 		authorizer.Session(kyusu.NewRecordingRelay(instances, kyusuToken, streamLogger)))
 	routes.add(http.MethodGet, "/internal/streams/timeshift/:id/hls/:preset/:audio/:file",
 		authorizer.Session(watches.Track(bufferWatch, kyusu.NewTimeshiftRelay(instances, kyusuToken, streamLogger))))
+	routes.add(http.MethodGet, "/internal/streams/library/:id/hls/:preset/:audio/:file",
+		authorizer.Session(kyusu.NewLibraryRelay(instances, kyusuToken, streamLogger)))
+	// ライブラリのファイルは、このインスタンスに設定したライブラリのものだけ流せる (設計書 5.8)。
+	routes.add(http.MethodGet, "/internal/streams/library/:id", httpserver.StopOnShutdown(authorizer.Session(
+		streams.Count(streamapi.StreamKindLibrary, streamapi.NewLibraryHandler(librarySource, streamLogger)))))
 	// 録画は、このインスタンスにマウントしたプールのものだけ流せる。
 	routes.add(http.MethodGet, "/internal/streams/recordings/:id", httpserver.StopOnShutdown(authorizer.Session(
 		streams.Count(streamapi.StreamKindRecording, streamapi.NewRecordingHandler(deps.DB, storeOf(deps.Config), urlGate, streamLogger, 0)))))

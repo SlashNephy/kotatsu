@@ -2,12 +2,10 @@ package stream
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-
-	"github.com/SlashNephy/kotatsu/internal/infra/kago"
 )
 
 // errNegativePosition は、読む位置を、ファイルの始まりより前に動かそうとしたことを表す。
@@ -15,7 +13,7 @@ var errNegativePosition = errors.New("seek to a negative position")
 
 // contentPart は、Content を作る範囲の 1 つ。ファイルの範囲か、PAT と PMT のようにメモリーにあるバイト列のどちらか。
 type contentPart struct {
-	file *os.File
+	file File
 	// from は、file の読み始めの位置。
 	from int64
 	data []byte
@@ -35,14 +33,14 @@ var _ io.ReadSeekCloser = new(Content)
 
 // Content は、録画の始まりから終わりまでを、1 本のファイルとして開く。録画中の録画は、長さが決まらないので開けない。
 // 途中から流すセグメントの前には、Write と同じく、その手前の PAT と PMT を置く。
-func (r *Recording) Content() (*Content, error) {
+func (r *Recording) Content(ctx context.Context) (*Content, error) {
 	if r.InProgress {
 		return nil, errors.New("the recording is still in progress")
 	}
 	pieces, _ := plan(r.segments, 0)
 	c := &Content{parts: make([]*contentPart, 0, len(pieces)*2), size: 0, offset: 0}
 	for i, p := range pieces {
-		if err := c.add(r.streamer.store, p, i > 0); err != nil {
+		if err := c.add(ctx, r.streamer, p, i > 0); err != nil {
 			_ = c.Close()
 
 			return nil, err
@@ -120,8 +118,8 @@ func (c *Content) Close() error {
 }
 
 // add は、範囲 p を、Content の終わりに足す。
-func (c *Content) add(store *kago.Store, p *piece, joined bool) error {
-	file, err := store.Open(p.segment.poolID, p.segment.path)
+func (c *Content) add(ctx context.Context, s *streamer, p *piece, joined bool) error {
+	file, err := s.open(ctx, p.segment)
 	if err != nil {
 		return fmt.Errorf("failed to open the segment: %w", err)
 	}

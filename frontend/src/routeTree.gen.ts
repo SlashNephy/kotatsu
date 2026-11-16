@@ -33,6 +33,8 @@ import { Route as AdminSystemRouteImport } from './routes/admin/system'
 import { Route as AdminTimeshiftRouteImport } from './routes/admin/timeshift'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as GuideIndexRouteImport } from './routes/guide/index'
+import { Route as LibraryIndexRouteImport } from './routes/library/index'
+import { Route as LibraryPlayRouteImport } from './routes/library/play'
 import { Route as LiveIndexRouteImport } from './routes/live/index'
 import { Route as LiveServiceIdRouteImport } from './routes/live/$serviceId'
 import { Route as LoginIndexRouteImport } from './routes/login/index'
@@ -177,6 +179,16 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
 const GuideIndexRoute = GuideIndexRouteImport.update({
   id: '/guide/',
   path: '/guide/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
+  id: '/library/',
+  path: '/library/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryPlayRoute = LibraryPlayRouteImport.update({
+  id: '/library/play',
+  path: '/library/play',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LiveIndexRoute = LiveIndexRouteImport.update({
@@ -330,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/admin/system': typeof AdminSystemRoute
   '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
+  '/library/play': typeof LibraryPlayRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -346,6 +359,7 @@ export interface FileRoutesByFullPath {
   '/settings/sessions': typeof SettingsSessionsRoute
   '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide/': typeof GuideIndexRoute
+  '/library/': typeof LibraryIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
   '/offline/': typeof OfflineIndexRoute
@@ -381,6 +395,7 @@ export interface FileRoutesByTo {
   '/admin/system': typeof AdminSystemRoute
   '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
+  '/library/play': typeof LibraryPlayRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -397,6 +412,7 @@ export interface FileRoutesByTo {
   '/settings/sessions': typeof SettingsSessionsRoute
   '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide': typeof GuideIndexRoute
+  '/library': typeof LibraryIndexRoute
   '/live': typeof LiveIndexRoute
   '/login': typeof LoginIndexRoute
   '/offline': typeof OfflineIndexRoute
@@ -433,6 +449,7 @@ export interface FileRoutesById {
   '/admin/system': typeof AdminSystemRoute
   '/admin/timeshift': typeof AdminTimeshiftRoute
   '/admin/users': typeof AdminUsersRoute
+  '/library/play': typeof LibraryPlayRoute
   '/live/$serviceId': typeof LiveServiceIdRoute
   '/login/enroll': typeof LoginEnrollRoute
   '/login/second-factor': typeof LoginSecondFactorRoute
@@ -449,6 +466,7 @@ export interface FileRoutesById {
   '/settings/sessions': typeof SettingsSessionsRoute
   '/timeshift/$serviceId': typeof TimeshiftServiceIdRoute
   '/guide/': typeof GuideIndexRoute
+  '/library/': typeof LibraryIndexRoute
   '/live/': typeof LiveIndexRoute
   '/login/': typeof LoginIndexRoute
   '/offline/': typeof OfflineIndexRoute
@@ -486,6 +504,7 @@ export interface FileRouteTypes {
     | '/admin/system'
     | '/admin/timeshift'
     | '/admin/users'
+    | '/library/play'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -502,6 +521,7 @@ export interface FileRouteTypes {
     | '/settings/sessions'
     | '/timeshift/$serviceId'
     | '/guide/'
+    | '/library/'
     | '/live/'
     | '/login/'
     | '/offline/'
@@ -537,6 +557,7 @@ export interface FileRouteTypes {
     | '/admin/system'
     | '/admin/timeshift'
     | '/admin/users'
+    | '/library/play'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -553,6 +574,7 @@ export interface FileRouteTypes {
     | '/settings/sessions'
     | '/timeshift/$serviceId'
     | '/guide'
+    | '/library'
     | '/live'
     | '/login'
     | '/offline'
@@ -588,6 +610,7 @@ export interface FileRouteTypes {
     | '/admin/system'
     | '/admin/timeshift'
     | '/admin/users'
+    | '/library/play'
     | '/live/$serviceId'
     | '/login/enroll'
     | '/login/second-factor'
@@ -604,6 +627,7 @@ export interface FileRouteTypes {
     | '/settings/sessions'
     | '/timeshift/$serviceId'
     | '/guide/'
+    | '/library/'
     | '/live/'
     | '/login/'
     | '/offline/'
@@ -640,6 +664,7 @@ export interface RootRouteChildren {
   AdminSystemRoute: typeof AdminSystemRoute
   AdminTimeshiftRoute: typeof AdminTimeshiftRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  LibraryPlayRoute: typeof LibraryPlayRoute
   LiveServiceIdRoute: typeof LiveServiceIdRoute
   LoginEnrollRoute: typeof LoginEnrollRoute
   LoginSecondFactorRoute: typeof LoginSecondFactorRoute
@@ -656,6 +681,7 @@ export interface RootRouteChildren {
   SettingsSessionsRoute: typeof SettingsSessionsRoute
   TimeshiftServiceIdRoute: typeof TimeshiftServiceIdRoute
   GuideIndexRoute: typeof GuideIndexRoute
+  LibraryIndexRoute: typeof LibraryIndexRoute
   LiveIndexRoute: typeof LiveIndexRoute
   LoginIndexRoute: typeof LoginIndexRoute
   OfflineIndexRoute: typeof OfflineIndexRoute
@@ -836,6 +862,20 @@ declare module '@tanstack/react-router' {
       path: '/guide'
       fullPath: '/guide/'
       preLoaderRoute: typeof GuideIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/': {
+      id: '/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library/play': {
+      id: '/library/play'
+      path: '/library/play'
+      fullPath: '/library/play'
+      preLoaderRoute: typeof LibraryPlayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/live/': {
@@ -1040,6 +1080,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSystemRoute: AdminSystemRoute,
   AdminTimeshiftRoute: AdminTimeshiftRoute,
   AdminUsersRoute: AdminUsersRoute,
+  LibraryPlayRoute: LibraryPlayRoute,
   LiveServiceIdRoute: LiveServiceIdRoute,
   LoginEnrollRoute: LoginEnrollRoute,
   LoginSecondFactorRoute: LoginSecondFactorRoute,
@@ -1056,6 +1097,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsSessionsRoute: SettingsSessionsRoute,
   TimeshiftServiceIdRoute: TimeshiftServiceIdRoute,
   GuideIndexRoute: GuideIndexRoute,
+  LibraryIndexRoute: LibraryIndexRoute,
   LiveIndexRoute: LiveIndexRoute,
   LoginIndexRoute: LoginIndexRoute,
   OfflineIndexRoute: OfflineIndexRoute,

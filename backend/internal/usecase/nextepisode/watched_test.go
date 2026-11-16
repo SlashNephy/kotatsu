@@ -152,3 +152,113 @@ func TestFindForUserByAnime(t *testing.T) {
 
 	assert.Equal(t, []suggestion{{recording: anime, eventID: 600}}, suggestionsOf(got))
 }
+
+// TestFindForUserByDrama は、番組名から話数を読めないドラマの見た回では、TMDb の作品とシーズンと話の番号で探し、
+// 見た話の最大の番号より後の、録っていない話の放送を出すことと、同じ番組がシリーズ名で探したシリーズにも当たったら、
+// シリーズ名で探した方の 1 行にすることを確かめる (#1564)。
+func TestFindForUserByDrama(t *testing.T) {
+	t.Parallel()
+
+	f := newFindFixture(t, []*faketuner.Program{
+		fakeProgram(fakeGRNetwork, fakeGRService, 800, time.Hour, "夜明けの診療所"),
+		// 録った話 (第 5 話) は外す。
+		fakeProgram(fakeGRNetwork, fakeGRService, 801, 2*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 802, 4*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 810, 3*time.Hour, "灯台の町 #5"),
+	})
+	f.matchDrama(t, 800, dramaSeries, 1, 4)
+	f.matchDrama(t, 801, dramaSeries, 1, 5)
+	f.matchDrama(t, 802, dramaSeries, 1, 6)
+	f.matchDrama(t, 810, otherDramaSeries, 1, 5)
+	f.exec(t, `INSERT INTO recording_history (id, service_id, title_key, name, tmdb_series_id, tmdb_season_number, tmdb_episode_number,
+		start_at, end_at, created_at) VALUES ($1, $2, '夜明けの診療所', '夜明けの診療所', $3, 1, 5, $4, $4, $4)`,
+		id.New(), faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), dramaSeries, findNow().Add(-24*time.Hour))
+
+	user := f.addUser(t, "user")
+	f.linkDrama(t, f.addWatched(t, user, "夜明けの診療所", 1, 2*time.Hour), dramaSeries, 3)
+	clinic4 := f.addWatched(t, user, "夜明けの診療所", 1, time.Hour)
+	f.linkDrama(t, clinic4, dramaSeries, 4)
+	// 同じ作品を、番組名の話数を読める録画 (シリーズ名で探す) と読めない録画 (TMDb の作品で探す) で見た。
+	// TMDb の作品で探す録画を後に見ても、シリーズ名で探した方を残す。
+	town4 := f.addWatched(t, user, "灯台の町 #4", 1, 2*time.Hour)
+	f.linkDrama(t, f.addWatched(t, user, "灯台の町", 1, time.Hour), otherDramaSeries, 4)
+
+	got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+	require.NoError(t, err)
+
+	assert.Equal(t, []suggestion{{recording: town4, eventID: 810}, {recording: clinic4, eventID: 802}}, suggestionsOf(got))
+}
+
+// TestFindForUserByDramaNextSeason は、ホームの続きの放送でも、TMDb の作品で探すシリーズの今のシーズンの後の話が
+// これから放送されないときだけ、次のシーズンの第 1 話を出すことを確かめる (#1564)。
+// 見た回は、作品 dramaSeries のシーズン 1 の第 10 話と、作品 otherDramaSeries のシーズン 1 の第 4 話。
+func TestFindForUserByDramaNextSeason(t *testing.T) {
+	t.Parallel()
+
+	type broadcast struct {
+		eventID  int
+		offset   time.Duration
+		seriesID int32
+		season   int32
+		episode  int32
+	}
+	tests := []struct {
+		name          string
+		broadcasts    []broadcast
+		recordedFirst bool
+		// want は、作品 dramaSeries と otherDramaSeries の見た回の順の、続きの放送の eventId。0 なら、その作品の行を出さない。
+		want [2]int64
+	}{
+		{
+			name: "今のシーズンの後の話がない作品だけ、次のシーズンの第 1 話を出す",
+			broadcasts: []broadcast{
+				{800, 2 * time.Hour, dramaSeries, 2, 2},
+				{801, 3 * time.Hour, dramaSeries, 2, 1},
+				{810, time.Hour, otherDramaSeries, 2, 1},
+				{811, 4 * time.Hour, otherDramaSeries, 1, 5},
+			},
+			recordedFirst: false,
+			want:          [2]int64{801, 811},
+		},
+		{
+			name:          "次のシーズンの第 1 話を録っていれば出さない",
+			broadcasts:    []broadcast{{801, 3 * time.Hour, dramaSeries, 2, 1}, {811, 4 * time.Hour, otherDramaSeries, 1, 5}},
+			recordedFirst: true,
+			want:          [2]int64{0, 811},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			programs := make([]*faketuner.Program, 0, len(tt.broadcasts))
+			for _, b := range tt.broadcasts {
+				programs = append(programs, fakeProgram(fakeGRNetwork, fakeGRService, b.eventID, b.offset, "夜明けの診療所"))
+			}
+			f := newFindFixture(t, programs)
+			for _, b := range tt.broadcasts {
+				f.matchDrama(t, b.eventID, b.seriesID, b.season, b.episode)
+			}
+			if tt.recordedFirst {
+				f.addDramaHistory(t, 2, 1)
+			}
+			user := f.addUser(t, "user")
+			watched := [2]uuid.UUID{
+				f.addWatched(t, user, "夜明けの診療所", 1, time.Hour), f.addWatched(t, user, "灯台の町", 1, time.Hour),
+			}
+			f.linkDrama(t, watched[0], dramaSeries, 10)
+			f.linkDrama(t, watched[1], otherDramaSeries, 4)
+
+			got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+			require.NoError(t, err)
+
+			want := []suggestion{}
+			for i, eventID := range tt.want {
+				if eventID != 0 {
+					want = append(want, suggestion{recording: watched[i], eventID: eventID})
+				}
+			}
+			assert.Equal(t, want, suggestionsOf(got))
+		})
+	}
+}

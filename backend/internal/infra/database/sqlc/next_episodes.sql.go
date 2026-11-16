@@ -15,12 +15,13 @@ import (
 const getRecordingNextEpisodeSource = `-- name: GetRecordingNextEpisodeSource :one
 SELECT rec.name, rec.description, rec.extended,
   p.series_episode AS program_series_episode, pa.series_episode AS archived_series_episode,
-  e.syobocal_tid, e.count_start
+  e.syobocal_tid, e.count_start, d.tmdb_series_id, d.season_number AS tmdb_season_number, d.episode_number AS tmdb_episode_number
 FROM recordings rec
 LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
 LEFT JOIN program_archives pa ON pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at
 LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_start = e.count_end
   AND NOT EXISTS (SELECT 1 FROM recording_anime_episodes o WHERE o.recording_id = rec.id AND o.position <> e.position)
+LEFT JOIN recording_drama_matches d ON d.recording_id = rec.id
 WHERE rec.id = $1
 `
 
@@ -32,10 +33,14 @@ type GetRecordingNextEpisodeSourceRow struct {
 	ArchivedSeriesEpisode *int32
 	SyobocalTid           *int32
 	CountStart            *float64
+	TmdbSeriesID          *int32
+	TmdbSeasonNumber      *int32
+	TmdbEpisodeNumber     *int32
 }
 
 // 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
-// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数。録画履歴に写すもの (設計書 4.4) と揃える。
+// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDb の作品とシーズンと話の番号。
+// 録画履歴に写すもの (設計書 4.4) と揃える。
 func (q *Queries) GetRecordingNextEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingNextEpisodeSourceRow, error) {
 	row := q.db.QueryRow(ctx, getRecordingNextEpisodeSource, id)
 	var i GetRecordingNextEpisodeSourceRow
@@ -47,6 +52,9 @@ func (q *Queries) GetRecordingNextEpisodeSource(ctx context.Context, id uuid.UUI
 		&i.ArchivedSeriesEpisode,
 		&i.SyobocalTid,
 		&i.CountStart,
+		&i.TmdbSeriesID,
+		&i.TmdbSeasonNumber,
+		&i.TmdbEpisodeNumber,
 	)
 	return i, err
 }
@@ -182,6 +190,143 @@ func (q *Queries) ListAnimeNextProgramsBatch(ctx context.Context, arg ListAnimeN
 	return items, nil
 }
 
+const listDramaNextPrograms = `-- name: ListDramaNextPrograms :many
+SELECT p.service_id, p.event_id, p.start_at, m.episode_number::double precision AS episode_number, p.related_items
+FROM program_drama_matches m
+JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+WHERE m.tmdb_series_id = $1::integer AND m.season_number = $2::integer
+  AND m.episode_number > $3::integer
+  AND p.start_at >= $4 AND p.start_at < $5 AND NOT p.end_undecided
+ORDER BY p.start_at, p.service_id, p.event_id
+LIMIT $6::integer
+`
+
+type ListDramaNextProgramsParams struct {
+	TmdbSeriesID  int32
+	SeasonNumber  int32
+	EpisodeNumber int32
+	Since         time.Time
+	Until         time.Time
+	MaxRows       int32
+}
+
+type ListDramaNextProgramsRow struct {
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EpisodeNumber float64
+	RelatedItems  []byte
+}
+
+// TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
+// since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
+func (q *Queries) ListDramaNextPrograms(ctx context.Context, arg ListDramaNextProgramsParams) ([]ListDramaNextProgramsRow, error) {
+	rows, err := q.db.Query(ctx, listDramaNextPrograms,
+		arg.TmdbSeriesID,
+		arg.SeasonNumber,
+		arg.EpisodeNumber,
+		arg.Since,
+		arg.Until,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDramaNextProgramsRow{}
+	for rows.Next() {
+		var i ListDramaNextProgramsRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EpisodeNumber,
+			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDramaNextProgramsBatch = `-- name: ListDramaNextProgramsBatch :many
+SELECT k.series_id::integer AS key_series_id, k.season::integer AS key_season,
+  c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items
+FROM (
+  SELECT unnest($1::integer[]) AS series_id, unnest($2::integer[]) AS season, unnest($3::integer[]) AS episode
+) AS k
+CROSS JOIN LATERAL (
+  SELECT p.service_id, p.event_id, p.start_at, m.episode_number::double precision AS episode_number, p.related_items
+  FROM program_drama_matches m
+  JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+  WHERE m.tmdb_series_id = k.series_id AND m.season_number = k.season AND m.episode_number > k.episode
+    AND p.start_at >= $4 AND p.start_at < $5 AND NOT p.end_undecided
+  ORDER BY p.start_at, p.service_id, p.event_id
+  LIMIT $6::integer
+) c
+ORDER BY k.series_id, k.season, c.start_at, c.service_id, c.event_id
+`
+
+type ListDramaNextProgramsBatchParams struct {
+	SeriesIds []int32
+	Seasons   []int32
+	Episodes  []int32
+	Since     time.Time
+	Until     time.Time
+	MaxRows   int32
+}
+
+type ListDramaNextProgramsBatchRow struct {
+	KeySeriesID   int32
+	KeySeason     int32
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EpisodeNumber float64
+	RelatedItems  []byte
+}
+
+// TMDb の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
+// 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#1564)。ListDramaNextPrograms をまとめて引く。
+func (q *Queries) ListDramaNextProgramsBatch(ctx context.Context, arg ListDramaNextProgramsBatchParams) ([]ListDramaNextProgramsBatchRow, error) {
+	rows, err := q.db.Query(ctx, listDramaNextProgramsBatch,
+		arg.SeriesIds,
+		arg.Seasons,
+		arg.Episodes,
+		arg.Since,
+		arg.Until,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDramaNextProgramsBatchRow{}
+	for rows.Next() {
+		var i ListDramaNextProgramsBatchRow
+		if err := rows.Scan(
+			&i.KeySeriesID,
+			&i.KeySeason,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EpisodeNumber,
+			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordedAnimeCounts = `-- name: ListRecordedAnimeCounts :many
 SELECT DISTINCT anime_count::double precision AS anime_count
 FROM recording_history
@@ -231,6 +376,80 @@ func (q *Queries) ListRecordedAnimeCountsBatch(ctx context.Context, tids []int32
 	for rows.Next() {
 		var i ListRecordedAnimeCountsBatchRow
 		if err := rows.Scan(&i.KeyTid, &i.AnimeCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordedDramaEpisodes = `-- name: ListRecordedDramaEpisodes :many
+SELECT DISTINCT tmdb_episode_number::double precision AS episode_number
+FROM recording_history
+WHERE tmdb_series_id = $1::integer AND tmdb_season_number = $2::integer AND tmdb_episode_number IS NOT NULL
+`
+
+type ListRecordedDramaEpisodesParams struct {
+	TmdbSeriesID int32
+	SeasonNumber int32
+}
+
+// TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
+func (q *Queries) ListRecordedDramaEpisodes(ctx context.Context, arg ListRecordedDramaEpisodesParams) ([]float64, error) {
+	rows, err := q.db.Query(ctx, listRecordedDramaEpisodes, arg.TmdbSeriesID, arg.SeasonNumber)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []float64{}
+	for rows.Next() {
+		var episode_number float64
+		if err := rows.Scan(&episode_number); err != nil {
+			return nil, err
+		}
+		items = append(items, episode_number)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordedDramaEpisodesBatch = `-- name: ListRecordedDramaEpisodesBatch :many
+SELECT DISTINCT h.tmdb_series_id::integer AS key_series_id, h.tmdb_season_number::integer AS key_season,
+  h.tmdb_episode_number::double precision AS episode_number
+FROM recording_history h
+JOIN (SELECT unnest($1::integer[]) AS series_id, unnest($2::integer[]) AS season) AS k
+  ON h.tmdb_series_id = k.series_id AND h.tmdb_season_number = k.season
+WHERE h.tmdb_episode_number IS NOT NULL
+`
+
+type ListRecordedDramaEpisodesBatchParams struct {
+	SeriesIds []int32
+	Seasons   []int32
+}
+
+type ListRecordedDramaEpisodesBatchRow struct {
+	KeySeriesID   int32
+	KeySeason     int32
+	EpisodeNumber float64
+}
+
+// TMDb の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
+// ListRecordedDramaEpisodes をまとめて引く。
+func (q *Queries) ListRecordedDramaEpisodesBatch(ctx context.Context, arg ListRecordedDramaEpisodesBatchParams) ([]ListRecordedDramaEpisodesBatchRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedDramaEpisodesBatch, arg.SeriesIds, arg.Seasons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedDramaEpisodesBatchRow{}
+	for rows.Next() {
+		var i ListRecordedDramaEpisodesBatchRow
+		if err := rows.Scan(&i.KeySeriesID, &i.KeySeason, &i.EpisodeNumber); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -437,13 +656,15 @@ func (q *Queries) ListSeriesNextProgramsBatch(ctx context.Context, arg ListSerie
 const listWatchedNextEpisodeSources = `-- name: ListWatchedNextEpisodeSources :many
 SELECT rec.id, rec.name, rec.description, rec.extended,
   p.series_episode AS program_series_episode, pa.series_episode AS archived_series_episode,
-  e.syobocal_tid, e.count_start, w.updated_at
+  e.syobocal_tid, e.count_start, d.tmdb_series_id, d.season_number AS tmdb_season_number, d.episode_number AS tmdb_episode_number,
+  w.updated_at
 FROM watch_progress w
 JOIN recordings rec ON rec.id = w.recording_id
 LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
 LEFT JOIN program_archives pa ON pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at
 LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_start = e.count_end
   AND NOT EXISTS (SELECT 1 FROM recording_anime_episodes o WHERE o.recording_id = rec.id AND o.position <> e.position)
+LEFT JOIN recording_drama_matches d ON d.recording_id = rec.id
 WHERE w.user_id = $1 AND w.updated_at >= $2
   AND rec.recorded_from IS NOT NULL AND rec.recorded_until IS NOT NULL AND rec.recorded_until > rec.recorded_from
   AND w.position_ms >= extract(epoch FROM (rec.recorded_until - rec.recorded_from)) * 1000 * $3::double precision
@@ -467,6 +688,9 @@ type ListWatchedNextEpisodeSourcesRow struct {
 	ArchivedSeriesEpisode *int32
 	SyobocalTid           *int32
 	CountStart            *float64
+	TmdbSeriesID          *int32
+	TmdbSeasonNumber      *int32
+	TmdbEpisodeNumber     *int32
 	UpdatedAt             time.Time
 }
 
@@ -496,6 +720,9 @@ func (q *Queries) ListWatchedNextEpisodeSources(ctx context.Context, arg ListWat
 			&i.ArchivedSeriesEpisode,
 			&i.SyobocalTid,
 			&i.CountStart,
+			&i.TmdbSeriesID,
+			&i.TmdbSeasonNumber,
+			&i.TmdbEpisodeNumber,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err

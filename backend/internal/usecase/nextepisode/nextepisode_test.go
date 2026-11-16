@@ -18,51 +18,85 @@ const harbor = "霧笛の港"
 func TestKeyOf(t *testing.T) {
 	t.Parallel()
 
+	drama := &nextepisode.Drama{SeriesID: 9001, Season: 1, Episode: 3}
 	tests := []struct {
-		name string
-		src  *episode.Source
-		want *nextepisode.Key
+		name  string
+		src   *episode.Source
+		drama *nextepisode.Drama
+		want  *nextepisode.Key
 	}{
 		{
-			name: "番組名の話数とシリーズ名で探す",
-			src:  &episode.Source{Name: "霧笛の港　＃３「灯台守」", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
-			want: &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3},
+			name:  "番組名の話数とシリーズ名で探す",
+			src:   &episode.Source{Name: "霧笛の港　＃３「灯台守」", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
+			drama: nil,
+			want:  &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3, Drama: nil},
 		},
 		{
-			name: "番組名に話数がなければ、記述子の話数で探す",
-			src:  &episode.Source{Name: "霧笛の港🈑", Description: "", Extended: "", SeriesEpisode: new(int32(4)), Anime: nil},
-			want: &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 4},
+			name:  "番組名に話数がなければ、記述子の話数で探す",
+			src:   &episode.Source{Name: "霧笛の港🈑", Description: "", Extended: "", SeriesEpisode: new(int32(4)), Anime: nil},
+			drama: nil,
+			want:  &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 4, Drama: nil},
 		},
 		{
-			name: "期はシリーズ名に含める",
-			src:  &episode.Source{Name: "霧笛の港 第2期 #5", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
-			want: &nextepisode.Key{TID: 0, Count: 0, Series: "霧笛の港第2期", Number: 5},
+			name:  "期はシリーズ名に含める",
+			src:   &episode.Source{Name: "霧笛の港 第2期 #5", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
+			drama: nil,
+			want:  &nextepisode.Key{TID: 0, Count: 0, Series: "霧笛の港第2期", Number: 5, Drama: nil},
 		},
 		{
 			name: "しょぼいカレンダーの話に結びついていれば、番組名でなく TID と話数で探す",
 			src: &episode.Source{
 				Name: "霧笛の港 #3", Description: "", Extended: "", SeriesEpisode: nil, Anime: &episode.Anime{TID: 6776, Count: 15},
 			},
-			want: &nextepisode.Key{TID: 6776, Count: 15, Series: "", Number: 0},
+			drama: nil,
+			want:  &nextepisode.Key{TID: 6776, Count: 15, Series: "", Number: 0, Drama: nil},
 		},
 		{
 			name: "しょぼいカレンダーの話数がなければ、番組名で探す",
 			src: &episode.Source{
 				Name: "霧笛の港 #3", Description: "", Extended: "", SeriesEpisode: nil, Anime: &episode.Anime{TID: 6776, Count: 0},
 			},
-			want: &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3},
+			drama: nil,
+			want:  &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3, Drama: nil},
 		},
 		{
-			name: "話数を読めない番組 (ニュースなど) では探さない",
-			src:  &episode.Source{Name: "ニュース7", Description: "きょうのニュース", Extended: "", SeriesEpisode: nil, Anime: nil},
-			want: nil,
+			name:  "番組名の話数を読めなければ、TMDb の作品とシーズンと話の番号で探す",
+			src:   &episode.Source{Name: "霧笛の港", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
+			drama: drama,
+			want:  &nextepisode.Key{TID: 0, Count: 0, Series: "", Number: 0, Drama: drama},
+		},
+		{
+			name:  "番組名の話数を読めれば、TMDb の話に結びついていても、シリーズ名と話数で探す",
+			src:   &episode.Source{Name: "霧笛の港 第3話", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
+			drama: drama,
+			want:  &nextepisode.Key{TID: 0, Count: 0, Series: harbor, Number: 3, Drama: nil},
+		},
+		{
+			name: "しょぼいカレンダーの話に結びついていれば、TMDb の話に結びついていても、TID と話数で探す",
+			src: &episode.Source{
+				Name: "霧笛の港", Description: "", Extended: "", SeriesEpisode: nil, Anime: &episode.Anime{TID: 6776, Count: 15},
+			},
+			drama: drama,
+			want:  &nextepisode.Key{TID: 6776, Count: 15, Series: "", Number: 0, Drama: nil},
+		},
+		{
+			name:  "特別編 (シーズン 0) の話では探さない",
+			src:   &episode.Source{Name: "霧笛の港 特別編", Description: "", Extended: "", SeriesEpisode: nil, Anime: nil},
+			drama: &nextepisode.Drama{SeriesID: 9001, Season: 0, Episode: 2},
+			want:  nil,
+		},
+		{
+			name:  "話数を読めない番組 (ニュースなど) では探さない",
+			src:   &episode.Source{Name: "ニュース7", Description: "きょうのニュース", Extended: "", SeriesEpisode: nil, Anime: nil},
+			drama: nil,
+			want:  nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, nextepisode.KeyOf(tt.src))
+			assert.Equal(t, tt.want, nextepisode.KeyOf(tt.src, tt.drama))
 		})
 	}
 }
