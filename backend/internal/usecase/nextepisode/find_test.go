@@ -325,3 +325,90 @@ func TestFindByDrama(t *testing.T) {
 	assert.Equal(t, []int64{800, 805}, eventIDs(got))
 	assert.InDelta(t, 4, got[0].Number, 0)
 }
+
+// dramaBroadcast は、TMDb の話に結びつける地上波の放送。
+type dramaBroadcast struct {
+	eventID int
+	offset  time.Duration
+	season  int32
+	episode int32
+}
+
+// addDramaHistory は、TMDb の作品 dramaSeries のシーズン season の話 episode を録った録画履歴を足す。
+func (f *findFixture) addDramaHistory(t *testing.T, season, episode int32) {
+	t.Helper()
+
+	f.exec(t, `INSERT INTO recording_history (id, service_id, title_key, name, tmdb_series_id, tmdb_season_number, tmdb_episode_number,
+		start_at, end_at, created_at) VALUES ($1, $2, '夜明けの診療所', '夜明けの診療所', $3, $4, $5, $6, $6, $6)`,
+		id.New(), faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), dramaSeries, season, episode, findNow().Add(-24*time.Hour))
+}
+
+// TestFindByDramaNextSeason は、TMDb の作品で探す録画で、今のシーズンの後の話がこれから放送されないときだけ、
+// 次のシーズンの第 1 話を続きの放送に出すことを確かめる (#1564)。録画は、シーズン 1 の第 10 話。
+func TestFindByDramaNextSeason(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		broadcasts []dramaBroadcast
+		// reserved は、予約する放送。recordedFirst は、次のシーズンの第 1 話を録画履歴に書くか。
+		reserved      []int
+		recordedFirst bool
+		want          []int64
+	}{
+		{
+			name:       "今のシーズンの後の話が放送されるなら、次のシーズンは出さない",
+			broadcasts: []dramaBroadcast{{800, 2 * time.Hour, 1, 11}, {801, time.Hour, 2, 1}},
+			reserved:   []int{},
+			want:       []int64{800},
+		},
+		{
+			name: "今のシーズンの後の話がなければ、次のシーズンの第 1 話だけを出す",
+			broadcasts: []dramaBroadcast{
+				{800, time.Hour, 2, 1}, {801, 2 * time.Hour, 2, 2}, {802, 3 * time.Hour, 3, 1}, {803, 4 * time.Hour, 2, 1},
+			},
+			reserved: []int{},
+			want:     []int64{800, 803},
+		},
+		{
+			name:       "今のシーズンの後の話が予約で外れても、放送されるので、次のシーズンは出さない",
+			broadcasts: []dramaBroadcast{{800, 2 * time.Hour, 1, 11}, {801, time.Hour, 2, 1}},
+			reserved:   []int{800},
+			want:       []int64{},
+		},
+		{
+			name:          "次のシーズンの第 1 話を録っていれば出さない",
+			broadcasts:    []dramaBroadcast{{800, time.Hour, 2, 1}},
+			reserved:      []int{},
+			recordedFirst: true,
+			want:          []int64{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			programs := make([]*faketuner.Program, 0, len(tt.broadcasts))
+			for _, b := range tt.broadcasts {
+				programs = append(programs, fakeProgram(fakeGRNetwork, fakeGRService, b.eventID, b.offset, "夜明けの診療所"))
+			}
+			f := newFindFixture(t, programs)
+			for _, b := range tt.broadcasts {
+				f.matchDrama(t, b.eventID, dramaSeries, b.season, b.episode)
+			}
+			for _, eventID := range tt.reserved {
+				f.reserve(t, fakeGRNetwork, fakeGRService, eventID, true)
+			}
+			if tt.recordedFirst {
+				f.addDramaHistory(t, 2, 1)
+			}
+			recording := f.addRecording(t, "夜明けの診療所")
+			f.linkDrama(t, recording, dramaSeries, 10)
+
+			got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, eventIDs(got))
+		})
+	}
+}

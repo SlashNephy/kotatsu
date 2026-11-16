@@ -279,11 +279,70 @@ func listCandidatesOf(
 }
 
 // listDramaCandidatesOf は、TMDb の作品のシーズン dramas ごとの続きの放送の候補と、録画履歴にある録った話の番号を、
-// シリーズの id ごとに candidates と recorded に足す。それぞれ 1 つのクエリでまとめて引く。
+// シリーズの id ごとに candidates と recorded に足す。候補の番組と録画履歴は、それぞれまとめて引く。
+// 録画の続きの放送 (listDramaCandidates) と同じく、今のシーズンの後の話がこれから放送されないシリーズは、次のシーズンの第 1 話を候補にする。
 func listDramaCandidatesOf(
 	ctx context.Context, q *sqlc.Queries, dramas []*Drama, now time.Time,
 	candidates map[string][]*Candidate, recorded map[string]map[float64]bool,
 ) error {
+	current, err := listDramaProgramsOf(ctx, q, dramas, now)
+	if err != nil {
+		return err
+	}
+	// seasonOf は、シリーズの id ごとの、候補を出すシーズン。録った話を、このシーズンの録画履歴で引く。
+	seasonOf := map[string]*Drama{}
+	nexts := []*Drama{}
+	for _, d := range dramas {
+		id := dramaID(d.SeriesID, d.Season)
+		if cs := current[id]; len(cs) > 0 {
+			candidates[id] = cs
+			seasonOf[id] = d
+
+			continue
+		}
+		next := &Drama{SeriesID: d.SeriesID, Season: nextSeason(d.Season), Episode: 0}
+		nexts = append(nexts, next)
+		seasonOf[id] = next
+	}
+	if len(nexts) > 0 {
+		next, err := listDramaProgramsOf(ctx, q, nexts, now)
+		if err != nil {
+			return err
+		}
+		for _, d := range nexts {
+			// 次のシーズンの候補は、元のシーズンのシリーズの id に足す。
+			if cs := firstEpisodes(next[dramaID(d.SeriesID, d.Season)]); len(cs) > 0 {
+				candidates[dramaID(d.SeriesID, d.Season-1)] = cs
+			}
+		}
+	}
+
+	seriesIDs, seasons := make([]int32, 0, len(seasonOf)), make([]int32, 0, len(seasonOf))
+	// ids は、作品とシーズンごとの、そのシーズンの録画履歴を使うシリーズの id。
+	ids := map[string][]string{}
+	for id, d := range seasonOf {
+		key := dramaID(d.SeriesID, d.Season)
+		if _, ok := ids[key]; !ok {
+			seriesIDs, seasons = append(seriesIDs, d.SeriesID), append(seasons, d.Season)
+		}
+		ids[key] = append(ids[key], id)
+	}
+	history, err := q.ListRecordedDramaEpisodesBatch(ctx, sqlc.ListRecordedDramaEpisodesBatchParams{SeriesIds: seriesIDs, Seasons: seasons})
+	if err != nil {
+		return fmt.Errorf("failed to list the recorded episodes of the drama: %w", err)
+	}
+	for _, h := range history {
+		for _, id := range ids[dramaID(h.KeySeriesID, h.KeySeason)] {
+			recorded[id][h.EpisodeNumber] = true
+		}
+	}
+
+	return nil
+}
+
+// listDramaProgramsOf は、TMDb の作品のシーズン dramas ごとに、話の番号が Episode より大きい話の、now から Horizon までに始まる放送を、
+// 作品とシーズンの id ごとに返す。1 つのクエリでまとめて引く。
+func listDramaProgramsOf(ctx context.Context, q *sqlc.Queries, dramas []*Drama, now time.Time) (map[string][]*Candidate, error) {
 	seriesIDs, seasons, episodes := make([]int32, 0, len(dramas)), make([]int32, 0, len(dramas)), make([]int32, 0, len(dramas))
 	for _, d := range dramas {
 		seriesIDs, seasons, episodes = append(seriesIDs, d.SeriesID), append(seasons, d.Season), append(episodes, d.Episode)
@@ -292,8 +351,9 @@ func listDramaCandidatesOf(
 		SeriesIds: seriesIDs, Seasons: seasons, Episodes: episodes, Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list the next programs of the drama: %w", err)
+		return nil, fmt.Errorf("failed to list the next programs of the drama: %w", err)
 	}
+	candidates := map[string][]*Candidate{}
 	for i := range rows {
 		id := dramaID(rows[i].KeySeriesID, rows[i].KeySeason)
 		candidates[id] = append(candidates[id], &Candidate{
@@ -301,13 +361,6 @@ func listDramaCandidatesOf(
 			RelatedItems: rows[i].RelatedItems,
 		})
 	}
-	history, err := q.ListRecordedDramaEpisodesBatch(ctx, sqlc.ListRecordedDramaEpisodesBatchParams{SeriesIds: seriesIDs, Seasons: seasons})
-	if err != nil {
-		return fmt.Errorf("failed to list the recorded episodes of the drama: %w", err)
-	}
-	for _, h := range history {
-		recorded[dramaID(h.KeySeriesID, h.KeySeason)][h.EpisodeNumber] = true
-	}
 
-	return nil
+	return candidates, nil
 }

@@ -268,23 +268,24 @@ func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Tim
 }
 
 // listDramaCandidates は、TMDb の作品のシーズン drama の続きの放送の候補と、録画履歴にある録った話の番号を返す。
+// 今のシーズンの後の話がこれから放送されなければ、次のシーズンの第 1 話の放送を候補にする。今のシーズンの話が残っているのに
+// 次のシーズンを出すと、どれが続きか紛らわしいからである。予約や録画済みで外れる話も、放送されるので今のシーズンに残っているとみなす。
 func listDramaCandidates(ctx context.Context, q *sqlc.Queries, drama *Drama, now time.Time) ([]*Candidate, map[float64]bool, error) {
-	rows, err := q.ListDramaNextPrograms(ctx, sqlc.ListDramaNextProgramsParams{
-		TmdbSeriesID: drama.SeriesID, SeasonNumber: drama.Season, EpisodeNumber: drama.Episode,
-		Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
-	})
+	season := drama.Season
+	candidates, err := listDramaPrograms(ctx, q, drama.SeriesID, season, drama.Episode, now)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list the next programs of the drama: %w", err)
+		return nil, nil, err
 	}
-	candidates := make([]*Candidate, 0, len(rows))
-	for i := range rows {
-		candidates = append(candidates, &Candidate{
-			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
-			RelatedItems: rows[i].RelatedItems,
-		})
+	if len(candidates) == 0 {
+		season = nextSeason(drama.Season)
+		next, err := listDramaPrograms(ctx, q, drama.SeriesID, season, 0, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		candidates = firstEpisodes(next)
 	}
 	episodes, err := q.ListRecordedDramaEpisodes(ctx, sqlc.ListRecordedDramaEpisodesParams{
-		TmdbSeriesID: drama.SeriesID, SeasonNumber: drama.Season,
+		TmdbSeriesID: drama.SeriesID, SeasonNumber: season,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list the recorded episodes of the drama: %w", err)
@@ -295,6 +296,36 @@ func listDramaCandidates(ctx context.Context, q *sqlc.Queries, drama *Drama, now
 	}
 
 	return candidates, recorded, nil
+}
+
+// listDramaPrograms は、TMDb の作品 seriesID のシーズン season の、話の番号が episode より大きい話の、now から Horizon までに始まる放送を返す。
+func listDramaPrograms(ctx context.Context, q *sqlc.Queries, seriesID, season, episode int32, now time.Time) ([]*Candidate, error) {
+	rows, err := q.ListDramaNextPrograms(ctx, sqlc.ListDramaNextProgramsParams{
+		TmdbSeriesID: seriesID, SeasonNumber: season, EpisodeNumber: episode,
+		Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the next programs of the drama: %w", err)
+	}
+	candidates := make([]*Candidate, 0, len(rows))
+	for i := range rows {
+		candidates = append(candidates, &Candidate{
+			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
+			RelatedItems: rows[i].RelatedItems,
+		})
+	}
+
+	return candidates, nil
+}
+
+// nextSeason は、シーズン season の次のシーズンの番号。
+func nextSeason(season int32) int32 {
+	return season + 1
+}
+
+// firstEpisodes は、候補 candidates のうち、第 1 話の放送だけを返す。
+func firstEpisodes(candidates []*Candidate) []*Candidate {
+	return slices.DeleteFunc(candidates, func(c *Candidate) bool { return c.Number != 1 })
 }
 
 // reservedPrograms は、候補の番組と、同じイベントを共有する番組のうち、予約のあるものを返す。無効にした予約も含める。

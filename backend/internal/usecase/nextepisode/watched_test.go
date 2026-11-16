@@ -188,3 +188,77 @@ func TestFindForUserByDrama(t *testing.T) {
 
 	assert.Equal(t, []suggestion{{recording: town4, eventID: 810}, {recording: clinic4, eventID: 802}}, suggestionsOf(got))
 }
+
+// TestFindForUserByDramaNextSeason は、ホームの続きの放送でも、TMDb の作品で探すシリーズの今のシーズンの後の話が
+// これから放送されないときだけ、次のシーズンの第 1 話を出すことを確かめる (#1564)。
+// 見た回は、作品 dramaSeries のシーズン 1 の第 10 話と、作品 otherDramaSeries のシーズン 1 の第 4 話。
+func TestFindForUserByDramaNextSeason(t *testing.T) {
+	t.Parallel()
+
+	type broadcast struct {
+		eventID  int
+		offset   time.Duration
+		seriesID int32
+		season   int32
+		episode  int32
+	}
+	tests := []struct {
+		name          string
+		broadcasts    []broadcast
+		recordedFirst bool
+		// want は、作品 dramaSeries と otherDramaSeries の見た回の順の、続きの放送の eventId。0 なら、その作品の行を出さない。
+		want [2]int64
+	}{
+		{
+			name: "今のシーズンの後の話がない作品だけ、次のシーズンの第 1 話を出す",
+			broadcasts: []broadcast{
+				{800, 2 * time.Hour, dramaSeries, 2, 2},
+				{801, 3 * time.Hour, dramaSeries, 2, 1},
+				{810, time.Hour, otherDramaSeries, 2, 1},
+				{811, 4 * time.Hour, otherDramaSeries, 1, 5},
+			},
+			recordedFirst: false,
+			want:          [2]int64{801, 811},
+		},
+		{
+			name:          "次のシーズンの第 1 話を録っていれば出さない",
+			broadcasts:    []broadcast{{801, 3 * time.Hour, dramaSeries, 2, 1}, {811, 4 * time.Hour, otherDramaSeries, 1, 5}},
+			recordedFirst: true,
+			want:          [2]int64{0, 811},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			programs := make([]*faketuner.Program, 0, len(tt.broadcasts))
+			for _, b := range tt.broadcasts {
+				programs = append(programs, fakeProgram(fakeGRNetwork, fakeGRService, b.eventID, b.offset, "夜明けの診療所"))
+			}
+			f := newFindFixture(t, programs)
+			for _, b := range tt.broadcasts {
+				f.matchDrama(t, b.eventID, b.seriesID, b.season, b.episode)
+			}
+			if tt.recordedFirst {
+				f.addDramaHistory(t, 2, 1)
+			}
+			user := f.addUser(t, "user")
+			watched := [2]uuid.UUID{
+				f.addWatched(t, user, "夜明けの診療所", 1, time.Hour), f.addWatched(t, user, "灯台の町", 1, time.Hour),
+			}
+			f.linkDrama(t, watched[0], dramaSeries, 10)
+			f.linkDrama(t, watched[1], otherDramaSeries, 4)
+
+			got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+			require.NoError(t, err)
+
+			want := []suggestion{}
+			for i, eventID := range tt.want {
+				if eventID != 0 {
+					want = append(want, suggestion{recording: watched[i], eventID: eventID})
+				}
+			}
+			assert.Equal(t, want, suggestionsOf(got))
+		})
+	}
+}
