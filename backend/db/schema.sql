@@ -682,6 +682,22 @@ CREATE TABLE epg_changes (
 CREATE INDEX epg_changes_version_idx ON epg_changes (version);
 CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);
 
+-- 放送前の番組の、番組名と概要の書き換え (#1558)。書き換えが放送開始のどれだけ前まで起きるかを測り、ルール予約の直前の猶予を決め直すのに使う。
+-- 書き換えを見つけた時点で放送開始より後のものだけを残す。observed_at から保持期間が過ぎたら消す (設計書 3.3)。
+CREATE TABLE program_rewrites (
+  service_id bigint NOT NULL,
+  event_id bigint NOT NULL,
+  -- start_at は、書き換えた後の番組の開始時刻。
+  start_at timestamptz NOT NULL,
+  -- field は、書き換わった項目 (name か description)。
+  field text NOT NULL CHECK (field IN ('name', 'description')),
+  before text NOT NULL,
+  after text NOT NULL,
+  observed_at timestamptz NOT NULL
+);
+
+CREATE INDEX program_rewrites_observed_at_idx ON program_rewrites (observed_at);
+
 -- 放送が終わった番組 (設計書 3.4)。neko が、放送の終わりから猶予が過ぎた番組を programs から移す。
 -- EID は再利用されうるので、サービスと eventId に開始時刻を加えた組で一意にする (設計書 3.2)。
 CREATE TABLE program_archives (

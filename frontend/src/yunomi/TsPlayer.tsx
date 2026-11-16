@@ -21,6 +21,7 @@ import {
   useInterpolation,
   useInterpolationRate,
 } from './frameInterpolation';
+import { advanceBeforeHandover } from './handoverAdvance';
 import { fitMedia } from './mediaFit';
 import { usePlayerCover, type PlayerCover } from './playerCover';
 import type { SourcePicture, TsPlayerReading } from './streamMeter';
@@ -59,7 +60,12 @@ type Props = {
   onState?: (state: PlayerState) => void;
   onError?: (error: Error) => void;
   // onLoaded は、最初のデータが入り、再生を始められるようになったときに呼ぶ。
-  onLoaded?: () => void;
+  // 裏で読み込んで切り替えたときは、裏で読み込んだ映像の最初のコマの時刻 (base) と、切り替えたときの時刻 (current) を渡す (#1728)。
+  onLoaded?: (handover?: HandoverLoaded) => void;
+  // handoverTarget は、裏で読み込んだ映像を、切り替える前に進める先の video の時刻を返す (#1728)。
+  // base は、裏で読み込んだ映像の最初のコマの時刻。今の映像が進んだ分だけ進め、切り替えで巻き戻らないようにする。
+  // null なら進めない。
+  handoverTarget?: (base: number) => number | null;
   // overlay は、映像の上に重ねるもの (実況のコメント)。
   overlay?: ReactNode;
   // controls は、映像の上に重ねる操作バー。重ねたもの (overlay) より上に置き、操作を受ける。
@@ -79,6 +85,14 @@ type Props = {
   settings?: PlayerSettingsOverride;
   // onDeinterlaceStats は、yadif が統計を知らせるたびに、その統計と、フィールドごとの表示をやめたかを受け取る (#1771)。
   onDeinterlaceStats?: (stats: DeinterlaceStats, fieldRateDropped: boolean) => void;
+};
+
+// HandoverLoaded は、裏で読み込んで切り替えたときに onLoaded へ渡す、切り替えた映像の時刻 (#1728)。
+export type HandoverLoaded = {
+  // base は、最初のコマの時刻。
+  base: number;
+  // current は、切り替えたときの時刻。切り替える前に進めていれば、base より後ろになる。
+  current: number;
 };
 
 // PlayerSettingsOverride は、TsPlayer が端末ごとの設定の代わりに使う値 (#1771)。
@@ -209,6 +223,7 @@ export function TsPlayer({
   coverRef,
   settings,
   onDeinterlaceStats,
+  handoverTarget,
 }: Props) {
   // active は、映っている組。pending は、切り替えるために裏で読み込んでいる組。
   const activeRef = useRef<Slot | null>(null);
@@ -232,6 +247,7 @@ export function TsPlayer({
     onVideo,
     onReading,
     onDeinterlaceStats,
+    handoverTarget,
   });
   handlers.current = {
     onState,
@@ -241,6 +257,7 @@ export function TsPlayer({
     onVideo,
     onReading,
     onDeinterlaceStats,
+    handoverTarget,
   };
   const audioRef = useRef(audio);
   audioRef.current = audio;
@@ -651,9 +668,24 @@ export function TsPlayer({
           await next.load(url);
           // 映像が出る前に、読み込みが失敗するか終わったら、切り替えずに失敗として知らせる。
           await Promise.race([firstPicture(slot.video), failureBeforePicture(next)]);
+          // 切り替える前に、今の映像が進んだ分だけ進める。進めないと、裏で読み込んでいた間の分だけ巻き戻る (#1728)。
+          // 裏で読み込んだ映像が失敗するか流し終えたら、進める先を待たずに切り替える。
+          const base = slot.video.currentTime;
+          let ended = false;
+          next.addEventListener('error', () => {
+            ended = true;
+          });
+          next.addEventListener('statechange', (event) => {
+            ended ||= event.detail.state === 'completed' || event.detail.state === 'error';
+          });
+          await advanceBeforeHandover(
+            slot.video,
+            () => handlers.current.handoverTarget?.(base) ?? null,
+            () => cancelled || ended,
+          );
           if (!cancelled) {
             promote(slot);
-            handlers.current.onLoaded?.();
+            handlers.current.onLoaded?.({ base, current: slot.video.currentTime });
           }
         })
         .catch((error: unknown) => {

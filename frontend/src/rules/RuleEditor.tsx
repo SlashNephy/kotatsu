@@ -30,7 +30,7 @@ import type { RuleEditorUpdateMutation } from './__generated__/RuleEditorUpdateM
 import { hasConditions, hasRuleTargets } from '../conditions/form';
 import { Authorship } from '../futon';
 import { ConditionsFields, type ServiceOption } from '../conditions/ConditionsFields';
-import { toInput, type RuleForm } from './form';
+import { cmDetectorOf, toInput, type RuleForm } from './form';
 import { RulePreview } from './RulePreview';
 import { useSyncedForm } from './useSyncedForm';
 import { InheritedFileNameTemplateField } from '../reservations/FileNameTemplateField';
@@ -128,6 +128,7 @@ export const ruleEditorRuleFragment = graphql`
       detectCm
       transcodePreset
       transcodeFrameRate
+      cmDetector
     }
     validFrom
     validUntil
@@ -437,6 +438,23 @@ export function RuleEditor({
                           detectCm:
                             value === null || value === joinDefault ? null : value === 'true',
                         },
+                      })
+                    }
+                    allowDeselect={false}
+                  />
+                  {/* 全体に従うなら、見分けるときの全体の設定で決める (#1505)。 */}
+                  <Select
+                    label={t('rules.cmDetector')}
+                    maw={360}
+                    data={[
+                      { value: joinDefault, label: t('rules.detectCmDefault') },
+                      { value: 'FFMPEG', label: t('admin.settings.cmDetectorFfmpeg') },
+                      { value: 'LOGO', label: t('admin.settings.cmDetectorLogo') },
+                    ]}
+                    value={form.settings.cmDetector ?? joinDefault}
+                    onChange={(value) =>
+                      set({
+                        settings: { ...form.settings, cmDetector: cmDetectorOf(value) },
                       })
                     }
                     allowDeselect={false}

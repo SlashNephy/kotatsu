@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7636572cd87549247e5d45b1f2e7669f>>
+ * @generated SignedSource<<4d5a9d4854a54b5600298992e214cb03>>
  * @lightSyntaxTransform
  */
 
@@ -9,6 +9,7 @@
 
 import { ConcreteRequest } from 'relay-runtime';
 import { FragmentRefs } from "relay-runtime";
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 export type RuleInput = {
@@ -57,6 +58,7 @@ export type TimeRangeInput = {
   weekdays: ReadonlyArray<number>;
 };
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
@@ -491,6 +493,13 @@ return {
                 "kind": "ScalarField",
                 "name": "transcodeFrameRate",
                 "storageKey": null
+              },
+              {
+                "alias": null,
+                "args": null,
+                "kind": "ScalarField",
+                "name": "cmDetector",
+                "storageKey": null
               }
             ],
             "storageKey": null
@@ -550,12 +559,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "8fa44d0750c7dba078e924972fd73931",
+    "cacheID": "685078e74552ddf9a793646ee32b5aaa",
     "id": null,
     "metadata": {},
     "name": "RuleEditorUpdateMutation",
     "operationKind": "mutation",
-    "text": "mutation RuleEditorUpdateMutation(\n  $id: ID!\n  $input: RuleInput!\n) {\n  updateRule(id: $id, input: $input) {\n    ...RuleEditor_rule\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n    detectCm\n    transcodePreset\n    transcodeFrameRate\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n  bundleSameEpisodes\n  skipEarlierEpisodes\n}\n"
+    "text": "mutation RuleEditorUpdateMutation(\n  $id: ID!\n  $input: RuleInput!\n) {\n  updateRule(id: $id, input: $input) {\n    ...RuleEditor_rule\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n    detectCm\n    transcodePreset\n    transcodeFrameRate\n    cmDetector\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n  bundleSameEpisodes\n  skipEarlierEpisodes\n}\n"
   }
 };
 })();

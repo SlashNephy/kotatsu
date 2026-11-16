@@ -12,8 +12,11 @@ import { WatchRuleEditor, watchRuleEditorFragment } from '../../../watch/WatchRu
 import type { WatchRuleEditor_watchRule$key } from '../../../watch/__generated__/WatchRuleEditor_watchRule.graphql';
 import { emptyWatchRuleForm, fromWatchRule } from '../../../watch/watchRuleForm';
 import type { WatchRuleIdQuery } from './__generated__/WatchRuleIdQuery.graphql';
+import { readableParams } from '../../../futon/readableId';
 
 export const Route = createFileRoute('/rules/watch/$watchRuleId')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('watchRuleId', 'WatchRule'),
   component: WatchRulePage,
 });
 

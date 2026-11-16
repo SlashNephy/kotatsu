@@ -500,3 +500,27 @@ func TestMissingSections(t *testing.T) {
 	assert.InDelta(t, 5.0, got[0].Start.Seconds(), 1e-6)
 	assert.InDelta(t, 8.0, got[0].End.Seconds(), 1e-6)
 }
+
+// TestLogoDetectorSkipsTallVideo は、縦が 1080 ラインより大きい映像 (BS4K など) では、ロゴを試さずに、今の見分け方で見分けることを確かめる (#1505)。
+func TestLogoDetectorSkipsTallVideo(t *testing.T) {
+	t.Parallel()
+
+	fallback := NewMockDetector(gomock.NewController(t))
+	want := []cmdetect.Section{{Start: 0, End: 100 * time.Millisecond}}
+	detector, err := cmdetect.NewLogoDetectorWith(fallback)
+	if errors.Is(err, cmdetect.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "uhd.ts")
+	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=3840x2160:r=30000/1001", "-t", "1",
+		"-c:v", "mpeg2video", "-q:v", "8", "-f", "mpegts", path)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	fallback.EXPECT().Detect(gomock.Any(), gomock.Any()).Return(want, nil)
+
+	got, report, err := detector.DetectWithReport(t.Context(), &cmdetect.Input{Path: path, ServiceID: 0, Progress: nil, Program: nil})
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+	assert.Contains(t, report.Note, "2160 lines tall")
+}

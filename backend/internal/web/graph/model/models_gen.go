@@ -1532,6 +1532,8 @@ type RecordingSettingsOverrides struct {
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。
+	CMDetector *CMDetector `json:"cmDetector,omitempty"`
 }
 
 // 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -1547,6 +1549,8 @@ type RecordingSettingsOverridesInput struct {
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// 変換で出すコマ数 (auto、30、60 のどれか)。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CM の区間の見分け方。
+	CMDetector *CMDetector `json:"cmDetector,omitempty"`
 }
 
 // リカバリーコード。この応答でしか見せないので、ユーザーに控えてもらう。
