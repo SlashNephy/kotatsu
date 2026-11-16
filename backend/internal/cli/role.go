@@ -28,13 +28,13 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 	"github.com/SlashNephy/kotatsu/internal/usecase/neko"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networktv"
 	"github.com/SlashNephy/kotatsu/internal/usecase/recording"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
-	"github.com/SlashNephy/kotatsu/internal/usecase/tappu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
@@ -138,10 +138,10 @@ func DefaultRoles() []*Role {
 			Run:   waitUntilDone,
 		},
 		{
-			Name:  tappu.Role,
+			Name:  nabe.Role,
 			Alias: "hub",
 			Short: "Share each EDCB NetworkTV stream with the other roles (EDCB only)",
-			Run:   runTappu,
+			Run:   runNabe,
 		},
 	}
 }
@@ -282,20 +282,20 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 // newTunerClient は、設定したチューナーサーバーのクライアントを返す。チューナーサーバーの実装は、ここで設定から選ぶ (設計書 3.1)。
 // Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) と、EDCB (#1258) に対応する。
 //
-// EDCB では、このプロセスで tappu を動かしていなければ、ストリームを tappu から受け取る (#1535)。tappu を動かしていれば、
-// HTTP を挟まずに、同じプロセスの中で分け合う。アプリの秘密キーがなければ、tappu に送るトークンを作れないので、自分で開く。
+// EDCB では、このプロセスで nabe を動かしていなければ、ストリームを nabe から受け取る (#1535)。nabe を動かしていれば、
+// HTTP を挟まずに、同じプロセスの中で分け合う。アプリの秘密キーがなければ、nabe に送るトークンを作れないので、自分で開く。
 func newTunerClient(ctx context.Context, deps *Deps, logger *slog.Logger) (tunerserver.Client, error) {
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
 		server, err := sharedEDCBServer(deps)
 		if err != nil {
 			return nil, err
 		}
-		if slices.Contains(deps.Roles, tappu.Role) {
+		if slices.Contains(deps.Roles, nabe.Role) {
 			return server, nil
 		}
-		token, err := tappu.NewToken(deps.Config.Auth.SecretKey.Value())
+		token, err := nabe.NewToken(deps.Config.Auth.SecretKey.Value())
 		if errors.Is(err, innertoken.ErrNoKey) {
-			logger.WarnContext(ctx, "auth.secret_key is not set; opening EDCB NetworkTVs without tappu")
+			logger.WarnContext(ctx, "auth.secret_key is not set; opening EDCB NetworkTVs without nabe")
 
 			return server, nil
 		}
@@ -303,10 +303,10 @@ func newTunerClient(ctx context.Context, deps *Deps, logger *slog.Logger) (tuner
 			return nil, err
 		}
 
-		return &tappuTuner{
+		return &nabeTuner{
 			TunerServer: server,
-			streams: tappu.NewStreams(registry.New(deps.DB, deps.Clock, deps.InstanceID), token, server, deps.Clock,
-				logger.With(slog.String("component", "tappu"))),
+			streams: nabe.NewStreams(registry.New(deps.DB, deps.Clock, deps.InstanceID), token, server, deps.Clock,
+				logger.With(slog.String("component", "nabe"))),
 		}, nil
 	}
 	client, err := mirakurun.New(&mirakurun.Options{

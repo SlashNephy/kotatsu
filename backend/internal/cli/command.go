@@ -57,6 +57,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/metrics"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 	"github.com/SlashNephy/kotatsu/internal/usecase/networkactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/notification"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
@@ -66,7 +67,6 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/servicelogo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/usecase/stream"
-	"github.com/SlashNephy/kotatsu/internal/usecase/tappu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/thumbnail"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/usecase/tvtplay"
@@ -583,16 +583,16 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		mux.Handle(kyusu.RecordingPathPrefix, vodHandler)
 		mux.Handle(kyusu.TimeshiftPathPrefix, vodHandler)
 	}
-	// EDCB の NetworkTV の TS は tappu が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
-	if serveTappu(deps, roles) {
-		tappuHandler, err := newTappuHandler(deps, logger)
+	// EDCB の NetworkTV の TS は nabe が配る (#1535)。ほかのロールが、インスタンスの登録簿で引いて受け取る。
+	if serveNabe(deps, roles) {
+		nabeHandler, err := newNabeHandler(deps, logger)
 		if err != nil {
 			_ = apiListener.Close()
 			_ = metricsListener.Close()
 
 			return err
 		}
-		mux.Handle(tappu.PathPrefix, tappuHandler)
+		mux.Handle(nabe.PathPrefix, nabeHandler)
 	}
 	handler := otelhttp.NewHandler(mux, "kotatsu", otelhttp.WithTracerProvider(tracerProvider), otelhttp.WithFilter(traceable))
 	metricsHandler := telemetry.NewMetricsHandler(prometheus.Gatherers{deps.Metrics, deps.ClusterMetrics}, deps.Metrics)
@@ -676,8 +676,8 @@ func registeredRoles(deps *Deps, roles []*Role, live *kyusu.Live) []string {
 		if role.Name == kyusuRoleName && (live == nil || !live.CanTranscode()) {
 			continue
 		}
-		// EDCB を使わない tappu は、配るものがないので、登録簿に載せない。
-		if role.Name == tappu.Role && !serveTappu(deps, roles) {
+		// EDCB を使わない nabe は、配るものがないので、登録簿に載せない。
+		if role.Name == nabe.Role && !serveNabe(deps, roles) {
 			continue
 		}
 		names = append(names, role.Name)
@@ -1317,8 +1317,8 @@ func handleEPGStationAPI(
 	router.Any(prefix+"*", protect(http.NotFoundHandler()), httpserver.Component("stream"))
 }
 
-// errSecretKeyRequired は、tenban、nekonote、kyusu か、EDCB を使う tappu を、アプリの秘密キーなしで起動しようとしたことを表す。
-var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, kyusu, and tappu with EDCB; " +
+// errSecretKeyRequired は、tenban、nekonote、kyusu か、EDCB を使う nabe を、アプリの秘密キーなしで起動しようとしたことを表す。
+var errSecretKeyRequired = errors.New("auth.secret_key (KOTATSU_AUTH_SECRET_KEY) is required to run tenban, nekonote, kyusu, and nabe with EDCB; " +
 	"set a random string of at least 32 bytes, e.g. the output of `openssl rand -base64 48`")
 
 // clientInfo は、リクエストの送信元を返す。リバースプロキシを経由したときは、信頼済みのプロキシが伝えた値にする。

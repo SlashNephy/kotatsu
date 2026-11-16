@@ -24,7 +24,7 @@ const (
 	// TunerUserIDHeader は、Mirakurun、mirakc、Mahiron が、ストリームの応答で、チューナーの利用者の ID を返すヘッダー。
 	// /api/tuners の users[].id と同じ値になる (#1467)。
 	TunerUserIDHeader = "X-Mirakurun-Tuner-User-ID"
-	// StreamErrorTrailer は、Kotatsu の tappu (mirakurunapi) が、ストリームを途中で終えた理由を返す応答のトレーラー (#1535)。
+	// StreamErrorTrailer は、Kotatsu の nabe (mirakurunapi) が、ストリームを途中で終えた理由を返す応答のトレーラー (#1535)。
 	// Mirakurun 互換のサーバーは返さない。
 	StreamErrorTrailer = "X-Kotatsu-Stream-Error"
 	// StreamErrorPreempted は、チューナーサーバーのほかの利用者にチューナーを取られて終えたこと (tunerserver.ErrTunerPreempted)。
@@ -60,7 +60,7 @@ type Options struct {
 	// StreamOpenTimeout は、ストリームを開くときに、応答の頭を待つ時間の上限。0 なら DefaultStreamOpenTimeout。
 	StreamOpenTimeout time.Duration
 	Clock             clock.Clock
-	// Authorize は、リクエストに認可の情報を付ける。nil なら付けない。Kotatsu の tappu に送るトークンに使う (#1535)。
+	// Authorize は、リクエストに認可の情報を付ける。nil なら付けない。Kotatsu の nabe に送るトークンに使う (#1535)。
 	Authorize func(*http.Request)
 }
 
@@ -431,7 +431,7 @@ type Stream struct {
 	trailer http.Header
 }
 
-// Read は、本文を読む。読み終えたときに、Kotatsu の tappu がチューナーを取られて終えたとトレーラーで返していたら、
+// Read は、本文を読む。読み終えたときに、Kotatsu の nabe がチューナーを取られて終えたとトレーラーで返していたら、
 // io.EOF の代わりに tunerserver.ErrTunerPreempted を返す (#1535)。録画は、EDCB に直接つないだときと同じ理由で失敗を記録できる。
 func (s *Stream) Read(p []byte) (int, error) {
 	n, err := s.ReadCloser.Read(p)

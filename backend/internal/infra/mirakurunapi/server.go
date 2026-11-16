@@ -1,6 +1,6 @@
 // Package mirakurunapi は、Kotatsu のチューナーサーバー (tunerserver.Client) を、Mirakurun 互換の API の一部として公開する (#1535)。
 //
-// tappu が、EDCB の NetworkTV の TS をほかのロールに配るのに使う。Kotatsu の Mirakurun のクライアント (infra/mirakurun) が
+// nabe が、EDCB の NetworkTV の TS をほかのロールに配るのに使う。Kotatsu の Mirakurun のクライアント (infra/mirakurun) が
 // 使う API (バージョン、チャンネル、サービス、番組、チューナー、イベント、ロゴ、サービスとチャンネルのストリーム) だけを持つ。
 // mirakc の /events と /api/onair は持たないので、クライアントは Mirakurun として扱う。
 package mirakurunapi

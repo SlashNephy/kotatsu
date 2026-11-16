@@ -266,7 +266,7 @@ func TestServerStream(t *testing.T) {
 	ts := bytes.Repeat([]byte{0x47, 0x01, 0x00, 0x10}, 47)
 	tests := []struct {
 		name string
-		// open は、tappu の側でストリームを開く。nil ならサービスがない。
+		// open は、nabe の側でストリームを開く。nil ならサービスがない。
 		open    func() (io.ReadCloser, error)
 		channel bool
 		wantErr error

@@ -79,7 +79,7 @@ EDCBは予約エンジンの完成度が高い一方で、状態を単一のプ�
 | mikan（みかん） | recorder | みかん狩りのように、放送から番組を摘み取ってかごに入れます。 |
 | nekonote（猫の手） | worker | 「猫の手も借りたい」から取りました。録画後の雑用を手分けしてこなします。 |
 | kyusu（急須） | transcoder | 1つの急須から複数の湯呑みにお茶を注ぎます。1つのエンコーダーの出力を複数の視聴者で共有することに対応します。 |
-| tappu（電源タップ） | hub | こたつのコードを挿す電源タップです。1つのコンセントから、いくつもの機器に電気を配ります。EDCBのNetworkTVの1本のTSを、ほかのロールに配ります（#1535）。 |
+| nabe（鍋） | hub | こたつで囲む鍋です。1つの鍋を、みんなでつついて分け合います。EDCBのNetworkTVの1本のTSを、ほかのロールに配ります（#1535）。 |
 | kago（かご） | 保存先プール | みかんを入れておくかごです。 |
 | yunomi（湯呑み） | プレイヤー | 注がれたものを受け取って味わいます。 |
 | futon（布団） | UIのデザインシステム | やわらかく全体を包みます。 |
@@ -99,7 +99,7 @@ EDCBは予約エンジンの完成度が高い一方で、状態を単一のプ�
 | mikan | N | Mirakurunから受け取ったTSのファイルへの書き込みと、書き込み中の解析 | 書く |
 | nekonote | N | Riverのジョブ（サムネイル、容量の管理、取り込んだ録画の解析、通知の配信、アニメの番組と作品の結びつき） | 読み書き |
 | kyusu | 0〜N | サーバー側でのその場トランスコード（任意。GPUノード向け） | 読む |
-| tappu | 0〜1 | EDCBのNetworkTVのTSを、サービスごとに1本開いて、ほかのロールにMirakurun互換のAPIで配る（任意。EDCBのときだけ。[3.1](#31-接続先)） | 使わない |
+| nabe | 0〜1 | EDCBのNetworkTVのTSを、サービスごとに1本開いて、ほかのロールにMirakurun互換のAPIで配る（任意。EDCBのときだけ。[3.1](#31-接続先)） | 使わない |
 
 管理用のサブコマンドとして、`kotatsu migrate`、`kotatsu import epgstation`、`kotatsu admin setup-token`、`kotatsu admin reanalyze`、`kotatsu admin redetect-cm`を持ちます。
 
@@ -117,7 +117,7 @@ flowchart LR
   N[neko] -->|EPG とイベント| M
   R[mikan] -->|録画: 優先度 2、タイムシフト: 優先度 -1| M
   K -->|視聴: 優先度 0| M
-  P[tappu] -->|NetworkTV: EDCB のときだけ| E[EDCB]
+  P[nabe] -->|NetworkTV: EDCB のときだけ| E[EDCB]
   T & R & K -.->|EDCB のストリーム| P
   W[nekonote]
   DB[(PostgreSQL)]
@@ -144,7 +144,7 @@ flowchart LR
 | 録画の割り振り | neko |
 | タイムシフトの割り振り | neko |
 | 録画の実行と引き継ぎ、ドロップの集計、シーク用の索引の作成 | mikan |
-| EDCBのNetworkTVを開き、1本のTSをほかのロールに配る（[3.1](#31-接続先)、#1535） | tappu |
+| EDCBのNetworkTVを開き、1本のTSをほかのロールに配る（[3.1](#31-接続先)、#1535） | nabe |
 | 録り始めに、EIT[p/f]で番組表の番組と録画を書き直し、同じ回を録画済みならやめる（[5.1](#51-録画に使うストリーム)、#1500） | mikan |
 | タイムシフトのチャンクの書き込みと索引の作成 | mikan |
 | 遅れて始めた録画の冒頭を、タイムシフトのバッファから写して補う | mikan |
@@ -182,7 +182,7 @@ Redisなどの追加の依存は持ちません。
 ライブ視聴の中継（mpeg2toh264の経路）には協調が要りません。
 同じチャンネルを見る視聴者が何人いても、Mirakurunが1本のチューナーで相乗りさせるので、どのtenbanが中継しても余分なチューナーを消費しないからです。
 EDCBは相乗りさせないので、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（[3.1](#31-接続先)、#1535）。
-ロールを分けた構成では、tappuがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でtappuを引いて、TSを受け取ります。
+ロールを分けた構成では、nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを引いて、TSを受け取ります。
 エンコーダーを視聴者間で共有する必要があるのは、kyusuの経路だけです。
 
 ### 1.5 録画の受け渡し
@@ -347,7 +347,7 @@ VAAPIとQSVのドライバには、Debianのパッケージ（`mesa-va-drivers`�
 複数のチューナーサーバーを束ねる処理は、MirakurunのリモートチューナーやMahironのremotesといった、チューナーサーバー側の機能に任せます。
 Kotatsuは、スクランブルを解除する機能を持ちません。カードリーダーも扱いません。スクランブルされたまま届いたパケットは、解除せずに数えるだけです。録画では警告を付け（[5.5](#55-録画の状態)）、ライブ視聴では理由を出して止めます（[7.1](#71-再生経路)、#1517）。
 EDCBも、チューナーサーバーとして使えます（#1258）。EPGの同期、チューナーの把握、録画、タイムシフト、ライブ視聴に使います。
-チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）と、Kotatsuがライブと録画に使うBonDriverの名前（`tuner.edcb.bon_drivers`、既定は空で、すべてのチューナーを使う。[3.6](#36-チューナーの把握)、#1532）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、Mirakurun互換のサーバーと同じく、どのロールもEDCBをチューナーサーバーとして使います（#1533）。ロールを分けた構成でtappuを動かしていれば、ストリームだけはtappuから受け取ります（#1535）。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
+チューナーサーバーの種類は、設定（`tuner.kind`、`KOTATSU_TUNER_KIND`）で選びます（#1530）。既定は`mirakurun`（Mirakurun互換。Mirakurun、mirakc、Mahiron）で、`url`を使います。`edcb`を選ぶときは、`url`を空にし、EpgTimerSrvのTCPの待ち受け（`tuner.edcb.address`、host:port、ポートを省けば4510）と、Kotatsuが使うNetworkTVのIDの範囲（`tuner.edcb.network_tv_id_start`と`_count`、既定は1000から32個。[付録A](#付録-a-既定値の一覧)）と、Kotatsuがライブと録画に使うBonDriverの名前（`tuner.edcb.bon_drivers`、既定は空で、すべてのチューナーを使う。[3.6](#36-チューナーの把握)、#1532）を設定します。NetworkTVのIDはEpgTimerSrv全体で1つの名前空間なので、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならない範囲にします。CtrlCmdのTCPにはパスワードもTLSもないので、資格情報の設定はありません。EDCBを選ぶと、Mirakurun互換のサーバーと同じく、どのロールもEDCBをチューナーサーバーとして使います（#1533）。ロールを分けた構成でnabeを動かしていれば、ストリームだけはnabeから受け取ります（#1535）。ログの画面では、URLと同じく、EDCBの接続先のホスト名を伏せます。サービスと番組のIDは、どちらの種類でも同じ式で作るので（[3.2](#32-識別子)）、種類を替えても、DBのサービスと番組をそのまま引き継ぎます。EDCBは物理チャンネルの代わりにTSIDを返すので、サービスのチャンネルだけは書き換わります。
 
 Kotatsuは、チューナーサーバーを、サーバーの種類に依らない型とinterface（`backend/internal/domain/tunerserver`）で扱います。
 チャンネル、サービス、番組、チューナー、イベント、ストリームの開き方と、開けなかった理由（チューナーが足りない、サービスがないなど）は、この型で表します。
@@ -375,14 +375,14 @@ EDCBのサービスと番組は、次のように読み替えます（#1531）�
   - TSは、パケット（188バイト）の区切りで受け手に配ります。途中から加わった受け手も、パケットの区切りから読めます。
   - 受け手ごとに、溜められる量に上限（付録Aの既定値は32 MiB）を設けます。読むのが遅く、上限を超えた受け手だけを切り、ほかの受け手は待たせません。BS4K（毎秒4 MBほど）を録る録画が、ディスクの書き込みで数秒詰まっても切られない量にしています。切られた受け手は、ストリームが途切れたときと同じく、つなぎ直します。
   - 局が変わったときの切断（#1534）は、1本のTSで1度だけ判定し、すべての受け手に同じ理由で知らせます。1回に読んだTSの途中で局が変わったときは、変わったと分かったパケットより前の、自分の局の分は渡します。TSが終わるか切れたときは、NetworkTVを閉じてIDを返してから、受け手に知らせます。受け手がすぐにつなぎ直しても、閉じていないNetworkTVとIDが残らないようにするためです。
-- ロールを分けた構成では、プロセスごとにNetworkTVを開くので、tenbanのライブ視聴とmikanの録画が同じサービスを見ると、チューナーを2本使います。そこで、NetworkTVを開いて配るロール（tappu）を置けるようにします（#1535）。Mirakurun互換のチューナーサーバーでは使いません。Mirakurunが自分で相乗りさせるので、層が増えるだけだからです。
-  - tappuは、自分のプロセスのEDCBのチューナーサーバー（上の分け合う仕組み）を、Mirakurun互換のAPIの一部（`/api/version`、`/api/channels`、`/api/services`、`/api/services/{id}/stream`、`/api/services/{id}/logo`、`/api/channels/{type}/{channel}/stream`、`/api/programs`、`/api/tuners`、`/api/events/stream`）として、インスタンスのサーバーの`/internal/tappu/`の下に公開します。mirakcの`/events`は持たないので、KotatsuのMirakurunのクライアントはMirakurunとして扱います。一覧を読めないときは、空の一覧ではなく503を返します。空の一覧で返すと、受け手がDBのサービスや番組を消してしまうからです。
-  - tappuのAPIは、kyusuと同じく、アプリの秘密キーから導いたトークン（`Authorization: Bearer`）を付けたリクエストだけを受け付けます。用途ごとに別のトークンを導くので、kyusuのトークンではtappuを使えません。EDCBを使うtappuは、アプリの秘密キーがなければ起動しません。
-  - tenban、mikan、kyusuは、tappuを動かしていないプロセスでは、インスタンスの登録簿でtappuを引き、サービスとチャンネルのストリームだけをtappuから受け取ります。サービス、番組、チューナー、イベント、ロゴは、今までどおりEDCBから直接読みます。tappuが何台いても同じサービスは同じtappuから受け取るよう、kyusuと同じく、サービスからtappuを決めます（rendezvous hashing）。`kotatsu all`のようにtappuを同じプロセスで動かしていれば、HTTPを挟まずに分け合います。
-  - tappuに断られたとき（チューナーが足りない、サービスがない）は、そのまま返します。自分で開いても同じ理由で開けないからです。動いているtappuがいないとき、登録簿を引けないとき、tappuに届かないとき、ほかの理由で断られたとき（秘密キーが違うなど）は、今までどおり自分でNetworkTVを開きます。チューナーを余分に使うことより、録画を止めないことを先にします。ただし、DBが止まっているときは、NetworkTVのIDを取れないので、自分でも開けません。DBが止まる前から受け取っていたストリームは、tappuからでも自分で開いたものでも、そのまま受け取り続けます。アプリの秘密キーがないプロセスも、tappuに送るトークンを作れないので、自分で開きます。
-  - tappuが止まったり落ちたりすると、tappuから受け取っていたストリームは切れます。録画は、ストリームが途切れたときと同じくつなぎ直し（[5.4](#54-引き継ぎと再起動)）、そのときにtappuがいなければ、自分でNetworkTVを開きます。止まるtappuは、tenbanの配信と同じく、流しているストリームを打ち切ってから止まります。落ちたtappuのNetworkTVは、持ち主のいないNetworkTVとして、nekoが閉じます。
-  - tappuが、EDCBの予約にチューナーを取られて（#1534）ストリームを終えたときは、その理由を応答のトレーラー（`X-Kotatsu-Stream-Error: tuner-preempted`）で返します。KotatsuのMirakurunのクライアントは、これを受け取ると、チューナーを取られたことにするので、録画の失敗の理由は、EDCBに直接つないだときと同じ`tuner_preempted`になります。ほかの理由で途中で切れたときは、応答を打ち切り、受け手に、流し終えたのではなく切れたと分からせます。
-  - tappuは1台だけ動かします。EDCBは1本のTSを2つまで受け取らせるので、2台のtappuが同じNetworkTVのIDを使えば、チューナーを増やさずに冗長にできそうです（2026年11月に、LinuxのEDCBで、同じプロセスに2つの`RELAY_VIEW_STREAM`をつなげ、同じTSを受け取れること、開いているIDにもう一度`NWTV_ID_SET_CH`を送っても同じプロセスを返して選局し直さないことを確かめました）。ただし、1台が`NWTV_ID_CLOSE`を送ると、もう1台のストリームも切れるので、IDを2台で持つ仕組み（`edcb_network_tvs`の持ち主を複数にする）が要ります。これは後で作ります。
+- ロールを分けた構成では、プロセスごとにNetworkTVを開くので、tenbanのライブ視聴とmikanの録画が同じサービスを見ると、チューナーを2本使います。そこで、NetworkTVを開いて配るロール（nabe）を置けるようにします（#1535）。Mirakurun互換のチューナーサーバーでは使いません。Mirakurunが自分で相乗りさせるので、層が増えるだけだからです。
+  - nabeは、自分のプロセスのEDCBのチューナーサーバー（上の分け合う仕組み）を、Mirakurun互換のAPIの一部（`/api/version`、`/api/channels`、`/api/services`、`/api/services/{id}/stream`、`/api/services/{id}/logo`、`/api/channels/{type}/{channel}/stream`、`/api/programs`、`/api/tuners`、`/api/events/stream`）として、インスタンスのサーバーの`/internal/nabe/`の下に公開します。mirakcの`/events`は持たないので、KotatsuのMirakurunのクライアントはMirakurunとして扱います。一覧を読めないときは、空の一覧ではなく503を返します。空の一覧で返すと、受け手がDBのサービスや番組を消してしまうからです。
+  - nabeのAPIは、kyusuと同じく、アプリの秘密キーから導いたトークン（`Authorization: Bearer`）を付けたリクエストだけを受け付けます。用途ごとに別のトークンを導くので、kyusuのトークンではnabeを使えません。EDCBを使うnabeは、アプリの秘密キーがなければ起動しません。
+  - tenban、mikan、kyusuは、nabeを動かしていないプロセスでは、インスタンスの登録簿でnabeを引き、サービスとチャンネルのストリームだけをnabeから受け取ります。サービス、番組、チューナー、イベント、ロゴは、今までどおりEDCBから直接読みます。nabeが何台いても同じサービスは同じnabeから受け取るよう、kyusuと同じく、サービスからnabeを決めます（rendezvous hashing）。`kotatsu all`のようにnabeを同じプロセスで動かしていれば、HTTPを挟まずに分け合います。
+  - nabeに断られたとき（チューナーが足りない、サービスがない）は、そのまま返します。自分で開いても同じ理由で開けないからです。動いているnabeがいないとき、登録簿を引けないとき、nabeに届かないとき、ほかの理由で断られたとき（秘密キーが違うなど）は、今までどおり自分でNetworkTVを開きます。チューナーを余分に使うことより、録画を止めないことを先にします。ただし、DBが止まっているときは、NetworkTVのIDを取れないので、自分でも開けません。DBが止まる前から受け取っていたストリームは、nabeからでも自分で開いたものでも、そのまま受け取り続けます。アプリの秘密キーがないプロセスも、nabeに送るトークンを作れないので、自分で開きます。
+  - nabeが止まったり落ちたりすると、nabeから受け取っていたストリームは切れます。録画は、ストリームが途切れたときと同じくつなぎ直し（[5.4](#54-引き継ぎと再起動)）、そのときにnabeがいなければ、自分でNetworkTVを開きます。止まるnabeは、tenbanの配信と同じく、流しているストリームを打ち切ってから止まります。落ちたnabeのNetworkTVは、持ち主のいないNetworkTVとして、nekoが閉じます。
+  - nabeが、EDCBの予約にチューナーを取られて（#1534）ストリームを終えたときは、その理由を応答のトレーラー（`X-Kotatsu-Stream-Error: tuner-preempted`）で返します。KotatsuのMirakurunのクライアントは、これを受け取ると、チューナーを取られたことにするので、録画の失敗の理由は、EDCBに直接つないだときと同じ`tuner_preempted`になります。ほかの理由で途中で切れたときは、応答を打ち切り、受け手に、流し終えたのではなく切れたと分からせます。
+  - nabeは1台だけ動かします。EDCBは1本のTSを2つまで受け取らせるので、2台のnabeが同じNetworkTVのIDを使えば、チューナーを増やさずに冗長にできそうです（2026年11月に、LinuxのEDCBで、同じプロセスに2つの`RELAY_VIEW_STREAM`をつなげ、同じTSを受け取れること、開いているIDにもう一度`NWTV_ID_SET_CH`を送っても同じプロセスを返して選局し直さないことを確かめました）。ただし、1台が`NWTV_ID_CLOSE`を送ると、もう1台のストリームも切れるので、IDを2台で持つ仕組み（`edcb_network_tvs`の持ち主を複数にする）が要ります。これは後で作ります。
 
 2026年11月に、同じアンテナにつないだMahironとEDCBで、地上波の両方にある番組5979件を比べました。文字列の94%は一致し、残りのほとんどはNFKCで同じになりました。EDCBは先の番組を短い期間しか持たないので、Mahironにだけある番組が4089件ありました。
 設定から実装を選ぶ所は、ロールを組み立てる`cli`の1か所にまとめます。
@@ -967,7 +967,7 @@ MirakurunからTSを受け取る方法は2通りあります。
 | サービスストリーム（`/api/services/{id}/stream`） | マージンを自由に取れます。時刻予約と同じ仕組みで録れます。 | 終了時刻をKotatsu側で判断する必要があります。 |
 
 Kotatsuはサービスストリーム（`decode=1`）で録画し、終了時刻を自分で判断します。
-EDCBでは、NetworkTVで開いたサービスのTSを、同じように録画します（[3.1](#31-接続先)、#1533）。ロールを分けた構成でtappuを動かしていれば、mikanはtappuからTSを受け取ります（#1535）。
+EDCBでは、NetworkTVで開いたサービスのTSを、同じように録画します（[3.1](#31-接続先)、#1533）。ロールを分けた構成でnabeを動かしていれば、mikanはnabeからTSを受け取ります（#1535）。
 
 - mikanは、開始時刻からマージンとチューニングにかかる時間（既定5秒）を引いた時刻にストリームを開きます。開始時刻からマージンを引いた時刻（予定の開始）までに届いたデータはmikanの時計で読み捨て、その後に届いたデータをすべて書き込みます。録画の先頭は、チューニングにかかる時間に関わらず、設定したマージンの分だけ番組の前になります（#847）。読み捨てる長さはストリームを開いたときに決め、経過時間で測ります。読み捨てている間にサーバーの時計が戻っても（NTPの補正など）、読み捨て続けて冒頭を失わないようにするためです。読み捨てた後は、TSパケットの区切りから書き始めます。予定の開始より後にストリームを開いたとき（つなぎ直しや引き継ぎ）は、読み捨てずに書き込みます。
 - 終了時刻は、最新のEPGから計算します。録画中のチャンネルのEIT[p/f]はMirakurunが解析し、番組の更新としてイベントで届くので、延長や繰り下げはこれで分かります。
@@ -1534,7 +1534,7 @@ distrolessのイメージにはシェルがなく、マルチレプリカ構成�
 | ブラウザ内での変換（mpeg2toh264） | MSEかManagedMediaSourceが使えるブラウザ（iPhoneを含みます。#1256） | 中継だけ | 13〜24 Mbps |
 | サーバー側でのトランスコード（kyusu） | 変換が重い端末、帯域の細い回線 | エンコードあり | 画質に応じて選べます |
 
-EDCBでは、どちらの経路でも、tenbanとkyusuは、NetworkTVのTSを同じプロセスの中で分け合うか、tappuから受け取ります（[3.1](#31-接続先)、#1535）。
+EDCBでは、どちらの経路でも、tenbanとkyusuは、NetworkTVのTSを同じプロセスの中で分け合うか、nabeから受け取ります（[3.1](#31-接続先)、#1535）。
 
 yunomiは、端末の能力と、放送の映像の種類を見て、経路を自動で選びます。
 映像の種類は、番組の映像の解像度とチャンネル種別から決めます（[3.3](#33-epg-の同期)、#806）。
@@ -1926,7 +1926,7 @@ TOTPの秘密キー、VAPIDの秘密キー、Webhookの署名キー、AnnictとA
 前段に認証のプロキシ（Authentikのforward-authなど）を置く構成のために、ブラウザ以外から叩くエンドポイントは`/api`の下にまとめます（#1605）。
 `/api`の下は、セッションのCookieを見ず、APIトークン、パスの秘密の値、署名のどれかだけで認証します。Cookieで認証しないので、前段の認証から外しても、別のサイトからの要求（CSRF）で操作されません。
 前段の認証から外すのは、`/api`、`/.well-known`、`/oauth`、`/mcp`、`/healthz`の5つです。ほかはすべて前段で認証できます。
-画面がセッションのCookieで使うエンドポイントは、`/internal`の下にまとめます。`/internal`は、画面の都合と内部の通信のためのパスで、kyusuのロールの間の中継（`/internal/kyusu/*`、[7.3](#73-kyusu-によるトランスコード)）と、tappuのMirakurun互換のAPI（`/internal/tappu/*`、[3.1](#31-接続先)）も同じ前置きに置きます。
+画面がセッションのCookieで使うエンドポイントは、`/internal`の下にまとめます。`/internal`は、画面の都合と内部の通信のためのパスで、kyusuのロールの間の中継（`/internal/kyusu/*`、[7.3](#73-kyusu-によるトランスコード)）と、nabeのMirakurun互換のAPI（`/internal/nabe/*`、[3.1](#31-接続先)）も同じ前置きに置きます。
 `/api`と`/internal`の下の知らないパスには、画面ではなく404を返します。ルートには、画面だけを置きます。
 
 ### 9.2 初回セットアップ
@@ -2573,10 +2573,10 @@ Docker Composeの例は、停止の猶予（`stop_grace_period`）を、Helm Cha
 | `backend/` | Goのモジュール（`github.com/SlashNephy/kotatsu`） |
 | `backend/cmd/kotatsu/` | エントリポイント |
 | `backend/internal/cli/` | ロールの組み立てとサブコマンド |
-| `backend/internal/usecase/` | ビジネスロジック（`reserve/`、`rule/`、`assign/`、`epg/`、`auth/`など）と、各ロールの中心の処理（`neko/`のリーダー選出、`kyusu/`のトランスコード、`recording/`のmikanの録画、`stream/`のtenbanの配信の元、`tappu/`のEDCBのストリームの配り） |
+| `backend/internal/usecase/` | ビジネスロジック（`reserve/`、`rule/`、`assign/`、`epg/`、`auth/`など）と、各ロールの中心の処理（`neko/`のリーダー選出、`kyusu/`のトランスコード、`recording/`のmikanの録画、`stream/`のtenbanの配信の元、`nabe/`のEDCBのストリームの配り） |
 | `backend/internal/query/` | トランザクションの外の読み取り。DBのプールだけを持ち、`domain`の型を返します |
 | `backend/internal/domain/` | DBに触れない型と規則（番組のジャンルや音声の型、EPGの正規化と囲み文字の表、`match/`のルールの条件の照合、`tunerserver/`のチューナーサーバーの種類に依らない型とinterfaceなど） |
-| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のMirakurun互換のチューナーサーバーのクライアント（応答を`domain/tunerserver`の型に変換します）、`mirakurunapi/`の、`domain/tunerserver`の型をMirakurun互換のAPIとして公開するサーバー（tappuが使います）、`jikkyoclient/`のニコニコ実況のクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
+| `backend/internal/infra/` | DBと外部への接続（`database/`、`mirakurun/`のMirakurun互換のチューナーサーバーのクライアント（応答を`domain/tunerserver`の型に変換します）、`mirakurunapi/`の、`domain/tunerserver`の型をMirakurun互換のAPIとして公開するサーバー（nabeが使います）、`jikkyoclient/`のニコニコ実況のクライアント、`kago/`の保存先プール、`jobs/`、`notify/`など） |
 | `backend/internal/web/` | HTTPの口（`graph/`のGraphQLのスキーマとリゾルバ、`mcpserver/`、`epgstationapi/`、`streamapi/`のtenbanの配信、`jikkyoapi/`の実況のコメント、`avatar/`、`httpserver/`、`spa/`、`webui/`のビルドしたSPAの埋め込み） |
 | `backend/internal/lib/` | ドメインに依らない小さな部品（`clock/`、`config/`、`ts/`、`password/`など） |
 | `backend/internal/testutil/` | テスト用の部品（`databasetest/`、`faketuner/`など） |

@@ -18,16 +18,16 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
-	"github.com/SlashNephy/kotatsu/internal/usecase/tappu"
+	"github.com/SlashNephy/kotatsu/internal/usecase/nabe"
 )
 
-// tappuKeyMaterial は、テストのアプリの秘密キー。
-const tappuKeyMaterial = "a-key-material-that-is-long-enough-for-tests"
+// nabeKeyMaterial は、テストのアプリの秘密キー。
+const nabeKeyMaterial = "a-key-material-that-is-long-enough-for-tests"
 
-// unusedOpener は、tappu から受け取れずに自分で開こうとしたら失敗させる。
+// unusedOpener は、nabe から受け取れずに自分で開こうとしたら失敗させる。
 type unusedOpener struct{}
 
-var errLocalOpen = errors.New("opened the NetworkTV without tappu")
+var errLocalOpen = errors.New("opened the NetworkTV without nabe")
 
 func (unusedOpener) OpenServiceStream(context.Context, int64, *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	return nil, errLocalOpen
@@ -37,31 +37,31 @@ func (unusedOpener) OpenChannelStream(context.Context, string, string, *tunerser
 	return nil, errLocalOpen
 }
 
-// tappuInstances は、1 台の tappu を返す登録簿。
-type tappuInstances struct {
+// nabeInstances は、1 台の nabe を返す登録簿。
+type nabeInstances struct {
 	address string
 }
 
-func (i tappuInstances) ListAlive(context.Context, string) ([]*registry.Instance, error) {
-	return []*registry.Instance{{ID: uuid.Nil(), Role: tappu.Role, Address: i.address, StartedAt: time.Time{}, HeartbeatAt: time.Time{}}}, nil
+func (i nabeInstances) ListAlive(context.Context, string) ([]*registry.Instance, error) {
+	return []*registry.Instance{{ID: uuid.Nil(), Role: nabe.Role, Address: i.address, StartedAt: time.Time{}, HeartbeatAt: time.Time{}}}, nil
 }
 
-// TestTappuSharesNetworkTVAcrossRoles は、ほかのロール (別のプロセス) が tappu から受け取るとき、
-// 同じサービスの受け手が何人いても、tappu が NetworkTV を 1 本だけ開くことを確かめる (#1535)。
-func TestTappuSharesNetworkTVAcrossRoles(t *testing.T) {
+// TestNabeSharesNetworkTVAcrossRoles は、ほかのロール (別のプロセス) が nabe から受け取るとき、
+// 同じサービスの受け手が何人いても、nabe が NetworkTV を 1 本だけ開くことを確かめる (#1535)。
+func TestNabeSharesNetworkTVAcrossRoles(t *testing.T) {
 	t.Parallel()
 
 	s, server, ids, feed := feedServer(t, 0, 0)
-	token, err := tappu.NewToken(tappuKeyMaterial)
+	token, err := nabe.NewToken(nabeKeyMaterial)
 	require.NoError(t, err)
-	hub := httptest.NewServer(tappu.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
+	hub := httptest.NewServer(nabe.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(hub.Close)
-	instances := tappuInstances{address: strings.TrimPrefix(hub.URL, "http://")}
+	instances := nabeInstances{address: strings.TrimPrefix(hub.URL, "http://")}
 
 	// 録画の mikan とライブ視聴の tenban を、別々の Streams で表す。
 	streams := make([]io.ReadCloser, 0, 2)
 	for range 2 {
-		roleStreams := tappu.NewStreams(instances, token, unusedOpener{}, new(clock.Real), slog.New(slog.DiscardHandler))
+		roleStreams := nabe.NewStreams(instances, token, unusedOpener{}, new(clock.Real), slog.New(slog.DiscardHandler))
 		stream, err := roleStreams.OpenServiceStream(t.Context(), nhkSougou, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = stream.Close() })
@@ -85,16 +85,16 @@ func TestTappuSharesNetworkTVAcrossRoles(t *testing.T) {
 	assert.Equal(t, []int32{1000}, released)
 }
 
-// TestTappuClosesNetworkTVWhenRolesLeave は、ほかのロールの受け手が全員去ったら、tappu が NetworkTV を閉じることを確かめる。
-func TestTappuClosesNetworkTVWhenRolesLeave(t *testing.T) {
+// TestNabeClosesNetworkTVWhenRolesLeave は、ほかのロールの受け手が全員去ったら、nabe が NetworkTV を閉じることを確かめる。
+func TestNabeClosesNetworkTVWhenRolesLeave(t *testing.T) {
 	t.Parallel()
 
 	s, server, ids, feed := feedServer(t, 0, 0)
-	token, err := tappu.NewToken(tappuKeyMaterial)
+	token, err := nabe.NewToken(nabeKeyMaterial)
 	require.NoError(t, err)
-	hub := httptest.NewServer(tappu.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
+	hub := httptest.NewServer(nabe.Handler(server, token, "test", slog.New(slog.DiscardHandler)))
 	t.Cleanup(hub.Close)
-	roleStreams := tappu.NewStreams(tappuInstances{address: strings.TrimPrefix(hub.URL, "http://")}, token, unusedOpener{},
+	roleStreams := nabe.NewStreams(nabeInstances{address: strings.TrimPrefix(hub.URL, "http://")}, token, unusedOpener{},
 		new(clock.Real), slog.New(slog.DiscardHandler))
 	streams := make([]io.ReadCloser, 0, 2)
 	for range 2 {
@@ -112,7 +112,7 @@ func TestTappuClosesNetworkTVWhenRolesLeave(t *testing.T) {
 	assert.Equal(t, dataPacket(), readPackets(t, streams[1], 1))
 	assert.Zero(t, countCommand(s, 1074))
 	require.NoError(t, streams[1].Close())
-	// HTTP の接続が切れたことに tappu が気づくのは、少し後になる。
+	// HTTP の接続が切れたことに nabe が気づくのは、少し後になる。
 	require.Eventually(t, func() bool {
 		_, released := ids.state()
 

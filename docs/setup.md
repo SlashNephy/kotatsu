@@ -225,7 +225,7 @@ Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください
 - NetworkTVのIDは、EpgTimerSrv全体で1つの名前空間です。Kotatsuが使う範囲（`tuner.edcb.network_tv_id_start`と`_count`。既定は1000から32個）を、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならないようにしてください。
 - KotatsuとEDCBは、チューナーを取り合います。EDCBの予約が始まると、EDCBはKotatsuが使っているNetworkTVのチューナーを取っていくので、Kotatsuの録画やライブ視聴が切れることがあります。Kotatsuはこれに気づいてつなぎ直しを試み、つなぎ直せなければ、録画の失敗の理由を「EDCBの予約にチューナーを取られた」として残します。
 - EDCBはKotatsuの予約を知りません。EDCBの予約の割り当てや、EDCBのスリープの判断には、Kotatsuの予約は入りません。
-- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu tappu`（`kotatsu hub`）を1台動かしてください。tappuがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でtappuを見つけて、TSを受け取ります。設定は要りません。ただし、tappuと、tappuから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。tappuがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、tappuは何もしません。
+- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu nabe`（`kotatsu hub`）を1台動かしてください。nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを見つけて、TSを受け取ります。設定は要りません。ただし、nabeと、nabeから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。nabeがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、nabeは何もしません。
 - サービスのロゴは、EDCBが集めたもの（`LogoData`）を使います。EDCBがロゴを集めていなければ、Kotatsuが録画とタイムシフトのTSから集めたロゴを使います。
 
 ## WindowsとmacOSの電源の設定
