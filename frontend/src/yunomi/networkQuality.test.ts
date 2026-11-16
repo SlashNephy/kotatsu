@@ -748,3 +748,28 @@ describe('次に試すまでの時間', () => {
     expect(sim.controller.status(sim.now).nextProbeIn).toBeNull();
   });
 });
+
+describe('周期的に途切れる回線 (帯域は足りている)', () => {
+  const start = params.ignoreAfterSwitchMs;
+  // 10 秒ごとに届き直し、その間は 1 秒に 0.35 秒ずつ減るバッファ。周期の終わりごとに、バッファの減少だけが立つ。
+  const periodicDrain = (now: number) => ({ ahead: 3.5 - ((now % 10_000) / 1_000) * 0.35 });
+
+  test.each([
+    {
+      name: 'バッファの減少だけなら、試すまでの無事を途切れさせず、試しのデータを取る',
+      input: periodicDrain,
+      want: 1,
+    },
+    {
+      name: '詰まりは、試すまでの無事を途切れさせる',
+      input: (now: number) => ({ waiting: now % 10_000 >= 9_000 }),
+      want: 0,
+    },
+  ])('$name', ({ input, want }) => {
+    const sim = new Sim('360p').run(start).run(params.probeAfterOkMs + 5_000, input);
+    expect(
+      sim.log.some(({ decision }) => decision.kind === 'step' && decision.direction === 'down'),
+    ).toBe(false);
+    expect(sim.probes()).toHaveLength(want);
+  });
+});

@@ -597,14 +597,19 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       const short = signals.length > 0;
       flags.push({ at: now, short });
       const index = stepIndex(context.ladder, context.current);
+      // バッファの減少だけなら、試すまでの無事を途切れさせない (下げる兆しにだけ使う)。周期的に途切れる回線 (帯域は足りている) では、
+      // 途切れるたびにバッファの減少が立ち、無事が続かず、下げた段から上げられなくなるため。
+      const drainOnly = short && signals.every((signal) => signal === 'drain');
       if (short) {
-        okSince = null;
         rateHeadroomSince = null;
+      }
+      if (short && !drainOnly) {
+        okSince = null;
       } else {
         okSince ??= now;
-        if (index >= 0 && input.receiveRate !== null) {
-          sufficient.set(context.current, input.receiveRate);
-        }
+      }
+      if (!short && index >= 0 && input.receiveRate !== null) {
+        sufficient.set(context.current, input.receiveRate);
       }
       if (!context.automatic) {
         return { kind: 'none' };
