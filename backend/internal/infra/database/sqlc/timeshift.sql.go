@@ -649,7 +649,7 @@ func (q *Queries) ListOpenTimeshiftChunks(ctx context.Context, serviceID int64) 
 }
 
 const listReservationsUsingTunersBetween = `-- name: ListReservationsUsingTunersBetween :many
-SELECT r.id, r.assigned_tuner, s.channel_type, s.channel
+SELECT r.id, r.assigned_tuner, r.service_id, s.channel_type, s.channel
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.enabled
@@ -667,6 +667,7 @@ type ListReservationsUsingTunersBetweenParams struct {
 type ListReservationsUsingTunersBetweenRow struct {
 	ID            uuid.UUID
 	AssignedTuner *int64
+	ServiceID     int64
 	ChannelType   string
 	Channel       string
 }
@@ -684,6 +685,7 @@ func (q *Queries) ListReservationsUsingTunersBetween(ctx context.Context, arg Li
 		if err := rows.Scan(
 			&i.ID,
 			&i.AssignedTuner,
+			&i.ServiceID,
 			&i.ChannelType,
 			&i.Channel,
 		); err != nil {

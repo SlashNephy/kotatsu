@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf16"
+
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 )
 
 const (
@@ -65,15 +67,35 @@ func (t EPGCaptureTime) next(now time.Time) time.Time {
 
 // TimerSettings は、EpgTimerSrv.ini のうち、チューナーの割り当てに使う設定 (#1536)。
 type TimerSettings struct {
+	// Loaded は、EpgTimerSrv.ini を読めたかどうか。偽なら、ほかの項目は既定値。
+	Loaded bool
 	// EPGCaptureTimes は、有効にした EPG の取得の時刻。
 	EPGCaptureTimes []EPGCaptureTime
 	// StartMargin と EndMargin は、マージンを個別に指定していない予約のマージン。
 	StartMargin, EndMargin time.Duration
+	// EPGCaptureAnyBonDriver は、[SET] の NGEpgCapTime が 0 かどうか (#1856)。0 なら、EpgTimerSrv は、取得に使う BonDriver の
+	// どれかに空きチューナーがあれば取得する。0 でなければ (既定は 20 分)、取得に使う BonDriver ごとに、EPGCount の数の空きチューナーが要る。
+	EPGCaptureAnyBonDriver bool
+	// EPGCaptureBonDrivers は、BonDriver の節 (小文字にした名前) ごとの、GetEpg と EPGCount (#1856)。
+	EPGCaptureBonDrivers map[string]tunerserver.EPGCaptureBonDriver
 }
 
 // defaultTimerSettings は、EpgTimerSrv.ini を読めないときの設定。EPG の取得の時刻は分からないので空にする。
 func defaultTimerSettings() *TimerSettings {
-	return &TimerSettings{EPGCaptureTimes: []EPGCaptureTime{}, StartMargin: defaultStartMargin, EndMargin: defaultEndMargin}
+	return &TimerSettings{
+		Loaded: false, EPGCaptureTimes: []EPGCaptureTime{}, StartMargin: defaultStartMargin, EndMargin: defaultEndMargin,
+		EPGCaptureAnyBonDriver: false, EPGCaptureBonDrivers: map[string]tunerserver.EPGCaptureBonDriver{},
+	}
+}
+
+// isBonDriverSection は、EpgTimerSrv.ini の節 (小文字にした名前) が、BonDriver の節になりうるかを返す。
+func isBonDriverSection(name string) bool {
+	switch name {
+	case "set", "epg_cap", "tvtest":
+		return false
+	default:
+		return true
+	}
 }
 
 // timerSettingsCache は、読んだ EpgTimerSrv.ini の設定と、読んだ時刻。
@@ -85,34 +107,59 @@ type timerSettingsCache struct {
 
 // timerSettings は、EpgTimerSrv.ini の設定を返す。timerSettingsTTL の間は、前に読んだものを使う。
 // EpgTimerSrv が返さなければ (互換動作を有効にしていない)、既定の設定 (EPG の取得の時刻は分からないので空) を返す。
+// 読み直せなければ (EDCB に届かないなど)、前に読んだものがあれば使い続ける。設定は利用者が変えたときだけ変わるので、
+// 一時的に届かないだけで、EPG の取得の時刻が分からないものとして扱いを変えないためである (#1856)。
 func (s *TunerServer) timerSettings(ctx context.Context) (*TimerSettings, error) {
 	s.settings.mu.Lock()
 	defer s.settings.mu.Unlock()
-	if s.settings.settings != nil && time.Since(s.settings.loadedAt) < timerSettingsTTL {
+	if s.settings.settings != nil && s.now().Sub(s.settings.loadedAt) < timerSettingsTTL {
 		return s.settings.settings, nil
 	}
 	files, err := s.client.Files(ctx, []string{timerSettingsFile})
 	if err != nil {
+		if s.settings.settings != nil {
+			return s.settings.settings, nil
+		}
+
 		return nil, err
 	}
 	settings := defaultTimerSettings()
 	if len(files) > 0 && len(files[0].Data) > 0 {
 		settings = ParseTimerSettings(files[0].Data)
 	}
-	s.settings.settings, s.settings.loadedAt = settings, time.Now()
+	s.settings.settings, s.settings.loadedAt = settings, s.now()
 
 	return settings, nil
 }
 
-// ParseTimerSettings は、EpgTimerSrv.ini の [SET] のマージンと、[EPG_CAP] の EPG の取得の時刻を読む (EpgTimerSrvSetting.cpp)。
+// ParseTimerSettings は、EpgTimerSrv.ini の [SET] のマージンと NGEpgCapTime、[EPG_CAP] の EPG の取得の時刻、
+// BonDriver の節の GetEpg と EPGCount を読む (EpgTimerSrvSetting.cpp、ReserveManager.cpp)。
 //   - [EPG_CAP] の Count がなければ、毎日 23:00 に取得する (EpgTimerSrv の既定)。
+//   - NGEpgCapTime の既定は 20 (分)。GetEpg の既定は 1 で、EPGCount の既定は 0 (その BonDriver のすべてのチューナー)。
 //   - 時刻は「時:分」で、曜日を指定するときは「w1」(月) 〜「w7」(日) を続ける。{n}Select が 0 なら無効。
 //
 // 文字コードは、UTF-16 (BOM 付き。Windows の EDCB が書く)、UTF-8 (Linux の EDCB) のどちらも読む。キーと値は ASCII だけを読む。
 func ParseTimerSettings(data []byte) *TimerSettings {
 	sections := parseINI(data)
 	settings := defaultTimerSettings()
+	settings.Loaded = true
 	set := sections["set"]
+	if v, ok := atoi(set["ngepgcaptime"]); ok {
+		settings.EPGCaptureAnyBonDriver = v == 0
+	}
+	for name, section := range sections {
+		if !isBonDriverSection(name) {
+			continue
+		}
+		bonDriver := tunerserver.EPGCaptureBonDriver{Disabled: false, Tuners: 0}
+		if v, ok := atoi(section["getepg"]); ok && v == 0 {
+			bonDriver.Disabled = true
+		}
+		if v, ok := atoi(section["epgcount"]); ok {
+			bonDriver.Tuners = v
+		}
+		settings.EPGCaptureBonDrivers[name] = bonDriver
+	}
 	if v, ok := atoi(set["startmargin"]); ok {
 		settings.StartMargin = time.Duration(v) * time.Second
 	}

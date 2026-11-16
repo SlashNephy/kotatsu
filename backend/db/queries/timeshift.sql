@@ -315,7 +315,7 @@ WHERE p.ended_at IS NOT NULL
 
 -- name: ListReservationsUsingTunersBetween :many
 -- from から to までの間にチューナーを使う予約。有効で、チューナーを割り当て済みで、予定が期間と重なるもの。録画中の予約も含む。
-SELECT r.id, r.assigned_tuner, s.channel_type, s.channel
+SELECT r.id, r.assigned_tuner, r.service_id, s.channel_type, s.channel
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.enabled

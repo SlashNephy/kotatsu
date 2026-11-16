@@ -167,7 +167,7 @@ func Run(ctx context.Context, logger *slog.Logger, opts *Options) error {
 // timeshiftOptions は、タイムシフトの割り振りの設定を返す。
 // 録画の割り振りを書く時刻を設定で変えたときは、タイムシフトを外す時刻もそれに合わせる (timeshift.LeadFor)。
 func timeshiftOptions(opts *Options) *timeshift.SchedulerOptions {
-	options := timeshift.SchedulerOptions{Interval: 0, Lead: 0, PollOnly: false, PollInterval: 0}
+	options := timeshift.SchedulerOptions{Interval: 0, Lead: 0, PollOnly: false, PollInterval: 0, ShareByService: false, EPGCapture: nil}
 	if opts.Timeshift != nil {
 		options = *opts.Timeshift
 	}
