@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f8f450dd704ebbbcec36388c487bacd0>>
+ * @generated SignedSource<<2edffe1d72e912262202b1757f0a56bf>>
  * @lightSyntaxTransform
  */
 
@@ -99,6 +99,9 @@ export type RecordingIdQuery$data = {
     readonly scrambled: number;
     readonly scrambledRatio: number | null | undefined;
     readonly service: {
+      readonly channelType: {
+        readonly type: string;
+      };
       readonly jikkyo: {
         readonly id: string;
       } | null | undefined;
@@ -676,11 +679,29 @@ v41 = {
 v42 = {
   "alias": null,
   "args": null,
+  "concreteType": "ChannelType",
+  "kind": "LinkedField",
+  "name": "channelType",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "type",
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v43 = {
+  "alias": null,
+  "args": null,
   "kind": "ScalarField",
   "name": "logoUrl",
   "storageKey": null
 },
-v43 = {
+v44 = {
   "alias": null,
   "args": null,
   "concreteType": "JikkyoChannel",
@@ -690,7 +711,7 @@ v43 = {
   "selections": (v32/*:: as any*/),
   "storageKey": null
 },
-v44 = {
+v45 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -703,7 +724,7 @@ v44 = {
   ],
   "storageKey": null
 },
-v45 = {
+v46 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -896,12 +917,13 @@ return {
                 "selections": [
                   (v3/*:: as any*/),
                   (v42/*:: as any*/),
-                  (v43/*:: as any*/)
+                  (v43/*:: as any*/),
+                  (v44/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v44/*:: as any*/),
-              (v45/*:: as any*/)
+              (v45/*:: as any*/),
+              (v46/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -1003,12 +1025,13 @@ return {
                   (v3/*:: as any*/),
                   (v42/*:: as any*/),
                   (v43/*:: as any*/),
+                  (v44/*:: as any*/),
                   (v6/*:: as any*/)
                 ],
                 "storageKey": null
               },
-              (v44/*:: as any*/),
-              (v45/*:: as any*/)
+              (v45/*:: as any*/),
+              (v46/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -1019,16 +1042,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "3c69047fdae77531b9971ee4edb3a199",
+    "cacheID": "a4201cb5b5fb24e6f9a7df0518c39d33",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        note\n        videoMissingSeconds\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        note\n        videoMissingSeconds\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f3a4a2d3a590cac722ae8f5de4bf4295";
+(node as any).hash = "4a49883331acb144a0c3e24b836b4a0a";
 
 export default node;
