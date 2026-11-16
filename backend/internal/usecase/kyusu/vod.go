@@ -348,7 +348,8 @@ func (v *VOD) serveHTTP(w http.ResponseWriter, r *http.Request, kind string) {
 		return
 	}
 	preset, ok := PresetByName(r.PathValue("preset"))
-	if !ok {
+	// 映像を送らないプリセットは、ライブ視聴でだけ使う (#1513)。録画の仮想 HLS は、映像の I フレームでセグメントを区切る。
+	if !ok || preset.AudioOnly {
 		http.Error(w, "unknown preset", http.StatusNotFound)
 
 		return

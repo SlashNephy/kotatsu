@@ -31,6 +31,9 @@ type Preset struct {
 	// Passthrough は、映像を変換せずに、放送の HEVC のまま送るかどうか (#806)。BS4K の映像を、HEVC を復号できる端末に送る。
 	// Height と VideoBitrate は、BS4K の放送の目安で、変換には使わない。音声は、ほかのプリセットと同じく AAC に変換する。
 	Passthrough bool
+	// AudioOnly は、映像を送らず、音声と字幕だけを送るかどうか (#1513)。画質の「自動」が、最も低い画質でも回線が足りないときに使う。
+	// ライブ視聴でだけ使い、画質の一覧 (Presets) には載せない。Height と VideoBitrate は 0。
+	AudioOnly bool
 }
 
 // PassthroughPreset は、映像を変換しないプリセットの名前。
@@ -44,22 +47,33 @@ const audioBitrate = 128
 // 既定の画質は名前で選ぶ (web の route.ts) ので、60fps を足しても変わらない。
 func Presets() []*Preset {
 	return []*Preset{
-		{Name: "1080p", Height: 1080, VideoBitrate: 6000, Codec: CodecH264, Fields: false, Passthrough: false},
-		{Name: "720p", Height: 720, VideoBitrate: 3500, Codec: CodecH264, Fields: false, Passthrough: false},
-		{Name: "540p", Height: 540, VideoBitrate: 2000, Codec: CodecH264, Fields: false, Passthrough: false},
-		{Name: "360p", Height: 360, VideoBitrate: 1000, Codec: CodecH264, Fields: false, Passthrough: false},
-		{Name: "1080p-hevc", Height: 1080, VideoBitrate: 4000, Codec: CodecHEVC, Fields: false, Passthrough: false},
-		{Name: "720p-hevc", Height: 720, VideoBitrate: 2300, Codec: CodecHEVC, Fields: false, Passthrough: false},
-		{Name: "540p-hevc", Height: 540, VideoBitrate: 1300, Codec: CodecHEVC, Fields: false, Passthrough: false},
-		{Name: "360p-hevc", Height: 360, VideoBitrate: 700, Codec: CodecHEVC, Fields: false, Passthrough: false},
-		{Name: "1080p60", Height: 1080, VideoBitrate: 8500, Codec: CodecH264, Fields: true, Passthrough: false},
-		{Name: "720p60", Height: 720, VideoBitrate: 5000, Codec: CodecH264, Fields: true, Passthrough: false},
-		{Name: PassthroughPreset, Height: 2160, VideoBitrate: 24000, Codec: CodecHEVC, Fields: false, Passthrough: true},
+		{Name: "1080p", Height: 1080, VideoBitrate: 6000, Codec: CodecH264, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "720p", Height: 720, VideoBitrate: 3500, Codec: CodecH264, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "540p", Height: 540, VideoBitrate: 2000, Codec: CodecH264, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "360p", Height: 360, VideoBitrate: 1000, Codec: CodecH264, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "1080p-hevc", Height: 1080, VideoBitrate: 4000, Codec: CodecHEVC, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "720p-hevc", Height: 720, VideoBitrate: 2300, Codec: CodecHEVC, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "540p-hevc", Height: 540, VideoBitrate: 1300, Codec: CodecHEVC, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "360p-hevc", Height: 360, VideoBitrate: 700, Codec: CodecHEVC, Fields: false, Passthrough: false, AudioOnly: false},
+		{Name: "1080p60", Height: 1080, VideoBitrate: 8500, Codec: CodecH264, Fields: true, Passthrough: false, AudioOnly: false},
+		{Name: "720p60", Height: 720, VideoBitrate: 5000, Codec: CodecH264, Fields: true, Passthrough: false, AudioOnly: false},
+		{Name: PassthroughPreset, Height: 2160, VideoBitrate: 24000, Codec: CodecHEVC, Fields: false, Passthrough: true, AudioOnly: false},
 	}
 }
 
-// PresetByName は、名前のプリセットを返す。なければ false を返す。
+// AudioOnlyPreset は、映像を送らず、音声と字幕だけを送るプリセットの名前 (#1513)。
+const AudioOnlyPreset = "audio"
+
+// audioOnlyPreset は、映像を送らないプリセットを返す。画質の一覧には載せない。
+func audioOnlyPreset() *Preset {
+	return &Preset{Name: AudioOnlyPreset, Height: 0, VideoBitrate: 0, Codec: CodecH264, Fields: false, Passthrough: false, AudioOnly: true}
+}
+
+// PresetByName は、名前のプリセットを返す。画質の一覧に載せない、映像を送らないプリセットも返す。なければ false を返す。
 func PresetByName(name string) (*Preset, bool) {
+	if name == AudioOnlyPreset {
+		return audioOnlyPreset(), true
+	}
 	presets := Presets()
 	i := slices.IndexFunc(presets, func(p *Preset) bool { return p.Name == name })
 	if i < 0 {

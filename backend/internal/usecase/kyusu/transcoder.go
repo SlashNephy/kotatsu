@@ -271,6 +271,9 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 	if preset.Passthrough {
 		return passthroughArgs(audio, dir, vod)
 	}
+	if preset.AudioOnly {
+		return audioOnlyArgs(audio, dir)
+	}
 	height := strconv.Itoa(preset.Height)
 	device := []string{}
 	// bwdif の mode は、フィールドごとに 1 フレームにするなら 1、フレームごとなら 0。
@@ -374,6 +377,27 @@ func passthroughArgs(audio Audio, dir string, vod *RunOptions) []string {
 		)
 	}
 
+	args = append(args, liveMuxArgs()...)
+
+	return append(args,
+		"-f", "hls", "-hls_segment_type", "mpegts", "-hls_time", strconv.Itoa(segmentSeconds),
+		"-hls_list_size", strconv.Itoa(playlistSize),
+		"-hls_flags", "delete_segments+independent_segments+temp_file",
+		"-hls_segment_filename", filepath.Join(dir, segmentPattern),
+		filepath.Join(dir, PlaylistName),
+	)
+}
+
+// audioOnlyArgs は、映像を送らないプリセットの FFmpeg の引数を返す (#1513)。ライブ視聴でだけ使う。音声と字幕は、ほかのプリセットと同じく扱う。
+// 映像が無いので、HLS の muxer は、音声のパケットの位置でセグメントを区切る。
+func audioOnlyArgs(audio Audio, dir string) []string {
+	args := make([]string, 0, 40)
+	args = append(args, "-hide_banner", "-loglevel", "warning", "-nostdin")
+	args = append(args, liveTimestampArgs()...)
+	args = append(args, "-f", "mpegts", "-i", "pipe:0", "-map", "0:a:"+audio.streamIndex(), "-map", "0:d?",
+		"-c:a", "aac", "-b:a", strconv.Itoa(audioBitrate)+"k", "-ac", "2", "-ar", "48000",
+		"-c:d", "copy",
+	)
 	args = append(args, liveMuxArgs()...)
 
 	return append(args,

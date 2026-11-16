@@ -186,11 +186,14 @@ func (f *vodFixture) keyframedRecording(t *testing.T, keyframes []time.Duration,
 	return recordingID
 }
 
-// get は、トークンを付けて、録画を 360p にした file を取得する。
+// vodTestPreset は、録画を変換する既定の画質。
+const vodTestPreset = "360p"
+
+// get は、トークンを付けて、録画を vodTestPreset の画質にした file を取得する。
 func (f *vodFixture) get(t *testing.T, recordingID uuid.UUID, file string) (int, []byte) {
 	t.Helper()
 
-	return f.getPreset(t, recordingID, "360p", file)
+	return f.getPreset(t, recordingID, vodTestPreset, file)
 }
 
 // getPreset は、トークンを付けて、録画を preset の画質にした file を取得する。
@@ -621,27 +624,34 @@ func TestVODErrors(t *testing.T) {
 	var segmentID uuid.UUID
 	require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT id FROM recording_files WHERE recording_id = $1", unindexed).Scan(&segmentID))
 	require.NoError(t, os.Remove(filepath.Join(f.dir, kago.IndexLocation(segmentID).Path)))
+	indexed := f.recording(t, "completed", loadTestTS(t))
 	tests := []struct {
 		name        string
 		recordingID uuid.UUID
+		preset      string
 		file        string
 		wantStatus  int
 		wantBody    string
 	}{
 		{
-			name: "録画がない", recordingID: uuid.New(), file: kyusu.PlaylistName,
+			name: "録画がない", recordingID: uuid.New(), preset: vodTestPreset, file: kyusu.PlaylistName,
 			wantStatus: http.StatusNotFound, wantBody: "recording not found",
 		},
 		{
-			name: "索引がまだない", recordingID: unindexed, file: kyusu.PlaylistName,
+			name: "索引がまだない", recordingID: unindexed, preset: vodTestPreset, file: kyusu.PlaylistName,
 			wantStatus: http.StatusServiceUnavailable, wantBody: "the recording is not indexed yet; try again after the analysis",
+		},
+		{
+			// 映像を送らない画質は、ライブ視聴でだけ使う (#1513)。
+			name: "映像を送らない画質", recordingID: indexed, preset: kyusu.AudioOnlyPreset, file: kyusu.PlaylistName,
+			wantStatus: http.StatusNotFound, wantBody: "unknown preset",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			status, body := f.get(t, tt.recordingID, tt.file)
+			status, body := f.getPreset(t, tt.recordingID, tt.preset, tt.file)
 			assert.Equal(t, tt.wantStatus, status)
 			assert.Equal(t, tt.wantBody, strings.TrimSpace(string(body)))
 		})
