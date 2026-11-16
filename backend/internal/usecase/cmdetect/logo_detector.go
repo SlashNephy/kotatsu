@@ -525,9 +525,10 @@ func (d *LogoDetector) learnBands(ctx context.Context, path string, video *video
 
 // keyframeThinning は、キーフレームを、前に残したものから interval 秒以上空いたものだけ残し、ほかのパケットを捨てる
 // FFmpeg のビットストリームフィルター (noise の drop) を返す (#1505)。捨てたパケットはデコードしない。
-// PTS が戻ったら (33 ビットの一周など)、そこから数え直す。式の中の「,」は、フィルターの並びの区切りと見分けるため「\,」と書く。
+// PTS が戻ったら (33 ビットの一周など)、そこから数え直す。PTS のないパケット (式では NaN) は、覚えた PTS を壊さないよう捨てる。
+// 式の中の「,」は、フィルターの並びの区切りと見分けるため「\,」と書く。
 func keyframeThinning(interval float64) string {
-	return fmt.Sprintf(`noise=drop=if(key*(eq(ld(1)\,0)+gte((pts-ld(0))*tb\,%f)+lt(pts\,ld(0)))\,0*st(1\,1)*st(0\,pts)\,1)`, interval)
+	return fmt.Sprintf(`noise=drop=if(key*not(isnan(pts))*(eq(ld(1)\,0)+gte((pts-ld(0))*tb\,%f)+lt(pts\,ld(0)))\,0*st(1\,1)*st(0\,pts)\,1)`, interval)
 }
 
 // cropFilter は、全コマから、ロゴの枠 c (縮めたコマの座標) を切り出す FFmpeg の入力の前の引数とフィルターを返す。
@@ -537,7 +538,7 @@ func keyframeThinning(interval float64) string {
 // 地上波の 1080i とそろう。
 func cropFilter(c logo.Box, scale int) ([]string, string) {
 	if scale == 1 {
-		return nil, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray", c.W, c.H, c.X, c.Y)
+		return []string{}, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray", c.W, c.H, c.X, c.Y)
 	}
 
 	return []string{skipFrameOption, "noref"}, fmt.Sprintf("crop=%d:%d:%d:%d:exact=1,format=gray,scale=%d:%d:flags=area",

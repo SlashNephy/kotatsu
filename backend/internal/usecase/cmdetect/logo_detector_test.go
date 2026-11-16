@@ -206,12 +206,15 @@ func writeZoomedLogoTS(t *testing.T, hideFrom, hideTo, zoom int) string {
 			fmt.Sprintf("drawbox=x=%d:y=20:w=4:h=24:color=white:t=fill:%s", x, shown),
 			fmt.Sprintf("drawbox=x=%d:y=30:w=14:h=4:color=white:t=fill:%s", x, shown))
 	}
+	// 拡大した映像には B フレーム (参照されないコマ) を入れ、縮める映像でデコードしないコマがある並びにする。
+	bFrames := "0"
 	if zoom > 1 {
 		filters = append(filters, fmt.Sprintf("scale=iw*%d:ih*%d:flags=neighbor", zoom, zoom))
+		bFrames = "2"
 	}
 	filter := strings.Join(filters, ",")
 	cmd := exec.CommandContext(t.Context(), "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=640x360:r=30000/1001", "-t", "40",
-		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-f", "mpegts", path)
+		"-vf", filter, "-c:v", "mpeg2video", "-q:v", "4", "-g", "15", "-bf", bFrames, "-f", "mpegts", path)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 
