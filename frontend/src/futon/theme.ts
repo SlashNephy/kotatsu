@@ -3,6 +3,7 @@ import {
   createTheme,
   MultiSelect,
   NumberInput,
+  Popover,
   Select,
   TagsInput,
   Textarea,
@@ -76,6 +77,10 @@ export const theme = createTheme({
   // パスワードの欄 (PasswordInput) と、ワンタイムパスワードの欄 (PinInput) は除く。
   // ログインのユーザー名は、CredentialTextInput で描いて、この既定を外す。
   components: {
+    // ポップオーバー (メニュー、選択肢の一覧を含む) は、押した部品が画面の外に出たと判定しても隠さない (#1663)。
+    // 開き直すと、閉じたときの位置で一度描き、画面の右へはみ出す。スマートフォンのブラウザはレイアウトの幅を広げるので、
+    // ヘッダーの部品が画面の外に出たと判定して隠す。隠すと幅 0 で位置を計り直して、またはみ出す。これを繰り返し、2 回目からは開かない。
+    Popover: Popover.extend({ defaultProps: { hideDetached: false } }),
     Autocomplete: Autocomplete.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
     MultiSelect: MultiSelect.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
     NumberInput: NumberInput.extend({ defaultProps: { ...passwordManagerIgnoreProps } }),
