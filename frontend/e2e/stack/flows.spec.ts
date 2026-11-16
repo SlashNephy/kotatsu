@@ -108,6 +108,10 @@ test('スマートフォンで、ユーザーのメニューを何度でも開�
     await mobile.goto('/reservations');
     const target = mobile.getByRole('button', { name: admin.displayName });
     const menu = mobile.getByRole('menu');
+    // ボタンが右にはみ出していると、直す前でも開けてしまい、このテストで不具合を見分けられない。先に、収まっていることを確かめる。
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x + box!.width).toBeLessThanOrEqual(mobile.viewportSize()!.width);
 
     for (let i = 0; i < 3; i++) {
       await target.tap();
