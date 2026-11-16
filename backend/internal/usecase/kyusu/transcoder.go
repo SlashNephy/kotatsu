@@ -302,6 +302,9 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		// 復号したフレームは CPU のメモリへ戻し、bwdif と縮小は CPU でする。
 		device = []string{"-hwaccel", "cuda"}
 		encoder = map[Codec]string{CodecH264: "h264_nvenc", CodecHEVC: "hevc_nvenc"}[preset.Codec]
+		// -force_key_frames で置くキーフレームを IDR にする。NVENC の既定では IDR でない I フレームになり、
+		// HLS の muxer は IDR でしか区切らないので、セグメントが 2 秒ごとに区切られない (#1845)。
+		options = []string{"-forced-idr", "1"}
 	default:
 		// x264 と x265 は、速さを優先する。
 		encoder = map[Codec]string{CodecH264: "libx264", CodecHEVC: "libx265"}[preset.Codec]

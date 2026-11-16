@@ -600,6 +600,8 @@
       "openRecording": "録画を見る",
       "playTimeshift": "追っかけ再生",
       "searchFilmarks": "Filmarksで探す",
+      "searchTver": "TVerで探す",
+      "searchNhkOne": "NHK ONEで探す",
       "searchSameName": "同じ番組名で探す"
     },
     "view": {
@@ -995,6 +997,38 @@
     "outOfValidity": "期間外",
     "select": "選ぶ",
     "selectDone": "選ぶのをやめる",
+    "selectShown": "表示中の{{count}}件を選ぶ",
+    "deselectShown": "表示中の選択を外す",
+    "filter": {
+      "search": "名前、メモ、キーワードで探す",
+      "state": "状態で絞り込む",
+      "stateAll": "すべての状態",
+      "states": {
+        "enabled": "有効",
+        "disabled": "無効",
+        "outOfValidity": "期間外"
+      },
+      "reservations": "予約で絞り込む",
+      "reservationsAll": "予約の有無を問わない",
+      "reservationStates": {
+        "some": "これからの予約あり",
+        "none": "これからの予約なし"
+      },
+      "count": "{{total}}件中{{shown}}件",
+      "empty": "条件に合うルールはありません",
+      "clear": "絞り込みを解除"
+    },
+    "sort": {
+      "label": "並べ替え",
+      "keys": {
+        "created": "作った日",
+        "name": "名前",
+        "updated": "変えた日",
+        "reservations": "これからの予約の件数"
+      },
+      "ascending": "昇順",
+      "descending": "降順"
+    },
     "cancel": "キャンセル",
     "enableSelected": "選んだ{{count}}件を有効にする",
     "disableSelected": "選んだ{{count}}件を無効にする",
