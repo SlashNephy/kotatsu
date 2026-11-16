@@ -61,6 +61,7 @@ type imagesFixture struct {
 	dir       string
 	ref       Ref
 	reader    *Source
+	tenban    *Source
 	worker    *ImagesWorker
 	extractor *fakeExtractor
 }
@@ -85,7 +86,7 @@ func newImagesFixture(t *testing.T) *imagesFixture {
 	extractor := new(fakeExtractor)
 
 	return &imagesFixture{
-		dir: libraryDir, ref: ref, reader: NewSource(libraries, reader), extractor: extractor,
+		dir: libraryDir, ref: ref, reader: NewSource(libraries, reader), tenban: tenban, extractor: extractor,
 		worker: newImagesWorker(libraries, reader, true, func() (thumbnail.Extractor, error) { return extractor, nil }),
 	}
 }
@@ -153,4 +154,36 @@ func TestImagesWorker(t *testing.T) {
 	var cancel *rivertype.JobCancelError
 	require.ErrorAs(t, err, &cancel)
 	assert.ErrorIs(t, err, errFileChanged)
+}
+
+// TestImagesWorkerWithoutPreview は、プレビュー画像を作らない設定では代表画像だけを作り、前のファイルから作ったプレビュー画像を残さず、
+// 配信もしないことを確かめる。置き場はファイルのパスごとなので、残すと、書き換えた後のファイルに前のファイルのプレビュー画像を出す。
+func TestImagesWorkerWithoutPreview(t *testing.T) {
+	t.Parallel()
+
+	f := newImagesFixture(t)
+	file := f.open(t)
+	args := ImagesArgs{Library: internalLibrary, Path: internalShowTS, FileID: file.ID()}
+	require.NoError(t, f.worker.Work(t.Context(), &river.Job[ImagesArgs]{JobRow: nil, Args: args}))
+	require.Equal(t, http.StatusOK, f.get(t, PreviewFileName).Code)
+
+	// プレビュー画像を作らない設定にしてから、ファイルを書き換える。
+	later := file.Entry.ModifiedAt.Add(time.Minute)
+	require.NoError(t, os.Chtimes(filepath.Join(f.dir, internalShowTS), later, later))
+	var changed *File
+	require.Eventually(t, func() bool {
+		var err error
+		changed, err = f.tenban.Open(t.Context(), f.ref)
+		require.NoError(t, err)
+
+		return changed.Index.Complete
+	}, 10*time.Second, 10*time.Millisecond)
+	worker := newImagesWorker(f.worker.libraries, f.reader.Indexer(), false, func() (thumbnail.Extractor, error) { return f.extractor, nil })
+	args.FileID = changed.ID()
+	require.NoError(t, worker.Work(t.Context(), &river.Job[ImagesArgs]{JobRow: nil, Args: args}))
+	assert.Equal(t, http.StatusOK, f.get(t, ThumbnailFileName).Code)
+	for _, name := range []string{PreviewFileName, ManifestFileName} {
+		assert.Equal(t, http.StatusNotFound, f.get(t, name).Code, name)
+		assert.NoFileExists(t, f.reader.Indexer().ImagePath(f.ref, name), name)
+	}
 }

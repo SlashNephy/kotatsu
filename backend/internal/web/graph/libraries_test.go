@@ -81,9 +81,19 @@ func loadLibraryTS(t *testing.T) []byte {
 	return data
 }
 
+// libraryParts は、ライブラリのテストで、サーバーの外から触る部品。
+type libraryParts struct {
+	// dir は、ライブラリ anime のディレクトリ。
+	dir string
+	// images は、画像を作るジョブを入れる代わりに、入れたジョブを覚える。
+	images *fakeImages
+	// indexer は、索引と画像の置き場を読み書きする。
+	indexer *filelib.Indexer
+}
+
 // newLibraryFixture は、保存先プール main と、フォルダのライブラリ anime を持つ GraphQL のサーバーを立てる。
 // anime には、番組の TS (show/ep1.ts)、再生できないファイル、隠しファイル、Blu-ray の .m2ts (disc.m2ts) を置く。
-func newLibraryFixture(t *testing.T) (*fixture, string, *fakeImages) {
+func newLibraryFixture(t *testing.T) (*fixture, *libraryParts) {
 	t.Helper()
 
 	poolDir, libraryDir, dataDir := t.TempDir(), t.TempDir(), t.TempDir()
@@ -114,14 +124,14 @@ func newLibraryFixture(t *testing.T) (*fixture, string, *fakeImages) {
 
 	images := new(fakeImages)
 
-	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryImages: images}), libraryDir, images
+	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer), LibraryImages: images}), &libraryParts{dir: libraryDir, images: images, indexer: indexer}
 }
 
 // TestLibraries は、保存先プールとフォルダをライブラリとして返し、ディレクトリの中身は、ディレクトリと再生できるファイルだけを返すことを確かめる (#1734)。
 func TestLibraries(t *testing.T) {
 	t.Parallel()
 
-	f, _, _ := newLibraryFixture(t)
+	f, _ := newLibraryFixture(t)
 	viewer := f.as(t, "viewer", domain.RoleViewer)
 	var libraries struct {
 		Libraries []struct {
@@ -192,7 +202,8 @@ func nonNil(codes []string) []string {
 func TestLibraryFile(t *testing.T) {
 	t.Parallel()
 
-	f, libraryDir, images := newLibraryFixture(t)
+	f, parts := newLibraryFixture(t)
+	libraryDir, images, indexer := parts.dir, parts.images, parts.indexer
 	variables := map[string]any{varLibrary: animeLibrary, varPath: episodePath}
 	var file libraryFileResult
 	require.Eventually(t, func() bool {
@@ -218,6 +229,19 @@ func TestLibraryFile(t *testing.T) {
 	assert.Nil(t, file.LibraryFile.ThumbnailURL)
 	assert.Nil(t, file.LibraryFile.PreviewURL)
 	assert.Contains(t, images.kinds(), "library_images_generate")
+	// 画像を作り終えたら、ファイルの ID を付けた URL を返す。プレビュー画像を作っていなければ、代表画像だけを返す。
+	ref := filelib.Ref{Library: animeLibrary, Path: episodePath}
+	dir, err := indexer.ImageDir(ref)
+	require.NoError(t, err)
+	require.NoError(t, filelib.WriteFile(dir, filelib.ThumbnailFileName, []byte("jpeg")))
+	require.NoError(t, indexer.MarkImages(ref, fileID))
+	var made libraryFileResult
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	assert.Equal(t, new("/internal/media/library/"+encoded+"/thumbnail.jpg?v="+fileID), made.LibraryFile.ThumbnailURL)
+	assert.Nil(t, made.LibraryFile.PreviewURL)
+	require.NoError(t, filelib.WriteFile(dir, filelib.PreviewFileName, []byte("jpeg")))
+	require.Empty(t, f.query(t, libraryFileQuery, variables, &made))
+	assert.Equal(t, new("/internal/media/library/"+encoded+"/preview.jpg?v="+fileID), made.LibraryFile.PreviewURL)
 	require.NotNil(t, file.LibraryFile.Broadcast)
 	assert.Equal(t, new(0x7FE0), file.LibraryFile.Broadcast.NetworkID)
 	assert.Equal(t, 0x0400, file.LibraryFile.Broadcast.ServiceID)

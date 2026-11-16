@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/riverqueue/river"
@@ -51,9 +54,11 @@ func (ImagesArgs) InsertOpts() river.InsertOpts {
 		MaxAttempts: imagesMaxAttempts,
 		Priority:    imagesPriority,
 		// 同じファイル (同じ ID) の画像を作るジョブは、待っているか動いている間は重ねない。作り終えたら、画像の記録 (HasImages) で重ねない。
+		// 取りやめたか諦めたジョブ (Iフレームがない、FFmpeg がない、何度試しても作れないなど) も、River が行を消すまでは重ねない。
+		// 画面は画像が届くまで読み直すので、重ねると、開いている間ずっと同じ失敗を繰り返す。
 		UniqueOpts: river.UniqueOpts{ByArgs: true, ByState: []rivertype.JobState{
-			rivertype.JobStateAvailable, rivertype.JobStatePending, rivertype.JobStateRetryable,
-			rivertype.JobStateRunning, rivertype.JobStateScheduled,
+			rivertype.JobStateAvailable, rivertype.JobStateCancelled, rivertype.JobStateDiscarded, rivertype.JobStatePending,
+			rivertype.JobStateRetryable, rivertype.JobStateRunning, rivertype.JobStateScheduled,
 		}},
 	}
 }
@@ -143,20 +148,37 @@ func (w *ImagesWorker) write(ref Ref, fileID string, result *thumbnail.Result) e
 	if err := WriteFile(dir, ThumbnailFileName, result.Thumbnail); err != nil {
 		return err
 	}
-	if result.Preview != nil {
-		manifest, err := json.Marshal(result.Manifest)
-		if err != nil {
-			return fmt.Errorf("failed to encode the preview manifest: %w", err)
-		}
-		if err := WriteFile(dir, PreviewFileName, result.Preview); err != nil {
+	if result.Preview == nil {
+		// 置き場はファイルのパスごとなので、プレビュー画像を作らない設定にした後で書き換えたファイルに、前のファイルのプレビュー画像を残さない。
+		if err := removePreview(dir); err != nil {
 			return err
 		}
-		if err := WriteFile(dir, ManifestFileName, manifest); err != nil {
-			return err
-		}
+
+		return w.indexer.MarkImages(ref, fileID)
+	}
+	manifest, err := json.Marshal(result.Manifest)
+	if err != nil {
+		return fmt.Errorf("failed to encode the preview manifest: %w", err)
+	}
+	if err := WriteFile(dir, PreviewFileName, result.Preview); err != nil {
+		return err
+	}
+	if err := WriteFile(dir, ManifestFileName, manifest); err != nil {
+		return err
 	}
 
 	return w.indexer.MarkImages(ref, fileID)
+}
+
+// removePreview は、置き場 dir のプレビュー画像とその説明を消す。なければ何もしない。
+func removePreview(dir string) error {
+	for _, name := range []string{PreviewFileName, ManifestFileName} {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("failed to remove the old preview: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // ImagesInserter は、ジョブを入れる。*jobs.Client が満たす。
