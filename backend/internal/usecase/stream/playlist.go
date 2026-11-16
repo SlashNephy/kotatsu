@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"time"
 	"uuid"
 
@@ -26,6 +27,8 @@ type segment struct {
 	continued bool
 	// index は、セグメントの索引。索引がなければ空で、そのセグメントには始まりからしか入れない。
 	index []ts.IndexEntry
+	// opener は、プールの外のファイル (ライブラリのファイル。#1734) を開く。nil なら、poolID と path でプールから開く。
+	opener func(ctx context.Context) (File, error)
 }
 
 // piece は、セグメントのうち、配信するバイトの範囲。

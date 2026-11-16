@@ -1,7 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-import { useWatchPositionSaver } from './useWatchPositionSaver';
+import { useLibraryPositionSaver, useWatchPositionSaver } from './useWatchPositionSaver';
 
 // saved は、偽の mutation に渡った再生位置 (ミリ秒)。
 const saved: number[] = [];
@@ -48,5 +48,31 @@ describe('useWatchPositionSaver', () => {
     position = 33;
     rerender({ playing: false });
     expect(saved).toEqual([20_000, 33_000]);
+  });
+});
+
+describe('useLibraryPositionSaver', () => {
+  test('ライブラリのファイルも、止めたら保存し、タブを閉じるときはライブラリの mutation を keepalive で送る', () => {
+    const fetch = vi.fn(() => Promise.resolve(new Response('{}')));
+    vi.stubGlobal('fetch', fetch);
+    let position = 0;
+    const { rerender } = renderHook(
+      ({ playing }) => useLibraryPositionSaver('file', () => position, playing),
+      { initialProps: { playing: true } },
+    );
+    position = 42;
+    rerender({ playing: false });
+    expect(saved).toEqual([42_000]);
+
+    position = 50;
+    window.dispatchEvent(new Event('pagehide'));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.keepalive).toBe(true);
+    expect(JSON.parse(init.body as string)).toEqual({
+      query: expect.stringContaining('saveLibraryWatchPosition') as unknown,
+      variables: { id: 'file', positionMs: 50_000 },
+    });
+    vi.unstubAllGlobals();
   });
 });

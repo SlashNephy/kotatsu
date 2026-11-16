@@ -19,6 +19,8 @@ const (
 	StreamKindRecording StreamKind = "recording"
 	// タイムシフトのバッファの再生。
 	StreamKindTimeshift StreamKind = "timeshift"
+	// ライブラリのファイル (録画として登録していない TS) の再生 (#1734)。
+	StreamKindLibrary StreamKind = "library"
 )
 
 var ErrInvalidStreamKind = errors.New("not a valid StreamKind")
@@ -30,6 +32,7 @@ func StreamKindValues() []StreamKind {
 		StreamKindDataBroadcast,
 		StreamKindRecording,
 		StreamKindTimeshift,
+		StreamKindLibrary,
 	}
 }
 
@@ -50,6 +53,7 @@ var _StreamKindValue = map[string]StreamKind{
 	"data_broadcast": StreamKindDataBroadcast,
 	"recording":      StreamKindRecording,
 	"timeshift":      StreamKindTimeshift,
+	"library":        StreamKindLibrary,
 }
 
 // ParseStreamKind attempts to convert a string to a StreamKind.

@@ -244,6 +244,33 @@ func TestFindOrphansCaptionModels(t *testing.T) {
 	}
 }
 
+// TestFindOrphansLibraryIndexes は、データディレクトリに置いたライブラリのファイルの索引 (#1734) を、DB に行がなくても返さないことを確かめる。
+// 名前が同じだけの、索引の置き場の外のファイルは返す。
+func TestFindOrphansLibraryIndexes(t *testing.T) {
+	t.Parallel()
+
+	f := orphanFixture(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(f.dataRoot, kago.LibraryIndexDir, "0123456789abcdef0123456789abcdef"), 0o755))
+	tests := []struct {
+		name   string
+		path   string
+		orphan bool
+	}{
+		{name: "作り終えた索引", path: kago.LibraryIndexDir + "/0123456789abcdef0123456789abcdef/index", orphan: false},
+		{name: "元のファイルの記録", path: kago.LibraryIndexDir + "/0123456789abcdef0123456789abcdef/source.json", orphan: false},
+		{name: "索引の置き場の外", path: kago.LibraryIndexDir + ".index", orphan: true},
+	}
+	for _, tt := range tests {
+		require.NoError(t, os.WriteFile(filepath.Join(f.dataRoot, filepath.FromSlash(tt.path)), []byte("index"), 0o600))
+	}
+	f.clock.Advance(2 * time.Hour)
+
+	found := f.orphans(t)
+	for _, tt := range tests {
+		assert.Equal(t, tt.orphan, slices.Contains(found, orphan{pool: kago.DataPoolID, path: tt.path, segmentDir: false}), tt.name)
+	}
+}
+
 // TestDeleteOrphans は、DB にないファイルを確かめ直して消し、監査ログに残すことと、使っているファイルやプールの外は消さないことを確かめる。
 func TestDeleteOrphans(t *testing.T) {
 	t.Parallel()

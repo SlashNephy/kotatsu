@@ -133,7 +133,7 @@ func (h *RecordingHandler) downloadsEnabled(w http.ResponseWriter, r *http.Reque
 
 // serveContent は、録画を終えた録画を、長さの決まった 1 本のファイルとして返す。Range に答えるので、外部プレイヤーがシークできる (#535)。
 func (h *RecordingHandler) serveContent(w http.ResponseWriter, r *http.Request, recording *stream.Recording) {
-	content, err := recording.Content()
+	content, err := recording.Content(r.Context())
 	if err != nil {
 		h.internalError(w, r, err)
 

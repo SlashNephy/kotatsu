@@ -1220,6 +1220,21 @@ CREATE INDEX watch_progress_recording_id_idx ON watch_progress (recording_id);
 -- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
 CREATE INDEX watch_progress_updated_at_idx ON watch_progress (updated_at);
 
+-- ユーザーごと、ライブラリのファイルごとの再生位置 (設計書 5.8、8.2、#1734)。録画として登録していない TS を、続きから再生するのに使う。
+-- ファイルは DB に行を持たないので、ライブラリの名前、パス、大きさ、更新日時から作った ID (file_id) で見分ける。
+-- ファイルを書き換えると ID が変わり、前の再生位置は使わない。保持期間は録画の再生位置 (watch_progress) と同じ。
+CREATE TABLE library_watch_progress (
+  user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  file_id text NOT NULL CHECK (file_id ~ '^[0-9a-f]{32}$'),
+  -- ファイルの始まりからの再生位置 (ミリ秒)。
+  position_ms bigint NOT NULL CHECK (position_ms >= 0),
+  updated_at timestamptz NOT NULL,
+  PRIMARY KEY (user_id, file_id)
+);
+
+-- 保持期間を過ぎた再生位置を消すのに使う (#1366)。
+CREATE INDEX library_watch_progress_updated_at_idx ON library_watch_progress (updated_at);
+
 -- 録画履歴 (設計書 4.4)。重複の回避に使う。正常に終了し、ドロップが閾値以下で、スクランブルの警告のない録画だけを記録し、録画を削除しても残す。
 CREATE TABLE recording_history (
   id uuid PRIMARY KEY,

@@ -100,6 +100,8 @@ type Querier interface {
 	CreateStreamURL(ctx context.Context, arg CreateStreamURLParams) error
 	// ユーザーの API トークンを消し、消した名前を返す。ほかのユーザーのトークンは消さない。
 	DeleteAPIToken(ctx context.Context, arg DeleteAPITokenParams) (string, error)
+	// ユーザーの、ライブラリのファイルの再生位置をすべて消す (#1366、#1734)。
+	DeleteAllLibraryWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error)
 	DeleteAllNetworkActivity(ctx context.Context) error
 	// ユーザーの再生位置をすべて消す (#1366)。
 	DeleteAllWatchProgress(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -136,6 +138,8 @@ type Querier interface {
 	DeleteInstance(ctx context.Context, arg DeleteInstanceParams) error
 	// 書き直されなくなった進み具合 (終えたジョブのもの) を消す。
 	DeleteJobProgressBefore(ctx context.Context, before time.Time) (int64, error)
+	// 最後に更新してから before より経った、ライブラリのファイルの再生位置を、古い順に max_count 件まで消す (#1366、#1734)。
+	DeleteLibraryWatchProgressBefore(ctx context.Context, arg DeleteLibraryWatchProgressBeforeParams) (int64, error)
 	DeleteLoginChallenge(ctx context.Context, id uuid.UUID) error
 	// 引いた ChID と期間にあったのに、返ってこなかった放送時間データを消す。期間は db.php と同じく「from < 終了 AND 開始 < to」で決める。
 	DeleteMissingSyobocalPrograms(ctx context.Context, arg DeleteMissingSyobocalProgramsParams) error
@@ -316,6 +320,7 @@ type Querier interface {
 	// 録画の CM の区間を最後に見分け終えた見分け方と、その版と、日時を返す (#1505)。見分け方を替えても、最後に見分けた結果を使う。見分けていなければ行を返さない。
 	GetLatestRecordingCMDetection(ctx context.Context, recordingID uuid.UUID) (GetLatestRecordingCMDetectionRow, error)
 	GetLease(ctx context.Context, name string) (Lease, error)
+	GetLibraryWatchProgress(ctx context.Context, arg GetLibraryWatchProgressParams) (int64, error)
 	GetLoginChallengeForUpdate(ctx context.Context, arg GetLoginChallengeForUpdateParams) (LoginChallenge, error)
 	GetLoginThrottles(ctx context.Context, throttleKeys []string) ([]LoginThrottle, error)
 	GetMinBinaryVersion(ctx context.Context) (int64, error)
@@ -1299,6 +1304,8 @@ type Querier interface {
 	UpsertInstance(ctx context.Context, arg UpsertInstanceParams) error
 	// 動いているジョブの進み具合を書く (#1511)。試し直したら、前の試行の値を置き換える。
 	UpsertJobProgress(ctx context.Context, arg UpsertJobProgressParams) error
+	// ユーザーの、ライブラリのファイルの再生位置を保存する (#1734)。
+	UpsertLibraryWatchProgress(ctx context.Context, arg UpsertLibraryWatchProgressParams) error
 	// ライブで、サービス service_id がスクランブルされたまま届くと決めたことを記録する (設計書 7.1、#1517)。
 	// 決める kyusu と tenban は別のホストのことがあり、時計がずれうる。後から決めたのに日時が戻ると、購読が新しい判定と見分けられないので、
 	// 前の日時より必ず進める。

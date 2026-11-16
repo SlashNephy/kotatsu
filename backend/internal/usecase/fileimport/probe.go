@@ -70,7 +70,7 @@ type Event struct {
 // ReadProbe は、大きさ size の TS r の頭と終わりを読み、録画の情報を返す。
 // 192 バイトのパケットの BDAV なら ErrBDAV を、TS でなければ ErrNotTS を返す。
 func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
-	if err := checkPacketSize(r, size); err != nil {
+	if err := CheckPacketSize(r, size); err != nil {
 		return nil, err
 	}
 
@@ -124,9 +124,9 @@ func ReadProbe(r io.ReaderAt, size int64) (*Probe, error) {
 	return probe, nil
 }
 
-// checkPacketSize は、頭のパケットが 188 バイトごとに sync byte で始まるかを確かめる。
-// 192 バイトごとなら BDAV とみなして ErrBDAV を返す。どちらでもなければ ErrNotTS を返す。
-func checkPacketSize(r io.ReaderAt, size int64) error {
+// CheckPacketSize は、頭のパケットが 188 バイトごとに sync byte で始まるかを確かめる。
+// 192 バイトごとなら BDAV とみなして ErrBDAV を返す。どちらでもなければ ErrNotTS を返す。ライブラリのファイルの再生 (#1734) でも使う。
+func CheckPacketSize(r io.ReaderAt, size int64) error {
 	buf := make([]byte, min(size, bdavPacketSize*(syncPackets+1)))
 	if _, err := r.ReadAt(buf, 0); err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("failed to read the file: %w", err)

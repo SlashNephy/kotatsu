@@ -56,6 +56,24 @@ WHERE w.user_id = @user_id AND w.position_ms >= @min_position_ms::bigint
 ORDER BY w.updated_at DESC, r.id DESC
 LIMIT @max_count;
 
+-- name: UpsertLibraryWatchProgress :exec
+-- ユーザーの、ライブラリのファイルの再生位置を保存する (#1734)。
+INSERT INTO library_watch_progress (user_id, file_id, position_ms, updated_at) VALUES (@user_id, @file_id, @position_ms, @now)
+ON CONFLICT (user_id, file_id) DO UPDATE SET position_ms = EXCLUDED.position_ms, updated_at = EXCLUDED.updated_at;
+
+-- name: GetLibraryWatchProgress :one
+SELECT position_ms FROM library_watch_progress WHERE user_id = @user_id AND file_id = @file_id;
+
+-- name: DeleteAllLibraryWatchProgress :execrows
+-- ユーザーの、ライブラリのファイルの再生位置をすべて消す (#1366、#1734)。
+DELETE FROM library_watch_progress WHERE user_id = @user_id;
+
+-- name: DeleteLibraryWatchProgressBefore :execrows
+-- 最後に更新してから before より経った、ライブラリのファイルの再生位置を、古い順に max_count 件まで消す (#1366、#1734)。
+DELETE FROM library_watch_progress WHERE (user_id, file_id) IN (
+  SELECT w.user_id, w.file_id FROM library_watch_progress w WHERE w.updated_at < @before ORDER BY w.updated_at LIMIT @max_count
+);
+
 -- name: DeleteAllWatchProgress :execrows
 -- ユーザーの再生位置をすべて消す (#1366)。
 DELETE FROM watch_progress WHERE user_id = @user_id;

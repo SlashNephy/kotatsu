@@ -9,6 +9,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
 	"github.com/SlashNephy/kotatsu/internal/query"
@@ -18,6 +19,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -109,6 +111,9 @@ type Resolver struct {
 	logs *logreport.Service
 	// dataDir は、データディレクトリ。字幕の自動生成のモデルを置いたかを確かめ、消すのに使う (#1682)。空ならマウントしていない。
 	dataDir string
+	// libraries は、ファイラーで見せるライブラリ。librarySource は、そのファイルを開き、索引を作り始める (設計書 5.8)。
+	libraries     *medialib.Set
+	librarySource *filelib.Source
 	// captions は、字幕の自動生成の設定 (#1682)。nil なら、モデルの場所を書いていないとみなす。
 	captions *config.Captions
 }
