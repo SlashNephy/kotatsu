@@ -343,6 +343,21 @@ nekonoteが、録画の代表画像と、シークバー用のプレビュー画
 
 性能の低いマシンでは、`true`にすると、代表画像だけを作って負荷を減らせます。
 
+### captions
+
+nekonoteが、録画の音声から字幕を自動生成するときの設定です（#1682）。
+生成には[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`とモデルを使います。どちらもイメージに含まないので、置き方は[セットアップ](setup.md#字幕の自動生成)を見てください。
+生成するかどうかは、録画の既定値の画面（`/admin/recording`）と、ルールと予約で選びます。
+
+| YAML | 環境変数 | 既定値 | 内容 |
+| --- | --- | --- | --- |
+| `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli` | `whisper-cli`のパス |
+| `captions.whisper_model` | `KOTATSU_CAPTIONS_WHISPER_MODEL` | データディレクトリの`whisper/ggml-model.bin` | モデル（ggmlの形式）のパス |
+| `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | `0`（CPUの数の半分。1〜8） | `whisper-cli`に使わせるスレッドの数 |
+
+`whisper-cli`とモデルは、ジョブごとに探します。置き直したら、nekonoteを再起動しなくても、次のジョブから使えます。
+音声を取り出した一時ファイル（1時間の録画で約115 MB）は、`kyusu.work_dir`（空ならOSの一時ディレクトリ）に置き、ジョブを終えたら消します。
+
 ### kyusu
 
 kyusuが、ライブ視聴と録画の再生のために、サーバー側でトランスコードするときの設定です。

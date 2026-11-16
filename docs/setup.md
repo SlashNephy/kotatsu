@@ -240,6 +240,46 @@ WindowsとmacOSで`kotatsu all`を動かすと、録画、ライブ視聴、エ�
 - 休止状態とシャットダウンからは起こせません。外から視聴することも、スリープを解きません。外からいつも観るなら、OSをスリープしない設定にしてください。
 - タイムシフトを有効にしたサービスがあると、ずっとスリープしません。
 
+## 字幕の自動生成
+
+録画を終えた後に、録画の音声から字幕を書き起こし、再生画面で「自動生成」の字幕として出せます（#1682）。
+放送の字幕のない番組を見るときに使えます。誤りが混ざるので、放送の字幕とは見分けて出します。
+書き起こしには[whisper.cpp](https://github.com/ggml-org/whisper.cpp)の`whisper-cli`と、日本語を読めるモデルを使います。
+どちらもイメージに含まないので、nekonoteを動かすマシン（コンテナならその中）に置いてください。
+外部とは通信しません。
+
+1. `whisper-cli`をビルドして置きます。静的にリンクすると、Debianのイメージの中でもそのまま動きます。
+
+   ```bash
+   git clone --depth 1 --branch v1.9.5 https://github.com/ggml-org/whisper.cpp
+   cmake -S whisper.cpp -B whisper.cpp/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DCMAKE_EXE_LINKER_FLAGS=-static
+   cmake --build whisper.cpp/build -j --target whisper-cli
+   ```
+
+   できた`whisper.cpp/build/bin/whisper-cli`を、データディレクトリ（`storage.data_dir`）の`whisper/`などに置きます。
+
+2. モデル（ggmlの形式）を置きます。日本語には[kotoba-whisper v2.0](https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml)（Apache-2.0）を勧めます。
+   既定では、データディレクトリの`whisper/ggml-model.bin`を読みます。
+
+   ```bash
+   mkdir -p data/whisper
+   curl -fL -o data/whisper/ggml-model.bin https://huggingface.co/kotoba-tech/kotoba-whisper-v2.0-ggml/resolve/main/ggml-kotoba-whisper-v2.0-q5_0.bin
+   cp whisper.cpp/build/bin/whisper-cli data/whisper/
+   sudo chown -R 65532:65532 data/whisper
+   ```
+
+3. `whisper-cli`の置き場所を、設定で渡します。Docker Composeなら、`environment`に足します（ほかの項目は[設定](configuration.md#captions)）。
+
+   ```yaml
+   KOTATSU_CAPTIONS_WHISPER_COMMAND: /data/whisper/whisper-cli
+   ```
+
+4. 録画の既定値の画面（`/admin/recording`）で「録画が終わったら字幕を自動生成する」を入れます。ルールと予約ごとにも選べます。
+   録画の詳細の「字幕を生成する」で、録り終えた録画の字幕を作ることもできます。
+
+CPUだけで動かすと、録画の長さの3割ほど（8スレッド）の時間がかかります。
+`whisper-cli`とモデルが見つからないと、ジョブは取りやめ、録画の詳細に置き方を示します。
+
 ## 最初の管理者を作る
 
 管理者がまだいないときは、セットアップトークンを使って最初の管理者を作ります。
