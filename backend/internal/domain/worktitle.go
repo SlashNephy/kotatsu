@@ -14,8 +14,8 @@ var (
 		`ドラマ(?:\d+|イズム|ストリーム|NEO|Paravi|L)?|映画)(?:\s+|([「『]))`)
 	// workQuotedPattern は、枠の名前の後の、かぎ括弧で囲んだ作品名 (土曜ドラマ「作品名」 第3話)。
 	workQuotedPattern = regexp.MustCompile(`^[「『]([^」』]+)[」』]`)
-	// workLenticularPattern は、作品名の途中や後ろに残る、すみ付き括弧の飾り (作品名【最終章へ…】 #6)。
-	workLenticularPattern = regexp.MustCompile(`\s*【[^】]*】\s*`)
+	// workLenticularPattern は、作品名の途中や後ろに残る、すみ付き括弧の飾り (作品名【最終章へ…】 #6)。続けて並んだ飾りは、まとめて 1 つの空白にする。
+	workLenticularPattern = regexp.MustCompile(`(?:\s*【[^】]*】\s*)+`)
 )
 
 // WorkTitle は、番組名から、外部のサービスで作品を探すのに使う作品名を読む (#1650)。
