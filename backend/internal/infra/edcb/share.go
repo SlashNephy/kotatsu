@@ -61,6 +61,15 @@ type broadcast struct {
 	done chan struct{}
 }
 
+// active は、service の NetworkTV を開いているか、開いている途中かを返す。閉じている途中なら false を返す。
+func (s *sharedStreams) active(service ServiceKey) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b := s.streams[service]
+
+	return b != nil && !b.closing
+}
+
 // open は、service の TS を受け取る受け手を返す。開いていなければ開く。
 func (s *sharedStreams) open(ctx context.Context, service ServiceKey) (io.ReadCloser, error) {
 	sub := &subscriber{

@@ -839,6 +839,15 @@ CREATE TABLE tuners (
   updated_at timestamptz NOT NULL
 );
 
+-- チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536、設計書 4.5)。
+-- neko の割り当ては、この時間帯のチューナーを使わない。チューナーの一覧と同じく、変わったら丸ごと入れ替える。
+CREATE TABLE tuner_occupancies (
+  tuner_index bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  PRIMARY KEY (tuner_index, start_at, end_at)
+);
+
 -- チューナーサーバーの状態 (設計書 3.7)。行は 1 つだけ持つ。
 CREATE TABLE tuner_server_status (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),

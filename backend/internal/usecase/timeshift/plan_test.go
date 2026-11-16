@@ -40,7 +40,7 @@ func grMultiplexes(n int) []*timeshift.Multiplex {
 func tuners(n int, types ...string) []*assign.Tuner {
 	list := make([]*assign.Tuner, 0, n)
 	for i := range n {
-		list = append(list, &assign.Tuner{Index: i, Types: types})
+		list = append(list, &assign.Tuner{Index: i, Types: types, Blocks: []assign.Block{}})
 	}
 
 	return list
@@ -89,7 +89,7 @@ func TestPlan(t *testing.T) {
 			name:        "予約が 1 本使えば、番組表の取得にも 1 本残すので、並びの最後の 2 チャンネルを録らない",
 			channels:    grChannels(8),
 			multiplexes: append(grMultiplexes(8), &timeshift.Multiplex{ChannelType: "BS", Channel: bs01}),
-			tuners:      append(tuners(8, "GR"), &assign.Tuner{Index: 8, Types: []string{"BS"}}),
+			tuners:      append(tuners(8, "GR"), &assign.Tuner{Index: 8, Types: []string{"BS"}, Blocks: []assign.Block{}}),
 			busy:        []*timeshift.Busy{{Tuner: 0, ChannelType: "BS", Channel: bs01}},
 			want:        []int64{1, 2, 3, 4, 5, 6},
 		},
@@ -176,7 +176,7 @@ func TestPlan(t *testing.T) {
 				{ServiceID: 2, ChannelType: "GR", Channel: gr1},
 			},
 			multiplexes: []*timeshift.Multiplex{{ChannelType: "BS", Channel: bs01}, {ChannelType: "GR", Channel: gr1}},
-			tuners:      []*assign.Tuner{{Index: 0, Types: []string{"GR", "BS"}}, {Index: 1, Types: []string{"BS"}}},
+			tuners:      []*assign.Tuner{{Index: 0, Types: []string{"GR", "BS"}, Blocks: []assign.Block{}}, {Index: 1, Types: []string{"BS"}, Blocks: []assign.Block{}}},
 			busy:        []*timeshift.Busy{},
 			want:        []int64{1, 2},
 		},
@@ -215,7 +215,7 @@ func TestPlan(t *testing.T) {
 				{ChannelType: "BS", Channel: bs03},
 				{ChannelType: "GR", Channel: gr1},
 			},
-			tuners: []*assign.Tuner{{Index: 0, Types: []string{"GR", "BS"}}, {Index: 1, Types: []string{"BS"}}},
+			tuners: []*assign.Tuner{{Index: 0, Types: []string{"GR", "BS"}, Blocks: []assign.Block{}}, {Index: 1, Types: []string{"BS"}, Blocks: []assign.Block{}}},
 			busy:   []*timeshift.Busy{},
 			want:   []int64{1},
 		},

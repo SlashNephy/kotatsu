@@ -30,7 +30,7 @@ func (q *Queries) ClearDisabledAssignments(ctx context.Context) (int64, error) {
 
 const listAssignableReservations = `-- name: ListAssignableReservations :many
 SELECT r.id, r.kind, r.start_at, r.end_at, r.settings, r.assignment_state, r.assigned_tuner,
-  r.planned_start_at, r.planned_end_at, r.assignment_peers, s.channel_type, s.channel
+  r.planned_start_at, r.planned_end_at, r.assignment_peers, r.service_id, s.channel_type, s.channel
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.enabled AND coalesce(r.planned_end_at, r.end_at) > $1::timestamptz
@@ -48,6 +48,7 @@ type ListAssignableReservationsRow struct {
 	PlannedStartAt  *time.Time
 	PlannedEndAt    *time.Time
 	AssignmentPeers []uuid.UUID
+	ServiceID       int64
 	ChannelType     string
 	Channel         string
 }
@@ -73,6 +74,7 @@ func (q *Queries) ListAssignableReservations(ctx context.Context, now time.Time)
 			&i.PlannedStartAt,
 			&i.PlannedEndAt,
 			&i.AssignmentPeers,
+			&i.ServiceID,
 			&i.ChannelType,
 			&i.Channel,
 		); err != nil {
@@ -110,6 +112,31 @@ func (q *Queries) ListFirstRuleSettings(ctx context.Context, reservationIds []uu
 	for rows.Next() {
 		var i ListFirstRuleSettingsRow
 		if err := rows.Scan(&i.ReservationID, &i.Settings); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTunerOccupancies = `-- name: ListTunerOccupancies :many
+SELECT tuner_index, start_at, end_at FROM tuner_occupancies ORDER BY tuner_index, start_at, end_at
+`
+
+// チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536)。
+func (q *Queries) ListTunerOccupancies(ctx context.Context) ([]TunerOccupancy, error) {
+	rows, err := q.db.Query(ctx, listTunerOccupancies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TunerOccupancy{}
+	for rows.Next() {
+		var i TunerOccupancy
+		if err := rows.Scan(&i.TunerIndex, &i.StartAt, &i.EndAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -1,7 +1,7 @@
 -- name: ListAssignableReservations :many
 -- 割り当ての対象の予約。有効で、録画の予定の終わりがまだ来ていないもの。
 SELECT r.id, r.kind, r.start_at, r.end_at, r.settings, r.assignment_state, r.assigned_tuner,
-  r.planned_start_at, r.planned_end_at, r.assignment_peers, s.channel_type, s.channel
+  r.planned_start_at, r.planned_end_at, r.assignment_peers, r.service_id, s.channel_type, s.channel
 FROM reservations r
 JOIN services s ON s.id = r.service_id
 WHERE r.enabled AND coalesce(r.planned_end_at, r.end_at) > @now::timestamptz
@@ -17,6 +17,10 @@ ORDER BY rr.reservation_id, ru.created_at, ru.id;
 
 -- name: ListUsableTuners :many
 SELECT tuner_index, types FROM tuners WHERE is_available AND NOT is_fault ORDER BY tuner_index;
+
+-- name: ListTunerOccupancies :many
+-- チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536)。
+SELECT tuner_index, start_at, end_at FROM tuner_occupancies ORDER BY tuner_index, start_at, end_at;
 
 -- name: UpdateAssignment :exec
 UPDATE reservations SET

@@ -208,6 +208,7 @@ type Querier interface {
 	DeleteTimeshiftChannel(ctx context.Context, serviceID int64) (int64, error)
 	DeleteTimeshiftChunk(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTimeshiftPromotion(ctx context.Context, recordingID uuid.UUID) (int64, error)
+	DeleteTunerOccupancies(ctx context.Context) error
 	DeleteTuners(ctx context.Context) error
 	// 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 	// 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。
@@ -468,7 +469,9 @@ type Querier interface {
 	// 取り込んだ録画のファイルを記録する。書き終えたファイルなので、大きさと終わりも記録する。
 	InsertImportedRecordingFile(ctx context.Context, arg InsertImportedRecordingFileParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
-	// mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
+	// 録り始めなかった予約の録画を、失敗として記録する。mikan が取らなかった割り振り (#517、recorder_unavailable) と、
+	// チューナーを奪えない EDCB で録りに行かなかった競合した予約 (#1536、tuner_unavailable) に使う。
+	// 録画した時間はないので、始まりと終わりを予定の開始にする。
 	// 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
 	// 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 	InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error)
@@ -523,6 +526,7 @@ type Querier interface {
 	// 同じ番組を昇格している途中なら、何もしない。そのときは 0 を返す。
 	InsertTimeshiftPromotion(ctx context.Context, arg InsertTimeshiftPromotionParams) (int64, error)
 	InsertTuner(ctx context.Context, arg InsertTunerParams) error
+	InsertTunerOccupancy(ctx context.Context, arg InsertTunerOccupancyParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) error
 	InsertUserPasskey(ctx context.Context, arg InsertUserPasskeyParams) error
 	// VAPID の鍵を保存する。ほかのインスタンスが先に作っていたら、そちらを使うので、何もしない。
@@ -852,6 +856,9 @@ type Querier interface {
 	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
 	ListServiceIDs(ctx context.Context) ([]int64, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
+	// チューナーを奪えない EDCB で録りに行かない、競合した予約のうち、予定の開始が過ぎ、録画の行も割り振りもないもの (#1536)。
+	// 録画の失敗として記録する。
+	ListSkippedConflictReservations(ctx context.Context, now time.Time) ([]ListSkippedConflictReservationsRow, error)
 	// 番組か録画に結びついた話のシーズンのうち、キャッシュが before より前に引いたものか、ないものを、古い順に limit 件まで返す。
 	ListStaleLinkedTMDbSeasons(ctx context.Context, arg ListStaleLinkedTMDbSeasonsParams) ([]ListStaleLinkedTMDbSeasonsRow, error)
 	// 番組か録画に結びついた作品のうち、キャッシュが before より前に引いたものか、ないものを、古い順に limit 件まで返す。
@@ -891,6 +898,8 @@ type Querier interface {
 	ListTimeshiftPromotions(ctx context.Context, serviceID int64) ([]ListTimeshiftPromotionsRow, error)
 	// ほかの放送を引く TID を、引いていないものから順に返す。録画を終えてすぐの間は、後から放送されることがあるので、引き直す。
 	ListTitlesForBroadcastLookup(ctx context.Context, arg ListTitlesForBroadcastLookupParams) ([]int32, error)
+	// チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536)。
+	ListTunerOccupancies(ctx context.Context) ([]TunerOccupancy, error)
 	ListTuners(ctx context.Context) ([]ListTunersRow, error)
 	// 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
 	// 選局を断られて失敗したもの (tuning_refused) を、始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。

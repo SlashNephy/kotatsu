@@ -49,14 +49,14 @@ type NetworkTVIDs interface {
 //     EDCB がチューナーを開けなければ tunerserver.ErrTunerUnavailable を包んで返す。
 //   - 同じサービスをすでに開いていれば、新しく開かずに、その TS を分け合う (#1535)。最後の受け手が閉じたら、NetworkTV を閉じる。
 //     読むのが遅く、溜められる上限を超えた受け手は、ErrSubscriberTooSlow で切る。
-func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
+func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	entries, err := s.channelEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for _, entry := range entries {
 		if serviceID(entry.ServiceKey) == id {
-			return s.share.open(ctx, entry.ServiceKey)
+			return s.openShared(ctx, entry.ServiceKey, opts)
 		}
 	}
 
@@ -65,18 +65,29 @@ func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, _ *tuners
 
 // OpenChannelStream は、TSID が channel の TS のサービスのうち、チャンネルの設定で最初のものを開く (#1533)。
 // EDCB の NetworkTV はサービスで絞った TS しか送らないので、ほかのサービスは含まない。そのサービスのストリームと分け合う (#1535)。
-func (s *TunerServer) OpenChannelStream(ctx context.Context, channelType, channel string, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
+func (s *TunerServer) OpenChannelStream(ctx context.Context, channelType, channel string, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	entries, err := s.channelEntries(ctx)
 	if err != nil {
 		return nil, err
 	}
 	for _, entry := range entries {
 		if ChannelType(entry.ONID) == channelType && strconv.Itoa(int(entry.TSID)) == channel {
-			return s.share.open(ctx, entry.ServiceKey)
+			return s.openShared(ctx, entry.ServiceKey, opts)
 		}
 	}
 
 	return nil, fmt.Errorf("%w: channel %s %s", tunerserver.ErrNotFound, channelType, channel)
+}
+
+// openShared は、service のストリームを、分け合う NetworkTV から受け取る。
+// ライブ視聴、kyusu、タイムシフトが新しく NetworkTV を開くときは、EPG の取得のためにチューナーを空けておくかを先に確かめる (#1536)。
+// すでに開いている NetworkTV に加わるだけなら、チューナーを増やさないので確かめない。
+func (s *TunerServer) openShared(ctx context.Context, service ServiceKey, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
+	if viewing(opts) && !s.share.active(service) && s.keepsTunerForEPG(ctx) {
+		return nil, errEPGCapture
+	}
+
+	return s.share.open(ctx, service)
 }
 
 func (s *TunerServer) openNetworkTV(ctx context.Context, service ServiceKey) (io.ReadCloser, error) {
