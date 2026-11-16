@@ -679,7 +679,10 @@ func serve(ctx context.Context, opts *Options, deps *Deps, roles []*Role, all bo
 		return nil
 	})
 
-	return eg.Wait()
+	err = eg.Wait()
+	waitEDCBStreams(ctx, logger, deps)
+
+	return err
 }
 
 // registeredRoles は、インスタンスの登録簿に載せるロールの名前を返す。

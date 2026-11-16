@@ -38,6 +38,8 @@ type TunerServer struct {
 	stopped <-chan struct{}
 	// handoverGrace は、止まるときに、最後の持ち主だった NetworkTV を、ほかのインスタンスが引き継ぐのを待つ時間 (#1850)。
 	handoverGrace time.Duration
+	// streams は、開いて、まだ閉じ終えていない NetworkTV のストリームを数える (#1850)。
+	streams *openStreams
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -94,7 +96,7 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 		client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval,
 		logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}}, share: nil,
 		settings: &timerSettingsCache{mu: sync.Mutex{}, settings: nil, loadedAt: time.Time{}}, now: now,
-		stopped: stopped, handoverGrace: handoverGrace,
+		stopped: stopped, handoverGrace: handoverGrace, streams: newOpenStreams(),
 	}
 	server.share = newSharedStreams(server, bufferSize)
 

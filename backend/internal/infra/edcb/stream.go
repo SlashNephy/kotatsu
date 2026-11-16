@@ -161,6 +161,7 @@ func (s *TunerServer) openNetworkTVID(ctx context.Context, service ServiceKey, e
 	}
 	stream.ReadCloser = relay
 	stream.watch(ctx, service, processID)
+	s.streams.add()
 
 	return stream, nil
 }
@@ -197,6 +198,58 @@ func (s *TunerServer) stopping() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// WaitClosed は、開いた NetworkTV のストリームが、すべて閉じ終えるまで待つ (#1850)。ctx が終わったら待つのをやめ、ctx のエラーを返す。
+// プロセスが止まるときは、最後の持ち主だった NetworkTV を、ほかのインスタンスが引き継ぐのを待ってから閉じるので、
+// その前にプロセスが終わって、NetworkTV を開いたまま残さないよう、終わる前に呼ぶ。
+func (s *TunerServer) WaitClosed(ctx context.Context) error {
+	return s.streams.wait(ctx)
+}
+
+// openStreams は、開いていて、まだ閉じ終えていない NetworkTV のストリームを数える。
+type openStreams struct {
+	mu    sync.Mutex
+	count int
+	// idle は、count が 0 になったら閉じる。
+	idle chan struct{}
+}
+
+func newOpenStreams() *openStreams {
+	idle := make(chan struct{})
+	close(idle)
+
+	return &openStreams{mu: sync.Mutex{}, count: 0, idle: idle}
+}
+
+func (o *openStreams) add() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.count == 0 {
+		o.idle = make(chan struct{})
+	}
+	o.count++
+}
+
+func (o *openStreams) done() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.count--
+	if o.count == 0 {
+		close(o.idle)
+	}
+}
+
+func (o *openStreams) wait(ctx context.Context) error {
+	o.mu.Lock()
+	idle := o.idle
+	o.mu.Unlock()
+	select {
+	case <-idle:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -263,6 +316,7 @@ func (n *networkTVStream) Close() error {
 			errs = append(errs, n.ReadCloser.Close())
 		}
 		n.closeErr = errors.Join(append(errs, n.release(context.Background(), n.server.stopping()))...)
+		n.server.streams.done()
 	})
 
 	return n.closeErr

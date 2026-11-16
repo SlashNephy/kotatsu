@@ -1,6 +1,7 @@
 package edcb_test
 
 import (
+	"context"
 	"io"
 	"sync"
 	"testing"
@@ -68,12 +69,15 @@ func TestTunerServerSharesNetworkTVIDWithOtherInstances(t *testing.T) {
 			if tt.stopping {
 				opts.Stopped = stopped
 			}
-			stream, err := edcb.NewTunerServer(s.client(t), opts).OpenServiceStream(t.Context(), nhkSougou, nil)
+			server := edcb.NewTunerServer(s.client(t), opts)
+			stream, err := server.OpenServiceStream(t.Context(), nhkSougou, nil)
 			require.NoError(t, err)
 			got, err := io.ReadAll(stream)
 			require.NoError(t, err)
 			assert.Equal(t, ts, got)
 			require.NoError(t, stream.Close())
+			// 止まるプロセスは、NetworkTV を閉じ終えるのを待ってから終わる。
+			require.NoError(t, server.WaitClosed(t.Context()))
 
 			ids.mu.Lock()
 			defer ids.mu.Unlock()
@@ -83,4 +87,26 @@ func TestTunerServerSharesNetworkTVIDWithOtherInstances(t *testing.T) {
 			assert.Equal(t, tt.wantCloses, countCommand(s, 1074))
 		})
 	}
+}
+
+func TestTunerServerWaitClosed(t *testing.T) {
+	t.Parallel()
+
+	// 止まるプロセスは、開いた NetworkTV のストリームを閉じ終えるまで待つ (#1850)。閉じる前は、待ちきれずに ctx のエラーを返す。
+	feed := make(chan []byte)
+	t.Cleanup(sync.OnceFunc(func() { close(feed) }))
+	s := streamServer(t, nil, 0)
+	s.replies[301] = reply{status: 1, feed: feed}
+	ids := &fakeIDs{mu: sync.Mutex{}, acquired: []edcb.ServiceKey{}, released: []int32{}}
+	server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{NetworkTVIDs: ids, PreemptionCheckInterval: time.Hour})
+	require.NoError(t, server.WaitClosed(t.Context()))
+	stream, err := server.OpenServiceStream(t.Context(), nhkSougou, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	require.ErrorIs(t, server.WaitClosed(ctx), context.DeadlineExceeded)
+	require.NoError(t, stream.Close())
+	require.NoError(t, server.WaitClosed(t.Context()))
+	assert.Equal(t, 1, countCommand(s, 1074))
 }
