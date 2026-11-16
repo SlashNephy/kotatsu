@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, test } from 'vitest';
 
+import { audioStep } from './networkQuality';
 import {
+  audioOnlyHeight,
   capRoute,
   decodeStepDown,
   ladder,
@@ -20,6 +22,20 @@ const presets: Preset[] = [
   { name: 'source', codec: 'HEVC', passthrough: true },
 ];
 const all = [original, ...presets.map((preset) => preset.name)];
+
+describe('ladder のビットレート', () => {
+  test('kyusu の段は、プリセットの映像のビットレートに音声の 128 kbps を足し、オリジナルと分からない段は null', () => {
+    const withBitrates: Preset[] = [
+      { name: '720p', codec: 'H264', passthrough: false, videoBitrate: 3_500 },
+      { name: '360p', codec: 'H264', passthrough: false },
+    ];
+    expect(ladder([original, '720p', '360p'], withBitrates)).toEqual([
+      { name: original, height: 1081, bitrate: null },
+      { name: '720p', height: 720, bitrate: 3_628_000 },
+      { name: '360p', height: 360, bitrate: null },
+    ]);
+  });
+});
 
 describe('ladder', () => {
   test.each([
@@ -110,8 +126,25 @@ describe('capRoute', () => {
       choices: all,
       want: { kind: 'unavailable', reason: 'shv' },
     },
-  ])('$name', ({ base, cap, choices, want }) => {
-    expect(capRoute(base, cap, ladder(choices, presets))).toEqual(want);
+    {
+      name: '音声だけの上限は、音声だけにしてよければ kyusu の音声だけの画質にする',
+      base: convert,
+      cap: audioOnlyHeight,
+      choices: all,
+      audioOnly: true,
+      want: { kind: 'kyusu', preset: audioStep },
+    },
+    {
+      name: '音声だけにしてはいけなければ (追っかけ)、映像のある最も低い段にする',
+      base: convert,
+      cap: audioOnlyHeight,
+      choices: all,
+      audioOnly: false,
+      want: { kind: 'kyusu', preset: '360p' },
+    },
+  ])('$name', ({ base, cap, choices, want, ...rest }) => {
+    const audioOnly = 'audioOnly' in rest ? rest.audioOnly : false;
+    expect(capRoute(base, cap, ladder(choices, presets), { audioOnly })).toEqual(want);
   });
 });
 

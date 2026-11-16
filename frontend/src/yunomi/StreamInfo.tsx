@@ -33,6 +33,8 @@ import type { LiveCatchUp } from './liveCatchUp';
 import type { LiveBufferStatus } from './liveBuffer';
 import type { VideoLag } from './useVideoLag';
 import type { VideoLagStatus } from './videoLag';
+import type { NetworkStatus } from './networkQuality';
+import type { NetworkQuality } from './useNetworkQuality';
 import classes from './StreamInfo.module.css';
 
 // useStreamMeter は、再生している経路から届く様子を溜める StreamMeter を作る (#828)。
@@ -72,6 +74,8 @@ type Snapshot = {
   liveBuffer: LiveBufferStatus | null;
   // videoLag は、映像だけの遅れと飛び直しの様子 (#1513)。測っていなければ null。
   videoLag: VideoLagStatus | null;
+  // network は、回線の側の判定の様子 (#1513)。判定していなければ null。
+  network: NetworkStatus | null;
 };
 
 // maxDelaySeconds は、放送からの遅れとして出す上限。これを超える値は、組と画面の時刻の取り違えとみなして出さない。
@@ -127,6 +131,8 @@ type Props = {
   liveCatchUp?: LiveCatchUp;
   // videoLag は、映像だけの遅れの制御 (#1513)。渡せば、測った遅れと飛び直した回数を出す。
   videoLag?: VideoLag;
+  // network は、回線の側の判定 (#1513)。渡せば、受け取りの速さと足りない兆し、試しのデータの速さを出す。
+  network?: Pick<NetworkQuality, 'status'>;
   // height は、枠の高さ。CSS の長さで渡す。
   height?: string | number;
 };
@@ -146,6 +152,7 @@ export function StreamInfo({
   recordedKinds,
   liveCatchUp,
   videoLag,
+  network,
   height = 240,
 }: Props) {
   const { t } = useTranslation();
@@ -155,6 +162,7 @@ export function StreamInfo({
   // readLiveBuffer は、低遅延モードの制御の様子を読む。画面を描き直すたびに読み直しの間隔を作り直さないよう、effect の外から読む。
   const readLiveBuffer = useEffectEvent(() => liveCatchUp?.status() ?? null);
   const readVideoLag = useEffectEvent(() => videoLag?.status() ?? null);
+  const readNetwork = useEffectEvent(() => network?.status() ?? null);
   useEffect(() => {
     const frames: FrameCount[] = [];
     const update = () => {
@@ -188,6 +196,7 @@ export function StreamInfo({
         delay: delayOf(video, meter.mediaOrigin, clock.current, now),
         liveBuffer: readLiveBuffer(),
         videoLag: readVideoLag(),
+        network: readNetwork(),
       });
     };
     update();
@@ -211,6 +220,7 @@ export function StreamInfo({
   const stats = snapshot?.video ?? null;
   const liveBuffer = snapshot?.liveBuffer ?? null;
   const lag = snapshot?.videoLag ?? null;
+  const net = snapshot?.network ?? null;
   const encoded = snapshot?.encoded ?? null;
   const source = snapshot?.source ?? null;
   // TS の異常の数は、録画では録画しながら数えた数を、ブラウザ内での変換ではプレイヤーが数えた数を、
@@ -399,6 +409,42 @@ export function StreamInfo({
                       jumps: lag.jumps,
                     })
                   : t('player.streamInfo.videoLagUnmeasurable', { jumps: lag.jumps })}
+              </dd>
+            </>
+          )}
+          {net !== null && (
+            <>
+              <dt>{t('player.streamInfo.network')}</dt>
+              <dd>
+                {t('player.streamInfo.networkValue', {
+                  rate:
+                    net.receiveRate === null
+                      ? t('player.streamInfo.networkUnknownRate')
+                      : formatBitrate(net.receiveRate),
+                  signals:
+                    net.signals.length === 0
+                      ? t('player.streamInfo.networkNone')
+                      : net.signals
+                          .map((signal) => t(`player.streamInfo.networkSignals.${signal}`))
+                          .join('、'),
+                })}
+                {net.probe !== null && (
+                  <>
+                    <br />
+                    {t('player.streamInfo.networkProbe', {
+                      rate: formatBitrate(net.probe.bps),
+                      ago: Math.round(net.probe.ageMs / 1_000),
+                    })}
+                  </>
+                )}
+                {net.nextProbeIn !== null && (
+                  <>
+                    <br />
+                    {t('player.streamInfo.networkNextProbe', {
+                      seconds: Math.ceil(net.nextProbeIn / 1_000),
+                    })}
+                  </>
+                )}
               </dd>
             </>
           )}

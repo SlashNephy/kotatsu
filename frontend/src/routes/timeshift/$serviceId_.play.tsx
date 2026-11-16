@@ -228,6 +228,7 @@ const playQuery = graphql`
         name
         codec
         passthrough
+        videoBitrate
       }
     }
   }
@@ -397,8 +398,18 @@ function Player({
 
         return next;
       },
+      current: playback.current,
+      networkLadder: playback.networkLadder,
+      setNetworkStep: (name) => {
+        restartAt(positionRef.current);
+        playback.setNetworkStep(name);
+      },
     },
-    { stepDown: onAir },
+    // バッファは先に読むので、受け取りの速さで余裕を確かめて上げる。
+    {
+      stepDown: onAir,
+      network: { mode: 'rate', convert: route.kind === 'convert', topBitrate: null },
+    },
   );
   // 音声は、経路ごとのメニューで選ぶ。バッファの番組の音声の構成は分からないので、プレイヤーに任せる。
   const audio = usePlayerAudio(route, null, () => restartAt(positionRef.current));
@@ -783,7 +794,10 @@ function Player({
           onError={resumeAfterCut}
           onState={onConvertState}
           onAudio={audio.onAudio}
-          onReading={streamMeter.onReading}
+          onReading={(reading) => {
+            streamMeter.onReading(reading);
+            adaptive.network.onReading(reading);
+          }}
           audio={audio.convertAudio}
           overlay={
             <>
@@ -805,7 +819,10 @@ function Player({
           url={`${hlsURL(program.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
-          onSegment={streamMeter.onSegment}
+          onSegment={(segment) => {
+            streamMeter.onSegment(segment);
+            adaptive.network.onSegment(segment);
+          }}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
@@ -904,6 +921,7 @@ function Player({
               content: (
                 <StreamInfo
                   videoLag={adaptive.videoLag}
+                  network={adaptive.network}
                   meter={streamMeter.meter}
                   video={video}
                   quality={playback.current}

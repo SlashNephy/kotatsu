@@ -194,8 +194,8 @@ export type NetworkStatus = {
   signals: Signal[];
   // receiveRate は、最後の刻みで受け取った速さ (bps)。
   receiveRate: number | null;
-  // probe は、最後に試しで測った速さ (bps) と、その時刻。
-  probe: { bps: number; at: number } | null;
+  // probe は、最後に試しで測った速さ (bps) と、測ってからの時間 (ミリ秒)。
+  probe: { bps: number; ageMs: number } | null;
   // nextProbeIn は、次に試すまでの時間 (ミリ秒)。試す経路でなければ null。
   nextProbeIn: number | null;
   // encoderLagging は、サーバー側の変換が間に合っていないとみなしたか。
@@ -246,7 +246,11 @@ function videoSteps(ladder: readonly Step[]): Step[] {
 
 // probeBytes は、次の段 need (bps) を試すのに取る量。(need × 試しの余裕の倍率 − 今の受け取りの速さ) で、試しの量の時間かかる量にし、
 // 下限と上限に丸める。
-export function probeBytes(need: number, receiveRate: number | null, params: NetworkParams): number {
+export function probeBytes(
+  need: number,
+  receiveRate: number | null,
+  params: NetworkParams,
+): number {
   const bits = (need * params.probeHeadroom - (receiveRate ?? 0)) * params.probeSeconds;
 
   return Math.round(Math.min(Math.max(bits / 8, params.probeMinBytes), params.probeMaxBytes));
@@ -307,6 +311,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   let nextProbeAt = -Infinity;
   let inFlight = false;
   let lastProbe: { bps: number; at: number } | null = null;
+  // measuredProbe は、再生の情報に出す、最後に試しで測った速さ。上げるかを決めても捨てない。
+  let measuredProbe: { bps: number; at: number } | null = null;
   let pending: PendingUp | null = null;
   // sufficient は、段ごとの、足りていた間の受け取りの速さ。最高画質へ戻すときに比べる。
   const sufficient = new Map<string, number>();
@@ -402,10 +408,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       encodeSlowSince !== null && now - encodeSlowSince >= params.encodeSlowDurationMs;
     lowSince = input.lowReadyState ? (lowSince ?? now) : null;
     // サーバのエンコードが遅れている間は、詰まりもバッファの減少も回線のせいにしない。
-    if (
-      !encodeSlow &&
-      (input.waiting || (lowSince !== null && now - lowSince >= params.stallMs))
-    ) {
+    if (!encodeSlow && (input.waiting || (lowSince !== null && now - lowSince >= params.stallMs))) {
       signals.push('stall');
     }
     if (input.frameAgeMs !== null && input.frameAgeMs >= params.frameGapMs) {
@@ -643,10 +646,12 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       switch (outcome.kind) {
         case 'measured':
           lastProbe = { bps: outcome.bps, at: now };
+          measuredProbe = lastProbe;
           break;
         case 'failed':
           // 測っていないことにすると、刻みごとに取りに行くので、余裕が無かったと測ったことにする。
           lastProbe = { bps: 0, at: now };
+          measuredProbe = lastProbe;
           break;
         case 'rateLimited':
           nextProbeAt = now + (outcome.retryAfterMs ?? params.probeAfterOkMs);
@@ -671,7 +676,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       return {
         signals: lastSignals,
         receiveRate: lastRate,
-        probe: lastProbe,
+        probe:
+          measuredProbe === null ? null : { bps: measuredProbe.bps, ageMs: now - measuredProbe.at },
         nextProbeIn: nextProbeIn === null ? null : Math.max(nextProbeIn, 0),
         encoderLagging,
         steps,

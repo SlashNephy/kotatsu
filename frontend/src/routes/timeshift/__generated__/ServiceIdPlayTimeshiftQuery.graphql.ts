@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<24743ce0f0e0d15a14b34becf9bdfed0>>
+ * @generated SignedSource<<cdd23e522e2b13bf7cb58ce60e64ac74>>
  * @lightSyntaxTransform
  */
 
@@ -38,6 +38,7 @@ export type ServiceIdPlayTimeshiftQuery$data = {
       readonly codec: VideoCodec;
       readonly name: string;
       readonly passthrough: boolean;
+      readonly videoBitrate: number;
     }>;
   };
 };
@@ -189,6 +190,13 @@ v11 = {
           "kind": "ScalarField",
           "name": "passthrough",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "videoBitrate",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -289,16 +297,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "5763ac454dd75b395d1f72ee13335903",
+    "cacheID": "be020695a884ed8d42bbec5554cc966a",
     "id": null,
     "metadata": {},
     "name": "ServiceIdPlayTimeshiftQuery",
     "operationKind": "query",
-    "text": "query ServiceIdPlayTimeshiftQuery(\n  $serviceId: ID!\n  $startAt: Time!\n) {\n  timeshiftProgram(serviceId: $serviceId, startAt: $startAt) {\n    name\n    startAt\n    endAt\n    playableFrom\n    gaps {\n      from\n      to\n    }\n    streamUrl\n    hlsUrl\n    service {\n      name\n      logoUrl\n      videoFormat\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query ServiceIdPlayTimeshiftQuery(\n  $serviceId: ID!\n  $startAt: Time!\n) {\n  timeshiftProgram(serviceId: $serviceId, startAt: $startAt) {\n    name\n    startAt\n    endAt\n    playableFrom\n    gaps {\n      from\n      to\n    }\n    streamUrl\n    hlsUrl\n    service {\n      name\n      logoUrl\n      videoFormat\n      id\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n      videoBitrate\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "3b2bbbd4420e38ff5400fcd817aea53e";
+(node as any).hash = "667d6fcc72b3a5fffd489801145dd244";
 
 export default node;

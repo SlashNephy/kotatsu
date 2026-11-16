@@ -116,7 +116,12 @@ describe('chooseDown', () => {
       rate: 10_000_000,
       want: '540p',
     },
-    { name: '収まる段が無ければ、映像のある最も低い段', current: '1080p', rate: 500_000, want: '360p' },
+    {
+      name: '収まる段が無ければ、映像のある最も低い段',
+      current: '1080p',
+      rate: 500_000,
+      want: '360p',
+    },
     { name: '速さが分からなければ 1 段下げる', current: '720p', rate: null, want: '540p' },
     { name: 'オリジナルからも 1 段', current: 'original', rate: null, want: '1080p' },
     { name: '映像のある最も低い段からは下げない', current: '360p', rate: 100_000, want: null },
@@ -137,7 +142,12 @@ describe('probeBytes', () => {
     },
     { name: '下限に丸める', need: 1_128_000, rate: 1_000_000, want: params.probeMinBytes },
     { name: '上限に丸める', need: 20_000_000, rate: 0, want: params.probeMaxBytes },
-    { name: '受け取りの速さが分からなければ 0 とみなす', need: 2_000_000, rate: null, want: 650_000 },
+    {
+      name: '受け取りの速さが分からなければ 0 とみなす',
+      need: 2_000_000,
+      rate: null,
+      want: 650_000,
+    },
   ])('$name', ({ need: needed, rate, want }) => {
     expect(probeBytes(needed, rate, params)).toBe(want);
   });
@@ -278,15 +288,31 @@ describe('足りない兆し', () => {
   });
 
   test.each([
-    { name: '窓の間に伸びの閾値以上伸びたら数える', perSecond: 0.1, mode: 'probe' as const, want: true },
-    { name: '伸びの閾値に満たなければ数えない', perSecond: 0.05, mode: 'probe' as const, want: false },
-    { name: '録画の再生 (受け取りの速さの経路) では見ない', perSecond: 0.1, mode: 'rate' as const, want: false },
+    {
+      name: '窓の間に伸びの閾値以上伸びたら数える',
+      perSecond: 0.1,
+      mode: 'probe' as const,
+      want: true,
+    },
+    {
+      name: '伸びの閾値に満たなければ数えない',
+      perSecond: 0.05,
+      mode: 'probe' as const,
+      want: false,
+    },
+    {
+      name: '録画の再生 (受け取りの速さの経路) では見ない',
+      perSecond: 0.1,
+      mode: 'rate' as const,
+      want: false,
+    },
   ])('放送に対する遅れの伸び: $name', ({ perSecond, mode, want }) => {
     const sim = new Sim('720p', mode).run(start);
     const begin = sim.now;
     sim.run(params.lagWindowMs + 2_000, (now) => ({
       // キーフレームの塊で揺れても、区間の最小値で比べる。
-      broadcastLag: 10 + ((now - begin) / 1_000) * perSecond + ((now / params.tickMs) % 4 === 0 ? 0.8 : 0),
+      broadcastLag:
+        10 + ((now - begin) / 1_000) * perSecond + ((now / params.tickMs) % 4 === 0 ? 0.8 : 0),
     }));
     expect(sim.moves().length > 0).toBe(want);
   });
@@ -301,13 +327,22 @@ describe('足りない兆し', () => {
   });
 
   test.each([
-    { name: 'バックログが継続時間のあいだ伸び続けたら数える', step: 1_000, ms: params.backlogDurationMs + 500, want: true },
+    {
+      name: 'バックログが継続時間のあいだ伸び続けたら数える',
+      step: 1_000,
+      ms: params.backlogDurationMs + 500,
+      want: true,
+    },
     { name: '伸びが止まったら数え直す', step: 0, ms: 10_000, want: false },
   ])('$name', ({ step, ms, want }) => {
     const sim = new Sim('720p').run(start);
     const begin = sim.now;
     sim.run(ms, (now) => ({
-      server: { backlogBytes: 1_000 + ((now - begin) / params.tickMs) * step, dropped: false, encodeSpeed: null },
+      server: {
+        backlogBytes: 1_000 + ((now - begin) / params.tickMs) * step,
+        dropped: false,
+        encodeSpeed: null,
+      },
     }));
     expect(sim.moves().length > 0).toBe(want);
   });
@@ -409,7 +444,9 @@ describe('試しのデータで上げる (ライブ)', () => {
 
   test('足りない兆しが無い状態が試すまでの無事の時間続いたら試し、余裕があれば 1 段上げる', () => {
     const sim = new Sim('540p').run(start).run(params.probeAfterOkMs, { receiveRate: 2_128_000 });
-    expect(sim.probes()).toEqual([{ at: start + params.probeAfterOkMs, bytes: probeBytes(3_628_000, 2_128_000, params) }]);
+    expect(sim.probes()).toEqual([
+      { at: start + params.probeAfterOkMs, bytes: probeBytes(3_628_000, 2_128_000, params) },
+    ]);
     expect(sim.controller.probing()).toBe(true);
     sim.controller.probed(sim.now, { kind: 'measured', bps: 3_000_000 });
     sim.run(500, { receiveRate: 2_128_000 });
@@ -432,7 +469,11 @@ describe('試しのデータで上げる (ライブ)', () => {
   });
 
   test.each([
-    { name: '5xx か打ち切りは、余裕が無かったとみなす', outcome: { kind: 'failed' as const }, wantNextProbe: params.probeAfterOkMs + 500 },
+    {
+      name: '5xx か打ち切りは、余裕が無かったとみなす',
+      outcome: { kind: 'failed' as const },
+      wantNextProbe: params.probeAfterOkMs + 500,
+    },
     {
       name: '429 なら Retry-After の間は測らない',
       outcome: { kind: 'rateLimited' as const, retryAfterMs: 50_000 },
@@ -462,7 +503,9 @@ describe('試しのデータで上げる (ライブ)', () => {
   });
 
   test('音声だけからも、試しのデータで映像のある段へ戻す', () => {
-    const sim = new Sim(audioStep).run(start).run(params.probeAfterOkMs, { frameAgeMs: null, receiveRate: 128_000 });
+    const sim = new Sim(audioStep)
+      .run(start)
+      .run(params.probeAfterOkMs, { frameAgeMs: null, receiveRate: 128_000 });
     sim.controller.probed(sim.now, { kind: 'measured', bps: 2_000_000 });
     sim.run(500, { frameAgeMs: null, receiveRate: 128_000 });
     expect(sim.moves().map((move) => move.to)).toEqual(['360p']);
@@ -486,9 +529,12 @@ describe('試しのデータで上げる (ライブ)', () => {
     expect(sim.moves().at(-1)).toMatchObject({ to: '540p', direction: 'down', reason: 'upFailed' });
     const backAt = sim.moves().at(-1)!.at;
     sim.run(params.ignoreAfterSwitchMs + params.probeAfterOkMs * 2);
-    expect(sim.probes().filter((probe) => probe.at > backAt).map((probe) => probe.at - backAt)).toEqual([
-      params.ignoreAfterSwitchMs + params.probeAfterOkMs * 2,
-    ]);
+    expect(
+      sim
+        .probes()
+        .filter((probe) => probe.at > backAt)
+        .map((probe) => probe.at - backAt),
+    ).toEqual([params.ignoreAfterSwitchMs + params.probeAfterOkMs * 2]);
   });
 
   test('上げた段で見張り時間のあいだ問題なく続けば、待ちの倍率を初期値に戻す', () => {
@@ -512,7 +558,12 @@ describe('試しのデータで上げる (ライブ)', () => {
     sim.run(500);
     const upAt = sim.now;
     sim.run(params.upToDisplayMs);
-    expect(sim.moves().at(-1)).toEqual({ at: upAt + params.upToDisplayMs, to: '540p', direction: 'down', reason: 'upFailed' });
+    expect(sim.moves().at(-1)).toEqual({
+      at: upAt + params.upToDisplayMs,
+      to: '540p',
+      direction: 'down',
+      reason: 'upFailed',
+    });
   });
 
   test('一時停止している間は、無事の時間に数えない', () => {
@@ -529,8 +580,18 @@ describe('受け取りの速さで上げる (録画の再生)', () => {
   const start = params.ignoreAfterSwitchMs;
 
   test.each([
-    { name: '次の段の上げる余裕の倍率以上が継続時間続けば 1 段上げる', rate: 5_500_000, ms: params.upDurationMs + 500, want: ['720p'] },
-    { name: '継続時間に満たなければ上げない', rate: 5_500_000, ms: params.upDurationMs - 500, want: [] },
+    {
+      name: '次の段の上げる余裕の倍率以上が継続時間続けば 1 段上げる',
+      rate: 5_500_000,
+      ms: params.upDurationMs + 500,
+      want: ['720p'],
+    },
+    {
+      name: '継続時間に満たなければ上げない',
+      rate: 5_500_000,
+      ms: params.upDurationMs - 500,
+      want: [],
+    },
     { name: '倍率に満たなければ上げない', rate: 5_000_000, ms: 60_000, want: [] },
     { name: '速さが分からなければ上げない', rate: null, ms: 60_000, want: [] },
   ])('$name', ({ rate, ms, want }) => {
@@ -541,7 +602,10 @@ describe('受け取りの速さで上げる (録画の再生)', () => {
 
   test('最高画質へは、その段が足りていた間に測った受け取りの速さと比べる', () => {
     const sim = new Sim('original', 'rate').run(start).run(5_000, { receiveRate: 12_000_000 });
-    sim.run(params.rateWindowMs * params.rateShortWindows + 500, { receiveRate: 8_000_000, ahead: 3 });
+    sim.run(params.rateWindowMs * params.rateShortWindows + 500, {
+      receiveRate: 8_000_000,
+      ahead: 3,
+    });
     expect(sim.current).toBe('1080p');
     // 既定値 (20 Mbps × 1.5) より低くても、足りていた間の 12 Mbps × 1.5 = 18 Mbps を超えれば戻す。
     sim.run(start + params.holdAfterSwitchMs + params.upDurationMs, { receiveRate: 19_000_000 });
@@ -555,7 +619,9 @@ test('経路の種類が変わったら (ライブと追っかけ)、溜めた�
   let now = params.ignoreAfterSwitchMs;
   controller.tick(now, healthy, { ...context, mode: 'probe' });
   now += params.tickMs;
-  expect(controller.tick(now, { ...healthy, waiting: true }, { ...context, mode: 'rate' })).toEqual({
-    kind: 'none',
-  });
+  expect(controller.tick(now, { ...healthy, waiting: true }, { ...context, mode: 'rate' })).toEqual(
+    {
+      kind: 'none',
+    },
+  );
 });

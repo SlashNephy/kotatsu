@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2415ad8f934d1c6e553ded21bd268b2e>>
+ * @generated SignedSource<<5a0bb0a18d353aeff076647826ee58c7>>
  * @lightSyntaxTransform
  */
 
@@ -84,6 +84,7 @@ export type RecordingIdPlayQuery$data = {
       readonly codec: VideoCodec;
       readonly name: string;
       readonly passthrough: boolean;
+      readonly videoBitrate: number;
     }>;
   };
 };
@@ -453,6 +454,13 @@ v34 = {
           "kind": "ScalarField",
           "name": "passthrough",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "videoBitrate",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -600,16 +608,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "87187dd42f7c5f4f7491b8d9d33a9014",
+    "cacheID": "2551635a90da1047a825dd11b6935e37",
     "id": null,
     "metadata": {},
     "name": "RecordingIdPlayQuery",
     "operationKind": "query",
-    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      description\n      extended {\n        heading\n        text\n      }\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      jikkyoOtherCommentsUrl\n      jikkyoNicologCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n      files {\n        kind\n        size\n      }\n      drops\n      errors\n      scrambled\n      streamQuality {\n        kind\n        packets\n      }\n      service {\n        name\n        logoUrl\n        jikkyoChannelId\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query RecordingIdPlayQuery(\n  $id: ID!\n) {\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      name\n      description\n      extended {\n        heading\n        text\n      }\n      startAt\n      endAt\n      streamUrl\n      videoFormat\n      recordedFrom\n      recordedUntil\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n        to\n      }\n      jikkyoCommentsUrl\n      jikkyoOtherCommentsUrl\n      jikkyoNicologCommentsUrl\n      rule {\n        id\n        name\n      }\n      watchPositionMs\n      thumbnailUrl\n      previewUrl\n      audios {\n        componentType\n        languages\n        samplingRate\n      }\n      files {\n        kind\n        size\n      }\n      drops\n      errors\n      scrambled\n      streamQuality {\n        kind\n        packets\n      }\n      service {\n        name\n        logoUrl\n        jikkyoChannelId\n        jikkyo {\n          id\n          name\n        }\n        id\n      }\n    }\n    id\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n      videoBitrate\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "e7e72515a0b7cb15e5085eb714af366e";
+(node as any).hash = "12169aea07d2620d39634634a85bd703";
 
 export default node;

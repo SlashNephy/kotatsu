@@ -15,7 +15,8 @@ export type Capabilities = {
 };
 
 // passthrough は、映像を変換しない (BS4K の HEVC をそのまま送る) 画質かどうか。
-export type Preset = { name: string; codec: string; passthrough: boolean };
+// videoBitrate は、映像の平均のビットレート (kbps、設計書 7.3)。分からなければ省く。
+export type Preset = { name: string; codec: string; passthrough: boolean; videoBitrate?: number };
 
 export type Transcoding = { available: boolean; presets: readonly Preset[] };
 

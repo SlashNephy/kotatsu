@@ -90,7 +90,7 @@ describe('measureProbe', () => {
       signal: new AbortController().signal,
       now: ticker(),
       fetch: async (url, init) => {
-        requests.push({ url: String(url), init });
+        requests.push({ url: url instanceof Request ? url.url : url.toString(), init });
 
         return response();
       },
@@ -109,7 +109,9 @@ describe('measureProbe', () => {
       signal: abort.signal,
       fetch: (_url, init) =>
         new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
         }),
     });
     abort.abort();

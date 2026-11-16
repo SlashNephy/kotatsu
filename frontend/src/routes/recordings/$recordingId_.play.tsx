@@ -288,6 +288,7 @@ const playQuery = graphql`
         name
         codec
         passthrough
+        videoBitrate
       }
     }
   }
@@ -751,8 +752,22 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
 
         return next;
       },
+      current: playback.current,
+      networkLadder: playback.networkLadder,
+      setNetworkStep: (name) => {
+        startAt(positionRef.current);
+        playback.setNetworkStep(name);
+      },
     },
-    { stepDown: stillRecording },
+    {
+      stepDown: stillRecording,
+      // 録画は先に読むので、受け取りの速さで余裕を確かめて上げる。オリジナルのビットレートは、録画の平均で比べる。
+      network: {
+        mode: 'rate',
+        convert: route.kind === 'convert',
+        topBitrate: recording === null ? null : averageBitrate(recording, Date.now()),
+      },
+    },
   );
 
   // 音声は、経路ごとのメニューで選び、画質を変えても同じ音声を保つ。kyusu の音声を変えるときも、それまでの位置から続ける。
@@ -1374,7 +1389,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
             </>
           }
           onAudio={audio.onAudio}
-          onReading={streamMeter.onReading}
+          onReading={(reading) => {
+            streamMeter.onReading(reading);
+            adaptive.network.onReading(reading);
+          }}
           audio={audio.convertAudio}
           coverRef={coverRef}
         />
@@ -1385,7 +1403,10 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
           url={`${hlsURL(recording.streamUrl, route.preset, audio.kyusuAudio)}#${loads}`}
           videoRef={videoRef}
           onVideo={setVideo}
-          onSegment={streamMeter.onSegment}
+          onSegment={(segment) => {
+            streamMeter.onSegment(segment);
+            adaptive.network.onSegment(segment);
+          }}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeRecorded}
@@ -1510,6 +1531,7 @@ function Player({ recordingId, start }: { recordingId: string; start: number | u
                 content: (
                   <StreamInfo
                     videoLag={adaptive.videoLag}
+                    network={adaptive.network}
                     meter={streamMeter.meter}
                     video={video}
                     quality={playback.current}

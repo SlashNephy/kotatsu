@@ -240,9 +240,12 @@ export function HlsPlayer({
           return;
         }
         const bandwidth = instance.bandwidthEstimate;
+        // 読むのにかかった時間は、最初のバイトが届いてから読み終えるまで。往復の待ちは数えない (#1513)。
+        const { first, end } = data.frag.stats.loading;
         handlers.current.onSegment?.({
           bytes: data.payload.byteLength,
           seconds: data.frag.duration,
+          transferMs: end > first && first > 0 ? end - first : null,
           encoded: {
             width: level.width,
             height: level.height,
