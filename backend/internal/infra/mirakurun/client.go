@@ -3,6 +3,7 @@ package mirakurun
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -23,6 +24,11 @@ const (
 	// TunerUserIDHeader は、Mirakurun、mirakc、Mahiron が、ストリームの応答で、チューナーの利用者の ID を返すヘッダー。
 	// /api/tuners の users[].id と同じ値になる (#1467)。
 	TunerUserIDHeader = "X-Mirakurun-Tuner-User-ID"
+	// StreamErrorTrailer は、Kotatsu の tappu (mirakurunapi) が、ストリームを途中で終えた理由を返す応答のトレーラー (#1535)。
+	// Mirakurun 互換のサーバーは返さない。
+	StreamErrorTrailer = "X-Kotatsu-Stream-Error"
+	// StreamErrorPreempted は、チューナーサーバーのほかの利用者にチューナーを取られて終えたこと (tunerserver.ErrTunerPreempted)。
+	StreamErrorPreempted = "tuner-preempted"
 
 	defaultUserAgent      = "kotatsu"
 	defaultRequestTimeout = 30 * time.Second
@@ -54,6 +60,8 @@ type Options struct {
 	// StreamOpenTimeout は、ストリームを開くときに、応答の頭を待つ時間の上限。0 なら DefaultStreamOpenTimeout。
 	StreamOpenTimeout time.Duration
 	Clock             clock.Clock
+	// Authorize は、リクエストに認可の情報を付ける。nil なら付けない。Kotatsu の tappu に送るトークンに使う (#1535)。
+	Authorize func(*http.Request)
 }
 
 // Client は Mirakurun 互換のチューナーサーバーのクライアント。複数の goroutine から使ってよい。
@@ -68,6 +76,7 @@ type Client struct {
 	idleTimeout    time.Duration
 	openTimeout    time.Duration
 	clock          clock.Clock
+	authorize      func(*http.Request)
 
 	mu sync.Mutex
 	// server は、最後に判定したサーバーの種類。detectedAt から detectInterval が過ぎたら判定し直す。
@@ -198,6 +207,7 @@ func New(opts *Options) (*Client, error) {
 		idleTimeout:    idleTimeout,
 		openTimeout:    openTimeout,
 		clock:          clk,
+		authorize:      opts.Authorize,
 		mu:             sync.Mutex{},
 		server:         nil,
 		detectedAt:     time.Time{},
@@ -406,10 +416,10 @@ func (c *Client) openStream(req *http.Request, idleTimeout time.Duration, cause 
 
 	userID := resp.Header.Get(TunerUserIDHeader)
 	if idleTimeout == 0 {
-		return &Stream{ReadCloser: &releasingBody{ReadCloser: resp.Body, release: func() { cancel(nil) }}, userID: userID}, nil
+		return &Stream{ReadCloser: &releasingBody{ReadCloser: resp.Body, release: func() { cancel(nil) }}, userID: userID, trailer: resp.Trailer}, nil
 	}
 
-	return &Stream{ReadCloser: newIdleReader(resp.Body, idleTimeout, func() { cancel(nil) }), userID: userID}, nil
+	return &Stream{ReadCloser: newIdleReader(resp.Body, idleTimeout, func() { cancel(nil) }), userID: userID, trailer: resp.Trailer}, nil
 }
 
 // Stream は、開いたストリームの本文。チューナーサーバーが返した、チューナーの利用者の ID も持つ。
@@ -417,6 +427,19 @@ type Stream struct {
 	io.ReadCloser
 
 	userID string
+	// trailer は、応答のトレーラー。本文を読み終えたときに埋まる。
+	trailer http.Header
+}
+
+// Read は、本文を読む。読み終えたときに、Kotatsu の tappu がチューナーを取られて終えたとトレーラーで返していたら、
+// io.EOF の代わりに tunerserver.ErrTunerPreempted を返す (#1535)。録画は、EDCB に直接つないだときと同じ理由で失敗を記録できる。
+func (s *Stream) Read(p []byte) (int, error) {
+	n, err := s.ReadCloser.Read(p)
+	if errors.Is(err, io.EOF) && s.trailer.Get(StreamErrorTrailer) == StreamErrorPreempted {
+		return n, fmt.Errorf("%w: the tuner server relayed it", tunerserver.ErrTunerPreempted)
+	}
+
+	return n, err
 }
 
 var (
@@ -488,6 +511,9 @@ func (c *Client) newRequest(ctx context.Context, path string, query url.Values) 
 	req.Header.Set("User-Agent", c.userAgent)
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password.Value())
+	}
+	if c.authorize != nil {
+		c.authorize(req)
 	}
 
 	return req, nil

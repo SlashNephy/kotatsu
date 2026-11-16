@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"slices"
 	"sync"
 	"time"
 	"uuid"
@@ -17,8 +19,10 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 	"github.com/SlashNephy/kotatsu/internal/infra/jobs"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
+	"github.com/SlashNephy/kotatsu/internal/infra/registry"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
+	"github.com/SlashNephy/kotatsu/internal/lib/innertoken"
 	"github.com/SlashNephy/kotatsu/internal/lib/logring"
 	"github.com/SlashNephy/kotatsu/internal/lib/netactivity"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
@@ -30,6 +34,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 	"github.com/SlashNephy/kotatsu/internal/usecase/rule"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
+	"github.com/SlashNephy/kotatsu/internal/usecase/tappu"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 	"github.com/SlashNephy/kotatsu/internal/web/httpserver"
 )
@@ -132,6 +137,12 @@ func DefaultRoles() []*Role {
 			Short: "Transcode streams on demand",
 			Run:   waitUntilDone,
 		},
+		{
+			Name:  tappu.Role,
+			Alias: "hub",
+			Short: "Share each EDCB NetworkTV stream with the other roles (EDCB only)",
+			Run:   runTappu,
+		},
 	}
 }
 
@@ -143,7 +154,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 	var tuner tunerserver.Client
 	if deps.Config.Tuner.UsesTunerServer() {
 		var err error
-		if tuner, err = newTunerClient(deps); err != nil {
+		if tuner, err = newTunerClient(ctx, deps, logger); err != nil {
 			return err
 		}
 	}
@@ -270,14 +281,33 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 
 // newTunerClient は、設定したチューナーサーバーのクライアントを返す。チューナーサーバーの実装は、ここで設定から選ぶ (設計書 3.1)。
 // Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) と、EDCB (#1258) に対応する。
-func newTunerClient(deps *Deps) (tunerserver.Client, error) {
+//
+// EDCB では、このプロセスで tappu を動かしていなければ、ストリームを tappu から受け取る (#1535)。tappu を動かしていれば、
+// HTTP を挟まずに、同じプロセスの中で分け合う。アプリの秘密キーがなければ、tappu に送るトークンを作れないので、自分で開く。
+func newTunerClient(ctx context.Context, deps *Deps, logger *slog.Logger) (tunerserver.Client, error) {
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
 		server, err := sharedEDCBServer(deps)
 		if err != nil {
 			return nil, err
 		}
+		if slices.Contains(deps.Roles, tappu.Role) {
+			return server, nil
+		}
+		token, err := tappu.NewToken(deps.Config.Auth.SecretKey.Value())
+		if errors.Is(err, innertoken.ErrNoKey) {
+			logger.WarnContext(ctx, "auth.secret_key is not set; opening EDCB NetworkTVs without tappu")
 
-		return server, nil
+			return server, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		return &tappuTuner{
+			TunerServer: server,
+			streams: tappu.NewStreams(registry.New(deps.DB, deps.Clock, deps.InstanceID), token, server, deps.Clock,
+				logger.With(slog.String("component", "tappu"))),
+		}, nil
 	}
 	client, err := mirakurun.New(&mirakurun.Options{
 		URL:               deps.Config.Tuner.URL.Value(),
@@ -290,6 +320,7 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 		StreamIdleTimeout: 0,
 		StreamOpenTimeout: 0,
 		Clock:             deps.Clock,
+		Authorize:         nil,
 	})
 	if err != nil {
 		// nil の *mirakurun.Client を interface に入れると nil と比べられなくなるので、interface のまま nil を返す。
@@ -347,7 +378,7 @@ func runMikan(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 
 		return nil
 	}
-	tuner, err := newTunerClient(deps)
+	tuner, err := newTunerClient(ctx, deps, logger)
 	if err != nil {
 		return err
 	}
