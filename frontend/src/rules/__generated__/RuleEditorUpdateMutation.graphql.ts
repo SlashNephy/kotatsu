@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7636572cd87549247e5d45b1f2e7669f>>
+ * @generated SignedSource<<3f95c86ea144d559d3729195017222b9>>
  * @lightSyntaxTransform
  */
 
@@ -18,6 +18,7 @@ export type RuleInput = {
   duplicateWindowDays?: number | null | undefined;
   enabled?: boolean;
   followEventRelay?: boolean;
+  groupId?: string | null | undefined;
   memo?: string;
   name: string;
   settings?: RecordingSettingsOverridesInput | null | undefined;
@@ -543,6 +544,16 @@ return {
             "kind": "ScalarField",
             "name": "skipEarlierEpisodes",
             "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "concreteType": "RuleGroup",
+            "kind": "LinkedField",
+            "name": "group",
+            "plural": false,
+            "selections": (v5/*:: as any*/),
+            "storageKey": null
           }
         ],
         "storageKey": null
@@ -550,12 +561,12 @@ return {
     ]
   },
   "params": {
-    "cacheID": "8fa44d0750c7dba078e924972fd73931",
+    "cacheID": "ad5987cacf23efbf7fecd6b62bd04432",
     "id": null,
     "metadata": {},
     "name": "RuleEditorUpdateMutation",
     "operationKind": "mutation",
-    "text": "mutation RuleEditorUpdateMutation(\n  $id: ID!\n  $input: RuleInput!\n) {\n  updateRule(id: $id, input: $input) {\n    ...RuleEditor_rule\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n    detectCm\n    transcodePreset\n    transcodeFrameRate\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n  bundleSameEpisodes\n  skipEarlierEpisodes\n}\n"
+    "text": "mutation RuleEditorUpdateMutation(\n  $id: ID!\n  $input: RuleInput!\n) {\n  updateRule(id: $id, input: $input) {\n    ...RuleEditor_rule\n    id\n  }\n}\n\nfragment RuleEditor_rule on Rule {\n  id\n  createdAt\n  createdBy {\n    displayName\n    id\n  }\n  updatedAt\n  updatedBy {\n    displayName\n    id\n  }\n  name\n  memo\n  enabled\n  conditions {\n    keywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    keywordMatch\n    excludeKeywords {\n      text\n      regexp\n      caseSensitive\n      fields\n    }\n    channelTypes\n    services {\n      id\n    }\n    excludeServices {\n      id\n    }\n    genres {\n      lv1\n      lv2\n    }\n    excludeGenres {\n      lv1\n      lv2\n    }\n    timeRanges {\n      weekdays\n      startMinute\n      durationMinutes\n    }\n    minDurationSeconds\n    maxDurationSeconds\n    freeOnly\n    marks\n    excludeMarks\n  }\n  settings {\n    poolId\n    fileNameTemplate\n    startMarginSeconds\n    endMarginSeconds\n    priority\n    joinSegments\n    detectCm\n    transcodePreset\n    transcodeFrameRate\n  }\n  validFrom\n  validUntil\n  avoidDuplicates\n  duplicateWindowDays\n  followEventRelay\n  bundleSameEpisodes\n  skipEarlierEpisodes\n  group {\n    id\n  }\n}\n"
   }
 };
 })();

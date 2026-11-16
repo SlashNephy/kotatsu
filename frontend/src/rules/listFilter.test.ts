@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import {
   isFiltered,
   parseRuleListSearch,
+  ruleSections,
+  sectionKey,
   visibleRules,
   type ListedRule,
   type RuleListSearch,
@@ -207,5 +209,71 @@ describe('isFiltered', () => {
     [{ reservations: 'none' }, true],
   ])('%j は %s', (search, want) => {
     expect(isFiltered(search)).toBe(want);
+  });
+});
+
+describe('ruleSections', () => {
+  // groups は、サーバーが並べる順 (アニメ、ドラマ、空) のグループ。
+  const groups = [
+    { id: 'g-anime', name: 'アニメ' },
+    { id: 'g-drama', name: 'ドラマ' },
+    { id: 'g-empty', name: '空' },
+  ];
+  const grouped = (id: string, group: string | null) => ({
+    id,
+    group: group === null ? null : { id: group },
+  });
+  // 並べ替えた後のルール。見出しの中でも、この並びを保つ。
+  const sorted = [
+    grouped('b', 'g-drama'),
+    grouped('a', null),
+    grouped('c', 'g-anime'),
+    grouped('d', 'g-drama'),
+    grouped('e', 'g-gone'),
+  ];
+  const layout = (sections: ReturnType<typeof ruleSections>) =>
+    sections.map((section) => [
+      section.group?.name ?? 'その他',
+      section.rules.map((item) => item.id),
+    ]);
+
+  test.each<[string, boolean, (string | string[])[][]]>([
+    [
+      '絞り込んでいなければ、空のグループも出し、「その他」を最後に置く',
+      true,
+      [
+        ['アニメ', ['c']],
+        ['ドラマ', ['b', 'd']],
+        ['空', []],
+        // 消えたグループ (g-gone) のルールは、「その他」に並べる。
+        ['その他', ['a', 'e']],
+      ],
+    ],
+    [
+      '絞り込んでいれば、ルールのないグループの見出しを出さない',
+      false,
+      [
+        ['アニメ', ['c']],
+        ['ドラマ', ['b', 'd']],
+        ['その他', ['a', 'e']],
+      ],
+    ],
+  ])('%s', (_, showEmpty, want) => {
+    expect(layout(ruleSections(sorted, groups, showEmpty))).toEqual(want);
+  });
+
+  test('「その他」は、ルールがなければ出さない', () => {
+    expect(layout(ruleSections([grouped('c', 'g-anime')], groups.slice(0, 1), false))).toEqual([
+      ['アニメ', ['c']],
+    ]);
+  });
+
+  test('グループが 1 つもなければ、「その他」の見出し 1 つにまとめる', () => {
+    expect(layout(ruleSections([], [], true))).toEqual([['その他', []]]);
+    expect(layout(ruleSections([grouped('a', null)], [], false))).toEqual([['その他', ['a']]]);
+  });
+
+  test('見出しの鍵は、「その他」とグループで重ならない', () => {
+    expect(sectionKey(null)).not.toBe(sectionKey(groups[0]!));
   });
 });
