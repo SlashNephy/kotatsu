@@ -80,6 +80,7 @@ type ProgramKey struct {
 //
 //   - 予約のある番組と、予約のある番組と同じイベントを共有する番組は外す。録るかどうかが、もう決まっているためである。
 //     無効にした (取り消した) 予約も含む。人が録らないと決めた放送を、また薦めないためである。
+//   - 予約のある番組と同じ話数の放送も外す。ほかの局や再放送で録る回を、また薦めないためである。
 //   - recorded にある話数の放送は、同じ回を録画済みとして外す。
 //   - 同じイベントを共有する番組 (メインチャンネルとサブチャンネルなど) が並んだら、ルールの照合と同じく、
 //     サービス ID の最も小さい 1 つだけを残す。
@@ -89,22 +90,30 @@ func Pick(candidates []*Candidate, reserved map[ProgramKey]bool, recorded map[fl
 		candidate *Candidate
 		shared    []*domain.SharedProgram
 	}
-	entries := make([]*entry, 0, len(candidates))
-	present := map[ProgramKey]bool{}
+	all := make([]*entry, 0, len(candidates))
+	// taken は、予約のある放送の話数。
+	taken := map[float64]bool{}
 	for _, c := range candidates {
 		shared, err := domain.SharedPrograms(c.ServiceID, c.RelatedItems)
 		if err != nil {
 			shared = []*domain.SharedProgram{}
 		}
-		taken := reserved[ProgramKey{ServiceID: c.ServiceID, EventID: c.EventID}] ||
+		if reserved[ProgramKey{ServiceID: c.ServiceID, EventID: c.EventID}] ||
 			slices.ContainsFunc(shared, func(p *domain.SharedProgram) bool {
 				return reserved[ProgramKey{ServiceID: p.ServiceID, EventID: p.EventID}]
-			})
-		if taken || recorded[c.Number] {
+			}) {
+			taken[c.Number] = true
+		}
+		all = append(all, &entry{candidate: c, shared: shared})
+	}
+	entries := make([]*entry, 0, len(all))
+	present := map[ProgramKey]bool{}
+	for _, e := range all {
+		if taken[e.candidate.Number] || recorded[e.candidate.Number] {
 			continue
 		}
-		entries = append(entries, &entry{candidate: c, shared: shared})
-		present[ProgramKey{ServiceID: c.ServiceID, EventID: c.EventID}] = true
+		entries = append(entries, e)
+		present[ProgramKey{ServiceID: e.candidate.ServiceID, EventID: e.candidate.EventID}] = true
 	}
 	broadcasts := []*Broadcast{}
 	for _, e := range entries {

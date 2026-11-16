@@ -119,16 +119,25 @@ func TestPick(t *testing.T) {
 		},
 		{
 			name:       "予約のある放送は外す",
-			candidates: []*nextepisode.Candidate{candidate(grService, 10, 1, 4), candidate(bsService, 20, 30, 4)},
+			candidates: []*nextepisode.Candidate{candidate(grService, 10, 1, 4), candidate(bsService, 20, 30, 5)},
 			reserved:   map[nextepisode.ProgramKey]bool{{ServiceID: grService, EventID: 10}: true},
 			recorded:   map[float64]bool{},
 			want:       [][2]int64{{bsService, 20}},
 		},
 		{
+			name: "予約のある放送と同じ話数の、ほかの局や再放送の放送も外す",
+			candidates: []*nextepisode.Candidate{
+				candidate(grService, 10, 1, 4), candidate(bsService, 20, 30, 4), candidate(grService, 11, 49, 4), candidate(bsService, 21, 54, 5),
+			},
+			reserved: map[nextepisode.ProgramKey]bool{{ServiceID: bsService, EventID: 20}: true},
+			recorded: map[float64]bool{},
+			want:     [][2]int64{{bsService, 21}},
+		},
+		{
 			name: "同じイベントを共有する放送に予約があれば外す",
 			candidates: []*nextepisode.Candidate{
 				candidate(subService, 10, 1, 4, grService),
-				candidate(bsService, 20, 30, 4),
+				candidate(bsService, 20, 30, 5),
 			},
 			reserved: map[nextepisode.ProgramKey]bool{{ServiceID: grService, EventID: 10}: true},
 			recorded: map[float64]bool{},

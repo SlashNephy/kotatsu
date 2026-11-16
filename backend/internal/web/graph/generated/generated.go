@@ -973,6 +973,7 @@ type ComplexityRoot struct {
 		LogReport               func(childComplexity int) int
 		MissingRecordings       func(childComplexity int) int
 		NetworkActivity         func(childComplexity int) int
+		NextEpisodes            func(childComplexity int) int
 		Node                    func(childComplexity int, id string) int
 		NotificationPreferences func(childComplexity int) int
 		Notifications           func(childComplexity int, first int, after *string, unreadOnly bool, kinds []domain.NotificationKind) int
@@ -1270,6 +1271,11 @@ type ComplexityRoot struct {
 		Height     func(childComplexity int) int
 		Interlaced func(childComplexity int) int
 		Width      func(childComplexity int) int
+	}
+
+	SeriesNextEpisode struct {
+		Program func(childComplexity int) int
+		Watched func(childComplexity int) int
 	}
 
 	Service struct {
@@ -1716,6 +1722,7 @@ type QueryResolver interface {
 	RecordingRenames(ctx context.Context) ([]*model.RecordingRename, error)
 	Recordings(ctx context.Context, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) (*model.RecordingConnection, error)
 	ContinueWatching(ctx context.Context, first int) ([]*model.Recording, error)
+	NextEpisodes(ctx context.Context) ([]*model.SeriesNextEpisode, error)
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
@@ -6019,6 +6026,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.NetworkActivity(childComplexity), true
+	case "Query.nextEpisodes":
+		if e.ComplexityRoot.Query.NextEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.NextEpisodes(childComplexity), true
 	case "Query.node":
 		if e.ComplexityRoot.Query.Node == nil {
 			break
@@ -7414,6 +7427,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SegmentVideoFormat.Width(childComplexity), true
+
+	case "SeriesNextEpisode.program":
+		if e.ComplexityRoot.SeriesNextEpisode.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SeriesNextEpisode.Program(childComplexity), true
+	case "SeriesNextEpisode.watched":
+		if e.ComplexityRoot.SeriesNextEpisode.Watched == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SeriesNextEpisode.Watched(childComplexity), true
 
 	case "Service.channel":
 		if e.ComplexityRoot.Service.Channel == nil {
@@ -11357,6 +11383,16 @@ enum RecordingOrder {
   OLDEST_FIRST
 }
 
+"""
+ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+"""
+type SeriesNextEpisode {
+  "シリーズの見た回のうち、話数の最も大きい録画。"
+  watched: Recording!
+  "シリーズの続きの放送のうち、最も早い放送。"
+  program: Program!
+}
+
 extend type Query {
   "録画を、録画を始めた日時の順 (既定は新しい順) に first 件まで返す。"
   recordings(first: Int! = 50, after: String, filter: RecordingFilter, order: RecordingOrder! = NEWEST_FIRST): RecordingConnection!
@@ -11365,6 +11401,12 @@ extend type Query {
   少しだけ見た録画 (10 秒より前) と、終わりの 10 秒以内まで見た録画は、見終えたものとして含めない。
   """
   continueWatching(first: Int! = 12): [Recording!]!
+  """
+  ログイン中のユーザーが見たシリーズの続きの放送 (#1564、設計書 4.4)。ホームの「続きの放送」に出す。
+  直近 30 日に、録画の長さの半分以上まで再生した録画を見た回とし、シリーズごとに、見た回の最大の話数より後の放送のうち
+  最も早い 1 件を、放送の早い順に 10 シリーズまで返す。放送の選び方は Recording.nextEpisodes と同じ。
+  """
+  nextEpisodes: [SeriesNextEpisode!]!
   "タグを、名前の順に返す。"
   tags: [Tag!]!
 }
@@ -15062,6 +15104,16 @@ func (ec *executionContext) childFields_SegmentVideoFormat(ctx context.Context, 
 		return ec.fieldContext_SegmentVideoFormat_frameRate(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SegmentVideoFormat", field.Name)
+}
+
+func (ec *executionContext) childFields_SeriesNextEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "watched":
+		return ec.fieldContext_SeriesNextEpisode_watched(ctx, field)
+	case "program":
+		return ec.fieldContext_SeriesNextEpisode_program(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SeriesNextEpisode", field.Name)
 }
 
 func (ec *executionContext) childFields_Service(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -35210,6 +35262,38 @@ func (ec *executionContext) fieldContext_Query_continueWatching(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_nextEpisodes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_nextEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().NextEpisodes(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.SeriesNextEpisode) graphql.Marshaler {
+			return ec.marshalNSeriesNextEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisodeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_nextEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SeriesNextEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_tags(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40461,6 +40545,70 @@ func (ec *executionContext) _SegmentVideoFormat_frameRate(ctx context.Context, f
 }
 func (ec *executionContext) fieldContext_SegmentVideoFormat_frameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("SegmentVideoFormat", field, false, false, "Float")
+}
+
+func (ec *executionContext) _SeriesNextEpisode_watched(ctx context.Context, field graphql.CollectedField, obj *model.SeriesNextEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SeriesNextEpisode_watched(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Watched, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Recording) graphql.Marshaler {
+			return ec.marshalNRecording2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRecording(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SeriesNextEpisode_watched(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeriesNextEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Recording(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SeriesNextEpisode_program(ctx context.Context, field graphql.CollectedField, obj *model.SeriesNextEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SeriesNextEpisode_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Program, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SeriesNextEpisode_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SeriesNextEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Service_id(ctx context.Context, field graphql.CollectedField, obj *model.Service) (ret graphql.Marshaler) {
@@ -55300,6 +55448,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_continueWatching(ctx, field)
 				})
+		case "nextEpisodes":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_nextEpisodes(ctx, field)
+				})
 		case "tags":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -57077,6 +57231,44 @@ func (ec *executionContext) _SegmentVideoFormat(ctx context.Context, sel ast.Sel
 		case "frameRate":
 			out.Values[i] = ec._SegmentVideoFormat_frameRate(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var seriesNextEpisodeImplementors = []string{"SeriesNextEpisode"}
+
+func (ec *executionContext) _SeriesNextEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.SeriesNextEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, seriesNextEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SeriesNextEpisode")
+		case "watched":
+			out.Values[i] = ec._SeriesNextEpisode_watched(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "program":
+			out.Values[i] = ec._SeriesNextEpisode_program(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
 		default:
@@ -62142,6 +62334,30 @@ func (ec *executionContext) marshalNSecondFactorStatus2ᚖgithubᚗcomᚋSlashNe
 		return graphql.Null
 	}
 	return ec._SecondFactorStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSeriesNextEpisode2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SeriesNextEpisode) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSeriesNextEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisode(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSeriesNextEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSeriesNextEpisode(ctx context.Context, sel ast.SelectionSet, v *model.SeriesNextEpisode) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "SeriesNextEpisode!")
+		return graphql.Null
+	}
+	return ec._SeriesNextEpisode(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNService2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐServiceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Service) graphql.Marshaler {

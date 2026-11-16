@@ -1322,6 +1322,7 @@
     "nextEpisodes": {
       "title": "Next episodes",
       "createRule": "Create a rule for this series",
+      "createSeriesRule": "Create a rule for the series of {{name}}",
       "reserve": "Reserve",
       "reserveProgram": "Reserve {{name}}",
       "reserved": "Reserved",
