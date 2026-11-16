@@ -492,6 +492,8 @@ type Program struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	Series                *string
+	EpisodeNumber         *int32
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -542,6 +544,16 @@ type ProgramArchive struct {
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time
+}
+
+type ProgramRewrite struct {
+	ServiceID  int64
+	EventID    int64
+	StartAt    time.Time
+	Field      string
+	Before     string
+	After      string
+	ObservedAt time.Time
 }
 
 type Recording struct {

@@ -1045,6 +1045,7 @@ type ComplexityRoot struct {
 		JikkyoOtherCommentsURL   func(childComplexity int) int
 		LiveStats                func(childComplexity int) int
 		Name                     func(childComplexity int) int
+		NextEpisodes             func(childComplexity int) int
 		NotBroadcast             func(childComplexity int) int
 		PreviewURL               func(childComplexity int) int
 		ProgramLost              func(childComplexity int) int
@@ -1155,6 +1156,7 @@ type ComplexityRoot struct {
 	}
 
 	RecordingSettingsOverrides struct {
+		CMDetector         func(childComplexity int) int
 		DetectCM           func(childComplexity int) int
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
@@ -1758,6 +1760,8 @@ type RecordingResolver interface {
 	LiveStats(ctx context.Context, obj *model.Recording) (*model.RecordingLiveStats, error)
 
 	WatchFrame(ctx context.Context, obj *model.Recording) (*model.PreviewFrame, error)
+
+	NextEpisodes(ctx context.Context, obj *model.Recording) ([]*model.Program, error)
 
 	AnimeEpisodes(ctx context.Context, obj *model.Recording) ([]*model.AnimeEpisode, error)
 }
@@ -6485,6 +6489,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Name(childComplexity), true
+	case "Recording.nextEpisodes":
+		if e.ComplexityRoot.Recording.NextEpisodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.NextEpisodes(childComplexity), true
 	case "Recording.notBroadcast":
 		if e.ComplexityRoot.Recording.NotBroadcast == nil {
 			break
@@ -6924,6 +6934,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingSettings.TranscodePreset(childComplexity), true
 
+	case "RecordingSettingsOverrides.cmDetector":
+		if e.ComplexityRoot.RecordingSettingsOverrides.CMDetector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.CMDetector(childComplexity), true
 	case "RecordingSettingsOverrides.detectCm":
 		if e.ComplexityRoot.RecordingSettingsOverrides.DetectCM == nil {
 			break
@@ -11270,6 +11286,13 @@ type Recording implements Node {
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
   jikkyoCommentsUrl: String!
+  """
+  録画のシリーズの続きの放送 (#1564、設計書 4.4)。これから 1 週間に始まる番組表の番組のうち、録画より話数の大きい回を、
+  放送の早い順に 10 件まで返す。録画がしょぼいカレンダーの 1 つの話に結びついていれば TID と話数で、結びついていなければ
+  番組名から読んだシリーズ名の完全一致と話数で探す。予約のある放送 (無効にした予約を含む) と、録画履歴にある話数の放送は外し、
+  同じイベントを共有する放送は 1 つにする。シリーズか話数を読めない録画 (ニュースや帯番組など) では空になる。
+  """
+  nextEpisodes: [Program!]!
   "同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。"
   jikkyoOtherCommentsUrl: String!
   "上映会のコメント (NICOLOG) を読む URL のパス (#1363)。"
@@ -11692,6 +11715,8 @@ type RecordingSettingsOverrides {
   transcodePreset: String
   "録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。"
   transcodeFrameRate: String
+  "CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。"
+  cmDetector: CMDetector
 }
 
 """
@@ -11709,6 +11734,8 @@ input RecordingSettingsOverridesInput {
   transcodePreset: String
   "変換で出すコマ数 (auto、30、60 のどれか)。"
   transcodeFrameRate: String
+  "CM の区間の見分け方。"
+  cmDetector: CMDetector
 }
 
 """
@@ -14619,6 +14646,8 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_watchFrame(ctx, field)
 	case "jikkyoCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoCommentsUrl(ctx, field)
+	case "nextEpisodes":
+		return ec.fieldContext_Recording_nextEpisodes(ctx, field)
 	case "jikkyoOtherCommentsUrl":
 		return ec.fieldContext_Recording_jikkyoOtherCommentsUrl(ctx, field)
 	case "jikkyoNicologCommentsUrl":
@@ -14821,6 +14850,8 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_transcodePreset(ctx, field)
 	case "transcodeFrameRate":
 		return ec.fieldContext_RecordingSettingsOverrides_transcodeFrameRate(ctx, field)
+	case "cmDetector":
+		return ec.fieldContext_RecordingSettingsOverrides_cmDetector(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -37162,6 +37193,38 @@ func (ec *executionContext) fieldContext_Recording_jikkyoCommentsUrl(_ context.C
 	return graphql.NewScalarFieldContext("Recording", field, false, false, "String")
 }
 
+func (ec *executionContext) _Recording_nextEpisodes(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_nextEpisodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().NextEpisodes(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐProgramᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_nextEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Recording_jikkyoOtherCommentsUrl(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -38667,6 +38730,29 @@ func (ec *executionContext) _RecordingSettingsOverrides_transcodeFrameRate(ctx c
 }
 func (ec *executionContext) fieldContext_RecordingSettingsOverrides_transcodeFrameRate(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "String")
+}
+
+func (ec *executionContext) _RecordingSettingsOverrides_cmDetector(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_cmDetector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CMDetector, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CMDetector) graphql.Marshaler {
+			return ec.marshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_cmDetector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "CMDetector")
 }
 
 func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field graphql.CollectedField, obj *model.RecoveryCodes) (ret graphql.Marshaler) {
@@ -47809,7 +47895,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset", "transcodeFrameRate"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset", "transcodeFrameRate", "cmDetector"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -47879,6 +47965,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.TranscodeFrameRate = data
+		case "cmDetector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cmDetector"))
+			data, err := ec.unmarshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CMDetector = data
 		}
 	}
 	return it, nil
@@ -55619,6 +55712,12 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "nextEpisodes":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_nextEpisodes(ctx, field, obj)
+				})
 		case "jikkyoOtherCommentsUrl":
 			out.Values[i] = ec._Recording_jikkyoOtherCommentsUrl(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -56291,6 +56390,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "transcodeFrameRate":
 			out.Values[i] = ec._RecordingSettingsOverrides_transcodeFrameRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cmDetector":
+			out.Values[i] = ec._RecordingSettingsOverrides_cmDetector(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

@@ -36,6 +36,8 @@ type reply struct {
 	hold bool
 	// drop は、応答を返さずに、接続を閉じるかどうか (応答の上限の時間が過ぎた GET_STATUS_NOTIFY2)。
 	drop bool
+	// feed は、応答の後に、届いた順に送るバイト列 (少しずつ届く TS)。閉じたら、接続を閉じる。
+	feed <-chan []byte
 }
 
 // request は、偽の EpgTimerSrv が受け取った要求。
@@ -99,6 +101,20 @@ func (s *fakeServer) handle(conn net.Conn) {
 
 	if !ok {
 		r = reply{status: 203, payload: nil, stream: nil, hold: false, drop: false}
+	}
+	if r.feed != nil {
+		res := binary.LittleEndian.AppendUint32(nil, r.status)
+		res = binary.LittleEndian.AppendUint32(res, dword(len(r.payload)))
+		if _, err := conn.Write(append(res, r.payload...)); err != nil {
+			return
+		}
+		for chunk := range r.feed {
+			if _, err := conn.Write(chunk); err != nil {
+				return
+			}
+		}
+
+		return
 	}
 	if r.hold {
 		// TS を返すなら、返してから、接続を保ったまま待つ (中継の途中で止まった TS)。
