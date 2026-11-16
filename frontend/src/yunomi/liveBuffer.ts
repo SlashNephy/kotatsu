@@ -33,6 +33,11 @@ export type LiveBufferParams = {
   coverAdd: number;
   // lowWindowMs は、バッファの最小値と届く間隔の最大を見る直近の長さ (バッファの低い所を見る長さ)。
   lowWindowMs: number;
+  // arrivalWindowMs と shortArrivalRatio は、届いた映像の長さを、経った時間と比べる直近の長さと、回線が足りないとみなす割合。
+  // 詰まった時点で、直近に届いた映像の長さが経った時間 × この割合より短ければ、受け取りの速さが放送のビットレートを
+  // 下回っていた (回線のせい) とみなし、下限は上げずに目標量だけを上げる。
+  arrivalWindowMs: number;
+  shortArrivalRatio: number;
   // retargetIntervalMs は、目標量を決め直す間隔。止まったときは、待たずに決め直す。
   retargetIntervalMs: number;
   // selfInflictedGraceMs は、選局、飛び、MediaSource の作り直しの直後に、詰まりを数えない時間。
@@ -72,6 +77,9 @@ export const defaultLiveBufferParams: LiveBufferParams = {
   coverFactor: 1.25,
   coverAdd: 0.25,
   lowWindowMs: 4_000,
+  // 断片の間隔 (約 0.5 秒) の数個分より長くし、断片の揺れ (1 つで 0.5 秒 ÷ 8 秒 ≒ 6%) より割合の余白を大きくする。
+  arrivalWindowMs: 8_000,
+  shortArrivalRatio: 0.9,
   retargetIntervalMs: 5_000,
   // 開発用の環境では、読み込んでから最初のコマが映るまで 1.2〜2.7 秒だった。
   selfInflictedGraceMs: 5_000,
@@ -120,13 +128,15 @@ export type LiveBufferStatus = {
 };
 
 type Gap = { at: number; gap: number };
+type Tail = { at: number; tail: number };
 type Sample = { at: number; buffer: number };
 
 // LiveBufferController は、目標量と下限を持ち、事象を受けて決め直す。時刻 now は、どれもミリ秒。
 export type LiveBufferController = {
   // arrive は、塊が届いたことを知らせる。bufferBefore は、届く直前のバッファ。
   // まだ何も読み込んでいなかった (読み込み直後の最初の塊) なら null。0 として記録すると、しばらく足りないとみなして遅くするため。
-  arrive(now: number, bufferBefore: number | null): void;
+  // tail は、届いた後の buffered の末尾 (秒)。渡せば、届いた映像の長さから、回線が足りなかったかを見分ける。
+  arrive(now: number, bufferBefore: number | null, tail?: number): void;
   // sample は、映ったコマや判断の刻みで測ったバッファを知らせる。
   sample(now: number, buffer: number): void;
   // forgetArrival は、前の到着時刻を忘れる。シーク、一時停止、タブが隠れたとき。
@@ -186,6 +196,7 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
   let graceUntil = options.now + params.selfInflictedGraceMs;
   let gaps: Gap[] = [];
   let samples: Sample[] = [];
+  let tails: Tail[] = [];
   let mode: RateMode = 'normal';
   let rateChanges = 0;
   let stalls = 0;
@@ -204,6 +215,12 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
     const horizon = now - Math.max(params.gapMemoryMs, params.lowWindowMs);
     if (gaps.length > 0 && gaps[0]!.at < horizon) {
       gaps = gaps.filter((gap) => gap.at >= horizon);
+    }
+    const tailHorizon = now - params.arrivalWindowMs;
+    if (tails.length > 1 && tails[1]!.at <= tailHorizon) {
+      tails = tails.filter(
+        (tail, index) => tail.at > tailHorizon || tails[index + 1]!.at > tailHorizon,
+      );
     }
     const lowHorizon = now - params.lowWindowMs;
     if (samples.length > 0 && samples[0]!.at < lowHorizon) {
@@ -237,6 +254,18 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
       params.maxTarget,
     );
 
+  // arrivedShort は、直近の比べる長さに届いた映像の長さが、経った時間 × 割合より短かったか (受け取りの速さが放送のビットレートを
+  // 下回っていたか)。比べる長さの半分より短い間しか測っていなければ、分からないとして false。
+  const arrivedShort = (now: number) => {
+    const first = tails[0];
+    const last = tails.at(-1);
+    if (first === undefined || last === undefined || now - first.at < params.arrivalWindowMs / 2) {
+      return false;
+    }
+
+    return last.tail - first.tail < ((now - first.at) / 1_000) * params.shortArrivalRatio;
+  };
+
   const retarget = (now: number, stalled: boolean) => {
     lastRetargetAt = now;
     const cover = coverage(now);
@@ -245,6 +274,9 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
       if (cover > target) {
         // 空きで説明がつく詰まり。下限は動かさず、空きが来なくなれば、覚える長さがたって忘れ、縮む。
         target = clamp(Math.max(cover, floor), params.minTarget, params.maxTarget);
+      } else if (arrivedShort(now)) {
+        // 回線が足りずに貯めきれなかった詰まり。端末の詰まりではないので、下限は動かさず、目標量だけを上げる。
+        target = Math.min(target + params.stallIncrease, params.maxTarget);
       } else {
         // 説明がつかない詰まり。止まった高さのすぐ上を次の下限にする。
         setFloor(now, Math.min(Math.max(floor, target + params.floorStep), params.maxTarget));
@@ -268,7 +300,7 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
   };
 
   return {
-    arrive(now, bufferBefore) {
+    arrive(now, bufferBefore, tail) {
       if (lastArrival !== null) {
         const gap = (now - lastArrival) / 1_000;
         // 上限より長いのは揺れではなく途絶えなので、覆わない。
@@ -277,6 +309,9 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
         }
       }
       lastArrival = now;
+      if (tail !== undefined) {
+        tails.push({ at: now, tail });
+      }
       if (bufferBefore !== null) {
         samples.push({ at: now, buffer: bufferBefore });
       }
@@ -288,15 +323,18 @@ export function createLiveBufferController(options: LiveBufferOptions): LiveBuff
     },
     forgetArrival() {
       lastArrival = null;
+      tails = [];
     },
     pause() {
       lastArrival = null;
+      tails = [];
       chasing = true;
     },
     selfInflicted(now) {
       lastArrival = null;
       chasing = false;
       samples = [];
+      tails = [];
       // 作り直した video や飛んだ後は等速から始めるので、寄せ方も等速に戻す。
       mode = 'normal';
       graceUntil = now + params.selfInflictedGraceMs;
