@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<2e783d82acb906d7931b5b836d1833c8>>
+ * @generated SignedSource<<193cac08a1eb2e229a0b4b536bd133f3>>
  * @lightSyntaxTransform
  */
 
@@ -31,6 +31,15 @@ export type integrationsQuery$data = {
     readonly destination: AnimeRecordDestination;
     readonly redirectUri: string;
   }>;
+  readonly dramaLinking: {
+    readonly tokenConfigured: boolean;
+    readonly tokenHint: string | null | undefined;
+  };
+  readonly dramaTitleOverrides: ReadonlyArray<{
+    readonly titleKey: string;
+    readonly tmdbSeriesId: number | null | undefined;
+    readonly updatedAt: string;
+  }>;
   readonly issuedStreamUrls: ReadonlyArray<{
     readonly createdAt: string;
     readonly expiresAt: string;
@@ -51,6 +60,7 @@ export type integrationsQuery$data = {
     readonly animeLinkingEnabled: boolean;
     readonly commentSources: ReadonlyArray<CommentSource>;
     readonly dataBroadcastIpEnabled: boolean;
+    readonly dramaLinkingEnabled: boolean;
     readonly epgstationApiEnabled: boolean;
     readonly externalPlayerUrlsEnabled: boolean;
     readonly iptvFeedsEnabled: boolean;
@@ -150,6 +160,13 @@ v2 = [
         "args": null,
         "kind": "ScalarField",
         "name": "animeLinkingEnabled",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "dramaLinkingEnabled",
         "storageKey": null
       },
       {
@@ -258,6 +275,63 @@ v2 = [
     "plural": false,
     "selections": [
       (v1/*:: as any*/)
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "DramaLinkingStatus",
+    "kind": "LinkedField",
+    "name": "dramaLinking",
+    "plural": false,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "tokenConfigured",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "tokenHint",
+        "storageKey": null
+      }
+    ],
+    "storageKey": null
+  },
+  {
+    "alias": null,
+    "args": null,
+    "concreteType": "DramaTitleOverride",
+    "kind": "LinkedField",
+    "name": "dramaTitleOverrides",
+    "plural": true,
+    "selections": [
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "titleKey",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "tmdbSeriesId",
+        "storageKey": null
+      },
+      {
+        "alias": null,
+        "args": null,
+        "kind": "ScalarField",
+        "name": "updatedAt",
+        "storageKey": null
+      }
     ],
     "storageKey": null
   },
@@ -410,16 +484,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "e0efad40072c896c1b2a7d8b04eccba4",
+    "cacheID": "5a1f012d3e829a59f39e2468ae8cdb96",
     "id": null,
     "metadata": {},
     "name": "integrationsQuery",
     "operationKind": "query",
-    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
+    "text": "query integrationsQuery {\n  systemSettings {\n    mcpEnabled\n    dataBroadcastIpEnabled\n    externalPlayerUrlsEnabled\n    iptvFeedsEnabled\n    recordingDownloadsEnabled\n    epgstationApiEnabled\n    networkActivityEnabled\n    animeLinkingEnabled\n    dramaLinkingEnabled\n    commentSources\n  }\n  issuedStreamUrls {\n    id\n    userDisplayName\n    targetName\n    live\n    createdAt\n    expiresAt\n    lastUsedAt\n  }\n  animeRecordApps {\n    destination\n    clientId\n    configured\n    redirectUri\n  }\n  animeImportToken {\n    configured\n  }\n  dramaLinking {\n    tokenConfigured\n    tokenHint\n  }\n  dramaTitleOverrides {\n    titleKey\n    tmdbSeriesId\n    updatedAt\n  }\n  animeImports {\n    source\n    checkedAt\n    importedAt\n    itemCount\n    error\n  }\n  webhooks {\n    id\n    name\n    url\n    format\n    kinds\n    enabled\n  }\n  secondFactors {\n    totp\n    remainingRecoveryCodes\n  }\n  passkeys {\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "47e312694f16915193f9e9cd84fd00cc";
+(node as any).hash = "ea6f95371f9f867baffa646d0b06b993";
 
 export default node;

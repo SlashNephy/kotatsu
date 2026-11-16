@@ -276,6 +276,18 @@ type ChannelType struct {
 	SortOrder   int32
 }
 
+type DramaMatchCursor struct {
+	ID         int16
+	EpgVersion int64
+	UpdatedAt  time.Time
+}
+
+type DramaTitleOverride struct {
+	TitleKey     string
+	TmdbSeriesID *int32
+	UpdatedAt    time.Time
+}
+
 type EdcbNetworkTv struct {
 	ID         int32
 	InstanceID uuid.UUID
@@ -546,6 +558,20 @@ type ProgramArchive struct {
 	ArchivedAt            time.Time
 }
 
+type ProgramDramaMatch struct {
+	ServiceID     int64
+	StartAt       time.Time
+	EventID       int64
+	TitleKey      string
+	TmdbSeriesID  *int32
+	SeasonNumber  *int32
+	EpisodeNumber *int32
+	SeriesSource  *string
+	EpisodeSource *string
+	MatchedAt     time.Time
+	FinalizedAt   *time.Time
+}
+
 type ProgramRewrite struct {
 	ServiceID  int64
 	EventID    int64
@@ -650,6 +676,16 @@ type RecordingCmSection struct {
 	Detector      string
 	StartOffsetMs int64
 	EndOffsetMs   int64
+}
+
+type RecordingDramaMatch struct {
+	RecordingID   uuid.UUID
+	TmdbSeriesID  *int32
+	SeasonNumber  *int32
+	EpisodeNumber *int32
+	SeriesSource  *string
+	EpisodeSource *string
+	MatchedAt     time.Time
 }
 
 type RecordingFailureCount struct {
@@ -904,6 +940,7 @@ type SystemSetting struct {
 	TvtplayChaptersEnabled                 bool
 	EPGStationAPIEnabled                   bool
 	AnimeLinkingEnabled                    bool
+	DramaLinkingEnabled                    bool
 	CommentSources                         []string
 	RuleDefaults                           []byte
 	DrcsReplacements                       []byte
@@ -979,6 +1016,34 @@ type TimeshiftPromotion struct {
 type TimeshiftWatch struct {
 	ServiceID     int64
 	WatchingUntil time.Time
+}
+
+type TmdbSearch struct {
+	Query     string
+	Results   []byte
+	FetchedAt time.Time
+}
+
+type TmdbSeason struct {
+	SeriesID     int32
+	SeasonNumber int32
+	Episodes     []byte
+	FetchedAt    time.Time
+}
+
+type TmdbSeries struct {
+	ID           int32
+	Name         string
+	OriginalName string
+	FirstAirDate pgtype.Date
+	Seasons      []byte
+	FetchedAt    time.Time
+}
+
+type TmdbToken struct {
+	ID             int16
+	TokenEncrypted []byte
+	UpdatedAt      time.Time
 }
 
 type TotpEnrollment struct {

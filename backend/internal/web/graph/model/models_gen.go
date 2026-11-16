@@ -676,6 +676,66 @@ type DeleteReservationPayload struct {
 	Reservation *Reservation `json:"reservation,omitempty"`
 }
 
+// 番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+type DramaEpisode struct {
+	Series       *DramaSeries      `json:"series"`
+	SeriesSource DramaSeriesSource `json:"seriesSource"`
+	// TMDb のシーズンの番号。0 は特別編。話を決められなければ null。
+	SeasonNumber *int `json:"seasonNumber,omitempty"`
+	// シーズンの中の話の番号。話を決められなければ null。
+	EpisodeNumber *int `json:"episodeNumber,omitempty"`
+	// 話の名前。キャッシュがなければ null。
+	EpisodeName   *string             `json:"episodeName,omitempty"`
+	EpisodeSource *DramaEpisodeSource `json:"episodeSource,omitempty"`
+	// TMDb の話のページ。話を決められなければ、作品のページ。
+	URL string `json:"url"`
+}
+
+// TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+type DramaLinkingStatus struct {
+	// 管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
+	TokenConfigured bool `json:"tokenConfigured"`
+	// 入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
+	TokenHint *string `json:"tokenHint,omitempty"`
+	// トークンを最後に変えた日時。入れていなければ null。
+	TokenUpdatedAt *time.Time `json:"tokenUpdatedAt,omitempty"`
+}
+
+// TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+type DramaSeries struct {
+	// TMDb の作品の ID。
+	TmdbID int `json:"tmdbId"`
+	// 作品の名前 (日本語)。
+	Name *string `json:"name,omitempty"`
+	// 作品の元の言語の名前。
+	OriginalName *string `json:"originalName,omitempty"`
+	// TMDb の作品のページ。
+	URL string `json:"url"`
+}
+
+// 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+type DramaTitleOverride struct {
+	// 作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。
+	TitleKey string `json:"titleKey"`
+	// 結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。
+	TmdbSeriesID *int      `json:"tmdbSeriesId,omitempty"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
+// 作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+type DramaTitleOverrideInput struct {
+	// 上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。
+	ProgramName *string `json:"programName,omitempty"`
+	// 上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
+	TitleKey *string `json:"titleKey,omitempty"`
+	// 結びつける TMDb の作品の ID (1 以上)。
+	TmdbSeriesID *int `json:"tmdbSeriesId,omitempty"`
+	// この作品名の番組を、どの作品にも結びつけない。
+	Exclude bool `json:"exclude"`
+	// 上書きを消し、TMDb を探して作品を決めるのに戻す。
+	Reset bool `json:"reset"`
+}
+
 // 字幕の外字 (DRCS) を文字に置き換える表の 1 行 (#825)。
 type DrcsReplacement struct {
 	// 外字の画像の MD5 (小文字の 32 桁の 16 進)。aribb24.js が置き換えに使う鍵と同じ。
@@ -1861,6 +1921,8 @@ type SystemSettings struct {
 	EpgstationAPIEnabled bool `json:"epgstationApiEnabled"`
 	// しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。
 	AnimeLinkingEnabled bool `json:"animeLinkingEnabled"`
+	// TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。
+	DramaLinkingEnabled bool `json:"dramaLinkingEnabled"`
 	// NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
 	// ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
 	JikkyoEnabled bool `json:"jikkyoEnabled"`
@@ -1906,6 +1968,8 @@ type SystemSettingsInput struct {
 	EpgstationAPIEnabled *bool `json:"epgstationApiEnabled,omitempty"`
 	// 変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	AnimeLinkingEnabled *bool `json:"animeLinkingEnabled,omitempty"`
+	// TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
+	DramaLinkingEnabled *bool `json:"dramaLinkingEnabled,omitempty"`
 	// 渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。
 	CommentSources []CommentSource `json:"commentSources,omitempty"`
 	// 字幕の外字の置き換えの表の変更。書いた外字だけを変え (text が null なら消し)、ほかは変えない。表は 2000 件まで。
@@ -2718,6 +2782,122 @@ func (e *DataChannel) UnmarshalJSON(b []byte) error {
 }
 
 func (e DataChannel) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+type DramaEpisodeSource string
+
+const (
+	// TMDb の話の放送日と、番組の放送日が一致した
+	DramaEpisodeSourceAirDate DramaEpisodeSource = "AIR_DATE"
+	// 番組名の話数 (#7、第7話、(4)) で選んだ
+	DramaEpisodeSourceTitle DramaEpisodeSource = "TITLE"
+)
+
+var AllDramaEpisodeSource = []DramaEpisodeSource{
+	DramaEpisodeSourceAirDate,
+	DramaEpisodeSourceTitle,
+}
+
+func (e DramaEpisodeSource) IsValid() bool {
+	switch e {
+	case DramaEpisodeSourceAirDate, DramaEpisodeSourceTitle:
+		return true
+	}
+	return false
+}
+
+func (e DramaEpisodeSource) String() string {
+	return string(e)
+}
+
+func (e *DramaEpisodeSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DramaEpisodeSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DramaEpisodeSource", str)
+	}
+	return nil
+}
+
+func (e DramaEpisodeSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DramaEpisodeSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DramaEpisodeSource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+// 番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+type DramaSeriesSource string
+
+const (
+	// 番組名から読んだ作品名で、TMDb を探した
+	DramaSeriesSourceSearch DramaSeriesSource = "SEARCH"
+	// 管理者が、作品名ごとに決めた (上書き)
+	DramaSeriesSourceOverride DramaSeriesSource = "OVERRIDE"
+)
+
+var AllDramaSeriesSource = []DramaSeriesSource{
+	DramaSeriesSourceSearch,
+	DramaSeriesSourceOverride,
+}
+
+func (e DramaSeriesSource) IsValid() bool {
+	switch e {
+	case DramaSeriesSourceSearch, DramaSeriesSourceOverride:
+		return true
+	}
+	return false
+}
+
+func (e DramaSeriesSource) String() string {
+	return string(e)
+}
+
+func (e *DramaSeriesSource) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = DramaSeriesSource(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid DramaSeriesSource", str)
+	}
+	return nil
+}
+
+func (e DramaSeriesSource) MarshalGQL(w io.Writer) {
+	_, _ = fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *DramaSeriesSource) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e DramaSeriesSource) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	e.MarshalGQL(&buf)
 	return buf.Bytes(), nil

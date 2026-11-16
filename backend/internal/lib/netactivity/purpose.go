@@ -27,6 +27,7 @@ import (
 // AnimeRecord = ANIME_RECORD
 // AnimeLink = ANIME_LINK
 // AnimeImage = ANIME_IMAGE
+// DramaLinking = DRAMA_LINKING
 // UserAvatar = USER_AVATAR
 // OIDC = OIDC
 // HIBP = HIBP
@@ -51,7 +52,7 @@ type Initiator string
 // initiatorOf は、目的 p のきっかけを返す。
 func initiatorOf(p Purpose) Initiator {
 	switch p {
-	case PurposeAnimeProgramSync, PurposeAnimeMappings, PurposeAnimeWorkIDs, PurposeAnimeArtworks, PurposeAnimeRecord,
+	case PurposeAnimeProgramSync, PurposeAnimeMappings, PurposeAnimeWorkIDs, PurposeAnimeArtworks, PurposeAnimeRecord, PurposeDramaLinking,
 		PurposeUpdateCheck, PurposeTelemetryTraces, PurposeTelemetryMetrics, PurposeWebPush, PurposeWebhook:
 		return InitiatorScheduled
 	case PurposeJikkyoChannels, PurposeJikkyoComments, PurposeJikkyoKakolog, PurposeNicologComments, PurposeAnimeLink, PurposeAnimeImage,
@@ -102,6 +103,8 @@ func knownHosts(p Purpose) ([]string, bool) {
 		return []string{aniListAPI, "api.jikan.moe"}, false
 	case PurposeAnimeRecord, PurposeAnimeLink:
 		return []string{annict, annictAPI, aniList, aniListAPI}, false
+	case PurposeDramaLinking:
+		return []string{"api.themoviedb.org"}, false
 	case PurposeHIBP:
 		return []string{"api.pwnedpasswords.com"}, false
 	case PurposeUpdateCheck:

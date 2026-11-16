@@ -404,6 +404,35 @@ type ComplexityRoot struct {
 		Reservation func(childComplexity int) int
 	}
 
+	DramaEpisode struct {
+		EpisodeName   func(childComplexity int) int
+		EpisodeNumber func(childComplexity int) int
+		EpisodeSource func(childComplexity int) int
+		SeasonNumber  func(childComplexity int) int
+		Series        func(childComplexity int) int
+		SeriesSource  func(childComplexity int) int
+		URL           func(childComplexity int) int
+	}
+
+	DramaLinkingStatus struct {
+		TokenConfigured func(childComplexity int) int
+		TokenHint       func(childComplexity int) int
+		TokenUpdatedAt  func(childComplexity int) int
+	}
+
+	DramaSeries struct {
+		Name         func(childComplexity int) int
+		OriginalName func(childComplexity int) int
+		TmdbID       func(childComplexity int) int
+		URL          func(childComplexity int) int
+	}
+
+	DramaTitleOverride struct {
+		TitleKey     func(childComplexity int) int
+		TmdbSeriesID func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
+	}
+
 	DrcsReplacement struct {
 		Md5  func(childComplexity int) int
 		Text func(childComplexity int) int
@@ -718,6 +747,8 @@ type ComplexityRoot struct {
 		UpdateAnimeRecordApp          func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
 		UpdateAnimeRecordSettings     func(childComplexity int, input model.AnimeRecordSettingsInput) int
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
+		UpdateDramaLinkingToken       func(childComplexity int, token string) int
+		UpdateDramaTitleOverride      func(childComplexity int, input model.DramaTitleOverrideInput) int
 		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference  func(childComplexity int, input model.NotificationPreferenceInput) int
 		UpdatePlayer                  func(childComplexity int, id string, state model.PlayerStateInput, announce bool) int
@@ -897,6 +928,8 @@ type ComplexityRoot struct {
 		Archived      func(childComplexity int) int
 		Audios        func(childComplexity int) int
 		Description   func(childComplexity int) int
+		DramaEpisode  func(childComplexity int) int
+		DramaTitleKey func(childComplexity int) int
 		EndAt         func(childComplexity int) int
 		EndUndecided  func(childComplexity int) int
 		EventID       func(childComplexity int) int
@@ -966,6 +999,8 @@ type ComplexityRoot struct {
 		CapturesAvailable       func(childComplexity int) int
 		ChannelTypes            func(childComplexity int) int
 		ContinueWatching        func(childComplexity int, first int) int
+		DramaLinking            func(childComplexity int) int
+		DramaTitleOverrides     func(childComplexity int) int
 		DrcsReplacements        func(childComplexity int) int
 		FileNameTemplateHelp    func(childComplexity int) int
 		GoModuleLicenses        func(childComplexity int) int
@@ -1036,6 +1071,8 @@ type ComplexityRoot struct {
 		CMSections               func(childComplexity int) int
 		CMVideoMissingSeconds    func(childComplexity int) int
 		Description              func(childComplexity int) int
+		DramaEpisode             func(childComplexity int) int
+		DramaTitleKey            func(childComplexity int) int
 		Drops                    func(childComplexity int) int
 		EndAt                    func(childComplexity int) int
 		Errors                   func(childComplexity int) int
@@ -1392,6 +1429,7 @@ type ComplexityRoot struct {
 		CMDetector                             func(childComplexity int) int
 		CommentSources                         func(childComplexity int) int
 		DataBroadcastIPEnabled                 func(childComplexity int) int
+		DramaLinkingEnabled                    func(childComplexity int) int
 		DrcsReplacements                       func(childComplexity int) int
 		EpgstationAPIEnabled                   func(childComplexity int) int
 		ExternalPlayerUrlsEnabled              func(childComplexity int) int
@@ -1598,6 +1636,8 @@ type MutationResolver interface {
 	DeleteIptvFeed(ctx context.Context) (bool, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
+	UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error)
+	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
 	CleanUpMissingRecordings(ctx context.Context, ids []string) (*model.CleanUpMissingRecordingsPayload, error)
@@ -1684,6 +1724,8 @@ type ProgramResolver interface {
 
 	SharedFrom(ctx context.Context, obj *model.Program) (*model.Service, error)
 	AnimeEpisodes(ctx context.Context, obj *model.Program) ([]*model.AnimeEpisode, error)
+	DramaEpisode(ctx context.Context, obj *model.Program) (*model.DramaEpisode, error)
+
 	Recordings(ctx context.Context, obj *model.Program) ([]*model.Recording, error)
 	Recorded(ctx context.Context, obj *model.Program) (bool, error)
 	Reservation(ctx context.Context, obj *model.Program) (*model.Reservation, error)
@@ -1715,6 +1757,8 @@ type QueryResolver interface {
 	IptvFeed(ctx context.Context) (*model.IptvFeed, error)
 	Captures(ctx context.Context, first int, after *string, keyword *string) (*model.CaptureConnection, error)
 	CapturesAvailable(ctx context.Context) (bool, error)
+	DramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error)
+	DramaTitleOverrides(ctx context.Context) ([]*model.DramaTitleOverride, error)
 	Node(ctx context.Context, id string) (model.Node, error)
 	ChannelTypes(ctx context.Context) ([]*model.ChannelType, error)
 	Services(ctx context.Context, includeHidden bool) ([]*model.Service, error)
@@ -1792,6 +1836,7 @@ type RecordingResolver interface {
 	NextEpisodes(ctx context.Context, obj *model.Recording) ([]*model.Program, error)
 
 	AnimeEpisodes(ctx context.Context, obj *model.Recording) ([]*model.AnimeEpisode, error)
+	DramaEpisode(ctx context.Context, obj *model.Recording) (*model.DramaEpisode, error)
 }
 type ReservationResolver interface {
 	Service(ctx context.Context, obj *model.Reservation) (*model.Service, error)
@@ -3130,6 +3175,112 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DeleteReservationPayload.Reservation(childComplexity), true
+
+	case "DramaEpisode.episodeName":
+		if e.ComplexityRoot.DramaEpisode.EpisodeName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.EpisodeName(childComplexity), true
+	case "DramaEpisode.episodeNumber":
+		if e.ComplexityRoot.DramaEpisode.EpisodeNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.EpisodeNumber(childComplexity), true
+	case "DramaEpisode.episodeSource":
+		if e.ComplexityRoot.DramaEpisode.EpisodeSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.EpisodeSource(childComplexity), true
+	case "DramaEpisode.seasonNumber":
+		if e.ComplexityRoot.DramaEpisode.SeasonNumber == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.SeasonNumber(childComplexity), true
+	case "DramaEpisode.series":
+		if e.ComplexityRoot.DramaEpisode.Series == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.Series(childComplexity), true
+	case "DramaEpisode.seriesSource":
+		if e.ComplexityRoot.DramaEpisode.SeriesSource == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.SeriesSource(childComplexity), true
+	case "DramaEpisode.url":
+		if e.ComplexityRoot.DramaEpisode.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaEpisode.URL(childComplexity), true
+
+	case "DramaLinkingStatus.tokenConfigured":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenConfigured == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenConfigured(childComplexity), true
+	case "DramaLinkingStatus.tokenHint":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenHint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenHint(childComplexity), true
+	case "DramaLinkingStatus.tokenUpdatedAt":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt(childComplexity), true
+
+	case "DramaSeries.name":
+		if e.ComplexityRoot.DramaSeries.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.Name(childComplexity), true
+	case "DramaSeries.originalName":
+		if e.ComplexityRoot.DramaSeries.OriginalName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.OriginalName(childComplexity), true
+	case "DramaSeries.tmdbId":
+		if e.ComplexityRoot.DramaSeries.TmdbID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.TmdbID(childComplexity), true
+	case "DramaSeries.url":
+		if e.ComplexityRoot.DramaSeries.URL == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaSeries.URL(childComplexity), true
+
+	case "DramaTitleOverride.titleKey":
+		if e.ComplexityRoot.DramaTitleOverride.TitleKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaTitleOverride.TitleKey(childComplexity), true
+	case "DramaTitleOverride.tmdbSeriesId":
+		if e.ComplexityRoot.DramaTitleOverride.TmdbSeriesID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaTitleOverride.TmdbSeriesID(childComplexity), true
+	case "DramaTitleOverride.updatedAt":
+		if e.ComplexityRoot.DramaTitleOverride.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaTitleOverride.UpdatedAt(childComplexity), true
 
 	case "DrcsReplacement.md5":
 		if e.ComplexityRoot.DrcsReplacement.Md5 == nil {
@@ -4872,6 +5023,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateChannelType(childComplexity, args["type"].(string), args["input"].(model.ChannelTypeInput)), true
+	case "Mutation.updateDramaLinkingToken":
+		if e.ComplexityRoot.Mutation.UpdateDramaLinkingToken == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaLinkingToken_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaLinkingToken(childComplexity, args["token"].(string)), true
+	case "Mutation.updateDramaTitleOverride":
+		if e.ComplexityRoot.Mutation.UpdateDramaTitleOverride == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaTitleOverride_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaTitleOverride(childComplexity, args["input"].(model.DramaTitleOverrideInput)), true
 	case "Mutation.updateGuideView":
 		if e.ComplexityRoot.Mutation.UpdateGuideView == nil {
 			break
@@ -5671,6 +5844,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Description(childComplexity), true
+	case "Program.dramaEpisode":
+		if e.ComplexityRoot.Program.DramaEpisode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.DramaEpisode(childComplexity), true
+	case "Program.dramaTitleKey":
+		if e.ComplexityRoot.Program.DramaTitleKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.DramaTitleKey(childComplexity), true
 	case "Program.endAt":
 		if e.ComplexityRoot.Program.EndAt == nil {
 			break
@@ -6020,6 +6205,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ContinueWatching(childComplexity, args["first"].(int)), true
+	case "Query.dramaLinking":
+		if e.ComplexityRoot.Query.DramaLinking == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaLinking(childComplexity), true
+	case "Query.dramaTitleOverrides":
+		if e.ComplexityRoot.Query.DramaTitleOverrides == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.DramaTitleOverrides(childComplexity), true
 	case "Query.drcsReplacements":
 		if e.ComplexityRoot.Query.DrcsReplacements == nil {
 			break
@@ -6489,6 +6686,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Recording.Description(childComplexity), true
+	case "Recording.dramaEpisode":
+		if e.ComplexityRoot.Recording.DramaEpisode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.DramaEpisode(childComplexity), true
+	case "Recording.dramaTitleKey":
+		if e.ComplexityRoot.Recording.DramaTitleKey == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Recording.DramaTitleKey(childComplexity), true
 	case "Recording.drops":
 		if e.ComplexityRoot.Recording.Drops == nil {
 			break
@@ -7989,6 +8198,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SystemSettings.DataBroadcastIPEnabled(childComplexity), true
+	case "SystemSettings.dramaLinkingEnabled":
+		if e.ComplexityRoot.SystemSettings.DramaLinkingEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SystemSettings.DramaLinkingEnabled(childComplexity), true
 	case "SystemSettings.drcsReplacements":
 		if e.ComplexityRoot.SystemSettings.DrcsReplacements == nil {
 			break
@@ -8718,6 +8933,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("CommentSettingsInput", ec.unmarshalInputCommentSettingsInput),
 			graphql.NewInputUnmarshaler("CreateUserInput", ec.unmarshalInputCreateUserInput),
 			graphql.NewInputUnmarshaler("CreateWebhookInput", ec.unmarshalInputCreateWebhookInput),
+			graphql.NewInputUnmarshaler("DramaTitleOverrideInput", ec.unmarshalInputDramaTitleOverrideInput),
 			graphql.NewInputUnmarshaler("DrcsReplacementInput", ec.unmarshalInputDrcsReplacementInput),
 			graphql.NewInputUnmarshaler("GenreInput", ec.unmarshalInputGenreInput),
 			graphql.NewInputUnmarshaler("GuideViewInput", ec.unmarshalInputGuideViewInput),
@@ -10045,6 +10261,133 @@ input ProgramConditionsInput {
   excludeMarks: [String!]
 }
 `, BuiltIn: false},
+	{Name: "../schema/drama.graphqls", Input: `"""
+番組や録画に結びついた TMDb の作品を、どこから決めたか (#1651、設計書 3.9)。
+"""
+enum DramaSeriesSource {
+  "番組名から読んだ作品名で、TMDb を探した"
+  SEARCH
+  "管理者が、作品名ごとに決めた (上書き)"
+  OVERRIDE
+}
+
+"""
+番組や録画に結びついた TMDb の話を、どこから決めたか (#1651、設計書 3.9)。
+"""
+enum DramaEpisodeSource {
+  "TMDb の話の放送日と、番組の放送日が一致した"
+  AIR_DATE
+  "番組名の話数 (#7、第7話、(4)) で選んだ"
+  TITLE
+}
+
+"""
+TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
+"""
+type DramaSeries {
+  "TMDb の作品の ID。"
+  tmdbId: Int!
+  "作品の名前 (日本語)。"
+  name: String
+  "作品の元の言語の名前。"
+  originalName: String
+  "TMDb の作品のページ。"
+  url: String!
+}
+
+"""
+番組や録画に結びついた TMDb の作品と話 (#1651、設計書 3.9)。話を決められなければ、作品だけを持つ。
+"""
+type DramaEpisode {
+  series: DramaSeries!
+  seriesSource: DramaSeriesSource!
+  "TMDb のシーズンの番号。0 は特別編。話を決められなければ null。"
+  seasonNumber: Int
+  "シーズンの中の話の番号。話を決められなければ null。"
+  episodeNumber: Int
+  "話の名前。キャッシュがなければ null。"
+  episodeName: String
+  episodeSource: DramaEpisodeSource
+  "TMDb の話のページ。話を決められなければ、作品のページ。"
+  url: String!
+}
+
+"""
+管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。
+"""
+type DramaTitleOverride {
+  "作品名の鍵 (NFKC で正規化し、小文字にし、空白と記号を除いたもの)。"
+  titleKey: String!
+  "結びつける TMDb の作品の ID。null なら、この作品名の番組をどの作品にも結びつけない。"
+  tmdbSeriesId: Int
+  updatedAt: Time!
+}
+
+"""
+TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
+"""
+type DramaLinkingStatus {
+  "管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。"
+  tokenConfigured: Boolean!
+  "入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。"
+  tokenHint: String
+  "トークンを最後に変えた日時。入れていなければ null。"
+  tokenUpdatedAt: Time
+}
+
+"""
+作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+"""
+input DramaTitleOverrideInput {
+  "上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。"
+  programName: String
+  "上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
+  titleKey: String
+  "結びつける TMDb の作品の ID (1 以上)。"
+  tmdbSeriesId: Int
+  "この作品名の番組を、どの作品にも結びつけない。"
+  exclude: Boolean! = false
+  "上書きを消し、TMDb を探して作品を決めるのに戻す。"
+  reset: Boolean! = false
+}
+
+extend type Program {
+  "結びついた TMDb の作品と話 (#1651、設計書 3.9)。照合していないか、作品に結びつかなければ null。番組の詳細で使い、一覧では引かない。"
+  dramaEpisode: DramaEpisode
+  "番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  dramaTitleKey: String!
+}
+
+extend type Recording {
+  "結びついた TMDb の作品と話 (#1651、設計書 3.9)。録画を始めたときの番組の結びつきを写したもの。録画の詳細で使い、一覧では引かない。"
+  dramaEpisode: DramaEpisode
+  "番組名から読んだ、TMDb で作品を探す作品名の鍵 (#1651)。管理者が上書きするのに使う。"
+  dramaTitleKey: String!
+}
+
+extend type Query {
+  "TMDb との連携の様子 (#1651)。管理者だけが使える。"
+  dramaLinking: DramaLinkingStatus!
+  "作品名ごとの TMDb の作品の上書き (#1651)。作品名の鍵の順に並べる。管理者だけが使える。"
+  dramaTitleOverrides: [DramaTitleOverride!]!
+}
+
+extend type Mutation {
+  """
+  TMDb の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDb には問い合わせない。
+  2048 文字を超えるか、空白、制御文字、ASCII の外の文字を含めば BAD_USER_INPUT を返す。
+  入れたら、6 時間ごとの照合し直しを待たずに照合するジョブを入れる。
+  """
+  updateDramaLinkingToken(token: String!): DramaLinkingStatus!
+  """
+  番組名から読んだ作品名の、TMDb の作品の上書きを変える (#1651)。管理者だけが使える。
+  家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDb には問い合わせず、照合し直すジョブを入れる。
+  正しくない値なら BAD_USER_INPUT を返す。変えた後の、すべての上書きを返す。
+  """
+  updateDramaTitleOverride(input: DramaTitleOverrideInput!): [DramaTitleOverride!]!
+}
+`, BuiltIn: false},
 	{Name: "../schema/epg.graphqls", Input: `"""
 チャンネル種別 (設計書 3.1)。種別の文字列はチューナーサーバーが返すものをそのまま使い、表示名と並び順は管理者が変えられる。
 """
@@ -10536,6 +10879,7 @@ enum NetworkActivityPurpose {
   ANIME_RECORD
   ANIME_LINK
   ANIME_IMAGE
+  DRAMA_LINKING
   USER_AVATAR
   OIDC
   HIBP
@@ -12335,6 +12679,8 @@ type SystemSettings {
   epgstationApiEnabled: Boolean!
   "しょぼいカレンダー、Annict、AniList との連携 (アニメの番組と作品の結びつき) を使うかどうか (設計書 3.8)。既定は false。"
   animeLinkingEnabled: Boolean!
+  "TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうか (#1651、設計書 3.9)。既定は false。"
+  dramaLinkingEnabled: Boolean!
   """
   NX-Jikkyo のソースをオプトインしているかどうか (設計書 7.4)。既定は false。
   ログインしていれば誰でも読め、実況の画面を出すかを決めるのに使う。
@@ -12388,6 +12734,8 @@ input SystemSettingsInput {
   epgstationApiEnabled: Boolean
   "変えるときは、外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   animeLinkingEnabled: Boolean
+  "TMDb との連携を使うかどうか (#1651)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
+  dramaLinkingEnabled: Boolean
   "渡したら、オプトインする実況のコメントのソースを置き換える (#1405)。外部へ問い合わせ始めるかどうかを決める操作なので、直近 10 分以内の認証が要る (設計書 9.5)。"
   commentSources: [CommentSource!]
   """
@@ -13878,6 +14226,64 @@ func (ec *executionContext) childFields_DeleteReservationPayload(ctx context.Con
 	return nil, fmt.Errorf("no field named %q was found under type DeleteReservationPayload", field.Name)
 }
 
+func (ec *executionContext) childFields_DramaEpisode(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "series":
+		return ec.fieldContext_DramaEpisode_series(ctx, field)
+	case "seriesSource":
+		return ec.fieldContext_DramaEpisode_seriesSource(ctx, field)
+	case "seasonNumber":
+		return ec.fieldContext_DramaEpisode_seasonNumber(ctx, field)
+	case "episodeNumber":
+		return ec.fieldContext_DramaEpisode_episodeNumber(ctx, field)
+	case "episodeName":
+		return ec.fieldContext_DramaEpisode_episodeName(ctx, field)
+	case "episodeSource":
+		return ec.fieldContext_DramaEpisode_episodeSource(ctx, field)
+	case "url":
+		return ec.fieldContext_DramaEpisode_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaEpisode", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaLinkingStatus(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "tokenConfigured":
+		return ec.fieldContext_DramaLinkingStatus_tokenConfigured(ctx, field)
+	case "tokenHint":
+		return ec.fieldContext_DramaLinkingStatus_tokenHint(ctx, field)
+	case "tokenUpdatedAt":
+		return ec.fieldContext_DramaLinkingStatus_tokenUpdatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaLinkingStatus", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaSeries(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "tmdbId":
+		return ec.fieldContext_DramaSeries_tmdbId(ctx, field)
+	case "name":
+		return ec.fieldContext_DramaSeries_name(ctx, field)
+	case "originalName":
+		return ec.fieldContext_DramaSeries_originalName(ctx, field)
+	case "url":
+		return ec.fieldContext_DramaSeries_url(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaSeries", field.Name)
+}
+
+func (ec *executionContext) childFields_DramaTitleOverride(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "titleKey":
+		return ec.fieldContext_DramaTitleOverride_titleKey(ctx, field)
+	case "tmdbSeriesId":
+		return ec.fieldContext_DramaTitleOverride_tmdbSeriesId(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_DramaTitleOverride_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type DramaTitleOverride", field.Name)
+}
+
 func (ec *executionContext) childFields_DrcsReplacement(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "md5":
@@ -14676,6 +15082,10 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_sharedFrom(ctx, field)
 	case "animeEpisodes":
 		return ec.fieldContext_Program_animeEpisodes(ctx, field)
+	case "dramaEpisode":
+		return ec.fieldContext_Program_dramaEpisode(ctx, field)
+	case "dramaTitleKey":
+		return ec.fieldContext_Program_dramaTitleKey(ctx, field)
 	case "recordings":
 		return ec.fieldContext_Program_recordings(ctx, field)
 	case "recorded":
@@ -14858,6 +15268,10 @@ func (ec *executionContext) childFields_Recording(ctx context.Context, field gra
 		return ec.fieldContext_Recording_streamUrl(ctx, field)
 	case "animeEpisodes":
 		return ec.fieldContext_Recording_animeEpisodes(ctx, field)
+	case "dramaEpisode":
+		return ec.fieldContext_Recording_dramaEpisode(ctx, field)
+	case "dramaTitleKey":
+		return ec.fieldContext_Recording_dramaTitleKey(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Recording", field.Name)
 }
@@ -15490,6 +15904,8 @@ func (ec *executionContext) childFields_SystemSettings(ctx context.Context, fiel
 		return ec.fieldContext_SystemSettings_epgstationApiEnabled(ctx, field)
 	case "animeLinkingEnabled":
 		return ec.fieldContext_SystemSettings_animeLinkingEnabled(ctx, field)
+	case "dramaLinkingEnabled":
+		return ec.fieldContext_SystemSettings_dramaLinkingEnabled(ctx, field)
 	case "jikkyoEnabled":
 		return ec.fieldContext_SystemSettings_jikkyoEnabled(ctx, field)
 	case "commentSources":
@@ -17205,6 +17621,34 @@ func (ec *executionContext) field_Mutation_updateChannelType_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaLinkingToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "token",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["token"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaTitleOverride_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
+			return ec.unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
 	return args, nil
 }
 
@@ -23095,6 +23539,406 @@ func (ec *executionContext) fieldContext_DeleteReservationPayload_reservation(_ 
 	return fc, nil
 }
 
+func (ec *executionContext) _DramaEpisode_series(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_series(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Series, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+			return ec.marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_series(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DramaEpisode",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaSeries(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DramaEpisode_seriesSource(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_seriesSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeriesSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v model.DramaSeriesSource) graphql.Marshaler {
+			return ec.marshalNDramaSeriesSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeriesSource(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_seriesSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "DramaSeriesSource")
+}
+
+func (ec *executionContext) _DramaEpisode_seasonNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_seasonNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SeasonNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_seasonNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaEpisode_episodeNumber(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_episodeNumber(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeNumber, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_episodeNumber(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaEpisode_episodeName(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_episodeName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_episodeName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaEpisode_episodeSource(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_episodeSource(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EpisodeSource, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaEpisodeSource) graphql.Marshaler {
+			return ec.marshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_episodeSource(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "DramaEpisodeSource")
+}
+
+func (ec *executionContext) _DramaEpisode_url(ctx context.Context, field graphql.CollectedField, obj *model.DramaEpisode) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaEpisode_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaEpisode_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaEpisode", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenConfigured(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenConfigured(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenConfigured, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenConfigured(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenHint(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenHint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenHint, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenHint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenUpdatedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenUpdatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenUpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenUpdatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Time")
+}
+
+func (ec *executionContext) _DramaSeries_tmdbId(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_tmdbId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TmdbID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_tmdbId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaSeries_name(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaSeries_originalName(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_originalName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OriginalName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_originalName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaSeries_url(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaSeries_url(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.URL, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaSeries_url(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaSeries", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaTitleOverride_titleKey(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaTitleOverride_titleKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TitleKey, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaTitleOverride_titleKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaTitleOverride", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaTitleOverride_tmdbSeriesId(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaTitleOverride_tmdbSeriesId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TmdbSeriesID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaTitleOverride_tmdbSeriesId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaTitleOverride", field, false, false, "Int")
+}
+
+func (ec *executionContext) _DramaTitleOverride_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaTitleOverride) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaTitleOverride_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_DramaTitleOverride_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaTitleOverride", field, false, false, "Time")
+}
+
 func (ec *executionContext) _DrcsReplacement_md5(ctx context.Context, field graphql.CollectedField, obj *model.DrcsReplacement) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27157,6 +28001,94 @@ func (ec *executionContext) fieldContext_Mutation_inspectChannel(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_inspectChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaLinkingToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaLinkingToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaLinkingToken(ctx, fc.Args["token"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+			return ec.marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaLinkingToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLinkingStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaLinkingToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaTitleOverride(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaTitleOverride(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaTitleOverride(ctx, fc.Args["input"].(model.DramaTitleOverrideInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaTitleOverride) graphql.Marshaler {
+			return ec.marshalNDramaTitleOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaTitleOverride(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaTitleOverride(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaTitleOverride_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -33412,6 +34344,61 @@ func (ec *executionContext) fieldContext_Program_animeEpisodes(_ context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Program_dramaEpisode(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_dramaEpisode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().DramaEpisode(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaEpisode) graphql.Marshaler {
+			return ec.marshalODramaEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Program_dramaEpisode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_dramaTitleKey(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_dramaTitleKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DramaTitleKey(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_dramaTitleKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, true, false, "String")
+}
+
 func (ec *executionContext) _Program_recordings(ctx context.Context, field graphql.CollectedField, obj *model.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -34788,6 +35775,70 @@ func (ec *executionContext) _Query_capturesAvailable(ctx context.Context, field 
 }
 func (ec *executionContext) fieldContext_Query_capturesAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Query", field, true, true, "Boolean")
+}
+
+func (ec *executionContext) _Query_dramaLinking(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaLinking(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaLinking(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+			return ec.marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaLinking(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLinkingStatus(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_dramaTitleOverrides(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_dramaTitleOverrides(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().DramaTitleOverrides(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.DramaTitleOverride) graphql.Marshaler {
+			return ec.marshalNDramaTitleOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_dramaTitleOverrides(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaTitleOverride(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _Query_node(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -37945,6 +38996,61 @@ func (ec *executionContext) fieldContext_Recording_animeEpisodes(_ context.Conte
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Recording_dramaEpisode(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_dramaEpisode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Recording().DramaEpisode(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaEpisode) graphql.Marshaler {
+			return ec.marshalODramaEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisode(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_dramaEpisode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Recording",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaEpisode(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Recording_dramaTitleKey(ctx context.Context, field graphql.CollectedField, obj *model.Recording) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Recording_dramaTitleKey(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DramaTitleKey(), nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Recording_dramaTitleKey(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Recording", field, true, false, "String")
 }
 
 func (ec *executionContext) _RecordingCMDetection_state(ctx context.Context, field graphql.CollectedField, obj *model.RecordingCMDetection) (ret graphql.Marshaler) {
@@ -43248,6 +44354,29 @@ func (ec *executionContext) fieldContext_SystemSettings_animeLinkingEnabled(_ co
 	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _SystemSettings_dramaLinkingEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SystemSettings_dramaLinkingEnabled(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DramaLinkingEnabled, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SystemSettings_dramaLinkingEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SystemSettings", field, false, false, "Boolean")
+}
+
 func (ec *executionContext) _SystemSettings_jikkyoEnabled(ctx context.Context, field graphql.CollectedField, obj *model.SystemSettings) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -47530,6 +48659,83 @@ func UnmarshalCreateWebhookInput(ctx context.Context, raw any) (model.CreateWebh
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputDramaTitleOverrideInput(ctx context.Context, obj any) (model.DramaTitleOverrideInput, error) {
+	var it model.DramaTitleOverrideInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["exclude"]; !present {
+		asMap["exclude"] = false
+	}
+	if _, present := asMap["reset"]; !present {
+		asMap["reset"] = false
+	}
+
+	fieldsInOrder := [...]string{"programName", "titleKey", "tmdbSeriesId", "exclude", "reset"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "programName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("programName"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProgramName = data
+		case "titleKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("titleKey"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TitleKey = data
+		case "tmdbSeriesId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tmdbSeriesId"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TmdbSeriesID = data
+		case "exclude":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("exclude"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Exclude = data
+		case "reset":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reset"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reset = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalDramaTitleOverrideInput unmarshals raw into the DramaTitleOverrideInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalDramaTitleOverrideInput(ctx context.Context, raw any) (model.DramaTitleOverrideInput, error) {
+	var out model.DramaTitleOverrideInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "DramaTitleOverrideInput", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputDrcsReplacementInput(ctx context.Context, obj any) (model.DrcsReplacementInput, error) {
 	var it model.DrcsReplacementInput
 	if obj == nil {
@@ -49214,7 +50420,7 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
+	fieldsInOrder := [...]string{"recordingDefaults", "archiveRetentionDays", "notificationRetentionDays", "watchProgressRetentionDays", "networkActivityEnabled", "networkActivityRetentionDays", "ruleDefaults", "mcpEnabled", "dataBroadcastIpEnabled", "externalPlayerUrlsEnabled", "iptvFeedsEnabled", "recordingDownloadsEnabled", "tvtplayChaptersEnabled", "cmDetector", "epgstationApiEnabled", "animeLinkingEnabled", "dramaLinkingEnabled", "commentSources", "drcsReplacements", "timeshiftWhileWatching", "timeshiftWhileWatchingRetentionSeconds", "ruleUnmatchedGraceMinutes"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -49333,6 +50539,13 @@ func (ec *executionContext) unmarshalInputSystemSettingsInput(ctx context.Contex
 				return it, err
 			}
 			it.AnimeLinkingEnabled = data
+		case "dramaLinkingEnabled":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dramaLinkingEnabled"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DramaLinkingEnabled = data
 		case "commentSources":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("commentSources"))
 			data, err := ec.unmarshalOCommentSource2ᚕgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCommentSourceᚄ(ctx, v)
@@ -52175,6 +53388,203 @@ func (ec *executionContext) _DeleteReservationPayload(ctx context.Context, sel a
 	return out
 }
 
+var dramaEpisodeImplementors = []string{"DramaEpisode"}
+
+func (ec *executionContext) _DramaEpisode(ctx context.Context, sel ast.SelectionSet, obj *model.DramaEpisode) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaEpisodeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaEpisode")
+		case "series":
+			out.Values[i] = ec._DramaEpisode_series(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seriesSource":
+			out.Values[i] = ec._DramaEpisode_seriesSource(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "seasonNumber":
+			out.Values[i] = ec._DramaEpisode_seasonNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeNumber":
+			out.Values[i] = ec._DramaEpisode_episodeNumber(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeName":
+			out.Values[i] = ec._DramaEpisode_episodeName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "episodeSource":
+			out.Values[i] = ec._DramaEpisode_episodeSource(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._DramaEpisode_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaLinkingStatusImplementors = []string{"DramaLinkingStatus"}
+
+func (ec *executionContext) _DramaLinkingStatus(ctx context.Context, sel ast.SelectionSet, obj *model.DramaLinkingStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaLinkingStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaLinkingStatus")
+		case "tokenConfigured":
+			out.Values[i] = ec._DramaLinkingStatus_tokenConfigured(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tokenHint":
+			out.Values[i] = ec._DramaLinkingStatus_tokenHint(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "tokenUpdatedAt":
+			out.Values[i] = ec._DramaLinkingStatus_tokenUpdatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaSeriesImplementors = []string{"DramaSeries"}
+
+func (ec *executionContext) _DramaSeries(ctx context.Context, sel ast.SelectionSet, obj *model.DramaSeries) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaSeriesImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaSeries")
+		case "tmdbId":
+			out.Values[i] = ec._DramaSeries_tmdbId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._DramaSeries_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "originalName":
+			out.Values[i] = ec._DramaSeries_originalName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "url":
+			out.Values[i] = ec._DramaSeries_url(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var dramaTitleOverrideImplementors = []string{"DramaTitleOverride"}
+
+func (ec *executionContext) _DramaTitleOverride(ctx context.Context, sel ast.SelectionSet, obj *model.DramaTitleOverride) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, dramaTitleOverrideImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DramaTitleOverride")
+		case "titleKey":
+			out.Values[i] = ec._DramaTitleOverride_titleKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "tmdbSeriesId":
+			out.Values[i] = ec._DramaTitleOverride_tmdbSeriesId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._DramaTitleOverride_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var drcsReplacementImplementors = []string{"DrcsReplacement"}
 
 func (ec *executionContext) _DrcsReplacement(ctx context.Context, sel ast.SelectionSet, obj *model.DrcsReplacement) graphql.Marshaler {
@@ -53870,6 +55280,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "inspectChannel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_inspectChannel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaLinkingToken":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaLinkingToken(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaTitleOverride":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaTitleOverride(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -55587,6 +57011,17 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Program_animeEpisodes(ctx, field, obj)
 				})
+		case "dramaEpisode":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Program_dramaEpisode(ctx, field, obj)
+				})
+		case "dramaTitleKey":
+			out.Values[i] = ec._Program_dramaTitleKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "recordings":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
 				true, true,
@@ -55995,6 +57430,18 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_capturesAvailable(ctx, field)
+				})
+		case "dramaLinking":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaLinking(ctx, field)
+				})
+		case "dramaTitleOverrides":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_dramaTitleOverrides(ctx, field)
 				})
 		case "node":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
@@ -56614,6 +58061,17 @@ func (ec *executionContext) _Recording(ctx context.Context, sel ast.SelectionSet
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Recording_animeEpisodes(ctx, field, obj)
 				})
+		case "dramaEpisode":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Recording_dramaEpisode(ctx, field, obj)
+				})
+		case "dramaTitleKey":
+			out.Values[i] = ec._Recording_dramaTitleKey(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -58718,6 +60176,11 @@ func (ec *executionContext) _SystemSettings(ctx context.Context, sel ast.Selecti
 			}
 		case "animeLinkingEnabled":
 			out.Values[i] = ec._SystemSettings_animeLinkingEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dramaLinkingEnabled":
+			out.Values[i] = ec._SystemSettings_dramaLinkingEnabled(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -61011,6 +62474,61 @@ func (ec *executionContext) marshalNDeleteReservationPayload2ᚖgithubᚗcomᚋS
 	return ec._DeleteReservationPayload(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx context.Context, sel ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaLinkingStatus!")
+		return graphql.Null
+	}
+	return ec._DramaLinkingStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNDramaSeries2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeries(ctx context.Context, sel ast.SelectionSet, v *model.DramaSeries) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaSeries!")
+		return graphql.Null
+	}
+	return ec._DramaSeries(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaSeriesSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeriesSource(ctx context.Context, v any) (model.DramaSeriesSource, error) {
+	var res model.DramaSeriesSource
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNDramaSeriesSource2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaSeriesSource(ctx context.Context, sel ast.SelectionSet, v model.DramaSeriesSource) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNDramaTitleOverride2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DramaTitleOverride) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNDramaTitleOverride2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverride(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNDramaTitleOverride2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverride(ctx context.Context, sel ast.SelectionSet, v *model.DramaTitleOverride) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "DramaTitleOverride!")
+		return graphql.Null
+	}
+	return ec._DramaTitleOverride(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNDramaTitleOverrideInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaTitleOverrideInput(ctx context.Context, v any) (model.DramaTitleOverrideInput, error) {
+	res, err := ec.unmarshalInputDramaTitleOverrideInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNDrcsReplacement2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DrcsReplacement) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -61974,6 +63492,7 @@ var (
 		"ANIME_RECORD":        netactivity.PurposeAnimeRecord,
 		"ANIME_LINK":          netactivity.PurposeAnimeLink,
 		"ANIME_IMAGE":         netactivity.PurposeAnimeImage,
+		"DRAMA_LINKING":       netactivity.PurposeDramaLinking,
 		"USER_AVATAR":         netactivity.PurposeUserAvatar,
 		"OIDC":                netactivity.PurposeOIDC,
 		"HIBP":                netactivity.PurposeHIBP,
@@ -61997,6 +63516,7 @@ var (
 		netactivity.PurposeAnimeRecord:       "ANIME_RECORD",
 		netactivity.PurposeAnimeLink:         "ANIME_LINK",
 		netactivity.PurposeAnimeImage:        "ANIME_IMAGE",
+		netactivity.PurposeDramaLinking:      "DRAMA_LINKING",
 		netactivity.PurposeUserAvatar:        "USER_AVATAR",
 		netactivity.PurposeOIDC:              "OIDC",
 		netactivity.PurposeHIBP:              "HIBP",
@@ -64213,6 +65733,29 @@ func (ec *executionContext) marshalODataChange2ᚖgithubᚗcomᚋSlashNephyᚋko
 		return graphql.Null
 	}
 	return ec._DataChange(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalODramaEpisode2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisode(ctx context.Context, sel ast.SelectionSet, v *model.DramaEpisode) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._DramaEpisode(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx context.Context, v any) (*model.DramaEpisodeSource, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.DramaEpisodeSource)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODramaEpisodeSource2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaEpisodeSource(ctx context.Context, sel ast.SelectionSet, v *model.DramaEpisodeSource) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalODrcsReplacementInput2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDrcsReplacementInputᚄ(ctx context.Context, v any) ([]*model.DrcsReplacementInput, error) {
