@@ -50,7 +50,7 @@ class Sim {
 
   constructor(
     current: string,
-    readonly mode: NetworkMode = 'probe',
+    public mode: NetworkMode = 'probe',
     readonly steps: Step[] = ladder,
   ) {
     this.current = current;
@@ -676,6 +676,13 @@ test('経路の種類が変わったら (ライブと追っかけ)、溜めた�
 describe('下げた段が映り出さないとき', () => {
   const start = params.ignoreAfterSwitchMs;
 
+  test('経路の種類が変わったら (ライブと追っかけ)、前の経路で下げた段の待ちを捨てる', () => {
+    const sim = new Sim('720p').run(start).run(500, { waiting: true });
+    sim.mode = 'rate';
+    sim.run(params.downToDisplayMs + 500, { started: false });
+    expect(sim.moves().map((move) => move.to)).toEqual(['540p']);
+  });
+
   test.each([
     {
       name: '下げてから映るまでの上限がたっても映り出さなければ、もう一段下げる',
@@ -718,5 +725,26 @@ describe('下げた段が映り出さないとき', () => {
     const sim = new Sim(from).run(start).run(500, { waiting: true });
     sim.run(params.downToDisplayMs + 500, input);
     expect(sim.moves().map((move) => move.to)).toEqual(want);
+  });
+});
+
+describe('次に試すまでの時間', () => {
+  const start = params.ignoreAfterSwitchMs;
+
+  test.each([
+    { name: '上に段があれば出す', current: '540p', automatic: true, want: true },
+    { name: '最も高い段では出さない', current: 'original', automatic: true, want: false },
+    { name: '手で選んだ画質では出さない', current: '540p', automatic: false, want: false },
+  ])('$name', ({ current, automatic, want }) => {
+    const sim = new Sim(current);
+    sim.automatic = automatic;
+    sim.run(start).run(5_000);
+    expect(sim.controller.status(sim.now).nextProbeIn !== null).toBe(want);
+  });
+
+  test('試しのデータを取っている間は出さない', () => {
+    const sim = new Sim('540p').run(params.ignoreAfterSwitchMs).run(params.probeAfterOkMs);
+    expect(sim.controller.probing()).toBe(true);
+    expect(sim.controller.status(sim.now).nextProbeIn).toBeNull();
   });
 });

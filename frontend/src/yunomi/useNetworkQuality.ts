@@ -102,7 +102,10 @@ export function useNetworkQuality(
   const started = useRef(false);
 
   // 経路の種類 (ライブと追っかけ) や段が変わったら、届いた量を数え直し、新しい段が始まるのを待つ。
+  // 取っている試しのデータは打ち切る。前の段の受け取りと比べた結果を、新しい段に持ち込まないため。
   useEffect(() => {
+    probeAbort.current?.abort();
+    probeAbort.current = null;
     meter.reset();
     lastReading.current = null;
     started.current = false;

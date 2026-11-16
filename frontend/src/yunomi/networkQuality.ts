@@ -329,6 +329,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   let pending: PendingUp | null = null;
   // downAt は、段を下げて、まだ新しい段が映り出していない間の、下げた時刻。
   let downAt: number | null = null;
+  // probeAhead は、最後の刻みで、試しのデータで上げる段が上にあったか。無ければ、次に試すまでの時間を出さない。
+  let probeAhead = false;
   // sufficient は、段ごとの、足りていた間の受け取りの速さ。最高画質へ戻すときに比べる。
   const sufficient = new Map<string, number>();
   let lastSignals: Signal[] = [];
@@ -518,12 +520,15 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
 
   return {
     tick(now, input, context) {
+      probeAhead = false;
       if (context.mode !== lastMode) {
-        // 経路の種類が変わったら (ライブと追っかけ)、溜めた兆しを捨てる。
+        // 経路の種類が変わったら (ライブと追っかけ)、溜めた兆しを捨てる。前の経路で上げ下げした段の見張りも捨てる。
         if (lastMode !== null) {
           ignoreUntil = Math.max(ignoreUntil, now + params.ignoreAfterSwitchMs);
           forgetHistory();
           okSince = null;
+          pending = null;
+          downAt = null;
         }
         lastMode = context.mode;
       }
@@ -658,6 +663,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         return { kind: 'none' };
       }
 
+      probeAhead = true;
       if (inFlight || okSince === null) {
         return { kind: 'none' };
       }
@@ -728,7 +734,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     },
     status(now) {
       const nextProbeIn =
-        lastMode === 'probe' && okSince !== null
+        lastMode === 'probe' && probeAhead && !inFlight && okSince !== null
           ? Math.max(okSince + upWait(params.probeAfterOkMs), nextProbeAt) - now
           : null;
 
