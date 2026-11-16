@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"sync"
 	"time"
 	"uuid"
 
@@ -58,6 +59,15 @@ type Deps struct {
 	LookupEnv config.LookupEnv
 	// Logs は、このプロセスのログのバッファ (#1521)。nil なら、ログの画面は空になる。
 	Logs *logring.Buffer
+	// edcb は、このプロセスのロールで共有する EDCB のチューナーサーバー。同じサービスのストリームを、ロールをまたいで分け合う (#1535)。
+	edcb *sharedEDCB
+}
+
+// sharedEDCB は、プロセスで 1 つだけ作る EDCB のチューナーサーバー。最初に使うロールが作る。
+type sharedEDCB struct {
+	once   sync.Once
+	server *edcb.TunerServer
+	err    error
 }
 
 // tenbanRoleName は、API を受け持つロールの名前。
@@ -262,17 +272,12 @@ func waitUntilDone(ctx context.Context, logger *slog.Logger, _ *Deps) error {
 // Mirakurun 互換のサーバー (Mirakurun、mirakc、Mahiron) と、EDCB (#1258) に対応する。
 func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
-		client, err := newEDCBClient(deps)
-		if err != nil {
-			return nil, err
-		}
-		edcbConfig := deps.Config.Tuner.EDCB
-		ids, err := networktv.NewIDs(deps.DB, deps.Clock, deps.InstanceID, edcbConfig.NetworkTVIDStart, edcbConfig.NetworkTVIDCount)
+		server, err := sharedEDCBServer(deps)
 		if err != nil {
 			return nil, err
 		}
 
-		return edcb.NewTunerServer(client, &edcb.TunerServerOptions{BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0}), nil
+		return server, nil
 	}
 	client, err := mirakurun.New(&mirakurun.Options{
 		URL:               deps.Config.Tuner.URL.Value(),
@@ -292,6 +297,31 @@ func newTunerClient(deps *Deps) (tunerserver.Client, error) {
 	}
 
 	return client, nil
+}
+
+// sharedEDCBServer は、このプロセスで共有する EDCB のチューナーサーバーを返す。初めて呼ばれたときに作る (#1535)。
+// ロールごとに作ると、kotatsu all でライブと録画が同じサービスを開いたときに、NetworkTV を 2 つ開いてチューナーを 2 本使う。
+func sharedEDCBServer(deps *Deps) (*edcb.TunerServer, error) {
+	deps.edcb.once.Do(func() {
+		client, err := newEDCBClient(deps)
+		if err != nil {
+			deps.edcb.err = err
+
+			return
+		}
+		edcbConfig := deps.Config.Tuner.EDCB
+		ids, err := networktv.NewIDs(deps.DB, deps.Clock, deps.InstanceID, edcbConfig.NetworkTVIDStart, edcbConfig.NetworkTVIDCount)
+		if err != nil {
+			deps.edcb.err = err
+
+			return
+		}
+		deps.edcb.server = edcb.NewTunerServer(client, &edcb.TunerServerOptions{
+			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0,
+		})
+	})
+
+	return deps.edcb.server, deps.edcb.err
 }
 
 // newEDCBClient は、EpgTimerSrv の CtrlCmd のクライアントを返す。

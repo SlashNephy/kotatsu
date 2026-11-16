@@ -393,6 +393,7 @@ func NewCommand(opts *Options) *cobra.Command {
 			Roles:          roleNames(targets),
 			LookupEnv:      opts.LookupEnv,
 			Logs:           opts.Logs,
+			edcb:           new(sharedEDCB),
 		}
 		// 録画、チューナー、ジョブのキューの状態は、DB から読む (設計書 11.3)。どのインスタンスでも同じ値なので、クラスターのレジストリに登録する。
 		// neko のリースを持っているかは、インスタンスごとに違うので、インスタンスのレジストリに登録する。

@@ -53,9 +53,9 @@ const (
 // CM の区間の見分け方の名前 (#1505)。cmdetect の見分け方 (Detector) の名前と同じにする。
 const (
 	// CMDetectorFFmpeg は、無音とシーンの切り替わりで見分ける、今までの見分け方。既定にする。
-	CMDetectorFFmpeg = "ffmpeg"
+	CMDetectorFFmpeg = domain.CMDetectorFFmpeg
 	// CMDetectorLogo は、局ロゴが出ているかで見分ける、試験的な見分け方。
-	CMDetectorLogo = "logo"
+	CMDetectorLogo = domain.CMDetectorLogo
 )
 
 // ErrInvalidSettings は、設定の値が正しくないことを表す。
