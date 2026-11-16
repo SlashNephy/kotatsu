@@ -110,6 +110,7 @@ import {
 } from '../../yunomi/shareUrl';
 import type { ServiceIdPlayTimeshiftQuery } from './__generated__/ServiceIdPlayTimeshiftQuery.graphql';
 import { useHostedWatch, useWatchMini } from '../../yunomi/WatchHost';
+import { readableParams } from '../../futon/readableId';
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
@@ -118,6 +119,8 @@ const volumeStep = 0.05;
 type PlaySearch = { program: string; t?: number };
 
 export const Route = createFileRoute('/timeshift/$serviceId_/play')({
+  // URL には素の ID を出し、画面には GraphQL の ID を渡す (#1346)。
+  params: readableParams('serviceId', 'Service'),
   // 右の列を置くので、本文の幅の上限を外し、WatchLayout で映像が画面の高さに収まる幅までにする。
   staticData: { fluid: true },
   validateSearch: (search: Record<string, unknown>): PlaySearch => {
