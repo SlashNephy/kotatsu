@@ -1665,6 +1665,14 @@ type SegmentVideoFormat struct {
 	FrameRate *float64 `json:"frameRate,omitempty"`
 }
 
+// ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+type SeriesNextEpisode struct {
+	// シリーズの見た回のうち、話数の最も大きい録画。
+	Watched *Recording `json:"watched"`
+	// シリーズの続きの放送のうち、最も早い放送。
+	Program *Program `json:"program"`
+}
+
 // サービスの表示の変える項目。省いた項目は変えない。
 type ServiceInput struct {
 	// 番組表に出さない印

@@ -113,6 +113,75 @@ func (q *Queries) ListAnimeNextPrograms(ctx context.Context, arg ListAnimeNextPr
 	return items, nil
 }
 
+const listAnimeNextProgramsBatch = `-- name: ListAnimeNextProgramsBatch :many
+SELECT k.tid::integer AS key_tid, c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items
+FROM (SELECT unnest($1::integer[]) AS tid, unnest($2::double precision[]) AS count) AS k
+CROSS JOIN LATERAL (
+  SELECT p.service_id, p.event_id, p.start_at, min(e.count_start)::double precision AS episode_number, p.related_items
+  FROM program_anime_episodes e
+  JOIN program_anime_matches m ON m.service_id = e.service_id AND m.start_at = e.start_at
+  JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+  WHERE e.syobocal_tid = k.tid AND e.count_start > k.count
+    AND p.start_at >= $3 AND p.start_at < $4 AND NOT p.end_undecided
+  GROUP BY p.service_id, p.event_id, p.start_at, p.related_items
+  ORDER BY p.start_at, p.service_id, p.event_id
+  LIMIT $5::integer
+) c
+ORDER BY k.tid, c.start_at, c.service_id, c.event_id
+`
+
+type ListAnimeNextProgramsBatchParams struct {
+	Tids    []int32
+	Counts  []float64
+	Since   time.Time
+	Until   time.Time
+	MaxRows int32
+}
+
+type ListAnimeNextProgramsBatchRow struct {
+	KeyTid        int32
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EpisodeNumber float64
+	RelatedItems  []byte
+}
+
+// しょぼいカレンダーの TID tids[i] ごとに、話数が counts[i] より大きく、since から until までに始まる、終了時刻の決まった番組を、
+// 放送の早い順に max_rows 件まで返す (#1564)。1 つの番組が複数の話に結びついたら、小さい話数で 1 行にする (ListAnimeNextPrograms と同じ)。
+func (q *Queries) ListAnimeNextProgramsBatch(ctx context.Context, arg ListAnimeNextProgramsBatchParams) ([]ListAnimeNextProgramsBatchRow, error) {
+	rows, err := q.db.Query(ctx, listAnimeNextProgramsBatch,
+		arg.Tids,
+		arg.Counts,
+		arg.Since,
+		arg.Until,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAnimeNextProgramsBatchRow{}
+	for rows.Next() {
+		var i ListAnimeNextProgramsBatchRow
+		if err := rows.Scan(
+			&i.KeyTid,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EpisodeNumber,
+			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecordedAnimeCounts = `-- name: ListRecordedAnimeCounts :many
 SELECT DISTINCT anime_count::double precision AS anime_count
 FROM recording_history
@@ -133,6 +202,38 @@ func (q *Queries) ListRecordedAnimeCounts(ctx context.Context, syobocalTid int32
 			return nil, err
 		}
 		items = append(items, anime_count)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordedAnimeCountsBatch = `-- name: ListRecordedAnimeCountsBatch :many
+SELECT DISTINCT syobocal_tid::integer AS key_tid, anime_count::double precision AS anime_count
+FROM recording_history
+WHERE syobocal_tid = ANY($1::integer[]) AND anime_count IS NOT NULL
+`
+
+type ListRecordedAnimeCountsBatchRow struct {
+	KeyTid     int32
+	AnimeCount float64
+}
+
+// TID が tids のどれかの話に結びついた録画履歴の TID と話数 (#1564)。ListRecordedAnimeCounts をまとめて引く。
+func (q *Queries) ListRecordedAnimeCountsBatch(ctx context.Context, tids []int32) ([]ListRecordedAnimeCountsBatchRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedAnimeCountsBatch, tids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedAnimeCountsBatchRow{}
+	for rows.Next() {
+		var i ListRecordedAnimeCountsBatchRow
+		if err := rows.Scan(&i.KeyTid, &i.AnimeCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -161,6 +262,44 @@ func (q *Queries) ListRecordedSeriesEpisodes(ctx context.Context, series string)
 	for rows.Next() {
 		var i ListRecordedSeriesEpisodesRow
 		if err := rows.Scan(&i.Name, &i.Description, &i.SeriesEpisode); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecordedSeriesEpisodesBatch = `-- name: ListRecordedSeriesEpisodesBatch :many
+SELECT series::text AS key_series, name, description, series_episode
+FROM recording_history WHERE series = ANY($1::text[])
+`
+
+type ListRecordedSeriesEpisodesBatchRow struct {
+	KeySeries     string
+	Name          string
+	Description   string
+	SeriesEpisode *int32
+}
+
+// シリーズ名が series のどれかの録画履歴の、回を読む元 (#1564)。ListRecordedSeriesEpisodes をまとめて引く。
+func (q *Queries) ListRecordedSeriesEpisodesBatch(ctx context.Context, series []string) ([]ListRecordedSeriesEpisodesBatchRow, error) {
+	rows, err := q.db.Query(ctx, listRecordedSeriesEpisodesBatch, series)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecordedSeriesEpisodesBatchRow{}
+	for rows.Next() {
+		var i ListRecordedSeriesEpisodesBatchRow
+		if err := rows.Scan(
+			&i.KeySeries,
+			&i.Name,
+			&i.Description,
+			&i.SeriesEpisode,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -218,6 +357,146 @@ func (q *Queries) ListSeriesNextPrograms(ctx context.Context, arg ListSeriesNext
 			&i.StartAt,
 			&i.EpisodeNumber,
 			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesNextProgramsBatch = `-- name: ListSeriesNextProgramsBatch :many
+SELECT k.series::text AS key_series, c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items
+FROM (SELECT unnest($1::text[]) AS series, unnest($2::bigint[]) AS number) AS k
+CROSS JOIN LATERAL (
+  SELECT p.service_id, p.event_id, p.start_at, p.episode_number::double precision AS episode_number, p.related_items
+  FROM programs p
+  WHERE p.series = k.series AND p.episode_number IS NOT NULL AND p.episode_number > k.number
+    AND p.start_at >= $3 AND p.start_at < $4 AND NOT p.end_undecided
+  ORDER BY p.start_at, p.service_id, p.event_id
+  LIMIT $5::integer
+) c
+ORDER BY k.series, c.start_at, c.service_id, c.event_id
+`
+
+type ListSeriesNextProgramsBatchParams struct {
+	Series  []string
+	Numbers []int64
+	Since   time.Time
+	Until   time.Time
+	MaxRows int32
+}
+
+type ListSeriesNextProgramsBatchRow struct {
+	KeySeries     string
+	ServiceID     int64
+	EventID       int64
+	StartAt       time.Time
+	EpisodeNumber float64
+	RelatedItems  []byte
+}
+
+// シリーズ名 series[i] ごとに、話数が numbers[i] より大きく、since から until までに始まる、終了時刻の決まった番組を、
+// 放送の早い順に max_rows 件まで返す (#1564)。ホームの「続きの放送」で、見たシリーズをまとめて引く。
+func (q *Queries) ListSeriesNextProgramsBatch(ctx context.Context, arg ListSeriesNextProgramsBatchParams) ([]ListSeriesNextProgramsBatchRow, error) {
+	rows, err := q.db.Query(ctx, listSeriesNextProgramsBatch,
+		arg.Series,
+		arg.Numbers,
+		arg.Since,
+		arg.Until,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSeriesNextProgramsBatchRow{}
+	for rows.Next() {
+		var i ListSeriesNextProgramsBatchRow
+		if err := rows.Scan(
+			&i.KeySeries,
+			&i.ServiceID,
+			&i.EventID,
+			&i.StartAt,
+			&i.EpisodeNumber,
+			&i.RelatedItems,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWatchedNextEpisodeSources = `-- name: ListWatchedNextEpisodeSources :many
+SELECT rec.id, rec.name, rec.description, rec.extended,
+  p.series_episode AS program_series_episode, pa.series_episode AS archived_series_episode,
+  e.syobocal_tid, e.count_start, w.updated_at
+FROM watch_progress w
+JOIN recordings rec ON rec.id = w.recording_id
+LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
+LEFT JOIN program_archives pa ON pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at
+LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_start = e.count_end
+  AND NOT EXISTS (SELECT 1 FROM recording_anime_episodes o WHERE o.recording_id = rec.id AND o.position <> e.position)
+WHERE w.user_id = $1 AND w.updated_at >= $2
+  AND rec.recorded_from IS NOT NULL AND rec.recorded_until IS NOT NULL AND rec.recorded_until > rec.recorded_from
+  AND w.position_ms >= extract(epoch FROM (rec.recorded_until - rec.recorded_from)) * 1000 * $3::double precision
+ORDER BY w.updated_at DESC, rec.id
+LIMIT $4::integer
+`
+
+type ListWatchedNextEpisodeSourcesParams struct {
+	UserID   uuid.UUID
+	Since    time.Time
+	MinRatio float64
+	MaxRows  int32
+}
+
+type ListWatchedNextEpisodeSourcesRow struct {
+	ID                    uuid.UUID
+	Name                  string
+	Description           string
+	Extended              []byte
+	ProgramSeriesEpisode  *int32
+	ArchivedSeriesEpisode *int32
+	SyobocalTid           *int32
+	CountStart            *float64
+	UpdatedAt             time.Time
+}
+
+// ユーザー user_id が since より後に、録画の長さの min_ratio 以上まで再生した録画の、回を読む元を、最後に見た新しい順に返す (#1564)。
+// ホームの「続きの放送」で、見たシリーズを決めるのに使う。回を読む元は GetRecordingNextEpisodeSource と揃える。
+// 録画中の録画と、長さの分からない録画は、見た割合を出せないので外す。
+func (q *Queries) ListWatchedNextEpisodeSources(ctx context.Context, arg ListWatchedNextEpisodeSourcesParams) ([]ListWatchedNextEpisodeSourcesRow, error) {
+	rows, err := q.db.Query(ctx, listWatchedNextEpisodeSources,
+		arg.UserID,
+		arg.Since,
+		arg.MinRatio,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWatchedNextEpisodeSourcesRow{}
+	for rows.Next() {
+		var i ListWatchedNextEpisodeSourcesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.Extended,
+			&i.ProgramSeriesEpisode,
+			&i.ArchivedSeriesEpisode,
+			&i.SyobocalTid,
+			&i.CountStart,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

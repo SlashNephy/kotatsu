@@ -67,6 +67,11 @@ func (r *queryResolver) ContinueWatching(ctx context.Context, first int) ([]*mod
 	return r.continueWatching(ctx, first)
 }
 
+// NextEpisodes is the resolver for the nextEpisodes field.
+func (r *queryResolver) NextEpisodes(ctx context.Context) ([]*model.SeriesNextEpisode, error) {
+	return r.viewerNextEpisodes(ctx)
+}
+
 // Tags is the resolver for the tags field.
 func (r *queryResolver) Tags(ctx context.Context) ([]*model.Tag, error) {
 	return r.listTags(ctx)

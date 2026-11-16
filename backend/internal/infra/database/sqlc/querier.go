@@ -564,6 +564,9 @@ type Querier interface {
 	// しょぼいカレンダーの TID に結びついた番組のうち、話数が count より大きく、since から until までに始まる、
 	// 終了時刻の決まった番組を返す (#1564)。2 話連続の放送のように 1 つの番組が複数の話に結びついたら、小さい話数で 1 行にする。
 	ListAnimeNextPrograms(ctx context.Context, arg ListAnimeNextProgramsParams) ([]ListAnimeNextProgramsRow, error)
+	// しょぼいカレンダーの TID tids[i] ごとに、話数が counts[i] より大きく、since から until までに始まる、終了時刻の決まった番組を、
+	// 放送の早い順に max_rows 件まで返す (#1564)。1 つの番組が複数の話に結びついたら、小さい話数で 1 行にする (ListAnimeNextPrograms と同じ)。
+	ListAnimeNextProgramsBatch(ctx context.Context, arg ListAnimeNextProgramsBatchParams) ([]ListAnimeNextProgramsBatchRow, error)
 	// サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
 	ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsParams) ([]ListAnimeProgramsRow, error)
 	// 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
@@ -725,6 +728,8 @@ type Querier interface {
 	ListProgramsWithoutSeries(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSeriesRow, error)
 	// TID が syobocal_tid の話に結びついた録画履歴の話数 (#1564)。録った回を、続きの放送から外すのに使う。
 	ListRecordedAnimeCounts(ctx context.Context, syobocalTid int32) ([]float64, error)
+	// TID が tids のどれかの話に結びついた録画履歴の TID と話数 (#1564)。ListRecordedAnimeCounts をまとめて引く。
+	ListRecordedAnimeCountsBatch(ctx context.Context, tids []int32) ([]ListRecordedAnimeCountsBatchRow, error)
 	// 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
 	// ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 	// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
@@ -739,6 +744,8 @@ type Querier interface {
 	ListRecordedPrograms(ctx context.Context, arg ListRecordedProgramsParams) ([]ListRecordedProgramsRow, error)
 	// シリーズ名が series の録画履歴の、回を読む元 (#1564)。録った回を、続きの放送から外すのに使う。
 	ListRecordedSeriesEpisodes(ctx context.Context, series string) ([]ListRecordedSeriesEpisodesRow, error)
+	// シリーズ名が series のどれかの録画履歴の、回を読む元 (#1564)。ListRecordedSeriesEpisodes をまとめて引く。
+	ListRecordedSeriesEpisodesBatch(ctx context.Context, series []string) ([]ListRecordedSeriesEpisodesBatchRow, error)
 	ListRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) ([]RecordingAnimeEpisode, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	// 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
@@ -801,6 +808,9 @@ type Querier interface {
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
 	// シリーズ名が series で、話数が number より大きく、since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
 	ListSeriesNextPrograms(ctx context.Context, arg ListSeriesNextProgramsParams) ([]ListSeriesNextProgramsRow, error)
+	// シリーズ名 series[i] ごとに、話数が numbers[i] より大きく、since から until までに始まる、終了時刻の決まった番組を、
+	// 放送の早い順に max_rows 件まで返す (#1564)。ホームの「続きの放送」で、見たシリーズをまとめて引く。
+	ListSeriesNextProgramsBatch(ctx context.Context, arg ListSeriesNextProgramsBatchParams) ([]ListSeriesNextProgramsBatchRow, error)
 	// サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
 	// タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
 	ListServiceChannels(ctx context.Context) ([]ListServiceChannelsRow, error)
@@ -852,6 +862,10 @@ type Querier interface {
 	// user_id のユーザーが視聴予約した番組のうち、(service_ids[i], event_ids[i]) の組にあるもの。
 	ListWatchReservedPrograms(ctx context.Context, arg ListWatchReservedProgramsParams) ([]ListWatchReservedProgramsRow, error)
 	ListWatchRules(ctx context.Context, userID uuid.UUID) ([]WatchRule, error)
+	// ユーザー user_id が since より後に、録画の長さの min_ratio 以上まで再生した録画の、回を読む元を、最後に見た新しい順に返す (#1564)。
+	// ホームの「続きの放送」で、見たシリーズを決めるのに使う。回を読む元は GetRecordingNextEpisodeSource と揃える。
+	// 録画中の録画と、長さの分からない録画は、見た割合を出せないので外す。
+	ListWatchedNextEpisodeSources(ctx context.Context, arg ListWatchedNextEpisodeSourcesParams) ([]ListWatchedNextEpisodeSourcesRow, error)
 	// 視聴が続いているサービス。視聴のチューナーに相乗りするので、割り振りではチューナーを数えない。
 	ListWatchedTimeshiftChannels(ctx context.Context, now time.Time) ([]ListWatchedTimeshiftChannelsRow, error)
 	// ログの報告から伏せるため、全ユーザーの購読の送り先と秘密を返す (#1521)。
