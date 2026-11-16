@@ -369,6 +369,9 @@ export function CreateRuleGroupButton() {
             // 作ったグループを、一覧の並び (ルートの ruleGroups) の最後に足す。
             updater: (store) => {
               const created = store.getRootField('createRuleGroup');
+              if (created == null) {
+                return;
+              }
               const root = store.getRoot();
               root.setLinkedRecords(
                 [...(root.getLinkedRecords('ruleGroups') ?? []), created],

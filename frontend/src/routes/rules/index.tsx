@@ -231,6 +231,8 @@ function Rules() {
   // moving は、選んだルールをグループへ移すダイアログを開いているかどうか。moveTo は、移す先のグループ (null なら「その他」)。
   const [moving, setMoving] = useState(false);
   const [moveTo, setMoveTo] = useState<string | null>(null);
+  // namingGroup は、移すダイアログで新しいグループの名前を入れているかどうか。作る前に移すと「その他」へ移るので、その間は移させない。
+  const [namingGroup, setNamingGroup] = useState(false);
   // bulkResult は、まとめて行った操作の結果。
   const [bulkResult, setBulkResult] = useState<{
     action: 'enabled' | 'disabled' | 'deleted' | 'moved';
@@ -598,6 +600,7 @@ function Rules() {
             disabled={targets.length === 0}
             onClick={() => {
               setMoveTo(null);
+              setNamingGroup(false);
               setMoving(true);
             }}
           >
@@ -645,12 +648,13 @@ function Rules() {
             groups={data.ruleGroups}
             value={moveTo}
             onChange={setMoveTo}
+            onNamingChange={setNamingGroup}
           />
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setMoving(false)}>
               {t('rules.cancel')}
             </Button>
-            <Button loading={movingMany} onClick={moveMany}>
+            <Button loading={movingMany} disabled={namingGroup} onClick={moveMany}>
               {t('rules.groups.moveSelected', { count: targets.length })}
             </Button>
           </Group>

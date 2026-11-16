@@ -1098,7 +1098,8 @@
       "deleted_other": "Deleted {{count}} rules",
       "skipped_one": "({{count}} was skipped because it could not be found)",
       "skipped_other": "({{count}} were skipped because they could not be found)",
-      "moved": "Moved {{count}} rules"
+      "moved_one": "Moved {{count}} rule",
+      "moved_other": "Moved {{count}} rules"
     },
     "upcomingReservations": "{{count}} upcoming reservations",
     "recordings": "Recordings",

@@ -208,6 +208,70 @@ describe('ルールの一覧のグループ (#1493)', () => {
     expect(await groupsOf()).toEqual({ こたつ探偵: null, 縁側の午後: null, 終わったアニメ: null });
   });
 
+  test('作ったグループは、「その他」の前の、グループの最後に空の見出しで出る', async () => {
+    const { environment } = await setup();
+    await renderRoute(Route, '/rules/', '/rules', environment);
+    await waitFor(() => expect(layout()).toHaveLength(3));
+
+    fireEvent.click(screen.getByRole('button', { name: 'グループを作る' }));
+    const dialog = await screen.findByRole('dialog', { name: 'グループを作る' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'グループの名前' }), {
+      target: { value: 'ドラマ' },
+    });
+    await act(async () =>
+      fireEvent.click(within(dialog).getByRole('button', { name: 'グループを作る' })),
+    );
+
+    await waitFor(() =>
+      expect(layout().map(([name]) => name)).toEqual([
+        'アニメ',
+        '空のグループ',
+        'ドラマ',
+        'その他',
+      ]),
+    );
+  });
+
+  test('折りたたんだ見出しは、一覧を開き直しても折りたたんだまま', async () => {
+    const { environment } = await setup();
+    await renderRoute(Route, '/rules/', '/rules', environment);
+    await waitFor(() => expect(layout()).toHaveLength(3));
+    fireEvent.click(screen.getByRole('button', { name: /^アニメ \d+$/ }));
+    cleanup();
+
+    await renderRoute(Route, '/rules/', '/rules', environment);
+
+    await waitFor(() => expect(layout()[0]).toEqual(['アニメ', []]));
+    expect(screen.getByRole('button', { name: /^アニメ \d+$/ }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+  });
+
+  test('移すダイアログで新しいグループの名前を入れている間は移せず、作ると、そのグループへ移せる', async () => {
+    const { environment, groupsOf } = await setup();
+    await renderRoute(Route, '/rules/', '/rules', environment);
+    await waitFor(() => expect(layout()).toHaveLength(3));
+
+    fireEvent.click(screen.getByRole('button', { name: '選ぶ' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: '縁側の午後' }));
+    fireEvent.click(screen.getByRole('button', { name: '選んだ1件をグループへ移す' }));
+    await choose('移す先', '新しいグループ…');
+    const dialog = await screen.findByRole('dialog', { name: 'ルールをグループへ移す' });
+    const move = within(dialog).getByRole('button', { name: '選んだ1件をグループへ移す' });
+    expect(move).toHaveProperty('disabled', true);
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '新しいグループの名前' }), {
+      target: { value: '旅番組' },
+    });
+    await act(async () =>
+      fireEvent.click(within(dialog).getByRole('button', { name: 'グループを作る' })),
+    );
+    await waitFor(() => expect(move).toHaveProperty('disabled', false));
+    await act(async () => fireEvent.click(move));
+
+    await waitFor(async () => expect((await groupsOf())['縁側の午後']).toBe('旅番組'));
+  });
+
   test('同じ名前のグループは作れず、そのことを示す', async () => {
     const { environment } = await setup();
     await renderRoute(Route, '/rules/', '/rules', environment);

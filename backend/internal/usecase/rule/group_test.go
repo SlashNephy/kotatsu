@@ -49,6 +49,8 @@ func TestCreateGroupValidatesName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			created, err := rules.CreateGroup(t.Context(), pool, actor, tt.input)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
@@ -132,13 +134,16 @@ func TestReorderGroupsRequiresEveryGroup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, err := rules.ReorderGroups(t.Context(), pool, actor, tt.ids)
 			require.ErrorIs(t, err, rule.ErrInvalidGroup)
+			// 拒んだ並べ替えは、並びを変えない。
+			listed, err := rules.ListGroups(t.Context(), pool)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"1 番目", "2 番目"}, groupNames(listed))
 		})
 	}
-	listed, err := rules.ListGroups(t.Context(), pool)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"1 番目", "2 番目"}, groupNames(listed))
 }
 
 // TestUpdateKeepsOrChangesGroup は、ルールを変えるときに、グループを残すか、変えるか、外すかを選べることを確かめる。
@@ -171,6 +176,8 @@ func TestUpdateKeepsOrChangesGroup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			in := validInput()
 			in.GroupID = &anime.ID
 			created, err := rules.Create(t.Context(), pool, actor, in)

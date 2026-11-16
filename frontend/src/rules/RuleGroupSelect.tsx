@@ -20,14 +20,28 @@ type Props = {
   onChange: (groupId: string | null) => void;
   label?: string;
   disabled?: boolean;
+  // onNamingChange は、新しいグループの名前を入れ始めたときと、やめたときに呼ぶ。
+  // 名前を入れている間は、まだグループを選んでいないので、呼ぶ側はその間の確定を止められる。
+  onNamingChange?: (naming: boolean) => void;
 };
 
 // RuleGroupSelect は、ルールを入れるグループを選ぶ入力 (#1493)。「新しいグループ」を選ぶと、その場で名前を入れて作り、選ぶ。
 // グループは作ったときに保存する。ルールを保存しなくても、グループは残る。
-export function RuleGroupSelect({ groups, value, onChange, label, disabled = false }: Props) {
+export function RuleGroupSelect({
+  groups,
+  value,
+  onChange,
+  label,
+  disabled = false,
+  onNamingChange,
+}: Props) {
   const { t } = useTranslation();
   // naming は、新しいグループの名前を入れているかどうか。
-  const [naming, setNaming] = useState(false);
+  const [naming, setNamingState] = useState(false);
+  const setNaming = (next: boolean) => {
+    setNamingState(next);
+    onNamingChange?.(next);
+  };
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [create, creating] = useMutation<RuleGroupSelectCreateMutation>(graphql`
@@ -57,7 +71,7 @@ export function RuleGroupSelect({ groups, value, onChange, label, disabled = fal
         const created = store.getRootField('createRuleGroup');
         const root = store.getRoot();
         const current = root.getLinkedRecords('ruleGroups');
-        if (current != null) {
+        if (created != null && current != null) {
           root.setLinkedRecords([...current, created], 'ruleGroups');
         }
       },

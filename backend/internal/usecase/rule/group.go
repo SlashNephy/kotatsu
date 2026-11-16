@@ -27,6 +27,10 @@ const (
 	// pgUniqueViolation と pgForeignKeyViolation は、一意制約と外部キーの制約に反したときの PostgreSQL のエラーコード。
 	pgUniqueViolation     = "23505"
 	pgForeignKeyViolation = "23503"
+	// groupNameKey と groupForeignKey は、グループの名前の一意制約と、ルールからグループへの外部キーの名前。
+	// ほかの制約 (作成者への外部キーなど) の違反を、グループのエラーと取り違えないよう、名前で見分ける。
+	groupNameKey    = "rule_groups_name_key"
+	groupForeignKey = "rules_group_id_fkey"
 )
 
 var (
@@ -69,9 +73,9 @@ func groupError(err error, groupID *uuid.UUID) error {
 		return err
 	}
 	switch {
-	case pgErr.Code == pgUniqueViolation:
+	case pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == groupNameKey:
 		return ErrGroupNameTaken
-	case pgErr.Code == pgForeignKeyViolation && groupID != nil:
+	case pgErr.Code == pgForeignKeyViolation && pgErr.ConstraintName == groupForeignKey && groupID != nil:
 		return fmt.Errorf("%w: %s", ErrGroupNotFound, *groupID)
 	default:
 		return err
