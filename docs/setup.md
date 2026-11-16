@@ -275,7 +275,23 @@ WindowsとmacOSで`kotatsu all`を動かすと、録画、ライブ視聴、エ�
    KOTATSU_CAPTIONS_WHISPER_COMMAND: /data/whisper/whisper-cli
    ```
 
-4. 録画の既定値の画面（`/admin/recording`）で「録画が終わったら字幕を自動生成する」を入れます。ルールと予約ごとにも選べます。
+4. （任意）字幕の時刻を声に合わせるため、VADを置きます。置かなくても動きますが、台詞の前後の無音や音楽の分だけ、字幕が早く出ることがあります。
+   1でビルドした`whisper.cpp`から`whisper-vad-speech-segments`をビルドし、Silero VADのモデル（MIT）と一緒に置きます。
+
+   ```bash
+   cmake --build whisper.cpp/build -j --target whisper-vad-speech-segments
+   cp whisper.cpp/build/bin/whisper-vad-speech-segments data/whisper/
+   curl -fL -o data/whisper/ggml-silero-vad.bin https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin
+   sudo chown -R 65532:65532 data/whisper
+   ```
+
+   コマンドの置き場所は、`whisper-cli`と同じく設定で渡します。
+
+   ```yaml
+   KOTATSU_CAPTIONS_VAD_COMMAND: /data/whisper/whisper-vad-speech-segments
+   ```
+
+5. 録画の既定値の画面（`/admin/recording`）で「録画が終わったら字幕を自動生成する」を入れます。ルールと予約ごとにも選べます。
    録画の詳細の「字幕を生成する」で、録り終えた録画の字幕を作ることもできます。
 
 CPUだけで動かすと、録画の長さの3割ほど（8スレッド）の時間がかかります。

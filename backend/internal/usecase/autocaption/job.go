@@ -53,7 +53,7 @@ const (
 	// generateKey は、録画の完了のイベントの、字幕を生成するかどうかのキー。
 	generateKey = "generateCaptions"
 	// GeneratorVersion は、生成の仕方の版。音声の取り出し方や、時刻のそろえ方を変えたら上げる。
-	GeneratorVersion = 1
+	GeneratorVersion = 2
 )
 
 var (

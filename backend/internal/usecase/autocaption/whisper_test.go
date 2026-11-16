@@ -22,9 +22,15 @@ const brokenModel = "broken.bin"
 // TestMain は、このテストのバイナリが whisper-cli の引数 (-ovtt) で起動されたら、偽の whisper-cli として動く。
 // 偽の whisper-cli は、受け取った引数を -of のディレクトリの args に書き、進み具合を標準エラー出力に出し、-of のパスに WebVTT を書く。
 // モデルの名前が brokenModel なら、読めずに失敗する。
+// -vm で起動されたら、偽の whisper-vad-speech-segments として動き、1.5 秒から 2.1 秒を声の区間として書く。
 func TestMain(m *testing.M) {
 	if slices.Contains(os.Args[1:], "-ovtt") {
 		os.Exit(fakeWhisper(os.Args[1:]))
+	}
+	if slices.Contains(os.Args[1:], "-vm") {
+		fmt.Println("Detected 1 speech segments:")
+		fmt.Println("Speech segment 0: start = 150.00, end = 210.00")
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
@@ -150,7 +156,8 @@ func TestWhisperTranscribe(t *testing.T) {
 			cues, err := whisper.Transcribe(t.Context(), wav, func(ratio float64) { progress = append(progress, ratio) })
 			require.NoError(t, err)
 			// 本文の空の字幕は捨てる。
-			assert.Equal(t, []autocaption.Cue{{Start: time.Second, End: 2500 * time.Millisecond, Text: "こんにちは"}}, cues)
+			// 字幕の終わりは、読む時間の見積もり (0.5 + 5 文字 × 0.15 = 1.25 秒) で切る。
+			assert.Equal(t, []autocaption.Cue{{Start: time.Second, End: 2250 * time.Millisecond, Text: "こんにちは"}}, cues)
 			assert.Equal(t, []float64{0.4, 1}, progress)
 
 			written, err := os.ReadFile(filepath.Join(work, "0.vtt"))
@@ -159,6 +166,58 @@ func TestWhisperTranscribe(t *testing.T) {
 			assert.Equal(t, []string{
 				"-m", wantModel, "-f", wav, "-l", "ja", "-t", tt.wantThreads, "-sns", "-pp", "-np", "-ovtt", "-of", filepath.Join(work, "0"),
 			}, strings.Split(args, "\n"))
+		})
+	}
+}
+
+// TestWhisperTranscribeWithVAD は、VAD を置いていれば、字幕の時刻を声の区間に合わせることを確かめる。
+func TestWhisperTranscribeWithVAD(t *testing.T) {
+	t.Parallel()
+
+	data := t.TempDir()
+	model := writeModel(t, data, autocaption.DefaultModelPath)
+	writeModel(t, data, autocaption.DefaultVADModelPath)
+	whisper, err := autocaption.NewWhisper(&config.Captions{
+		WhisperCommand: selfCommand(t), WhisperModel: model, Threads: 1, VADCommand: selfCommand(t), VADModel: "",
+	}, data, nil)
+	require.NoError(t, err)
+	wav := filepath.Join(t.TempDir(), "0.wav")
+	require.NoError(t, os.WriteFile(wav, []byte("RIFF"), 0o600))
+	cues, err := whisper.Transcribe(t.Context(), wav, nil)
+	require.NoError(t, err)
+	// whisper の 1.0〜2.5 秒の字幕を、声の始まり (1.5 秒) から出す。終わりは whisper の終わりを超えない。
+	assert.Equal(t, []autocaption.Cue{{Start: 1500 * time.Millisecond, End: 2500 * time.Millisecond, Text: "こんにちは"}}, cues)
+}
+
+func TestNewVAD(t *testing.T) {
+	t.Parallel()
+
+	data := t.TempDir()
+	placed := writeModel(t, data, autocaption.DefaultVADModelPath)
+	tests := []struct {
+		name    string
+		cfg     config.Captions
+		dataDir string
+		wantErr error
+	}{
+		{name: "既定の場所にコマンドがなければ使わない", cfg: config.Captions{VADCommand: "", VADModel: ""}, dataDir: data, wantErr: autocaption.ErrVADNotPlaced},
+		{name: "既定の場所にモデルがなければ使わない", cfg: config.Captions{VADCommand: "", VADModel: ""}, dataDir: t.TempDir(), wantErr: autocaption.ErrVADNotPlaced},
+		{name: "設定に書いたコマンドがなければ設定の誤り", cfg: config.Captions{VADCommand: filepath.Join(data, "missing"), VADModel: placed}, dataDir: data, wantErr: autocaption.ErrNotConfigured},
+		{name: "設定に書いたモデルがなければ設定の誤り", cfg: config.Captions{VADCommand: selfCommand(t), VADModel: filepath.Join(data, "missing.bin")}, dataDir: data, wantErr: autocaption.ErrNotConfigured},
+		{name: "置いてあれば使う", cfg: config.Captions{VADCommand: selfCommand(t), VADModel: ""}, dataDir: data, wantErr: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			vad, err := autocaption.NewVAD(&tt.cfg, tt.dataDir, nil)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Nil(t, vad)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.NotNil(t, vad)
 		})
 	}
 }

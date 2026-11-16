@@ -324,6 +324,11 @@ type Captions struct {
 	WhisperModel string `yaml:"whisper_model"`
 	// Threads は、whisper-cli に使わせるスレッドの数。0 なら、CPU の数の半分 (1〜8) にする。
 	Threads int `yaml:"threads"`
+	// VADCommand は、whisper.cpp の whisper-vad-speech-segments のパス。空なら、PATH から探す。
+	// VAD は任意で、置いていれば、字幕の時刻を声のある区間に合わせる。
+	VADCommand string `yaml:"vad_command"`
+	// VADModel は、Silero VAD のモデル (ggml の形式) のパス。空なら、データディレクトリの whisper/ggml-silero-vad.bin にする。
+	VADModel string `yaml:"vad_model"`
 }
 
 // kyusu が映像のエンコードに使うエンコーダー (設計書 7.3)。
@@ -529,7 +534,7 @@ func Default() *Config {
 		},
 		WebPush:      WebPush{Subject: ""},
 		Thumbnail:    Thumbnail{DisablePreview: false},
-		Captions:     Captions{WhisperCommand: "", WhisperModel: "", Threads: 0},
+		Captions:     Captions{WhisperCommand: "", WhisperModel: "", Threads: 0, VADCommand: "", VADModel: ""},
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},

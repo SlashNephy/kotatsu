@@ -354,6 +354,8 @@ nekonoteが、録画の音声から字幕を自動生成するときの設定で
 | `captions.whisper_command` | `KOTATSU_CAPTIONS_WHISPER_COMMAND` | PATHの`whisper-cli` | `whisper-cli`のパス |
 | `captions.whisper_model` | `KOTATSU_CAPTIONS_WHISPER_MODEL` | データディレクトリの`whisper/ggml-model.bin` | モデル（ggmlの形式）のパス |
 | `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | `0`（CPUの数の半分。1〜8） | `whisper-cli`に使わせるスレッドの数 |
+| `captions.vad_command` | `KOTATSU_CAPTIONS_VAD_COMMAND` | PATHの`whisper-vad-speech-segments` | 字幕の時刻を声に合わせるVADのコマンドのパス（任意） |
+| `captions.vad_model` | `KOTATSU_CAPTIONS_VAD_MODEL` | データディレクトリの`whisper/ggml-silero-vad.bin` | Silero VADのモデル（ggmlの形式）のパス（任意） |
 
 `whisper-cli`とモデルは、ジョブごとに探します。置き直したら、nekonoteを再起動しなくても、次のジョブから使えます。
 音声を取り出した一時ファイル（1時間の録画で約115 MB）は、`kyusu.work_dir`（空ならOSの一時ディレクトリ）に置き、ジョブを終えたら消します。

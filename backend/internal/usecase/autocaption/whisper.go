@@ -53,6 +53,8 @@ type Whisper struct {
 	model   string
 	threads int
 	lowerer *procprio.Lowerer
+	// vad は、字幕の時刻を声のある区間に合わせる VAD。置いていなければ nil で、読む時間の見積もりだけで直す。
+	vad *VAD
 }
 
 var _ Transcriber = new(Whisper)
@@ -79,7 +81,14 @@ func NewWhisper(cfg *config.Captions, dataDir string, lowerer *procprio.Lowerer)
 		return nil, fmt.Errorf("%w: the model is not found at %s", ErrNotConfigured, model)
 	}
 
-	return &Whisper{command: resolved, model: model, threads: threadsOf(cfg.Threads, runtime.NumCPU()), lowerer: lowerer}, nil
+	vad, err := NewVAD(cfg, dataDir, lowerer)
+	if errors.Is(err, ErrVADNotPlaced) {
+		vad = nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &Whisper{command: resolved, model: model, threads: threadsOf(cfg.Threads, runtime.NumCPU()), lowerer: lowerer, vad: vad}, nil
 }
 
 // threadsOf は、whisper-cli に使わせるスレッドの数を返す。configured が 0 なら、CPU の数の半分 (1 から maxThreads) にする。
@@ -130,8 +139,20 @@ func (w *Whisper) Transcribe(ctx context.Context, wav string, progress func(rati
 		return nil, fmt.Errorf("failed to open the WebVTT written by whisper-cli: %w", err)
 	}
 	defer func() { _ = file.Close() }()
+	cues, err := ParseVTT(file)
+	if err != nil {
+		return nil, err
+	}
+	// 字幕の時刻を、声のある区間 (VAD を置いていれば) と読む時間の見積もりで直す。
+	var speech []Span
+	if w.vad != nil {
+		speech, err = w.vad.Speech(ctx, wav)
+		if err != nil {
+			return nil, err
+		}
+	}
 
-	return ParseVTT(file)
+	return FitCues(cues, speech), nil
 }
 
 // readStderr は、whisper-cli の標準エラー出力を最後まで読み、進み具合の行を progress に渡す。ほかの行は、末尾の数行を返す。
