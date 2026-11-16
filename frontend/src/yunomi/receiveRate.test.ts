@@ -113,4 +113,20 @@ describe('ReceiveMeter.receivedBetween', () => {
     meter.add(3_000, 300_000);
     expect(meter.receivedBetween(from, to)).toBe(want);
   });
+
+  test.each([
+    {
+      name: '読むのにかかった時間が分かる塊は、区間に重なる割合だけ数える',
+      from: 1_500,
+      to: 3_000,
+      // 1,000〜2,000 に読んだ 400,000 バイトのうち半分
+      want: 200_000,
+    },
+    { name: '区間の中で読み終えた塊は、全部数える', from: 500, to: 3_000, want: 400_000 },
+    { name: '区間の後に読み始めた塊は数えない', from: 0, to: 900, want: 0 },
+  ])('$name', ({ from, to, want }) => {
+    const meter = new ReceiveMeter();
+    meter.add(2_000, 400_000, 1_000);
+    expect(meter.receivedBetween(from, to)).toBe(want);
+  });
 });

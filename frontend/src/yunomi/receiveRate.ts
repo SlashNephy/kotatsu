@@ -53,11 +53,26 @@ export class ReceiveMeter {
     return (bytes * 8 * 1_000) / windowMs;
   }
 
-  // receivedBetween は、from から to (ミリ秒) までに届いた量 (バイト)。
+  // receivedBetween は、from から to (ミリ秒) までに届いた量 (バイト)。読むのにかかった時間が分かる塊 (HLS のセグメント) は、
+  // 読んでいた間 (読み終えた時刻から、かかった時間だけ前まで) のうち、区間に重なる割合だけ数える。区間の前から読んでいた塊を、
+  // 読み終えた時刻で丸ごと数えないため。
   receivedBetween(from: number, to: number): number {
-    return this.#received
-      .filter((received) => received.at >= from && received.at <= to)
-      .reduce((sum, received) => sum + received.bytes, 0);
+    let bytes = 0;
+    for (const received of this.#received) {
+      if (received.transferMs === null || received.transferMs <= 0) {
+        if (received.at >= from && received.at <= to) {
+          bytes += received.bytes;
+        }
+        continue;
+      }
+      const start = received.at - received.transferMs;
+      const overlap = Math.min(received.at, to) - Math.max(start, from);
+      if (overlap > 0) {
+        bytes += (received.bytes * overlap) / received.transferMs;
+      }
+    }
+
+    return bytes;
   }
 
   // throughput は、now までの spanMs のあいだに読み終えた塊の量を、読むのにかかった時間の合計で割った速さ。
