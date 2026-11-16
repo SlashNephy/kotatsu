@@ -295,7 +295,7 @@ func ffmpegArgs(cfg *config.Kyusu, preset *Preset, audio Audio, dir string, vod 
 		encoder = map[Codec]string{CodecH264: "h264_qsv", CodecHEVC: "hevc_qsv"}[preset.Codec]
 		// scale_qsv の後のフレームは、時間の単位が変わるのに、長さが前の単位のまま残る。HLS の muxer は固定のフレームレートで書くので、
 		// FFmpeg が最初のフレームを数千枚複製し、映像が遅れる。フレームの PTS をそのまま渡し、複製させない (#1848)。
-		// また、QSV も NVENC と同じく、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにすることがあり、
+		// また、QSV は、#1845 の NVENC と同じく、-force_key_frames で置いたキーフレームを、既定では IDR でない I フレームにすることがあり、
 		// HLS の muxer がそこで区切らない。
 		options = []string{"-fps_mode", "passthrough", "-forced_idr", "1"}
 	case config.EncoderNVENC:

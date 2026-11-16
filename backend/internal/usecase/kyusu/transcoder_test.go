@@ -495,23 +495,29 @@ func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 	generate := exec.CommandContext(t.Context(), "ffmpeg", "-hide_banner", "-loglevel", "error",
 		"-f", "lavfi", "-i", "testsrc2=size=1440x1080:rate=30000/1001", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "30",
 		"-vf", "setfield=tff", "-c:v", "mpeg2video", "-flags", "+ilme+ildct", "-b:v", "15M", "-c:a", "aac", "-ac", "2", "-f", "mpegts", input)
-	require.NoError(t, generate.Run())
-	ts, err := os.ReadFile(input)
+	out, err := generate.CombinedOutput()
+	require.NoError(t, err, string(out))
+	data, err := os.ReadFile(input)
 	require.NoError(t, err)
 
-	for _, name := range []string{preset720p, preset720p60} {
+	for _, name := range []string{preset720p, preset720p60, "720p-hevc"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			preset, ok := kyusu.PresetByName(name)
 			require.True(t, ok)
 			dir := t.TempDir()
-			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(ts), preset, kyusu.AudioFirst, dir))
+			require.NoError(t, transcoder.Run(t.Context(), bytes.NewReader(data), preset, kyusu.AudioFirst, dir))
 
 			playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
 			require.NoError(t, err)
 			durations := []float64{}
+			sequence := -1
 			for line := range strings.SplitSeq(string(playlist), "\n") {
+				if rest, ok := strings.CutPrefix(line, "#EXT-X-MEDIA-SEQUENCE:"); ok {
+					sequence, err = strconv.Atoi(rest)
+					require.NoError(t, err)
+				}
 				if rest, ok := strings.CutPrefix(line, "#EXTINF:"); ok {
 					d, err := strconv.ParseFloat(strings.TrimSuffix(rest, ","), 64)
 					require.NoError(t, err)
@@ -520,6 +526,8 @@ func TestTranscoderQSVSplitsSegmentsEvery2s(t *testing.T) {
 			}
 			// プレイリストには、最後の数本だけが残る。最後のセグメントは、入力の終わりで短くなりうるので比べない。
 			require.GreaterOrEqual(t, len(durations), 3, "segments: %v", durations)
+			// 最初のフレームを複製すると、映像が延びてセグメントが増える。30 秒の入力なら、セグメントは 15 本 (と端の 1 本) に収まる。
+			assert.LessOrEqual(t, sequence+len(durations), 16, "the video is not stretched: sequence %d, segments %v", sequence, durations)
 			for _, d := range durations[:len(durations)-1] {
 				assert.InDelta(t, 2.0, d, 0.1, "every segment is about 2 seconds: %v", durations)
 			}
