@@ -41,6 +41,10 @@ type SchedulerOptions struct {
 	// PollOnly は、変更の通知を LISTEN で受けずに、ポーリングだけで知るかどうか。
 	PollOnly     bool
 	PollInterval time.Duration
+	// ShareByService は、相乗りの単位をチャンネルでなくサービスにするかどうか。EDCB で使う (#1856、PlanOptions)。
+	ShareByService bool
+	// KeepIdleTuner は、EPG の取得に、種別と録られるチャンネルを問わずに空きチューナーを 1 本残すかどうか。EDCB で使う (#1856、PlanOptions)。
+	KeepIdleTuner bool
 }
 
 // Scheduler は、タイムシフトで録るチャンネルのうち、チューナーを使えるものの割り振りを書き、使えなくなったものの割り振りを消す (設計書 5.7)。
@@ -54,9 +58,13 @@ type Scheduler struct {
 
 // NewScheduler は Scheduler を返す。opts は nil でもよい。
 func NewScheduler(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, opts *SchedulerOptions) *Scheduler {
-	o := SchedulerOptions{Interval: DefaultInterval, Lead: 0, PollOnly: false, PollInterval: notify.DefaultPollInterval}
+	o := SchedulerOptions{
+		Interval: DefaultInterval, Lead: 0, PollOnly: false, PollInterval: notify.DefaultPollInterval, ShareByService: false, KeepIdleTuner: false,
+	}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
+		o.ShareByService = opts.ShareByService
+		o.KeepIdleTuner = opts.KeepIdleTuner
 		if opts.Interval > 0 {
 			o.Interval = opts.Interval
 		}
@@ -160,7 +168,7 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	for _, row := range multiplexRows {
 		multiplexes = append(multiplexes, &Multiplex{ChannelType: row.ChannelType, Channel: row.Channel})
 	}
-	tunerRows, err := q.ListUsableTuners(ctx)
+	tunerRows, err := q.ListTuners(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list tuners: %w", err)
 	}
@@ -176,8 +184,16 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 		}
 	}
 	tuners := make([]*assign.Tuner, 0, len(tunerRows))
+	// otherIdle は、Kotatsu が使わないチューナー (EDCB では tuner.edcb.bon_drivers に並べていない BonDriver のもの) のうち、
+	// 今から Lead の間に EDCB の予約が使わないものの数。EDCB の EPG の取得は、これらのチューナーも使う (設計書 3.6)。
+	otherIdle := 0
 	for _, row := range tunerRows {
-		if occupied[row.TunerIndex] {
+		if occupied[row.TunerIndex] || row.IsFault {
+			continue
+		}
+		if !row.IsAvailable {
+			otherIdle++
+
 			continue
 		}
 		tuners = append(tuners, &assign.Tuner{Index: int(row.TunerIndex), Types: row.Types, Blocks: []assign.Block{}})
@@ -189,11 +205,12 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	busy := make([]*Busy, 0, len(busyRows))
 	for _, row := range busyRows {
 		// assigned_tuner が NULL の行は、クエリで除いている。
-		busy = append(busy, &Busy{Tuner: int(*row.AssignedTuner), ChannelType: row.ChannelType, Channel: row.Channel})
+		busy = append(busy, &Busy{Tuner: int(*row.AssignedTuner), ServiceID: row.ServiceID, ChannelType: row.ChannelType, Channel: row.Channel})
 	}
 
 	want := map[int64]bool{}
-	for _, serviceID := range Plan(channels, watched, multiplexes, tuners, busy) {
+	planOptions := &PlanOptions{ShareByService: s.opts.ShareByService, KeepIdleTuner: s.opts.KeepIdleTuner, OtherIdleTuners: otherIdle}
+	for _, serviceID := range Plan(channels, watched, multiplexes, tuners, busy, planOptions) {
 		want[serviceID] = true
 	}
 	// 視聴しているサービスの割り振りも書く。設定されたチャンネルを視聴しているなら、割り振りを 2 度書かない。

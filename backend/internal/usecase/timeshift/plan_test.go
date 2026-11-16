@@ -102,6 +102,14 @@ func TestPlan(t *testing.T) {
 			want:        []int64{1, 2, 3, 4, 5, 6, 7, 8},
 		},
 		{
+			name:        "予約と同じチャンネルの別のサービスも、予約のチューナーを共有する",
+			channels:    []*timeshift.Channel{{ServiceID: 2, ChannelType: "GR", Channel: gr1}},
+			multiplexes: grMultiplexes(1),
+			tuners:      tuners(1, "GR"),
+			busy:        []*timeshift.Busy{{Tuner: 0, ServiceID: 1, ChannelType: "GR", Channel: gr1}},
+			want:        []int64{2},
+		},
+		{
 			name: "同じチャンネルの 2 サービスは、チューナー 1 本を共有する",
 			channels: []*timeshift.Channel{
 				{ServiceID: 1, ChannelType: "GR", Channel: gr1},
@@ -232,7 +240,113 @@ func TestPlan(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.watched, tt.multiplexes, tt.tuners, tt.busy))
+			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.watched, tt.multiplexes, tt.tuners, tt.busy, nil))
+		})
+	}
+}
+
+// TestPlanEDCB は、EDCB の数え方 (#1856) を確かめる。相乗りの単位はサービスで、番組表の取得には、種別と録られるチャンネルを問わずに空きチューナーを 1 本残す。
+func TestPlanEDCB(t *testing.T) {
+	t.Parallel()
+
+	// GR_1 の 2 つのサービス。
+	main := &timeshift.Channel{ServiceID: 1, ChannelType: "GR", Channel: gr1}
+	sub := &timeshift.Channel{ServiceID: 2, ChannelType: "GR", Channel: gr1}
+	tests := []struct {
+		name     string
+		channels []*timeshift.Channel
+		watched  []*timeshift.Channel
+		tuners   []*assign.Tuner
+		busy     []*timeshift.Busy
+		// otherIdle は、tuners のほかにある、EPG の取得に使える空きチューナーの数。
+		otherIdle int
+		want      []int64
+	}{
+		{
+			name:     "予約と同じサービスは、チューナーを使わずに録る",
+			channels: []*timeshift.Channel{main},
+			tuners:   tuners(1, "GR"),
+			busy:     []*timeshift.Busy{{Tuner: 0, ServiceID: 1, ChannelType: "GR", Channel: gr1}},
+			want:     []int64{1},
+		},
+		{
+			name:     "予約と同じチャンネルの別のサービスは、空きチューナーを使う",
+			channels: []*timeshift.Channel{sub},
+			tuners:   tuners(3, "GR"),
+			busy:     []*timeshift.Busy{{Tuner: 0, ServiceID: 1, ChannelType: "GR", Channel: gr1}},
+			want:     []int64{2},
+		},
+		{
+			name:     "予約と同じチャンネルの別のサービスは、最後の空きチューナーしかなければ録らない",
+			channels: []*timeshift.Channel{sub},
+			tuners:   tuners(2, "GR"),
+			busy:     []*timeshift.Busy{{Tuner: 0, ServiceID: 1, ChannelType: "GR", Channel: gr1}},
+			want:     []int64{},
+		},
+		{
+			name:     "同じチャンネルの 2 サービスは、別のチューナーを使う",
+			channels: []*timeshift.Channel{main, sub},
+			tuners:   tuners(3, "GR"),
+			want:     []int64{1, 2},
+		},
+		{
+			name:     "同じチャンネルの 2 サービスは、チューナーが 1 本分しかなければ先のサービスだけを録る",
+			channels: []*timeshift.Channel{main, sub},
+			tuners:   tuners(2, "GR"),
+			want:     []int64{1},
+		},
+		{
+			name:     "視聴しているサービスと同じチャンネルの別のサービスは、空きチューナーを使う",
+			channels: []*timeshift.Channel{sub},
+			watched:  []*timeshift.Channel{main},
+			tuners:   tuners(2, "GR"),
+			want:     []int64{2, 1},
+		},
+		{
+			name:     "視聴しているサービスと同じチャンネルの別のサービスは、最後の空きチューナーしかなければ録らない",
+			channels: []*timeshift.Channel{sub},
+			watched:  []*timeshift.Channel{main},
+			tuners:   tuners(1, "GR"),
+			want:     []int64{1},
+		},
+		{
+			name:     "1 本のチューナーで同じチャンネルの別のサービスの予約が続けば、どちらのサービスとも共有しない",
+			channels: []*timeshift.Channel{main},
+			tuners:   tuners(1, "GR"),
+			busy: []*timeshift.Busy{
+				{Tuner: 0, ServiceID: 1, ChannelType: "GR", Channel: gr1},
+				{Tuner: 0, ServiceID: 2, ChannelType: "GR", Channel: gr1},
+			},
+			want: []int64{},
+		},
+		{
+			name:     "すべてのチャンネルをタイムシフトで録っても、空きチューナーを 1 本残す",
+			channels: grChannels(2),
+			tuners:   tuners(2, "GR"),
+			want:     []int64{1},
+		},
+		{
+			name:      "Kotatsu が使わない空きチューナーがあれば、最後の空きチューナーも使う",
+			channels:  grChannels(2),
+			tuners:    tuners(2, "GR"),
+			otherIdle: 1,
+			want:      []int64{1, 2},
+		},
+		{
+			// EDCB の EPG の取得は、どの種別のチューナーでも、使っていないものが 1 本あればよい。
+			name:     "番組表の取得に残すのは、種別を問わず 1 本",
+			channels: []*timeshift.Channel{{ServiceID: 1, ChannelType: "BS", Channel: bs01}, {ServiceID: 2, ChannelType: "GR", Channel: gr1}},
+			tuners:   []*assign.Tuner{{Index: 0, Types: []string{"BS"}, Blocks: []assign.Block{}}, {Index: 1, Types: []string{"GR"}, Blocks: []assign.Block{}}},
+			want:     []int64{1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// 番組表を取るチャンネルは、EDCB の数え方では見ない。録らないチャンネルを並べても結果は変わらない。
+			opts := &timeshift.PlanOptions{ShareByService: true, KeepIdleTuner: true, OtherIdleTuners: tt.otherIdle}
+			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.watched, grMultiplexes(8), tt.tuners, tt.busy, opts))
 		})
 	}
 }

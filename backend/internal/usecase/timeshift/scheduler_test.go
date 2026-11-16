@@ -79,6 +79,13 @@ type env struct {
 func newEnv(t *testing.T) *env {
 	t.Helper()
 
+	return newEnvWith(t, nil)
+}
+
+// newEnvWith は、タイムシフトの割り振りの設定を opts にした env を返す。
+func newEnvWith(t *testing.T, opts *timeshift.SchedulerOptions) *env {
+	t.Helper()
+
 	pool, err := database.Open(t.Context(), databasetest.New(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -98,7 +105,7 @@ func newEnv(t *testing.T) *env {
 		clk:          clk,
 		reservations: reserve.NewReservations(clk, audit.NewRecorder(clk)),
 		assigner:     assign.NewRunner(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil, nil),
-		scheduler:    timeshift.NewScheduler(pool, clk, noGuard, slog.New(slog.DiscardHandler), nil),
+		scheduler:    timeshift.NewScheduler(pool, clk, noGuard, slog.New(slog.DiscardHandler), opts),
 		q:            sqlc.New(pool),
 	}
 }
@@ -106,8 +113,15 @@ func newEnv(t *testing.T) *env {
 func (e *env) configure(t *testing.T, service int) {
 	t.Helper()
 
+	e.configureService(t, grService(service))
+}
+
+// configureService は、サービス serviceID をタイムシフトで録るチャンネルにする。
+func (e *env) configureService(t *testing.T, serviceID int64) {
+	t.Helper()
+
 	require.NoError(t, e.q.UpsertTimeshiftChannel(t.Context(), sqlc.UpsertTimeshiftChannelParams{
-		ServiceID: grService(service), RetentionSeconds: 7200, Now: e.clk.Now(), UpdatedBy: nil,
+		ServiceID: serviceID, RetentionSeconds: 7200, Now: e.clk.Now(), UpdatedBy: nil,
 	}))
 }
 
@@ -323,6 +337,133 @@ func TestSchedulerReplacesFinishedAssignment(t *testing.T) {
 				assert.Equal(t, domain.RecordingAssignmentStateWaiting, row.State, "a new assignment is waiting for mikan")
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// edcbOptions は、EDCB のときのタイムシフトの割り振りの設定 (#1856)。
+func edcbOptions() *timeshift.SchedulerOptions {
+	return &timeshift.SchedulerOptions{Interval: 0, Lead: 0, PollOnly: false, PollInterval: 0, ShareByService: true, KeepIdleTuner: true}
+}
+
+// TestSchedulerShareUnit は、予約と同じチャンネルのサービスを、予約の録画と相乗りさせるかを確かめる。
+// Mirakurun 互換のサーバーではチャンネルが、EDCB ではサービスが相乗りの単位になる (#1856)。
+// 偽チューナーサーバーの BS と CS のチューナーは故障にし、地上波のチューナー 2 本だけにする。1 番目のチャンネルには、サービスが 2 つある。
+func TestSchedulerShareUnit(t *testing.T) {
+	t.Parallel()
+
+	main := grService(0)
+	sub := faketuner.ServiceItemID(grNetworkID, 0x0401)
+	tests := []struct {
+		name    string
+		opts    *timeshift.SchedulerOptions
+		service int64
+		// wantBefore は、予約が先回りの時間に入る前に録るサービス。wantDuring は、入った後に録るサービス。
+		wantBefore []int64
+		wantDuring []int64
+	}{
+		{
+			name: "Mirakurun では、予約と同じサービスを、チューナーを使わずに録る", opts: nil, service: main,
+			wantBefore: []int64{main}, wantDuring: []int64{main},
+		},
+		{
+			name: "Mirakurun では、予約と同じチャンネルの別のサービスも、チューナーを使わずに録る", opts: nil, service: sub,
+			wantBefore: []int64{sub}, wantDuring: []int64{sub},
+		},
+		{
+			name: "EDCB では、予約と同じサービスを、チューナーを使わずに録る", opts: edcbOptions(), service: main,
+			wantBefore: []int64{main}, wantDuring: []int64{main},
+		},
+		{
+			// 予約が 1 本を使うと、空きチューナーは 1 本だけになり、EPG の取得に残す。
+			name: "EDCB では、予約と同じチャンネルの別のサービスは、空きチューナーを使う", opts: edcbOptions(), service: sub,
+			wantBefore: []int64{sub}, wantDuring: []int64{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newEnvWith(t, tt.opts)
+			tag, err := e.pool.Exec(t.Context(), "UPDATE tuners SET is_fault = true WHERE 'BS' = ANY(types)")
+			require.NoError(t, err)
+			require.EqualValues(t, 1, tag.RowsAffected())
+			e.configureService(t, tt.service)
+			e.reserve(t, 0)
+			_, err = e.scheduler.RunOnce(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantBefore, assignedServices(t, e.pool), "before the reservation")
+
+			e.clk.Set(time.Date(2026, 10, 10, 13, 29, 0, 0, time.UTC))
+			_, err = e.scheduler.RunOnce(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantDuring, assignedServices(t, e.pool), "during the reservation")
+		})
+	}
+}
+
+// TestSchedulerKeepsIdleTuner は、EDCB で、EPG の取得に、種別と録られるチャンネルを問わずに空きチューナーを 1 本残すことを確かめる (#1856)。
+// Kotatsu が使わないチューナー (tuner.edcb.bon_drivers に並べていない BonDriver のもの) も、EDCB の EPG の取得に使われるので数える。
+// 偽チューナーサーバーのチューナーは、地上波の 2 本と、BS と CS の 1 本。地上波の 3 チャンネルを録る。
+func TestSchedulerKeepsIdleTuner(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// noBS は、BS と CS のチューナーを故障にして、地上波のチューナーだけにするかどうか。
+		noBS bool
+		// unusable は、地上波のチューナーの 1 本を、Kotatsu が使わないものにするかどうか。
+		unusable bool
+		// occupied は、Kotatsu が使わないチューナーを、EDCB の予約が今使うかどうか。
+		occupied bool
+		want     []int64
+	}{
+		{
+			name: "BS と CS のチューナーが空いていれば、地上波のチューナーを 2 本とも使う",
+			want: []int64{grService(0), grService(1)},
+		},
+		{
+			name: "地上波のチューナーしかなければ、1 本を残す", noBS: true,
+			want: []int64{grService(0)},
+		},
+		{
+			name: "Kotatsu が使わない空きチューナーがあれば、Kotatsu が使える最後の 1 本も使う", noBS: true, unusable: true,
+			want: []int64{grService(0)},
+		},
+		{
+			name: "Kotatsu が使わないチューナーを EDCB の予約が使うなら、最後の 1 本を使わない", noBS: true, unusable: true, occupied: true,
+			want: []int64{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			e := newEnvWith(t, edcbOptions())
+			for i := range 3 {
+				e.configure(t, i)
+			}
+			exec := func(sql string, args ...any) {
+				t.Helper()
+
+				tag, err := e.pool.Exec(t.Context(), sql, args...)
+				require.NoError(t, err)
+				require.EqualValues(t, 1, tag.RowsAffected(), sql)
+			}
+			if tt.noBS {
+				exec("UPDATE tuners SET is_fault = true WHERE 'BS' = ANY(types)")
+			}
+			if tt.unusable {
+				exec("UPDATE tuners SET is_available = false WHERE tuner_index = (SELECT max(tuner_index) FROM tuners WHERE 'GR' = ANY(types))")
+			}
+			if tt.occupied {
+				exec("INSERT INTO tuner_occupancies (tuner_index, start_at, end_at) SELECT tuner_index, $1::timestamptz, $2::timestamptz FROM tuners WHERE NOT is_available",
+					e.clk.Now().Add(-time.Minute), e.clk.Now().Add(time.Hour))
+			}
+
+			_, err := e.scheduler.RunOnce(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, assignedServices(t, e.pool))
 		})
 	}
 }

@@ -232,6 +232,9 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			Lead:         0,
 			PollOnly:     deps.Config.Database.Pooler,
 			PollInterval: 0,
+			// EDCB では、同じチャンネルの別のサービスは別のチューナーになり、EPG の取得は空きチューナーを使う (#1856)。
+			ShareByService: deps.Config.Tuner.Kind == config.TunerKindEDCB,
+			KeepIdleTuner:  deps.Config.Tuner.Kind == config.TunerKindEDCB,
 		},
 	})
 }
