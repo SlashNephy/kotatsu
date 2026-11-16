@@ -48,6 +48,8 @@ const (
 	foreignKeyViolation = "23503"
 	// detectKey は、録画の完了のイベントの、CM の区間を見分けるかどうかのキー。
 	detectKey = "detectCm"
+	// detectorKey は、録画の完了のイベントの材料のうち、予約とルールで選んだ見分け方 (#1505)。
+	detectorKey = "cmDetector"
 	// delayedBroadcast は、番組が遅れて始まったとみなす、実際に放送中になった日時の遅れ (#1506、programStart)。
 	// 放送中になったのを見つけるまでの遅れ (数秒) より十分に長くする。
 	delayedBroadcast = time.Minute
@@ -64,7 +66,10 @@ var (
 
 // DetectArgs は、録画の CM の区間を見分けるジョブの引数。
 type DetectArgs struct {
-	RecordingID uuid.UUID `json:"recordingId"`
+	// RecordingID は、見分ける録画。同じ録画のジョブを重ねて投入しないよう、これだけで一意にする。
+	RecordingID uuid.UUID `json:"recordingId" river:"unique"`
+	// Detector は、予約とルールで選んだ見分け方 (#1505)。空なら、見分けるときの全体の設定に従う。
+	Detector string `json:"detector,omitempty"`
 }
 
 var _ river.JobArgsWithInsertOpts = new(DetectArgs)
@@ -98,7 +103,7 @@ func Enqueue(ctx context.Context, db Beginner, inserter Inserter, clk clock.Cloc
 		return false, fmt.Errorf("failed to begin a transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: DetectArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	results, err := inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: DetectArgs{RecordingID: recordingID, Detector: ""}, InsertOpts: nil}})
 	if err != nil {
 		return false, fmt.Errorf("failed to insert the CM detection job: %w", err)
 	}
@@ -128,7 +133,7 @@ func EnqueueMany(ctx context.Context, db Beginner, inserter Inserter, clk clock.
 		ids := recordingIDs[start:min(start+enqueueBatch, len(recordingIDs))]
 		params := make([]river.InsertManyParams, 0, len(ids))
 		for _, id := range ids {
-			params = append(params, river.InsertManyParams{Args: DetectArgs{RecordingID: id}, InsertOpts: nil})
+			params = append(params, river.InsertManyParams{Args: DetectArgs{RecordingID: id, Detector: ""}, InsertOpts: nil})
 		}
 		batch := 0
 		err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
@@ -187,7 +192,8 @@ func (e *Enqueuer) OnEvent(ctx context.Context, tx pgx.Tx, event *notification.E
 		// 録画の ID のないイベントでは、何もできない。ほかの通知は配りたいので、失敗にはしない。
 		return nil
 	}
-	results, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: DetectArgs{RecordingID: recordingID}, InsertOpts: nil}})
+	args := DetectArgs{RecordingID: recordingID, Detector: detectorOf(event.Payload)}
+	results, err := e.inserter.InsertManyTx(ctx, tx, []river.InsertManyParams{{Args: args, InsertOpts: nil}})
 	if err != nil {
 		return fmt.Errorf("failed to enqueue the CM detection: %w", err)
 	}
@@ -209,6 +215,13 @@ func shouldDetect(payload map[string]any) bool {
 	detect, _ := payload[detectKey].(bool)
 
 	return detect && segmentCount(payload) > 0
+}
+
+// detectorOf は、録画の完了のイベントの材料から、予約とルールで選んだ見分け方を読む (#1505)。選んでいなければ空。
+func detectorOf(payload map[string]any) string {
+	detector, _ := payload[detectorKey].(string)
+
+	return detector
 }
 
 // recordingIDOf は、録画の完了のイベントの材料から、録画の ID を読む。
@@ -272,8 +285,8 @@ type DetectWorker struct {
 	// hook は、見分け終えたことを受け取る。nil なら呼ばない。
 	hook   DetectedHook
 	logger *slog.Logger
-	// newDetector は、見分けに使う Detector を作る。テストでは差し替える。
-	newDetector func(ctx context.Context) (Detector, error)
+	// newDetector は、見分けに使う Detector を作る。requested は、ジョブに載せた見分け方 (空なら全体の設定に従う)。テストでは差し替える。
+	newDetector func(ctx context.Context, requested string) (Detector, error)
 }
 
 var _ river.Worker[DetectArgs] = new(DetectWorker)
@@ -281,10 +294,10 @@ var _ river.Worker[DetectArgs] = new(DetectWorker)
 // NewDetectWorker は DetectWorker を返す。store は、このインスタンスにマウントされたプール。
 // lowerer は、FFmpeg を最低の優先度で動かす (#1511)。hook は、区間を書いたトランザクションの中で呼ぶ。nil なら呼ばない。
 // logger には、見分けの進み具合を出す。
-// 見分け方は、ジョブごとに、管理者が選んだもの (#1505) にする。
+// 見分け方は、ジョブごとに、予約とルールで選んだもの、なければ管理者が全体で選んだもの (#1505) にする。
 func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *procprio.Lowerer, hook DetectedHook, logger *slog.Logger) *DetectWorker {
-	return newDetectWorker(db, store, clk, hook, logger, func(ctx context.Context) (Detector, error) {
-		name, err := selectedDetector(ctx, db)
+	return newDetectWorker(db, store, clk, hook, logger, func(ctx context.Context, requested string) (Detector, error) {
+		name, err := resolveDetector(requested, func() (string, error) { return selectedDetector(ctx, db) })
 		if err != nil {
 			return nil, err
 		}
@@ -294,6 +307,16 @@ func NewDetectWorker(db Database, store *kago.Store, clk clock.Clock, lowerer *p
 
 		return NewFFmpegDetector(lowerer)
 	})
+}
+
+// resolveDetector は、ジョブに載せた見分け方 requested を返す。空か知らない名前なら、全体の設定 (global) に従う。
+// 知らない名前は、新しいバイナリが足した見分け方を、古いバイナリが受け取ったときに起きる。
+func resolveDetector(requested string, global func() (string, error)) (string, error) {
+	if requested == FFmpegDetectorName || requested == LogoDetectorName {
+		return requested, nil
+	}
+
+	return global()
 }
 
 // selectedDetector は、管理者が選んだ見分け方の名前を返す。設定の行がまだなければ、既定の FFmpegDetector にする。
@@ -310,7 +333,7 @@ func selectedDetector(ctx context.Context, db sqlc.DBTX) (string, error) {
 }
 
 func newDetectWorker(
-	db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func(ctx context.Context) (Detector, error),
+	db Database, store *kago.Store, clk clock.Clock, hook DetectedHook, logger *slog.Logger, newDetector func(ctx context.Context, requested string) (Detector, error),
 ) *DetectWorker {
 	return &DetectWorker{
 		WorkerDefaults: river.WorkerDefaults[DetectArgs]{}, db: db, store: store, clock: clk, hook: hook, logger: logger, newDetector: newDetector,
@@ -324,7 +347,7 @@ func (w *DetectWorker) Timeout(*river.Job[DetectArgs]) time.Duration {
 // Work は、録画ごとの advisory lock を取ってから、CM の区間を見分ける。
 // セグメントをつなぐジョブと同じロックを使い、ほかの nekonote がファイルをつないだり消したりしている間は読まず、後でやり直す。
 func (w *DetectWorker) Work(ctx context.Context, job *river.Job[DetectArgs]) error {
-	detector, err := w.newDetector(ctx)
+	detector, err := w.newDetector(ctx, job.Args.Detector)
 	if errors.Is(err, ErrFFmpegNotFound) {
 		return river.JobCancel(err)
 	}

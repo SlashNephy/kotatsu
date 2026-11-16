@@ -1155,6 +1155,7 @@ type ComplexityRoot struct {
 	}
 
 	RecordingSettingsOverrides struct {
+		CMDetector         func(childComplexity int) int
 		DetectCM           func(childComplexity int) int
 		EndMarginSeconds   func(childComplexity int) int
 		FileNameTemplate   func(childComplexity int) int
@@ -6924,6 +6925,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.RecordingSettings.TranscodePreset(childComplexity), true
 
+	case "RecordingSettingsOverrides.cmDetector":
+		if e.ComplexityRoot.RecordingSettingsOverrides.CMDetector == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RecordingSettingsOverrides.CMDetector(childComplexity), true
 	case "RecordingSettingsOverrides.detectCm":
 		if e.ComplexityRoot.RecordingSettingsOverrides.DetectCM == nil {
 			break
@@ -11692,6 +11699,8 @@ type RecordingSettingsOverrides {
   transcodePreset: String
   "録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。"
   transcodeFrameRate: String
+  "CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。"
+  cmDetector: CMDetector
 }
 
 """
@@ -11709,6 +11718,8 @@ input RecordingSettingsOverridesInput {
   transcodePreset: String
   "変換で出すコマ数 (auto、30、60 のどれか)。"
   transcodeFrameRate: String
+  "CM の区間の見分け方。"
+  cmDetector: CMDetector
 }
 
 """
@@ -14821,6 +14832,8 @@ func (ec *executionContext) childFields_RecordingSettingsOverrides(ctx context.C
 		return ec.fieldContext_RecordingSettingsOverrides_transcodePreset(ctx, field)
 	case "transcodeFrameRate":
 		return ec.fieldContext_RecordingSettingsOverrides_transcodeFrameRate(ctx, field)
+	case "cmDetector":
+		return ec.fieldContext_RecordingSettingsOverrides_cmDetector(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RecordingSettingsOverrides", field.Name)
 }
@@ -38669,6 +38682,29 @@ func (ec *executionContext) fieldContext_RecordingSettingsOverrides_transcodeFra
 	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "String")
 }
 
+func (ec *executionContext) _RecordingSettingsOverrides_cmDetector(ctx context.Context, field graphql.CollectedField, obj *model.RecordingSettingsOverrides) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RecordingSettingsOverrides_cmDetector(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CMDetector, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.CMDetector) graphql.Marshaler {
+			return ec.marshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_RecordingSettingsOverrides_cmDetector(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RecordingSettingsOverrides", field, false, false, "CMDetector")
+}
+
 func (ec *executionContext) _RecoveryCodes_codes(ctx context.Context, field graphql.CollectedField, obj *model.RecoveryCodes) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -47809,7 +47845,7 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset", "transcodeFrameRate"}
+	fieldsInOrder := [...]string{"poolId", "fileNameTemplate", "startMarginSeconds", "endMarginSeconds", "priority", "joinSegments", "detectCm", "transcodePreset", "transcodeFrameRate", "cmDetector"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -47879,6 +47915,13 @@ func (ec *executionContext) unmarshalInputRecordingSettingsOverridesInput(ctx co
 				return it, err
 			}
 			it.TranscodeFrameRate = data
+		case "cmDetector":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("cmDetector"))
+			data, err := ec.unmarshalOCMDetector2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐCMDetector(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CMDetector = data
 		}
 	}
 	return it, nil
@@ -56291,6 +56334,11 @@ func (ec *executionContext) _RecordingSettingsOverrides(ctx context.Context, sel
 			}
 		case "transcodeFrameRate":
 			out.Values[i] = ec._RecordingSettingsOverrides_transcodeFrameRate(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "cmDetector":
+			out.Values[i] = ec._RecordingSettingsOverrides_cmDetector(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				out.Invalids++
 			}

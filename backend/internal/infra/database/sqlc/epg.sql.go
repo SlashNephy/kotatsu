@@ -360,6 +360,18 @@ func (q *Queries) PruneProgramArchives(ctx context.Context, arg PruneProgramArch
 	return result.RowsAffected(), nil
 }
 
+const pruneProgramRewrites = `-- name: PruneProgramRewrites :execrows
+DELETE FROM program_rewrites WHERE observed_at < $1
+`
+
+func (q *Queries) PruneProgramRewrites(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneProgramRewrites, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const serviceExists = `-- name: ServiceExists :one
 SELECT EXISTS (SELECT 1 FROM services WHERE id = $1)
 `

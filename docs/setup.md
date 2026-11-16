@@ -224,7 +224,7 @@ Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください
 - CtrlCmdのTCPには、パスワードも暗号化もありません。信頼できるネットワークの中でだけつないでください。
 - NetworkTVのIDは、EpgTimerSrv全体で1つの名前空間です。Kotatsuが使う範囲（`tuner.edcb.network_tv_id_start`と`_count`。既定は1000から32個）を、ほかのクライアント（KonomiTVは500から、EpgTimerの視聴やTVTestは小さい番号）と重ならないようにしてください。
 - KotatsuとEDCBは、チューナーを取り合います。EDCBの予約が始まると、EDCBはKotatsuが使っているNetworkTVのチューナーを取っていくので、Kotatsuの録画やライブ視聴が切れることがあります。Kotatsuはこれに気づいてつなぎ直しを試み、つなぎ直せなければ、録画の失敗の理由を「EDCBの予約にチューナーを取られた」として残します。
-- EDCBはKotatsuの予約を知りません。EDCBの予約の割り当てや、EDCBのスリープの判断には、Kotatsuの予約は入りません。
+- EDCBはKotatsuの予約を知りません。EDCBの予約の割り当てや、EDCBのスリープの判断には、Kotatsuの予約は入りません。EDCBの「録画後にスリープ」や、予約の前に起こす機能は、Kotatsuの録画を考えずにPCを眠らせ、Kotatsuの録画の前にPCを起こしません。KotatsuとEDCBを同じPCで動かすときは、EDCBのスリープ（EpgTimerの設定の録画後の動作と、復帰のための設定）を使わず、Kotatsuの電源の管理（[WindowsとmacOSの電源の設定](#windowsとmacosの電源の設定)）に任せてください。Kotatsuは、録画とライブ視聴の間と次の録画の直前にスリープさせず、次の録画の前に起こす予約を置きます。EDCBの予約は、Kotatsuからは見えないので、この管理には入りません。EDCBの予約も録るなら、OSをスリープしない設定にしてください。
 - EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu nabe`（`kotatsu hub`）を1台動かしてください。nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを見つけて、TSを受け取ります。設定は要りません。ただし、nabeと、nabeから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。nabeがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、nabeは何もしません。
 - サービスのロゴは、EDCBが集めたもの（`LogoData`）を使います。EDCBがロゴを集めていなければ、Kotatsuが録画とタイムシフトのTSから集めたロゴを使います。
 
