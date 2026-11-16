@@ -37,6 +37,11 @@ func TestWorkTitle(t *testing.T) {
 		{name: "quoted title with suffix", in: "金曜ドラマ「作品名」SP", want: work},
 		// 枠の名前に似た作品名は、後ろに空白もかぎ括弧もないので削らない。
 		{name: "title starting like a slot name", in: "ドラマチックな恋 #1", want: "ドラマチックな恋"},
+		// 作品名の後ろや途中のすみ付き括弧は、外部のサービスで探すのに要らないので除く。
+		{name: "trailing lenticular brackets", in: "救命病棟２４時【最終章へ…】　＃０６", want: "救命病棟24時"},
+		{name: "lenticular brackets in the middle", in: "作品名【SP】完結編 #6", want: "作品名 完結編"},
+		// すみ付き括弧だけの番組名は、そのまま返す。
+		{name: "lenticular brackets only", in: "【特集】", want: "【特集】"},
 		// 枠の名前だけなら、そのまま返す。
 		{name: "slot name only", in: "土曜ドラマ", want: "土曜ドラマ"},
 	}
