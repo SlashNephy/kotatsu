@@ -43,14 +43,18 @@ func fakeWhisper(args []string) int {
 
 		return 1
 	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(out), "args"), []byte(strings.Join(args, "\n")), 0o600); err != nil {
-		return 1
-	}
 	fmt.Fprintln(os.Stderr, "whisper_init_from_file_with_params_no_state: loading model")
 	fmt.Fprintln(os.Stderr, "whisper_print_progress_callback: progress =  40%")
 	fmt.Fprintln(os.Stderr, "whisper_print_progress_callback: progress = 100%")
-	vtt := "WEBVTT\n\n00:00:01.000 --> 00:00:02.500\nこんにちは\n\n00:00:03.000 --> 00:00:04.000\n\n"
-	if err := os.WriteFile(out+".vtt", []byte(vtt), 0o600); err != nil {
+	// 受け取った引数は、NOTE の塊に 1 行ずつ書く。WebVTT を読むときは読み飛ばす。
+	vtt := "WEBVTT\n\nNOTE\n" + strings.Join(args, "\n") + "\n\n00:00:01.000 --> 00:00:02.500\nこんにちは\n\n00:00:03.000 --> 00:00:04.000\n\n"
+	// 書くのは -of のディレクトリの中だけにする。
+	root, err := os.OpenRoot(filepath.Dir(out))
+	if err != nil {
+		return 1
+	}
+	defer func() { _ = root.Close() }()
+	if err := root.WriteFile(filepath.Base(out)+".vtt", []byte(vtt), 0o600); err != nil {
 		return 1
 	}
 
@@ -149,11 +153,12 @@ func TestWhisperTranscribe(t *testing.T) {
 			assert.Equal(t, []autocaption.Cue{{Start: time.Second, End: 2500 * time.Millisecond, Text: "こんにちは"}}, cues)
 			assert.Equal(t, []float64{0.4, 1}, progress)
 
-			args, err := os.ReadFile(filepath.Join(work, "args"))
+			written, err := os.ReadFile(filepath.Join(work, "0.vtt"))
 			require.NoError(t, err)
+			args, _, _ := strings.Cut(strings.TrimPrefix(string(written), "WEBVTT\n\nNOTE\n"), "\n\n")
 			assert.Equal(t, []string{
 				"-m", wantModel, "-f", wav, "-l", "ja", "-t", tt.wantThreads, "-sns", "-pp", "-np", "-ovtt", "-of", filepath.Join(work, "0"),
-			}, strings.Split(string(args), "\n"))
+			}, strings.Split(args, "\n"))
 		})
 	}
 }

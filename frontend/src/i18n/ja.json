@@ -1920,6 +1920,7 @@
         "oauth_prune": "MCPのトークンの片付け",
         "recording_analyze": "録画の解析",
         "recording_chapters": "変換した録画のCMのチャプター",
+        "recording_auto_captions": "字幕の自動生成",
         "recording_cm_detect": "CMの区間",
         "recording_join": "セグメントをつなぐ",
         "recording_join_finalize": "セグメントをつないだ後の片付け",

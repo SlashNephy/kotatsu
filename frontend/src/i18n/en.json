@@ -2004,6 +2004,7 @@
         "oauth_prune": "Prune MCP tokens",
         "recording_analyze": "Analyze recording",
         "recording_chapters": "Commercial chapters in the transcoded recording",
+        "recording_auto_captions": "Auto-generated captions",
         "recording_cm_detect": "Commercial sections",
         "recording_join": "Join segments",
         "recording_join_finalize": "Clean up after joining",

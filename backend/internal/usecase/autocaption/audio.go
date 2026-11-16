@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,8 @@ const (
 	ffmpegCommand = "ffmpeg"
 	// audioFilter は、whisper.cpp が読む 16 kHz の音声にするフィルター。async=1 で、ドロップで欠けた所を無音で埋め、後の字幕の時刻をずらさない。
 	audioFilter = "aresample=16000:async=1"
+	// noStreamMessage は、-map に当たるストリームがないときに FFmpeg が出すエラーの一部。
+	noStreamMessage = "matches no streams"
 )
 
 var (
@@ -70,8 +73,12 @@ func extractAudio(ctx context.Context, lowerer *procprio.Lowerer, path string, s
 	}
 	tail := tailLines(stderr)
 	if err := cmd.Wait(); err != nil {
-		cues := scanner.Cues()
-		if cues.FirstAudioPTS == nil {
+		if ctx.Err() != nil {
+			return 0, fmt.Errorf("FFmpeg was stopped: %w", ctx.Err())
+		}
+		// 音声がないと分かるのは、FFmpeg が 0:a:0 に当たるストリームを見つけなかったときだけ。読めなかったなどのほかの失敗を、
+		// 音声のないセグメントとして飛ばすと、前の字幕を空で置き換えてしまう。
+		if scanner.Cues().FirstAudioPTS == nil && slices.ContainsFunc(tail, func(line string) bool { return strings.Contains(line, noStreamMessage) }) {
 			return 0, ErrNoAudio
 		}
 

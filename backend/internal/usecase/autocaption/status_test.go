@@ -68,7 +68,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.generated(t, recordingID, now.Add(-48*time.Hour))
 			},
 			want: func(now time.Time) *autocaption.Status {
-				return &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(now.Add(-48 * time.Hour)), Model: "ggml-model.bin", Cues: 2, Progress: nil}
+				return &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(now.Add(-48 * time.Hour)), Model: storedModel, Cues: 2, Progress: nil}
 			},
 		},
 		{
@@ -79,7 +79,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.job(t, recordingID, "available", time.Time{}, "")
 			},
 			want: func(now time.Time) *autocaption.Status {
-				return &autocaption.Status{State: autocaption.StateQueued, GeneratedAt: new(now.Add(-time.Hour)), Model: "ggml-model.bin", Cues: 2, Progress: nil}
+				return &autocaption.Status{State: autocaption.StateQueued, GeneratedAt: new(now.Add(-time.Hour)), Model: storedModel, Cues: 2, Progress: nil}
 			},
 		},
 		{
@@ -105,7 +105,7 @@ func TestRecordingStatus(t *testing.T) {
 				f.generated(t, recordingID, now)
 			},
 			want: func(now time.Time) *autocaption.Status {
-				return &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(now), Model: "ggml-model.bin", Cues: 2, Progress: nil}
+				return &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(now), Model: storedModel, Cues: 2, Progress: nil}
 			},
 		},
 		{
@@ -145,7 +145,7 @@ func TestRecordingStatus(t *testing.T) {
 			t.Parallel()
 
 			f := newFixture(t)
-			recordingID := f.recording(t, "completed", segmentAt{name: "a.m2ts", start: 0})
+			recordingID := f.recording(t, stateCompleted, segmentAt{name: segmentA, start: 0})
 			now := f.clock.Now()
 			tt.setup(t, f, recordingID, now)
 

@@ -1,6 +1,7 @@
 package autocaption_test
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"os"
@@ -95,6 +96,40 @@ func TestFFmpegExtractorWithoutAudio(t *testing.T) {
 	require.NoError(t, err)
 	_, err = extract(t.Context(), "../../../testdata/ts/test-h264.ts", 0, filepath.Join(t.TempDir(), "0.wav"))
 	require.ErrorIs(t, err, autocaption.ErrNoAudio)
+}
+
+// TestFFmpegExtractorStopped は、止めたら ErrNoAudio ではなく、止めた理由を返すことを確かめる。音声のないセグメントとして飛ばし、
+// 残りのセグメントを読み続けないようにする。FFmpeg がなければ飛ばす。
+func TestFFmpegExtractorStopped(t *testing.T) {
+	t.Parallel()
+
+	extract, err := autocaption.FFmpegExtractor(nil)
+	if errors.Is(err, autocaption.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = extract(ctx, "../../../testdata/ts/test-h264.ts", 0, filepath.Join(t.TempDir(), "0.wav"))
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, autocaption.ErrNoAudio)
+}
+
+// TestFFmpegExtractorUnreadable は、FFmpeg が読めないファイル (TS でないもの) を、音声のないセグメントとして飛ばさないことを確かめる。
+// FFmpeg がなければ飛ばす。
+func TestFFmpegExtractorUnreadable(t *testing.T) {
+	t.Parallel()
+
+	extract, err := autocaption.FFmpegExtractor(nil)
+	if errors.Is(err, autocaption.ErrFFmpegNotFound) {
+		t.Skip("FFmpeg is not installed")
+	}
+	require.NoError(t, err)
+	path := filepath.Join(t.TempDir(), "broken.m2ts")
+	require.NoError(t, os.WriteFile(path, []byte("not a transport stream"), 0o600))
+	_, err = extract(t.Context(), path, 0, filepath.Join(t.TempDir(), "0.wav"))
+	require.Error(t, err)
+	require.NotErrorIs(t, err, autocaption.ErrNoAudio)
 }
 
 // firstPacketPTS は、ffprobe で読んだ、TS の stream の最初のパケット (keyframe なら最初のキーフレームのパケット) の PTS (秒) を返す。

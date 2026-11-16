@@ -34,6 +34,20 @@ const (
 	// serviceID は、テストのサービスの ID。放送のサービス ID (sid) は 1024。
 	serviceID = 3273601024
 	sid       = 1024
+	// segmentA は、テストの録画の最初のセグメントの名前。
+	segmentA = "a.m2ts"
+	// stateCompleted は、録り終えた録画の状態。
+	stateCompleted = "completed"
+	// filesKey は、録画の完了のイベントの、セグメントの一覧のキー。
+	filesKey = "files"
+	// segmentB は、テストの録画の 2 つ目のセグメントの名前。
+	segmentB = "b.m2ts"
+	// generateKey は、録画の完了のイベントの、字幕を生成するかどうかのキー。
+	generateKey = "generateCaptions"
+	// fakeModel は、偽の Transcriber のモデルの名前。
+	fakeModel = "ggml-fake.bin"
+	// storedModel は、テストで DB に書く字幕のモデルの名前。
+	storedModel = "ggml-model.bin"
 	// recordingsVersion は、録画の変更を知らせるチャンネルの版数を読む SQL。
 	recordingsVersion = "SELECT coalesce((SELECT version FROM change_versions WHERE channel = 'recordings'), 0)"
 )
@@ -121,7 +135,7 @@ type fakeTranscriber struct {
 
 var _ autocaption.Transcriber = new(fakeTranscriber)
 
-func (*fakeTranscriber) Model() string { return "ggml-fake.bin" }
+func (*fakeTranscriber) Model() string { return fakeModel }
 
 func (f *fakeTranscriber) Transcribe(_ context.Context, wav string, progress func(ratio float64)) ([]autocaption.Cue, error) {
 	name, err := os.ReadFile(wav)
@@ -153,17 +167,17 @@ func TestWorker(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	recordingID := f.recording(t, "completed",
-		segmentAt{name: "a.m2ts", start: 0}, segmentAt{name: "b.m2ts", start: 10 * time.Minute}, segmentAt{name: "silent.m2ts", start: 20 * time.Minute})
+	recordingID := f.recording(t, stateCompleted,
+		segmentAt{name: segmentA, start: 0}, segmentAt{name: segmentB, start: 10 * time.Minute}, segmentAt{name: "silent.m2ts", start: 20 * time.Minute})
 	transcriber := &fakeTranscriber{cues: map[string][]autocaption.Cue{
-		"a.m2ts": {
+		segmentA: {
 			{Start: 0, End: 500 * time.Millisecond, Text: "I フレームより前"},
 			{Start: 800 * time.Millisecond, End: 2 * time.Second, Text: "またがる"},
 			{Start: 5 * time.Second, End: 7 * time.Second, Text: "あ"},
 		},
-		"b.m2ts": {{Start: time.Second, End: 3 * time.Second, Text: "い"}},
+		segmentB: {{Start: time.Second, End: 3 * time.Second, Text: "い"}},
 	}, before: nil}
-	worker := f.worker(transcriber, fakeAudio(map[string]time.Duration{"a.m2ts": -time.Second, "b.m2ts": 250 * time.Millisecond}))
+	worker := f.worker(transcriber, fakeAudio(map[string]time.Duration{segmentA: -time.Second, segmentB: 250 * time.Millisecond}))
 	before := f.version(t)
 	require.NoError(t, work(t, worker, recordingID))
 
@@ -176,7 +190,7 @@ func TestWorker(t *testing.T) {
 	}, cues)
 	status, err := autocaption.RecordingStatus(t.Context(), f.pool, recordingID)
 	require.NoError(t, err)
-	assert.Equal(t, &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(f.clock.Now()), Model: "ggml-fake.bin", Cues: 3, Progress: nil}, status)
+	assert.Equal(t, &autocaption.Status{State: autocaption.StateGenerated, GeneratedAt: new(f.clock.Now()), Model: fakeModel, Cues: 3, Progress: nil}, status)
 	assert.Greater(t, f.version(t), before, "録画の詳細に読み直させる")
 }
 
@@ -185,11 +199,11 @@ func TestWorkerReplaces(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	recordingID := f.recording(t, "completed", segmentAt{name: "a.m2ts", start: 0})
-	audio := fakeAudio(map[string]time.Duration{"a.m2ts": 0})
-	first := &fakeTranscriber{cues: map[string][]autocaption.Cue{"a.m2ts": {{Start: 0, End: time.Second, Text: "前"}}}, before: nil}
+	recordingID := f.recording(t, stateCompleted, segmentAt{name: segmentA, start: 0})
+	audio := fakeAudio(map[string]time.Duration{segmentA: 0})
+	first := &fakeTranscriber{cues: map[string][]autocaption.Cue{segmentA: {{Start: 0, End: time.Second, Text: "前"}}}, before: nil}
 	require.NoError(t, work(t, f.worker(first, audio), recordingID))
-	second := &fakeTranscriber{cues: map[string][]autocaption.Cue{"a.m2ts": {{Start: time.Second, End: 2 * time.Second, Text: "後"}}}, before: nil}
+	second := &fakeTranscriber{cues: map[string][]autocaption.Cue{segmentA: {{Start: time.Second, End: 2 * time.Second, Text: "後"}}}, before: nil}
 	require.NoError(t, work(t, f.worker(second, audio), recordingID))
 
 	cues, err := autocaption.RecordingCues(t.Context(), f.pool, recordingID)
@@ -213,15 +227,15 @@ func TestWorkerCancels(t *testing.T) {
 		wantErr      error
 	}{
 		{
-			name: "whisper-cli かモデルがなければ取りやめる", state: "completed", segments: []segmentAt{{name: "a.m2ts", start: 0}},
+			name: "whisper-cli かモデルがなければ取りやめる", state: stateCompleted, segments: []segmentAt{{name: segmentA, start: 0}},
 			transcriberErr: fmt.Errorf("%w: the model is not found", autocaption.ErrNotConfigured), wantErr: autocaption.ErrNotConfigured,
 		},
 		{
-			name: "FFmpeg がなければ取りやめる", state: "completed", segments: []segmentAt{{name: "a.m2ts", start: 0}},
+			name: "FFmpeg がなければ取りやめる", state: stateCompleted, segments: []segmentAt{{name: segmentA, start: 0}},
 			extractorErr: autocaption.ErrFFmpegNotFound, wantErr: autocaption.ErrFFmpegNotFound,
 		},
-		{name: "録画中なら取りやめる", state: "recording", segments: []segmentAt{{name: "a.m2ts", start: 0}}},
-		{name: "セグメントがなければ取りやめる", state: "completed", segments: nil},
+		{name: "録画中なら取りやめる", state: "recording", segments: []segmentAt{{name: segmentA, start: 0}}},
+		{name: "セグメントがなければ取りやめる", state: stateCompleted, segments: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -243,7 +257,7 @@ func TestWorkerCancels(t *testing.T) {
 						return nil, tt.extractorErr
 					}
 
-					return fakeAudio(map[string]time.Duration{"a.m2ts": 0})()
+					return fakeAudio(map[string]time.Duration{segmentA: 0})()
 				}, "")
 			err := work(t, worker, recordingID)
 			var cancel *river.JobCancelError
@@ -264,14 +278,14 @@ func TestWorkerRetriesWhenSegmentsChanged(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	recordingID := f.recording(t, "completed", segmentAt{name: "a.m2ts", start: 0})
-	transcriber := &fakeTranscriber{cues: map[string][]autocaption.Cue{"a.m2ts": {{Start: 0, End: time.Second, Text: "あ"}}}, before: func() {
+	recordingID := f.recording(t, stateCompleted, segmentAt{name: segmentA, start: 0})
+	transcriber := &fakeTranscriber{cues: map[string][]autocaption.Cue{segmentA: {{Start: 0, End: time.Second, Text: "あ"}}}, before: func() {
 		_, err := f.pool.Exec(context.Background(), "UPDATE recording_files SET path = 'renamed.m2ts' WHERE recording_id = $1", recordingID)
 		if err != nil {
 			panic(err)
 		}
 	}}
-	err := work(t, f.worker(transcriber, fakeAudio(map[string]time.Duration{"a.m2ts": 0})), recordingID)
+	err := work(t, f.worker(transcriber, fakeAudio(map[string]time.Duration{segmentA: 0})), recordingID)
 	require.Error(t, err)
 	var cancel *river.JobCancelError
 	require.NotErrorAs(t, err, &cancel, "やり直す")
@@ -285,7 +299,7 @@ func TestWorkerSnoozesWhileLocked(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	recordingID := f.recording(t, "completed", segmentAt{name: "a.m2ts", start: 0})
+	recordingID := f.recording(t, stateCompleted, segmentAt{name: segmentA, start: 0})
 	// セグメントをつなぐジョブと同じロックを、ほかの接続で持つ。
 	conn, err := f.pool.Acquire(t.Context())
 	require.NoError(t, err)
@@ -295,7 +309,7 @@ func TestWorkerSnoozesWhileLocked(t *testing.T) {
 	require.True(t, locked)
 	defer func() { _, _ = sqlc.New(conn).UnlockRecordingJoin(context.Background(), recordingID.String()) }()
 
-	err = work(t, f.worker(&fakeTranscriber{cues: map[string][]autocaption.Cue{}, before: nil}, fakeAudio(map[string]time.Duration{"a.m2ts": 0})), recordingID)
+	err = work(t, f.worker(&fakeTranscriber{cues: map[string][]autocaption.Cue{}, before: nil}, fakeAudio(map[string]time.Duration{segmentA: 0})), recordingID)
 	var snooze *river.JobSnoozeError
 	require.ErrorAs(t, err, &snooze)
 }
@@ -303,7 +317,7 @@ func TestWorkerSnoozesWhileLocked(t *testing.T) {
 func TestEnqueuer(t *testing.T) {
 	t.Parallel()
 
-	oneSegment := func() []map[string]string { return []map[string]string{{"poolId": poolID, "path": "a.m2ts"}} }
+	oneSegment := func() []map[string]string { return []map[string]string{{"poolId": poolID, "path": segmentA}} }
 	tests := []struct {
 		name    string
 		kind    domain.NotificationKind
@@ -312,27 +326,27 @@ func TestEnqueuer(t *testing.T) {
 	}{
 		{
 			name: "生成する設定の録画を終えたら、生成するジョブを入れる", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{"files": oneSegment(), "generateCaptions": true}, want: true,
+			payload: map[string]any{filesKey: oneSegment(), generateKey: true}, want: true,
 		},
 		{
 			name: "生成しない設定の録画では、何もしない", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{"files": oneSegment(), "generateCaptions": false}, want: false,
+			payload: map[string]any{filesKey: oneSegment(), generateKey: false}, want: false,
 		},
 		{
 			name: "生成するかどうかを載せていないイベント (前の版の mikan が出したもの) では、何もしない", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{"files": oneSegment()}, want: false,
+			payload: map[string]any{filesKey: oneSegment()}, want: false,
 		},
 		{
 			name: "CM の区間を見分けるだけの録画では、何もしない", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{"files": oneSegment(), "detectCm": true}, want: false,
+			payload: map[string]any{filesKey: oneSegment(), "detectCm": true}, want: false,
 		},
 		{
 			name: "セグメントのない録画では、何もしない", kind: domain.NotificationKindRecordingCompleted,
-			payload: map[string]any{"files": []map[string]string{}, "generateCaptions": true}, want: false,
+			payload: map[string]any{filesKey: []map[string]string{}, generateKey: true}, want: false,
 		},
 		{
 			name: "録画の失敗では、何もしない", kind: domain.NotificationKindRecordingFailed,
-			payload: map[string]any{"files": oneSegment(), "generateCaptions": true}, want: false,
+			payload: map[string]any{filesKey: oneSegment(), generateKey: true}, want: false,
 		},
 	}
 	for _, tt := range tests {
@@ -391,7 +405,7 @@ func TestEnqueue(t *testing.T) {
 	t.Parallel()
 
 	f := newFixture(t)
-	recordingID := f.recording(t, "completed", segmentAt{name: "a.m2ts", start: 0})
+	recordingID := f.recording(t, stateCompleted, segmentAt{name: segmentA, start: 0})
 	before := f.version(t)
 	inserted, err := autocaption.Enqueue(t.Context(), f.pool, f.inserter, f.clock, recordingID)
 	require.NoError(t, err)

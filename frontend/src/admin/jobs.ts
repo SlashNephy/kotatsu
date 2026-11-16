@@ -27,6 +27,7 @@ const kindKeys = {
   oauth_prune: 'admin.jobs.kinds.oauth_prune',
   recording_analyze: 'admin.jobs.kinds.recording_analyze',
   recording_chapters: 'admin.jobs.kinds.recording_chapters',
+  recording_auto_captions: 'admin.jobs.kinds.recording_auto_captions',
   recording_cm_detect: 'admin.jobs.kinds.recording_cm_detect',
   recording_join: 'admin.jobs.kinds.recording_join',
   recording_join_finalize: 'admin.jobs.kinds.recording_join_finalize',
