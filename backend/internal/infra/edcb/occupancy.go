@@ -3,6 +3,7 @@ package edcb
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
@@ -103,18 +104,18 @@ type EPGCaptureState struct {
 	Tuners int
 	// Busy は、プロセスを起動しているチューナーの数。
 	Busy int
-	// CapturingOnUsable は、Kotatsu が NetworkTV に使う BonDriver のチューナーで、EPG を取得している最中かどうか。
-	CapturingOnUsable bool
+	// CancelsCapture は、新しく開く NetworkTV が、EPG を取得している最中のチューナーを選び、取得を取り消すかどうか。
+	CancelsCapture bool
 }
 
 // KeepsTunerForEPG は、ライブ視聴やタイムシフトのために、新しく NetworkTV を開いてはいけないかを返す (#1536)。
-//   - Kotatsu が使う BonDriver のチューナーで EPG を取得している最中なら、開かない。NetworkTV は、取得中のチューナーを選ぶと
-//     取得を取り消す (TunerBankCtrl.cpp の OpenNWTV)。どのチューナーを選ぶかは EpgTimerSrv が決めるので、避けられない。
+//   - 新しく開く NetworkTV が、EPG を取得している最中のチューナーを選ぶなら、開かない。NetworkTV は、取得中のチューナーを選ぶと
+//     取得を取り消す (TunerBankCtrl.cpp の OpenNWTV)。どのチューナーを選ぶかは EpgTimerSrv が決める (cancelsCapture)。
 //   - EPG の取得の時刻の EPGCaptureLead 前から EPGCaptureTrail 後までは、開いた後に使っていないチューナーが 1 本も残らないなら、開かない。
 //
 // 録画は空けない。EPG が古くなるより、録画を録り逃すほうが困るからである。
 func KeepsTunerForEPG(state *EPGCaptureState) bool {
-	if state.CapturingOnUsable {
+	if state.CancelsCapture {
 		return true
 	}
 	if !nearEPGCapture(state.Now, state.CaptureTimes) {
@@ -172,19 +173,42 @@ func (s *TunerServer) epgCaptureState(ctx context.Context) (*EPGCaptureState, er
 			names[tuner.TunerID] = tuner.TunerName
 		}
 	}
-	state := &EPGCaptureState{Now: s.now(), CaptureTimes: settings.EPGCaptureTimes, Tuners: len(names), Busy: 0, CapturingOnUsable: false}
+	running := map[uint32]*TunerProcess{}
 	for _, process := range processes {
-		name, ok := names[process.TunerID]
-		if !ok {
-			continue
+		if _, ok := names[process.TunerID]; ok {
+			running[process.TunerID] = process
 		}
-		state.Busy++
-		if process.CapturingEPG && s.usable(name) {
-			state.CapturingOnUsable = true
+	}
+	usable := []uint32{}
+	for id, name := range names {
+		if s.usable(name) {
+			usable = append(usable, id)
 		}
 	}
 
-	return state, nil
+	return &EPGCaptureState{
+		Now: s.now(), CaptureTimes: settings.EPGCaptureTimes, Tuners: len(names), Busy: len(running),
+		CancelsCapture: cancelsCapture(usable, running),
+	}, nil
+}
+
+// cancelsCapture は、新しく開く NetworkTV が、EPG を取得している最中のチューナーを選ぶかを返す。
+// EpgTimerSrv は、[TVTEST] に並べた BonDriver のチューナーを、ID の大きい順に試し (EpgTimerSrvMain.cpp の NWTV_ID_SET_CH)、
+// 空いているか EPG を取得しているチューナーで開く。録画や NetworkTV に使っているチューナーは飛ばす (ReserveManager.cpp の OpenNWTV)。
+// EPG の取得は、空いているチューナーを ID の小さい順に使うので (GetEpgCapTunerList)、ふつうは ID の大きい空きチューナーが先に選ばれる。
+func cancelsCapture(usable []uint32, running map[uint32]*TunerProcess) bool {
+	slices.Sort(usable)
+	for _, id := range slices.Backward(usable) {
+		process, ok := running[id]
+		if !ok {
+			return false
+		}
+		if process.CapturingEPG {
+			return true
+		}
+	}
+
+	return false
 }
 
 // viewing は、ストリームが録画のものでない (ライブ視聴、kyusu、タイムシフト) かを返す。

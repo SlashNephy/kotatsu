@@ -211,58 +211,58 @@ func TestKeepsTunerForEPG(t *testing.T) {
 	}{
 		{
 			name:  "far from capture times",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 13, 0, 0), CaptureTimes: times, Tuners: 2, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 13, 0, 0), CaptureTimes: times, Tuners: 2, Busy: 1, CancelsCapture: false},
 			want:  false,
 		},
 		{
 			// 取得の 5 分前から、最後の空きチューナーを使わせない。
 			name:  "last free tuner before a daily capture",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 55, 0), CaptureTimes: times, Tuners: 2, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 55, 0), CaptureTimes: times, Tuners: 2, Busy: 1, CancelsCapture: false},
 			want:  true,
 		},
 		{
 			name:  "just before the lead",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 54, 59), CaptureTimes: times, Tuners: 2, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 54, 59), CaptureTimes: times, Tuners: 2, Busy: 1, CancelsCapture: false},
 			want:  false,
 		},
 		{
 			// 空きチューナーが 2 本あれば、1 本を使っても取得に 1 本残る。
 			name:  "two free tuners before a capture",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 58, 0), CaptureTimes: times, Tuners: 3, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 58, 0), CaptureTimes: times, Tuners: 3, Busy: 1, CancelsCapture: false},
 			want:  false,
 		},
 		{
 			// 取得の時刻の 2 分後までは、取得が始まる前の判定に間に合わせる。
 			name:  "within the trail after the capture time",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 23, 1, 59), CaptureTimes: times, Tuners: 2, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 23, 1, 59), CaptureTimes: times, Tuners: 2, Busy: 1, CancelsCapture: false},
 			want:  true,
 		},
 		{
 			name:  "after the trail",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 23, 2, 0), CaptureTimes: times, Tuners: 2, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 23, 2, 0), CaptureTimes: times, Tuners: 2, Busy: 1, CancelsCapture: false},
 			want:  false,
 		},
 		{
 			// 曜日を指定した取得は、その曜日だけ。2026-11-17 は火曜。
 			name:  "weekly capture on its weekday",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 4, 27, 0), CaptureTimes: times, Tuners: 1, Busy: 0, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 4, 27, 0), CaptureTimes: times, Tuners: 1, Busy: 0, CancelsCapture: false},
 			want:  true,
 		},
 		{
 			name:  "weekly capture on another weekday",
-			state: &edcb.EPGCaptureState{Now: jstNovember(17, 4, 27, 0), CaptureTimes: times, Tuners: 1, Busy: 0, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(17, 4, 27, 0), CaptureTimes: times, Tuners: 1, Busy: 0, CancelsCapture: false},
 			want:  false,
 		},
 		{
-			// 取得中は、NetworkTV が取得中のチューナーを選ぶと取得を取り消すので、時刻に依らず開かない。
-			name:  "while capturing on a usable tuner",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 13, 0, 0), CaptureTimes: []edcb.EPGCaptureTime{}, Tuners: 4, Busy: 1, CapturingOnUsable: true},
+			// 新しい NetworkTV が取得中のチューナーを選ぶなら、取得を取り消すので、時刻に依らず開かない。
+			name:  "a new NetworkTV would cancel the capture",
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 13, 0, 0), CaptureTimes: []edcb.EPGCaptureTime{}, Tuners: 4, Busy: 1, CancelsCapture: true},
 			want:  true,
 		},
 		{
 			// EpgTimerSrv.ini を読めず、取得の時刻が分からなければ、取得中だけを避ける。
 			name:  "unknown capture times",
-			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 58, 0), CaptureTimes: []edcb.EPGCaptureTime{}, Tuners: 2, Busy: 1, CapturingOnUsable: false},
+			state: &edcb.EPGCaptureState{Now: jstNovember(16, 22, 58, 0), CaptureTimes: []edcb.EPGCaptureTime{}, Tuners: 2, Busy: 1, CancelsCapture: false},
 			want:  false,
 		},
 	}
@@ -333,32 +333,55 @@ func capturingProcesses(tunerIDs ...uint32) []byte {
 	return append(binary.LittleEndian.AppendUint32(nil, dword(4+len(items))), items...)
 }
 
-// TestTunerServerKeepsTunerWhileCapturing は、Kotatsu が使う BonDriver のチューナーで EPG を取得している最中は、
-// ライブ視聴に新しい NetworkTV を開かないが、すでに開いている同じサービスの NetworkTV には加われることを確かめる (#1536)。
+// TestTunerServerKeepsTunerWhileCapturing は、EPG を取得している最中に、新しい NetworkTV が取得中のチューナーを選ぶなら、
+// ライブ視聴に開かず、空いているチューナーを選ぶなら開くことを確かめる (#1536)。EpgTimerSrv は、ID の大きいチューナーから試す。
+// すでに開いている同じサービスの NetworkTV には、取得中でも加われる。
 func TestTunerServerKeepsTunerWhileCapturing(t *testing.T) {
 	t.Parallel()
 
-	s, server, _, feed := feedServer(t, 0, 0)
-	s.mu.Lock()
-	s.replies[2060] = reply{status: 1, payload: emptyFileCopy2()}
-	s.replies[1016] = reply{status: 1, payload: fixture(t, "enum_tuner_reserve.bin")}
-	s.replies[1066] = reply{status: 1, payload: capturingProcesses(1)}
-	s.mu.Unlock()
+	tests := []struct {
+		name string
+		// processes は、ENUM_TUNER_PROCESS の応答。テストのチューナーは 1 と 2。
+		processes []byte
+		want      error
+	}{
+		// チューナー 2 で取得している。新しい NetworkTV は先にチューナー 2 を試すので、取得を取り消してしまう。
+		{name: "capturing on the tuner tried first", processes: capturingProcesses(2), want: tunerserver.ErrTunerUnavailable},
+		// チューナー 1 で取得している。新しい NetworkTV は、空いているチューナー 2 で開くので、取得は続く。
+		{name: "capturing on the tuner tried last", processes: capturingProcesses(1), want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// 取得中は、ライブ視聴に新しい NetworkTV を開かない。
-	_, err := server.OpenServiceStream(t.Context(), nhkSougou, &tunerserver.StreamOptions{Decode: false, Priority: 0})
-	require.ErrorIs(t, err, tunerserver.ErrTunerUnavailable)
-	assert.Equal(t, 0, countCommand(s, 1073))
+			s, server, _, feed := feedServer(t, 0, 0)
+			s.mu.Lock()
+			s.replies[2060] = reply{status: 1, payload: emptyFileCopy2()}
+			s.replies[1016] = reply{status: 1, payload: fixture(t, "enum_tuner_reserve.bin")}
+			s.replies[1066] = reply{status: 1, payload: tt.processes}
+			s.mu.Unlock()
 
-	// 録画は開ける。
-	first, err := server.OpenServiceStream(t.Context(), nhkSougou, &tunerserver.StreamOptions{Decode: false, Priority: 2})
-	require.NoError(t, err)
-	defer first.Close()
-	feed <- make([]byte, 188)
+			live, err := server.OpenServiceStream(t.Context(), nhkSougou, &tunerserver.StreamOptions{Decode: false, Priority: 0})
+			if tt.want == nil {
+				require.NoError(t, err)
+				require.NoError(t, live.Close())
 
-	// ライブ視聴は、開いている NetworkTV に加わるだけなら、チューナーを増やさないので受け取れる。
-	second, err := server.OpenServiceStream(t.Context(), nhkSougou, &tunerserver.StreamOptions{Decode: false, Priority: 0})
-	require.NoError(t, err)
-	require.NoError(t, second.Close())
-	assert.Equal(t, 1, countCommand(s, 1073))
+				return
+			}
+			require.ErrorIs(t, err, tt.want)
+			assert.Equal(t, 0, countCommand(s, 1073))
+
+			// 録画は開ける。
+			first, err := server.OpenServiceStream(t.Context(), nhkSougou, &tunerserver.StreamOptions{Decode: false, Priority: 2})
+			require.NoError(t, err)
+			defer first.Close()
+			feed <- make([]byte, 188)
+
+			// ライブ視聴は、開いている NetworkTV に加わるだけなら、チューナーを増やさないので受け取れる。
+			second, err := server.OpenServiceStream(t.Context(), nhkSougou, &tunerserver.StreamOptions{Decode: false, Priority: 0})
+			require.NoError(t, err)
+			require.NoError(t, second.Close())
+			assert.Equal(t, 1, countCommand(s, 1073))
+		})
+	}
 }
