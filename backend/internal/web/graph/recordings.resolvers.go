@@ -132,6 +132,11 @@ func (r *recordingResolver) WatchFrame(ctx context.Context, obj *model.Recording
 	return r.watchFrame(ctx, obj), nil
 }
 
+// NextEpisodes is the resolver for the nextEpisodes field.
+func (r *recordingResolver) NextEpisodes(ctx context.Context, obj *model.Recording) ([]*model.Program, error) {
+	return r.nextEpisodes(ctx, obj)
+}
+
 // Recording returns generated.RecordingResolver implementation.
 func (r *Resolver) Recording() generated.RecordingResolver { return &recordingResolver{r} }
 

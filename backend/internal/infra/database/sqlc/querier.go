@@ -348,6 +348,9 @@ type Querier interface {
 	// 録画中の録画の、書いているセグメントの様子を読む。録画を終えていれば、行があっても返さない。
 	// since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
 	GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiveStatsParams) (RecordingLiveStat, error)
+	// 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
+	// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数。録画履歴に写すもの (設計書 4.4) と揃える。
+	GetRecordingNextEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingNextEpisodeSourceRow, error)
 	GetRecordingNicologPath(ctx context.Context, recordingID uuid.UUID) (*string, error)
 	GetRecordingProgram(ctx context.Context, id uuid.UUID) (GetRecordingProgramRow, error)
 	// 録画したサービスの、放送のサービス ID。TS の中から、録画したサービスのストリームを選ぶのに使う (#479)。
@@ -559,6 +562,9 @@ type Querier interface {
 	// 視聴管理の画面 (#1231) の、TID に結びついた話の録画を返す。話数のない録画と、録れなかった録画は返さない。
 	// 同じ話の録画は、新しく録ったものを先に並べる。
 	ListAnimeLibraryRecordings(ctx context.Context, syobocalTids []int32) ([]ListAnimeLibraryRecordingsRow, error)
+	// しょぼいカレンダーの TID に結びついた番組のうち、話数が count より大きく、since から until までに始まる、
+	// 終了時刻の決まった番組を返す (#1564)。2 話連続の放送のように 1 つの番組が複数の話に結びついたら、小さい話数で 1 行にする。
+	ListAnimeNextPrograms(ctx context.Context, arg ListAnimeNextProgramsParams) ([]ListAnimeNextProgramsRow, error)
 	// サービス service_ids の、from から to までと放送時間が重なる、アニメと特撮 (ジャンルの大分類 0x7) の番組を返す。
 	ListAnimePrograms(ctx context.Context, arg ListAnimeProgramsParams) ([]ListAnimeProgramsRow, error)
 	// 放送が終わり、まだアーカイブへ移していない、結びつきを確定させていないアニメと特撮の番組を返す。
@@ -716,6 +722,10 @@ type Querier interface {
 	// 時間帯 [from, to) に重なる番組。
 	ListProgramsInRange(ctx context.Context, arg ListProgramsInRangeParams) ([]ListProgramsInRangeRow, error)
 	ListProgramsOfService(ctx context.Context, serviceID int64) ([]ListProgramsOfServiceRow, error)
+	// シリーズ名と話数の列 (#1564) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+	ListProgramsWithoutSeries(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSeriesRow, error)
+	// TID が syobocal_tid の話に結びついた録画履歴の話数 (#1564)。録った回を、続きの放送から外すのに使う。
+	ListRecordedAnimeCounts(ctx context.Context, syobocalTid int32) ([]float64, error)
 	// 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
 	// ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 	// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
@@ -728,6 +738,8 @@ type Querier interface {
 	// 番組 (サービス, eventId, 放送時間) のうち、録画のあるものを返す (#1278)。失敗した録画は数えない。
 	// eventId は使い回されるので、ListProgramRecordings と同じく、放送時間に重なる録画だけを数える。
 	ListRecordedPrograms(ctx context.Context, arg ListRecordedProgramsParams) ([]ListRecordedProgramsRow, error)
+	// シリーズ名が series の録画履歴の、回を読む元 (#1564)。録った回を、続きの放送から外すのに使う。
+	ListRecordedSeriesEpisodes(ctx context.Context, series string) ([]ListRecordedSeriesEpisodesRow, error)
 	ListRecordingAnimeEpisodes(ctx context.Context, recordingID uuid.UUID) ([]RecordingAnimeEpisode, error)
 	ListRecordingAssignments(ctx context.Context) ([]RecordingAssignment, error)
 	// 録画の CM の区間を、見分け方 detector のものだけ、始まりの順に返す。
@@ -788,6 +800,8 @@ type Querier interface {
 	ListRuleWatchReservations(ctx context.Context, now time.Time) ([]ListRuleWatchReservationsRow, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	ListRulesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rule, error)
+	// シリーズ名が series で、話数が number より大きく、since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
+	ListSeriesNextPrograms(ctx context.Context, arg ListSeriesNextProgramsParams) ([]ListSeriesNextProgramsRow, error)
 	// サービスのあるチャンネル種別とチャンネルの組。チューナーサーバーが番組表を取るチャンネルで、
 	// タイムシフトの割り振りで、番組表の取得に残すチューナーを決めるのに使う。
 	ListServiceChannels(ctx context.Context) ([]ListServiceChannelsRow, error)
@@ -1003,6 +1017,7 @@ type Querier interface {
 	RevokeUserSessions(ctx context.Context, arg RevokeUserSessionsParams) (int64, error)
 	// 番組表の番組を、EIT[p/f] で読んだもので書き直す (#1500)。空の値は渡さず、前の値を残す。シリーズの記述子は、
 	// EIT[p/f] が載せていたときだけ (series_set)、その値 (話数が 0 なら NULL) で書き直す。時刻は書かない。
+	// 番組名から読むシリーズ名と話数 (#1564) は、Go で読むので空にし、次の全量の突き合わせで読み直させる。
 	RewriteProgramInfo(ctx context.Context, arg RewriteProgramInfoParams) (int64, error)
 	// 録画の番組名、概要、詳細を、EIT[p/f] で読んだもので書き直す (#1500、#1646)。空の値は渡さず、前の値を残す。
 	RewriteRecordingProgramInfo(ctx context.Context, arg RewriteRecordingProgramInfoParams) error
@@ -1043,6 +1058,8 @@ type Querier interface {
 	SetJoinedRecordingFile(ctx context.Context, arg SetJoinedRecordingFileParams) (int64, error)
 	SetLoginChallengeWebAuthnSession(ctx context.Context, arg SetLoginChallengeWebAuthnSessionParams) error
 	SetLoginLockedUntil(ctx context.Context, arg SetLoginLockedUntilParams) error
+	// 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかの列と更新日時は変えない。
+	SetProgramSeries(ctx context.Context, arg []SetProgramSeriesParams) *SetProgramSeriesBatchResults
 	// 録画の音声の構成を、TS の EIT[p/f] から読んだもので埋める。EPG から写したものがあれば、それを残す。
 	SetRecordingAudiosIfUnknown(ctx context.Context, arg SetRecordingAudiosIfUnknownParams) error
 	// 予約した番組が放送中でなくなった日時を、最初の一度だけ記録する。

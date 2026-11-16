@@ -21,7 +21,7 @@ WITH moved AS (
     ORDER BY p.end_at
     LIMIT $3::integer
   )
-  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, created_at, updated_at
+  RETURNING service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free, name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios, video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
 )
 INSERT INTO program_archives (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
@@ -265,6 +265,51 @@ func (q *Queries) ListProgramsOfService(ctx context.Context, serviceID int64) ([
 			&i.VideoResolution,
 			&i.SeriesEpisode,
 			&i.SeriesRepeat,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProgramsWithoutSeries = `-- name: ListProgramsWithoutSeries :many
+SELECT service_id, event_id, name, description_normalized, extended_normalized, series_episode
+FROM programs
+WHERE series IS NULL
+ORDER BY service_id, event_id
+LIMIT $1::integer
+`
+
+type ListProgramsWithoutSeriesRow struct {
+	ServiceID             int64
+	EventID               int64
+	Name                  string
+	DescriptionNormalized string
+	ExtendedNormalized    *string
+	SeriesEpisode         *int32
+}
+
+// シリーズ名と話数の列 (#1564) を埋めていない番組を返す。列を足す前に書いた番組と、列を知らない古いバイナリが書いた番組。
+func (q *Queries) ListProgramsWithoutSeries(ctx context.Context, batchSize int32) ([]ListProgramsWithoutSeriesRow, error) {
+	rows, err := q.db.Query(ctx, listProgramsWithoutSeries, batchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProgramsWithoutSeriesRow{}
+	for rows.Next() {
+		var i ListProgramsWithoutSeriesRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.EventID,
+			&i.Name,
+			&i.DescriptionNormalized,
+			&i.ExtendedNormalized,
+			&i.SeriesEpisode,
 		); err != nil {
 			return nil, err
 		}

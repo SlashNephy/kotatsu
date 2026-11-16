@@ -661,6 +661,11 @@ CREATE TABLE programs (
   -- 番組名から話数を読めないときに、アニメの話を結びつけるのに使う。記述子がないか、話数が 0 なら NULL。
   series_episode integer,
   series_repeat boolean,
+  -- 回の読み方 (設計書 4.4、episode.Parse) で番組名から読んだシリーズ名と、番組名、概要、記述子から読んだ話数 (#1564)。
+  -- 録画の詳細に、続きの放送を出すときに引く。シリーズ名を読めない番組は空、話数を読めない番組は NULL。
+  -- Go で読むので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが埋める。
+  series text,
+  episode_number integer,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -668,6 +673,8 @@ CREATE TABLE programs (
 
 CREATE INDEX programs_start_at_idx ON programs (start_at);
 CREATE INDEX programs_service_id_start_at_idx ON programs (service_id, start_at);
+-- 続きの放送 (#1564) を、シリーズ名と放送の時刻で引く。
+CREATE INDEX programs_series_start_at_idx ON programs (series, start_at) WHERE (episode_number IS NOT NULL);
 
 -- EPG の変更の記録 (設計書 3.3)。反映のたびに、変更のあったサービスと時間帯を、通知の版数と一緒に残す。
 -- 通知で届くのは版数だけなので、受け取った側は、自分が知っている版数より後の行を読んで、何が変わったかを知る。

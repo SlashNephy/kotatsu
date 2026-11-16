@@ -1273,6 +1273,14 @@
     "ruleFilter": "ルール「{{name}}」で録った録画",
     "ruleFilterClear": "ルールでの絞り込みを外す",
     "deletedRule": "削除したルール",
+    "nextEpisodes": {
+      "title": "続きの放送",
+      "createRule": "このシリーズのルールを作る",
+      "reserve": "予約",
+      "reserveProgram": "{{name}}を予約",
+      "reserved": "予約済み",
+      "reserveError": "予約できませんでした"
+    },
     "recordedByRule": "ルール「{{name}}」で録画",
     "failureDetail": "エラーの内容（管理者にだけ表示）",
     "recordedByDeletedRule": "削除したルール「{{name}}」で録画",
