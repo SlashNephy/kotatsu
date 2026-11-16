@@ -541,22 +541,9 @@ func (m *Matcher) findSeries(ctx context.Context, r *run, title string, dates []
 			return pickByDate(exact, dates[0]), nil
 		}
 	}
-	// 空白の後ろに副題が付いた番組名は、頭だけでも探す。頭と同じ名前の作品も、別の作品かもしれないので、名前の頭が一致する候補として扱う。
-	if head := HeadQuery(title); head != "" && !slices.Contains(queries, head) {
-		results, err := m.search(ctx, r, head)
-		if err != nil {
-			return 0, err
-		}
-		key := TitleKey(title)
-		for _, result := range results {
-			if slices.Contains(result.GenreIDs, genreAnimation) {
-				continue
-			}
-			if (prefixOf(key, TitleKey(result.Name)) || prefixOf(key, TitleKey(result.OriginalName))) &&
-				!slices.ContainsFunc(partial, func(p *tmdb.SearchResult) bool { return p.ID == result.ID }) {
-				partial = append(partial, result)
-			}
-		}
+	partial, err := m.headCandidates(ctx, r, title, queries, partial)
+	if err != nil {
+		return 0, err
 	}
 	corroborated := int32(0)
 	for _, candidate := range partial[:min(len(partial), maxCorroborations)] {
@@ -578,6 +565,33 @@ func (m *Matcher) findSeries(ctx context.Context, r *run, title string, dates []
 	}
 
 	return corroborated, nil
+}
+
+// headCandidates は、空白の後ろに副題が付いた番組名を、最初の空白より前 (HeadQuery) でも探し、作品名の頭が一致する候補を partial に足す。
+// 頭と同じ名前の作品も、別の作品かもしれないので、作品名が一致する候補としては扱わず、放送日の話で確かめさせる。
+func (m *Matcher) headCandidates(
+	ctx context.Context, r *run, title string, queries []string, partial []*tmdb.SearchResult,
+) ([]*tmdb.SearchResult, error) {
+	head := HeadQuery(title)
+	if head == "" || slices.Contains(queries, head) {
+		return partial, nil
+	}
+	results, err := m.search(ctx, r, head)
+	if err != nil {
+		return nil, err
+	}
+	key := TitleKey(title)
+	for _, result := range results {
+		if slices.Contains(result.GenreIDs, genreAnimation) {
+			continue
+		}
+		if (prefixOf(key, TitleKey(result.Name)) || prefixOf(key, TitleKey(result.OriginalName))) &&
+			!slices.ContainsFunc(partial, func(p *tmdb.SearchResult) bool { return p.ID == result.ID }) {
+			partial = append(partial, result)
+		}
+	}
+
+	return partial, nil
 }
 
 // prefixOf は、短いほうの作品名が長いほうの頭と一致するかを返す。短いほうが短すぎれば false。
