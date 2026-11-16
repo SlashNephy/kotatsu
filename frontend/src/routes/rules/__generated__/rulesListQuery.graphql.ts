@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<0cae46aa4bf62ec25a326ac23996125d>>
+ * @generated SignedSource<<2aadb91d192abfe5c542dfd6f4e9263b>>
  * @lightSyntaxTransform
  */
 
@@ -22,6 +22,7 @@ export type rulesListQuery$data = {
         readonly text: string;
       }>;
     };
+    readonly createdAt: string;
     readonly enabled: boolean;
     readonly id: string;
     readonly memo: string;
@@ -164,6 +165,13 @@ v3 = {
       "alias": null,
       "args": null,
       "kind": "ScalarField",
+      "name": "createdAt",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
       "name": "updatedAt",
       "storageKey": null
     },
@@ -226,16 +234,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "cae53ea68710f50ac87541e820536340",
+    "cacheID": "c87cc094f52255c844d18eab106d9d95",
     "id": null,
     "metadata": {},
     "name": "rulesListQuery",
     "operationKind": "query",
-    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    validFrom\n    validUntil\n    updatedAt\n    upcomingReservationCount\n  }\n}\n"
+    "text": "query rulesListQuery {\n  viewer {\n    role\n    id\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  rules {\n    id\n    name\n    enabled\n    memo\n    conditions {\n      keywords {\n        text\n      }\n      channelTypes\n    }\n    validFrom\n    validUntil\n    createdAt\n    updatedAt\n    upcomingReservationCount\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "d3fc865e7223b6cc3d654499fa30e537";
+(node as any).hash = "c04b81e534860b5a9732469eaacb976a";
 
 export default node;

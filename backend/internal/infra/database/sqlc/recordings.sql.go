@@ -1103,7 +1103,7 @@ func (q *Queries) ListLiveThumbnailRecordings(ctx context.Context, startedBefore
 }
 
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, external, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `
 
 // 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
@@ -1130,6 +1130,7 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.TunerIndex,
 			&i.TunerName,
 			&i.TranscodeFrameRate,
+			&i.External,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1283,7 +1284,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 }
 
 const listRecordingFiles = `-- name: ListRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, external, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
@@ -1309,6 +1310,7 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.TunerIndex,
 			&i.TunerName,
 			&i.TranscodeFrameRate,
+			&i.External,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

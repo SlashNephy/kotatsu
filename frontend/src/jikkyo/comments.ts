@@ -1,5 +1,7 @@
 import type { FormattedCommentInput } from '@xpadev-net/niconicomments';
 
+import { normalizeForSearch } from '../futon/searchText';
+
 // JikkyoComment は、描画する実況のコメント。time は、描画の時計 (秒) での、コメントを流し始める時刻。
 export type JikkyoComment = {
   time: number;
@@ -64,9 +66,6 @@ export const limitedComments = 40;
 export const maxMutedCommands = 50;
 const maxMutedCommandLength = 32;
 
-// normalizeForMute は、キーワードと照らすために、全角と半角、大文字と小文字をそろえる。
-const normalizeForMute = (text: string) => text.normalize('NFKC').toLowerCase();
-
 // compileMute は、ミュートの設定から、コメントをミュートするかどうかを返す関数を作る。正しくない正規表現は無視する。
 export function compileMute(settings: CommentSettings): (comment: JikkyoComment) => boolean {
   const users = new Set(settings.mutedUsers);
@@ -82,7 +81,7 @@ export function compileMute(settings: CommentSettings): (comment: JikkyoComment)
       }
       continue;
     }
-    const text = normalizeForMute(keyword.text);
+    const text = normalizeForSearch(keyword.text);
     if (text === '') {
       continue;
     }
@@ -112,7 +111,7 @@ export function compileMute(settings: CommentSettings): (comment: JikkyoComment)
       return false;
     }
     const content = comment.content.trim();
-    const normalized = normalizeForMute(content);
+    const normalized = normalizeForSearch(content);
 
     return matchers.some((matches) => matches(content, normalized));
   };

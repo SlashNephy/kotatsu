@@ -63,7 +63,7 @@ export function createYadifInterpolation({
         fail(error);
       }
     },
-    draw(_gl, t, width, height) {
+    draw(_gl, t, width, height, target) {
       if (broken || interpolator === null) {
         return false;
       }
@@ -83,7 +83,8 @@ export function createYadifInterpolation({
         return false;
       }
       try {
-        interpolator.compose(t, null, width, height);
+        // 拡大して描く間 (#1654) は、yadif が渡す、コマの大きさのテクスチャに描く。
+        interpolator.compose(t, target, width, height);
 
         return true;
       } catch (error) {

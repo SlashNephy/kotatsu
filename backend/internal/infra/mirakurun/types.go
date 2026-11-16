@@ -10,6 +10,7 @@ package mirakurun
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
@@ -223,4 +224,124 @@ func convert[T any, U any](items []*T, f func(*T) *U) []*U {
 	}
 
 	return converted
+}
+
+// 以下は、Mirakurun 互換の API を公開する側 (mirakurunapi) のために、tunerserver の型を Mirakurun の JSON にする (#1535)。
+
+// MarshalChannels は、チャンネルを /api/channels の JSON にする。
+func MarshalChannels(channels []*tunerserver.Channel) ([]byte, error) {
+	return json.Marshal(convert(channels, fromChannel))
+}
+
+// MarshalServices は、サービスを /api/services の JSON にする。
+func MarshalServices(services []*tunerserver.Service) ([]byte, error) {
+	return json.Marshal(convert(services, fromService))
+}
+
+// MarshalPrograms は、番組を /api/programs の JSON にする。
+func MarshalPrograms(programs []*tunerserver.Program) ([]byte, error) {
+	return json.Marshal(convert(programs, fromProgram))
+}
+
+// MarshalTuners は、チューナーを /api/tuners の JSON にする。
+func MarshalTuners(tuners []*tunerserver.Tuner) ([]byte, error) {
+	return json.Marshal(convert(tuners, fromTuner))
+}
+
+// MarshalEvent は、何が変わったかの知らせを、時刻 at の /api/events/stream の要素の JSON にする。
+func MarshalEvent(event *tunerserver.Event, at time.Time) ([]byte, error) {
+	return json.Marshal(fromEvent(event, at))
+}
+
+func fromChannel(c *tunerserver.Channel) *channel {
+	return &channel{Type: c.Type, Channel: c.Channel, Name: c.Name, Services: convert(c.Services, fromService)}
+}
+
+func fromService(s *tunerserver.Service) *service {
+	var ref *channelRef
+	if s.Channel != nil {
+		ref = &channelRef{Type: s.Channel.Type, Channel: s.Channel.Channel}
+	}
+
+	return &service{
+		ID:                 s.ID,
+		ServiceID:          s.ServiceID,
+		NetworkID:          s.NetworkID,
+		Name:               s.Name,
+		Type:               s.Type,
+		LogoID:             s.LogoID,
+		RemoteControlKeyID: s.RemoteControlKeyID,
+		Channel:            ref,
+	}
+}
+
+func fromProgram(p *tunerserver.Program) *program {
+	var v *video
+	if p.Video != nil {
+		v = &video{Resolution: p.Video.Resolution}
+	}
+	var s *series
+	if p.Series != nil {
+		s = &series{ID: p.Series.ID, Repeat: p.Series.Repeat, Episode: p.Series.Episode, LastEpisode: p.Series.LastEpisode, Name: p.Series.Name}
+	}
+
+	return &program{
+		ID:           p.ID,
+		EventID:      p.EventID,
+		ServiceID:    p.ServiceID,
+		NetworkID:    p.NetworkID,
+		StartAt:      p.StartAt,
+		Duration:     p.Duration,
+		IsFree:       p.IsFree,
+		Name:         p.Name,
+		Description:  p.Description,
+		Genres:       p.Genres,
+		Extended:     p.Extended,
+		RelatedItems: p.RelatedItems,
+		Audios:       p.Audios,
+		Video:        v,
+		Series:       s,
+	}
+}
+
+func fromTuner(t *tunerserver.Tuner) *tuner {
+	return &tuner{
+		Index:       t.Index,
+		Name:        t.Name,
+		Types:       t.Types,
+		Users:       convert(t.Users, fromTunerUser),
+		IsAvailable: t.IsAvailable,
+		IsRemote:    t.IsRemote,
+		IsFree:      t.IsFree,
+		IsUsing:     t.IsUsing,
+		IsFault:     t.IsFault,
+	}
+}
+
+func fromTunerUser(u *tunerserver.TunerUser) *tunerUser {
+	return &tunerUser{ID: u.ID, Priority: u.Priority, Agent: u.Agent}
+}
+
+// fromEvent は、何が変わったかの知らせを、Mirakurun のイベントの形にする。番組のイベントには、番組が変わったサービスの
+// ネットワーク ID とサービスの番号だけを載せる。Client は、それだけでサービスを求める (toEvent)。
+func fromEvent(e *tunerserver.Event, at time.Time) *mirakurunEvent {
+	event := &mirakurunEvent{Resource: "", Type: "update", Data: json.RawMessage("{}"), Time: at.UnixMilli()}
+	switch e.Type {
+	case tunerserver.EventTypeProgramCreated, tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeProgramRemoved:
+		event.Resource = "program"
+		switch e.Type {
+		case tunerserver.EventTypeProgramCreated:
+			event.Type = "create"
+		case tunerserver.EventTypeProgramRemoved:
+			event.Type = "remove"
+		case tunerserver.EventTypeProgramUpdated, tunerserver.EventTypeServiceChanged, tunerserver.EventTypeTunerChanged:
+		}
+		event.Data = json.RawMessage(fmt.Sprintf(`{"networkId":%d,"serviceId":%d}`, e.ServiceID/serviceIDBase, e.ServiceID%serviceIDBase))
+	case tunerserver.EventTypeServiceChanged:
+		event.Resource = "service"
+	case tunerserver.EventTypeTunerChanged:
+		event.Resource = "tuner"
+	}
+
+	return event
 }

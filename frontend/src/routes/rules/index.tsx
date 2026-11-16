@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
@@ -7,13 +8,22 @@ import {
   Checkbox,
   Group,
   Modal,
+  Select,
   Stack,
   Switch,
   Tabs,
   Text,
+  TextInput,
   Title,
 } from '@mantine/core';
-import { ListChecks, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  ListChecks,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +34,18 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
+import {
+  isFiltered,
+  parseRuleListSearch,
+  ruleReservationFilters,
+  ruleSortKeys,
+  ruleStateFilters,
+  visibleRules,
+  type RuleListSearch,
+  type RuleReservationFilter,
+  type RuleSortKey,
+  type RuleStateFilter,
+} from '../../rules/listFilter';
 import { outOfValidity } from '../../rules/validity';
 import { WatchRuleList } from '../../watch/WatchRuleList';
 import type { rulesDeleteManyMutation } from './__generated__/rulesDeleteManyMutation.graphql';
@@ -31,14 +53,17 @@ import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.gr
 import type { rulesListQuery } from './__generated__/rulesListQuery.graphql';
 import type { rulesSetManyEnabledMutation } from './__generated__/rulesSetManyEnabledMutation.graphql';
 
-type RulesSearch = {
+type RulesSearch = RuleListSearch & {
   // watch は、録画のルールの代わりに、自分の視聴ルールの一覧を出すかどうか (設計書 4.8)。
   watch?: boolean;
 };
 
 export const Route = createFileRoute('/rules/')({
-  validateSearch: (search: Record<string, unknown>): RulesSearch =>
-    search['watch'] === true ? { watch: true } : {},
+  // 探す語、絞り込み、並べ替えは、戻ったときに保つよう、URL に持つ (#1493)。既定の値は載せない。
+  validateSearch: (search: Record<string, unknown>): RulesSearch => ({
+    ...(search['watch'] === true ? { watch: true } : {}),
+    ...parseRuleListSearch(search),
+  }),
   component: RulesPage,
 });
 
@@ -115,6 +140,7 @@ function Rules() {
           }
           validFrom
           validUntil
+          createdAt
           updatedAt
           upcomingReservationCount
         }
@@ -132,10 +158,40 @@ function Rules() {
     }
   `);
   const canEdit = data.viewer.role !== 'VIEWER';
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  // query は、検索の入力。打つたびに URL を置き換えるが、空白を打った途中の値も残すよう、入力は手元に持つ。
+  const [query, setQuery] = useState(search.q ?? '');
+  // 上のメニューから開き直すなど、入力の外で URL の語が変わったら、入力をそれに合わせる。
+  const [syncedQuery, setSyncedQuery] = useState(search.q);
+  if (search.q !== syncedQuery) {
+    setSyncedQuery(search.q);
+    if ((search.q ?? '') !== query && !(search.q === undefined && query.trim() === '')) {
+      setQuery(search.q ?? '');
+    }
+  }
+  // update は、探す語、絞り込み、並べ替えを変える。履歴を積まず、URL を置き換える。既定の値は、URL から外す。
+  const update = (changes: Partial<RuleListSearch>) =>
+    void navigate({
+      replace: true,
+      search: (prev) => ({
+        ...(prev.watch === true ? { watch: true } : {}),
+        ...parseRuleListSearch({ ...prev, ...changes }),
+      }),
+    });
+  const clearFilters = () => {
+    setQuery('');
+    update({ q: undefined, state: undefined, reservations: undefined });
+  };
+  const visible = visibleRules(data.rules, search, now);
   const [toggleError, setToggleError] = useState(false);
   // selecting は、まとめて操作するルールを選んでいるかどうか。selected は、選んだルールの ID (#471)。
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // targets は、まとめて操作するルールの ID。選んだルールのうち、いま一覧に出しているものだけにする。
+  // 選んだ後に絞り込みを変えても、見えていないルールを操作しないためである。
+  const targets = visible.filter((rule) => selected.has(rule.id)).map((rule) => rule.id);
+  const allShownSelected = visible.length > 0 && targets.length === visible.length;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // bulkResult は、まとめて行った操作の結果。
   const [bulkResult, setBulkResult] = useState<{
@@ -184,10 +240,10 @@ function Rules() {
   };
   const setEnabledMany = (enabled: boolean) =>
     setManyEnabled({
-      variables: { ids: [...selected], enabled },
+      variables: { ids: targets, enabled },
       // 一覧の有効と無効の表示は、ルールごとに読み直さずに、その場で変える。
       updater: (store) => {
-        for (const id of selected) {
+        for (const id of targets) {
           store.get(id)?.setValue(enabled, 'enabled');
         }
       },
@@ -199,13 +255,13 @@ function Rules() {
     });
   const removeMany = () =>
     deleteMany({
-      variables: { ids: [...selected] },
+      variables: { ids: targets },
       // 消したルールを、一覧から外す。
       updater: (store) => {
         const root = store.getRoot();
         const rules = root.getLinkedRecords('rules') ?? [];
         root.setLinkedRecords(
-          rules.filter((rule) => !selected.has(rule.getDataID())),
+          rules.filter((rule) => !targets.includes(rule.getDataID())),
           'rules',
         );
       },
@@ -241,35 +297,150 @@ function Rules() {
           )}
         </Group>
       )}
+      {data.rules.length > 0 && (
+        <Group gap="xs" align="flex-end">
+          <TextInput
+            leftSection={<Search size={16} aria-hidden />}
+            aria-label={t('rules.filter.search')}
+            placeholder={t('rules.filter.search')}
+            value={query}
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              setQuery(value);
+              update({ q: value });
+            }}
+            style={{ flex: '1 1 16rem' }}
+          />
+          <Select
+            aria-label={t('rules.filter.state')}
+            data={[
+              { value: 'all', label: t('rules.filter.stateAll') },
+              ...ruleStateFilters.map((value) => ({
+                value,
+                label: t(`rules.filter.states.${value}`),
+              })),
+            ]}
+            value={search.state ?? 'all'}
+            allowDeselect={false}
+            onChange={(value) =>
+              update({
+                state: value === null || value === 'all' ? undefined : (value as RuleStateFilter),
+              })
+            }
+            w={140}
+          />
+          <Select
+            aria-label={t('rules.filter.reservations')}
+            data={[
+              { value: 'all', label: t('rules.filter.reservationsAll') },
+              ...ruleReservationFilters.map((value) => ({
+                value,
+                label: t(`rules.filter.reservationStates.${value}`),
+              })),
+            ]}
+            value={search.reservations ?? 'all'}
+            allowDeselect={false}
+            onChange={(value) =>
+              update({
+                reservations:
+                  value === null || value === 'all' ? undefined : (value as RuleReservationFilter),
+              })
+            }
+            w={200}
+          />
+          <Group gap={4} wrap="nowrap">
+            <Select
+              aria-label={t('rules.sort.label')}
+              data={ruleSortKeys.map((value) => ({ value, label: t(`rules.sort.keys.${value}`) }))}
+              value={search.sort ?? 'created'}
+              allowDeselect={false}
+              onChange={(value) =>
+                update({
+                  sort:
+                    value === null || value === 'created'
+                      ? undefined
+                      : (value as Exclude<RuleSortKey, 'created'>),
+                })
+              }
+              w={200}
+            />
+            <ActionIcon
+              variant="default"
+              size="input-sm"
+              aria-label={t(
+                search.order === 'desc' ? 'rules.sort.descending' : 'rules.sort.ascending',
+              )}
+              title={t(search.order === 'desc' ? 'rules.sort.descending' : 'rules.sort.ascending')}
+              onClick={() => update({ order: search.order === 'desc' ? undefined : 'desc' })}
+            >
+              {search.order === 'desc' ? (
+                <ArrowDownWideNarrow size={16} aria-hidden />
+              ) : (
+                <ArrowUpNarrowWide size={16} aria-hidden />
+              )}
+            </ActionIcon>
+          </Group>
+        </Group>
+      )}
+      {isFiltered(search) && data.rules.length > 0 && (
+        <Text size="sm" c="dimmed" role="status">
+          {t('rules.filter.count', { shown: visible.length, total: data.rules.length })}
+        </Text>
+      )}
       {selecting && (
         <Group gap="xs">
+          {/* 絞り込んだルールを、まとめて選ぶ。終わったルールを探して、まとめて無効にするのに使う (#1493)。 */}
           <Button
             size="xs"
             variant="default"
-            disabled={selected.size === 0}
-            loading={settingMany}
-            onClick={() => setEnabledMany(true)}
+            disabled={visible.length === 0}
+            onClick={() =>
+              setSelected((current) => {
+                // 一覧に出しているルールだけを、選ぶか外す。隠れているルールの選び方は変えない。
+                const next = new Set(current);
+                for (const rule of visible) {
+                  if (allShownSelected) {
+                    next.delete(rule.id);
+                  } else {
+                    next.add(rule.id);
+                  }
+                }
+
+                return next;
+              })
+            }
           >
-            {t('rules.enableSelected', { count: selected.size })}
+            {t(allShownSelected ? 'rules.deselectShown' : 'rules.selectShown', {
+              count: visible.length,
+            })}
           </Button>
           <Button
             size="xs"
             variant="default"
-            disabled={selected.size === 0}
+            disabled={targets.length === 0}
+            loading={settingMany}
+            onClick={() => setEnabledMany(true)}
+          >
+            {t('rules.enableSelected', { count: targets.length })}
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            disabled={targets.length === 0}
             loading={settingMany}
             onClick={() => setEnabledMany(false)}
           >
-            {t('rules.disableSelected', { count: selected.size })}
+            {t('rules.disableSelected', { count: targets.length })}
           </Button>
           <Button
             size="xs"
             color="red"
             variant="light"
             leftSection={<Trash2 size={14} aria-hidden />}
-            disabled={selected.size === 0}
+            disabled={targets.length === 0}
             onClick={() => setConfirmingDelete(true)}
           >
-            {t('rules.deleteSelected', { count: selected.size })}
+            {t('rules.deleteSelected', { count: targets.length })}
           </Button>
         </Group>
       )}
@@ -285,13 +456,13 @@ function Rules() {
         title={t('rules.deleteSelectedTitle')}
       >
         <Stack>
-          <Text size="sm">{t('rules.deleteSelectedConfirm', { count: selected.size })}</Text>
+          <Text size="sm">{t('rules.deleteSelectedConfirm', { count: targets.length })}</Text>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setConfirmingDelete(false)}>
               {t('rules.cancel')}
             </Button>
             <Button color="red" loading={deletingMany} onClick={removeMany}>
-              {t('rules.deleteSelected', { count: selected.size })}
+              {t('rules.deleteSelected', { count: targets.length })}
             </Button>
           </Group>
         </Stack>
@@ -304,7 +475,20 @@ function Rules() {
       {data.rules.length === 0 && (
         <EmptyState icon={ListChecks} title={t('rules.empty')} hint={t('rules.emptyHint')} />
       )}
-      {data.rules.map((rule) => (
+      {data.rules.length > 0 && visible.length === 0 && (
+        <Stack gap="xs">
+          <EmptyState icon={Search} title={t('rules.filter.empty')} />
+          <Button
+            size="xs"
+            variant="default"
+            onClick={clearFilters}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            {t('rules.filter.clear')}
+          </Button>
+        </Stack>
+      )}
+      {visible.map((rule) => (
         <Card key={rule.id} withBorder padding="sm" style={{ opacity: rule.enabled ? 1 : 0.6 }}>
           <Group justify="space-between" wrap="nowrap">
             {selecting && (

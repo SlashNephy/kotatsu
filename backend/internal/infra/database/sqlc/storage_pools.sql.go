@@ -47,7 +47,7 @@ func (q *Queries) DeleteRecording(ctx context.Context, id uuid.UUID) (int64, err
 const listDeletableRecordings = `-- name: ListDeletableRecordings :many
 SELECT r.id, r.name FROM recordings r
 WHERE NOT r.protected AND r.state <> 'recording'
-  AND EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.pool_id = $1)
+  AND EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND f.pool_id = $1 AND NOT f.external)
   AND NOT EXISTS (SELECT 1 FROM recording_files f WHERE f.recording_id = r.id AND NOT (f.pool_id = ANY($2::text[])))
 ORDER BY r.recorded_from, r.id
 LIMIT $4 OFFSET $3
@@ -67,6 +67,7 @@ type ListDeletableRecordingsRow struct {
 
 // 容量の管理で消せる録画を、古い順に返す。プール pool_id にファイルを持ち、保護されておらず、録画中でなく、
 // すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。古いほうから skip 件を飛ばす。
+// プールにあった TS を取り込んだファイル (external) は、録画を消しても残すので、それしか持たない録画は、消しても空かない (#1734)。
 func (q *Queries) ListDeletableRecordings(ctx context.Context, arg ListDeletableRecordingsParams) ([]ListDeletableRecordingsRow, error) {
 	rows, err := q.db.Query(ctx, listDeletableRecordings,
 		arg.PoolID,

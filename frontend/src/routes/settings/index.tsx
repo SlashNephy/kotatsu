@@ -4,6 +4,7 @@ import {
   Activity,
   Bell,
   CalendarDays,
+  Cat,
   CircleDot,
   HardDrive,
   Link2,
@@ -51,6 +52,12 @@ function SettingsPage() {
       icon: CalendarDays,
       title: t('settings.pages.guide.title'),
       body: t('settings.pages.guide.summary'),
+    },
+    {
+      to: '/settings/icon',
+      icon: Cat,
+      title: t('settings.pages.icon.title'),
+      body: t('settings.pages.icon.summary'),
     },
     {
       to: '/settings/notifications',

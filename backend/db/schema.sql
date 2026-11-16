@@ -661,6 +661,11 @@ CREATE TABLE programs (
   -- 番組名から話数を読めないときに、アニメの話を結びつけるのに使う。記述子がないか、話数が 0 なら NULL。
   series_episode integer,
   series_repeat boolean,
+  -- 回の読み方 (設計書 4.4、episode.Parse) で番組名から読んだシリーズ名と、番組名、概要、記述子から読んだ話数 (#1564)。
+  -- 録画の詳細に、続きの放送を出すときに引く。シリーズ名を読めない番組は空、話数を読めない番組は NULL。
+  -- Go で読むので SQL では埋めない。この列を足す前に書いた番組 (NULL) は、全量の突き合わせが埋める。
+  series text,
+  episode_number integer,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
   PRIMARY KEY (service_id, event_id)
@@ -668,6 +673,8 @@ CREATE TABLE programs (
 
 CREATE INDEX programs_start_at_idx ON programs (start_at);
 CREATE INDEX programs_service_id_start_at_idx ON programs (service_id, start_at);
+-- 続きの放送 (#1564) を、シリーズ名と放送の時刻で引く。
+CREATE INDEX programs_series_start_at_idx ON programs (series, start_at) WHERE (episode_number IS NOT NULL);
 
 -- EPG の変更の記録 (設計書 3.3)。反映のたびに、変更のあったサービスと時間帯を、通知の版数と一緒に残す。
 -- 通知で届くのは版数だけなので、受け取った側は、自分が知っている版数より後の行を読んで、何が変わったかを知る。
@@ -681,6 +688,22 @@ CREATE TABLE epg_changes (
 
 CREATE INDEX epg_changes_version_idx ON epg_changes (version);
 CREATE INDEX epg_changes_created_at_idx ON epg_changes (created_at);
+
+-- 放送前の番組の、番組名と概要の書き換え (#1558)。書き換えが放送開始のどれだけ前まで起きるかを測り、ルール予約の直前の猶予を決め直すのに使う。
+-- 書き換えを見つけた時点で放送開始より後のものだけを残す。observed_at から保持期間が過ぎたら消す (設計書 3.3)。
+CREATE TABLE program_rewrites (
+  service_id bigint NOT NULL,
+  event_id bigint NOT NULL,
+  -- start_at は、書き換えた後の番組の開始時刻。
+  start_at timestamptz NOT NULL,
+  -- field は、書き換わった項目 (name か description)。
+  field text NOT NULL CHECK (field IN ('name', 'description')),
+  before text NOT NULL,
+  after text NOT NULL,
+  observed_at timestamptz NOT NULL
+);
+
+CREATE INDEX program_rewrites_observed_at_idx ON program_rewrites (observed_at);
 
 -- 放送が終わった番組 (設計書 3.4)。neko が、放送の終わりから猶予が過ぎた番組を programs から移す。
 -- EID は再利用されうるので、サービスと eventId に開始時刻を加えた組で一意にする (設計書 3.2)。
@@ -1042,6 +1065,9 @@ CREATE TABLE recording_files (
   -- コマごとに解除したら 30。プログレッシブの映像は、元のコマ数を丸めた値。変換を終えたときに書く。
   -- セグメントと、EPGStation から取り込んだファイルと、これを足す前に変換した MP4 は NULL。
   transcode_frame_rate integer,
+  -- Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (kotatsu import files、#1734)。
+  -- 録画を消しても、ファイルは消さずに残し (生成物は消す)、容量の管理で消す対象にも、ファイル名の付け直しの対象にもしない。
+  external boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

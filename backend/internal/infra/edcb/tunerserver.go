@@ -27,6 +27,8 @@ type TunerServer struct {
 	preemptionCheckInterval time.Duration
 	// logos は、サービスとロゴの ID の対応 (#1537)。
 	logos *logoMap
+	// share は、サービスごとに 1 本の NetworkTV を開いて、受け手に分ける (#1535)。
+	share *sharedStreams
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -38,6 +40,9 @@ type TunerServerOptions struct {
 	NetworkTVIDs NetworkTVIDs
 	// PreemptionCheckInterval は、NetworkTV がまだ開いているかを問い合わせる間隔 (#1534)。0 なら 5 秒。
 	PreemptionCheckInterval time.Duration
+	// SubscriberBufferSize は、同じサービスのストリームを分け合う受け手ごとに溜められるバイト数 (#1535)。
+	// 読むのが遅く、これを超えた受け手は切る。0 なら DefaultSubscriberBufferSize。
+	SubscriberBufferSize int
 }
 
 // NewTunerServer は TunerServer を返す。opts は nil でもよい。
@@ -45,9 +50,13 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 	bonDrivers := map[string]bool{}
 	var ids NetworkTVIDs
 	interval := defaultPreemptionCheckInterval
+	bufferSize := DefaultSubscriberBufferSize
 	if opts != nil {
 		if opts.PreemptionCheckInterval > 0 {
 			interval = opts.PreemptionCheckInterval
+		}
+		if opts.SubscriberBufferSize > 0 {
+			bufferSize = opts.SubscriberBufferSize
 		}
 		for _, name := range opts.BonDrivers {
 			bonDrivers[strings.ToLower(name)] = true
@@ -55,10 +64,13 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 		ids = opts.NetworkTVIDs
 	}
 
-	return &TunerServer{
+	server := &TunerServer{
 		client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval,
-		logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}},
+		logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}}, share: nil,
 	}
+	server.share = newSharedStreams(server, bufferSize)
+
+	return server
 }
 
 // newTextReplacer は、EDCB の文を Mirakurun と同じ形に戻す置き換えを作る。

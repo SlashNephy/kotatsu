@@ -34,7 +34,7 @@ func newKyusu(ctx context.Context, logger *slog.Logger, deps *Deps) (*kyusu.Live
 	}
 	var opener kyusu.ServiceOpener
 	if deps.Config.Tuner.UsesTunerServer() {
-		client, err := newTunerClient(deps)
+		client, err := newTunerClient(ctx, deps, logger)
 		if err != nil {
 			return nil, nil, nil, err
 		}

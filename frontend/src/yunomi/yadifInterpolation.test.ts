@@ -33,11 +33,22 @@ describe('createYadifInterpolation', () => {
     const yadif = createYadifInterpolation();
     yadif.pair(gl, texture, texture, 1440, 1080);
     yadif.pair(gl, texture, texture, 1440, 1080);
-    yadif.draw(gl, 0.5, 1440, 1080);
+    yadif.draw(gl, 0.5, 1440, 1080, null);
 
     expect(createInterpolator).toHaveBeenCalledTimes(1);
     expect(interpolator.estimate).toHaveBeenCalledTimes(2);
     expect(interpolator.compose).toHaveBeenCalledWith(0.5, null, 1440, 1080);
+  });
+
+  test('拡大して描く間は、yadif が渡すテクスチャに描く', () => {
+    const interpolator = fakeInterpolator();
+    vi.mocked(createInterpolator).mockReturnValue(interpolator);
+    const yadif = createYadifInterpolation();
+    const stage = {} as WebGLFramebuffer;
+    yadif.pair(gl, texture, texture, 1440, 1080);
+    yadif.draw(gl, 0.25, 1440, 1080, stage);
+
+    expect(interpolator.compose).toHaveBeenCalledWith(0.25, stage, 1440, 1080);
   });
 
   test('コンテキストが変われば、前の処理を片付けて作り直す', () => {
@@ -74,7 +85,7 @@ describe('createYadifInterpolation', () => {
       },
       act: (yadif: ReturnType<typeof createYadifInterpolation>) => {
         yadif.pair(gl, texture, texture, 1440, 1080);
-        yadif.draw(gl, 0.5, 1440, 1080);
+        yadif.draw(gl, 0.5, 1440, 1080, null);
       },
     },
   ])('$name、投げずに知らせ、以後は補間しない', ({ setup, act }) => {

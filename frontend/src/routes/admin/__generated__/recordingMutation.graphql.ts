@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<dc35e8ec4194363a22916cfd4d10dd01>>
+ * @generated SignedSource<<424103fd2e39fbeb520038cb3c7c9f36>>
  * @lightSyntaxTransform
  */
 
@@ -34,6 +34,7 @@ export type SystemSettingsInput = {
   watchProgressRetentionDays?: number | null | undefined;
 };
 export type RecordingSettingsOverridesInput = {
+  cmDetector?: CMDetector | null | undefined;
   detectCm?: boolean | null | undefined;
   endMarginSeconds?: number | null | undefined;
   fileNameTemplate?: string | null | undefined;
