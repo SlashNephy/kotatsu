@@ -673,6 +673,7 @@ type RecordingFile struct {
 	TunerIndex         *int64
 	TunerName          *string
 	TranscodeFrameRate *int32
+	External           bool
 	CreatedAt          time.Time
 }
 

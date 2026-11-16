@@ -1065,6 +1065,9 @@ CREATE TABLE recording_files (
   -- コマごとに解除したら 30。プログレッシブの映像は、元のコマ数を丸めた値。変換を終えたときに書く。
   -- セグメントと、EPGStation から取り込んだファイルと、これを足す前に変換した MP4 は NULL。
   transcode_frame_rate integer,
+  -- Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (kotatsu import files、#1734)。
+  -- 録画を消しても、ファイルは消さずに残し (生成物は消す)、容量の管理で消す対象にも、ファイル名の付け直しの対象にもしない。
+  external boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );
