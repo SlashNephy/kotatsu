@@ -59,12 +59,11 @@ func (e *RateLimitedError) Error() string {
 
 // SearchResult は、作品の検索の結果の作品 1 つ。
 type SearchResult struct {
-	ID            int32    `json:"id"`
-	Name          string   `json:"name"`
-	OriginalName  string   `json:"originalName"`
-	FirstAirDate  string   `json:"firstAirDate"`
-	GenreIDs      []int32  `json:"genreIds"`
-	OriginCountry []string `json:"originCountry,omitempty"`
+	ID           int32   `json:"id"`
+	Name         string  `json:"name"`
+	OriginalName string  `json:"originalName"`
+	FirstAirDate string  `json:"firstAirDate"`
+	GenreIDs     []int32 `json:"genreIds"`
 }
 
 // Season は、作品のシーズン 1 つ。
@@ -146,12 +145,11 @@ func (c *Client) Configured() bool {
 // searchResponse は、/3/search/tv の応答。
 type searchResponse struct {
 	Results []struct {
-		ID            int32    `json:"id"`
-		Name          string   `json:"name"`
-		OriginalName  string   `json:"original_name"`
-		FirstAirDate  string   `json:"first_air_date"`
-		GenreIDs      []int32  `json:"genre_ids"`
-		OriginCountry []string `json:"origin_country"`
+		ID           int32   `json:"id"`
+		Name         string  `json:"name"`
+		OriginalName string  `json:"original_name"`
+		FirstAirDate string  `json:"first_air_date"`
+		GenreIDs     []int32 `json:"genre_ids"`
 	} `json:"results"`
 }
 
@@ -171,7 +169,7 @@ func (c *Client) SearchTV(ctx context.Context, query string) ([]*SearchResult, e
 			genres = []int32{}
 		}
 		results = append(results, &SearchResult{
-			ID: r.ID, Name: r.Name, OriginalName: r.OriginalName, FirstAirDate: r.FirstAirDate, GenreIDs: genres, OriginCountry: r.OriginCountry,
+			ID: r.ID, Name: r.Name, OriginalName: r.OriginalName, FirstAirDate: r.FirstAirDate, GenreIDs: genres,
 		})
 	}
 
@@ -298,7 +296,8 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, v any) 
 func retryAfter(value string, now time.Time) time.Duration {
 	wait := defaultRetryAfter
 	if seconds, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && seconds >= 0 {
-		wait = time.Duration(seconds) * time.Second
+		// 大きすぎる値を掛けてあふれさせないよう、先に上限で抑える。
+		wait = time.Duration(min(seconds, int(maxRetryAfter/time.Second))) * time.Second
 	} else if at, err := http.ParseTime(value); err == nil {
 		wait = max(at.Sub(now), 0)
 	}

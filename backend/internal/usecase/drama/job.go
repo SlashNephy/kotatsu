@@ -91,8 +91,8 @@ func (w *MatchWorker) Work(ctx context.Context, job *river.Job[MatchArgs]) error
 		return err
 	}
 	// 照合しきれなかった番組は、次の定期の照合 (6 時間後など) を待たずに、少し空けてから続きを照合する。
-	// 変更の記録の照合は、1 分ごとに読み直すので続けない。
-	if result.Stopped && job.Args.Mode != MatchModeChanges {
+	// 変更の記録の照合は、1 分ごとに読み直すので、TMDb が 1 分より長く待たせたときだけ、その間を空ける。
+	if result.Stopped && (job.Args.Mode != MatchModeChanges || result.ContinueAfter > matchChangesInterval) {
 		return river.JobSnooze(result.ContinueAfter)
 	}
 	if err := river.RecordOutput(ctx, result); err != nil {

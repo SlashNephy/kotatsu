@@ -13,6 +13,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 	"uuid"
@@ -57,6 +58,8 @@ const (
 	recentSeason = 365 * 24 * time.Hour
 	// upcomingSeries は、作品の放送開始が番組の放送より後でも、候補に残す長さ (TMDb の放送開始日のずれを見込む)。
 	upcomingSeries = 30 * 24 * time.Hour
+	// unauthorizedPause は、トークンが断られた (401) とき、問い合わせを控える長さ。設定を直して起動し直すまで、断られ続けるので、長く空ける。
+	unauthorizedPause = time.Hour
 	// continueAfter は、問い合わせの上限に達して照合しきれなかったとき、続きを照合するまで待つ長さ。
 	// 連携を有効にした直後は、これから 1 週間のドラマの番組を一度に照合するので、上限ごとに区切って続ける。
 	continueAfter = time.Minute
@@ -88,8 +91,12 @@ type Client interface {
 
 var _ Client = new(tmdb.Client)
 
-// errStop は、問い合わせの上限に達したか、TMDb に断られたので、残りの番組を次の機会に回すことを表す。
-var errStop = errors.New("stop matching for now")
+var (
+	// errStop は、問い合わせの上限に達したか、TMDb に 429 で断られたので、残りの番組を、少し空けて続きとして照合することを表す。
+	errStop = errors.New("stop matching for now")
+	// errUnauthorized は、トークンが断られたので、残りの番組を、次の定期の照合に回すことを表す。
+	errUnauthorized = errors.New("stop matching until the token is fixed")
+)
 
 // Matcher は、ドラマの番組を、TMDb の作品と話に結びつける。
 type Matcher struct {
@@ -98,6 +105,12 @@ type Matcher struct {
 	client      Client
 	logger      *slog.Logger
 	maxRequests int
+
+	// mu は、pausedUntil を守る。
+	mu sync.Mutex
+	// pausedUntil は、TMDb に断られたので、問い合わせを控える期限。429 なら Retry-After の後、401 なら unauthorizedPause の後。
+	// このプロセスの照合のジョブすべてで共有し、どの照合も、期限までは問い合わせない。
+	pausedUntil time.Time
 }
 
 // NewMatcher は Matcher を返す。maxRequests は、1 回の照合で TMDb に問い合わせる回数の上限 (0 以下なら DefaultMaxRequests)。
@@ -106,7 +119,7 @@ func NewMatcher(db Database, clk clock.Clock, client Client, logger *slog.Logger
 		maxRequests = DefaultMaxRequests
 	}
 
-	return &Matcher{db: db, clock: clk, client: client, logger: logger, maxRequests: maxRequests}
+	return &Matcher{db: db, clock: clk, client: client, logger: logger, maxRequests: maxRequests, mu: sync.Mutex{}, pausedUntil: time.Time{}}
 }
 
 // MatchResult は、1 回の照合の結果。
@@ -126,11 +139,13 @@ type MatchResult struct {
 	Failed   int `json:"failed"`
 	// Pruned は、古くなって消したキャッシュと結びつきの数。
 	Pruned int64 `json:"pruned"`
-	// Stopped は、問い合わせの上限に達したか、TMDb に断られて、照合しきれなかった番組があるかどうか。
-	// ジョブは、ContinueAfter の後に、続きを照合し直す。
+	// Stopped は、問い合わせの上限に達したか、TMDb に 429 で断られて、照合しきれなかった番組があるかどうか。
+	// ジョブは、ContinueAfter の後に、続きを照合し直す。トークンが断られた (401) ときは続けず、次の定期の照合に任せる。
 	Stopped bool `json:"stopped"`
 	// ContinueAfter は、続きを照合するまで待つ長さ。TMDb が 429 で示した長さか、上限に達したときは continueAfter。
 	ContinueAfter time.Duration `json:"continueAfter"`
+	// Paused は、前に TMDb に断られて問い合わせを控えている間なので、何もしなかったかどうか。
+	Paused bool `json:"paused"`
 }
 
 // target は、照合する番組。
@@ -197,6 +212,12 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the drama match cursor: %w", err)
 	}
+	// 断られて控えている間は、版数を進めずに、控え終えてから読む。
+	if m.paused() {
+		result.Paused = true
+
+		return result, nil
+	}
 	changes, err := q.ListEPGChangesSince(ctx, cursor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the EPG changes: %w", err)
@@ -261,12 +282,21 @@ func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 
 		return result, nil
 	}
+	if m.paused() {
+		result.Paused = true
+
+		return result, nil
+	}
 	targets, err := m.programs(ctx, nil, now, now.Add(MatchHorizon))
 	if err != nil {
 		return nil, err
 	}
-	if _, err := m.match(ctx, targets, false, result); err != nil {
+	stopped, err := m.match(ctx, targets, false, result)
+	if err != nil {
 		return nil, err
+	}
+	if stopped {
+		return result, nil
 	}
 	if err := m.refreshLinked(ctx, result, now); err != nil {
 		return nil, err
@@ -285,6 +315,11 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	}
 	if !enabled {
 		result.Disabled = true
+
+		return result, nil
+	}
+	if m.paused() {
+		result.Paused = true
 
 		return result, nil
 	}
@@ -355,10 +390,12 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 	}
 	for i, t := range targets {
 		link, err := m.resolve(ctx, r, t)
-		if errors.Is(err, errStop) {
+		if errors.Is(err, errStop) || errors.Is(err, errUnauthorized) {
 			result.Deferred += len(targets) - i
-			result.Stopped = true
-			result.ContinueAfter = max(result.ContinueAfter, continueAfter)
+			if errors.Is(err, errStop) {
+				result.Stopped = true
+				result.ContinueAfter = max(result.ContinueAfter, continueAfter)
+			}
 
 			return true, nil
 		}
@@ -702,6 +739,21 @@ func (m *Matcher) airedOn(ctx context.Context, r *run, seriesID int32, dates []s
 	return episode > 0, err
 }
 
+// pause は、TMDb への問い合わせを d だけ控える。
+func (m *Matcher) pause(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pausedUntil = maxTime(m.pausedUntil, m.clock.Now().Add(d))
+}
+
+// paused は、TMDb への問い合わせを控えている間かどうかを返す。
+func (m *Matcher) paused() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.clock.Now().Before(m.pausedUntil)
+}
+
 // request は、TMDb への問い合わせを 1 回数え、上限に達していれば errStop を返す。
 func (m *Matcher) request(r *run) error {
 	if r.result.Requests >= m.maxRequests {
@@ -712,17 +764,22 @@ func (m *Matcher) request(r *run) error {
 	return nil
 }
 
-// failed は、問い合わせの失敗を数える。断られた (429) か、トークンが使えなければ、残りの番組も問い合わせないよう errStop を返す。
+// failed は、問い合わせの失敗を数える。断られた (429) なら errStop を、トークンが使えなければ errUnauthorized を返し、
+// 残りの番組も問い合わせないようにする。
 func (m *Matcher) failed(ctx context.Context, r *run, err error) error {
 	r.result.Failed++
-	var limited *tmdb.RateLimitedError
-	if errors.As(err, &limited) {
-		r.result.ContinueAfter = max(r.result.ContinueAfter, limited.RetryAfter)
-	}
-	if limited != nil || errors.Is(err, tmdb.ErrUnauthorized) {
+	if limited, ok := errors.AsType[*tmdb.RateLimitedError](err); ok {
 		m.logger.WarnContext(ctx, "stopped querying TMDb", slog.Any("error", err))
+		r.result.ContinueAfter = max(r.result.ContinueAfter, limited.RetryAfter)
+		m.pause(limited.RetryAfter)
 
 		return errStop
+	}
+	if errors.Is(err, tmdb.ErrUnauthorized) {
+		m.logger.WarnContext(ctx, "TMDb rejected the token; check tmdb.read_access_token", slog.Any("error", err))
+		m.pause(unauthorizedPause)
+
+		return errUnauthorized
 	}
 
 	return err
@@ -969,7 +1026,7 @@ func (m *Matcher) stopRefresh(ctx context.Context, err error) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if !errors.Is(err, errStop) {
+	if !errors.Is(err, errStop) && !errors.Is(err, errUnauthorized) {
 		m.logger.WarnContext(ctx, "failed to refresh a linked TMDb series", slog.Any("error", err))
 	}
 

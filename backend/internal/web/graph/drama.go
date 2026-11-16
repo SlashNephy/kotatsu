@@ -75,7 +75,8 @@ func dramaTitleKeyOf(input *model.DramaTitleOverrideInput) (string, error) {
 	case input.ProgramName != nil && input.TitleKey == nil:
 		return drama.TitleKeyOf(*input.ProgramName), nil
 	case input.ProgramName == nil && input.TitleKey != nil:
-		return *input.TitleKey, nil
+		// 一覧の鍵はもう鍵の形なので、そのまま同じ鍵になる。空白や記号だけの値は空になり、BAD_USER_INPUT にする。
+		return drama.TitleKey(*input.TitleKey), nil
 	default:
 		return "", NewError(CodeBadUserInput, "pass exactly one of programName and titleKey")
 	}

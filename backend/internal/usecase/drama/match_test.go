@@ -122,7 +122,12 @@ func (f *fakeTMDb) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.requests = append(f.requests, r.URL.Path+"?"+r.URL.Query().Get("query"))
-	if f.limited || r.Header.Get("Authorization") != "Bearer "+testTMDbKey {
+	if r.Header.Get("Authorization") != "Bearer "+testTMDbKey {
+		w.WriteHeader(http.StatusUnauthorized)
+
+		return
+	}
+	if f.limited {
 		w.Header().Set("Retry-After", "60")
 		w.WriteHeader(http.StatusTooManyRequests)
 
@@ -474,7 +479,16 @@ func TestMatchStopsWhenRateLimited(t *testing.T) {
 	_, found := matchOf(t, f.db, grService, jst(15, 22, 15))
 	assert.False(t, found, "the deferred program is matched later")
 
+	// Retry-After の間は、ほかの照合も問い合わせない。
 	f.fake.setLimited(false)
+	_, err = f.matcher.MatchChanges(t.Context())
+	require.NoError(t, err)
+	result, err = f.matcher.Finalize(t.Context())
+	require.NoError(t, err)
+	assert.True(t, result.Paused)
+	assert.Empty(t, f.fake.takeRequests()[1:], "no requests while TMDb asks to wait")
+
+	f.clk.Advance(time.Minute)
 	_, err = f.matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
 	got, found := matchOf(t, f.db, grService, jst(15, 22, 15))
@@ -587,4 +601,100 @@ func TestMatchDisabled(t *testing.T) {
 		assert.True(t, result.Disabled, tt.name)
 		assert.Empty(t, fake.takeRequests(), tt.name)
 	}
+}
+
+// TestMatchUnauthorized は、トークンが断られたら、続きとして照合し直さず、1 時間は問い合わせないことを確かめる。
+func TestMatchUnauthorized(t *testing.T) {
+	t.Parallel()
+
+	db := newDB(t)
+	clk := clocktest.NewFake(jst(15, 0, 0))
+	enable(t, db, clk)
+	fake := newFakeTMDb()
+	server := httptest.NewServer(fake)
+	t.Cleanup(server.Close)
+	insertProgram(t, db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
+	insertProgram(t, db, grService, 2, jst(16, 16, 0), jst(16, 17, 0), "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２６話🈞", genreDrama)
+	client := tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Token: "wrong-token", Interval: time.Millisecond})
+	matcher := drama.NewMatcher(db, clk, client, slog.New(slog.DiscardHandler), 0)
+
+	result, err := matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Requests)
+	assert.Equal(t, 1, result.Failed)
+	assert.Equal(t, 2, result.Deferred)
+	assert.False(t, result.Stopped, "a rejected token is not retried as a continuation")
+	assert.Len(t, fake.takeRequests(), 1)
+
+	clk.Advance(30 * time.Minute)
+	result, err = matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	assert.True(t, result.Paused)
+	assert.Empty(t, fake.takeRequests(), "no requests for an hour after the token is rejected")
+
+	clk.Advance(30 * time.Minute)
+	_, err = matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, fake.takeRequests(), 1, "queries again after an hour")
+}
+
+// TestMatchChanges は、EPG の変更の記録を読んで、変わったサービスと時間帯の番組だけを照合し、読んだ版数を覚えることを確かめる。
+func TestMatchChanges(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, 0)
+	insertProgram(t, f.db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
+	insertProgram(t, f.db, bsService, 1, jst(17, 0, 0), jst(17, 0, 30), "晩酌の流儀５〜秋冬篇〜第７話「ブーリンチー」🈑", genreDrama)
+
+	// 初めて動いたときは、今の版数を覚えるだけにする。それまでの番組は、照合し直しが受け持つ。
+	result, err := f.matcher.MatchChanges(t.Context())
+	require.NoError(t, err)
+	assert.Zero(t, result.Programs)
+
+	_, err = f.db.Exec(t.Context(), `INSERT INTO epg_changes (version, service_id, start_at, end_at, created_at) VALUES (1, $1, $2, $3, now())`,
+		grService, jst(15, 22, 0), jst(15, 23, 30))
+	require.NoError(t, err)
+	_, err = f.db.Exec(t.Context(), `INSERT INTO change_versions (channel, version, updated_at) VALUES ('epg', 1, now())
+		ON CONFLICT (channel) DO UPDATE SET version = 1`)
+	require.NoError(t, err)
+
+	result, err = f.matcher.MatchChanges(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Programs, "only the changed service and time are matched")
+	got, found := matchOf(t, f.db, grService, jst(15, 22, 15))
+	require.True(t, found)
+	assert.Equal(t, linkedTo(moPapa, 1, 7, drama.EpisodeSourceAirDate), got)
+	_, found = matchOf(t, f.db, bsService, jst(17, 0, 0))
+	assert.False(t, found)
+
+	result, err = f.matcher.MatchChanges(t.Context())
+	require.NoError(t, err)
+	assert.Zero(t, result.Programs, "the read changes are not read again")
+}
+
+// TestPruneCache は、TMDb から引いた情報を、引いてから 180 日で消すことを確かめる (TMDb の利用規約)。
+func TestPruneCache(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t, 0)
+	insertProgram(t, f.db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
+	_, err := f.matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	count := func() int {
+		var n int
+		require.NoError(t, f.db.QueryRow(t.Context(),
+			`SELECT (SELECT count(*) FROM tmdb_searches) + (SELECT count(*) FROM tmdb_series) + (SELECT count(*) FROM tmdb_seasons)`).Scan(&n))
+
+		return n
+	}
+	require.Positive(t, count())
+
+	// 引き直さずに 180 日たつと消す。番組と録画の結びつきの ID は残す。
+	_, err = f.db.Exec(t.Context(), `UPDATE system_settings SET drama_linking_enabled = false`)
+	require.NoError(t, err)
+	f.clk.Advance(drama.CacheRetention + time.Hour)
+	result, err := f.matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	assert.True(t, result.Disabled)
+	assert.Zero(t, count(), "TMDb data is not kept longer than 180 days even while disabled")
 }

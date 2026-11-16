@@ -87,7 +87,7 @@ func TestClientRequests(t *testing.T) {
 	results, err := client.SearchTV(t.Context(), "もうパパ!")
 	require.NoError(t, err)
 	assert.Equal(t, []*tmdb.SearchResult{{
-		ID: 331304, Name: "もうパパ！", OriginalName: "もうパパ！", FirstAirDate: "2026-10-04", GenreIDs: []int32{18}, OriginCountry: []string{"JP"},
+		ID: 331304, Name: "もうパパ！", OriginalName: "もうパパ！", FirstAirDate: "2026-10-04", GenreIDs: []int32{18},
 	}}, results, "results without an ID are dropped")
 
 	series, err := client.TV(t.Context(), 202396)
@@ -141,7 +141,7 @@ func TestClientErrors(t *testing.T) {
 		{
 			name: "rate limited too long",
 			handler: func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Retry-After", "86400")
+				w.Header().Set("Retry-After", "9223372036854775807")
 				w.WriteHeader(http.StatusTooManyRequests)
 			},
 			check: func(t *testing.T, err error) {

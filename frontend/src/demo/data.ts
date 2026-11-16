@@ -175,6 +175,9 @@ export function createRootValue(
     recordings: [],
     recorded: false,
     animeEpisodes: demoAnimeEpisodes(item),
+    // デモは TMDb に問い合わせないので、ドラマの作品には結びつけない (#1651)。
+    dramaEpisode: null,
+    dramaTitleKey: item.name,
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({
@@ -483,6 +486,8 @@ export function createRootValue(
     },
 
     // Mutation
+    // デモは作品の指定を覚えない (#1651)。
+    updateDramaTitleOverride: () => [],
     // デモは Annict と AniList に問い合わせないので、見たいリストを取り込めず、候補もない (#928)。
     refreshAnimeWishlist: () => {
       throw new Error('anime linking is disabled');

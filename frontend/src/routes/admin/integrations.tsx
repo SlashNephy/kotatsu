@@ -741,7 +741,8 @@ function DramaLinkingSettings({
   const run = async (input: DramaTitleOverrideInput) => {
     setSaving(true);
     try {
-      if (await onOverride(input)) {
+      // 一覧から消したときは、入れかけの番組名と作品を残す。
+      if ((await onOverride(input)) && input.programName != null) {
         setProgramName('');
         setSeries('');
       }

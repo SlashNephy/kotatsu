@@ -26,15 +26,17 @@ const (
 	fieldDataBroadcastIPEnabled = "dataBroadcastIpEnabled"
 	// fieldAnimeLinkingEnabled は、しょぼいカレンダー、Annict、AniList との連携を使うかどうかの項目 (設計書 3.8)。
 	fieldAnimeLinkingEnabled = "animeLinkingEnabled"
+	// fieldDramaLinkingEnabled は、TMDb との連携を使うかどうかの項目 (#1651)。
+	fieldDramaLinkingEnabled = "dramaLinkingEnabled"
 	// fieldCommentSources は、オプトインする実況のコメントのソースの項目 (#1405、設計書 7.4)。
 	fieldCommentSources = "commentSources"
 	// commentSourceNXJikkyo は、GraphQL の NX-Jikkyo のソース。
 	commentSourceNXJikkyo = "NX_JIKKYO"
 	settingsQuery         = `{ systemSettings { recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority transcodeFrameRate }
-		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
+		archiveRetentionDays notificationRetentionDays mcpEnabled dataBroadcastIpEnabled animeLinkingEnabled dramaLinkingEnabled jikkyoEnabled } }`
 	updateSettings = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
 		recordingDefaults { poolId fileNameTemplate startMarginSeconds endMarginSeconds priority transcodeFrameRate } archiveRetentionDays notificationRetentionDays mcpEnabled
-		dataBroadcastIpEnabled animeLinkingEnabled jikkyoEnabled } }`
+		dataBroadcastIpEnabled animeLinkingEnabled dramaLinkingEnabled jikkyoEnabled } }`
 )
 
 type recordingSettings struct {
@@ -54,6 +56,7 @@ type systemSettings struct {
 	MCPEnabled                bool              `json:"mcpEnabled"`
 	DataBroadcastIPEnabled    bool              `json:"dataBroadcastIpEnabled"`
 	AnimeLinkingEnabled       bool              `json:"animeLinkingEnabled"`
+	DramaLinkingEnabled       bool              `json:"dramaLinkingEnabled"`
 	JikkyoEnabled             bool              `json:"jikkyoEnabled"`
 }
 
@@ -69,6 +72,7 @@ func defaultSystemSettings() systemSettings {
 		MCPEnabled:                false,
 		DataBroadcastIPEnabled:    false,
 		AnimeLinkingEnabled:       false,
+		DramaLinkingEnabled:       false,
 		JikkyoEnabled:             false,
 	}
 }
@@ -155,6 +159,10 @@ func TestSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldAnimeLinkingEnabled: true}}, &partial))
 	want.AnimeLinkingEnabled = true
 	assert.Equal(t, want, partial.UpdateSystemSettings)
+	// TMDb との連携も、既定では使わず、管理者が有効にする (#1651)。
+	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldDramaLinkingEnabled: true}}, &partial))
+	want.DramaLinkingEnabled = true
+	assert.Equal(t, want, partial.UpdateSystemSettings)
 	// ニコニコ実況も、外部と通信するので、既定では使わず、管理者が有効にする。実況の画面を出すかを決めるので、誰でも読める (設計書 7.4)。
 	require.Empty(t, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldCommentSources: []string{commentSourceNXJikkyo}}}, &partial))
 	want.JikkyoEnabled = true
@@ -177,7 +185,7 @@ func TestSystemSettings(t *testing.T) {
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	require.Empty(t, admin.query(t, updateSettings, change, nil))
 	// しょぼいカレンダー、Annict、AniList との連携も、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。
-	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled} {
+	for _, field := range []string{fieldMCPEnabled, fieldDataBroadcastIPEnabled, fieldAnimeLinkingEnabled, fieldDramaLinkingEnabled} {
 		assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{field: false}}, nil), field)
 	}
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateSettings, map[string]any{varInput: map[string]any{fieldCommentSources: []string{}}}, nil), fieldCommentSources)
@@ -185,6 +193,7 @@ func TestSystemSettings(t *testing.T) {
 	assert.True(t, got.SystemSettings.MCPEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.DataBroadcastIPEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.AnimeLinkingEnabled, "rejected changes are not saved")
+	assert.True(t, got.SystemSettings.DramaLinkingEnabled, "rejected changes are not saved")
 	assert.True(t, got.SystemSettings.JikkyoEnabled, "rejected changes are not saved")
 }
 
