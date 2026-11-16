@@ -28,6 +28,13 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 			return nil, err
 		}
 	}
+	// nil のままなら、実況のチャンネルの対応は変えない (#1869)。
+	var jikkyoChannels map[string]*string
+	if input.JikkyoChannels != nil {
+		if jikkyoChannels, err = toJikkyoChannels(input.JikkyoChannels); err != nil {
+			return nil, err
+		}
+	}
 	updated, err := r.settings.Update(ctx, r.db, actor, &settings.Changes{
 		Recording:                  toOverrides(input.RecordingDefaults),
 		ArchiveRetentionDays:       input.ArchiveRetentionDays,
@@ -55,9 +62,14 @@ func (r *mutationResolver) UpdateSystemSettings(ctx context.Context, input model
 		ThumbnailPreviewsEnabled: input.ThumbnailPreviewsEnabled,
 		SleepControlEnabled:      input.SleepControlEnabled,
 		CaptionThreads:           input.CaptionThreads,
+		JikkyoChannels:           jikkyoChannels,
 	})
 	if err != nil {
 		return nil, settingsError(err)
+	}
+	// 実況のチャンネルの対応を変えたら、このインスタンスでは、覚えた対応を待たずに使う。ほかのインスタンスは、少しの間で読み直す。
+	if jikkyoChannels != nil && r.jikkyoTable != nil {
+		r.jikkyoTable.Invalidate()
 	}
 	// 連携を有効にしたら、1 時間ごとの確かめを待たずに、連携先の情報を取り込み始める (設計書 3.8)。
 	if updated.AnimeLinkingEnabled && input.AnimeLinkingEnabled != nil {

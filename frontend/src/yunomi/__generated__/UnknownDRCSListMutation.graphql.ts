@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<64c2325e93dbb7f008c37111bd993eb8>>
+ * @generated SignedSource<<a227ec69e0996a5b20ed6365ac9f9f99>>
  * @lightSyntaxTransform
  */
 
@@ -25,6 +25,7 @@ export type SystemSettingsInput = {
   externalPlayerUrlsEnabled?: boolean | null | undefined;
   hibpEnabled?: boolean | null | undefined;
   iptvFeedsEnabled?: boolean | null | undefined;
+  jikkyoChannels?: ReadonlyArray<JikkyoChannelOverrideInput> | null | undefined;
   mcpEnabled?: boolean | null | undefined;
   networkActivityEnabled?: boolean | null | undefined;
   networkActivityRetentionDays?: number | null | undefined;
@@ -64,6 +65,11 @@ export type RuleDefaultsInput = {
 export type DrcsReplacementInput = {
   md5: string;
   text?: string | null | undefined;
+};
+export type JikkyoChannelOverrideInput = {
+  channelId?: string | null | undefined;
+  networkId: number;
+  serviceId: number;
 };
 export type UnknownDRCSListMutation$variables = {
   input: SystemSettingsInput;

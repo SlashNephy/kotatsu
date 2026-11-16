@@ -19,6 +19,7 @@ UPDATE system_settings SET recording_defaults = @recording_defaults, archive_ret
   rule_unmatched_grace_minutes = @rule_unmatched_grace_minutes, audit_retention_days = @audit_retention_days,
   audit_client_info_retention_days = @audit_client_info_retention_days, hibp_enabled = @hibp_enabled, web_push_subject = @web_push_subject,
   thumbnail_previews_enabled = @thumbnail_previews_enabled, sleep_control_enabled = @sleep_control_enabled, caption_threads = @caption_threads,
+  jikkyo_channels = @jikkyo_channels,
   updated_at = @now
 WHERE id = 1
 RETURNING *;

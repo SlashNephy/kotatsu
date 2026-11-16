@@ -946,6 +946,21 @@ type JikkyoChannel struct {
 	Viewers *int `json:"viewers,omitempty"`
 }
 
+// 管理者が画面で足した、サービスとニコニコ実況のチャンネルの対応の 1 行 (設計書 7.4、#1869)。同梱した対応表より優先する。
+type JikkyoChannelOverride struct {
+	NetworkID int `json:"networkId"`
+	ServiceID int `json:"serviceId"`
+	// 実況のチャンネルの ID (jk1 など)。
+	ChannelID string `json:"channelId"`
+}
+
+type JikkyoChannelOverrideInput struct {
+	NetworkID int `json:"networkId"`
+	ServiceID int `json:"serviceId"`
+	// 実況のチャンネルの ID (jk1 など)。null なら、このサービスの対応を消し、同梱した対応表に戻す。
+	ChannelID *string `json:"channelId,omitempty"`
+}
+
 // nekonote の River のジョブ (#1279、設計書 6.1)。管理者だけが読める。引数の JSON はそのまま返さず、対象を名前で引けるようにする。
 type Job struct {
 	// River のジョブの ID。
@@ -2107,6 +2122,8 @@ type SystemSettings struct {
 	SleepControlEnabled bool `json:"sleepControlEnabled"`
 	// 字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0〜256。0 なら、nekonote の CPU の数の半分 (1〜8) にする。既定は 0。
 	CaptionThreads int `json:"captionThreads"`
+	// 同梱した対応表に重ねる、サービスとニコニコ実況のチャンネルの対応 (設計書 7.4、#1869)。ネットワーク ID とサービス ID の順に並べる。
+	JikkyoChannels []*JikkyoChannelOverride `json:"jikkyoChannels"`
 	// 最後に変えた日時。一度も変えていなければ null。
 	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 }
@@ -2162,6 +2179,8 @@ type SystemSettingsInput struct {
 	SleepControlEnabled      *bool   `json:"sleepControlEnabled,omitempty"`
 	// 0〜256。0 なら、nekonote の CPU の数から決める。
 	CaptionThreads *int `json:"captionThreads,omitempty"`
+	// 実況のチャンネルの対応の変更。書いたサービスだけを変え (channelId が null なら消し)、ほかは変えない。対応は 1000 件まで。
+	JikkyoChannels []*JikkyoChannelOverrideInput `json:"jikkyoChannels,omitempty"`
 }
 
 // システムの状態。

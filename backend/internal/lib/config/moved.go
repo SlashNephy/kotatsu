@@ -20,6 +20,7 @@ const (
 	retentionScreen    = "/admin/retention"
 	integrationsScreen = "/admin/integrations"
 	recordingScreen    = "/admin/recording"
+	servicesScreen     = "/admin/services"
 )
 
 // movedSettings は、画面に移した項目を返す。書いてあっても起動は止めず、値を読まずに、ログで警告する。
@@ -33,6 +34,7 @@ func movedSettings() []movedSetting {
 		{keys: []string{"thumbnail", "disable_preview"}, screen: recordingScreen},
 		{keys: []string{"power", "manage_sleep"}, screen: recordingScreen},
 		{keys: []string{"captions", "threads"}, screen: recordingScreen},
+		{keys: []string{"jikkyo", "channels"}, screen: servicesScreen},
 	}
 }
 

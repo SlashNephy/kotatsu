@@ -1891,6 +1891,11 @@
       "animeChannelsDescription": "アニメの番組を照合するときに使う、サービスとしょぼいカレンダーのChID、Annictのチャンネルの対応です。空欄なら、saya-definitionsから取り込んだ対応（薄い文字）を使います",
       "animeChannelsDisabled": "連携は無効です。「連携」の画面で有効にすると、この対応で照合します",
       "animeChannelNone": "対応なし",
+      "jikkyoChannels": "ニコニコ実況のチャンネル",
+      "jikkyoChannelsDescription": "サービスごとに、コメントを流すニコニコ実況のチャンネルを決めます。同梱の対応表にないサービスや、対応表と違うチャンネルにしたいサービスに使います。空にすると、同梱の対応表に戻します。ほかのKotatsuのインスタンスには、10秒ほどで効きます",
+      "jikkyoChannel": "実況のチャンネル（jk1など）",
+      "jikkyoChannelBundled": "同梱の対応表のまま",
+      "jikkyoChannelInvalid": "jk1のように、jkと数字で書いてください",
       "syobocalChannel": "しょぼいカレンダーのChID",
       "annictChannel": "Annictのチャンネル",
       "lineup": {

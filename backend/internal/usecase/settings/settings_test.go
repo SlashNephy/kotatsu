@@ -288,6 +288,65 @@ func TestUpdateWebPushSubjectBackToDefault(t *testing.T) {
 	assert.Equal(t, settings.DefaultWebPushSubject, updated.WebPushSubjectOrDefault())
 }
 
+// TestUpdateJikkyoChannels は、実況のチャンネルの対応を、書いたサービスだけ変え、10 進のキーにそろえ、正しくない対応を拒むことを確かめる (#1869)。
+func TestUpdateJikkyoChannels(t *testing.T) {
+	t.Parallel()
+
+	// terrestrialKey は、地上波のサービスの、10 進のキー。
+	const terrestrialKey = "32736:1024"
+	// bsKey は、BS のサービスのキー。
+	const bsKey = "4:101"
+
+	tests := []struct {
+		name    string
+		changes []map[string]*string
+		want    map[string]string
+		wantErr error
+	}{
+		{
+			name:    "足して、書いていないサービスは変えない",
+			changes: []map[string]*string{{bsKey: new("jk101")}, {terrestrialKey: new("jk1")}},
+			want:    map[string]string{bsKey: "jk101", terrestrialKey: "jk1"},
+		},
+		{
+			name:    "nil で消す",
+			changes: []map[string]*string{{bsKey: new("jk101"), "4:103": new("jk103")}, {bsKey: nil}},
+			want:    map[string]string{"4:103": "jk103"},
+		},
+		{
+			name:    "16 進のキーは 10 進にそろえる",
+			changes: []map[string]*string{{"0x7FE0:0x400": new("jk1")}},
+			want:    map[string]string{terrestrialKey: "jk1"},
+		},
+		{name: "キーの区切りがない", changes: []map[string]*string{{"4-101": new("jk101")}}, wantErr: settings.ErrInvalidSettings},
+		{name: "ID が範囲の外", changes: []map[string]*string{{"65536:101": new("jk101")}}, wantErr: settings.ErrInvalidSettings},
+		{name: "チャンネルが jk で始まらない", changes: []map[string]*string{{bsKey: new("101")}}, wantErr: settings.ErrInvalidSettings},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := newDB(t)
+			var err error
+			for _, changes := range tt.changes {
+				if _, err = newStore().Update(t.Context(), db, audit.System("test"), &settings.Changes{JikkyoChannels: changes}); err != nil {
+					break
+				}
+			}
+			loaded, loadErr := settings.Load(t.Context(), db)
+			require.NoError(t, loadErr)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, loaded.JikkyoChannels, "rejected changes are not saved")
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, loaded.JikkyoChannels)
+		})
+	}
+}
+
 // TestUpdateConcurrently は、違う項目を同時に変えても、どちらの変更も失わないことを確かめる。
 func TestUpdateConcurrently(t *testing.T) {
 	t.Parallel()

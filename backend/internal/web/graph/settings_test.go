@@ -271,6 +271,38 @@ func TestMovedSystemSettings(t *testing.T) {
 	require.Empty(t, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{fieldCaptionThreads: 2, "sleepControlEnabled": true}}, &updated))
 	assert.True(t, updated.UpdateSystemSettings.HIBPEnabled, "the rejected change is not saved")
 	assert.Equal(t, 2, updated.UpdateSystemSettings.CaptionThreads)
+
+	// 実況のチャンネルの対応は、書いたサービスだけを変え、ネットワーク ID とサービス ID の順に返す。同じサービスを 2 度書くと拒む。
+	const (
+		fieldJikkyoChannels = "jikkyoChannels"
+		fieldChannelID      = "channelId"
+	)
+	// row は、実況のチャンネルの対応の変更の 1 行。
+	row := func(networkID, serviceID int, channelID any) map[string]any {
+		return map[string]any{"networkId": networkID, "serviceId": serviceID, fieldChannelID: channelID}
+	}
+	const updateJikkyo = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) {
+		jikkyoChannels { networkId serviceId channelId } } }`
+	type channel struct {
+		NetworkID int    `json:"networkId"`
+		ServiceID int    `json:"serviceId"`
+		ChannelID string `json:"channelId"`
+	}
+	var channels struct {
+		UpdateSystemSettings struct {
+			JikkyoChannels []channel `json:"jikkyoChannels"`
+		} `json:"updateSystemSettings"`
+	}
+	require.Empty(t, admin.query(t, updateJikkyo, map[string]any{varInput: map[string]any{fieldJikkyoChannels: []map[string]any{
+		row(32736, 1024, "jk2"), row(4, 101, "jk103"),
+	}}}, &channels))
+	require.Empty(t, admin.query(t, updateJikkyo, map[string]any{varInput: map[string]any{fieldJikkyoChannels: []map[string]any{
+		row(32736, 1024, nil),
+	}}}, &channels))
+	assert.Equal(t, []channel{{NetworkID: 4, ServiceID: 101, ChannelID: "jk103"}}, channels.UpdateSystemSettings.JikkyoChannels)
+	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateJikkyo, map[string]any{varInput: map[string]any{fieldJikkyoChannels: []map[string]any{
+		row(4, 101, "jk3"), row(4, 101, nil),
+	}}}, nil))
 }
 
 type drcsReplacement struct {

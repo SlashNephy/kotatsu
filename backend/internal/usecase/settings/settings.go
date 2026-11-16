@@ -21,6 +21,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/reserve"
 )
 
@@ -143,6 +144,9 @@ type System struct {
 	SleepControlEnabled bool
 	// CaptionThreads は、字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0 なら、CPU の数から決める。
 	CaptionThreads int
+	// JikkyoChannels は、同梱した対応表に重ねる、サービスとニコニコ実況のチャンネルの対応 (設計書 7.4、#1869)。
+	// キーは「ネットワーク ID:サービス ID」、値は jk1 などの実況のチャンネルの ID。
+	JikkyoChannels map[string]string
 	// UpdatedAt は、最後に変えた日時。一度も変えていなければ nil。
 	UpdatedAt *time.Time
 }
@@ -269,6 +273,8 @@ type Changes struct {
 	ThumbnailPreviewsEnabled *bool
 	SleepControlEnabled      *bool
 	CaptionThreads           *int
+	// JikkyoChannels は、実況のチャンネルの対応の変更。「ネットワーク ID:サービス ID」から、チャンネルの ID (nil なら消す) へ。書いていないサービスは変えない。
+	JikkyoChannels map[string]*string
 }
 
 // Load は、全体の設定を返す。一度も変えていなければ、既定値を返す。
@@ -521,6 +527,10 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 		if err != nil {
 			return err
 		}
+		jikkyoEncoded, err := encodeJikkyoChannels(current.JikkyoChannels, changes.JikkyoChannels)
+		if err != nil {
+			return err
+		}
 		saved, err := q.UpdateSystemSettings(ctx, sqlc.UpdateSystemSettingsParams{
 			RecordingDefaults: encoded, ArchiveRetentionDays: retention.archive, NotificationRetentionDays: retention.notification, WatchProgressRetentionDays: retention.watchProgress,
 			NetworkActivityEnabled: networkEnabled, NetworkActivityEnabledAt: networkEnabledAt, NetworkActivityRetentionDays: retention.networkActivity,
@@ -546,6 +556,7 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 			ThumbnailPreviewsEnabled:               valueOr(changes.ThumbnailPreviewsEnabled, current.ThumbnailPreviewsEnabled),
 			SleepControlEnabled:                    valueOr(changes.SleepControlEnabled, current.SleepControlEnabled),
 			CaptionThreads:                         retention.captionThreads,
+			JikkyoChannels:                         jikkyoEncoded,
 			Now:                                    now,
 		})
 		if err != nil {
@@ -591,6 +602,8 @@ func (s *Store) Update(ctx context.Context, db Database, actor *audit.Actor, cha
 				"thumbnailPreviewsEnabled":               change(current.ThumbnailPreviewsEnabled, updated.ThumbnailPreviewsEnabled),
 				"sleepControlEnabled":                    change(current.SleepControlEnabled, updated.SleepControlEnabled),
 				"captionThreads":                         change(current.CaptionThreads, updated.CaptionThreads),
+				// 対応は多くなりうるので、監査ログには、変えたサービスだけを残す。
+				"jikkyoChannels": changedEntries(current.JikkyoChannels, updated.JikkyoChannels, changes.JikkyoChannels),
 			},
 			// 送信元は、操作者 (actor) に持たせる。
 			SourceIP:  netip.Addr{},
@@ -781,6 +794,7 @@ func defaults() *System {
 		ThumbnailPreviewsEnabled: true,
 		SleepControlEnabled:      true,
 		CaptionThreads:           0,
+		JikkyoChannels:           map[string]string{},
 		UpdatedAt:                nil,
 	}
 }
@@ -798,6 +812,10 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 	replacements := map[string]string{}
 	if err := json.Unmarshal(row.DrcsReplacements, &replacements); err != nil {
 		return nil, fmt.Errorf("failed to decode the DRCS replacements: %w", err)
+	}
+	jikkyoChannels := map[string]string{}
+	if err := json.Unmarshal(row.JikkyoChannels, &jikkyoChannels); err != nil {
+		return nil, fmt.Errorf("failed to decode the jikkyo channels: %w", err)
 	}
 
 	return &System{
@@ -828,6 +846,7 @@ func systemOf(row *sqlc.SystemSetting) (*System, error) {
 		ThumbnailPreviewsEnabled: row.ThumbnailPreviewsEnabled,
 		SleepControlEnabled:      row.SleepControlEnabled,
 		CaptionThreads:           int(row.CaptionThreads),
+		JikkyoChannels:           jikkyoChannels,
 		UpdatedAt:                &row.UpdatedAt,
 	}, nil
 }
@@ -871,6 +890,58 @@ func encodeDRCSReplacements(current map[string]string, changes map[string]*strin
 	}
 
 	return encoded, nil
+}
+
+// maxJikkyoChannels は、実況のチャンネルの対応に書ける数の上限 (#1869)。サービスの数より十分に多くする。
+const maxJikkyoChannels = 1000
+
+// encodeJikkyoChannels は、実況のチャンネルの対応に changes を当てたあとの、保存する JSON を返す (#1869)。
+// changes は、「ネットワーク ID:サービス ID」から、チャンネルの ID (nil なら対応から消す) への表。書いていないサービスは変えない。
+// 対応を丸ごと送らせないのは、別の管理者が同時に変えたものを、古い対応で上書きして消さないためである。
+func encodeJikkyoChannels(current map[string]string, changes map[string]*string) ([]byte, error) {
+	channels := maps.Clone(current)
+	if channels == nil {
+		channels = map[string]string{}
+	}
+	for key, id := range changes {
+		networkID, serviceID, ok := jikkyo.ParseServiceKey(key)
+		if !ok || networkID < 0 || networkID > 0xFFFF || serviceID < 0 || serviceID > 0xFFFF {
+			return nil, fmt.Errorf("%w: %q is not a pair of a network ID and a service ID", ErrInvalidSettings, key)
+		}
+		// 同じサービスを別の書き方 (0x などの書き方) で 2 つ持たないよう、10 進にそろえる。
+		normalized := fmt.Sprintf("%d:%d", networkID, serviceID)
+		if id == nil {
+			delete(channels, normalized)
+
+			continue
+		}
+		if !jikkyo.IsChannelID(*id) {
+			return nil, fmt.Errorf("%w: the jikkyo channel of %s must be like jk1", ErrInvalidSettings, normalized)
+		}
+		channels[normalized] = *id
+	}
+	if len(channels) > maxJikkyoChannels {
+		return nil, fmt.Errorf("%w: jikkyoChannels must have at most %d entries", ErrInvalidSettings, maxJikkyoChannels)
+	}
+	encoded, err := json.Marshal(channels)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode the jikkyo channels: %w", err)
+	}
+
+	return encoded, nil
+}
+
+// changedEntries は、監査ログに残す、変えた実況のチャンネルの対応の、変える前と後の値。消した対応は、後を空にする。
+func changedEntries(current, updated map[string]string, changes map[string]*string) map[string]any {
+	result := make(map[string]any, len(changes))
+	for key := range changes {
+		if networkID, serviceID, ok := jikkyo.ParseServiceKey(key); ok {
+			key = fmt.Sprintf("%d:%d", networkID, serviceID)
+		}
+		result[key] = change(current[key], updated[key])
+	}
+
+	return result
 }
 
 // drcsChanges は、監査ログに残す、変えた外字の、変える前と後の文字。消した外字は、後を空にする。

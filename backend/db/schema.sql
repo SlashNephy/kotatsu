@@ -414,6 +414,8 @@ CREATE TABLE system_settings (
   sleep_control_enabled boolean NOT NULL DEFAULT true,
   -- 字幕の自動生成で whisper-cli に使わせるスレッドの数 (#1682)。0 なら、nekonote の CPU の数の半分 (1〜8) にする。
   caption_threads integer NOT NULL DEFAULT 0 CHECK (caption_threads BETWEEN 0 AND 256),
+  -- 同梱した対応表に重ねる、サービスとニコニコ実況のチャンネルの対応 (設計書 7.4、#1869)。{"ネットワーク ID:サービス ID": "jk1"} の形。
+  jikkyo_channels jsonb NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL
 );
 

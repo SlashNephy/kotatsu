@@ -40,7 +40,6 @@ type Config struct {
 	// Captions は、録画の音声から字幕を自動生成するのに使う whisper.cpp とモデルの場所 (設計書 6.1、#1682)。
 	Captions Captions `yaml:"captions"`
 	Kyusu    Kyusu    `yaml:"kyusu"`
-	Jikkyo   Jikkyo   `yaml:"jikkyo"`
 	// AnimeLinking は、アニメの番組と作品を結びつける連携の設定 (設計書 3.8)。
 	AnimeLinking AnimeLinking `yaml:"anime_linking"`
 	// AnimeRecords は、見たアニメを Annict と AniList に記録する設定 (#927)。
@@ -357,14 +356,6 @@ func (a *AnimeRecords) validate() []error {
 	return errs
 }
 
-// Jikkyo は、ニコニコ実況の設定 (設計書 7.4)。
-type Jikkyo struct {
-	// Channels は、同梱した対応表に重ねる、サービスと実況のチャンネルの対応。
-	// キーは「ネットワーク ID:サービス ID」、値は jk1 などの実況のチャンネルの ID。
-	// 環境変数では、4:101=jk101,32736:1024=jk1 のようにカンマで区切って渡す。
-	Channels map[string]string `yaml:"channels"`
-}
-
 // Kyusu は、kyusu のトランスコードの設定 (設計書 7.3)。
 // kyusu は FFmpeg と tsreadex を使うので、FFmpeg の入ったイメージ (-ffmpeg) を使うか、PATH に入れる。
 type Kyusu struct {
@@ -499,7 +490,6 @@ func Default() *Config {
 		},
 		Captions:     Captions{WhisperCommand: "", WhisperModel: "", VADCommand: "", VADModel: ""},
 		Kyusu:        Kyusu{Encoder: EncoderX264, VAAPIDevice: "/dev/dri/renderD128", WorkDir: ""},
-		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
 		TMDb:         TMDb{URL: ""},

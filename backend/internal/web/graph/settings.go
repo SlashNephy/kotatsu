@@ -1,8 +1,10 @@
 package graph
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/settings"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
@@ -84,6 +87,7 @@ func systemSettingsOf(system *settings.System) *model.SystemSettings {
 		ThumbnailPreviewsEnabled: system.ThumbnailPreviewsEnabled,
 		SleepControlEnabled:      system.SleepControlEnabled,
 		CaptionThreads:           system.CaptionThreads,
+		JikkyoChannels:           jikkyoChannelsOf(system.JikkyoChannels),
 		UpdatedAt:                system.UpdatedAt,
 	}
 }
@@ -111,6 +115,39 @@ func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string
 	}
 
 	return replacements, nil
+}
+
+// jikkyoChannelsOf は、実況のチャンネルの対応を、ネットワーク ID とサービス ID の順に並べた GraphQL の形にする (#1869)。
+// 読めないキーは除く。保存するときに確かめているので、ふつうはない。
+func jikkyoChannelsOf(channels map[string]string) []*model.JikkyoChannelOverride {
+	result := make([]*model.JikkyoChannelOverride, 0, len(channels))
+	for key, id := range channels {
+		networkID, serviceID, ok := jikkyo.ParseServiceKey(key)
+		if !ok {
+			continue
+		}
+		result = append(result, &model.JikkyoChannelOverride{NetworkID: int(networkID), ServiceID: int(serviceID), ChannelID: id})
+	}
+	slices.SortFunc(result, func(a, b *model.JikkyoChannelOverride) int {
+		return cmp.Or(cmp.Compare(a.NetworkID, b.NetworkID), cmp.Compare(a.ServiceID, b.ServiceID))
+	})
+
+	return result
+}
+
+// toJikkyoChannels は、実況のチャンネルの対応の変更の入力を、「ネットワーク ID:サービス ID」からチャンネルの ID (nil なら消す) への表にする。
+// 同じサービスが 2 度出てきたら、どちらを採るか決められないので拒む。
+func toJikkyoChannels(input []*model.JikkyoChannelOverrideInput) (map[string]*string, error) {
+	channels := make(map[string]*string, len(input))
+	for _, row := range input {
+		key := fmt.Sprintf("%d:%d", row.NetworkID, row.ServiceID)
+		if _, ok := channels[key]; ok {
+			return nil, NewError(CodeBadUserInput, "jikkyoChannels has a duplicated service: "+key)
+		}
+		channels[key] = row.ChannelID
+	}
+
+	return channels, nil
 }
 
 // toRuleChanges は、ルールの既定値の入力を、変える項目にする。

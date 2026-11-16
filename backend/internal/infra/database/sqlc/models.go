@@ -980,6 +980,7 @@ type SystemSetting struct {
 	ThumbnailPreviewsEnabled               bool
 	SleepControlEnabled                    bool
 	CaptionThreads                         int32
+	JikkyoChannels                         []byte
 	UpdatedAt                              time.Time
 }
 

@@ -369,8 +369,6 @@ func TestLoadAppliesDefaultsAndOverrides(t *testing.T) {
 			}
 			// kyusu の設定は TestLoadKyusu で確かめるので、ここでは既定値のままであることだけを確かめる。
 			tt.want.Kyusu = config.Kyusu{Encoder: config.EncoderX264, VAAPIDevice: defaultVAAPIDevice, WorkDir: ""}
-			// jikkyo の設定は TestLoadJikkyo で確かめる。
-			tt.want.Jikkyo = config.Jikkyo{Channels: map[string]string{}}
 			// 画面に移した項目を書いていないケースでは、無視した項目はない。
 			if tt.want.Ignored == nil {
 				tt.want.Ignored = []config.IgnoredSetting{}
@@ -566,41 +564,6 @@ func TestLoadTimeZone(t *testing.T) {
 			location, err := cfg.Location()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, location.String())
-		})
-	}
-}
-
-func TestLoadJikkyo(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		yaml string
-		env  map[string]string
-		want map[string]string
-	}{
-		{name: "既定では、同梱した対応表だけを使う", env: map[string]string{envKeyURL: envURL}, want: map[string]string{}},
-		{
-			name: "yaml", yaml: "jikkyo:\n  channels:\n    \"4:101\": jk101\n",
-			env:  map[string]string{envKeyURL: envURL},
-			want: map[string]string{"4:101": "jk101"},
-		},
-		{
-			name: "env", env: map[string]string{envKeyURL: envURL, "KOTATSU_JIKKYO_CHANNELS": "4:101=jk101, 32736:1024=jk1"},
-			want: map[string]string{"4:101": "jk101", "32736:1024": "jk1"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			path := ""
-			if tt.yaml != "" {
-				path = writeFile(t, t.TempDir(), "config.yaml", tt.yaml)
-			}
-			cfg, err := config.Load(path, lookup(tt.env))
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, cfg.Jikkyo.Channels)
 		})
 	}
 }
@@ -1318,6 +1281,16 @@ func TestLoadIgnoresMovedSettings(t *testing.T) {
 				{Key: "captions.threads", Env: "", Screen: recordingScreen},
 			},
 			wantWhisperCommand: "/opt/whisper/whisper-cli", wantHIBPURL: "https://hibp.example.com",
+		},
+		{
+			// 実況のチャンネルの対応は、対応 (map) の形のまま無視する。
+			name: "jikkyo channels in the config file and the environment",
+			yaml: "jikkyo:\n  channels:\n    \"4:101\": jk101\n",
+			env:  map[string]string{envKeyURL: envURL, "KOTATSU_JIKKYO_CHANNELS": "4:101=jk101, 32736:1024=jk1"},
+			wantIgnored: []config.IgnoredSetting{
+				{Key: "jikkyo.channels", Env: "", Screen: "/admin/services"},
+				{Key: "jikkyo.channels", Env: "KOTATSU_JIKKYO_CHANNELS", Screen: "/admin/services"},
+			},
 		},
 		{
 			// 値を書かずに節だけを残していても、起動を止めない。

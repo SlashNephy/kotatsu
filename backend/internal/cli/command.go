@@ -795,7 +795,7 @@ func newAPI(ctx context.Context, logger *slog.Logger, deps *Deps, watch func(con
 		return nil, err
 	}
 	// 実況のチャンネルの対応表と、NX-Jikkyo と過去ログ API への問い合わせ (設計書 7.4)。
-	jikkyoParts, err := newJikkyoParts(deps)
+	jikkyoParts, err := newJikkyoParts(deps, logger)
 	if err != nil {
 		return nil, err
 	}

@@ -22,6 +22,7 @@ Kotatsuの設定は、YAMLのファイルか、`KOTATSU_`で始まる環境変�
 | `thumbnail.disable_preview` | `KOTATSU_THUMBNAIL_DISABLE_PREVIEW` | 録画の既定値（`/admin/recording`）の「後処理」。入れるか切るかが逆になり、「シークバーのプレビュー画像を作る」を切ります |
 | `power.manage_sleep` | `KOTATSU_POWER_MANAGE_SLEEP` | 録画の既定値（`/admin/recording`）の「OSのスリープ」 |
 | `captions.threads` | `KOTATSU_CAPTIONS_THREADS` | 録画の既定値（`/admin/recording`）の「後処理」 |
+| `jikkyo.channels` | `KOTATSU_JIKKYO_CHANNELS` | サービス（`/admin/services`）の「ニコニコ実況のチャンネル」。サービスごとに`jk1`のようなチャンネルを入れます |
 
 ## 設定の読み込み
 
@@ -390,32 +391,6 @@ kyusuが、ライブ視聴と録画の再生のために、サーバー側でト
 | `nvenc` | NVIDIA NVENC |
 
 KubernetesでPodを動かすときは、`kyusu.work_dir`にemptyDirのパスを渡してください。
-
-### jikkyo
-
-ニコニコ実況のコメントを、ライブ視聴と録画の再生で表示するための設定です。
-実況は既定では使いません。管理者が管理画面の「連携」で有効にし、ユーザーも設定で有効にしたときだけ、外部のサービスと通信します。
-サービスと実況のチャンネルの対応表は、KonomiTVのものを同梱しています。
-
-| YAML | 環境変数 | 既定値 | 内容 |
-| --- | --- | --- | --- |
-| `jikkyo.channels` | `KOTATSU_JIKKYO_CHANNELS` | なし | 同梱した対応表に重ねる、サービスと実況のチャンネルの対応 |
-
-キーには「ネットワークID:サービスID」を、値には`jk1`のような実況のチャンネルのIDを書きます。
-同梱した対応表と同じサービスを書くと、こちらを優先します。
-
-```yaml
-jikkyo:
-  channels:
-    "4:101": jk101
-    "32736:1024": jk1
-```
-
-環境変数では、カンマで区切って渡します。
-
-```sh
-KOTATSU_JIKKYO_CHANNELS=4:101=jk101,32736:1024=jk1
-```
 
 ### anime_linking
 
