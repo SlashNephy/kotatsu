@@ -235,13 +235,13 @@ func TestUpdateMovedSettings(t *testing.T) {
 				assert.Equal(t, 4, got.CaptionThreads)
 			},
 			wantAudit: map[string]map[string]any{
-				"auditRetentionDays":           {"from": float64(365), "to": float64(30)},
-				"auditClientInfoRetentionDays": {"from": float64(90), "to": float64(7)},
-				"hibpEnabled":                  {"from": false, "to": true},
-				"webPushSubject":               {"from": "", "to": "mailto:admin@kotatsu.example"},
-				"thumbnailPreviewsEnabled":     {"from": true, "to": false},
-				"sleepControlEnabled":          {"from": true, "to": false},
-				"captionThreads":               {"from": float64(0), "to": float64(4)},
+				"auditRetentionDays":           fromTo(float64(365), float64(30)),
+				"auditClientInfoRetentionDays": fromTo(float64(90), float64(7)),
+				"hibpEnabled":                  fromTo(false, true),
+				"webPushSubject":               fromTo("", "mailto:admin@kotatsu.example"),
+				"thumbnailPreviewsEnabled":     fromTo(true, false),
+				"sleepControlEnabled":          fromTo(true, false),
+				"captionThreads":               fromTo(float64(0), float64(4)),
 			},
 		},
 	}
@@ -268,6 +268,11 @@ func TestUpdateMovedSettings(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fromTo は、監査ログの変更の要約に残る、変える前と後の値。
+func fromTo(from, to any) map[string]any {
+	return map[string]any{"from": from, "to": to}
 }
 
 // TestUpdateWebPushSubjectBackToDefault は、Web Push の送り手の連絡先を空にすると、既定の URL に戻ることを確かめる (#1869)。

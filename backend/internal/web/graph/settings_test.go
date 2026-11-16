@@ -209,6 +209,8 @@ func TestMovedSystemSettings(t *testing.T) {
 		updateMoved  = `mutation($input: SystemSettingsInput!) { updateSystemSettings(input: $input) { auditRetentionDays
 			auditClientInfoRetentionDays hibpEnabled webPushSubject thumbnailPreviewsEnabled sleepControlEnabled captionThreads } }`
 		subject = "mailto:admin@kotatsu.example"
+		// fieldCaptionThreads は、字幕の自動生成のスレッドの数の項目。
+		fieldCaptionThreads = "captionThreads"
 	)
 	type moved struct {
 		AuditRetentionDays           int     `json:"auditRetentionDays"`
@@ -237,7 +239,7 @@ func TestMovedSystemSettings(t *testing.T) {
 	}
 	require.Empty(t, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{
 		"auditRetentionDays": 30, "auditClientInfoRetentionDays": 7, "hibpEnabled": true, "webPushSubject": subject,
-		"thumbnailPreviewsEnabled": false, "sleepControlEnabled": false, "captionThreads": 4,
+		"thumbnailPreviewsEnabled": false, "sleepControlEnabled": false, fieldCaptionThreads: 4,
 	}}, &updated))
 	assert.Equal(t, moved{
 		AuditRetentionDays: 30, AuditClientInfoRetentionDays: 7, HIBPEnabled: true, WebPushSubject: new(subject),
@@ -258,7 +260,7 @@ func TestMovedSystemSettings(t *testing.T) {
 
 	// 正しくない値は、BAD_USER_INPUT を返す。
 	for _, input := range []map[string]any{
-		{"auditRetentionDays": 0}, {"auditClientInfoRetentionDays": 3651}, {"webPushSubject": "admin@kotatsu.example"}, {"captionThreads": -1},
+		{"auditRetentionDays": 0}, {"auditClientInfoRetentionDays": 3651}, {"webPushSubject": "admin@kotatsu.example"}, {fieldCaptionThreads: -1},
 	} {
 		assert.Equal(t, []string{codeBadUserInput}, admin.query(t, updateMoved, map[string]any{varInput: input}, nil), "%v", input)
 	}
@@ -266,7 +268,7 @@ func TestMovedSystemSettings(t *testing.T) {
 	// Have I Been Pwned への照会は、外部へ問い合わせ始めるかどうかを決めるので、直前の再認証を求める。ほかの項目は求めない。
 	f.clock.Advance(auth.RecentAuthenticationWindow + time.Second)
 	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{"hibpEnabled": false}}, nil))
-	require.Empty(t, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{"captionThreads": 2, "sleepControlEnabled": true}}, &updated))
+	require.Empty(t, admin.query(t, updateMoved, map[string]any{varInput: map[string]any{fieldCaptionThreads: 2, "sleepControlEnabled": true}}, &updated))
 	assert.True(t, updated.UpdateSystemSettings.HIBPEnabled, "the rejected change is not saved")
 	assert.Equal(t, 2, updated.UpdateSystemSettings.CaptionThreads)
 }
