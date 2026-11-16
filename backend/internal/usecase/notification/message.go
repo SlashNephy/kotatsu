@@ -179,7 +179,11 @@ func animeRecordMessage(kind domain.NotificationKind, name string, payload map[s
 
 // lineupChangedMessage は、放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったことを知らせる文を作る (#1519)。
 // 衛星はネットワーク全体の変化を、地上波 (kind が GR) はチャンネル channel で受かる局の食い違いを書く。数が 0 の項目は書かない。
+// 続けて選局できないチャンネル (unreachable) があれば、それを知らせる文にする。
 func lineupChangedMessage(kind, channel string, payload map[string]any) string {
+	if channels := texts(payload["unreachable"]); len(channels) > 0 {
+		return unreachableMessage(kind, channels)
+	}
 	counts := make([]string, 0, 2)
 	for _, item := range []struct{ key, label string }{{"added", "新しい局"}, {"removed", "終わった局"}} {
 		if n := count(payload[item.key]); n > 0 {
@@ -203,6 +207,41 @@ func lineupChangedMessage(kind, channel string, payload map[string]any) string {
 	}
 
 	return kind + " のチャンネルが放送で変わりました" + detail + "。チューナーサーバーのチャンネルをスキャンし直してください"
+}
+
+// unreachableMessage は、チャンネル種別 kind のチャンネル channels の選局が続けて失敗していることを知らせる文を作る (#1519)。
+func unreachableMessage(kind string, channels []string) string {
+	if kind == "GR" {
+		names := make([]string, 0, len(channels))
+		for _, channel := range channels {
+			names = append(names, channel+"ch")
+		}
+
+		return "地上波の " + strings.Join(names, "・") + " の選局が続けて失敗しています。" +
+			"周波数が変わったのなら、チューナーサーバーで地上波を再スキャンすれば選局できるようになります"
+	}
+
+	return kind + " の " + strings.Join(channels, "・") + " の選局が続けて失敗しています。" +
+		"放送で変わったのなら、チューナーサーバーのチャンネルをスキャンし直せば選局できるようになります"
+}
+
+// texts は、payload の文字列の配列を読む。DB から読み直した payload では []any で、作ったばかりの payload では []string で届く。
+func texts(value any) []string {
+	switch values := value.(type) {
+	case []string:
+		return values
+	case []any:
+		result := make([]string, 0, len(values))
+		for _, v := range values {
+			if text, ok := v.(string); ok {
+				result = append(result, text)
+			}
+		}
+
+		return result
+	default:
+		return []string{}
+	}
 }
 
 // count は、payload の数を読む。DB から読み直した payload では float64 で、作ったばかりの payload では int で届く。

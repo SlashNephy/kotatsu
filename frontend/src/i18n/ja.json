@@ -1052,6 +1052,30 @@
       "ascending": "昇順",
       "descending": "降順"
     },
+    "groups": {
+      "label": "グループ",
+      "none": "その他（グループなし）",
+      "others": "その他",
+      "new": "新しいグループ…",
+      "newName": "新しいグループの名前",
+      "name": "グループの名前",
+      "create": "グループを作る",
+      "createButton": "グループを作る",
+      "createTitle": "グループを作る",
+      "nameInvalid": "空の名前と、ほかのグループと同じ名前にはできません",
+      "error": "グループを変えられませんでした",
+      "menu": "{{name}}の操作",
+      "rename": "名前を変える",
+      "renameTitle": "グループの名前を変える",
+      "moveUp": "上へ移す",
+      "moveDown": "下へ移す",
+      "delete": "グループを削除",
+      "deleteTitle": "グループを削除",
+      "deleteConfirm": "「{{name}}」を削除します。中のルールは消さず、「その他」に移します",
+      "moveSelected": "選んだ{{count}}件をグループへ移す",
+      "moveTitle": "ルールをグループへ移す",
+      "moveTo": "移す先"
+    },
     "cancel": "キャンセル",
     "enableSelected": "選んだ{{count}}件を有効にする",
     "disableSelected": "選んだ{{count}}件を無効にする",
@@ -1062,7 +1086,8 @@
       "enabled": "{{count}}件のルールを有効にしました",
       "disabled": "{{count}}件のルールを無効にしました",
       "deleted": "{{count}}件のルールを削除しました",
-      "skipped": "（{{count}}件は見つからなかったため飛ばしました）"
+      "skipped": "（{{count}}件は見つからなかったため飛ばしました）",
+      "moved": "{{count}}件のルールを移しました"
     },
     "upcomingReservations": "これからの予約 {{count}} 件",
     "recordings": "録った録画",
@@ -1259,6 +1284,7 @@
       "CANCELLED": "録画を取り消しました",
       "RECORDER_UNAVAILABLE": "録画を始める時刻に、録画できる mikan がいませんでした",
       "TUNER_PREEMPTED": "録画中に、EDCB の予約にチューナーを取られ、つなぎ直せませんでした",
+      "TUNING_REFUSED": "チューナーサーバーが選局を断りました（チャンネルがないか、選局に失敗しました）",
       "unknown": "録画に失敗しました"
     },
     "quality": "録画の品質",
@@ -1863,7 +1889,7 @@
       "annictChannel": "Annictのチャンネル",
       "lineup": {
         "title": "チャンネルの変更",
-        "description": "放送の衛星の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
+        "description": "放送の局の顔ぶれが、チューナーサーバーのチャンネルと食い違ったか、選局が続けて失敗しているチャンネルがあるという知らせです。チューナーサーバーでチャンネルをスキャンし直してください。チューナーサーバーにわざと入れていない局があれば、知らせは出続けます。",
         "occurredAt": "日時",
         "message": "内容"
       }

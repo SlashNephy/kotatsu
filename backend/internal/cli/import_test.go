@@ -365,3 +365,27 @@ func TestSourceWithPassword(t *testing.T) {
 		})
 	}
 }
+
+// TestImportFilesArguments は、kotatsu import files が、取り込むときに --user を求め、POOL:DIR の形でない引数を拒むことを確かめる (#1734)。
+func TestImportFilesArguments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "--user がない", args: []string{"main:import"}, wantErr: "--user is required to import; run with --dry-run to only see the plan"},
+		{name: "ディレクトリの区切りがない", args: []string{"main", flagDryRun}, wantErr: `invalid POOL:DIR "main": must be POOL:DIR`},
+		{name: "プールがない", args: []string{":import", flagDryRun}, wantErr: `invalid POOL:DIR ":import": must be POOL:DIR`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := cli.NewCommand(importOptions(t))
+			cmd.SetArgs(append([]string{"import", "files"}, tt.args...))
+			require.EqualError(t, cmd.ExecuteContext(t.Context()), tt.wantErr)
+		})
+	}
+}

@@ -1085,6 +1085,30 @@
       "ascending": "Ascending",
       "descending": "Descending"
     },
+    "groups": {
+      "label": "Group",
+      "none": "Others (no group)",
+      "others": "Others",
+      "new": "New group…",
+      "newName": "Name of the new group",
+      "name": "Group name",
+      "create": "Create group",
+      "createButton": "Create group",
+      "createTitle": "Create a group",
+      "nameInvalid": "The name must not be empty or the same as another group",
+      "error": "Could not change the group",
+      "menu": "Actions for {{name}}",
+      "rename": "Rename",
+      "renameTitle": "Rename the group",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "delete": "Delete group",
+      "deleteTitle": "Delete the group",
+      "deleteConfirm": "Delete \"{{name}}\". The rules in it are kept and moved to Others.",
+      "moveSelected": "Move {{count}} selected to a group",
+      "moveTitle": "Move rules to a group",
+      "moveTo": "Move to"
+    },
     "cancel": "Cancel",
     "enableSelected": "Enable {{count}} selected rules",
     "disableSelected": "Disable {{count}} selected rules",
@@ -1103,7 +1127,10 @@
       "deleted_one": "Deleted {{count}} rule",
       "deleted_other": "Deleted {{count}} rules",
       "skipped_one": "({{count}} was skipped because it could not be found)",
-      "skipped_other": "({{count}} were skipped because they could not be found)"
+      "skipped_other": "({{count}} were skipped because they could not be found)",
+      "moved": "Moved {{count}} rules",
+      "moved_one": "Moved {{count}} rule",
+      "moved_other": "Moved {{count}} rules"
     },
     "upcomingReservations": "{{count}} upcoming reservations",
     "recordings": "Recordings",
@@ -1310,6 +1337,7 @@
       "CANCELLED": "The recording was cancelled",
       "RECORDER_UNAVAILABLE": "No mikan was available to record when the recording was due to start",
       "TUNER_PREEMPTED": "A reservation in EDCB took the tuner during the recording, and Kotatsu could not reconnect",
+      "TUNING_REFUSED": "The tuner server refused to tune (the channel does not exist, or tuning failed)",
       "unknown": "Recording failed"
     },
     "quality": "Recording quality",
@@ -1952,7 +1980,7 @@
       "annictChannel": "Annict channel",
       "lineup": {
         "title": "Channel lineup changes",
-        "description": "The satellite stations on the air no longer match the channels of the tuner server. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
+        "description": "The stations on the air no longer match the channels of the tuner server, or some channels keep failing to tune. Rescan the channels on the tuner server. Stations you left out of the tuner server on purpose keep showing up here.",
         "occurredAt": "Time",
         "message": "Details"
       }

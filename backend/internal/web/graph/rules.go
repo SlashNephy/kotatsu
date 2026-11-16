@@ -69,6 +69,16 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 	if err != nil {
 		return nil, err
 	}
+	// groupId を省いたら、今のグループを残す。null なら、どのグループにも入れない (#1493)。
+	groupGlobalID, groupGiven := in.GroupID.ValueOK()
+	var groupID *uuid.UUID
+	if groupGiven && groupGlobalID != nil {
+		parsed, err := parseRuleGroupID(*groupGlobalID)
+		if err != nil {
+			return nil, err
+		}
+		groupID = &parsed
+	}
 
 	return &rule.Input{
 		Name:                in.Name,
@@ -83,6 +93,8 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 		FollowEventRelay:    in.FollowEventRelay,
 		BundleSameEpisodes:  in.BundleSameEpisodes,
 		SkipEarlierEpisodes: in.SkipEarlierEpisodes,
+		GroupID:             groupID,
+		KeepGroup:           !groupGiven,
 	}, nil
 }
 
@@ -178,6 +190,7 @@ func toRule(r *rule.Rule) *model.Rule {
 		CreatedBy:           nil,
 		UpdatedAt:           r.UpdatedAt,
 		UpdatedBy:           nil,
+		GroupKey:            r.GroupID,
 	}
 }
 

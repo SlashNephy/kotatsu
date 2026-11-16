@@ -19,6 +19,7 @@ import {
 import {
   ArrowDownWideNarrow,
   ArrowUpNarrowWide,
+  FolderInput,
   ListChecks,
   Plus,
   Search,
@@ -34,24 +35,30 @@ import { useDataChanges } from '../../changes/DataChanges';
 import type { DataChannel } from '../../changes/dataChanges';
 import { EmptyState, ErrorBoundary, PageLoader, useDocumentTitle } from '../../futon';
 import { isUnauthenticated } from '../../relay/environment';
+import { loadCollapsedGroups, saveCollapsedGroups } from '../../rules/collapsedGroups';
 import {
   isFiltered,
   parseRuleListSearch,
   ruleReservationFilters,
+  ruleSections,
   ruleSortKeys,
   ruleStateFilters,
+  sectionKey,
   visibleRules,
   type RuleListSearch,
   type RuleReservationFilter,
   type RuleSortKey,
   type RuleStateFilter,
 } from '../../rules/listFilter';
+import { CreateRuleGroupButton, RuleGroupHeader } from '../../rules/RuleGroupHeader';
+import { RuleGroupSelect } from '../../rules/RuleGroupSelect';
 import { outOfValidity } from '../../rules/validity';
 import { WatchRuleList } from '../../watch/WatchRuleList';
 import type { rulesDeleteManyMutation } from './__generated__/rulesDeleteManyMutation.graphql';
 import type { rulesEnableMutation } from './__generated__/rulesEnableMutation.graphql';
 import type { rulesListQuery } from './__generated__/rulesListQuery.graphql';
 import type { rulesSetManyEnabledMutation } from './__generated__/rulesSetManyEnabledMutation.graphql';
+import type { rulesSetManyGroupMutation } from './__generated__/rulesSetManyGroupMutation.graphql';
 
 type RulesSearch = RuleListSearch & {
   // watch は、録画のルールの代わりに、自分の視聴ルールの一覧を出すかどうか (設計書 4.8)。
@@ -127,6 +134,10 @@ function Rules() {
           type
           displayName
         }
+        ruleGroups {
+          id
+          name
+        }
         rules {
           id
           name
@@ -143,6 +154,9 @@ function Rules() {
           createdAt
           updatedAt
           upcomingReservationCount
+          group {
+            id
+          }
         }
       }
     `,
@@ -184,24 +198,58 @@ function Rules() {
     update({ q: undefined, state: undefined, reservations: undefined });
   };
   const visible = visibleRules(data.rules, search, now);
+  // グループがあれば、グループごとの見出しに分ける (#1493)。並べ替えは、見出しの中で効く。
+  // 絞り込んでいないときは、ルールのないグループの見出しも出す。
+  const grouped = data.ruleGroups.length > 0;
+  const sections = ruleSections(visible, data.ruleGroups, !isFiltered(search));
+  // collapsed は、折りたたんだ見出しの鍵。端末に覚え、ルールを開いてから戻っても保つ。
+  const [collapsed, setCollapsed] = useState(loadCollapsedGroups);
+  // 探す語や絞り込みがあるときは、当たったルールを隠さないよう、すべての見出しを開く。
+  const collapsible = grouped && !isFiltered(search);
+  const isCollapsed = (key: string) => collapsible && collapsed.has(key);
+  const toggleSection = (key: string) => {
+    const next = new Set(collapsed);
+    if (!next.delete(key)) {
+      next.add(key);
+    }
+    setCollapsed(next);
+    saveCollapsedGroups(next);
+  };
+  // shown は、いま一覧に出しているルール。折りたたんだ見出しの下のルールは含めない。
+  const shown = sections
+    .filter((section) => !isCollapsed(sectionKey(section.group)))
+    .flatMap((section) => section.rules);
   const [toggleError, setToggleError] = useState(false);
   // selecting は、まとめて操作するルールを選んでいるかどうか。selected は、選んだルールの ID (#471)。
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // targets は、まとめて操作するルールの ID。選んだルールのうち、いま一覧に出しているものだけにする。
-  // 選んだ後に絞り込みを変えても、見えていないルールを操作しないためである。
-  const targets = visible.filter((rule) => selected.has(rule.id)).map((rule) => rule.id);
-  const allShownSelected = visible.length > 0 && targets.length === visible.length;
+  // 選んだ後に絞り込みを変えたり、見出しを折りたたんだりしても、見えていないルールを操作しないためである。
+  const targets = shown.filter((rule) => selected.has(rule.id)).map((rule) => rule.id);
+  const allShownSelected = shown.length > 0 && targets.length === shown.length;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // moving は、選んだルールをグループへ移すダイアログを開いているかどうか。moveTo は、移す先のグループ (null なら「その他」)。
+  const [moving, setMoving] = useState(false);
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  // namingGroup は、移すダイアログで新しいグループの名前を入れているかどうか。作る前に移すと「その他」へ移るので、その間は移させない。
+  const [namingGroup, setNamingGroup] = useState(false);
   // bulkResult は、まとめて行った操作の結果。
   const [bulkResult, setBulkResult] = useState<{
-    action: 'enabled' | 'disabled' | 'deleted';
+    action: 'enabled' | 'disabled' | 'deleted' | 'moved';
     processed: number;
     skipped: number;
   } | null>(null);
   const [setManyEnabled, settingMany] = useMutation<rulesSetManyEnabledMutation>(graphql`
     mutation rulesSetManyEnabledMutation($ids: [ID!]!, $enabled: Boolean!) {
       setRulesEnabled(ids: $ids, enabled: $enabled) {
+        processed
+        skipped
+      }
+    }
+  `);
+  const [setManyGroup, movingMany] = useMutation<rulesSetManyGroupMutation>(graphql`
+    mutation rulesSetManyGroupMutation($ids: [ID!]!, $groupId: ID) {
+      setRulesGroup(ids: $ids, groupId: $groupId) {
         processed
         skipped
       }
@@ -226,18 +274,39 @@ function Rules() {
     });
   // finish は、まとめて行った操作を終えて、選ぶのをやめ、結果を出す。一覧は、データの変更の通知で読み直す。
   const finish = (
-    action: 'enabled' | 'disabled' | 'deleted',
+    action: 'enabled' | 'disabled' | 'deleted' | 'moved',
     result: { processed: number; skipped: number },
   ) => {
     setBulkResult({ action, ...result });
     setSelecting(false);
     setSelected(new Set());
     setConfirmingDelete(false);
+    setMoving(false);
   };
   const failed = () => {
     setConfirmingDelete(false);
+    setMoving(false);
     setToggleError(true);
   };
+  const moveMany = () =>
+    setManyGroup({
+      variables: { ids: targets, groupId: moveTo },
+      // 一覧の見出しは、ルールごとに読み直さずに、その場で移す。
+      updater: (store) => {
+        const group = moveTo === null ? null : store.get(moveTo);
+        for (const id of targets) {
+          const rule = store.get(id);
+          if (group == null) {
+            rule?.setValue(null, 'group');
+          } else {
+            rule?.setLinkedRecord(group, 'group');
+          }
+        }
+      },
+      onCompleted: (response, errors) =>
+        errors != null && errors.length > 0 ? failed() : finish('moved', response.setRulesGroup),
+      onError: failed,
+    });
   const setEnabledMany = (enabled: boolean) =>
     setManyEnabled({
       variables: { ids: targets, enabled },
@@ -270,6 +339,96 @@ function Rules() {
       onError: failed,
     });
 
+  // renderRule は、一覧のルール 1 件を描く。
+  const renderRule = (rule: (typeof visible)[number]) => (
+    <Card key={rule.id} withBorder padding="sm" style={{ opacity: rule.enabled ? 1 : 0.6 }}>
+      <Group justify="space-between" wrap="nowrap">
+        {selecting && (
+          <Checkbox
+            aria-label={rule.name}
+            checked={selected.has(rule.id)}
+            onChange={() => toggle(rule.id)}
+          />
+        )}
+        <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
+          <Anchor
+            fw={700}
+            renderRoot={(props) => (
+              <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
+            )}
+          >
+            {rule.name}
+          </Anchor>
+          <Group gap={4}>
+            {rule.conditions.keywords.map((keyword, index) => (
+              <Badge key={index} variant="light" color="gray" size="sm">
+                {keyword.text}
+              </Badge>
+            ))}
+            {rule.conditions.channelTypes.map((type) => (
+              <Badge key={type} variant="outline" color="gray" size="sm">
+                {/* GR などの内部の種別ではなく、番組表と同じ表示名で示す。 */}
+                {data.channelTypes.find((channelType) => channelType.type === type)?.displayName ??
+                  type}
+              </Badge>
+            ))}
+            {!rule.enabled && (
+              <Badge color="gray" size="sm">
+                {t('rules.disabled')}
+              </Badge>
+            )}
+            {/* 有効でも、有効期間の外なら予約しないので、そのことを示す (#464)。 */}
+            {rule.enabled && outOfValidity(rule.validFrom, rule.validUntil, now) && (
+              <Badge color="amber" variant="light" size="sm">
+                {t('rules.outOfValidity')}
+              </Badge>
+            )}
+          </Group>
+          {rule.memo !== '' && (
+            <Text size="xs" c="dimmed" truncate>
+              {rule.memo}
+            </Text>
+          )}
+          {/* このルールの予約と、このルールで録った録画へ移れるようにする (#468)。 */}
+          <Group gap="sm">
+            <Anchor
+              size="xs"
+              c="dimmed"
+              renderRoot={(props) => (
+                <Link {...props} to="/reservations" search={{ rule: rule.id }} />
+              )}
+            >
+              {t('rules.upcomingReservations', { count: rule.upcomingReservationCount })}
+            </Anchor>
+            <Anchor
+              size="xs"
+              c="dimmed"
+              renderRoot={(props) => (
+                <Link {...props} to="/recordings" search={{ rule: rule.id }} />
+              )}
+            >
+              {t('rules.recordings')}
+            </Anchor>
+          </Group>
+        </Stack>
+        {canEdit && (
+          <Switch
+            aria-label={t('rules.enabled')}
+            checked={rule.enabled}
+            onChange={(e) =>
+              commit({
+                variables: { id: rule.id, enabled: e.currentTarget.checked },
+                onCompleted: (_response, errors) =>
+                  setToggleError(errors != null && errors.length > 0),
+                onError: () => setToggleError(true),
+              })
+            }
+          />
+        )}
+      </Group>
+    </Card>
+  );
+
   return (
     <Stack>
       {canEdit && (
@@ -295,6 +454,8 @@ function Rules() {
               {t(selecting ? 'rules.selectDone' : 'rules.select')}
             </Button>
           )}
+          {/* グループは、ルールの一覧を分けて並べるためのもの (#1493)。ルールの編集の画面でも作れる。 */}
+          <CreateRuleGroupButton />
         </Group>
       )}
       {data.rules.length > 0 && (
@@ -393,12 +554,12 @@ function Rules() {
           <Button
             size="xs"
             variant="default"
-            disabled={visible.length === 0}
+            disabled={shown.length === 0}
             onClick={() =>
               setSelected((current) => {
                 // 一覧に出しているルールだけを、選ぶか外す。隠れているルールの選び方は変えない。
                 const next = new Set(current);
-                for (const rule of visible) {
+                for (const rule of shown) {
                   if (allShownSelected) {
                     next.delete(rule.id);
                   } else {
@@ -411,7 +572,7 @@ function Rules() {
             }
           >
             {t(allShownSelected ? 'rules.deselectShown' : 'rules.selectShown', {
-              count: visible.length,
+              count: shown.length,
             })}
           </Button>
           <Button
@@ -431,6 +592,19 @@ function Rules() {
             onClick={() => setEnabledMany(false)}
           >
             {t('rules.disableSelected', { count: targets.length })}
+          </Button>
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<FolderInput size={14} aria-hidden />}
+            disabled={targets.length === 0}
+            onClick={() => {
+              setMoveTo(null);
+              setNamingGroup(false);
+              setMoving(true);
+            }}
+          >
+            {t('rules.groups.moveSelected', { count: targets.length })}
           </Button>
           <Button
             size="xs"
@@ -467,6 +641,25 @@ function Rules() {
           </Group>
         </Stack>
       </Modal>
+      <Modal opened={moving} onClose={() => setMoving(false)} title={t('rules.groups.moveTitle')}>
+        <Stack>
+          <RuleGroupSelect
+            label={t('rules.groups.moveTo')}
+            groups={data.ruleGroups}
+            value={moveTo}
+            onChange={setMoveTo}
+            onNamingChange={setNamingGroup}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={() => setMoving(false)}>
+              {t('rules.cancel')}
+            </Button>
+            <Button loading={movingMany} disabled={namingGroup} onClick={moveMany}>
+              {t('rules.groups.moveSelected', { count: targets.length })}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       {toggleError && (
         <Alert color="red" role="alert">
           {t('reservations.toggleError')}
@@ -488,94 +681,27 @@ function Rules() {
           </Button>
         </Stack>
       )}
-      {visible.map((rule) => (
-        <Card key={rule.id} withBorder padding="sm" style={{ opacity: rule.enabled ? 1 : 0.6 }}>
-          <Group justify="space-between" wrap="nowrap">
-            {selecting && (
-              <Checkbox
-                aria-label={rule.name}
-                checked={selected.has(rule.id)}
-                onChange={() => toggle(rule.id)}
+      {sections.map((section) => {
+        const key = sectionKey(section.group);
+
+        return (
+          <Stack key={key} gap="sm">
+            {grouped && (
+              <RuleGroupHeader
+                group={section.group}
+                count={section.rules.length}
+                collapsible={collapsible}
+                collapsed={isCollapsed(key)}
+                onToggle={() => toggleSection(key)}
+                groups={data.ruleGroups}
+                canEdit={canEdit}
+                onError={() => setToggleError(true)}
               />
             )}
-            <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
-              <Anchor
-                fw={700}
-                renderRoot={(props) => (
-                  <Link {...props} to="/rules/$ruleId" params={{ ruleId: rule.id }} />
-                )}
-              >
-                {rule.name}
-              </Anchor>
-              <Group gap={4}>
-                {rule.conditions.keywords.map((keyword, index) => (
-                  <Badge key={index} variant="light" color="gray" size="sm">
-                    {keyword.text}
-                  </Badge>
-                ))}
-                {rule.conditions.channelTypes.map((type) => (
-                  <Badge key={type} variant="outline" color="gray" size="sm">
-                    {/* GR などの内部の種別ではなく、番組表と同じ表示名で示す。 */}
-                    {data.channelTypes.find((channelType) => channelType.type === type)
-                      ?.displayName ?? type}
-                  </Badge>
-                ))}
-                {!rule.enabled && (
-                  <Badge color="gray" size="sm">
-                    {t('rules.disabled')}
-                  </Badge>
-                )}
-                {/* 有効でも、有効期間の外なら予約しないので、そのことを示す (#464)。 */}
-                {rule.enabled && outOfValidity(rule.validFrom, rule.validUntil, now) && (
-                  <Badge color="amber" variant="light" size="sm">
-                    {t('rules.outOfValidity')}
-                  </Badge>
-                )}
-              </Group>
-              {rule.memo !== '' && (
-                <Text size="xs" c="dimmed" truncate>
-                  {rule.memo}
-                </Text>
-              )}
-              {/* このルールの予約と、このルールで録った録画へ移れるようにする (#468)。 */}
-              <Group gap="sm">
-                <Anchor
-                  size="xs"
-                  c="dimmed"
-                  renderRoot={(props) => (
-                    <Link {...props} to="/reservations" search={{ rule: rule.id }} />
-                  )}
-                >
-                  {t('rules.upcomingReservations', { count: rule.upcomingReservationCount })}
-                </Anchor>
-                <Anchor
-                  size="xs"
-                  c="dimmed"
-                  renderRoot={(props) => (
-                    <Link {...props} to="/recordings" search={{ rule: rule.id }} />
-                  )}
-                >
-                  {t('rules.recordings')}
-                </Anchor>
-              </Group>
-            </Stack>
-            {canEdit && (
-              <Switch
-                aria-label={t('rules.enabled')}
-                checked={rule.enabled}
-                onChange={(e) =>
-                  commit({
-                    variables: { id: rule.id, enabled: e.currentTarget.checked },
-                    onCompleted: (_response, errors) =>
-                      setToggleError(errors != null && errors.length > 0),
-                    onError: () => setToggleError(true),
-                  })
-                }
-              />
-            )}
-          </Group>
-        </Card>
-      ))}
+            {!isCollapsed(key) && section.rules.map(renderRule)}
+          </Stack>
+        );
+      })}
     </Stack>
   );
 }

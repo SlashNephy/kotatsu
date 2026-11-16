@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+const deleteTunerOccupancies = `-- name: DeleteTunerOccupancies :exec
+DELETE FROM tuner_occupancies
+`
+
+func (q *Queries) DeleteTunerOccupancies(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteTunerOccupancies)
+	return err
+}
+
 const deleteTuners = `-- name: DeleteTuners :exec
 DELETE FROM tuners
 `
@@ -75,6 +84,22 @@ func (q *Queries) InsertTuner(ctx context.Context, arg InsertTunerParams) error 
 		arg.IsFault,
 		arg.Now,
 	)
+	return err
+}
+
+const insertTunerOccupancy = `-- name: InsertTunerOccupancy :exec
+INSERT INTO tuner_occupancies (tuner_index, start_at, end_at) VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type InsertTunerOccupancyParams struct {
+	TunerIndex int64
+	StartAt    time.Time
+	EndAt      time.Time
+}
+
+func (q *Queries) InsertTunerOccupancy(ctx context.Context, arg InsertTunerOccupancyParams) error {
+	_, err := q.db.Exec(ctx, insertTunerOccupancy, arg.TunerIndex, arg.StartAt, arg.EndAt)
 	return err
 }
 

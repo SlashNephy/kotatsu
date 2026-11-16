@@ -836,6 +836,15 @@ CREATE TABLE tuners (
   updated_at timestamptz NOT NULL
 );
 
+-- チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536、設計書 4.5)。
+-- neko の割り当ては、この時間帯のチューナーを使わない。チューナーの一覧と同じく、変わったら丸ごと入れ替える。
+CREATE TABLE tuner_occupancies (
+  tuner_index bigint NOT NULL,
+  start_at timestamptz NOT NULL,
+  end_at timestamptz NOT NULL,
+  PRIMARY KEY (tuner_index, start_at, end_at)
+);
+
 -- チューナーサーバーの状態 (設計書 3.7)。行は 1 つだけ持つ。
 CREATE TABLE tuner_server_status (
   id boolean PRIMARY KEY DEFAULT true CHECK (id),
@@ -854,6 +863,18 @@ CREATE TABLE tuner_server_status (
   -- 接続できない間や判定に失敗したときは、最後に分かったものを残す。
   server_kind text,
   server_version text
+);
+
+-- ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+-- ルールと同じく家族で共有する。position は一覧で並べる順 (小さいほど先)。
+CREATE TABLE rule_groups (
+  id uuid PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  position integer NOT NULL,
+  created_at timestamptz NOT NULL,
+  created_by uuid REFERENCES users (id) ON DELETE SET NULL,
+  updated_at timestamptz NOT NULL,
+  updated_by uuid REFERENCES users (id) ON DELETE SET NULL
 );
 
 -- ルール (設計書 4.2)。条件は match パッケージの型で検証し、スキーマのバージョンを付けて JSONB に保存する (設計書 8.3)。
@@ -878,6 +899,8 @@ CREATE TABLE rules (
   -- 追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか (設計書 4.4、#1499)。
   -- 番組名を変えずに 1 話から数え直すシリーズを黙って飛ばさないよう、既定は false。この列を足す前からあるルールも false。
   skip_earlier_episodes boolean NOT NULL DEFAULT false,
+  -- ルールが入るグループ (#1493)。グループを消すと NULL (一覧の「その他」) に戻る。
+  group_id uuid REFERENCES rule_groups (id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL,
   created_by uuid REFERENCES users (id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL,
@@ -894,6 +917,8 @@ CREATE TABLE reservation_rules (
 );
 
 CREATE INDEX reservation_rules_rule_id_idx ON reservation_rules (rule_id);
+
+CREATE INDEX rules_group_id_idx ON rules (group_id);
 
 -- 保存先プールの設定 (設計書 5.6、11.2)。マウント先は各ロールの設定で与え、優先順位と容量の閾値を DB に置く。
 -- 行がなければ、優先順位 0、容量の閾値 0 (容量の管理をしない) として扱う。
@@ -951,7 +976,7 @@ CREATE TABLE recordings (
   -- 失敗の理由 (設計書 5.5)。失敗していなければ NULL。
   failure_reason text CHECK (failure_reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted', 'tuning_refused'
   )),
   -- 失敗の理由に至った、最後のエラーの本文 (設計書 5.5、#1467)。上流のチューナーのホスト名などを含むので、管理者にだけ見せる。
   -- 失敗していないか、本文がなければ NULL。
@@ -1006,7 +1031,7 @@ CREATE TABLE recordings (
 CREATE TABLE recording_failure_counts (
   reason text PRIMARY KEY CHECK (reason IN (
     'tuner_unavailable', 'tuner_server_unreachable', 'stream_interrupted', 'storage_unavailable',
-    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted'
+    'storage_full', 'program_not_found', 'cancelled', 'recorder_unavailable', 'tuner_preempted', 'tuning_refused'
   )),
   count bigint NOT NULL DEFAULT 0,
   -- 一度も失敗していなければ NULL。
@@ -1065,6 +1090,9 @@ CREATE TABLE recording_files (
   -- コマごとに解除したら 30。プログレッシブの映像は、元のコマ数を丸めた値。変換を終えたときに書く。
   -- セグメントと、EPGStation から取り込んだファイルと、これを足す前に変換した MP4 は NULL。
   transcode_frame_rate integer,
+  -- Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (kotatsu import files、#1734)。
+  -- 録画を消しても、ファイルは消さずに残し (生成物は消す)、容量の管理で消す対象にも、ファイル名の付け直しの対象にもしない。
+  external boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL,
   UNIQUE (pool_id, path)
 );

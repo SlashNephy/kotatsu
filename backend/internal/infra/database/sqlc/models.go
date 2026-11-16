@@ -689,6 +689,7 @@ type RecordingFile struct {
 	TunerIndex         *int64
 	TunerName          *string
 	TranscodeFrameRate *int32
+	External           bool
 	CreatedAt          time.Time
 }
 
@@ -778,10 +779,21 @@ type Rule struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	GroupID             *uuid.UUID
 	CreatedAt           time.Time
 	CreatedBy           *uuid.UUID
 	UpdatedAt           time.Time
 	UpdatedBy           *uuid.UUID
+}
+
+type RuleGroup struct {
+	ID        uuid.UUID
+	Name      string
+	Position  int32
+	CreatedAt time.Time
+	CreatedBy *uuid.UUID
+	UpdatedAt time.Time
+	UpdatedBy *uuid.UUID
 }
 
 type SchemaCompatibility struct {
@@ -1000,6 +1012,12 @@ type Tuner struct {
 	IsRemote    bool
 	IsFault     bool
 	UpdatedAt   time.Time
+}
+
+type TunerOccupancy struct {
+	TunerIndex int64
+	StartAt    time.Time
+	EndAt      time.Time
 }
 
 type TunerServerStatus struct {

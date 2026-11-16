@@ -118,13 +118,17 @@ func (e *APIError) Unwrap() error {
 // causeOf は、API ごとに、状態を tunerserver の sentinel に読み替える。当たるものがなければ nil を返す。
 type causeOf func(status int) error
 
-// streamCause は、ストリームを開くときの状態の意味を返す。503 はチューナーを確保できなかったこと、404 はサービスかチャンネルがないこと。
+// streamCause は、ストリームを開くときの状態の意味を返す。503 はチューナーを確保できなかったこと、404 はサービスかチャンネルがないこと、
+// 500 は選局かストリームの準備に失敗したこと (#1519)。Mirakurun は、この 3 つを分けて返す。
+// ほかの状態 (リバースプロキシの 502 など) は、選局の失敗とは限らないので、読み替えない。
 func streamCause(status int) error {
 	switch status {
 	case http.StatusServiceUnavailable:
 		return tunerserver.ErrTunerUnavailable
 	case http.StatusNotFound:
 		return tunerserver.ErrNotFound
+	case http.StatusInternalServerError:
+		return tunerserver.ErrTuningFailed
 	default:
 		return nil
 	}
@@ -314,6 +318,7 @@ func (c *Client) Tuners(ctx context.Context) ([]*tunerserver.Tuner, error) {
 // opts が nil なら、スクランブルを解除せず、優先度 0 で開く。
 // チューナーを確保できなければ (503)、tunerserver.ErrTunerUnavailable に当たる *APIError を返す。
 // サービスがなければ (404)、tunerserver.ErrNotFound に当たる *APIError を返す。
+// 選局に失敗したら (500)、tunerserver.ErrTuningFailed に当たる *APIError を返す。
 func (c *Client) OpenServiceStream(ctx context.Context, serviceID int64, opts *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	if opts == nil {
 		opts = &tunerserver.StreamOptions{Decode: false, Priority: 0}

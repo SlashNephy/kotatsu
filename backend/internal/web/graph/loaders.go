@@ -28,6 +28,8 @@ type Loaders struct {
 	Services     *dataloader.Loader[int64, *domain.Service]
 	ChannelTypes *dataloader.Loader[string, *domain.ChannelType]
 	Rules        *dataloader.Loader[uuid.UUID, *rule.Rule]
+	// RuleGroups は、ID のルールのグループ (#1493)。見つからないグループでは nil にする。
+	RuleGroups *dataloader.Loader[uuid.UUID, *rule.Group]
 	// RuleIDs は、予約に一致したルールの ID。ルールに一致していない予約では空にする。
 	RuleIDs *dataloader.Loader[uuid.UUID, []uuid.UUID]
 	// UpcomingReservationCounts は、ルールに一致した予約のうち、終わっていないものの件数。
@@ -101,6 +103,7 @@ func newLoaders(db *pgxpool.Pool, q *query.Queries, clk clock.Clock, rules *rule
 
 			return orderBy(ids, byID, "rule")
 		}),
+		RuleGroups: newRuleGroupsLoader(db, rules),
 		RuleIDs: newLoader(func(ctx context.Context, ids []uuid.UUID) ([][]uuid.UUID, []error) {
 			byID, err := q.ReservationRuleIDs(ctx, ids)
 			if err != nil {

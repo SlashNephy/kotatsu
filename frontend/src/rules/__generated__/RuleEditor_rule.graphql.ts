@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<ce2c643236428f3dcc0723290016d2e3>>
+ * @generated SignedSource<<e91a080223d047c404491201beff30b4>>
  * @lightSyntaxTransform
  */
 
@@ -62,6 +62,9 @@ export type RuleEditor_rule$data = {
   readonly duplicateWindowDays: number | null | undefined;
   readonly enabled: boolean;
   readonly followEventRelay: boolean;
+  readonly group: {
+    readonly id: string;
+  } | null | undefined;
   readonly id: string;
   readonly memo: string;
   readonly name: string;
@@ -508,6 +511,16 @@ return {
       "kind": "ScalarField",
       "name": "skipEarlierEpisodes",
       "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "RuleGroup",
+      "kind": "LinkedField",
+      "name": "group",
+      "plural": false,
+      "selections": (v3/*:: as any*/),
+      "storageKey": null
     }
   ],
   "type": "Rule",
@@ -515,6 +528,6 @@ return {
 };
 })();
 
-(node as any).hash = "f6ce221deb194d6d64991092e75c319a";
+(node as any).hash = "36c2a0002133c4d545b0f55d389cd65e";
 
 export default node;
