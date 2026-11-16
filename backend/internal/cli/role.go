@@ -73,6 +73,8 @@ type sharedEDCB struct {
 	once   sync.Once
 	server *edcb.TunerServer
 	err    error
+	// stopped は、プロセスが止まり始めたら閉じる。止まるときは、開いている NetworkTV を、ほかのインスタンスが引き継げるよう少し残す (#1850)。
+	stopped <-chan struct{}
 }
 
 // tenbanRoleName は、API を受け持つロールの名前。
@@ -361,6 +363,7 @@ func sharedEDCBServer(deps *Deps) (*edcb.TunerServer, error) {
 		}
 		deps.edcb.server = edcb.NewTunerServer(client, &edcb.TunerServerOptions{
 			BonDrivers: edcbConfig.BonDrivers, NetworkTVIDs: ids, PreemptionCheckInterval: 0, SubscriberBufferSize: 0, Clock: deps.Clock,
+			Stopped: deps.edcb.stopped, HandoverGrace: 0,
 		})
 	})
 

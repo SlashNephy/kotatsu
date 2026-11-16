@@ -17,30 +17,67 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/infra/edcb"
 )
 
-// fakeIDs は、NetworkTV の ID を 1 つだけ配る。
+// fakeIDs は、NetworkTV の ID を 1 つだけ配る。released には、消した (Forget) ID を記録する。
 type fakeIDs struct {
 	mu       sync.Mutex
 	used     bool
 	acquired []edcb.ServiceKey
 	released []int32
+	// shared なら、exclusive でない Acquire は、ほかのインスタンスが開いている ID に加わったことにする (#1850)。
+	shared bool
+	// exclusive は、Acquire に渡った exclusive。
+	exclusive []bool
+	// holders は、ほかのインスタンスの持ち主の数。0 でなければ、Release は最後の持ち主ではないと返す。
+	holders int
+	// kept は、keep で残した ID。joinedDuringHandover なら、残している間にほかのインスタンスが加わったことにする。
+	kept                 []int32
+	joinedDuringHandover bool
 }
 
-func (f *fakeIDs) Acquire(_ context.Context, service edcb.ServiceKey) (int32, error) {
+func (f *fakeIDs) Acquire(_ context.Context, service edcb.ServiceKey, exclusive bool) (int32, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.exclusive = append(f.exclusive, exclusive)
+	if f.shared && !exclusive {
+		f.acquired = append(f.acquired, service)
+
+		return 2000, true, nil
+	}
 	if f.used {
-		return 0, edcb.ErrNoNetworkTVID
+		return 0, false, edcb.ErrNoNetworkTVID
 	}
 	f.used = true
 	f.acquired = append(f.acquired, service)
 
-	return 1000, nil
+	return 1000, false, nil
 }
 
-func (f *fakeIDs) Release(_ context.Context, id int32) error {
+func (f *fakeIDs) Release(_ context.Context, id int32, keep bool) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.used = false
+	if f.holders > 0 {
+		return false, nil
+	}
+	if keep {
+		f.kept = append(f.kept, id)
+	}
+
+	return true, nil
+}
+
+func (f *fakeIDs) CloseIfUnheld(context.Context, int32) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return !f.joinedDuringHandover, nil
+}
+
+func (f *fakeIDs) Forget(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if id == 1000 {
+		f.used = false
+	}
 	f.released = append(f.released, id)
 
 	return nil

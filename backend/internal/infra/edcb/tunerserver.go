@@ -34,6 +34,10 @@ type TunerServer struct {
 	settings *timerSettingsCache
 	// now は、今の時刻を返す。EPG の取得の前後かを決めるのに使う。
 	now func() time.Time
+	// stopped は、プロセスが止まり始めたら閉じる (#1850)。nil なら閉じない。
+	stopped <-chan struct{}
+	// handoverGrace は、止まるときに、最後の持ち主だった NetworkTV を、ほかのインスタンスが引き継ぐのを待つ時間 (#1850)。
+	handoverGrace time.Duration
 }
 
 // TunerServerOptions は TunerServer の設定。
@@ -50,6 +54,11 @@ type TunerServerOptions struct {
 	SubscriberBufferSize int
 	// Clock は、EPG の取得の前後かを決めるのに使う時計 (#1536)。nil なら OS の時計。
 	Clock clock.Clock
+	// Stopped は、プロセスが止まり始めたら閉じるチャネル (#1850)。閉じた後に閉じるストリームは、最後の持ち主でも NetworkTV をすぐには閉じず、
+	// ほかのインスタンスが加わるのを HandoverGrace だけ待つ。nil なら待たない。
+	Stopped <-chan struct{}
+	// HandoverGrace は、止まるときに、ほかのインスタンスが加わるのを待つ時間 (#1850)。0 なら DefaultHandoverGrace。
+	HandoverGrace time.Duration
 }
 
 // NewTunerServer は TunerServer を返す。opts は nil でもよい。
@@ -59,7 +68,13 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 	interval := defaultPreemptionCheckInterval
 	bufferSize := DefaultSubscriberBufferSize
 	now := time.Now
+	var stopped <-chan struct{}
+	handoverGrace := DefaultHandoverGrace
 	if opts != nil {
+		stopped = opts.Stopped
+		if opts.HandoverGrace > 0 {
+			handoverGrace = opts.HandoverGrace
+		}
 		if opts.Clock != nil {
 			now = opts.Clock.Now
 		}
@@ -79,6 +94,7 @@ func NewTunerServer(client *Client, opts *TunerServerOptions) *TunerServer {
 		client: client, text: newTextReplacer(), bonDrivers: bonDrivers, ids: ids, preemptionCheckInterval: interval,
 		logos: &logoMap{mu: sync.Mutex{}, ids: nil, loadedAt: time.Time{}}, share: nil,
 		settings: &timerSettingsCache{mu: sync.Mutex{}, settings: nil, loadedAt: time.Time{}}, now: now,
+		stopped: stopped, handoverGrace: handoverGrace,
 	}
 	server.share = newSharedStreams(server, bufferSize)
 
