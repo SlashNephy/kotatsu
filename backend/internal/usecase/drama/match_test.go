@@ -42,6 +42,8 @@ const (
 	testTMDbKey = "test-token"
 	// moPapaTitle は、もうパパ！の番組名から読む作品名。
 	moPapaTitle = "もうパパ!"
+	// banshakuEpisode7 は、晩酌の流儀５ (TMDb のシーズン 7) の第 7 話の番組名。
+	banshakuEpisode7 = "晩酌の流儀５〜秋冬篇〜第７話「ブーリンチー」🈑"
 )
 
 // jst は、2026 年 11 月 day 日 hour 時 minute 分 (日本時間) を返す。
@@ -369,7 +371,13 @@ func TestMatchHorizon(t *testing.T) {
 		{
 			// 番組名の「5」は続編の番号で、TMDb のシーズン (7) と合わない。BS は地上波より遅れて放送するので、放送日ではなく話数で選ぶ。
 			name: "delayed broadcast uses the episode number", serviceID: bsService, start: jst(17, 0, 0), end: jst(17, 0, 30),
-			title: "晩酌の流儀５〜秋冬篇〜第７話「ブーリンチー」🈑", genres: genreDrama,
+			title: banshakuEpisode7, genres: genreDrama,
+			want: new(linkedTo(banshaku, 7, 7, drama.EpisodeSourceTitle)),
+		},
+		{
+			// 1 週遅れて放送する局では、TMDb の放送日に次の話 (第 8 話) が当たる。番組名の話数と食い違うので、番組名の話数で選ぶ。
+			name: "delayed by a week", serviceID: bsService, start: jst(21, 2, 0), end: jst(21, 2, 30),
+			title: banshakuEpisode7, genres: genreDrama,
 			want: new(linkedTo(banshaku, 7, 7, drama.EpisodeSourceTitle)),
 		},
 		{
@@ -424,9 +432,9 @@ func TestMatchHorizon(t *testing.T) {
 
 	result, err := f.matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 9, result.Programs)
-	assert.Equal(t, 7, result.Linked)
-	assert.Equal(t, 6, result.Episodes)
+	assert.Equal(t, 10, result.Programs)
+	assert.Equal(t, 8, result.Linked)
+	assert.Equal(t, 7, result.Episodes)
 	assert.Zero(t, result.Failed)
 	for _, p := range programs {
 		got, found := matchOf(t, f.db, p.serviceID, p.start)
@@ -644,7 +652,7 @@ func TestMatchChanges(t *testing.T) {
 
 	f := newFixture(t, 0)
 	insertProgram(t, f.db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
-	insertProgram(t, f.db, bsService, 1, jst(17, 0, 0), jst(17, 0, 30), "晩酌の流儀５〜秋冬篇〜第７話「ブーリンチー」🈑", genreDrama)
+	insertProgram(t, f.db, bsService, 1, jst(17, 0, 0), jst(17, 0, 30), banshakuEpisode7, genreDrama)
 
 	// 初めて動いたときは、今の版数を覚えるだけにする。それまでの番組は、照合し直しが受け持つ。
 	result, err := f.matcher.MatchChanges(t.Context())

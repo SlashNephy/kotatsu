@@ -35,7 +35,7 @@ func TestWorkTitle(t *testing.T) {
 		{name: "retro slot", input: "懐ドラ「はぐれ刑事純情派２」　「安浦刑事 老警察犬を特訓す」🈞", want: titleHagure2},
 		{name: "morning period drama slot", input: "おはよう！時代劇　暴れん坊将軍１２　＃４🈑🈞", want: "暴れん坊将軍12"},
 		{name: "roman numeral and star", input: "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２６話", want: "スケバン刑事II 少女鉄仮面伝説"},
-		{name: "wave subtitle and kanji episode", input: "晩酌の流儀５〜秋冬篇〜第７話「ブーリンチー」🈑", want: titleBanshaku},
+		{name: "wave subtitle and kanji episode", input: banshakuEpisode7, want: titleBanshaku},
 		{name: "enclosed new mark", input: "🈟TOKYO MER〜走る緊急救命室〜 #1🈑", want: "TOKYO MER〜走る緊急救命室〜"},
 		{name: "mystery slot", input: "日曜ミステリー『神楽坂署生活安全課３迷刑事エイジとロク』舘ひろし、モト冬樹🈞🈑🈖", want: "神楽坂署生活安全課3迷刑事エイジとロク"},
 	}

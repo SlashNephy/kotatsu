@@ -684,15 +684,23 @@ func seasonsBefore(series *tmdb.Series, regular []*tmdb.Season, date string) []i
 
 // episodeOn は、episodes のうち、放送日が date の話の番号を返す。同じ日に複数の話があれば、番組名の話数 number の話を、
 // なければ最初の話を選ぶ。なければ 0 を返す。
+// 番組名に話数があり (number > 0)、その日の話のどれとも食い違えば、0 を返す。1 週遅れて放送する局では、その日に次の話が当たるので、
+// 誤った話に結びつけるより、番組名の話数で選び直す。
 func episodeOn(episodes []*tmdb.Episode, date string, number int32) int32 {
 	pick := int32(0)
 	for _, e := range episodes {
 		if e.AirDate != date {
 			continue
 		}
-		if pick == 0 || e.EpisodeNumber == number {
+		if e.EpisodeNumber == number {
+			return number
+		}
+		if pick == 0 {
 			pick = e.EpisodeNumber
 		}
+	}
+	if number > 0 {
+		return 0
 	}
 
 	return pick

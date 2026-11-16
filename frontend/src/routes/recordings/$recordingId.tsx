@@ -585,10 +585,11 @@ function Recording({ recordingId }: { recordingId: string }) {
             ))}
           </Group>
           <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
+          {/* 作品の上書きは番組表にある番組にしか及ばないので、録画の詳細には置かない (#1651)。 */}
           <DramaEpisode
             episode={recording.dramaEpisode}
             programName={recording.name}
-            canOverride={data.viewer.role === 'ADMIN'}
+            canOverride={false}
           />
           <FilmarksLink
             genres={recording.genres}
