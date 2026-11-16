@@ -36,6 +36,7 @@ import type { ChangeChannel } from '../changes/dataChanges';
 import { conditionsFromProgram } from '../conditions/form';
 import { ErrorBoundary, LinkifiedText, ProgramTitle, toHalfWidth } from '../futon';
 import { FilmarksLink } from './FilmarksLink';
+import { StreamingLink } from './StreamingLink';
 import { programGenreLabels } from './genreOptions';
 import type { ProgramDetailCancelMutation } from './__generated__/ProgramDetailCancelMutation.graphql';
 import type { ProgramDetailQuery } from './__generated__/ProgramDetailQuery.graphql';
@@ -43,6 +44,7 @@ import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetail
 import { ReservationPeers } from '../reservations/ReservationPeers';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { AnimeEpisodes } from '../anime/AnimeEpisodes';
+import { DramaEpisode } from '../drama/DramaEpisode';
 import { ServiceLabel } from './ServiceLabel';
 import { WatchReserveButton } from '../watch/WatchReserveButton';
 import { zonedFormat } from '../futon';
@@ -123,6 +125,9 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             service {
               id
               name
+              channelType {
+                type
+              }
               logoUrl
               # 放送が終わった番組を、タイムシフトのバッファから再生できるか (#1121)。
               timeshiftPrograms {
@@ -137,6 +142,20 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             genres {
               lv1
               lv2
+            }
+            # TMDb で結びつけた作品と話 (#1651、設計書 3.9)。詳細でだけ引く。
+            dramaEpisode {
+              series {
+                tmdbId
+                name
+                originalName
+                url
+              }
+              seriesSource
+              seasonNumber
+              episodeNumber
+              episodeName
+              url
             }
             # しょぼいカレンダーで結びつけた話 (設計書 3.8)。詳細でだけ引く。
             animeEpisodes {
@@ -317,11 +336,17 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           </Group>
         )}
         <AnimeEpisodes episodes={program.animeEpisodes} record={{ program: program.id }} />
+        <DramaEpisode
+          episode={program.dramaEpisode}
+          programName={program.name}
+          canOverride={data.viewer.role === 'ADMIN'}
+        />
         <FilmarksLink
           genres={program.genres}
           workTitle={program.workTitle}
           anime={program.animeEpisodes.length > 0}
         />
+        <StreamingLink service={program.service} workTitle={program.workTitle} />
       </Stack>
       {/* 操作は 1 段にまとめる。録画予約は、よく使うワンクリックの予約を前に出し、ほかの操作は横の ▾ のメニューに入れる。 */}
       {ended && (

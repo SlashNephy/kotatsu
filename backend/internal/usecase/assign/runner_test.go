@@ -335,7 +335,7 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 
 	f := newFixture(t)
 	runner := assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(domain.DefaultRecordingSettings()),
-		&assign.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, PollOnly: false, PollInterval: 0})
+		&assign.RunnerOptions{Debounce: 10 * time.Millisecond, Interval: time.Hour, PollOnly: false, PollInterval: 0, ShareByService: false})
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
@@ -357,4 +357,58 @@ func TestRunRecomputesOnReservationChanges(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return f.stored(t, second).state == string(domain.AssignmentStateOK)
 	}, 10*time.Second, 20*time.Millisecond)
+}
+
+// TestRunOnceEDCB は、EDCB の性質を渡した割り当てを、DB を通して確かめる (#1536)。地上波のチューナーは 2 本ある。
+//   - 相乗りの単位がサービスなら、同じチャンネルの別のサービス (こたつテスト1 とサブ) は別のチューナーになる。
+//   - チューナーサーバー自身の予約がチューナーを使う時間帯 (tuner_occupancies) のチューナーは使わない。
+func TestRunOnceEDCB(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		shareByService bool
+		occupied       bool
+		// conflicts は、競合になる予約の数。
+		conflicts int
+	}{
+		{name: "mirakurun", shareByService: false, occupied: false, conflicts: 0},
+		{name: "edcb shares by service", shareByService: true, occupied: false, conflicts: 1},
+		{name: "a tuner occupied by an edcb reservation", shareByService: false, occupied: true, conflicts: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newFixture(t)
+			if tt.occupied {
+				var tuner int64
+				require.NoError(t, f.pool.QueryRow(t.Context(), "SELECT min(tuner_index) FROM tuners WHERE 'GR' = ANY(types)").Scan(&tuner))
+				_, err := f.pool.Exec(t.Context(), "INSERT INTO tuner_occupancies (tuner_index, start_at, end_at) VALUES ($1, $2, $3)",
+					tuner, testNow().Add(time.Hour), testNow().Add(3*time.Hour))
+				require.NoError(t, err)
+			}
+			runner := assign.NewRunner(f.pool, f.clock, noGuard, slog.New(slog.DiscardHandler), assign.FixedDefaults(domain.DefaultRecordingSettings()),
+				&assign.RunnerOptions{Debounce: 0, Interval: 0, PollOnly: false, PollInterval: 0, ShareByService: tt.shareByService})
+			// こたつテスト1 (チャンネル 27) とこたつテスト2 (チャンネル 26) の 13:30 の番組。
+			ids := []uuid.UUID{f.reserve(t, 0, nil), f.reserve(t, 1, nil)}
+			if !tt.occupied {
+				// こたつテスト1 のサブのサービスも、チャンネル 27 にある。
+				reservation, _, err := f.reservations.CreateProgram(t.Context(), f.pool, audit.System("test"), &reserve.ProgramInput{
+					ServiceID: faketuner.ServiceItemID(grNetworkID, 0x0401), EventID: 6, FollowEventRelay: true, Overrides: nil,
+				})
+				require.NoError(t, err)
+				ids = append(ids, reservation.ID)
+			}
+			_, err := runner.RunOnce(t.Context())
+			require.NoError(t, err)
+			conflicts := 0
+			for _, id := range ids {
+				if f.stored(t, id).state == string(domain.AssignmentStateConflict) {
+					conflicts++
+				}
+			}
+			assert.Equal(t, tt.conflicts, conflicts)
+		})
+	}
 }

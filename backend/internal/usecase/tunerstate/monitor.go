@@ -143,6 +143,21 @@ func (m *Monitor) Check(ctx context.Context) error {
 		skewMs = new(skew.Milliseconds())
 	}
 
+	// チューナーサーバー自身の予約がチューナーを使う時間帯 (#1536)。読めなければ、前に読んだものを残す。
+	// 空にすると、EDCB の予約に使われるチューナーへ、Kotatsu の録画を割り当ててしまう。
+	var occupancies []*tunerserver.TunerOccupancy
+	if lister, ok := m.upstream.(tunerserver.TunerOccupancyLister); ok {
+		occupancies, err = lister.TunerOccupancies(ctx)
+		if err != nil {
+			m.logger.WarnContext(ctx, "failed to read the reservations of the tuner server", slog.Any("error", err))
+			occupancies = nil
+		} else if occupancies == nil {
+			occupancies = []*tunerserver.TunerOccupancy{}
+		}
+	} else {
+		occupancies = []*tunerserver.TunerOccupancy{}
+	}
+
 	// 種類と版は、判定できたときだけ書く。判定できなければ、最後に分かったものを残す (#1538)。
 	var kind, version *string
 	identity, err := m.upstream.Identify(ctx)
@@ -168,8 +183,64 @@ func (m *Monitor) Check(ctx context.Context) error {
 			return fmt.Errorf("failed to record the tuner server status: %w", err)
 		}
 
-		return m.replaceTuners(ctx, tx, q, tuners, now)
+		changed, err := m.replaceTuners(ctx, q, tuners, now)
+		if err != nil {
+			return err
+		}
+		if occupancies != nil {
+			occupied, err := m.replaceOccupancies(ctx, q, occupancies, now)
+			if err != nil {
+				return err
+			}
+			changed = changed || occupied
+		}
+		if !changed {
+			return nil
+		}
+		if _, err := notify.Publish(ctx, tx, m.clock, NotifyChannel); err != nil {
+			return err
+		}
+
+		return nil
 	})
+}
+
+// replaceOccupancies は、チューナーサーバー自身の予約がチューナーを使う時間帯が変わっていれば、DB の tuner_occupancies を置き換える (#1536)。
+// 終わった時間帯は割り当てに効かないので残さない。置き換えたかどうかを返す。
+func (m *Monitor) replaceOccupancies(ctx context.Context, q *sqlc.Queries, occupancies []*tunerserver.TunerOccupancy, now time.Time) (bool, error) {
+	current, err := q.ListTunerOccupancies(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to list tuner occupancies: %w", err)
+	}
+	next := make([]sqlc.TunerOccupancy, 0, len(occupancies))
+	for _, o := range occupancies {
+		if o == nil || !o.Start.Before(o.End) || !o.End.After(now) {
+			continue
+		}
+		next = append(next, sqlc.TunerOccupancy{TunerIndex: int64(o.TunerIndex), StartAt: o.Start.UTC(), EndAt: o.End.UTC()})
+	}
+	slices.SortFunc(next, func(a, b sqlc.TunerOccupancy) int {
+		return cmp.Or(cmp.Compare(a.TunerIndex, b.TunerIndex), a.StartAt.Compare(b.StartAt), a.EndAt.Compare(b.EndAt))
+	})
+	next = slices.CompactFunc(next, equalOccupancy)
+	if slices.EqualFunc(current, next, equalOccupancy) {
+		return false, nil
+	}
+	if err := q.DeleteTunerOccupancies(ctx); err != nil {
+		return false, fmt.Errorf("failed to delete tuner occupancies: %w", err)
+	}
+	for _, o := range next {
+		if err := q.InsertTunerOccupancy(ctx, sqlc.InsertTunerOccupancyParams(o)); err != nil {
+			return false, fmt.Errorf("failed to insert a tuner occupancy: %w", err)
+		}
+	}
+	m.logger.InfoContext(ctx, "tuner occupancies by the tuner server changed", slog.Int("occupancies", len(next)))
+
+	return true, nil
+}
+
+func equalOccupancy(a, b sqlc.TunerOccupancy) bool {
+	return a.TunerIndex == b.TunerIndex && a.StartAt.Equal(b.StartAt) && a.EndAt.Equal(b.EndAt)
 }
 
 // recordDegraded は、縮退中であることを記録する。縮退が続いている間は、縮退し始めた日時を変えない。
@@ -227,12 +298,12 @@ func (m *Monitor) warnSkew(ctx context.Context, skew time.Duration) {
 	m.skewed = skewed
 }
 
-// replaceTuners は、チューナーの構成が変わっていれば DB の tuners を置き換え、変更を通知する。
+// replaceTuners は、チューナーの構成が変わっていれば DB の tuners を置き換える。置き換えたかどうかを返す。
 // チューナーは数本しかないので、変わったときは丸ごと入れ替える。
-func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries, tuners []*tunerserver.Tuner, now time.Time) error {
+func (m *Monitor) replaceTuners(ctx context.Context, q *sqlc.Queries, tuners []*tunerserver.Tuner, now time.Time) (bool, error) {
 	current, err := q.ListTuners(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to list tuners: %w", err)
+		return false, fmt.Errorf("failed to list tuners: %w", err)
 	}
 	next := make([]sqlc.ListTunersRow, 0, len(tuners))
 	for _, tuner := range tuners {
@@ -248,11 +319,11 @@ func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries,
 	}
 	slices.SortFunc(next, func(a, b sqlc.ListTunersRow) int { return cmp.Compare(a.TunerIndex, b.TunerIndex) })
 	if slices.EqualFunc(current, next, equalTuner) {
-		return nil
+		return false, nil
 	}
 
 	if err := q.DeleteTuners(ctx); err != nil {
-		return fmt.Errorf("failed to delete tuners: %w", err)
+		return false, fmt.Errorf("failed to delete tuners: %w", err)
 	}
 	for _, tuner := range next {
 		if err := q.InsertTuner(ctx, sqlc.InsertTunerParams{
@@ -264,15 +335,12 @@ func (m *Monitor) replaceTuners(ctx context.Context, tx pgx.Tx, q *sqlc.Queries,
 			IsFault:     tuner.IsFault,
 			Now:         now,
 		}); err != nil {
-			return fmt.Errorf("failed to insert tuner %d: %w", tuner.TunerIndex, err)
+			return false, fmt.Errorf("failed to insert tuner %d: %w", tuner.TunerIndex, err)
 		}
-	}
-	if _, err := notify.Publish(ctx, tx, m.clock, NotifyChannel); err != nil {
-		return err
 	}
 	m.logger.InfoContext(ctx, "tuner configuration changed", slog.Int("tuners", len(next)))
 
-	return nil
+	return true, nil
 }
 
 // truncate は、s を maxBytes バイト以内に、文字の途中で切らずに縮める。

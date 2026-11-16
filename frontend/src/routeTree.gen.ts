@@ -48,6 +48,7 @@ import { Route as RulesRuleIdRouteImport } from './routes/rules/$ruleId'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsAccountRouteImport } from './routes/settings/account'
 import { Route as SettingsGuideRouteImport } from './routes/settings/guide'
+import { Route as SettingsIconRouteImport } from './routes/settings/icon'
 import { Route as SettingsNotificationsRouteImport } from './routes/settings/notifications'
 import { Route as SettingsPasswordRouteImport } from './routes/settings/password'
 import { Route as SettingsPlayerRouteImport } from './routes/settings/player'
@@ -254,6 +255,11 @@ const SettingsGuideRoute = SettingsGuideRouteImport.update({
   path: '/settings/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsIconRoute = SettingsIconRouteImport.update({
+  id: '/settings/icon',
+  path: '/settings/icon',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsNotificationsRoute = SettingsNotificationsRouteImport.update({
   id: '/settings/notifications',
   path: '/settings/notifications',
@@ -339,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/guide': typeof SettingsGuideRoute
+  '/settings/icon': typeof SettingsIconRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/settings/player': typeof SettingsPlayerRoute
@@ -390,6 +397,7 @@ export interface FileRoutesByTo {
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/guide': typeof SettingsGuideRoute
+  '/settings/icon': typeof SettingsIconRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/settings/player': typeof SettingsPlayerRoute
@@ -442,6 +450,7 @@ export interface FileRoutesById {
   '/rules/$ruleId': typeof RulesRuleIdRoute
   '/settings/account': typeof SettingsAccountRoute
   '/settings/guide': typeof SettingsGuideRoute
+  '/settings/icon': typeof SettingsIconRoute
   '/settings/notifications': typeof SettingsNotificationsRoute
   '/settings/password': typeof SettingsPasswordRoute
   '/settings/player': typeof SettingsPlayerRoute
@@ -495,6 +504,7 @@ export interface FileRouteTypes {
     | '/rules/$ruleId'
     | '/settings/account'
     | '/settings/guide'
+    | '/settings/icon'
     | '/settings/notifications'
     | '/settings/password'
     | '/settings/player'
@@ -546,6 +556,7 @@ export interface FileRouteTypes {
     | '/rules/$ruleId'
     | '/settings/account'
     | '/settings/guide'
+    | '/settings/icon'
     | '/settings/notifications'
     | '/settings/password'
     | '/settings/player'
@@ -597,6 +608,7 @@ export interface FileRouteTypes {
     | '/rules/$ruleId'
     | '/settings/account'
     | '/settings/guide'
+    | '/settings/icon'
     | '/settings/notifications'
     | '/settings/password'
     | '/settings/player'
@@ -649,6 +661,7 @@ export interface RootRouteChildren {
   RulesRuleIdRoute: typeof RulesRuleIdRoute
   SettingsAccountRoute: typeof SettingsAccountRoute
   SettingsGuideRoute: typeof SettingsGuideRoute
+  SettingsIconRoute: typeof SettingsIconRoute
   SettingsNotificationsRoute: typeof SettingsNotificationsRoute
   SettingsPasswordRoute: typeof SettingsPasswordRoute
   SettingsPlayerRoute: typeof SettingsPlayerRoute
@@ -943,6 +956,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsGuideRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/icon': {
+      id: '/settings/icon'
+      path: '/settings/icon'
+      fullPath: '/settings/icon'
+      preLoaderRoute: typeof SettingsIconRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/notifications': {
       id: '/settings/notifications'
       path: '/settings/notifications'
@@ -1049,6 +1069,7 @@ const rootRouteChildren: RootRouteChildren = {
   RulesRuleIdRoute: RulesRuleIdRoute,
   SettingsAccountRoute: SettingsAccountRoute,
   SettingsGuideRoute: SettingsGuideRoute,
+  SettingsIconRoute: SettingsIconRoute,
   SettingsNotificationsRoute: SettingsNotificationsRoute,
   SettingsPasswordRoute: SettingsPasswordRoute,
   SettingsPlayerRoute: SettingsPlayerRoute,

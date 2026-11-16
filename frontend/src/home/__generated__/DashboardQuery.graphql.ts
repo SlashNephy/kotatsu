@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<b4cafb5a69fea387f10244b0e9679a4f>>
+ * @generated SignedSource<<a66df003f38a60fb8d6ff1041409ec05>>
  * @lightSyntaxTransform
  */
 
@@ -10,6 +10,7 @@
 import { ConcreteRequest } from 'relay-runtime';
 export type AssignmentState = "CONFLICT" | "OK" | "PARTIAL" | "PENDING" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
+export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
 export type DashboardQuery$variables = {
   from: string;
   nowEnd: string;
@@ -74,6 +75,22 @@ export type DashboardQuery$data = {
       } | null | undefined;
       readonly logoUrl: string | null | undefined;
       readonly name: string;
+    };
+  }>;
+  readonly nextEpisodes: ReadonlyArray<{
+    readonly program: {
+      readonly id: string;
+      readonly name: string;
+      readonly ruleKeyword: string;
+      readonly service: {
+        readonly id: string;
+        readonly logoUrl: string | null | undefined;
+        readonly name: string;
+      };
+      readonly startAt: string;
+    };
+    readonly watched: {
+      readonly id: string;
     };
   }>;
   readonly pinnedServices: ReadonlyArray<{
@@ -152,6 +169,9 @@ export type DashboardQuery$data = {
         readonly startAt: string;
       };
     }>;
+  };
+  readonly viewer: {
+    readonly role: Role;
   };
 };
 export type DashboardQuery = {
@@ -381,56 +401,119 @@ v19 = {
   "selections": (v9/*:: as any*/),
   "storageKey": null
 },
-v20 = [
+v20 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "role",
+  "storageKey": null
+},
+v21 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "SeriesNextEpisode",
+  "kind": "LinkedField",
+  "name": "nextEpisodes",
+  "plural": true,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "Recording",
+      "kind": "LinkedField",
+      "name": "watched",
+      "plural": false,
+      "selections": (v9/*:: as any*/),
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "Program",
+      "kind": "LinkedField",
+      "name": "program",
+      "plural": false,
+      "selections": [
+        (v8/*:: as any*/),
+        (v13/*:: as any*/),
+        (v17/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "ruleKeyword",
+          "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "concreteType": "Service",
+          "kind": "LinkedField",
+          "name": "service",
+          "plural": false,
+          "selections": [
+            (v8/*:: as any*/),
+            (v13/*:: as any*/),
+            (v14/*:: as any*/)
+          ],
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v22 = [
   {
     "kind": "Variable",
     "name": "first",
     "variableName": "recordings"
   }
 ],
-v21 = {
+v23 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "state",
   "storageKey": null
 },
-v22 = {
+v24 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "drops",
   "storageKey": null
 },
-v23 = {
+v25 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "errors",
   "storageKey": null
 },
-v24 = {
+v26 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "scrambled",
   "storageKey": null
 },
-v25 = {
+v27 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedFrom",
   "storageKey": null
 },
-v26 = {
+v28 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "recordedUntil",
   "storageKey": null
 },
-v27 = {
+v29 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingGap",
@@ -455,28 +538,28 @@ v27 = {
   ],
   "storageKey": null
 },
-v28 = {
+v30 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "watchPositionMs",
   "storageKey": null
 },
-v29 = {
+v31 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "thumbnailUrl",
   "storageKey": null
 },
-v30 = {
+v32 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
   "name": "previewUrl",
   "storageKey": null
 },
-v31 = {
+v33 = {
   "alias": null,
   "args": null,
   "concreteType": "PreviewFrame",
@@ -536,13 +619,11 @@ v31 = {
   ],
   "storageKey": null
 },
-v32 = [
+v34 = [
   (v8/*:: as any*/),
   (v13/*:: as any*/),
   (v17/*:: as any*/),
   (v18/*:: as any*/),
-  (v21/*:: as any*/),
-  (v22/*:: as any*/),
   (v23/*:: as any*/),
   (v24/*:: as any*/),
   (v25/*:: as any*/),
@@ -552,6 +633,8 @@ v32 = [
   (v29/*:: as any*/),
   (v30/*:: as any*/),
   (v31/*:: as any*/),
+  (v32/*:: as any*/),
+  (v33/*:: as any*/),
   {
     "alias": null,
     "args": null,
@@ -566,27 +649,27 @@ v32 = [
     "storageKey": null
   }
 ],
-v33 = {
+v35 = {
   "kind": "Literal",
   "name": "enabled",
   "value": true
 },
-v34 = {
+v36 = {
   "kind": "Variable",
   "name": "to",
   "variableName": "to"
 },
-v35 = [
-  (v33/*:: as any*/),
+v37 = [
+  (v35/*:: as any*/),
   {
     "kind": "Variable",
     "name": "first",
     "variableName": "upcoming"
   },
   (v11/*:: as any*/),
-  (v34/*:: as any*/)
+  (v36/*:: as any*/)
 ],
-v36 = {
+v38 = {
   "alias": null,
   "args": null,
   "concreteType": "ReservationAssignment",
@@ -594,14 +677,14 @@ v36 = {
   "name": "assignment",
   "plural": false,
   "selections": [
-    (v21/*:: as any*/)
+    (v23/*:: as any*/)
   ],
   "storageKey": null
 },
-v37 = {
+v39 = {
   "alias": "troubles",
   "args": [
-    (v33/*:: as any*/),
+    (v35/*:: as any*/),
     {
       "kind": "Literal",
       "name": "first",
@@ -616,7 +699,7 @@ v37 = {
         "PARTIAL"
       ]
     },
-    (v34/*:: as any*/)
+    (v36/*:: as any*/)
   ],
   "concreteType": "ReservationConnection",
   "kind": "LinkedField",
@@ -665,13 +748,11 @@ v37 = {
   ],
   "storageKey": null
 },
-v38 = [
+v40 = [
   (v8/*:: as any*/),
   (v13/*:: as any*/),
   (v17/*:: as any*/),
   (v18/*:: as any*/),
-  (v21/*:: as any*/),
-  (v22/*:: as any*/),
   (v23/*:: as any*/),
   (v24/*:: as any*/),
   (v25/*:: as any*/),
@@ -681,6 +762,8 @@ v38 = [
   (v29/*:: as any*/),
   (v30/*:: as any*/),
   (v31/*:: as any*/),
+  (v32/*:: as any*/),
+  (v33/*:: as any*/),
   {
     "alias": null,
     "args": null,
@@ -741,17 +824,30 @@ return {
       },
       {
         "alias": null,
-        "args": (v20/*:: as any*/),
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v20/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v21/*:: as any*/),
+      {
+        "alias": null,
+        "args": (v22/*:: as any*/),
         "concreteType": "Recording",
         "kind": "LinkedField",
         "name": "continueWatching",
         "plural": true,
-        "selections": (v32/*:: as any*/),
+        "selections": (v34/*:: as any*/),
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v20/*:: as any*/),
+        "args": (v22/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -772,7 +868,7 @@ return {
                 "kind": "LinkedField",
                 "name": "node",
                 "plural": false,
-                "selections": (v32/*:: as any*/),
+                "selections": (v34/*:: as any*/),
                 "storageKey": null
               }
             ],
@@ -783,7 +879,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v35/*:: as any*/),
+        "args": (v37/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -823,7 +919,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v36/*:: as any*/)
+                  (v38/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -833,7 +929,7 @@ return {
         ],
         "storageKey": null
       },
-      (v37/*:: as any*/)
+      (v39/*:: as any*/)
     ],
     "type": "Query",
     "abstractKey": null
@@ -883,17 +979,31 @@ return {
       },
       {
         "alias": null,
-        "args": (v20/*:: as any*/),
+        "args": null,
+        "concreteType": "User",
+        "kind": "LinkedField",
+        "name": "viewer",
+        "plural": false,
+        "selections": [
+          (v20/*:: as any*/),
+          (v8/*:: as any*/)
+        ],
+        "storageKey": null
+      },
+      (v21/*:: as any*/),
+      {
+        "alias": null,
+        "args": (v22/*:: as any*/),
         "concreteType": "Recording",
         "kind": "LinkedField",
         "name": "continueWatching",
         "plural": true,
-        "selections": (v38/*:: as any*/),
+        "selections": (v40/*:: as any*/),
         "storageKey": null
       },
       {
         "alias": null,
-        "args": (v20/*:: as any*/),
+        "args": (v22/*:: as any*/),
         "concreteType": "RecordingConnection",
         "kind": "LinkedField",
         "name": "recordings",
@@ -914,7 +1024,7 @@ return {
                 "kind": "LinkedField",
                 "name": "node",
                 "plural": false,
-                "selections": (v38/*:: as any*/),
+                "selections": (v40/*:: as any*/),
                 "storageKey": null
               }
             ],
@@ -925,7 +1035,7 @@ return {
       },
       {
         "alias": "upcoming",
-        "args": (v35/*:: as any*/),
+        "args": (v37/*:: as any*/),
         "concreteType": "ReservationConnection",
         "kind": "LinkedField",
         "name": "reservations",
@@ -966,7 +1076,7 @@ return {
                     ],
                     "storageKey": null
                   },
-                  (v36/*:: as any*/)
+                  (v38/*:: as any*/)
                 ],
                 "storageKey": null
               }
@@ -976,20 +1086,20 @@ return {
         ],
         "storageKey": null
       },
-      (v37/*:: as any*/)
+      (v39/*:: as any*/)
     ]
   },
   "params": {
-    "cacheID": "fde199ee9fa492a6abc7a6eec828f336",
+    "cacheID": "28abf10307d8dac0eeede3520dd2ea10",
     "id": null,
     "metadata": {},
     "name": "DashboardQuery",
     "operationKind": "query",
-    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n    clockSkewed\n    clockSkewMs\n    broadcastClockSkewed\n    broadcastClockSkewMs\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n      jikkyo {\n        id\n        force\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n  continueWatching(first: $recordings) {\n    id\n    name\n    startAt\n    endAt\n    state\n    drops\n    errors\n    scrambled\n    recordedFrom\n    recordedUntil\n    gaps {\n      from\n      to\n    }\n    watchPositionMs\n    thumbnailUrl\n    previewUrl\n    watchFrame {\n      url\n      x\n      y\n      width\n      height\n      sheetWidth\n      sheetHeight\n    }\n    service {\n      name\n      logoUrl\n      id\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
+    "text": "query DashboardQuery(\n  $from: Time!\n  $nowEnd: Time!\n  $to: Time!\n  $recordings: Int!\n  $upcoming: Int!\n) {\n  tunerServerHealth {\n    degraded\n    degradedSince\n    clockSkewed\n    clockSkewMs\n    broadcastClockSkewed\n    broadcastClockSkewMs\n  }\n  channelTypes {\n    type\n    displayName\n  }\n  pinnedServices {\n    id\n  }\n  guide(from: $from, to: $nowEnd) {\n    service {\n      id\n      name\n      logoUrl\n      channelType {\n        type\n      }\n      jikkyo {\n        id\n        force\n      }\n    }\n    programs {\n      name\n      startAt\n      endAt\n      sharedFrom {\n        id\n      }\n      id\n    }\n  }\n  viewer {\n    role\n    id\n  }\n  nextEpisodes {\n    watched {\n      id\n    }\n    program {\n      id\n      name\n      startAt\n      ruleKeyword\n      service {\n        id\n        name\n        logoUrl\n      }\n    }\n  }\n  continueWatching(first: $recordings) {\n    id\n    name\n    startAt\n    endAt\n    state\n    drops\n    errors\n    scrambled\n    recordedFrom\n    recordedUntil\n    gaps {\n      from\n      to\n    }\n    watchPositionMs\n    thumbnailUrl\n    previewUrl\n    watchFrame {\n      url\n      x\n      y\n      width\n      height\n      sheetWidth\n      sheetHeight\n    }\n    service {\n      name\n      logoUrl\n      id\n    }\n  }\n  recordings(first: $recordings) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        state\n        drops\n        errors\n        scrambled\n        recordedFrom\n        recordedUntil\n        gaps {\n          from\n          to\n        }\n        watchPositionMs\n        thumbnailUrl\n        previewUrl\n        watchFrame {\n          url\n          x\n          y\n          width\n          height\n          sheetWidth\n          sheetHeight\n        }\n        service {\n          name\n          logoUrl\n          id\n        }\n      }\n    }\n  }\n  upcoming: reservations(from: $from, to: $to, enabled: true, first: $upcoming) {\n    edges {\n      node {\n        id\n        name\n        startAt\n        endAt\n        service {\n          name\n          logoUrl\n          channelType {\n            type\n          }\n          id\n        }\n        assignment {\n          state\n        }\n      }\n    }\n  }\n  troubles: reservations(from: $from, to: $to, states: [CONFLICT, PARTIAL], enabled: true, first: 100) {\n    edges {\n      node {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "2af5fc795953acd51e38fac723ee862a";
+(node as any).hash = "bb35887471e508860d2f02ef1d14a9e9";
 
 export default node;

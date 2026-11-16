@@ -8,6 +8,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/anime"
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webpush"
 )
@@ -17,6 +18,7 @@ type sealedStores struct {
 	webhooks     *webhook.Store
 	webPush      *webpush.Service
 	animeRecords *animerecord.Service
+	dramaTokens  *drama.Tokens
 }
 
 // appSecret は、アプリの秘密キー (auth.secret_key)。wire は型で依存を見分けるので、ほかの文字列と分ける。
@@ -32,6 +34,11 @@ func appSecretOf(deps *Deps) appSecret {
 
 func newWebhookStore(clk clock.Clock, recorder audit.Recorder, secret appSecret) (*webhook.Store, error) {
 	return webhook.NewStore(clk, recorder, string(secret))
+}
+
+// newDramaTokens は、管理者が連携の画面で入れた TMDb のトークンを扱う部品を作る (#1651)。
+func newDramaTokens(clk clock.Clock, recorder audit.Recorder, secret appSecret) (*drama.Tokens, error) {
+	return drama.NewTokens(clk, recorder, string(secret))
 }
 
 // newWebPush は、Web Push の部品を作る。VAPID の鍵は、ブラウザが購読するために公開鍵を求めたときか、初めて通知を送るときに作る。

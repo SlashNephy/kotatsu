@@ -19,6 +19,7 @@ type RecordingState string
 // cancelled
 // recorder_unavailable // 録画を始める時刻に、割り振りを取る mikan がいなかったこと (#517)。
 // tuner_preempted // 録画中に、チューナーサーバー (EDCB) の予約にチューナーを取られ、つなぎ直せなかったこと (#1534)。
+// tuning_refused // チューナーサーバーが選局を断ったこと (サービスかチャンネルがない 404 か、選局に失敗した 500、#1519)。
 // )
 type RecordingFailureReason string
 

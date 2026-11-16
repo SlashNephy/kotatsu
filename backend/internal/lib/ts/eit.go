@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"slices"
+	"time"
 )
 
 const (
@@ -62,10 +63,39 @@ type eitTable struct {
 	// descriptors は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の記述子の並び (#1500)。鍵はサービス ID と eventId。
 	// 文字列を読むのは重いので、EventInfo で引かれたときに読む。
 	descriptors map[[2]uint16][]byte
+	// times は、EIT[p/f] の放送中か次の番組として最後に読んだ、番組の開始と長さ (#1734)。鍵はサービス ID と eventId。
+	times map[[2]uint16]*EventTime
+}
+
+// EventTime は、EIT のイベントの start_time と duration (#1734)。
+type EventTime struct {
+	// Start は、番組の開始。未定 (すべてのビットが 1) か読めなければ nil。
+	Start *time.Time
+	// Duration は、番組の長さ。未定 (すべてのビットが 1) か読めなければ nil。
+	Duration *time.Duration
 }
 
 func newEITTable() *eitTable {
-	return &eitTable{events: map[[2]uint16]*EventAudio{}, pf: map[uint16]*PresentFollowing{}, descriptors: map[[2]uint16][]byte{}}
+	return &eitTable{
+		events: map[[2]uint16]*EventAudio{}, pf: map[uint16]*PresentFollowing{}, descriptors: map[[2]uint16][]byte{},
+		times: map[[2]uint16]*EventTime{},
+	}
+}
+
+// parseEventTime は、EIT のイベントの start_time (MJD と BCD の 40 ビット) と duration (BCD の 24 ビット) を読む。
+func parseEventTime(b []byte) *EventTime {
+	et := &EventTime{Start: nil, Duration: nil}
+	if start, ok := parseJSTTime(b[0:5]); ok {
+		et.Start = &start
+	}
+	hour, okH := bcd(b[5])
+	minute, okM := bcd(b[6])
+	second, okS := bcd(b[7])
+	if okH && okM && okS && minute < 60 && second < 60 {
+		et.Duration = new(time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute + time.Duration(second)*time.Second)
+	}
+
+	return et
 }
 
 // handle は、EIT[p/f] (自 TS) のセクションを読む。放送中 (section_number 0) と次 (1) の番組を追い、放送中の番組の音声の構成を集める。
@@ -99,6 +129,7 @@ func (t *eitTable) handle(section []byte) {
 	}
 	descriptors := event[eitEventHeaderLength : eitEventHeaderLength+loopLength]
 	key := [2]uint16{header.tableIDExtension, eventID}
+	t.times[key] = parseEventTime(event[2:10])
 	// 番組名や概要は、放送の直前の EIT[p/f] にだけ載ることがあるので、放送中と次の番組の両方で読む (#1500)。
 	if current, ok := t.descriptors[key]; !ok || !bytes.Equal(current, descriptors) {
 		t.descriptors[key] = bytes.Clone(descriptors)

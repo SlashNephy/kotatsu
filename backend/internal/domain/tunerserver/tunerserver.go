@@ -33,7 +33,8 @@ type Client interface {
 	OpenEvents(ctx context.Context) (EventStream, error)
 	// OpenServiceStream は、サービスのストリームを開く。返す io.ReadCloser は、読み終えたら必ず閉じる。
 	// opts が nil なら、スクランブルを解除せず、優先度 0 で開く。
-	// チューナーを確保できなければ ErrTunerUnavailable を、サービスがなければ ErrNotFound を包んだエラーを返す。
+	// チューナーを確保できなければ ErrTunerUnavailable を、サービスがなければ ErrNotFound を、
+	// 選局かストリームの準備に失敗したことが分かれば ErrTuningFailed を包んだエラーを返す。
 	OpenServiceStream(ctx context.Context, serviceID int64, opts *StreamOptions) (io.ReadCloser, error)
 	// OpenChannelStream は、チャンネル種別 channelType のチャンネル channel のストリームを、すべてのサービスを含んだまま開く。
 	// エラーは OpenServiceStream と同じく返す。
@@ -155,6 +156,20 @@ type Tuner struct {
 	IsFree      bool
 	IsUsing     bool
 	IsFault     bool
+}
+
+// TunerOccupancy は、チューナーサーバー自身の予約 (EDCB の予約) が、チューナーを使う時間帯 (#1536)。
+// Kotatsu はその予約に優先度で勝てないので、割り当てはこの時間帯のチューナーを使わない (設計書 4.5)。
+type TunerOccupancy struct {
+	// TunerIndex は、Tuner の Index。
+	TunerIndex int
+	Start, End time.Time
+}
+
+// TunerOccupancyLister は、チューナーサーバー自身の予約がチューナーを使う時間帯を返せるチューナーサーバー (#1536)。
+// 自分で予約を持つサーバー (EDCB) だけが満たす。Mirakurun 互換のサーバーは予約を持たないので満たさない。
+type TunerOccupancyLister interface {
+	TunerOccupancies(ctx context.Context) ([]*TunerOccupancy, error)
 }
 
 // TunerUser は、チューナーを使っている利用者。

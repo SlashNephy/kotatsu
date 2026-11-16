@@ -175,6 +175,9 @@ export function createRootValue(
     recordings: [],
     recorded: false,
     animeEpisodes: demoAnimeEpisodes(item),
+    // デモは TMDb に問い合わせないので、ドラマの作品には結びつけない (#1651)。
+    dramaEpisode: null,
+    dramaTitleKey: item.name,
   });
 
   const guideView = (id: string, input: GuideViewInput) => ({
@@ -345,6 +348,8 @@ export function createRootValue(
       return paginate(found, args.first, args.after);
     },
     continueWatching: ({ first }: { first: number }) => recordings.continueWatching(first),
+    // デモの録画は番組表の番組と結び付けないので、続きの放送 (#1564) は出さない。
+    nextEpisodes: () => [],
     recordings: (args: {
       first: number;
       after?: string | null;
@@ -359,6 +364,7 @@ export function createRootValue(
       args: Parameters<typeof scheduler.reservations>[0] & { first: number; after?: string | null },
     ) => paginate(scheduler.reservations(args), args.first, args.after),
     rules: () => scheduler.rules(),
+    ruleGroups: () => scheduler.ruleGroups(),
     // デモは過去の番組を持たないので、番組表で過去の日へは遡れない (#1121)。
     oldestArchivedProgramAt: null,
     // デモでは、照合の重さを警告しない。
@@ -422,6 +428,8 @@ export function createRootValue(
       epgstationApiEnabled: true,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
       animeLinkingEnabled: false,
+      // TMDb との連携も、外部へ問い合わせるので使わない (#1651)。
+      dramaLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
       jikkyoEnabled: true,
       commentSources: ['NX_JIKKYO'],
@@ -434,6 +442,9 @@ export function createRootValue(
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
+    // デモには TMDb のトークンも、作品の指定もない (#1651)。
+    dramaLinking: () => ({ tokenConfigured: false, tokenHint: null, tokenUpdatedAt: null }),
+    dramaTitleOverrides: () => [],
     // デモは発行した URL を記録しないので、管理者の一覧は空にする (#1757)。
     issuedStreamUrls: () => [],
     animeRecordSettings: () => demoAnimeRecordSettings(),
@@ -478,6 +489,8 @@ export function createRootValue(
     },
 
     // Mutation
+    // デモは作品の指定を覚えない (#1651)。
+    updateDramaTitleOverride: () => [],
     // デモは Annict と AniList に問い合わせないので、見たいリストを取り込めず、候補もない (#928)。
     refreshAnimeWishlist: () => {
       throw new Error('anime linking is disabled');
@@ -640,6 +653,13 @@ export function createRootValue(
     },
     setRulesEnabled: ({ ids, enabled }: { ids: string[]; enabled: boolean }) =>
       scheduler.setRulesEnabled(ids, enabled),
+    setRulesGroup: ({ ids, groupId }: { ids: string[]; groupId?: string | null }) =>
+      scheduler.setRulesGroup(ids, groupId ?? null),
+    createRuleGroup: ({ name }: { name: string }) => scheduler.createRuleGroup(name),
+    renameRuleGroup: ({ id, name }: { id: string; name: string }) =>
+      scheduler.renameRuleGroup(id, name),
+    reorderRuleGroups: ({ ids }: { ids: string[] }) => scheduler.reorderRuleGroups(ids),
+    deleteRuleGroup: ({ id }: { id: string }) => scheduler.deleteRuleGroup(id),
     updateWatchReminderSettings: ({ minutesBefore: value }: { minutesBefore: number }) => {
       minutesBefore = value;
       viewerSettingsChanged();

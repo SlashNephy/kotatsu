@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<f8f450dd704ebbbcec36388c487bacd0>>
+ * @generated SignedSource<<ee37f0a3dab459331097fce8cfebe348>>
  * @lightSyntaxTransform
  */
 
@@ -8,8 +8,9 @@
 // @ts-nocheck
 
 import { ConcreteRequest } from 'relay-runtime';
+export type DramaSeriesSource = "OVERRIDE" | "SEARCH" | "%future added value";
 export type RecordingCMDetectionState = "DETECTED" | "FAILED" | "NOT_DETECTED" | "QUEUED" | "RUNNING" | "%future added value";
-export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_PREEMPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "%future added value";
+export type RecordingFailureReason = "CANCELLED" | "PROGRAM_NOT_FOUND" | "RECORDER_UNAVAILABLE" | "STORAGE_FULL" | "STORAGE_UNAVAILABLE" | "STREAM_INTERRUPTED" | "TUNER_PREEMPTED" | "TUNER_SERVER_UNREACHABLE" | "TUNER_UNAVAILABLE" | "TUNING_REFUSED" | "%future added value";
 export type RecordingFileKind = "OTHER" | "SEGMENT" | "%future added value";
 export type RecordingState = "COMPLETED" | "COMPLETED_WITH_ERRORS" | "FAILED" | "PARTIAL" | "RECORDING" | "%future added value";
 export type Role = "ADMIN" | "MEMBER" | "VIEWER" | "%future added value";
@@ -52,6 +53,19 @@ export type RecordingIdQuery$data = {
       readonly from: string;
     }>;
     readonly description: string;
+    readonly dramaEpisode: {
+      readonly episodeName: string | null | undefined;
+      readonly episodeNumber: number | null | undefined;
+      readonly seasonNumber: number | null | undefined;
+      readonly series: {
+        readonly name: string | null | undefined;
+        readonly originalName: string | null | undefined;
+        readonly tmdbId: number;
+        readonly url: string;
+      };
+      readonly seriesSource: DramaSeriesSource;
+      readonly url: string;
+    } | null | undefined;
     readonly drops: number;
     readonly endAt: string;
     readonly errors: number;
@@ -86,6 +100,17 @@ export type RecordingIdQuery$data = {
     readonly id: string;
     readonly jikkyoCommentsUrl: string;
     readonly name: string;
+    readonly nextEpisodes: ReadonlyArray<{
+      readonly id: string;
+      readonly name: string;
+      readonly ruleKeyword: string;
+      readonly service: {
+        readonly id: string;
+        readonly logoUrl: string | null | undefined;
+        readonly name: string;
+      };
+      readonly startAt: string;
+    }>;
     readonly notBroadcast: boolean;
     readonly programLost: boolean;
     readonly protected: boolean;
@@ -99,6 +124,10 @@ export type RecordingIdQuery$data = {
     readonly scrambled: number;
     readonly scrambledRatio: number | null | undefined;
     readonly service: {
+      readonly channelType: {
+        readonly type: string;
+      };
+      readonly id: string;
       readonly jikkyo: {
         readonly id: string;
       } | null | undefined;
@@ -508,6 +537,80 @@ v30 = {
 v31 = {
   "alias": null,
   "args": null,
+  "kind": "ScalarField",
+  "name": "url",
+  "storageKey": null
+},
+v32 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "DramaEpisode",
+  "kind": "LinkedField",
+  "name": "dramaEpisode",
+  "plural": false,
+  "selections": [
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "DramaSeries",
+      "kind": "LinkedField",
+      "name": "series",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "tmdbId",
+          "storageKey": null
+        },
+        (v3/*:: as any*/),
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "originalName",
+          "storageKey": null
+        },
+        (v31/*:: as any*/)
+      ],
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "seriesSource",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "seasonNumber",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "episodeNumber",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "episodeName",
+      "storageKey": null
+    },
+    (v31/*:: as any*/)
+  ],
+  "storageKey": null
+},
+v33 = {
+  "alias": null,
+  "args": null,
   "concreteType": "AnimeEpisode",
   "kind": "LinkedField",
   "name": "animeEpisodes",
@@ -604,93 +707,160 @@ v31 = {
   ],
   "storageKey": null
 },
-v32 = [
+v34 = [
   (v6/*:: as any*/)
 ],
-v33 = {
+v35 = {
   "alias": null,
   "args": null,
   "concreteType": "Rule",
   "kind": "LinkedField",
   "name": "rule",
   "plural": false,
-  "selections": (v32/*:: as any*/),
-  "storageKey": null
-},
-v34 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "ruleName",
-  "storageKey": null
-},
-v35 = {
-  "alias": null,
-  "args": null,
-  "kind": "ScalarField",
-  "name": "thumbnailUrl",
+  "selections": (v34/*:: as any*/),
   "storageKey": null
 },
 v36 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "streamUrl",
+  "name": "ruleName",
   "storageKey": null
 },
 v37 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "videoFormat",
+  "name": "thumbnailUrl",
   "storageKey": null
 },
 v38 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "jikkyoCommentsUrl",
+  "name": "streamUrl",
   "storageKey": null
 },
 v39 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "tvtplayChapterUrl",
+  "name": "videoFormat",
   "storageKey": null
 },
 v40 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedFrom",
+  "name": "jikkyoCommentsUrl",
   "storageKey": null
 },
 v41 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "recordedUntil",
+  "name": "tvtplayChapterUrl",
   "storageKey": null
 },
 v42 = {
   "alias": null,
   "args": null,
   "kind": "ScalarField",
-  "name": "logoUrl",
+  "name": "recordedFrom",
   "storageKey": null
 },
 v43 = {
   "alias": null,
   "args": null,
-  "concreteType": "JikkyoChannel",
-  "kind": "LinkedField",
-  "name": "jikkyo",
-  "plural": false,
-  "selections": (v32/*:: as any*/),
+  "kind": "ScalarField",
+  "name": "recordedUntil",
   "storageKey": null
 },
 v44 = {
+  "alias": null,
+  "args": null,
+  "kind": "ScalarField",
+  "name": "logoUrl",
+  "storageKey": null
+},
+v45 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Service",
+  "kind": "LinkedField",
+  "name": "service",
+  "plural": false,
+  "selections": [
+    (v6/*:: as any*/),
+    (v3/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "ChannelType",
+      "kind": "LinkedField",
+      "name": "channelType",
+      "plural": false,
+      "selections": [
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "type",
+          "storageKey": null
+        }
+      ],
+      "storageKey": null
+    },
+    (v44/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "JikkyoChannel",
+      "kind": "LinkedField",
+      "name": "jikkyo",
+      "plural": false,
+      "selections": (v34/*:: as any*/),
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v46 = {
+  "alias": null,
+  "args": null,
+  "concreteType": "Program",
+  "kind": "LinkedField",
+  "name": "nextEpisodes",
+  "plural": true,
+  "selections": [
+    (v6/*:: as any*/),
+    (v3/*:: as any*/),
+    (v9/*:: as any*/),
+    {
+      "alias": null,
+      "args": null,
+      "kind": "ScalarField",
+      "name": "ruleKeyword",
+      "storageKey": null
+    },
+    {
+      "alias": null,
+      "args": null,
+      "concreteType": "Service",
+      "kind": "LinkedField",
+      "name": "service",
+      "plural": false,
+      "selections": [
+        (v6/*:: as any*/),
+        (v3/*:: as any*/),
+        (v44/*:: as any*/)
+      ],
+      "storageKey": null
+    }
+  ],
+  "storageKey": null
+},
+v47 = {
   "alias": null,
   "args": null,
   "concreteType": "Tag",
@@ -703,7 +873,7 @@ v44 = {
   ],
   "storageKey": null
 },
-v45 = {
+v48 = {
   "alias": null,
   "args": null,
   "concreteType": "RecordingFile",
@@ -726,13 +896,7 @@ v45 = {
       "name": "size",
       "storageKey": null
     },
-    {
-      "alias": null,
-      "args": null,
-      "kind": "ScalarField",
-      "name": "url",
-      "storageKey": null
-    },
+    (v31/*:: as any*/),
     {
       "alias": null,
       "args": null,
@@ -876,9 +1040,8 @@ return {
               (v28/*:: as any*/),
               (v29/*:: as any*/),
               (v30/*:: as any*/),
-              (v31/*:: as any*/),
+              (v32/*:: as any*/),
               (v33/*:: as any*/),
-              (v34/*:: as any*/),
               (v35/*:: as any*/),
               (v36/*:: as any*/),
               (v37/*:: as any*/),
@@ -886,22 +1049,12 @@ return {
               (v39/*:: as any*/),
               (v40/*:: as any*/),
               (v41/*:: as any*/),
-              {
-                "alias": null,
-                "args": null,
-                "concreteType": "Service",
-                "kind": "LinkedField",
-                "name": "service",
-                "plural": false,
-                "selections": [
-                  (v3/*:: as any*/),
-                  (v42/*:: as any*/),
-                  (v43/*:: as any*/)
-                ],
-                "storageKey": null
-              },
-              (v44/*:: as any*/),
-              (v45/*:: as any*/)
+              (v42/*:: as any*/),
+              (v43/*:: as any*/),
+              (v45/*:: as any*/),
+              (v46/*:: as any*/),
+              (v47/*:: as any*/),
+              (v48/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -982,9 +1135,8 @@ return {
               (v28/*:: as any*/),
               (v29/*:: as any*/),
               (v30/*:: as any*/),
-              (v31/*:: as any*/),
+              (v32/*:: as any*/),
               (v33/*:: as any*/),
-              (v34/*:: as any*/),
               (v35/*:: as any*/),
               (v36/*:: as any*/),
               (v37/*:: as any*/),
@@ -992,23 +1144,12 @@ return {
               (v39/*:: as any*/),
               (v40/*:: as any*/),
               (v41/*:: as any*/),
-              {
-                "alias": null,
-                "args": null,
-                "concreteType": "Service",
-                "kind": "LinkedField",
-                "name": "service",
-                "plural": false,
-                "selections": [
-                  (v3/*:: as any*/),
-                  (v42/*:: as any*/),
-                  (v43/*:: as any*/),
-                  (v6/*:: as any*/)
-                ],
-                "storageKey": null
-              },
-              (v44/*:: as any*/),
-              (v45/*:: as any*/)
+              (v42/*:: as any*/),
+              (v43/*:: as any*/),
+              (v45/*:: as any*/),
+              (v46/*:: as any*/),
+              (v47/*:: as any*/),
+              (v48/*:: as any*/)
             ],
             "type": "Recording",
             "abstractKey": null
@@ -1019,16 +1160,16 @@ return {
     ]
   },
   "params": {
-    "cacheID": "3c69047fdae77531b9971ee4edb3a199",
+    "cacheID": "d9176f823a395d834aff4d0d9e3d35c8",
     "id": null,
     "metadata": {},
     "name": "RecordingIdQuery",
     "operationKind": "query",
-    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        note\n        videoMissingSeconds\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        name\n        logoUrl\n        jikkyo {\n          id\n        }\n        id\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
+    "text": "query RecordingIdQuery(\n  $id: ID!\n) {\n  viewer {\n    role\n    id\n  }\n  systemSettings {\n    externalPlayerUrlsEnabled\n    recordingDownloadsEnabled\n  }\n  tags {\n    name\n    id\n  }\n  node(id: $id) {\n    __typename\n    ... on Recording {\n      id\n      name\n      workTitle\n      description\n      startAt\n      endAt\n      state\n      failureReason\n      failureDetail\n      protected\n      drops\n      errors\n      scrambled\n      scrambleWarning\n      scrambledRatio\n      streamQuality {\n        pid\n        kind\n        packets\n        drops\n        errors\n        scrambled\n        streamType\n        componentTag\n      }\n      gaps {\n        from\n        to\n      }\n      cmSections {\n        from\n      }\n      cmDetection {\n        state\n        detectedAt\n        note\n        videoMissingSeconds\n        progress {\n          ratio\n          remainingSeconds\n        }\n      }\n      programLost\n      broadcastStartedAt\n      broadcastEndedAt\n      notBroadcast\n      genres {\n        lv1\n        lv2\n      }\n      dramaEpisode {\n        series {\n          tmdbId\n          name\n          originalName\n          url\n        }\n        seriesSource\n        seasonNumber\n        episodeNumber\n        episodeName\n        url\n      }\n      animeEpisodes {\n        syobocalTid\n        syobocalUrl\n        countStart\n        countEnd\n        subtitle\n        first\n        last\n        rerun\n        works {\n          annictUrl\n          anilistUrl\n          malUrl\n        }\n      }\n      rule {\n        id\n      }\n      ruleName\n      thumbnailUrl\n      streamUrl\n      videoFormat\n      jikkyoCommentsUrl\n      tvtplayChapterUrl\n      recordedFrom\n      recordedUntil\n      service {\n        id\n        name\n        channelType {\n          type\n        }\n        logoUrl\n        jikkyo {\n          id\n        }\n      }\n      nextEpisodes {\n        id\n        name\n        startAt\n        ruleKeyword\n        service {\n          id\n          name\n          logoUrl\n        }\n      }\n      tags {\n        id\n        name\n      }\n      files {\n        kind\n        path\n        size\n        url\n        video {\n          codec\n          width\n          height\n          interlaced\n          frameRate\n        }\n        tuner {\n          index\n          name\n        }\n        transcodeFrameRate\n      }\n    }\n    id\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "f3a4a2d3a590cac722ae8f5de4bf4295";
+(node as any).hash = "19cdb0fe57afefdcf3364a3550318702";
 
 export default node;

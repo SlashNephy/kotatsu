@@ -89,14 +89,25 @@ func ValidateOverrides(o *domain.RecordingOverrides) error {
 	if o.Priority != nil && (*o.Priority < minPriority || *o.Priority > maxPriority) {
 		errs = append(errs, fmt.Errorf("%w: priority must be between %d and %d", ErrInvalidSettings, minPriority, maxPriority))
 	}
+	errs = append(errs, validateAfterRecording(o)...)
+
+	return errors.Join(errs...)
+}
+
+// validateAfterRecording は、録画を終えた後の処理 (変換と CM の区間の見分け方) の上書きの値が、選べるもののどれかかを確かめる。
+func validateAfterRecording(o *domain.RecordingOverrides) []error {
+	errs := []error{}
 	if o.TranscodePreset != nil && *o.TranscodePreset != "" && !slices.Contains(domain.TranscodePresets(), *o.TranscodePreset) {
 		errs = append(errs, fmt.Errorf("%w: transcodePreset must be one of %v or empty", ErrInvalidSettings, domain.TranscodePresets()))
 	}
 	if o.TranscodeFrameRate != nil && !slices.Contains(domain.TranscodeFrameRates(), *o.TranscodeFrameRate) {
 		errs = append(errs, fmt.Errorf("%w: transcodeFrameRate must be one of %v", ErrInvalidSettings, domain.TranscodeFrameRates()))
 	}
+	if o.CMDetector != nil && !slices.Contains(domain.CMDetectors(), *o.CMDetector) {
+		errs = append(errs, fmt.Errorf("%w: cmDetector must be one of %v", ErrInvalidSettings, domain.CMDetectors()))
+	}
 
-	return errors.Join(errs...)
+	return errs
 }
 
 // EncodeOverrides は、上書きを検証し、JSONB に保存する形にする。ルールも同じ形で保存する。nil なら空のオブジェクトにする。

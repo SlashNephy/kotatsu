@@ -37,10 +37,15 @@ func newSealedStores(deps *Deps, logger *slog.Logger) (*sealedStores, error) {
 	if err != nil {
 		return nil, err
 	}
+	tokens, err := newDramaTokens(clock, dbRecorder, cliAppSecret)
+	if err != nil {
+		return nil, err
+	}
 	cliSealedStores := &sealedStores{
 		webhooks:     store,
 		webPush:      service,
 		animeRecords: animerecordService,
+		dramaTokens:  tokens,
 	}
 	return cliSealedStores, nil
 }

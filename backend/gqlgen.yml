@@ -156,6 +156,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonRecorderUnavailable
       TUNER_PREEMPTED:
         value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTunerPreempted
+      TUNING_REFUSED:
+        value: github.com/SlashNephy/kotatsu/internal/domain.RecordingFailureReasonTuningRefused
   NetworkActivityPurpose:
     model: github.com/SlashNephy/kotatsu/internal/lib/netactivity.Purpose
     enum_values:
@@ -181,6 +183,8 @@ models:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeLink
       ANIME_IMAGE:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeAnimeImage
+      DRAMA_LINKING:
+        value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeDramaLinking
       USER_AVATAR:
         value: github.com/SlashNephy/kotatsu/internal/lib/netactivity.PurposeUserAvatar
       OIDC:
@@ -316,6 +320,8 @@ models:
         resolver: true
       animeEpisodes:
         resolver: true
+      dramaEpisode:
+        resolver: true
   GuideRow:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.GuideRow
   GuideView:
@@ -330,6 +336,11 @@ models:
         resolver: true
   Rule:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Rule
+  RuleInput:
+    fields:
+      # 省いたこと (今のグループを残す) と null (グループから外す) を分ける (#1493)。
+      groupId:
+        omittable: true
   Recording:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.Recording
     fields:
@@ -345,6 +356,8 @@ models:
         resolver: true
       animeEpisodes:
         resolver: true
+      dramaEpisode:
+        resolver: true
       cmSections:
         resolver: true
       cmDetection:
@@ -354,6 +367,8 @@ models:
       cmVideoMissingSeconds:
         resolver: true
       failureDetail:
+        resolver: true
+      nextEpisodes:
         resolver: true
   ReservationAssignment:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.ReservationAssignment

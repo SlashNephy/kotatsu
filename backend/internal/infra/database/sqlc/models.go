@@ -276,6 +276,18 @@ type ChannelType struct {
 	SortOrder   int32
 }
 
+type DramaMatchCursor struct {
+	ID         int16
+	EpgVersion int64
+	UpdatedAt  time.Time
+}
+
+type DramaTitleOverride struct {
+	TitleKey     string
+	TmdbSeriesID *int32
+	UpdatedAt    time.Time
+}
+
 type EdcbNetworkTv struct {
 	ID         int32
 	InstanceID uuid.UUID
@@ -510,6 +522,8 @@ type Program struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	Series                *string
+	EpisodeNumber         *int32
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }
@@ -560,6 +574,30 @@ type ProgramArchive struct {
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	ArchivedAt            time.Time
+}
+
+type ProgramDramaMatch struct {
+	ServiceID     int64
+	StartAt       time.Time
+	EventID       int64
+	TitleKey      string
+	TmdbSeriesID  *int32
+	SeasonNumber  *int32
+	EpisodeNumber *int32
+	SeriesSource  *string
+	EpisodeSource *string
+	MatchedAt     time.Time
+	FinalizedAt   *time.Time
+}
+
+type ProgramRewrite struct {
+	ServiceID  int64
+	EventID    int64
+	StartAt    time.Time
+	Field      string
+	Before     string
+	After      string
+	ObservedAt time.Time
 }
 
 type Recording struct {
@@ -658,6 +696,16 @@ type RecordingCmSection struct {
 	EndOffsetMs   int64
 }
 
+type RecordingDramaMatch struct {
+	RecordingID   uuid.UUID
+	TmdbSeriesID  *int32
+	SeasonNumber  *int32
+	EpisodeNumber *int32
+	SeriesSource  *string
+	EpisodeSource *string
+	MatchedAt     time.Time
+}
+
 type RecordingFailureCount struct {
 	Reason       domain.RecordingFailureReason
 	Count        int64
@@ -679,6 +727,7 @@ type RecordingFile struct {
 	TunerIndex         *int64
 	TunerName          *string
 	TranscodeFrameRate *int32
+	External           bool
 	CreatedAt          time.Time
 }
 
@@ -768,10 +817,21 @@ type Rule struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	GroupID             *uuid.UUID
 	CreatedAt           time.Time
 	CreatedBy           *uuid.UUID
 	UpdatedAt           time.Time
 	UpdatedBy           *uuid.UUID
+}
+
+type RuleGroup struct {
+	ID        uuid.UUID
+	Name      string
+	Position  int32
+	CreatedAt time.Time
+	CreatedBy *uuid.UUID
+	UpdatedAt time.Time
+	UpdatedBy *uuid.UUID
 }
 
 type SchemaCompatibility struct {
@@ -898,6 +958,7 @@ type SystemSetting struct {
 	TvtplayChaptersEnabled                 bool
 	EPGStationAPIEnabled                   bool
 	AnimeLinkingEnabled                    bool
+	DramaLinkingEnabled                    bool
 	CommentSources                         []string
 	RuleDefaults                           []byte
 	DrcsReplacements                       []byte
@@ -975,6 +1036,34 @@ type TimeshiftWatch struct {
 	WatchingUntil time.Time
 }
 
+type TmdbSearch struct {
+	Query     string
+	Results   []byte
+	FetchedAt time.Time
+}
+
+type TmdbSeason struct {
+	SeriesID     int32
+	SeasonNumber int32
+	Episodes     []byte
+	FetchedAt    time.Time
+}
+
+type TmdbSeries struct {
+	ID           int32
+	Name         string
+	OriginalName string
+	FirstAirDate pgtype.Date
+	Seasons      []byte
+	FetchedAt    time.Time
+}
+
+type TmdbToken struct {
+	ID             int16
+	TokenEncrypted []byte
+	UpdatedAt      time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte
@@ -990,6 +1079,12 @@ type Tuner struct {
 	IsRemote    bool
 	IsFault     bool
 	UpdatedAt   time.Time
+}
+
+type TunerOccupancy struct {
+	TunerIndex int64
+	StartAt    time.Time
+	EndAt      time.Time
 }
 
 type TunerServerStatus struct {

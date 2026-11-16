@@ -19,6 +19,10 @@ type Reservation struct {
 	// ChannelType と Channel は、受信するチャンネル。同じチャンネルの予約どうしは 1 本のチューナーを共有する。
 	ChannelType string
 	Channel     string
+	// Service は、相乗りの単位をサービスにするチューナーサーバー (EDCB) で、受信するサービスの ID。
+	// 0 でなければ、同じチャンネルでも、同じサービスの予約どうしだけが 1 本のチューナーを共有する (#1536)。
+	// EDCB の TS はサービスで絞られるので、同じチャンネルの別のサービスは別のチューナーになる (設計書 3.1)。
+	Service int64
 	// StartAt と EndAt は本編の時刻。本編は削らない。
 	StartAt time.Time
 	EndAt   time.Time
@@ -34,7 +38,7 @@ type Reservation struct {
 }
 
 func (r *Reservation) channel() channelKey {
-	return channelKey{channelType: r.ChannelType, channel: r.Channel}
+	return channelKey{channelType: r.ChannelType, channel: r.Channel, service: r.Service}
 }
 
 func (r *Reservation) fullStart() time.Time { return r.StartAt.Add(-r.StartMargin) }
@@ -45,6 +49,14 @@ type Tuner struct {
 	Index int
 	// Types は、受信できるチャンネル種別。
 	Types []string
+	// Blocks は、Kotatsu の外の予約 (EDCB の予約) がこのチューナーを使う時間帯 (#1536)。
+	// この時間帯は、どの予約にも譲らない。録画が始まった予約も、この時間帯にかかる分は削る。
+	Blocks []Block
+}
+
+// Block は、チューナーを Kotatsu の外の予約がふさぐ時間帯。
+type Block struct {
+	Start, End time.Time
 }
 
 // Assignment は、予約 1 件の割り当ての結果。
@@ -65,7 +77,13 @@ const NoTuner = -1
 type channelKey struct {
 	channelType string
 	channel     string
+	// service は、相乗りの単位がサービスのときのサービスの ID。チャンネルが単位なら 0。
+	service int64
 }
+
+// blockChannelType は、Kotatsu の外の予約がふさぐ時間帯を、チューナーに置く予約として表すときのチャンネル種別。
+// 実際のチャンネル種別と重ならず、どの予約ともチューナーを共有しない。
+const blockChannelType = "\x00block"
 
 // demand は、1 本のチューナーを共有する予約のまとまり。同じチャンネルで時間の重なる予約をまとめる。
 type demand struct {
@@ -144,7 +162,7 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 		return compareReservations(a.key(), b.key())
 	})
 
-	byTuner := map[int][]*placed{}
+	byTuner := seedBlocks(tuners)
 	results := map[uuid.UUID]*Assignment{}
 	for rank, d := range demands {
 		tuner, ok := choose(d, tuners, byTuner)
@@ -166,6 +184,9 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 		trim(list)
 		for _, p := range list {
 			r := p.reservation
+			if r.ChannelType == blockChannelType {
+				continue
+			}
 			state := domain.AssignmentStateOK
 			switch {
 			case !p.start.Before(p.end):
@@ -188,6 +209,28 @@ func Assign(reservations []*Reservation, tuners []*Tuner) []*Assignment {
 	return assignments
 }
 
+// seedBlocks は、Kotatsu の外の予約がチューナーをふさぐ時間帯を、どの需要よりも先に置いた予約として、チューナーに置く (#1536)。
+// 本編だけでマージンを持たないので、削られず、どの予約にも譲らない。ふさぐ時間帯はどれも同じチャンネルにして、
+// 重なったり入れ子になったりしても、互いに削り合わせない (別のチャンネルどうしが本編とマージンを削り合う)。
+func seedBlocks(tuners []*Tuner) map[int][]*placed {
+	byTuner := map[int][]*placed{}
+	for _, tuner := range tuners {
+		for i, b := range tuner.Blocks {
+			if !b.Start.Before(b.End) {
+				continue
+			}
+			r := &Reservation{
+				ID: uuid.Nil(), ChannelType: blockChannelType, Channel: "", Service: 0,
+				StartAt: b.Start, EndAt: b.End, StartMargin: 0, EndMargin: 0, Priority: 0, Recording: false, Tuner: tuner.Index,
+			}
+			// 録画が始まった需要 (rank 0 から) よりも先に置いたとみなす。
+			byTuner[tuner.Index] = append(byTuner[tuner.Index], newPlaced(r, -1-i))
+		}
+	}
+
+	return byTuner
+}
+
 // group は、同じチャンネルで時間の重なる予約を、需要にまとめる。
 func group(reservations []*Reservation) []*demand {
 	sorted := slices.Clone(reservations)
@@ -195,6 +238,7 @@ func group(reservations []*Reservation) []*demand {
 		return cmp.Or(
 			cmp.Compare(a.ChannelType, b.ChannelType),
 			cmp.Compare(a.Channel, b.Channel),
+			cmp.Compare(a.Service, b.Service),
 			a.fullStart().Compare(b.fullStart()),
 			slices.Compare(a.ID[:], b.ID[:]),
 		)
@@ -222,7 +266,7 @@ func group(reservations []*Reservation) []*demand {
 // choose は、需要を置くチューナーを選ぶ。置けるチューナーがなければ false を返す。
 func choose(d *demand, tuners []*Tuner, byTuner map[int][]*placed) (int, bool) {
 	if d.recording {
-		return d.tuner, true
+		return keepRecording(d, tuners, byTuner), true
 	}
 
 	type candidate struct {
@@ -248,6 +292,43 @@ func choose(d *demand, tuners []*Tuner, byTuner map[int][]*placed) (int, bool) {
 	}
 
 	return best.tuner, true
+}
+
+// keepRecording は、録画が始まった需要を置くチューナーを返す。ふつうは、録画しているチューナーから動かさない。
+// ただし、Kotatsu の外の予約 (EDCB の予約) がそのチューナーをふさぎ、本編を削られるなら、本編を削られずに置ける別のチューナーへ移す (#1536)。
+// EDCB では、NetworkTV がどのチューナーを使うかは EpgTimerSrv が選ぶので、割り当てたチューナーの番号は本数を見込むためのものである。
+// ふさぐ時間帯は EDCB にしかないので、Mirakurun 互換のサーバーでは動かさない。
+func keepRecording(d *demand, tuners []*Tuner, byTuner map[int][]*placed) int {
+	current := slices.IndexFunc(tuners, func(t *Tuner) bool { return t.Index == d.tuner })
+	if current < 0 || !blocks(tuners[current], d) {
+		return d.tuner
+	}
+	if coreCut, _, ok := lossOn(d, byTuner[d.tuner]); ok && coreCut == 0 {
+		return d.tuner
+	}
+	for _, tuner := range tuners {
+		if tuner.Index == d.tuner || !slices.Contains(tuner.Types, d.channel.channelType) {
+			continue
+		}
+		if coreCut, _, ok := lossOn(d, byTuner[tuner.Index]); ok && coreCut == 0 {
+			return tuner.Index
+		}
+	}
+
+	return d.tuner
+}
+
+// blocks は、Kotatsu の外の予約がチューナーをふさぐ時間帯が、需要の予約の区間 (マージン込み) と重なるかを返す。
+func blocks(tuner *Tuner, d *demand) bool {
+	for _, b := range tuner.Blocks {
+		for _, r := range d.reservations {
+			if overlap(r.fullStart(), r.fullEnd(), b.Start, b.End) > 0 {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // lossOn は、需要をチューナーに置いたときに削られる本編の時間とマージンの時間を返す。

@@ -75,6 +75,21 @@ func TestRename(t *testing.T) {
 	assert.Empty(t, plans)
 }
 
+// TestRenameSkipsExternalFiles は、プールにあった TS を取り込んだファイル (external) は、Kotatsu が名前を付けたものではないので、
+// 付け直さないことを確かめる (#1734)。
+func TestRenameSkipsExternalFiles(t *testing.T) {
+	t.Parallel()
+
+	f := newFixture(t)
+	f.recording(t, completed, false)
+	_, err := f.pool.Exec(t.Context(), "UPDATE recording_files SET external = true WHERE id = $1", f.segmentID)
+	require.NoError(t, err)
+
+	plans, err := f.library.PlanRenames(t.Context(), f.pool, nil, time.UTC)
+	require.NoError(t, err)
+	assert.Empty(t, plans)
+}
+
 // TestRenameMovesTranscodedFiles は、最初のセグメントを付け直すとき、その名前から作った名前の変換した MP4 も、
 // 付け直した名前に合わせて移すことを確かめる (#1720)。取り込んだ MP4 のような、ほかの名前のファイルは移さない。
 // 移す先がふさがっていれば、変換した MP4 は移さず、セグメントだけを付け直す。

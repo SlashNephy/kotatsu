@@ -677,11 +677,14 @@ func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rul
 
 	return &rule.Input{
 		Name: work.Title, Memo: "", Enabled: true, Conditions: conditions,
-		Overrides: &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, TranscodePreset: nil, TranscodeFrameRate: nil},
+		Overrides: &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, TranscodePreset: nil, TranscodeFrameRate: nil, CMDetector: nil},
 		ValidFrom: nil, ValidUntil: nil,
 		AvoidDuplicates: defaults.AvoidDuplicates, DuplicateWindowDays: defaults.DuplicateWindowDays, FollowEventRelay: defaults.FollowEventRelay,
 		BundleSameEpisodes: defaults.BundleSameEpisodes,
 		// 前の回を録らない設定は、ルールを作るときの既定値に持たず、切で作る (#1499)。
 		SkipEarlierEpisodes: false,
+		// 取り込んだルールや見たいリストから作るルールは、どのグループにも入れない (#1493)。
+		GroupID:   nil,
+		KeepGroup: false,
 	}
 }

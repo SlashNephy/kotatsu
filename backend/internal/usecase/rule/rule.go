@@ -31,6 +31,8 @@ const (
 	// maxNameLength と maxMemoLength は、名前とメモの長さの上限。
 	maxNameLength = 200
 	maxMemoLength = 2000
+	// summaryName は、監査ログの要約で、ルールやグループの名前を入れるキー。
+	summaryName = "name"
 	// maxDuplicateWindowDays は、重複を避ける期間の上限 (10 年)。
 	maxDuplicateWindowDays = 3650
 )
@@ -66,10 +68,12 @@ type Rule struct {
 	// SkipEarlierEpisodes は、追っているシリーズの前の回 (録った回や予約した回より話数の小さい回) を予約しないかどうか
 	// (設計書 4.4、#1499)。
 	SkipEarlierEpisodes bool
-	CreatedAt           time.Time
-	CreatedBy           *uuid.UUID
-	UpdatedAt           time.Time
-	UpdatedBy           *uuid.UUID
+	// GroupID は、ルールが入るグループ (#1493)。nil ならどのグループにも入らない (一覧の「その他」)。
+	GroupID   *uuid.UUID
+	CreatedAt time.Time
+	CreatedBy *uuid.UUID
+	UpdatedAt time.Time
+	UpdatedBy *uuid.UUID
 }
 
 // Input は、ルールを作るときと変えるときの内容。
@@ -86,6 +90,11 @@ type Input struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	// GroupID は、ルールを入れるグループ (#1493)。nil ならどのグループにも入れない。
+	GroupID *uuid.UUID
+	// KeepGroup は、Update で、GroupID を見ずに今のグループを残すかどうか。Create では見ない。
+	// API でグループを省いてルールを変えたときに、黙ってグループから外さないためである。
+	KeepGroup bool
 }
 
 // encoded は、検証して保存する形にしたルール。
@@ -177,11 +186,12 @@ func (r *Rules) Create(ctx context.Context, db Beginner, actor *audit.Actor, in 
 			FollowEventRelay:    in.FollowEventRelay,
 			BundleSameEpisodes:  in.BundleSameEpisodes,
 			SkipEarlierEpisodes: in.SkipEarlierEpisodes,
+			GroupID:             in.GroupID,
 			Now:                 r.clock.Now(),
 			Actor:               userOf(actor),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to create a rule: %w", err)
+			return fmt.Errorf("failed to create a rule: %w", groupError(err, in.GroupID))
 		}
 		if rule, err = get(ctx, q, ruleID); err != nil {
 			return err
@@ -220,11 +230,13 @@ func (r *Rules) Update(ctx context.Context, db Beginner, actor *audit.Actor, rul
 			FollowEventRelay:    in.FollowEventRelay,
 			BundleSameEpisodes:  in.BundleSameEpisodes,
 			SkipEarlierEpisodes: in.SkipEarlierEpisodes,
+			KeepGroup:           in.KeepGroup,
+			GroupID:             in.GroupID,
 			Now:                 r.clock.Now(),
 			Actor:               userOf(actor),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to update the rule: %w", err)
+			return fmt.Errorf("failed to update the rule: %w", groupError(err, in.GroupID))
 		}
 		if n == 0 {
 			return fmt.Errorf("%w: %s", ErrNotFound, ruleID)
@@ -377,6 +389,7 @@ func fromRow(row sqlc.Rule) (*Rule, error) {
 		FollowEventRelay:    row.FollowEventRelay,
 		BundleSameEpisodes:  row.BundleSameEpisodes,
 		SkipEarlierEpisodes: row.SkipEarlierEpisodes,
+		GroupID:             row.GroupID,
 		CreatedAt:           row.CreatedAt.UTC(),
 		CreatedBy:           row.CreatedBy,
 		UpdatedAt:           row.UpdatedAt.UTC(),
@@ -412,7 +425,7 @@ func (r *Rules) record(ctx context.Context, tx pgx.Tx, actor *audit.Actor, actio
 		Action:     action,
 		TargetType: auditTarget,
 		TargetID:   rule.ID.String(),
-		Summary:    map[string]any{"name": rule.Name, "enabled": rule.Enabled},
+		Summary:    map[string]any{summaryName: rule.Name, "enabled": rule.Enabled},
 		SourceIP:   netip.Addr{},
 		UserAgent:  "",
 	})
