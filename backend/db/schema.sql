@@ -1235,6 +1235,11 @@ CREATE TABLE recording_history (
   -- 録画が 1 つの話に結びついたときの、しょぼいカレンダーの TID と話数 (設計書 3.8)。なければ NULL。
   syobocal_tid integer,
   anime_count double precision,
+  -- 録画が TMDb の話に結びついたときの、作品の ID とシーズンと話の番号 (設計書 3.9)。なければ NULL。
+  -- ドラマの続きの放送 (#1564) で、録った話を外すのに使う。録画を消すと録画の結びつきも消えるので、履歴に写して残す。
+  tmdb_series_id integer,
+  tmdb_season_number integer,
+  tmdb_episode_number integer,
   -- ほかの録画ソフトから引き継いだ履歴かどうか。引き継いだ履歴は、録った回を見る期間で切らない (#1498)。
   imported boolean NOT NULL DEFAULT false,
   -- 番組名から読んだシリーズ名 (作品名と編と期。半角に寄せ、小文字にし、空白を除いたもの。設計書 4.4)。
@@ -1258,6 +1263,9 @@ CREATE INDEX recording_history_title_key_service_id_end_at_idx ON recording_hist
 
 -- 前の回を録らない (#1499) 照合で、候補の放送のシリーズ名で履歴を引く。期間で切らないので、索引がなければ全件を読む。
 CREATE INDEX recording_history_series_idx ON recording_history (series);
+
+-- ドラマの続きの放送 (#1564) で、録った話を TMDb の作品で引く。
+CREATE INDEX recording_history_tmdb_series_id_idx ON recording_history (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
 
 -- 番組表ビュー (設計書 10.3)。番組表に適用する条件を、ユーザーごとに名前を付けて保存する。
 -- 条件は、ジャンルの包含と除外、番組の最短の長さ、無料放送だけかどうか、チャンネルの並び、番組のないチャンネルを隠すかどうか。

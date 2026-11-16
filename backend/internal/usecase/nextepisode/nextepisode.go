@@ -31,11 +31,13 @@ type Broadcast struct {
 	ServiceID int64
 	EventID   int64
 	StartAt   time.Time
-	// Number は、放送の話数。シリーズ名で探したときは番組名などから読んだ話数、TID で探したときはしょぼいカレンダーの話数。
+	// Number は、放送の話数。シリーズ名で探したときは番組名などから読んだ話数、TID で探したときはしょぼいカレンダーの話数、
+	// TMDb の作品で探したときは TMDb の話の番号。
 	Number float64
 }
 
-// Key は、続きの放送を探す鍵。強い順に、しょぼいカレンダーの TID と話数、番組名から読んだシリーズ名と話数を使う。
+// Key は、続きの放送を探す鍵。強い順に、しょぼいカレンダーの TID と話数、番組名から読んだシリーズ名と話数、
+// TMDb の作品とシーズンと話の番号の、どれか 1 つを使う。
 type Key struct {
 	// TID と Count は、録画が 1 つの話に結びついたときの、しょぼいカレンダーの作品と話数。結びついていなければ TID は 0。
 	TID   int32
@@ -43,23 +45,38 @@ type Key struct {
 	// Series と Number は、回の読み方 (設計書 4.4) で読んだシリーズ名と話数。
 	Series string
 	Number int
+	// Drama は、録画が結びついた TMDb の作品とシーズンと話の番号 (設計書 3.9)。TID でもシリーズ名でも探せないときだけ使う。
+	Drama *Drama
 }
 
-// KeyOf は、録画の回を読む元 src から、続きの放送を探す鍵を返す。シリーズも話数も読めなければ (ニュースや帯番組など) nil を返す。
+// Drama は、録画が結びついた TMDb の作品とシーズンと話の番号。
+type Drama struct {
+	SeriesID int32
+	Season   int32
+	Episode  int32
+}
+
+// KeyOf は、録画の回を読む元 src と、録画が結びついた TMDb の話 drama (なければ nil) から、続きの放送を探す鍵を返す。
+// シリーズも話数も読めなければ (ニュースや帯番組など) nil を返す。
 //
 // 録画がしょぼいカレンダーの 1 つの話に結びついていれば、TID と話数で探す。番組名の話数と数え方が違うことがあるので、
 // しょぼいカレンダーの話数は、しょぼいカレンダーの話数とだけ比べる。結びついていなければ、シリーズ名の完全一致と話数で探す。
 // シリーズ名は、前の回を録らない設定 (#1499) と同じく、SameSeries のように緩めない。局ごとの飾りの違いで、別の期や編の回を出さないためである。
-func KeyOf(src *episode.Source) *Key {
+// 番組名からシリーズ名か話数を読めなければ、TMDb の作品とシーズンと話の番号で探す (ドラマ)。TMDb の話の番号は、TMDb の話の番号とだけ比べる。
+// 特別編 (シーズン 0) の話は、放送の順に番号が付いていないので、探さない。
+func KeyOf(src *episode.Source, drama *Drama) *Key {
 	if src.Anime != nil && src.Anime.TID > 0 && src.Anime.Count > 0 {
-		return &Key{TID: src.Anime.TID, Count: src.Anime.Count, Series: "", Number: 0}
+		return &Key{TID: src.Anime.TID, Count: src.Anime.Count, Series: "", Number: 0, Drama: nil}
 	}
 	ep := episode.Parse(src)
-	if ep.Series == "" || ep.Number <= 0 {
-		return nil
+	if ep.Series != "" && ep.Number > 0 {
+		return &Key{TID: 0, Count: 0, Series: ep.Series, Number: ep.Number, Drama: nil}
+	}
+	if drama != nil && drama.SeriesID > 0 && drama.Season > 0 && drama.Episode > 0 {
+		return &Key{TID: 0, Count: 0, Series: "", Number: 0, Drama: new(*drama)}
 	}
 
-	return &Key{TID: 0, Count: 0, Series: ep.Series, Number: ep.Number}
+	return nil
 }
 
 // Candidate は、続きの放送の候補。DB から読んだ番組。
@@ -143,7 +160,7 @@ func Find(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, now time.Tim
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the recording: %w", err)
 	}
-	key := KeyOf(sourceOf(&row))
+	key := KeyOf(sourceOf(&row), dramaOf(&row))
 	if key == nil {
 		return []*Broadcast{}, nil
 	}
@@ -182,6 +199,15 @@ func sourceOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *episode.Source {
 	return src
 }
 
+// dramaOf は、録画が結びついた TMDb の話を返す。話に結びついていなければ nil を返す。
+func dramaOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *Drama {
+	if row.TmdbSeriesID == nil || row.TmdbSeasonNumber == nil || row.TmdbEpisodeNumber == nil {
+		return nil
+	}
+
+	return &Drama{SeriesID: *row.TmdbSeriesID, Season: *row.TmdbSeasonNumber, Episode: *row.TmdbEpisodeNumber}
+}
+
 // listCandidates は、鍵 key の続きの放送の候補と、録画履歴にある録った回の話数を返す。
 func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Time) ([]*Candidate, map[float64]bool, error) {
 	candidates := []*Candidate{}
@@ -209,6 +235,9 @@ func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Tim
 
 		return candidates, recorded, nil
 	}
+	if key.Drama != nil {
+		return listDramaCandidates(ctx, q, key.Drama, now)
+	}
 
 	rows, err := q.ListSeriesNextPrograms(ctx, sqlc.ListSeriesNextProgramsParams{
 		Series: key.Series, Number: int64(key.Number), Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
@@ -233,6 +262,36 @@ func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Tim
 		if ep.Series == key.Series && ep.Number > 0 {
 			recorded[float64(ep.Number)] = true
 		}
+	}
+
+	return candidates, recorded, nil
+}
+
+// listDramaCandidates は、TMDb の作品のシーズン drama の続きの放送の候補と、録画履歴にある録った話の番号を返す。
+func listDramaCandidates(ctx context.Context, q *sqlc.Queries, drama *Drama, now time.Time) ([]*Candidate, map[float64]bool, error) {
+	rows, err := q.ListDramaNextPrograms(ctx, sqlc.ListDramaNextProgramsParams{
+		TmdbSeriesID: drama.SeriesID, SeasonNumber: drama.Season, EpisodeNumber: drama.Episode,
+		Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list the next programs of the drama: %w", err)
+	}
+	candidates := make([]*Candidate, 0, len(rows))
+	for i := range rows {
+		candidates = append(candidates, &Candidate{
+			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
+			RelatedItems: rows[i].RelatedItems,
+		})
+	}
+	episodes, err := q.ListRecordedDramaEpisodes(ctx, sqlc.ListRecordedDramaEpisodesParams{
+		TmdbSeriesID: drama.SeriesID, SeasonNumber: drama.Season,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list the recorded episodes of the drama: %w", err)
+	}
+	recorded := make(map[float64]bool, len(episodes))
+	for _, e := range episodes {
+		recorded[e] = true
 	}
 
 	return candidates, recorded, nil

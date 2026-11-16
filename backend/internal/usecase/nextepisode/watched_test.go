@@ -152,3 +152,31 @@ func TestFindForUserByAnime(t *testing.T) {
 
 	assert.Equal(t, []suggestion{{recording: anime, eventID: 600}}, suggestionsOf(got))
 }
+
+// TestFindForUserByDrama は、番組名から話数を読めないドラマの見た回では、TMDb の作品とシーズンと話の番号で探し、
+// 見た話の最大の番号より後の放送を出すことと、同じ番組がシリーズ名で探したシリーズにも当たったら、シリーズ名で探した方の 1 行にすることを確かめる (#1564)。
+func TestFindForUserByDrama(t *testing.T) {
+	t.Parallel()
+
+	f := newFindFixture(t, []*faketuner.Program{
+		fakeProgram(fakeGRNetwork, fakeGRService, 800, time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 801, 2*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 810, 3*time.Hour, "灯台の町 #5"),
+	})
+	f.matchDrama(t, 800, dramaSeries, 1, 4)
+	f.matchDrama(t, 801, dramaSeries, 1, 5)
+	f.matchDrama(t, 810, otherDramaSeries, 1, 5)
+
+	user := f.addUser(t, "user")
+	f.linkDrama(t, f.addWatched(t, user, "夜明けの診療所", 1, 2*time.Hour), dramaSeries, 3)
+	clinic4 := f.addWatched(t, user, "夜明けの診療所", 1, time.Hour)
+	f.linkDrama(t, clinic4, dramaSeries, 4)
+	// 同じ作品を、番組名の話数を読める録画 (シリーズ名で探す) と読めない録画 (TMDb の作品で探す) で見た。
+	town4 := f.addWatched(t, user, "灯台の町 #4", 1, time.Hour)
+	f.linkDrama(t, f.addWatched(t, user, "灯台の町", 1, 2*time.Hour), otherDramaSeries, 4)
+
+	got, err := nextepisode.FindForUser(t.Context(), f.pool, user, findNow())
+	require.NoError(t, err)
+
+	assert.Equal(t, []suggestion{{recording: clinic4, eventID: 801}, {recording: town4, eventID: 810}}, suggestionsOf(got))
+}

@@ -14,12 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/SlashNephy/kotatsu/internal/infra/database"
+	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/mirakurun"
 	"github.com/SlashNephy/kotatsu/internal/lib/id"
 	"github.com/SlashNephy/kotatsu/internal/testutil/clocktest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/databasetest"
 	"github.com/SlashNephy/kotatsu/internal/testutil/faketuner"
 	"github.com/SlashNephy/kotatsu/internal/usecase/epg"
+	"github.com/SlashNephy/kotatsu/internal/usecase/history"
 	"github.com/SlashNephy/kotatsu/internal/usecase/nextepisode"
 )
 
@@ -258,4 +260,68 @@ func TestFindReadsArchivedSeriesEpisode(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []int64{901, 902}, eventIDs(got))
+}
+
+// dramaSeries と otherDramaSeries は、TMDb の作品のテストの ID。
+const (
+	dramaSeries      = 9001
+	otherDramaSeries = 9002
+)
+
+// matchDrama は、地上波の番組 eventID を、TMDb の作品 seriesID のシーズン season の話 episode に結びつける。
+func (f *findFixture) matchDrama(t *testing.T, eventID int, seriesID, season, episode int32) {
+	t.Helper()
+
+	f.exec(t, `INSERT INTO program_drama_matches (service_id, start_at, event_id, title_key, tmdb_series_id, season_number, episode_number,
+		series_source, episode_source, matched_at)
+		SELECT service_id, start_at, event_id, name, $3, $4, $5, 'search', 'air_date', $6 FROM programs WHERE service_id = $1 AND event_id = $2`,
+		faketuner.ServiceItemID(fakeGRNetwork, fakeGRService), eventID, seriesID, season, episode, findNow())
+}
+
+// linkDrama は、録画 recordingID を、TMDb の作品 seriesID のシーズン 1 の話 episode に結びつける。
+func (f *findFixture) linkDrama(t *testing.T, recordingID uuid.UUID, seriesID, episode int32) {
+	t.Helper()
+
+	f.exec(t, `INSERT INTO recording_drama_matches (recording_id, tmdb_series_id, season_number, episode_number, series_source, episode_source,
+		matched_at) VALUES ($1, $2, 1, $3, 'search', 'air_date', $4)`, recordingID, seriesID, episode, findNow())
+}
+
+// TestFindByDrama は、番組名から話数を読めないドラマの録画では、TMDb の作品とシーズンと話の番号で続きの放送を引き、
+// 前の話、別のシーズン、別の作品、録った話、TMDb に結びつかない番組を外すことを確かめる (#1564)。
+func TestFindByDrama(t *testing.T) {
+	t.Parallel()
+
+	f := newFindFixture(t, []*faketuner.Program{
+		fakeProgram(fakeGRNetwork, fakeGRService, 800, 2*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 801, 3*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 802, 4*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 803, 5*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 804, 6*time.Hour, "夜明けの診療所"),
+		fakeProgram(fakeGRNetwork, fakeGRService, 805, 7*time.Hour, "夜明けの診療所"),
+		// TMDb の話に結びつかない番組は、番組名が同じでも出さない。
+		fakeProgram(fakeGRNetwork, fakeGRService, 806, 8*time.Hour, "夜明けの診療所"),
+	})
+	f.matchDrama(t, 800, dramaSeries, 1, 4)
+	f.matchDrama(t, 801, dramaSeries, 1, 2)
+	f.matchDrama(t, 802, dramaSeries, 2, 5)
+	f.matchDrama(t, 803, dramaSeries, 1, 5)
+	f.matchDrama(t, 804, otherDramaSeries, 1, 6)
+	f.matchDrama(t, 805, dramaSeries, 1, 6)
+	recording := f.addRecording(t, "夜明けの診療所")
+	f.linkDrama(t, recording, dramaSeries, 3)
+
+	// 第 5 話を録り終えて録画履歴に書き、録画を消す。録画の結びつきは消えても、履歴に写した話で、録った話として外す。
+	recorded := f.addRecording(t, "夜明けの診療所")
+	f.linkDrama(t, recorded, dramaSeries, 5)
+	q := sqlc.New(f.pool)
+	row, err := q.GetRecording(t.Context(), recorded)
+	require.NoError(t, err)
+	require.NoError(t, history.Record(t.Context(), q, &row, findNow()))
+	f.exec(t, `DELETE FROM recordings WHERE id = $1`, recorded)
+
+	got, err := nextepisode.Find(t.Context(), f.pool, recording, findNow())
+	require.NoError(t, err)
+
+	assert.Equal(t, []int64{800, 805}, eventIDs(got))
+	assert.InDelta(t, 4, got[0].Number, 0)
 }
