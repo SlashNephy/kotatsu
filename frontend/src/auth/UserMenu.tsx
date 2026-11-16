@@ -114,6 +114,9 @@ export function UserMenu() {
               variant="subtle"
               size="compact-sm"
               maw={180}
+              // スマートフォンの幅では、表示名を隠してアイコンだけにし、ヘッダーを画面に収める (#1879)。
+              // 隠しても読み上げられるよう、表示名をボタンの名前にする。
+              aria-label={data.viewer.displayName}
               // ユーザーのアイコン (#778)。IdP の picture を tenban が中継する。画像がないか、読めなければ、
               // 表示名の頭文字を、名前ごとに決まる色で出す。
               leftSection={
@@ -126,7 +129,7 @@ export function UserMenu() {
                 />
               }
             >
-              <Text span size="sm" truncate="end">
+              <Text span size="sm" truncate="end" visibleFrom="xs">
                 {data.viewer.displayName}
               </Text>
             </Button>

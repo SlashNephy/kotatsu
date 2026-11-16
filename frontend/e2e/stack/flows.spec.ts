@@ -144,6 +144,46 @@ test('スマートフォンで、ユーザーのメニューを何度でも開�
   }
 });
 
+test('スマートフォンの幅で、ヘッダーと画面が横にはみ出さない (#1879)', async ({
+  browser,
+}, testInfo) => {
+  for (const width of [360, 390, 412]) {
+    // スマートフォンのブラウザは、ページが横にはみ出すとレイアウトの幅を広げる。この振る舞いは isMobile で真似る。
+    const context = await browser.newContext({
+      ...devices['Pixel 7'],
+      viewport: { width, height: 800 },
+      baseURL: testInfo.project.use.baseURL,
+      locale: 'ja-JP',
+      storageState: await page.context().storageState(),
+    });
+    try {
+      const mobile = await context.newPage();
+      for (const path of ['/', '/live', '/search', '/reservations']) {
+        await mobile.goto(path);
+        await expect(mobile.getByRole('button', { name: admin.displayName })).toBeVisible();
+        const layout = await mobile.evaluate(() => ({
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          // ヘッダーは固定して描くので、はみ出してもページの幅は広がらない。ヘッダーの部品は、1 つずつ画面に収まっているかを見る。
+          outside: [...document.querySelectorAll('header button, header a')]
+            .filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.width > 0 && (rect.left < 0 || rect.right > window.innerWidth);
+            })
+            .map((element) => element.getAttribute('aria-label') ?? element.textContent),
+        }));
+        expect(layout, `${width}px ${path}`).toEqual({
+          innerWidth: width,
+          scrollWidth: width,
+          outside: [],
+        });
+      }
+    } finally {
+      await context.close();
+    }
+  }
+});
+
 // ipv4 は、IPv4 アドレスの形。
 const ipv4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/;
 
