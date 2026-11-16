@@ -93,7 +93,11 @@ export function useLiveCatchUp(
       if (tail > lastTail + 1e-3) {
         if (counting()) {
           // 届く直前のバッファは、前の末尾と今の再生位置との差。
-          controller.arrive(now, lastTail > 0 ? Math.max(lastTail - video.currentTime, 0) : null);
+          controller.arrive(
+            now,
+            lastTail > 0 ? Math.max(lastTail - video.currentTime, 0) : null,
+            tail,
+          );
         } else {
           controller.forgetArrival();
         }

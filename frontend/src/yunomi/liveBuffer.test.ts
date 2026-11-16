@@ -62,6 +62,39 @@ describe('目標量の決め直し (止まったとき)', () => {
     expect(controller.floor).toBeCloseTo(want.floor);
   });
 
+  // 0.5 秒おきに届き、届くたびに末尾が perArrival 秒伸びる。12 秒に止まる (空きは無い)。
+  test.each([
+    {
+      name: '届いた映像の長さが経った時間に足りていれば、端末の詰まりとして下限を上げる',
+      perArrival: 0.5,
+      from: 0,
+      want: { target: 2, floor: 1.5 },
+    },
+    {
+      name: '受け取りの速さが放送のビットレートを下回っていれば、回線のせいとして下限は上げず、目標量だけ上げる',
+      // 12 Mbps の回線で 16 Mbps の放送を受けたときの、0.75 倍の届き方。
+      perArrival: 0.375,
+      from: 0,
+      want: { target: 2, floor: 1 },
+    },
+    {
+      name: '比べる長さの半分より短い間しか測っていなければ、分からないとして下限を上げる',
+      perArrival: 0.375,
+      from: 12_000 - params.arrivalWindowMs / 2 + 500,
+      want: { target: 2, floor: 1.5 },
+    },
+  ])('$name', ({ perArrival, from, want }) => {
+    const controller = createLiveBufferController({ now: 0, storedFloor: null });
+    for (let at = 0; at < 12_000; at += 500) {
+      controller.arrive(at, 1, at >= from ? 100 + (at / 500) * perArrival : undefined);
+      controller.tick(at);
+    }
+
+    expect(controller.stall(12_000)).toBe(true);
+    expect(controller.target).toBeCloseTo(want.target);
+    expect(controller.floor).toBeCloseTo(want.floor);
+  });
+
   test('いま空いている最中の間隔は、数える上限までで覆う量にする', () => {
     const { controller } = started();
     // 最後に届いたのは 10 秒。20 秒まで届かないので、空きは上限の 3 秒で数える。
