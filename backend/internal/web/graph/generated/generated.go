@@ -416,6 +416,8 @@ type ComplexityRoot struct {
 
 	DramaLinkingStatus struct {
 		TokenConfigured func(childComplexity int) int
+		TokenHint       func(childComplexity int) int
+		TokenUpdatedAt  func(childComplexity int) int
 	}
 
 	DramaSeries struct {
@@ -745,6 +747,7 @@ type ComplexityRoot struct {
 		UpdateAnimeRecordApp          func(childComplexity int, destination model.AnimeRecordDestination, input model.AnimeRecordAppInput) int
 		UpdateAnimeRecordSettings     func(childComplexity int, input model.AnimeRecordSettingsInput) int
 		UpdateChannelType             func(childComplexity int, typeArg string, input model.ChannelTypeInput) int
+		UpdateDramaLinkingToken       func(childComplexity int, token string) int
 		UpdateDramaTitleOverride      func(childComplexity int, input model.DramaTitleOverrideInput) int
 		UpdateGuideView               func(childComplexity int, id string, input model.GuideViewInput) int
 		UpdateNotificationPreference  func(childComplexity int, input model.NotificationPreferenceInput) int
@@ -1633,6 +1636,7 @@ type MutationResolver interface {
 	DeleteIptvFeed(ctx context.Context) (bool, error)
 	DeleteCapture(ctx context.Context, id string) (string, error)
 	InspectChannel(ctx context.Context, channelType string, channel string) (*model.ChannelInspection, error)
+	UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error)
 	UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error)
 	RetryJob(ctx context.Context, id string) (*model.Job, error)
 	CancelJob(ctx context.Context, id string) (*model.Job, error)
@@ -3221,6 +3225,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.DramaLinkingStatus.TokenConfigured(childComplexity), true
+	case "DramaLinkingStatus.tokenHint":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenHint == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenHint(childComplexity), true
+	case "DramaLinkingStatus.tokenUpdatedAt":
+		if e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.DramaLinkingStatus.TokenUpdatedAt(childComplexity), true
 
 	case "DramaSeries.name":
 		if e.ComplexityRoot.DramaSeries.Name == nil {
@@ -5007,6 +5023,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateChannelType(childComplexity, args["type"].(string), args["input"].(model.ChannelTypeInput)), true
+	case "Mutation.updateDramaLinkingToken":
+		if e.ComplexityRoot.Mutation.UpdateDramaLinkingToken == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateDramaLinkingToken_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateDramaLinkingToken(childComplexity, args["token"].(string)), true
 	case "Mutation.updateDramaTitleOverride":
 		if e.ComplexityRoot.Mutation.UpdateDramaTitleOverride == nil {
 			break
@@ -10297,11 +10324,15 @@ type DramaTitleOverride {
 }
 
 """
-TMDb との連携の様子 (#1651、設計書 3.9)。
+TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
 """
 type DramaLinkingStatus {
-  "TMDb のトークン (tmdb.read_access_token) を設定したかどうか。設定していなければ、連携を有効にしても問い合わせない。"
+  "管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。"
   tokenConfigured: Boolean!
+  "入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。"
+  tokenHint: String
+  "トークンを最後に変えた日時。入れていなければ null。"
+  tokenUpdatedAt: Time
 }
 
 """
@@ -10342,6 +10373,13 @@ extend type Query {
 }
 
 extend type Mutation {
+  """
+  TMDb の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDb には問い合わせない。
+  2048 文字を超えるか、空白、制御文字、ASCII の外の文字を含めば BAD_USER_INPUT を返す。
+  入れたら、6 時間ごとの照合し直しを待たずに照合するジョブを入れる。
+  """
+  updateDramaLinkingToken(token: String!): DramaLinkingStatus!
   """
   番組名から読んだ作品名の、TMDb の作品の上書きを変える (#1651)。管理者だけが使える。
   家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDb には問い合わせず、照合し直すジョブを入れる。
@@ -14212,6 +14250,10 @@ func (ec *executionContext) childFields_DramaLinkingStatus(ctx context.Context, 
 	switch field.Name {
 	case "tokenConfigured":
 		return ec.fieldContext_DramaLinkingStatus_tokenConfigured(ctx, field)
+	case "tokenHint":
+		return ec.fieldContext_DramaLinkingStatus_tokenHint(ctx, field)
+	case "tokenUpdatedAt":
+		return ec.fieldContext_DramaLinkingStatus_tokenUpdatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type DramaLinkingStatus", field.Name)
 }
@@ -17579,6 +17621,20 @@ func (ec *executionContext) field_Mutation_updateChannelType_args(ctx context.Co
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateDramaLinkingToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "token",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["token"] = arg0
 	return args, nil
 }
 
@@ -23676,6 +23732,52 @@ func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenConfigured(_ co
 	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Boolean")
 }
 
+func (ec *executionContext) _DramaLinkingStatus_tokenHint(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenHint(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenHint, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenHint(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "String")
+}
+
+func (ec *executionContext) _DramaLinkingStatus_tokenUpdatedAt(ctx context.Context, field graphql.CollectedField, obj *model.DramaLinkingStatus) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_DramaLinkingStatus_tokenUpdatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.TokenUpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_DramaLinkingStatus_tokenUpdatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("DramaLinkingStatus", field, false, false, "Time")
+}
+
 func (ec *executionContext) _DramaSeries_tmdbId(ctx context.Context, field graphql.CollectedField, obj *model.DramaSeries) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -27899,6 +28001,50 @@ func (ec *executionContext) fieldContext_Mutation_inspectChannel(ctx context.Con
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_inspectChannel_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateDramaLinkingToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateDramaLinkingToken(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateDramaLinkingToken(ctx, fc.Args["token"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.DramaLinkingStatus) graphql.Marshaler {
+			return ec.marshalNDramaLinkingStatus2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐDramaLinkingStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateDramaLinkingToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_DramaLinkingStatus(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateDramaLinkingToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -53321,6 +53467,16 @@ func (ec *executionContext) _DramaLinkingStatus(ctx context.Context, sel ast.Sel
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "tokenHint":
+			out.Values[i] = ec._DramaLinkingStatus_tokenHint(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "tokenUpdatedAt":
+			out.Values[i] = ec._DramaLinkingStatus_tokenUpdatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -55124,6 +55280,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "inspectChannel":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_inspectChannel(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateDramaLinkingToken":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateDramaLinkingToken(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

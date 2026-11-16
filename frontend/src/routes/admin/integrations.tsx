@@ -54,6 +54,7 @@ import type {
   integrationsAnimeRecordAppMutation,
 } from './__generated__/integrationsAnimeRecordAppMutation.graphql';
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
+import type { integrationsDramaTokenMutation } from './__generated__/integrationsDramaTokenMutation.graphql';
 import type {
   DramaTitleOverrideInput,
   integrationsDramaOverrideMutation,
@@ -126,6 +127,7 @@ const query = graphql`
     # TMDb との連携 (#1651、設計書 3.9)。
     dramaLinking {
       tokenConfigured
+      tokenHint
     }
     dramaTitleOverrides {
       titleKey
@@ -393,6 +395,33 @@ function Integrations() {
           key={`drama/${String(data.systemSettings.dramaLinkingEnabled)}`}
           enabled={data.systemSettings.dramaLinkingEnabled}
           tokenConfigured={data.dramaLinking.tokenConfigured}
+          tokenForm={
+            // TMDb の API の読み取りアクセストークン。サーバーが外部へ問い合わせるときの秘密情報なので、ここで再認証を求める。
+            <DramaTokenForm
+              key={`${String(data.dramaLinking.tokenConfigured)}/${data.dramaLinking.tokenHint ?? ''}`}
+              configured={data.dramaLinking.tokenConfigured}
+              hint={data.dramaLinking.tokenHint ?? null}
+              busy={gate.busy}
+              onSave={(token, onDone) =>
+                gate.run(async () => {
+                  await mutate<integrationsDramaTokenMutation>(
+                    environment,
+                    graphql`
+                      mutation integrationsDramaTokenMutation($token: String!) {
+                        updateDramaLinkingToken(token: $token) {
+                          tokenConfigured
+                          tokenHint
+                        }
+                      }
+                    `,
+                    { token },
+                  );
+                  onDone();
+                  succeed(t('admin.saved'));
+                }, fail)
+              }
+            />
+          }
           overrides={data.dramaTitleOverrides}
           busy={gate.busy}
           onSave={(dramaLinkingEnabled) => saveSettings({ dramaLinkingEnabled })}
@@ -716,10 +745,11 @@ type DramaTitleOverrideItem = {
 };
 
 // DramaLinkingSettings は、TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうかを変え (#1651、設計書 3.9)、
-// トークンを設定したかどうかと、作品名ごとの上書きを出す。上書きは、番組名と TMDb の作品で足し、一覧から消せる。
+// トークンの入力欄 tokenForm と、作品名ごとの上書きを出す。上書きは、番組名と TMDb の作品で足し、一覧から消せる。
 function DramaLinkingSettings({
   enabled,
   tokenConfigured,
+  tokenForm,
   overrides,
   busy,
   onSave,
@@ -727,6 +757,7 @@ function DramaLinkingSettings({
 }: {
   enabled: boolean;
   tokenConfigured: boolean;
+  tokenForm: ReactNode;
   overrides: readonly DramaTitleOverrideItem[];
   busy: boolean;
   onSave: (enabled: boolean) => void;
@@ -777,15 +808,12 @@ function DramaLinkingSettings({
             {t('admin.save')}
           </Button>
         </Group>
-        {tokenConfigured ? (
-          <Text size="sm" data-testid="drama-token">
-            {t('admin.settings.dramaTokenConfigured')}
-          </Text>
-        ) : (
-          <Alert color="amber" data-testid="drama-token">
-            {t('admin.settings.dramaTokenMissing')} <Code>tmdb.read_access_token</Code>
+        {enabled && !tokenConfigured && (
+          <Alert color="amber" data-testid="drama-token-missing">
+            {t('admin.settings.dramaTokenMissing')}
           </Alert>
         )}
+        {tokenForm}
         <TMDbAttribution />
         <Title order={5}>{t('admin.settings.dramaOverrides')}</Title>
         <Text size="sm" c="dimmed">
@@ -865,6 +893,80 @@ function DramaLinkingSettings({
         </form>
       </Stack>
     </Section>
+  );
+}
+
+// DramaTokenForm は、TMDb の API の読み取りアクセストークンを変える (#1651)。
+// トークンはサーバーから返らないので、変えるときだけ入れる。入れたトークンは、末尾の数文字 hint だけで見分ける。
+function DramaTokenForm({
+  configured,
+  hint,
+  busy,
+  onSave,
+}: {
+  configured: boolean;
+  hint: string | null;
+  busy: boolean;
+  onSave: (token: string, onDone: () => void) => void;
+}) {
+  const { t } = useTranslation();
+  const [token, setToken] = useState('');
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    onSave(token.trim(), () => setToken(''));
+  };
+
+  return (
+    <form onSubmit={submit}>
+      <Stack gap="xs">
+        <Group gap="xs">
+          <Text size="sm" fw={600}>
+            {t('admin.settings.dramaToken')}
+          </Text>
+          <Badge
+            size="sm"
+            variant="light"
+            color={configured ? 'teal' : 'gray'}
+            data-testid="drama-token"
+          >
+            {!configured
+              ? t('admin.settings.dramaTokenNotConfigured')
+              : hint === null
+                ? t('admin.settings.dramaTokenConfigured')
+                : t('admin.settings.dramaTokenConfiguredHint', { hint })}
+          </Badge>
+        </Group>
+        <Text size="xs" c="dimmed" maw={560}>
+          {t('admin.settings.dramaTokenHelp')}
+        </Text>
+        <Group align="flex-end" wrap="wrap">
+          <PasswordInput
+            size="sm"
+            aria-label={t('admin.settings.dramaToken')}
+            placeholder={configured ? t('admin.settings.dramaTokenKept') : undefined}
+            value={token}
+            onChange={(event) => setToken(event.currentTarget.value)}
+            autoComplete="new-password"
+            w={320}
+          />
+          <Button type="submit" size="compact-sm" disabled={token.trim() === '' || busy}>
+            {t('admin.save')}
+          </Button>
+          {configured && (
+            <Button
+              type="button"
+              size="compact-sm"
+              variant="default"
+              color="red"
+              disabled={busy}
+              onClick={() => onSave('', () => setToken(''))}
+            >
+              {t('admin.settings.dramaTokenDelete')}
+            </Button>
+          )}
+        </Group>
+      </Stack>
+    </form>
   );
 }
 

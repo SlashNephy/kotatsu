@@ -334,11 +334,9 @@ type AnimeLinking struct {
 	ArmURL Secret `yaml:"arm_url"`
 }
 
-// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。連携するかどうかは、管理者が画面で決める。
+// TMDb は、ドラマの番組を TMDb の作品と話に結びつける連携の設定 (#1651、設計書 3.9)。
+// 連携するかどうかと、TMDb の API の読み取りアクセストークンは、管理者が連携の画面で決める。
 type TMDb struct {
-	// ReadAccessToken は、TMDb の API の読み取りアクセストークン (API Read Access Token)。空なら、連携を有効にしても問い合わせない。
-	// インスタンスの運用者が TMDb で発行するものなので、ほかの運用の秘密情報と同じく設定で渡し、_FILE で終わる環境変数でファイルから渡せる。
-	ReadAccessToken Secret `yaml:"read_access_token"`
 	// URL は、TMDb の API を向ける先のオリジン。空なら https://api.themoviedb.org にする。
 	// 本物の API の代わりに、検証用のサーバーへ向けるときだけ使う。
 	URL string `yaml:"url"`
@@ -532,7 +530,7 @@ func Default() *Config {
 		Jikkyo:       Jikkyo{Channels: map[string]string{}},
 		AnimeLinking: AnimeLinking{ArmURL: ""},
 		AnimeRecords: AnimeRecords{AnnictURL: "", AniListURL: "", JikanURL: ""},
-		TMDb:         TMDb{ReadAccessToken: "", URL: ""},
+		TMDb:         TMDb{URL: ""},
 	}
 }
 

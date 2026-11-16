@@ -30,6 +30,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/animerecord"
 	"github.com/SlashNephy/kotatsu/internal/usecase/audit"
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
+	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/usecase/oauth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/player"
 	"github.com/SlashNephy/kotatsu/internal/usecase/webhook"
@@ -172,6 +173,8 @@ func newFixtureWith(tb testing.TB, opts *graph.Options, watchChanges bool) *fixt
 		})
 		require.NoError(tb, err)
 	}
+	opts.DramaTokens, err = drama.NewTokens(clk, audit.NewRecorder(clk), "kotatsu-graph-test-application-key-0123456789")
+	require.NoError(tb, err)
 	opts.Passkeys = auth.NewPasskeys(&auth.PasskeysOptions{
 		Clock: clk, Recorder: audit.NewRecorder(clk), Logger: slog.New(slog.DiscardHandler), Sessions: sessions,
 	})

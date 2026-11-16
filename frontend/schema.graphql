@@ -1255,13 +1255,21 @@ enum DramaEpisodeSource {
   TITLE
 }
 """
-TMDb との連携の様子 (#1651、設計書 3.9)。
+TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
 """
 type DramaLinkingStatus {
   """
-  TMDb のトークン (tmdb.read_access_token) を設定したかどうか。設定していなければ、連携を有効にしても問い合わせない。
+  管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
   """
   tokenConfigured: Boolean!
+  """
+  入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
+  """
+  tokenHint: String
+  """
+  トークンを最後に変えた日時。入れていなければ null。
+  """
+  tokenUpdatedAt: Time
 }
 """
 TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。
@@ -2101,6 +2109,13 @@ type Mutation {
   調べる間、チューナーを 1 本使う。
   """
   inspectChannel(channelType: String!, channel: String!): ChannelInspection!
+  """
+  TMDb の API の読み取りアクセストークンを変える (#1651)。前後の空白は除き、空にすると消す。管理者だけが使える。
+  サーバーが外部へ問い合わせるときに使う秘密情報なので、直近の再認証を求める (設計書 9.5)。TMDb には問い合わせない。
+  2048 文字を超えるか、空白、制御文字、ASCII の外の文字を含めば BAD_USER_INPUT を返す。
+  入れたら、6 時間ごとの照合し直しを待たずに照合するジョブを入れる。
+  """
+  updateDramaLinkingToken(token: String!): DramaLinkingStatus!
   """
   番組名から読んだ作品名の、TMDb の作品の上書きを変える (#1651)。管理者だけが使える。
   家族の中で完結する操作なので、再認証は求めない (設計書 9.5)。TMDb には問い合わせず、照合し直すジョブを入れる。

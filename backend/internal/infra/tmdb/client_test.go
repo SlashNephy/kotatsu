@@ -51,8 +51,8 @@ func newServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, func()
 	}
 }
 
-func newClient(server *httptest.Server, token string) *tmdb.Client {
-	return tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Token: token, Interval: time.Millisecond})
+func newClient(server *httptest.Server) *tmdb.Client {
+	return tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Interval: time.Millisecond})
 }
 
 // TestClientRequests は、問い合わせの形と、応答の読み方を確かめる。
@@ -82,22 +82,22 @@ func TestClientRequests(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	})
-	client := newClient(server, testToken)
+	client := newClient(server)
 
-	results, err := client.SearchTV(t.Context(), "もうパパ!")
+	results, err := client.SearchTV(t.Context(), testToken, "もうパパ!")
 	require.NoError(t, err)
 	assert.Equal(t, []*tmdb.SearchResult{{
 		ID: 331304, Name: "もうパパ！", OriginalName: "もうパパ！", FirstAirDate: "2026-10-04", GenreIDs: []int32{18},
 	}}, results, "results without an ID are dropped")
 
-	series, err := client.TV(t.Context(), 202396)
+	series, err := client.TV(t.Context(), testToken, 202396)
 	require.NoError(t, err)
 	assert.Equal(t, &tmdb.Series{ID: 202396, Name: "晩酌の流儀", OriginalName: "晩酌の流儀", FirstAirDate: "2022-07-02", Seasons: []*tmdb.Season{
 		{SeasonNumber: 0, Name: "特別編", AirDate: "2022-12-31", EpisodeCount: 1},
 		{SeasonNumber: 7, Name: "シーズン5 ~秋冬編~", AirDate: "2026-10-03", EpisodeCount: 8},
 	}}, series)
 
-	episodes, err := client.Season(t.Context(), 202396, 7)
+	episodes, err := client.Season(t.Context(), testToken, 202396, 7)
 	require.NoError(t, err)
 	assert.Equal(t, []*tmdb.Episode{
 		{EpisodeNumber: 7, AirDate: "2026-11-14", Name: "ブーリンチー"},
@@ -181,7 +181,7 @@ func TestClientErrors(t *testing.T) {
 			t.Parallel()
 
 			server, requests := newServer(t, tt.handler)
-			_, err := newClient(server, testToken).TV(t.Context(), 1)
+			_, err := newClient(server).TV(t.Context(), testToken, 1)
 			require.Error(t, err)
 			tt.check(t, err)
 			assert.NotContains(t, err.Error(), testToken)
@@ -190,14 +190,12 @@ func TestClientErrors(t *testing.T) {
 	}
 }
 
-// TestClientWithoutToken は、トークンを設定していなければ問い合わせないことを確かめる。
+// TestClientWithoutToken は、トークンが空なら問い合わせないことを確かめる。
 func TestClientWithoutToken(t *testing.T) {
 	t.Parallel()
 
 	server, requests := newServer(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	client := newClient(server, "")
-	assert.False(t, client.Configured())
-	_, err := client.SearchTV(t.Context(), "もうパパ!")
+	_, err := newClient(server).SearchTV(t.Context(), "", "もうパパ!")
 	require.ErrorIs(t, err, tmdb.ErrUnauthorized)
 	assert.Empty(t, requests())
 }

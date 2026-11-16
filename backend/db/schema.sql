@@ -1951,6 +1951,14 @@ CREATE TABLE recording_drama_matches (
 -- ドラマの視聴管理の画面 (#1652) で、作品の録画を引く。
 CREATE INDEX recording_drama_matches_tmdb_series_id_idx ON recording_drama_matches (tmdb_series_id) WHERE (tmdb_series_id IS NOT NULL);
 
+-- 管理者が連携の画面で入れた、TMDb の API の読み取りアクセストークン (#1651、設計書 3.9)。1 行だけ持つ。
+-- Annict のトークン (anime_import_tokens) と同じく、アプリの秘密キーで暗号化する (設計書 8.4)。行がなければ、TMDb に問い合わせない。
+CREATE TABLE tmdb_tokens (
+  id smallint PRIMARY KEY CHECK (id = 1),
+  token_encrypted bytea NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+
 -- 管理者が、番組名から読んだ作品名ごとに決めた TMDb の作品 (#1651、設計書 3.9)。検索で誤った作品に結びついたときに直す。
 -- tmdb_series_id が NULL なら、その作品名の番組を、どの作品にも結びつけない。
 CREATE TABLE drama_title_overrides (

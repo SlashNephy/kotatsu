@@ -72,12 +72,12 @@ type Resolver struct {
 	animeRecords *animerecord.Service
 	// dramaOverrides は、ドラマの番組の作品名ごとに、TMDb の作品の上書きを変える (#1651、設計書 3.9)。
 	dramaOverrides *drama.Overrides
-	// tmdbConfigured は、TMDb のトークンを設定したかどうか。
-	tmdbConfigured bool
-	inbox          *notification.Inbox
-	webhooks       *webhook.Store
-	webPush        *webpush.Service
-	streamSigner   *stream.Signer
+	// dramaTokens は、管理者が入れる TMDb のトークン (#1651)。nil なら、トークンを扱わない。
+	dramaTokens  *drama.Tokens
+	inbox        *notification.Inbox
+	webhooks     *webhook.Store
+	webPush      *webpush.Service
+	streamSigner *stream.Signer
 	// liveRates は、ライブのサービスの内訳を数える (#812)。
 	liveRates *stream.LiveRatesWatcher
 	// liveScramble は、ライブでスクランブルされたまま届くと決めたサービスを読む (#1517)。

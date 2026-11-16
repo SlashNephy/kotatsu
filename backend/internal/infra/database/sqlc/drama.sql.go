@@ -77,6 +77,18 @@ func (q *Queries) DeleteMovedProgramDramaMatches(ctx context.Context, arg Delete
 	return err
 }
 
+const deleteTMDbToken = `-- name: DeleteTMDbToken :execrows
+DELETE FROM tmdb_tokens WHERE id = 1
+`
+
+func (q *Queries) DeleteTMDbToken(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTMDbToken)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getDramaMatchCursor = `-- name: GetDramaMatchCursor :one
 SELECT epg_version FROM drama_match_cursor WHERE id = 1
 `
@@ -193,6 +205,17 @@ func (q *Queries) GetTMDbSeries(ctx context.Context, id int32) (TmdbSeries, erro
 		&i.Seasons,
 		&i.FetchedAt,
 	)
+	return i, err
+}
+
+const getTMDbToken = `-- name: GetTMDbToken :one
+SELECT id, token_encrypted, updated_at FROM tmdb_tokens WHERE id = 1
+`
+
+func (q *Queries) GetTMDbToken(ctx context.Context) (TmdbToken, error) {
+	row := q.db.QueryRow(ctx, getTMDbToken)
+	var i TmdbToken
+	err := row.Scan(&i.ID, &i.TokenEncrypted, &i.UpdatedAt)
 	return i, err
 }
 
@@ -651,5 +674,20 @@ func (q *Queries) UpsertTMDbSeries(ctx context.Context, arg UpsertTMDbSeriesPara
 		arg.Seasons,
 		arg.Now,
 	)
+	return err
+}
+
+const upsertTMDbToken = `-- name: UpsertTMDbToken :exec
+INSERT INTO tmdb_tokens (id, token_encrypted, updated_at) VALUES (1, $1, $2)
+ON CONFLICT (id) DO UPDATE SET token_encrypted = EXCLUDED.token_encrypted, updated_at = EXCLUDED.updated_at
+`
+
+type UpsertTMDbTokenParams struct {
+	TokenEncrypted []byte
+	Now            time.Time
+}
+
+func (q *Queries) UpsertTMDbToken(ctx context.Context, arg UpsertTMDbTokenParams) error {
+	_, err := q.db.Exec(ctx, upsertTMDbToken, arg.TokenEncrypted, arg.Now)
 	return err
 }

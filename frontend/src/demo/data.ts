@@ -443,7 +443,7 @@ export function createRootValue(
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
     // デモには TMDb のトークンも、作品の指定もない (#1651)。
-    dramaLinking: () => ({ tokenConfigured: false }),
+    dramaLinking: () => ({ tokenConfigured: false, tokenHint: null, tokenUpdatedAt: null }),
     dramaTitleOverrides: () => [],
     // デモは発行した URL を記録しないので、管理者の一覧は空にする (#1757)。
     issuedStreamUrls: () => [],

@@ -1,6 +1,6 @@
 // Package tmdb は、TMDb (The Movie Database) の API に問い合わせる (#1651、設計書 3.9)。
 //
-// 問い合わせには、運用者が設定した API の読み取りアクセストークン (API Read Access Token) を Authorization ヘッダーで付ける。
+// 問い合わせには、管理者が連携の画面で入れた API の読み取りアクセストークン (API Read Access Token) を Authorization ヘッダーで付ける。
 // トークンは URL に入れず、エラーの文にも出さない。問い合わせ先は決まったホストだけなので、リダイレクトはたどらない
 // (ほかのホストへ、トークンを付けて向け直させない)。問い合わせの間隔を空け、結果は呼ぶ側が DB にキャッシュする。
 package tmdb
@@ -95,17 +95,15 @@ type Options struct {
 	HTTPClient *http.Client
 	// URL は、API のオリジン。空なら DefaultURL。
 	URL string
-	// Token は、API の読み取りアクセストークン。
-	Token string
 	// Interval は、問い合わせの間隔の下限。
 	Interval time.Duration
 }
 
 // Client は、TMDb の API に問い合わせる。問い合わせは、同じ Client を使う間、Interval 以上の間隔を空ける。
+// トークンは管理者が画面で入れ直せるので、Client には持たせず、問い合わせごとに渡す。
 type Client struct {
 	http     *http.Client
 	url      string
-	token    string
 	interval time.Duration
 
 	// mu は、問い合わせを 1 つずつにし、間隔を空ける。
@@ -123,7 +121,7 @@ func NewHTTPClient(recorder *netactivity.Recorder) *http.Client {
 
 // NewClient は Client を返す。
 func NewClient(opts *Options) *Client {
-	c := &Client{http: opts.HTTPClient, url: DefaultURL, token: opts.Token, interval: DefaultInterval, mu: sync.Mutex{}, last: time.Time{}}
+	c := &Client{http: opts.HTTPClient, url: DefaultURL, interval: DefaultInterval, mu: sync.Mutex{}, last: time.Time{}}
 	if c.http == nil {
 		c.http = NewHTTPClient(nil)
 	}
@@ -135,11 +133,6 @@ func NewClient(opts *Options) *Client {
 	}
 
 	return c
-}
-
-// Configured は、トークンを設定したかどうかを返す。設定していなければ、問い合わせない。
-func (c *Client) Configured() bool {
-	return c.token != ""
 }
 
 // searchResponse は、/3/search/tv の応答。
@@ -154,9 +147,9 @@ type searchResponse struct {
 }
 
 // SearchTV は、作品 (TV) を名前で探し、1 ページ目 (20 件まで) の結果を、TMDb の並び順で返す。
-func (c *Client) SearchTV(ctx context.Context, query string) ([]*SearchResult, error) {
+func (c *Client) SearchTV(ctx context.Context, token, query string) ([]*SearchResult, error) {
 	var res searchResponse
-	if err := c.get(ctx, "/3/search/tv", url.Values{"query": {query}, "include_adult": {"false"}}, &res); err != nil {
+	if err := c.get(ctx, token, "/3/search/tv", url.Values{"query": {query}, "include_adult": {"false"}}, &res); err != nil {
 		return nil, err
 	}
 	results := make([]*SearchResult, 0, len(res.Results))
@@ -191,9 +184,9 @@ type seriesResponse struct {
 }
 
 // TV は、作品 (TV) の名前とシーズンの一覧を返す。作品がなければ ErrNotFound を返す。
-func (c *Client) TV(ctx context.Context, id int32) (*Series, error) {
+func (c *Client) TV(ctx context.Context, token string, id int32) (*Series, error) {
 	var res seriesResponse
-	if err := c.get(ctx, "/3/tv/"+strconv.Itoa(int(id)), url.Values{}, &res); err != nil {
+	if err := c.get(ctx, token, "/3/tv/"+strconv.Itoa(int(id)), url.Values{}, &res); err != nil {
 		return nil, err
 	}
 	if res.ID != id {
@@ -217,9 +210,9 @@ type seasonResponse struct {
 }
 
 // Season は、作品 id のシーズン number の話の一覧を返す。シーズンがなければ ErrNotFound を返す。
-func (c *Client) Season(ctx context.Context, id, number int32) ([]*Episode, error) {
+func (c *Client) Season(ctx context.Context, token string, id, number int32) ([]*Episode, error) {
 	var res seasonResponse
-	if err := c.get(ctx, fmt.Sprintf("/3/tv/%d/season/%d", id, number), url.Values{}, &res); err != nil {
+	if err := c.get(ctx, token, fmt.Sprintf("/3/tv/%d/season/%d", id, number), url.Values{}, &res); err != nil {
 		return nil, err
 	}
 	episodes := make([]*Episode, 0, len(res.Episodes))
@@ -233,9 +226,9 @@ func (c *Client) Season(ctx context.Context, id, number int32) ([]*Episode, erro
 	return episodes, nil
 }
 
-// get は、path に query を付けて問い合わせ、JSON の応答を v に読む。
-func (c *Client) get(ctx context.Context, path string, query url.Values, v any) error {
-	if c.token == "" {
+// get は、path に query を付けて token で問い合わせ、JSON の応答を v に読む。
+func (c *Client) get(ctx context.Context, token, path string, query url.Values, v any) error {
+	if token == "" {
 		return ErrUnauthorized
 	}
 	c.mu.Lock()
@@ -259,7 +252,7 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, v any) 
 	if err != nil {
 		return fmt.Errorf("failed to build the request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", buildinfo.UserAgent())
 	res, err := c.http.Do(req)

@@ -58,7 +58,8 @@ const (
 	recentSeason = 365 * 24 * time.Hour
 	// upcomingSeries は、作品の放送開始が番組の放送より後でも、候補に残す長さ (TMDb の放送開始日のずれを見込む)。
 	upcomingSeries = 30 * 24 * time.Hour
-	// unauthorizedPause は、トークンが断られた (401) とき、問い合わせを控える長さ。設定を直して起動し直すまで、断られ続けるので、長く空ける。
+	// unauthorizedPause は、トークンが断られた (401) とき、同じトークンで問い合わせを控える長さ。管理者が入れ直すまで断られ続けるので、
+	// 長く空ける。入れ直したトークンでは、すぐに問い合わせる。
 	unauthorizedPause = time.Hour
 	// continueAfter は、問い合わせの上限に達して照合しきれなかったとき、続きを照合するまで待つ長さ。
 	// 連携を有効にした直後は、これから 1 週間のドラマの番組を一度に照合するので、上限ごとに区切って続ける。
@@ -81,12 +82,16 @@ type Database interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-// Client は、TMDb に問い合わせる。*tmdb.Client が満たす。
+// Client は、TMDb に token で問い合わせる。*tmdb.Client が満たす。
 type Client interface {
-	Configured() bool
-	SearchTV(ctx context.Context, query string) ([]*tmdb.SearchResult, error)
-	TV(ctx context.Context, id int32) (*tmdb.Series, error)
-	Season(ctx context.Context, id, number int32) ([]*tmdb.Episode, error)
+	SearchTV(ctx context.Context, token, query string) ([]*tmdb.SearchResult, error)
+	TV(ctx context.Context, token string, id int32) (*tmdb.Series, error)
+	Season(ctx context.Context, token string, id, number int32) ([]*tmdb.Episode, error)
+}
+
+// TokenSource は、管理者が連携の画面で入れた TMDb のトークンを返す。設定していなければ空を返す。*Tokens が満たす。
+type TokenSource interface {
+	Token(ctx context.Context, db sqlc.DBTX) (string, error)
 }
 
 var _ Client = new(tmdb.Client)
@@ -103,23 +108,32 @@ type Matcher struct {
 	db          Database
 	clock       clock.Clock
 	client      Client
+	tokens      TokenSource
 	logger      *slog.Logger
 	maxRequests int
 
-	// mu は、pausedUntil を守る。
+	// mu は、limitedUntil、rejectedToken、rejectedUntil を守る。
 	mu sync.Mutex
-	// pausedUntil は、TMDb に断られたので、問い合わせを控える期限。429 なら Retry-After の後、401 なら unauthorizedPause の後。
+	// limitedUntil は、TMDb に 429 で断られたので、問い合わせを控える期限 (Retry-After の後)。
 	// このプロセスの照合のジョブすべてで共有し、どの照合も、期限までは問い合わせない。
-	pausedUntil time.Time
+	limitedUntil time.Time
+	// rejectedToken は、TMDb に 401 で断られたトークン。rejectedUntil (unauthorizedPause の後) までは、このトークンで問い合わせない。
+	// 管理者がトークンを入れ直したら、新しいトークンで、すぐに問い合わせる。
+	rejectedToken string
+	rejectedUntil time.Time
 }
 
-// NewMatcher は Matcher を返す。maxRequests は、1 回の照合で TMDb に問い合わせる回数の上限 (0 以下なら DefaultMaxRequests)。
-func NewMatcher(db Database, clk clock.Clock, client Client, logger *slog.Logger, maxRequests int) *Matcher {
+// NewMatcher は Matcher を返す。tokens は、照合のたびに TMDb のトークンを読む先。
+// maxRequests は、1 回の照合で TMDb に問い合わせる回数の上限 (0 以下なら DefaultMaxRequests)。
+func NewMatcher(db Database, clk clock.Clock, client Client, tokens TokenSource, logger *slog.Logger, maxRequests int) *Matcher {
 	if maxRequests <= 0 {
 		maxRequests = DefaultMaxRequests
 	}
 
-	return &Matcher{db: db, clock: clk, client: client, logger: logger, maxRequests: maxRequests, mu: sync.Mutex{}, pausedUntil: time.Time{}}
+	return &Matcher{
+		db: db, clock: clk, client: client, tokens: tokens, logger: logger, maxRequests: maxRequests,
+		mu: sync.Mutex{}, limitedUntil: time.Time{}, rejectedToken: "", rejectedUntil: time.Time{},
+	}
 }
 
 // MatchResult は、1 回の照合の結果。
@@ -176,6 +190,8 @@ type Link struct {
 
 // run は、1 回の照合の間に持つ状態。TMDb から引いたものを覚え、同じものを問い合わせ直さない。
 type run struct {
+	// token は、この照合で TMDb に問い合わせるトークン。
+	token     string
 	result    *MatchResult
 	now       time.Time
 	overrides map[string]*int32
@@ -199,13 +215,13 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the EPG version: %w", err)
 	}
-	enabled, err := m.enabled(ctx)
+	token, err := m.enabled(ctx)
 	if err != nil {
 		return nil, err
 	}
 	cursor, err := q.GetDramaMatchCursor(ctx)
-	if !enabled || errors.Is(err, pgx.ErrNoRows) {
-		result.Disabled = !enabled
+	if token == "" || errors.Is(err, pgx.ErrNoRows) {
+		result.Disabled = token == ""
 
 		return result, m.saveCursor(ctx, current)
 	}
@@ -213,7 +229,7 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 		return nil, fmt.Errorf("failed to read the drama match cursor: %w", err)
 	}
 	// 断られて控えている間は、版数を進めずに、控え終えてから読む。
-	if m.paused() {
+	if m.paused(token) {
 		result.Paused = true
 
 		return result, nil
@@ -251,7 +267,7 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 		}
 		targets = append(targets, found...)
 	}
-	stopped, err := m.match(ctx, targets, false, result)
+	stopped, err := m.match(ctx, token, targets, false, result)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +282,7 @@ func (m *Matcher) MatchChanges(ctx context.Context) (*MatchResult, error) {
 // 古くなったキャッシュと、番組がなくなった結びつきも消し、結びついた作品の名前を消す前に引き直す。
 func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
-	enabled, err := m.enabled(ctx)
+	token, err := m.enabled(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -277,12 +293,12 @@ func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 		return nil, err
 	}
 	result.Pruned = pruned
-	if !enabled {
+	if token == "" {
 		result.Disabled = true
 
 		return result, nil
 	}
-	if m.paused() {
+	if m.paused(token) {
 		result.Paused = true
 
 		return result, nil
@@ -291,14 +307,14 @@ func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	stopped, err := m.match(ctx, targets, false, result)
+	stopped, err := m.match(ctx, token, targets, false, result)
 	if err != nil {
 		return nil, err
 	}
 	if stopped {
 		return result, nil
 	}
-	if err := m.refreshLinked(ctx, result, now); err != nil {
+	if err := m.refreshLinked(ctx, token, result, now); err != nil {
 		return nil, err
 	}
 
@@ -309,16 +325,16 @@ func (m *Matcher) MatchHorizon(ctx context.Context) (*MatchResult, error) {
 // 確定させた番組は、それからは照合し直さない。TMDb に問い合わせられなかった番組は確定させず、次の機会に回す。
 func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 	result := new(MatchResult)
-	enabled, err := m.enabled(ctx)
+	token, err := m.enabled(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if !enabled {
+	if token == "" {
 		result.Disabled = true
 
 		return result, nil
 	}
-	if m.paused() {
+	if m.paused(token) {
 		result.Paused = true
 
 		return result, nil
@@ -334,24 +350,25 @@ func (m *Matcher) Finalize(ctx context.Context) (*MatchResult, error) {
 			name: row.Name, seriesEpisode: row.SeriesEpisode, seriesRepeat: row.SeriesRepeat.Valid && row.SeriesRepeat.Bool,
 		})
 	}
-	if _, err := m.match(ctx, targets, true, result); err != nil {
+	if _, err := m.match(ctx, token, targets, true, result); err != nil {
 		return nil, err
 	}
 
 	return result, nil
 }
 
-// enabled は、連携が有効で、トークンを設定しているかを返す。
-func (m *Matcher) enabled(ctx context.Context) (bool, error) {
-	if !m.client.Configured() {
-		return false, nil
-	}
+// enabled は、連携が有効なら、管理者が入れたトークンを返す。無効か、トークンを設定していなければ空を返す。
+// トークンは tenban の画面で変わるので、照合のたびに読む。
+func (m *Matcher) enabled(ctx context.Context) (string, error) {
 	system, err := settings.Load(ctx, m.db)
 	if err != nil {
-		return false, err
+		return "", err
+	}
+	if !system.DramaLinkingEnabled {
+		return "", nil
 	}
 
-	return system.DramaLinkingEnabled, nil
+	return m.tokens.Token(ctx, m.db)
 }
 
 // programs は、サービス serviceIDs (nil ならすべて) の、from から to までと放送時間が重なる、確定させていないドラマの番組を返す。
@@ -376,7 +393,7 @@ func (m *Matcher) programs(ctx context.Context, serviceIDs []int64, from, to tim
 
 // match は、targets を照合し、結びつきを書く。finalize なら、照合した番組の結びつきを確定させる。
 // 問い合わせの上限に達したか、TMDb に断られたら、残りの番組を書かずに true を返す。
-func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, result *MatchResult) (bool, error) {
+func (m *Matcher) match(ctx context.Context, token string, targets []*target, finalize bool, result *MatchResult) (bool, error) {
 	if len(targets) == 0 {
 		return false, nil
 	}
@@ -385,7 +402,7 @@ func (m *Matcher) match(ctx context.Context, targets []*target, finalize bool, r
 		return false, err
 	}
 	r := &run{
-		result: result, now: m.clock.Now(), overrides: overrides,
+		token: token, result: result, now: m.clock.Now(), overrides: overrides,
 		searches: map[string][]*tmdb.SearchResult{}, series: map[int32]*tmdb.Series{}, seasons: map[seasonKey][]*tmdb.Episode{},
 	}
 	for i, t := range targets {
@@ -747,19 +764,27 @@ func (m *Matcher) airedOn(ctx context.Context, r *run, seriesID int32, dates []s
 	return episode > 0, err
 }
 
-// pause は、TMDb への問い合わせを d だけ控える。
-func (m *Matcher) pause(d time.Duration) {
+// limit は、TMDb に 429 で断られたので、どのトークンでも、問い合わせを d だけ控える。
+func (m *Matcher) limit(d time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.pausedUntil = maxTime(m.pausedUntil, m.clock.Now().Add(d))
+	m.limitedUntil = maxTime(m.limitedUntil, m.clock.Now().Add(d))
 }
 
-// paused は、TMDb への問い合わせを控えている間かどうかを返す。
-func (m *Matcher) paused() bool {
+// reject は、TMDb に 401 で断られたので、トークン token での問い合わせを unauthorizedPause だけ控える。
+func (m *Matcher) reject(token string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.rejectedToken, m.rejectedUntil = token, m.clock.Now().Add(unauthorizedPause)
+}
 
-	return m.clock.Now().Before(m.pausedUntil)
+// paused は、トークン token での TMDb への問い合わせを控えている間かどうかを返す。
+func (m *Matcher) paused(token string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := m.clock.Now()
+
+	return now.Before(m.limitedUntil) || (token == m.rejectedToken && now.Before(m.rejectedUntil))
 }
 
 // request は、TMDb への問い合わせを 1 回数え、上限に達していれば errStop を返す。
@@ -779,13 +804,13 @@ func (m *Matcher) failed(ctx context.Context, r *run, err error) error {
 	if limited, ok := errors.AsType[*tmdb.RateLimitedError](err); ok {
 		m.logger.WarnContext(ctx, "stopped querying TMDb", slog.Any("error", err))
 		r.result.ContinueAfter = max(r.result.ContinueAfter, limited.RetryAfter)
-		m.pause(limited.RetryAfter)
+		m.limit(limited.RetryAfter)
 
 		return errStop
 	}
 	if errors.Is(err, tmdb.ErrUnauthorized) {
-		m.logger.WarnContext(ctx, "TMDb rejected the token; check tmdb.read_access_token", slog.Any("error", err))
-		m.pause(unauthorizedPause)
+		m.logger.WarnContext(ctx, "TMDb rejected the token; enter a valid token in the integrations settings", slog.Any("error", err))
+		m.reject(r.token)
 
 		return errUnauthorized
 	}
@@ -815,7 +840,7 @@ func (m *Matcher) search(ctx context.Context, r *run, query string) ([]*tmdb.Sea
 	if err := m.request(r); err != nil {
 		return nil, err
 	}
-	results, err := m.client.SearchTV(ctx, query)
+	results, err := m.client.SearchTV(ctx, r.token, query)
 	if err != nil {
 		return nil, m.failed(ctx, r, err)
 	}
@@ -864,7 +889,7 @@ func (m *Matcher) fetchSeries(ctx context.Context, r *run, id int32) (*tmdb.Seri
 	if err := m.request(r); err != nil {
 		return nil, err
 	}
-	series, err := m.client.TV(ctx, id)
+	series, err := m.client.TV(ctx, r.token, id)
 	if errors.Is(err, tmdb.ErrNotFound) {
 		// 作品がないことは、誤りではなく結果として、シーズンのない作品として返す。キャッシュはしない。
 		return &tmdb.Series{ID: id, Name: "", OriginalName: "", FirstAirDate: "", Seasons: []*tmdb.Season{}}, nil
@@ -919,7 +944,7 @@ func (m *Matcher) fetchSeason(ctx context.Context, r *run, seriesID, number int3
 	if err := m.request(r); err != nil {
 		return nil, err
 	}
-	episodes, err := m.client.Season(ctx, seriesID, number)
+	episodes, err := m.client.Season(ctx, r.token, seriesID, number)
 	if errors.Is(err, tmdb.ErrNotFound) {
 		episodes, err = []*tmdb.Episode{}, nil
 	}
@@ -1000,10 +1025,10 @@ func (m *Matcher) prune(ctx context.Context, now time.Time) (int64, error) {
 
 // refreshLinked は、番組か録画に結びついた作品とシーズンのうち、引いてから linkedRefreshAge がたったものを引き直す。
 // 6 か月で消す前に引き直し、何か月も前の録画にも、作品と話の名前を出し続ける。
-func (m *Matcher) refreshLinked(ctx context.Context, result *MatchResult, now time.Time) error {
+func (m *Matcher) refreshLinked(ctx context.Context, token string, result *MatchResult, now time.Time) error {
 	q := sqlc.New(m.db)
 	r := &run{
-		result: result, now: now, overrides: map[string]*int32{},
+		token: token, result: result, now: now, overrides: map[string]*int32{},
 		searches: map[string][]*tmdb.SearchResult{}, series: map[int32]*tmdb.Series{}, seasons: map[seasonKey][]*tmdb.Episode{},
 	}
 	before := now.Add(-linkedRefreshAge)

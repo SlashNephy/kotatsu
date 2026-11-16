@@ -76,6 +76,33 @@ func newDB(t *testing.T) *pgxpool.Pool {
 }
 
 // enable は、TMDb との連携を有効にする。
+// setToken は、管理者が連携の画面で入れたのと同じく、TMDb のトークンを token にする。空なら消す。
+func setToken(t *testing.T, db *pgxpool.Pool, tokens *drama.Tokens, token string) {
+	t.Helper()
+
+	require.NoError(t, tokens.Update(t.Context(), db, audit.System("test"), token))
+}
+
+// newTokens は、テストのアプリの秘密キーで TMDb のトークンを持つ Tokens を返す。
+func newTokens(t *testing.T, clk *clocktest.Fake) *drama.Tokens {
+	t.Helper()
+
+	tokens, err := drama.NewTokens(clk, audit.NewRecorder(clk), strings.Repeat("k", 32))
+	require.NoError(t, err)
+
+	return tokens
+}
+
+// newClient は、偽の TMDb に問い合わせる Client を返す。
+func newClient(t *testing.T, fake *fakeTMDb) *tmdb.Client {
+	t.Helper()
+
+	server := httptest.NewServer(fake)
+	t.Cleanup(server.Close)
+
+	return tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Interval: time.Millisecond})
+}
+
 func enable(t *testing.T, db *pgxpool.Pool, clk *clocktest.Fake) {
 	t.Helper()
 
@@ -343,11 +370,10 @@ func newFixture(t *testing.T, maxRequests int) *fixture {
 	clk := clocktest.NewFake(jst(15, 0, 0))
 	enable(t, db, clk)
 	fake := newFakeTMDb()
-	server := httptest.NewServer(fake)
-	t.Cleanup(server.Close)
-	client := tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Token: testTMDbKey, Interval: time.Millisecond})
+	tokens := newTokens(t, clk)
+	setToken(t, db, tokens, testTMDbKey)
 
-	return &fixture{db: db, clk: clk, fake: fake, matcher: drama.NewMatcher(db, clk, client, slog.New(slog.DiscardHandler), maxRequests)}
+	return &fixture{db: db, clk: clk, fake: fake, matcher: drama.NewMatcher(db, clk, newClient(t, fake), tokens, slog.New(slog.DiscardHandler), maxRequests)}
 }
 
 // TestMatchHorizon は、ドラマの番組を、TMDb の作品と話に結びつけることを確かめる (#1651)。
@@ -587,8 +613,8 @@ func TestMatchDisabled(t *testing.T) {
 	db := newDB(t)
 	clk := clocktest.NewFake(jst(15, 0, 0))
 	fake := newFakeTMDb()
-	server := httptest.NewServer(fake)
-	t.Cleanup(server.Close)
+	tokens := newTokens(t, clk)
+	matcher := drama.NewMatcher(db, clk, newClient(t, fake), tokens, slog.New(slog.DiscardHandler), 0)
 	insertProgram(t, db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
 
 	tests := []struct {
@@ -603,15 +629,16 @@ func TestMatchDisabled(t *testing.T) {
 		if tt.on {
 			enable(t, db, clk)
 		}
-		client := tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Token: tt.token, Interval: time.Millisecond})
-		result, err := drama.NewMatcher(db, clk, client, slog.New(slog.DiscardHandler), 0).MatchHorizon(t.Context())
+		setToken(t, db, tokens, tt.token)
+		result, err := matcher.MatchHorizon(t.Context())
 		require.NoError(t, err, tt.name)
 		assert.True(t, result.Disabled, tt.name)
 		assert.Empty(t, fake.takeRequests(), tt.name)
 	}
 }
 
-// TestMatchUnauthorized は、トークンが断られたら、続きとして照合し直さず、1 時間は問い合わせないことを確かめる。
+// TestMatchUnauthorized は、トークンが断られたら、続きとして照合し直さず、同じトークンでは 1 時間は問い合わせないことと、
+// 管理者がトークンを入れ直したら、1 時間を待たずに問い合わせることを確かめる。
 func TestMatchUnauthorized(t *testing.T) {
 	t.Parallel()
 
@@ -619,12 +646,11 @@ func TestMatchUnauthorized(t *testing.T) {
 	clk := clocktest.NewFake(jst(15, 0, 0))
 	enable(t, db, clk)
 	fake := newFakeTMDb()
-	server := httptest.NewServer(fake)
-	t.Cleanup(server.Close)
+	tokens := newTokens(t, clk)
+	setToken(t, db, tokens, "wrong-token")
 	insertProgram(t, db, grService, 1, jst(15, 22, 15), jst(15, 23, 9), "もうパパ！　＃７", genreDrama)
 	insertProgram(t, db, grService, 2, jst(16, 16, 0), jst(16, 17, 0), "スケバン刑事Ⅱ　少女鉄仮面伝説　★第２６話🈞", genreDrama)
-	client := tmdb.NewClient(&tmdb.Options{HTTPClient: tmdb.NewHTTPClient(nil), URL: server.URL, Token: "wrong-token", Interval: time.Millisecond})
-	matcher := drama.NewMatcher(db, clk, client, slog.New(slog.DiscardHandler), 0)
+	matcher := drama.NewMatcher(db, clk, newClient(t, fake), tokens, slog.New(slog.DiscardHandler), 0)
 
 	result, err := matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
@@ -644,6 +670,14 @@ func TestMatchUnauthorized(t *testing.T) {
 	_, err = matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
 	assert.Len(t, fake.takeRequests(), 1, "queries again after an hour")
+
+	// 断られた直後でも、入れ直したトークンでは問い合わせる。
+	setToken(t, db, tokens, testTMDbKey)
+	result, err = matcher.MatchHorizon(t.Context())
+	require.NoError(t, err)
+	assert.False(t, result.Paused, "a new token is not paused")
+	assert.Equal(t, 2, result.Linked)
+	assert.NotEmpty(t, fake.takeRequests())
 }
 
 // TestMatchChanges は、EPG の変更の記録を読んで、変わったサービスと時間帯の番組だけを照合し、読んだ版数を覚えることを確かめる。

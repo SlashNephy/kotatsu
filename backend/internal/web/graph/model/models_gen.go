@@ -691,10 +691,14 @@ type DramaEpisode struct {
 	URL string `json:"url"`
 }
 
-// TMDb との連携の様子 (#1651、設計書 3.9)。
+// TMDb との連携の様子 (#1651、設計書 3.9)。トークンそのものは返さない。
 type DramaLinkingStatus struct {
-	// TMDb のトークン (tmdb.read_access_token) を設定したかどうか。設定していなければ、連携を有効にしても問い合わせない。
+	// 管理者が TMDb のトークンを入れたかどうか。入れていなければ、連携を有効にしても問い合わせない。
 	TokenConfigured bool `json:"tokenConfigured"`
+	// 入れたトークンを見分けるための末尾の 4 文字。入れていないか、トークンが短ければ null。
+	TokenHint *string `json:"tokenHint,omitempty"`
+	// トークンを最後に変えた日時。入れていなければ null。
+	TokenUpdatedAt *time.Time `json:"tokenUpdatedAt,omitempty"`
 }
 
 // TMDb の作品 (TV) (#1651、設計書 3.9)。名前は TMDb から引いたキャッシュから読み、キャッシュがなければ null にする。

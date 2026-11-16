@@ -1040,6 +1040,12 @@ type TmdbSeries struct {
 	FetchedAt    time.Time
 }
 
+type TmdbToken struct {
+	ID             int16
+	TokenEncrypted []byte
+	UpdatedAt      time.Time
+}
+
 type TotpEnrollment struct {
 	UserID          uuid.UUID
 	SecretEncrypted []byte

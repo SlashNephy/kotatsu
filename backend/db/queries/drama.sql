@@ -150,3 +150,13 @@ LEFT JOIN tmdb_seasons s ON s.series_id = l.series_id AND s.season_number = l.se
 WHERE s.series_id IS NULL OR s.fetched_at < @before
 ORDER BY s.fetched_at NULLS FIRST, l.series_id, l.season_number
 LIMIT @max_count;
+
+-- name: GetTMDbToken :one
+SELECT * FROM tmdb_tokens WHERE id = 1;
+
+-- name: UpsertTMDbToken :exec
+INSERT INTO tmdb_tokens (id, token_encrypted, updated_at) VALUES (1, @token_encrypted, @now)
+ON CONFLICT (id) DO UPDATE SET token_encrypted = EXCLUDED.token_encrypted, updated_at = EXCLUDED.updated_at;
+
+-- name: DeleteTMDbToken :execrows
+DELETE FROM tmdb_tokens WHERE id = 1;

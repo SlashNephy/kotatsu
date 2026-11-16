@@ -198,6 +198,7 @@ type Querier interface {
 	DeleteStaleWishlistWatchReservations(ctx context.Context, arg DeleteStaleWishlistWatchReservationsParams) (int64, error)
 	// URL の記録を消し、監査ログに残すため、発行したユーザーと対象の名前を返す。
 	DeleteStreamURL(ctx context.Context, id uuid.UUID) (DeleteStreamURLRow, error)
+	DeleteTMDbToken(ctx context.Context) (int64, error)
 	DeleteTOTPEnrollment(ctx context.Context, userID uuid.UUID) error
 	// neko が、チューナーを渡すため、またはチャンネルの設定がなくなったために、割り振りを取り消す。状態によらず消す。
 	DeleteTimeshiftAssignment(ctx context.Context, serviceID int64) (int64, error)
@@ -400,6 +401,7 @@ type Querier interface {
 	GetTMDbSearch(ctx context.Context, query string) (TmdbSearch, error)
 	GetTMDbSeason(ctx context.Context, arg GetTMDbSeasonParams) (TmdbSeason, error)
 	GetTMDbSeries(ctx context.Context, id int32) (TmdbSeries, error)
+	GetTMDbToken(ctx context.Context) (TmdbToken, error)
 	GetTOTPEnrollmentForUpdate(ctx context.Context, arg GetTOTPEnrollmentForUpdateParams) (TotpEnrollment, error)
 	GetTimeshiftAssignmentStream(ctx context.Context, id uuid.UUID) (GetTimeshiftAssignmentStreamRow, error)
 	// チャンクの終わりの時刻。書いている途中なら NULL。バッファから再生している間に、チャンクを書き終えたかを確かめるのに使う。
@@ -1296,6 +1298,7 @@ type Querier interface {
 	UpsertTMDbSearch(ctx context.Context, arg UpsertTMDbSearchParams) error
 	UpsertTMDbSeason(ctx context.Context, arg UpsertTMDbSeasonParams) error
 	UpsertTMDbSeries(ctx context.Context, arg UpsertTMDbSeriesParams) error
+	UpsertTMDbToken(ctx context.Context, arg UpsertTMDbTokenParams) error
 	UpsertTOTPEnrollment(ctx context.Context, arg UpsertTOTPEnrollmentParams) error
 	// 名前のタグを作り、ID を返す。すでにあれば、そのタグの ID を返す。
 	UpsertTag(ctx context.Context, arg UpsertTagParams) (uuid.UUID, error)

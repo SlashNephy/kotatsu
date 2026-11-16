@@ -2,10 +2,32 @@ package graph
 
 import (
 	"context"
+	"strings"
 
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
 )
+
+// UpdateDramaLinkingToken is the resolver for the updateDramaLinkingToken field.
+func (r *mutationResolver) UpdateDramaLinkingToken(ctx context.Context, token string) (*model.DramaLinkingStatus, error) {
+	_, actor, err := r.recentAdministrator(ctx, "only administrators can change the TMDb token")
+	if err != nil {
+		return nil, err
+	}
+	tokens, err := r.dramaTokenStore()
+	if err != nil {
+		return nil, err
+	}
+	if err := tokens.Update(ctx, r.db, actor, token); err != nil {
+		return nil, dramaError(err)
+	}
+	// 入れたトークンで、6 時間ごとの照合し直しを待たずに照合する。連携が無効なら、ジョブは何もしない。
+	if strings.TrimSpace(token) != "" {
+		r.startDramaLinking(ctx)
+	}
+
+	return r.dramaLinking(ctx)
+}
 
 // UpdateDramaTitleOverride is the resolver for the updateDramaTitleOverride field.
 func (r *mutationResolver) UpdateDramaTitleOverride(ctx context.Context, input model.DramaTitleOverrideInput) ([]*model.DramaTitleOverride, error) {
@@ -48,7 +70,7 @@ func (r *queryResolver) DramaLinking(ctx context.Context) (*model.DramaLinkingSt
 		return nil, err
 	}
 
-	return &model.DramaLinkingStatus{TokenConfigured: r.tmdbConfigured}, nil
+	return r.dramaLinking(ctx)
 }
 
 // DramaTitleOverrides is the resolver for the dramaTitleOverrides field.

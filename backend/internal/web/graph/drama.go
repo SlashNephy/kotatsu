@@ -87,8 +87,41 @@ func dramaError(err error) error {
 	if errors.Is(err, drama.ErrInvalidOverride) {
 		return NewError(CodeBadUserInput, "pass exactly one of tmdbSeriesId, exclude and reset with a program name that has a title")
 	}
+	if errors.Is(err, drama.ErrInvalidToken) {
+		return NewError(CodeBadUserInput, err.Error())
+	}
 
 	return err
+}
+
+// errNoDramaTokens は、TMDb のトークンを扱う部品を渡していないことを表す。
+var errNoDramaTokens = errors.New("the TMDb token store is not configured")
+
+// dramaTokenStore は、TMDb のトークンを扱う部品を返す。渡していなければ内部のエラーを返す。
+func (r *Resolver) dramaTokenStore() (*drama.Tokens, error) {
+	if r.dramaTokens == nil {
+		return nil, errNoDramaTokens
+	}
+
+	return r.dramaTokens, nil
+}
+
+// dramaLinking は、TMDb との連携の様子を返す。トークンそのものは返さない。
+func (r *Resolver) dramaLinking(ctx context.Context) (*model.DramaLinkingStatus, error) {
+	tokens, err := r.dramaTokenStore()
+	if err != nil {
+		return nil, err
+	}
+	status, err := tokens.Status(ctx, r.db)
+	if err != nil {
+		return nil, err
+	}
+	result := &model.DramaLinkingStatus{TokenConfigured: status.Configured, TokenHint: nil, TokenUpdatedAt: status.UpdatedAt}
+	if status.Hint != "" {
+		result.TokenHint = new(status.Hint)
+	}
+
+	return result, nil
 }
 
 // startDramaLinking は、これから 1 週間の番組を照合するジョブを入れる。入れられなくても、6 時間ごとの定期ジョブが照合するので、

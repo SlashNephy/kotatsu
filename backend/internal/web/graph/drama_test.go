@@ -58,7 +58,7 @@ func TestDramaTitleOverrides(t *testing.T) {
 		DramaTitleOverrides []dramaTitleOverride `json:"dramaTitleOverrides"`
 	}
 	require.Empty(t, admin.query(t, listQuery, nil, &listed))
-	assert.False(t, listed.DramaLinking.TokenConfigured, "the test server has no TMDb token")
+	assert.False(t, listed.DramaLinking.TokenConfigured, "no TMDb token has been entered")
 	assert.Len(t, listed.DramaTitleOverrides, 1)
 
 	for _, bad := range []map[string]any{
@@ -74,4 +74,48 @@ func TestDramaTitleOverrides(t *testing.T) {
 
 	require.Empty(t, admin.query(t, update, map[string]any{varInput: map[string]any{fieldTitleKey: titleKey, fieldReset: true}}, &updated))
 	assert.Empty(t, updated.UpdateDramaTitleOverride)
+}
+
+// TestDramaLinkingToken は、管理者だけが TMDb のトークンを入れられ、トークンそのものは返さず末尾の数文字だけを返すこと、
+// 空にすれば消えること、変えるときは直近の再認証を求めることを確かめる (#1651、設計書 9.5)。
+func TestDramaLinkingToken(t *testing.T) {
+	t.Parallel()
+
+	const (
+		status   = `{ dramaLinking { tokenConfigured tokenHint } }`
+		update   = `mutation($token: String!) { updateDramaLinkingToken(token: $token) { tokenConfigured tokenHint } }`
+		varToken = "token"
+		entered  = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJ0ZXN0In0.signature-wxyz"
+	)
+	type linking struct {
+		TokenConfigured bool    `json:"tokenConfigured"`
+		TokenHint       *string `json:"tokenHint"`
+	}
+	f := newFixture(t, nil)
+	input := map[string]any{varToken: entered}
+	assert.Equal(t, []string{codeForbidden}, f.query(t, status, nil, nil), "members cannot see the token")
+	assert.Equal(t, []string{codeForbidden}, f.query(t, update, input, nil), "members cannot change the token")
+
+	admin := f.as(t, adminName, domain.RoleAdmin)
+	var got struct {
+		DramaLinking linking `json:"dramaLinking"`
+	}
+	require.Empty(t, admin.query(t, status, nil, &got))
+	assert.Equal(t, linking{TokenConfigured: false, TokenHint: nil}, got.DramaLinking)
+
+	var updated struct {
+		UpdateDramaLinkingToken linking `json:"updateDramaLinkingToken"`
+	}
+	require.Empty(t, admin.query(t, update, input, &updated))
+	assert.Equal(t, linking{TokenConfigured: true, TokenHint: new("wxyz")}, updated.UpdateDramaLinkingToken)
+	require.Empty(t, admin.query(t, status, nil, &got))
+	assert.Equal(t, linking{TokenConfigured: true, TokenHint: new("wxyz")}, got.DramaLinking)
+
+	assert.Equal(t, []string{codeBadUserInput}, admin.query(t, update, map[string]any{varToken: "two words"}, nil))
+
+	require.Empty(t, admin.query(t, update, map[string]any{varToken: ""}, &updated))
+	assert.Equal(t, linking{TokenConfigured: false, TokenHint: nil}, updated.UpdateDramaLinkingToken, "an empty token deletes it")
+
+	f.clock.Advance(auth.RecentAuthenticationWindow * 2)
+	assert.Equal(t, []string{codeReauthRequired}, admin.query(t, update, input, nil))
 }

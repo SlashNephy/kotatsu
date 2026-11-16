@@ -30,7 +30,7 @@ func newLogReport(deps *Deps, sealed *sealedStores, location *time.Location, tun
 	if buffer == nil {
 		buffer = logring.NewBuffer(1, 0)
 	}
-	stored := []logreport.StoredSecrets{sealed.webhooks, sealed.webPush}
+	stored := []logreport.StoredSecrets{sealed.webhooks, sealed.webPush, sealed.dramaTokens}
 	// nil の *animerecord.Service を interface に入れると nil と比べられなくなるので、あるときだけ足す。
 	if sealed.animeRecords != nil {
 		stored = append(stored, sealed.animeRecords)
