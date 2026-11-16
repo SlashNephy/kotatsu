@@ -127,8 +127,11 @@ export function useNetworkQuality(
     let stopped = false;
     let manualNoticeAt = -Infinity;
 
+    // ライブでは、利用者はシークしない。シークは、プレイヤーが詰まりから戻ろうとして端へ移すものなので、詰まりとして数え続ける。
+    // 数え直すと、細い回線で数秒おきに端へ移る間、切り替え直後の無視時間が続き、兆しを一度も見られない。
+    const internalSeek = () => read().mode === 'probe';
     const onWaiting = () => {
-      if (!video.paused && !video.seeking && !excused()) {
+      if (!video.paused && (!video.seeking || internalSeek()) && !excused()) {
         waiting = true;
       }
     };
@@ -141,12 +144,21 @@ export function useNetworkQuality(
       lastFrameAt = performance.now();
     };
     const onSeeking = () => {
+      if (internalSeek()) {
+        return;
+      }
       waiting = false;
       controller.restart(performance.now());
     };
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('playing', onPlaying);
+    // 選局やつなぎ直しで読み込み直したら、新しい映像が映り出してから数え直す (ライブのシークでは数え直さないため)。
+    const onLoadStart = () => {
+      waiting = false;
+      started.current = false;
+    };
     video.addEventListener('seeking', onSeeking);
+    video.addEventListener('loadstart', onLoadStart);
     video.addEventListener('play', onResume);
     document.addEventListener('visibilitychange', onResume);
 
@@ -166,6 +178,7 @@ export function useNetworkQuality(
     const probe = (bytes: number) => {
       const abort = new AbortController();
       probeAbort.current = abort;
+      const startedAt = performance.now();
       void measureProbe({
         bytes,
         timeoutMs: defaultNetworkParams.probeTimeoutMs,
@@ -174,7 +187,18 @@ export function useNetworkQuality(
         if (probeAbort.current === abort) {
           probeAbort.current = null;
         }
-        controller.probed(performance.now(), outcome);
+        const now = performance.now();
+        // 試しの間に映像が受け取った速さを添える。試しと映像は同じ回線を分け合う。
+        controller.probed(
+          now,
+          outcome.kind === 'measured' && now > startedAt
+            ? {
+                ...outcome,
+                alongsideBps:
+                  (meter.receivedBetween(startedAt, now) * 8 * 1_000) / (now - startedAt),
+              }
+            : outcome,
+        );
       });
     };
 
@@ -187,7 +211,7 @@ export function useNetworkQuality(
       const ahead = aheadOf(video);
       const active =
         !video.paused &&
-        !video.seeking &&
+        (!video.seeking || state.mode === 'probe') &&
         !video.ended &&
         (document.visibilityState === 'visible' ||
           state.pictureInPicture ||
@@ -262,6 +286,7 @@ export function useNetworkQuality(
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('seeking', onSeeking);
+      video.removeEventListener('loadstart', onLoadStart);
       video.removeEventListener('play', onResume);
       document.removeEventListener('visibilitychange', onResume);
     };

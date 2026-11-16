@@ -63,6 +63,9 @@ export type NetworkParams = {
   backoffMaxMs: number;
   // upToDisplayMs は、段を上げるよう求めてから、新しい段が映り出すのを待つ時間 (上げてから映るまでの上限)。
   upToDisplayMs: number;
+  // downToDisplayMs は、段を下げてから、新しい段が映り出すのを待つ時間 (下げてから映るまでの上限)。過ぎたら、もう一段下げる。
+  // 下げた段も回線に収まらなければ、最初のセグメントが届かず、映り出さないまま待ち続けるため。
+  downToDisplayMs: number;
   // defaultTopBitrate は、最高画質 (オリジナル) のビットレートが分からず、足りていた間の受け取りの速さも測っていないときに使う値。
   defaultTopBitrate: number;
 };
@@ -116,6 +119,7 @@ export const defaultNetworkParams: NetworkParams = {
   backoffMultiplier: 2,
   backoffMaxMs: 5 * 60_000,
   upToDisplayMs: 15_000,
+  downToDisplayMs: 15_000,
   // 地上波と BS の TS (13〜24 Mbps、設計書 7.1) の間。
   defaultTopBitrate: 20_000_000,
 };
@@ -189,8 +193,9 @@ export type NetworkDecision =
 
 // ProbeOutcome は、試しのデータを取った結果。measured は速さを測れた。failed は 5xx か打ち切り (足りない兆しが出た) で、
 // 余裕が無かったと測ったことにする。rateLimited は 429 で、retryAfterMs (無ければ null) の間は測らない。
+// alongsideBps は、試しの間に、再生中の映像が受け取った速さ (無ければ 0)。試しと映像は同じ回線を分け合うので、回線の速さは 2 つの和になる。
 export type ProbeOutcome =
-  | { kind: 'measured'; bps: number }
+  | { kind: 'measured'; bps: number; alongsideBps?: number }
   | { kind: 'failed' }
   | { kind: 'rateLimited'; retryAfterMs: number | null };
 
@@ -322,6 +327,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
   // measuredProbe は、再生の情報に出す、最後に試しで測った速さ。上げるかを決めても捨てない。
   let measuredProbe: { bps: number; at: number } | null = null;
   let pending: PendingUp | null = null;
+  // downAt は、段を下げて、まだ新しい段が映り出していない間の、下げた時刻。
+  let downAt: number | null = null;
   // sufficient は、段ごとの、足りていた間の受け取りの速さ。最高画質へ戻すときに比べる。
   const sufficient = new Map<string, number>();
   let lastSignals: Signal[] = [];
@@ -489,6 +496,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
     steps += 1;
     lastStep = { to, signals: lastSignals, at: now };
     pending = direction === 'up' ? { from, to, requestedAt: now, shownAt: null } : null;
+    downAt = direction === 'down' ? now : null;
     current = to;
     arrivedAt = now;
     holdUntil = now + params.holdAfterSwitchMs;
@@ -529,6 +537,7 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         forgetHistory();
         okSince = null;
         pending = null;
+        downAt = null;
       }
       lastRate = input.receiveRate;
       // 上げた段が、上げてから映るまでの上限がたっても映り出さなければ、元の段へ戻す。足りない段では、最初のキーフレームが届かず、
@@ -541,6 +550,25 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         now - pending.requestedAt >= params.upToDisplayMs
       ) {
         return failUp(now, pending);
+      }
+      // 下げた段が、下げてから映るまでの上限がたっても映り出さなければ、受け取りの速さに収まる段か、最も低い段なら音声だけへ下げる。
+      if (input.started) {
+        downAt = null;
+      } else if (
+        input.active &&
+        context.automatic &&
+        downAt !== null &&
+        now - downAt >= params.downToDisplayMs
+      ) {
+        const lower =
+          chooseDown(context.ladder, context.current, input.receiveRate, need, params) ??
+          (context.ladder.at(-1)?.name === audioStep && context.current !== audioStep
+            ? audioStep
+            : null);
+        if (lower !== null) {
+          return step(now, context.current, lower, 'down', 'bandwidth');
+        }
+        downAt = null;
       }
       if (!input.active || !input.started || now < ignoreUntil) {
         lastSignals = [];
@@ -628,9 +656,10 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
         return { kind: 'none' };
       }
       if (lastProbe !== null && now - lastProbe.at < params.probeValidityMs) {
+        // 試しの前に測った受け取りの速さは足さない。回線が詰まっていれば、試しの間は映像が細り、同じ帯域を二重に数えるため。
         const measured = lastProbe.bps;
         lastProbe = null;
-        if (measured + (input.receiveRate ?? 0) >= needUpper * params.probeHeadroom) {
+        if (measured >= needUpper * params.probeHeadroom) {
           return step(now, context.current, upper.name, 'up', 'recovered');
         }
         // 足りなければ上げず、もう一度、試すまでの無事の時間を待つ。この待ちには、待ちの倍率を掛けない。
@@ -669,8 +698,8 @@ export function createNetworkController(options: NetworkOptions): NetworkControl
       inFlight = false;
       switch (outcome.kind) {
         case 'measured':
-          lastProbe = { bps: outcome.bps, at: now };
-          measuredProbe = lastProbe;
+          lastProbe = { bps: outcome.bps + (outcome.alongsideBps ?? 0), at: now };
+          measuredProbe = { bps: outcome.bps, at: now };
           break;
         case 'failed':
           // 測っていないことにすると、刻みごとに取りに行くので、余裕が無かったと測ったことにする。

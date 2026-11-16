@@ -53,6 +53,13 @@ export class ReceiveMeter {
     return (bytes * 8 * 1_000) / windowMs;
   }
 
+  // receivedBetween は、from から to (ミリ秒) までに届いた量 (バイト)。
+  receivedBetween(from: number, to: number): number {
+    return this.#received
+      .filter((received) => received.at >= from && received.at <= to)
+      .reduce((sum, received) => sum + received.bytes, 0);
+  }
+
   // throughput は、now までの spanMs のあいだに読み終えた塊の量を、読むのにかかった時間の合計で割った速さ。
   // 先に読む経路 (録画の HLS) で、読んでいない間を数えずに回線の速さを出す。読み終えた塊が無ければ null。
   throughput(now: number, spanMs: number = throughputSpanMs): number | null {

@@ -100,3 +100,17 @@ describe('ReceiveMeter.throughput', () => {
     expect(meter.throughput(now)).toBe(want);
   });
 });
+
+describe('ReceiveMeter.receivedBetween', () => {
+  test.each([
+    { name: '区間の両端を含めて、届いた量を足す', from: 1_000, to: 3_000, want: 600_000 },
+    { name: '区間の外の塊は数えない', from: 1_500, to: 2_500, want: 200_000 },
+    { name: '何も届いていなければ 0', from: 4_000, to: 5_000, want: 0 },
+  ])('$name', ({ from, to, want }) => {
+    const meter = new ReceiveMeter();
+    meter.add(1_000, 100_000);
+    meter.add(2_000, 200_000);
+    meter.add(3_000, 300_000);
+    expect(meter.receivedBetween(from, to)).toBe(want);
+  });
+});

@@ -456,12 +456,28 @@ describe('試しのデータで上げる (ライブ)', () => {
       { at: start + params.probeAfterOkMs, bytes: probeBytes(3_628_000, 2_128_000, params) },
     ]);
     expect(sim.controller.probing()).toBe(true);
-    sim.controller.probed(sim.now, { kind: 'measured', bps: 3_000_000 });
+    sim.controller.probed(sim.now, { kind: 'measured', bps: 3_000_000, alongsideBps: 2_128_000 });
     sim.run(500, { receiveRate: 2_128_000 });
-    // 3 Mbps + 2.128 Mbps ≥ 3.628 Mbps × 1.3
+    // 試しの 3 Mbps + 試しの間に映像が受け取った 2.128 Mbps ≥ 3.628 Mbps × 1.3
     expect(sim.moves()).toEqual([
       { at: sim.now, to: '720p', direction: 'up', reason: 'recovered' },
     ]);
+  });
+
+  // 回線が詰まっていると、試しの間は映像が細る。試しの前の受け取りの速さを足すと、同じ帯域を二重に数えて上げすぎる。
+  test.each([
+    {
+      name: '試しの間に映像が受け取れなければ、試しの前の受け取りの速さを足さずに比べる',
+      alongsideBps: 0,
+      want: [],
+    },
+    { name: '試しの間に映像が受け取った速さは足す', alongsideBps: 1_000_000, want: ['720p'] },
+  ])('$name', ({ alongsideBps, want }) => {
+    const sim = new Sim('540p').run(start).run(params.probeAfterOkMs, { receiveRate: 3_100_000 });
+    // 4 Mbps の回線: 試しが 4 Mbps を取った。3.628 Mbps × 1.3 = 4.72 Mbps
+    sim.controller.probed(sim.now, { kind: 'measured', bps: 4_000_000, alongsideBps });
+    sim.run(500, { receiveRate: 3_100_000 });
+    expect(sim.moves().map((move) => move.to)).toEqual(want);
   });
 
   test('余裕が足りなければ上げず、待ちの倍率を掛けずにもう一度待つ', () => {
@@ -655,4 +671,40 @@ test('経路の種類が変わったら (ライブと追っかけ)、溜めた�
       kind: 'none',
     },
   );
+});
+
+describe('下げた段が映り出さないとき', () => {
+  const start = params.ignoreAfterSwitchMs;
+
+  test.each([
+    {
+      name: '下げてから映るまでの上限がたっても映り出さなければ、もう一段下げる',
+      from: '720p',
+      input: { started: false },
+      want: ['540p', '360p'],
+    },
+    {
+      name: '上限の前に映り出せば、それ以上は下げない',
+      from: '720p',
+      input: (now: number) => ({ started: now >= start + 500 + params.downToDisplayMs - 1_000 }),
+      want: ['540p'],
+    },
+    {
+      name: '最も低い段で映り出さなければ、音声だけにする',
+      from: '540p',
+      input: { started: false },
+      want: ['360p', audioStep],
+    },
+    {
+      name: '一時停止している間は、下げない',
+      from: '720p',
+      input: { started: false, active: false },
+      want: ['540p'],
+    },
+  ])('$name', ({ from, input, want }) => {
+    // 詰まりで 1 段下げた後、新しい段が映り出さない。
+    const sim = new Sim(from).run(start).run(500, { waiting: true });
+    sim.run(params.downToDisplayMs + 500, input);
+    expect(sim.moves().map((move) => move.to)).toEqual(want);
+  });
 });
