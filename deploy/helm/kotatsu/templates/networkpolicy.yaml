@@ -2,7 +2,8 @@
 Pod へ届く相手を絞る NetworkPolicy (#1526、設計書 11.1)。CNI が対応していないと効かないので、既定では作らない。
 Pod への Ingress を、許した相手からの、そのポートの TCP だけに絞る。Egress は絞らない。
 - http (8080): all と tenban は、httpFrom の相手 (空ならどこからでも) から受ける。kyusu は、セッションを中継する tenban の Pod からだけ受ける。
-  ほかのロール (neko、mikan、nekonote) は、ロールの間で HTTP を使わないので、誰からも受けない。
+  nabe は、EDCB の NetworkTV の TS を受け取る tenban、mikan、kyusu の Pod からだけ受ける (設計書 3.1)。
+  ほかのロール (neko、mikan、nekonote) は、ほかのロールから HTTP を受けないので、誰からも受けない。
 - metrics (9090): どのロールも、metricsFrom の相手からだけ受ける。空なら誰からも受けない。
 kubelet のプローブは、Pod のあるノードからの通信として通す CNI が多い (推測)。通さない CNI では、プローブが落ちるので使わない。
 */}}
@@ -29,7 +30,7 @@ spec:
   policyTypes:
     - Ingress
   {{- /* 受ける規則がひとつもないロールでは、ingress を書かない (すべて断る)。空の ingress: は null になり、API に断られる。 */}}
-  {{- if or (has $component (list "all" "tenban" "kyusu")) $.Values.networkPolicy.metricsFrom }}
+  {{- if or (has $component (list "all" "tenban" "kyusu" "nabe")) $.Values.networkPolicy.metricsFrom }}
   ingress:
     {{- if has $component (list "all" "tenban") }}
     - ports:
@@ -47,6 +48,16 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "kotatsu.selectorLabels" (dict "root" $ "component" "tenban") | nindent 14 }}
+    {{- else if eq $component "nabe" }}
+    - ports:
+        - protocol: TCP
+          port: http
+      from:
+        {{- range $client := list "tenban" "mikan" "kyusu" }}
+        - podSelector:
+            matchLabels:
+              {{- include "kotatsu.selectorLabels" (dict "root" $ "component" $client) | nindent 14 }}
+        {{- end }}
     {{- end }}
     {{- with $.Values.networkPolicy.metricsFrom }}
     - ports:

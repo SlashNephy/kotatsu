@@ -293,7 +293,7 @@ func (w *Worker) work(ctx context.Context, encoder Encoder, job *river.Job[Args]
 	partial := partialFile.Name()
 	_ = partialFile.Close()
 	defer func() { _ = os.Remove(partial) }()
-	est := estimate(opened, plan.outputRate())
+	est := estimate(ctx, opened, plan.outputRate())
 	if err := w.encode(ctx, encoder, opened, preset, plan.fields, partial, w.reporter(ctx, logger, job, est)); err != nil {
 		return err
 	}
@@ -348,9 +348,9 @@ func (w *Worker) enqueueChapters(ctx context.Context, tx pgx.Tx, recordingID uui
 // 出すコマ数 rate (frameRatePlan.outputRate) を掛ける。変換は、最初の I フレームから流すので、それより前の映像 (先頭を捨てた分) は含めない。
 // フィールドごとに 1 コマにするなら 59.94、コマごとに解除するなら、最初のセグメントの映像のフレームレートになる (#1509)。
 // 見込みのコマ数が出せなければ、入力の大きさで割る。
-func estimate(recording *stream.Recording, rate float64) ffprogress.Estimate {
+func estimate(ctx context.Context, recording *stream.Recording, rate float64) ffprogress.Estimate {
 	est := ffprogress.Estimate{Frames: 0, Bytes: 0}
-	if content, err := recording.Content(); err == nil {
+	if content, err := recording.Content(ctx); err == nil {
 		est.Bytes = content.Size()
 		_ = content.Close()
 	}

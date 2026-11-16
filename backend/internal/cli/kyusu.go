@@ -100,6 +100,8 @@ func newKyusuVOD(deps *Deps, logger kyusuLogger, transcoder *kyusu.Transcoder) (
 	return kyusu.NewVOD(&kyusu.VODOptions{
 		Opener:    stream.NewRecordingSource(deps.DB, storeOf(deps.Config), 0),
 		Timeshift: stream.NewTimeshiftSource(deps.DB, storeOf(deps.Config), 0),
-		Encoder:   encoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: (*slog.Logger)(logger), IdleTimeout: 0, MaxSessions: 0,
+		// ライブラリのファイルの索引は、tenban が作る。kyusu は読むだけにする (設計書 5.8)。
+		Library: newLibraryParts(deps, (*slog.Logger)(logger), false).source,
+		Encoder: encoder, WorkDir: deps.Config.Kyusu.WorkDir, Clock: deps.Clock, Logger: (*slog.Logger)(logger), IdleTimeout: 0, MaxSessions: 0,
 	})
 }

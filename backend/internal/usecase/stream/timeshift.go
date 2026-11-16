@@ -82,7 +82,7 @@ func (t *timeshiftTimeline) load(ctx context.Context) ([]*segment, error) {
 		chunk := &chunks[i]
 		seg := &segment{
 			id: chunk.ID, poolID: kago.TimeshiftPoolID, path: chunk.Path, startedAt: chunk.StartedAt, endedAt: chunk.EndedAt,
-			open: chunk.EndedAt == nil, continues: false, continued: false, index: []ts.IndexEntry{},
+			open: chunk.EndedAt == nil, continues: false, continued: false, index: []ts.IndexEntry{}, opener: nil,
 		}
 		if i > 0 {
 			prev := segments[i-1]

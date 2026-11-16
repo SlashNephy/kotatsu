@@ -1,14 +1,16 @@
 -- name: GetRecordingNextEpisodeSource :one
 -- 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
--- シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数。録画履歴に写すもの (設計書 4.4) と揃える。
+-- シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDb の作品とシーズンと話の番号。
+-- 録画履歴に写すもの (設計書 4.4) と揃える。
 SELECT rec.name, rec.description, rec.extended,
   p.series_episode AS program_series_episode, pa.series_episode AS archived_series_episode,
-  e.syobocal_tid, e.count_start
+  e.syobocal_tid, e.count_start, d.tmdb_series_id, d.season_number AS tmdb_season_number, d.episode_number AS tmdb_episode_number
 FROM recordings rec
 LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
 LEFT JOIN program_archives pa ON pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at
 LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_start = e.count_end
   AND NOT EXISTS (SELECT 1 FROM recording_anime_episodes o WHERE o.recording_id = rec.id AND o.position <> e.position)
+LEFT JOIN recording_drama_matches d ON d.recording_id = rec.id
 WHERE rec.id = @id;
 
 -- name: ListSeriesNextPrograms :many
@@ -33,6 +35,18 @@ GROUP BY p.service_id, p.event_id, p.start_at, p.related_items
 ORDER BY p.start_at, p.service_id, p.event_id
 LIMIT @max_rows::integer;
 
+-- name: ListDramaNextPrograms :many
+-- TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
+-- since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
+SELECT p.service_id, p.event_id, p.start_at, m.episode_number::double precision AS episode_number, p.related_items
+FROM program_drama_matches m
+JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+WHERE m.tmdb_series_id = @tmdb_series_id::integer AND m.season_number = @season_number::integer
+  AND m.episode_number > @episode_number::integer
+  AND p.start_at >= @since AND p.start_at < @until AND NOT p.end_undecided
+ORDER BY p.start_at, p.service_id, p.event_id
+LIMIT @max_rows::integer;
+
 -- name: ListRecordedSeriesEpisodes :many
 -- シリーズ名が series の録画履歴の、回を読む元 (#1564)。録った回を、続きの放送から外すのに使う。
 SELECT name, description, series_episode FROM recording_history WHERE series = @series::text;
@@ -43,19 +57,27 @@ SELECT DISTINCT anime_count::double precision AS anime_count
 FROM recording_history
 WHERE syobocal_tid = @syobocal_tid::integer AND anime_count IS NOT NULL;
 
+-- name: ListRecordedDramaEpisodes :many
+-- TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
+SELECT DISTINCT tmdb_episode_number::double precision AS episode_number
+FROM recording_history
+WHERE tmdb_series_id = @tmdb_series_id::integer AND tmdb_season_number = @season_number::integer AND tmdb_episode_number IS NOT NULL;
+
 -- name: ListWatchedNextEpisodeSources :many
 -- ユーザー user_id が since より後に、録画の長さの min_ratio 以上まで再生した録画の、回を読む元を、最後に見た新しい順に返す (#1564)。
 -- ホームの「続きの放送」で、見たシリーズを決めるのに使う。回を読む元は GetRecordingNextEpisodeSource と揃える。
 -- 録画中の録画と、長さの分からない録画は、見た割合を出せないので外す。
 SELECT rec.id, rec.name, rec.description, rec.extended,
   p.series_episode AS program_series_episode, pa.series_episode AS archived_series_episode,
-  e.syobocal_tid, e.count_start, w.updated_at
+  e.syobocal_tid, e.count_start, d.tmdb_series_id, d.season_number AS tmdb_season_number, d.episode_number AS tmdb_episode_number,
+  w.updated_at
 FROM watch_progress w
 JOIN recordings rec ON rec.id = w.recording_id
 LEFT JOIN programs p ON p.service_id = rec.service_id AND p.event_id = rec.event_id
 LEFT JOIN program_archives pa ON pa.service_id = rec.service_id AND pa.event_id = rec.event_id AND pa.start_at = rec.start_at
 LEFT JOIN recording_anime_episodes e ON e.recording_id = rec.id AND e.count_start = e.count_end
   AND NOT EXISTS (SELECT 1 FROM recording_anime_episodes o WHERE o.recording_id = rec.id AND o.position <> e.position)
+LEFT JOIN recording_drama_matches d ON d.recording_id = rec.id
 WHERE w.user_id = @user_id AND w.updated_at >= @since
   AND rec.recorded_from IS NOT NULL AND rec.recorded_until IS NOT NULL AND rec.recorded_until > rec.recorded_from
   AND w.position_ms >= extract(epoch FROM (rec.recorded_until - rec.recorded_from)) * 1000 * @min_ratio::double precision
@@ -105,3 +127,32 @@ FROM recording_history WHERE series = ANY(@series::text[]);
 SELECT DISTINCT syobocal_tid::integer AS key_tid, anime_count::double precision AS anime_count
 FROM recording_history
 WHERE syobocal_tid = ANY(@tids::integer[]) AND anime_count IS NOT NULL;
+
+-- name: ListDramaNextProgramsBatch :many
+-- TMDb の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
+-- 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#1564)。ListDramaNextPrograms をまとめて引く。
+SELECT k.series_id::integer AS key_series_id, k.season::integer AS key_season,
+  c.service_id, c.event_id, c.start_at, c.episode_number, c.related_items
+FROM (
+  SELECT unnest(@series_ids::integer[]) AS series_id, unnest(@seasons::integer[]) AS season, unnest(@episodes::integer[]) AS episode
+) AS k
+CROSS JOIN LATERAL (
+  SELECT p.service_id, p.event_id, p.start_at, m.episode_number::double precision AS episode_number, p.related_items
+  FROM program_drama_matches m
+  JOIN programs p ON p.service_id = m.service_id AND p.event_id = m.event_id AND p.start_at = m.start_at
+  WHERE m.tmdb_series_id = k.series_id AND m.season_number = k.season AND m.episode_number > k.episode
+    AND p.start_at >= @since AND p.start_at < @until AND NOT p.end_undecided
+  ORDER BY p.start_at, p.service_id, p.event_id
+  LIMIT @max_rows::integer
+) c
+ORDER BY k.series_id, k.season, c.start_at, c.service_id, c.event_id;
+
+-- name: ListRecordedDramaEpisodesBatch :many
+-- TMDb の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
+-- ListRecordedDramaEpisodes をまとめて引く。
+SELECT DISTINCT h.tmdb_series_id::integer AS key_series_id, h.tmdb_season_number::integer AS key_season,
+  h.tmdb_episode_number::double precision AS episode_number
+FROM recording_history h
+JOIN (SELECT unnest(@series_ids::integer[]) AS series_id, unnest(@seasons::integer[]) AS season) AS k
+  ON h.tmdb_series_id = k.series_id AND h.tmdb_season_number = k.season
+WHERE h.tmdb_episode_number IS NOT NULL;

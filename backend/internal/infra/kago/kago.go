@@ -160,6 +160,10 @@ func IndexLocation(fileID uuid.UUID) *Location {
 // 中に「ユーザーの ID/キャプチャの ID.png」の形で置く。セグメントのファイルの ID の名前ではないので、生成物のディレクトリとはみなさない。
 const CapturesDir = "captures"
 
+// LibraryIndexDir は、データディレクトリの、ライブラリのファイル (録画として登録していない TS) の索引を置くディレクトリ (設計書 5.6、5.8)。
+// 中に「ライブラリの名前とパスのハッシュ/」の形で置く。ファイルが DB に行を持たないので、中のものは DB にないファイルとして出さない。
+const LibraryIndexDir = "libraries"
+
 // CaptureLocation は、ユーザー userID のキャプチャ captureID の画像の場所を返す。
 func CaptureLocation(userID, captureID uuid.UUID) *Location {
 	return &Location{PoolID: DataPoolID, Path: CapturesDir + "/" + userID.String() + "/" + captureID.String() + ".png"}

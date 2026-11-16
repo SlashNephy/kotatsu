@@ -153,7 +153,8 @@ httpRoute:
 
 # networkPolicy は、Pod へ届く相手を絞る NetworkPolicy (#1526)。CNI が対応していないと効かないので、既定では作らない。
 # 作ると、Pod への Ingress を、許した相手からの、そのポートの TCP だけに絞る。Egress は絞らない。
-# all と tenban の http は httpFrom から、kyusu の http は tenban の Pod から、どのロールの metrics も metricsFrom から受ける。
+# all と tenban の http は httpFrom から、kyusu の http は tenban の Pod から、nabe の http は tenban、mikan、kyusu の Pod から、
+# どのロールの metrics も metricsFrom から受ける。
 # neko、mikan、nekonote の http は誰からも受けない (kubelet のプローブは、ノードからの通信として通す CNI が多い)。
 networkPolicy:
   enabled: false
@@ -294,4 +295,21 @@ roles:
     affinity: {}
     runtimeClassName: ""
     probes: {}
+    terminationGracePeriodSeconds: 30
+  nabe:
+    # nabe は、EDCB の NetworkTV の TS をサービスごとに 1 本開いて、tenban、mikan、kyusu に配る (設計書 3.1、#1535)。
+    # EDCB を使う (config.TUNER_KIND が edcb の) ときだけ意味があり、Mirakurun 互換のチューナーサーバーでは何もしない。
+    # 使うときは 1 にする。1 台だけ動かすので、2 以上にはできない。
+    # ほかのロールは、インスタンスの登録簿で nabe の Pod の IP を引いてつなぐので、Service は要らない。
+    # nabe と、受け取るロールには、同じアプリの秘密キー (secrets.secretKey) が要る。Chart は全ロールに同じものを渡す。
+    replicas: 0
+    ffmpeg: false
+    pools: false
+    resources: {}
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    runtimeClassName: ""
+    probes: {}
+    # 止めるときは、流しているストリームを打ち切ってから止まる。受け手は、つなぎ直すか自分で NetworkTV を開く。
     terminationGracePeriodSeconds: 30

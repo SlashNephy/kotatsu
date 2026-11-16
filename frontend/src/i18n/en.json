@@ -587,7 +587,8 @@
     "captures": "Captures",
     "remote": "Remote",
     "offline": "Saved recordings",
-    "anime": "Anime"
+    "anime": "Anime",
+    "library": "Library"
   },
   "guide": {
     "watchLive": "Watch {{name}} live",
@@ -2853,5 +2854,30 @@
     "privateUse": "Kotatsu is software intended for private use, that is, use by an individual, within a household, or within a similarly limited circle, as provided in Article 30, Paragraph 1 of the Copyright Act of Japan. It is not intended for transmitting received broadcasts or recorded programs to the public, or for making them available for transmission.",
     "tuner": "Users shall connect Kotatsu only to tuner servers that they are lawfully entitled to use.",
     "lawful": "Users shall not use Kotatsu for any purpose that violates laws or regulations, or that infringes the copyrights or other rights of third parties."
+  },
+  "library": {
+    "title": "Library",
+    "description": "Browse folders and play TS files that are not registered as recordings, as they are.",
+    "all": "Libraries",
+    "empty": "No libraries",
+    "emptyHint": "Storage pools and the folders listed in storage.libraries appear here.",
+    "emptyDirectory": "No playable files",
+    "emptyDirectoryHint": "Only folders and files with the .ts, .m2ts, or .mts extension are shown.",
+    "notFound": "The library or folder was not found",
+    "error": "Failed to read the library",
+    "kind": {
+      "pool": "Storage",
+      "folder": "Folder"
+    },
+    "name": "Name",
+    "size": "Size",
+    "modifiedAt": "Modified",
+    "up": "Up one folder",
+    "backToFolder": "Back to the folder",
+    "fileNotFound": "The file was not found",
+    "unsupported": "This file cannot be played. Only TS with 188-byte packets is supported (Blu-ray .m2ts is not).",
+    "indexing": "Preparing to seek",
+    "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
+    "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning."
   }
 }

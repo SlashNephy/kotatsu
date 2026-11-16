@@ -17,6 +17,7 @@ import (
 
 	"github.com/SlashNephy/kotatsu/internal/infra/jikkyoclient"
 	"github.com/SlashNephy/kotatsu/internal/infra/kago"
+	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/infra/update"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
 	"github.com/SlashNephy/kotatsu/internal/lib/config"
@@ -27,6 +28,7 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/usecase/auth"
 	"github.com/SlashNephy/kotatsu/internal/usecase/capture"
 	"github.com/SlashNephy/kotatsu/internal/usecase/drama"
+	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/jikkyo"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/usecase/logreport"
@@ -108,6 +110,10 @@ type Options struct {
 	Pools map[string]string
 	// DataDir は、データディレクトリ。
 	DataDir string
+	// Libraries は、ファイラーで見せるライブラリ (設計書 5.8)。nil なら、ライブラリはない。
+	Libraries *medialib.Set
+	// LibrarySource は、ライブラリのファイルを開き、索引を作り始める。nil なら、ライブラリのファイルは開けない。
+	LibrarySource *filelib.Source
 	// TimeshiftDir は、タイムシフトのバッファを置くディレクトリ。空なら、タイムシフトのチャンネルを設定できない。
 	TimeshiftDir string
 	// Captions は、字幕の自動生成の設定 (#1682)。モデルの場所を書いているかを、モデルの画面に出す。nil なら書いていないとみなす。
@@ -243,7 +249,16 @@ func NewHandler(opts *Options) http.Handler {
 		drain:            o.Drain,
 		logs:             o.Logs,
 		dataDir:          o.DataDir,
+		libraries:        o.Libraries,
+		librarySource:    o.LibrarySource,
 		captions:         o.Captions,
+	}
+	if resolver.libraries == nil {
+		resolver.libraries = medialib.NewSet(map[string]string{}, []string{}, map[string]string{})
+	}
+	if resolver.librarySource == nil {
+		// ライブラリがないので、索引を作ることも読むこともない。
+		resolver.librarySource = filelib.NewSource(resolver.libraries, filelib.NewIndexer("", resolver.libraries, o.Clock, o.Logger, false))
 	}
 	if resolver.freeSpace == nil {
 		resolver.freeSpace = kago.FreeSpace

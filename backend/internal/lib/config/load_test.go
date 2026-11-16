@@ -76,9 +76,12 @@ func defaultOIDC() config.OIDC {
 	}
 }
 
+// varLibKotatsu は、テストのデータディレクトリ。
+const varLibKotatsu = "/var/lib/kotatsu"
+
 // noPools は、プールを設定していないときの Storage。
 func noPools() config.Storage {
-	return config.Storage{Pools: map[string]string{}, PoolOrder: []string{}}
+	return config.Storage{Pools: map[string]string{}, PoolOrder: []string{}, Libraries: map[string]string{}}
 }
 
 func TestLoadPrecedence(t *testing.T) {
@@ -395,7 +398,7 @@ func TestLoadStorage(t *testing.T) {
 			yaml: "storage:\n  pools:\n    sub-2: /mnt/sub\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: config.Storage{
-				Pools: map[string]string{poolMain: "/mnt/main", "sub-2": "/mnt/sub"}, PoolOrder: []string{"sub-2", poolMain}, DataDir: "/var/lib/kotatsu",
+				Pools: map[string]string{poolMain: "/mnt/main", "sub-2": "/mnt/sub"}, PoolOrder: []string{"sub-2", poolMain}, DataDir: varLibKotatsu, Libraries: map[string]string{},
 			},
 		},
 		{
@@ -408,7 +411,7 @@ func TestLoadStorage(t *testing.T) {
 			},
 			// 環境変数は設定ファイルの対応を丸ごと置き換えるので、順も環境変数に書いた順になる。
 			want: config.Storage{
-				Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}, DataDir: "/data/kotatsu",
+				Pools: map[string]string{poolMain: "/data/main", "archive": "/data/archive"}, PoolOrder: []string{poolMain, "archive"}, DataDir: "/data/kotatsu", Libraries: map[string]string{},
 			},
 		},
 		{
@@ -419,7 +422,7 @@ func TestLoadStorage(t *testing.T) {
 				envKeyTimeshiftDir: "/data/timeshift",
 			},
 			want: config.Storage{
-				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: "/srv/kotatsu", TimeshiftDir: "/data/timeshift",
+				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: "/srv/kotatsu", TimeshiftDir: "/data/timeshift", Libraries: map[string]string{},
 			},
 		},
 		{
@@ -428,7 +431,25 @@ func TestLoadStorage(t *testing.T) {
 			yaml: "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /mnt/main-data\n  timeshift_dir: /mnt/main2\n",
 			env:  map[string]string{envKeyURL: envURL},
 			want: config.Storage{
-				Pools: map[string]string{poolMain: "/mnt/main"}, PoolOrder: []string{poolMain}, DataDir: "/mnt/main-data", TimeshiftDir: "/mnt/main2",
+				Pools: map[string]string{poolMain: "/mnt/main"}, PoolOrder: []string{poolMain}, DataDir: "/mnt/main-data", TimeshiftDir: "/mnt/main2", Libraries: map[string]string{},
+			},
+		},
+		{
+			name: "libraries in yaml",
+			yaml: "storage:\n  pools:\n    main: /mnt/pool\n  data_dir: /var/lib/kotatsu\n  libraries:\n    anime: /mnt/anime\n",
+			env:  map[string]string{envKeyURL: envURL},
+			want: config.Storage{
+				Pools: map[string]string{poolMain: "/mnt/pool"}, PoolOrder: []string{poolMain}, DataDir: varLibKotatsu,
+				Libraries: map[string]string{"anime": "/mnt/anime"},
+			},
+		},
+		{
+			name: "env replaces libraries in yaml",
+			yaml: "storage:\n  data_dir: /var/lib/kotatsu\n  libraries:\n    anime: /mnt/anime\n",
+			env:  map[string]string{envKeyURL: envURL, "KOTATSU_STORAGE_LIBRARIES": "backup=/mnt/backup, old=/mnt/old"},
+			want: config.Storage{
+				Pools: map[string]string{}, PoolOrder: []string{}, DataDir: varLibKotatsu,
+				Libraries: map[string]string{"backup": "/mnt/backup", "old": "/mnt/old"},
 			},
 		},
 	}
@@ -440,6 +461,7 @@ func TestLoadStorage(t *testing.T) {
 			require.NoError(t, err)
 			want := tt.want
 			want.Pools = nativeEnv(want.Pools)
+			want.Libraries = nativeEnv(want.Libraries)
 			want.DataDir, want.TimeshiftDir = nativePaths(want.DataDir), nativePaths(want.TimeshiftDir)
 			assert.Equal(t, want, cfg.Storage)
 		})
@@ -1191,6 +1213,49 @@ func TestLoadRejectsInvalidConfig(t *testing.T) {
 			}
 
 			_, err := config.Load(path, lookup(nativeEnv(tt.env)))
+			require.Error(t, err)
+			for _, want := range tt.wantErrs {
+				assert.ErrorContains(t, err, want)
+			}
+		})
+	}
+}
+
+// TestLoadRejectsInvalidLibraries は、ライブラリ (#1734) の名前とディレクトリの誤りを、まとめて返すことを確かめる。
+func TestLoadRejectsInvalidLibraries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		yaml     string
+		env      map[string]string
+		wantErrs []string
+	}{
+		{
+			name: "invalid libraries",
+			yaml: "storage:\n  pools:\n    main: /mnt/main\n  data_dir: /var/lib/kotatsu\n  timeshift_dir: /mnt/timeshift\n" +
+				"  libraries:\n    main: /mnt/other\n    Anime: /mnt/anime\n    rel: mnt/rel\n    data: /var/lib/kotatsu/sub\n    ts: /mnt\n",
+			env: map[string]string{envKeyURL: envURL},
+			wantErrs: []string{
+				`storage.libraries (KOTATSU_STORAGE_LIBRARIES): library name "Anime" must consist of`,
+				`storage.libraries (KOTATSU_STORAGE_LIBRARIES): library name "main" is already used by a storage pool`,
+				`storage.libraries (KOTATSU_STORAGE_LIBRARIES): directory of library "rel" must be an absolute path`,
+				`storage.libraries (KOTATSU_STORAGE_LIBRARIES): directory of library "data" must not be the same as, inside, or a parent of storage.data_dir`,
+				`storage.libraries (KOTATSU_STORAGE_LIBRARIES): directory of library "ts" must not be the same as, inside, or a parent of storage.timeshift_dir`,
+			},
+		},
+		{
+			name:     "libraries without the data directory",
+			yaml:     "storage:\n  libraries:\n    anime: /mnt/anime\n",
+			env:      map[string]string{envKeyURL: envURL},
+			wantErrs: []string{`storage.libraries (KOTATSU_STORAGE_LIBRARIES): library "anime" requires storage.data_dir to keep the seek index`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := config.Load(writeFile(t, t.TempDir(), "config.yaml", nativePaths(tt.yaml)), lookup(nativeEnv(tt.env)))
 			require.Error(t, err)
 			for _, want := range tt.wantErrs {
 				assert.ErrorContains(t, err, want)

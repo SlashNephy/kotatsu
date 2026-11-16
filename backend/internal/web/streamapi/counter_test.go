@@ -22,23 +22,27 @@ func TestStreamCounter(t *testing.T) {
 	}{
 		{
 			name: "ライブ視聴", method: http.MethodGet, kind: streamapi.StreamKindLive,
-			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 1, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0},
+			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 1, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0, streamapi.StreamKindLibrary: 0},
 		},
 		{
 			name: "データ放送", method: http.MethodGet, kind: streamapi.StreamKindDataBroadcast,
-			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 1, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0},
+			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 1, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0, streamapi.StreamKindLibrary: 0},
 		},
 		{
 			name: "録画の再生", method: http.MethodGet, kind: streamapi.StreamKindRecording,
-			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 1, streamapi.StreamKindTimeshift: 0},
+			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 1, streamapi.StreamKindTimeshift: 0, streamapi.StreamKindLibrary: 0},
 		},
 		{
 			name: "タイムシフトの再生", method: http.MethodGet, kind: streamapi.StreamKindTimeshift,
-			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 1},
+			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 1, streamapi.StreamKindLibrary: 0},
+		},
+		{
+			name: "ライブラリのファイルの再生", method: http.MethodGet, kind: streamapi.StreamKindLibrary,
+			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0, streamapi.StreamKindLibrary: 1},
 		},
 		{
 			name: "HEAD", method: http.MethodHead, kind: streamapi.StreamKindLive,
-			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0},
+			want: map[streamapi.StreamKind]int{streamapi.StreamKindLive: 0, streamapi.StreamKindDataBroadcast: 0, streamapi.StreamKindRecording: 0, streamapi.StreamKindTimeshift: 0, streamapi.StreamKindLibrary: 0},
 		},
 	}
 	for _, tt := range tests {
