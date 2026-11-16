@@ -43,6 +43,7 @@ import type { ProgramDetailReserveMutation } from './__generated__/ProgramDetail
 import { ReservationPeers } from '../reservations/ReservationPeers';
 import { ReservationSettingsDialog } from '../reservations/ReservationSettingsDialog';
 import { AnimeEpisodes } from '../anime/AnimeEpisodes';
+import { DramaEpisode } from '../drama/DramaEpisode';
 import { ServiceLabel } from './ServiceLabel';
 import { WatchReserveButton } from '../watch/WatchReserveButton';
 import { zonedFormat } from '../futon';
@@ -137,6 +138,20 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
             genres {
               lv1
               lv2
+            }
+            # TMDb で結びつけた作品と話 (#1651、設計書 3.9)。詳細でだけ引く。
+            dramaEpisode {
+              series {
+                tmdbId
+                name
+                originalName
+                url
+              }
+              seriesSource
+              seasonNumber
+              episodeNumber
+              episodeName
+              url
             }
             # しょぼいカレンダーで結びつけた話 (設計書 3.8)。詳細でだけ引く。
             animeEpisodes {
@@ -317,6 +332,11 @@ function Detail({ programId, onReserved }: { programId: string; onReserved: () =
           </Group>
         )}
         <AnimeEpisodes episodes={program.animeEpisodes} record={{ program: program.id }} />
+        <DramaEpisode
+          episode={program.dramaEpisode}
+          programName={program.name}
+          canOverride={data.viewer.role === 'ADMIN'}
+        />
         <FilmarksLink
           genres={program.genres}
           workTitle={program.workTitle}

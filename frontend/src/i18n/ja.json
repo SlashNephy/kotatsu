@@ -2047,7 +2047,19 @@
       "animeTokenDelete": "消す",
       "networkActivity": "外部との通信の記録",
       "networkActivityRetentionDays": "保持期間（日）",
-      "networkActivityRetentionHelp": "記録を残す日数です。これより古い記録は1日ごとに消します"
+      "networkActivityRetentionHelp": "記録を残す日数です。これより古い記録は1日ごとに消します",
+      "drama": "TMDbとの連携（ドラマ）",
+      "dramaEnabled": "ドラマの番組を、TMDbの作品と話に結びつける",
+      "dramaHelp": "ジャンルがドラマの番組名から、TMDbで作品を探し、放送日と話数で話を選びます。番組名をTMDbへ送ります。",
+      "dramaTokenConfigured": "TMDbのトークンを設定しています。",
+      "dramaTokenMissing": "TMDbのトークンを設定していないので、有効にしても問い合わせません。設定に書いてください:",
+      "dramaOverrides": "作品の指定",
+      "dramaOverridesHelp": "番組名から読んだ作品名ごとに、結びつけるTMDbの作品を決めます。検索で誤った作品に結びついたときや、見つからなかったときに使います。",
+      "dramaOverridesEmpty": "指定した作品はありません",
+      "dramaOverrideExcluded": "結びつけない",
+      "dramaOverrideReset": "消す",
+      "dramaOverrideProgram": "番組名",
+      "dramaOverrideSeries": "TMDbの作品のIDかURL"
     },
     "recording": {
       "title": "録画の既定値",
@@ -2379,6 +2391,25 @@
     "notifyWishlist": "見たいリストの作品の放送を通知する",
     "notifyWishlistHelp": "見たいリストの作品の、まだ見ていない話の本放送に、話ごとに最も早い放送へ視聴予約を付けます。再放送には付けません。作品が見たいリストから外れたら外します。"
   },
+  "drama": {
+    "tmdb": "TMDb",
+    "season": "シーズン{{number}}",
+    "special": "特別編",
+    "episode": "第{{number}}話",
+    "unknownSeries": "作品名を取得していません",
+    "overridden": "管理者が指定",
+    "attributionNote": "作品と話の情報は、TMDbから取得しています",
+    "override": {
+      "button": "作品を直す",
+      "help": "番組名から読んだ作品名の番組を、すべてこの作品に結びつけます。反映は次の照合を待ちます。",
+      "series": "TMDbの作品のIDかURL",
+      "invalid": "TMDbの作品のIDかURL（/tv/の後に数字）を入れてください",
+      "save": "結びつける",
+      "exclude": "結びつけない",
+      "reset": "検索に戻す",
+      "saved": "保存しました。次の照合で反映します"
+    }
+  },
   "networkActivity": {
     "title": "外部との通信",
     "description": "サーバーが実際に行った外部との通信を、1時間ごとにまとめて見られます。",
@@ -2533,7 +2564,9 @@
     "generatedLicense": "このパッケージはライセンスの文書を含まないので、package.jsonが宣言するライセンス（MIT）と著作者から文書を示しています",
     "inRepository": "ライセンスと著作権表示は、リンク先のファイルに残しています",
     "inImage": "ライセンスの文書とソースの入手先は、イメージの /usr/share/doc/kotatsu/third-party/ と、Debianのパッケージの /usr/share/doc/ に置いています",
-    "loadFailed": "読み込めませんでした"
+    "loadFailed": "読み込めませんでした",
+    "dataSources": "外部のデータ",
+    "tmdb": "ドラマの作品と話の情報は、管理者が連携を有効にしたときだけ、TMDbから取得します。"
   },
   "disclaimer": {
     "title": "免責事項",

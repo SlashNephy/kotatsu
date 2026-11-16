@@ -422,6 +422,8 @@ export function createRootValue(
       epgstationApiEnabled: true,
       // デモは外部へ問い合わせないので、しょぼいカレンダー、Annict、AniList との連携は使わない (設計書 3.8)。
       animeLinkingEnabled: false,
+      // TMDb との連携も、外部へ問い合わせるので使わない (#1651)。
+      dramaLinkingEnabled: false,
       // デモは外部につながず、架空のコメントを流す。実況の画面を見せるため、全体では有効にし、ユーザーの設定は切っておく (設計書 7.4)。
       jikkyoEnabled: true,
       commentSources: ['NX_JIKKYO'],
@@ -434,6 +436,9 @@ export function createRootValue(
     // デモには、saya-definitions から取り込んだ対応がない。管理者の上書きだけを覚える。
     animeChannels: () => services.map((service) => animeChannel(service.id)),
     animeImports: () => [],
+    // デモには TMDb のトークンも、作品の指定もない (#1651)。
+    dramaLinking: () => ({ tokenConfigured: false }),
+    dramaTitleOverrides: () => [],
     // デモは発行した URL を記録しないので、管理者の一覧は空にする (#1757)。
     issuedStreamUrls: () => [],
     animeRecordSettings: () => demoAnimeRecordSettings(),

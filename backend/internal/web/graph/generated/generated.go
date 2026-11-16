@@ -10143,11 +10143,13 @@ type DramaLinkingStatus {
 }
 
 """
-作品名の上書きの変更 (#1651)。tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
 """
 input DramaTitleOverrideInput {
   "上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。"
-  programName: String!
+  programName: String
+  "上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。"
+  titleKey: String
   "結びつける TMDb の作品の ID (1 以上)。"
   tmdbSeriesId: Int
   "この作品名の番組を、どの作品にも結びつけない。"
@@ -47634,7 +47636,7 @@ func (ec *executionContext) unmarshalInputDramaTitleOverrideInput(ctx context.Co
 		asMap["reset"] = false
 	}
 
-	fieldsInOrder := [...]string{"programName", "tmdbSeriesId", "exclude", "reset"}
+	fieldsInOrder := [...]string{"programName", "titleKey", "tmdbSeriesId", "exclude", "reset"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -47643,11 +47645,18 @@ func (ec *executionContext) unmarshalInputDramaTitleOverrideInput(ctx context.Co
 		switch k {
 		case "programName":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("programName"))
-			data, err := ec.unmarshalNString2string(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
 			it.ProgramName = data
+		case "titleKey":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("titleKey"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TitleKey = data
 		case "tmdbSeriesId":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("tmdbSeriesId"))
 			data, err := ec.unmarshalOInt2ᚖint(ctx, v)

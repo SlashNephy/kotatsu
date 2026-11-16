@@ -13,7 +13,10 @@ func (r *mutationResolver) UpdateDramaTitleOverride(ctx context.Context, input m
 	if err != nil {
 		return nil, err
 	}
-	titleKey := drama.TitleKeyOf(input.ProgramName)
+	titleKey, err := dramaTitleKeyOf(&input)
+	if err != nil {
+		return nil, err
+	}
 	change := &drama.OverrideChange{SeriesID: nil, Exclude: input.Exclude, Reset: input.Reset}
 	if input.TmdbSeriesID != nil {
 		id, err := tmdbSeriesIDOf(*input.TmdbSeriesID)

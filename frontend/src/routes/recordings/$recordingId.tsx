@@ -55,6 +55,7 @@ import {
 } from '../../futon';
 import { RecordingThumbnail } from '../../recordings/RecordingThumbnail';
 import { AnimeEpisodes } from '../../anime/AnimeEpisodes';
+import { DramaEpisode } from '../../drama/DramaEpisode';
 import { RecordingStateBadge } from '../../recordings/RecordingStateBadge';
 import { ScrambleBadge } from '../../recordings/ScrambleBadge';
 import { StreamQualityButton } from '../../recordings/StreamQualityButton';
@@ -231,6 +232,20 @@ function Recording({ recordingId }: { recordingId: string }) {
             genres {
               lv1
               lv2
+            }
+            # 録画を始めたときに写した、TMDb で結びつけた作品と話 (#1651、設計書 3.9)。
+            dramaEpisode {
+              series {
+                tmdbId
+                name
+                originalName
+                url
+              }
+              seriesSource
+              seasonNumber
+              episodeNumber
+              episodeName
+              url
             }
             # 録画を始めたときに写した、しょぼいカレンダーで結びつけた話 (設計書 3.8)。
             animeEpisodes {
@@ -570,6 +585,11 @@ function Recording({ recordingId }: { recordingId: string }) {
             ))}
           </Group>
           <AnimeEpisodes episodes={recording.animeEpisodes} record={{ recording: recording.id }} />
+          <DramaEpisode
+            episode={recording.dramaEpisode}
+            programName={recording.name}
+            canOverride={data.viewer.role === 'ADMIN'}
+          />
           <FilmarksLink
             genres={recording.genres}
             workTitle={recording.workTitle}

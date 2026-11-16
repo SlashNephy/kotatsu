@@ -717,10 +717,12 @@ type DramaTitleOverride struct {
 	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
-// 作品名の上書きの変更 (#1651)。tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
+// 作品名の上書きの変更 (#1651)。programName か titleKey のどちらか 1 つと、tmdbSeriesId、exclude、reset のどれか 1 つだけを渡す。
 type DramaTitleOverrideInput struct {
 	// 上書きする作品名を読む番組名。照合と同じ読み方で、作品名の鍵にする。
-	ProgramName string `json:"programName"`
+	ProgramName *string `json:"programName,omitempty"`
+	// 上書きする作品名の鍵 (dramaTitleOverrides の titleKey)。一覧から消すときに使う。
+	TitleKey *string `json:"titleKey,omitempty"`
 	// 結びつける TMDb の作品の ID (1 以上)。
 	TmdbSeriesID *int `json:"tmdbSeriesId,omitempty"`
 	// この作品名の番組を、どの作品にも結びつけない。

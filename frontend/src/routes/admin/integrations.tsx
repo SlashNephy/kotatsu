@@ -1,5 +1,6 @@
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -36,6 +37,7 @@ import {
 import { settingsErrorMessage } from '../../settings/errors';
 import { mutate } from '../../settings/mutate';
 import { reauthMethods, useReauthGate } from '../../settings/useReauthGate';
+import { parseTMDbSeriesId, TMDbAttribution } from '../../drama/DramaEpisode';
 import { SudoGate } from '../../settings/SudoGate';
 import type {
   WebhookFormat,
@@ -52,6 +54,10 @@ import type {
   integrationsAnimeRecordAppMutation,
 } from './__generated__/integrationsAnimeRecordAppMutation.graphql';
 import type { integrationsAnimeImportTokenMutation } from './__generated__/integrationsAnimeImportTokenMutation.graphql';
+import type {
+  DramaTitleOverrideInput,
+  integrationsDramaOverrideMutation,
+} from './__generated__/integrationsDramaOverrideMutation.graphql';
 import type { AnimeImportSource } from './__generated__/integrationsQuery.graphql';
 import type { integrationsQuery } from './__generated__/integrationsQuery.graphql';
 import type { integrationsRevokeStreamUrlMutation } from './__generated__/integrationsRevokeStreamUrlMutation.graphql';
@@ -95,6 +101,7 @@ const query = graphql`
       epgstationApiEnabled
       networkActivityEnabled
       animeLinkingEnabled
+      dramaLinkingEnabled
       commentSources
     }
     # 発行された外部プレイヤー用の URL (#1757)。
@@ -115,6 +122,15 @@ const query = graphql`
     }
     animeImportToken {
       configured
+    }
+    # TMDb との連携 (#1651、設計書 3.9)。
+    dramaLinking {
+      tokenConfigured
+    }
+    dramaTitleOverrides {
+      titleKey
+      tmdbSeriesId
+      updatedAt
     }
     animeImports {
       source
@@ -371,6 +387,38 @@ function Integrations() {
             }
           />
         </AnimeLinkingSettings>
+
+        {/* TMDb との連携 (#1651)。外部へ問い合わせ始めるかどうかを決めるので、ここで再認証を求める。 */}
+        <DramaLinkingSettings
+          key={`drama/${String(data.systemSettings.dramaLinkingEnabled)}`}
+          enabled={data.systemSettings.dramaLinkingEnabled}
+          tokenConfigured={data.dramaLinking.tokenConfigured}
+          overrides={data.dramaTitleOverrides}
+          busy={gate.busy}
+          onSave={(dramaLinkingEnabled) => saveSettings({ dramaLinkingEnabled })}
+          onOverride={async (input) => {
+            try {
+              await mutate<integrationsDramaOverrideMutation>(
+                environment,
+                graphql`
+                  mutation integrationsDramaOverrideMutation($input: DramaTitleOverrideInput!) {
+                    updateDramaTitleOverride(input: $input) {
+                      titleKey
+                    }
+                  }
+                `,
+                { input },
+              );
+              succeed(t('admin.saved'));
+
+              return true;
+            } catch (caught) {
+              fail(caught);
+
+              return false;
+            }
+          }}
+        />
 
         {/* 見たアニメを記録させるアプリ (#927)。利用者を記録先へ送り出すアプリを決めるので、ここで再認証を求める。 */}
         <Section title={t('admin.animeRecords.title')}>
@@ -656,6 +704,164 @@ function AnimeLinkingSettings({
           </Stack>
         )}
         {children}
+      </Stack>
+    </Section>
+  );
+}
+
+type DramaTitleOverrideItem = {
+  titleKey: string;
+  tmdbSeriesId: number | null | undefined;
+  updatedAt: string;
+};
+
+// DramaLinkingSettings は、TMDb との連携 (ドラマの番組と作品の結びつき) を使うかどうかを変え (#1651、設計書 3.9)、
+// トークンを設定したかどうかと、作品名ごとの上書きを出す。上書きは、番組名と TMDb の作品で足し、一覧から消せる。
+function DramaLinkingSettings({
+  enabled,
+  tokenConfigured,
+  overrides,
+  busy,
+  onSave,
+  onOverride,
+}: {
+  enabled: boolean;
+  tokenConfigured: boolean;
+  overrides: readonly DramaTitleOverrideItem[];
+  busy: boolean;
+  onSave: (enabled: boolean) => void;
+  onOverride: (input: DramaTitleOverrideInput) => Promise<boolean>;
+}) {
+  const { t } = useTranslation();
+  const [checked, setChecked] = useState(enabled);
+  const [programName, setProgramName] = useState('');
+  const [series, setSeries] = useState('');
+  const [saving, setSaving] = useState(false);
+  const seriesId = parseTMDbSeriesId(series);
+  const run = async (input: DramaTitleOverrideInput) => {
+    setSaving(true);
+    try {
+      if (await onOverride(input)) {
+        setProgramName('');
+        setSeries('');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (programName.trim() !== '' && seriesId !== null) {
+      void run({ programName, tmdbSeriesId: seriesId });
+    }
+  };
+
+  return (
+    <Section title={t('admin.settings.drama')}>
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-end">
+          <Switch
+            size="sm"
+            label={t('admin.settings.dramaEnabled')}
+            description={t('admin.settings.dramaHelp')}
+            checked={checked}
+            onChange={(event) => setChecked(event.currentTarget.checked)}
+            maw={560}
+          />
+          <Button
+            size="compact-sm"
+            disabled={checked === enabled || busy}
+            onClick={() => onSave(checked)}
+          >
+            {t('admin.save')}
+          </Button>
+        </Group>
+        {tokenConfigured ? (
+          <Text size="sm" data-testid="drama-token">
+            {t('admin.settings.dramaTokenConfigured')}
+          </Text>
+        ) : (
+          <Alert color="amber" data-testid="drama-token">
+            {t('admin.settings.dramaTokenMissing')} <Code>tmdb.read_access_token</Code>
+          </Alert>
+        )}
+        <TMDbAttribution />
+        <Title order={5}>{t('admin.settings.dramaOverrides')}</Title>
+        <Text size="sm" c="dimmed">
+          {t('admin.settings.dramaOverridesHelp')}
+        </Text>
+        {overrides.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            {t('admin.settings.dramaOverridesEmpty')}
+          </Text>
+        ) : (
+          <Stack gap={4} data-testid="drama-overrides">
+            {overrides.map((override) => (
+              <Group key={override.titleKey} gap="xs" wrap="nowrap">
+                <Text size="sm" fw={600} style={{ wordBreak: 'break-all' }}>
+                  {override.titleKey}
+                </Text>
+                <Text size="sm">
+                  {override.tmdbSeriesId == null ? (
+                    t('admin.settings.dramaOverrideExcluded')
+                  ) : (
+                    <Anchor
+                      href={`https://www.themoviedb.org/tv/${override.tmdbSeriesId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {`TMDb ${override.tmdbSeriesId}`}
+                    </Anchor>
+                  )}
+                </Text>
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  disabled={saving}
+                  onClick={() => void run({ titleKey: override.titleKey, reset: true })}
+                >
+                  {t('admin.settings.dramaOverrideReset')}
+                </Button>
+              </Group>
+            ))}
+          </Stack>
+        )}
+        <form onSubmit={submit}>
+          <Group align="flex-end" gap="xs" wrap="wrap">
+            <TextInput
+              size="xs"
+              label={t('admin.settings.dramaOverrideProgram')}
+              value={programName}
+              onChange={(event) => setProgramName(event.currentTarget.value)}
+              w={260}
+            />
+            <TextInput
+              size="xs"
+              label={t('admin.settings.dramaOverrideSeries')}
+              placeholder="https://www.themoviedb.org/tv/123"
+              value={series}
+              onChange={(event) => setSeries(event.currentTarget.value)}
+              error={series !== '' && seriesId === null ? t('drama.override.invalid') : undefined}
+              w={260}
+            />
+            <Button
+              size="compact-sm"
+              type="submit"
+              disabled={saving || programName.trim() === '' || seriesId === null}
+            >
+              {t('drama.override.save')}
+            </Button>
+            <Button
+              size="compact-sm"
+              variant="light"
+              color="red"
+              disabled={saving || programName.trim() === ''}
+              onClick={() => void run({ programName, exclude: true })}
+            >
+              {t('drama.override.exclude')}
+            </Button>
+          </Group>
+        </form>
       </Stack>
     </Section>
   );
