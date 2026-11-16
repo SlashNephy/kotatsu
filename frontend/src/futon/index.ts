@@ -14,6 +14,7 @@ export { CredentialTextInput } from './CredentialTextInput';
 export { PasswordStrength } from './PasswordStrength';
 export { formatBytes } from './format';
 export { toHalfWidth } from './halfWidth';
+export { containsAllWords, normalizeForSearch, searchWords } from './searchText';
 export { LinkifiedText } from './LinkifiedText';
 export { splitProgramMarks, type ProgramMarks } from './programMarks';
 export { ProgramMarkBadges, ProgramTitle } from './ProgramMarks';
