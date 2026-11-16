@@ -233,8 +233,17 @@ func (n *networkTVStream) preemption() error {
 //
 // 問い合わせは、ストリームと同じく ctx が終わるまで続ける。
 func (n *networkTVStream) watch(ctx context.Context, service ServiceKey, processID int32) {
+	// EDCB は、NetworkTV を開いた直後に、サービスを載せず NIT だけを載せた PAT を送ることがある (2026年11月に、Linux の EDCB で
+	// 20 回開いて 8 回)。サービスが PAT から消えたことで取られたとみなすのは、サービスを載せた PAT を受け取った後にする。
+	// 局が変われば TSID も変わるので、TSID は最初の PAT から見る。PAT は Read から順に届くので、seen は守らなくてよい。
+	seen := false
 	n.pat = ts.NewPATWatcher(func(pat *ts.PAT) {
-		if pat.TransportStreamID != service.TSID || !slices.Contains(pat.Programs, service.SID) {
+		switch {
+		case pat.TransportStreamID != service.TSID:
+			n.preempted.Store(true)
+		case slices.Contains(pat.Programs, service.SID):
+			seen = true
+		case seen:
 			n.preempted.Store(true)
 		}
 	})

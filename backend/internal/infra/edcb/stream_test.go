@@ -202,6 +202,19 @@ func patPacket(tsid, sid uint16) []byte {
 	return p
 }
 
+// nitOnlyPATPacket は、transport_stream_id が tsid で、NIT だけを持ち、サービスを持たない PAT のパケットを作る。
+// EDCB は、NetworkTV を開いた直後に、この PAT を送ることがある。
+func nitOnlyPATPacket(tsid uint16) []byte {
+	section := binary.BigEndian.AppendUint16([]byte{0x00, 0xB0, 0x0D}, tsid)
+	section = append(section, 0xC1, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x10)
+	section = binary.BigEndian.AppendUint32(section, crcMPEG(section))
+	p := bytes.Repeat([]byte{0xFF}, 188)
+	copy(p, []byte{0x47, 0x40, 0x00, 0x10, 0x00})
+	copy(p[5:], section)
+
+	return p
+}
+
 // dataPacket は、PID 0x100 のパケットを作る。
 func dataPacket() []byte {
 	p := bytes.Repeat([]byte{0xAA}, 188)
@@ -228,6 +241,44 @@ func TestTunerServerStreamPreemptedByPAT(t *testing.T) {
 	// 別の局の TS は返さない。
 	assert.NotContains(t, string(got), string(patPacket(0x4010, 101)))
 	assert.True(t, bytes.HasPrefix(got, patPacket(32736, 1024)))
+}
+
+func TestTunerServerStreamPATWithoutServiceAtStart(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		ts            [][]byte
+		wantPreempted bool
+	}{
+		// 開いた直後に、NIT だけの PAT が届いても、取られたとはみなさない。
+		{name: "NIT only at start", ts: [][]byte{nitOnlyPATPacket(32736), dataPacket(), patPacket(32736, 1024), dataPacket()}, wantPreempted: false},
+		// サービスを載せた PAT の後に、サービスが消えたら、取られたとみなす。
+		{name: "service removed later", ts: [][]byte{patPacket(32736, 1024), dataPacket(), nitOnlyPATPacket(32736), dataPacket()}, wantPreempted: true},
+		// 最初から別の TS なら、取られたとみなす。
+		{name: "other TS at start", ts: [][]byte{nitOnlyPATPacket(0x4010), dataPacket()}, wantPreempted: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := streamServer(t, bytes.Join(tt.ts, nil), 0)
+			ids := &fakeIDs{mu: sync.Mutex{}, used: false, acquired: []edcb.ServiceKey{}, released: []int32{}}
+			server := edcb.NewTunerServer(s.client(t), &edcb.TunerServerOptions{BonDrivers: nil, NetworkTVIDs: ids, PreemptionCheckInterval: time.Hour})
+			stream, err := server.OpenServiceStream(t.Context(), 3273601024, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = stream.Close() })
+
+			got, err := io.ReadAll(stream)
+			if tt.wantPreempted {
+				require.ErrorIs(t, err, tunerserver.ErrTunerPreempted)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, bytes.Join(tt.ts, nil), got)
+		})
+	}
 }
 
 func TestTunerServerStreamPreemptedByCheck(t *testing.T) {
