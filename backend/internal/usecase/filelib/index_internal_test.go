@@ -119,7 +119,8 @@ func TestEnsureLeavesOtherBuilds(t *testing.T) {
 	}
 }
 
-// TestReadAfterRename は、書きかけの索引の名前を変えてから、作り終えたと記録するまでの間に読んでも、作り終えた索引を返すことを確かめる。
+// TestReadAfterRename は、書きかけの索引の名前を変えてから、作り終えたと記録するまでの間に読んでも、名前を変えた索引でシークできるが、
+// ドロップなどの集計をまだ記録に書いていないので、作り終えていないものとして返すことを確かめる (#1734)。
 func TestReadAfterRename(t *testing.T) {
 	t.Parallel()
 
@@ -127,8 +128,9 @@ func TestReadAfterRename(t *testing.T) {
 	f.place(t, indexName)
 	index, err := f.indexer.Read(f.ref, f.entry)
 	require.NoError(t, err)
-	assert.True(t, index.Complete)
-	assert.NotEmpty(t, index.Entries)
+	assert.False(t, index.Complete, "集計を記録するまでは、作り終えていない")
+	assert.Nil(t, index.Quality)
+	assert.NotEmpty(t, index.Entries, "名前を変えた索引でシークできる")
 }
 
 // TestReadOldVersion は、前の版の記録 (放送の情報のないもの) の索引は、シークに使えるが、作り終えていないものとして返し、

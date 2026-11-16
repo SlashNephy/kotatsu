@@ -200,9 +200,9 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	complete := src.Complete && src.Version == sourceVersion
 	file, err := sharedfile.Open(filepath.Join(x.dir(ref), name))
 	if errors.Is(err, fs.ErrNotExist) && !complete {
-		// 書きかけの索引の名前を変えてから、作り終えたと記録するまでの間なら、作り終えた索引がある。
+		// 書きかけの索引の名前を変えてから、作り終えたと記録するまでの間なら、作り終えた索引がある。索引ではシークできるが、
+		// ドロップなどの集計はまだ記録に書いていないので、作り終えていないものとして返す。画面が読み直して、集計を受け取る。
 		file, err = sharedfile.Open(filepath.Join(x.dir(ref), indexName))
-		complete = err == nil && src.Version == sourceVersion
 	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return src.index([]ts.IndexEntry{}, false), nil
