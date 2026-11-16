@@ -54,6 +54,7 @@ type SchedulerOptions struct {
 	// SkipConflicts は、競合した予約を録りに行かないかどうか。チューナーを奪えない EDCB で使う (#1536、設計書 1.6)。
 	// Mirakurun では、競合した予約を優先度 1 で試み、後から優先度 2 の録画が来ればチューナーを譲らせる。EDCB には優先度がなく、
 	// 先に録り始めた競合した予約が、後から始まる割り当て済みの予約のチューナーを取ってしまうので、試みない。
+	// 試みない予約は、予定の開始が過ぎたら、チューナーを確保できなかった (tuner_unavailable) 録画の失敗として記録し、通知する。
 	SkipConflicts bool
 }
 
@@ -115,11 +116,13 @@ type ScheduleResult struct {
 	Failed int
 	// Missed は、mikan が取らないまま予定の終わりが過ぎたので、失敗として記録した録画の数。
 	Missed int
+	// Skipped は、SkipConflicts のときに録りに行かなかった競合した予約を、失敗として記録した録画の数 (#1536)。
+	Skipped int
 }
 
 // RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に知らせる。
 func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
-	result := &ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0}
+	result := &ScheduleResult{Created: 0, Deleted: 0, Failed: 0, Missed: 0, Skipped: 0}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if err := s.guard(ctx, tx); err != nil {
 			return err
@@ -131,6 +134,9 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 
 		// 取られなかった割り振りは、消すと録り逃したことが分からなくなるので、先に失敗として記録する (#517)。
 		if result.Missed, err = s.recordMissed(ctx, tx, now); err != nil {
+			return err
+		}
+		if result.Skipped, err = s.recordSkippedConflicts(ctx, tx, now); err != nil {
 			return err
 		}
 		deleted, err := q.DeleteStaleRecordingAssignments(ctx, sqlc.DeleteStaleRecordingAssignmentsParams{DueBefore: dueBefore, Now: now})
@@ -152,22 +158,9 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 		if err != nil {
 			return fmt.Errorf("failed to list due reservations: %w", err)
 		}
-		created := 0
-		for _, row := range due {
-			priority := int32(Priority)
-			if row.AssignmentState == domain.AssignmentStateConflict {
-				if s.opts.SkipConflicts {
-					continue
-				}
-				priority = ConflictPriority
-			}
-			err := q.InsertRecordingAssignment(ctx, sqlc.InsertRecordingAssignmentParams{ID: id.New(), ReservationID: row.ID, Priority: priority, Now: now})
-			if err != nil {
-				return fmt.Errorf("failed to save a recording assignment: %w", err)
-			}
-			created++
+		if result.Created, err = s.writeAssignments(ctx, q, due, now); err != nil {
+			return err
 		}
-		result.Created = created
 
 		if result.Created == 0 && result.Deleted == 0 && reprioritized == 0 {
 			return nil
@@ -220,17 +213,71 @@ func (s *Scheduler) failStuck(ctx context.Context, tx pgx.Tx, now time.Time) (in
 	return len(rows), nil
 }
 
+// writeAssignments は、録画の予定の開始が近づいた予約の割り振りを書き、書いた数を返す。
+// 競合した予約は優先度 1 で書く。SkipConflicts なら、競合した予約は書かない (#1536)。
+func (s *Scheduler) writeAssignments(ctx context.Context, q *sqlc.Queries, due []sqlc.ListDueReservationsRow, now time.Time) (int, error) {
+	created := 0
+	for _, row := range due {
+		priority := int32(Priority)
+		if row.AssignmentState == domain.AssignmentStateConflict {
+			if s.opts.SkipConflicts {
+				continue
+			}
+			priority = ConflictPriority
+		}
+		err := q.InsertRecordingAssignment(ctx, sqlc.InsertRecordingAssignmentParams{ID: id.New(), ReservationID: row.ID, Priority: priority, Now: now})
+		if err != nil {
+			return 0, fmt.Errorf("failed to save a recording assignment: %w", err)
+		}
+		created++
+	}
+
+	return created, nil
+}
+
 // recordMissed は、mikan が 1 台も取らないまま予定の終わりが過ぎた割り振りの予約について、
 // 録画を失敗 (recorder_unavailable) として記録し、録画の失敗を通知する (#517)。記録した録画の数を返す。
 func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) (int, error) {
-	q := sqlc.New(tx)
-	rows, err := q.ListMissedRecordingAssignments(ctx, now)
+	rows, err := sqlc.New(tx).ListMissedRecordingAssignments(ctx, now)
 	if err != nil {
 		return 0, fmt.Errorf("failed to list missed recording assignments: %w", err)
 	}
-	missed := 0
 	for _, row := range rows {
 		s.logger.WarnContext(ctx, "no mikan took the recording assignment before it ended", slog.String("reservation_id", row.ID.String()))
+	}
+
+	return s.recordUnstarted(ctx, tx, rows, domain.RecordingFailureReasonRecorderUnavailable, now)
+}
+
+// recordSkippedConflicts は、SkipConflicts のとき、録りに行かない競合した予約の予定の開始が過ぎたら、
+// 録画を失敗 (tuner_unavailable) として記録し、録画の失敗を通知する (#1536)。記録した録画の数を返す。
+// Mirakurun で、チューナーを確保できずに失敗したときと同じ理由と通知にする。録画の行は予約ごとに 1 つなので、
+// 同じ予約を何度も記録したり通知したりしない。
+func (s *Scheduler) recordSkippedConflicts(ctx context.Context, tx pgx.Tx, now time.Time) (int, error) {
+	if !s.opts.SkipConflicts {
+		return 0, nil
+	}
+	skipped, err := sqlc.New(tx).ListSkippedConflictReservations(ctx, now)
+	if err != nil {
+		return 0, fmt.Errorf("failed to list skipped conflicting reservations: %w", err)
+	}
+	rows := make([]sqlc.ListMissedRecordingAssignmentsRow, 0, len(skipped))
+	for _, row := range skipped {
+		s.logger.WarnContext(ctx, "the conflicting reservation was not recorded; the tuner server cannot preempt tuners",
+			slog.String("reservation_id", row.ID.String()))
+		rows = append(rows, sqlc.ListMissedRecordingAssignmentsRow(row))
+	}
+
+	return s.recordUnstarted(ctx, tx, rows, domain.RecordingFailureReasonTunerUnavailable, now)
+}
+
+// recordUnstarted は、録り始めなかった予約の録画を、reason の失敗として記録し、録画の失敗を通知する。記録した録画の数を返す。
+func (s *Scheduler) recordUnstarted(
+	ctx context.Context, tx pgx.Tx, rows []sqlc.ListMissedRecordingAssignmentsRow, reason domain.RecordingFailureReason, now time.Time,
+) (int, error) {
+	q := sqlc.New(tx)
+	recorded := 0
+	for _, row := range rows {
 		recordingID := id.New()
 		recordedFrom := row.StartAt
 		if row.PlannedStartAt != nil {
@@ -239,19 +286,19 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 		inserted, err := q.InsertMissedRecording(ctx, sqlc.InsertMissedRecordingParams{
 			ID: recordingID, ReservationID: &row.ID, ServiceID: row.ServiceID, EventID: row.EventID, Name: row.Name, Description: row.Description,
 			Extended: row.Extended, NameNormalized: new(domain.Normalize(row.Name)), DescriptionNormalized: new(domain.Normalize(row.Description)),
-			StartAt: row.StartAt, EndAt: row.EndAt, RecordedFrom: recordedFrom, Now: now,
+			StartAt: row.StartAt, EndAt: row.EndAt, FailureReason: &reason, RecordedFrom: recordedFrom, Now: now,
 		})
 		if err != nil {
-			return 0, fmt.Errorf("failed to record a missed recording: %w", err)
+			return 0, fmt.Errorf("failed to record an unstarted recording: %w", err)
 		}
 		// 一覧を読んだ後に、ほかで録画の行ができていれば、記録も通知もしない。
 		if inserted == 0 {
 			continue
 		}
-		missed++
+		recorded++
 		payload := recordingPayload(recordingID, row.Name, row.ServiceName, row.StartAt, row.EndAt)
 		payload["state"] = string(domain.RecordingStateFailed)
-		payload["reason"] = string(domain.RecordingFailureReasonRecorderUnavailable)
+		payload["reason"] = string(reason)
 		target, err := notification.LoadReservationContext(ctx, tx, row.ID)
 		if err != nil {
 			return 0, err
@@ -261,11 +308,11 @@ func (s *Scheduler) recordMissed(ctx context.Context, tx pgx.Tx, now time.Time) 
 			return 0, err
 		}
 	}
-	if missed > 0 {
+	if recorded > 0 {
 		if _, err := notify.Publish(ctx, tx, s.clock, notify.RecordingsChannel); err != nil {
 			return 0, err
 		}
 	}
 
-	return missed, nil
+	return recorded, nil
 }

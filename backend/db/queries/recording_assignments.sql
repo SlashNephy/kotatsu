@@ -116,6 +116,19 @@ WHERE a.state = 'waiting'
   AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
 ORDER BY r.id;
 
+-- name: ListSkippedConflictReservations :many
+-- チューナーを奪えない EDCB で録りに行かない、競合した予約のうち、予定の開始が過ぎ、録画の行も割り振りもないもの (#1536)。
+-- 録画の失敗として記録する。
+SELECT r.id, r.service_id, r.event_id, r.name, r.description, r.extended, r.start_at, r.end_at, r.planned_start_at, s.name AS service_name
+FROM reservations r
+JOIN services s ON s.id = r.service_id
+WHERE r.enabled
+  AND r.assignment_state = 'conflict'
+  AND r.planned_start_at <= @now::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM recordings rec WHERE rec.reservation_id = r.id)
+  AND NOT EXISTS (SELECT 1 FROM recording_assignments a WHERE a.reservation_id = r.id)
+ORDER BY r.id;
+
 -- name: DeleteUnrecordedRecordingAssignment :execrows
 -- 録画の行を作らずに終えた割り振り (録画を始める前に予約を無効にした、など) を消す。世代番号が進んでいたら、何もしない。
 -- 終わったことにして残すと、予約を有効に戻しても、割り振りを書き直せない (#523)。

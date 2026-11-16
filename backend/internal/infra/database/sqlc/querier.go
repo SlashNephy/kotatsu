@@ -451,7 +451,9 @@ type Querier interface {
 	// 取り込んだ録画のファイルを記録する。書き終えたファイルなので、大きさと終わりも記録する。
 	InsertImportedRecordingFile(ctx context.Context, arg InsertImportedRecordingFileParams) error
 	InsertLoginChallenge(ctx context.Context, arg InsertLoginChallengeParams) error
-	// mikan が取らなかった予約の録画を、失敗として記録する (#517)。録画した時間はないので、始まりと終わりを予定の開始にする。
+	// 録り始めなかった予約の録画を、失敗として記録する。mikan が取らなかった割り振り (#517、recorder_unavailable) と、
+	// チューナーを奪えない EDCB で録りに行かなかった競合した予約 (#1536、tuner_unavailable) に使う。
+	// 録画した時間はないので、始まりと終わりを予定の開始にする。
 	// 同じ予約の録画がすでにあれば何もせず、0 を返す。記録したときは、同じ文で失敗の累計に足す (#960)。
 	// 返す行数は累計の行を更新した数で、記録した録画の数と同じになる (理由の行はマイグレーションが作っておく)。
 	InsertMissedRecording(ctx context.Context, arg InsertMissedRecordingParams) (int64, error)
@@ -825,6 +827,9 @@ type Querier interface {
 	// 取り込むデータが参照するサービスが、Kotatsu にあるかを確かめるのに使う。
 	ListServiceIDs(ctx context.Context) ([]int64, error)
 	ListServices(ctx context.Context) ([]ListServicesRow, error)
+	// チューナーを奪えない EDCB で録りに行かない、競合した予約のうち、予定の開始が過ぎ、録画の行も割り振りもないもの (#1536)。
+	// 録画の失敗として記録する。
+	ListSkippedConflictReservations(ctx context.Context, now time.Time) ([]ListSkippedConflictReservationsRow, error)
 	// /metrics に出す、容量の管理が測った保存先プールの容量と空き容量、閾値 (#957)。測っていないプールは返さない。
 	ListStoragePoolMeasurements(ctx context.Context) ([]ListStoragePoolMeasurementsRow, error)
 	ListStoragePools(ctx context.Context) ([]StoragePool, error)

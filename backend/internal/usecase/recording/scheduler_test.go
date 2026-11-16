@@ -205,7 +205,8 @@ func TestSchedulerWritesAssignmentsBeforeStart(t *testing.T) {
 }
 
 // TestSchedulerSkipsConflictsWithoutPreemption は、チューナーを奪えないチューナーサーバー (EDCB) では、競合した予約を録りに行かず、
-// 割り当てた予約だけに割り振りを書くことを確かめる (#1536、設計書 1.6)。
+// 割り当てた予約だけに割り振りを書き、録りに行かない予約は、予定の開始が過ぎたら、チューナーを確保できなかった録画の失敗として
+// 1 度だけ記録して通知することを確かめる (#1536、設計書 1.6)。
 func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
 	t.Parallel()
 
@@ -213,9 +214,17 @@ func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
 		name          string
 		skipConflicts bool
 		want          map[int32]int
+		// failed は、予定の開始が過ぎた後に、失敗として記録した録画の理由。
+		failed []string
 	}{
-		{name: "mirakurun tries conflicts at priority 1", skipConflicts: false, want: map[int32]int{recording.Priority: 2, recording.ConflictPriority: 1}},
-		{name: "edcb does not try conflicts", skipConflicts: true, want: map[int32]int{recording.Priority: 2}},
+		{
+			name: "mirakurun tries conflicts at priority 1", skipConflicts: false,
+			want: map[int32]int{recording.Priority: 2, recording.ConflictPriority: 1}, failed: []string{},
+		},
+		{
+			name: "edcb records skipped conflicts as failed", skipConflicts: true,
+			want: map[int32]int{recording.Priority: 2}, failed: []string{string(domain.RecordingFailureReasonTunerUnavailable)},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -227,14 +236,15 @@ func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
 			})
 			// 地上波のチューナーは 2 本なので、3 つの予約のうち 1 つが競合する。
 			ids := []uuid.UUID{f.reserve(t, 0), f.reserve(t, 1), f.reserve(t, 2)}
-			f.clock.Advance(programStart().Add(-domain.DefaultMarginSeconds * time.Second).Sub(f.clock.Now()))
+			// 予定の開始の 2 分前。まだ失敗にしない。
+			f.clock.Advance(programStart().Add(-domain.DefaultMarginSeconds*time.Second - recording.DefaultLead).Sub(f.clock.Now()))
 			result, err := scheduler.RunOnce(t.Context())
 			require.NoError(t, err)
 			created := 0
 			for _, n := range tt.want {
 				created += n
 			}
-			assert.Equal(t, &recording.ScheduleResult{Created: created, Deleted: 0}, result)
+			assert.Equal(t, &recording.ScheduleResult{Created: created, Deleted: 0, Failed: 0, Missed: 0, Skipped: 0}, result)
 			got := f.assigned(t)
 			priorities := map[int32]int{}
 			for _, reservationID := range ids {
@@ -243,6 +253,23 @@ func TestSchedulerSkipsConflictsWithoutPreemption(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tt.want, priorities)
+
+			// 予定の開始が過ぎたら、録りに行かない予約を失敗として記録する。見直しを繰り返しても、記録と通知は 1 度だけ。
+			f.clock.Advance(recording.DefaultLead + time.Second)
+			for range 2 {
+				_, err := scheduler.RunOnce(t.Context())
+				require.NoError(t, err)
+			}
+			rows, err := f.pool.Query(t.Context(), "SELECT failure_reason FROM recordings WHERE state = 'failed' ORDER BY id")
+			require.NoError(t, err)
+			reasons, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			require.NoError(t, err)
+			assert.Equal(t, tt.failed, reasons)
+			var notified int
+			require.NoError(t, f.pool.QueryRow(t.Context(),
+				"SELECT count(*) FROM notification_events WHERE kind = $1 AND payload->>'reason' = $2",
+				string(domain.NotificationKindRecordingFailed), string(domain.RecordingFailureReasonTunerUnavailable)).Scan(&notified))
+			assert.Equal(t, len(tt.failed), notified)
 		})
 	}
 }
