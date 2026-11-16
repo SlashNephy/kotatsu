@@ -55,6 +55,8 @@ type Download struct {
 	Failed bool
 	// Progress は、動いているときの、今の試行の進み具合。まだ書いていなければ nil。
 	Progress *Progress
+	// AttemptedAt は、今の試行を始めた日時。始めていなければ nil。
+	AttemptedAt *time.Time
 }
 
 // Status は、種類ごとのモデルの状態。
@@ -97,6 +99,11 @@ func Statuses(ctx context.Context, db sqlc.DBTX, dataDir string, cfg *config.Cap
 		if placed {
 			status.Installed = installed
 		}
+		if placedByAttempt(status.Installed, status.Download) {
+			// 置いて記録してから River がジョブを完了にするまでの間は、まだ動いているように見える。
+			// 置いたことを知らせた後に読み直した画面に、ダウンロードしているように出さないよう、今の試行で置いていれば終えたとする。
+			status.Download = nil
+		}
 		switch {
 		case status.Download != nil && !status.Download.Failed:
 			status.State = StateDownloading
@@ -109,6 +116,15 @@ func Statuses(ctx context.Context, db sqlc.DBTX, dataDir string, cfg *config.Cap
 	}
 
 	return statuses, nil
+}
+
+// placedByAttempt は、動いているダウンロード download が、今の試行で installed を置き終えたかを返す。
+func placedByAttempt(installed *Installed, download *Download) bool {
+	if installed == nil || installed.InstalledAt == nil || download == nil || !download.Running || download.AttemptedAt == nil {
+		return false
+	}
+
+	return !installed.InstalledAt.Before(*download.AttemptedAt)
 }
 
 // installedOf は、種類 kind の既定の場所のモデルを返す。置いていなければ false を返す。記録があっても、ファイルがなければ置いていないとし、
@@ -148,7 +164,7 @@ func installedOf(kind Kind, record *sqlc.CaptionModel, dataDir string) (*Install
 // lastJobs は、種類ごとに、最後に入れたダウンロードのジョブのうち、終えていないものと失敗したものを返す。
 // 取りやめた (画面から取り消した) ジョブと、終えたジョブは返さない。River の表は sqlc のスキーマにないので、直接読む。
 func lastJobs(ctx context.Context, db sqlc.DBTX) (map[Kind]*Download, error) {
-	rows, err := db.Query(ctx, `SELECT DISTINCT ON (j.args->>'kind') j.id, j.args, j.state::text,
+	rows, err := db.Query(ctx, `SELECT DISTINCT ON (j.args->>'kind') j.id, j.args, j.state::text, j.attempted_at,
 			j.errors[array_length(j.errors, 1)]->>'error', p.ratio, p.remaining_ms, p.updated_at
 		FROM river_job j
 		LEFT JOIN job_progress p ON p.job_id = j.id AND p.attempt = j.attempt
@@ -164,12 +180,13 @@ func lastJobs(ctx context.Context, db sqlc.DBTX) (map[Kind]*Download, error) {
 			id          int64
 			rawArgs     []byte
 			state       string
+			attemptedAt *time.Time
 			lastError   *string
 			ratio       *float64
 			remainingMs *int64
 			updatedAt   *time.Time
 		)
-		if err := rows.Scan(&id, &rawArgs, &state, &lastError, &ratio, &remainingMs, &updatedAt); err != nil {
+		if err := rows.Scan(&id, &rawArgs, &state, &attemptedAt, &lastError, &ratio, &remainingMs, &updatedAt); err != nil {
 			return nil, fmt.Errorf("failed to read a caption model download job: %w", err)
 		}
 		var args DownloadArgs
@@ -180,6 +197,7 @@ func lastJobs(ctx context.Context, db sqlc.DBTX) (map[Kind]*Download, error) {
 		if download == nil {
 			continue
 		}
+		download.AttemptedAt = attemptedAt
 		if download.Running && ratio != nil && updatedAt != nil {
 			download.Progress = &Progress{Ratio: *ratio, Remaining: nil, UpdatedAt: *updatedAt}
 			if remainingMs != nil {
@@ -197,7 +215,7 @@ func lastJobs(ctx context.Context, db sqlc.DBTX) (map[Kind]*Download, error) {
 
 // downloadOf は、ジョブの状態 state から、画面に出すダウンロードを返す。終えたジョブと、画面から取り消したジョブは nil を返す。
 func downloadOf(id int64, args *DownloadArgs, state string, lastError *string) *Download {
-	download := &Download{JobID: id, Model: nil, Running: false, Failed: false, Progress: nil}
+	download := &Download{JobID: id, Model: nil, Running: false, Failed: false, Progress: nil, AttemptedAt: nil}
 	if model, ok := Lookup(args.ModelID); ok {
 		download.Model = model
 	}

@@ -44,7 +44,9 @@ const (
 	sileroID = "silero-v5.1.2"
 	// stateCancelled は、取りやめたジョブの状態。
 	stateCancelled = "cancelled"
-	schemeHTTPS    = "https"
+	// stateRunning は、動いているジョブの状態。
+	stateRunning = "running"
+	schemeHTTPS  = "https"
 )
 
 type fixture struct {
@@ -197,8 +199,8 @@ func (f *fixture) insertJob(t *testing.T, kind captionmodel.Kind, modelID, state
 		errs = `{"{\"at\":\"2026-11-16T12:00:00Z\",\"attempt\":1,\"error\":\"` + errorText + `\",\"trace\":\"\"}"}`
 	}
 	_, err = f.pool.Exec(t.Context(), `UPDATE river_job SET state = $2::river_job_state, errors = $3::jsonb[],
-		finalized_at = CASE WHEN $2 IN ('completed', 'cancelled', 'discarded') THEN now() END, attempt = 1, attempted_at = now() WHERE id = $1`,
-		result.Job.ID, state, errs)
+		finalized_at = CASE WHEN $2 IN ('completed', 'cancelled', 'discarded') THEN now() END, attempt = 1, attempted_at = $4 WHERE id = $1`,
+		result.Job.ID, state, errs, f.clock.Now())
 	require.NoError(t, err)
 
 	return result.Job.ID
@@ -212,8 +214,9 @@ func TestStatuses(t *testing.T) {
 	require.True(t, ok)
 	tests := []struct {
 		name string
-		// record は、DB に記録した書き起こしのモデルの大きさ。0 なら記録しない。
-		record int64
+		// record は、DB に記録した書き起こしのモデルの大きさ。0 なら記録しない。recordedBefore は、ジョブを試し始める前に記録したかどうか。
+		record         int64
+		recordedBefore bool
 		// file は、置き場所に置くファイルの中身。空なら置かない。
 		file string
 		// job は、書き起こしのモデルのダウンロードのジョブの状態と最後のエラー。空なら入れない。
@@ -237,7 +240,9 @@ func TestStatuses(t *testing.T) {
 		{name: "記録があってもファイルがなければ置いていない", record: 9, mounted: true, want: captionmodel.StateNotPlaced},
 		{name: "マウントしていなければ記録で決める", record: 9, mounted: false, want: captionmodel.StatePlaced, wantModel: true, wantSize: 9},
 		{name: "待っている", mounted: true, jobState: "available", want: captionmodel.StateDownloading, wantDownload: true},
-		{name: "ダウンロードしている", mounted: true, jobState: "running", progress: true, want: captionmodel.StateDownloading, wantDownload: true, wantProgress: true},
+		{name: "ダウンロードしている", mounted: true, jobState: stateRunning, progress: true, want: captionmodel.StateDownloading, wantDownload: true, wantProgress: true},
+		{name: "前に置いたモデルを置き換えている", record: 9, recordedBefore: true, file: "123456789", mounted: true, jobState: stateRunning, want: captionmodel.StateDownloading, wantModel: true, wantSize: 9, wantDownload: true},
+		{name: "置いて記録した後、ジョブを終える前は置いたとする", record: 9, file: "123456789", mounted: true, jobState: stateRunning, want: captionmodel.StatePlaced, wantModel: true, wantSize: 9},
 		{name: "試す回数を使い切った", record: 9, file: "123456789", mounted: true, jobState: "discarded", jobError: "failed", want: captionmodel.StateFailed, wantModel: true, wantSize: 9, wantDownload: true},
 		{name: "照合に失敗した", mounted: true, jobState: stateCancelled, jobError: "the SHA-256 of the downloaded model does not match", want: captionmodel.StateFailed, wantDownload: true},
 		{name: "動いている間に取り消した", mounted: true, jobState: stateCancelled, jobError: "job cancelled remotely", want: captionmodel.StateNotPlaced},
@@ -250,9 +255,13 @@ func TestStatuses(t *testing.T) {
 			t.Parallel()
 
 			f := newFixture(t)
+			recordedAt := f.clock.Now()
+			if tt.recordedBefore {
+				recordedAt = recordedAt.Add(-time.Hour)
+			}
 			if tt.record > 0 {
 				require.NoError(t, sqlc.New(f.pool).UpsertCaptionModel(t.Context(), sqlc.UpsertCaptionModelParams{
-					Kind: "WHISPER", ModelID: kotoba.ID, Size: tt.record, SHA256: kotoba.SHA256, Now: f.clock.Now(),
+					Kind: "WHISPER", ModelID: kotoba.ID, Size: tt.record, SHA256: kotoba.SHA256, Now: recordedAt,
 				}))
 			}
 			if tt.file != "" {
@@ -290,23 +299,31 @@ func TestStatuses(t *testing.T) {
 				assert.Equal(t, tt.wantSize, got.Installed.Size)
 				assert.Equal(t, tt.wantModel, got.Installed.Model != nil)
 			}
-			if !tt.wantDownload {
-				assert.Nil(t, got.Download)
-
-				return
-			}
-			require.NotNil(t, got.Download)
-			require.NotNil(t, got.Download.Model)
-			assert.Equal(t, kotoba.ID, got.Download.Model.ID)
-			if tt.wantProgress {
-				require.NotNil(t, got.Download.Progress)
-				assert.InDelta(t, 0.25, got.Download.Progress.Ratio, 1e-9)
-				assert.Equal(t, new(time.Minute), got.Download.Progress.Remaining)
-			} else {
-				assert.Nil(t, got.Download.Progress)
-			}
+			assertDownload(t, got.Download, tt.wantDownload, tt.wantProgress, kotoba.ID)
 		})
 	}
+}
+
+// assertDownload は、ダウンロード got が、want なら modelID のもので、wantProgress なら進み具合を持つことを確かめる。
+func assertDownload(t *testing.T, got *captionmodel.Download, want, wantProgress bool, modelID string) {
+	t.Helper()
+
+	if !want {
+		assert.Nil(t, got)
+
+		return
+	}
+	require.NotNil(t, got)
+	require.NotNil(t, got.Model)
+	assert.Equal(t, modelID, got.Model.ID)
+	if !wantProgress {
+		assert.Nil(t, got.Progress)
+
+		return
+	}
+	require.NotNil(t, got.Progress)
+	assert.InDelta(t, 0.25, got.Progress.Ratio, 1e-9)
+	assert.Equal(t, new(time.Minute), got.Progress.Remaining)
 }
 
 // TestRemove は、置いたモデルのファイルと記録を消すことと、ダウンロードしている間や、置いていなければ消さないことを確かめる。

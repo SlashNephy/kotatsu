@@ -9996,7 +9996,7 @@ type CaptionModel {
   "画面に出す名前。"
   name: String!
   "ファイルの大きさ (バイト)。"
-  size: Float!
+  size: Int64!
   "ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。"
   sha256: String!
   "モデルのライセンス (SPDX の識別子)。"
@@ -10028,7 +10028,7 @@ type InstalledCaptionModel {
   "画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。"
   model: CaptionModel
   "ファイルの大きさ (バイト)。"
-  size: Float!
+  size: Int64!
   "画面から置いた日時。手で置いたファイルなら null。"
   installedAt: Time
 }
@@ -22267,15 +22267,15 @@ func (ec *executionContext) _CaptionModel_size(ctx context.Context, field graphq
 			return obj.Size, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_CaptionModel_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "Float")
+	return graphql.NewScalarFieldContext("CaptionModel", field, false, false, "Int64")
 }
 
 func (ec *executionContext) _CaptionModel_sha256(ctx context.Context, field graphql.CollectedField, obj *model.CaptionModel) (ret graphql.Marshaler) {
@@ -25031,15 +25031,15 @@ func (ec *executionContext) _InstalledCaptionModel_size(ctx context.Context, fie
 			return obj.Size, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v float64) graphql.Marshaler {
-			return ec.marshalNFloat2float64(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
 func (ec *executionContext) fieldContext_InstalledCaptionModel_size(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("InstalledCaptionModel", field, false, false, "Float")
+	return graphql.NewScalarFieldContext("InstalledCaptionModel", field, false, false, "Int64")
 }
 
 func (ec *executionContext) _InstalledCaptionModel_installedAt(ctx context.Context, field graphql.CollectedField, obj *model.InstalledCaptionModel) (ret graphql.Marshaler) {

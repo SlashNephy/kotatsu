@@ -18,7 +18,7 @@ type CaptionModel {
   "画面に出す名前。"
   name: String!
   "ファイルの大きさ (バイト)。"
-  size: Float!
+  size: Int64!
   "ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。"
   sha256: String!
   "モデルのライセンス (SPDX の識別子)。"
@@ -50,7 +50,7 @@ type InstalledCaptionModel {
   "画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。"
   model: CaptionModel
   "ファイルの大きさ (バイト)。"
-  size: Float!
+  size: Int64!
   "画面から置いた日時。手で置いたファイルなら null。"
   installedAt: Time
 }

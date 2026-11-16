@@ -488,7 +488,7 @@ type CaptionModel struct {
 	// 画面に出す名前。
 	Name string `json:"name"`
 	// ファイルの大きさ (バイト)。
-	Size float64 `json:"size"`
+	Size int64 `json:"size"`
 	// ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。
 	Sha256 string `json:"sha256"`
 	// モデルのライセンス (SPDX の識別子)。
@@ -833,7 +833,7 @@ type InstalledCaptionModel struct {
 	// 画面から置いたモデル。手で置いたファイルや、記録と大きさの違うファイルなら null。
 	Model *CaptionModel `json:"model,omitempty"`
 	// ファイルの大きさ (バイト)。
-	Size float64 `json:"size"`
+	Size int64 `json:"size"`
 	// 画面から置いた日時。手で置いたファイルなら null。
 	InstalledAt *time.Time `json:"installedAt,omitempty"`
 }

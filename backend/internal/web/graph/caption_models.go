@@ -191,7 +191,7 @@ func captionModelSlot(s *captionmodel.Status) *model.CaptionModelSlot {
 		}
 	}
 	if i := s.Installed; i != nil {
-		slot.Installed = &model.InstalledCaptionModel{Model: nil, Size: float64(i.Size), InstalledAt: i.InstalledAt}
+		slot.Installed = &model.InstalledCaptionModel{Model: nil, Size: i.Size, InstalledAt: i.InstalledAt}
 		if i.Model != nil {
 			slot.Installed.Model = captionModel(i.Model)
 		}
@@ -214,6 +214,6 @@ func captionModelSlot(s *captionmodel.Status) *model.CaptionModelSlot {
 
 func captionModel(m *captionmodel.Model) *model.CaptionModel {
 	return &model.CaptionModel{
-		ID: m.ID, Kind: m.Kind, Name: m.Name, Size: float64(m.Size), Sha256: m.SHA256, License: m.License, URL: m.URL, Recommended: m.Recommended,
+		ID: m.ID, Kind: m.Kind, Name: m.Name, Size: m.Size, Sha256: m.SHA256, License: m.License, URL: m.URL, Recommended: m.Recommended,
 	}
 }

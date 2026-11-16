@@ -14,9 +14,9 @@ CIでは、PostgreSQL 17で動作を確認しています。
 | タグ | 内容 |
 | --- | --- |
 | `edge` | mainの最新版。FFmpegを含まない |
-| `edge-ffmpeg` | mainの最新版。FFmpegとtsreadexを含む |
+| `edge-ffmpeg` | mainの最新版。FFmpegとtsreadexとwhisper.cppを含む |
 | `<バージョン>` | リリースした版。FFmpegを含まない |
-| `<バージョン>-ffmpeg` | リリースした版。FFmpegとtsreadexを含む |
+| `<バージョン>-ffmpeg` | リリースした版。FFmpegとtsreadexとwhisper.cppを含む |
 
 サムネイルを作るnekonoteと、サーバー側でトランスコードするkyusuは、FFmpegを使います。
 1つのプロセスで全ロールを動かすときは、`-ffmpeg`のイメージを使ってください。

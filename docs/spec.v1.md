@@ -2417,7 +2417,7 @@ Content Security Policyは厳しく設定します。
 
 | 配布物 | 内容 |
 |---|---|
-| コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexのバージョンは、Renovateで追跡できる形で固定します。 |
+| コンテナイメージ | [2.4](#24-コンテナイメージ)の2種類です。ビルドに使うtsreadexとwhisper.cppのバージョンは、Renovateで追跡できる形で固定します。 |
 | バイナリ | GoReleaserでGitHub Releasesに置きます。Linux、macOS、Windowsのそれぞれについて、amd64とarm64を作ります（#1054）。SPAは埋め込み済みです。FFmpegとtsreadexは利用者が別途用意します。対応するOSと注意点は[11.7](#117-対応するos)に書きます。 |
 | Helm Chart | GitHub PagesのHelmリポジトリ（`https://slashnephy.github.io/kotatsu`）で配布します。Chartの本体はリリースに添付します。 |
 | デモ | Cloudflare Pagesの`https://kotatsu-demo.pages.dev/`に置く、tenbanなしに画面を触れる静的なデモです（[10.1](#101-技術の構成)、#832）。Cloudflare PagesのGit連携で、mainにpushするたびに作り直します（`frontend`で`pnpm run build:demo`）。 |
@@ -2670,7 +2670,7 @@ Kotatsuは公開リポジトリなので、実際の放送のTSをテスト用�
 - ファイル名は、どのOSでも、Windowsで使えない記号と名前を避けて付けます（[5.6](#56-保存先プール)）。
 - エンコーダーのうち、VAAPIとQSVはLinuxだけで使えます。macOSのハードウェアエンコーダー（VideoToolbox）には対応しません。
 - 録画の後処理のFFmpeg（[6.1](#61-後処理のジョブ)）は、LinuxとmacOSでは起動した直後にnice値を19にし（`setpriority`）、WindowsではIDLE_PRIORITY_CLASSで起動します（#1511）。下げられなくても止めず、権限がなければ最初の1回だけ警告して、普段の優先度で続けます。LinuxとmacOSでは、起動してから下げるまでにFFmpegが作ったスレッドが、元の優先度のまま残り得ます。
-- FFmpegとtsreadexは、`PATH`の通ったところに置きます。変換したMP4にチャプターを書くジョブ（[6.1](#61-後処理のジョブ)）は、FFmpegに付いてくるffprobeも使います。Windowsでも、`kotatsu.exe`と同じフォルダーに置くだけでは見つけません。
+- FFmpegとtsreadexは、`PATH`の通ったところに置きます。変換したMP4にチャプターを書くジョブ（[6.1](#61-後処理のジョブ)）は、FFmpegに付いてくるffprobeも使います。Windowsでも、`kotatsu.exe`と同じフォルダーに置くだけでは見つけません。字幕の自動生成（[6.1](#61-後処理のジョブ)）を使うときは、whisper.cppの`whisper-cli`（と、任意で`whisper-vad-speech-segments`）も、自分でビルドして`PATH`に置くか、設定の`captions`で渡します。モデルは画面からダウンロードできます。
 - Windowsでは、プールやデータディレクトリをドライブ文字から書きます（例：`KOTATSU_STORAGE_POOLS=main=D:\rec`）。設定ファイルのYAMLでは、二重引用符で囲むと`\`がエスケープになるので、引用符なしか一重引用符で書きます。
 - Windowsでは、開いているファイルを、ほかの処理が消したり名前を変えたりできません。そのため、録画や再生のファイルを読むときは、消すことと名前を変えることを許して開きます（`FILE_SHARE_DELETE`）。読み手のいる索引や画像を作り直して置き換えるときは、POSIXの意味のrenameを使います（#1096）。
 - EPGStationのSQLiteのDBは、Windowsでは`sqlite:///C:/EPGStation/data/database.db`のように指定します（[6.3](#63-epgstation-からの移行)）。
@@ -3052,8 +3052,8 @@ Kotatsu本体はApache License 2.0で公開します。
 `-ffmpeg`イメージには、ライセンス文書とソースの入手先を次のように含めます。
 
 - Debianのパッケージは、各パッケージの`/usr/share/doc/<パッケージ>/copyright`と`/usr/share/common-licenses/`を削らずに残します。
-- tsreadexは、ライセンス文書を`/usr/share/doc/kotatsu/third-party/`に置きます。
-- イメージのビルド時に、入れたDebianのパッケージとソースパッケージの名前と版の一覧を`/usr/share/doc/kotatsu/third-party/`に書き出します。ソースの入手先には、その版を固定して取得できるsnapshot.debian.orgを示します。tsreadexは、ビルドに使ったリポジトリとコミットを示します。
+- tsreadexとwhisper.cppは、ライセンス文書を`/usr/share/doc/kotatsu/third-party/`に置きます。
+- イメージのビルド時に、入れたDebianのパッケージとソースパッケージの名前と版の一覧を`/usr/share/doc/kotatsu/third-party/`に書き出します。ソースの入手先には、その版を固定して取得できるsnapshot.debian.orgを示します。tsreadexとwhisper.cppは、ビルドに使ったリポジトリとコミットを示します。
 - 音声のエンコードにはFFmpeg標準の`aac`エンコーダーを使います。libfdk-aacは使いません。
 
 ## 付録 C. 参考にしたプロジェクト

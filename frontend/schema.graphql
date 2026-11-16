@@ -878,7 +878,7 @@ type CaptionModel {
   """
   ファイルの大きさ (バイト)。
   """
-  size: Float!
+  size: Int64!
   """
   ファイルの SHA-256 (16 進)。ダウンロードした後に照合する。
   """
@@ -1543,7 +1543,7 @@ type InstalledCaptionModel {
   """
   ファイルの大きさ (バイト)。
   """
-  size: Float!
+  size: Int64!
   """
   画面から置いた日時。手で置いたファイルなら null。
   """
