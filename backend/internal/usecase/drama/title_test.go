@@ -70,6 +70,26 @@ func TestSearchQueries(t *testing.T) {
 	}
 }
 
+func TestHeadQuery(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		title string
+		want  string
+	}{
+		{name: "subtitle after a space", title: "南田南弁護士は天才肌 嘘をつくのは悪いことです!", want: "南田南弁護士は天才肌"},
+		{name: "no space", title: titleMoPapa, want: ""},
+		{name: "head too short", title: "X 何か", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, drama.HeadQuery(tt.title))
+		})
+	}
+}
+
 func TestTitleKey(t *testing.T) {
 	t.Parallel()
 

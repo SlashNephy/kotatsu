@@ -541,6 +541,23 @@ func (m *Matcher) findSeries(ctx context.Context, r *run, title string, dates []
 			return pickByDate(exact, dates[0]), nil
 		}
 	}
+	// 空白の後ろに副題が付いた番組名は、頭だけでも探す。頭と同じ名前の作品も、別の作品かもしれないので、名前の頭が一致する候補として扱う。
+	if head := HeadQuery(title); head != "" && !slices.Contains(queries, head) {
+		results, err := m.search(ctx, r, head)
+		if err != nil {
+			return 0, err
+		}
+		key := TitleKey(title)
+		for _, result := range results {
+			if slices.Contains(result.GenreIDs, genreAnimation) {
+				continue
+			}
+			if (prefixOf(key, TitleKey(result.Name)) || prefixOf(key, TitleKey(result.OriginalName))) &&
+				!slices.ContainsFunc(partial, func(p *tmdb.SearchResult) bool { return p.ID == result.ID }) {
+				partial = append(partial, result)
+			}
+		}
+	}
 	corroborated := int32(0)
 	for _, candidate := range partial[:min(len(partial), maxCorroborations)] {
 		if candidate.FirstAirDate != "" && candidate.FirstAirDate > shiftDate(dates[0], upcomingSeries) {

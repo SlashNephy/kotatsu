@@ -39,6 +39,8 @@ const (
 	sukeban     = 89352
 	sanada      = 332649
 	brave10     = 42502
+	minamida    = 332713
+	detective   = 10001
 	testTMDbKey = "test-token"
 	// moPapaTitle は、もうパパ！の番組名から読む作品名。
 	moPapaTitle = "もうパパ!"
@@ -278,6 +280,8 @@ func episodesJSON(airDates ...string) string {
 //   - はぐれ刑事純情派：シーズンが 18 ある昔の作品。
 //   - スケバン刑事II 少女鉄仮面伝説：シーズンが 1 つだけの昔の作品。
 //   - 真田十勇士 SHADOWS OF THE TEN NINJA：作品名の一部 (真田十勇士) で探すと、アニメの BRAVE 10 と並んで出る。第 5 話が 11 月 20 日。
+//   - 南田南弁護士は天才肌：番組名には空白の後ろに副題が付き、そのままでは見つからない。第 5 話が 11 月 16 日。
+//   - 名探偵：番組名の頭と同じ名前の、昔の別の作品。11 月の放送日の話はない。
 func newFakeTMDb() *fakeTMDb {
 	hagureSeasons := []string{}
 	for i := 1; i <= 18; i++ {
@@ -293,13 +297,17 @@ func newFakeTMDb() *fakeTMDb {
 			"スケバン刑事II 少女鉄仮面伝説": result(sukeban, "スケバン刑事II 少女鉄仮面伝説", "1985-11-08", 80, 18),
 			"真田十勇士": result(sanada, "真田十勇士 SHADOWS OF THE TEN NINJA", "2026-10-23", 10759) + "," +
 				result(brave10, "BRAVE 10", "2012-01-08", 16, 10759),
+			"南田南弁護士は天才肌": result(minamida, "南田南弁護士は天才肌", "2026-10-19", 18),
+			"名探偵":        result(detective, "名探偵", "1990-04-01", 18),
 		},
 		series: map[string]string{
-			strconv.Itoa(moPapa):   seriesJSON(moPapa, "もうパパ！", "2026-10-04", "1@2026-10-04"),
-			strconv.Itoa(banshaku): seriesJSON(banshaku, "晩酌の流儀", "2022-07-02", "0@2022-12-31", "6@2026-07-03", "7@2026-10-03"),
-			strconv.Itoa(hagure):   seriesJSON(hagure, "はぐれ刑事純情派", "1988-04-06", hagureSeasons...),
-			strconv.Itoa(sukeban):  seriesJSON(sukeban, "スケバン刑事II 少女鉄仮面伝説", "1985-11-08", "1@1985-11-08"),
-			strconv.Itoa(sanada):   seriesJSON(sanada, "真田十勇士 SHADOWS OF THE TEN NINJA", "2026-10-23", "1@2026-10-23"),
+			strconv.Itoa(moPapa):    seriesJSON(moPapa, "もうパパ！", "2026-10-04", "1@2026-10-04"),
+			strconv.Itoa(banshaku):  seriesJSON(banshaku, "晩酌の流儀", "2022-07-02", "0@2022-12-31", "6@2026-07-03", "7@2026-10-03"),
+			strconv.Itoa(hagure):    seriesJSON(hagure, "はぐれ刑事純情派", "1988-04-06", hagureSeasons...),
+			strconv.Itoa(sukeban):   seriesJSON(sukeban, "スケバン刑事II 少女鉄仮面伝説", "1985-11-08", "1@1985-11-08"),
+			strconv.Itoa(sanada):    seriesJSON(sanada, "真田十勇士 SHADOWS OF THE TEN NINJA", "2026-10-23", "1@2026-10-23"),
+			strconv.Itoa(minamida):  seriesJSON(minamida, "南田南弁護士は天才肌", "2026-10-19", "1@2026-10-19"),
+			strconv.Itoa(detective): seriesJSON(detective, "名探偵", "1990-04-01", "1@1990-04-01"),
 		},
 		seasons: map[string]string{
 			strconv.Itoa(moPapa) + "/season/1":   episodesJSON("2026-10-04", "2026-10-11", "2026-10-18", "2026-10-25", "2026-11-01", "2026-11-08", "2026-11-15"),
@@ -315,7 +323,9 @@ func newFakeTMDb() *fakeTMDb {
 
 				return dates
 			}()...),
-			strconv.Itoa(sanada) + "/season/1": episodesJSON("2026-10-23", "2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"),
+			strconv.Itoa(sanada) + "/season/1":    episodesJSON("2026-10-23", "2026-10-30", "2026-11-06", "2026-11-13", "2026-11-20"),
+			strconv.Itoa(minamida) + "/season/1":  episodesJSON("2026-10-19", "2026-10-26", "2026-11-02", "2026-11-09", "2026-11-16"),
+			strconv.Itoa(detective) + "/season/1": episodesJSON("1990-04-01", "1990-04-08"),
 		},
 		requests: []string{},
 		limited:  false,
@@ -436,6 +446,18 @@ func TestMatchHorizon(t *testing.T) {
 			want: new(linkedTo(sanada, 1, 5, drama.EpisodeSourceAirDate)),
 		},
 		{
+			// 空白の後ろに副題が付いた番組名は、そのままでは見つからない。頭 (南田南弁護士は天才肌) で探し、放送日の話で確かめて結びつける。
+			name: "subtitle after a space", serviceID: grService, start: jst(16, 22, 0), end: jst(16, 22, 54),
+			title: "南田南弁護士は天才肌　嘘をつくのは悪いことです！　＃０５🈑🈓", genres: genreDrama,
+			want: new(linkedTo(minamida, 1, 5, drama.EpisodeSourceAirDate)),
+		},
+		{
+			// 頭と同じ名前の作品でも、放送日の話がなければ、別の作品とみなして結びつけない。
+			name: "head that names another series", serviceID: grService, start: jst(18, 22, 0), end: jst(18, 22, 54),
+			title: "名探偵　消えた時計の謎　＃３", genres: genreDrama,
+			want: &matchRow{SeriesID: nil, Season: nil, Episode: nil, SeriesSource: nil, EpisodeSource: nil, Finalized: false},
+		},
+		{
 			name: "promotion is not matched", serviceID: grService, start: jst(15, 23, 52), end: jst(16, 0, 7),
 			title: "【ドラマ】夜ドラ「青の花　器の森」ＰＲ　（第４週）", genres: genreDrama,
 			want: &matchRow{SeriesID: nil, Season: nil, Episode: nil, SeriesSource: nil, EpisodeSource: nil, Finalized: false},
@@ -458,9 +480,9 @@ func TestMatchHorizon(t *testing.T) {
 
 	result, err := f.matcher.MatchHorizon(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 10, result.Programs)
-	assert.Equal(t, 8, result.Linked)
-	assert.Equal(t, 7, result.Episodes)
+	assert.Equal(t, 12, result.Programs)
+	assert.Equal(t, 9, result.Linked)
+	assert.Equal(t, 8, result.Episodes)
 	assert.Zero(t, result.Failed)
 	for _, p := range programs {
 		got, found := matchOf(t, f.db, p.serviceID, p.start)

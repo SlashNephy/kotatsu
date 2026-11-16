@@ -68,6 +68,18 @@ func SearchQueries(title string) []string {
 	return queries
 }
 
+// HeadQuery は、作品名 title の最初の空白より前を返す。空白の後ろに副題が付いた番組名 (南田南弁護士は天才肌 嘘をつくのは悪いことです!) は、
+// そのままでは TMDb で見つからないので、頭だけで探し直すのに使う。頭だけの名前は、別の作品の名前と同じことがあるので、
+// 見つかった作品は、名前の頭が一致する候補として、放送日の話があるかで確かめてから結びつける。空白がないか、頭が短すぎれば空を返す。
+func HeadQuery(title string) string {
+	fields := strings.Fields(title)
+	if len(fields) < 2 || len([]rune(fields[0])) < minPrefixRunes {
+		return ""
+	}
+
+	return fields[0]
+}
+
 // Excluded は、番組名 name の番組を照合しないかどうかを返す。宣伝の番組 (PR、見どころ、予告) と、総集編 (ダイジェスト)、メイキングは、
 // ドラマのジャンルを持っていても、作品の話ではないので照合しない。
 func Excluded(name string) bool {
