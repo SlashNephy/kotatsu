@@ -1241,6 +1241,7 @@
     "nextEpisodes": {
       "title": "続きの放送",
       "createRule": "このシリーズのルールを作る",
+      "createSeriesRule": "{{name}}のシリーズのルールを作る",
       "reserve": "予約",
       "reserveProgram": "{{name}}を予約",
       "reserved": "予約済み",
