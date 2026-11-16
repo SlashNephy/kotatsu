@@ -306,6 +306,9 @@ func (a *applier) ruleInput(r *Rule) *rule.Input {
 		BundleSameEpisodes: r.AvoidDuplicate,
 		// EPGStation に前の回を録らない設定はないので、切で取り込む (#1499)。
 		SkipEarlierEpisodes: false,
+		// 取り込んだルールや見たいリストから作るルールは、どのグループにも入れない (#1493)。
+		GroupID:   nil,
+		KeepGroup: false,
 	}
 }
 

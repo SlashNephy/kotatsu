@@ -750,10 +750,21 @@ type Rule struct {
 	FollowEventRelay    bool
 	BundleSameEpisodes  bool
 	SkipEarlierEpisodes bool
+	GroupID             *uuid.UUID
 	CreatedAt           time.Time
 	CreatedBy           *uuid.UUID
 	UpdatedAt           time.Time
 	UpdatedBy           *uuid.UUID
+}
+
+type RuleGroup struct {
+	ID        uuid.UUID
+	Name      string
+	Position  int32
+	CreatedAt time.Time
+	CreatedBy *uuid.UUID
+	UpdatedAt time.Time
+	UpdatedBy *uuid.UUID
 }
 
 type SchemaCompatibility struct {

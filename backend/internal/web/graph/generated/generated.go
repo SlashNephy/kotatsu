@@ -644,6 +644,7 @@ type ComplexityRoot struct {
 		CreateIptvFeed                func(childComplexity int) int
 		CreateProgramReservation      func(childComplexity int, input model.ProgramReservationInput) int
 		CreateRule                    func(childComplexity int, input model.RuleInput) int
+		CreateRuleGroup               func(childComplexity int, name string) int
 		CreateStreamURL               func(childComplexity int, target string) int
 		CreateTimeReservation         func(childComplexity int, input model.TimeReservationInput) int
 		CreateUser                    func(childComplexity int, input model.CreateUserInput) int
@@ -663,6 +664,7 @@ type ComplexityRoot struct {
 		DeleteReservation             func(childComplexity int, id string) int
 		DeleteReservations            func(childComplexity int, ids []string) int
 		DeleteRule                    func(childComplexity int, id string) int
+		DeleteRuleGroup               func(childComplexity int, id string) int
 		DeleteRules                   func(childComplexity int, ids []string) int
 		DeleteTotp                    func(childComplexity int) int
 		DeleteUser                    func(childComplexity int, id string) int
@@ -687,6 +689,8 @@ type ComplexityRoot struct {
 		RemoveTimeshiftChannel        func(childComplexity int, serviceID string) int
 		RenamePasskey                 func(childComplexity int, id string, name string) int
 		RenameRecordingFiles          func(childComplexity int, ids []string) int
+		RenameRuleGroup               func(childComplexity int, id string, name string) int
+		ReorderRuleGroups             func(childComplexity int, ids []string) int
 		ReportAnimePlayback           func(childComplexity int, serviceID *string, recordingID *string, intervals []*model.PlaybackIntervalInput) int
 		ResetRecordingFailureCounts   func(childComplexity int, reasons []domain.RecordingFailureReason) int
 		ResetUserPassword             func(childComplexity int, id string, password string) int
@@ -701,6 +705,7 @@ type ComplexityRoot struct {
 		SetReservationsEnabled        func(childComplexity int, ids []string, enabled bool) int
 		SetRuleEnabled                func(childComplexity int, id string, enabled bool) int
 		SetRulesEnabled               func(childComplexity int, ids []string, enabled bool) int
+		SetRulesGroup                 func(childComplexity int, ids []string, groupID *string) int
 		SetServicePinned              func(childComplexity int, id string, pinned bool) int
 		SetTimeshiftChannel           func(childComplexity int, serviceID string, retentionSeconds *int) int
 		SetWatchReservation           func(childComplexity int, program string, reserved bool) int
@@ -989,6 +994,7 @@ type ComplexityRoot struct {
 		RecordingRenames        func(childComplexity int) int
 		Recordings              func(childComplexity int, first int, after *string, filter *model.RecordingFilter, order model.RecordingOrder) int
 		Reservations            func(childComplexity int, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) int
+		RuleGroups              func(childComplexity int) int
 		RuleWarnings            func(childComplexity int, input model.RuleInput) int
 		Rules                   func(childComplexity int) int
 		SearchPrograms          func(childComplexity int, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) int
@@ -1232,6 +1238,7 @@ type ComplexityRoot struct {
 		DuplicateWindowDays      func(childComplexity int) int
 		Enabled                  func(childComplexity int) int
 		FollowEventRelay         func(childComplexity int) int
+		Group                    func(childComplexity int) int
 		ID                       func(childComplexity int) int
 		Memo                     func(childComplexity int) int
 		Name                     func(childComplexity int) int
@@ -1249,6 +1256,14 @@ type ComplexityRoot struct {
 		BundleSameEpisodes  func(childComplexity int) int
 		DuplicateWindowDays func(childComplexity int) int
 		FollowEventRelay    func(childComplexity int) int
+	}
+
+	RuleGroup struct {
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Position  func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	RuleWarning struct {
@@ -1616,6 +1631,11 @@ type MutationResolver interface {
 	DeleteRule(ctx context.Context, id string) (string, error)
 	SetRulesEnabled(ctx context.Context, ids []string, enabled bool) (*model.BulkOperationPayload, error)
 	DeleteRules(ctx context.Context, ids []string) (*model.BulkOperationPayload, error)
+	SetRulesGroup(ctx context.Context, ids []string, groupID *string) (*model.BulkOperationPayload, error)
+	CreateRuleGroup(ctx context.Context, name string) (*model.RuleGroup, error)
+	RenameRuleGroup(ctx context.Context, id string, name string) (*model.RuleGroup, error)
+	ReorderRuleGroups(ctx context.Context, ids []string) ([]*model.RuleGroup, error)
+	DeleteRuleGroup(ctx context.Context, id string) (string, error)
 	BeginTotpEnrollment(ctx context.Context) (*model.TOTPEnrollment, error)
 	ConfirmTotpEnrollment(ctx context.Context, code string) (*model.RecoveryCodes, error)
 	DeleteTotp(ctx context.Context) (*model.SecondFactorStatus, error)
@@ -1717,6 +1737,7 @@ type QueryResolver interface {
 	Tags(ctx context.Context) ([]*model.Tag, error)
 	Reservations(ctx context.Context, from time.Time, to time.Time, states []domain.AssignmentState, enabled *bool, rule *string, first int, after *string) (*model.ReservationConnection, error)
 	Rules(ctx context.Context) ([]*model.Rule, error)
+	RuleGroups(ctx context.Context) ([]*model.RuleGroup, error)
 	RuleWarnings(ctx context.Context, input model.RuleInput) ([]*model.RuleWarning, error)
 	PreviewRule(ctx context.Context, input model.RuleInput, first int, after *string) (*model.ProgramConnection, error)
 	SearchPrograms(ctx context.Context, conditions model.ProgramConditionsInput, archive *model.ArchiveRangeInput, first int, after *string) (*model.ProgramConnection, error)
@@ -1773,6 +1794,7 @@ type ReservationAssignmentResolver interface {
 }
 type RuleResolver interface {
 	UpcomingReservationCount(ctx context.Context, obj *model.Rule) (int, error)
+	Group(ctx context.Context, obj *model.Rule) (*model.RuleGroup, error)
 }
 type ServiceResolver interface {
 	ChannelType(ctx context.Context, obj *model.Service) (*model.ChannelType, error)
@@ -4065,6 +4087,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateRule(childComplexity, args["input"].(model.RuleInput)), true
+	case "Mutation.createRuleGroup":
+		if e.ComplexityRoot.Mutation.CreateRuleGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createRuleGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateRuleGroup(childComplexity, args["name"].(string)), true
 	case "Mutation.createStreamURL":
 		if e.ComplexityRoot.Mutation.CreateStreamURL == nil {
 			break
@@ -4259,6 +4292,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.DeleteRule(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRuleGroup":
+		if e.ComplexityRoot.Mutation.DeleteRuleGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRuleGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteRuleGroup(childComplexity, args["id"].(string)), true
 	case "Mutation.deleteRules":
 		if e.ComplexityRoot.Mutation.DeleteRules == nil {
 			break
@@ -4503,6 +4547,28 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RenameRecordingFiles(childComplexity, args["ids"].([]string)), true
+	case "Mutation.renameRuleGroup":
+		if e.ComplexityRoot.Mutation.RenameRuleGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_renameRuleGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RenameRuleGroup(childComplexity, args["id"].(string), args["name"].(string)), true
+	case "Mutation.reorderRuleGroups":
+		if e.ComplexityRoot.Mutation.ReorderRuleGroups == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_reorderRuleGroups_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ReorderRuleGroups(childComplexity, args["ids"].([]string)), true
 	case "Mutation.reportAnimePlayback":
 		if e.ComplexityRoot.Mutation.ReportAnimePlayback == nil {
 			break
@@ -4652,6 +4718,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetRulesEnabled(childComplexity, args["ids"].([]string), args["enabled"].(bool)), true
+	case "Mutation.setRulesGroup":
+		if e.ComplexityRoot.Mutation.SetRulesGroup == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setRulesGroup_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetRulesGroup(childComplexity, args["ids"].([]string), args["groupId"].(*string)), true
 	case "Mutation.setServicePinned":
 		if e.ComplexityRoot.Mutation.SetServicePinned == nil {
 			break
@@ -6146,6 +6223,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Reservations(childComplexity, args["from"].(time.Time), args["to"].(time.Time), args["states"].([]domain.AssignmentState), args["enabled"].(*bool), args["rule"].(*string), args["first"].(int), args["after"].(*string)), true
+	case "Query.ruleGroups":
+		if e.ComplexityRoot.Query.RuleGroups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.RuleGroups(childComplexity), true
 	case "Query.ruleWarnings":
 		if e.ComplexityRoot.Query.RuleWarnings == nil {
 			break
@@ -7250,6 +7333,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Rule.FollowEventRelay(childComplexity), true
+	case "Rule.group":
+		if e.ComplexityRoot.Rule.Group == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rule.Group(childComplexity), true
 	case "Rule.id":
 		if e.ComplexityRoot.Rule.ID == nil {
 			break
@@ -7335,6 +7424,37 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RuleDefaults.FollowEventRelay(childComplexity), true
+
+	case "RuleGroup.createdAt":
+		if e.ComplexityRoot.RuleGroup.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.CreatedAt(childComplexity), true
+	case "RuleGroup.id":
+		if e.ComplexityRoot.RuleGroup.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.ID(childComplexity), true
+	case "RuleGroup.name":
+		if e.ComplexityRoot.RuleGroup.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.Name(childComplexity), true
+	case "RuleGroup.position":
+		if e.ComplexityRoot.RuleGroup.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.Position(childComplexity), true
+	case "RuleGroup.updatedAt":
+		if e.ComplexityRoot.RuleGroup.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RuleGroup.UpdatedAt(childComplexity), true
 
 	case "RuleWarning.exclude":
 		if e.ComplexityRoot.RuleWarning.Exclude == nil {
@@ -11743,6 +11863,22 @@ type Rule implements Node {
   updatedBy: User
   "このルールに一致した予約のうち、終わっていないものの件数。無効にした予約も数える。"
   upcomingReservationCount: Int!
+  "ルールが入るグループ (#1493)。どのグループにも入らなければ null (一覧の「その他」)。"
+  group: RuleGroup
+}
+
+"""
+ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+ルールと同じく家族で共有する。1 つのルールは、多くとも 1 つのグループに入る。
+"""
+type RuleGroup implements Node {
+  id: ID!
+  "1〜100 文字。ほかのグループと同じ名前にはできない。"
+  name: String!
+  "一覧で並べる順 (0 から)"
+  position: Int!
+  createdAt: Time!
+  updatedAt: Time!
 }
 
 """
@@ -11764,6 +11900,11 @@ input RuleInput {
   followEventRelay: Boolean! = true
   bundleSameEpisodes: Boolean! = false
   skipEarlierEpisodes: Boolean! = false
+  """
+  ルールを入れるグループ (#1493)。null ならどのグループにも入れない。
+  updateRule で省くと、今のグループを変えない。createRule で省くと、どのグループにも入れない。
+  """
+  groupId: ID
 }
 
 "ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。"
@@ -11783,6 +11924,8 @@ enum RuleWarningKind {
 extend type Query {
   "すべてのルールを、作った順に返す。"
   rules: [Rule!]!
+  "ルールのすべてのグループを、一覧で並べる順に返す (#1493)。"
+  ruleGroups: [RuleGroup!]!
   "保存する前のルールの、照合を重くする書き方を返す (#904)。ルールのプレビューと同じく、視聴者も使える。"
   ruleWarnings(input: RuleInput!): [RuleWarning!]!
   """
@@ -11821,6 +11964,19 @@ extend type Mutation {
   見つからないルールは飛ばした数に数える。一度に 500 件まで。
   """
   deleteRules(ids: [ID!]!): BulkOperationPayload!
+  """
+  ルール ids をまとめてグループ groupId に移す (#1493)。groupId が null なら、どのグループにも入れない。視聴者は使えない。
+  監査ログは 1 件ずつ残す。ルールの updatedAt は変えない。見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesGroup(ids: [ID!]!, groupId: ID): BulkOperationPayload!
+  "ルールのグループを作り、一覧の最後に並べる (#1493)。名前の前後の空白は除く。視聴者は使えない。"
+  createRuleGroup(name: String!): RuleGroup!
+  "グループの名前を変える。視聴者は使えない。"
+  renameRuleGroup(id: ID!, name: String!): RuleGroup!
+  "グループを ids の順に並べ直し、並べ直したすべてのグループを返す。ids には、すべてのグループを 1 回ずつ含める。視聴者は使えない。"
+  reorderRuleGroups(ids: [ID!]!): [RuleGroup!]!
+  "グループを消し、消したグループの ID を返す。中のルールは消さず、どのグループにも入らないルールに戻す。視聴者は使えない。"
+  deleteRuleGroup(id: ID!): ID!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `"""
@@ -14977,6 +15133,8 @@ func (ec *executionContext) childFields_Rule(ctx context.Context, field graphql.
 		return ec.fieldContext_Rule_updatedBy(ctx, field)
 	case "upcomingReservationCount":
 		return ec.fieldContext_Rule_upcomingReservationCount(ctx, field)
+	case "group":
+		return ec.fieldContext_Rule_group(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Rule", field.Name)
 }
@@ -14993,6 +15151,22 @@ func (ec *executionContext) childFields_RuleDefaults(ctx context.Context, field 
 		return ec.fieldContext_RuleDefaults_bundleSameEpisodes(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RuleDefaults", field.Name)
+}
+
+func (ec *executionContext) childFields_RuleGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_RuleGroup_id(ctx, field)
+	case "name":
+		return ec.fieldContext_RuleGroup_name(ctx, field)
+	case "position":
+		return ec.fieldContext_RuleGroup_position(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_RuleGroup_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_RuleGroup_updatedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RuleGroup", field.Name)
 }
 
 func (ec *executionContext) childFields_RuleWarning(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -15835,6 +16009,20 @@ func (ec *executionContext) field_Mutation_createProgramReservation_args(ctx con
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_createRuleGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_createRule_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16056,6 +16244,20 @@ func (ec *executionContext) field_Mutation_deleteReservations_args(ctx context.C
 		return nil, err
 	}
 	args["ids"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteRuleGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
 	return args, nil
 }
 
@@ -16377,6 +16579,42 @@ func (ec *executionContext) field_Mutation_renameRecordingFiles_args(ctx context
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_renameRuleGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["name"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_reorderRuleGroups_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_reportAnimePlayback_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -16636,6 +16874,28 @@ func (ec *executionContext) field_Mutation_setRulesEnabled_args(ctx context.Cont
 		return nil, err
 	}
 	args["enabled"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setRulesGroup_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "ids",
+		func(ctx context.Context, v any) ([]string, error) {
+			return ec.unmarshalNID2ᚕstringᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["ids"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "groupId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["groupId"] = arg1
 	return args, nil
 }
 
@@ -28580,6 +28840,226 @@ func (ec *executionContext) fieldContext_Mutation_deleteRules(ctx context.Contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_setRulesGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setRulesGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetRulesGroup(ctx, fc.Args["ids"].([]string), fc.Args["groupId"].(*string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.BulkOperationPayload) graphql.Marshaler {
+			return ec.marshalNBulkOperationPayload2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐBulkOperationPayload(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setRulesGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_BulkOperationPayload(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setRulesGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createRuleGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createRuleGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateRuleGroup(ctx, fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createRuleGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createRuleGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_renameRuleGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_renameRuleGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RenameRuleGroup(ctx, fc.Args["id"].(string), fc.Args["name"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_renameRuleGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_renameRuleGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_reorderRuleGroups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_reorderRuleGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ReorderRuleGroups(ctx, fc.Args["ids"].([]string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_reorderRuleGroups(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_reorderRuleGroups_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRuleGroup(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteRuleGroup(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteRuleGroup(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteRuleGroup(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRuleGroup_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_beginTotpEnrollment(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -35287,6 +35767,38 @@ func (ec *executionContext) fieldContext_Query_rules(_ context.Context, field gr
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_ruleGroups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_ruleGroups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().RuleGroups(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*model.RuleGroup) graphql.Marshaler {
+			return ec.marshalNRuleGroup2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_ruleGroups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_ruleWarnings(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40055,6 +40567,38 @@ func (ec *executionContext) fieldContext_Rule_upcomingReservationCount(_ context
 	return graphql.NewScalarFieldContext("Rule", field, true, true, "Int")
 }
 
+func (ec *executionContext) _Rule_group(ctx context.Context, field graphql.CollectedField, obj *model.Rule) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rule_group(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Rule().Group(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+			return ec.marshalORuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Rule_group(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Rule",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RuleGroup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _RuleDefaults_avoidDuplicates(ctx context.Context, field graphql.CollectedField, obj *model.RuleDefaults) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -40145,6 +40689,121 @@ func (ec *executionContext) _RuleDefaults_bundleSameEpisodes(ctx context.Context
 }
 func (ec *executionContext) fieldContext_RuleDefaults_bundleSameEpisodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("RuleDefaults", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _RuleGroup_id(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "ID")
+}
+
+func (ec *executionContext) _RuleGroup_name(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "String")
+}
+
+func (ec *executionContext) _RuleGroup_position(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int) graphql.Marshaler {
+			return ec.marshalNInt2int(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "Int")
+}
+
+func (ec *executionContext) _RuleGroup_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "Time")
+}
+
+func (ec *executionContext) _RuleGroup_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.RuleGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RuleGroup_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RuleGroup_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RuleGroup", field, false, false, "Time")
 }
 
 func (ec *executionContext) _RuleWarning_kind(ctx context.Context, field graphql.CollectedField, obj *model.RuleWarning) (ret graphql.Marshaler) {
@@ -48077,7 +48736,7 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 		asMap["skipEarlierEpisodes"] = false
 	}
 
-	fieldsInOrder := [...]string{"name", "memo", "enabled", "conditions", "settings", "validFrom", "validUntil", "avoidDuplicates", "duplicateWindowDays", "followEventRelay", "bundleSameEpisodes", "skipEarlierEpisodes"}
+	fieldsInOrder := [...]string{"name", "memo", "enabled", "conditions", "settings", "validFrom", "validUntil", "avoidDuplicates", "duplicateWindowDays", "followEventRelay", "bundleSameEpisodes", "skipEarlierEpisodes", "groupId"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -48168,6 +48827,13 @@ func (ec *executionContext) unmarshalInputRuleInput(ctx context.Context, obj any
 				return it, err
 			}
 			it.SkipEarlierEpisodes = data
+		case "groupId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("groupId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GroupID = graphql.OmittableOf(data)
 		}
 	}
 	return it, nil
@@ -48870,6 +49536,13 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			return graphql.Null
 		}
 		return ec._Service(ctx, sel, obj)
+	case model.RuleGroup:
+		return ec._RuleGroup(ctx, sel, &obj)
+	case *model.RuleGroup:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._RuleGroup(ctx, sel, obj)
 	case model.Rule:
 		return ec._Rule(ctx, sel, &obj)
 	case *model.Rule:
@@ -53245,6 +53918,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setRulesGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setRulesGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createRuleGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createRuleGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "renameRuleGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_renameRuleGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reorderRuleGroups":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_reorderRuleGroups(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRuleGroup":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRuleGroup(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "beginTotpEnrollment":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_beginTotpEnrollment(ctx, field)
@@ -55225,6 +55933,12 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_rules(ctx, field)
 				})
+		case "ruleGroups":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_ruleGroups(ctx, field)
+				})
 		case "ruleWarnings":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -56793,6 +57507,12 @@ func (ec *executionContext) _Rule(ctx context.Context, sel ast.SelectionSet, obj
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Rule_upcomingReservationCount(ctx, field, obj)
 				})
+		case "group":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Rule_group(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -56838,6 +57558,59 @@ func (ec *executionContext) _RuleDefaults(ctx context.Context, sel ast.Selection
 			}
 		case "bundleSameEpisodes":
 			out.Values[i] = ec._RuleDefaults_bundleSameEpisodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var ruleGroupImplementors = []string{"RuleGroup", "Node"}
+
+func (ec *executionContext) _RuleGroup(ctx context.Context, sel ast.SelectionSet, obj *model.RuleGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, ruleGroupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RuleGroup")
+		case "id":
+			out.Values[i] = ec._RuleGroup_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._RuleGroup_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "position":
+			out.Values[i] = ec._RuleGroup_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._RuleGroup_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._RuleGroup_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -61993,6 +62766,30 @@ func (ec *executionContext) marshalNRuleDefaults2ᚖgithubᚗcomᚋSlashNephyᚋ
 	return ec._RuleDefaults(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNRuleGroup2ᚕᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.RuleGroup) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx context.Context, sel ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RuleGroup!")
+		return graphql.Null
+	}
+	return ec._RuleGroup(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNRuleInput2githubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleInput(ctx context.Context, v any) (model.RuleInput, error) {
 	res, err := ec.unmarshalInputRuleInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -63635,6 +64432,13 @@ func (ec *executionContext) unmarshalORuleDefaultsInput2ᚖgithubᚗcomᚋSlashN
 	}
 	res, err := ec.unmarshalInputRuleDefaultsInput(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalORuleGroup2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐRuleGroup(ctx context.Context, sel ast.SelectionSet, v *model.RuleGroup) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._RuleGroup(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOSegmentVideoFormat2ᚖgithubᚗcomᚋSlashNephyᚋkotatsuᚋinternalᚋwebᚋgraphᚋmodelᚐSegmentVideoFormat(ctx context.Context, sel ast.SelectionSet, v *model.SegmentVideoFormat) graphql.Marshaler {

@@ -2168,6 +2168,27 @@ type Mutation {
   """
   deleteRules(ids: [ID!]!): BulkOperationPayload!
   """
+  ルール ids をまとめてグループ groupId に移す (#1493)。groupId が null なら、どのグループにも入れない。視聴者は使えない。
+  監査ログは 1 件ずつ残す。ルールの updatedAt は変えない。見つからないルールは飛ばした数に数える。一度に 500 件まで。
+  """
+  setRulesGroup(ids: [ID!]!, groupId: ID): BulkOperationPayload!
+  """
+  ルールのグループを作り、一覧の最後に並べる (#1493)。名前の前後の空白は除く。視聴者は使えない。
+  """
+  createRuleGroup(name: String!): RuleGroup!
+  """
+  グループの名前を変える。視聴者は使えない。
+  """
+  renameRuleGroup(id: ID!, name: String!): RuleGroup!
+  """
+  グループを ids の順に並べ直し、並べ直したすべてのグループを返す。ids には、すべてのグループを 1 回ずつ含める。視聴者は使えない。
+  """
+  reorderRuleGroups(ids: [ID!]!): [RuleGroup!]!
+  """
+  グループを消し、消したグループの ID を返す。中のルールは消さず、どのグループにも入らないルールに戻す。視聴者は使えない。
+  """
+  deleteRuleGroup(id: ID!): ID!
+  """
   TOTP の登録を始める。登録済みの TOTP を置き換えるときも使う。confirmTotpEnrollment で確かめるまでは、今の TOTP がそのまま使える。
   直近 10 分以内に認証していなければ、REAUTHENTICATION_REQUIRED を返す (設計書 9.5)。
   """
@@ -3292,6 +3313,10 @@ type Query {
   """
   rules: [Rule!]!
   """
+  ルールのすべてのグループを、一覧で並べる順に返す (#1493)。
+  """
+  ruleGroups: [RuleGroup!]!
+  """
   保存する前のルールの、照合を重くする書き方を返す (#904)。ルールのプレビューと同じく、視聴者も使える。
   """
   ruleWarnings(input: RuleInput!): [RuleWarning!]!
@@ -4188,6 +4213,10 @@ type Rule implements Node {
   このルールに一致した予約のうち、終わっていないものの件数。無効にした予約も数える。
   """
   upcomingReservationCount: Int!
+  """
+  ルールが入るグループ (#1493)。どのグループにも入らなければ null (一覧の「その他」)。
+  """
+  group: RuleGroup
 }
 """
 ルールを作るときの既定値 (設計書 4.2、#470)。ルールの作成の画面の初期値に使う。
@@ -4227,6 +4256,23 @@ input RuleDefaultsInput {
   bundleSameEpisodes: Boolean
 }
 """
+ルールのグループ (設計書 4.2、#1493)。ルールの一覧を分けて並べるための名前だけのもので、照合には関わらない。
+ルールと同じく家族で共有する。1 つのルールは、多くとも 1 つのグループに入る。
+"""
+type RuleGroup implements Node {
+  id: ID!
+  """
+  1〜100 文字。ほかのグループと同じ名前にはできない。
+  """
+  name: String!
+  """
+  一覧で並べる順 (0 から)
+  """
+  position: Int!
+  createdAt: Time!
+  updatedAt: Time!
+}
+"""
 ルールの内容。
 """
 input RuleInput {
@@ -4251,6 +4297,11 @@ input RuleInput {
   followEventRelay: Boolean! = true
   bundleSameEpisodes: Boolean! = false
   skipEarlierEpisodes: Boolean! = false
+  """
+  ルールを入れるグループ (#1493)。null ならどのグループにも入れない。
+  updateRule で省くと、今のグループを変えない。createRule で省くと、どのグループにも入れない。
+  """
+  groupId: ID
 }
 """
 ルールの照合を重くする書き方 (#904、設計書 3.5)。警告にとどめ、保存は止めない。

@@ -683,5 +683,8 @@ func WishlistRuleInput(work *WishlistWork, defaults *settings.RuleDefaults) *rul
 		BundleSameEpisodes: defaults.BundleSameEpisodes,
 		// 前の回を録らない設定は、ルールを作るときの既定値に持たず、切で作る (#1499)。
 		SkipEarlierEpisodes: false,
+		// 取り込んだルールや見たいリストから作るルールは、どのグループにも入れない (#1493)。
+		GroupID:   nil,
+		KeepGroup: false,
 	}
 }
