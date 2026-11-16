@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
@@ -118,12 +119,12 @@ func toDRCSReplacements(input []*model.DrcsReplacementInput) (map[string]*string
 }
 
 // jikkyoChannelsOf は、実況のチャンネルの対応を、ネットワーク ID とサービス ID の順に並べた GraphQL の形にする (#1869)。
-// 読めないキーは除く。保存するときに確かめているので、ふつうはない。
+// 読めないキーと、ID が 16 ビットに収まらないキーは除く。保存するときに確かめているので、ふつうはない。
 func jikkyoChannelsOf(channels map[string]string) []*model.JikkyoChannelOverride {
 	result := make([]*model.JikkyoChannelOverride, 0, len(channels))
 	for key, id := range channels {
 		networkID, serviceID, ok := jikkyo.ParseServiceKey(key)
-		if !ok {
+		if !ok || networkID < 0 || networkID > math.MaxUint16 || serviceID < 0 || serviceID > math.MaxUint16 {
 			continue
 		}
 		result = append(result, &model.JikkyoChannelOverride{NetworkID: int(networkID), ServiceID: int(serviceID), ChannelID: id})
