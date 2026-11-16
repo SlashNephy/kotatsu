@@ -1044,6 +1044,27 @@ type Library struct {
 	Kind LibraryKind `json:"kind"`
 }
 
+// ライブラリのファイルの、TS の中から読んだ放送の情報 (設計書 5.8)。録画の取り込み (設計書 6.5) と同じく読む。
+type LibraryBroadcast struct {
+	// SDT[actual] の original_network_id。読めなければ null。
+	NetworkID *int `json:"networkId,omitempty"`
+	// 映像を持つ最初のサービスのサービス ID。
+	ServiceID int `json:"serviceId"`
+	// SDT[actual] のサービス名。読めなければ空。
+	ServiceName string `json:"serviceName"`
+	// 同じネットワークとサービス ID の Kotatsu のサービス。なければ null (引っ越す前の地域の局など)。
+	Service *Service `json:"service,omitempty"`
+	// 同梱の対応表で引いた実況のチャンネルの ID。Kotatsu のサービスがなくても引く。
+	// 対応するチャンネルがないか、全体の設定で実況を切っていれば null。
+	JikkyoChannelID *string `json:"jikkyoChannelId,omitempty"`
+	// 頭で最初に読んだ TOT の時刻。再生の 0 秒をこの時刻とみなす (取り込んだ録画と同じく、数秒ずれることがある)。読めなければ null。
+	RecordedFrom *time.Time `json:"recordedFrom,omitempty"`
+	// 終わりで最後に読んだ TOT の時刻。読めなければ null。
+	RecordedUntil *time.Time `json:"recordedUntil,omitempty"`
+	// 録った範囲に最も長く重なる番組。読めなければ null。
+	Program *LibraryProgram `json:"program,omitempty"`
+}
+
 // ライブラリのディレクトリの中身。
 type LibraryDirectory struct {
 	Library *Library `json:"library"`
@@ -1086,6 +1107,16 @@ type LibraryFile struct {
 	WatchPositionMs *int64 `json:"watchPositionMs,omitempty"`
 	// ファイルの TS を流す URL のパス (設計書 7.2)。ログイン中のセッションで使う。start=秒 を足して位置を指定する。
 	StreamURL string `json:"streamUrl"`
+	// TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (局、放送の時刻、番組)。索引を作り始めるときに読む。
+	// まだ読んでいないか、読めなければ null。
+	Broadcast *LibraryBroadcast `json:"broadcast,omitempty"`
+	// 放送中だった番組の音声の構成。索引を作り終えるまでと、読めなければ空。
+	Audios []*ProgramAudio `json:"audios"`
+	// ドロップなどの集計。索引を作り終えるまでは null。
+	Quality *LibraryFileQuality `json:"quality,omitempty"`
+	// ファイルの時間帯の実況の過去ログの URL のパス (設計書 7.4)。局と時間帯は broadcast のものを使う。
+	// コメントの時刻は、broadcast.recordedFrom からの秒。ログイン中のセッションで使う。
+	JikkyoCommentsURL string `json:"jikkyoCommentsUrl"`
 	// ファイルを kyusu で変換して流す仮想 HLS の、元の URL のパス (設計書 7.3)。
 	// 後ろに /hls/{画質}/{音声}/playlist.m3u8 を付けて使う。ログイン中のセッションで使う。
 	HlsURL string `json:"hlsUrl"`
@@ -1103,6 +1134,25 @@ type LibraryFileIndex struct {
 	// 再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
 	// 索引がまだなければ null。
 	DurationSeconds *float64 `json:"durationSeconds,omitempty"`
+}
+
+// ライブラリのファイルのドロップなどの集計。録画の解析と同じく数える。
+type LibraryFileQuality struct {
+	Drops     int64 `json:"drops"`
+	Errors    int64 `json:"errors"`
+	Scrambled int64 `json:"scrambled"`
+}
+
+// ライブラリのファイルの、EIT[p/f] で読んだ番組。
+type LibraryProgram struct {
+	EventID     int             `json:"eventId"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Extended    []*ExtendedItem `json:"extended"`
+	// 番組の開始。未定なら null。
+	StartAt *time.Time `json:"startAt,omitempty"`
+	// 番組の終わり。未定なら null。
+	EndAt *time.Time `json:"endAt,omitempty"`
 }
 
 // ライブのサービスの、PID の種類ごとのビットレートと、TS のパケットの異常の数 (#812)。

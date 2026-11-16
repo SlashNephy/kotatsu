@@ -21,7 +21,7 @@ import (
 const (
 	librariesQuery         = `{ libraries { name kind } }`
 	libraryDirectoryQuery  = `query($library: String!, $path: String!) { libraryDirectory(library: $library, path: $path) { path library { name } entries { name path directory size playable } } }`
-	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl index { complete seekableSeconds durationSeconds } } }`
+	libraryFileQuery       = `query($library: String!, $path: String!) { libraryFile(library: $library, path: $path) { id name size videoFormat watchPositionMs streamUrl hlsUrl jikkyoCommentsUrl broadcast { networkId serviceId serviceName service { name } jikkyoChannelId recordedFrom program { eventId name endAt } } quality { drops } index { complete seekableSeconds durationSeconds } } }`
 	saveLibraryPosition    = `mutation($id: ID!, $positionMs: Int64!) { saveLibraryWatchPosition(id: $id, positionMs: $positionMs) { id watchPositionMs } }`
 	libraryTestFileContent = "../../../testdata/ts/test.ts"
 	// animeLibrary は、テストのフォルダのライブラリの名前。discM2TS と episodePath は、その中のファイルのパス。
@@ -36,14 +36,29 @@ const (
 
 type libraryFileResult struct {
 	LibraryFile struct {
-		ID              string `json:"id"`
-		Name            string `json:"name"`
-		Size            int64  `json:"size"`
-		VideoFormat     string `json:"videoFormat"`
-		WatchPositionMs *int64 `json:"watchPositionMs"`
-		StreamURL       string `json:"streamUrl"`
-		HlsURL          string `json:"hlsUrl"`
-		Index           struct {
+		ID                string `json:"id"`
+		Name              string `json:"name"`
+		Size              int64  `json:"size"`
+		VideoFormat       string `json:"videoFormat"`
+		WatchPositionMs   *int64 `json:"watchPositionMs"`
+		StreamURL         string `json:"streamUrl"`
+		HlsURL            string `json:"hlsUrl"`
+		JikkyoCommentsURL string `json:"jikkyoCommentsUrl"`
+		Broadcast         *struct {
+			NetworkID   *int                   `json:"networkId"`
+			ServiceID   int                    `json:"serviceId"`
+			ServiceName string                 `json:"serviceName"`
+			Service     *struct{ Name string } `json:"service"`
+			Program     *struct {
+				EventID int        `json:"eventId"`
+				Name    string     `json:"name"`
+				EndAt   *time.Time `json:"endAt"`
+			} `json:"program"`
+		} `json:"broadcast"`
+		Quality *struct {
+			Drops int64 `json:"drops"`
+		} `json:"quality"`
+		Index struct {
 			Complete        bool     `json:"complete"`
 			SeekableSeconds float64  `json:"seekableSeconds"`
 			DurationSeconds *float64 `json:"durationSeconds"`
@@ -190,6 +205,18 @@ func TestLibraryFile(t *testing.T) {
 	require.NotNil(t, file.LibraryFile.Index.DurationSeconds)
 	assert.GreaterOrEqual(t, *file.LibraryFile.Index.DurationSeconds, file.LibraryFile.Index.SeekableSeconds)
 	assert.Nil(t, file.LibraryFile.WatchPositionMs)
+	// 放送の情報と実況の過去ログの URL (#1734 の 2 段目)。局は Kotatsu にないので、service は null で、SDT の名前を返す。
+	assert.Equal(t, "/internal/media/library/"+encoded+"/jikkyo.json", file.LibraryFile.JikkyoCommentsURL)
+	require.NotNil(t, file.LibraryFile.Broadcast)
+	assert.Equal(t, new(0x7FE0), file.LibraryFile.Broadcast.NetworkID)
+	assert.Equal(t, 0x0400, file.LibraryFile.Broadcast.ServiceID)
+	assert.Equal(t, "こたつテスト１", file.LibraryFile.Broadcast.ServiceName)
+	assert.Nil(t, file.LibraryFile.Broadcast.Service)
+	require.NotNil(t, file.LibraryFile.Broadcast.Program)
+	assert.Equal(t, "テスト番組", file.LibraryFile.Broadcast.Program.Name)
+	require.NotNil(t, file.LibraryFile.Broadcast.Program.EndAt)
+	require.NotNil(t, file.LibraryFile.Quality)
+	assert.Equal(t, int64(0), file.LibraryFile.Quality.Drops)
 
 	var saved struct {
 		SaveLibraryWatchPosition struct {

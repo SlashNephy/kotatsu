@@ -101,36 +101,54 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := &commentsResponse{Channel: nil, Origin: nil, Comments: []*commentJSON{}}
-	id, ok := h.table.Lookup(source.NetworkID, source.Sid)
-	if !ok {
-		h.write(w, r, resp, source.RecordedUntil != nil)
+	if _, ok := h.table.Lookup(source.NetworkID, source.Sid); !ok {
+		h.serve(w, r, &span{networkID: source.NetworkID, sid: source.Sid, from: source.RecordedFrom, until: source.RecordedUntil}, slog.String("recording_id", recordingID.String()))
 
 		return
 	}
-	resp.Channel = &channelJSON{ID: id}
 	from, err := h.origin(r.Context(), recordingID, source.RecordedFrom)
 	if err != nil {
 		h.internalError(w, r, err)
 
 		return
 	}
+	h.serve(w, r, &span{networkID: source.NetworkID, sid: source.Sid, from: from, until: source.RecordedUntil}, slog.String("recording_id", recordingID.String()))
+}
+
+// span は、過去ログを引くサービスと時間帯。from はコメントの時刻の基準で、until は録り終えた時刻 (録画中なら nil)。
+type span struct {
+	networkID, sid int64
+	from           time.Time
+	until          *time.Time
+}
+
+// serve は、サービスの時間帯 s の過去ログを、過去ログ API から取って返す。サービスに実況のチャンネルがなければ、チャンネルを null にして返す。
+// 録画と、ライブラリのファイル (#1734) で共有する。logAttr は、ログに添える、何の過去ログかの属性。
+func (h *CommentsHandler) serve(w http.ResponseWriter, r *http.Request, s *span, logAttr slog.Attr) {
+	resp := &commentsResponse{Channel: nil, Origin: nil, Comments: []*commentJSON{}}
+	id, ok := h.table.Lookup(s.networkID, s.sid)
+	if !ok {
+		h.write(w, r, resp, s.until != nil)
+
+		return
+	}
+	resp.Channel = &channelJSON{ID: id}
+	from := s.from
 	resp.Origin = &from
 	// 過去ログ API は、終わりが未来の時刻だと取得できないので、録画中なら今までにする。
 	to := h.clock.Now()
-	if source.RecordedUntil != nil && source.RecordedUntil.Before(to) {
-		to = *source.RecordedUntil
+	if s.until != nil && s.until.Before(to) {
+		to = *s.until
 	}
 	// 録画を始めた直後は、時計のずれで終わりが始まりより前になることがある。過去ログ API はこれを拒むので、問い合わせない。
 	if !to.After(from) {
-		h.write(w, r, resp, source.RecordedUntil != nil)
+		h.write(w, r, resp, s.until != nil)
 
 		return
 	}
 	comments, err := h.client.Comments(r.Context(), id, from, to)
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "failed to fetch the jikkyo comments",
-			slog.String("recording_id", recordingID.String()), slog.String("channel", id), slog.Any("error", err))
+		h.logger.WarnContext(r.Context(), "failed to fetch the jikkyo comments", logAttr, slog.String("channel", id), slog.Any("error", err))
 		http.Error(w, "failed to fetch the jikkyo comments", http.StatusBadGateway)
 
 		return
@@ -144,7 +162,7 @@ func (h *CommentsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Time: comment.At.Sub(from).Seconds(), Mail: comment.Mail, Content: comment.Content, UserID: comment.UserID,
 		})
 	}
-	h.write(w, r, resp, source.RecordedUntil != nil)
+	h.write(w, r, resp, s.until != nil)
 }
 
 // allowed は、リクエストのユーザーが実況を使えるかどうかを返す (設計書 7.4)。

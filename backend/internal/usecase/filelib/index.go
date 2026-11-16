@@ -40,8 +40,13 @@ const (
 	probeLimit = 16 << 20
 )
 
+// sourceVersion は、source.json の版。読み取る項目を足したら上げ、前の版の記録のファイルは、索引を作り直して埋める。
+// 2 で、放送の情報 (Broadcast)、音声の構成、ドロップの集計を足した (#1734 の 2 段目)。
+const sourceVersion = 2
+
 // source は、索引を作った元のファイルの記録 (source.json)。
 type source struct {
+	Version    int    `json:"version"`
 	Library    string `json:"library"`
 	Path       string `json:"path"`
 	Size       int64  `json:"size"`
@@ -50,6 +55,67 @@ type source struct {
 	Complete bool `json:"complete"`
 	// Video は、映像の形式。読めなければ nil。
 	Video *ts.VideoFormat `json:"video"`
+	// Broadcast は、TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報。読めなければ nil。索引を作り始める前に書く。
+	Broadcast *Broadcast `json:"broadcast"`
+	// Audios は、放送中だった番組の音声の構成 (EPG と同じ形の JSON)。索引を作り終えたときに書く。読めなければ nil。
+	Audios json.RawMessage `json:"audios"`
+	// Quality は、ドロップなどの集計。索引を作り終えたときに書く。
+	Quality *Quality `json:"quality"`
+}
+
+// Broadcast は、ライブラリのファイルの、TS の中から読んだ放送の情報 (#1734)。録画の取り込み (設計書 6.5) と同じく読む。
+type Broadcast struct {
+	// NetworkID は、SDT[actual] の original_network_id。読めなければ nil。
+	NetworkID *uint16 `json:"networkId"`
+	// ServiceID は、映像を持つ最初のサービスのサービス ID。索引と配信 (tsreadex の -n -1) も、このサービスを使う。
+	ServiceID uint16 `json:"serviceId"`
+	// ServiceName は、SDT[actual] のサービス名。読めなければ空。
+	ServiceName string `json:"serviceName"`
+	// RecordedFrom と RecordedUntil は、頭で最初に読んだ TOT と、終わりで最後に読んだ TOT。読めなければ nil。
+	// 再生の 0 秒 (最初の I フレーム) を RecordedFrom とみなす。取り込んだ録画と同じく、TOT の間隔 (数秒) だけずれることがある。
+	RecordedFrom  *time.Time `json:"recordedFrom"`
+	RecordedUntil *time.Time `json:"recordedUntil"`
+	// Program は、録った範囲に最も長く重なる番組。読めなければ nil。
+	Program *Program `json:"program"`
+}
+
+// Program は、EIT[p/f] で読んだ番組 (fileimport.Event を、記録に置ける形にしたもの)。
+type Program struct {
+	EventID     uint16          `json:"eventId"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Extended    []*ExtendedItem `json:"extended"`
+	// Start と Duration は、番組の開始と長さ。未定なら nil。
+	Start    *time.Time     `json:"start"`
+	Duration *time.Duration `json:"duration"`
+}
+
+// ExtendedItem は、番組の詳細の 1 項目。
+type ExtendedItem struct {
+	Heading string `json:"heading"`
+	Text    string `json:"text"`
+}
+
+// newProgram は、fileimport.Event を Program にする。event が nil なら nil を返す。
+func newProgram(event *fileimport.Event) *Program {
+	if event == nil {
+		return nil
+	}
+	extended := make([]*ExtendedItem, 0, len(event.Extended))
+	for _, item := range event.Extended {
+		extended = append(extended, &ExtendedItem{Heading: item.Heading, Text: item.Text})
+	}
+
+	return &Program{
+		EventID: event.EventID, Name: event.Name, Description: event.Description, Extended: extended, Start: event.Start, Duration: event.Duration,
+	}
+}
+
+// Quality は、ライブラリのファイルのドロップなどの集計。録画の解析 (設計書 6.1) と同じく数える。
+type Quality struct {
+	Drops     int64 `json:"drops"`
+	Errors    int64 `json:"errors"`
+	Scrambled int64 `json:"scrambled"`
 }
 
 // Index は、ライブラリのファイルの索引。
@@ -60,6 +126,12 @@ type Index struct {
 	Complete bool
 	// Video は、映像の形式。まだ読んでいなければ nil。
 	Video *ts.VideoFormat
+	// Broadcast は、放送の情報。まだ読んでいないか、読めなければ nil。
+	Broadcast *Broadcast
+	// Audios は、音声の構成 (EPG と同じ形の JSON)。まだ読んでいないか、読めなければ nil。
+	Audios json.RawMessage
+	// Quality は、ドロップなどの集計。索引を作り終えるまでは nil。
+	Quality *Quality
 }
 
 // Indexer は、ライブラリのファイルの索引を、データディレクトリの kago.LibraryIndexDir で読み書きする (設計書 5.8)。
@@ -109,7 +181,7 @@ func (x *Indexer) Run(ctx context.Context) error {
 
 // Read は、大きさと更新日時が entry のファイル ref の索引を読む。索引がないか、ファイルが変わっていれば、空の索引を返す。
 func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
-	empty := &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: nil}
+	empty := &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: nil, Broadcast: nil, Audios: nil, Quality: nil}
 	src, err := x.readSource(ref)
 	if errors.Is(err, fs.ErrNotExist) {
 		return empty, nil
@@ -132,7 +204,7 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 		complete = err == nil
 	}
 	if errors.Is(err, fs.ErrNotExist) {
-		return &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: src.Video}, nil
+		return src.index([]ts.IndexEntry{}, false), nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to open the index: %w", err)
@@ -142,13 +214,13 @@ func (x *Indexer) Read(ref Ref, entry *medialib.Entry) (*Index, error) {
 	if err != nil {
 		// 作り始めたばかりで、まだヘッダーを書いていないこともある。
 		if !complete && errors.Is(err, ts.ErrInvalidIndex) {
-			return &Index{Entries: []ts.IndexEntry{}, Complete: false, Video: src.Video}, nil
+			return src.index([]ts.IndexEntry{}, false), nil
 		}
 
 		return nil, err
 	}
 
-	return &Index{Entries: entries, Complete: complete, Video: src.Video}, nil
+	return src.index(entries, complete), nil
 }
 
 // Ensure は、ファイル ref (大きさと更新日時は entry) の索引を作り終えていなければ、裏で作り始める。
@@ -168,7 +240,7 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 		return
 	}
 	if src, err := x.readSource(ref); err == nil && src.matches(ref, entry) {
-		if src.Complete {
+		if src.Complete && src.Version == sourceVersion {
 			return
 		}
 		if info, err := os.Stat(filepath.Join(x.dir(ref), partialIndexName)); err == nil && x.clock.Now().Sub(info.ModTime()) < staleBuild {
@@ -247,7 +319,10 @@ func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create the index directory: %w", err)
 	}
-	src := &source{Library: ref.Library, Path: ref.Path, Size: entry.Size, ModifiedAt: entry.ModifiedAt.UnixNano(), Complete: false, Video: video}
+	src := &source{
+		Version: sourceVersion, Library: ref.Library, Path: ref.Path, Size: entry.Size, ModifiedAt: entry.ModifiedAt.UnixNano(), Complete: false,
+		Video: video, Broadcast: x.probeBroadcast(ctx, ref, file, entry.Size), Audios: nil, Quality: nil,
+	}
 	// 先に作り終えた索引を消してから、作っている途中だと記録する。読む側は、記録を見てから索引を選ぶ。
 	if err := os.Remove(filepath.Join(dir, indexName)); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to remove the old index: %w", err)
@@ -294,8 +369,60 @@ func (x *Indexer) buildIndex(ctx context.Context, ref Ref, entry *medialib.Entry
 	if src.Video == nil {
 		src.Video = stats.Video
 	}
+	if err := src.count(stats); err != nil {
+		return err
+	}
 
 	return x.writeSource(dir, src)
+}
+
+// count は、索引を作り終えたときの統計から、ドロップなどの集計と、放送中だった番組の音声の構成を記録に置く。
+func (s *source) count(stats *ts.Stats) error {
+	s.Quality = &Quality{Drops: 0, Errors: 0, Scrambled: 0}
+	for _, pid := range stats.PIDs {
+		s.Quality.Drops += pid.Drops
+		s.Quality.Errors += pid.Errors
+		s.Quality.Scrambled += pid.Scrambled
+	}
+	if s.Broadcast == nil {
+		return nil
+	}
+	var eventID *uint16
+	if s.Broadcast.Program != nil {
+		eventID = &s.Broadcast.Program.EventID
+	}
+	audios := ts.PresentAudios(ts.MergeEvents(stats.Events), s.Broadcast.ServiceID, eventID)
+	if audios == nil {
+		return nil
+	}
+	encoded, err := ts.EncodeAudios(audios)
+	if err != nil {
+		return fmt.Errorf("failed to encode the audio components: %w", err)
+	}
+	s.Audios = encoded
+
+	return nil
+}
+
+// probeBroadcast は、ファイルの頭と終わりを読んで、放送の情報を返す。録画の取り込み (fileimport.ReadProbe) と同じく読み、
+// 映像を持つ最初のサービスと、録った範囲に最も長く重なる番組を選ぶ。読めなければ nil を返す。
+func (x *Indexer) probeBroadcast(ctx context.Context, ref Ref, file io.ReaderAt, size int64) *Broadcast {
+	probe, err := fileimport.ReadProbe(file, size)
+	if err != nil {
+		x.logger.WarnContext(ctx, "failed to read the broadcast of the library file",
+			slog.String("library", ref.Library), slog.String("path", ref.Path), slog.Any("error", err))
+
+		return nil
+	}
+	if len(probe.Services) == 0 {
+		return nil
+	}
+	service := probe.Services[0]
+
+	return &Broadcast{
+		NetworkID: probe.NetworkID, ServiceID: service.ServiceID, ServiceName: service.Name,
+		RecordedFrom: probe.RecordedFrom, RecordedUntil: probe.RecordedUntil, Program: newProgram(service.Program(probe.RecordedFrom, probe.RecordedUntil)),
+	}
 }
 
 // readSource は、ref の索引の元のファイルの記録を読む。
@@ -341,6 +468,11 @@ func (x *Indexer) writeSource(dir string, src *source) error {
 	}
 
 	return nil
+}
+
+// index は、記録と索引から Index を作る。
+func (s *source) index(entries []ts.IndexEntry, complete bool) *Index {
+	return &Index{Entries: entries, Complete: complete, Video: s.Video, Broadcast: s.Broadcast, Audios: s.Audios, Quality: s.Quality}
 }
 
 // matches は、記録が、大きさと更新日時が entry のファイル ref のものかどうかを返す。

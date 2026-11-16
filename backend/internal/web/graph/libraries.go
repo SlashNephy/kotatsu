@@ -11,10 +11,12 @@ import (
 	"github.com/SlashNephy/kotatsu/internal/domain"
 	"github.com/SlashNephy/kotatsu/internal/infra/medialib"
 	"github.com/SlashNephy/kotatsu/internal/lib/ts"
+	"github.com/SlashNephy/kotatsu/internal/query"
 	"github.com/SlashNephy/kotatsu/internal/usecase/fileimport"
 	"github.com/SlashNephy/kotatsu/internal/usecase/filelib"
 	"github.com/SlashNephy/kotatsu/internal/usecase/library"
 	"github.com/SlashNephy/kotatsu/internal/web/graph/model"
+	"github.com/SlashNephy/kotatsu/internal/web/jikkyoapi"
 )
 
 const (
@@ -23,6 +25,10 @@ const (
 	// libraryFileIDSeparator は、ライブラリのファイルのグローバル ID で、ファイルの ID (filelib.FileID) と、ライブラリの名前とパスを
 	// 符号化したもの (filelib.Ref.Encode) を区切る文字。どちらにも現れない。
 	libraryFileIDSeparator = "."
+	// libraryMediaPrefix は、ライブラリのファイルの実況の過去ログなどのパスの前置き。後ろに filelib.Ref.Encode と、ファイルの名前を付ける。
+	libraryMediaPrefix = "/internal/media/library/"
+	// serviceIDBase は、Mirakurun のサービス ID を組み立てる基数 (networkId × 100000 + serviceId)。
+	serviceIDBase = 100_000
 	// libraryStreamPrefix は、ライブラリのファイルの配信のパスの前置き。後ろに filelib.Ref.Encode を付ける。
 	libraryStreamPrefix = "/internal/streams/library/"
 )
@@ -147,12 +153,65 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 		watched = new(position.Milliseconds())
 	}
 	encoded := ref.Encode()
+	var broadcast *model.LibraryBroadcast
+	if b := file.Index.Broadcast; b != nil {
+		if broadcast, err = r.libraryBroadcast(ctx, b); err != nil {
+			return nil, err
+		}
+	}
+	audios := []*model.ProgramAudio{}
+	if len(file.Index.Audios) > 0 {
+		if audios, err = toProgramAudios(file.Index.Audios); err != nil {
+			return nil, fmt.Errorf("failed to decode the audio components of the library file: %w", err)
+		}
+	}
+	var quality *model.LibraryFileQuality
+	if q := file.Index.Quality; q != nil {
+		quality = &model.LibraryFileQuality{Drops: q.Drops, Errors: q.Errors, Scrambled: q.Scrambled}
+	}
 
 	return &model.LibraryFile{
+		Broadcast: broadcast, Audios: audios, Quality: quality, JikkyoCommentsURL: libraryMediaPrefix + encoded + "/" + jikkyoapi.CommentsFileName,
 		ID: GlobalID(libraryFileType, file.ID()+libraryFileIDSeparator+encoded), Library: toLibrary(file.Library), Path: ref.Path, Name: file.Entry.Name,
 		Size: file.Entry.Size, ModifiedAt: file.Entry.ModifiedAt, VideoFormat: libraryVideoFormat(video), Index: index,
 		WatchPositionMs: watched, StreamURL: libraryStreamPrefix + encoded, HlsURL: libraryStreamPrefix + encoded,
 	}, nil
+}
+
+// libraryBroadcast は、TS から読んだ放送の情報を、GraphQL の形にする。同じネットワークとサービス ID の Kotatsu のサービスがあれば添える。
+func (r *Resolver) libraryBroadcast(ctx context.Context, b *filelib.Broadcast) (*model.LibraryBroadcast, error) {
+	out := &model.LibraryBroadcast{
+		NetworkID: nil, ServiceID: int(b.ServiceID), ServiceName: b.ServiceName, Service: nil, JikkyoChannelID: nil,
+		RecordedFrom: b.RecordedFrom, RecordedUntil: b.RecordedUntil, Program: nil,
+	}
+	if b.NetworkID != nil {
+		out.NetworkID = new(int(*b.NetworkID))
+		rows, err := r.queries.ListGuideServices(ctx, query.ListGuideServicesParams{
+			IncludeHidden: true, MediaServiceTypes: []int64{}, IDs: []int64{int64(*b.NetworkID)*serviceIDBase + int64(b.ServiceID)},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to look up the service of the library file: %w", err)
+		}
+		if len(rows) > 0 {
+			out.Service = toService(&rows[0])
+		}
+		// 実況のチャンネルは、Kotatsu のサービスがなくても、ネットワークとサービス ID で引く。
+		out.JikkyoChannelID = r.jikkyoChannelID(ctx, int64(*b.NetworkID), int64(b.ServiceID))
+	}
+	if p := b.Program; p != nil {
+		extended := make([]*model.ExtendedItem, 0, len(p.Extended))
+		for _, item := range p.Extended {
+			extended = append(extended, &model.ExtendedItem{Heading: item.Heading, Text: item.Text})
+		}
+		out.Program = &model.LibraryProgram{
+			EventID: int(p.EventID), Name: p.Name, Description: p.Description, Extended: extended, StartAt: p.Start, EndAt: nil,
+		}
+		if p.Start != nil && p.Duration != nil {
+			out.Program.EndAt = new(p.Start.Add(*p.Duration))
+		}
+	}
+
+	return out, nil
 }
 
 // probeLibraryVideo は、索引の記録にまだ映像の形式がなければ、ファイルの頭から読む。読めなければ filelib.ErrNoVideo を返す。

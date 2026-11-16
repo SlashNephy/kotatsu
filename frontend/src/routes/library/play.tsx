@@ -1,7 +1,7 @@
 import type { PlayerState } from '@mpeg2toh264/player';
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { Captions, Keyboard, Share2 } from 'lucide-react';
+import { Captions, Keyboard, MessageSquareText, Share2 } from 'lucide-react';
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMergedRef } from '@mantine/hooks';
@@ -10,10 +10,30 @@ import { fetchQuery, graphql, useRelayEnvironment } from 'react-relay';
 import { useLazyLoadQuery } from '../../relay/useLazyLoadQuery';
 
 import { rememberReturnTo } from '../../auth/returnTo';
-import { ErrorBoundary, PageLoader, formatBytes, useDocumentTitle } from '../../futon';
+import {
+  ErrorBoundary,
+  PageLoader,
+  ProgramTitle,
+  formatBytes,
+  useDocumentTitle,
+} from '../../futon';
+import { useRecordedJikkyo } from '../../jikkyo/useRecordedJikkyo';
+import { CommentList } from '../../jikkyo/CommentList';
+import type { JikkyoComment } from '../../jikkyo/comments';
+import { countUntil, listedUntil } from '../../jikkyo/commentList';
+import { CommentOffsetSetting } from '../../jikkyo/CommentOffsetSetting';
+import { findPartMarkers } from '../../jikkyo/partMarkers';
+import { formatCommentOffset, useCommentOffsetCommands } from '../../jikkyo/commentOffset';
+import { isSurroundAudio, useVirtualSurround } from '../../yunomi/useVirtualSurround';
+import { useVisible } from '../../yunomi/useVisible';
 import { graphQLErrorDetails, isUnauthenticated } from '../../relay/environment';
 import { WatchPanel } from '../../yunomi/WatchPanel';
-import { WatchHeading, WatchLayout, watchCommentsHeight } from '../../yunomi/WatchLayout';
+import {
+  WatchDescription,
+  WatchHeading,
+  WatchLayout,
+  watchCommentsHeight,
+} from '../../yunomi/WatchLayout';
 import { useVolumeNormalizer } from '../../yunomi/volumeNormalize';
 import { useAudioDelayCommands, useAudioDelayer } from '../../yunomi/audioDelay';
 import { useSleepTimer } from '../../yunomi/sleepTimer';
@@ -21,9 +41,13 @@ import { noCrop, type Crop } from '../../yunomi/crop';
 import { CaptionHistory } from '../../yunomi/CaptionHistory';
 import { StreamInfo, useStreamMeter } from '../../yunomi/StreamInfo';
 import { useDRCSReplacements } from '../../yunomi/useDRCSReplacements';
-import { insertRecordedCaption, type CaptionEntry } from '../../yunomi/captionHistory';
+import {
+  insertRecordedCaption,
+  normalizeCaption,
+  type CaptionEntry,
+} from '../../yunomi/captionHistory';
 import { PipPlaceholder } from '../../yunomi/PipPlaceholder';
-import { formatDuration } from '../../yunomi/position';
+import { broadcastTime, formatClock, formatDuration } from '../../yunomi/position';
 import { useSeekableStream } from '../../yunomi/useSeekableStream';
 import { useFastForward } from '../../yunomi/fastForward';
 import {
@@ -34,6 +58,7 @@ import {
   SleepTimerSelect,
   PlaybackUnavailable,
   QualitySelect,
+  VirtualSurroundToggle,
 } from '../../yunomi/QualitySelect';
 import { hlsURL, toVideoFormat } from '../../yunomi/route';
 import { HlsPlayer } from '../../yunomi/HlsPlayer';
@@ -51,7 +76,12 @@ import { usePlayerContextMenu } from '../../yunomi/PlayerContextMenu';
 import { usePlayerGamepad } from '../../yunomi/gamepad';
 import { usePlayerMouse } from '../../yunomi/mouseActions';
 import type { PlayerCommands } from '../../yunomi/commands';
-import { openPictureInPicture, PipButton } from '../../yunomi/PlayerTools';
+import {
+  CaptureButton,
+  openPictureInPicture,
+  PipButton,
+  useCapture,
+} from '../../yunomi/PlayerTools';
 import {
   PlayerAlert,
   BigPlayButton,
@@ -107,6 +137,9 @@ import type { playLibraryFileQuery } from './__generated__/playLibraryFileQuery.
 
 // volumeStep は、↑ と ↓ で音量を上げ下げする幅。
 const volumeStep = 0.05;
+
+// noGaps は、ライブラリのファイルの途切れた区間。ファイル 1 本を流すので、録画のセグメントの間のような区間はない。
+const noGaps: readonly { from: string; to: string }[] = [];
 
 // PlaySearch は、再生の画面の URL のクエリ。library と path は再生するファイル、t は再生を始める位置 (ファイルの始まりからの秒)。
 type PlaySearch = { library: string; path: string; t?: number };
@@ -212,6 +245,36 @@ const playQuery = graphql`
       library {
         name
       }
+      jikkyoCommentsUrl
+      broadcast {
+        serviceName
+        jikkyoChannelId
+        recordedFrom
+        service {
+          name
+          logoUrl
+        }
+        program {
+          name
+          description
+          extended {
+            heading
+            text
+          }
+          startAt
+          endAt
+        }
+      }
+      audios {
+        componentType
+        languages
+        samplingRate
+      }
+      quality {
+        drops
+        errors
+        scrambled
+      }
       index {
         complete
         writing
@@ -271,6 +334,10 @@ function Player({
   const {
     captionsEnabled: captions,
     setCaptionsEnabled: setCaptions,
+    jikkyoEnabled,
+    setJikkyoEnabled,
+    comments: commentSettings,
+    muteUser,
     captions: captionSettings,
   } = usePlayerSettings();
   // シークの索引を作り終えるまで、読み直して、シークできる所と長さを伸ばす。
@@ -326,10 +393,62 @@ function Player({
   const [handover, setHandover] = useState(false);
   // 再生位置を、録画と同じく、ユーザーごとに保存する。
   useLibraryPositionSaver(file.id, currentPosition, !videoState.paused);
+  // broadcast は、TS の中の SDT、EIT[p/f]、TOT から読んだ放送の情報 (設計書 5.8)。再生の 0 秒を、録り始め (recordedFrom) の放送時刻とみなす。
+  // ファイルは 1 本なので、途切れた区間は数えない。
+  const broadcast = file.broadcast ?? null;
+  const recordedFrom = broadcast?.recordedFrom ?? null;
+  const clockAt = (seconds: number): number | null =>
+    recordedFrom == null ? null : broadcastTime(recordedFrom, noGaps, seconds);
+  const serviceName = broadcast?.service?.name ?? (broadcast?.serviceName || file.library.name);
+  const program = broadcast?.program ?? null;
+  // 画質を変えると video の要素を作り直すので、見えているかは、変わらない外側の要素で調べる。
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const visible = useVisible(frameRef) || pip.container !== null;
+  // channelId は、実況のチャンネルの ID。Kotatsu にない局でも、ネットワークとサービス ID で引く (設計書 7.4)。
+  const channelId = broadcast?.jikkyoChannelId ?? null;
+  const jikkyo = useRecordedJikkyo(
+    channelId !== null && jikkyoEnabled ? file.jikkyoCommentsUrl : null,
+    currentPosition,
+    visible,
+    null,
+    commentSettings,
+  );
+  // listedCount は、再生位置までに流れたコメントの数。一覧は、この数が変わったときだけ作り直す (JikkyoRows)。
+  const listedCount =
+    jikkyo.comments === null ? 0 : countUntil(jikkyo.comments, position - jikkyo.offset);
+  // partBands は、実況のコメントから見つけた番組の区切りの印 (#1358)。コメントの位置をずらしたら、印も同じだけ動かす。
+  const partBands = findPartMarkers(jikkyo.ownComments ?? []).map((marker) => {
+    const at = Math.max(marker.time + jikkyo.offset, 0);
+    const part = t(`player.partMarker.${marker.part}`);
+
+    return {
+      from: at,
+      to: at,
+      label: marker.noCmBefore ? t('player.partMarkerNoCm', { part }) : part,
+      kind: 'part' as const,
+    };
+  });
+  const jikkyoLabel =
+    jikkyo.state === null
+      ? t('jikkyo.toggle')
+      : t('jikkyo.toggleWith', {
+          state:
+            jikkyo.state.kind === 'loading'
+              ? t('jikkyo.kakologLoading')
+              : jikkyo.state.kind === 'error'
+                ? t('jikkyo.kakologError')
+                : jikkyo.state.count === 0
+                  ? t('jikkyo.kakologEmpty')
+                  : t('jikkyo.kakologLoaded', { count: jikkyo.state.count }),
+        });
 
   const streamMeter = useStreamMeter(quality);
   useVolumeNormalizer(video);
   useAudioDelayer(video);
+  // 仮想サラウンド (#454)。5.1ch の番組を、ブラウザの中での変換で見ているときだけ使える。
+  const audios = file.audios.length === 0 ? null : file.audios;
+  const surroundAvailable = route.kind === 'convert' && isSurroundAudio(audios);
+  useVirtualSurround(video, surroundAvailable);
   const [crop, setCrop] = useState<Crop>(noCrop);
   const shownCrop = useScreenCrop(crop, fullscreen.active);
   // restartAt は、指定の位置から読み直す。
@@ -363,7 +482,11 @@ function Player({
   // captionEntries は、字幕の履歴 (#450)。字幕が出たときの再生位置で並べ、行を押すとその位置へ移る。
   const [captionEntries, setCaptionEntries] = useState<readonly CaptionEntry[]>([]);
   const drcs = useDRCSReplacements();
+  // currentCaption は、今出ている字幕の文。キャプチャに書き込む (#458)。
+  const currentCaption = useRef<string | null>(null);
   const onCaptionText = (text: string) => {
+    const normalized = normalizeCaption(text);
+    currentCaption.current = normalized === '' ? null : normalized;
     const at = currentPosition();
     setCaptionEntries((list) => insertRecordedCaption(list, at, text));
   };
@@ -384,8 +507,8 @@ function Player({
     restartAt(positionRef.current);
     setQuality(next);
   };
-  // 音声は、経路ごとのメニューで選ぶ。ファイルの音声の構成は分からないので、プレイヤーに任せる。
-  const audio = usePlayerAudio(route, null, () => restartAt(positionRef.current));
+  // 音声は、経路ごとのメニューで選ぶ。音声の構成は、索引を作るときに TS の EIT[p/f] から読む。読めなければプレイヤーに任せる。
+  const audio = usePlayerAudio(route, audios, () => restartAt(positionRef.current));
   const [rate, setRate] = useState(1);
   const fastForward = useFastForward(rate, { growing: false, position, duration });
   useEffect(() => {
@@ -411,6 +534,21 @@ function Player({
   const shownFlash = fastForward.active
     ? t('player.flash.fastForward', { rate: fastForward.playbackRate })
     : flash;
+  // キャプチャ (#908)。放送時刻は、TS の TOT から読んだ録り始めから数える。分からなければ、撮った時刻にする。
+  const capture = useCapture({
+    crop,
+    frameRef: playerBoxRef,
+    videoRef,
+    serviceName,
+    programName: program?.name ?? file.name,
+    captureTime: () => clockAt(currentPosition()) ?? Date.now(),
+    caption: () => currentCaption.current,
+  });
+  const saveCapture = async () => {
+    if ((await capture.capture('save')) === 'saved') {
+      showFlash(t('player.flash.captured'));
+    }
+  };
   const doubleTap = useDoubleTap((side) => {
     if (side === 'center') {
       return;
@@ -436,8 +574,15 @@ function Player({
       to: '/library',
       search: { library, ...(parentPath(path) === '' ? {} : { path: parentPath(path) }) },
     });
+  // commentOffsetCommands は、実況のコメントの位置 (#1357) の操作。変えたら、ずらした量を映像の上に短く出す。
+  const commentOffsetCommands = useCommentOffsetCommands((ms) =>
+    showFlash(t('player.flash.commentOffset', { seconds: formatCommentOffset(ms) })),
+  );
   const commands: PlayerCommands = {
     ...audioDelayCommands,
+    ...(channelId === null || !jikkyoEnabled ? {} : commentOffsetCommands),
+    ...(channelId === null ? {} : { toggleJikkyo: () => setJikkyoEnabled(!jikkyoEnabled) }),
+    capture: () => void saveCapture(),
     play: () => void videoRef.current?.play().catch(() => {}),
     pause: () => videoRef.current?.pause(),
     togglePlay,
@@ -529,7 +674,11 @@ function Player({
       showFlash(t('player.flash.brightness', { percent: Math.round(next * 100) }));
     },
   });
-  const seekLabel = (value: number) => formatDuration(value);
+  const seekLabel = (value: number) => {
+    const at = clockAt(value);
+
+    return at === null ? formatDuration(value) : `${formatDuration(value)} (${formatClock(at)})`;
+  };
   const scrub = useSlideSeek(playerBoxRef, {
     enabled: limit > 0,
     range: () => ({ position: currentPosition(), duration }),
@@ -546,8 +695,8 @@ function Player({
   const player = {
     kind: 'RECORDING',
     target: file.id,
-    serviceName: file.library.name,
-    program: { id: file.id, name: file.name },
+    serviceName,
+    program: { id: file.id, name: program?.name ?? file.name },
     artwork: null,
     paused: videoState.paused,
     position,
@@ -604,11 +753,13 @@ function Player({
     <PlayerAlert title={error} action={{ label: t('player.retry'), onClick: retry }} />
   );
   const shown = seeking ?? position;
-  // bands は、索引をまだ作っている所。シークできないので、シークバーに帯で示す。
-  const bands =
-    indexing && duration > limit
+  // bands は、索引をまだ作っている所 (シークできないので帯で示す) と、実況のコメントから見つけた番組の区切りの印。
+  const bands = [
+    ...(indexing && duration > limit
       ? [{ from: limit, to: duration, label: t('library.indexing') }]
-      : [];
+      : []),
+    ...partBands,
+  ];
 
   const controlBar = (
     <PlayerControls
@@ -637,7 +788,9 @@ function Player({
       status={
         <PositionStatus
           position={formatDuration(shown)}
-          rest={duration > 0 ? ` / ${formatDuration(duration)}` : ''}
+          rest={`${duration > 0 ? ` / ${formatDuration(duration)}` : ''}${
+            clockAt(shown) === null ? '' : ` · ${formatClock(clockAt(shown) ?? 0)}`
+          }`}
         />
       }
       end={
@@ -649,6 +802,15 @@ function Player({
             icon={Captions}
             active={captions}
           />
+          {channelId !== null && (
+            <CommandButton
+              commands={commands}
+              command="toggleJikkyo"
+              label={jikkyoLabel}
+              icon={MessageSquareText}
+              active={jikkyoEnabled}
+            />
+          )}
           <SettingsButton>
             <QualitySelect choices={choices} quality={quality} onChange={changeQuality} />
             {audio.menu}
@@ -656,8 +818,12 @@ function Player({
             <CropSelect value={crop} onChange={setCrop} />
             <NormalizeVolumeToggle />
             <AudioDelaySetting />
+            {channelId !== null && jikkyoEnabled && <CommentOffsetSetting />}
             <SleepTimerSelect timer={sleep} />
+            {surroundAvailable && <VirtualSurroundToggle />}
           </SettingsButton>
+          {/* 幅 375px ほどのスマートフォンでは、15 秒のシークのボタンと再生位置を収めるため、キャプチャのボタンを外す。 */}
+          <CaptureButton capture={capture} optional="compact" />
           <CommandButton
             commands={commands}
             command="showShortcuts"
@@ -679,6 +845,7 @@ function Player({
   );
   const overlay = (
     <>
+      {jikkyo.overlay}
       {shownFlash !== null && <PlayerFlash>{shownFlash}</PlayerFlash>}
       {scrub !== null && <ScrubBubble seconds={scrub} label={seekLabel(scrub)} previewUrl={null} />}
       {autoplay.blocked && <BigPlayButton onPlay={autoplay.play} />}
@@ -770,17 +937,23 @@ function Player({
       player={
         <Stack gap="xs">
           <PlaybackUnavailable route={route} />
-          <div>{pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}</div>
+          <div ref={frameRef}>
+            {pip.container === null ? playerBox : <PipPlaceholder onBack={pip.close} />}
+          </div>
           {pip.container !== null && createPortal(playerBox, pip.container)}
         </Stack>
       }
       info={
         <>
           <WatchHeading
-            title={file.name}
-            serviceName={file.library.name}
-            serviceLogoUrl={null}
-            time={null}
+            title={program === null ? file.name : <ProgramTitle name={program.name} />}
+            serviceName={serviceName}
+            serviceLogoUrl={broadcast?.service?.logoUrl ?? null}
+            time={
+              program?.startAt != null && program.endAt != null
+                ? { startAt: program.startAt, endAt: program.endAt }
+                : null
+            }
             actions={
               <Button
                 variant="default"
@@ -792,6 +965,9 @@ function Player({
               </Button>
             }
           />
+          {program !== null && (
+            <WatchDescription text={program.description} extended={program.extended} />
+          )}
           <Text size="sm" c="dimmed">
             {path} · {formatBytes(Number(file.size))}
           </Text>
@@ -821,13 +997,36 @@ function Player({
         <WatchPanel
           label={t('player.sidePanel')}
           tabs={[
+            // 実況の過去ログがあれば、右の列で字幕の履歴と切り替えて出す。
+            ...(jikkyo.comments !== null && jikkyo.comments.length > 0
+              ? [
+                  {
+                    value: 'jikkyo',
+                    label: t('jikkyo.toggle'),
+                    content: (
+                      <JikkyoRows
+                        comments={jikkyo.comments}
+                        count={listedCount}
+                        offset={jikkyo.offset}
+                        recordedFrom={recordedFrom}
+                        frozen={fullscreen.active}
+                        onMuteUser={muteUser}
+                      />
+                    ),
+                  },
+                ]
+              : []),
             {
               value: 'captions',
               label: t('captionHistory.tab'),
               content: (
                 <CaptionHistory
                   entries={captionEntries}
-                  label={(entry) => formatDuration(entry.at)}
+                  label={(entry) => {
+                    const at = clockAt(entry.at);
+
+                    return at === null ? formatDuration(entry.at) : formatClock(at);
+                  }}
                   onSelect={(entry) => seek(entry.at)}
                   canRegisterDRCS={drcs.canRegister}
                   height={watchCommentsHeight}
@@ -843,7 +1042,16 @@ function Player({
                   video={video}
                   quality={quality}
                   kind={route.kind === 'convert' || route.kind === 'kyusu' ? route.kind : null}
-                  audios={null}
+                  audios={audios}
+                  transport={
+                    file.quality == null
+                      ? null
+                      : {
+                          dropped: Number(file.quality.drops),
+                          errors: Number(file.quality.errors),
+                          scrambled: Number(file.quality.scrambled),
+                        }
+                  }
                   average={null}
                   height={watchCommentsHeight}
                 />
@@ -853,5 +1061,41 @@ function Player({
         />
       }
     />
+  );
+}
+
+// JikkyoRows は、実況の過去ログのうち、再生位置までに流れた count 件の一覧 (#489)。時刻は、録り始め (recordedFrom) からの放送時刻で出す。
+// 再生位置は 1 秒に何度も変わるので、流れたコメントの数が変わったときだけ作り直されるよう、部品に分けて React Compiler に覚えさせる。
+function JikkyoRows({
+  comments,
+  count,
+  offset,
+  recordedFrom,
+  frozen,
+  onMuteUser,
+}: {
+  comments: readonly JikkyoComment[];
+  count: number;
+  offset: number;
+  recordedFrom: string | null;
+  frozen: boolean;
+  onMuteUser: (userId: string) => void;
+}) {
+  const rows = listedUntil(comments, count).map(({ index, comment }) => {
+    const seconds = comment.time + offset;
+
+    return {
+      key: index,
+      label:
+        recordedFrom == null
+          ? formatDuration(seconds)
+          : formatClock(broadcastTime(recordedFrom, noGaps, seconds)),
+      content: comment.content,
+      ...(comment.userId === undefined ? {} : { userId: comment.userId }),
+    };
+  });
+
+  return (
+    <CommentList rows={rows} frozen={frozen} onMuteUser={onMuteUser} height={watchCommentsHeight} />
   );
 }
