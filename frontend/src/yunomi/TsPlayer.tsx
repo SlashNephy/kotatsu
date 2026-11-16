@@ -200,6 +200,11 @@ function sourcePicture(
         : !yadif.doubleRate && yadif.interpolator?.wants('frame') === true),
     // 拡大して描いている大きさ (#1654)。設定を切っている間と、元の大きさ以下に映している間は null。
     upscaled: yadif !== null && yadif.scaler === upscaler ? upscaler.output() : null,
+    // 拡大を入れているのに拡大していないとき (映す大きさが元の大きさ以下) は、映す大きさを添えて、理由を分かるようにする。
+    notUpscaled:
+      yadif !== null && yadif.scaler === upscaler && upscaler.output() === null
+        ? upscaler.shown()
+        : null,
   };
 }
 

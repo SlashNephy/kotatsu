@@ -1459,6 +1459,7 @@
       "fieldRateDropped": "{{picture}} (shown per frame: the display could not keep up)",
       "interpolated": "{{label}} (frames interpolated)",
       "upscaled": "{{label}} (upscaled to {{width}}×{{height}})",
+      "notUpscaled": "{{label}} (not upscaled: shown at {{width}}×{{height}}, no larger than the source)",
       "playing": "Playing video",
       "frameRate": "Frame rate",
       "audio": "Broadcast audio",

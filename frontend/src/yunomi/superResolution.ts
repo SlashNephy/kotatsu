@@ -157,6 +157,9 @@ function maxDimension(gl: WebGL2RenderingContext): number {
 export type YadifUpscaler = PictureScaler & {
   // output は、最後に拡大して描いた大きさ。拡大していなければ null。
   output(): Size | null;
+  // shown は、最後に大きさを決めたときの、映す大きさ (端末の画素、切り抜きの拡大率を掛けたもの)。
+  // 元の大きさ以下に映していて拡大しないときに、その理由として見せる。決めていなければ null。
+  shown(): Size | null;
   destroy(): void;
 };
 
@@ -180,6 +183,7 @@ export function createYadifUpscaler({
   let upscaler: Upscaler | null = null;
   let broken = false;
   let output: Size | null = null;
+  let shown: Size | null = null;
 
   const fail = (error: unknown) => {
     broken = true;
@@ -199,10 +203,12 @@ export function createYadifUpscaler({
         return null;
       }
       try {
+        const scale = zoom();
+        shown = { width: Math.round(boxWidth * scale.x), height: Math.round(boxHeight * scale.y) };
         const size = upscaleSize(
           { width, height },
           { width: boxWidth, height: boxHeight },
-          zoom(),
+          scale,
           maxDimension(gl),
         );
         if (size === null) {
@@ -247,6 +253,9 @@ export function createYadifUpscaler({
     output() {
       return output;
     },
+    shown() {
+      return shown;
+    },
     destroy() {
       try {
         upscaler?.destroy();
@@ -256,6 +265,7 @@ export function createYadifUpscaler({
       upscaler = null;
       context = null;
       output = null;
+      shown = null;
     },
   };
 }

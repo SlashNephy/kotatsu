@@ -221,6 +221,9 @@ export type SourcePicture = {
   interpolated: boolean;
   // upscaled は、yadif が解除したコマを拡大して描いている大きさ (#1654)。拡大していなければ null。
   upscaled: { width: number; height: number } | null;
+  // notUpscaled は、拡大を入れているのに、映す大きさが元の大きさ以下なので拡大していないときの、映す大きさ (端末の画素)。
+  // 設定を切っている間と、拡大している間は null。
+  notUpscaled: { width: number; height: number } | null;
 };
 
 // EncodedStream は、kyusu の経路で、hls.js が読んでいる画質。

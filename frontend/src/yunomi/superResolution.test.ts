@@ -188,6 +188,19 @@ describe('createYadifUpscaler', () => {
     expect(made.draw).toHaveBeenLastCalledWith(texture, false, 1440, 1080, 3840, 2160, 0);
   });
 
+  test('映す大きさは、切り抜きの拡大率を掛けて覚え、元の大きさ以下で拡大しないときの理由に使う', () => {
+    let zoom = { x: 1, y: 1 };
+    const upscaler = createYadifUpscaler({ zoom: () => zoom, create: fakeUpscaler });
+    const gl = fakeContext();
+
+    expect(upscaler.shown()).toBeNull();
+    expect(upscaler.size(gl, 1440, 1080, 1422, 800)).toBeNull();
+    expect(upscaler.shown()).toEqual({ width: 1422, height: 800 });
+    zoom = { x: 1.5, y: 1.5 };
+    expect(upscaler.size(gl, 1440, 1080, 1422, 800)).not.toBeNull();
+    expect(upscaler.shown()).toEqual({ width: 2133, height: 1200 });
+  });
+
   test('コンテキストを失っていれば (上限が読めなければ)、拡大しない', () => {
     const lost = {
       getParameter: () => null,

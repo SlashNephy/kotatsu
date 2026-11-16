@@ -1390,6 +1390,7 @@
       "fieldRateDropped": "{{picture}}（表示が追いつかないため、コマごとに表示）",
       "interpolated": "{{label}}（コマを補間）",
       "upscaled": "{{label}}（{{width}}×{{height}}に拡大）",
+      "notUpscaled": "{{label}}（映す大きさ {{width}}×{{height}} が元の大きさ以下なので拡大しない）",
       "playing": "再生している映像",
       "frameRate": "フレームレート",
       "audio": "放送の音声",
