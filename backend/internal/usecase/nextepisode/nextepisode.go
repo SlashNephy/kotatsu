@@ -31,11 +31,13 @@ type Broadcast struct {
 	ServiceID int64
 	EventID   int64
 	StartAt   time.Time
-	// Number は、放送の話数。シリーズ名で探したときは番組名などから読んだ話数、TID で探したときはしょぼいカレンダーの話数。
+	// Number は、放送の話数。シリーズ名で探したときは番組名などから読んだ話数、TID で探したときはしょぼいカレンダーの話数、
+	// TMDb の作品で探したときは TMDb の話の番号。
 	Number float64
 }
 
-// Key は、続きの放送を探す鍵。強い順に、しょぼいカレンダーの TID と話数、番組名から読んだシリーズ名と話数を使う。
+// Key は、続きの放送を探す鍵。強い順に、しょぼいカレンダーの TID と話数、番組名から読んだシリーズ名と話数、
+// TMDb の作品とシーズンと話の番号の、どれか 1 つを使う。
 type Key struct {
 	// TID と Count は、録画が 1 つの話に結びついたときの、しょぼいカレンダーの作品と話数。結びついていなければ TID は 0。
 	TID   int32
@@ -43,23 +45,38 @@ type Key struct {
 	// Series と Number は、回の読み方 (設計書 4.4) で読んだシリーズ名と話数。
 	Series string
 	Number int
+	// Drama は、録画が結びついた TMDb の作品とシーズンと話の番号 (設計書 3.9)。TID でもシリーズ名でも探せないときだけ使う。
+	Drama *Drama
 }
 
-// KeyOf は、録画の回を読む元 src から、続きの放送を探す鍵を返す。シリーズも話数も読めなければ (ニュースや帯番組など) nil を返す。
+// Drama は、録画が結びついた TMDb の作品とシーズンと話の番号。
+type Drama struct {
+	SeriesID int32
+	Season   int32
+	Episode  int32
+}
+
+// KeyOf は、録画の回を読む元 src と、録画が結びついた TMDb の話 drama (なければ nil) から、続きの放送を探す鍵を返す。
+// シリーズも話数も読めなければ (ニュースや帯番組など) nil を返す。
 //
 // 録画がしょぼいカレンダーの 1 つの話に結びついていれば、TID と話数で探す。番組名の話数と数え方が違うことがあるので、
 // しょぼいカレンダーの話数は、しょぼいカレンダーの話数とだけ比べる。結びついていなければ、シリーズ名の完全一致と話数で探す。
 // シリーズ名は、前の回を録らない設定 (#1499) と同じく、SameSeries のように緩めない。局ごとの飾りの違いで、別の期や編の回を出さないためである。
-func KeyOf(src *episode.Source) *Key {
+// 番組名からシリーズ名か話数を読めなければ、TMDb の作品とシーズンと話の番号で探す (ドラマ)。TMDb の話の番号は、TMDb の話の番号とだけ比べる。
+// 特別編 (シーズン 0) の話は、放送の順に番号が付いていないので、探さない。
+func KeyOf(src *episode.Source, drama *Drama) *Key {
 	if src.Anime != nil && src.Anime.TID > 0 && src.Anime.Count > 0 {
-		return &Key{TID: src.Anime.TID, Count: src.Anime.Count, Series: "", Number: 0}
+		return &Key{TID: src.Anime.TID, Count: src.Anime.Count, Series: "", Number: 0, Drama: nil}
 	}
 	ep := episode.Parse(src)
-	if ep.Series == "" || ep.Number <= 0 {
-		return nil
+	if ep.Series != "" && ep.Number > 0 {
+		return &Key{TID: 0, Count: 0, Series: ep.Series, Number: ep.Number, Drama: nil}
+	}
+	if drama != nil && drama.SeriesID > 0 && drama.Season > 0 && drama.Episode > 0 {
+		return &Key{TID: 0, Count: 0, Series: "", Number: 0, Drama: new(*drama)}
 	}
 
-	return &Key{TID: 0, Count: 0, Series: ep.Series, Number: ep.Number}
+	return nil
 }
 
 // Candidate は、続きの放送の候補。DB から読んだ番組。
@@ -143,7 +160,7 @@ func Find(ctx context.Context, db sqlc.DBTX, recordingID uuid.UUID, now time.Tim
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the recording: %w", err)
 	}
-	key := KeyOf(sourceOf(&row))
+	key := KeyOf(sourceOf(&row), dramaOf(&row))
 	if key == nil {
 		return []*Broadcast{}, nil
 	}
@@ -182,6 +199,15 @@ func sourceOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *episode.Source {
 	return src
 }
 
+// dramaOf は、録画が結びついた TMDb の話を返す。話に結びついていなければ nil を返す。
+func dramaOf(row *sqlc.GetRecordingNextEpisodeSourceRow) *Drama {
+	if row.TmdbSeriesID == nil || row.TmdbSeasonNumber == nil || row.TmdbEpisodeNumber == nil {
+		return nil
+	}
+
+	return &Drama{SeriesID: *row.TmdbSeriesID, Season: *row.TmdbSeasonNumber, Episode: *row.TmdbEpisodeNumber}
+}
+
 // listCandidates は、鍵 key の続きの放送の候補と、録画履歴にある録った回の話数を返す。
 func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Time) ([]*Candidate, map[float64]bool, error) {
 	candidates := []*Candidate{}
@@ -208,6 +234,9 @@ func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Tim
 		}
 
 		return candidates, recorded, nil
+	}
+	if key.Drama != nil {
+		return listDramaCandidates(ctx, q, key.Drama, now)
 	}
 
 	rows, err := q.ListSeriesNextPrograms(ctx, sqlc.ListSeriesNextProgramsParams{
@@ -236,6 +265,67 @@ func listCandidates(ctx context.Context, q *sqlc.Queries, key *Key, now time.Tim
 	}
 
 	return candidates, recorded, nil
+}
+
+// listDramaCandidates は、TMDb の作品のシーズン drama の続きの放送の候補と、録画履歴にある録った話の番号を返す。
+// 今のシーズンの後の話がこれから放送されなければ、次のシーズンの第 1 話の放送を候補にする。今のシーズンの話が残っているのに
+// 次のシーズンを出すと、どれが続きか紛らわしいからである。予約や録画済みで外れる話も、放送されるので今のシーズンに残っているとみなす。
+func listDramaCandidates(ctx context.Context, q *sqlc.Queries, drama *Drama, now time.Time) ([]*Candidate, map[float64]bool, error) {
+	season := drama.Season
+	candidates, err := listDramaPrograms(ctx, q, drama.SeriesID, season, drama.Episode, now)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(candidates) == 0 {
+		season = nextSeason(drama.Season)
+		next, err := listDramaPrograms(ctx, q, drama.SeriesID, season, 0, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		candidates = firstEpisodes(next)
+	}
+	episodes, err := q.ListRecordedDramaEpisodes(ctx, sqlc.ListRecordedDramaEpisodesParams{
+		TmdbSeriesID: drama.SeriesID, SeasonNumber: season,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list the recorded episodes of the drama: %w", err)
+	}
+	recorded := make(map[float64]bool, len(episodes))
+	for _, e := range episodes {
+		recorded[e] = true
+	}
+
+	return candidates, recorded, nil
+}
+
+// listDramaPrograms は、TMDb の作品 seriesID のシーズン season の、話の番号が episode より大きい話の、now から Horizon までに始まる放送を返す。
+func listDramaPrograms(ctx context.Context, q *sqlc.Queries, seriesID, season, episode int32, now time.Time) ([]*Candidate, error) {
+	rows, err := q.ListDramaNextPrograms(ctx, sqlc.ListDramaNextProgramsParams{
+		TmdbSeriesID: seriesID, SeasonNumber: season, EpisodeNumber: episode,
+		Since: now, Until: now.Add(Horizon), MaxRows: maxCandidates,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list the next programs of the drama: %w", err)
+	}
+	candidates := make([]*Candidate, 0, len(rows))
+	for i := range rows {
+		candidates = append(candidates, &Candidate{
+			ServiceID: rows[i].ServiceID, EventID: rows[i].EventID, StartAt: rows[i].StartAt, Number: rows[i].EpisodeNumber,
+			RelatedItems: rows[i].RelatedItems,
+		})
+	}
+
+	return candidates, nil
+}
+
+// nextSeason は、シーズン season の次のシーズンの番号。
+func nextSeason(season int32) int32 {
+	return season + 1
+}
+
+// firstEpisodes は、候補 candidates のうち、第 1 話の放送だけを返す。
+func firstEpisodes(candidates []*Candidate) []*Candidate {
+	return slices.DeleteFunc(candidates, func(c *Candidate) bool { return c.Number != 1 })
 }
 
 // reservedPrograms は、候補の番組と、同じイベントを共有する番組のうち、予約のあるものを返す。無効にした予約も含める。

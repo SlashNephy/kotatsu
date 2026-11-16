@@ -369,7 +369,8 @@ type Querier interface {
 	// since より前に書いたもの (落ちた mikan の録画) も、古い様子を今の値として出さないよう、返さない。
 	GetRecordingLiveStats(ctx context.Context, arg GetRecordingLiveStatsParams) (RecordingLiveStat, error)
 	// 録画の続きの放送 (#1564) を探すため、録画の回を読む元を返す。番組名、概要、詳細と、番組 (番組表かアーカイブ) の
-	// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数。録画履歴に写すもの (設計書 4.4) と揃える。
+	// シリーズの記述子の話数と、録画が 1 つの話 (1 話分) に結びついたときの TID と話数と、録画が結びついた TMDb の作品とシーズンと話の番号。
+	// 録画履歴に写すもの (設計書 4.4) と揃える。
 	GetRecordingNextEpisodeSource(ctx context.Context, id uuid.UUID) (GetRecordingNextEpisodeSourceRow, error)
 	GetRecordingNicologPath(ctx context.Context, recordingID uuid.UUID) (*string, error)
 	GetRecordingProgram(ctx context.Context, id uuid.UUID) (GetRecordingProgramRow, error)
@@ -506,6 +507,7 @@ type Querier interface {
 	// 同じ回を束ねる (#1498) ときに回を読めるよう、概要と、番組のシリーズの記述子の話数と、1 つの話に結びついたときの TID と話数も写す。
 	// 解析し直してスクランブルの警告が変わったときに直せるよう、録画も持つ (#1517)。
 	// series は、録画の番組名から読んだシリーズ名。前の回を録らない (#1499) ときに、シリーズ名で引くのに使う。
+	// ドラマの続きの放送 (#1564) で録った話を外せるよう、録画が結びついた TMDb の作品とシーズンと話の番号も写す。
 	InsertRecordingHistoryFromRecording(ctx context.Context, arg InsertRecordingHistoryFromRecordingParams) error
 	InsertRecordingTag(ctx context.Context, arg InsertRecordingTagParams) error
 	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
@@ -656,6 +658,12 @@ type Querier interface {
 	// すべてのファイルがこのインスタンスにマウントされたプール mounted にあるもの。古いほうから skip 件を飛ばす。
 	// プールにあった TS を取り込んだファイル (external) は、録画を消しても残すので、それしか持たない録画は、消しても空かない (#1734)。
 	ListDeletableRecordings(ctx context.Context, arg ListDeletableRecordingsParams) ([]ListDeletableRecordingsRow, error)
+	// TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた番組のうち、話の番号が episode_number より大きく、
+	// since から until までに始まる、終了時刻の決まった番組を返す (#1564)。
+	ListDramaNextPrograms(ctx context.Context, arg ListDramaNextProgramsParams) ([]ListDramaNextProgramsRow, error)
+	// TMDb の作品 series_ids[i] のシーズン seasons[i] ごとに、話の番号が episodes[i] より大きく、since から until までに始まる、
+	// 終了時刻の決まった番組を、放送の早い順に max_rows 件まで返す (#1564)。ListDramaNextPrograms をまとめて引く。
+	ListDramaNextProgramsBatch(ctx context.Context, arg ListDramaNextProgramsBatchParams) ([]ListDramaNextProgramsBatchRow, error)
 	// サービス service_ids の、from から to までと放送時間が重なる、ドラマ (最初のジャンルの大分類が 0x3) の番組を返す。
 	// ドラマのジャンルを 2 つ目以降に持つ番組 (情報番組やバラエティで、ドラマの宣伝をするものなど) は照合しない。
 	// service_ids が NULL なら、すべてのサービスの番組を返す。問い合わせの上限で区切っても、近い放送から照合するよう、開始時刻の順に並べる。
@@ -775,6 +783,11 @@ type Querier interface {
 	ListRecordedAnimeCounts(ctx context.Context, syobocalTid int32) ([]float64, error)
 	// TID が tids のどれかの話に結びついた録画履歴の TID と話数 (#1564)。ListRecordedAnimeCounts をまとめて引く。
 	ListRecordedAnimeCountsBatch(ctx context.Context, tids []int32) ([]ListRecordedAnimeCountsBatchRow, error)
+	// TMDb の作品 tmdb_series_id のシーズン season_number の話に結びついた録画履歴の話の番号 (#1564)。録った回を、続きの放送から外すのに使う。
+	ListRecordedDramaEpisodes(ctx context.Context, arg ListRecordedDramaEpisodesParams) ([]float64, error)
+	// TMDb の作品 series_ids[i] のシーズン seasons[i] のどれかの話に結びついた録画履歴の、作品とシーズンと話の番号 (#1564)。
+	// ListRecordedDramaEpisodes をまとめて引く。
+	ListRecordedDramaEpisodesBatch(ctx context.Context, arg ListRecordedDramaEpisodesBatchParams) ([]ListRecordedDramaEpisodesBatchRow, error)
 	// 局をまたいで同じ回を束ねる (#1498) ときの「録った回」。録画履歴のうち、@since より後に始まった録画と、
 	// ほかの録画ソフトから引き継いだもの (期間で切らない)、それに録画中の録画。
 	// 録画履歴は、正常に終了し、ドロップが閾値以下の録画だけを持つ (設計書 4.4)。消した録画も、履歴は残る。
