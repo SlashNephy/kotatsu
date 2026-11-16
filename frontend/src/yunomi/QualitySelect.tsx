@@ -11,6 +11,7 @@ import { sleepMinuteChoices, type SleepChoice, type SleepTimer } from './sleepTi
 import { useVirtualSurroundSetting } from './useVirtualSurround';
 import { original, type KyusuAudio, type PlaybackRoute } from './route';
 import { autoQuality } from './autoQuality';
+import { audioStep } from './networkQuality';
 
 // passthrough は、BS4K の映像を変換せずに送る kyusu の画質の名前 (#806)。
 const passthrough = 'source';
@@ -61,6 +62,9 @@ export function QualitySelect({
     }
     if (name === passthrough) {
       return 'HEVC 2160p';
+    }
+    if (name === audioStep) {
+      return t('player.audioOnly');
     }
     const codec = currentCodec === 'HEVC' ? 'HEVC' : 'H.264';
 

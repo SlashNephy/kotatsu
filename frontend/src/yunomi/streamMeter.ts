@@ -251,6 +251,8 @@ export type TsPlayerReading = TsReading & {
 export type HlsSegment = {
   bytes: number;
   seconds: number;
+  // transferMs は、最初のバイトが届いてから読み終えるまでの時間 (ミリ秒)。分からなければ null。
+  transferMs: number | null;
   encoded: EncodedStream;
   mediaOrigin: number | null;
 };

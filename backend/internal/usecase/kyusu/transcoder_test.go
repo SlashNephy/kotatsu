@@ -159,6 +159,32 @@ func TestTranscoderWritesHLS(t *testing.T) {
 	}
 }
 
+// TestTranscoderWritesAudioOnlyHLS は、映像を送らないプリセットでは、映像を入れず、AAC の音声と字幕の ID3 timed metadata だけの
+// MPEG-TS のセグメントの HLS にすることを確かめる (#1513)。
+func TestTranscoderWritesAudioOnlyHLS(t *testing.T) {
+	t.Parallel()
+
+	preset, ok := kyusu.PresetByName(kyusu.AudioOnlyPreset)
+	require.True(t, ok)
+	dir := t.TempDir()
+	require.NoError(t, newTranscoder(t).Run(t.Context(), bytes.NewReader(loadTestTS(t)), preset, kyusu.AudioFirst, dir))
+
+	playlist, err := os.ReadFile(filepath.Join(dir, kyusu.PlaylistName))
+	require.NoError(t, err)
+	assert.Contains(t, string(playlist), "#EXTINF:")
+	segments, err := filepath.Glob(filepath.Join(dir, "segment*.ts"))
+	require.NoError(t, err)
+	require.NotEmpty(t, segments)
+	sort.Strings(segments)
+	got := map[string]probedStream{}
+	for _, s := range probe(t, segments[0]) {
+		got[s.CodecType] = s
+	}
+	assert.NotContains(t, got, "video")
+	assert.Equal(t, "aac", got["audio"].CodecName)
+	assert.Equal(t, "timed_id3", got["data"].CodecName, "subtitles are carried as ID3 timed metadata")
+}
+
 // loopReader は、data を繰り返し返す。チューナーのストリームのように、終わらない入力にする。
 type loopReader struct {
 	data []byte

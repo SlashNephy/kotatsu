@@ -366,12 +366,24 @@ describe('StreamMeter', () => {
       audioCodec: 'mp4a',
       bandwidth: null,
     };
-    meter.feedSegment(1_000, { bytes: 500_000, seconds: 2, encoded, mediaOrigin: 1_859_217_000 });
+    meter.feedSegment(1_000, {
+      bytes: 500_000,
+      seconds: 2,
+      transferMs: null,
+      encoded,
+      mediaOrigin: 1_859_217_000,
+    });
 
     expect(meter.encoded).toEqual(encoded);
     expect(meter.mediaOrigin).toBe(1_859_217_000);
     // 録画の仮想 HLS のように起点が分からなければ、覚えていた起点を捨てる。
-    meter.feedSegment(2_000, { bytes: 500_000, seconds: 2, encoded, mediaOrigin: null });
+    meter.feedSegment(2_000, {
+      bytes: 500_000,
+      seconds: 2,
+      transferMs: null,
+      encoded,
+      mediaOrigin: null,
+    });
     expect(meter.mediaOrigin).toBeNull();
   });
 

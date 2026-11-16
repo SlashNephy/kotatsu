@@ -364,6 +364,7 @@ function Live({
             name
             codec
             passthrough
+            videoBitrate
           }
         }
         # データ放送の文書の双方向の通信を、tenban に中継させるか (#501)。
@@ -431,7 +432,10 @@ function Live({
   // videoFormat は、放送中の番組の映像の種類。BS4K と 8K では、経路の選び方が変わる (#806)。
   const videoFormat =
     data.node?.__typename === 'Service' ? toVideoFormat(data.node.videoFormat) : 'HD';
-  const playback = usePlaybackRoute(data.transcoding, videoFormat);
+  // chasing は、タイムシフトのバッファを再生しているか (下の timeshift.behind を写したもの)。経路を決めるのに使うので、
+  // timeshift より前に要る。音声だけの画質 (#1513) は、ライブを流している間だけ使う。
+  const [chasing, setChasing] = useState(false);
+  const playback = usePlaybackRoute(data.transcoding, videoFormat, { audioOnly: !chasing });
   const { route, choices, quality, setQuality } = playback;
   // BS4K と 8K のデータ放送は、BML でなく HTML5 で作られていて、web-bml では描けないので出さない (設計書 7.4)。
   const dataBroadcastAvailable = videoFormat === 'HD';
@@ -472,7 +476,33 @@ function Live({
   // kyusu の経路は、hls.js が追いつくので、ブラウザ内で変換する経路でだけ、再生の速さを変える。バッファを再生している間は追いつかない。
   // 映像だけの遅れを飛び直しで直し、デコードが追いつかなければ、画質が「自動」の間は段を下げる (#1513)。
   // 段を下げるのは、ライブを流している間だけ。バッファの再生でも飛び直しはする。
-  const adaptive = useAdaptiveQuality(video, playback, { stepDown: !timeshift.behind });
+  if (chasing !== timeshift.behind) {
+    setChasing(timeshift.behind);
+  }
+  // 回線が足りなければ段を下げ、余裕が戻れば上げる (#1513)。ライブは実時間でしか届かないので試しのデータで、
+  // バッファの再生は先に読むので受け取りの速さで、余裕を確かめる。
+  const adaptive = useAdaptiveQuality(
+    video,
+    {
+      ...playback,
+      // バッファを再生している間に段を替えるときは、画質のメニューと同じく、今の位置から読み直す。
+      setNetworkStep: (name) => {
+        if (timeshift.behind) {
+          restartBehind();
+        }
+        playback.setNetworkStep(name);
+      },
+    },
+    {
+      stepDown: !timeshift.behind,
+      network: {
+        mode: timeshift.behind ? 'rate' : 'probe',
+        convert: route.kind === 'convert',
+        topBitrate: null,
+      },
+      pictureInPicture: pip.container !== null,
+    },
+  );
   const liveCatchUp = useLiveCatchUp(
     video,
     lowLatency && route.kind === 'convert' && !timeshift.behind,
@@ -1227,7 +1257,10 @@ function Live({
           }}
           onError={timeshift.behind ? resumeBehind : disconnected}
           onAudio={audio.onAudio}
-          onReading={streamMeter.onReading}
+          onReading={(reading) => {
+            streamMeter.onReading(reading);
+            adaptive.network.onReading(reading);
+          }}
           audio={audio.convertAudio}
         />
       )}
@@ -1244,7 +1277,10 @@ function Live({
           }
           videoRef={videoRef}
           onVideo={setVideo}
-          onSegment={streamMeter.onSegment}
+          onSegment={(segment) => {
+            streamMeter.onSegment(segment);
+            adaptive.network.onSegment(segment);
+          }}
           controls={controlBar}
           captions={captions}
           superimpose={captionSettings.superimposeLive}
@@ -1458,6 +1494,7 @@ function Live({
                   content: (
                     <StreamInfo
                       videoLag={adaptive.videoLag}
+                      network={adaptive.network}
                       meter={streamMeter.meter}
                       video={video}
                       quality={playback.current}
