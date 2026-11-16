@@ -171,6 +171,26 @@ ingress:
 Helmを使わずに、マニフェストを手で直して使うこともできます。
 マニフェストは`default`のnamespaceに入れる形で作っているので、別のnamespaceに入れるときは、各リソースの`namespace`も直してください。
 
+`split`でチューナーサーバーにEDCBを使うときは、nabeを1台動かすと、同じ局のライブ視聴と録画でチューナーを分け合えます（[EDCBを使う](#edcbを使う)）。
+nabeは既定では動かさないので、`roles.nabe.replicas`を1にします。
+2以上にはできません。
+Mirakurun互換のチューナーサーバーでは、nabeは何もしないので、動かしません。
+
+```yaml
+mode: split
+
+config:
+  TUNER_KIND: edcb
+  TUNER_EDCB_ADDRESS: edcb.example.internal:4510
+
+roles:
+  nabe:
+    replicas: 1
+```
+
+ほかのロールは、インスタンスの登録簿でnabeのPodのIPを引いてつなぐので、nabeのServiceはありません。
+`networkPolicy.enabled`を入れると、nabeは、tenban、mikan、kyusuのPodからだけ受けます。
+
 CPUが飽和しがちなノードでは、応答が遅れただけでPodが再起動されないよう、プローブの待ち時間を延ばせます。
 `probes`は全体の設定で、`all`や`roles`の各ロールの`probes`で項目ごとに上書きできます。
 
@@ -230,7 +250,7 @@ Kotatsuをつなぐ前に、EDCBの側で次のことを設定してください
 - EDCBのEPGの取得の時刻の5分前から2分後までは、ライブ視聴とタイムシフトに、EPGの取得に要る空きチューナーを使いません。タイムシフトは、一度開くと取得の時刻をまたいで録り続けるので、その時間に入ると、要る分のタイムシフトを止め、過ぎたら録り直します。取得している最中も、新しいNetworkTVが取得中のチューナーを選ぶときは開きません。NetworkTVを開くと、そのチューナーのEPGの取得が取り消されるからです。このときは、チューナーが足りないときと同じく、ライブ視聴が始まりません。録画は、すべてのチューナーを使います。
   - EpgTimerSrvは、BonDriverごとに、EPGの取得に使うチューナーの数（`EpgTimerSrv.ini`の各BonDriverの節の`EPGCount`）だけ空きチューナーがなければ、その回の取得をしません。Kotatsuはこの数を読んで空けます。既定（0）は、そのBonDriverのすべてのチューナーを使うので、取得の時刻の前後は、そのBonDriverのタイムシフトとライブ視聴が止まります。止める本数を減らしたいときは、`EPGCount=1`にしてください。
 - EDCBはKotatsuの予約を知りません。EDCBの予約の割り当てや、EDCBのスリープの判断には、Kotatsuの予約は入りません。EDCBの「録画後にスリープ」や、予約の前に起こす機能は、Kotatsuの録画を考えずにPCを眠らせ、Kotatsuの録画の前にPCを起こしません。KotatsuとEDCBを同じPCで動かすときは、EDCBのスリープ（EpgTimerの設定の録画後の動作と、復帰のための設定）を使わず、Kotatsuの電源の管理（[WindowsとmacOSの電源の設定](#windowsとmacosの電源の設定)）に任せてください。Kotatsuは、録画とライブ視聴の間と次の録画の直前にスリープさせず、次の録画の前に起こす予約を置きます。EDCBの予約は、Kotatsuからは見えないので、この管理には入りません。EDCBの予約も録るなら、OSをスリープしない設定にしてください。
-- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu nabe`（`kotatsu hub`）を1台動かしてください。nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを見つけて、TSを受け取ります。設定は要りません。ただし、nabeと、nabeから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。nabeがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、nabeは何もしません。
+- EDCBのNetworkTVは、ほかの利用者とチューナーを分け合いません。そこで、Kotatsuは、1つのプロセスの中で、同じサービスのストリームを1本のNetworkTVで分け合います（#1535）。`kotatsu all`では、同じ局を録画しながらライブで見ても、チューナーは1本です。ロールを分けた構成では、ロールごとに開くので、同じ局でもチューナーを別に使います。分け合うには、`kotatsu nabe`（`kotatsu hub`）を1台動かしてください。Helmのチャートでは、`roles.nabe.replicas`を1にします（[Helmで動かす](#helmで動かす)）。nabeがNetworkTVを開き、tenban、mikan、kyusuはインスタンスの登録簿でnabeを見つけて、TSを受け取ります。設定は要りません。ただし、nabeと、nabeから受け取るロールには、同じアプリの秘密キー（`auth.secret_key`）を設定してください。nabeがいないか届かないときは、今までどおりロールごとにNetworkTVを開くので、録画は止まりません。Mirakurun互換のチューナーサーバーでは、nabeは何もしません。
 - サービスのロゴは、EDCBが集めたもの（`LogoData`）を使います。EDCBがロゴを集めていなければ、Kotatsuが録画とタイムシフトのTSから集めたロゴを使います。
 
 ## WindowsとmacOSの電源の設定

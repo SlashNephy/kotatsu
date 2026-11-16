@@ -39,3 +39,12 @@ roles:
     tolerations: []
     affinity: {}
     terminationGracePeriodSeconds: 30
+# チューナーサーバーに EDCB を使うときは、同じ局のライブ視聴と録画でチューナーを分け合えるよう、nabe を 1 台動かす (設計書 3.1)。
+# config の TUNER_URL を外して EDCB の接続先を書き、roles に nabe を足す。nabe は Mirakurun 互換のチューナーサーバーでは何もしない。
+#   config:
+#     TUNER_KIND: edcb
+#     TUNER_EDCB_ADDRESS: edcb.example.internal:4510
+#     TUNER_EDCB_BON_DRIVERS: BonDriver_LinuxPTX-T.so,BonDriver_LinuxPTX-S.so
+#   roles:
+#     nabe:
+#       replicas: 1
