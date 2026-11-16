@@ -107,7 +107,8 @@ func newFixture(t *testing.T) (*filelib.Source, string) {
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "disc.m2ts"), bdav, 0o600))
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{testLibrary: dir})
-	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now()), slog.New(slog.DiscardHandler), true)
+	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
+	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
 	// テストを終えるときは、作っている途中の索引を止めてから、一時ディレクトリを消す。
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -202,6 +203,25 @@ func TestSourceBDAV(t *testing.T) {
 	defer f.Close()
 	_, err = filelib.ProbeVideo(f, file.Entry.Size)
 	require.ErrorIs(t, err, fileimport.ErrBDAV)
+}
+
+// TestSourceSkipsWritingFiles は、最後に書いてから 1 分たっていないファイルは、書いている途中とみなして索引を作らず、
+// 頭から流せることを確かめる。録画中のプールのファイルで、作り終えるたびに作り直すのを繰り返さないためである。
+func TestSourceSkipsWritingFiles(t *testing.T) {
+	t.Parallel()
+
+	dir, dataDir := t.TempDir(), t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, showTS), loadTestTS(t), 0o600))
+	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{testLibrary: dir})
+	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now()), slog.New(slog.DiscardHandler), true)
+	file, err := filelib.NewSource(libraries, indexer).Open(t.Context(), filelib.Ref{Library: testLibrary, Path: showTS})
+	require.NoError(t, err)
+	assert.True(t, file.Writing)
+	assert.Empty(t, file.Index.Entries)
+	assert.Equal(t, time.Duration(0), file.Recording.Seek(time.Minute).At)
+	entries, err := os.ReadDir(dataDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "書いている途中のファイルの索引は作らない")
 }
 
 // TestIndexerReadOnly は、索引を作らない Indexer (kyusu) は、開いても索引を作り始めないことを確かめる。

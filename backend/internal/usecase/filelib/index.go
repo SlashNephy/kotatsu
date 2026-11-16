@@ -33,6 +33,9 @@ const (
 	staleBuild = time.Minute
 	// maxBuilds は、1 つの tenban で同時に作る索引の数。索引はファイルを読み通すので、ディスクを奪い合わないよう絞る。
 	maxBuilds = 2
+	// settleTime は、ファイルを最後に書いてから、索引を作り始めるまでに待つ時間。書いている途中のファイル (mikan が録っている
+	// プールの録画や、写している途中のファイル) は、作り終えるたびに大きさが変わり、作り直しを繰り返すので、索引を作らない。
+	settleTime = time.Minute
 	// probeLimit は、映像の形式を読むときに、ファイルの頭から読む上限。
 	probeLimit = 16 << 20
 )
@@ -155,6 +158,9 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 	if !x.build {
 		return
 	}
+	if x.Writing(entry) {
+		return
+	}
 	key := indexKey(ref)
 	x.mu.Lock()
 	defer x.mu.Unlock()
@@ -196,6 +202,12 @@ func (x *Indexer) Ensure(ctx context.Context, ref Ref, entry *medialib.Entry) {
 				slog.String("library", ref.Library), slog.String("path", ref.Path), slog.Any("error", err))
 		}
 	})
+}
+
+// Writing は、ファイル (大きさと更新日時は entry) を、書いている途中とみなすかを返す。最後に書いてから settleTime たっていなければ、
+// 書いている途中とみなし、索引を作らない。頭から再生することはできる。
+func (x *Indexer) Writing(entry *medialib.Entry) bool {
+	return x.clock.Now().Sub(entry.ModifiedAt) < settleTime
 }
 
 // isStopped は、Run が終わったかどうかを返す。

@@ -214,6 +214,7 @@ const playQuery = graphql`
       }
       index {
         complete
+        writing
         seekableSeconds
         durationSeconds
       }
@@ -274,7 +275,8 @@ function Player({
   } = usePlayerSettings();
   // シークの索引を作り終えるまで、読み直して、シークできる所と長さを伸ばす。
   const environment = useRelayEnvironment();
-  const indexing = !file.index.complete;
+  // 書いている途中のファイルは、索引を作らないので、読み直さない (設計書 5.8)。
+  const indexing = !file.index.complete && !file.index.writing;
   useEffect(() => {
     if (!indexing) {
       return;
@@ -739,7 +741,7 @@ function Player({
           // 読み直すたびに URL を変え、hls.js を作り直す。fragment は、サーバーへは送られない。
           // kyusu は、索引の I フレームが 1 つもない間は、プレイリストを作れずに 503 を返す。索引ができ始めるまで読まない。
           url={
-            file.index.durationSeconds == null
+            indexing && file.index.durationSeconds == null
               ? null
               : `${hlsURL(file.hlsUrl, route.preset, audio.kyusuAudio)}#${hlsStream.loads}`
           }
@@ -796,6 +798,11 @@ function Player({
           {indexing && (
             <Text size="sm" c="dimmed" role="status">
               {t('library.indexingStatus', { seconds: formatDuration(limit) })}
+            </Text>
+          )}
+          {file.index.writing && (
+            <Text size="sm" c="dimmed" role="status">
+              {t('library.writing')}
             </Text>
           )}
           {error !== null && (

@@ -2863,6 +2863,7 @@
     "fileNotFound": "The file was not found",
     "unsupported": "This file cannot be played. Only TS with 188-byte packets is supported (Blu-ray .m2ts is not).",
     "indexing": "Preparing to seek",
-    "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}."
+    "indexingStatus": "Preparing to seek. You can seek up to {{seconds}}.",
+    "writing": "This file is still being written, so it is not prepared for seeking. It can be played from the beginning."
   }
 }

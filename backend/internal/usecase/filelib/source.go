@@ -33,6 +33,8 @@ type File struct {
 	Library medialib.Library
 	// Index は、開いた時点の索引。
 	Index *Index
+	// Writing は、書いている途中とみなして、索引を作らないかどうか。
+	Writing bool
 	// Recording は、索引を使って流すもの。
 	Recording *stream.Recording
 }
@@ -64,7 +66,7 @@ func (s *Source) Open(ctx context.Context, ref Ref) (*File, error) {
 	}
 
 	return &File{
-		Ref: ref, Entry: entry, Library: library, Index: index,
+		Ref: ref, Entry: entry, Library: library, Index: index, Writing: !index.Complete && s.indexer.Writing(entry),
 		Recording: stream.OpenFile(entry.Name, open, index.Entries, !index.Complete),
 	}, nil
 }

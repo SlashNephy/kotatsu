@@ -135,7 +135,7 @@ func (r *Resolver) openLibraryFile(ctx context.Context, ref filelib.Ref) (*model
 			return nil, libraryReadError(err)
 		}
 	}
-	index := &model.LibraryFileIndex{Complete: file.Index.Complete, SeekableSeconds: 0, DurationSeconds: nil}
+	index := &model.LibraryFileIndex{Complete: file.Index.Complete, Writing: file.Writing, SeekableSeconds: 0, DurationSeconds: nil}
 	if seekable, duration, ok := file.Timeline(); ok {
 		index.SeekableSeconds = seekable.Seconds()
 		index.DurationSeconds = new(duration.Seconds())

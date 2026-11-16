@@ -1,6 +1,7 @@
 package kyusu_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,6 +24,22 @@ import (
 // libraryName は、テストのライブラリの名前。
 const libraryName = "lib"
 
+// runIndexer は、テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
+func runIndexer(t *testing.T, indexer *filelib.Indexer) {
+	t.Helper()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, indexer.Run(ctx))
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+}
+
 // TestVODLibraryPlaylist は、ライブラリのファイルの仮想 HLS のプレイリストを、tenban が作った索引から作ることを確かめる (#1734)。
 // 索引がまだなければ 503 を返す。kyusu は索引を作らない。
 func TestVODLibraryPlaylist(t *testing.T) {
@@ -32,10 +49,13 @@ func TestVODLibraryPlaylist(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), loadTestTS(t), 0o600))
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "fresh.ts"), loadTestTS(t), 0o600))
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{libraryName: libraryDir})
-	clk := clocktest.NewFake(time.Now())
+	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
+	clk := clocktest.NewFake(time.Now().Add(time.Hour))
 	logger := slog.New(slog.DiscardHandler)
 	// tenban の Indexer で、show.ts の索引を作っておく。
-	tenban := filelib.NewSource(libraries, filelib.NewIndexer(dataDir, libraries, clk, logger, true))
+	indexer := filelib.NewIndexer(dataDir, libraries, clk, logger, true)
+	runIndexer(t, indexer)
+	tenban := filelib.NewSource(libraries, indexer)
 	shown := filelib.Ref{Library: libraryName, Path: "show.ts"}
 	require.Eventually(t, func() bool {
 		file, err := tenban.Open(t.Context(), shown)

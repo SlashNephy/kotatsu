@@ -43,7 +43,8 @@ func newIndexFixture(t *testing.T) *indexFixture {
 	data := readTestTS(t)
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), data, 0o600))
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{"lib": libraryDir})
-	clk := clocktest.NewFake(time.Now())
+	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
+	clk := clocktest.NewFake(time.Now().Add(time.Hour))
 	indexer := NewIndexer(dataDir, libraries, clk, slog.New(slog.DiscardHandler), true)
 	library, _ := libraries.Get("lib")
 	ref := Ref{Library: "lib", Path: "show.ts"}
@@ -68,6 +69,8 @@ func (f *indexFixture) place(t *testing.T, name string) {
 		Library: f.ref.Library, Path: f.ref.Path, Size: f.entry.Size, ModifiedAt: f.entry.ModifiedAt.UnixNano(), Complete: false, Video: nil,
 	}))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, name), f.index, 0o600))
+	// 書きかけの索引は、今 (時計の今) 伸びたものにする。
+	require.NoError(t, os.Chtimes(filepath.Join(dir, name), f.clock.Now(), f.clock.Now()))
 }
 
 // TestEnsureLeavesOtherBuilds は、別の tenban が作っている途中の索引 (書きかけが伸び続けているもの) は作り直さず、

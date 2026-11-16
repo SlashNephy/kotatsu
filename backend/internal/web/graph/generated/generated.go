@@ -674,6 +674,7 @@ type ComplexityRoot struct {
 		Complete        func(childComplexity int) int
 		DurationSeconds func(childComplexity int) int
 		SeekableSeconds func(childComplexity int) int
+		Writing         func(childComplexity int) int
 	}
 
 	LicenseFile struct {
@@ -4279,6 +4280,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.LibraryFileIndex.SeekableSeconds(childComplexity), true
+	case "LibraryFileIndex.writing":
+		if e.ComplexityRoot.LibraryFileIndex.Writing == nil {
+			break
+		}
+
+		return e.ComplexityRoot.LibraryFileIndex.Writing(childComplexity), true
 
 	case "LicenseFile.name":
 		if e.ComplexityRoot.LicenseFile.Name == nil {
@@ -11454,6 +11461,11 @@ type LibraryDirectory {
 type LibraryFileIndex {
   "索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。"
   complete: Boolean!
+  """
+  ファイルを書いている途中とみなして、索引を作らないかどうか (最後に書いてから 1 分たっていないファイル)。
+  索引がなければ、頭から再生できるだけで、シークできない。
+  """
+  writing: Boolean!
   "シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。"
   seekableSeconds: Float!
   """
@@ -15595,6 +15607,8 @@ func (ec *executionContext) childFields_LibraryFileIndex(ctx context.Context, fi
 	switch field.Name {
 	case "complete":
 		return ec.fieldContext_LibraryFileIndex_complete(ctx, field)
+	case "writing":
+		return ec.fieldContext_LibraryFileIndex_writing(ctx, field)
 	case "seekableSeconds":
 		return ec.fieldContext_LibraryFileIndex_seekableSeconds(ctx, field)
 	case "durationSeconds":
@@ -28504,6 +28518,29 @@ func (ec *executionContext) _LibraryFileIndex_complete(ctx context.Context, fiel
 	)
 }
 func (ec *executionContext) fieldContext_LibraryFileIndex_complete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("LibraryFileIndex", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _LibraryFileIndex_writing(ctx context.Context, field graphql.CollectedField, obj *model.LibraryFileIndex) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_LibraryFileIndex_writing(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Writing, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_LibraryFileIndex_writing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("LibraryFileIndex", field, false, false, "Boolean")
 }
 
@@ -58161,6 +58198,11 @@ func (ec *executionContext) _LibraryFileIndex(ctx context.Context, sel ast.Selec
 			out.Values[i] = graphql.MarshalString("LibraryFileIndex")
 		case "complete":
 			out.Values[i] = ec._LibraryFileIndex_complete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "writing":
+			out.Values[i] = ec._LibraryFileIndex_writing(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<c7c66ced1a965e37c6f97d3849d42d33>>
+ * @generated SignedSource<<6732a16d0bcaa79af2ae4223b0883258>>
  * @lightSyntaxTransform
  */
 
@@ -22,6 +22,7 @@ export type playLibraryFileQuery$data = {
       readonly complete: boolean;
       readonly durationSeconds: number | null | undefined;
       readonly seekableSeconds: number;
+      readonly writing: boolean;
     };
     readonly library: {
       readonly name: string;
@@ -168,6 +169,13 @@ v2 = [
             "alias": null,
             "args": null,
             "kind": "ScalarField",
+            "name": "writing",
+            "storageKey": null
+          },
+          {
+            "alias": null,
+            "args": null,
+            "kind": "ScalarField",
             "name": "seekableSeconds",
             "storageKey": null
           },
@@ -247,16 +255,16 @@ return {
     "selections": (v2/*:: as any*/)
   },
   "params": {
-    "cacheID": "4a6c7ce53dd1c49112a232f9086cd08f",
+    "cacheID": "40d3ad4c6cbc2b782438b0184ea0f2c6",
     "id": null,
     "metadata": {},
     "name": "playLibraryFileQuery",
     "operationKind": "query",
-    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    index {\n      complete\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
+    "text": "query playLibraryFileQuery(\n  $library: String!\n  $path: String!\n) {\n  libraryFile(library: $library, path: $path) {\n    id\n    name\n    size\n    modifiedAt\n    videoFormat\n    watchPositionMs\n    streamUrl\n    hlsUrl\n    library {\n      name\n    }\n    index {\n      complete\n      writing\n      seekableSeconds\n      durationSeconds\n    }\n  }\n  transcoding {\n    available\n    presets {\n      name\n      codec\n      passthrough\n    }\n  }\n}\n"
   }
 };
 })();
 
-(node as any).hash = "87da966adc4be2479b5ba27d100fe528";
+(node as any).hash = "ec197491a018870c511dde6c039ef25c";
 
 export default node;

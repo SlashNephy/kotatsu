@@ -1,6 +1,7 @@
 package streamapi_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -41,7 +42,19 @@ func TestLibraryHandler(t *testing.T) {
 	data := loadLibraryTS(t)
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, "show.ts"), data, 0o600))
 	libraries := medialib.NewSet(map[string]string{}, []string{}, map[string]string{libraryName: libraryDir})
-	source := filelib.NewSource(libraries, filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now()), slog.New(slog.DiscardHandler), true))
+	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
+	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, indexer.Run(ctx))
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+	source := filelib.NewSource(libraries, indexer)
 	ref := filelib.Ref{Library: libraryName, Path: "show.ts"}
 	// 開くと索引を作り始めるので、作り終えるまで待つ。
 	var file *filelib.File

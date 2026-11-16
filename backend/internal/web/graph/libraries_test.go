@@ -1,6 +1,7 @@
 package graph_test
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -77,7 +78,19 @@ func newLibraryFixture(t *testing.T) (*fixture, string) {
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(libraryDir, discM2TS), bdav, 0o600))
 	libraries := medialib.NewSet(map[string]string{poolMain: poolDir}, []string{poolMain}, map[string]string{animeLibrary: libraryDir})
-	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now()), slog.New(slog.DiscardHandler), true)
+	// 置いたばかりのファイルは書いている途中とみなされるので、時計を進めておく。
+	indexer := filelib.NewIndexer(dataDir, libraries, clocktest.NewFake(time.Now().Add(time.Hour)), slog.New(slog.DiscardHandler), true)
+	// テストを終えるときに、索引を作る処理を止めてから一時ディレクトリを消させる。
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, indexer.Run(ctx))
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
 
 	return newFixture(t, &graph.Options{Libraries: libraries, LibrarySource: filelib.NewSource(libraries, indexer)}), libraryDir
 }

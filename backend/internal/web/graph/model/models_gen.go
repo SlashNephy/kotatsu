@@ -1095,6 +1095,9 @@ type LibraryFile struct {
 type LibraryFileIndex struct {
 	// 索引を作り終えたかどうか。作り終えるまでは、読み直して進み具合を確かめる。
 	Complete bool `json:"complete"`
+	// ファイルを書いている途中とみなして、索引を作らないかどうか (最後に書いてから 1 分たっていないファイル)。
+	// 索引がなければ、頭から再生できるだけで、シークできない。
+	Writing bool `json:"writing"`
 	// シークできる所 (索引のできた最後の I フレームの位置。ファイルの始まりからの秒)。索引がまだなければ 0。
 	SeekableSeconds float64 `json:"seekableSeconds"`
 	// 再生の時間 (秒)。作り終えていれば索引から求め、作っている途中なら、できた所までのバイト数と時間の比から見込む。
