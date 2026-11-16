@@ -131,6 +131,15 @@ func TestReadAfterRename(t *testing.T) {
 	assert.False(t, index.Complete, "集計を記録するまでは、作り終えていない")
 	assert.Nil(t, index.Quality)
 	assert.NotEmpty(t, index.Entries, "名前を変えた索引でシークできる")
+
+	// 集計を記録する前に tenban が止まっても、書きかけの索引がないので、開けば作り直して集計を記録する。
+	f.indexer.Ensure(t.Context(), f.ref, f.entry)
+	require.Eventually(t, func() bool {
+		index, err := f.indexer.Read(f.ref, f.entry)
+		require.NoError(t, err)
+
+		return index.Complete && index.Quality != nil
+	}, 10*time.Second, 10*time.Millisecond)
 }
 
 // TestReadOldVersion は、前の版の記録 (放送の情報のないもの) の索引は、シークに使えるが、作り終えていないものとして返し、
