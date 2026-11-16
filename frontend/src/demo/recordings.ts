@@ -239,6 +239,8 @@ export function createRecordings(options: {
       genres: program.genres,
       workTitle: program.workTitle,
       animeEpisodes: demoAnimeEpisodes(program),
+      // デモの録画は番組表の番組と結び付けないので、続きの放送 (#1564) は出さない。
+      nextEpisodes: [],
       rule: () => (recording.rule === undefined ? null : ruleView(recording.rule.id)),
       // ruleName は、ルールを消しても残る、録画したときのルールの名前。
       ruleName: recording.rule?.name ?? null,

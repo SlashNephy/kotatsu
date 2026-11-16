@@ -1968,6 +1968,8 @@ func (r *Recorder) complete(
 		payload["generateCaptions"] = settings.GenerateCaptions
 		payload["transcodePreset"] = settings.TranscodePreset
 		payload["transcodeFrameRate"] = settings.TranscodeFrameRate
+		// 空なら、見分けるときの全体の設定に従う (#1505)。
+		payload["cmDetector"] = settings.CMDetector
 		addNotBroadcast(ctx, q, &recording, payload)
 
 		return notification.EmitTo(ctx, tx, r.clock, domain.NotificationKindRecordingCompleted, payload, target.Audience)

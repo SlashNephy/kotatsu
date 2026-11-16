@@ -3278,6 +3278,12 @@ type Query {
   """
   continueWatching(first: Int! = 12): [Recording!]!
   """
+  ログイン中のユーザーが見たシリーズの続きの放送 (#1564、設計書 4.4)。ホームの「続きの放送」に出す。
+  直近 30 日に、録画の長さの半分以上まで再生した録画を見た回とし、シリーズごとに、見た回の最大の話数より後の放送のうち
+  最も早い 1 件を、放送の早い順に 10 シリーズまで返す。放送の選び方は Recording.nextEpisodes と同じ。
+  """
+  nextEpisodes: [SeriesNextEpisode!]!
+  """
   タグを、名前の順に返す。
   """
   tags: [Tag!]!
@@ -3578,6 +3584,13 @@ type Recording implements Node {
   録画したサービスに実況のチャンネルがなければ、空の一覧を返す。
   """
   jikkyoCommentsUrl: String!
+  """
+  録画のシリーズの続きの放送 (#1564、設計書 4.4)。これから 1 週間に始まる番組表の番組のうち、録画より話数の大きい回を、
+  放送の早い順に 10 件まで返す。録画がしょぼいカレンダーの 1 つの話に結びついていれば TID と話数で、結びついていなければ
+  番組名から読んだシリーズ名の完全一致と話数で探す。予約のある放送 (無効にした予約を含む) と、録画履歴にある話数の放送は外し、
+  同じイベントを共有する放送は 1 つにする。シリーズか話数を読めない録画 (ニュースや帯番組など) では空になる。
+  """
+  nextEpisodes: [Program!]!
   """
   同じ話の別の放送の実況の過去ログを読む URL のパス (#1361)。
   """
@@ -4011,6 +4024,10 @@ type RecordingSettingsOverrides {
   録画を変換するときに出すコマ数 (#1509)。auto、30、60 のどれか。null なら従う値にする。
   """
   transcodeFrameRate: String
+  """
+  CM の区間の見分け方 (#1505)。null なら従う値 (ルール予約ならルールの設定、なければ見分けるときの全体の設定) にする。
+  """
+  cmDetector: CMDetector
 }
 """
 録画設定の上書き。省いた項目は全体の既定値を使う。
@@ -4032,6 +4049,10 @@ input RecordingSettingsOverridesInput {
   変換で出すコマ数 (auto、30、60 のどれか)。
   """
   transcodeFrameRate: String
+  """
+  CM の区間の見分け方。
+  """
+  cmDetector: CMDetector
 }
 """
 録画の状態 (設計書 5.5)。
@@ -4388,6 +4409,19 @@ type SegmentVideoFormat {
   フレームレート。読めなければ null (HEVC は読まない)。
   """
   frameRate: Float
+}
+"""
+ホームの「続きの放送」の 1 行 (#1564)。ログイン中のユーザーが見たシリーズの、次の放送。
+"""
+type SeriesNextEpisode {
+  """
+  シリーズの見た回のうち、話数の最も大きい録画。
+  """
+  watched: Recording!
+  """
+  シリーズの続きの放送のうち、最も早い放送。
+  """
+  program: Program!
 }
 """
 サービス (設計書 3.2)。

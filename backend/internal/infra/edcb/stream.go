@@ -47,6 +47,8 @@ type NetworkTVIDs interface {
 //     opts.Decode は使わない。優先度もないので、opts.Priority も使わない。
 //   - サービスがチャンネルの設定 (ChSet5.txt) になければ tunerserver.ErrNotFound を、ID が足りないか、
 //     EDCB がチューナーを開けなければ tunerserver.ErrTunerUnavailable を包んで返す。
+//   - 同じサービスをすでに開いていれば、新しく開かずに、その TS を分け合う (#1535)。最後の受け手が閉じたら、NetworkTV を閉じる。
+//     読むのが遅く、溜められる上限を超えた受け手は、ErrSubscriberTooSlow で切る。
 func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	entries, err := s.channelEntries(ctx)
 	if err != nil {
@@ -54,7 +56,7 @@ func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, _ *tuners
 	}
 	for _, entry := range entries {
 		if serviceID(entry.ServiceKey) == id {
-			return s.openNetworkTV(ctx, entry.ServiceKey)
+			return s.share.open(ctx, entry.ServiceKey)
 		}
 	}
 
@@ -62,7 +64,7 @@ func (s *TunerServer) OpenServiceStream(ctx context.Context, id int64, _ *tuners
 }
 
 // OpenChannelStream は、TSID が channel の TS のサービスのうち、チャンネルの設定で最初のものを開く (#1533)。
-// EDCB の NetworkTV はサービスで絞った TS しか送らないので、ほかのサービスは含まない。
+// EDCB の NetworkTV はサービスで絞った TS しか送らないので、ほかのサービスは含まない。そのサービスのストリームと分け合う (#1535)。
 func (s *TunerServer) OpenChannelStream(ctx context.Context, channelType, channel string, _ *tunerserver.StreamOptions) (io.ReadCloser, error) {
 	entries, err := s.channelEntries(ctx)
 	if err != nil {
@@ -70,7 +72,7 @@ func (s *TunerServer) OpenChannelStream(ctx context.Context, channelType, channe
 	}
 	for _, entry := range entries {
 		if ChannelType(entry.ONID) == channelType && strconv.Itoa(int(entry.TSID)) == channel {
-			return s.openNetworkTV(ctx, entry.ServiceKey)
+			return s.share.open(ctx, entry.ServiceKey)
 		}
 	}
 
@@ -157,17 +159,29 @@ type networkTVStream struct {
 var _ io.ReadCloser = new(networkTVStream)
 
 // Read は、TS を読む。EDCB の予約にチューナーを取られたと分かったら、tunerserver.ErrTunerPreempted を返す。
-// 取られた後に届いた別の局の TS は返さない。
+// 取られた後に届いた別の局の TS は返さない。1 回に読んだ中で局が変わったときは、変わったと分かったパケットより前の分を返す。
+// 分け合うストリーム (#1535) は大きく読むので、読んだ分をまとめて捨てると、自分の局の TS まで落とすためである。
 func (n *networkTVStream) Read(p []byte) (int, error) {
 	if n.preempted.Load() {
 		return 0, n.preemption()
 	}
 	read, err := n.ReadCloser.Read(p)
-	if n.pat != nil {
-		_, _ = n.pat.Write(p[:read])
-	}
-	if n.preempted.Load() {
+	// 問い合わせで取られたと分かると、中継の接続を切るので、読むのは接続を切ったエラーで終わる。
+	if err != nil && n.preempted.Load() {
 		return 0, n.preemption()
+	}
+	if n.pat == nil {
+		return read, err
+	}
+	for off := 0; off < read; off += tsPacketSize {
+		_, _ = n.pat.Write(p[off:min(off+tsPacketSize, read)])
+		if n.preempted.Load() {
+			if off > 0 {
+				return off, nil
+			}
+
+			return 0, n.preemption()
+		}
 	}
 
 	return read, err
@@ -219,8 +233,17 @@ func (n *networkTVStream) preemption() error {
 //
 // 問い合わせは、ストリームと同じく ctx が終わるまで続ける。
 func (n *networkTVStream) watch(ctx context.Context, service ServiceKey, processID int32) {
+	// EDCB は、NetworkTV を開いた直後に、サービスを載せず NIT だけを載せた PAT を送ることがある (2026年11月に、Linux の EDCB で
+	// 20 回開いて 8 回)。サービスが PAT から消えたことで取られたとみなすのは、サービスを載せた PAT を受け取った後にする。
+	// 局が変われば TSID も変わるので、TSID は最初の PAT から見る。PAT は Read から順に届くので、seen は守らなくてよい。
+	seen := false
 	n.pat = ts.NewPATWatcher(func(pat *ts.PAT) {
-		if pat.TransportStreamID != service.TSID || !slices.Contains(pat.Programs, service.SID) {
+		switch {
+		case pat.TransportStreamID != service.TSID:
+			n.preempted.Store(true)
+		case slices.Contains(pat.Programs, service.SID):
+			seen = true
+		case seen:
 			n.preempted.Store(true)
 		}
 	})

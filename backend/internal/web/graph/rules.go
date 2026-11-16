@@ -89,7 +89,7 @@ func toRuleInput(in *model.RuleInput) (*rule.Input, error) {
 // toOverrides は、録画設定の上書きの入力を、予約の録画設定の上書きにする。省いたら何も上書きしない。
 func toOverrides(in *model.RecordingSettingsOverridesInput) *domain.RecordingOverrides {
 	if in == nil {
-		return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, GenerateCaptions: nil, TranscodePreset: nil, TranscodeFrameRate: nil}
+		return &domain.RecordingOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, GenerateCaptions: nil, TranscodePreset: nil, TranscodeFrameRate: nil, CMDetector: nil}
 	}
 
 	return &domain.RecordingOverrides{
@@ -103,12 +103,13 @@ func toOverrides(in *model.RecordingSettingsOverridesInput) *domain.RecordingOve
 		GenerateCaptions:   in.GenerateCaptions,
 		TranscodePreset:    in.TranscodePreset,
 		TranscodeFrameRate: in.TranscodeFrameRate,
+		CMDetector:         cmDetectorName(in.CMDetector),
 	}
 }
 
 func toOverridesModel(o *domain.RecordingOverrides) *model.RecordingSettingsOverrides {
 	if o == nil {
-		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, GenerateCaptions: nil, TranscodePreset: nil, TranscodeFrameRate: nil}
+		return &model.RecordingSettingsOverrides{PoolID: nil, FileNameTemplate: nil, StartMarginSeconds: nil, EndMarginSeconds: nil, Priority: nil, JoinSegments: nil, DetectCM: nil, GenerateCaptions: nil, TranscodePreset: nil, TranscodeFrameRate: nil, CMDetector: nil}
 	}
 
 	return &model.RecordingSettingsOverrides{
@@ -122,6 +123,7 @@ func toOverridesModel(o *domain.RecordingOverrides) *model.RecordingSettingsOver
 		GenerateCaptions:   o.GenerateCaptions,
 		TranscodePreset:    o.TranscodePreset,
 		TranscodeFrameRate: o.TranscodeFrameRate,
+		CMDetector:         cmDetectorModel(o.CMDetector),
 	}
 }
 

@@ -1,5 +1,5 @@
 /**
- * @generated SignedSource<<7621c4a2594798f59695016823ad1632>>
+ * @generated SignedSource<<ce2c643236428f3dcc0723290016d2e3>>
  * @lightSyntaxTransform
  */
 
@@ -8,6 +8,7 @@
 // @ts-nocheck
 
 import { ReaderFragment } from 'relay-runtime';
+export type CMDetector = "FFMPEG" | "LOGO" | "%future added value";
 export type KeywordField = "DESCRIPTION" | "EXTENDED" | "NAME" | "%future added value";
 export type KeywordMatch = "ALL" | "ANY" | "%future added value";
 import { FragmentRefs } from "relay-runtime";
@@ -65,6 +66,7 @@ export type RuleEditor_rule$data = {
   readonly memo: string;
   readonly name: string;
   readonly settings: {
+    readonly cmDetector: CMDetector | null | undefined;
     readonly detectCm: boolean | null | undefined;
     readonly endMarginSeconds: number | null | undefined;
     readonly fileNameTemplate: string | null | undefined;
@@ -447,6 +449,13 @@ return {
           "kind": "ScalarField",
           "name": "transcodeFrameRate",
           "storageKey": null
+        },
+        {
+          "alias": null,
+          "args": null,
+          "kind": "ScalarField",
+          "name": "cmDetector",
+          "storageKey": null
         }
       ],
       "storageKey": null
@@ -506,6 +515,6 @@ return {
 };
 })();
 
-(node as any).hash = "fa45964de97e332418a82e2ca3a5d560";
+(node as any).hash = "f6ce221deb194d6d64991092e75c319a";
 
 export default node;

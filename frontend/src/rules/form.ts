@@ -24,7 +24,12 @@ type Settings = {
   transcodePreset: string | null;
   // transcodeFrameRate は、変換で出すコマ数 (#1509。auto、30、60)。null なら全体の設定に従う。
   transcodeFrameRate: string | null;
+  // cmDetector は、CM の区間の見分け方 (#1505)。null なら全体の設定に従う。
+  cmDetector: CMDetector | null;
 };
+
+// CMDetector は、CM の区間の見分け方 (#1505)。
+export type CMDetector = 'FFMPEG' | 'LOGO';
 
 // RuleForm は、ルールの編集の画面の入力。番組の条件と、ルールだけの項目を並べる。
 export type RuleForm = ConditionsForm & {
@@ -60,6 +65,7 @@ export type RuleData = {
     readonly generateCaptions?: boolean | null;
     readonly transcodePreset?: string | null;
     readonly transcodeFrameRate?: string | null;
+    readonly cmDetector?: string | null;
   };
   readonly validFrom?: string | null;
   readonly validUntil?: string | null;
@@ -94,6 +100,7 @@ export function emptyRuleForm(conditions: ConditionsForm = emptyConditions()): R
       generateCaptions: null,
       transcodePreset: null,
       transcodeFrameRate: null,
+      cmDetector: null,
     },
     validFrom: null,
     validUntil: null,
@@ -123,10 +130,16 @@ export function fromRule(rule: RuleData): RuleForm {
       generateCaptions: rule.settings.generateCaptions ?? null,
       transcodePreset: rule.settings.transcodePreset ?? null,
       transcodeFrameRate: rule.settings.transcodeFrameRate ?? null,
+      cmDetector: cmDetectorOf(rule.settings.cmDetector),
     },
     validFrom: rule.validFrom ?? null,
     validUntil: rule.validUntil ?? null,
   };
+}
+
+// cmDetectorOf は、tenban が返す見分け方を、入力の値にする。知らない値と null は、全体の設定に従う (null) にする。
+export function cmDetectorOf(value: string | null | undefined): CMDetector | null {
+  return value === 'FFMPEG' || value === 'LOGO' ? value : null;
 }
 
 // toInput は、編集の画面の入力を、tenban の RuleInput にする。

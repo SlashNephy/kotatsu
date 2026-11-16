@@ -374,6 +374,8 @@ models:
         resolver: true
       failureDetail:
         resolver: true
+      nextEpisodes:
+        resolver: true
   ReservationAssignment:
     model: github.com/SlashNephy/kotatsu/internal/web/graph/model.ReservationAssignment
     fields:

@@ -132,6 +132,20 @@ type RecordingSettings struct {
 	TranscodePreset string
 	// TranscodeFrameRate は、録画を変換するときに出すコマ数 (TranscodeFrameRates のどれか、#1509)。
 	TranscodeFrameRate string
+	// CMDetector は、CM の区間の見分け方 (CMDetectors のどれか、#1505)。空なら、見分けるときの全体の設定 (設計書 6.1) に従う。
+	CMDetector string
+}
+
+const (
+	// CMDetectorFFmpeg は、無音とシーンの切り替わりで CM の区間を見分けること。
+	CMDetectorFFmpeg = "ffmpeg"
+	// CMDetectorLogo は、局ロゴが出ているかで CM の区間を見分けること (試験的、#1505)。
+	CMDetectorLogo = "logo"
+)
+
+// CMDetectors は、予約とルールで選べる、CM の区間の見分け方を返す (#1505)。
+func CMDetectors() []string {
+	return []string{CMDetectorFFmpeg, CMDetectorLogo}
 }
 
 // TranscodePresets は、録画を終えた後の変換 (#1253) で選べる画質を返す。kyusu の画質のプリセットのうち、
@@ -177,6 +191,7 @@ func DefaultRecordingSettings() *RecordingSettings {
 		GenerateCaptions:   false,
 		TranscodePreset:    "",
 		TranscodeFrameRate: DefaultTranscodeFrameRate,
+		CMDetector:         "",
 	}
 }
 
@@ -194,6 +209,8 @@ type RecordingOverrides struct {
 	TranscodePreset *string `json:"transcodePreset,omitempty"`
 	// TranscodeFrameRate は、出すコマ数 (TranscodeFrameRates のどれか)。nil なら上書きしない。
 	TranscodeFrameRate *string `json:"transcodeFrameRate,omitempty"`
+	// CMDetector は、CM の区間の見分け方 (CMDetectors のどれか、#1505)。nil なら上書きしない。
+	CMDetector *string `json:"cmDetector,omitempty"`
 }
 
 // Resolve は、base に o の上書きを重ねた設定を返す。o は nil でもよい。
@@ -231,6 +248,9 @@ func (s *RecordingSettings) Resolve(o *RecordingOverrides) *RecordingSettings {
 	}
 	if o.TranscodeFrameRate != nil {
 		resolved.TranscodeFrameRate = *o.TranscodeFrameRate
+	}
+	if o.CMDetector != nil {
+		resolved.CMDetector = *o.CMDetector
 	}
 
 	return &resolved

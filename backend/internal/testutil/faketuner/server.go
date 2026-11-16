@@ -213,6 +213,13 @@ func (s *Server) RenameProgram(id int64, name string) error {
 	})
 }
 
+// ChangeProgramDescription は番組の概要を変え、program の update イベントを送る。
+func (s *Server) ChangeProgramDescription(id int64, description string) error {
+	return s.updateProgram(id, func(p *Program) {
+		p.Description = description
+	})
+}
+
 // RemoveProgram は番組を消し、program の remove イベントを送る。
 func (s *Server) RemoveProgram(id int64) error {
 	s.mu.Lock()
