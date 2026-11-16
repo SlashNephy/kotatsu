@@ -158,6 +158,11 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			return err
 		}
 	}
+	// EDCB は、自分で EPG を取得するので、タイムシフトの割り振りは、そのためにチューナーを空けておく (#1856)。
+	var epgCapture tunerserver.EPGCaptureReporter
+	if reporter, ok := tuner.(tunerserver.EPGCaptureReporter); ok {
+		epgCapture = reporter
+	}
 	// EDCB では、持ち主の止まった NetworkTV を、neko が閉じる (#1533)。
 	var sweeper neko.Runner
 	if deps.Config.Tuner.Kind == config.TunerKindEDCB {
@@ -234,7 +239,7 @@ func runNeko(ctx context.Context, logger *slog.Logger, deps *Deps) error {
 			PollInterval: 0,
 			// EDCB では、同じチャンネルの別のサービスは別のチューナーになり、EPG の取得は空きチューナーを使う (#1856)。
 			ShareByService: deps.Config.Tuner.Kind == config.TunerKindEDCB,
-			KeepIdleTuner:  deps.Config.Tuner.Kind == config.TunerKindEDCB,
+			EPGCapture:     epgCapture,
 		},
 	})
 }

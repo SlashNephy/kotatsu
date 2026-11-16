@@ -7,6 +7,7 @@ package timeshift
 import (
 	"slices"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 )
 
@@ -36,13 +37,15 @@ type PlanOptions struct {
 	// ShareByService は、相乗りの単位をチャンネルでなくサービスにするかどうか。EDCB で使う (#1856)。
 	// EDCB の TS はサービスで絞られるので、同じチャンネルの別のサービスは別のチューナーになる。
 	ShareByService bool
-	// KeepIdleTuner は、番組表の取得に残すチューナーを、種別と録られるチャンネルを問わずに、TunerGroups のまとまりごとに 1 本とするかどうか。
-	// EDCB で使う (#1856)。EDCB の EPG の取得は、録っているチャンネルに相乗りせず、使っていないチューナーで、取得するチャンネルをすべて回る。
-	KeepIdleTuner bool
-	// TunerGroups は、チューナーの番号から、そのチューナーのまとまり (EDCB では BonDriver) への対応。
-	// EDCB の EPG の取得は、BonDriver ごとに使っていないチューナーが要り、ほかの BonDriver のチューナーが空いていても代わりにならない。
-	// 対応のないチューナーは、同じ 1 つのまとまりとみなす。
-	TunerGroups map[int]string
+	// IdleNeeds は、チューナーサーバー自身の EPG の取得 (EDCB) のために空けておくチューナー (#1856)。
+	// nil なら、Mirakurun 互換のサーバーと同じく、録られないチャンネルの種別ごとに 1 本を残す (leavesEPGTuner)。
+	// nil でなければ、録られるチャンネルと種別を問わず、これを満たすように残す (keepsIdleTuners)。空なら残さない。
+	// EDCB の EPG の取得は、録っているチャンネルに相乗りせず、使っていないチューナーで、取得するチャンネルをすべて回る。
+	IdleNeeds []*tunerserver.EPGCaptureNeed
+	// TunerNames は、tuners の番号から、チューナーの名前 (EDCB では BonDriver) への対応。IdleNeeds と突き合わせる。
+	TunerNames map[int]string
+	// OtherIdleTuners は、tuners のほかにある、使っていないチューナー (Kotatsu が使わないもの) の名前。IdleNeeds で数える。
+	OtherIdleTuners []string
 }
 
 // channelKey は、チャンネル種別とチャンネルの組。相乗りの単位に使うときは、ShareByService ならサービスも持つ。
@@ -80,13 +83,13 @@ func multiplexKey(channelType, channel string) channelKey {
 // 録っているチャンネルの番組表は、チューナーサーバーが同じチャンネルのチューナーに相乗りして取れる。
 // 種別ごとに受信できる空きチューナーが 1 本残ればよく、いくつもの種別を受信できるチューナーは、どの種別にも数える。
 // 受信できる空きチューナーが初めからない種別は、残しようがないので見ない。
-// opts.KeepIdleTuner なら、代わりに、録られるチャンネルと種別を問わず、opts.TunerGroups のまとまりごとに空きチューナーを 1 本残す (keepsIdleTuner)。
+// opts.IdleNeeds が nil でなければ、代わりに、録られるチャンネルと種別を問わず、それを満たすように空きチューナーを残す (keepsIdleTuners)。
 //
 // watched は、ライブ視聴しているサービス (#1408)。視聴のチューナーに相乗りするので、空きチューナーを使わずに録り、結果の後ろに足す。
 // neko は視聴のチューナーを知らないが、空きチューナーを当てると、設定されたチャンネルのチューナーや、番組表の取得に残すチューナーを、視聴が奪ってしまう。
 func Plan(channels, watched []*Channel, multiplexes []*Multiplex, tuners []*assign.Tuner, busy []*Busy, opts *PlanOptions) []int64 {
 	if opts == nil {
-		opts = &PlanOptions{ShareByService: false, KeepIdleTuner: false, TunerGroups: map[int]string{}}
+		opts = &PlanOptions{ShareByService: false, IdleNeeds: nil, TunerNames: map[int]string{}, OtherIdleTuners: []string{}}
 	}
 
 	taken, shared, covered := coverage(busy, watched, opts)
@@ -101,8 +104,8 @@ func Plan(channels, watched []*Channel, multiplexes []*Multiplex, tuners []*assi
 				if !slices.Contains(tuner.Types, c.ChannelType) {
 					return false
 				}
-				if opts.KeepIdleTuner {
-					return keepsIdleTuner(free, tuner, opts.TunerGroups)
+				if opts.IdleNeeds != nil {
+					return keepsIdleTuners(free, tuner, opts)
 				}
 
 				return leavesEPGTuner(free, tuner, c.ChannelType, uncovered)
@@ -225,12 +228,28 @@ func leavesEPGTuner(free []*assign.Tuner, tuner *assign.Tuner, channelType strin
 	return true
 }
 
-// keepsIdleTuner は、tuner をタイムシフトに使っても、tuner と同じまとまり (groups) に、使っていないチューナーがほかに残るかを返す。
-// EDCB の EPG の取得は、BonDriver ごとに、EPG の取得に使うチューナーの数 (EpgTimerSrv.ini の EPGCount) だけ、使っていないチューナーが要り、
-// 足りない BonDriver が 1 つでもあれば、その回の取得をしない (ReserveManager.cpp の GetEpgCapTunerList、CheckEpgCap)。
-// neko は EPGCount を知らないので、BonDriver ごとに 1 本を残す。タイムシフトは開いたまま取得の時刻をまたぐので、時刻を問わずに残す。
-func keepsIdleTuner(free []*assign.Tuner, tuner *assign.Tuner, groups map[int]string) bool {
-	return slices.ContainsFunc(free, func(f *assign.Tuner) bool {
-		return f.Index != tuner.Index && groups[f.Index] == groups[tuner.Index]
-	})
+// keepsIdleTuners は、tuner をタイムシフトに使っても、opts.IdleNeeds の満たせていたものが、満たせなくなることがないかを返す。
+// 空きチューナーは、free と opts.OtherIdleTuners を数える。tuner を使う前から満たせないものは、tuner を空けても EPG の取得はされないので見ない。
+func keepsIdleTuners(free []*assign.Tuner, tuner *assign.Tuner, opts *PlanOptions) bool {
+	for _, need := range opts.IdleNeeds {
+		if !need.Contains(opts.TunerNames[tuner.Index]) {
+			continue
+		}
+		idle := 0
+		for _, f := range free {
+			if need.Contains(opts.TunerNames[f.Index]) {
+				idle++
+			}
+		}
+		for _, name := range opts.OtherIdleTuners {
+			if need.Contains(name) {
+				idle++
+			}
+		}
+		if idle >= need.Idle && idle-1 < need.Idle {
+			return false
+		}
+	}
+
+	return true
 }

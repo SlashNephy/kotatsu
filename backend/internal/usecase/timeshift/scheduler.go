@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SlashNephy/kotatsu/internal/domain"
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/infra/database/sqlc"
 	"github.com/SlashNephy/kotatsu/internal/infra/notify"
 	"github.com/SlashNephy/kotatsu/internal/lib/clock"
@@ -43,9 +44,13 @@ type SchedulerOptions struct {
 	PollInterval time.Duration
 	// ShareByService は、相乗りの単位をチャンネルでなくサービスにするかどうか。EDCB で使う (#1856、PlanOptions)。
 	ShareByService bool
-	// KeepIdleTuner は、EPG の取得に、種別と録られるチャンネルを問わずに、BonDriver ごとに空きチューナーを 1 本残すかどうか。EDCB で使う (#1856、PlanOptions)。
-	KeepIdleTuner bool
+	// EPGCapture は、チューナーサーバー自身の EPG の取得 (EDCB) のために空けておくチューナーを決める設定を返す。EDCB で使う (#1856)。
+	// nil なら、Mirakurun 互換のサーバーと同じく、チューナーサーバーの番組表の取得に、録られないチャンネルの種別ごとに 1 本を残す。
+	EPGCapture tunerserver.EPGCaptureReporter
 }
+
+// epgCaptureTimeout は、EPG の取得の設定を読むのを打ち切る時間。読めなければ、前に読んだものを使う。
+const epgCaptureTimeout = 5 * time.Second
 
 // Scheduler は、タイムシフトで録るチャンネルのうち、チューナーを使えるものの割り振りを書き、使えなくなったものの割り振りを消す (設計書 5.7)。
 type Scheduler struct {
@@ -59,12 +64,12 @@ type Scheduler struct {
 // NewScheduler は Scheduler を返す。opts は nil でもよい。
 func NewScheduler(pool *pgxpool.Pool, clk clock.Clock, guard Guard, logger *slog.Logger, opts *SchedulerOptions) *Scheduler {
 	o := SchedulerOptions{
-		Interval: DefaultInterval, Lead: 0, PollOnly: false, PollInterval: notify.DefaultPollInterval, ShareByService: false, KeepIdleTuner: false,
+		Interval: DefaultInterval, Lead: 0, PollOnly: false, PollInterval: notify.DefaultPollInterval, ShareByService: false, EPGCapture: nil,
 	}
 	if opts != nil {
 		o.PollOnly = opts.PollOnly
 		o.ShareByService = opts.ShareByService
-		o.KeepIdleTuner = opts.KeepIdleTuner
+		o.EPGCapture = opts.EPGCapture
 		if opts.Interval > 0 {
 			o.Interval = opts.Interval
 		}
@@ -115,14 +120,16 @@ type ScheduleResult struct {
 // RunOnce は、割り振りを 1 回見直す。割り振りが変わったら、mikan に知らせる。
 func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 	result := &ScheduleResult{Created: 0, Deleted: 0}
+	now := s.clock.Now()
+	// チューナーサーバーに問い合わせるのは、トランザクションを始める前にする。
+	capture := s.epgCapture(ctx, now)
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		if err := s.guard(ctx, tx); err != nil {
 			return err
 		}
 		q := sqlc.New(tx)
-		now := s.clock.Now()
 
-		want, channels, err := s.plan(ctx, q, now)
+		want, channels, err := s.plan(ctx, q, now, capture)
 		if err != nil {
 			return err
 		}
@@ -146,8 +153,30 @@ func (s *Scheduler) RunOnce(ctx context.Context) (*ScheduleResult, error) {
 	return result, nil
 }
 
+// epgCapture は、now に EPG の取得のために空けておくチューナーを決める設定を返す。EPGCapture がなければ nil。
+// 読めなければ、取得の時刻も数も分からないもの (Known が偽) とする。EDCB は、一度読めた設定を、読み直せないときも使い続けるので
+// (edcb.TunerServer の timerSettings)、読めないのは、起動してから一度も EDCB に届いていないときである。
+func (s *Scheduler) epgCapture(ctx context.Context, now time.Time) *tunerserver.EPGCapture {
+	if s.opts.EPGCapture == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, epgCaptureTimeout)
+	defer cancel()
+	capture, err := s.opts.EPGCapture.EPGCapture(ctx, now)
+	if err == nil {
+		return capture
+	}
+	s.logger.WarnContext(ctx, "failed to read the EPG capture settings of the tuner server", slog.Any("error", err))
+
+	return &tunerserver.EPGCapture{
+		Known: false, Near: false, AnyBonDriver: false, BonDrivers: map[string]tunerserver.EPGCaptureBonDriver{},
+		DefaultBonDriver: tunerserver.EPGCaptureBonDriver{Disabled: false, Tuners: 0},
+	}
+}
+
 // plan は、今の設定とチューナーと予約から、タイムシフトで録るサービスの ID の集合と、設定されたチャンネルを返す。
-func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (map[int64]bool, []*Channel, error) {
+// capture は、EPG の取得のために空けておくチューナーを決める設定 (EDCB)。nil なら Mirakurun 互換のサーバーの数え方にする。
+func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time, capture *tunerserver.EPGCapture) (map[int64]bool, []*Channel, error) {
 	watched, err := syncWatched(ctx, q, now)
 	if err != nil {
 		return nil, nil, err
@@ -168,30 +197,9 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	for _, row := range multiplexRows {
 		multiplexes = append(multiplexes, &Multiplex{ChannelType: row.ChannelType, Channel: row.Channel})
 	}
-	tunerRows, err := q.ListTuners(ctx)
+	tuners, err := s.tuners(ctx, q, now)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list tuners: %w", err)
-	}
-	// チューナーサーバー自身の予約 (EDCB の予約) が、今から Lead の間に使うチューナーは使わない (#1536)。
-	occupancies, err := q.ListTunerOccupancies(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list tuner occupancies: %w", err)
-	}
-	occupied := map[int64]bool{}
-	for _, o := range occupancies {
-		if o.StartAt.Before(now.Add(s.opts.Lead)) && o.EndAt.After(now) {
-			occupied[o.TunerIndex] = true
-		}
-	}
-	tuners := make([]*assign.Tuner, 0, len(tunerRows))
-	// groups は、チューナーの BonDriver (EDCB のチューナーの名前)。EDCB の EPG の取得は、BonDriver ごとに空きチューナーが要る (#1856)。
-	groups := map[int]string{}
-	for _, row := range tunerRows {
-		if occupied[row.TunerIndex] || !row.IsAvailable || row.IsFault {
-			continue
-		}
-		tuners = append(tuners, &assign.Tuner{Index: int(row.TunerIndex), Types: row.Types, Blocks: []assign.Block{}})
-		groups[int(row.TunerIndex)] = row.Name
+		return nil, nil, err
 	}
 	busyRows, err := q.ListReservationsUsingTunersBetween(ctx, sqlc.ListReservationsUsingTunersBetweenParams{FromAt: now, ToAt: now.Add(s.opts.Lead)})
 	if err != nil {
@@ -204,8 +212,11 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	}
 
 	want := map[int64]bool{}
-	planOptions := &PlanOptions{ShareByService: s.opts.ShareByService, KeepIdleTuner: s.opts.KeepIdleTuner, TunerGroups: groups}
-	for _, serviceID := range Plan(channels, watched, multiplexes, tuners, busy, planOptions) {
+	planOptions := &PlanOptions{ShareByService: s.opts.ShareByService, IdleNeeds: nil, TunerNames: tuners.names, OtherIdleTuners: tuners.otherIdle}
+	if capture != nil {
+		planOptions.IdleNeeds = capture.Needs(tuners.allNames)
+	}
+	for _, serviceID := range Plan(channels, watched, multiplexes, tuners.usable, busy, planOptions) {
 		want[serviceID] = true
 	}
 	// 視聴しているサービスの割り振りも書く。設定されたチャンネルを視聴しているなら、割り振りを 2 度書かない。
@@ -216,6 +227,54 @@ func (s *Scheduler) plan(ctx context.Context, q *sqlc.Queries, now time.Time) (m
 	}
 
 	return want, channels, nil
+}
+
+// plannedTuners は、割り振りに使うチューナー。
+type plannedTuners struct {
+	// usable は、Kotatsu が使えて、故障しておらず、チューナーサーバー自身の予約が今から Lead の間に使わないチューナー。
+	usable []*assign.Tuner
+	// names は、usable の番号から、チューナーの名前 (EDCB では BonDriver) への対応。allNames は、すべてのチューナーの名前。
+	names    map[int]string
+	allNames []string
+	// otherIdle は、Kotatsu が使わないチューナー (EDCB では [TVTEST] に並べていない BonDriver のもの) のうち、
+	// チューナーサーバー自身の予約が今から Lead の間に使わないものの名前。EDCB の EPG の取得は、これらも使う (#1856)。
+	otherIdle []string
+}
+
+// tuners は、割り振りに使うチューナーを読む。チューナーサーバー自身の予約 (EDCB の予約) が、今から Lead の間に使うチューナーは使わない (#1536)。
+func (s *Scheduler) tuners(ctx context.Context, q *sqlc.Queries, now time.Time) (*plannedTuners, error) {
+	tunerRows, err := q.ListTuners(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tuners: %w", err)
+	}
+	occupancies, err := q.ListTunerOccupancies(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tuner occupancies: %w", err)
+	}
+	occupied := map[int64]bool{}
+	for _, o := range occupancies {
+		if o.StartAt.Before(now.Add(s.opts.Lead)) && o.EndAt.After(now) {
+			occupied[o.TunerIndex] = true
+		}
+	}
+	planned := &plannedTuners{
+		usable: make([]*assign.Tuner, 0, len(tunerRows)), names: map[int]string{}, allNames: make([]string, 0, len(tunerRows)), otherIdle: []string{},
+	}
+	for _, row := range tunerRows {
+		planned.allNames = append(planned.allNames, row.Name)
+		if occupied[row.TunerIndex] || row.IsFault {
+			continue
+		}
+		if !row.IsAvailable {
+			planned.otherIdle = append(planned.otherIdle, row.Name)
+
+			continue
+		}
+		planned.usable = append(planned.usable, &assign.Tuner{Index: int(row.TunerIndex), Types: row.Types, Blocks: []assign.Block{}})
+		planned.names[int(row.TunerIndex)] = row.Name
+	}
+
+	return planned, nil
 }
 
 // apply は、割り振りを want に合わせる。書いた数と消した数を返す。

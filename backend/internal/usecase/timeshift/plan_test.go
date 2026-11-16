@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/SlashNephy/kotatsu/internal/domain/tunerserver"
 	"github.com/SlashNephy/kotatsu/internal/usecase/assign"
 	"github.com/SlashNephy/kotatsu/internal/usecase/timeshift"
 )
@@ -34,6 +35,11 @@ func grMultiplexes(n int) []*timeshift.Multiplex {
 	}
 
 	return multiplexes
+}
+
+// idleNeed は、names のチューナーのうち、idle 本を空けておく EPGCaptureNeed を返す。
+func idleNeed(idle int, names ...string) *tunerserver.EPGCaptureNeed {
+	return &tunerserver.EPGCaptureNeed{TunerNames: names, Idle: idle}
 }
 
 // tuners は、types を受信できるチューナーを index が 0 から始まる n 本返す。
@@ -245,8 +251,8 @@ func TestPlan(t *testing.T) {
 	}
 }
 
-// TestPlanEDCB は、EDCB の数え方 (#1856) を確かめる。相乗りの単位はサービスで、番組表の取得には、種別と録られるチャンネルを問わずに、
-// BonDriver ごとに空きチューナーを 1 本残す。
+// TestPlanEDCB は、EDCB の数え方 (#1856) を確かめる。相乗りの単位はサービスで、EPG の取得のためには、種別と録られるチャンネルを問わずに、
+// 空けておくチューナー (IdleNeeds) を満たすように残す。
 func TestPlanEDCB(t *testing.T) {
 	t.Parallel()
 
@@ -259,8 +265,12 @@ func TestPlanEDCB(t *testing.T) {
 		watched  []*timeshift.Channel
 		tuners   []*assign.Tuner
 		busy     []*timeshift.Busy
-		// groups は、チューナーの BonDriver。nil なら、すべてのチューナーが同じ BonDriver。
-		groups map[int]string
+		// names は、チューナーの BonDriver。nil なら、すべてのチューナーが bon。
+		names map[int]string
+		// needs は、空けておくチューナー。nil なら、bon に 1 本 (EpgTimerSrv.ini を読めないときや、EPGCount が 1 のとき)。
+		needs []*tunerserver.EPGCaptureNeed
+		// others は、tuners のほかにある、Kotatsu が使わない空きチューナーの名前。
+		others []string
 		want   []int64
 	}{
 		{
@@ -330,7 +340,8 @@ func TestPlanEDCB(t *testing.T) {
 			name:     "BonDriver ごとに 1 本を残す",
 			channels: grChannels(3),
 			tuners:   tuners(4, "GR"),
-			groups:   map[int]string{0: "A", 1: "A", 2: "B", 3: "B"},
+			names:    map[int]string{0: "a", 1: "a", 2: "b", 3: "b"},
+			needs:    []*tunerserver.EPGCaptureNeed{idleNeed(1, "a"), idleNeed(1, "b")},
 			want:     []int64{1, 2},
 		},
 		{
@@ -338,8 +349,49 @@ func TestPlanEDCB(t *testing.T) {
 			name:     "ほかの BonDriver のチューナーが空いていても、BonDriver の最後の 1 本は使わない",
 			channels: grChannels(2),
 			tuners:   tuners(3, "GR"),
-			groups:   map[int]string{0: "A", 1: "B", 2: "B"},
+			names:    map[int]string{0: "a", 1: "b", 2: "b"},
+			needs:    []*tunerserver.EPGCaptureNeed{idleNeed(1, "a"), idleNeed(1, "b")},
 			want:     []int64{1},
+		},
+		{
+			// EPG の取得の時刻の前後でなければ、空けておかない。
+			name:     "空けておくチューナーがなければ、すべて使う",
+			channels: grChannels(2),
+			tuners:   tuners(2, "GR"),
+			needs:    []*tunerserver.EPGCaptureNeed{},
+			want:     []int64{1, 2},
+		},
+		{
+			name:     "EPGCount が 2 なら、2 本を残す",
+			channels: grChannels(3),
+			tuners:   tuners(4, "GR"),
+			needs:    []*tunerserver.EPGCaptureNeed{idleNeed(2, "bon")},
+			want:     []int64{1, 2},
+		},
+		{
+			// EPGCount が 0 で、BonDriver のすべてのチューナーで取得するときに、予約が 1 本を使えば、空けても取得されない。
+			name:     "使う前から満たせないなら、空けずに使う",
+			channels: grChannels(2),
+			tuners:   tuners(3, "GR"),
+			busy:     []*timeshift.Busy{{Tuner: 2, ServiceID: 10, ChannelType: "BS", Channel: bs01}},
+			needs:    []*tunerserver.EPGCaptureNeed{idleNeed(3, "bon")},
+			want:     []int64{1, 2},
+		},
+		{
+			name:     "BonDriver のすべてのチューナーで取得するなら、すべて空いているうちは使わない",
+			channels: grChannels(2),
+			tuners:   tuners(3, "GR"),
+			needs:    []*tunerserver.EPGCaptureNeed{idleNeed(3, "bon")},
+			want:     []int64{},
+		},
+		{
+			// NGEpgCapTime が 0 なら、取得に使う BonDriver のどれかに 1 本空いていればよい。Kotatsu が使わない BonDriver も数える。
+			name:     "Kotatsu が使わない空きチューナーで足りれば、すべて使う",
+			channels: grChannels(2),
+			tuners:   tuners(2, "GR"),
+			needs:    []*tunerserver.EPGCaptureNeed{idleNeed(1, "bon", "other")},
+			others:   []string{"other"},
+			want:     []int64{1, 2},
 		},
 		{
 			// EDCB の EPG の取得は、どの種別のチューナーでも、使っていないものが 1 本あればよい。
@@ -354,7 +406,20 @@ func TestPlanEDCB(t *testing.T) {
 			t.Parallel()
 
 			// 番組表を取るチャンネルは、EDCB の数え方では見ない。録らないチャンネルを並べても結果は変わらない。
-			opts := &timeshift.PlanOptions{ShareByService: true, KeepIdleTuner: true, TunerGroups: tt.groups}
+			names, needs, others := tt.names, tt.needs, tt.others
+			if names == nil {
+				names = map[int]string{}
+				for _, tuner := range tt.tuners {
+					names[tuner.Index] = "bon"
+				}
+			}
+			if needs == nil {
+				needs = []*tunerserver.EPGCaptureNeed{idleNeed(1, "bon")}
+			}
+			if others == nil {
+				others = []string{}
+			}
+			opts := &timeshift.PlanOptions{ShareByService: true, IdleNeeds: needs, TunerNames: names, OtherIdleTuners: others}
 			assert.Equal(t, tt.want, timeshift.Plan(tt.channels, tt.watched, grMultiplexes(8), tt.tuners, tt.busy, opts))
 		})
 	}
