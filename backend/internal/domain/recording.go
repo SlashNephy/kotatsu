@@ -84,7 +84,9 @@ type RecordingFile struct {
 	TunerName  *string
 	// TranscodeFrameRate は、Kotatsu が録画を変換した MP4 の、1 秒あたりのコマ数 (#1509)。ほかのファイルと、記録する前に変換した MP4 では nil。
 	TranscodeFrameRate *int32
-	CreatedAt          time.Time
+	// External は、Kotatsu が書いていない、プールにあった TS を取り込んだファイルかどうか (#1734)。録画を消しても残す。
+	External  bool
+	CreatedAt time.Time
 }
 
 // RecordingTag は、録画に付いたタグ。Recordings は、タグの付いた録画の数。

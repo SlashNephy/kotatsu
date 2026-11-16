@@ -330,6 +330,8 @@ export function DeviceBenchmark() {
                       interpolate: mounted.scenario.interpolate,
                       // 補間したコマは、利用者が決めた上限によらず、画面の書き換えごとに出し、書き換えの速さと比べる。
                       interpolationRate: null,
+                      // 拡大 (#1654) は、測る経路の違いに混ぜないよう、利用者の設定によらず切る。
+                      superResolution: false,
                     }}
                     onVideo={(video) => {
                       if (video !== null) {

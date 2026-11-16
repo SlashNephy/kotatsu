@@ -131,6 +131,61 @@ func (b *InsertProgramRewritesBatchResults) Close() error {
 	return b.br.Close()
 }
 
+const setProgramSeries = `-- name: SetProgramSeries :batchexec
+UPDATE programs SET series = $1::text, episode_number = $2::integer
+WHERE service_id = $3 AND event_id = $4
+`
+
+type SetProgramSeriesBatchResults struct {
+	br     pgx.BatchResults
+	tot    int
+	closed bool
+}
+
+type SetProgramSeriesParams struct {
+	Series        string
+	EpisodeNumber *int32
+	ServiceID     int64
+	EventID       int64
+}
+
+// 番組の、番組名から読んだシリーズ名と話数 (#1564) を書く。ほかの列と更新日時は変えない。
+func (q *Queries) SetProgramSeries(ctx context.Context, arg []SetProgramSeriesParams) *SetProgramSeriesBatchResults {
+	batch := &pgx.Batch{}
+	for _, a := range arg {
+		vals := []interface{}{
+			a.Series,
+			a.EpisodeNumber,
+			a.ServiceID,
+			a.EventID,
+		}
+		batch.Queue(setProgramSeries, vals...)
+	}
+	br := q.db.SendBatch(ctx, batch)
+	return &SetProgramSeriesBatchResults{br, len(arg), false}
+}
+
+func (b *SetProgramSeriesBatchResults) Exec(f func(int, error)) {
+	defer b.br.Close()
+	for t := 0; t < b.tot; t++ {
+		if b.closed {
+			if f != nil {
+				f(t, ErrBatchAlreadyClosed)
+			}
+			continue
+		}
+		_, err := b.br.Exec()
+		if f != nil {
+			f(t, err)
+		}
+	}
+}
+
+func (b *SetProgramSeriesBatchResults) Close() error {
+	b.closed = true
+	return b.br.Close()
+}
+
 const setRecordingHistorySeries = `-- name: SetRecordingHistorySeries :batchexec
 UPDATE recording_history SET series = $1 WHERE id = $2
 `
@@ -237,12 +292,12 @@ const upsertPrograms = `-- name: UpsertPrograms :batchexec
 INSERT INTO programs (
   service_id, event_id, mirakurun_id, start_at, end_at, end_undecided, is_free,
   name, description, name_normalized, description_normalized, extended_normalized, extended, genres, related_items, audios,
-  video_resolution, series_episode, series_repeat, created_at, updated_at
+  video_resolution, series_episode, series_repeat, series, episode_number, created_at, updated_at
 )
 VALUES (
   $1, $2, $3, $4, $5, $6, $7,
   $8, $9, $10, $11, $12, $13, $14, $15, $16,
-  $17, $18, $19, $20, $20
+  $17, $18, $19, $20::text, $21::integer, $22, $22
 )
 ON CONFLICT (service_id, event_id) DO UPDATE SET
   mirakurun_id = excluded.mirakurun_id,
@@ -262,6 +317,8 @@ ON CONFLICT (service_id, event_id) DO UPDATE SET
   video_resolution = excluded.video_resolution,
   series_episode = excluded.series_episode,
   series_repeat = excluded.series_repeat,
+  series = excluded.series,
+  episode_number = excluded.episode_number,
   updated_at = excluded.updated_at
 `
 
@@ -291,6 +348,8 @@ type UpsertProgramsParams struct {
 	VideoResolution       *string
 	SeriesEpisode         *int32
 	SeriesRepeat          pgtype.Bool
+	Series                string
+	EpisodeNumber         *int32
 	Now                   time.Time
 }
 
@@ -317,6 +376,8 @@ func (q *Queries) UpsertPrograms(ctx context.Context, arg []UpsertProgramsParams
 			a.VideoResolution,
 			a.SeriesEpisode,
 			a.SeriesRepeat,
+			a.Series,
+			a.EpisodeNumber,
 			a.Now,
 		}
 		batch.Queue(upsertPrograms, vals...)

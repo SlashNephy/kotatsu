@@ -33,7 +33,8 @@ type Client interface {
 	OpenEvents(ctx context.Context) (EventStream, error)
 	// OpenServiceStream は、サービスのストリームを開く。返す io.ReadCloser は、読み終えたら必ず閉じる。
 	// opts が nil なら、スクランブルを解除せず、優先度 0 で開く。
-	// チューナーを確保できなければ ErrTunerUnavailable を、サービスがなければ ErrNotFound を包んだエラーを返す。
+	// チューナーを確保できなければ ErrTunerUnavailable を、サービスがなければ ErrNotFound を、
+	// 選局かストリームの準備に失敗したことが分かれば ErrTuningFailed を包んだエラーを返す。
 	OpenServiceStream(ctx context.Context, serviceID int64, opts *StreamOptions) (io.ReadCloser, error)
 	// OpenChannelStream は、チャンネル種別 channelType のチャンネル channel のストリームを、すべてのサービスを含んだまま開く。
 	// エラーは OpenServiceStream と同じく返す。

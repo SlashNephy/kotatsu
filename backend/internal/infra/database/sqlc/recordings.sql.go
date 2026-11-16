@@ -1103,7 +1103,7 @@ func (q *Queries) ListLiveThumbnailRecordings(ctx context.Context, startedBefore
 }
 
 const listOpenRecordingFiles = `-- name: ListOpenRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, external, created_at FROM recording_files WHERE recording_id = $1 AND ended_at IS NULL ORDER BY started_at, id
 `
 
 // 録画の、書き終えていないファイル。落ちた mikan が書きかけたまま残したものを、引き継ぐ mikan が閉じる。
@@ -1130,6 +1130,7 @@ func (q *Queries) ListOpenRecordingFiles(ctx context.Context, recordingID uuid.U
 			&i.TunerIndex,
 			&i.TunerName,
 			&i.TranscodeFrameRate,
+			&i.External,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1283,7 +1284,7 @@ func (q *Queries) ListRecordingFileLocations(ctx context.Context) ([]ListRecordi
 }
 
 const listRecordingFiles = `-- name: ListRecordingFiles :many
-SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
+SELECT id, recording_id, kind, pool_id, path, size, started_at, ended_at, pid_stats, video, tuner_index, tuner_name, transcode_frame_rate, external, created_at FROM recording_files WHERE recording_id = $1 ORDER BY started_at, kind, id
 `
 
 func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID) ([]RecordingFile, error) {
@@ -1309,6 +1310,7 @@ func (q *Queries) ListRecordingFiles(ctx context.Context, recordingID uuid.UUID)
 			&i.TunerIndex,
 			&i.TunerName,
 			&i.TranscodeFrameRate,
+			&i.External,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -1496,6 +1498,59 @@ func (q *Queries) ListRecordingsWithoutNormalized(ctx context.Context, maxCount 
 	for rows.Next() {
 		var i ListRecordingsWithoutNormalizedRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.Description); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTuningOutcomes = `-- name: ListTuningOutcomes :many
+SELECT outcomes.channel_type::text AS channel_type, outcomes.channel::text AS channel,
+  outcomes.recorded_from::timestamptz AS recorded_from, outcomes.received::boolean AS received
+FROM (
+  SELECT s.channel_type, s.channel, r.recorded_from, r.state <> 'failed' AS received
+  FROM recordings r
+  JOIN services s ON s.id = r.service_id
+  WHERE r.recorded_from >= $1
+    AND (r.state IN ('completed', 'completed_with_errors', 'partial') OR (r.state = 'failed' AND r.failure_reason = 'tuning_refused'))
+  UNION ALL
+  SELECT s.channel_type, s.channel, h.start_at, true
+  FROM recording_history h
+  JOIN services s ON s.id = h.service_id
+  WHERE h.recording_id IS NULL AND NOT h.imported AND h.start_at >= $1
+) AS outcomes
+ORDER BY outcomes.recorded_from
+`
+
+type ListTuningOutcomesRow struct {
+	ChannelType  string
+	Channel      string
+	RecordedFrom time.Time
+	Received     bool
+}
+
+// 続けて選局できないチャンネルの判定 (#1519) の材料に、since より後に始めた録画のうち、受信できたもの (完了、エラーあり完了、一部のみ) と、
+// 選局を断られて失敗したもの (tuning_refused) を、始めた順で返す。ほかの理由の失敗 (チューナーの空きがないなど) は数えない。
+// 消した録画も、録画履歴 (設計書 4.4) に残っていれば、受信できたものに数える。消した録画を抜くと、その前後の失敗が続いて見えるため。
+func (q *Queries) ListTuningOutcomes(ctx context.Context, since time.Time) ([]ListTuningOutcomesRow, error) {
+	rows, err := q.db.Query(ctx, listTuningOutcomes, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTuningOutcomesRow{}
+	for rows.Next() {
+		var i ListTuningOutcomesRow
+		if err := rows.Scan(
+			&i.ChannelType,
+			&i.Channel,
+			&i.RecordedFrom,
+			&i.Received,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
